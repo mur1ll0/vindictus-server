@@ -1,0 +1,393 @@
+[
+  {
+    "database": "study_heroes",
+    "collation": "SQL_Latin1_General_CP1_CI_AS",
+    "compatibility_level": 100,
+    "tables": 134,
+    "procedures": 272,
+    "functions": 6,
+    "views": 0,
+    "triggers": 0,
+    "foreign_keys": 31,
+    "indexes": 207,
+    "user_types": 0,
+    "clr_modules": 0,
+    "modules_without_definition": 0,
+    "approximate_rows": 77225.0,
+    "column_types": [
+      {
+        "type": "bigint",
+        "count": 146
+      },
+      {
+        "type": "binary",
+        "count": 3
+      },
+      {
+        "type": "bit",
+        "count": 24
+      },
+      {
+        "type": "datetime",
+        "count": 58
+      },
+      {
+        "type": "datetime2",
+        "count": 31
+      },
+      {
+        "type": "int",
+        "count": 278
+      },
+      {
+        "type": "money",
+        "count": 1
+      },
+      {
+        "type": "nchar",
+        "count": 1
+      },
+      {
+        "type": "numeric",
+        "count": 2
+      },
+      {
+        "type": "nvarchar",
+        "count": 112
+      },
+      {
+        "type": "smallint",
+        "count": 2
+      },
+      {
+        "type": "time",
+        "count": 2
+      },
+      {
+        "type": "timestamp",
+        "count": 4
+      },
+      {
+        "type": "tinyint",
+        "count": 44
+      },
+      {
+        "type": "varbinary",
+        "count": 2
+      },
+      {
+        "type": "varchar",
+        "count": 16
+      }
+    ],
+    "candidate_account_tables": [
+      "SecedeUser_Working",
+      "UserShareItem",
+      "UserPunishWhiteList",
+      "UserCareInfo",
+      "UserCareList",
+      "UserPunish",
+      "UserProducts",
+      "UserInfo",
+      "UserCaptcha",
+      "UserBan",
+      "UserAchievement",
+      "User",
+      "GuildForGenOidUser",
+      "GuildUser",
+      "LimitedAccount"
+    ]
+  },
+  {
+    "database": "study_HeroesExcept",
+    "collation": "SQL_Latin1_General_CP1_CI_AS",
+    "compatibility_level": 100,
+    "tables": 12,
+    "procedures": 18,
+    "functions": 2,
+    "views": 0,
+    "triggers": 0,
+    "foreign_keys": 0,
+    "indexes": 22,
+    "user_types": 0,
+    "clr_modules": 0,
+    "modules_without_definition": 0,
+    "approximate_rows": 0.0,
+    "column_types": [
+      {
+        "type": "bigint",
+        "count": 16
+      },
+      {
+        "type": "binary",
+        "count": 1
+      },
+      {
+        "type": "bit",
+        "count": 2
+      },
+      {
+        "type": "datetime",
+        "count": 8
+      },
+      {
+        "type": "datetime2",
+        "count": 2
+      },
+      {
+        "type": "int",
+        "count": 31
+      },
+      {
+        "type": "nvarchar",
+        "count": 5
+      },
+      {
+        "type": "tinyint",
+        "count": 5
+      },
+      {
+        "type": "varchar",
+        "count": 6
+      },
+      {
+        "type": "xml",
+        "count": 1
+      }
+    ],
+    "candidate_account_tables": []
+  },
+  {
+    "database": "study_heroesLog",
+    "collation": "SQL_Latin1_General_CP1_CI_AS",
+    "compatibility_level": 100,
+    "tables": 141,
+    "procedures": 70,
+    "functions": 2,
+    "views": 0,
+    "triggers": 0,
+    "foreign_keys": 0,
+    "indexes": 281,
+    "user_types": 0,
+    "clr_modules": 0,
+    "modules_without_definition": 0,
+    "approximate_rows": 246098.0,
+    "column_types": [
+      {
+        "type": "bigint",
+        "count": 240
+      },
+      {
+        "type": "char",
+        "count": 3
+      },
+      {
+        "type": "datetime",
+        "count": 93
+      },
+      {
+        "type": "datetime2",
+        "count": 41
+      },
+      {
+        "type": "int",
+        "count": 205
+      },
+      {
+        "type": "nchar",
+        "count": 3
+      },
+      {
+        "type": "nvarchar",
+        "count": 169
+      },
+      {
+        "type": "smallint",
+        "count": 28
+      },
+      {
+        "type": "text",
+        "count": 3
+      },
+      {
+        "type": "timestamp",
+        "count": 102
+      },
+      {
+        "type": "tinyint",
+        "count": 7
+      },
+      {
+        "type": "varchar",
+        "count": 36
+      }
+    ],
+    "candidate_account_tables": [
+      "UserTradeBanLog",
+      "UserPunishLog02",
+      "UserPunishLog01",
+      "LoginLedger02",
+      "UserPunishLog_bak_20150416",
+      "LoginLedger01",
+      "LoginLedger",
+      "LoginJournal02",
+      "UserCountLogChanneling",
+      "LoginJournal01",
+      "UserCountLog_111124",
+      "UserCountLog",
+      "LoginJournal",
+      "UserCaptchaLog02",
+      "UserCaptchaLog01",
+      "HLT_LoginJournalID"
+    ]
+  },
+  {
+    "database": "study_heroesMarketPlace",
+    "collation": "SQL_Latin1_General_CP1_CI_AS",
+    "compatibility_level": 100,
+    "tables": 14,
+    "procedures": 26,
+    "functions": 2,
+    "views": 0,
+    "triggers": 0,
+    "foreign_keys": 0,
+    "indexes": 41,
+    "user_types": 2,
+    "clr_modules": 0,
+    "modules_without_definition": 0,
+    "approximate_rows": 0.0,
+    "column_types": [
+      {
+        "type": "bigint",
+        "count": 36
+      },
+      {
+        "type": "datetime",
+        "count": 1
+      },
+      {
+        "type": "datetime2",
+        "count": 14
+      },
+      {
+        "type": "int",
+        "count": 63
+      },
+      {
+        "type": "nvarchar",
+        "count": 23
+      },
+      {
+        "type": "tinyint",
+        "count": 7
+      },
+      {
+        "type": "varchar",
+        "count": 9
+      }
+    ],
+    "candidate_account_tables": []
+  },
+  {
+    "database": "study_heroesRank",
+    "collation": "SQL_Latin1_General_CP1_CI_AS",
+    "compatibility_level": 100,
+    "tables": 23,
+    "procedures": 24,
+    "functions": 0,
+    "views": 0,
+    "triggers": 0,
+    "foreign_keys": 0,
+    "indexes": 44,
+    "user_types": 0,
+    "clr_modules": 0,
+    "modules_without_definition": 0,
+    "approximate_rows": 291.0,
+    "column_types": [
+      {
+        "type": "bigint",
+        "count": 32
+      },
+      {
+        "type": "binary",
+        "count": 1
+      },
+      {
+        "type": "bit",
+        "count": 7
+      },
+      {
+        "type": "date",
+        "count": 4
+      },
+      {
+        "type": "datetime2",
+        "count": 3
+      },
+      {
+        "type": "int",
+        "count": 58
+      },
+      {
+        "type": "money",
+        "count": 2
+      },
+      {
+        "type": "nvarchar",
+        "count": 12
+      }
+    ],
+    "candidate_account_tables": [
+      "RankExcludeAccount"
+    ]
+  },
+  {
+    "database": "study_heroesShare",
+    "collation": "SQL_Latin1_General_CP1_CI_AS",
+    "compatibility_level": 100,
+    "tables": 4,
+    "procedures": 10,
+    "functions": 0,
+    "views": 0,
+    "triggers": 0,
+    "foreign_keys": 0,
+    "indexes": 5,
+    "user_types": 0,
+    "clr_modules": 0,
+    "modules_without_definition": 0,
+    "approximate_rows": 1.0,
+    "column_types": [
+      {
+        "type": "bigint",
+        "count": 2
+      },
+      {
+        "type": "datetime",
+        "count": 4
+      },
+      {
+        "type": "int",
+        "count": 6
+      },
+      {
+        "type": "nvarchar",
+        "count": 1
+      },
+      {
+        "type": "smallint",
+        "count": 1
+      },
+      {
+        "type": "tinyint",
+        "count": 1
+      },
+      {
+        "type": "varchar",
+        "count": 1
+      }
+    ],
+    "candidate_account_tables": [
+      "AllUserGoalEvent"
+    ]
+  }
+]

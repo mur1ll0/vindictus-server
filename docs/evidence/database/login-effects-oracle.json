@@ -1,0 +1,165 @@
+{
+  "verified_at_utc": "2026-10-11T04:52:42.1192026+00:00",
+  "source_writes": false,
+  "original_procedures_executed": false,
+  "cases": [
+    {
+      "case_id": 0,
+      "rows": null,
+      "latest_units300": null
+    },
+    {
+      "case_id": 1,
+      "rows": [
+        {
+          "connect_units300": null,
+          "cafe_units300": null
+        }
+      ],
+      "latest_units300": null
+    },
+    {
+      "case_id": 2,
+      "rows": [
+        {
+          "connect_units300": null,
+          "cafe_units300": "2"
+        }
+      ],
+      "latest_units300": null
+    },
+    {
+      "case_id": 3,
+      "rows": [
+        {
+          "connect_units300": "1",
+          "cafe_units300": null
+        }
+      ],
+      "latest_units300": "1"
+    },
+    {
+      "case_id": 4,
+      "rows": [
+        {
+          "connect_units300": "1",
+          "cafe_units300": "2"
+        }
+      ],
+      "latest_units300": "2"
+    },
+    {
+      "case_id": 5,
+      "rows": [
+        {
+          "connect_units300": "3",
+          "cafe_units300": "1"
+        }
+      ],
+      "latest_units300": "3"
+    },
+    {
+      "case_id": 6,
+      "rows": [
+        {
+          "connect_units300": null,
+          "cafe_units300": "3"
+        },
+        {
+          "connect_units300": "1",
+          "cafe_units300": "2"
+        },
+        {
+          "connect_units300": "3",
+          "cafe_units300": null
+        }
+      ],
+      "latest_units300": "3"
+    },
+    {
+      "case_id": 7,
+      "rows": [
+        {
+          "connect_units300": "-1",
+          "cafe_units300": null
+        }
+      ],
+      "latest_units300": "-1"
+    },
+    {
+      "case_id": 8,
+      "rows": [
+        {
+          "connect_units300": "2",
+          "cafe_units300": "2"
+        }
+      ],
+      "latest_units300": "2"
+    }
+  ],
+  "modules": [
+    {
+      "name": "GetLatestConnectedDate",
+      "object_id": 1979154096,
+      "definition_sha256": "75538900c9eee2b15304e0fd13266837fee7451bbd752412ad8ee8dae0105da9",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "GetDormantUserData",
+      "object_id": 1406628054,
+      "definition_sha256": "49c46899f3b752060cee08dc85328b63df29e96d4be1a568f57b8cdbd667d9d1",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "ReleaseDormant",
+      "object_id": 2146106686,
+      "definition_sha256": "effa3f8d54223b679c923fe9f05658204bfe02ab8219643962f422b1d2c3388d",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "SetDormantUser",
+      "object_id": 1906105831,
+      "definition_sha256": "6b36b67145cf159939d303bf668c107ff79b32bdc40cfc6a2e1b5c5be0c0ae18",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "DormantUserEventSelect",
+      "object_id": 1726629194,
+      "definition_sha256": "832cc261e6977fdf93fb69aaeb737647852c964b547ac3f75d197b0fd5979922",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "DormantUserEventUpdate",
+      "object_id": 1710629137,
+      "definition_sha256": "101a2fa8ccb26a524da9866345dcc65ba054a516b12e14a5225934a2da5e7c55",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "GetFriendRecommendFlag",
+      "object_id": 1374627940,
+      "definition_sha256": "2fbc057dc16212628aa8316d7030b0f20fe9f1e249460ba183f46180e2b7a127",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "SetFriendRecommendFlag",
+      "object_id": 1890105774,
+      "definition_sha256": "4227fbeab9f083653db7fea6301a73062d714a020fd86b162bad6bca06c7537f",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "ReplaceUserAchievementNIDtoUID",
+      "object_id": 126623494,
+      "definition_sha256": "e71356ea6b77f9af081d499084da6264ed7f2d55f1947caf8d58e934066b9d8e",
+      "implemented_in_postgres": false
+    },
+    {
+      "name": "SendDormantItem",
+      "object_id": 1826105546,
+      "definition_sha256": "a4acdd2fd9773b53e7d1cd6f157001c48402a45e5b45f070d82eefa12fa6cfcb",
+      "implemented_in_postgres": false
+    }
+  ],
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "query_sha256": "e87dd9aae0ffea9728643320e43c14ec51e40e5ed10538c9445cdcfd1b59ecdc",
+  "method": "SELECT synthetic datetime CASE/MAX with real SQL Server NULL semantics; catalog module hashes are reference, not implemented procedures"
+}

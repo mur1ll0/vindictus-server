@@ -1,0 +1,1431 @@
+{
+  "generated_at_utc": "2026-10-10T20:37:22.960676+00:00",
+  "definition": "Source files include third-party libraries, generated wrappers and admin tools. Counts are inventory, not percent migration.",
+  "migration_complete": false,
+  "assemblies": [
+    {
+      "assembly": "AdminClient-45b6c69e70a5",
+      "source_sha256": "45b6c69e70a55be3488c537821091bd2841a3a76392471984fd48a0fde6088fe",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/AdminClient.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 8,
+      "source_lines": 1340,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "AdminClientServiceCore-efaaffc9d51d",
+      "source_sha256": "efaaffc9d51d0dbaeaf0c8005db47bf00007a9f93b63fa8d4c4326838c7c8594",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/AdminClientServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 33,
+      "source_lines": 4297,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "AdminService-4f6849622731",
+      "source_sha256": "4f6849622731afc601f612fa42679436563b32e8d7ddeefed0dab5358b7e82f6",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/AdminService.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 8,
+      "source_lines": 857,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "AxInterop.SHDocVw-feb298f179d1",
+      "source_sha256": "feb298f179d15e6ad655cd591d0e9cb457599f37ec981981d38b165a78e75fc9",
+      "original_paths": [
+        "HeroesOpTool/AxInterop.SHDocVw.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 79,
+      "source_lines": 2201,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "CafeAuthJPNVersionService-c847ac84a9c8",
+      "source_sha256": "c847ac84a9c82f2d7899c773f4186405b02607ea9e9676c4857b3db996902239",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/CafeAuthJPNVersionService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 5,
+      "source_lines": 438,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "CafeAuthOldVersionService-6ccc71fb5bbc",
+      "source_sha256": "6ccc71fb5bbcd097b460bd6329d2c7df9143d512a0d19eac4901d9095c953c5f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/CafeAuthOldVersionService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 6,
+      "source_lines": 524,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "CafeAuthServiceCore-4d0bde5eb382",
+      "source_sha256": "4d0bde5eb382059168cac6a8896a0e27dd8b7217ebe69922ed9e4395dc21fe64",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/CafeAuthServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 8,
+      "source_lines": 1078,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "CashShopService-e73d1f7ed58c",
+      "source_sha256": "e73d1f7ed58c2d5acbee418613b1bf481be6c0163cc11d5d133c4373426fb214",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/CashShopService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 34,
+      "source_lines": 3836,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ChannelService-a24b6417dc8a",
+      "source_sha256": "a24b6417dc8a1180b9d557302937b06937861cf203d089091ea63e4d593aed50",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ChannelService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 17,
+      "source_lines": 1536,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "CodeGenerator-37c765910017",
+      "source_sha256": "37c765910017fb43fad320762b033d005d251db6bd4d534eb8635696b996bdf4",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/CodeGenerator.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 2,
+      "source_lines": 121,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Core-7ff240bdb538",
+      "source_sha256": "7ff240bdb5389a211420bf187948e82f44307a4bc554dd84ee5abd48f7a77a35",
+      "original_paths": [
+        "HeroesCommandClient/Core.dll",
+        "HeroesOpTool/Core.dll",
+        "RCClient/RCServer/Core.dll",
+        "RCServer/Core.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 178,
+      "source_lines": 25737,
+      "native_imports": [
+        "kernel32",
+        "kernel32.dll",
+        "ws2_32"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Core-8942a0c26a9a",
+      "source_sha256": "8942a0c26a9abf4c5f0d1f7ffff41452a3714d099e3b76012cebdee97293c2f0",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Core.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 178,
+      "source_lines": 25758,
+      "native_imports": [
+        "kernel32",
+        "kernel32.dll",
+        "ws2_32"
+      ],
+      "migration_status": "partial",
+      "ported_parts": [
+        "Packet framing",
+        "ISAAC generator",
+        "CryptoTransform + bounded stream receiver"
+      ],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Core-cae4df095d57",
+      "source_sha256": "cae4df095d57350cde1737fc3020e9550a0757e5beb4318f71785888d67dd707",
+      "original_paths": [
+        "RCClient/Core.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 178,
+      "source_lines": 25742,
+      "native_imports": [
+        "kernel32",
+        "kernel32.dll",
+        "ws2_32"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Core.ExceptionHandler-4cb80a523982",
+      "source_sha256": "4cb80a523982d7d7d34c7f033172175399da3bd758ff362414fa553971473c23",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x64/Core.ExceptionHandler.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 315,
+      "source_lines": 4434,
+      "native_imports": [
+        "KERNEL32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Core.ExceptionHandler-fefaa7f0a175",
+      "source_sha256": "fefaa7f0a175e75f2fe809d313790ab6544bca3c350aa0555b1b68e7174c31ad",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x86/Core.ExceptionHandler.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 315,
+      "source_lines": 4170,
+      "native_imports": [
+        "KERNEL32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "DSService-2b975264b088",
+      "source_sha256": "2b975264b088b700e3b5a87da50ebe9705ca4a9f94f49d1ea28d30e5877d1dea",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/DSService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 49,
+      "source_lines": 5212,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Executer-d23f3c8a2cc4",
+      "source_sha256": "d23f3c8a2cc4a115626a215db1cd802cc9949456abe4a9ed6b9f044d16459120",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Executer.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 6,
+      "source_lines": 402,
+      "native_imports": [
+        "kernel32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ExecutionServiceCore-126584bd853e",
+      "source_sha256": "126584bd853e93f3b397fb9929595f832436ab9e7420f3bbd9b8819abc2c26c6",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ExecutionServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 6,
+      "source_lines": 394,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ExecutionSupporter-a2f3d1b2bbe4",
+      "source_sha256": "a2f3d1b2bbe4c635882865c0b9b682bc23475dbd1831aa257f3af197deb9d417",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ExecutionSupporter.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 26,
+      "source_lines": 3021,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ExecutionSupporterClient-c4486ebec42a",
+      "source_sha256": "c4486ebec42a82203acf5ba85ab9c5ead0256728e3acb2ef70fb75ea4d645ced",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ExecutionSupporterClient.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 3,
+      "source_lines": 301,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ExecutionSupporterMessages-90141d73fa04",
+      "source_sha256": "90141d73fa043c6cb9bf26a5073ba6d590b2b11fb0c2b24a4e4b8cd02fb4364f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ExecutionSupporterMessages.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 7,
+      "source_lines": 318,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "FrontendServiceCore-6be475728091",
+      "source_sha256": "6be47572809197138400163ea6f4484f45ba7228beadd15ab256daa653534e5b",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/FrontendServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 102,
+      "source_lines": 19657,
+      "native_imports": [],
+      "migration_status": "partial",
+      "ported_parts": [
+        "initial TCP registration/feature sequence and diagnostic login refusal only; full states/services pending",
+        "restricted laboratory identity expressions (not authentication)"
+      ],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "GRCService-53a5efede178",
+      "source_sha256": "53a5efede1780666160ae11a806b063b3dd00ced67b03eefb86ea81ad34f62da",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/GRCService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 6,
+      "source_lines": 439,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "GuildService-17c4f6c1ecb3",
+      "source_sha256": "17c4f6c1ecb3abe553c58d96a2dacbab6e4f21d6ddd04add4ab3c13e49f30938",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/GuildService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 89,
+      "source_lines": 10686,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "HackShieldServiceCore-61e0c2b0a641",
+      "source_sha256": "61e0c2b0a6413504ab3bf1f51e1a72c7d6ed7e4a2300ae29561b1cacf349b3a4",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/HackShieldServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 8,
+      "source_lines": 602,
+      "native_imports": [
+        "SeServ.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Heroes.Managed-be6f097208c5",
+      "source_sha256": "be6f097208c5cd6745c48a1d50295f9d18cfa8f46c3458397fb77bea76090a43",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x64/Heroes.Managed.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 1037,
+      "source_lines": 22098,
+      "native_imports": [
+        "KERNEL32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Heroes.Managed-c79854d24803",
+      "source_sha256": "c79854d24803dcff124f8cae302305675def4254060116ea4096d06d1e50367f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x86/Heroes.Managed.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 1037,
+      "source_lines": 20103,
+      "native_imports": [
+        "KERNEL32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "HeroesChannelServer-3264f671bce0",
+      "source_sha256": "3264f671bce024526dc610de255eaecd13d799926b0a52e9a1157a921761c0f0",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/HeroesChannelServer.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 17,
+      "source_lines": 1556,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "HeroesChannelServerPerformanceTester-80a310c7198f",
+      "source_sha256": "80a310c7198ff814275d6fe87a5f6094b42c345dd4d55c44e8175debd7836161",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/HeroesChannelServerPerformanceTester.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 5,
+      "source_lines": 206,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "HeroesCommandClient-48906e127b72",
+      "source_sha256": "48906e127b72fd96cf323f86829ccbb8706d7d792a2e810ca22a81bf2947ea18",
+      "original_paths": [
+        "HeroesCommandClient/HeroesCommandClient.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 31,
+      "source_lines": 2124,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "HeroesOpTool-84d0e982b1c4",
+      "source_sha256": "84d0e982b1c4a2442894b3e215f74724ccbf381904afacf5eaf4ba0dcf84d086",
+      "original_paths": [
+        "HeroesOpTool/HeroesOpTool.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 56,
+      "source_lines": 14518,
+      "native_imports": [
+        "user32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "HeroesServerHost-ea00533a8a28",
+      "source_sha256": "ea00533a8a2854909ba484180f18bbf51d2bb2e3371c7a1d7146849c517db003",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/HeroesServerHost.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 4,
+      "source_lines": 193,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "IndependentRelayServer-868e810c1bdc",
+      "source_sha256": "868e810c1bdc0f0306d71a365e1943efd938df77725f8290a9cefa91f77c7330",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/IndependentRelayServer.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 3,
+      "source_lines": 137,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Interop.mscoree-16838155294d",
+      "source_sha256": "16838155294d6a513601a01ff4074ea7031b69971f5d93fa22aebce19ca82872",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Interop.mscoree.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 55,
+      "source_lines": 1151,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Interop.SHDocVw-e857ad77230d",
+      "source_sha256": "e857ad77230d72027b856f96d7e06a293b2d2f877a3f30d7c75f4c023bfd99a1",
+      "original_paths": [
+        "HeroesOpTool/Interop.SHDocVw.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 120,
+      "source_lines": 13110,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "log4net-27d26aab42f7",
+      "source_sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "original_paths": [
+        "HeroesCommandClient/log4net.dll",
+        "HeroesOpTool/log4net.dll",
+        "RCClient/log4net.dll",
+        "RCClient/RCServer/log4net.dll",
+        "RCServer/log4net.dll",
+        "zh-tw-x-gm/Bin/log4net.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 213,
+      "source_lines": 18645,
+      "native_imports": [
+        "Kernel32.dll",
+        "advapi32.dll",
+        "kernel32.dll",
+        "libc",
+        "netapi32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "LoginServiceCore-1600fb4b593d",
+      "source_sha256": "1600fb4b593dfcea7afb3ef76fae67a24095d3fe0407fa3eb6fa304c014c2ca9",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/LoginServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 33,
+      "source_lines": 4181,
+      "native_imports": [],
+      "migration_status": "partial",
+      "ported_parts": [
+        "new-user insert candidate and CLR defaults only; UserLogin persistence/callbacks pending"
+      ],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "MicroPlayServiceCore-867c492708da",
+      "source_sha256": "867c492708dacbef1eeb5f2bb8ce4beceff56d4c9d198f4ee200dbfe01dbac16",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/MicroPlayServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 265,
+      "source_lines": 32854,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Microsoft.Practices.EnterpriseLibrary.Common-1f62a53e09de",
+      "source_sha256": "1f62a53e09de128960a3344d9203a3bba27c8b2d4fd836df5f61544c411a16a2",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Microsoft.Practices.EnterpriseLibrary.Common.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 161,
+      "source_lines": 7654,
+      "native_imports": [
+        "userenv.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Microsoft.Practices.EnterpriseLibrary.Logging-e4a865369e70",
+      "source_sha256": "e4a865369e708bbab4ead254d33c6233095d851dc77208ea5540e0c7c23f692a",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Microsoft.Practices.EnterpriseLibrary.Logging.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 168,
+      "source_lines": 9901,
+      "native_imports": [
+        "advapi32.dll",
+        "kernel32.dll",
+        "mtxex.dll",
+        "secur32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Microsoft.Practices.ObjectBuilder-0378f63073bd",
+      "source_sha256": "0378f63073bd5ad7a8334f2d42ab73b98e98e4162654c17d192e104418a8189f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Microsoft.Practices.ObjectBuilder.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 77,
+      "source_lines": 2980,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "MMOChannelService-bd760399728c",
+      "source_sha256": "bd760399728c9565826931a170fc9988683200cd08a14796f7d9b365ee98304f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/MMOChannelService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 19,
+      "source_lines": 1385,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "MMOServer-801827edfc83",
+      "source_sha256": "801827edfc8357d46a8d481c18bc71f191b6eabb941aac432aac965f6a2be2dd",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/MMOServer.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 22,
+      "source_lines": 1605,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "MMOServerTest-c2930c5f78f4",
+      "source_sha256": "c2930c5f78f468347ec13c4891c53591a93476cbf636573b919fdbc929f156c2",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/MMOServerTest.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 9,
+      "source_lines": 453,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "NEXON-426550f553b2",
+      "source_sha256": "426550f553b2f4a7417be0d1886d1abc7547f8cb021e57419ce2869ba584292e",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/NEXON.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 116,
+      "source_lines": 6308,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.BlockParty.Playfeed.SDK-5f3a4f070582",
+      "source_sha256": "5f3a4f07058252cb9399f042c6a2bd60c3ad529f153644be5ceafdd85944207e",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.BlockParty.Playfeed.SDK.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 5,
+      "source_lines": 461,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Com-1ea6ce0ffea6",
+      "source_sha256": "1ea6ce0ffea6369f9271321b677839bd6787c9e932dfe2bc41e9561e523d2bcb",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Com.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 82,
+      "source_lines": 19387,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Com.Group.Game.Wrapper-e6241085128c",
+      "source_sha256": "e6241085128c7f0dbf2ce5875491c8d0b0e5ce11d8d3aaa6616692c833fad957",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Com.Group.Game.Wrapper.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 134,
+      "source_lines": 9994,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Com.Group.Game.Wrapper.XmlSerializers-eff747f7824e",
+      "source_sha256": "eff747f7824e3187eece7eb21d5e744dd825e7fb4460fd0114ce7ec5025975fb",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Com.Group.Game.Wrapper.XmlSerializers.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 125,
+      "source_lines": 6943,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Com.Playfeed.SDK-cd6216e9c5a4",
+      "source_sha256": "cd6216e9c5a4ca0b94d859a051f1dbaafe1425f6742c3d3ea5ecbd461ebebef6",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Com.Playfeed.SDK.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 5,
+      "source_lines": 521,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Com.Playfeed.SDK.Wrapper-c44752717f39",
+      "source_sha256": "c44752717f3954ac6e35d5151b460044e2f17e9cfcc2693e7a8d94c05fb24ea1",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Com.Playfeed.SDK.Wrapper.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 7,
+      "source_lines": 171,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Com.UserWrapper-36190b519a97",
+      "source_sha256": "36190b519a97947f3e22c4d0a10468f643ad5956481b17519d1e086cf8e2d505",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Com.UserWrapper.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 194,
+      "source_lines": 13282,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Com.UserWrapper.XmlSerializers-a8fec14d3015",
+      "source_sha256": "a8fec14d3015341dfc2862aa02ffcaa5d37d5986c2523e1756a4784971cdb76b",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Com.UserWrapper.XmlSerializers.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 185,
+      "source_lines": 9307,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Enterprise.Management-a8c66de56376",
+      "source_sha256": "a8c66de56376fe58bd9fe71638d9f568cfc896eee4329c015cb452f45d5ebbff",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Enterprise.Management.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 76,
+      "source_lines": 4626,
+      "native_imports": [
+        "User32",
+        "user32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Enterprise.Management.Listener-8031d4fbc0c0",
+      "source_sha256": "8031d4fbc0c0549e5f29af9ac3bce8f9c404e58e2023ec082dd08007a4198604",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Enterprise.Management.Listener.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 5,
+      "source_lines": 93,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Enterprise.ServiceFacade-d740b1fbea47",
+      "source_sha256": "d740b1fbea47f1b16a31f107e57ce74bbb5b37f8e5453c3c4306c5248dc8add7",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Enterprise.ServiceFacade.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 69,
+      "source_lines": 5940,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Nexon.Passport.Immigrator.SDK-6b705e39bbb9",
+      "source_sha256": "6b705e39bbb94bdc283e20ef8a0417e844ecc18ce03c4d4a281df0332f2193a6",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Nexon.Passport.Immigrator.SDK.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 24,
+      "source_lines": 1462,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "NGSecurityServiceCore-5a731f732f78",
+      "source_sha256": "5a731f732f7841f5a23c02efa6f11295dab0d5a0eaeb1e9f71b89c8693603f86",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/NGSecurityServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 12,
+      "source_lines": 789,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "NPL.SSO-e1ce178da57e",
+      "source_sha256": "e1ce178da57ed7553d5d8ac82284b00c3c02299d4eb94082d9d59f767ca90560",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/NPL.SSO.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 97,
+      "source_lines": 6175,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "NPL.SSO.XmlSerializers-8e832b742373",
+      "source_sha256": "8e832b74237338e346ce4fb3a17dfaa169d04f8ba4bf1bb7fb88d5c2662540b3",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/NPL.SSO.XmlSerializers.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 129,
+      "source_lines": 8208,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "NPlot-0837dc796251",
+      "source_sha256": "0837dc796251fbf0f89116bbf4db9e018959ff3ac1d47d67c2eb35f0a2a11938",
+      "original_paths": [
+        "HeroesOpTool/NPlot.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 56,
+      "source_lines": 16400,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "nunit.framework-d1fbb08603a3",
+      "source_sha256": "d1fbb08603a3a7eaa54a9f995effeaad9c4ca4606525fdfae76b825c6ee01fde",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/nunit.framework.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 79,
+      "source_lines": 5281,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PartyServiceCore-16faa4193b92",
+      "source_sha256": "16faa4193b924779d75c08090d970828c320d30a8378bee5cdab80d6b97d17ac",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/PartyServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 43,
+      "source_lines": 3549,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PingService-42b87fcf0839",
+      "source_sha256": "42b87fcf083958dc8c51fce5189a0bb74abb529d84d5a5b364f726417c5da1cc",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/PingService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 10,
+      "source_lines": 1278,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PlayerService-f23d8b9df77c",
+      "source_sha256": "f23d8b9df77c45dc332921cc3ccb22cdefaaa98703a863c69f6bf9f53e9c04f6",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/PlayerService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 803,
+      "source_lines": 109063,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PlayfeedService-2f167173eaeb",
+      "source_sha256": "2f167173eaebb82b9d28e6e1b7144658001649359c5290eb18dce8199b14ab51",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/PlayfeedService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 11,
+      "source_lines": 448,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PostalServiceCore-8f7603439b4c",
+      "source_sha256": "8f7603439b4c606a548c460bdedda47e0020928b6b8b28a2b3dfca34649d0643",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/PostalServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 24,
+      "source_lines": 3033,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PostSharp-9e55c1c3978c",
+      "source_sha256": "9e55c1c3978c2f56c02c04c643a029a2499ff9ba85b0306f32b403874f06051f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/PostSharp.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 425,
+      "source_lines": 15440,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ProfileService-a111f95c556f",
+      "source_sha256": "a111f95c556f35de9dd53967c9f29510e1b06e50244f0ef98534062105364494",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ProfileService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 10,
+      "source_lines": 852,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ProudNet-6170f0b1e8f5",
+      "source_sha256": "6170f0b1e8f504b97623fc90a422cff2688da80d6ae741dbad86ccc2b88e3bb6",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x64/ProudNet.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 177,
+      "source_lines": 9048,
+      "native_imports": [
+        "KERNEL32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ProudNet-f6cd106e71a8",
+      "source_sha256": "f6cd106e71a84b719d727c1818844742c81a8ceefe1f018b5965e13021384b2f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x86/ProudNet.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 177,
+      "source_lines": 8562,
+      "native_imports": [
+        "KERNEL32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PSConsole-1570b967014b",
+      "source_sha256": "1570b967014bdf82d495e23c377ca6d4f134a776070e65e8406b60588c2d3147",
+      "original_paths": [
+        "RCClient/PSConsole.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 7,
+      "source_lines": 838,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "PvpService-46bc3ddd4b5f",
+      "source_sha256": "46bc3ddd4b5fd29d4ca6227718028651b4b6818fb9661fe281c4fbefc374d8b0",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/PvpService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 70,
+      "source_lines": 10131,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RankService-13670da58e99",
+      "source_sha256": "13670da58e991de68a64beb7594a9ef8ffc715269d1f2a11edb091f9e00cbf09",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/RankService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 26,
+      "source_lines": 1902,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RCClientService - \u526f\u672c-f23d96b09b32",
+      "source_sha256": "f23d96b09b32fe2fa914822b125dbf0f17c29a47ac0291bc8db334809c713c95",
+      "original_paths": [
+        "RCClient/RCClientService - \u526f\u672c.exe",
+        "RCClient/RCClientService.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 10,
+      "source_lines": 1507,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RCCommon-27917d19ae7b",
+      "source_sha256": "27917d19ae7b707d994480a5555502a9e04ad9a958ef1c076295dcf87741fe0e",
+      "original_paths": [
+        "HeroesCommandClient/RCCommon.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 81,
+      "source_lines": 4686,
+      "native_imports": [
+        "kernel32.dll",
+        "shell32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RCCommon-89908cdff3e2",
+      "source_sha256": "89908cdff3e271d790a82a189965be66b40605280979629b14f7e475aa7b972f",
+      "original_paths": [
+        "RCClient/RCCommon.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 81,
+      "source_lines": 4714,
+      "native_imports": [
+        "kernel32.dll",
+        "shell32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RCCommon-adff9f874096",
+      "source_sha256": "adff9f87409648641308e7ddcc679da20319a17dae9bfe627485848dc07807c1",
+      "original_paths": [
+        "HeroesOpTool/RCCommon.dll",
+        "RCClient/RCServer/RCCommon.dll",
+        "RCServer/RCCommon.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 81,
+      "source_lines": 4714,
+      "native_imports": [
+        "kernel32.dll",
+        "shell32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RCServerService-68f9aeee27e9",
+      "source_sha256": "68f9aeee27e9a2577896fe00cf7b90b83667fe19fd0ffc7c8a96e2581fcaa944",
+      "original_paths": [
+        "RCClient/RCServer/RCServerService.exe",
+        "RCServer/RCServerService.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 18,
+      "source_lines": 2443,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RelayServer-e71f746b7fb0",
+      "source_sha256": "e71f746b7fb0c1fdc1ee6b7ef0a9cbfe8d1d8304b05918ecad86793d96c6c258",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/RelayServer.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 5,
+      "source_lines": 813,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "RelayService-aa1fc2b1b76d",
+      "source_sha256": "aa1fc2b1b76df3157a641238b6b9a6a1e459ce4769012ad2c755cca92f531fc5",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/RelayService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 11,
+      "source_lines": 1103,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ReportServiceClient-51f214ab9b56",
+      "source_sha256": "51f214ab9b56bc33fb2dfb74672cb79c9af0f30272374a01d77e35caea6ac341",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ReportServiceClient.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 7,
+      "source_lines": 1111,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "ServiceCore-be65d59d2385",
+      "source_sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/ServiceCore.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 1822,
+      "source_lines": 82775,
+      "native_imports": [
+        "kernel32.dll"
+      ],
+      "migration_status": "partial",
+      "ported_parts": [
+        "UserLoginMessage payload",
+        "Heroes ISAAC + CryptoTransformHeroes transport",
+        "TypeConverter plain-type codec +649 source-identified registrations (no session/authentication)",
+        "SyncFeatureMatrix + Heroes bootstrap sequence",
+        "LoginFailMessage codec"
+      ],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "System.Data.SQLite-49261be7f20c",
+      "source_sha256": "49261be7f20c9d9dfd1ff35d71e9f3b1b7de17f65581c67beed43d933f1eb85c",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x86/System.Data.SQLite.DLL"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 52,
+      "source_lines": 7986,
+      "native_imports": [
+        "System.Data.SQLite.DLL"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "System.Data.SQLite-9866dceb1818",
+      "source_sha256": "9866dceb181852eab3735afeebbac1ea7810857201319c2c5a2af4667eaa8d45",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/x64/System.Data.SQLite.DLL"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 52,
+      "source_lines": 7986,
+      "native_imports": [
+        "System.Data.SQLite.DLL"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "System.Threading-ac08eed8a62c",
+      "source_sha256": "ac08eed8a62c1f2c5bfa5b685dbfe17c628b28b66b458bf82e5e6f16f88d644f",
+      "original_paths": [
+        "HeroesOpTool/System.Threading.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 41,
+      "source_lines": 6958,
+      "native_imports": [
+        "kernel32.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "TalkService-c794b6f309c5",
+      "source_sha256": "c794b6f309c5bbf6c3646d9c5b6f27dd415607ca4fd705e2e9a3362ed47f2674",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/TalkService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 8,
+      "source_lines": 583,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "TestLauncher-6c9d12eb7786",
+      "source_sha256": "6c9d12eb7786c3dc50c2071729811d48506b10996cb0a152a2b071412377052e",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/TestLauncher.exe"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 6,
+      "source_lines": 217,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "TradeService-c0f53c285c85",
+      "source_sha256": "c0f53c285c85e847cc3976866cf0f85c052d6010415398d7504dfd49ad9f2e18",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/TradeService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 7,
+      "source_lines": 388,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "UnifiedNetwork-70191dde69d5",
+      "source_sha256": "70191dde69d59c744bbd651576f9d990e302ab5b14f04445821db40706234856",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/UnifiedNetwork.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 162,
+      "source_lines": 11096,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "UserDSHostService-899dd13c73da",
+      "source_sha256": "899dd13c73daae79b189684efaa7d4ed00e29c12e19e4bf9d45394861e43a2e4",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/UserDSHostService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 16,
+      "source_lines": 2299,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "Utility-37359981d509",
+      "source_sha256": "37359981d509dcbe2bac1028dd15b86de2f915989a6624059b910eb0849c8be6",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/Utility.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 27,
+      "source_lines": 1993,
+      "native_imports": [
+        "ProfilerOBJ.dll"
+      ],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "WcfChatRelay-08d93a2aff4f",
+      "source_sha256": "08d93a2aff4f1e26225ce246fedd47abd66f3eb9b17e21c4fed754c4b69ec23f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/WcfChatRelay.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 15,
+      "source_lines": 306,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "WcfChatRelay.Server-d987c61851b2",
+      "source_sha256": "d987c61851b262ef9ff1cfa80e2db3281f94a84aedfc36b0fa2ebc0cb8f4966f",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/WcfChatRelay.Server.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 11,
+      "source_lines": 754,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    },
+    {
+      "assembly": "XignCodeService-9a224bb68b6a",
+      "source_sha256": "9a224bb68b6a2ed08362408f35f01042a85bbfce772ddbf6f1aa5a3406ff854e",
+      "original_paths": [
+        "zh-tw-x-gm/Bin/XignCodeService.dll"
+      ],
+      "decompilation_status": "decompiled",
+      "csharp_files": 6,
+      "source_lines": 362,
+      "native_imports": [],
+      "migration_status": "pending",
+      "ported_parts": [],
+      "game_parity_verified": false
+    }
+  ],
+  "source_files": 10700,
+  "source_lines": 722241
+}

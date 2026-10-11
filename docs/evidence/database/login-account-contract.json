@@ -1,0 +1,149 @@
+{
+  "stage": "M13.2d.2a",
+  "verified_at_utc": "2026-10-11T14:10:11.9320353+00:00",
+  "source_schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "source_collation": "SQL_Latin1_General_CP1_CI_AS",
+  "source_snapshot_columns": 9,
+  "tables": [
+    {
+      "source_table": "FriendLoyaltyInfo",
+      "source_rows": 0,
+      "columns": [
+        {
+          "column_id": 1,
+          "name": "RecommenderUID",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "is_identity": false,
+          "default_object_id": 0
+        },
+        {
+          "column_id": 2,
+          "name": "RecommenderCID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": true,
+          "is_identity": false,
+          "default_object_id": 0
+        },
+        {
+          "column_id": 3,
+          "name": "FriendCID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": true,
+          "is_identity": false,
+          "default_object_id": 0
+        },
+        {
+          "column_id": 4,
+          "name": "RecommendFlag",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "is_identity": false,
+          "default_object_id": 0
+        },
+        {
+          "column_id": 5,
+          "name": "UpdateTime",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "precision": 23,
+          "scale": 3,
+          "is_nullable": false,
+          "is_identity": false,
+          "default_object_id": 71671303
+        }
+      ],
+      "keys": [
+        {
+          "name": "PK_FriendLoyaltyInfo",
+          "type": "PK"
+        }
+      ],
+      "foreign_keys": 0,
+      "source_identity": []
+    },
+    {
+      "source_table": "UserAchievement",
+      "source_rows": 0,
+      "columns": [
+        {
+          "column_id": 1,
+          "name": "ID",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "is_identity": true,
+          "default_object_id": 0
+        },
+        {
+          "column_id": 2,
+          "name": "UID",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "is_identity": false,
+          "default_object_id": 0
+        },
+        {
+          "column_id": 3,
+          "name": "name",
+          "declared_type": "nvarchar",
+          "max_length": 48,
+          "precision": 0,
+          "scale": 0,
+          "is_nullable": false,
+          "is_identity": false,
+          "default_object_id": 0
+        },
+        {
+          "column_id": 4,
+          "name": "UserAchievement",
+          "declared_type": "nvarchar",
+          "max_length": 100,
+          "precision": 0,
+          "scale": 0,
+          "is_nullable": false,
+          "is_identity": false,
+          "default_object_id": 0
+        }
+      ],
+      "keys": [
+        {
+          "name": "PK_UserAchievement",
+          "type": "PK"
+        }
+      ],
+      "foreign_keys": 0,
+      "source_identity": [
+        {
+          "name": "ID",
+          "seed_value": 1,
+          "increment_value": 1
+        }
+      ]
+    }
+  ],
+  "target_migration": "migrations/0006_login_account_effects.sql",
+  "target_migration_sha256": "e21a2949b9fc28342c2771f3669b5510b322ea4f7cbbd2786bf0881928bc5d2a",
+  "target_achievement_identity_allocator_implemented": false,
+  "target_achievement_ids": "Explicit preserved source IDs; no MAX+1 allocator",
+  "source_persistent_writes": false,
+  "original_services_executed": false,
+  "equality_scope": "Printable ASCII case-insensitive/trailing-space key; pending unsupported names reject ownership update"
+}

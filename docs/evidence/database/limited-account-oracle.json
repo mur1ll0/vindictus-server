@@ -1,0 +1,44 @@
+{
+  "source_rows": 0,
+  "cases": [
+    {
+      "label": "case",
+      "name": "LIMITEDFIXTURE",
+      "matched": true
+    },
+    {
+      "label": "different",
+      "name": "Other",
+      "matched": false
+    },
+    {
+      "label": "empty",
+      "name": "",
+      "matched": false
+    },
+    {
+      "label": "leading",
+      "name": " LimitedFixture",
+      "matched": false
+    },
+    {
+      "label": "same",
+      "name": "LimitedFixture",
+      "matched": true
+    },
+    {
+      "label": "space",
+      "name": "LimitedFixture ",
+      "matched": true
+    },
+    {
+      "label": "spaces",
+      "name": "   ",
+      "matched": false
+    }
+  ],
+  "source_keys": 0,
+  "source_writes": false,
+  "verified_at_utc": "2026-10-11T04:21:43.7098752+00:00",
+  "query_sha256": "fae29a5a2bf7511e2e1601f16a6e3ff8ad59b3fac013e2a74baad51f5189ac57"
+}

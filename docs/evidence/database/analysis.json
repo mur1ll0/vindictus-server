@@ -1,0 +1,86 @@
+[
+  {
+    "database": "study_heroes",
+    "construct_module_counts": [
+      {
+        "token": "NOLOCK",
+        "modules": 117
+      },
+      {
+        "token": "MERGE",
+        "modules": 34
+      },
+      {
+        "token": "SCOPE_IDENTITY",
+        "modules": 0
+      },
+      {
+        "token": "@@ROWCOUNT",
+        "modules": 37
+      },
+      {
+        "token": "GETDATE",
+        "modules": 10
+      },
+      {
+        "token": "GETUTCDATE",
+        "modules": 43
+      },
+      {
+        "token": "NEWID",
+        "modules": 1
+      },
+      {
+        "token": "TRANSACTION",
+        "modules": 10
+      },
+      {
+        "token": "UPDLOCK",
+        "modules": 0
+      },
+      {
+        "token": "IDENTITY_INSERT",
+        "modules": 0
+      }
+    ],
+    "cross_database_dependencies": [
+      {
+        "referencing_id": 395148453,
+        "referenced_database_name": "HeroesTemp",
+        "referenced_schema_name": "dbo",
+        "referenced_entity_name": "_uid_working"
+      },
+      {
+        "referencing_id": 395148453,
+        "referenced_database_name": "HeroesTemp",
+        "referenced_schema_name": "dbo",
+        "referenced_entity_name": "_uid_working_withip"
+      }
+    ],
+    "rowversion_columns": [
+      {
+        "table": "GuildInfo",
+        "column": "LastUpdate",
+        "byte_length": 8
+      },
+      {
+        "table": "UserBan",
+        "column": "LastUpdate",
+        "byte_length": 8
+      },
+      {
+        "table": "User",
+        "column": "LastUpdate",
+        "byte_length": 8
+      },
+      {
+        "table": "CharacterInfo",
+        "column": "LastUpdate",
+        "byte_length": 8
+      }
+    ],
+    "primary_key_count": 117,
+    "foreign_key_count": 31,
+    "modules_without_definition": 0
+  }
+]

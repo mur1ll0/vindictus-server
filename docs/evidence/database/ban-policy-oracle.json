@@ -1,0 +1,832 @@
+{
+  "now_units300": "1175459040000",
+  "source_ban_rows": 0,
+  "restored_sql_offset_minutes": 0,
+  "clock_cases": [
+    {
+      "utc_ticks": "552877920000000000",
+      "local_ticks": "552878208000000000",
+      "sql_units300": "-1391636160000"
+    },
+    {
+      "utc_ticks": "599265791999983333",
+      "local_ticks": "599266079999983333",
+      "sql_units300": "-1"
+    },
+    {
+      "utc_ticks": "599265791999983334",
+      "local_ticks": "599266079999983334",
+      "sql_units300": "-1"
+    },
+    {
+      "utc_ticks": "599265791999999999",
+      "local_ticks": "599266079999999999",
+      "sql_units300": "0"
+    },
+    {
+      "utc_ticks": "599266080000000000",
+      "local_ticks": "599266368000000000",
+      "sql_units300": "8640000"
+    },
+    {
+      "utc_ticks": "621355968000000000",
+      "local_ticks": "621356256000000000",
+      "sql_units300": "662705280000"
+    },
+    {
+      "utc_ticks": "638447760000016666",
+      "local_ticks": "638448048000016666",
+      "sql_units300": "1175459040001"
+    },
+    {
+      "utc_ticks": "638447760000016667",
+      "local_ticks": "638448048000016667",
+      "sql_units300": "1175459040001"
+    },
+    {
+      "utc_ticks": "638447760001234567",
+      "local_ticks": "638448048001234567",
+      "sql_units300": "1175459040037"
+    },
+    {
+      "utc_ticks": "3155377248000000000",
+      "local_ticks": "3155377536000000000",
+      "sql_units300": "76683343680000"
+    }
+  ],
+  "cases": [
+    {
+      "name": "BANFIXTURE",
+      "status": -2147483648,
+      "expiry_label": "after",
+      "name_label": "case",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": -2147483648,
+      "expiry_label": "after",
+      "name_label": "different",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -2147483648,
+      "expiry_label": "after",
+      "name_label": "same",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": -2147483648,
+      "expiry_label": "after",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": -2147483648,
+      "expiry_label": "before",
+      "name_label": "case",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": -2147483648,
+      "expiry_label": "before",
+      "name_label": "different",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -2147483648,
+      "expiry_label": "before",
+      "name_label": "same",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": -2147483648,
+      "expiry_label": "before",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": -2147483648,
+      "expiry_label": "equal",
+      "name_label": "case",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": -2147483648,
+      "expiry_label": "equal",
+      "name_label": "different",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -2147483648,
+      "expiry_label": "equal",
+      "name_label": "same",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": -2147483648,
+      "expiry_label": "equal",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": -2147483648,
+      "expiry_label": "NULL",
+      "name_label": "case",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": -2147483648,
+      "expiry_label": "NULL",
+      "name_label": "different",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -2147483648,
+      "expiry_label": "NULL",
+      "name_label": "same",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": -2147483648,
+      "expiry_label": "NULL",
+      "name_label": "trailing-space",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": -1,
+      "expiry_label": "after",
+      "name_label": "case",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": -1,
+      "expiry_label": "after",
+      "name_label": "different",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -1,
+      "expiry_label": "after",
+      "name_label": "same",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": -1,
+      "expiry_label": "after",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": -1,
+      "expiry_label": "before",
+      "name_label": "case",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": -1,
+      "expiry_label": "before",
+      "name_label": "different",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -1,
+      "expiry_label": "before",
+      "name_label": "same",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": -1,
+      "expiry_label": "before",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": -1,
+      "expiry_label": "equal",
+      "name_label": "case",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": -1,
+      "expiry_label": "equal",
+      "name_label": "different",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -1,
+      "expiry_label": "equal",
+      "name_label": "same",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": -1,
+      "expiry_label": "equal",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": -1,
+      "expiry_label": "NULL",
+      "name_label": "case",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": -1,
+      "expiry_label": "NULL",
+      "name_label": "different",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": -1,
+      "expiry_label": "NULL",
+      "name_label": "same",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": -1,
+      "expiry_label": "NULL",
+      "name_label": "trailing-space",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 0,
+      "expiry_label": "after",
+      "name_label": "case",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 0,
+      "expiry_label": "after",
+      "name_label": "different",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 0,
+      "expiry_label": "after",
+      "name_label": "same",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 0,
+      "expiry_label": "after",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 0,
+      "expiry_label": "before",
+      "name_label": "case",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 0,
+      "expiry_label": "before",
+      "name_label": "different",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 0,
+      "expiry_label": "before",
+      "name_label": "same",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 0,
+      "expiry_label": "before",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 0,
+      "expiry_label": "equal",
+      "name_label": "case",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 0,
+      "expiry_label": "equal",
+      "name_label": "different",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 0,
+      "expiry_label": "equal",
+      "name_label": "same",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 0,
+      "expiry_label": "equal",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 0,
+      "expiry_label": "NULL",
+      "name_label": "case",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 0,
+      "expiry_label": "NULL",
+      "name_label": "different",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 0,
+      "expiry_label": "NULL",
+      "name_label": "same",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 0,
+      "expiry_label": "NULL",
+      "name_label": "trailing-space",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 1,
+      "expiry_label": "after",
+      "name_label": "case",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": 1,
+      "expiry_label": "after",
+      "name_label": "different",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 1,
+      "expiry_label": "after",
+      "name_label": "same",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": 1,
+      "expiry_label": "after",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 1,
+      "expiry_label": "before",
+      "name_label": "case",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 1,
+      "expiry_label": "before",
+      "name_label": "different",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 1,
+      "expiry_label": "before",
+      "name_label": "same",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 1,
+      "expiry_label": "before",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 1,
+      "expiry_label": "equal",
+      "name_label": "case",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 1,
+      "expiry_label": "equal",
+      "name_label": "different",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 1,
+      "expiry_label": "equal",
+      "name_label": "same",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 1,
+      "expiry_label": "equal",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 1,
+      "expiry_label": "NULL",
+      "name_label": "case",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": 1,
+      "expiry_label": "NULL",
+      "name_label": "different",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 1,
+      "expiry_label": "NULL",
+      "name_label": "same",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": 1,
+      "expiry_label": "NULL",
+      "name_label": "trailing-space",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2,
+      "expiry_label": "after",
+      "name_label": "case",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": 2,
+      "expiry_label": "after",
+      "name_label": "different",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2,
+      "expiry_label": "after",
+      "name_label": "same",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2,
+      "expiry_label": "after",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2,
+      "expiry_label": "before",
+      "name_label": "case",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 2,
+      "expiry_label": "before",
+      "name_label": "different",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2,
+      "expiry_label": "before",
+      "name_label": "same",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2,
+      "expiry_label": "before",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2,
+      "expiry_label": "equal",
+      "name_label": "case",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 2,
+      "expiry_label": "equal",
+      "name_label": "different",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2,
+      "expiry_label": "equal",
+      "name_label": "same",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2,
+      "expiry_label": "equal",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2,
+      "expiry_label": "NULL",
+      "name_label": "case",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": 2,
+      "expiry_label": "NULL",
+      "name_label": "different",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2,
+      "expiry_label": "NULL",
+      "name_label": "same",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2,
+      "expiry_label": "NULL",
+      "name_label": "trailing-space",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2147483647,
+      "expiry_label": "after",
+      "name_label": "case",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": 2147483647,
+      "expiry_label": "after",
+      "name_label": "different",
+      "expiry_units300": "1175459040001",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2147483647,
+      "expiry_label": "after",
+      "name_label": "same",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2147483647,
+      "expiry_label": "after",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040001",
+      "selected": true
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2147483647,
+      "expiry_label": "before",
+      "name_label": "case",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 2147483647,
+      "expiry_label": "before",
+      "name_label": "different",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2147483647,
+      "expiry_label": "before",
+      "name_label": "same",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2147483647,
+      "expiry_label": "before",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459039999",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2147483647,
+      "expiry_label": "equal",
+      "name_label": "case",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "Other",
+      "status": 2147483647,
+      "expiry_label": "equal",
+      "name_label": "different",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2147483647,
+      "expiry_label": "equal",
+      "name_label": "same",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2147483647,
+      "expiry_label": "equal",
+      "name_label": "trailing-space",
+      "expiry_units300": "1175459040000",
+      "selected": false
+    },
+    {
+      "name": "BANFIXTURE",
+      "status": 2147483647,
+      "expiry_label": "NULL",
+      "name_label": "case",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "Other",
+      "status": 2147483647,
+      "expiry_label": "NULL",
+      "name_label": "different",
+      "expiry_units300": null,
+      "selected": false
+    },
+    {
+      "name": "BanFixture",
+      "status": 2147483647,
+      "expiry_label": "NULL",
+      "name_label": "same",
+      "expiry_units300": null,
+      "selected": true
+    },
+    {
+      "name": "BanFixture ",
+      "status": 2147483647,
+      "expiry_label": "NULL",
+      "name_label": "trailing-space",
+      "expiry_units300": null,
+      "selected": true
+    }
+  ],
+  "procedure_sha256": "66d61af323431f225725a2d16f9cb5a9d87eaaaad12708624bf1693072685f20",
+  "query_sha256": "8df0c6fe4b32fe3c2396d66b8b229b6abed5fc9ce5b75de1b9b4e5c5a44320f4",
+  "original_runtime_timezone_observed": false,
+  "verified_at_utc": "2026-10-11T02:49:39.0840081+00:00",
+  "method": "Recovered WHERE predicate over synthetic SELECT values; GETDATE replaced by fixed local datetime; source UserBan count only; no source writes"
+}

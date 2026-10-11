@@ -1,0 +1,180 @@
+{
+  "observed_collation": "SQL_Latin1_General_CP1_CI_AS",
+  "cases": [
+    {
+      "case_id": 0,
+      "left_value": "Estudo",
+      "right_value": "estudo",
+      "equal": true,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": true
+    },
+    {
+      "case_id": 1,
+      "left_value": "Estudo",
+      "right_value": "Estudo ",
+      "equal": true,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": true
+    },
+    {
+      "case_id": 2,
+      "left_value": "Estudo",
+      "right_value": "Estudo  ",
+      "equal": true,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": true
+    },
+    {
+      "case_id": 3,
+      "left_value": "",
+      "right_value": " ",
+      "equal": true,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": true
+    },
+    {
+      "case_id": 4,
+      "left_value": "A ",
+      "right_value": "a",
+      "equal": true,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": true
+    },
+    {
+      "case_id": 5,
+      "left_value": "I",
+      "right_value": "i",
+      "equal": true,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": true
+    },
+    {
+      "case_id": 6,
+      "left_value": "a-b",
+      "right_value": "ab",
+      "equal": false,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": false
+    },
+    {
+      "case_id": 7,
+      "left_value": "a'b",
+      "right_value": "ab",
+      "equal": false,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": false
+    },
+    {
+      "case_id": 8,
+      "left_value": " a",
+      "right_value": "a",
+      "equal": false,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": false
+    },
+    {
+      "case_id": 9,
+      "left_value": "a b",
+      "right_value": "ab",
+      "equal": false,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": false
+    },
+    {
+      "case_id": 10,
+      "left_value": "a\t",
+      "right_value": "a",
+      "equal": false,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 11,
+      "left_value": "a\tb",
+      "right_value": "ab",
+      "equal": false,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 12,
+      "left_value": "É",
+      "right_value": "é",
+      "equal": true,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 13,
+      "left_value": "é",
+      "right_value": "e",
+      "equal": false,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 14,
+      "left_value": "ß",
+      "right_value": "ss",
+      "equal": true,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 15,
+      "left_value": "I",
+      "right_value": "ı",
+      "equal": false,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 16,
+      "left_value": "İ",
+      "right_value": "i",
+      "equal": false,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 17,
+      "left_value": "Ａ",
+      "right_value": "a",
+      "equal": true,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 18,
+      "left_value": "Ａ",
+      "right_value": "A",
+      "equal": true,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 19,
+      "left_value": "é",
+      "right_value": "é",
+      "equal": true,
+      "printable_ascii_contract": false,
+      "ascii_key_equality": null
+    },
+    {
+      "case_id": 20,
+      "left_value": "Z9_",
+      "right_value": "z9_",
+      "equal": true,
+      "printable_ascii_contract": true,
+      "ascii_key_equality": true
+    }
+  ],
+  "reference_user_count": 29,
+  "reference_non_printable_ascii_name_count": 0,
+  "method": "SELECT-only synthetic SQL Server CI_AS comparison + aggregate counts; no account values exported or SQL writes",
+  "verified_at_utc": "2026-10-10T20:40:18.0913115+00:00",
+  "ascii_key_mismatches": 0,
+  "query_sha256": "67707eb65ad7164befd083d91e62cde41fcb37b51d22a776761e735e04552503",
+  "source_schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206"
+}

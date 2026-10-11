@@ -1,0 +1,56 @@
+[
+  {
+    "database": "study_heroes",
+    "backup": "heroes.bak",
+    "backup_sha256": "85b99802c67a7470f5033ee632fbb2d0af7aa5c54d0b68b50df1bc0d85879902",
+    "backup_bytes": 21626368,
+    "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+    "checkdb": "passed",
+    "checked_at_utc": "2026-10-10T20:06:05.9348557+00:00"
+  },
+  {
+    "database": "study_HeroesExcept",
+    "backup": "HeroesExcept.bak",
+    "backup_sha256": "5fc265eca609e70ce6dae75a09a63e64e490ba00bdc1b517b4e80eeb7158f694",
+    "backup_bytes": 1933824,
+    "schema_sha256": "e8b87f0751279e86ccd08bda485757087eec736422ca2093713f148b029812a2",
+    "checkdb": "passed",
+    "checked_at_utc": "2026-10-10T20:06:21.4295398+00:00"
+  },
+  {
+    "database": "study_heroesLog",
+    "backup": "heroesLog.bak",
+    "backup_sha256": "57c80adc2b4ec13233da30179b4d435554ada52af00168e39d938f3738f4ccdf",
+    "backup_bytes": 45851136,
+    "schema_sha256": "eb2cfe4ef30ef1fc482a3287ed55300e8e99ebf71469eb8bfd536b900072ede5",
+    "checkdb": "passed",
+    "checked_at_utc": "2026-10-10T20:06:56.7028805+00:00"
+  },
+  {
+    "database": "study_heroesMarketPlace",
+    "backup": "heroesMarketPlace.bak",
+    "backup_sha256": "bdbafb0f1b277bee9446dec303ee28567cad75aff1c844743942c1a6dac5a3f0",
+    "backup_bytes": 2599424,
+    "schema_sha256": "b23ef398d963b2156731b7e50dfb5c4cb0d9a7b6c6fa0fe27441c1f9d2604f48",
+    "checkdb": "passed",
+    "checked_at_utc": "2026-10-10T20:07:13.0859537+00:00"
+  },
+  {
+    "database": "study_heroesRank",
+    "backup": "heroesRank.bak",
+    "backup_sha256": "5de79292313221b1c766e999980eded406c237f46ba0d53470736ee1457a48a7",
+    "backup_bytes": 2806272,
+    "schema_sha256": "744945affef3ae75299a039e5408050e271c38d9fdd7e4864451d4a8a5f1b9c9",
+    "checkdb": "passed",
+    "checked_at_utc": "2026-10-10T20:07:22.5051411+00:00"
+  },
+  {
+    "database": "study_heroesShare",
+    "backup": "heroesShare.bak",
+    "backup_sha256": "29f67f6b4a1d6134807eed6562e08b4812bf8081a0bf95d5180a438c2932a780",
+    "backup_bytes": 2037248,
+    "schema_sha256": "529f623e6dda3de77d001c1b1cfc8430ac5b4724bd4ac5a400e21a904ca6e6e3",
+    "checkdb": "passed",
+    "checked_at_utc": "2026-10-10T20:07:28.5857668+00:00"
+  }
+]

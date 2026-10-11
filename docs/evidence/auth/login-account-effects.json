@@ -1,0 +1,124 @@
+{
+  "stage": "M13.2d.2a",
+  "parent_stage_complete": false,
+  "verified_at_utc": "2026-10-11T14:10:11.9320353+00:00",
+  "scope": "Full loyalty and achievement snapshots and SQL primitives; restricted existing-user account effect executor",
+  "source_snapshot_columns": 9,
+  "source_loyalty_rows": 0,
+  "source_achievement_rows": 0,
+  "source_persistent_writes": false,
+  "sql_cases": 10,
+  "recovered_sql_modules": [
+    {
+      "name": "SetFriendRecommendFlag",
+      "definition_sha256": "4227fbeab9f083653db7fea6301a73062d714a020fd86b162bad6bca06c7537f"
+    },
+    {
+      "name": "ReplaceUserAchievementNIDtoUID",
+      "definition_sha256": "e71356ea6b77f9af081d499084da6264ed7f2d55f1947caf8d58e934066b9d8e"
+    },
+    {
+      "name": "ReleaseDormant",
+      "definition_sha256": "effa3f8d54223b679c923fe9f05658204bfe02ab8219643962f422b1d2c3388d"
+    },
+    {
+      "name": "DormantUserEventUpdate",
+      "definition_sha256": "101a2fa8ccb26a524da9866345dcc65ba054a516b12e14a5225934a2da5e7c55"
+    }
+  ],
+  "temporary_table_writes": true,
+  "temporary_procedures_created": true,
+  "original_services_executed": false,
+  "implemented_primitives": [
+    "SetFriendRecommendFlag",
+    "ReplaceUserAchievementNIDtoUID",
+    "ReleaseDormant",
+    "DormantUserEventUpdate"
+  ],
+  "executor_allowed_actions": [
+    "SetFriendFlag",
+    "ReleaseDormant",
+    "UpdateDormantEvent(None)",
+    "ReadDormantEvent"
+  ],
+  "unsupported_actions_rejected_before_sql": [
+    "InsertUser",
+    "ReplaceAchievementOwner",
+    "SetDormant",
+    "SendDormantRewards",
+    "UpdateDormantEvent(Some)"
+  ],
+  "atomic_batch": true,
+  "revision_optimistic": true,
+  "idempotent_receipt_uuid": true,
+  "replay_argument_conflict_rejected": true,
+  "source_rowversion_preserved": true,
+  "loyalty_update_time_preserved_on_update": true,
+  "achievement_source_ids_and_utf16_preserved": true,
+  "final_receipt_failure_rolls_back_whole_batch": true,
+  "concurrent_requests": 16,
+  "concurrent_winners": 1,
+  "stale_revisions_rejected": 15,
+  "concurrent_same_receipt_requests": 16,
+  "concurrent_same_receipt_executions": 1,
+  "concurrent_same_receipt_replays": 15,
+  "cancelled_blocked_pool_acquisition_has_no_side_effects": true,
+  "lock_timeout_seconds": 2,
+  "statement_timeout_seconds": 5,
+  "batch_timeout_seconds": 15,
+  "replay_after_uncertain_commit": "Retry same UUID and original parameters; result may contain historical revision",
+  "external_dependency_writes_revision_coordinated_automatically": false,
+  "new_postgres_tests": 4,
+  "gate_at_utc": "2026-10-11T05:13:21.0649037+00:00",
+  "gate_sha256": "ceb79d6a014823287b45d63da39a592e7445cfdf0c5ebe7d4cef5bd137c65f8f",
+  "rust_tests": 116,
+  "postgres_integration_executed": 20,
+  "python_tests": 7,
+  "warnings": 0,
+  "failures": 0,
+  "docker_build_exit_code": 0,
+  "docker_build_log_sha256": "86b44bcd31ed6afed51f1af11b32a5df05bcf8b77db9b0905d77489ea0ad3762",
+  "docker_smoke_at_utc": "2026-10-11T14:08:53.1665070+00:00",
+  "docker_smoke_sha256": "996658a2269a02a93e8ea5be555cbd38512a7310a9f02ab030e9abb499836b1c",
+  "docker_snapshot_restart_preserved": true,
+  "docker_effects_smoke_method": "SQL synthetic full loyalty5/achievement4/receipt; Rust atomicity, replay and cancellation tested in isolated schemas",
+  "real_user_snapshots_after_restart": 29,
+  "real_user_source_columns": 15,
+  "real_user_verified_at_utc": "2026-10-11T14:08:53.6638745+00:00",
+  "source_hash_mismatches": 0,
+  "effect_plan_wired_to_lab_login": false,
+  "rewards_enqueued_or_delivered": false,
+  "game_authentication_available": false,
+  "game_compatibility_verified": false,
+  "intermediate_verification_issues": [
+    "SQL RETURN required temporary procedures instead of sp_executesql batch",
+    "Byte bound fixture required u8 vectors",
+    "Clippy useless_vec corrected; full final gate rerun"
+  ],
+  "pending": [
+    "CharacterInfo 37 columns/49 rows",
+    "LastConnectInfo 8 columns/49 rows",
+    "QueuedItem 18 columns/140 rows",
+    "Reward qualification and queue concurrency/replay",
+    "Achievement identity allocator and new-user ordered execution",
+    "FacebookToken conversion and complete UserLogin",
+    "Session integration preserving original pre-ban effect order",
+    "Native TCP/client compatibility and distributed ownership"
+  ],
+  "artifact_sha256": {
+    "migrations/0006_login_account_effects.sql": "e21a2949b9fc28342c2771f3669b5510b322ea4f7cbbd2786bf0881928bc5d2a",
+    "src/domain/login_account_data.rs": "4b02c0abc998eafc469919ff9a90f19283596ec542ad306f5b54f0201e421f9c",
+    "src/domain/mod.rs": "db069fd99b5ea89e3afc1b7821c43370478c8f766374c798a971dda463705bd7",
+    "src/infrastructure/login_account_effects.rs": "5b96a3b8df76cbefd9e8a6028c1a74395852878f993312250802aa8b49f0d5e3",
+    "src/infrastructure/mod.rs": "18e9fe6526a8c155a634061cbbe05a5ec656a9890b96ccf883a77a3d76661598",
+    "src/infrastructure/postgres.rs": "8909776573fabc857f814eb8fa7116bc86873fec00b5957fcf1025915ac0de5f",
+    "src/error.rs": "ec57c16fb69dbdc1558f5eec0fedab68aaf1e44a1d03183d2cb5c13a5f99300f",
+    "tests/postgres.rs": "b1b373a17db24d91fcc40dc10c78a3b9c3cc611467ae988b64a29f0ed3e14eeb",
+    "tests/support/login_account_effects.rs": "ed9edacbefda2945b9cb6de7c6a4910d0f63f11099b7b8a33ea6147565f0d8a2",
+    "scripts/database/Compare-LoginAccountEffects.ps1": "ab6e29b06697d2fe444c82b0c8a5aa5750831c375fda272be6b0c7eb907ce765",
+    "scripts/dev/smoke-docker.ps1": "d05dce1fbdf52966b31a0ca5d58a01db4f25c3bd0332cf5e2c43fc144771931a",
+    "docs/login-account-effects.md": "d7f5aa4de8749e7a4bfefb98846f9a8ad46dc481d67ef8dc8a5245d1f09337e4",
+    "docs/evidence/database/login-account-contract.json": "b8561b2b1e9cdebd6cf1fd42a260477884b19683a04e6e8062b00129f1c018cb",
+    "docs/evidence/database/login-account-oracle.json": "55e4503668c4f39d26636035f1b54d8281d6257f1e8c3597acb5c933c313053d"
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "datetime_cases": [
+    {
+      "input": "1753-01-01T00:00:00.000",
+      "canonical": "1753-01-01T00:00:00",
+      "binary_hex": "FFFF2E4600000000",
+      "days": -53690,
+      "time300": 0,
+      "units300": -1391644800000,
+      "binary_roundtrip_equal": true
+    },
+    {
+      "input": "1899-12-31T23:59:59.997",
+      "canonical": "1899-12-31T23:59:59.997",
+      "binary_hex": "FFFFFFFF018B81FF",
+      "days": -1,
+      "time300": 25919999,
+      "units300": -1,
+      "binary_roundtrip_equal": true
+    },
+    {
+      "input": "1900-01-01T00:00:00.000",
+      "canonical": "1900-01-01T00:00:00",
+      "binary_hex": "0000000000000000",
+      "days": 0,
+      "time300": 0,
+      "units300": 0,
+      "binary_roundtrip_equal": true
+    },
+    {
+      "input": "2024-02-29T12:34:56.001",
+      "canonical": "2024-02-29T12:34:56",
+      "binary_hex": "0000B12500CF5940",
+      "days": 45349,
+      "time300": 13588800,
+      "units300": 1175459668800,
+      "binary_roundtrip_equal": true
+    },
+    {
+      "input": "2024-02-29T12:34:56.002",
+      "canonical": "2024-02-29T12:34:56.003",
+      "binary_hex": "0000B12500CF5941",
+      "days": 45349,
+      "time300": 13588801,
+      "units300": 1175459668801,
+      "binary_roundtrip_equal": true
+    },
+    {
+      "input": "2024-02-29T12:34:56.005",
+      "canonical": "2024-02-29T12:34:56.007",
+      "binary_hex": "0000B12500CF5942",
+      "days": 45349,
+      "time300": 13588802,
+      "units300": 1175459668802,
+      "binary_roundtrip_equal": true
+    },
+    {
+      "input": "2024-02-29T23:59:59.999",
+      "canonical": "2024-03-01T00:00:00",
+      "binary_hex": "0000B12600000000",
+      "days": 45350,
+      "time300": 0,
+      "units300": 1175472000000,
+      "binary_roundtrip_equal": true
+    },
+    {
+      "input": "9999-12-31T23:59:59.997",
+      "canonical": "9999-12-31T23:59:59.997",
+      "binary_hex": "002D247F018B81FF",
+      "days": 2958463,
+      "time300": 25919999,
+      "units300": 76683386879999,
+      "binary_roundtrip_equal": true
+    }
+  ],
+  "datetime2_cases": [
+    {
+      "input": "0001-01-01T00:00:00.0000000",
+      "canonical": "0001-01-01T00:00:00",
+      "ticks": 0
+    },
+    {
+      "input": "0001-01-01T00:00:00.0000001",
+      "canonical": "0001-01-01T00:00:00.0000001",
+      "ticks": 1
+    },
+    {
+      "input": "1900-01-01T00:00:00.0000000",
+      "canonical": "1900-01-01T00:00:00",
+      "ticks": 599266080000000000
+    },
+    {
+      "input": "2024-02-29T12:34:56.1234567",
+      "canonical": "2024-02-29T12:34:56.1234567",
+      "ticks": 638448068961234567
+    },
+    {
+      "input": "2024-02-29T12:34:56.1234568",
+      "canonical": "2024-02-29T12:34:56.1234568",
+      "ticks": 638448068961234568
+    },
+    {
+      "input": "9999-12\n-31T23:59:59.9999999",
+      "canonical": "9999-12-31T23:59:59.9999999",
+      "ticks": 3155378975999999999
+    }
+  ],
+  "nvarchar_cases": [
+    {
+      "label": "empty",
+      "binary_hex": "",
+      "byte_length": 0
+    },
+    {
+      "label": "nul",
+      "binary_hex": "0000",
+      "byte_length": 2
+    },
+    {
+      "label": "supplementary",
+      "binary_hex": "3DD800DE",
+      "byte_length": 4
+    },
+    {
+      "label": "unpaired-surrogate",
+      "binary_hex": "00D8",
+      "byte_length": 2
+    },
+    {
+      "label": "accent",
+      "binary_hex": "E900",
+      "byte_length": 2
+    }
+  ],
+  "varchar_cases": [
+    {
+      "label": "empty",
+      "binary_hex": "",
+      "byte_length": 0
+    },
+    {
+      "label": "high-byte",
+      "binary_hex": "80FF",
+      "byte_length": 2
+    },
+    {
+      "label": "nul",
+      "binary_hex": "00",
+      "byte_length": 1
+    }
+  ],
+  "method": "SELECT-only synthetic SQL values; no source user values exported and no database writes",
+  "verified_at_utc": "2026-10-10T21:27:34.9278516+00:00",
+  "query_sha256": "e8456c36b45903a7be3919cf4e36b0771e46eff3baf1a3c1aaaf65e6e1ca735e",
+  "source_schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206"
+}

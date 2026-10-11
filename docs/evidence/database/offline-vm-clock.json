@@ -1,0 +1,43 @@
+{
+  "inspected_at_utc": "2026-10-11T02:51:09.723624+00:00",
+  "method": "Read-only python-registry parser of private VMDK SYSTEM copy; only Select/time zone and presence of SQL service; VM never started",
+  "source_disk": "Vindictus1.69EN/VinServer/VinServer 2008 x64.vmdk",
+  "source_archive_path": "Windows/System32/config/SYSTEM",
+  "hive_sha256_before": "d3172109f17a170961e21d2232dd3b0eecaf58db9ed7f2aa11fb08f192d65c26",
+  "hive_sha256_after": "d3172109f17a170961e21d2232dd3b0eecaf58db9ed7f2aa11fb08f192d65c26",
+  "hive_sequence_numbers": [
+    1216,
+    1216
+  ],
+  "hive_sequences_match": true,
+  "hive_header_checksum_valid": true,
+  "transaction_logs_replayed": false,
+  "native_hive_load_attempt_win32_error": 1009,
+  "active_control_set": "ControlSet001",
+  "time_zone": {
+    "TimeZoneKeyName": "Singapore Standard Time",
+    "StandardName": "@tzres.dll,-592",
+    "DaylightName": "@tzres.dll,-591",
+    "Bias": -480,
+    "StandardBias": 0,
+    "DaylightBias": -60,
+    "ActiveTimeBias": -480,
+    "DynamicDaylightTimeDisabled": 0,
+    "StandardStart": "00000000000000000000000000000000",
+    "DaylightStart": "00000000000000000000000000000000"
+  },
+  "sql_service_present": true,
+  "original_server_binary_profile_matched": true,
+  "current_registry_modified": false,
+  "parser": {
+    "name": "python-registry",
+    "version": "1.3.1",
+    "license": "Apache-2.0",
+    "source": "https://github.com/williballenthin/python-registry"
+  },
+  "login_assembly_sha256": "1600fb4b593dfcea7afb3ef76fae67a24095d3fe0407fa3eb6fa304c014c2ca9",
+  "recovered_login_assembly_sha256": "1600fb4b593dfcea7afb3ef76fae67a24095d3fe0407fa3eb6fa304c014c2ca9",
+  "login_archive_path": "Server/zh-tw-x-gm/Bin/LoginServiceCore.dll",
+  "daylight_transitions_zero": true,
+  "inferred_fixed_offset_minutes": 480
+}

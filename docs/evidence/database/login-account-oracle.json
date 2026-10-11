@@ -1,0 +1,379 @@
+{
+  "cases": [
+    {
+      "kind": "achievement",
+      "case_id": 0,
+      "argument": "fixture",
+      "flag": null,
+      "initial": [
+        {
+          "id": 1,
+          "uid": -1,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": -1,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": -1,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "result": [
+        {
+          "id": 1,
+          "uid": 7,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": 7,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": -1,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "affected": 2
+    },
+    {
+      "kind": "achievement",
+      "case_id": 1,
+      "argument": "FIXTURE ",
+      "flag": null,
+      "initial": [
+        {
+          "id": 1,
+          "uid": -1,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": -1,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": -1,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "result": [
+        {
+          "id": 1,
+          "uid": 7,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": 7,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": -1,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "affected": 2
+    },
+    {
+      "kind": "achievement",
+      "case_id": 2,
+      "argument": "Other",
+      "flag": null,
+      "initial": [
+        {
+          "id": 1,
+          "uid": -1,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": -1,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": -1,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "result": [
+        {
+          "id": 1,
+          "uid": -1,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": -1,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": 7,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "affected": 1
+    },
+    {
+      "kind": "achievement",
+      "case_id": 3,
+      "argument": " Fixture",
+      "flag": null,
+      "initial": [
+        {
+          "id": 1,
+          "uid": -1,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": -1,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": -1,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "result": [
+        {
+          "id": 1,
+          "uid": -1,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "00D80000"
+        },
+        {
+          "id": 2,
+          "uid": -1,
+          "name_hex": "46004900580054005500520045002000",
+          "achievement_hex": ""
+        },
+        {
+          "id": 3,
+          "uid": 9,
+          "name_hex": "4600690078007400750072006500",
+          "achievement_hex": "41006C00720065006100640079004F0077006E0065006400"
+        },
+        {
+          "id": 4,
+          "uid": -1,
+          "name_hex": "4F007400680065007200",
+          "achievement_hex": "4F007400680065007200"
+        }
+      ],
+      "affected": 0
+    },
+    {
+      "kind": "friend",
+      "case_id": 0,
+      "argument": null,
+      "flag": -1,
+      "initial": null,
+      "result": {
+        "uid": 1,
+        "recommender_cid": null,
+        "friend_cid": null,
+        "flag": -1,
+        "update_units300": "1"
+      },
+      "affected": null
+    },
+    {
+      "kind": "friend",
+      "case_id": 1,
+      "argument": null,
+      "flag": -1,
+      "initial": {
+        "uid": 1,
+        "recommender_cid": "-9223372036854775808",
+        "friend_cid": "9223372036854775807",
+        "flag": 99,
+        "update_units300": "2"
+      },
+      "result": {
+        "uid": 1,
+        "recommender_cid": null,
+        "friend_cid": null,
+        "flag": -1,
+        "update_units300": "2"
+      },
+      "affected": null
+    },
+    {
+      "kind": "friend",
+      "case_id": 2,
+      "argument": null,
+      "flag": -1,
+      "initial": {
+        "uid": 1,
+        "recommender_cid": "-9223372036854775808",
+        "friend_cid": "9223372036854775807",
+        "flag": -1,
+        "update_units300": "2"
+      },
+      "result": {
+        "uid": 1,
+        "recommender_cid": null,
+        "friend_cid": null,
+        "flag": -1,
+        "update_units300": "2"
+      },
+      "affected": null
+    },
+    {
+      "kind": "user",
+      "case_id": 0,
+      "argument": null,
+      "flag": null,
+      "initial": {
+        "id": 1,
+        "dormant_units300": "1",
+        "event_units300": "2"
+      },
+      "result": {
+        "id": 1,
+        "dormant_units300": null,
+        "event_units300": "2"
+      },
+      "affected": null
+    },
+    {
+      "kind": "user",
+      "case_id": 1,
+      "argument": null,
+      "flag": null,
+      "initial": {
+        "id": 1,
+        "dormant_units300": "1",
+        "event_units300": "2"
+      },
+      "result": {
+        "id": 1,
+        "dormant_units300": "1",
+        "event_units300": null
+      },
+      "affected": null
+    },
+    {
+      "kind": "user",
+      "case_id": 2,
+      "argument": null,
+      "flag": null,
+      "initial": {
+        "id": 1,
+        "dormant_units300": "1",
+        "event_units300": "2"
+      },
+      "result": {
+        "id": 1,
+        "dormant_units300": null,
+        "event_units300": null
+      },
+      "affected": null
+    }
+  ],
+  "source_loyalty_rows": 0,
+  "source_achievement_rows": 0,
+  "source_character_rows": 49,
+  "source_connection_rows": 49,
+  "source_queued_rows": 140,
+  "source_persistent_writes": false,
+  "temporary_table_writes": true,
+  "modules": [
+    {
+      "name": "SetFriendRecommendFlag",
+      "definition_sha256": "4227fbeab9f083653db7fea6301a73062d714a020fd86b162bad6bca06c7537f"
+    },
+    {
+      "name": "ReplaceUserAchievementNIDtoUID",
+      "definition_sha256": "e71356ea6b77f9af081d499084da6264ed7f2d55f1947caf8d58e934066b9d8e"
+    },
+    {
+      "name": "ReleaseDormant",
+      "definition_sha256": "effa3f8d54223b679c923fe9f05658204bfe02ab8219643962f422b1d2c3388d"
+    },
+    {
+      "name": "DormantUserEventUpdate",
+      "definition_sha256": "101a2fa8ccb26a524da9866345dcc65ba054a516b12e14a5225934a2da5e7c55"
+    }
+  ],
+  "query_sha256": "5780a8fc2a1cd75968485f45b45121db1bc75632276be3996aebe47e535b17ea",
+  "method": "Recovered SQL bodies with table names redirected only to connection-local temporary tables; explicit synthetic INSERT default clock, NOLOCK/MERGE/UPDATE retained. Persistent reference tables only COUNTed.",
+  "temporary_procedures_created": true,
+  "verified_at_utc": "2026-10-11T05:09:12.2513067+00:00",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "original_services_executed": false
+}

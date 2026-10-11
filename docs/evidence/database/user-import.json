@@ -1,0 +1,69 @@
+{
+  "stage": "M14.3b.2",
+  "exported_at_utc": "2026-10-10T23:18:10.2411168+00:00",
+  "source": "study_heroes.dbo.User",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "export_sha256": "9475e05e8826f81f15a5c5681bd214325d19e3af1ac80a13a77964c55d56a7ff",
+  "export_query_sha256": "f3f4cf2867c26c7da4c142a4793a0f294dfe7b1141f56e61fea67e2a5e79cb33",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_export_acl": "current Windows user and SYSTEM; inheritance disabled on private directory",
+  "target_total_before": 2,
+  "target_total_after": 31,
+  "target_delta_verified": true,
+  "source_rows": 29,
+  "source_columns": 15,
+  "imported": {
+    "existing": 0,
+    "game_authentication_available": false,
+    "inserted": 29,
+    "source_rows": 29,
+    "verified": 29,
+    "verify_only": false
+  },
+  "replay": {
+    "existing": 29,
+    "game_authentication_available": false,
+    "inserted": 0,
+    "source_rows": 29,
+    "verified": 29,
+    "verify_only": false
+  },
+  "verified": {
+    "existing": 29,
+    "game_authentication_available": false,
+    "inserted": 0,
+    "source_rows": 29,
+    "verified": 29,
+    "verify_only": true
+  },
+  "comparison": "Rust equality of all fifteen typed source fields inside transaction; no ID rehash or UPDATE",
+  "game_authentication_available": false,
+  "post_restart_verified": true,
+  "verification_gate_at_utc": "2026-10-11T02:16:35.8097175+00:00",
+  "docker_smoke_at_utc": "2026-10-11T02:16:02.6854469+00:00",
+  "gate_sha256": "507d4d7f330597adc05a8ba48906e119c59ffb5e17710a901fa46a7377d98f09",
+  "smoke_sha256": "184851bc823a32c6221b5e9030d325d156f2cdec11ed96cd89a3cb9016173a96",
+  "artifact_sha256": {
+    "src/infrastructure/legacy_users.rs": "86448f69526fad485482f0662c54bc7bbb77402929b8b521f5e9f92170c8d360",
+    "tests/user_export.rs": "16110e832130d2710a9fd99e2d195a3475a05ea490e501c14a691cc14148fd42",
+    "tests/postgres.rs": "1df69f9350539076dfe280a31b2e123f8e217f3b7f3a17f67adfbd120e5d5184",
+    "scripts/database/Import-Users.ps1": "dbe5f3fa318a6a6a4f3cb744b7ee89cacd47450198fc452f7630ef06c3c5cbdb",
+    "tests/fixtures/user-export.json": "10cb0895f5f6fb5107063d31c46338bddb7352e2d4f4236048cf980716dacd40",
+    "src/application/user_import.rs": "f9ffd2fad532605607bb122daee5273b733dadf4e79d7fbc5ecac75c6ec649d8",
+    "src/infrastructure/user_export.rs": "73bdc4c3d3129d9ddf0771423f5eeb00b0e5410771b99c64d19276eabac190c2"
+  },
+  "latest_verification_gate_at_utc": "2026-10-11T05:13:21.0649037+00:00",
+  "latest_verification_gate_sha256": "ceb79d6a014823287b45d63da39a592e7445cfdf0c5ebe7d4cef5bd137c65f8f",
+  "latest_docker_smoke_at_utc": "2026-10-11T14:08:53.1665070+00:00",
+  "latest_docker_smoke_sha256": "996658a2269a02a93e8ea5be555cbd38512a7310a9f02ab030e9abb499836b1c",
+  "post_restart_verified_at_utc": "2026-10-11T14:08:53.6638745+00:00",
+  "post_restart_summary": {
+    "existing": 29,
+    "game_authentication_available": false,
+    "inserted": 0,
+    "source_rows": 29,
+    "verified": 29,
+    "verify_only": true
+  }
+}
