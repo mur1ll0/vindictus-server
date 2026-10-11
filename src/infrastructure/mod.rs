@@ -10,3 +10,6 @@ pub mod limited_accounts;
 pub mod login_account_effects;
 pub mod login_policy;
 pub mod user_export;
+
+pub mod character_export;
+pub mod characters;

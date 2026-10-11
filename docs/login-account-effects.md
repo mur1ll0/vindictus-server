@@ -38,5 +38,4 @@ Resultados finais: docs/evidence/auth/login-account-effects.json e docs/evidence
 
 ## Próxima subetapa
 
-M13.2d.2b: importar os37 campos de CharacterInfo (49 linhas),8 de LastConnectInfo (49 linhas) e18 de QueuedItem (140 linhas) com IDs, datas, bytes e chaves preservados. Portar GetCharacters ordenando ISNULL(OrderNum,255),ID, sem inventar filtros de status, e GetLatestConnectedDate. Implementar fila de recompensa e qualificação completa com dados/FeatureMatrix, replay, falha e concorrência; depois estender o executor com quantização comprovada e novo usuário/achievement na ordem correta. FacebookToken, montagem completa UserLogin e integração TCP/cliente permanecem pendentes.
-
+As dependências foram preservadas em [M13.2d.2b.1](character-login-storage.md): Character49/CharacterInfo49/LastConnectInfo49/QueuedItem140,64campos. M13.2d.2b.2 continua com execução de recompensas/fila, identidade/defaults, falha/replay/concorrência, integração das consultas reais e extensão do executor. FacebookToken, UserLogin completo e integração TCP/cliente permanecem pendentes.

@@ -230,7 +230,7 @@ async fn game_users_preserve_source_values_reject_collisions_and_enforce_schema(
         provision_game_user(&pool, x64.nexon_sn, &x64.nexon_id, 42, 0).await,
         Err(Error::GameUserNameConflict)
     ));
-    for name in ["É", "a\n", "AAAAAAAAAAAAAAAAAAAAAAAAA"] {
+    for name in ["Ã‰", "a\n", "AAAAAAAAAAAAAAAAAAAAAAAAA"] {
         assert!(matches!(
             provision_game_user(&pool, 54321, name, 42, 0).await,
             Err(Error::GameUserName(_))
@@ -980,7 +980,7 @@ async fn ip_policy_compare_and_swap_has_one_winner_and_does_not_overwrite_source
 async fn login_policy_migration_preserves_existing_source_values_and_revision_across_replay() {
     use sqlx::migrate::Migrator;
     let (admin, pool, schema) = isolated_game_pool().await;
-    sqlx::raw_sql("DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6;DROP TABLE game_limited_accounts; DROP FUNCTION limited_ascii_key(bytea); DELETE FROM _sqlx_migrations WHERE version=5")
+    sqlx::raw_sql("DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7;DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6;DROP TABLE game_limited_accounts; DROP FUNCTION limited_ascii_key(bytea); DELETE FROM _sqlx_migrations WHERE version=5")
         .execute(&pool).await.unwrap();
     // Recreate only our disposable isolated schema to exercise the previous version.
     sqlx::query("DROP TABLE game_user_bans")
@@ -1452,7 +1452,7 @@ async fn limited_accounts_upgrade_and_policy_flag_preserve_users_and_refuse_unkn
     provision_game_user(&pool, identity.nexon_sn, &identity.nexon_id, 42, 0)
         .await
         .unwrap();
-    sqlx::raw_sql("DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6;DROP TABLE game_limited_accounts;DROP FUNCTION limited_ascii_key(bytea);DELETE FROM _sqlx_migrations WHERE version=5")
+    sqlx::raw_sql("DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7;DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6;DROP TABLE game_limited_accounts;DROP FUNCTION limited_ascii_key(bytea);DELETE FROM _sqlx_migrations WHERE version=5")
         .execute(&pool).await.unwrap();
     assert!(postgres::check_ready(&pool).await.is_err());
     postgres::migrate(&pool).await.unwrap();
@@ -1498,3 +1498,6 @@ async fn limited_accounts_upgrade_and_policy_flag_preserve_users_and_refuse_unkn
 }
 #[path = "support/login_account_effects.rs"]
 mod account_effects;
+
+#[path = "support/characters.rs"]
+mod characters;

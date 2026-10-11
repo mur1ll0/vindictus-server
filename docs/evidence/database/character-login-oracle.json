@@ -1,0 +1,78 @@
+{
+  "listed": [
+    {
+      "id": "3"
+    },
+    {
+      "id": "1"
+    },
+    {
+      "id": "2"
+    }
+  ],
+  "bundle_latest": "4",
+  "latest_cases": [
+    {
+      "case_id": 0,
+      "connect": "1",
+      "logout": null,
+      "result": "1"
+    },
+    {
+      "case_id": 1,
+      "connect": "2",
+      "logout": "4",
+      "result": "4"
+    },
+    {
+      "case_id": 2,
+      "connect": "4",
+      "logout": "2",
+      "result": "4"
+    },
+    {
+      "case_id": 3,
+      "connect": "4",
+      "logout": "4",
+      "result": "4"
+    },
+    {
+      "case_id": 4,
+      "connect": "-1",
+      "logout": "0",
+      "result": "0"
+    },
+    {
+      "case_id": 5,
+      "connect": "0",
+      "logout": "-1",
+      "result": "0"
+    }
+  ],
+  "missing_uid": null,
+  "source_characters": 49,
+  "source_character_info": 49,
+  "source_connections": 49,
+  "source_queued_items": 140,
+  "listed_ids": [
+    "3",
+    "1",
+    "2"
+  ],
+  "modules": [
+    {
+      "name": "GetCharacters",
+      "definition_sha256": "816e36ea4ee9e1f7fc74805663d0d598851c9e1abd49c735ed20fea11c2e331d"
+    },
+    {
+      "name": "GetLatestConnectedDate",
+      "definition_sha256": "75538900c9eee2b15304e0fd13266837fee7451bbd752412ad8ee8dae0105da9"
+    }
+  ],
+  "query_sha256": "dfd37be6dd0de113b291e64240a8e514ad3a2fedf59a913bc0cc851165017221",
+  "temporary_procedures_created": true,
+  "source_persistent_writes": false,
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "verified_at_utc": "2026-10-11T14:24:56.5345456+00:00",
+  "original_services_executed": false
+}

@@ -2,6 +2,14 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid or oversized character/login bundle; values omitted")]
+    CharacterExport,
+    #[error("character/login snapshot differs from preserved source data")]
+    CharacterSnapshotConflict,
+    #[error("character import deadline exceeded; verify original batch before retry")]
+    CharacterImportDeadline,
+    #[error("character query exceeds bounded result limit")]
+    CharacterQueryLimit,
     #[error("login effects require unmigrated new-user/character/reward dependencies")]
     LoginEffectDependencies,
     #[error("login effect operation conflicts with its durable replay receipt")]

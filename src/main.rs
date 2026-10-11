@@ -50,6 +50,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let character_bundle = match &cli.command {
+        Command::ImportCharacters { .. } => Some(
+            vindictus_server::infrastructure::character_export::read_export(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let config = Config::from_env()?;
     let pool = postgres::pool(&config)?;
     match cli.command {
@@ -65,6 +73,20 @@ async fn run(cli: Cli) -> Result<(), Error> {
                     .await?;
             println!(
                 "Foundation account created: {id}. Game-client authentication is not implemented."
+            );
+        }
+        Command::ImportCharacters { verify_only, .. } => {
+            let bundle = character_bundle.ok_or(Error::CharacterExport)?;
+            postgres::check_ready(&pool).await?;
+            let result = vindictus_server::infrastructure::characters::import_bundle(
+                &pool,
+                &bundle,
+                verify_only,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::json!({"summary":result,"verify_only":verify_only,"game_authentication_available":false})
             );
         }
         Command::ImportUsers { verify_only, .. } => {

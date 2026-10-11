@@ -12,14 +12,14 @@ pub const MAX_INPUT_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(transparent)]
-struct PrivateText(String);
+pub(crate) struct PrivateText(pub(crate) String);
 impl Drop for PrivateText {
     fn drop(&mut self) {
         self.0.zeroize();
     }
 }
 // deserialize_with makes a nullable column required: missing is not silently NULL.
-fn nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+pub(crate) fn nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -64,7 +64,7 @@ struct Row {
     #[serde(deserialize_with = "nullable")]
     create_time_units300: Option<PrivateText>,
 }
-fn integer(text: PrivateText) -> Result<i64, Error> {
+pub(crate) fn integer(text: PrivateText) -> Result<i64, Error> {
     if text.0.len() > 20 {
         return Err(Error::UserExport);
     }
@@ -74,7 +74,7 @@ fn integer(text: PrivateText) -> Result<i64, Error> {
     }
     Ok(number)
 }
-fn hex(text: PrivateText, bound: usize) -> Result<Vec<u8>, Error> {
+pub(crate) fn hex(text: PrivateText, bound: usize) -> Result<Vec<u8>, Error> {
     let bytes = text.0.as_bytes();
     if bytes.len() > bound * 2 || !bytes.len().is_multiple_of(2) {
         return Err(Error::UserExport);

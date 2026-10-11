@@ -12,3 +12,5 @@ pub mod login_effects;
 pub mod login_policy;
 pub mod passport;
 pub mod user_login_return;
+
+pub mod character_data;

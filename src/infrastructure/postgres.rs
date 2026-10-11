@@ -77,6 +77,7 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
     if !revision_trigger {
         return Err(Error::SchemaNotReady);
     }
+    crate::infrastructure::characters::check_ready(pool).await?;
     Ok(())
 }
 

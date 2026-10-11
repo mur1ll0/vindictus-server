@@ -1,0 +1,112 @@
+{
+  "stage": "M13.2d.2b.1",
+  "exported_at_utc": "2026-10-11T14:33:49.0290203+00:00",
+  "source": "study_heroes.character-login-bundle",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_columns": 64,
+  "source_rows": 287,
+  "export_sha256": "af01d26e21dca5d8736db0790270932e69434acdd4d5428ed925350701f2da82",
+  "export_query_sha256": "e8dda5ca81eff1691aa9a7938e98174b04954ed2395fe82996291808c76477f8",
+  "source_schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_export_acl": "current Windows user and SYSTEM; inheritance disabled",
+  "target_total_before": {
+    "characters": 0,
+    "character_info": 0,
+    "connections": 0,
+    "queued_items": 0
+  },
+  "target_total_after": {
+    "characters": 49,
+    "character_info": 49,
+    "connections": 49,
+    "queued_items": 140
+  },
+  "target_delta_verified": true,
+  "imported": {
+    "inserted": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    },
+    "source_rows": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    },
+    "verified": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    }
+  },
+  "replay": {
+    "inserted": {
+      "character_info": 0,
+      "characters": 0,
+      "connections": 0,
+      "queued_items": 0
+    },
+    "source_rows": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    },
+    "verified": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    }
+  },
+  "verified": {
+    "inserted": {
+      "character_info": 0,
+      "characters": 0,
+      "connections": 0,
+      "queued_items": 0
+    },
+    "source_rows": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    },
+    "verified": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    }
+  },
+  "comparison": "Rust equality of every typed source field, one transaction, recovered FK chain, no UPDATE",
+  "game_authentication_available": false,
+  "runtime_rewards_implemented": false,
+  "queue_identity_allocator_implemented": false,
+  "post_restart_verified": true,
+  "post_restart_verified_at_utc": "2026-10-11T14:41:13.9935947+00:00",
+  "post_restart_summary": {
+    "inserted": {
+      "character_info": 0,
+      "characters": 0,
+      "connections": 0,
+      "queued_items": 0
+    },
+    "source_rows": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    },
+    "verified": {
+      "character_info": 49,
+      "characters": 49,
+      "connections": 49,
+      "queued_items": 140
+    }
+  }
+}

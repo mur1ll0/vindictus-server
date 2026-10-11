@@ -25,6 +25,14 @@ pub enum Command {
     },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
+    /// Preserve all character/login/queue snapshots; does not create playable characters.
+    ImportCharacters {
+        /// Required: private bundle is read only from standard input.
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve complete legacy user snapshots; never activates game authentication.
     ImportUsers {
         /// Required: private JSON is read only from standard input.

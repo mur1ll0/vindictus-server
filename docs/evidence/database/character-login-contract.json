@@ -1,0 +1,723 @@
+{
+  "stage": "M13.2d.2b.1",
+  "source_schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "source_columns": 64,
+  "tables": [
+    {
+      "name": "Character",
+      "columns": [
+        {
+          "name": "ID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 19,
+          "scale": 0
+        }
+      ],
+      "rows": 49,
+      "fk": [],
+      "indexes": [
+        {
+          "name": "PK_Character",
+          "index_id": 1,
+          "is_unique": true,
+          "is_primary_key": true
+        }
+      ],
+      "source_identity": []
+    },
+    {
+      "name": "CharacterInfo",
+      "columns": [
+        {
+          "name": "ID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 19,
+          "scale": 0
+        },
+        {
+          "name": "UID",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "CharacterSN",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Name",
+          "declared_type": "nvarchar",
+          "max_length": 100,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "Class",
+          "declared_type": "tinyint",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 3,
+          "scale": 0
+        },
+        {
+          "name": "Level",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Exp",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 19,
+          "scale": 0
+        },
+        {
+          "name": "STR",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "DEX",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "INT",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "WILL",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "LUCK",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "HP",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "STAMINA",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Dirty",
+          "declared_type": "bit",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 1,
+          "scale": 0
+        },
+        {
+          "name": "PlayTime",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 19,
+          "scale": 0
+        },
+        {
+          "name": "SelectedTitle",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "AP",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "TotalUsedAP",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "LastAPUpdate",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "Permission",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Status",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Quote",
+          "declared_type": "nvarchar",
+          "max_length": 100,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "DeleteTime",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "RegionCode",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "IsConnected",
+          "declared_type": "bit",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 1,
+          "scale": 0
+        },
+        {
+          "name": "LastUpdate",
+          "declared_type": "timestamp",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "CreateTime",
+          "declared_type": "datetime2",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 27,
+          "scale": 7
+        },
+        {
+          "name": "FreeMatchWinCount",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "FreeMatchLoseCount",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "UsePreset",
+          "declared_type": "bit",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 1,
+          "scale": 0
+        },
+        {
+          "name": "IsPremium",
+          "declared_type": "bit",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 1,
+          "scale": 0
+        },
+        {
+          "name": "FreeTitleName",
+          "declared_type": "nvarchar",
+          "max_length": 100,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "TodayPlayTime",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Channel",
+          "declared_type": "smallint",
+          "max_length": 2,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 5,
+          "scale": 0
+        },
+        {
+          "name": "OrderNum",
+          "declared_type": "tinyint",
+          "max_length": 1,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 3,
+          "scale": 0
+        },
+        {
+          "name": "MapStateInfo",
+          "declared_type": "tinyint",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 3,
+          "scale": 0
+        }
+      ],
+      "rows": 49,
+      "fk": [
+        {
+          "name": "FK_CharacterInfo_Character",
+          "parent_object_id": 1470628282,
+          "referenced_object_id": 245575913,
+          "delete_referential_action_desc": "CASCADE",
+          "update_referential_action_desc": "CASCADE",
+          "is_disabled": false,
+          "is_not_trusted": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "CL_CharacterInfo_UID",
+          "index_id": 1,
+          "is_unique": false,
+          "is_primary_key": false
+        },
+        {
+          "name": "PK_CharacterInfo",
+          "index_id": 2,
+          "is_unique": true,
+          "is_primary_key": true
+        },
+        {
+          "name": "NCL_CharacterInfo_IsConnected",
+          "index_id": 3,
+          "is_unique": false,
+          "is_primary_key": false
+        },
+        {
+          "name": "NCL_CharacterInfo_LastUpdate",
+          "index_id": 4,
+          "is_unique": false,
+          "is_primary_key": false
+        },
+        {
+          "name": "NCL_CharacterInfo_LastUpdate2",
+          "index_id": 5,
+          "is_unique": false,
+          "is_primary_key": false
+        },
+        {
+          "name": "NCL_CharacterInfo_Name",
+          "index_id": 6,
+          "is_unique": false,
+          "is_primary_key": false
+        },
+        {
+          "name": "NCL_CharacterInfo_Status",
+          "index_id": 7,
+          "is_unique": false,
+          "is_primary_key": false
+        }
+      ],
+      "source_identity": []
+    },
+    {
+      "name": "LastConnectInfo",
+      "columns": [
+        {
+          "name": "ID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 19,
+          "scale": 0
+        },
+        {
+          "name": "LastConnectDate",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "LastCafeBonus",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "LastCafeLogin",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "LastCafeLogout",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "LastHomeCafeLogin",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "LastHomeCafeLogout",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "LastLogout",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        }
+      ],
+      "rows": 49,
+      "fk": [
+        {
+          "name": "FK_LastConnectInfo_CharacterInfo",
+          "parent_object_id": 827149992,
+          "referenced_object_id": 1470628282,
+          "delete_referential_action_desc": "CASCADE",
+          "update_referential_action_desc": "NO_ACTION",
+          "is_disabled": false,
+          "is_not_trusted": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "PK_LastConnectInfo",
+          "index_id": 1,
+          "is_unique": true,
+          "is_primary_key": true
+        }
+      ],
+      "source_identity": []
+    },
+    {
+      "name": "QueuedItem",
+      "columns": [
+        {
+          "name": "RowID",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": true,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "CID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 19,
+          "scale": 0
+        },
+        {
+          "name": "ItemClassEx",
+          "declared_type": "nvarchar",
+          "max_length": 2048,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "Count",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "IsCharacterBinded",
+          "declared_type": "bit",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 1,
+          "scale": 0
+        },
+        {
+          "name": "MailTitle",
+          "declared_type": "nvarchar",
+          "max_length": 512,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "MailContent",
+          "declared_type": "nvarchar",
+          "max_length": 2048,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "Color1",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Color2",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "Color3",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "ReducedDurability",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "MaxDurabilityBonus",
+          "declared_type": "int",
+          "max_length": 4,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 10,
+          "scale": 0
+        },
+        {
+          "name": "ItemID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 19,
+          "scale": 0
+        },
+        {
+          "name": "Processed",
+          "declared_type": "bit",
+          "max_length": 1,
+          "is_nullable": false,
+          "is_identity": false,
+          "precision": 1,
+          "scale": 0
+        },
+        {
+          "name": "EventCode",
+          "declared_type": "nvarchar",
+          "max_length": 100,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 0,
+          "scale": 0
+        },
+        {
+          "name": "ProcessedTime",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "ExpireTime",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        },
+        {
+          "name": "LogDate",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "is_nullable": true,
+          "is_identity": false,
+          "precision": 23,
+          "scale": 3
+        }
+      ],
+      "rows": 140,
+      "fk": [],
+      "indexes": [
+        {
+          "name": "CL_QueuedItem",
+          "index_id": 1,
+          "is_unique": false,
+          "is_primary_key": false
+        },
+        {
+          "name": "PK_QueuedItem",
+          "index_id": 2,
+          "is_unique": true,
+          "is_primary_key": true
+        },
+        {
+          "name": "NCL_QueuedItem_EventCode",
+          "index_id": 3,
+          "is_unique": false,
+          "is_primary_key": false
+        }
+      ],
+      "source_identity": [
+        {
+          "name": "RowID",
+          "seed_value": 1,
+          "increment_value": 1
+        }
+      ]
+    }
+  ],
+  "identity_allocator_implemented": false,
+  "runtime_rewards_implemented": false
+}

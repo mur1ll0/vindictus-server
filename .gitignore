@@ -52,3 +52,17 @@ docs/evidence/database/*.modules.sql
 docs/evidence/database/study_*.schema.json
 docs/evidence/database/*.restore.log
 scripts/client/.deps/
+
+# Local logs, data directories and distributable archives
+logs/
+backups/
+data/
+.secrets/
+*.log
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+*.backup
