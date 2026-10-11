@@ -13,3 +13,4 @@ pub mod user_export;
 
 pub mod character_export;
 pub mod characters;
+pub mod dormant_items;

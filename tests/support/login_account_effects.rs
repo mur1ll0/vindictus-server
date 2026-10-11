@@ -453,7 +453,7 @@ async fn account_effect_schema_upgrade_readiness_and_replay_preserve_existing_us
             .fetch_one(&pool)
             .await
             .unwrap();
-    sqlx::raw_sql("DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7;DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6")
+    sqlx::raw_sql("DROP TABLE game_dormant_item_runs,game_queue_identity;DELETE FROM _sqlx_migrations WHERE version=9;DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7;DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6")
         .execute(&pool).await.unwrap();
     assert!(postgres::check_ready(&pool).await.is_err());
     let previous = sqlx::migrate::Migrator {

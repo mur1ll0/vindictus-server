@@ -1,0 +1,77 @@
+{
+  "verified_at_utc": "2026-10-11T14:50:55.7587276+00:00",
+  "source_identity": {
+    "seed": 1,
+    "increment": 1,
+    "last_value": 140
+  },
+  "definition_sha256": "a4acdd2fd9773b53e7d1cd6f157001c48402a45e5b45f070d82eefa12fa6cfcb",
+  "query_sha256": "19c1d2205218910f06077dc80336857f57add2449d9b72f94e1868c8da3798a0",
+  "sources": [
+    {
+      "path": "docs/evidence/database/study_heroes.schema.json",
+      "sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206"
+    },
+    {
+      "path": "legacy/decompiled/LoginServiceCore-1600fb4b593d/LoginServiceCore.Processor/UserLoginProcessor.cs",
+      "sha256": "de3c2983235eee1a5e04471559168e10d70b1150eddaa0932c618067071a1f2e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/DBLoader.cs",
+      "sha256": "a7028bc8c801894347d2b8b397b9eee6e0137146edd6b2adb262962c5d6c5710"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Static/QueuedItemController.cs",
+      "sha256": "f1a7caae15c303d8493380ded2ca15c6696a5479755f617c816bc757256434be"
+    }
+  ],
+  "column_count": 18,
+  "defaults": [
+    {
+      "column": "IsCharacterBinded",
+      "expression": "((0))"
+    },
+    {
+      "column": "Color1",
+      "expression": "((-1))"
+    },
+    {
+      "column": "Color2",
+      "expression": "((-1))"
+    },
+    {
+      "column": "Color3",
+      "expression": "((-1))"
+    },
+    {
+      "column": "ReducedDurability",
+      "expression": "((0))"
+    },
+    {
+      "column": "MaxDurabilityBonus",
+      "expression": "((0))"
+    },
+    {
+      "column": "Processed",
+      "expression": "((0))"
+    },
+    {
+      "column": "LogDate",
+      "expression": "(getutcdate())"
+    }
+  ],
+  "compared_synthetic_rows": 4,
+  "expected_row_ids": [
+    141,
+    142,
+    143,
+    145
+  ],
+  "rollback_consumes_identity": true,
+  "clock_outside_bounds": 0,
+  "source_queue_rows": 140,
+  "source_identity_last_value": 140,
+  "source_persistent_writes": false,
+  "original_services_executed": false,
+  "method": "Unchanged recovered procedure body redirected to a full 18-column temporary table generated from source types/defaults; temporary IDENTITY reseeded from explicit catalog last_value. GETUTCDATE unmodified; its quantized output supplied explicitly to Rust. No persistent reference writes."
+}

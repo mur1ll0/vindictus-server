@@ -108,6 +108,18 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 })
             );
         }
+        Command::InitializeQueueIdentity { source_last_value } => {
+            postgres::check_ready(&pool).await?;
+            let initialized = vindictus_server::infrastructure::dormant_items::initialize_identity(
+                &pool,
+                source_last_value,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::json!({"initialized":initialized,"game_authentication_available":false})
+            );
+        }
         Command::Serve => {
             let listener = tokio::net::TcpListener::bind(config.bind_address).await?;
             tracing::info!(address = %listener.local_addr()?, game_client_compatible = false, "operational HTTP server listening");

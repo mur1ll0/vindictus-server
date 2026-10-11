@@ -2,6 +2,16 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("queue identity requires the explicit supported source counter; reseeding refused")]
+    QueueIdentityProfile,
+    #[error("queue identity has not been initialized from the source profile")]
+    QueueIdentityUninitialized,
+    #[error("new queue snapshots cannot be imported after identity initialization")]
+    QueueImportAfterInitialization,
+    #[error("queue operation differs from its durable replay receipt")]
+    QueueReplayConflict,
+    #[error("queue deadline exceeded; replay the same operation to verify commit")]
+    QueueDeadline,
     #[error("invalid or oversized character/login bundle; values omitted")]
     CharacterExport,
     #[error("character/login snapshot differs from preserved source data")]

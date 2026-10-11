@@ -115,6 +115,7 @@ Detalhes: [AGENTS.md](AGENTS.md), [arquitetura](docs/architecture.md), [banco](d
 - LimitedAccount, contrato interno de UserLogin e planejador de dormência/retorno/recompensas.
 - Snapshots completos de lealdade/achievements e executor restrito de efeitos de conta com transação, revisão e replay idempotente.
 - Preservação dos 64 campos de personagens, conexões e fila legada, com consultas de lista/última conexão: [contrato e importação](docs/character-login-storage.md).
+- Criação de entradas de recompensas de retorno, identity explícito e replay durável: [contrato e inicialização](docs/dormant-item-queue.md). Entrega de itens ainda pendente.
 
 Cada afirmação tem escopo e evidência em MIGRATION.md. O executor recusa dependências não migradas e recompensas; não está ligado ao cliente. Números de testes atualizados ficam no relatório.
 
@@ -136,7 +137,7 @@ Contratos: [persistência](docs/legacy-user-storage.md), [importação](docs/use
 | M23 | Paridade, falhas, reconexão, integridade e carga comparadas ao legado |
 | M24 | Aceite com cliente: login, personagem, batalha, recompensa e reconexão |
 
-A próxima ação exata está em MIGRATION.md: execução de recompensas/QueuedItem e extensão do executor de login após a preservação dos snapshots de personagens/conexões/fila.
+A próxima ação exata está em MIGRATION.md: catálogo/qualificação de recompensas e extensão do executor, usando a criação de entradas da fila já portada. Processamento, inventário e correio ainda pendentes.
 
 Depois da compatibilidade básica, o projeto poderá estudar novas armas, fases e classes. Isso exige regras do servidor e dados/assets/animações/mensagens suportados pelo cliente. Extrair uma classe atual não garante que o cliente de 2016 consiga carregá-la; formatos, executável e protocolo podem exigir adaptação. Essa extensão não é uma etapa concluída.
 

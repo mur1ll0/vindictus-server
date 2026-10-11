@@ -53,11 +53,11 @@
     "src/application/user_import.rs": "f9ffd2fad532605607bb122daee5273b733dadf4e79d7fbc5ecac75c6ec649d8",
     "src/infrastructure/user_export.rs": "73bdc4c3d3129d9ddf0771423f5eeb00b0e5410771b99c64d19276eabac190c2"
   },
-  "latest_verification_gate_at_utc": "2026-10-11T14:40:11.6470131+00:00",
-  "latest_verification_gate_sha256": "4d593d214be29a022f444860b0b795facd0ff6a4cdd78c3c9022d153d446ce33",
-  "latest_docker_smoke_at_utc": "2026-10-11T14:41:13.3082949+00:00",
-  "latest_docker_smoke_sha256": "15f130f70ebc269109e2e6dd49264b74179a85216bf38135b70b6a6f0e467f69",
-  "post_restart_verified_at_utc": "2026-10-11T14:41:14.3017560+00:00",
+  "latest_verification_gate_at_utc": "2026-10-11T19:23:58.6805928+00:00",
+  "latest_verification_gate_sha256": "e53c19f460afbc77c2f4e45c413fabf3dff029c5cced1ee3b607398d581b8cbe",
+  "latest_docker_smoke_at_utc": "2026-10-11T19:25:32.8819746+00:00",
+  "latest_docker_smoke_sha256": "f4908be076efe0aa51f98458e0cfea67c4c377506d40af29d2901f6e5ef1c9bb",
+  "post_restart_verified_at_utc": "2026-10-11T19:25:39.8404602+00:00",
   "post_restart_summary": {
     "existing": 29,
     "game_authentication_available": false,

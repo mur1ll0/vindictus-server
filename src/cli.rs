@@ -25,6 +25,12 @@ pub enum Command {
     },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
+    /// Initialize the queue's recovered identity counter after snapshot import; no reseeding.
+    InitializeQueueIdentity {
+        /// Last source sys.identity_columns.last_value; omit only for a never-used empty queue.
+        #[arg(long)]
+        source_last_value: Option<i32>,
+    },
     /// Preserve all character/login/queue snapshots; does not create playable characters.
     ImportCharacters {
         /// Required: private bundle is read only from standard input.

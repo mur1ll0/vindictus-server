@@ -318,6 +318,24 @@ async fn preserve_queued_items(
     row: &QueuedItemSnapshot,
     verify: bool,
 ) -> Result<usize, Error> {
+    if !verify {
+        let initialized: bool = sqlx::query_scalar(
+            "SELECT initialized FROM game_queue_identity WHERE singleton FOR SHARE",
+        )
+        .fetch_one(&mut *connection)
+        .await?;
+        if initialized {
+            let exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM game_queued_items WHERE row_id=$1)",
+            )
+            .bind(row.row_id)
+            .fetch_one(&mut *connection)
+            .await?;
+            if !exists {
+                return Err(Error::QueueImportAfterInitialization);
+            }
+        }
+    }
     let inserted = if verify {
         0
     } else {
@@ -448,6 +466,7 @@ pub async fn get_latest_connected_date(
     Ok(value.map(SqlDateTime::from_units300).transpose()?)
 }
 pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
+    crate::infrastructure::dormant_items::check_ready(pool).await?;
     sqlx::query("SELECT id FROM game_characters WHERE false")
         .execute(pool)
         .await

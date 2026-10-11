@@ -15,7 +15,7 @@ Total:64 campos fonte,287 linhas. O ID de CharacterInfo referencia Character.ID;
 
 Todos os campos são explícitos, incluindo status/delete, aparência textual, stats, AP, conexões de café, processed/expiry/event, item IDs, durabilidade e correio. nvarchar é UTF16 little-endian em bytes, preservando NULL, vazio, NUL e surrogates; timestamp/rowversion é oito bytes opacos. datetime é unidade exata1/300s desde1900; datetime2(7) é tick100ns desde0001, sem atribuir fuso. bigint usa strings inteiras canônicas no transporte JSON, evitando perda numérica em ferramentas intermediárias. tinyint possui faixa0–255 no domínio/schema.
 
-Esta migração preserva snapshots. Não reproduz defaults de INSERT de personagem/fila, não aloca identidades de QueuedItem nem fornece criação de novas entidades. IDs são explícitos da referência; nenhum MAX+1. Nomes não receberam uma chave ASCII que limitaria os nomes Unicode originais; as consultas portadas usam UID/ID.
+M13.2d.2b.1 preserva snapshots com IDs explícitos. A etapa posterior M13.2d.2b.2a implementa criação SendDormantItem e alocador de fila, documentados em [dormant-item-queue.md](dormant-item-queue.md). Defaults/criação de personagem e entrega da fila continuam pendentes; nenhum MAX+1. Nomes não receberam uma chave ASCII que limitaria os nomes Unicode originais; as consultas portadas usam UID/ID.
 
 ## Consultas e limites
 
@@ -46,4 +46,4 @@ Quatro testes novos do parser e quatro integrações PostgreSQL cobrem NULL/vazi
 
 ## Próxima ação
 
-M13.2d.2b.2: recuperar qualificação/recompensas e operações QueuedItem, alocador identity compatível, relógios/defaults, processamento/expiração e transação/replay/concorrência. Estender o executor sem descartar recompensas obrigatórias, integrar observações reais de GetCharacters/GetLatestConnectedDate e tratar novos usuários/ownership. Preservar ordem de efeitos anterior a ban/IP. FacebookToken/UserLogin completo, ownership distribuído e TCP/cliente continuam pendentes.
+M13.2d.2b.2a implementa SendDormantItem, defaults/clock explícito e identity/replay concorrente. Próximo M13.2d.2b.2b: recuperar catálogo/qualificação de recompensas e processamento/expiração com suas dependências. Estender o executor sem descartar recompensas obrigatórias, integrar observações reais de GetCharacters/GetLatestConnectedDate e tratar novos usuários/ownership. Preservar ordem de efeitos anterior a ban/IP. FacebookToken/UserLogin completo, ownership distribuído e TCP/cliente continuam pendentes.

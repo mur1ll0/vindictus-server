@@ -88,7 +88,7 @@
   "runtime_rewards_implemented": false,
   "queue_identity_allocator_implemented": false,
   "post_restart_verified": true,
-  "post_restart_verified_at_utc": "2026-10-11T14:41:13.9935947+00:00",
+  "post_restart_verified_at_utc": "2026-10-11T19:25:39.4104182+00:00",
   "post_restart_summary": {
     "inserted": {
       "character_info": 0,
@@ -108,5 +108,8 @@
       "connections": 49,
       "queued_items": 140
     }
-  }
+  },
+  "latest_verified_migration_stage": "M13.2d.2b.2a",
+  "capability_flags_scope": "Flags beside initial import describe M13.2d.2b.1; current queue capabilities are in docs/evidence/auth/dormant-item-queue.json",
+  "post_restart_queue_identity_allocator_initialized": true
 }
