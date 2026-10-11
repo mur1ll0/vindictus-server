@@ -1,0 +1,3818 @@
+{
+  "profiles": [
+    {
+      "architecture": "x86",
+      "cases": [
+        {
+          "bits": 0,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 0,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 0,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 0,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 0,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 0,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 1,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 1,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 1,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 1,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 1,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 1,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 2,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 2,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 2,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 2,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 2,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 2,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 3,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 33554432,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554432,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554432,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554432,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554432,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554432,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554433,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 33554433,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 33554433,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 33554433,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 33554433,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 33554433,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 33554434,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554434,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554434,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554434,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554434,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554434,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554435,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 16777216,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777216,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777216,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777216,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777216,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777216,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777217,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 16777217,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 16777217,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 16777217,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 16777217,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 16777217,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 16777218,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777218,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777218,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777218,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777218,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777218,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777219,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": -2147483648,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483648,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483648,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483648,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483648,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483648,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483647,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": -2147483647,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": -2147483647,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": -2147483647,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": -2147483647,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": -2147483647,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": -2147483646,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483646,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483646,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483646,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483646,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483646,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483645,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 536870912,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870912,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870912,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870912,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870912,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870912,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870913,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 536870913,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 536870913,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 536870913,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 536870913,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 536870913,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 536870914,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870914,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870914,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870914,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870914,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870914,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870915,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 8388608,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388608,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388608,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388608,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388608,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388608,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388609,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 8388609,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 8388609,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 8388609,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 8388609,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 8388609,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 8388610,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388610,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388610,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388610,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388610,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388610,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388611,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        }
+      ],
+      "secured": [
+        {
+          "code": 0,
+          "value": false
+        },
+        {
+          "code": 1,
+          "value": true
+        },
+        {
+          "code": 2,
+          "value": true
+        },
+        {
+          "code": 3,
+          "value": true
+        },
+        {
+          "code": 4,
+          "value": true
+        },
+        {
+          "code": 5,
+          "value": true
+        },
+        {
+          "code": 6,
+          "value": true
+        },
+        {
+          "code": 7,
+          "value": true
+        },
+        {
+          "code": 8,
+          "value": true
+        },
+        {
+          "code": 9,
+          "value": true
+        },
+        {
+          "code": 10,
+          "value": true
+        },
+        {
+          "code": 11,
+          "value": true
+        },
+        {
+          "code": 12,
+          "value": true
+        },
+        {
+          "code": 13,
+          "value": true
+        },
+        {
+          "code": 14,
+          "value": true
+        },
+        {
+          "code": 15,
+          "value": true
+        },
+        {
+          "code": 16,
+          "value": true
+        },
+        {
+          "code": 17,
+          "value": true
+        },
+        {
+          "code": 18,
+          "value": true
+        },
+        {
+          "code": 19,
+          "value": true
+        },
+        {
+          "code": 20,
+          "value": true
+        },
+        {
+          "code": 21,
+          "value": true
+        },
+        {
+          "code": 22,
+          "value": true
+        },
+        {
+          "code": 23,
+          "value": true
+        },
+        {
+          "code": 24,
+          "value": true
+        },
+        {
+          "code": 25,
+          "value": true
+        },
+        {
+          "code": 26,
+          "value": true
+        },
+        {
+          "code": 27,
+          "value": true
+        },
+        {
+          "code": 28,
+          "value": true
+        },
+        {
+          "code": 29,
+          "value": true
+        },
+        {
+          "code": 30,
+          "value": true
+        },
+        {
+          "code": 31,
+          "value": true
+        },
+        {
+          "code": 32,
+          "value": true
+        },
+        {
+          "code": 33,
+          "value": true
+        },
+        {
+          "code": 34,
+          "value": true
+        },
+        {
+          "code": 35,
+          "value": true
+        },
+        {
+          "code": 36,
+          "value": true
+        },
+        {
+          "code": 37,
+          "value": true
+        },
+        {
+          "code": 38,
+          "value": true
+        },
+        {
+          "code": 39,
+          "value": true
+        },
+        {
+          "code": 40,
+          "value": true
+        },
+        {
+          "code": 41,
+          "value": true
+        },
+        {
+          "code": 42,
+          "value": true
+        },
+        {
+          "code": 43,
+          "value": true
+        },
+        {
+          "code": 44,
+          "value": true
+        },
+        {
+          "code": 45,
+          "value": true
+        },
+        {
+          "code": 46,
+          "value": true
+        },
+        {
+          "code": 47,
+          "value": true
+        },
+        {
+          "code": 48,
+          "value": true
+        },
+        {
+          "code": 49,
+          "value": true
+        },
+        {
+          "code": 50,
+          "value": true
+        },
+        {
+          "code": 51,
+          "value": true
+        },
+        {
+          "code": 52,
+          "value": true
+        },
+        {
+          "code": 53,
+          "value": true
+        },
+        {
+          "code": 54,
+          "value": true
+        },
+        {
+          "code": 55,
+          "value": true
+        },
+        {
+          "code": 56,
+          "value": true
+        },
+        {
+          "code": 57,
+          "value": true
+        },
+        {
+          "code": 58,
+          "value": true
+        },
+        {
+          "code": 59,
+          "value": true
+        },
+        {
+          "code": 60,
+          "value": true
+        },
+        {
+          "code": 61,
+          "value": true
+        },
+        {
+          "code": 62,
+          "value": true
+        },
+        {
+          "code": 63,
+          "value": true
+        },
+        {
+          "code": 64,
+          "value": true
+        },
+        {
+          "code": 65,
+          "value": true
+        },
+        {
+          "code": 66,
+          "value": true
+        },
+        {
+          "code": 67,
+          "value": true
+        },
+        {
+          "code": 68,
+          "value": true
+        },
+        {
+          "code": 69,
+          "value": true
+        },
+        {
+          "code": 70,
+          "value": true
+        },
+        {
+          "code": 71,
+          "value": true
+        },
+        {
+          "code": 72,
+          "value": true
+        },
+        {
+          "code": 73,
+          "value": true
+        },
+        {
+          "code": 74,
+          "value": true
+        },
+        {
+          "code": 75,
+          "value": true
+        },
+        {
+          "code": 76,
+          "value": true
+        },
+        {
+          "code": 77,
+          "value": true
+        },
+        {
+          "code": 78,
+          "value": true
+        },
+        {
+          "code": 79,
+          "value": true
+        },
+        {
+          "code": 80,
+          "value": true
+        },
+        {
+          "code": 81,
+          "value": true
+        },
+        {
+          "code": 82,
+          "value": true
+        },
+        {
+          "code": 83,
+          "value": true
+        },
+        {
+          "code": 84,
+          "value": true
+        },
+        {
+          "code": 85,
+          "value": true
+        },
+        {
+          "code": 86,
+          "value": true
+        },
+        {
+          "code": 87,
+          "value": true
+        },
+        {
+          "code": 88,
+          "value": true
+        },
+        {
+          "code": 89,
+          "value": true
+        },
+        {
+          "code": 90,
+          "value": true
+        },
+        {
+          "code": 91,
+          "value": true
+        },
+        {
+          "code": 92,
+          "value": true
+        },
+        {
+          "code": 93,
+          "value": true
+        },
+        {
+          "code": 94,
+          "value": true
+        },
+        {
+          "code": 95,
+          "value": true
+        },
+        {
+          "code": 96,
+          "value": true
+        },
+        {
+          "code": 97,
+          "value": true
+        },
+        {
+          "code": 98,
+          "value": true
+        },
+        {
+          "code": 99,
+          "value": true
+        },
+        {
+          "code": 100,
+          "value": true
+        },
+        {
+          "code": 101,
+          "value": true
+        },
+        {
+          "code": 102,
+          "value": true
+        },
+        {
+          "code": 103,
+          "value": true
+        },
+        {
+          "code": 104,
+          "value": true
+        },
+        {
+          "code": 105,
+          "value": true
+        },
+        {
+          "code": 106,
+          "value": true
+        },
+        {
+          "code": 107,
+          "value": true
+        },
+        {
+          "code": 108,
+          "value": true
+        },
+        {
+          "code": 109,
+          "value": true
+        },
+        {
+          "code": 110,
+          "value": true
+        },
+        {
+          "code": 111,
+          "value": true
+        },
+        {
+          "code": 112,
+          "value": true
+        },
+        {
+          "code": 113,
+          "value": true
+        },
+        {
+          "code": 114,
+          "value": true
+        },
+        {
+          "code": 115,
+          "value": true
+        },
+        {
+          "code": 116,
+          "value": true
+        },
+        {
+          "code": 117,
+          "value": true
+        },
+        {
+          "code": 118,
+          "value": true
+        },
+        {
+          "code": 119,
+          "value": true
+        },
+        {
+          "code": 120,
+          "value": true
+        },
+        {
+          "code": 121,
+          "value": true
+        },
+        {
+          "code": 122,
+          "value": true
+        },
+        {
+          "code": 123,
+          "value": true
+        },
+        {
+          "code": 124,
+          "value": true
+        },
+        {
+          "code": 125,
+          "value": true
+        },
+        {
+          "code": 126,
+          "value": true
+        },
+        {
+          "code": 127,
+          "value": true
+        },
+        {
+          "code": 128,
+          "value": true
+        },
+        {
+          "code": 129,
+          "value": true
+        },
+        {
+          "code": 130,
+          "value": true
+        },
+        {
+          "code": 131,
+          "value": true
+        },
+        {
+          "code": 132,
+          "value": true
+        },
+        {
+          "code": 133,
+          "value": true
+        },
+        {
+          "code": 134,
+          "value": true
+        },
+        {
+          "code": 135,
+          "value": true
+        },
+        {
+          "code": 136,
+          "value": true
+        },
+        {
+          "code": 137,
+          "value": true
+        },
+        {
+          "code": 138,
+          "value": true
+        },
+        {
+          "code": 139,
+          "value": true
+        },
+        {
+          "code": 140,
+          "value": true
+        },
+        {
+          "code": 141,
+          "value": true
+        },
+        {
+          "code": 142,
+          "value": true
+        },
+        {
+          "code": 143,
+          "value": true
+        },
+        {
+          "code": 144,
+          "value": true
+        },
+        {
+          "code": 145,
+          "value": true
+        },
+        {
+          "code": 146,
+          "value": true
+        },
+        {
+          "code": 147,
+          "value": true
+        },
+        {
+          "code": 148,
+          "value": true
+        },
+        {
+          "code": 149,
+          "value": true
+        },
+        {
+          "code": 150,
+          "value": true
+        },
+        {
+          "code": 151,
+          "value": true
+        },
+        {
+          "code": 152,
+          "value": true
+        },
+        {
+          "code": 153,
+          "value": true
+        },
+        {
+          "code": 154,
+          "value": true
+        },
+        {
+          "code": 155,
+          "value": true
+        },
+        {
+          "code": 156,
+          "value": true
+        },
+        {
+          "code": 157,
+          "value": true
+        },
+        {
+          "code": 158,
+          "value": true
+        },
+        {
+          "code": 159,
+          "value": true
+        },
+        {
+          "code": 160,
+          "value": true
+        },
+        {
+          "code": 161,
+          "value": true
+        },
+        {
+          "code": 162,
+          "value": true
+        },
+        {
+          "code": 163,
+          "value": true
+        },
+        {
+          "code": 164,
+          "value": true
+        },
+        {
+          "code": 165,
+          "value": true
+        },
+        {
+          "code": 166,
+          "value": true
+        },
+        {
+          "code": 167,
+          "value": true
+        },
+        {
+          "code": 168,
+          "value": true
+        },
+        {
+          "code": 169,
+          "value": true
+        },
+        {
+          "code": 170,
+          "value": true
+        },
+        {
+          "code": 171,
+          "value": true
+        },
+        {
+          "code": 172,
+          "value": true
+        },
+        {
+          "code": 173,
+          "value": true
+        },
+        {
+          "code": 174,
+          "value": true
+        },
+        {
+          "code": 175,
+          "value": true
+        },
+        {
+          "code": 176,
+          "value": true
+        },
+        {
+          "code": 177,
+          "value": true
+        },
+        {
+          "code": 178,
+          "value": true
+        },
+        {
+          "code": 179,
+          "value": true
+        },
+        {
+          "code": 180,
+          "value": true
+        },
+        {
+          "code": 181,
+          "value": true
+        },
+        {
+          "code": 182,
+          "value": true
+        },
+        {
+          "code": 183,
+          "value": true
+        },
+        {
+          "code": 184,
+          "value": true
+        },
+        {
+          "code": 185,
+          "value": true
+        },
+        {
+          "code": 186,
+          "value": true
+        },
+        {
+          "code": 187,
+          "value": true
+        },
+        {
+          "code": 188,
+          "value": true
+        },
+        {
+          "code": 189,
+          "value": true
+        },
+        {
+          "code": 190,
+          "value": true
+        },
+        {
+          "code": 191,
+          "value": true
+        },
+        {
+          "code": 192,
+          "value": true
+        },
+        {
+          "code": 193,
+          "value": true
+        },
+        {
+          "code": 194,
+          "value": true
+        },
+        {
+          "code": 195,
+          "value": true
+        },
+        {
+          "code": 196,
+          "value": true
+        },
+        {
+          "code": 197,
+          "value": true
+        },
+        {
+          "code": 198,
+          "value": true
+        },
+        {
+          "code": 199,
+          "value": true
+        },
+        {
+          "code": 200,
+          "value": true
+        },
+        {
+          "code": 201,
+          "value": true
+        },
+        {
+          "code": 202,
+          "value": true
+        },
+        {
+          "code": 203,
+          "value": true
+        },
+        {
+          "code": 204,
+          "value": true
+        },
+        {
+          "code": 205,
+          "value": true
+        },
+        {
+          "code": 206,
+          "value": true
+        },
+        {
+          "code": 207,
+          "value": true
+        },
+        {
+          "code": 208,
+          "value": true
+        },
+        {
+          "code": 209,
+          "value": true
+        },
+        {
+          "code": 210,
+          "value": true
+        },
+        {
+          "code": 211,
+          "value": true
+        },
+        {
+          "code": 212,
+          "value": true
+        },
+        {
+          "code": 213,
+          "value": true
+        },
+        {
+          "code": 214,
+          "value": true
+        },
+        {
+          "code": 215,
+          "value": true
+        },
+        {
+          "code": 216,
+          "value": true
+        },
+        {
+          "code": 217,
+          "value": true
+        },
+        {
+          "code": 218,
+          "value": true
+        },
+        {
+          "code": 219,
+          "value": true
+        },
+        {
+          "code": 220,
+          "value": true
+        },
+        {
+          "code": 221,
+          "value": true
+        },
+        {
+          "code": 222,
+          "value": true
+        },
+        {
+          "code": 223,
+          "value": true
+        },
+        {
+          "code": 224,
+          "value": true
+        },
+        {
+          "code": 225,
+          "value": true
+        },
+        {
+          "code": 226,
+          "value": true
+        },
+        {
+          "code": 227,
+          "value": true
+        },
+        {
+          "code": 228,
+          "value": true
+        },
+        {
+          "code": 229,
+          "value": true
+        },
+        {
+          "code": 230,
+          "value": true
+        },
+        {
+          "code": 231,
+          "value": true
+        },
+        {
+          "code": 232,
+          "value": true
+        },
+        {
+          "code": 233,
+          "value": true
+        },
+        {
+          "code": 234,
+          "value": true
+        },
+        {
+          "code": 235,
+          "value": true
+        },
+        {
+          "code": 236,
+          "value": true
+        },
+        {
+          "code": 237,
+          "value": true
+        },
+        {
+          "code": 238,
+          "value": true
+        },
+        {
+          "code": 239,
+          "value": true
+        },
+        {
+          "code": 240,
+          "value": true
+        },
+        {
+          "code": 241,
+          "value": true
+        },
+        {
+          "code": 242,
+          "value": true
+        },
+        {
+          "code": 243,
+          "value": true
+        },
+        {
+          "code": 244,
+          "value": true
+        },
+        {
+          "code": 245,
+          "value": true
+        },
+        {
+          "code": 246,
+          "value": true
+        },
+        {
+          "code": 247,
+          "value": true
+        },
+        {
+          "code": 248,
+          "value": true
+        },
+        {
+          "code": 249,
+          "value": true
+        },
+        {
+          "code": 250,
+          "value": true
+        },
+        {
+          "code": 251,
+          "value": true
+        },
+        {
+          "code": 252,
+          "value": true
+        },
+        {
+          "code": 253,
+          "value": true
+        },
+        {
+          "code": 254,
+          "value": true
+        },
+        {
+          "code": 255,
+          "value": true
+        }
+      ]
+    },
+    {
+      "architecture": "x64",
+      "cases": [
+        {
+          "bits": 0,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 0,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 0,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 0,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 0,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 0,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 1,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 1,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 1,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 1,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 1,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 1,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 2,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 2,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 2,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 2,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 2,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 2,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 3,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 3,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 33554432,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554432,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554432,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554432,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554432,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554432,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554433,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 33554433,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 33554433,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 33554433,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 33554433,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 33554433,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 33554434,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554434,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554434,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554434,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 33554434,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 33554434,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 33554435,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 33554435,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 16777216,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777216,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777216,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777216,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777216,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777216,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777217,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 16777217,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 16777217,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 16777217,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 16777217,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 16777217,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 16777218,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777218,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777218,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777218,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 16777218,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 16777218,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 16777219,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 16777219,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": -2147483648,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483648,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483648,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483648,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483648,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483648,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483647,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": -2147483647,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": -2147483647,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": -2147483647,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": -2147483647,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": -2147483647,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": -2147483646,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483646,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483646,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483646,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": -2147483646,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": -2147483646,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": -2147483645,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": -2147483645,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 536870912,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870912,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870912,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870912,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870912,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870912,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870913,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 536870913,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 536870913,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 536870913,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 536870913,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 536870913,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 536870914,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870914,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870914,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870914,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 536870914,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 536870914,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 536870915,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 536870915,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 8388608,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388608,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388608,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388608,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388608,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388608,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388609,
+          "online": false,
+          "reason": 1,
+          "result": 12
+        },
+        {
+          "bits": 8388609,
+          "online": false,
+          "reason": 4,
+          "result": 12
+        },
+        {
+          "bits": 8388609,
+          "online": false,
+          "reason": 13,
+          "result": 12
+        },
+        {
+          "bits": 8388609,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 8388609,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 8388609,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 8388610,
+          "online": false,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388610,
+          "online": false,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388610,
+          "online": false,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388610,
+          "online": true,
+          "reason": 1,
+          "result": 1
+        },
+        {
+          "bits": 8388610,
+          "online": true,
+          "reason": 4,
+          "result": 4
+        },
+        {
+          "bits": 8388610,
+          "online": true,
+          "reason": 13,
+          "result": 13
+        },
+        {
+          "bits": 8388611,
+          "online": false,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": false,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": false,
+          "reason": 13,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": true,
+          "reason": 1,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": true,
+          "reason": 4,
+          "result": -1
+        },
+        {
+          "bits": 8388611,
+          "online": true,
+          "reason": 13,
+          "result": -1
+        }
+      ],
+      "secured": [
+        {
+          "code": 0,
+          "value": false
+        },
+        {
+          "code": 1,
+          "value": true
+        },
+        {
+          "code": 2,
+          "value": true
+        },
+        {
+          "code": 3,
+          "value": true
+        },
+        {
+          "code": 4,
+          "value": true
+        },
+        {
+          "code": 5,
+          "value": true
+        },
+        {
+          "code": 6,
+          "value": true
+        },
+        {
+          "code": 7,
+          "value": true
+        },
+        {
+          "code": 8,
+          "value": true
+        },
+        {
+          "code": 9,
+          "value": true
+        },
+        {
+          "code": 10,
+          "value": true
+        },
+        {
+          "code": 11,
+          "value": true
+        },
+        {
+          "code": 12,
+          "value": true
+        },
+        {
+          "code": 13,
+          "value": true
+        },
+        {
+          "code": 14,
+          "value": true
+        },
+        {
+          "code": 15,
+          "value": true
+        },
+        {
+          "code": 16,
+          "value": true
+        },
+        {
+          "code": 17,
+          "value": true
+        },
+        {
+          "code": 18,
+          "value": true
+        },
+        {
+          "code": 19,
+          "value": true
+        },
+        {
+          "code": 20,
+          "value": true
+        },
+        {
+          "code": 21,
+          "value": true
+        },
+        {
+          "code": 22,
+          "value": true
+        },
+        {
+          "code": 23,
+          "value": true
+        },
+        {
+          "code": 24,
+          "value": true
+        },
+        {
+          "code": 25,
+          "value": true
+        },
+        {
+          "code": 26,
+          "value": true
+        },
+        {
+          "code": 27,
+          "value": true
+        },
+        {
+          "code": 28,
+          "value": true
+        },
+        {
+          "code": 29,
+          "value": true
+        },
+        {
+          "code": 30,
+          "value": true
+        },
+        {
+          "code": 31,
+          "value": true
+        },
+        {
+          "code": 32,
+          "value": true
+        },
+        {
+          "code": 33,
+          "value": true
+        },
+        {
+          "code": 34,
+          "value": true
+        },
+        {
+          "code": 35,
+          "value": true
+        },
+        {
+          "code": 36,
+          "value": true
+        },
+        {
+          "code": 37,
+          "value": true
+        },
+        {
+          "code": 38,
+          "value": true
+        },
+        {
+          "code": 39,
+          "value": true
+        },
+        {
+          "code": 40,
+          "value": true
+        },
+        {
+          "code": 41,
+          "value": true
+        },
+        {
+          "code": 42,
+          "value": true
+        },
+        {
+          "code": 43,
+          "value": true
+        },
+        {
+          "code": 44,
+          "value": true
+        },
+        {
+          "code": 45,
+          "value": true
+        },
+        {
+          "code": 46,
+          "value": true
+        },
+        {
+          "code": 47,
+          "value": true
+        },
+        {
+          "code": 48,
+          "value": true
+        },
+        {
+          "code": 49,
+          "value": true
+        },
+        {
+          "code": 50,
+          "value": true
+        },
+        {
+          "code": 51,
+          "value": true
+        },
+        {
+          "code": 52,
+          "value": true
+        },
+        {
+          "code": 53,
+          "value": true
+        },
+        {
+          "code": 54,
+          "value": true
+        },
+        {
+          "code": 55,
+          "value": true
+        },
+        {
+          "code": 56,
+          "value": true
+        },
+        {
+          "code": 57,
+          "value": true
+        },
+        {
+          "code": 58,
+          "value": true
+        },
+        {
+          "code": 59,
+          "value": true
+        },
+        {
+          "code": 60,
+          "value": true
+        },
+        {
+          "code": 61,
+          "value": true
+        },
+        {
+          "code": 62,
+          "value": true
+        },
+        {
+          "code": 63,
+          "value": true
+        },
+        {
+          "code": 64,
+          "value": true
+        },
+        {
+          "code": 65,
+          "value": true
+        },
+        {
+          "code": 66,
+          "value": true
+        },
+        {
+          "code": 67,
+          "value": true
+        },
+        {
+          "code": 68,
+          "value": true
+        },
+        {
+          "code": 69,
+          "value": true
+        },
+        {
+          "code": 70,
+          "value": true
+        },
+        {
+          "code": 71,
+          "value": true
+        },
+        {
+          "code": 72,
+          "value": true
+        },
+        {
+          "code": 73,
+          "value": true
+        },
+        {
+          "code": 74,
+          "value": true
+        },
+        {
+          "code": 75,
+          "value": true
+        },
+        {
+          "code": 76,
+          "value": true
+        },
+        {
+          "code": 77,
+          "value": true
+        },
+        {
+          "code": 78,
+          "value": true
+        },
+        {
+          "code": 79,
+          "value": true
+        },
+        {
+          "code": 80,
+          "value": true
+        },
+        {
+          "code": 81,
+          "value": true
+        },
+        {
+          "code": 82,
+          "value": true
+        },
+        {
+          "code": 83,
+          "value": true
+        },
+        {
+          "code": 84,
+          "value": true
+        },
+        {
+          "code": 85,
+          "value": true
+        },
+        {
+          "code": 86,
+          "value": true
+        },
+        {
+          "code": 87,
+          "value": true
+        },
+        {
+          "code": 88,
+          "value": true
+        },
+        {
+          "code": 89,
+          "value": true
+        },
+        {
+          "code": 90,
+          "value": true
+        },
+        {
+          "code": 91,
+          "value": true
+        },
+        {
+          "code": 92,
+          "value": true
+        },
+        {
+          "code": 93,
+          "value": true
+        },
+        {
+          "code": 94,
+          "value": true
+        },
+        {
+          "code": 95,
+          "value": true
+        },
+        {
+          "code": 96,
+          "value": true
+        },
+        {
+          "code": 97,
+          "value": true
+        },
+        {
+          "code": 98,
+          "value": true
+        },
+        {
+          "code": 99,
+          "value": true
+        },
+        {
+          "code": 100,
+          "value": true
+        },
+        {
+          "code": 101,
+          "value": true
+        },
+        {
+          "code": 102,
+          "value": true
+        },
+        {
+          "code": 103,
+          "value": true
+        },
+        {
+          "code": 104,
+          "value": true
+        },
+        {
+          "code": 105,
+          "value": true
+        },
+        {
+          "code": 106,
+          "value": true
+        },
+        {
+          "code": 107,
+          "value": true
+        },
+        {
+          "code": 108,
+          "value": true
+        },
+        {
+          "code": 109,
+          "value": true
+        },
+        {
+          "code": 110,
+          "value": true
+        },
+        {
+          "code": 111,
+          "value": true
+        },
+        {
+          "code": 112,
+          "value": true
+        },
+        {
+          "code": 113,
+          "value": true
+        },
+        {
+          "code": 114,
+          "value": true
+        },
+        {
+          "code": 115,
+          "value": true
+        },
+        {
+          "code": 116,
+          "value": true
+        },
+        {
+          "code": 117,
+          "value": true
+        },
+        {
+          "code": 118,
+          "value": true
+        },
+        {
+          "code": 119,
+          "value": true
+        },
+        {
+          "code": 120,
+          "value": true
+        },
+        {
+          "code": 121,
+          "value": true
+        },
+        {
+          "code": 122,
+          "value": true
+        },
+        {
+          "code": 123,
+          "value": true
+        },
+        {
+          "code": 124,
+          "value": true
+        },
+        {
+          "code": 125,
+          "value": true
+        },
+        {
+          "code": 126,
+          "value": true
+        },
+        {
+          "code": 127,
+          "value": true
+        },
+        {
+          "code": 128,
+          "value": true
+        },
+        {
+          "code": 129,
+          "value": true
+        },
+        {
+          "code": 130,
+          "value": true
+        },
+        {
+          "code": 131,
+          "value": true
+        },
+        {
+          "code": 132,
+          "value": true
+        },
+        {
+          "code": 133,
+          "value": true
+        },
+        {
+          "code": 134,
+          "value": true
+        },
+        {
+          "code": 135,
+          "value": true
+        },
+        {
+          "code": 136,
+          "value": true
+        },
+        {
+          "code": 137,
+          "value": true
+        },
+        {
+          "code": 138,
+          "value": true
+        },
+        {
+          "code": 139,
+          "value": true
+        },
+        {
+          "code": 140,
+          "value": true
+        },
+        {
+          "code": 141,
+          "value": true
+        },
+        {
+          "code": 142,
+          "value": true
+        },
+        {
+          "code": 143,
+          "value": true
+        },
+        {
+          "code": 144,
+          "value": true
+        },
+        {
+          "code": 145,
+          "value": true
+        },
+        {
+          "code": 146,
+          "value": true
+        },
+        {
+          "code": 147,
+          "value": true
+        },
+        {
+          "code": 148,
+          "value": true
+        },
+        {
+          "code": 149,
+          "value": true
+        },
+        {
+          "code": 150,
+          "value": true
+        },
+        {
+          "code": 151,
+          "value": true
+        },
+        {
+          "code": 152,
+          "value": true
+        },
+        {
+          "code": 153,
+          "value": true
+        },
+        {
+          "code": 154,
+          "value": true
+        },
+        {
+          "code": 155,
+          "value": true
+        },
+        {
+          "code": 156,
+          "value": true
+        },
+        {
+          "code": 157,
+          "value": true
+        },
+        {
+          "code": 158,
+          "value": true
+        },
+        {
+          "code": 159,
+          "value": true
+        },
+        {
+          "code": 160,
+          "value": true
+        },
+        {
+          "code": 161,
+          "value": true
+        },
+        {
+          "code": 162,
+          "value": true
+        },
+        {
+          "code": 163,
+          "value": true
+        },
+        {
+          "code": 164,
+          "value": true
+        },
+        {
+          "code": 165,
+          "value": true
+        },
+        {
+          "code": 166,
+          "value": true
+        },
+        {
+          "code": 167,
+          "value": true
+        },
+        {
+          "code": 168,
+          "value": true
+        },
+        {
+          "code": 169,
+          "value": true
+        },
+        {
+          "code": 170,
+          "value": true
+        },
+        {
+          "code": 171,
+          "value": true
+        },
+        {
+          "code": 172,
+          "value": true
+        },
+        {
+          "code": 173,
+          "value": true
+        },
+        {
+          "code": 174,
+          "value": true
+        },
+        {
+          "code": 175,
+          "value": true
+        },
+        {
+          "code": 176,
+          "value": true
+        },
+        {
+          "code": 177,
+          "value": true
+        },
+        {
+          "code": 178,
+          "value": true
+        },
+        {
+          "code": 179,
+          "value": true
+        },
+        {
+          "code": 180,
+          "value": true
+        },
+        {
+          "code": 181,
+          "value": true
+        },
+        {
+          "code": 182,
+          "value": true
+        },
+        {
+          "code": 183,
+          "value": true
+        },
+        {
+          "code": 184,
+          "value": true
+        },
+        {
+          "code": 185,
+          "value": true
+        },
+        {
+          "code": 186,
+          "value": true
+        },
+        {
+          "code": 187,
+          "value": true
+        },
+        {
+          "code": 188,
+          "value": true
+        },
+        {
+          "code": 189,
+          "value": true
+        },
+        {
+          "code": 190,
+          "value": true
+        },
+        {
+          "code": 191,
+          "value": true
+        },
+        {
+          "code": 192,
+          "value": true
+        },
+        {
+          "code": 193,
+          "value": true
+        },
+        {
+          "code": 194,
+          "value": true
+        },
+        {
+          "code": 195,
+          "value": true
+        },
+        {
+          "code": 196,
+          "value": true
+        },
+        {
+          "code": 197,
+          "value": true
+        },
+        {
+          "code": 198,
+          "value": true
+        },
+        {
+          "code": 199,
+          "value": true
+        },
+        {
+          "code": 200,
+          "value": true
+        },
+        {
+          "code": 201,
+          "value": true
+        },
+        {
+          "code": 202,
+          "value": true
+        },
+        {
+          "code": 203,
+          "value": true
+        },
+        {
+          "code": 204,
+          "value": true
+        },
+        {
+          "code": 205,
+          "value": true
+        },
+        {
+          "code": 206,
+          "value": true
+        },
+        {
+          "code": 207,
+          "value": true
+        },
+        {
+          "code": 208,
+          "value": true
+        },
+        {
+          "code": 209,
+          "value": true
+        },
+        {
+          "code": 210,
+          "value": true
+        },
+        {
+          "code": 211,
+          "value": true
+        },
+        {
+          "code": 212,
+          "value": true
+        },
+        {
+          "code": 213,
+          "value": true
+        },
+        {
+          "code": 214,
+          "value": true
+        },
+        {
+          "code": 215,
+          "value": true
+        },
+        {
+          "code": 216,
+          "value": true
+        },
+        {
+          "code": 217,
+          "value": true
+        },
+        {
+          "code": 218,
+          "value": true
+        },
+        {
+          "code": 219,
+          "value": true
+        },
+        {
+          "code": 220,
+          "value": true
+        },
+        {
+          "code": 221,
+          "value": true
+        },
+        {
+          "code": 222,
+          "value": true
+        },
+        {
+          "code": 223,
+          "value": true
+        },
+        {
+          "code": 224,
+          "value": true
+        },
+        {
+          "code": 225,
+          "value": true
+        },
+        {
+          "code": 226,
+          "value": true
+        },
+        {
+          "code": 227,
+          "value": true
+        },
+        {
+          "code": 228,
+          "value": true
+        },
+        {
+          "code": 229,
+          "value": true
+        },
+        {
+          "code": 230,
+          "value": true
+        },
+        {
+          "code": 231,
+          "value": true
+        },
+        {
+          "code": 232,
+          "value": true
+        },
+        {
+          "code": 233,
+          "value": true
+        },
+        {
+          "code": 234,
+          "value": true
+        },
+        {
+          "code": 235,
+          "value": true
+        },
+        {
+          "code": 236,
+          "value": true
+        },
+        {
+          "code": 237,
+          "value": true
+        },
+        {
+          "code": 238,
+          "value": true
+        },
+        {
+          "code": 239,
+          "value": true
+        },
+        {
+          "code": 240,
+          "value": true
+        },
+        {
+          "code": 241,
+          "value": true
+        },
+        {
+          "code": 242,
+          "value": true
+        },
+        {
+          "code": 243,
+          "value": true
+        },
+        {
+          "code": 244,
+          "value": true
+        },
+        {
+          "code": 245,
+          "value": true
+        },
+        {
+          "code": 246,
+          "value": true
+        },
+        {
+          "code": 247,
+          "value": true
+        },
+        {
+          "code": 248,
+          "value": true
+        },
+        {
+          "code": 249,
+          "value": true
+        },
+        {
+          "code": 250,
+          "value": true
+        },
+        {
+          "code": 251,
+          "value": true
+        },
+        {
+          "code": 252,
+          "value": true
+        },
+        {
+          "code": 253,
+          "value": true
+        },
+        {
+          "code": 254,
+          "value": true
+        },
+        {
+          "code": 255,
+          "value": true
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/PassportCheck.cs",
+      "sha256": "8ccfd82ca93f250b8811e0138bc81fe1e467fa4298a0def1d00a3907f1164fba"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore/GameClient.cs",
+      "sha256": "46e517a3b565dd6d516bc307ba442f648560d59e23176ed736bd7fc1b07f3550"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.LoginServiceOperations/Permissions.cs",
+      "sha256": "3f70dae3bf1da67659d3decc2a31224dc7d94570802d8b5b7b33ac3374f7e31b"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/LoginFailMessage.cs",
+      "sha256": "f331e4c7049604def387629006b2c28d83d9885f9af3d8ad2bdb31e2db3b1709"
+    },
+    {
+      "path": "scripts/reverse/framework/FrontendGateOracle.cs",
+      "sha256": "17e424e4e3c557bef071be84f4a85468a510724f8be188080993c541cd2c118c"
+    }
+  ],
+  "original_services_executed": false,
+  "method": "Unchanged recovered frontend gates/OTP expression and original enums; logging and parent/operation shims only"
+}

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <NoWarn>SYSLIB0050</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/Packet.cs" Link="RecoveredPacket.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net/IPacket.cs" Link="RecoveredIPacket.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net/ICryptoTransform.cs" Link="RecoveredICryptoTransform.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/Isaac.cs" Link="RecoveredIsaac.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/CryptoTransform.cs" Link="RecoveredCryptoTransform.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/MessageAnalyzer.cs" Link="RecoveredMessageAnalyzer.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/MEMORYSTATUSEX.cs" Link="RecoveredMemoryStatus.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net/IPacketAnalyzer.cs" Link="RecoveredPacketAnalyzer.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializeWriter.cs" Link="RecoveredSerializeWriter.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializeWriterHelper.cs" Link="RecoveredSerializeWriterHelper.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializedSizeCalculator.cs" Link="RecoveredSizeCalculator.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializedSizeCalculatorHelper.cs" Link="RecoveredSizeCalculatorHelper.cs" />
+    <Compile Include="../../../legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/ClassInfo.cs" Link="RecoveredClassInfo.cs" />
+    <Compile Include="../../../legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/UserLoginMessage.cs" Link="RecoveredUserLoginMessage.cs" />
+    <Compile Include="../../../legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/IMessage.cs" Link="RecoveredIMessage.cs" />
+    <Compile Include="../../../legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/Isaac.cs" Link="RecoveredHeroesIsaac.cs" />
+    <Compile Include="../../../legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/CryptoTransformHeroes.cs" Link="RecoveredHeroesCryptoTransform.cs" />
+  </ItemGroup>
+</Project>

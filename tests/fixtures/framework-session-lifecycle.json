@@ -1,0 +1,686 @@
+{
+  "profiles": [
+    {
+      "architecture": "x86",
+      "duplicates": [
+        {
+          "remote": "FrontendServiceCore.FrontendService",
+          "tag": "null",
+          "feedback": [
+            "continue"
+          ],
+          "finished": false,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "FrontendServiceCore.FrontendService",
+          "tag": "user",
+          "feedback": [
+            "2"
+          ],
+          "finished": true,
+          "disconnects": 1,
+          "queued": 1,
+          "close_before": 0,
+          "close_after": 1
+        },
+        {
+          "remote": "FrontendServiceCore.FrontendService",
+          "tag": "other",
+          "feedback": [
+            "continue"
+          ],
+          "finished": false,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "Other",
+          "tag": "null",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "Other",
+          "tag": "user",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "Other",
+          "tag": "other",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "frontendservicecore.frontendservice",
+          "tag": "null",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "frontendservicecore.frontendservice",
+          "tag": "user",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "frontendservicecore.frontendservice",
+          "tag": "other",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": null,
+          "tag": "null",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": null,
+          "tag": "user",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": null,
+          "tag": "other",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        }
+      ],
+      "lifecycle": [
+        {
+          "id": -2147483648,
+          "uses": 0,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 0,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 1,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 1,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 3,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 3,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 0,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 0,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 1,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 1,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 3,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 3,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 0,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 0,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 1,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 1,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 3,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 3,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        }
+      ]
+    },
+    {
+      "architecture": "x64",
+      "duplicates": [
+        {
+          "remote": "FrontendServiceCore.FrontendService",
+          "tag": "null",
+          "feedback": [
+            "continue"
+          ],
+          "finished": false,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "FrontendServiceCore.FrontendService",
+          "tag": "user",
+          "feedback": [
+            "2"
+          ],
+          "finished": true,
+          "disconnects": 1,
+          "queued": 1,
+          "close_before": 0,
+          "close_after": 1
+        },
+        {
+          "remote": "FrontendServiceCore.FrontendService",
+          "tag": "other",
+          "feedback": [
+            "continue"
+          ],
+          "finished": false,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "Other",
+          "tag": "null",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "Other",
+          "tag": "user",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "Other",
+          "tag": "other",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "frontendservicecore.frontendservice",
+          "tag": "null",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "frontendservicecore.frontendservice",
+          "tag": "user",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": "frontendservicecore.frontendservice",
+          "tag": "other",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": null,
+          "tag": "null",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": null,
+          "tag": "user",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        },
+        {
+          "remote": null,
+          "tag": "other",
+          "feedback": [
+            "False"
+          ],
+          "finished": true,
+          "disconnects": 0,
+          "queued": 0,
+          "close_before": 0,
+          "close_after": 0
+        }
+      ],
+      "lifecycle": [
+        {
+          "id": -2147483648,
+          "uses": 0,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 0,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 1,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 1,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 3,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": -2147483648,
+          "uses": 3,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 0,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 0,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 1,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 1,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 3,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 0,
+          "uses": 3,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 0,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 0,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 1,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 1,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 3,
+          "throws": false,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        },
+        {
+          "id": 2147483647,
+          "uses": 3,
+          "throws": true,
+          "closed": 1,
+          "tag_cleared": true,
+          "calls": 1,
+          "before": 42,
+          "after": -1
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/LoginServiceCore-1600fb4b593d/LoginServiceCore.Processor/UserLoginProcessor.cs",
+      "sha256": "de3c2983235eee1a5e04471559168e10d70b1150eddaa0932c618067071a1f2e"
+    },
+    {
+      "path": "legacy/decompiled/LoginServiceCore-1600fb4b593d/LoginServiceCore/LoginService.cs",
+      "sha256": "de436c28c7af04a8b9a8647049d44add2d2e3788d3f305be16b388886a45408b"
+    },
+    {
+      "path": "scripts/reverse/framework/SessionLifecycleOracle.cs",
+      "sha256": "788ef199c8dd99d0894f4d92806c40a6bce439b62f20e2b65ee05693104b7655"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/LoginFailMessage.cs",
+      "sha256": "f331e4c7049604def387629006b2c28d83d9885f9af3d8ad2bdb31e2db3b1709"
+    }
+  ],
+  "original_services_executed": false,
+  "method": "Recovered duplicate block and entity lifecycle; interface/accessibility adapted for synthetic event/scheduler/DB stubs. No AcquireService SQL emulation or distributed ownership proof"
+}

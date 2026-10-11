@@ -1,0 +1,2067 @@
+{
+  "generated_at": "2026-10-10T01:47:05.898002+00:00",
+  "source_root": "D:\\PROJETOS\\VindictusPrivate\\ServidorVindictus\\Server",
+  "method": "PE headers and SHA256; ILSpy static decompilation, not execution",
+  "files": [
+    {
+      "path": "HeroesCommandClient/Core.dll",
+      "bytes": 370688,
+      "sha256": "7ff240bdb5389a211420bf187948e82f44307a4bc554dd84ee5abd48f7a77a35",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesCommandClient/HeroesCommandClient.exe",
+      "bytes": 52224,
+      "sha256": "48906e127b72fd96cf323f86829ccbb8706d7d792a2e810ca22a81bf2947ea18",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesCommandClient/log4net.dll",
+      "bytes": 270336,
+      "sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesCommandClient/RCCommon.dll",
+      "bytes": 118784,
+      "sha256": "27917d19ae7b707d994480a5555502a9e04ad9a958ef1c076295dcf87741fe0e",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/AxInterop.SHDocVw.dll",
+      "bytes": 42496,
+      "sha256": "feb298f179d15e6ad655cd591d0e9cb457599f37ec981981d38b165a78e75fc9",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/Core.dll",
+      "bytes": 370688,
+      "sha256": "7ff240bdb5389a211420bf187948e82f44307a4bc554dd84ee5abd48f7a77a35",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/HeroesOpTool.exe",
+      "bytes": 524288,
+      "sha256": "84d0e982b1c4a2442894b3e215f74724ccbf381904afacf5eaf4ba0dcf84d086",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/Interop.SHDocVw.dll",
+      "bytes": 139264,
+      "sha256": "e857ad77230d72027b856f96d7e06a293b2d2f877a3f30d7c75f4c023bfd99a1",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/log4net.dll",
+      "bytes": 270336,
+      "sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/NPlot.dll",
+      "bytes": 180224,
+      "sha256": "0837dc796251fbf0f89116bbf4db9e018959ff3ac1d47d67c2eb35f0a2a11938",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/RCCommon.dll",
+      "bytes": 106496,
+      "sha256": "adff9f87409648641308e7ddcc679da20319a17dae9bfe627485848dc07807c1",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "HeroesOpTool/System.Threading.dll",
+      "bytes": 88064,
+      "sha256": "ac08eed8a62c1f2c5bfa5b685dbfe17c628b28b66b458bf82e5e6f16f88d644f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "NMServer.exe",
+      "bytes": 6721536,
+      "sha256": "3333454583bc98c2b8f82bb90d0da749aaa29a094d31bb7629fa6a5636477b78",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 11,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "RCClient/Core.dll",
+      "bytes": 370688,
+      "sha256": "cae4df095d57350cde1737fc3020e9550a0757e5beb4318f71785888d67dd707",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/log4net.dll",
+      "bytes": 270336,
+      "sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/PSConsole.exe",
+      "bytes": 18944,
+      "sha256": "1570b967014bdf82d495e23c377ca6d4f134a776070e65e8406b60588c2d3147",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/RCClientService - 副本.exe",
+      "bytes": 45056,
+      "sha256": "f23d96b09b32fe2fa914822b125dbf0f17c29a47ac0291bc8db334809c713c95",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 2,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/RCClientService.exe",
+      "bytes": 45056,
+      "sha256": "f23d96b09b32fe2fa914822b125dbf0f17c29a47ac0291bc8db334809c713c95",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 2,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/RCCommon.dll",
+      "bytes": 102400,
+      "sha256": "89908cdff3e271d790a82a189965be66b40605280979629b14f7e475aa7b972f",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 2,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/RCServer/Core.dll",
+      "bytes": 370688,
+      "sha256": "7ff240bdb5389a211420bf187948e82f44307a4bc554dd84ee5abd48f7a77a35",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/RCServer/log4net.dll",
+      "bytes": 270336,
+      "sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/RCServer/RCCommon.dll",
+      "bytes": 106496,
+      "sha256": "adff9f87409648641308e7ddcc679da20319a17dae9bfe627485848dc07807c1",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCClient/RCServer/RCServerService.exe",
+      "bytes": 65536,
+      "sha256": "68f9aeee27e9a2577896fe00cf7b90b83667fe19fd0ffc7c8a96e2581fcaa944",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCServer/Core.dll",
+      "bytes": 370688,
+      "sha256": "7ff240bdb5389a211420bf187948e82f44307a4bc554dd84ee5abd48f7a77a35",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCServer/log4net.dll",
+      "bytes": 270336,
+      "sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCServer/RCCommon.dll",
+      "bytes": 106496,
+      "sha256": "adff9f87409648641308e7ddcc679da20319a17dae9bfe627485848dc07807c1",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "RCServer/RCServerService.exe",
+      "bytes": 65536,
+      "sha256": "68f9aeee27e9a2577896fe00cf7b90b83667fe19fd0ffc7c8a96e2581fcaa944",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/AdminClient.exe",
+      "bytes": 35328,
+      "sha256": "45b6c69e70a55be3488c537821091bd2841a3a76392471984fd48a0fde6088fe",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/AdminClientServiceCore.dll",
+      "bytes": 77824,
+      "sha256": "efaaffc9d51d0dbaeaf0c8005db47bf00007a9f93b63fa8d4c4326838c7c8594",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/AdminService.exe",
+      "bytes": 24576,
+      "sha256": "4f6849622731afc601f612fa42679436563b32e8d7ddeefed0dab5358b7e82f6",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/CafeAuthJPNVersionService.dll",
+      "bytes": 18944,
+      "sha256": "c847ac84a9c82f2d7899c773f4186405b02607ea9e9676c4857b3db996902239",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/CafeAuthOldVersionService.dll",
+      "bytes": 20480,
+      "sha256": "6ccc71fb5bbcd097b460bd6329d2c7df9143d512a0d19eac4901d9095c953c5f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/CafeAuthServiceCore.dll",
+      "bytes": 33792,
+      "sha256": "4d0bde5eb382059168cac6a8896a0e27dd8b7217ebe69922ed9e4395dc21fe64",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/CashShopService.dll",
+      "bytes": 105472,
+      "sha256": "e73d1f7ed58c2d5acbee418613b1bf481be6c0163cc11d5d133c4373426fb214",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ChannelService.dll",
+      "bytes": 41984,
+      "sha256": "a24b6417dc8a1180b9d557302937b06937861cf203d089091ea63e4d593aed50",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/CodeGenerator.exe",
+      "bytes": 10752,
+      "sha256": "37c765910017fb43fad320762b033d005d251db6bd4d534eb8635696b996bdf4",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Core.dll",
+      "bytes": 370688,
+      "sha256": "8942a0c26a9abf4c5f0d1f7ffff41452a3714d099e3b76012cebdee97293c2f0",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/DSService.dll",
+      "bytes": 132702,
+      "sha256": "2b975264b088b700e3b5a87da50ebe9705ca4a9f94f49d1ea28d30e5877d1dea",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Executer.exe",
+      "bytes": 13824,
+      "sha256": "d23f3c8a2cc4a115626a215db1cd802cc9949456abe4a9ed6b9f044d16459120",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ExecutionServiceCore.dll",
+      "bytes": 17408,
+      "sha256": "126584bd853e93f3b397fb9929595f832436ab9e7420f3bbd9b8819abc2c26c6",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ExecutionSupporter.exe",
+      "bytes": 68608,
+      "sha256": "a2f3d1b2bbe4c635882865c0b9b682bc23475dbd1831aa257f3af197deb9d417",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ExecutionSupporterClient.exe",
+      "bytes": 13824,
+      "sha256": "c4486ebec42a82203acf5ba85ab9c5ead0256728e3acb2ef70fb75ea4d645ced",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ExecutionSupporterMessages.dll",
+      "bytes": 14336,
+      "sha256": "90141d73fa043c6cb9bf26a5073ba6d590b2b11fb0c2b24a4e4b8cd02fb4364f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/FrontendServiceCore.dll",
+      "bytes": 475250,
+      "sha256": "6be47572809197138400163ea6f4484f45ba7228beadd15ab256daa653534e5b",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/GRCService.dll",
+      "bytes": 17408,
+      "sha256": "53a5efede1780666160ae11a806b063b3dd00ced67b03eefb86ea81ad34f62da",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/GuildService.dll",
+      "bytes": 217088,
+      "sha256": "17c4f6c1ecb3abe553c58d96a2dacbab6e4f21d6ddd04add4ab3c13e49f30938",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/HackShieldServiceCore.dll",
+      "bytes": 22528,
+      "sha256": "61e0c2b0a6413504ab3bf1f51e1a72c7d6ed7e4a2300ae29561b1cacf349b3a4",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/HeroesChannelServer.dll",
+      "bytes": 35328,
+      "sha256": "3264f671bce024526dc610de255eaecd13d799926b0a52e9a1157a921761c0f0",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/HeroesChannelServerPerformanceTester.exe",
+      "bytes": 10752,
+      "sha256": "80a310c7198ff814275d6fe87a5f6094b42c345dd4d55c44e8175debd7836161",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/HeroesServerHost.exe",
+      "bytes": 11264,
+      "sha256": "ea00533a8a2854909ba484180f18bbf51d2bb2e3371c7a1d7146849c517db003",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/IndependentRelayServer.exe",
+      "bytes": 7680,
+      "sha256": "868e810c1bdc0f0306d71a365e1943efd938df77725f8290a9cefa91f77c7330",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Interop.mscoree.dll",
+      "bytes": 17920,
+      "sha256": "16838155294d6a513601a01ff4074ea7031b69971f5d93fa22aebce19ca82872",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/log4net.dll",
+      "bytes": 270336,
+      "sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/LoginServiceCore.dll",
+      "bytes": 91136,
+      "sha256": "1600fb4b593dfcea7afb3ef76fae67a24095d3fe0407fa3eb6fa304c014c2ca9",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/MicroPlayServiceCore.dll",
+      "bytes": 806004,
+      "sha256": "867c492708dacbef1eeb5f2bb8ce4beceff56d4c9d198f4ee200dbfe01dbac16",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Microsoft.Practices.EnterpriseLibrary.Common.dll",
+      "bytes": 161192,
+      "sha256": "1f62a53e09de128960a3344d9203a3bba27c8b2d4fd836df5f61544c411a16a2",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Microsoft.Practices.EnterpriseLibrary.Logging.dll",
+      "bytes": 218536,
+      "sha256": "e4a865369e708bbab4ead254d33c6233095d851dc77208ea5540e0c7c23f692a",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Microsoft.Practices.ObjectBuilder.dll",
+      "bytes": 64352,
+      "sha256": "0378f63073bd5ad7a8334f2d42ab73b98e98e4162654c17d192e104418a8189f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/MMOChannelService.dll",
+      "bytes": 43630,
+      "sha256": "bd760399728c9565826931a170fc9988683200cd08a14796f7d9b365ee98304f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/MMOServer.dll",
+      "bytes": 31744,
+      "sha256": "801827edfc8357d46a8d481c18bc71f191b6eabb941aac432aac965f6a2be2dd",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/MMOServerTest.exe",
+      "bytes": 15360,
+      "sha256": "c2930c5f78f468347ec13c4891c53591a93476cbf636573b919fdbc929f156c2",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.BlockParty.Playfeed.SDK.dll",
+      "bytes": 12288,
+      "sha256": "5f3a4f07058252cb9399f042c6a2bd60c3ad529f153644be5ceafdd85944207e",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Com.dll",
+      "bytes": 360448,
+      "sha256": "1ea6ce0ffea6369f9271321b677839bd6787c9e932dfe2bc41e9561e523d2bcb",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Com.Group.Game.Wrapper.dll",
+      "bytes": 167936,
+      "sha256": "e6241085128c7f0dbf2ce5875491c8d0b0e5ce11d8d3aaa6616692c833fad957",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Com.Group.Game.Wrapper.XmlSerializers.dll",
+      "bytes": 151552,
+      "sha256": "eff747f7824e3187eece7eb21d5e744dd825e7fb4460fd0114ce7ec5025975fb",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Com.Playfeed.SDK.dll",
+      "bytes": 13312,
+      "sha256": "cd6216e9c5a4ca0b94d859a051f1dbaafe1425f6742c3d3ea5ecbd461ebebef6",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Com.Playfeed.SDK.Wrapper.dll",
+      "bytes": 6144,
+      "sha256": "c44752717f3954ac6e35d5151b460044e2f17e9cfcc2693e7a8d94c05fb24ea1",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Com.UserWrapper.dll",
+      "bytes": 193536,
+      "sha256": "36190b519a97947f3e22c4d0a10468f643ad5956481b17519d1e086cf8e2d505",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Com.UserWrapper.XmlSerializers.dll",
+      "bytes": 192512,
+      "sha256": "a8fec14d3015341dfc2862aa02ffcaa5d37d5986c2523e1756a4784971cdb76b",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/NEXON.dll",
+      "bytes": 132096,
+      "sha256": "426550f553b2f4a7417be0d1886d1abc7547f8cb021e57419ce2869ba584292e",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Enterprise.Management.dll",
+      "bytes": 107008,
+      "sha256": "a8c66de56376fe58bd9fe71638d9f568cfc896eee4329c015cb452f45d5ebbff",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Enterprise.Management.Listener.dll",
+      "bytes": 6656,
+      "sha256": "8031d4fbc0c0549e5f29af9ac3bce8f9c404e58e2023ec082dd08007a4198604",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Enterprise.ServiceFacade.dll",
+      "bytes": 98304,
+      "sha256": "d740b1fbea47f1b16a31f107e57ce74bbb5b37f8e5453c3c4306c5248dc8add7",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Nexon.Passport.Immigrator.SDK.dll",
+      "bytes": 32768,
+      "sha256": "6b705e39bbb94bdc283e20ef8a0417e844ecc18ce03c4d4a281df0332f2193a6",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/NGSecurityServiceCore.dll",
+      "bytes": 26624,
+      "sha256": "5a731f732f7841f5a23c02efa6f11295dab0d5a0eaeb1e9f71b89c8693603f86",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/NMLinkW.dll",
+      "bytes": 835584,
+      "sha256": "bc8db6d048227e3a83d2b5871972c623cd3248c474c8c890712107f4c79385cc",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/NPL.SSO.dll",
+      "bytes": 92160,
+      "sha256": "e1ce178da57ed7553d5d8ac82284b00c3c02299d4eb94082d9d59f767ca90560",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/NPL.SSO.XmlSerializers.dll",
+      "bytes": 155648,
+      "sha256": "8e832b74237338e346ce4fb3a17dfaa169d04f8ba4bf1bb7fb88d5c2662540b3",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/nunit.framework.dll",
+      "bytes": 77824,
+      "sha256": "d1fbb08603a3a7eaa54a9f995effeaad9c4ca4606525fdfae76b825c6ee01fde",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/PartyServiceCore.dll",
+      "bytes": 97792,
+      "sha256": "16faa4193b924779d75c08090d970828c320d30a8378bee5cdab80d6b97d17ac",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/PingService.dll",
+      "bytes": 36864,
+      "sha256": "42b87fcf083958dc8c51fce5189a0bb74abb529d84d5a5b364f726417c5da1cc",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/PlayerService.dll",
+      "bytes": 2385510,
+      "sha256": "f23d8b9df77c45dc332921cc3ccb22cdefaaa98703a863c69f6bf9f53e9c04f6",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/PlayfeedService.dll",
+      "bytes": 21504,
+      "sha256": "2f167173eaebb82b9d28e6e1b7144658001649359c5290eb18dce8199b14ab51",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/PostalServiceCore.dll",
+      "bytes": 67072,
+      "sha256": "8f7603439b4c606a548c460bdedda47e0020928b6b8b28a2b3dfca34649d0643",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/PostSharp.dll",
+      "bytes": 217312,
+      "sha256": "9e55c1c3978c2f56c02c04c643a029a2499ff9ba85b0306f32b403874f06051f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ProfileService.dll",
+      "bytes": 19968,
+      "sha256": "a111f95c556f35de9dd53967c9f29510e1b06e50244f0ef98534062105364494",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/PvpService.dll",
+      "bytes": 216064,
+      "sha256": "46bc3ddd4b5fd29d4ca6227718028651b4b6818fb9661fe281c4fbefc374d8b0",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/RankService.dll",
+      "bytes": 45568,
+      "sha256": "13670da58e991de68a64beb7594a9ef8ffc715269d1f2a11edb091f9e00cbf09",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/RelayServer.dll",
+      "bytes": 24576,
+      "sha256": "e71f746b7fb0c1fdc1ee6b7ef0a9cbfe8d1d8304b05918ecad86793d96c6c258",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/RelayService.dll",
+      "bytes": 35328,
+      "sha256": "aa1fc2b1b76df3157a641238b6b9a6a1e459ce4769012ad2c755cca92f531fc5",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ReportServiceClient.exe",
+      "bytes": 30208,
+      "sha256": "51f214ab9b56bc33fb2dfb74672cb79c9af0f30272374a01d77e35caea6ac341",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/ServiceCore.dll",
+      "bytes": 1648738,
+      "sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/TalkService.dll",
+      "bytes": 21504,
+      "sha256": "c794b6f309c5bbf6c3646d9c5b6f27dd415607ca4fd705e2e9a3362ed47f2674",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/TestLauncher.exe",
+      "bytes": 11264,
+      "sha256": "6c9d12eb7786c3dc50c2071729811d48506b10996cb0a152a2b071412377052e",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/TradeService.dll",
+      "bytes": 14848,
+      "sha256": "c0f53c285c85e847cc3976866cf0f85c052d6010415398d7504dfd49ad9f2e18",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/UnifiedNetwork.dll",
+      "bytes": 223848,
+      "sha256": "70191dde69d59c744bbd651576f9d990e302ab5b14f04445821db40706234856",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/UserDSHostService.dll",
+      "bytes": 66048,
+      "sha256": "899dd13c73daae79b189684efaa7d4ed00e29c12e19e4bf9d45394861e43a2e4",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/Utility.dll",
+      "bytes": 44122,
+      "sha256": "37359981d509dcbe2bac1028dd15b86de2f915989a6624059b910eb0849c8be6",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/WcfChatRelay.dll",
+      "bytes": 11264,
+      "sha256": "08d93a2aff4f1e26225ce246fedd47abd66f3eb9b17e21c4fed754c4b69ec23f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/WcfChatRelay.Server.dll",
+      "bytes": 18944,
+      "sha256": "d987c61851b262ef9ff1cfa80e2db3281f94a84aedfc36b0fa2ebc0cb8f4966f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x64/AntiCpXSvr.dll",
+      "bytes": 470160,
+      "sha256": "4afca2bcba95f4cfbc7bb4e229afd2e0c2b3145056e587bd21922cbacee12c2d",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 7,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x64/Core.ExceptionHandler.dll",
+      "bytes": 66560,
+      "sha256": "4cb80a523982d7d7d34c7f033172175399da3bd758ff362414fa553971473c23",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 7,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x64/Heroes.Managed.dll",
+      "bytes": 1521664,
+      "sha256": "be6f097208c5cd6745c48a1d50295f9d18cfa8f46c3458397fb77bea76090a43",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 8,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x64/ProfilerOBJ.dll",
+      "bytes": 189440,
+      "sha256": "59fcd8f5971886133ff9309d8207914c615a5f66612e30e3e8a37f46d0ec32c2",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 6,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x64/ProudNet.dll",
+      "bytes": 981504,
+      "sha256": "6170f0b1e8f504b97623fc90a422cff2688da80d6ae741dbad86ccc2b88e3bb6",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 8,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x64/System.Data.SQLite.DLL",
+      "bytes": 1102336,
+      "sha256": "9866dceb181852eab3735afeebbac1ea7810857201319c2c5a2af4667eaa8d45",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 6,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/AntiCpXSvr.dll",
+      "bytes": 270088,
+      "sha256": "9041083b4a3471276e163e844c13d27638277cf65f0d45a6a411e3920232ee26",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 5,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/Core.ExceptionHandler.dll",
+      "bytes": 56320,
+      "sha256": "fefaa7f0a175e75f2fe809d313790ab6544bca3c350aa0555b1b68e7174c31ad",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 5,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/Heroes.Managed.dll",
+      "bytes": 1507840,
+      "sha256": "c79854d24803dcff124f8cae302305675def4254060116ea4096d06d1e50367f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/ProfilerOBJ.dll",
+      "bytes": 163328,
+      "sha256": "25c042ed0c7816a0a0918282f76e0f2217472ad298cae993f8015b54cbebc9f1",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 5,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/ProudNet.dll",
+      "bytes": 1101312,
+      "sha256": "f6cd106e71a84b719d727c1818844742c81a8ceefe1f018b5965e13021384b2f",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/stlport.5.2.dll",
+      "bytes": 696832,
+      "sha256": "771c104edc31125559d9cc809b4be6014d5080be57c80138372a212dd5bf49ce",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/stlportd.5.2.dll",
+      "bytes": 839168,
+      "sha256": "c7a62c0c38fa7f1445cdf8c6070db6565881387e6121f6a7e1cdaa8881336a69",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/stlportstld.5.2.dll",
+      "bytes": 1272320,
+      "sha256": "5793ac4657d147550197691ca336cf03f747b24f8bb050f829f65c3e4e7ae690",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/x86/System.Data.SQLite.DLL",
+      "bytes": 904704,
+      "sha256": "49261be7f20c9d9dfd1ff35d71e9f3b1b7de17f65581c67beed43d933f1eb85c",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 5,
+      "managed": true,
+      "clr_header_size": 72
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/xigncode/zwave_sdk_helper.dll",
+      "bytes": 1647104,
+      "sha256": "c2affb7aede3c6a403a7b36a1d3183d4e0a3d33dca37169a9c3d2533e0789a8c",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/xigncode/zwave_sdk_helper_x64.dll",
+      "bytes": 2263552,
+      "sha256": "cb4b222874d13d7a58905b5ac1a71637b69f7b1c7b536a403266eb46f653e6a3",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 7,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/xigncode/zwave_sdk_linker.dll",
+      "bytes": 1647104,
+      "sha256": "c2affb7aede3c6a403a7b36a1d3183d4e0a3d33dca37169a9c3d2533e0789a8c",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 6,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/xigncode/zwave_sdk_linker_x64.dll",
+      "bytes": 2263552,
+      "sha256": "cb4b222874d13d7a58905b5ac1a71637b69f7b1c7b536a403266eb46f653e6a3",
+      "format": "PE",
+      "machine": "0x8664",
+      "sections": 7,
+      "managed": false,
+      "clr_header_size": 0
+    },
+    {
+      "path": "zh-tw-x-gm/Bin/XignCodeService.dll",
+      "bytes": 16896,
+      "sha256": "9a224bb68b6a2ed08362408f35f01042a85bbfce772ddbf6f1aa5a3406ff854e",
+      "format": "PE",
+      "machine": "0x14c",
+      "sections": 3,
+      "managed": true,
+      "clr_header_size": 72
+    }
+  ],
+  "binary_files": 120,
+  "managed_files": 107,
+  "unique_managed_assemblies": 95,
+  "decompilation": [
+    {
+      "source": "HeroesCommandClient/Core.dll",
+      "sha256": "7ff240bdb5389a211420bf187948e82f44307a4bc554dd84ee5abd48f7a77a35",
+      "output": "decompiled/Core-7ff240bdb538",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 178,
+      "cs_lines": 25737
+    },
+    {
+      "source": "HeroesCommandClient/HeroesCommandClient.exe",
+      "sha256": "48906e127b72fd96cf323f86829ccbb8706d7d792a2e810ca22a81bf2947ea18",
+      "output": "decompiled/HeroesCommandClient-48906e127b72",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 31,
+      "cs_lines": 2124
+    },
+    {
+      "source": "HeroesCommandClient/RCCommon.dll",
+      "sha256": "27917d19ae7b707d994480a5555502a9e04ad9a958ef1c076295dcf87741fe0e",
+      "output": "decompiled/RCCommon-27917d19ae7b",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 81,
+      "cs_lines": 4686
+    },
+    {
+      "source": "HeroesCommandClient/log4net.dll",
+      "sha256": "27d26aab42f7cab35bf51d0536c67ed553fc97b670226b868805e7c6927e5c87",
+      "output": "decompiled/log4net-27d26aab42f7",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 213,
+      "cs_lines": 18645
+    },
+    {
+      "source": "HeroesOpTool/AxInterop.SHDocVw.dll",
+      "sha256": "feb298f179d15e6ad655cd591d0e9cb457599f37ec981981d38b165a78e75fc9",
+      "output": "decompiled/AxInterop.SHDocVw-feb298f179d1",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 79,
+      "cs_lines": 2201
+    },
+    {
+      "source": "HeroesOpTool/HeroesOpTool.exe",
+      "sha256": "84d0e982b1c4a2442894b3e215f74724ccbf381904afacf5eaf4ba0dcf84d086",
+      "output": "decompiled/HeroesOpTool-84d0e982b1c4",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 56,
+      "cs_lines": 14518
+    },
+    {
+      "source": "HeroesOpTool/Interop.SHDocVw.dll",
+      "sha256": "e857ad77230d72027b856f96d7e06a293b2d2f877a3f30d7c75f4c023bfd99a1",
+      "output": "decompiled/Interop.SHDocVw-e857ad77230d",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 120,
+      "cs_lines": 13110
+    },
+    {
+      "source": "HeroesOpTool/NPlot.dll",
+      "sha256": "0837dc796251fbf0f89116bbf4db9e018959ff3ac1d47d67c2eb35f0a2a11938",
+      "output": "decompiled/NPlot-0837dc796251",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 56,
+      "cs_lines": 16400
+    },
+    {
+      "source": "HeroesOpTool/RCCommon.dll",
+      "sha256": "adff9f87409648641308e7ddcc679da20319a17dae9bfe627485848dc07807c1",
+      "output": "decompiled/RCCommon-adff9f874096",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 81,
+      "cs_lines": 4714
+    },
+    {
+      "source": "HeroesOpTool/System.Threading.dll",
+      "sha256": "ac08eed8a62c1f2c5bfa5b685dbfe17c628b28b66b458bf82e5e6f16f88d644f",
+      "output": "decompiled/System.Threading-ac08eed8a62c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 41,
+      "cs_lines": 6958
+    },
+    {
+      "source": "RCClient/Core.dll",
+      "sha256": "cae4df095d57350cde1737fc3020e9550a0757e5beb4318f71785888d67dd707",
+      "output": "decompiled/Core-cae4df095d57",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 178,
+      "cs_lines": 25742
+    },
+    {
+      "source": "RCClient/PSConsole.exe",
+      "sha256": "1570b967014bdf82d495e23c377ca6d4f134a776070e65e8406b60588c2d3147",
+      "output": "decompiled/PSConsole-1570b967014b",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 7,
+      "cs_lines": 838
+    },
+    {
+      "source": "RCClient/RCClientService - 副本.exe",
+      "sha256": "f23d96b09b32fe2fa914822b125dbf0f17c29a47ac0291bc8db334809c713c95",
+      "output": "decompiled/RCClientService - 副本-f23d96b09b32",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 10,
+      "cs_lines": 1507
+    },
+    {
+      "source": "RCClient/RCCommon.dll",
+      "sha256": "89908cdff3e271d790a82a189965be66b40605280979629b14f7e475aa7b972f",
+      "output": "decompiled/RCCommon-89908cdff3e2",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 81,
+      "cs_lines": 4714
+    },
+    {
+      "source": "RCClient/RCServer/RCServerService.exe",
+      "sha256": "68f9aeee27e9a2577896fe00cf7b90b83667fe19fd0ffc7c8a96e2581fcaa944",
+      "output": "decompiled/RCServerService-68f9aeee27e9",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 18,
+      "cs_lines": 2443
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/AdminClient.exe",
+      "sha256": "45b6c69e70a55be3488c537821091bd2841a3a76392471984fd48a0fde6088fe",
+      "output": "decompiled/AdminClient-45b6c69e70a5",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 8,
+      "cs_lines": 1340
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/AdminClientServiceCore.dll",
+      "sha256": "efaaffc9d51d0dbaeaf0c8005db47bf00007a9f93b63fa8d4c4326838c7c8594",
+      "output": "decompiled/AdminClientServiceCore-efaaffc9d51d",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 33,
+      "cs_lines": 4297
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/AdminService.exe",
+      "sha256": "4f6849622731afc601f612fa42679436563b32e8d7ddeefed0dab5358b7e82f6",
+      "output": "decompiled/AdminService-4f6849622731",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 8,
+      "cs_lines": 857
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/CafeAuthJPNVersionService.dll",
+      "sha256": "c847ac84a9c82f2d7899c773f4186405b02607ea9e9676c4857b3db996902239",
+      "output": "decompiled/CafeAuthJPNVersionService-c847ac84a9c8",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 5,
+      "cs_lines": 438
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/CafeAuthOldVersionService.dll",
+      "sha256": "6ccc71fb5bbcd097b460bd6329d2c7df9143d512a0d19eac4901d9095c953c5f",
+      "output": "decompiled/CafeAuthOldVersionService-6ccc71fb5bbc",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 6,
+      "cs_lines": 524
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/CafeAuthServiceCore.dll",
+      "sha256": "4d0bde5eb382059168cac6a8896a0e27dd8b7217ebe69922ed9e4395dc21fe64",
+      "output": "decompiled/CafeAuthServiceCore-4d0bde5eb382",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 8,
+      "cs_lines": 1078
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/CashShopService.dll",
+      "sha256": "e73d1f7ed58c2d5acbee418613b1bf481be6c0163cc11d5d133c4373426fb214",
+      "output": "decompiled/CashShopService-e73d1f7ed58c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 34,
+      "cs_lines": 3836
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ChannelService.dll",
+      "sha256": "a24b6417dc8a1180b9d557302937b06937861cf203d089091ea63e4d593aed50",
+      "output": "decompiled/ChannelService-a24b6417dc8a",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 17,
+      "cs_lines": 1536
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/CodeGenerator.exe",
+      "sha256": "37c765910017fb43fad320762b033d005d251db6bd4d534eb8635696b996bdf4",
+      "output": "decompiled/CodeGenerator-37c765910017",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 2,
+      "cs_lines": 121
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Core.dll",
+      "sha256": "8942a0c26a9abf4c5f0d1f7ffff41452a3714d099e3b76012cebdee97293c2f0",
+      "output": "decompiled/Core-8942a0c26a9a",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 178,
+      "cs_lines": 25758
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/DSService.dll",
+      "sha256": "2b975264b088b700e3b5a87da50ebe9705ca4a9f94f49d1ea28d30e5877d1dea",
+      "output": "decompiled/DSService-2b975264b088",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 49,
+      "cs_lines": 5212
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Executer.exe",
+      "sha256": "d23f3c8a2cc4a115626a215db1cd802cc9949456abe4a9ed6b9f044d16459120",
+      "output": "decompiled/Executer-d23f3c8a2cc4",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 6,
+      "cs_lines": 402
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ExecutionServiceCore.dll",
+      "sha256": "126584bd853e93f3b397fb9929595f832436ab9e7420f3bbd9b8819abc2c26c6",
+      "output": "decompiled/ExecutionServiceCore-126584bd853e",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 6,
+      "cs_lines": 394
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ExecutionSupporter.exe",
+      "sha256": "a2f3d1b2bbe4c635882865c0b9b682bc23475dbd1831aa257f3af197deb9d417",
+      "output": "decompiled/ExecutionSupporter-a2f3d1b2bbe4",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 26,
+      "cs_lines": 3021
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ExecutionSupporterClient.exe",
+      "sha256": "c4486ebec42a82203acf5ba85ab9c5ead0256728e3acb2ef70fb75ea4d645ced",
+      "output": "decompiled/ExecutionSupporterClient-c4486ebec42a",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 3,
+      "cs_lines": 301
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ExecutionSupporterMessages.dll",
+      "sha256": "90141d73fa043c6cb9bf26a5073ba6d590b2b11fb0c2b24a4e4b8cd02fb4364f",
+      "output": "decompiled/ExecutionSupporterMessages-90141d73fa04",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 7,
+      "cs_lines": 318
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/FrontendServiceCore.dll",
+      "sha256": "6be47572809197138400163ea6f4484f45ba7228beadd15ab256daa653534e5b",
+      "output": "decompiled/FrontendServiceCore-6be475728091",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 102,
+      "cs_lines": 19657
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/GRCService.dll",
+      "sha256": "53a5efede1780666160ae11a806b063b3dd00ced67b03eefb86ea81ad34f62da",
+      "output": "decompiled/GRCService-53a5efede178",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 6,
+      "cs_lines": 439
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/GuildService.dll",
+      "sha256": "17c4f6c1ecb3abe553c58d96a2dacbab6e4f21d6ddd04add4ab3c13e49f30938",
+      "output": "decompiled/GuildService-17c4f6c1ecb3",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 89,
+      "cs_lines": 10686
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/HackShieldServiceCore.dll",
+      "sha256": "61e0c2b0a6413504ab3bf1f51e1a72c7d6ed7e4a2300ae29561b1cacf349b3a4",
+      "output": "decompiled/HackShieldServiceCore-61e0c2b0a641",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 8,
+      "cs_lines": 602
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/HeroesChannelServer.dll",
+      "sha256": "3264f671bce024526dc610de255eaecd13d799926b0a52e9a1157a921761c0f0",
+      "output": "decompiled/HeroesChannelServer-3264f671bce0",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 17,
+      "cs_lines": 1556
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/HeroesChannelServerPerformanceTester.exe",
+      "sha256": "80a310c7198ff814275d6fe87a5f6094b42c345dd4d55c44e8175debd7836161",
+      "output": "decompiled/HeroesChannelServerPerformanceTester-80a310c7198f",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 5,
+      "cs_lines": 206
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/HeroesServerHost.exe",
+      "sha256": "ea00533a8a2854909ba484180f18bbf51d2bb2e3371c7a1d7146849c517db003",
+      "output": "decompiled/HeroesServerHost-ea00533a8a28",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 4,
+      "cs_lines": 193
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/IndependentRelayServer.exe",
+      "sha256": "868e810c1bdc0f0306d71a365e1943efd938df77725f8290a9cefa91f77c7330",
+      "output": "decompiled/IndependentRelayServer-868e810c1bdc",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 3,
+      "cs_lines": 137
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Interop.mscoree.dll",
+      "sha256": "16838155294d6a513601a01ff4074ea7031b69971f5d93fa22aebce19ca82872",
+      "output": "decompiled/Interop.mscoree-16838155294d",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 55,
+      "cs_lines": 1151
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/LoginServiceCore.dll",
+      "sha256": "1600fb4b593dfcea7afb3ef76fae67a24095d3fe0407fa3eb6fa304c014c2ca9",
+      "output": "decompiled/LoginServiceCore-1600fb4b593d",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 33,
+      "cs_lines": 4181
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/MMOChannelService.dll",
+      "sha256": "bd760399728c9565826931a170fc9988683200cd08a14796f7d9b365ee98304f",
+      "output": "decompiled/MMOChannelService-bd760399728c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 19,
+      "cs_lines": 1385
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/MMOServer.dll",
+      "sha256": "801827edfc8357d46a8d481c18bc71f191b6eabb941aac432aac965f6a2be2dd",
+      "output": "decompiled/MMOServer-801827edfc83",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 22,
+      "cs_lines": 1605
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/MMOServerTest.exe",
+      "sha256": "c2930c5f78f468347ec13c4891c53591a93476cbf636573b919fdbc929f156c2",
+      "output": "decompiled/MMOServerTest-c2930c5f78f4",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 9,
+      "cs_lines": 453
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/MicroPlayServiceCore.dll",
+      "sha256": "867c492708dacbef1eeb5f2bb8ce4beceff56d4c9d198f4ee200dbfe01dbac16",
+      "output": "decompiled/MicroPlayServiceCore-867c492708da",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 265,
+      "cs_lines": 32854
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Microsoft.Practices.EnterpriseLibrary.Common.dll",
+      "sha256": "1f62a53e09de128960a3344d9203a3bba27c8b2d4fd836df5f61544c411a16a2",
+      "output": "decompiled/Microsoft.Practices.EnterpriseLibrary.Common-1f62a53e09de",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 161,
+      "cs_lines": 7654
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Microsoft.Practices.EnterpriseLibrary.Logging.dll",
+      "sha256": "e4a865369e708bbab4ead254d33c6233095d851dc77208ea5540e0c7c23f692a",
+      "output": "decompiled/Microsoft.Practices.EnterpriseLibrary.Logging-e4a865369e70",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 168,
+      "cs_lines": 9901
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Microsoft.Practices.ObjectBuilder.dll",
+      "sha256": "0378f63073bd5ad7a8334f2d42ab73b98e98e4162654c17d192e104418a8189f",
+      "output": "decompiled/Microsoft.Practices.ObjectBuilder-0378f63073bd",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 77,
+      "cs_lines": 2980
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/NEXON.dll",
+      "sha256": "426550f553b2f4a7417be0d1886d1abc7547f8cb021e57419ce2869ba584292e",
+      "output": "decompiled/NEXON-426550f553b2",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 116,
+      "cs_lines": 6308
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/NGSecurityServiceCore.dll",
+      "sha256": "5a731f732f7841f5a23c02efa6f11295dab0d5a0eaeb1e9f71b89c8693603f86",
+      "output": "decompiled/NGSecurityServiceCore-5a731f732f78",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 12,
+      "cs_lines": 789
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/NPL.SSO.XmlSerializers.dll",
+      "sha256": "8e832b74237338e346ce4fb3a17dfaa169d04f8ba4bf1bb7fb88d5c2662540b3",
+      "output": "decompiled/NPL.SSO.XmlSerializers-8e832b742373",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 129,
+      "cs_lines": 8208
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/NPL.SSO.dll",
+      "sha256": "e1ce178da57ed7553d5d8ac82284b00c3c02299d4eb94082d9d59f767ca90560",
+      "output": "decompiled/NPL.SSO-e1ce178da57e",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 97,
+      "cs_lines": 6175
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.BlockParty.Playfeed.SDK.dll",
+      "sha256": "5f3a4f07058252cb9399f042c6a2bd60c3ad529f153644be5ceafdd85944207e",
+      "output": "decompiled/Nexon.BlockParty.Playfeed.SDK-5f3a4f070582",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 5,
+      "cs_lines": 461
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Com.Group.Game.Wrapper.XmlSerializers.dll",
+      "sha256": "eff747f7824e3187eece7eb21d5e744dd825e7fb4460fd0114ce7ec5025975fb",
+      "output": "decompiled/Nexon.Com.Group.Game.Wrapper.XmlSerializers-eff747f7824e",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 125,
+      "cs_lines": 6943
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Com.Group.Game.Wrapper.dll",
+      "sha256": "e6241085128c7f0dbf2ce5875491c8d0b0e5ce11d8d3aaa6616692c833fad957",
+      "output": "decompiled/Nexon.Com.Group.Game.Wrapper-e6241085128c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 134,
+      "cs_lines": 9994
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Com.Playfeed.SDK.Wrapper.dll",
+      "sha256": "c44752717f3954ac6e35d5151b460044e2f17e9cfcc2693e7a8d94c05fb24ea1",
+      "output": "decompiled/Nexon.Com.Playfeed.SDK.Wrapper-c44752717f39",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 7,
+      "cs_lines": 171
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Com.Playfeed.SDK.dll",
+      "sha256": "cd6216e9c5a4ca0b94d859a051f1dbaafe1425f6742c3d3ea5ecbd461ebebef6",
+      "output": "decompiled/Nexon.Com.Playfeed.SDK-cd6216e9c5a4",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 5,
+      "cs_lines": 521
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Com.UserWrapper.XmlSerializers.dll",
+      "sha256": "a8fec14d3015341dfc2862aa02ffcaa5d37d5986c2523e1756a4784971cdb76b",
+      "output": "decompiled/Nexon.Com.UserWrapper.XmlSerializers-a8fec14d3015",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 185,
+      "cs_lines": 9307
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Com.UserWrapper.dll",
+      "sha256": "36190b519a97947f3e22c4d0a10468f643ad5956481b17519d1e086cf8e2d505",
+      "output": "decompiled/Nexon.Com.UserWrapper-36190b519a97",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 194,
+      "cs_lines": 13282
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Com.dll",
+      "sha256": "1ea6ce0ffea6369f9271321b677839bd6787c9e932dfe2bc41e9561e523d2bcb",
+      "output": "decompiled/Nexon.Com-1ea6ce0ffea6",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 82,
+      "cs_lines": 19387
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Enterprise.Management.Listener.dll",
+      "sha256": "8031d4fbc0c0549e5f29af9ac3bce8f9c404e58e2023ec082dd08007a4198604",
+      "output": "decompiled/Nexon.Enterprise.Management.Listener-8031d4fbc0c0",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 5,
+      "cs_lines": 93
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Enterprise.Management.dll",
+      "sha256": "a8c66de56376fe58bd9fe71638d9f568cfc896eee4329c015cb452f45d5ebbff",
+      "output": "decompiled/Nexon.Enterprise.Management-a8c66de56376",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 76,
+      "cs_lines": 4626
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Enterprise.ServiceFacade.dll",
+      "sha256": "d740b1fbea47f1b16a31f107e57ce74bbb5b37f8e5453c3c4306c5248dc8add7",
+      "output": "decompiled/Nexon.Enterprise.ServiceFacade-d740b1fbea47",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 69,
+      "cs_lines": 5940
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Nexon.Passport.Immigrator.SDK.dll",
+      "sha256": "6b705e39bbb94bdc283e20ef8a0417e844ecc18ce03c4d4a281df0332f2193a6",
+      "output": "decompiled/Nexon.Passport.Immigrator.SDK-6b705e39bbb9",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 24,
+      "cs_lines": 1462
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/PartyServiceCore.dll",
+      "sha256": "16faa4193b924779d75c08090d970828c320d30a8378bee5cdab80d6b97d17ac",
+      "output": "decompiled/PartyServiceCore-16faa4193b92",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 43,
+      "cs_lines": 3549
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/PingService.dll",
+      "sha256": "42b87fcf083958dc8c51fce5189a0bb74abb529d84d5a5b364f726417c5da1cc",
+      "output": "decompiled/PingService-42b87fcf0839",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 10,
+      "cs_lines": 1278
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/PlayerService.dll",
+      "sha256": "f23d8b9df77c45dc332921cc3ccb22cdefaaa98703a863c69f6bf9f53e9c04f6",
+      "output": "decompiled/PlayerService-f23d8b9df77c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 803,
+      "cs_lines": 109063
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/PlayfeedService.dll",
+      "sha256": "2f167173eaebb82b9d28e6e1b7144658001649359c5290eb18dce8199b14ab51",
+      "output": "decompiled/PlayfeedService-2f167173eaeb",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 11,
+      "cs_lines": 448
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/PostSharp.dll",
+      "sha256": "9e55c1c3978c2f56c02c04c643a029a2499ff9ba85b0306f32b403874f06051f",
+      "output": "decompiled/PostSharp-9e55c1c3978c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 425,
+      "cs_lines": 15440
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/PostalServiceCore.dll",
+      "sha256": "8f7603439b4c606a548c460bdedda47e0020928b6b8b28a2b3dfca34649d0643",
+      "output": "decompiled/PostalServiceCore-8f7603439b4c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 24,
+      "cs_lines": 3033
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ProfileService.dll",
+      "sha256": "a111f95c556f35de9dd53967c9f29510e1b06e50244f0ef98534062105364494",
+      "output": "decompiled/ProfileService-a111f95c556f",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 10,
+      "cs_lines": 852
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/PvpService.dll",
+      "sha256": "46bc3ddd4b5fd29d4ca6227718028651b4b6818fb9661fe281c4fbefc374d8b0",
+      "output": "decompiled/PvpService-46bc3ddd4b5f",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 70,
+      "cs_lines": 10131
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/RankService.dll",
+      "sha256": "13670da58e991de68a64beb7594a9ef8ffc715269d1f2a11edb091f9e00cbf09",
+      "output": "decompiled/RankService-13670da58e99",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 26,
+      "cs_lines": 1902
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/RelayServer.dll",
+      "sha256": "e71f746b7fb0c1fdc1ee6b7ef0a9cbfe8d1d8304b05918ecad86793d96c6c258",
+      "output": "decompiled/RelayServer-e71f746b7fb0",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 5,
+      "cs_lines": 813
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/RelayService.dll",
+      "sha256": "aa1fc2b1b76df3157a641238b6b9a6a1e459ce4769012ad2c755cca92f531fc5",
+      "output": "decompiled/RelayService-aa1fc2b1b76d",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 11,
+      "cs_lines": 1103
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ReportServiceClient.exe",
+      "sha256": "51f214ab9b56bc33fb2dfb74672cb79c9af0f30272374a01d77e35caea6ac341",
+      "output": "decompiled/ReportServiceClient-51f214ab9b56",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 7,
+      "cs_lines": 1111
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/ServiceCore.dll",
+      "sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+      "output": "decompiled/ServiceCore-be65d59d2385",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 1822,
+      "cs_lines": 82775
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/TalkService.dll",
+      "sha256": "c794b6f309c5bbf6c3646d9c5b6f27dd415607ca4fd705e2e9a3362ed47f2674",
+      "output": "decompiled/TalkService-c794b6f309c5",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 8,
+      "cs_lines": 583
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/TestLauncher.exe",
+      "sha256": "6c9d12eb7786c3dc50c2071729811d48506b10996cb0a152a2b071412377052e",
+      "output": "decompiled/TestLauncher-6c9d12eb7786",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 6,
+      "cs_lines": 217
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/TradeService.dll",
+      "sha256": "c0f53c285c85e847cc3976866cf0f85c052d6010415398d7504dfd49ad9f2e18",
+      "output": "decompiled/TradeService-c0f53c285c85",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 7,
+      "cs_lines": 388
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/UnifiedNetwork.dll",
+      "sha256": "70191dde69d59c744bbd651576f9d990e302ab5b14f04445821db40706234856",
+      "output": "decompiled/UnifiedNetwork-70191dde69d5",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 162,
+      "cs_lines": 11096
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/UserDSHostService.dll",
+      "sha256": "899dd13c73daae79b189684efaa7d4ed00e29c12e19e4bf9d45394861e43a2e4",
+      "output": "decompiled/UserDSHostService-899dd13c73da",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 16,
+      "cs_lines": 2299
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/Utility.dll",
+      "sha256": "37359981d509dcbe2bac1028dd15b86de2f915989a6624059b910eb0849c8be6",
+      "output": "decompiled/Utility-37359981d509",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 27,
+      "cs_lines": 1993
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/WcfChatRelay.Server.dll",
+      "sha256": "d987c61851b262ef9ff1cfa80e2db3281f94a84aedfc36b0fa2ebc0cb8f4966f",
+      "output": "decompiled/WcfChatRelay.Server-d987c61851b2",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 11,
+      "cs_lines": 754
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/WcfChatRelay.dll",
+      "sha256": "08d93a2aff4f1e26225ce246fedd47abd66f3eb9b17e21c4fed754c4b69ec23f",
+      "output": "decompiled/WcfChatRelay-08d93a2aff4f",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 15,
+      "cs_lines": 306
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/XignCodeService.dll",
+      "sha256": "9a224bb68b6a2ed08362408f35f01042a85bbfce772ddbf6f1aa5a3406ff854e",
+      "output": "decompiled/XignCodeService-9a224bb68b6a",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 6,
+      "cs_lines": 362
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/nunit.framework.dll",
+      "sha256": "d1fbb08603a3a7eaa54a9f995effeaad9c4ca4606525fdfae76b825c6ee01fde",
+      "output": "decompiled/nunit.framework-d1fbb08603a3",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 79,
+      "cs_lines": 5281
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x64/Core.ExceptionHandler.dll",
+      "sha256": "4cb80a523982d7d7d34c7f033172175399da3bd758ff362414fa553971473c23",
+      "output": "decompiled/Core.ExceptionHandler-4cb80a523982",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 315,
+      "cs_lines": 4434
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x64/Heroes.Managed.dll",
+      "sha256": "be6f097208c5cd6745c48a1d50295f9d18cfa8f46c3458397fb77bea76090a43",
+      "output": "decompiled/Heroes.Managed-be6f097208c5",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 1037,
+      "cs_lines": 22098
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x64/ProudNet.dll",
+      "sha256": "6170f0b1e8f504b97623fc90a422cff2688da80d6ae741dbad86ccc2b88e3bb6",
+      "output": "decompiled/ProudNet-6170f0b1e8f5",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 177,
+      "cs_lines": 9048
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x64/System.Data.SQLite.DLL",
+      "sha256": "9866dceb181852eab3735afeebbac1ea7810857201319c2c5a2af4667eaa8d45",
+      "output": "decompiled/System.Data.SQLite-9866dceb1818",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 52,
+      "cs_lines": 7986
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x86/Core.ExceptionHandler.dll",
+      "sha256": "fefaa7f0a175e75f2fe809d313790ab6544bca3c350aa0555b1b68e7174c31ad",
+      "output": "decompiled/Core.ExceptionHandler-fefaa7f0a175",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 315,
+      "cs_lines": 4170
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x86/Heroes.Managed.dll",
+      "sha256": "c79854d24803dcff124f8cae302305675def4254060116ea4096d06d1e50367f",
+      "output": "decompiled/Heroes.Managed-c79854d24803",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 1037,
+      "cs_lines": 20103
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x86/ProudNet.dll",
+      "sha256": "f6cd106e71a84b719d727c1818844742c81a8ceefe1f018b5965e13021384b2f",
+      "output": "decompiled/ProudNet-f6cd106e71a8",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 177,
+      "cs_lines": 8562
+    },
+    {
+      "source": "zh-tw-x-gm/Bin/x86/System.Data.SQLite.DLL",
+      "sha256": "49261be7f20c9d9dfd1ff35d71e9f3b1b7de17f65581c67beed43d933f1eb85c",
+      "output": "decompiled/System.Data.SQLite-49261be7f20c",
+      "exit_code": 0,
+      "status": "decompiled",
+      "cs_files": 52,
+      "cs_lines": 7986
+    }
+  ]
+}

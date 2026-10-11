@@ -1,0 +1,24 @@
+{
+  "format_version": 1,
+  "source": "study_heroes.dbo.User",
+  "exported_row_count": 2,
+  "rows": [
+    {
+      "id": -200, "name": "Import_Full ", "next_character_sn": 2147483647, "service_id": -1,
+      "channeling_code": 0, "last_login_ip_utf16_hex": "00D80000",
+      "ip_lock_time_ticks": "3155378975999999999", "facebook_token_hex": "0080FF",
+      "is_dormant_user_event_units300": "-1", "second_password_utf16_hex": "00D80000",
+      "second_password_fail_count": -2147483648, "second_password_last_fail_ticks": "1",
+      "last_update_hex": "00FF010203040506", "is_dormant_user_units300": "-1391644800000",
+      "create_time_units300": "76683386879999"
+    },
+    {
+      "id": -100, "name": "Import_Empty", "next_character_sn": 0, "service_id": 42,
+      "channeling_code": null, "last_login_ip_utf16_hex": null,
+      "ip_lock_time_ticks": null, "facebook_token_hex": "",
+      "is_dormant_user_event_units300": null, "second_password_utf16_hex": "",
+      "second_password_fail_count": null, "second_password_last_fail_ticks": null,
+      "last_update_hex": null, "is_dormant_user_units300": null, "create_time_units300": null
+    }
+  ]
+}

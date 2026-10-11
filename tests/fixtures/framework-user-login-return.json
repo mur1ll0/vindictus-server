@@ -1,0 +1,2758 @@
+{
+  "profiles": [
+    {
+      "architecture": "x86",
+      "cases": [
+        {
+          "label": "normal",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": [
+                49,
+                50,
+                55,
+                46,
+                48,
+                46,
+                48,
+                46,
+                49
+              ]
+            },
+            {
+              "kind": "int",
+              "number": 600
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            },
+            {
+              "kind": "text",
+              "units": [
+                115,
+                121,
+                110,
+                116,
+                104,
+                101,
+                116,
+                105,
+                99
+              ]
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [
+            49,
+            50,
+            55,
+            46,
+            48,
+            46,
+            48,
+            46,
+            49
+          ],
+          "seconds": 600,
+          "limited": 1,
+          "dormant": true,
+          "token": [
+            115,
+            121,
+            110,
+            116,
+            104,
+            101,
+            116,
+            105,
+            99
+          ],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "nulls",
+          "input": [
+            {
+              "kind": "int",
+              "number": -2147483648
+            },
+            {
+              "kind": "text",
+              "units": null
+            },
+            {
+              "kind": "int",
+              "number": 2147483647
+            },
+            {
+              "kind": "int",
+              "number": -2147483648
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": null
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": -2147483648,
+          "ip": null,
+          "seconds": 2147483647,
+          "limited": -2147483648,
+          "dormant": false,
+          "token": null,
+          "returning": true,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "enum-number-is-package",
+          "input": [
+            {
+              "kind": "int",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": -1
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 4,
+          "ip": [],
+          "seconds": -1,
+          "limited": 0,
+          "dormant": false,
+          "token": [],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "utf16",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": [
+                0,
+                55296
+              ]
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": [
+                57343
+              ]
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [
+            0,
+            55296
+          ],
+          "seconds": 0,
+          "limited": 1,
+          "dormant": false,
+          "token": [
+            57343
+          ],
+          "returning": true,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "reason-0",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 0
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "reason-1",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 1
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 1,
+          "banned": []
+        },
+        {
+          "label": "reason-2",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 2
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 2,
+          "banned": []
+        },
+        {
+          "label": "reason-3",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 3
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 3,
+          "banned": []
+        },
+        {
+          "label": "reason-4",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": [
+                115,
+                121,
+                110,
+                116,
+                104,
+                101,
+                116,
+                105,
+                99,
+                32,
+                98,
+                97,
+                110
+              ]
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": [
+            115,
+            121,
+            110,
+            116,
+            104,
+            101,
+            116,
+            105,
+            99,
+            32,
+            98,
+            97,
+            110
+          ]
+        },
+        {
+          "label": "reason-5",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 5
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 5,
+          "banned": []
+        },
+        {
+          "label": "reason-6",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 6
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 6,
+          "banned": []
+        },
+        {
+          "label": "reason-7",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 7
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 7,
+          "banned": []
+        },
+        {
+          "label": "reason-8",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 8
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 8,
+          "banned": []
+        },
+        {
+          "label": "reason-9",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 9
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 9,
+          "banned": []
+        },
+        {
+          "label": "reason-10",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 10
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 10,
+          "banned": []
+        },
+        {
+          "label": "reason-11",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 11
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 11,
+          "banned": []
+        },
+        {
+          "label": "reason-12",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 12
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 12,
+          "banned": []
+        },
+        {
+          "label": "reason-13",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 13
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 13,
+          "banned": []
+        },
+        {
+          "label": "reason-14",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 14
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 14,
+          "banned": []
+        },
+        {
+          "label": "reason-15",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 15
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 15,
+          "banned": []
+        },
+        {
+          "label": "reason-16",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 16
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 16,
+          "banned": []
+        },
+        {
+          "label": "reason-17",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 17
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 17,
+          "banned": []
+        },
+        {
+          "label": "reason-18",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 18
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 18,
+          "banned": []
+        },
+        {
+          "label": "reason-19",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 19
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 19,
+          "banned": []
+        },
+        {
+          "label": "reason-20",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 20
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 20,
+          "banned": []
+        },
+        {
+          "label": "reason-21",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 21
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 21,
+          "banned": []
+        },
+        {
+          "label": "reason-22",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 22
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 22,
+          "banned": []
+        },
+        {
+          "label": "reason-23",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 23
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 23,
+          "banned": []
+        },
+        {
+          "label": "reason-24",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 24
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 24,
+          "banned": []
+        },
+        {
+          "label": "unknown--1",
+          "input": [
+            {
+              "kind": "reason",
+              "number": -1
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": -1,
+          "banned": []
+        },
+        {
+          "label": "unknown-999",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 999
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 999,
+          "banned": []
+        },
+        {
+          "label": "unknown-2147483647",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 2147483647
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 2147483647,
+          "banned": []
+        },
+        {
+          "label": "banned-null",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": null
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": null
+        },
+        {
+          "label": "banned-empty",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": []
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": []
+        },
+        {
+          "label": "wrong-ip",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-seconds",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 3,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-limited",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "text",
+              "units": null
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 4,
+          "incomplete": false,
+          "error": "NullReferenceException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-dormant",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 5,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-token",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 6,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-return",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "text",
+              "units": null
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": "NullReferenceException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": [],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-banned",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "int",
+              "number": 1
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": []
+        },
+        {
+          "label": "truncated",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            }
+          ],
+          "consumed": 3,
+          "incomplete": true,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "extra",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "int",
+              "number": 123
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": [],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "false-ambiguous",
+          "input": [
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        }
+      ],
+      "single": [
+        {
+          "count": 0,
+          "limited": false,
+          "error": null
+        },
+        {
+          "count": 1,
+          "limited": true,
+          "error": null
+        },
+        {
+          "count": 2,
+          "limited": false,
+          "error": "InvalidOperationException"
+        },
+        {
+          "count": 3,
+          "limited": false,
+          "error": "InvalidOperationException"
+        }
+      ]
+    },
+    {
+      "architecture": "x64",
+      "cases": [
+        {
+          "label": "normal",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": [
+                49,
+                50,
+                55,
+                46,
+                48,
+                46,
+                48,
+                46,
+                49
+              ]
+            },
+            {
+              "kind": "int",
+              "number": 600
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            },
+            {
+              "kind": "text",
+              "units": [
+                115,
+                121,
+                110,
+                116,
+                104,
+                101,
+                116,
+                105,
+                99
+              ]
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [
+            49,
+            50,
+            55,
+            46,
+            48,
+            46,
+            48,
+            46,
+            49
+          ],
+          "seconds": 600,
+          "limited": 1,
+          "dormant": true,
+          "token": [
+            115,
+            121,
+            110,
+            116,
+            104,
+            101,
+            116,
+            105,
+            99
+          ],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "nulls",
+          "input": [
+            {
+              "kind": "int",
+              "number": -2147483648
+            },
+            {
+              "kind": "text",
+              "units": null
+            },
+            {
+              "kind": "int",
+              "number": 2147483647
+            },
+            {
+              "kind": "int",
+              "number": -2147483648
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": null
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": -2147483648,
+          "ip": null,
+          "seconds": 2147483647,
+          "limited": -2147483648,
+          "dormant": false,
+          "token": null,
+          "returning": true,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "enum-number-is-package",
+          "input": [
+            {
+              "kind": "int",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": -1
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 4,
+          "ip": [],
+          "seconds": -1,
+          "limited": 0,
+          "dormant": false,
+          "token": [],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "utf16",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": [
+                0,
+                55296
+              ]
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": [
+                57343
+              ]
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [
+            0,
+            55296
+          ],
+          "seconds": 0,
+          "limited": 1,
+          "dormant": false,
+          "token": [
+            57343
+          ],
+          "returning": true,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "reason-0",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 0
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "reason-1",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 1
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 1,
+          "banned": []
+        },
+        {
+          "label": "reason-2",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 2
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 2,
+          "banned": []
+        },
+        {
+          "label": "reason-3",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 3
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 3,
+          "banned": []
+        },
+        {
+          "label": "reason-4",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": [
+                115,
+                121,
+                110,
+                116,
+                104,
+                101,
+                116,
+                105,
+                99,
+                32,
+                98,
+                97,
+                110
+              ]
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": [
+            115,
+            121,
+            110,
+            116,
+            104,
+            101,
+            116,
+            105,
+            99,
+            32,
+            98,
+            97,
+            110
+          ]
+        },
+        {
+          "label": "reason-5",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 5
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 5,
+          "banned": []
+        },
+        {
+          "label": "reason-6",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 6
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 6,
+          "banned": []
+        },
+        {
+          "label": "reason-7",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 7
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 7,
+          "banned": []
+        },
+        {
+          "label": "reason-8",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 8
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 8,
+          "banned": []
+        },
+        {
+          "label": "reason-9",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 9
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 9,
+          "banned": []
+        },
+        {
+          "label": "reason-10",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 10
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 10,
+          "banned": []
+        },
+        {
+          "label": "reason-11",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 11
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 11,
+          "banned": []
+        },
+        {
+          "label": "reason-12",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 12
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 12,
+          "banned": []
+        },
+        {
+          "label": "reason-13",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 13
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 13,
+          "banned": []
+        },
+        {
+          "label": "reason-14",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 14
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 14,
+          "banned": []
+        },
+        {
+          "label": "reason-15",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 15
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 15,
+          "banned": []
+        },
+        {
+          "label": "reason-16",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 16
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 16,
+          "banned": []
+        },
+        {
+          "label": "reason-17",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 17
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 17,
+          "banned": []
+        },
+        {
+          "label": "reason-18",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 18
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 18,
+          "banned": []
+        },
+        {
+          "label": "reason-19",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 19
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 19,
+          "banned": []
+        },
+        {
+          "label": "reason-20",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 20
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 20,
+          "banned": []
+        },
+        {
+          "label": "reason-21",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 21
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 21,
+          "banned": []
+        },
+        {
+          "label": "reason-22",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 22
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 22,
+          "banned": []
+        },
+        {
+          "label": "reason-23",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 23
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 23,
+          "banned": []
+        },
+        {
+          "label": "reason-24",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 24
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 24,
+          "banned": []
+        },
+        {
+          "label": "unknown--1",
+          "input": [
+            {
+              "kind": "reason",
+              "number": -1
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": -1,
+          "banned": []
+        },
+        {
+          "label": "unknown-999",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 999
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 999,
+          "banned": []
+        },
+        {
+          "label": "unknown-2147483647",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 2147483647
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 2147483647,
+          "banned": []
+        },
+        {
+          "label": "banned-null",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": null
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": null
+        },
+        {
+          "label": "banned-empty",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "text",
+              "units": []
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": []
+        },
+        {
+          "label": "wrong-ip",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": true
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-seconds",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 3,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-limited",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "text",
+              "units": null
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 4,
+          "incomplete": false,
+          "error": "NullReferenceException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-dormant",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 5,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-token",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 6,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-return",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "text",
+              "units": null
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": "NullReferenceException",
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": [],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "wrong-banned",
+          "input": [
+            {
+              "kind": "reason",
+              "number": 4
+            },
+            {
+              "kind": "int",
+              "number": 1
+            }
+          ],
+          "consumed": 2,
+          "incomplete": false,
+          "error": "InvalidCastException",
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 4,
+          "banned": []
+        },
+        {
+          "label": "truncated",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            }
+          ],
+          "consumed": 3,
+          "incomplete": true,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "extra",
+          "input": [
+            {
+              "kind": "int",
+              "number": 1
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "int",
+              "number": 0
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "text",
+              "units": []
+            },
+            {
+              "kind": "bool",
+              "flag": false
+            },
+            {
+              "kind": "int",
+              "number": 123
+            }
+          ],
+          "consumed": 7,
+          "incomplete": false,
+          "error": null,
+          "result": true,
+          "package": 1,
+          "ip": [],
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": [],
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        },
+        {
+          "label": "false-ambiguous",
+          "input": [
+            {
+              "kind": "bool",
+              "flag": false
+            }
+          ],
+          "consumed": 1,
+          "incomplete": false,
+          "error": null,
+          "result": false,
+          "package": 0,
+          "ip": null,
+          "seconds": 0,
+          "limited": 0,
+          "dormant": false,
+          "token": null,
+          "returning": false,
+          "reason": 0,
+          "banned": []
+        }
+      ],
+      "single": [
+        {
+          "count": 0,
+          "limited": false,
+          "error": null
+        },
+        {
+          "count": 1,
+          "limited": true,
+          "error": null
+        },
+        {
+          "count": 2,
+          "limited": false,
+          "error": "InvalidOperationException"
+        },
+        {
+          "count": 3,
+          "limited": false,
+          "error": "InvalidOperationException"
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.LoginServiceOperations/UserLogin.cs",
+      "sha256": "594582385c6fc401045eecf7b1cef851c2fdcb4c259563ff369039f37e629717"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/LoginFailMessage.cs",
+      "sha256": "f331e4c7049604def387629006b2c28d83d9885f9af3d8ad2bdb31e2db3b1709"
+    },
+    {
+      "path": "scripts/reverse/framework/UserLoginReturnOracle.cs",
+      "sha256": "efe0f004f24f02d9f7f20bb88bf26f999a79acab939fbe07cd8ffc93f6f49657"
+    },
+    {
+      "path": "legacy/decompiled/LoginServiceCore-1600fb4b593d/LoginServiceCore/LimitedAccount.cs",
+      "sha256": "b26e22d3019a11ca2b02aeb28fe468137bda012701b692c0b8670df41de664b9"
+    },
+    {
+      "path": "legacy/decompiled/LoginServiceCore-1600fb4b593d/LoginServiceCore/LoginService.cs",
+      "sha256": "de436c28c7af04a8b9a8647049d44add2d2e3788d3f305be16b388886a45408b"
+    }
+  ],
+  "original_services_executed": false,
+  "method": "Unchanged recovered UserLogin class and FailReason enum with cooperation runtime stubs. SingleOrDefault BCL over selected rows; SQL equality measured separately."
+}
