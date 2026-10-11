@@ -37,6 +37,26 @@ async fn run(cli: Cli) -> Result<(), Error> {
         vindictus_server::infrastructure::frontend::run_probe(listener, shutdown()).await?;
         return Ok(());
     }
+    if let Command::InspectRewardPolicy {
+        characters_file, ..
+    } = &cli.command
+    {
+        let package =
+            vindictus_server::infrastructure::reward_policy::read_policy(std::io::stdin().lock())?;
+        let characters = vindictus_server::infrastructure::reward_policy::read_characters(
+            std::fs::File::open(characters_file)?,
+        )?;
+        let views = characters
+            .iter()
+            .map(|row| row.as_character())
+            .collect::<Vec<_>>();
+        let result = vindictus_server::application::reward_inspection::inspect(&package, &views)?;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| Error::RewardPolicyExport)?
+        );
+        return Ok(());
+    }
     let credentials = match &cli.command {
         Command::CreateAccount { username, .. } => Some((
             Username::parse(username)?,
@@ -61,7 +81,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
     let config = Config::from_env()?;
     let pool = postgres::pool(&config)?;
     match cli.command {
-        Command::ProbeFrontend { .. } => {}
+        Command::ProbeFrontend { .. } | Command::InspectRewardPolicy { .. } => {}
         Command::Migrate => {
             postgres::migrate(&pool).await?;
             println!("PostgreSQL migrations applied; migrate does not import legacy data.");

@@ -1,0 +1,64 @@
+{
+  "format_version": 1,
+  "source": "heroesContents.dormant-reward-policy",
+  "manifest": {
+    "database_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "region": "SYNTHETIC",
+    "override_region": null,
+    "game_code": 1,
+    "server_code": 1,
+    "catalog_rows": 5
+  },
+  "features": [
+    {
+      "key": "CurrentVer",
+      "value": "3.09.00"
+    },
+    {
+      "key": "a",
+      "value": "1.1"
+    },
+    {
+      "key": "b",
+      "value": null
+    }
+  ],
+  "rewards": [
+    {
+      "feature": null,
+      "min_level": 0,
+      "item_utf16": "730079006E007400680065007400690063005F006F006E006500",
+      "num": 2,
+      "max_level": 0
+    },
+    {
+      "feature": "a",
+      "min_level": 20,
+      "item_utf16": "730079006E007400680065007400690063005F00740077006F00",
+      "num": -1,
+      "max_level": 60
+    },
+    {
+      "feature": "a",
+      "min_level": 60,
+      "item_utf16": "730079006E007400680065007400690063005F0074006800720065006500",
+      "num": 0,
+      "max_level": 20
+    },
+    {
+      "feature": "!b",
+      "min_level": -1,
+      "item_utf16": "730079006E007400680065007400690063005F0066006F0075007200",
+      "num": 2147483647,
+      "max_level": 0
+    },
+    {
+      "feature": null,
+      "min_level": 0,
+      "item_utf16": "730079006E007400680065007400690063005F006F006E006500",
+      "num": 2,
+      "max_level": 0
+    }
+  ]
+}

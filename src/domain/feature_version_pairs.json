@@ -1,0 +1,407 @@
+[
+  {
+    "current": "0",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "0",
+    "value": "1",
+    "enabled": false
+  },
+  {
+    "current": "0",
+    "value": "1.09",
+    "enabled": false
+  },
+  {
+    "current": "0",
+    "value": "1.1",
+    "enabled": false
+  },
+  {
+    "current": "0",
+    "value": "10",
+    "enabled": false
+  },
+  {
+    "current": "0",
+    "value": "3.01.01",
+    "enabled": false
+  },
+  {
+    "current": "0",
+    "value": "3.09.00",
+    "enabled": false
+  },
+  {
+    "current": "0",
+    "value": "3.1",
+    "enabled": false
+  },
+  {
+    "current": "0",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "1",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "1",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "1",
+    "value": "1.09",
+    "enabled": false
+  },
+  {
+    "current": "1",
+    "value": "1.1",
+    "enabled": false
+  },
+  {
+    "current": "1",
+    "value": "10",
+    "enabled": false
+  },
+  {
+    "current": "1",
+    "value": "3.01.01",
+    "enabled": false
+  },
+  {
+    "current": "1",
+    "value": "3.09.00",
+    "enabled": false
+  },
+  {
+    "current": "1",
+    "value": "3.1",
+    "enabled": false
+  },
+  {
+    "current": "1",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "1.09",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "1.09",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "1.09",
+    "value": "1.09",
+    "enabled": true
+  },
+  {
+    "current": "1.09",
+    "value": "1.1",
+    "enabled": false
+  },
+  {
+    "current": "1.09",
+    "value": "10",
+    "enabled": false
+  },
+  {
+    "current": "1.09",
+    "value": "3.01.01",
+    "enabled": false
+  },
+  {
+    "current": "1.09",
+    "value": "3.09.00",
+    "enabled": false
+  },
+  {
+    "current": "1.09",
+    "value": "3.1",
+    "enabled": false
+  },
+  {
+    "current": "1.09",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "1.1",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "1.1",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "1.1",
+    "value": "1.09",
+    "enabled": true
+  },
+  {
+    "current": "1.1",
+    "value": "1.1",
+    "enabled": true
+  },
+  {
+    "current": "1.1",
+    "value": "10",
+    "enabled": false
+  },
+  {
+    "current": "1.1",
+    "value": "3.01.01",
+    "enabled": false
+  },
+  {
+    "current": "1.1",
+    "value": "3.09.00",
+    "enabled": false
+  },
+  {
+    "current": "1.1",
+    "value": "3.1",
+    "enabled": false
+  },
+  {
+    "current": "1.1",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "10",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "10",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "10",
+    "value": "1.09",
+    "enabled": true
+  },
+  {
+    "current": "10",
+    "value": "1.1",
+    "enabled": true
+  },
+  {
+    "current": "10",
+    "value": "10",
+    "enabled": true
+  },
+  {
+    "current": "10",
+    "value": "3.01.01",
+    "enabled": false
+  },
+  {
+    "current": "10",
+    "value": "3.09.00",
+    "enabled": false
+  },
+  {
+    "current": "10",
+    "value": "3.1",
+    "enabled": false
+  },
+  {
+    "current": "10",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "3.01.01",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "3.01.01",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "3.01.01",
+    "value": "1.09",
+    "enabled": true
+  },
+  {
+    "current": "3.01.01",
+    "value": "1.1",
+    "enabled": true
+  },
+  {
+    "current": "3.01.01",
+    "value": "10",
+    "enabled": true
+  },
+  {
+    "current": "3.01.01",
+    "value": "3.01.01",
+    "enabled": true
+  },
+  {
+    "current": "3.01.01",
+    "value": "3.09.00",
+    "enabled": false
+  },
+  {
+    "current": "3.01.01",
+    "value": "3.1",
+    "enabled": false
+  },
+  {
+    "current": "3.01.01",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "3.09.00",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
+    "value": "1.09",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
+    "value": "1.1",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
+    "value": "10",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
+    "value": "3.01.01",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
+    "value": "3.09.00",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
+    "value": "3.1",
+    "enabled": false
+  },
+  {
+    "current": "3.09.00",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "3.1",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "1.09",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "1.1",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "10",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "3.01.01",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "3.09.00",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "3.1",
+    "enabled": true
+  },
+  {
+    "current": "3.1",
+    "value": "3.10",
+    "enabled": false
+  },
+  {
+    "current": "3.10",
+    "value": "0",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "1",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "1.09",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "1.1",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "10",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "3.01.01",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "3.09.00",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "3.1",
+    "enabled": true
+  },
+  {
+    "current": "3.10",
+    "value": "3.10",
+    "enabled": true
+  }
+]

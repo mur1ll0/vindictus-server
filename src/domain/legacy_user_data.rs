@@ -40,6 +40,16 @@ impl SqlDateTime {
         }
         Self::from_units300(i64::from(days) * Self::PER_DAY + i64::from(time))
     }
+    /// SqlDateTime.Value/SqlClient.GetDateTime round each 1/300s value to milliseconds.
+    /// Preserve day decomposition before rounding, including dates before 1900.
+    pub fn framework_date_time(self) -> Result<SqlDateTime2, LegacyUserDataError> {
+        let days = self.0.div_euclid(Self::PER_DAY);
+        let time = self.0.rem_euclid(Self::PER_DAY);
+        let milliseconds = (time * 10 + 1) / 3;
+        SqlDateTime2::from_ticks(
+            599_266_080_000_000_000 + days * 864_000_000_000 + milliseconds * 10_000,
+        )
+    }
     pub fn units300(self) -> i64 {
         self.0
     }

@@ -25,6 +25,14 @@ pub enum Command {
     },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
+    /// Read-only reward diagnostic. Reads private policy from stdin and prints counts/digest only.
+    InspectRewardPolicy {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        /// Bounded private/synthetic character projection; never interpreted as a game login.
+        #[arg(long)]
+        characters_file: std::path::PathBuf,
+    },
     /// Initialize the queue's recovered identity counter after snapshot import; no reseeding.
     InitializeQueueIdentity {
         /// Last source sys.identity_columns.last_value; omit only for a never-used empty queue.

@@ -15,3 +15,6 @@ pub mod user_login_return;
 
 pub mod character_data;
 pub mod dormant_item;
+pub mod feature_policy;
+
+pub mod dormant_rewards;

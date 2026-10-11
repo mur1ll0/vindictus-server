@@ -1,0 +1,140 @@
+{
+  "stage": "M13.2d.2b.2b.1",
+  "verified_at_utc": "2026-10-11T20:06:12.4752930+00:00",
+  "profile": {
+    "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
+    "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
+    "region": "EN-EU-X-GM",
+    "override_region": null,
+    "game_code": 50393116,
+    "server_code": 1,
+    "catalog_rows": 24
+  },
+  "private_export_sha256": "6f9af513cb9b61afbb0d0683206bb6bbebc4ca3a89b335909d5753121c4a0d9d",
+  "content_is_private": true,
+  "acl": "current Windows user and SYSTEM; inheritance disabled",
+  "feature_subset_rows": 10,
+  "original_files_hashes_unchanged": true,
+  "catalog_iteration_order_preserved": true,
+  "duplicate_rewards_preserved": true,
+  "character_names_raw_utf16": true,
+  "framework_profiles": [
+    "x86",
+    "x64"
+  ],
+  "framework_cultures": [
+    "invariant",
+    "en-US",
+    "zh-TW",
+    "zh-CN",
+    "tr-TR"
+  ],
+  "finite_version_pairs": 81,
+  "unverified_version_pairs_rejected": true,
+  "sqlclient_date_rows_per_profile": 908,
+  "private_plan_characters": 79,
+  "private_plan_calls": 74,
+  "private_plan_sha256": "507bba25483bc4bd1110ff8bfe49d6e058fdb1d5160af347e1f2211b0f129dd5",
+  "rust_native_matches_framework": true,
+  "rust_docker_matches_framework": true,
+  "diagnostic_clock_is_synthetic": true,
+  "synthetic_clock_units300": 0,
+  "database_mutations": false,
+  "original_game_services_executed": false,
+  "sqlserver_persistent_writes": false,
+  "account_executor_integrated": false,
+  "inventory_mail_delivery_implemented": false,
+  "game_authentication_available": false,
+  "sources": [
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    },
+    {
+      "path": "legacy/decompiled/LoginServiceCore-1600fb4b593d/LoginServiceCore.Processor/UserLoginProcessor.cs",
+      "sha256": "de3c2983235eee1a5e04471559168e10d70b1150eddaa0932c618067071a1f2e"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/DormantReward.cs",
+      "sha256": "eec848c305a3b2451f83e8485fdcc05d9ae7aa68df3c67a06dada85f788b9a98"
+    },
+    {
+      "path": "scripts/reverse/framework/RewardPolicyOracle.cs",
+      "sha256": "a7bc6bced86558f517d367b08742eabadcbdbd7740a681cabe487ed686a3d237"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "6bb7599d295a471b035531e8d7a8d5ae68a8f11fa8c06713b606c0dcdce4b994"
+    },
+    {
+      "path": "scripts/content/export_reward_policy.py",
+      "sha256": "4daf2d81a1e6102821f496d6582d6fe390451e674f9f167a54b62878f2ab5415"
+    },
+    {
+      "path": "scripts/content/Export-RewardPolicy.ps1",
+      "sha256": "d5c3d5a9c447bc38a84419a82f26172f32e67f57994fde3a107fe6697eae7c1c"
+    },
+    {
+      "path": "scripts/content/Verify-RewardPolicy.ps1",
+      "sha256": "c077a1919387c61536dd9ca553acd704e6b43049688d4005b72ac6a8c955c864"
+    },
+    {
+      "path": "scripts/content/test_export_reward_policy.py",
+      "sha256": "3bcbe9f94dd7fde064157d725c8eb810a1f2653a2c574bfe2981ac05f4996dce"
+    },
+    {
+      "path": "scripts/reverse/generate-reward-policy-fixtures.ps1",
+      "sha256": "9aad539cc2aeee0bdd5ca74a94c300a9ee74362f7cc97b114a733acf4217ae76"
+    },
+    {
+      "path": "scripts/reverse/framework/RewardPolicyOracle.cs",
+      "sha256": "a7bc6bced86558f517d367b08742eabadcbdbd7740a681cabe487ed686a3d237"
+    },
+    {
+      "path": "src/domain/feature_policy.rs",
+      "sha256": "72e930b4f8acad834d98eeb6ec49ddebad3fbf496079d6ee9d6f5f0daed2f4c1"
+    },
+    {
+      "path": "src/domain/feature_version_pairs.json",
+      "sha256": "065451c01010a12849f12695778c8fd4c91dc5ce728137e5e66a6531e9dca0b0"
+    },
+    {
+      "path": "src/domain/dormant_rewards.rs",
+      "sha256": "6f86fcce3fdc6460b55ba8d1eb55ab77cef4f7738aadc2d36849ac9acf585f1d"
+    },
+    {
+      "path": "src/domain/legacy_user_data.rs",
+      "sha256": "c2c36e3cdd457284c1692b46d5ab468dd7f49e85665f511a5e8fd6e32d1ba75e"
+    },
+    {
+      "path": "src/infrastructure/reward_policy.rs",
+      "sha256": "dfb80f75d9d3c793349e2b6952ec2312217e708b888f30b0d42eeeedf0de819e"
+    },
+    {
+      "path": "src/application/reward_inspection.rs",
+      "sha256": "e62c65f4f1caf0d3099d4c2336c563000bd72f5d46d98be4962cf22c6ee05903"
+    },
+    {
+      "path": "src/cli.rs",
+      "sha256": "81e73a1039811b816d33725cf65f8afa2f7164dec904eebd3850bf457b987b20"
+    },
+    {
+      "path": "src/main.rs",
+      "sha256": "97018ef6e90be61918e7144aea98fdaa141c5902aaba6770060d492f4d40fd94"
+    },
+    {
+      "path": "tests/reward_policy.rs",
+      "sha256": "9ad89d9f478d1af18ed442bece273d61a4b75d625750682c822688517c94f4aa"
+    },
+    {
+      "path": "tests/fixtures/framework-reward-policy.json",
+      "sha256": "91f76c10c5879150a7f51d4e536472fbb60807c428ef9a5f44f5d6bcb153b845"
+    },
+    {
+      "path": "tests/fixtures/synthetic-reward-policy.json",
+      "sha256": "7d5a247008bfbfe6a1ed40d1e3ff5f36fba771ed589e591564da42752643760b"
+    }
+  ]
+}

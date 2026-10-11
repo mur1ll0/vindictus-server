@@ -2,6 +2,16 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid or oversized private reward policy; values omitted")]
+    RewardPolicyExport,
+    #[error("feature expression is malformed or exceeds bounded evaluation")]
+    FeatureExpression,
+    #[error("feature version comparison lacks verified Framework evidence")]
+    FeatureVersionUnsupported,
+    #[error("feature integer overflows source Int32 range")]
+    FeatureIntegerOverflow,
+    #[error("reward planning exceeds bounded character/catalog/output limits")]
+    RewardPlanLimit,
     #[error("queue identity requires the explicit supported source counter; reseeding refused")]
     QueueIdentityProfile,
     #[error("queue identity has not been initialized from the source profile")]

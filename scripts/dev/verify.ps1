@@ -21,7 +21,7 @@ function Invoke-VerificationCheck {
         $taskFailed += [int]$taskMatch.Groups[2].Value
         $taskIgnored += [int]$taskMatch.Groups[3].Value
     }
-    if ($Name -eq 'client-python') {
+    if ($Name -like '*-python') {
         $taskMatch = [regex]::Match($taskOutput, 'Ran (\d+) tests')
         if ($taskExit -eq 0 -and $taskMatch.Success) { $taskPassed = [int]$taskMatch.Groups[1].Value }
     }
@@ -32,7 +32,7 @@ function Invoke-VerificationCheck {
         warnings = $taskWarnings; log = '.cache/verification/' + $Name + '.log';
         log_sha256 = (Get-FileHash -LiteralPath $taskLog -Algorithm SHA256).Hash.ToLowerInvariant()
     })
-    $taskSummary = if ($Name -like '*tests*' -or $Name -eq 'postgres-integration' -or $Name -eq 'client-python') {
+    $taskSummary = if ($Name -like '*tests*' -or $Name -eq 'postgres-integration' -or $Name -like '*-python') {
         '; passed=' + $taskPassed + '; failed=' + $taskFailed + '; ignored=' + $taskIgnored
     } else { '' }
     Write-Host ($Name + ': exit=' + $taskExit + $taskSummary + '; warnings=' + $taskWarnings)
@@ -55,11 +55,12 @@ try {
     Invoke-VerificationCheck -Name 'doc-tests' -Executable cargo -Arguments @('test','--doc','--locked')
     Invoke-VerificationCheck -Name 'build' -Executable cargo -Arguments @('build','--locked')
     if ($DatabaseIntegration) {
-        Invoke-VerificationCheck -Name 'postgres-integration' -Executable cargo -Arguments @('test','--test','postgres','--locked','--','--ignored')
+        Invoke-VerificationCheck -Name 'postgres-integration' -Executable cargo -Arguments @('test','--test','postgres','--locked','--','--ignored','--test-threads=1')
     } else {
         Write-Host 'PostgreSQL integration NOT RUN. Use -DatabaseIntegration with TEST_DATABASE_URL.'
     }
     Invoke-VerificationCheck -Name 'client-python' -Executable py -Arguments @('-3.13','-m','unittest','discover','-s','scripts/client','-p','test_prepare_lab_client.py','-v')
+    Invoke-VerificationCheck -Name 'content-python' -Executable py -Arguments @('-3.13','-m','unittest','discover','-s','scripts/content','-p','test_export_reward_policy.py','-v')
     $taskResult = [ordered]@{
         verified_at_utc = [DateTimeOffset]::UtcNow.ToString('o');
         database_integration_executed = [bool]$DatabaseIntegration;

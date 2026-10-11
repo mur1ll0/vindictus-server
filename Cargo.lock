@@ -2028,6 +2028,7 @@ dependencies = [
  "http-body-util",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "thiserror",
  "tokio",
