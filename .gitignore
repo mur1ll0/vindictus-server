@@ -1,0 +1,54 @@
+# Secrets and local state
+.env
+.env.*
+!.env.example
+.cache/
+.tools/
+*.local.txt
+*.key
+*.pem
+*.pfx
+*.p12
+# Compilers, editors and caches
+target/
+**/obj/
+**/bin/
+**/__pycache__/
+*.py[cod]
+.vs/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+# Original game/server assets, backups, captures and private exports
+Client/
+Vindictus1.69EN/
+ServidorVindictus/
+Tools/
+TutorialRagezone/
+*.bak
+*.db3
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf
+*.vmdk
+*.vdi
+*.vhd*
+*.iso
+*.hfs
+*.dll
+*.exe
+*.pdb
+*.pcap
+*.pcapng
+*.dmp
+*.dump
+# Recovered proprietary source and raw SQL catalog (may contain literal secrets)
+legacy/decompiled/
+legacy/logs/
+docs/evidence/database/raw/
+docs/evidence/database/*.modules.sql
+docs/evidence/database/study_*.schema.json
+docs/evidence/database/*.restore.log
+scripts/client/.deps/

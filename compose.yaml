@@ -1,0 +1,98 @@
+name: vindictus-server
+
+x-app: &app
+  image: vindictus-server:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: &app-environment
+    DATABASE_URL: postgres://${APP_DATABASE_USER:-vindictus_app}:${APP_DATABASE_PASSWORD:?Generate a local .env first}@postgres:5432/${POSTGRES_DB:-vindictus}
+    RUST_LOG: ${RUST_LOG:-info}
+  networks: [backend]
+  init: true
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  postgres:
+    image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate a local .env first}
+      POSTGRES_DB: ${POSTGRES_DB:-vindictus}
+      APP_DATABASE_USER: ${APP_DATABASE_USER:-vindictus_app}
+      APP_DATABASE_PASSWORD: ${APP_DATABASE_PASSWORD:?Generate a local .env first}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C.UTF-8
+    ports:
+      - 127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/database/init-postgres.sh:/docker-entrypoint-initdb.d/10-app-role.sh:ro
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *app
+    command: [migrate]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  server:
+    <<: *app
+    command: [serve]
+    environment:
+      <<: *app-environment
+      BIND_ADDRESS: 0.0.0.0:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - 127.0.0.1:${HTTP_HOST_PORT:-8080}:8080
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --show-error, http://127.0.0.1:8080/health/ready]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  legacy-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    profiles: [legacy]
+    environment:
+      ACCEPT_EULA: ${MSSQL_ACCEPT_EULA:-Y}
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-}
+    ports:
+      - 127.0.0.1:${MSSQL_HOST_PORT:-14333}:1433
+    volumes:
+      - legacy-sqlserver-data:/var/opt/mssql
+      - ../ServidorVindictus/database:/backups:ro
+      - ./scripts/database:/migration-scripts:ro
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'SQLCMDPASSWORD="$${MSSQL_SA_PASSWORD}" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q "SELECT 1" -o /dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  legacy-sqlserver-data:
+
+networks:
+  backend:
+

@@ -1,0 +1,17 @@
+* text=auto eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.ps1 text eol=lf
+*.py text eol=lf
+*.sql text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.png binary
+*.jpg binary
+
+# Preserve supplied Markdown hard breaks and harmless final blank lines.
+* whitespace=-blank-at-eof
+*.md whitespace=-blank-at-eol,-blank-at-eof
