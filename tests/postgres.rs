@@ -1510,3 +1510,6 @@ mod login_rewards;
 
 #[path = "support/user_login.rs"]
 mod user_login;
+
+#[path = "support/second_password.rs"]
+mod second_password;

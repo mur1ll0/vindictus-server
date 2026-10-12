@@ -2,7 +2,7 @@
 
 Migração gradual do servidor legado .NET para Rust, PostgreSQL e Docker, para estudo e manutenção. **A migração está incompleta e nenhum cliente Vindictus consegue autenticar no servidor Rust atual.**
 
-O projeto já oferece infraestrutura executável, HTTP operacional, contas de laboratório, formatos de protocolo recuperados, sessões internas e parte da persistência e das regras de login. A composição interna de login novo/existente está em [user-login-composition.md](docs/user-login-composition.md). O plano e o status verificável de cada etapa estão em [MIGRATION.md](MIGRATION.md). As regras de vínculo de itens têm implementação de domínio e validação diferencial descritas em [item-binding.md](docs/item-binding.md); uma [projeção efetiva do catálogo](docs/item-catalog.md) pode ser inspecionada somente leitura. Stats, taxas, carregamento completo e entrega ainda estão pendentes. Código descompilado ou testes de infraestrutura não equivalem a um servidor de jogo completo.
+O projeto já oferece infraestrutura executável, HTTP operacional, contas de laboratório, formatos de protocolo recuperados, sessões internas e parte da persistência e das regras de login. A composição interna de login novo/existente está em [user-login-composition.md](docs/user-login-composition.md). A segunda senha interna recuperada está em [second-password.md](docs/second-password.md), ainda sem adapter TCP. O plano e o status verificável de cada etapa estão em [MIGRATION.md](MIGRATION.md). As regras de vínculo de itens têm implementação de domínio e validação diferencial descritas em [item-binding.md](docs/item-binding.md); uma [projeção efetiva do catálogo](docs/item-catalog.md) pode ser inspecionada somente leitura. Stats, taxas, carregamento completo e entrega ainda estão pendentes. Código descompilado ou testes de infraestrutura não equivalem a um servidor de jogo completo.
 
 ## Executar em Docker
 
@@ -52,7 +52,7 @@ A senha é solicitada sem aparecer na tela e enviada ao CLI por stdin. O nome ac
 
 O candidato identificado é o cliente legado **Vindictus 1.69 EN (2016)**; nove arquivos relevantes coincidem entre as duas cópias locais examinadas. A versão atual oficial não está comprovada como compatível.
 
-A preparação de endereço é feita somente numa cópia do cliente, pela ferramenta scripts/client/prepare_lab_client.py: altera FeatureMatrix.EndPoints numa cópia SQLite e gera EndPoint.txt com backup. Veja parâmetros e limitações em [docs/client-compatibility.md](docs/client-compatibility.md). O IP do HTTP operacional não substitui o endereço frontend de jogo. Precedência e aceitação pelo cliente continuam pendentes.
+A preparação de endereço é feita somente numa cópia do cliente, pela ferramenta scripts/client/prepare_lab_client.py: altera FeatureMatrix.EndPoints numa cópia SQLite e gera EndPoint.txt com backup. Veja parâmetros e limitações em [docs/client-compatibility.md](docs/client-compatibility.md). O IP do HTTP operacional não substitui o endereço frontend de jogo. A cópia já abriu a tela inicial e alcançou a recusa diagnóstica; autenticação continua pendente.
 
 Com Rust instalado, o diagnóstico separado pode ser executado:
 

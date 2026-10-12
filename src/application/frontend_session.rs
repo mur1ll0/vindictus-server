@@ -3,7 +3,9 @@
 use super::session_registry::{RegistryError, Reservation, SessionRegistry};
 use crate::{
     domain::passport::{LoginPermissions, LoginRejection, frontend_passport_gate},
-    protocol::identity::{IdentityError, LabIdentity, LabIdentityOptions, derive_lab_identity},
+    protocol::identity::{
+        IdentityError, IdentityProfile, LabIdentity, LabIdentityOptions, derive_lab_identity,
+    },
 };
 use std::{
     net::IpAddr,
@@ -51,15 +53,18 @@ pub struct LabAdmission {
 }
 pub(crate) struct PendingIdentity {
     pub identity: LabIdentity,
+    pub profile: IdentityProfile,
     pub permissions: LoginPermissions,
     pub remote_ip: IpAddr,
 }
 /// Each connection owns one session; there is no public method to mark gameplay authenticated.
 pub struct FrontendSession {
+    connection_id: Uuid,
     phase: SessionPhase,
     token: Option<AttemptToken>,
     deadline: Option<Instant>,
     pending: Option<PendingIdentity>,
+    admitted: Option<PendingIdentity>,
     registry: SessionRegistry,
     reservation: Option<Reservation>,
 }
@@ -67,13 +72,36 @@ impl FrontendSession {
     /// Every connection must receive the runtime's shared registry; no implicit private registry.
     pub fn new(registry: &SessionRegistry) -> Self {
         Self {
+            connection_id: Uuid::new_v4(),
             phase: SessionPhase::Initial,
             token: None,
             deadline: None,
             pending: None,
+            admitted: None,
             registry: registry.clone(),
             reservation: None,
         }
+    }
+    /// Borrow only an admitted policies-accepted identity; password messages carry no owner IDs.
+    pub(crate) fn accepted_identity(&self) -> Result<&LabIdentity, SessionError> {
+        if self.phase != SessionPhase::PoliciesAccepted {
+            return Err(SessionError::InvalidPhase);
+        }
+        self.admitted
+            .as_ref()
+            .map(|p| &p.identity)
+            .ok_or(SessionError::InvalidPhase)
+    }
+    pub(crate) fn accepted_profile(&self) -> Result<IdentityProfile, SessionError> {
+        self.accepted_identity()?;
+        self.admitted
+            .as_ref()
+            .map(|p| p.profile)
+            .ok_or(SessionError::InvalidPhase)
+    }
+    pub(crate) fn accepted_connection(&self) -> Result<Uuid, SessionError> {
+        self.accepted_identity()?;
+        Ok(self.connection_id)
     }
     pub fn phase(&self) -> SessionPhase {
         self.phase
@@ -144,6 +172,7 @@ impl FrontendSession {
             )
             .map_err(|e| SessionError::Rejected(e.0))?;
             Ok(PendingIdentity {
+                profile: config.identity_options.profile,
                 identity,
                 permissions,
                 remote_ip: peer,
@@ -188,7 +217,7 @@ impl FrontendSession {
     ) -> Result<(), SessionError> {
         self.validate(token, now, SessionPhase::CheckingPolicies)?;
         self.phase = SessionPhase::PoliciesAccepted;
-        self.pending = None;
+        self.admitted = self.pending.take();
         self.token = None;
         self.deadline = None;
         Ok(())
@@ -222,11 +251,24 @@ impl FrontendSession {
         self.phase = SessionPhase::Initial;
         self.token = None;
         self.deadline = None;
+        if let Some(p) = self.pending.as_mut() {
+            zeroize::Zeroize::zeroize(&mut p.identity.nexon_id);
+        }
+        if let Some(p) = self.admitted.as_mut() {
+            zeroize::Zeroize::zeroize(&mut p.identity.nexon_id);
+        }
         self.pending = None;
+        self.admitted = None;
         self.reservation = None;
     }
     pub fn close(&mut self) {
         self.reset();
         self.phase = SessionPhase::Closed;
+    }
+}
+
+impl Drop for FrontendSession {
+    fn drop(&mut self) {
+        self.close();
     }
 }

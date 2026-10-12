@@ -1,6 +1,6 @@
 # Caminho para o aceite intermediário 1.69 EN
 
-Investigação estática em 2026-10-12 a partir do Git limpo `3608a03`. Prioridade solicitada pelo usuário; objetivo final M01–M24 preservado. Cliente não executado. Esta ordem de dependências não comprova compatibilidade nem que todas as mensagens exigidas foram identificadas.
+Investigação estática em 2026-10-12 a partir do Git limpo `3608a03`. Prioridade solicitada pelo usuário; objetivo final M01–M24 preservado. Cliente executado depois desta investigação: tela inicial e ingresso diagnóstico observados em runtime-ingress.json; sem autenticação. Esta ordem de dependências não comprova compatibilidade nem que todas as mensagens exigidas foram identificadas.
 
 1. Bootstrap HTTP na cópia completa e framing/cifra/TypeConverter TCP. Validar precedência sql/ versus HFS em execução. Probe só recebe UserLogin tipado478; dispatcher legado também recebe categoria0 por GUID. Primeira etapa M11.6: recuperar somente envelope UserLogin comprovado, sem aceitar negociação arbitrária do peer.
 2. TCP → FrontendSession: Initial → PassportCheck, NGM_disable, identidade/perfil explícito, permissões não privilegiadas, reserva/deadline/políticas, efeitos reais e retorno UserLogin. PoliciesAccepted interno não é resposta de rede. Resolver perfil efetivo, novo usuário, FacebookToken e sete campos do retorno; segurança/café/ticket dependem das features, não simulá-los silenciosamente.
@@ -11,10 +11,10 @@ Investigação estática em 2026-10-12 a partir do Git limpo `3608a03`. Priorida
 
 ## Bloqueios concretos
 
-- .cache/client-lab tem somente SQLite, não cliente completo; originais são referência somente leitura. URL/porta TCP27015 sem aceitação runtime observada.
+- .cache/play-client contém cópia completa; bootstrap HTTP200 e ingresso na TCP27015 observados. Originais permanecem somente leitura; segunda senha interna ainda não implica aceitação de login.
 - TCP diagnóstico recusa13; não há ligação TCP→FrontendSession nem respostas de lista/seleção/sucesso/cidade.
 - Perfis de identidade/features limitados; runtime/cultura/arquitetura efetivos não observados. Credenciais importadas não ativas.
-- Executor de contas existentes enfileira recompensas; novo usuário/retorno integral/consumidor não ligados à sessão. Catálogo/stat/rates/inventário/correio pendentes. Verificar dependências alcançadas por cenário em vez de exigir ItemContents integral para toda investigação de login.
+- Composição interna de novo/existente e retorno integral ligados à sessão em M13.2d.3a; TCP e consumidor de itens ainda pendentes. Catálogo/stat/rates/inventário/correio pendentes. Verificar dependências alcançadas por cenário em vez de exigir ItemContents integral para toda investigação de login.
 - QueryCharacters/SelectCharacter precisam de dados além dos snapshots, codec/segunda senha/PlayerService e ownership de CID.
 - InGame tem dependências adicionais e dois ramos de canal; Rust não oferece cidade/movimento. Managed não comprova transporte nativo do ramo escolhido.
 
@@ -37,3 +37,7 @@ Para o ramo candidato MMOChannel, JoinChannelProcessor gera chave por CID e reto
 Fontes adicionais: PlayerService-f23d8b9df77c (QueryCharactersProcessor/SelectCharacterProcessor, CharacterDataContext, CharacterLoader), MMOChannelService-bd760399728c (JoinChannelProcessor/MMOChannelService) e HeroesChannelServer-3264f671bce0 (Server/Client/Player). O inventário anterior contém MMOServer managed; ainda recuperar os seus componentes/partições e o wire completo. ProudNet de batalha não é um bloqueio demonstrado para este caminho de cidade.
 
 O aceite agora inclui criação de personagem, autorizada explicitamente nesta continuação. CreateCharacterProcessor passa por CharacterMaker (nome/limite/SN/ID), JoinWithCharacter, CustomizeCharacter/DefaultItemInfo, Costume.Save, DefaultSkillInfo e títulos/estado inicial; estes passos não podem ser trocados por INSERT de snapshot. Segunda senha continua parte do ramo efetivo. M13.2d.3a compõe o retorno interno e provisiona usuário; ele não satisfaz essas dependências.
+
+A segunda senha interna é a etapa M13.3a verificada. Ajuste da ordem: modos0/1/2 e persistência/session gates antes de ligar CharacterList; a declaração real UsingSHA=0 impede limitar o caminho a SHA512. A DLL inválida foi recuperada da distribuição somente na cópia, resolvendo o bloqueio de inicialização. Permanecem QueryCharacters/slots/aparência/defaults, codecs/adapter TCP, criação/seleção e MMO. GetItemStat/entrega e batalha permanecem no objetivo final.
+
+Próxima ordem acionável: concluir codecs de cinco mensagens de segunda senha; recuperar CharacterList/CharacterSummary e consulta de usuário/slots. QueryLastCID/QueryProloguePlayed lê dbo.UserInfo (3campos,25linhas), independente de dbo.User. Produtos de slot contam ID por NexonSN e ProductName sem filtrar ExpireTime; UserProducts5campos tem0linhas na referência. Preservar estes contratos, sem inventar slots. Uma conta sintética sem personagens pode retornar lista vazia somente depois de consultar GetCharacters realmente; usuários com personagens exigem Summary/aparência completos ou recusa explícita por dependência. Não substituir todos os resultados por lista vazia. Após ligar TCP, teste real do cliente observa tela/lista/segunda senha, ainda não conclui criação/seleção/cidade. CreateCharacter exige defaults de item/skill/costume, alocação SN por UTC+ServerCode e procedimentos recuperados. Objetivo final permanece completo.

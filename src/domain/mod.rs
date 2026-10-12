@@ -27,3 +27,5 @@ pub mod item_location;
 pub mod queued_item;
 
 pub mod user_login_composition;
+
+pub mod second_password;

@@ -1,0 +1,31 @@
+{
+  "verified_at_utc": "2026-10-12T19:43:19.701796+00:00",
+  "entry": "en-EU/Mss32.dll",
+  "source_volume": "Vindictus1.69EN/Vindictus.z03",
+  "disk": 3,
+  "offset": 1544037482,
+  "bytes": 374272,
+  "compressed_bytes": 174720,
+  "crc32": "b67c7f6c",
+  "crc_valid": true,
+  "original_mss32_sha256": "dfc4e0c9bf06f460fca34c305a7dfac3952124555604ffa01693b2786b038657",
+  "recovered_mss32_sha256": "f2099aaa3d7a72375f7e6dd8430ebdd3ab11240a28323642a6330d92a9cec28b",
+  "machine": "x86/0x14c",
+  "backup_retained": true,
+  "originals_unchanged": true,
+  "game_compatibility_verified": false,
+  "client_initial_screen_observed_by_operator": true,
+  "synthetic_login_attempts": 2,
+  "diagnostic_outcomes": [
+    "LoginRefused",
+    "LoginRefused"
+  ],
+  "diagnostic_times_utc": [
+    "2026-10-12T19:52:14.035608Z",
+    "2026-10-12T19:52:20.086803Z"
+  ],
+  "http_bootstrap_get_200_observed": true,
+  "client_error": "The Client/Server detected some issues with the connection.",
+  "game_authenticated": false,
+  "client_screen_capture_available": false
+}

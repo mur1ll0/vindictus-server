@@ -14,3 +14,5 @@ pub mod user_import;
 pub mod user_login;
 
 pub mod local_login_session;
+
+pub mod second_password;

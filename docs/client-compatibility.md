@@ -97,3 +97,11 @@ Para diagnóstico de rede no próprio host, sem autenticação:
 O endereço de jogo da cópia preparada pode apontar para127.0.0.1:27015 durante futura investigação de handshake. A ferramenta emite bootstrap e rejeita logins com Reason13/PermissionFailed; não existe cenário de jogo aceito. Essa porta não é publicada pelo Compose e o probe não aceita bindings para outras máquinas. O envelope categoria0 de UserLogin foi recuperado e testado contra Framework x86/x64 e sockets reais (M11.6; [contrato](login-ingress.md)). Demais tipos polimórficos, ligação à sessão e aceitação pelo cliente continuam pendentes. Use o cliente legado fornecido como candidato, não um cliente atual presumidamente compatível.
 
 Prioridade intermediária atual: login → seleção → cidade/movimento básicos. Consulte [caminho mínimo e bloqueios](client-minimum-path.md); isso não conclui a migração completa nem o aceite de batalha/recompensas.
+
+## Execução da cópia em 2026-10-12
+
+A cópia completa .cache/play-client abriu a tela inicial, confirmada pelo operador. EndPoint.txt foi buscado com HTTP200 e as duas tentativas sintéticas em SERVER1 chegaram ao probe como LoginRefused; o cliente apresentou “The Client/Server detected some issues with the connection.” O diagnóstico envia recusa13 deliberadamente. Isso comprova ingresso no laboratório preparado, sem autenticação, criação/seleção ou cidade. A precedência geral de todas as fontes de configuração não foi isolada.
+
+O diálogo Bad image de Mss32.dll foi resolvido somente na cópia. A DLL das pastas originais não tinha cabeçalhos MZ/PE; a entrada en-EU/Mss32.dll da distribuição split fornecida foi recuperada de Vindictus.z03 (disk3, offset1544037482, deflate174720→374272bytes), validada pelo CRC32b67c7f6c e PE x86. Backup da DLL copiada foi mantido; hashes originais permaneceram iguais. Nenhum binário ou asset foi incluído no Git. [runtime-ingress.json](evidence/client/runtime-ingress.json) contém apenas hashes/contagens e observações. A captura automatizada da janela falhou; as observações de tela são do operador.
+
+Pode manter o cliente na tela de login enquanto o servidor é implementado. Uma nova tentativa será útil depois de substituir a recusa diagnóstica por um fluxo recuperado e verificado; repetir agora produz a mesma recusa. Reinicie quando houver alteração na cópia/configuração de bootstrap.

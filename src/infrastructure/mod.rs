@@ -19,3 +19,5 @@ pub mod login_rewards;
 pub mod reward_policy;
 
 pub mod user_login;
+
+pub mod second_password;
