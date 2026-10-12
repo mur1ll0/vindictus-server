@@ -45,3 +45,5 @@ scripts/reverse/generate-item-parser-fixtures.ps1 compila métodos extraídos de
 py -3.13 scripts/reverse/catalog-inventory-contract.py exporta somente estruturas/hashes, sem linhas ou definições originais. Gate scripts/dev/verify.ps1 -DatabaseIntegration, build Docker locked, smoke/restart e snapshot Verify continuam obrigatórios.
 
 Próxima subetapa 2c.2b: resolver temporal com perfis explícitos, catálogo/CheckCharacterBind e modelos/importação de inventário com tipos/collation/cascades comprovados. Entrega/correio/logs e login de cliente permanecem pendentes.
+
+A subetapa 2c.2b.1 adiciona a cadeia temporal e aritmética com contexto explícito; veja [argumentos temporais](item-argument.md). A gramática de datas/cultura/fuso ainda exige adaptador comprovado, e integer_only_argument mantém sua recusa original.

@@ -14,6 +14,8 @@ pub enum ItemClassExError {
     #[error("argument requires an explicit legacy culture/date/clock resolver")]
     ArgumentUnsupported,
     #[error(transparent)]
+    Argument(#[from] super::item_argument::ArgumentError),
+    #[error(transparent)]
     Value(#[from] LegacyUserDataError),
 }
 pub struct ItemAttribute {

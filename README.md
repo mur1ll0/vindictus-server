@@ -175,3 +175,5 @@ O executor interno de contas existentes agora reúne as observações de dormên
 As decisões do consumidor de QueuedItem agora foram recuperadas e portadas para Rust: seleção por dono, gate de eventos, destino/expiração e binder padrão, comparados a dois perfis Framework. Consulte [consumidores da fila](docs/queued-item-consumers.md) para regras e dependências concretas. Esta subetapa não processa entradas reais; inventário, correio, logs e ligação à sessão continuam pendentes.
 
 O parsing comum de ItemClassEx e o sentinel de localização agora estão portados e comparados ao Framework x86/x64 em cinco culturas. Consulte [parser e limites](docs/item-class-ex.md): argumentos temporais exigem resolver explícito; catálogo/binder e persistência do inventário continuam pendentes.
+
+A cadeia de argumentos temporais de ItemClassEx agora possui contexto explícito e aritmética comparada ao Framework. Consulte [contrato temporal](docs/item-argument.md): o adaptador da gramática cultural de datas e sua ligação ao consumidor ainda estão pendentes.

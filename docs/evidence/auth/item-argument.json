@@ -1,0 +1,126 @@
+{
+  "stage": "M13.2d.2b.2c.2b.1",
+  "verified_at_utc": "2026-10-12T15:34:47.4756456+00:00",
+  "scope": "ToArgInt source decision chain and ToInt32/relative arithmetic through explicit culture/clock/zone ports",
+  "architectures": 2,
+  "cultures": 5,
+  "fixed_zones": 3,
+  "cases_per_profile": 100,
+  "comparison_cases": 3000,
+  "date_range_cases": 180,
+  "local_conversion_cases": 1320,
+  "rust_passed": 147,
+  "postgres_passed": 40,
+  "python_passed": 15,
+  "warnings": 0,
+  "errors": 0,
+  "exit_code": 0,
+  "date_grammar_migrated": false,
+  "suffix_grammar_migrated": false,
+  "production_temporal_adapter_installed": false,
+  "source_services_executed": false,
+  "sqlserver_writes": false,
+  "inventory_writes": false,
+  "queue_delivery_executed": false,
+  "game_client_login_available": false,
+  "adaptations": [
+    "DateTime.TryParse and String.EndsWith observed by delegates; Rust tests inject observations, not a migrated date grammar",
+    "DateTime.Now replaced by per-case local clock; ToUniversalTime replaced by explicit custom zone conversion",
+    "Injected dates exercise all DateTimeKind values, ticks boundaries, signed truncation and unchecked int32 wrapping",
+    "Invalid Argument logger is a no-op; no source argument logging in production"
+  ],
+  "docker": {
+    "verified_at_utc": "2026-10-12T15:38:12.2366966+00:00",
+    "locked_build_smoke_restart": true,
+    "snapshots": 287,
+    "fields": 64,
+    "users": 29,
+    "user_fields": 15,
+    "queue_rows": 140,
+    "next_identity_unused": 141,
+    "real_batch_receipts": 0
+  },
+  "next_stage": "M13.2d.2b.2c.2b.2: effective cultural/date/suffix/timezone adapter; content/binding/inventory still pending",
+  "artifacts": [
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "d704ecdfc67959df9412ab734266146cb71f3f59b122cfb1320aa654d6388526"
+    },
+    {
+      "path": "src/domain/item_class_ex.rs",
+      "sha256": "6fc72cc85d3ececb5eeeb4fcf82abea3a9ad4d2083da8d50802d295ca8baa9e8"
+    },
+    {
+      "path": "src/domain/item_argument.rs",
+      "sha256": "3304bb7eca28bc2fa88b018b2e59f3f6978b15aee90f8aefcc7fba1f6733a12f"
+    },
+    {
+      "path": "tests/item_argument.rs",
+      "sha256": "b6b217afb0b4b04b698a118a7367804691ca547790c6fb66ea43f5d664412cf8"
+    },
+    {
+      "path": "tests/fixtures/framework-item-argument.json",
+      "sha256": "da3187679d3c1a1db6ec645aec05812b299f500c8176828f3a11336bd9cac960"
+    },
+    {
+      "path": "scripts/reverse/extract-item-argument.py",
+      "sha256": "0a676c1f3db5318ac8428a7371ff5a1e8d96923ac3a2d88556b221979095c96f"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemArgumentOracle.cs",
+      "sha256": "46d320febbc3dfc0191def8ddbc4ac15d6799e054084b8bbe0156a275b838616"
+    },
+    {
+      "path": "scripts/reverse/generate-item-argument-fixtures.ps1",
+      "sha256": "ec9b23feaf324dd4b82ab3d1abdd4f8abea3118f5fa7bdd2468e569caac98048"
+    },
+    {
+      "path": "docs/item-argument.md",
+      "sha256": "5870b2425adff0067abf7105ffd257f098db1e30c6b8f8012727d37c008daa5a"
+    },
+    {
+      "path": "docs/item-class-ex.md",
+      "sha256": "53c6ea46d5bf8cd9d0d39b2d3b5c6292b6b11b40f41961112029c13ffc2cc7ac"
+    },
+    {
+      "path": "README.md",
+      "sha256": "5db382bb84bd3bd79b9feeb13f7938021c53c3d3513470e78fa7600ba8143712"
+    },
+    {
+      "path": "MIGRATION.md",
+      "sha256": "14df5a3a47a7e85d7f7f0c950363ddad03b43a9c8f67081cf0ab04a6e591ee58"
+    },
+    {
+      "path": "docs/evidence/verification/REPORT.md",
+      "sha256": "5260f712edb3c9ec85bda53002d57cb40188dfb224617ba5f32b746b9a6e0cb7"
+    },
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "00340df3b3db96eb79b2e85e3b0f877c47b470d7dc3759cb42ecdf9b58698a75"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "a75ea5c9839d37dffc5a8a38a616fde067308dc7c778f476049b0cfcf6e56ed0"
+    },
+    {
+      "path": "docs/evidence/database/queue-identity-docker.json",
+      "sha256": "087caad524895fe90520d7e2ef344f2baf514ec108404375fc8512a8a51bdc9b"
+    },
+    {
+      "path": "docs/evidence/database/character-import.json",
+      "sha256": "aeb0010fc8f2e7e1b000e23546030338b3672d92a545523da4923fe0b4c7f464"
+    },
+    {
+      "path": "docs/evidence/database/user-import.json",
+      "sha256": "3201b0b7d796a1ce5cfb1b1ba5176cd0899031aeb31f90ff64d2124796744a2f"
+    },
+    {
+      "path": "docs/evidence/database/login-reward-docker.json",
+      "sha256": "78892ed5e2e0cc419e66ba5053f8a9de4ffe3ac84ca620d82287a673c6c73430"
+    },
+    {
+      "path": "docs/evidence/content/reward-policy.json",
+      "sha256": "cd1e3e9969a1d23f837149a1125cefd3da53685a2b8a4af12c63ba123eb24441"
+    }
+  ]
+}
