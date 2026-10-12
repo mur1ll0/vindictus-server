@@ -60,7 +60,7 @@ Com Rust instalado, o diagnóstico separado pode ser executado:
 cargo run --locked -- probe-frontend --bind 127.0.0.1:27015
 ~~~
 
-Ele envia a tabela recuperada de mensagens e recusa todos os logins. Não inicia autenticação, personagens ou batalha. As instruções definitivas de cliente/IP/criação de conta de jogo serão documentadas após o aceite real M24.
+Ele envia a tabela recuperada de mensagens, reconhece UserLogin tipado478 ou seu envelope GUID categoria0 e recusa todos os logins. Não inicia autenticação, personagens ou batalha. As instruções definitivas de cliente/IP/criação de conta de jogo serão documentadas após o aceite real M24.
 
 ## Desenvolvimento e testes
 
@@ -137,7 +137,7 @@ Contratos: [persistência](docs/legacy-user-storage.md), [importação](docs/use
 | M23 | Paridade, falhas, reconexão, integridade e carga comparadas ao legado |
 | M24 | Aceite com cliente: login, personagem, batalha, recompensa e reconexão |
 
-A política de recompensas agora possui exportador privado, qualificação por personagem e diagnóstico Rust/Docker somente leitura, comparados ao Framework. Consulte [política de recompensas](docs/dormant-reward-policy.md) para executar a comparação. Consultas reais, política e recibos estão integrados ao executor interno de contas existentes. A próxima ação exata está em MIGRATION.md. Processamento, inventário e correio ainda pendentes.
+A política de recompensas agora possui exportador privado, qualificação por personagem e diagnóstico Rust/Docker somente leitura, comparados ao Framework. Consulte [política de recompensas](docs/dormant-reward-policy.md) para executar a comparação. Consultas reais, política e recibos estão integrados ao executor interno de contas existentes. A prioridade intermediária é login, seleção e cidade/movimento básicos; veja [caminho e bloqueios](docs/client-minimum-path.md). A próxima ação exata está em MIGRATION.md. Processamento, inventário e correio ainda pendentes.
 
 Depois da compatibilidade básica, o projeto poderá estudar novas armas, fases e classes. Isso exige regras do servidor e dados/assets/animações/mensagens suportados pelo cliente. Extrair uma classe atual não garante que o cliente de 2016 consiga carregá-la; formatos, executável e protocolo podem exigir adaptação. Essa extensão não é uma etapa concluída.
 

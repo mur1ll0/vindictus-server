@@ -52,11 +52,13 @@ src/protocol/features.rs preserva presença de mensagem, dicionário null/vazio,
 FeatureMatrix.GetFeatureMatrixDic() copia somente overrideMap. A FeatureMatrix SQLite fornece a base por região; OverrideSetting/NGM_Disable alimentam overrides separados. Sincronizar todas as features SQLite como se fossem overrides mudaria o contrato do cliente.
 
 ## Diagnóstico TCP
-probe-frontend é uma ferramenta independente de HTTP/PostgreSQL e só aceita bindings loopback. Envia a tabela649; no comando CLI os overrides ficam vazios. A API aceita overrides explícitos para comparação do pacote completo em testes. Aceita somente UserLoginMessage na categoria confirmada478, decodifica sem registrar passport/hardware e envia LoginFailMessage categoria484, Reason13 (PermissionFailed), BannedReason vazio. A cifra Heroes continua no mesmo estado da sequência inicial.
+probe-frontend é uma ferramenta independente de HTTP/PostgreSQL e só aceita bindings loopback. Envia a tabela649; no comando CLI os overrides ficam vazios. A API aceita overrides explícitos para comparação do pacote completo em testes. Reconhece UserLoginMessage na categoria confirmada478 e no envelope categoria0 com GUID original, decodifica sem registrar passport/hardware e envia LoginFailMessage categoria484, Reason13 (PermissionFailed), BannedReason vazio. A cifra Heroes continua no mesmo estado da sequência inicial.
 
-Essa recusa é uma política explícita do diagnóstico enquanto os estados de autenticação estão pendentes. Diferentemente do PassportCheck original, ele fecha a conexão após a recusa. Não grava usuário, não calcula identidade e não concede permissões. Categoria0 de entrada, mensagens adicionais e null login são recusados; o legado externo não aceita um TypeConverter de retorno automaticamente.
+Essa recusa é uma política explícita do diagnóstico enquanto os estados de autenticação estão pendentes. Diferentemente do PassportCheck original, ele fecha a conexão após a recusa. Não grava usuário, não calcula identidade e não concede permissões. Tipos categoria0 diferentes de UserLogin, mensagens adicionais e null login são recusados; o legado externo não aceita um TypeConverter de retorno automaticamente.
 
 Recursos: body102400bytes, read4096bytes, no máximo8 tarefas de conexão, deadline absoluto10segundos cobrindo escrita/leitura e cancelamento de sockets no shutdown. Os testes usam TCP loopback real, fragmentação, recusa, EOF parcial, categoria inesperada, timeout e parada com sessão pendente.
 
 ## LoginFailMessage
 src/protocol/login_failure.rs porta presence bool, Reason int32 big endian e BannedReason string anulável. Fixtures .NET Framework incluem valores negativos/extremos, null/vazio e UTF8. O número13 vem do enum FailReason recuperado; não é um opcode inventado.
+
+O envelope limitado de ingresso, seus nulos e diferenças deliberadas estão em [login-ingress.md](login-ingress.md). A equivalência foi comparada ao writer/reader/cifra Framework x86/x64 recuperados; não comprova que o cliente use esse formato em runtime.

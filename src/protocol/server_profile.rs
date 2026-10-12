@@ -3259,3 +3259,5 @@ pub const USER_LOGIN_MESSAGE_CATEGORY: i32 = 478;
 pub const SYNC_FEATURE_MATRIX_MESSAGE_CATEGORY: i32 = 185;
 /// Recovered LoginFailMessage category for this source hash.
 pub const LOGIN_FAIL_MESSAGE_CATEGORY: i32 = 484;
+/// Recovered CLR UserLogin identity for category-zero dispatch.
+pub const USER_LOGIN_MESSAGE_TYPE_ID: Uuid = Uuid::from_u128(0x47f6f00c0bd33059afad84a872ed7399);

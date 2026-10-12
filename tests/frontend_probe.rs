@@ -158,8 +158,8 @@ async fn partial_packet_eof_and_null_login_cannot_become_an_authenticated_sessio
     }
 }
 #[tokio::test]
-async fn unexpected_categories_including_peer_converter_are_not_negotiated_as_trusted_login() {
-    for category_id in [0, 1, -1, 649] {
+async fn unexpected_typed_categories_are_not_negotiated_as_trusted_login() {
+    for category_id in [1, -1, 649] {
         let (mut client, task) = connection(TEST_DEADLINE, false).await;
         let mut receiver =
             LegacyReceiver::with_profile(CipherProfile::VindictusFrontend, DEFAULT_MAX_BODY);
@@ -226,4 +226,65 @@ async fn shutdown_aborts_pending_connections_and_releases_listening_address() {
         0
     );
     assert!(TcpStream::connect(address).await.is_err());
+}
+#[tokio::test]
+async fn recovered_framework_category_zero_login_reaches_the_same_explicit_refusal() {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/framework-login-envelope.json")).unwrap();
+    let case = &fixture["profiles"][0]["cases"][9];
+    assert_eq!(case["category"], 0);
+    let wire: Vec<u8> = case["wire"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| u8::try_from(v.as_u64().unwrap()).unwrap())
+        .collect();
+    let (mut client, task) = connection(TEST_DEADLINE, false).await;
+    let mut receiver =
+        LegacyReceiver::with_profile(CipherProfile::VindictusFrontend, DEFAULT_MAX_BODY);
+    read_frame(&mut client, &mut receiver).await;
+    for byte in wire {
+        client.write_all(&[byte]).await.unwrap();
+    }
+    assert_eq!(task.await.unwrap().unwrap(), ProbeOutcome::LoginRefused);
+    let response = read_frame(&mut client, &mut receiver).await;
+    assert_eq!(response.category_id, LOGIN_FAIL_MESSAGE_CATEGORY);
+    assert_eq!(
+        decode_login_failure(&response.body, DEFAULT_MAX_BODY)
+            .unwrap()
+            .unwrap()
+            .reason,
+        PERMISSION_FAILED
+    );
+}
+#[tokio::test]
+async fn category_zero_null_and_peer_converter_cannot_start_a_login() {
+    use vindictus_server::protocol::login_ingress::LoginIngressError;
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/framework-login-envelope.json")).unwrap();
+    let null_wire: Vec<u8> = fixture["profiles"][0]["cases"][0]["wire"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| u8::try_from(v.as_u64().unwrap()).unwrap())
+        .collect();
+    let (_, converter_wire) = encode_initial_packets(169, None, DEFAULT_MAX_BODY, 1024).unwrap();
+    for (wire, null) in [(null_wire, true), (converter_wire[0].clone(), false)] {
+        let (mut client, task) = connection(TEST_DEADLINE, false).await;
+        let mut receiver =
+            LegacyReceiver::with_profile(CipherProfile::VindictusFrontend, DEFAULT_MAX_BODY);
+        read_frame(&mut client, &mut receiver).await;
+        client.write_all(&wire).await.unwrap();
+        let result = task.await.unwrap();
+        if null {
+            assert!(matches!(result, Err(ProbeError::NullLogin)));
+        } else {
+            assert!(matches!(
+                result,
+                Err(ProbeError::Ingress(LoginIngressError::UnsupportedType))
+            ));
+        }
+        let mut byte = [0];
+        assert_eq!(client.read(&mut byte).await.unwrap(), 0);
+    }
 }

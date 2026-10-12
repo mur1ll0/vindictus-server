@@ -4,8 +4,8 @@ use crate::protocol::{
     DEFAULT_MAX_BODY, Frame,
     bootstrap::{BootstrapError, encode_initial_packets},
     features::FeatureMatrix,
-    login::decode_user_login,
     login_failure::{LoginFailMessage, PERMISSION_FAILED, encode_login_failure},
+    login_ingress::{LoginIngressError, decode_login_ingress},
     server_profile::{LOGIN_FAIL_MESSAGE_CATEGORY, USER_LOGIN_MESSAGE_CATEGORY},
     transport::{CipherProfile, LegacyReceiver, TransportError},
 };
@@ -38,10 +38,13 @@ pub enum ProbeError {
     /// Invalid encrypted stream.
     #[error(transparent)]
     Transport(#[from] TransportError),
-    /// Invalid login body.
+    /// Bounded failure-response construction failed.
     #[error(transparent)]
     Payload(#[from] crate::protocol::login::PayloadError),
-    /// Only the verified typed login category is handled by this diagnostic.
+    /// Invalid or unsupported login envelope; never reports payload fields.
+    #[error(transparent)]
+    Ingress(#[from] LoginIngressError),
+    /// Only category zero and the verified typed login category reach the bounded decoder.
     #[error("frontend probe does not implement category {0}")]
     UnsupportedCategory(i32),
     /// Null login is valid wire data but cannot start PassportCheck.
@@ -64,7 +67,7 @@ pub enum ProbeOutcome {
     LoginRefused,
 }
 
-/// Send the source-identified bootstrap, receive one typed login and explicitly refuse it.
+/// Send the source-identified bootstrap, receive one known typed or category-zero login and explicitly refuse it.
 /// Caller selects a fresh salt; the sender state is retained across the response.
 /// Optional features are overrides, matching FeatureMatrix.GetFeatureMatrixDic().
 pub async fn probe_connection(
@@ -94,12 +97,12 @@ pub async fn probe_connection(
             let frames = receiver.push(&buffer[..count])?;
             if let Some(frame) = frames.into_iter().next() {
                 let body = Zeroizing::new(frame.body);
-                if frame.category_id != USER_LOGIN_MESSAGE_CATEGORY {
+                if frame.category_id != 0 && frame.category_id != USER_LOGIN_MESSAGE_CATEGORY {
                     return Err(ProbeError::UnsupportedCategory(frame.category_id));
                 }
                 // No identity or permission is derived from untrusted client fields.
                 // The decoded passport/hardware/version fields are never printed or retained.
-                let login = decode_user_login(&body, DEFAULT_MAX_BODY)?;
+                let login = decode_login_ingress(frame.category_id, &body, DEFAULT_MAX_BODY)?;
                 if login.is_none() {
                     return Err(ProbeError::NullLogin);
                 }

@@ -1,0 +1,117 @@
+{
+  "verified_at_utc": "2026-10-12T18:05:57.516820+00:00",
+  "region": "EN-EU-X-GM",
+  "method": "SQLite mode=ro/query_only; selected declarations only, source SHA256 before/after; recovered managed sources inspected without execution. Declarations do not observe effective runtime overrides.",
+  "observations": [
+    {
+      "source": "server",
+      "sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
+      "declarations": {
+        "CurrentVer": "3.09.00",
+        "OverrideSetting": null,
+        "CafeBonus": null,
+        "HackshieldOff": "1",
+        "CashShop": null,
+        "enEU": "1",
+        "SecondPassword": "1.08.02",
+        "NGM_disable": "1",
+        "MMOChannel": "1",
+        "EssentialSecondPassword": "1",
+        "NexonGameSecurity": "3.01.01",
+        "FraudDetector": null,
+        "XignCode": null
+      },
+      "source_hash_unchanged": true
+    },
+    {
+      "source": "client",
+      "sha256": "205ebffb85bd55da162715d239d6f0256ea6d643c4ed783ea399dd937bfa2db3",
+      "declarations": {
+        "CurrentVer": "3.09.00",
+        "OverrideSetting": null,
+        "CafeBonus": null,
+        "HackshieldOff": "1",
+        "CashShop": null,
+        "enEU": "1",
+        "SecondPassword": "1.08.02",
+        "NGM_disable": "1",
+        "MMOChannel": "1",
+        "EssentialSecondPassword": "1",
+        "NexonGameSecurity": "3.01.01",
+        "FraudDetector": null,
+        "XignCode": null
+      },
+      "source_hash_unchanged": true
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/Initial.cs",
+      "sha256": "91caf685e500d4c99b89d7f3983ca57a038c0c9d0817c6c46819c8f2848fb879"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/PassportCheck.cs",
+      "sha256": "8ccfd82ca93f250b8811e0138bc81fe1e467fa4298a0def1d00a3907f1164fba"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterList.cs",
+      "sha256": "8342a53227171c6472846f1e12c15c2dd1d059eac2ae8cdee690699b5bc22fa6"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterSelecting.cs",
+      "sha256": "6e40c901aff1da774920e266fbe83c6b5f30ccf0caf3d99e36260e4e7665ffb6"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/InGame.cs",
+      "sha256": "3c30d6f53b40ff302e0985ee81f0e86ba2cda69dda3f1ce2d069d03beea5f747"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.Proxy/MMOChannelProxy.cs",
+      "sha256": "08d0c30380856cc3867dc0978046463b84f454bc7cc6e7f3631b0f0ee021905b"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.Proxy/ChannelProxy.cs",
+      "sha256": "6e408bde975f329e5c4aa7c539abcc2aeef623061c837b7db0824225d0789152"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/QueryCharactersProcessor.cs",
+      "sha256": "5675574cc02916dcfe453da69a37c4f4e25402b8303b3b43a9f0fe5eb53f5aec"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/SelectCharacterProcessor.cs",
+      "sha256": "3d2111cae5c48067de0b02c85e48d42060c012af00f59be3b8822b8b2792ab68"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterDataContext.cs",
+      "sha256": "dc170d91bcb289c327971c68ce0a481a1a4cb5077b7563abccf39b63b7389888"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Functions/CharacterLoader.cs",
+      "sha256": "c657f190af54204c996785277196777a30d9b002a899323b4d58763636bd38e2"
+    },
+    {
+      "path": "legacy/decompiled/MMOChannelService-bd760399728c/MMOChannelService.Processor/JoinChannelProcessor.cs",
+      "sha256": "c191be024aaec3996b89127c55c1029f93d59dd490e88f2069d325cd204e20ed"
+    },
+    {
+      "path": "legacy/decompiled/MMOChannelService-bd760399728c/MMOChannelService/MMOChannelService.cs",
+      "sha256": "aac41da97c270b8485d81dd85f508fad80ecef9c1eaa157eab727fe298cce42e"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Server.cs",
+      "sha256": "c2a9760c9fcb08fc9b2a5772383ce896553d1c4c156530fee8453845fa6bc160"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Client.cs",
+      "sha256": "fb69cb0dc64aa00859f1afe70854afacf502df7fe21b30ec27d5ed0f7c496b28"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Player.cs",
+      "sha256": "f27ebbc76f27d286b887ce813613e4d3f8b568aa1505708078b925852cea9759"
+    }
+  ],
+  "client_executed": false,
+  "original_services_executed": false,
+  "sql_server_accessed": false,
+  "intermediate_acceptance_verified": false
+}

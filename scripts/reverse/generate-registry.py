@@ -20,6 +20,8 @@ def main():
     for name in ('UserLoginMessage','SyncFeatureMatrixMessage','LoginFailMessage'):
         row = next(r for r in rows if r['name'] == 'ServiceCore.EndPointNetwork.'+name)
         result.extend([f'/// Recovered {name} category for this source hash.', f'pub const {re.sub(r'(?<!^)(?=[A-Z])', '_', name).upper()}_CATEGORY: i32 = {row["category"]};'])
+    login = next(r for r in rows if r['name'] == 'ServiceCore.EndPointNetwork.UserLoginMessage')
+    result.extend(['/// Recovered CLR UserLogin identity for category-zero dispatch.', f'pub const USER_LOGIN_MESSAGE_TYPE_ID: Uuid = Uuid::from_u128(0x{uuid.UUID(login["guid"]).int:032x});'])
     (PROJECT/'src/protocol/server_profile.rs').write_text('\n'.join(result)+'\n',encoding='utf-8')
     print(f'Generated {len(rows)} source-identified registrations, same GUID/category in x86 and x64.')
 if __name__ == '__main__': main()
