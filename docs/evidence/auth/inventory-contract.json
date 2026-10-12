@@ -1,0 +1,429 @@
+{
+  "stage": "M13.2d.2b.2c.2a",
+  "catalog_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "tables": [
+    {
+      "table": "Item",
+      "column_count": 9,
+      "columns": [
+        {
+          "name": "ID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "ItemClass",
+          "declared_type": "nvarchar",
+          "max_length": 100,
+          "precision": 0,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": "SQL_Latin1_General_CP1_CI_AS"
+        },
+        {
+          "name": "OwnerID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": true,
+          "collation_name": null
+        },
+        {
+          "name": "Count",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Collection",
+          "declared_type": "tinyint",
+          "max_length": 1,
+          "precision": 3,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Slot",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "ExpireDateTime",
+          "declared_type": "datetime2",
+          "max_length": 8,
+          "precision": 27,
+          "scale": 7,
+          "is_nullable": true,
+          "collation_name": null
+        },
+        {
+          "name": "Tradable",
+          "declared_type": "bit",
+          "max_length": 1,
+          "precision": 1,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "CheckSum",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": true,
+          "collation_name": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "references": "ItemCollection",
+          "columns": [
+            {
+              "column": "OwnerID",
+              "referenced_column": "OwnerID"
+            }
+          ],
+          "delete": "CASCADE",
+          "update": "CASCADE",
+          "disabled": false,
+          "not_trusted": false
+        }
+      ],
+      "identity_columns": []
+    },
+    {
+      "table": "ItemAttribute",
+      "column_count": 6,
+      "columns": [
+        {
+          "name": "ID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "ItemID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Attribute",
+          "declared_type": "varchar",
+          "max_length": 50,
+          "precision": 0,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": "SQL_Latin1_General_CP1_CI_AS"
+        },
+        {
+          "name": "Value",
+          "declared_type": "varchar",
+          "max_length": 50,
+          "precision": 0,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": "SQL_Latin1_General_CP1_CI_AS"
+        },
+        {
+          "name": "Arg",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Arg2",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        }
+      ],
+      "foreign_keys": [],
+      "identity_columns": [
+        "ID"
+      ]
+    },
+    {
+      "table": "ItemCollection",
+      "column_count": 2,
+      "columns": [
+        {
+          "name": "OwnerID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Permission",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "references": "Character",
+          "columns": [
+            {
+              "column": "OwnerID",
+              "referenced_column": "ID"
+            }
+          ],
+          "delete": "CASCADE",
+          "update": "CASCADE",
+          "disabled": false,
+          "not_trusted": false
+        }
+      ],
+      "identity_columns": []
+    },
+    {
+      "table": "ItemStorageStatus",
+      "column_count": 7,
+      "columns": [
+        {
+          "name": "Storage",
+          "declared_type": "tinyint",
+          "max_length": 1,
+          "precision": 3,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "ExpireTime",
+          "declared_type": "datetime",
+          "max_length": 8,
+          "precision": 23,
+          "scale": 3,
+          "is_nullable": true,
+          "collation_name": null
+        },
+        {
+          "name": "StorageName",
+          "declared_type": "nvarchar",
+          "max_length": 100,
+          "precision": 0,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": "SQL_Latin1_General_CP1_CI_AS"
+        },
+        {
+          "name": "StorageTag",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "ID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "OwnerID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "StorageType",
+          "declared_type": "tinyint",
+          "max_length": 1,
+          "precision": 3,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        }
+      ],
+      "foreign_keys": [
+        {
+          "references": "ItemCollection",
+          "columns": [
+            {
+              "column": "OwnerID",
+              "referenced_column": "OwnerID"
+            }
+          ],
+          "delete": "CASCADE",
+          "update": "CASCADE",
+          "disabled": false,
+          "not_trusted": false
+        }
+      ],
+      "identity_columns": [
+        "ID"
+      ]
+    },
+    {
+      "table": "Equippable",
+      "column_count": 7,
+      "columns": [
+        {
+          "name": "ID",
+          "declared_type": "bigint",
+          "max_length": 8,
+          "precision": 19,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Part",
+          "declared_type": "tinyint",
+          "max_length": 1,
+          "precision": 3,
+          "scale": 0,
+          "is_nullable": true,
+          "collation_name": null
+        },
+        {
+          "name": "Color1",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Color2",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "Color3",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "ReducedDurability",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        },
+        {
+          "name": "MaxDurabilityBonus",
+          "declared_type": "int",
+          "max_length": 4,
+          "precision": 10,
+          "scale": 0,
+          "is_nullable": false,
+          "collation_name": null
+        }
+      ],
+      "foreign_keys": [],
+      "identity_columns": []
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContents.cs",
+      "sha256": "25962e36e582ae703708c0442137f7ccefad470cfc2410205ccae6dd1b72aa5a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.TradeSystem/ItemGenerator.cs",
+      "sha256": "cab274ae10b4c1232de2b4f4ece5b611ddc8e763cf20454f9c1abe6db9f52ccb"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+      "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/ItemLocation.cs",
+      "sha256": "e632614a3fa0d9a8957ea559a5c7548a5ddd1003b0dc27e3bfd407bcffa09b63"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemClassConst.cs",
+      "sha256": "66ac6c228c0da98da72bcdafef184c94458eb33551d3464252e84e7f5dbc17c1"
+    }
+  ],
+  "catalog_lookup": {
+    "null_returns_none": true,
+    "ordinal_keys": true,
+    "filter_order": [
+      "FeatureMatrix.IsEnable(row.Feature)",
+      "row.IsValid()"
+    ],
+    "duplicate_keys": "last row overwrites",
+    "additional_initialization_pending": true
+  },
+  "system_item_lookup": [
+    "ID equality SingleOrDefault",
+    "Item.IsValid()",
+    "ItemLocation.IsNull"
+  ],
+  "mobile_binding_order": [
+    "null info -> true",
+    "explicit bound -> true",
+    "not equippable and not gold -> true",
+    "Bind feature -> true",
+    "TradeOnBind feature -> true",
+    "enchant_scroll prefix -> Macro_EnchantTradeRestriction",
+    "CheckHighLevelEquipment"
+  ],
+  "high_level_dependencies": [
+    "IsEquippable",
+    "culture-specific ToLower of special cash class",
+    "ENHANCE Convert.ToInt32(value) >=9",
+    "LOOK exists",
+    "QUALITY.Arg >=5",
+    "PREFIX/SUFFIX enchant level >=7 (missing content may throw)",
+    "BraceletMaxSlotCount and GemstoneTypes"
+  ],
+  "snapshots_imported": false,
+  "sqlserver_writes": false,
+  "delivery_implemented": false
+}

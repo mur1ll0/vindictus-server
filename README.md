@@ -173,3 +173,5 @@ Ao terminar cada etapa: executar o gate completo, verificar o escopo da entrega,
 O executor interno de contas existentes agora reúne as observações de dormência/lealdade, o catálogo de recompensas e a inserção da fila em uma transação com CAS e recibo UUID. Consulte [o contrato e os limites](docs/login-reward-executor.md). A integração à sessão de jogo e a entrega por inventário/correio continuam pendentes; ainda não há login de cliente disponível.
 
 As decisões do consumidor de QueuedItem agora foram recuperadas e portadas para Rust: seleção por dono, gate de eventos, destino/expiração e binder padrão, comparados a dois perfis Framework. Consulte [consumidores da fila](docs/queued-item-consumers.md) para regras e dependências concretas. Esta subetapa não processa entradas reais; inventário, correio, logs e ligação à sessão continuam pendentes.
+
+O parsing comum de ItemClassEx e o sentinel de localização agora estão portados e comparados ao Framework x86/x64 em cinco culturas. Consulte [parser e limites](docs/item-class-ex.md): argumentos temporais exigem resolver explícito; catálogo/binder e persistência do inventário continuam pendentes.

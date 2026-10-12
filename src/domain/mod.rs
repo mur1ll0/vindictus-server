@@ -18,4 +18,6 @@ pub mod dormant_item;
 pub mod feature_policy;
 
 pub mod dormant_rewards;
+pub mod item_class_ex;
+pub mod item_location;
 pub mod queued_item;

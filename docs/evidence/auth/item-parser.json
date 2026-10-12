@@ -1,0 +1,122 @@
+{
+  "stage": "M13.2d.2b.2c.2a",
+  "verified_at_utc": "2026-10-12T11:50:44.8171548+00:00",
+  "scope": "bounded UTF16 common parser/build/equality, explicit argument resolver, location sentinel, inventory structural preflight",
+  "framework_architectures": 2,
+  "framework_cultures": 5,
+  "cases_per_culture": {
+    "syntax": 327,
+    "integer": 33,
+    "equality": 24
+  },
+  "locations_per_architecture": 48,
+  "comparison_cases_total": 3936,
+  "rust_passed": 139,
+  "postgres_passed": 40,
+  "python_passed": 15,
+  "gate_exit_code": 0,
+  "gate_warnings": 0,
+  "gate_errors": 0,
+  "docker": {
+    "locked_build_smoke_restart": true,
+    "source_character_snapshots": 287,
+    "source_character_fields": 64,
+    "source_users": 29,
+    "source_user_fields": 15,
+    "queue_rows": 140,
+    "next_identity_unused": 141,
+    "real_batch_receipts": 0
+  },
+  "source_services_executed": false,
+  "sqlserver_writes": false,
+  "inventory_snapshots_imported": false,
+  "queue_delivery_executed": false,
+  "game_client_login_available": false,
+  "limitations": [
+    "ToArgInt replaced by explicit deterministic resolver; raw calls recorded; date/culture/local-clock interpretation not ported",
+    "int.TryParse Integer primitive verified separately in five cultures",
+    "attribute DTO and ItemLocation compiled from recovered source unchanged",
+    "Utility dictionary lookup/logger represented by bounded synthetic shims",
+    "integer-only production adapter rejects noninteger args; source invalid->0/date/relative branches pending",
+    "Build bounded to queue UTF16 width; convenience overloads and legacy ItemLocation.GetHashCode not ported"
+  ],
+  "next_stage": "M13.2d.2b.2c.2b: temporal resolver, effective item content/mobile binder and inventory snapshot/import prerequisites",
+  "artifacts": [
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "7a032c1a14949849a2bb9f2f1522053aecd770b291032fa86ff58c14f9a2e0e0"
+    },
+    {
+      "path": "src/domain/item_class_ex.rs",
+      "sha256": "33c3fbaf2cadf175fe25728c599cfef3a5ac5ee21fd2c370d4c0e6d970b0061c"
+    },
+    {
+      "path": "src/domain/item_location.rs",
+      "sha256": "ff290d873ab8c8d772029fc9bf3d755eb70b67f05889c464aa7b7ec7be51ca7a"
+    },
+    {
+      "path": "tests/item_parser.rs",
+      "sha256": "61acc1e172c58f0f0e9ccc541e9d0b67958fea66a6aac9ae2b922368c72a2323"
+    },
+    {
+      "path": "tests/fixtures/framework-item-parser.json",
+      "sha256": "3a58f236126ae949c9f0639557b4957af64ec1cf04a421738f5c331117fa96e9"
+    },
+    {
+      "path": "scripts/reverse/extract-item-parser.py",
+      "sha256": "bbcfbcee7e1a718869e1bdf8cb19e3280fd10438aaf553a2fe4c48c1e1bc4026"
+    },
+    {
+      "path": "scripts/reverse/catalog-inventory-contract.py",
+      "sha256": "0a20a9086ec948b449fbc77bd32bd808c562421d9c2790d89b33884ed75099e7"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemParserOracle.cs",
+      "sha256": "4cfa6336df04d2939c422cf93c796f0b7d9afc9984f08deae89e7ae699c7fe3c"
+    },
+    {
+      "path": "scripts/reverse/generate-item-parser-fixtures.ps1",
+      "sha256": "5bf50b7d65e158a70e6b7952aaaeefbcc66e023d9414586fdc95b2fa96e45819"
+    },
+    {
+      "path": "docs/item-class-ex.md",
+      "sha256": "825df71bfa759091bb9b9caf1dbc57eaa62e8de15ddfec980a23eb17d43537c5"
+    },
+    {
+      "path": "docs/evidence/auth/inventory-contract.json",
+      "sha256": "b113719d7893d715ab801457757b6ecdb53f4850801022382143fa2aa29b0fec"
+    },
+    {
+      "path": "README.md",
+      "sha256": "baa49d3853360072ecf8763743a4ec6e0c223d95bb7b8787710c1dc1312a0d9c"
+    },
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "1f156d525925c410c60b6550bd12ac191b1855f3c5d7e620eead7c08b336ece3"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "fe96383d281babf1420000703c636dcaeb0cdb23c3c56d1b14b5ffe262262ebf"
+    },
+    {
+      "path": "docs/evidence/database/queue-identity-docker.json",
+      "sha256": "349c2ff15eea6a9e28e1ff303afe19ea106435267d7a59696bdf6536a3d8f343"
+    },
+    {
+      "path": "docs/evidence/database/character-import.json",
+      "sha256": "d0463857f9674bad03ff973f461c847e36e3520344b40b3303e6750b6b7ad2c8"
+    },
+    {
+      "path": "docs/evidence/database/user-import.json",
+      "sha256": "d5763fbaed8bd216c25ff8d0b94bf70b5cc3a57291fd947597052cedc206d499"
+    },
+    {
+      "path": "docs/evidence/database/login-reward-docker.json",
+      "sha256": "f37a323ccfb02de597e5e0425eb1c8150f66c0696c155831a4f7f2ee1fa32c49"
+    },
+    {
+      "path": "docs/evidence/content/reward-policy.json",
+      "sha256": "e03fd3a61604b77f8b1da9e196640475d12df3210ece04000247c56136693e2e"
+    }
+  ]
+}
