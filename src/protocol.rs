@@ -11,6 +11,7 @@ pub mod isaac;
 pub mod login;
 pub mod login_failure;
 pub mod login_ingress;
+pub mod second_password;
 pub mod server_profile;
 pub mod transport;
 
