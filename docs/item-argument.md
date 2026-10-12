@@ -19,3 +19,5 @@ scripts/reverse/generate-item-argument-fixtures.ps1 compila x86/x64 para .NET Fr
 Datas completas sem offset usam o DateTime.TryParse real do Framework. O teste Rust injeta as observações desse parser e do sufixo: portanto prova a cadeia de decisão e aritmética, não uma implementação Rust da gramática cultural. Datas injetadas cobrem ticks zero/máximo, epoch±frações, 2038 e wrap adicional. Zonas fixas são fixtures do contexto, não prova de DST, datas incompletas ou conversão de offsets textuais. Não há leitura/escrita de linhas de inventário ou alteração de Processed.
 
 Próxima subetapa: implementar e comprovar um adaptador cultural de data/sufixo e conversão local para o perfil efetivo do pacote, com formatos realmente usados e rejeição explícita dos formatos desconhecidos. Catálogo efetivo, CheckCharacterBind, snapshots/importação de inventário, correio/logs e ligação à sessão de jogo continuam pendentes.
+
+A subetapa 2b.2 adiciona um [adaptador Rust limitado ao perfil offline](item-argument-profile.md), comparado ao parser real do Framework sem injetar suas observações. A gramática geral continua fora do escopo e a seleção não ativa entrega real.

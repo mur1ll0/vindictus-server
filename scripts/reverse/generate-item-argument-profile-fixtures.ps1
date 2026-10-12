@@ -1,0 +1,30 @@
+$ErrorActionPreference='Stop'
+$taskProject=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+Push-Location $taskProject
+try {
+ New-Item -ItemType Directory -Force .cache/framework,.cache/verification | Out-Null
+ py -3.13 scripts/reverse/extract-item-argument.py
+ if($LASTEXITCODE -ne 0){throw 'Temporal predicate extraction failed'}
+ $taskProfiles=@()
+ foreach($taskArch in 'x86','x64'){
+  $taskExe='.cache/framework/ItemArgumentProfile-'+$taskArch+'.exe'
+  $taskArgs=@('C:\Program Files\dotnet\sdk\9.0.301\Roslyn\bincore\csc.dll','/nologo','/noconfig','/nostdlib+','/langversion:latest',('/platform:'+$taskArch),('/out:'+$taskExe))
+  foreach($taskLib in 'mscorlib','System','System.Core','System.Data','System.Web.Extensions'){
+   $taskArgs+=('/r:C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\'+$taskLib+'.dll')
+  }
+  $taskArgs+=@('.cache/framework/ItemArgumentRecovered.cs','scripts/reverse/framework/ItemArgumentProfileOracle.cs')
+  & 'C:\Program Files\dotnet\dotnet.exe' @taskArgs *> .cache/verification/item-argument-profile-oracle-build.log
+  if($LASTEXITCODE -ne 0){Get-Content .cache/verification/item-argument-profile-oracle-build.log -Tail 6;throw 'Temporal oracle build failed'}
+  $taskRaw=& (Join-Path $PWD $taskExe) 2> .cache/verification/item-argument-profile-oracle-error.log
+  if($LASTEXITCODE -ne 0){throw 'Temporal oracle failed'}
+  $taskData=$taskRaw|ConvertFrom-Json -DateKind String
+  if($taskData.architecture -ne $taskArch){throw 'Temporal architecture mismatch'}
+  $taskProfiles+=$taskData
+ }
+ if(($taskProfiles[0].profiles|ConvertTo-Json -Depth 14 -Compress) -ne ($taskProfiles[1].profiles|ConvertTo-Json -Depth 14 -Compress)){throw 'Parser architecture disagreement'}
+ $taskSources=@('legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.ItemServiceOperations/ItemClassExBuilder.cs','legacy/decompiled/Utility-37359981d509/Utility/Extention.cs','scripts/reverse/extract-item-argument.py','scripts/reverse/framework/ItemArgumentProfileOracle.cs')
+ $taskFixture=[ordered]@{profiles=$taskProfiles;sources=@($taskSources|ForEach-Object{[ordered]@{path=$_;sha256=(Get-FileHash $_).Hash.ToLowerInvariant()}});adaptations=@('ToArgInt and ToInt32 extracted from source; DateTime.TryParse and EndsWith execute on Framework en-US with user overrides disabled','Clock replaced by four explicit UTC samples converted to local through a fixed UTC+8 zone','Local ToUniversalTime uses explicit TimeZoneInfo fixed UTC+8 conversion; original source services never executed','No injected parse/suffix observations in Rust profile tests; unsupported list tests deliberate fail-closed scope');source_services_executed=$false;database_writes=$false}
+ $taskJson=($taskFixture|ConvertTo-Json -Depth 18).Replace(([string][char]13+[char]10),([string][char]10))+[char]10
+ [IO.File]::WriteAllText((Join-Path $PWD 'tests/fixtures/framework-item-argument-profile.json'),$taskJson,[Text.UTF8Encoding]::new($false))
+ Write-Output ('Temporal profile oracle PASS; architectures=2; culture=en-US; fixed_zone=UTC+8; clocks='+$taskProfiles[0].profiles.Count+'; cases/clock='+$taskProfiles[0].profiles[0].cases.Count+'; unsupported='+$taskProfiles[0].unsupported_hex.Count)
+} finally {Pop-Location}

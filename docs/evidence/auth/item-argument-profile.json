@@ -1,0 +1,142 @@
+{
+  "stage": "M13.2d.2b.2c.2b.2",
+  "verified_at_utc": "2026-10-12T16:29:00.6082204+00:00",
+  "scope": "Explicit offline en-US Gregorian fixed UTC+8 adapter; complete numeric date grammar and ASCII seconds only; unknown formats fail closed",
+  "architectures": 2,
+  "culture": "en-US",
+  "fixed_offset_minutes": 480,
+  "clock_samples": 4,
+  "cases_per_clock": 575,
+  "comparison_cases": 4600,
+  "unsupported_cases_per_architecture": 16,
+  "rust_passed": 155,
+  "postgres_passed": 40,
+  "python_passed": 15,
+  "warnings": 0,
+  "errors": 0,
+  "exit_code": 0,
+  "rust_parser_uses_injected_framework_parse_observations": false,
+  "general_date_grammar_migrated": false,
+  "unicode_suffix_nls_proven": false,
+  "production_temporal_adapter_connected_to_queue": false,
+  "runtime_thread_culture_observed": false,
+  "private_hive_acl": {
+    "root_inheritance_disabled": true,
+    "principals": 2,
+    "hives": 6,
+    "unexpected_principals": 0
+  },
+  "source_services_executed": false,
+  "sqlserver_writes": false,
+  "current_registry_modified": false,
+  "inventory_writes": false,
+  "queue_delivery_executed": false,
+  "game_client_login_available": false,
+  "source_queue_census": {
+    "rows": 140,
+    "with_attributes": 0,
+    "argument_delimiters": 0,
+    "private_snapshot_sha256": "af01d26e21dca5d8736db0790270932e69434acdd4d5428ed925350701f2da82",
+    "rows_published": false
+  },
+  "adaptations": [
+    "ToArgInt and ToInt32 extracted from source; DateTime.TryParse and EndsWith execute on Framework en-US with user overrides disabled",
+    "Clock replaced by four explicit UTC samples converted to local through a fixed UTC+8 zone",
+    "Local ToUniversalTime uses explicit TimeZoneInfo fixed UTC+8 conversion; original source services never executed",
+    "No injected parse/suffix observations in Rust profile tests; unsupported list tests deliberate fail-closed scope"
+  ],
+  "docker": {
+    "verified_at_utc": "2026-10-12T16:31:19.3957052+00:00",
+    "locked_build_smoke_restart": true,
+    "snapshots": 287,
+    "fields": 64,
+    "users": 29,
+    "user_fields": 15,
+    "queue_rows": 140,
+    "next_identity_unused": 141,
+    "real_batch_receipts": 0
+  },
+  "next_stage": "M13.2d.2b.2c.2b.3: effective item content/CheckCharacterBind; inventory still pending",
+  "artifacts": [
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "92aa071b5a7e286e2c5f76cfd80f6eafe7e684c96ff13b9ba2d1103424002c9e"
+    },
+    {
+      "path": "src/domain/item_argument_profile.rs",
+      "sha256": "f44843e3848490dbc5f5839bfe6ab138b64555b59f2f7bf922533d33d125c019"
+    },
+    {
+      "path": "tests/item_argument_profile.rs",
+      "sha256": "06b33beaf7729b2acdc354177b5d894918af2b3c6f1c1c0384ee4f20067ddb5f"
+    },
+    {
+      "path": "tests/fixtures/framework-item-argument-profile.json",
+      "sha256": "5f2c77050fb16d2a9487bcca2573e042eb4addf9acdbdfaf9e4e355fefdfe8e6"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemArgumentProfileOracle.cs",
+      "sha256": "78e048a0d126339c8e67dcedeb1c72d1ebfb4c8851bdd6473031147e7812a493"
+    },
+    {
+      "path": "scripts/reverse/generate-item-argument-profile-fixtures.ps1",
+      "sha256": "1e36d5e83887595a784af58a3a2c6fab99402276406604559cf3ace1ce6a2300"
+    },
+    {
+      "path": "scripts/reverse/read-offline-item-profile.py",
+      "sha256": "e60a45b310ef7d8c35c60c6d4923a68d1da65ea8548c1fa310492da1d6a54e00"
+    },
+    {
+      "path": "docs/evidence/auth/item-temporal-profile.json",
+      "sha256": "99fbc498679e19f30e6708c13e563eea320cc5acd28651141fadd83ff659fa6e"
+    },
+    {
+      "path": "docs/item-argument-profile.md",
+      "sha256": "35e227462dbfdceb0c61f20a8754f938ca0d6e1cf12f2e4dd108ff62b345a2c8"
+    },
+    {
+      "path": "docs/item-argument.md",
+      "sha256": "281949af793cc39021b4ed1f8f608bf95191185f6abd769de62e689199ce6f16"
+    },
+    {
+      "path": "README.md",
+      "sha256": "f4d0f7ab1cd9aa0338acb1a572e6aa33474af669fc309eec6e5dbffa1f7e08cf"
+    },
+    {
+      "path": "MIGRATION.md",
+      "sha256": "aba4a443fdf561bbd7c6f4f21e0615cd52d15c12f7677885be8ed0ce692a8e3e"
+    },
+    {
+      "path": "docs/evidence/verification/REPORT.md",
+      "sha256": "1de053625072911b97d7d4cbb8141e14b74987a688f55e77018d6eb709a4be94"
+    },
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "4899bcfb1373c36bac7328108d09c00714954eab19fe9634d1f835e41f4c178d"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "2c9097fdd5f71be9fbeb7c0e617544e072a74f1fff44d31a399fbbd9f7d67e15"
+    },
+    {
+      "path": "docs/evidence/database/queue-identity-docker.json",
+      "sha256": "e864c411642796d5f25a12165d549e5c77a5821b9625342024e8c7aac26382f8"
+    },
+    {
+      "path": "docs/evidence/database/character-import.json",
+      "sha256": "507fedcdbd9ad80c5ebd52414c902fc22b1bcb53561285240d0b11d9df28a239"
+    },
+    {
+      "path": "docs/evidence/database/user-import.json",
+      "sha256": "4e8dc060fc442f86eef82c60c9809e60cb2de3d2d8d894b4802ab09a15eba55a"
+    },
+    {
+      "path": "docs/evidence/database/login-reward-docker.json",
+      "sha256": "441cefc5d60856cbc23ffa4798d42b6ec8b8a750b16d47844a414eabc061053c"
+    },
+    {
+      "path": "docs/evidence/content/reward-policy.json",
+      "sha256": "b21d7d48091bbb75c3a81e0919a874ca9cef29044fd87c080b8ec979a797fb6d"
+    }
+  ]
+}

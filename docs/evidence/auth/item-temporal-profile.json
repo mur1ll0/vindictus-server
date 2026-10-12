@@ -1,0 +1,121 @@
+{
+  "inspected_at_utc": "2026-10-12T16:03:58.759343+00:00",
+  "method": "Read-only python-registry on six private NTUSER copies; selected regional values only; VM never started",
+  "profiles": [
+    {
+      "profile_index": 0,
+      "private_archive_path_sha256": "71e8056e08c3bc1a3f0ad5a1494b227c4712b162b90d0361bfd1a5cb6a57c4c9",
+      "hive_sha256": "2fe0b29a12099548ef1ace13356e9dd1893398748963d43e1e66a3ee5c16150c",
+      "sequences_match": true,
+      "header_checksum_valid": true,
+      "regional_values": {
+        "Locale": "00000409",
+        "LocaleName": "en-US",
+        "sShortDate": "M/d/yyyy",
+        "sDate": "/",
+        "sTime": ":",
+        "sTimeFormat": "h:mm:ss tt",
+        "s1159": "AM",
+        "s2359": "PM",
+        "iCalendarType": "1"
+      }
+    },
+    {
+      "profile_index": 1,
+      "private_archive_path_sha256": "42d4cb78a44606c51e911abf38893650bcd7bc7df32bd6d44090becfc628221d",
+      "hive_sha256": "02423b409d9e9d3e44f04d9a9628682f0d764bbd53afd984622aea1a3f98fda6",
+      "sequences_match": true,
+      "header_checksum_valid": true,
+      "regional_values": {
+        "Locale": "00000409",
+        "LocaleName": "en-US",
+        "sShortDate": "M/d/yyyy",
+        "sDate": "/",
+        "sTime": ":",
+        "sTimeFormat": "h:mm:ss tt",
+        "s1159": "AM",
+        "s2359": "PM",
+        "iCalendarType": "1"
+      }
+    },
+    {
+      "profile_index": 2,
+      "private_archive_path_sha256": "e40da1a84511cb393ad7bae89d935f5cde1b68252e345508d554fa2b9a9db596",
+      "hive_sha256": "bf8622a7d93c485f30df0b69c20fc2d3066e25f8fbdbc4ae54a85168a89b49d6",
+      "sequences_match": true,
+      "header_checksum_valid": true,
+      "regional_values": {
+        "Locale": "00000409",
+        "LocaleName": "en-US",
+        "sShortDate": "M/d/yyyy",
+        "sDate": "/",
+        "sTime": ":",
+        "sTimeFormat": "h:mm:ss tt",
+        "s1159": "AM",
+        "s2359": "PM",
+        "iCalendarType": "1"
+      }
+    },
+    {
+      "profile_index": 3,
+      "private_archive_path_sha256": "6a76df0a7b780c930d1e95d03a4bc3e1c559d2eac2e619caad8c01196f3115ad",
+      "hive_sha256": "40fac5c7b883e743d1354a8c8cfeb456b6e5a011f879c3beb93aef2d65e443d6",
+      "sequences_match": true,
+      "header_checksum_valid": true,
+      "regional_values": {
+        "Locale": "00000409",
+        "LocaleName": "en-US",
+        "sShortDate": "M/d/yyyy",
+        "sDate": "/",
+        "sTime": ":",
+        "sTimeFormat": "h:mm:ss tt",
+        "s1159": "AM",
+        "s2359": "PM",
+        "iCalendarType": "1"
+      }
+    },
+    {
+      "profile_index": 4,
+      "private_archive_path_sha256": "dee67afdca5c91f54dd2e4d7431cca3d3a9f4c4a34ac7f8d5a68a519505bd9c6",
+      "hive_sha256": "cf8b72be2050de53e4b3c08f550946d88420ad9930db95ee9884ca19516f1cec",
+      "sequences_match": true,
+      "header_checksum_valid": true,
+      "regional_values": {
+        "Locale": "00000409",
+        "LocaleName": "en-US",
+        "sShortDate": "M/d/yyyy",
+        "sDate": "/",
+        "sTime": ":",
+        "sTimeFormat": "h:mm:ss tt",
+        "s1159": "AM",
+        "s2359": "PM",
+        "iCalendarType": "1"
+      }
+    },
+    {
+      "profile_index": 5,
+      "private_archive_path_sha256": "12694514ea6e558a7277b6dccef6a8203313089c201f756a65ac2a4ebabecf65",
+      "hive_sha256": "7b724a7840e2ca3dc0da73670214ffa0525eaec8b74deda71f0619262004e459",
+      "sequences_match": true,
+      "header_checksum_valid": true,
+      "regional_values": null
+    }
+  ],
+  "configured_profiles": 5,
+  "regional_values_agree": true,
+  "selected_profile": "en-US Gregorian, fixed UTC+8, explicit selection only",
+  "runtime_user_or_thread_culture_observed": false,
+  "user_override_scope": "selected date/time settings; general NLS collation not proven",
+  "source_queue_census": {
+    "rows": 140,
+    "with_attributes": 0,
+    "argument_delimiters": 0,
+    "private_snapshot_sha256": "af01d26e21dca5d8736db0790270932e69434acdd4d5428ed925350701f2da82",
+    "rows_published": false
+  },
+  "zone_evidence_path": "docs/evidence/database/offline-vm-clock.json",
+  "zone_evidence_sha256": "338f7d4ff7822d57dac8f4785f05f292d108520d69c8810bd9edc8441ba8c2db",
+  "source_services_executed": false,
+  "source_databases_written": false,
+  "current_registry_modified": false
+}

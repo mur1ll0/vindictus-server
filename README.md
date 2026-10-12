@@ -177,3 +177,5 @@ As decisões do consumidor de QueuedItem agora foram recuperadas e portadas para
 O parsing comum de ItemClassEx e o sentinel de localização agora estão portados e comparados ao Framework x86/x64 em cinco culturas. Consulte [parser e limites](docs/item-class-ex.md): argumentos temporais exigem resolver explícito; catálogo/binder e persistência do inventário continuam pendentes.
 
 A cadeia de argumentos temporais de ItemClassEx agora possui contexto explícito e aritmética comparada ao Framework. Consulte [contrato temporal](docs/item-argument.md): o adaptador da gramática cultural de datas e sua ligação ao consumidor ainda estão pendentes.
+
+O [adaptador temporal do perfil offline](docs/item-argument-profile.md) implementa datas completas en-US e segundos relativos com clock explícito e UTC+8. Formatos desconhecidos são recusados; o consumidor real, catálogo/binder e inventário ainda estão pendentes.
