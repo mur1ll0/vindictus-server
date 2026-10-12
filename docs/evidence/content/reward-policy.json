@@ -1,6 +1,6 @@
 {
   "stage": "M13.2d.2b.2b.1",
-  "verified_at_utc": "2026-10-12T18:14:32.0274414+00:00",
+  "verified_at_utc": "2026-10-12T19:30:19.7746563+00:00",
   "profile": {
     "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
     "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
@@ -10,10 +10,10 @@
     "server_code": 1,
     "catalog_rows": 24
   },
-  "private_export_sha256": "6f9af513cb9b61afbb0d0683206bb6bbebc4ca3a89b335909d5753121c4a0d9d",
+  "private_export_sha256": "c32aff6448adaea834faca9d23a6d5578c6116a843adab03eb7f45542474fff9",
   "content_is_private": true,
   "acl": "current Windows user and SYSTEM; inheritance disabled",
-  "feature_subset_rows": 10,
+  "feature_subset_rows": 14,
   "original_files_hashes_unchanged": true,
   "catalog_iteration_order_preserved": true,
   "duplicate_rewards_preserved": true,
@@ -70,7 +70,7 @@
     },
     {
       "path": "scripts/content/export_reward_policy.py",
-      "sha256": "4daf2d81a1e6102821f496d6582d6fe390451e674f9f167a54b62878f2ab5415"
+      "sha256": "71a7535ca4c8cae58a9c20504714c4d0b0b19b30d10471d599142e7e3f8d8f2c"
     },
     {
       "path": "scripts/content/Export-RewardPolicy.ps1",

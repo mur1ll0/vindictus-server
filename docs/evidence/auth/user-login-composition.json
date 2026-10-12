@@ -1,0 +1,85 @@
+{
+  "stage": "M13.2d.3a",
+  "verified_at_utc": "2026-10-12T19:26:21.8389604+00:00",
+  "architectures": 2,
+  "composition_cases_per_architecture": 480,
+  "token_byte_cases_per_architecture": 256,
+  "sql_token_cases": 256,
+  "new_rust_tests": 4,
+  "new_postgres_tests": 7,
+  "gate": {
+    "rust": 179,
+    "postgres": 47,
+    "python": 19,
+    "failures": 0,
+    "warnings": 0
+  },
+  "docker_preservation_at_utc": "2026-10-12T19:31:38.4951488+00:00",
+  "source_fragments": [
+    {
+      "path": "legacy/decompiled/LoginServiceCore-1600fb4b593d/LoginServiceCore.Processor/UserLoginProcessor.cs",
+      "sha256": "de3c2983235eee1a5e04471559168e10d70b1150eddaa0932c618067071a1f2e"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/LoginFailMessage.cs",
+      "sha256": "f331e4c7049604def387629006b2c28d83d9885f9af3d8ad2bdb31e2db3b1709"
+    },
+    {
+      "path": "scripts/reverse/framework/UserLoginCompositionOracle.cs",
+      "sha256": "05d28c58461585b4cda95a64171b4edfb553fa9210683f98e84498606a5904c7"
+    }
+  ],
+  "implementation": [
+    {
+      "path": "src/application/user_login.rs",
+      "sha256": "7de43212ebe4a88abcae1f4d77ea719a5c27d25ec31f610ca25c40bc1c14da32"
+    },
+    {
+      "path": "src/application/local_login_session.rs",
+      "sha256": "7e8fe24cff622c5580914ff534f260fe62f1402746a21876906fe63bec465c67"
+    },
+    {
+      "path": "src/infrastructure/user_login.rs",
+      "sha256": "55d63236c9001860e0a2248d5ad336c1130455b6fa67685b4baac5b367c77367"
+    },
+    {
+      "path": "src/domain/user_login_composition.rs",
+      "sha256": "eb8987a45e7a15743dc0d5f66745e7eeb97f8f2fd6546244080b994230652d72"
+    },
+    {
+      "path": "tests/support/user_login.rs",
+      "sha256": "9174a803fa1d0616944c6b64ef566572825ca2c1c7e768ce5f606652141d8990"
+    },
+    {
+      "path": "tests/user_login_composition.rs",
+      "sha256": "2a1653b909f8c82af7b88a7ed9f31f53d96a54ab40a2524366517b5a9929fd42"
+    },
+    {
+      "path": "scripts/content/export_reward_policy.py",
+      "sha256": "71a7535ca4c8cae58a9c20504714c4d0b0b19b30d10471d599142e7e3f8d8f2c"
+    },
+    {
+      "path": "scripts/database/Compare-TokenCodepage.ps1",
+      "sha256": "141ce5f8a76cb461f7efc16172d0a2eb042002698ceabceefc808c32c169a41b"
+    },
+    {
+      "path": "scripts/reverse/generate-user-login-composition-fixtures.ps1",
+      "sha256": "3f2d43b490f5c039968046a85d78ee459087e30d3301feb946a363a87a3db394"
+    },
+    {
+      "path": "tests/fixtures/framework-user-login-composition.json",
+      "sha256": "f97aa88856338b5c5da0767a9328a9133eb258379538a5d559175a85ef752dad"
+    },
+    {
+      "path": "docs/evidence/database/token-codepage.json",
+      "sha256": "f3b1b25f950ae5f945d4d191f316ffe7bc2485069e71f358af8d2dbb618e6c6e"
+    }
+  ],
+  "scope": "Internal admitted loopback session only. Effects precede ban. New user preparation atomic. Explicit offline feature/token profiles. No wire success or CharacterList.",
+  "original_services_executed": false,
+  "sqlserver_persistent_writes": false,
+  "real_account_rewards_executed": false,
+  "client_executed": false,
+  "game_authentication_available": false,
+  "game_compatibility_verified": false
+}

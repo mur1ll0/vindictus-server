@@ -1507,3 +1507,6 @@ mod dormant_items;
 
 #[path = "support/login_rewards.rs"]
 mod login_rewards;
+
+#[path = "support/user_login.rs"]
+mod user_login;

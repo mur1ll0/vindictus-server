@@ -10,3 +10,7 @@ pub mod login_rewards;
 pub mod reward_inspection;
 pub mod session_registry;
 pub mod user_import;
+
+pub mod user_login;
+
+pub mod local_login_session;

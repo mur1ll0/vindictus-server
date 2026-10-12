@@ -1,6 +1,6 @@
 """Read-only, bounded export of the recovered dormant reward content subset."""
 import contextlib, argparse, hashlib, json, pathlib, re, sqlite3, xml.etree.ElementTree as ET
-KEYS = ['CurrentVer','OverrideSetting','DormantAccount','DormantAccount_ver2','DormantAccountInterval','DormantNewAccountInterval','friend_loyalty_system','friend_loyalty_return_interval']
+KEYS = ['CurrentVer','OverrideSetting','DormantAccount','DormantAccount_ver2','DormantAccountInterval','DormantNewAccountInterval','friend_loyalty_system','friend_loyalty_return_interval','NGM_disable','PassportImmigrator','NotifyBanReason','IPLockTime']
 COLUMNS = ['RewardItemClass','Num','MinLevel','MaxLevel','Feature']
 # Framework String.Trim whitespace; split before trim and retain literal one-part expressions.
 WHITESPACE='\u0009\u000a\u000b\u000c\u000d\u0020\u0085\u00a0\u1680'+''.join(chr(i) for i in range(0x2000,0x200b))+'\u2028\u2029\u202f\u205f\u3000'
