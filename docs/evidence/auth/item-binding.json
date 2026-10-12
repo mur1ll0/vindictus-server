@@ -1,0 +1,172 @@
+{
+  "stage": "M13.2d.2b.2c.2b.3a",
+  "verified_at_utc": "2026-10-12T16:59:21.0904307+00:00",
+  "scope": "Recovered binding decisions with concrete feature/enchant adapter and parsed attributes; effective catalog load still pending",
+  "architectures": 2,
+  "culture": "en-US",
+  "class_culture_scope": "printable ASCII only when source culture operation is reached",
+  "cases_per_architecture": 2017,
+  "comparison_cases": 4034,
+  "unsupported_cases_per_architecture": 7,
+  "new_rust_tests": 7,
+  "rust_passed": 162,
+  "postgres_passed": 40,
+  "python_passed": 15,
+  "warnings": 0,
+  "errors": 0,
+  "exit_code": 0,
+  "feature_and_enchant_oracle_dependencies_synthetic": true,
+  "equip_membership_projection_synthetic": true,
+  "runtime_thread_culture_observed": false,
+  "effective_item_catalog_loaded": false,
+  "inventory_imported": false,
+  "source_services_executed": false,
+  "sqlserver_writes": false,
+  "inventory_writes": false,
+  "queue_delivery_executed": false,
+  "processed_writes": false,
+  "game_client_login_available": false,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemClassConst.cs",
+      "sha256": "66ac6c228c0da98da72bcdafef184c94458eb33551d3464252e84e7f5dbc17c1"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.TradeSystem/ItemGenerator.cs",
+      "sha256": "cab274ae10b4c1232de2b4f4ece5b611ddc8e763cf20454f9c1abe6db9f52ccb"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+      "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContentsExtension.cs",
+      "sha256": "6feb45576793bf580018625d5a088b5eb359290baa83c325835cbb7ee53c7c6a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/GemstoneType.cs",
+      "sha256": "afa19c6ea0883f85b199697269d9e458a07f53ee2d61a374c9e24c17bfca55d0"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/AttributeClass.cs",
+      "sha256": "9a1e213413aecad398aa3dd56fca2d61334817a7df791823483a4a2778e2e392"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContents.cs",
+      "sha256": "25962e36e582ae703708c0442137f7ccefad470cfc2410205ccae6dd1b72aa5a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Static/QueuedItemController.cs",
+      "sha256": "f1a7caae15c303d8493380ded2ca15c6696a5479755f617c816bc757256434be"
+    },
+    {
+      "path": "scripts/reverse/extract-item-binding.py",
+      "sha256": "92c55cf114e1eca6ec80562bd68ce5c3fa5b4d5e36a9cf8a0f5da61fb8f72994"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemBindingOracle.cs",
+      "sha256": "ca8f0932cc993f1b894e5448fc08604c40af24a0b993cb1f58dbcade21bb3b8d"
+    }
+  ],
+  "adaptations": [
+    "CheckCharacterBind, CheckHighLevelEquipment and IsEquippable predicates extracted without rewriting their bodies",
+    "GetEquipItemInfo replaced with explicit synthetic dictionary-membership projection; equip lookup calls are not traced",
+    "Feature enable/integer and enchant lookup supplied by deterministic synthetic dependencies; trace records only these calls",
+    "CurrentCulture en-US with user overrides disabled; printable ASCII class operations only in Rust, unknown culture inputs deliberately refused",
+    "Enum recovered from source; original source services and VM never executed; no inventory or queue writes"
+  ],
+  "docker": {
+    "verified_at_utc": "2026-10-12T17:01:38.2718634+00:00",
+    "locked_build_smoke_restart": true,
+    "snapshots": 287,
+    "fields": 64,
+    "users": 29,
+    "user_fields": 15,
+    "queue_rows": 140,
+    "next_identity_unused": 141,
+    "real_batch_receipts": 0
+  },
+  "next_stage": "M13.2d.2b.2c.2b.3b effective item catalog",
+  "artifacts": [
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "075ada164f476bac8230e6d2d66feebd7e5062804b15d30b46108ba2efed19af"
+    },
+    {
+      "path": "src/domain/item_binding.rs",
+      "sha256": "c04181d16240243b3241bd8d21536616b22f3a5d1c6f1dbee5eb8d0bc0c2c060"
+    },
+    {
+      "path": "src/domain/queued_item.rs",
+      "sha256": "d02d412fc87b72bdae005bc9e11aedaa0b9945281ddc2b15b99c21c218028032"
+    },
+    {
+      "path": "tests/item_binding.rs",
+      "sha256": "4caf54c592e277c653d155d8f3aae633e04e9d9a8037552b178bceab9fe945ba"
+    },
+    {
+      "path": "tests/fixtures/framework-item-binding.json",
+      "sha256": "da6e2de520acedeb395da235c7d596ccbb4833e04aa5dede2ff4901c41a22b5c"
+    },
+    {
+      "path": "scripts/reverse/extract-item-binding.py",
+      "sha256": "92c55cf114e1eca6ec80562bd68ce5c3fa5b4d5e36a9cf8a0f5da61fb8f72994"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemBindingOracle.cs",
+      "sha256": "ca8f0932cc993f1b894e5448fc08604c40af24a0b993cb1f58dbcade21bb3b8d"
+    },
+    {
+      "path": "scripts/reverse/generate-item-binding-fixtures.ps1",
+      "sha256": "37ce3584124399d620d938db6e23ae1d7a04ba5f8a2179a91391db2c8d548fb4"
+    },
+    {
+      "path": "docs/item-binding.md",
+      "sha256": "08dd0025be4bf965481eef64446adebece61d8763659283d4708886d9eac4f7a"
+    },
+    {
+      "path": "docs/item-class-ex.md",
+      "sha256": "83dda47bfb7efa9e0eb1e27a082d840595d19bc7d0ae957d13cc331c25904dde"
+    },
+    {
+      "path": "README.md",
+      "sha256": "a472a10bd734de8b6bb734b139dd463a96f85c157b3edf89e7f8bb832e966be3"
+    },
+    {
+      "path": "MIGRATION.md",
+      "sha256": "6aa3a50a63df1bc56fdfde4cc5b00d97bdcbfbf9c259788acc0762c4373dc11f"
+    },
+    {
+      "path": "docs/evidence/verification/REPORT.md",
+      "sha256": "bc15be8cf7a5ca311553ac37d7072480e0c5a05b9f36864fa76d24919859df51"
+    },
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "e8d86e8ded0d483c3551329e13e3722b30053dcae108748f82a306083a52d1cc"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "6f2582911a04e51330e7700661a0572e1c09941158770b0ec5ab659a4282a0d9"
+    },
+    {
+      "path": "docs/evidence/database/queue-identity-docker.json",
+      "sha256": "a03e22cb65971b22dcfe70460e7047dc0fd7662055ba1aaed42b588348538dc8"
+    },
+    {
+      "path": "docs/evidence/database/character-import.json",
+      "sha256": "9c296088faaf186b58ac2a2a74d7a924e0c119b82b1bd3087cb22027d73e1117"
+    },
+    {
+      "path": "docs/evidence/database/user-import.json",
+      "sha256": "ff2ebf7ef2afc5a48c833b50fd971a4b664b2aca3a4f162cf6d99737f683d4bd"
+    },
+    {
+      "path": "docs/evidence/database/login-reward-docker.json",
+      "sha256": "1d8ad6083d4e46451efbd207646f368a6d236af0482ad2944b0b0fd68d1c3d77"
+    },
+    {
+      "path": "docs/evidence/content/reward-policy.json",
+      "sha256": "32e4cdada2b78b4d957ee7a187b6cceb33ab603b8d212583ab741c1b1e5efbb4"
+    }
+  ]
+}

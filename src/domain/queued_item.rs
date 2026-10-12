@@ -105,7 +105,7 @@ pub fn decide(
 }
 /// Caller supplies the resolved base item class, not ItemClassEx with attributes.
 /// Keep lazy feature evaluation before the currency override, including feature errors.
-/// MobileAppBuy uses ItemGenerator.CheckCharacterBind and is intentionally unsupported here.
+/// MobileAppBuy uses item_binding::check_character_bind; this function covers Default only.
 pub fn default_character_binder<E>(
     is_binded: bool,
     item_class: &LegacyBytes<1024, true>,

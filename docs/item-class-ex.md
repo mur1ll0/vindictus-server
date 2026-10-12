@@ -47,3 +47,5 @@ py -3.13 scripts/reverse/catalog-inventory-contract.py exporta somente estrutura
 Próxima subetapa 2c.2b: resolver temporal com perfis explícitos, catálogo/CheckCharacterBind e modelos/importação de inventário com tipos/collation/cascades comprovados. Entrega/correio/logs e login de cliente permanecem pendentes.
 
 A subetapa 2c.2b.1 adiciona a cadeia temporal e aritmética com contexto explícito; veja [argumentos temporais](item-argument.md). A gramática de datas/cultura/fuso ainda exige adaptador comprovado, e integer_only_argument mantém sua recusa original.
+
+A subetapa 2c.2b.3a implementa os predicados de vínculo, adapter de feature/enchant e conexão com atributos deste parser; veja [vínculo de itens](item-binding.md). O catálogo efetivo e a entrega continuam pendentes em3b.
