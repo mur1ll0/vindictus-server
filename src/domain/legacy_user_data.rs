@@ -75,6 +75,21 @@ impl SqlDateTime2 {
         }
         Ok(Self(value))
     }
+    /// Framework SqlClient SqlDbType.DateTime parameter conversion. This differs
+    /// from SQL compatibility-100 datetime2 conversion: do not round milliseconds first.
+    pub fn sql_parameter(self) -> Result<SqlDateTime, LegacyUserDataError> {
+        if self.0 == Self::MAX {
+            return SqlDateTime::from_units300(SqlDateTime::MAX);
+        }
+        if self.0 < 552_877_920_000_000_000 {
+            return Err(LegacyUserDataError::DateTimeRange);
+        }
+        let delta = i128::from(self.0) - 599_266_080_000_000_000;
+        let units = (delta * 300 + 5_000_000).div_euclid(10_000_000);
+        SqlDateTime::from_units300(
+            i64::try_from(units).map_err(|_| LegacyUserDataError::DateTimeRange)?,
+        )
+    }
     pub fn ticks(self) -> i64 {
         self.0
     }

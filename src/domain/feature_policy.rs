@@ -46,6 +46,12 @@ impl FeaturePolicy {
             pairs,
         })
     }
+    /// Resolved ordinal map, for internal semantic replay binding; never log its values.
+    pub(crate) fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.values
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+    }
     pub fn current_version(&self) -> &str {
         &self.current
     }

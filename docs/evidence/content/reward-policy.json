@@ -1,6 +1,6 @@
 {
   "stage": "M13.2d.2b.2b.1",
-  "verified_at_utc": "2026-10-11T20:06:12.4752930+00:00",
+  "verified_at_utc": "2026-10-12T02:10:21.9128418+00:00",
   "profile": {
     "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
     "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
@@ -94,7 +94,7 @@
     },
     {
       "path": "src/domain/feature_policy.rs",
-      "sha256": "72e930b4f8acad834d98eeb6ec49ddebad3fbf496079d6ee9d6f5f0daed2f4c1"
+      "sha256": "37193b5b758fab8226ae62d4161268fcc84387f6a969f13c24f075977a7b3b6c"
     },
     {
       "path": "src/domain/feature_version_pairs.json",
@@ -106,11 +106,11 @@
     },
     {
       "path": "src/domain/legacy_user_data.rs",
-      "sha256": "c2c36e3cdd457284c1692b46d5ab468dd7f49e85665f511a5e8fd6e32d1ba75e"
+      "sha256": "5ffd0d2db1bde26471b33d0f866e14f46618674574c0d1a5bcd558734a6df8db"
     },
     {
       "path": "src/infrastructure/reward_policy.rs",
-      "sha256": "dfb80f75d9d3c793349e2b6952ec2312217e708b888f30b0d42eeeedf0de819e"
+      "sha256": "b6bb235397833de45dfb6a0074199a6178e296d4066ab0f97d0d5a53a9f02d27"
     },
     {
       "path": "src/application/reward_inspection.rs",

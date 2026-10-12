@@ -452,7 +452,19 @@ async fn execute_bundle(
     })
 }
 pub async fn get_characters(pool: &PgPool, uid: i32) -> Result<Vec<CharacterSnapshot>, Error> {
-    let rows=sqlx::query(&format!("SELECT {CHARACTER_INFO_COLUMNS} FROM game_character_info WHERE uid=$1 ORDER BY COALESCE(order_num,255),id LIMIT 1001")).bind(uid).fetch_all(pool).await?;
+    let mut connection = pool.acquire().await?;
+    get_characters_on_connection(&mut connection, uid, false).await
+}
+/// FOR SHARE retains observed ownership/name/level until this transaction ends.
+/// Inserts are not predicate-locked; the source does not promise a fixed character set.
+pub(crate) async fn get_characters_on_connection(
+    connection: &mut PgConnection,
+    uid: i32,
+    lock: bool,
+) -> Result<Vec<CharacterSnapshot>, Error> {
+    let locking = if lock { " FOR SHARE" } else { "" };
+    let rows = sqlx::query(&format!("SELECT {CHARACTER_INFO_COLUMNS} FROM game_character_info WHERE uid=$1 ORDER BY COALESCE(order_num,255),id LIMIT 1001{locking}"))
+        .bind(uid).fetch_all(connection).await?;
     if rows.len() > 1000 {
         return Err(Error::CharacterQueryLimit);
     }
@@ -462,7 +474,14 @@ pub async fn get_latest_connected_date(
     pool: &PgPool,
     uid: i32,
 ) -> Result<Option<SqlDateTime>, Error> {
-    let value:Option<i64>=sqlx::query_scalar("SELECT MAX(CASE WHEN l.last_connect_date_units300<l.last_cafe_logout_units300 THEN l.last_cafe_logout_units300 ELSE l.last_connect_date_units300 END) FROM game_last_connect_info l WHERE l.id IN (SELECT id FROM game_character_info WHERE uid=$1)").bind(uid).fetch_one(pool).await?;
+    let mut connection = pool.acquire().await?;
+    get_latest_connected_date_on_connection(&mut connection, uid).await
+}
+pub(crate) async fn get_latest_connected_date_on_connection(
+    connection: &mut PgConnection,
+    uid: i32,
+) -> Result<Option<SqlDateTime>, Error> {
+    let value:Option<i64>=sqlx::query_scalar("SELECT MAX(CASE WHEN l.last_connect_date_units300<l.last_cafe_logout_units300 THEN l.last_cafe_logout_units300 ELSE l.last_connect_date_units300 END) FROM game_last_connect_info l WHERE l.id IN (SELECT id FROM game_character_info WHERE uid=$1)").bind(uid).fetch_one(connection).await?;
     Ok(value.map(SqlDateTime::from_units300).transpose()?)
 }
 pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {

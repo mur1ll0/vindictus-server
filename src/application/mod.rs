@@ -5,6 +5,7 @@ pub mod frontend_session;
 pub mod game_users;
 pub mod lab_login;
 pub mod login_policy;
+pub mod login_rewards;
 pub mod reward_inspection;
 pub mod session_registry;
 pub mod user_import;

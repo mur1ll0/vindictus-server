@@ -1,0 +1,137 @@
+{
+  "stage": "M13.2d.2b.2b.2",
+  "status": "verified",
+  "verified_at_utc": "2026-10-12T02:11:38.3080110+00:00",
+  "operation": "Existing-account loyalty/dormancy observations and atomic reward enqueue; no delivery",
+  "source_executor_cases_per_architecture": 48,
+  "source_architectures": [
+    "x86",
+    "x64"
+  ],
+  "datetime_parameter_cases_per_architecture": 98,
+  "source_services_executed": false,
+  "sqlserver_persistent_writes": false,
+  "existing_account_only": true,
+  "observations": "Conditional separate READ COMMITTED latest dates, loyalty flag and locked user dormancy; ordered characters FOR SHARE",
+  "queue_columns_compared": 18,
+  "global_uuid_claim_before_identity": true,
+  "receipt_covers_actual_semantic_content": true,
+  "concurrent_retries": 16,
+  "retry_executions": 1,
+  "concurrent_distinct_operations": 16,
+  "revision_winners": 1,
+  "request_conflict_cases": 11,
+  "replay_after_processed_deleted_and_later_user_revision": true,
+  "replay_samples_no_clocks": true,
+  "late_failure_rolls_back_all_rows": true,
+  "rollback_keeps_identity_gaps": true,
+  "cancelled_transaction_verified": true,
+  "missing_identity_clock_failure_and_identity_exhaustion_refused": true,
+  "schema_upgrade": "9 -> 10, prior user and queue values preserved",
+  "limits": {
+    "characters": 1000,
+    "catalog": 1000,
+    "items": 8192,
+    "deadline_seconds": 15,
+    "lock_timeout_seconds": 2,
+    "statement_timeout_seconds": 5
+  },
+  "intentional_differences": [
+    "atomic committed transaction/CAS/receipt instead of separate legacy NOLOCK calls",
+    "latest observations precede execution of planned writes",
+    "item clocks sampled while planning before queue INSERTs",
+    "FOR SHARE on returned character rows; no predicate lock"
+  ],
+  "verification": {
+    "rust_tests": 129,
+    "postgres_tests": 40,
+    "python_tests": 15.0,
+    "warnings": 0,
+    "gate_at_utc": "2026-10-12T02:06:30.6425843+00:00",
+    "docker_smoke_at_utc": "2026-10-12T02:11:30.4366816+00:00"
+  },
+  "target_snapshots": {
+    "character_rows": 287,
+    "character_fields": 64,
+    "user_rows": 29,
+    "user_fields": 15,
+    "queue_rows": 140,
+    "queue_next_identity": 141,
+    "new_real_rewards_enqueued": false,
+    "batch_receipts": 0
+  },
+  "execution_scope": "Synthetic isolated PostgreSQL schemas; actual private catalog separately checked by read-only CLI and real imported snapshots verified unchanged",
+  "game_authentication_available": false,
+  "inventory_mail_delivery_implemented": false,
+  "new_user_frontend_integration_implemented": false,
+  "artifacts": [
+    {
+      "path": "src/application/login_rewards.rs",
+      "sha256": "f437b4600e7c9ff9b7cf080592d2083de66e7d4f3b1f05214f42533b39e9bd4e"
+    },
+    {
+      "path": "src/infrastructure/login_rewards.rs",
+      "sha256": "ac81c567a56e44a34a144e6b484d23f1edba072c3c36e540cde695841cfbde31"
+    },
+    {
+      "path": "src/infrastructure/characters.rs",
+      "sha256": "8b2fe2e054010739511bf85fccb84a5123bf007db740061675cfd25492e00ce6"
+    },
+    {
+      "path": "src/domain/feature_policy.rs",
+      "sha256": "37193b5b758fab8226ae62d4161268fcc84387f6a969f13c24f075977a7b3b6c"
+    },
+    {
+      "path": "src/domain/legacy_user_data.rs",
+      "sha256": "5ffd0d2db1bde26471b33d0f866e14f46618674574c0d1a5bcd558734a6df8db"
+    },
+    {
+      "path": "src/infrastructure/reward_policy.rs",
+      "sha256": "b6bb235397833de45dfb6a0074199a6178e296d4066ab0f97d0d5a53a9f02d27"
+    },
+    {
+      "path": "migrations/0010_login_reward_runs.sql",
+      "sha256": "2df3c7a90f550f2d3efca0f4045d8db2701cf77d49d551bed1320734c856f399"
+    },
+    {
+      "path": "tests/support/login_rewards.rs",
+      "sha256": "3b6b9766a84c62e3a0af0b61f4fa3e85ef43ad0873c8fb8b75ce695ab81604cf"
+    },
+    {
+      "path": "tests/datetime_parameters.rs",
+      "sha256": "0bf6939332fdc5e3f8a4a4b78c187bbe685ac2e1d014b0630511050da4862205"
+    },
+    {
+      "path": "tests/fixtures/framework-login-reward-executor.json",
+      "sha256": "079aca498d2bf2d412373af016258ab3c68723a2b229476d71927fb610c59ebc"
+    },
+    {
+      "path": "tests/fixtures/framework-datetime-parameters.json",
+      "sha256": "58260f7a75675c3758be8d704d7cee043b07407801a57b473d1e08274a6268e7"
+    },
+    {
+      "path": "scripts/reverse/generate-login-reward-executor-fixtures.ps1",
+      "sha256": "dafb4876271d510db1f0e72401bbd10e08a9f0fcf9422cf622ac7cc3344d8c5c"
+    },
+    {
+      "path": "scripts/reverse/generate-datetime-parameter-fixtures.ps1",
+      "sha256": "847562ad3084e2065bbf41239a6a255bf00ace4fa7104fdd4a5712f1371c5bde"
+    },
+    {
+      "path": "scripts/reverse/framework/LoginRewardExecutorOracle.cs",
+      "sha256": "ead839feb5e0a6e0f54cf657aac4c40c9038b16ab93741d211f1199f17447e76"
+    },
+    {
+      "path": "scripts/reverse/framework/SqlDateTimeParameterOracle.cs",
+      "sha256": "c50c016b462762d635abb471bbae3b2e89391fac66be4d62b0ec663cb92d6826"
+    },
+    {
+      "path": "docs/login-reward-executor.md",
+      "sha256": "f4ce8746ea323b3e10d81a71c9b3a16cd54d856241461e02671a57f7ce0b18ba"
+    },
+    {
+      "path": "Dockerfile",
+      "sha256": "f1eded0109e36e46f6c48e9d79d062501257ec98984ca344727b4a9d77968152"
+    }
+  ]
+}

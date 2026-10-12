@@ -117,7 +117,7 @@ Detalhes: [AGENTS.md](AGENTS.md), [arquitetura](docs/architecture.md), [banco](d
 - Preservação dos 64 campos de personagens, conexões e fila legada, com consultas de lista/última conexão: [contrato e importação](docs/character-login-storage.md).
 - Criação de entradas de recompensas de retorno, identity explícito e replay durável: [contrato e inicialização](docs/dormant-item-queue.md). Entrega de itens ainda pendente.
 
-Cada afirmação tem escopo e evidência em MIGRATION.md. O executor recusa dependências não migradas e recompensas; não está ligado ao cliente. Números de testes atualizados ficam no relatório.
+Cada afirmação tem escopo e evidência em MIGRATION.md. O executor restrito continua recusando dependências não migradas. O novo executor de contas existentes insere recompensas na fila com transação, revisão e recibo; não está ligado ao cliente. Números de testes atualizados ficam no relatório.
 
 Contratos: [persistência](docs/legacy-user-storage.md), [importação](docs/user-import.md), [políticas](docs/login-policy.md), [sessões](docs/frontend-session.md), [ownership](docs/session-registry.md), [LimitedAccount](docs/limited-account-return.md), [planejador](docs/login-effects.md) e [efeitos](docs/login-account-effects.md).
 
@@ -137,7 +137,7 @@ Contratos: [persistência](docs/legacy-user-storage.md), [importação](docs/use
 | M23 | Paridade, falhas, reconexão, integridade e carga comparadas ao legado |
 | M24 | Aceite com cliente: login, personagem, batalha, recompensa e reconexão |
 
-A política de recompensas agora possui exportador privado, qualificação por personagem e diagnóstico Rust/Docker somente leitura, comparados ao Framework. Consulte [política de recompensas](docs/dormant-reward-policy.md) para executar a comparação. A próxima ação exata está em MIGRATION.md: integrar consultas reais, política e recibos ao executor. Processamento, inventário e correio ainda pendentes.
+A política de recompensas agora possui exportador privado, qualificação por personagem e diagnóstico Rust/Docker somente leitura, comparados ao Framework. Consulte [política de recompensas](docs/dormant-reward-policy.md) para executar a comparação. Consultas reais, política e recibos estão integrados ao executor interno de contas existentes. A próxima ação exata está em MIGRATION.md. Processamento, inventário e correio ainda pendentes.
 
 Depois da compatibilidade básica, o projeto poderá estudar novas armas, fases e classes. Isso exige regras do servidor e dados/assets/animações/mensagens suportados pelo cliente. Extrair uma classe atual não garante que o cliente de 2016 consiga carregá-la; formatos, executável e protocolo podem exigir adaptação. Essa extensão não é uma etapa concluída.
 
@@ -168,3 +168,6 @@ O repositório cobre apenas esta pasta. .gitignore exclui credenciais, caches, e
 
 Ao terminar cada etapa: executar o gate completo, verificar o escopo da entrega, atualizar MIGRATION.md e evidências sanitizadas, revisar o diff e criar um commit local com código/testes/documentação juntos. Commits não implicam publicação em remoto. Backups do banco e originais são mantidos separadamente do Git.
 
+
+
+O executor interno de contas existentes agora reúne as observações de dormência/lealdade, o catálogo de recompensas e a inserção da fila em uma transação com CAS e recibo UUID. Consulte [o contrato e os limites](docs/login-reward-executor.md). A integração à sessão de jogo e a entrega por inventário/correio continuam pendentes; ainda não há login de cliente disponível.

@@ -11,7 +11,7 @@ use crate::{
 use serde::Deserialize;
 use std::io::Read;
 use zeroize::Zeroizing;
-#[derive(Deserialize)]
+#[derive(Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PolicyManifest {
     pub database_sha256: String,

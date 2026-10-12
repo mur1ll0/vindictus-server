@@ -67,6 +67,8 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
     .await?;
     sqlx::query("SELECT operation_id,uid,name_key,request,revision_after,is_dormant,is_return FROM game_login_account_effect_runs LIMIT 0")
         .execute(pool).await?;
+    sqlx::query("SELECT operation_id,uid,name_key,request,revision_after,is_dormant,is_return,queued_row_ids FROM game_login_reward_runs LIMIT 0")
+        .execute(pool).await?;
     let revision_trigger: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM pg_trigger
          WHERE tgrelid='game_users'::regclass AND tgname='game_user_revision'

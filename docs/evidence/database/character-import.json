@@ -85,12 +85,15 @@
   },
   "comparison": "Rust equality of every typed source field, one transaction, recovered FK chain, no UPDATE",
   "game_authentication_available": false,
-  "runtime_rewards_implemented": false,
-  "queue_identity_allocator_implemented": false,
   "post_restart_verified": true,
   "capability_flags_scope": "Flags beside initial import describe M13.2d.2b.1; current queue capabilities are in docs/evidence/auth/dormant-item-queue.json",
   "post_restart_queue_identity_allocator_initialized": true,
-  "post_restart_verified_at_utc": "2026-10-11T20:07:04.4945472+00:00",
+  "latest_verified_migration_stage": "M13.2d.2b.2b.1",
+  "latest_gate_verified_at_utc": "2026-10-11T20:04:02.5955513+00:00",
+  "latest_gate_sha256": "93151582a23e01ef7341c2a50963422845acc0a09f64aa409cd2c019272b9263",
+  "latest_docker_verified_at_utc": "2026-10-11T20:06:57.2624727+00:00",
+  "latest_docker_smoke_sha256": "9675eb234c192d87d5eea5b288973f2275cc1e88f6aa2f63b8d8378f622828cb",
+  "post_restart_verified_at_utc": "2026-10-12T02:11:37.6557011+00:00",
   "post_restart_summary": {
     "inserted": {
       "character_info": 0,
@@ -111,9 +114,7 @@
       "queued_items": 140
     }
   },
-  "latest_verified_migration_stage": "M13.2d.2b.2b.1",
-  "latest_gate_verified_at_utc": "2026-10-11T20:04:02.5955513+00:00",
-  "latest_gate_sha256": "93151582a23e01ef7341c2a50963422845acc0a09f64aa409cd2c019272b9263",
-  "latest_docker_verified_at_utc": "2026-10-11T20:06:57.2624727+00:00",
-  "latest_docker_smoke_sha256": "9675eb234c192d87d5eea5b288973f2275cc1e88f6aa2f63b8d8378f622828cb"
+  "runtime_rewards_implemented": true,
+  "queue_identity_allocator_implemented": true,
+  "reward_scope": "Existing-account atomic enqueue verified in synthetic isolated schemas; delivery and frontend pending"
 }
