@@ -60,7 +60,7 @@ try {
         Write-Host 'PostgreSQL integration NOT RUN. Use -DatabaseIntegration with TEST_DATABASE_URL.'
     }
     Invoke-VerificationCheck -Name 'client-python' -Executable py -Arguments @('-3.13','-m','unittest','discover','-s','scripts/client','-p','test_prepare_lab_client.py','-v')
-    Invoke-VerificationCheck -Name 'content-python' -Executable py -Arguments @('-3.13','-m','unittest','discover','-s','scripts/content','-p','test_export_reward_policy.py','-v')
+    Invoke-VerificationCheck -Name 'content-python' -Executable py -Arguments @('-3.13','-m','unittest','discover','-s','scripts/content','-p','test_export_*.py','-v')
     $taskResult = [ordered]@{
         verified_at_utc = [DateTimeOffset]::UtcNow.ToString('o');
         database_integration_executed = [bool]$DatabaseIntegration;

@@ -33,6 +33,11 @@ pub enum Command {
         #[arg(long)]
         characters_file: std::path::PathBuf,
     },
+    /// Read-only catalog projection diagnostic; stdin input, counts/digest output only.
+    InspectItemCatalog {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+    },
     /// Initialize the queue's recovered identity counter after snapshot import; no reseeding.
     InitializeQueueIdentity {
         /// Last source sys.identity_columns.last_value; omit only for a never-used empty queue.

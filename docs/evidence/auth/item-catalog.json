@@ -1,0 +1,265 @@
+{
+  "stage": "M13.2d.2b.2c.2b.3b.1",
+  "verified_at_utc": "2026-10-12T17:33:23.3721282+00:00",
+  "scope": "Bounded effective existence/equipment/storage/binding catalog projection; full startup remains pending",
+  "architectures": 2,
+  "scenario_cases_per_architecture": 391,
+  "additional_version_pairs": 24,
+  "version_cultures": 5,
+  "comparison_cases": 1022,
+  "new_rust_tests": 6,
+  "new_python_tests": 4,
+  "rust_passed": 168,
+  "postgres_passed": 40,
+  "python_passed": 19,
+  "warnings": 0,
+  "errors": 0,
+  "exit_code": 0,
+  "actual_projection": {
+    "counts": {
+      "equip_rows": 12377,
+      "equip_enabled": 10996,
+      "equip_unique": 10967,
+      "class_rows": 19702,
+      "class_disabled": 1155,
+      "class_invalid": 0,
+      "class_accepted": 18547,
+      "class_unique": 18547,
+      "class_overwrites": 0,
+      "extra_rows": 6,
+      "extra_enabled": 6,
+      "extra_unique": 6,
+      "storage_remapped": 0
+    },
+    "projection_sha256": "113ab189deb058d28553a796e1bc6884414632dd6345d98ce946fc70ea6faa38",
+    "full_startup_verified": false,
+    "equipment_stats_loaded": false,
+    "random_rates_loaded": false,
+    "database_mutations": false,
+    "game_authentication_available": false
+  },
+  "private_source_profile": {
+    "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
+    "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
+    "region": "EN-EU-X-GM",
+    "override_region": null,
+    "equip_rows": 12377,
+    "class_rows": 19702,
+    "extra_rows": 6
+  },
+  "source_raw_duplicate_counts": {
+    "equips": 1095,
+    "classes": 841,
+    "extras": 0
+  },
+  "private_export_sha256": "55fafe3a6dd96dbe15971dd90e155267b0f13667a0aa7d8c2e459315d21ee6a4",
+  "feature_atoms": 54,
+  "native_framework_docker_equal": true,
+  "private_acl": {
+    "root_inheritance_disabled": true,
+    "principals": 2,
+    "unexpected_principals": 0
+  },
+  "full_dto_property_conversion_migrated": false,
+  "item_stat_body_migrated": false,
+  "random_rate_tables_migrated": false,
+  "full_item_contents_startup_migrated": false,
+  "historical_runtime_provider_order_observed": false,
+  "inventory_imported": false,
+  "queue_delivery_executed": false,
+  "processed_writes": false,
+  "game_client_login_available": false,
+  "source_services_executed": false,
+  "sqlserver_writes": false,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContents.cs",
+      "sha256": "25962e36e582ae703708c0442137f7ccefad470cfc2410205ccae6dd1b72aa5a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContentsExtension.cs",
+      "sha256": "6feb45576793bf580018625d5a088b5eb359290baa83c325835cbb7ee53c7c6a"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/IEnumerableExtension.cs",
+      "sha256": "ef7e5fa777665742a56818458fe33012f1cbd1b6ef0bc72b373b69a797c21343"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/HeroesContentsLoader.cs",
+      "sha256": "816f4a467add0e5a2e6631e091433a84d3ab844567ea944316f944f0ede4b940"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    },
+    {
+      "path": "legacy/decompiled/Utility-37359981d509/Utility/DictionaryExtension.cs",
+      "sha256": "5e693e1950e09e445e3ee73dc466a7e111c765159f21bfac91bfc0c65cf70206"
+    },
+    {
+      "path": "scripts/reverse/extract-item-catalog.py",
+      "sha256": "1770fa48c032e3d79a0cbda9516aacded3826889427bc084701c98ef14a0d273"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemCatalogOracle.cs",
+      "sha256": "5827b75328a0ed6db906d8f41490c35dd3949d580a906fb6290ad0c88d8cd955"
+    }
+  ],
+  "adaptations": [
+    "Initialization slice through Storage remap, IsValid, exact lookup and last-wins helpers recovered from source",
+    "Phase and root-feature trace instrumentation only; actual IsEnable body retained with preloaded profile subset",
+    "GetItemStat replaced by null-returning shim; full row property conversion, stats and rate/remaining-table initialization unported",
+    "Synthetic DTO projection and read-only SELECT-* observed input order; source runtime historical order not observed",
+    "Actual dataset output contains only counts/digest; no original services or VM executed and no persistent writes"
+  ],
+  "docker": {
+    "verified_at_utc": "2026-10-12T17:36:11.5032886+00:00",
+    "locked_build_smoke_restart": true,
+    "snapshots": 287,
+    "fields": 64,
+    "users": 29,
+    "user_fields": 15,
+    "queue_rows": 140,
+    "next_identity_unused": 141,
+    "real_batch_receipts": 0
+  },
+  "next_stage": "M13.2d.2b.2c.2b.3b.2 stats/conversions and random rates",
+  "artifacts": [
+    {
+      "path": "src/domain/item_catalog.rs",
+      "sha256": "501923518bab64138fa7067a1d4fe70d3e0f28397f47046e9bd287099f5ce688"
+    },
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "7ef6d6d510c8546d9da18eb25fc76ddbbc247e831f72f782c8ba5af63ca7e8c2"
+    },
+    {
+      "path": "src/domain/feature_policy.rs",
+      "sha256": "b3542080fb92173e1fa38066f74670164e44e3353d2987f34632a7f52c0f6d41"
+    },
+    {
+      "path": "src/domain/feature_catalog_version_pairs.json",
+      "sha256": "15ada8e5b7f9c9161d4a0e84d1f31d082140dc476f0ca91be9273e39e42807bb"
+    },
+    {
+      "path": "src/error.rs",
+      "sha256": "fa14fefdd22a203eca8f728b417c78213ca3d40dd96dc7240bc0faffdfb6fd7e"
+    },
+    {
+      "path": "src/infrastructure/item_catalog.rs",
+      "sha256": "45b3003afae8797787ef9805e8b2f2889976884afc8a5f391dc4b8746ea61522"
+    },
+    {
+      "path": "src/infrastructure/mod.rs",
+      "sha256": "6541c08b39db67e5020640378770075275036405cfca4fd73a42172bd930830c"
+    },
+    {
+      "path": "src/application/item_catalog_inspection.rs",
+      "sha256": "1a35381b72942471f9ed6d185dd7ebd1bb7a88a2549bbdc5c372ccb251990f86"
+    },
+    {
+      "path": "src/application/mod.rs",
+      "sha256": "4e782c19d6e2ac71f64e4b0dc5921b858e3377188c93f08545454bc6a0a23aaa"
+    },
+    {
+      "path": "src/cli.rs",
+      "sha256": "1c33e3019aca692f557974425bf6666b8b4f20827e6cc91206c64c7cb9a05ed8"
+    },
+    {
+      "path": "src/main.rs",
+      "sha256": "f3ec37a66e3f0e42ce66da9de1e76370290dc51e5f6047238fcb251cb5c825ec"
+    },
+    {
+      "path": "tests/item_catalog.rs",
+      "sha256": "040992842d4214a73f90322881ca3152ba9c6b4ad72e6a7acb6700ab7c52a34a"
+    },
+    {
+      "path": "tests/fixtures/framework-item-catalog.json",
+      "sha256": "5a9a649d4699782697bf399be6bc51896681767cf24e0400356e8b75ed3abcd8"
+    },
+    {
+      "path": "scripts/content/export_item_catalog.py",
+      "sha256": "d297c10bb2506b418200e5251bff6c5dcbebeebc25b2c2e869fb957e13f12c8a"
+    },
+    {
+      "path": "scripts/content/Export-ItemCatalog.ps1",
+      "sha256": "df686ae4662aaa642c7f6a77a61d1886940f68ec3e9530412b113b23e1fbcc9e"
+    },
+    {
+      "path": "scripts/content/Verify-ItemCatalog.ps1",
+      "sha256": "5c237e6372f456e522ff52fcd14c647947711752e503bedcf13de1d9e1f819a1"
+    },
+    {
+      "path": "scripts/content/test_export_item_catalog.py",
+      "sha256": "32e211921eab12aac0c3f9432bf04e44b3e512c8cf84995986c618e15d7deffc"
+    },
+    {
+      "path": "scripts/reverse/extract-item-catalog.py",
+      "sha256": "1770fa48c032e3d79a0cbda9516aacded3826889427bc084701c98ef14a0d273"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemCatalogOracle.cs",
+      "sha256": "5827b75328a0ed6db906d8f41490c35dd3949d580a906fb6290ad0c88d8cd955"
+    },
+    {
+      "path": "scripts/reverse/generate-item-catalog-fixtures.ps1",
+      "sha256": "5913bbca5589740dbf9f61e9f266ea5da019d0e6dd2dbc6a53c7d0fee1cd38c1"
+    },
+    {
+      "path": "scripts/dev/verify.ps1",
+      "sha256": "b5d0f5247dce22d1aa39e6c29ece4063b206d2854ff8f930ddce9f8a4f652237"
+    },
+    {
+      "path": "docs/item-catalog.md",
+      "sha256": "cea495e844eae580d51da3b2f58b34c3d5846179de347900be00f165e6939fab"
+    },
+    {
+      "path": "docs/item-binding.md",
+      "sha256": "3ae8f6c0b8b972c1b2fca088241179dbe60678b9f76081f36ad76919b9f632ed"
+    },
+    {
+      "path": "README.md",
+      "sha256": "21f02b0df0e50ea37650cbcaa9f6f6e82438af38b6fdea950a93bd56fc1a8add"
+    },
+    {
+      "path": "MIGRATION.md",
+      "sha256": "1d03a85096142b8a9bf33978fa37d429d133ed25f3b895710a10af3999e49249"
+    },
+    {
+      "path": "docs/evidence/verification/REPORT.md",
+      "sha256": "cb11a9177eee26f5875d354c2fd18ba5db7d03fa76647a72dc28676949626cf3"
+    },
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "4340cfdfd572dda7976cb8a5c0dcf00115c490ce57f0de40b27625632402552c"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "e044bc9cb8a6fc4a75db9bc0300e48f4934d82de2ff98546dfb3f29a6587830e"
+    },
+    {
+      "path": "docs/evidence/database/queue-identity-docker.json",
+      "sha256": "87cfbd32f6bc6850b09d1a826f49cf6914535d96cf7a0ff4b1ff112e358635c0"
+    },
+    {
+      "path": "docs/evidence/database/character-import.json",
+      "sha256": "cd2b658a8ef40d8dbdd4ca0b8acd8a0e0ad11998bf2fd8a9ee56da0196af19b2"
+    },
+    {
+      "path": "docs/evidence/database/user-import.json",
+      "sha256": "2c9b8c9327565f770e988cc4f6aef050ff001411dbab4761ee692ace6b5df1b1"
+    },
+    {
+      "path": "docs/evidence/database/login-reward-docker.json",
+      "sha256": "6a329afd4d19dd74214ab85da8f287a6a616a0b00d0fef71723143be476bca64"
+    },
+    {
+      "path": "docs/evidence/content/reward-policy.json",
+      "sha256": "4aa4fbfecb8ff0ae2c473f08228e24f69e0099496a70f05ac6c9d368e6522794"
+    },
+    {
+      "path": "docs/evidence/content/item-catalog.json",
+      "sha256": "2751351b2910c9837c72211e1fb4763d4a71746d1a64bf525957e3a0370d4439"
+    }
+  ]
+}

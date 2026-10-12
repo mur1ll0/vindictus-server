@@ -31,3 +31,5 @@ São 2017 casos por arquitetura, 4034 comparações de resultado/erro/trace e 7 
 M13.2d.2b.2c.2b.3b: carregar a projeção efetiva de EquipItemInfo/ItemClassInfo com filtros feature, IsValid/MaxStack, duplicatas last-wins e ajustes pós-load (Storage e tabelas auxiliares), ordem e cultura explícitas. Depois recuperar índices/defaults/identities/tipos, snapshots e importação do inventário antes da entrega real. A migração e o login do cliente permanecem incompletos.
 
 Verificação e hashes: docs/evidence/auth/item-binding.json, docs/evidence/verification/gate.json e REPORT.md. O SQL Server original, snapshots privados e fila real são preservados.
+
+A projeção efetiva que fornece BindingInfo foi implementada e conferida contra conteúdo real em3b.1; veja [catálogo de itens](item-catalog.md). A próxima3b.2 recupera stats/conversões/taxas; entrega continua pendente.

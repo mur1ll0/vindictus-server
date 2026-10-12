@@ -38,8 +38,20 @@ impl FeaturePolicy {
             .filter(|v| !v.is_empty())
             .ok_or(Error::RewardPolicyExport)?
             .clone();
-        let pairs = serde_json::from_str(include_str!("feature_version_pairs.json"))
-            .map_err(|_| Error::FeatureVersionUnsupported)?;
+        let mut pairs: Vec<VersionPair> =
+            serde_json::from_str(include_str!("feature_version_pairs.json"))
+                .map_err(|_| Error::FeatureVersionUnsupported)?;
+        let extra: Vec<VersionPair> =
+            serde_json::from_str(include_str!("feature_catalog_version_pairs.json"))
+                .map_err(|_| Error::FeatureVersionUnsupported)?;
+        if extra.iter().any(|e| {
+            pairs
+                .iter()
+                .any(|p| p.current == e.current && p.value == e.value)
+        }) {
+            return Err(Error::FeatureVersionUnsupported);
+        }
+        pairs.extend(extra);
         Ok(Self {
             current,
             values,

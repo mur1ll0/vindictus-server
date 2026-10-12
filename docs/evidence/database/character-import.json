@@ -96,7 +96,7 @@
   "runtime_rewards_implemented": true,
   "queue_identity_allocator_implemented": true,
   "reward_scope": "Existing-account atomic enqueue verified in synthetic isolated schemas; delivery and frontend pending",
-  "post_restart_verified_at_utc": "2026-10-12T17:01:37.7829384+00:00",
+  "post_restart_verified_at_utc": "2026-10-12T17:36:10.8642100+00:00",
   "post_restart_summary": {
     "inserted": {
       "character_info": 0,

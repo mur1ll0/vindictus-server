@@ -1,6 +1,6 @@
 {
   "stage": "M13.2d.2b.2b.1",
-  "verified_at_utc": "2026-10-12T17:00:52.2221463+00:00",
+  "verified_at_utc": "2026-10-12T17:35:29.0014302+00:00",
   "profile": {
     "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
     "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
@@ -94,7 +94,7 @@
     },
     {
       "path": "src/domain/feature_policy.rs",
-      "sha256": "37193b5b758fab8226ae62d4161268fcc84387f6a969f13c24f075977a7b3b6c"
+      "sha256": "b3542080fb92173e1fa38066f74670164e44e3353d2987f34632a7f52c0f6d41"
     },
     {
       "path": "src/domain/feature_version_pairs.json",
@@ -118,11 +118,11 @@
     },
     {
       "path": "src/cli.rs",
-      "sha256": "81e73a1039811b816d33725cf65f8afa2f7164dec904eebd3850bf457b987b20"
+      "sha256": "1c33e3019aca692f557974425bf6666b8b4f20827e6cc91206c64c7cb9a05ed8"
     },
     {
       "path": "src/main.rs",
-      "sha256": "97018ef6e90be61918e7144aea98fdaa141c5902aaba6770060d492f4d40fd94"
+      "sha256": "f3ec37a66e3f0e42ce66da9de1e76370290dc51e5f6047238fcb251cb5c825ec"
     },
     {
       "path": "tests/reward_policy.rs",

@@ -57,6 +57,16 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::InspectItemCatalog { .. } = &cli.command {
+        let package =
+            vindictus_server::infrastructure::item_catalog::read_package(std::io::stdin().lock())?;
+        let result = vindictus_server::application::item_catalog_inspection::inspect(&package)?;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| Error::ItemCatalogExport)?
+        );
+        return Ok(());
+    }
     let credentials = match &cli.command {
         Command::CreateAccount { username, .. } => Some((
             Username::parse(username)?,
@@ -81,7 +91,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
     let config = Config::from_env()?;
     let pool = postgres::pool(&config)?;
     match cli.command {
-        Command::ProbeFrontend { .. } | Command::InspectRewardPolicy { .. } => {}
+        Command::ProbeFrontend { .. }
+        | Command::InspectRewardPolicy { .. }
+        | Command::InspectItemCatalog { .. } => {}
         Command::Migrate => {
             postgres::migrate(&pool).await?;
             println!("PostgreSQL migrations applied; migrate does not import legacy data.");

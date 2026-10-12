@@ -2,6 +2,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid or oversized private item catalog projection; values omitted")]
+    ItemCatalogExport,
+    #[error(transparent)]
+    ItemCatalog(#[from] crate::domain::item_catalog::CatalogError),
     #[error("invalid or oversized private reward policy; values omitted")]
     RewardPolicyExport,
     #[error("feature expression is malformed or exceeds bounded evaluation")]
