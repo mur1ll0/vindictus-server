@@ -1,0 +1,116 @@
+{
+  "stage": "M13.2d.2b.2c.1",
+  "verified_at_utc": "2026-10-12T04:21:35.5545606+00:00",
+  "scope": "recovered dependency contract and pure selection/event/routing/expiry/default-binding decisions",
+  "framework_profiles": 2,
+  "cases_per_profile": {
+    "attempts": 72,
+    "routes": 504,
+    "default_binding": 56,
+    "selection": 8
+  },
+  "rust_passed": 133,
+  "postgres_passed": 40,
+  "python_passed": 15,
+  "gate_exit_code": 0,
+  "gate_warnings": 0,
+  "gate_errors": 0,
+  "docker": {
+    "build_locked": true,
+    "readiness_smoke_restart": true,
+    "real_character_snapshots": 287,
+    "character_fields": 64,
+    "real_users": 29,
+    "user_fields": 15,
+    "queue_rows": 140,
+    "next_identity_unused": 141,
+    "real_reward_batch_receipts": 0
+  },
+  "source_services_executed": false,
+  "sqlserver_persistent_writes": false,
+  "real_queue_delivery_executed": false,
+  "processed_updates_implemented": false,
+  "inventory_mail_delivery_implemented": false,
+  "game_client_login_available": false,
+  "limitations": [
+    "row body replaced by synthetic attempt/exception counter; recovered outer loop and catch retained",
+    "LINQ-to-SQL selection evaluated against in-memory synthetic rows",
+    "mail switch and default binder retained; feature lookup replaced by controlled shim",
+    "expiry clock explicitly sampled; source conditions mapped to route names; delivery body not executed"
+  ],
+  "next_stage": "M13.2d.2b.2c.2: ItemClassEx parsing/content/binding and inventory snapshots/locations/FKs before delivery",
+  "artifacts": [
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "e2aeffc953732c679191586bd2a10dce0f77ecd87cf2e20fc23dacc274a5fe7c"
+    },
+    {
+      "path": "src/domain/queued_item.rs",
+      "sha256": "bc764a91ece4b4073670fd2ab780085d07d6fad36ae7030745e37121ed6b175c"
+    },
+    {
+      "path": "tests/queue_decisions.rs",
+      "sha256": "a4eaedea5bd358f40405de6485e804294d18f2cbd591c217bf56f5fcae96906a"
+    },
+    {
+      "path": "tests/fixtures/framework-queue-decisions.json",
+      "sha256": "c378ab0a2a7922a635a1b743c3e3a92b73bd6190c9d57f636ef90855d9177832"
+    },
+    {
+      "path": "scripts/reverse/extract-queue-decisions.py",
+      "sha256": "90f92ac6a599b2d1a915bd5c7948cd3428e8ce636040b0635c5d33ec423c0e95"
+    },
+    {
+      "path": "scripts/reverse/catalog-queue-consumers.py",
+      "sha256": "d167d11210b4526ef2e75edbf5896277fb17c825e02f2d56ca3852f4b683cf30"
+    },
+    {
+      "path": "scripts/reverse/framework/QueueDecisionsOracle.cs",
+      "sha256": "233a45a55299e1c4f63f61f58721319499e46cda5905c1a36a3f197517ea3cbf"
+    },
+    {
+      "path": "scripts/reverse/generate-queue-decisions-fixtures.ps1",
+      "sha256": "8cc486a17aa8a4afa46d0942e30fcc072d60a520f2204c79f98fcb17f0dcd789"
+    },
+    {
+      "path": "docs/queued-item-consumers.md",
+      "sha256": "b9a853b02a3cb94413506621bc483482ff77dd8c01068cd3224729ecabd1e4ee"
+    },
+    {
+      "path": "docs/evidence/auth/queue-consumer-contract.json",
+      "sha256": "83883a983fd54a4c785a7bb439d2cd00950cd62e72ecc3fa02eb34fc1c8cee5b"
+    },
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "5d6eb85e915ee6b6f7d61856d5b6475e5c2da6492bca531702edf07feeceac17"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "b89af14d0a902c1b8a01a5aeac57b57859dd0a51434103f51bfd1ecf6374d6d8"
+    },
+    {
+      "path": "docs/evidence/database/queue-identity-docker.json",
+      "sha256": "ac84500ef8d8bcc15293fa7d79deb749e7f82bf3de688b2b8eda421aeb0c27ce"
+    },
+    {
+      "path": "docs/evidence/database/character-import.json",
+      "sha256": "ced4b82f154c4215c96778e218b940655783dbc20f2678c056a93c874c37f18d"
+    },
+    {
+      "path": "docs/evidence/database/user-import.json",
+      "sha256": "630312ddefa43997d77870576b2650f7dccb6b1f0542123287dde29e65915409"
+    },
+    {
+      "path": "docs/evidence/database/login-reward-docker.json",
+      "sha256": "12312f4a09a0e2d06161f6571e7905900059402253ad1e598581c8e30402bbf3"
+    },
+    {
+      "path": "docs/evidence/content/reward-policy.json",
+      "sha256": "3b8cd4fce853babc275c205440d4e51f11275a80c4a0d655a360e37d13224ee8"
+    },
+    {
+      "path": "README.md",
+      "sha256": "e35ce3b4d490cbc9361f11e993b6435928966d72eb78d4436cf3adbb73839d0b"
+    }
+  ]
+}

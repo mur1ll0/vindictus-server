@@ -1,13 +1,13 @@
 VERIFICATION REPORT
 -------------------
-Claim: M13.2d.2b.2b.2 existing-account atomic reward enqueue, not game login or delivery.
-Command: ./scripts/dev/verify.ps1 -DatabaseIntegration; generate-datetime-parameter-fixtures.ps1; generate-login-reward-executor-fixtures.ps1; docker compose build --quiet server; docker compose up -d --wait server; Verify-RewardPolicy.ps1 -Docker; .cache/verify-queue-bootstrap.ps1 (smoke/restart/bootstrap/Import-Characters Verify/Import-Users Verify).
-Executed: gate 2026-10-12T02:06:30.6425843+00:00; Docker smoke 2026-10-12T02:11:30.4366816+00:00, after final code changes.
-Exit code: 0 for gate, source oracles, Docker build/up/read-only content and preservation checks.
-Output summary: rust-tests passed=129 failed=0 ignored=40; postgres-integration passed=40 failed=0 ignored=0; Python passed=15; two Framework profiles/48 executor scenarios and98 datetime parameters each; Docker PASS;287snapshots/64fields and29users/15fields unchanged; queue140/next141unused/0real batch receipts.
-Warnings: none in the final gate.
-Errors: none in final verification. Earlier test Migrator construction and cancellation observer failures corrected; earlier gate was repeated after preserving the original Unicode test literal.
-Verdict: PASS for this substage; complete migration, inventory/mail, new-user/frontend and real-client acceptance remain pending.
+Claim: M13.2d.2b.2c.1 queue dependency recovery and pure selection/event/route/expiry/default-binding decisions.
+Command: ./scripts/dev/verify.ps1 -DatabaseIntegration; ./scripts/reverse/generate-queue-decisions-fixtures.ps1; py -3.13 scripts/reverse/catalog-queue-consumers.py; docker compose build --quiet server; docker compose up -d --wait server; ./.cache/verify-login-reward-docker.ps1 (read-only policy, smoke/restart and snapshot Verify).
+Executed: gate 2026-10-12T04:21:35.5545606+00:00; Docker preservation 2026-10-12T04:25:53.2178870+00:00, after final code changes.
+Exit code: 0 for gate, oracle, metadata recovery, Docker build/up/smoke/restart/preservation.
+Output summary: rust-tests passed=133 failed=0 ignored=40; postgres-integration passed=40 failed=0 ignored=0; Python passed=15; Framework profiles2 with72attempts/504routes/56binders/8selections each; Docker PASS;287snapshots/64fields and29users/15fields unchanged;queue140/next141unused/0real batch receipts.
+Warnings: none in final verification.
+Errors: none in final verification.
+Verdict: PASS for this substage; delivery/processed updates, inventory/mail/log execution, session and real-client acceptance remain pending.
 
-Evidence: docs/evidence/auth/login-reward-executor.json; docs/evidence/verification/gate.json; docker-smoke.json; docs/evidence/database/queue-identity-docker.json; character-import.json; user-import.json.
-Source services executed: false. SQLServer persistent writes: false. Docker image retains non-root runtime, locked build and deny-by-default context; no assets/private catalog included.
+Evidence: docs/evidence/auth/queue-consumers.json; queue-consumer-contract.json; docs/evidence/verification/gate.json and docker-smoke.json; docs/evidence/database/login-reward-docker.json.
+The oracle executes extracted decisions with synthetic shims and in-memory LINQ selection, not the delivery body or source services. Docker remains non-root/locked; no private catalog, assets or source fragments added.

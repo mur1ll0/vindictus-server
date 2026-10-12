@@ -18,3 +18,4 @@ pub mod dormant_item;
 pub mod feature_policy;
 
 pub mod dormant_rewards;
+pub mod queued_item;

@@ -1,0 +1,1151 @@
+{
+  "stage": "M13.2d.2b.2c.1",
+  "scope": "selection, route/expiry decisions and dependency recovery only",
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Static/QueuedItemController.cs",
+      "sha256": "f1a7caae15c303d8493380ded2ca15c6696a5479755f617c816bc757256434be"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/DBLoader.cs",
+      "sha256": "a7028bc8c801894347d2b8b397b9eee6e0137146edd6b2adb262962c5d6c5710"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+      "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemTransactionScope.cs",
+      "sha256": "b79b63ef2f4e5df1d4b727a428636611318bf3603e9c67d03ad4612732cf68cf"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Static/ProcessDailyItemProcessor.cs",
+      "sha256": "c2c1dbed996477640e309d91bbbc154e7a18a44d74052aec9cc4f543c3e4bb68"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/ItemFestivalProcessor.cs",
+      "sha256": "c1ff18749a8858c60a3b79f6b4cba79808b119d62ff687e61598fd1a7ad810a5"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/AllUserGoalRewardProcessor.cs",
+      "sha256": "62daa0d0f9327b3d3bcbac43179587467f1830c381f1c70de76b61b2d0ba2a2e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/ItemFactory.cs",
+      "sha256": "4074932ac68879ce1a008ab2436a459c9f08977e421dafa070e40f7a95c09ce9"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.TradeSystem/ItemGenerator.cs",
+      "sha256": "cab274ae10b4c1232de2b4f4ece5b611ddc8e763cf20454f9c1abe6db9f52ccb"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContents.cs",
+      "sha256": "25962e36e582ae703708c0442137f7ccefad470cfc2410205ccae6dd1b72aa5a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.MailSystem/MailFactory.cs",
+      "sha256": "e20b2b853e070d0a3f7f747a0eb7389aa68a61ab8d04daf4347f968a2211cb27"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/MailBox.cs",
+      "sha256": "3bc47adb8f350794f7fd1c9b2569f30da46314efec790b8935ac7b8fb9ea8a50"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.OperationLogSystem/ItemLogManager.cs",
+      "sha256": "8007b5320788a321cd4aaa9974e2dd4da65036d5a6b9c03406af3cc0172f9e74"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemLog.cs",
+      "sha256": "8893b91d8d736de8614dc06657cd62f545e7bfc69175727d592a62c44e12412a"
+    }
+  ],
+  "catalogs": [
+    {
+      "database": "study_heroes",
+      "catalog_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+      "tables": [
+        {
+          "table": "QueuedItem",
+          "column_count": 18,
+          "columns": [
+            {
+              "name": "ItemID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Processed",
+              "declared_type": "bit",
+              "max_length": 1,
+              "precision": 1,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "EventCode",
+              "declared_type": "nvarchar",
+              "max_length": 100,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "ProcessedTime",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": true
+            },
+            {
+              "name": "ExpireTime",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": true
+            },
+            {
+              "name": "LogDate",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": true
+            },
+            {
+              "name": "MailContent",
+              "declared_type": "nvarchar",
+              "max_length": 2048,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color1",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Color2",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Color3",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ReducedDurability",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "MaxDurabilityBonus",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "RowID",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "CID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemClassEx",
+              "declared_type": "nvarchar",
+              "max_length": 2048,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Count",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "IsCharacterBinded",
+              "declared_type": "bit",
+              "max_length": 1,
+              "precision": 1,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "MailTitle",
+              "declared_type": "nvarchar",
+              "max_length": 512,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        },
+        {
+          "table": "Item",
+          "column_count": 9,
+          "columns": [
+            {
+              "name": "ID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemClass",
+              "declared_type": "nvarchar",
+              "max_length": 100,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "OwnerID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Count",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Collection",
+              "declared_type": "tinyint",
+              "max_length": 1,
+              "precision": 3,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Slot",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ExpireDateTime",
+              "declared_type": "datetime2",
+              "max_length": 8,
+              "precision": 27,
+              "scale": 7,
+              "is_nullable": true
+            },
+            {
+              "name": "Tradable",
+              "declared_type": "bit",
+              "max_length": 1,
+              "precision": 1,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "CheckSum",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        },
+        {
+          "table": "ItemAttribute",
+          "column_count": 6,
+          "columns": [
+            {
+              "name": "ID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Attribute",
+              "declared_type": "varchar",
+              "max_length": 50,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Value",
+              "declared_type": "varchar",
+              "max_length": 50,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Arg",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Arg2",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            }
+          ]
+        },
+        {
+          "table": "ItemStorageStatus",
+          "column_count": 7,
+          "columns": [
+            {
+              "name": "Storage",
+              "declared_type": "tinyint",
+              "max_length": 1,
+              "precision": 3,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ExpireTime",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": true
+            },
+            {
+              "name": "StorageName",
+              "declared_type": "nvarchar",
+              "max_length": 100,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "StorageTag",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "OwnerID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "StorageType",
+              "declared_type": "tinyint",
+              "max_length": 1,
+              "precision": 3,
+              "scale": 0,
+              "is_nullable": false
+            }
+          ]
+        },
+        {
+          "table": "Mail",
+          "column_count": 14,
+          "columns": [
+            {
+              "name": "MailID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "FromCID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "FromName",
+              "declared_type": "nvarchar",
+              "max_length": 512,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ToCID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ToName",
+              "declared_type": "nvarchar",
+              "max_length": 40,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "MailType",
+              "declared_type": "tinyint",
+              "max_length": 1,
+              "precision": 3,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ChargedGold",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "IsDeleted",
+              "declared_type": "bit",
+              "max_length": 1,
+              "precision": 1,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "PostedTime",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            },
+            {
+              "name": "Title",
+              "declared_type": "nvarchar",
+              "max_length": 512,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Content",
+              "declared_type": "nvarchar",
+              "max_length": 2048,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ArriveTime",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            },
+            {
+              "name": "ExpireTime",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": true
+            },
+            {
+              "name": "IsRead",
+              "declared_type": "bit",
+              "max_length": 1,
+              "precision": 1,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        },
+        {
+          "table": "MailItem",
+          "column_count": 14,
+          "columns": [
+            {
+              "name": "MailItemID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "MailID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemClassEx",
+              "declared_type": "nvarchar",
+              "max_length": 2048,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemCount",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Received",
+              "declared_type": "bit",
+              "max_length": 1,
+              "precision": 1,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ExpireDateTime",
+              "declared_type": "datetime2",
+              "max_length": 8,
+              "precision": 27,
+              "scale": 7,
+              "is_nullable": true
+            },
+            {
+              "name": "ReceivedDate",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": true
+            },
+            {
+              "name": "Color1",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Color2",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Color3",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "MaxDurabilityBonus",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ReducedDurability",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "IsCharacterBinded",
+              "declared_type": "bit",
+              "max_length": 1,
+              "precision": 1,
+              "scale": 0,
+              "is_nullable": false
+            }
+          ]
+        },
+        {
+          "table": "MailBox",
+          "column_count": 2,
+          "columns": [
+            {
+              "name": "OwnerID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Permission",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "database": "study_heroesLog",
+      "catalog_sha256": "eb2cfe4ef30ef1fc482a3287ed55300e8e99ebf71469eb8bfd536b900072ede5",
+      "tables": [
+        {
+          "table": "ItemJournal",
+          "column_count": 3,
+          "columns": [
+            {
+              "name": "ID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Category",
+              "declared_type": "nvarchar",
+              "max_length": 100,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Time",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            }
+          ]
+        },
+        {
+          "table": "ItemLedger",
+          "column_count": 12,
+          "columns": [
+            {
+              "name": "JournalID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemClass",
+              "declared_type": "nvarchar",
+              "max_length": 2048,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "CharacterID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Event",
+              "declared_type": "nvarchar",
+              "max_length": 100,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Num",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Time",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            },
+            {
+              "name": "Color1",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color2",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color3",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "ReducedDurability",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "MaxDurabilityBonus",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        },
+        {
+          "table": "ItemJournal01",
+          "column_count": 4,
+          "columns": [
+            {
+              "name": "ID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Category",
+              "declared_type": "nvarchar",
+              "max_length": 100,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Time",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            },
+            {
+              "name": "LastUpdateTime",
+              "declared_type": "timestamp",
+              "max_length": 8,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        },
+        {
+          "table": "ItemJournal02",
+          "column_count": 4,
+          "columns": [
+            {
+              "name": "ID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Category",
+              "declared_type": "nvarchar",
+              "max_length": 100,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Time",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            },
+            {
+              "name": "LastUpdateTime",
+              "declared_type": "timestamp",
+              "max_length": 8,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        },
+        {
+          "table": "ItemLedger01",
+          "column_count": 15,
+          "columns": [
+            {
+              "name": "JournalID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemClass",
+              "declared_type": "nvarchar",
+              "max_length": 2048,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "CharacterID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Event",
+              "declared_type": "smallint",
+              "max_length": 2,
+              "precision": 5,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Num",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Time",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            },
+            {
+              "name": "LastUpdateTime",
+              "declared_type": "timestamp",
+              "max_length": 8,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color1",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color2",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color3",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "ReducedDurability",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "MaxDurabilityBonus",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "ActionCategory",
+              "declared_type": "smallint",
+              "max_length": 2,
+              "precision": 5,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "BundleItemCount",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        },
+        {
+          "table": "ItemLedger02",
+          "column_count": 15,
+          "columns": [
+            {
+              "name": "JournalID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "ItemClass",
+              "declared_type": "nvarchar",
+              "max_length": 2048,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "CharacterID",
+              "declared_type": "bigint",
+              "max_length": 8,
+              "precision": 19,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Event",
+              "declared_type": "smallint",
+              "max_length": 2,
+              "precision": 5,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Num",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "Time",
+              "declared_type": "datetime",
+              "max_length": 8,
+              "precision": 23,
+              "scale": 3,
+              "is_nullable": false
+            },
+            {
+              "name": "LastUpdateTime",
+              "declared_type": "timestamp",
+              "max_length": 8,
+              "precision": 0,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color1",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color2",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "Color3",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "ReducedDurability",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "MaxDurabilityBonus",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            },
+            {
+              "name": "ActionCategory",
+              "declared_type": "smallint",
+              "max_length": 2,
+              "precision": 5,
+              "scale": 0,
+              "is_nullable": false
+            },
+            {
+              "name": "BundleItemCount",
+              "declared_type": "int",
+              "max_length": 4,
+              "precision": 10,
+              "scale": 0,
+              "is_nullable": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "source_services_executed": false,
+  "database_writes": false,
+  "delivery_implemented": false,
+  "processed_updates_implemented": false,
+  "pending": [
+    "ItemClassEx parsing and item content/bind policies",
+    "system item validation/location and destruction",
+    "item allocator/factory/attributes/durability/stack/storage",
+    "mail factory/attachment/box persistence and recovery queue",
+    "journal/ledger routing and save/undo failure semantics",
+    "atomic delivery acknowledgement and retry coordination",
+    "frontend inventory/mail notifications"
+  ]
+}
