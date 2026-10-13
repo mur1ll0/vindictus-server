@@ -396,3 +396,76 @@ async fn actual_tcp_prologue_accepts_source_state_without_ack_and_reconnect_read
     );
     cleanup_game_pool(admin, pool, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn actual_tcp_reservation_query_returns_real_lists_before_password_without_consumption() {
+    use vindictus_server::protocol::character_setup::{self as setup, Kind, Message};
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let r = runtime();
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    let body = setup::encode(Kind::Query, Some(&Message::Query), DEFAULT_MAX_BODY).unwrap();
+    send(&mut client, &mut tx, Kind::Query.category(), &body).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    lobby(&mut client, &mut rx).await;
+    send(&mut client, &mut tx, Kind::Query.category(), &body).await;
+    let f = read(&mut client, &mut rx).await;
+    assert_eq!(f.category_id, Kind::Reserved.category());
+    let Some(Message::Reserved { names, titles }) =
+        setup::decode(Kind::Reserved, &f.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("reserved info");
+    };
+    assert_eq!(names, Some(vec![]));
+    assert_eq!(titles, Some(vec![]));
+    password(&mut client, &mut tx, &mut rx, PMessage::Set(Some("123456"))).await;
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    let bytes: Vec<u8> = PASSPORT.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let name: Vec<u8> = "ReservedLab"
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    sqlx::query("INSERT INTO game_reserved_names VALUES(1,$1,-99,$2,false)")
+        .bind(&bytes)
+        .bind(&name)
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO game_reserved_titles VALUES(1,$1,-99,42,false)")
+        .bind(&bytes)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    let has = lobby(&mut client, &mut rx).await;
+    assert!(has.has_password && !has.passed);
+    let mut unregistered = Kind::Query.type_id().as_bytes().to_vec();
+    unregistered.extend_from_slice(&body);
+    send(&mut client, &mut tx, 0, &unregistered).await;
+    let f = read(&mut client, &mut rx).await;
+    assert_eq!(f.category_id, Kind::Reserved.category());
+    let Some(Message::Reserved { names, titles }) =
+        setup::decode(Kind::Reserved, &f.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("reserved info");
+    };
+    assert_eq!(names, Some(vec![Some("ReservedLab")]));
+    assert_eq!(titles, Some(vec![42]));
+    let body = setup::encode(Kind::Query, None, DEFAULT_MAX_BODY).unwrap();
+    send(&mut client, &mut tx, Kind::Query.category(), &body).await;
+    password(
+        &mut client,
+        &mut tx,
+        &mut rx,
+        PMessage::Check(Some("123456")),
+    )
+    .await;
+    let flags:(bool,bool)=sqlx::query_as("SELECT (SELECT created FROM game_reserved_names WHERE row_id=1),(SELECT title_given FROM game_reserved_titles WHERE row_id=1)").fetch_one(&pool).await.unwrap();
+    assert_eq!(flags, (false, false));
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    assert_eq!(r.active_count().unwrap(), 0);
+    cleanup_game_pool(admin, pool, schema).await;
+}

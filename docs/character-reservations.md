@@ -1,0 +1,12 @@
+# Consulta de reservas de criação
+
+Etapa verificada: M13.3d.2c.2b.1. QueryReservedInfoProcessor consulta ReservedName por NexonID e Created=false, ReservedTitle por NexonID e TitleGiven=false. Não filtra NexonSN, não consome reservas e retorna duas listas nãoNULL. CharacterList envia ReservedInfoMessage somente no OnComplete; não possui guarda de segunda senha nem resposta OnFail. Categorias439/443 e GUIDs vêm dos codecs já validados.
+
+Migração0014 preserva cinco/cinco/quatro campos das três tabelas, incluindo CharacterNameLog, nvarchar50 como bytesUTF16, identidade int1/1 de ReservedName, RowID sem identidade em ReservedTitle e PK(ID,Logdate)/defaultUTC datetime1/300s no histórico. Nenhuma FK foi inventada. SELECT recente confirmou fonte0/0/0 e identidade nunca usada; a equivalência do estado vazio e o próximo valor devem ser verificados após migrate/restart. Não se declara implementado um importador genérico de reservas ou seu alocador.
+
+A consulta usa o dono/revisão admitidos e tabelas PostgreSQL reais. Resultados conservam nomes/duplicatas e títulos, sem ordem nova imposta. Comparação de NexonID é restrita ao ASCII imprimível CI_AS medido; contaUnicode não comprovada, UTF16 malformado na resposta ou mais de1000candidatos são recusados explicitamente, não omitidos como lista vazia. Armazenamento conserva UTF16 arbitrário. Nomes privados e buffers de resposta são zerados ao descartar e não têm Debug/Serialize.
+
+O oracle SQL usa apenas SELECT/VALUES sintéticos:96casos de caixa, padding, flags, duplicatas, títulos intmin/intmax e NexonSN diferente. ORDERBY existe somente para comparar pertencimento no fixture, sem alegar ordem no processor original. Testes PostgreSQL verificam ausência de consumo, dono/revisão/cancelamento, bytes/limites/PK/defaultUTC/identidade. Teste TCP verifica arrays vazios reais, listas não vazias, envelopes registrados/GUID, NULL e consulta antes de validar segunda senha.
+
+Check/forbidden/reserva consumida/duplicidade e histórico ainda precisam ser ligados. Create, CharacterSummary, seleção/PlayerLoader e canalMMO/posição/movimento permanecem pendentes. Não alegar compatibilidade do cliente para esta etapa antes de exercê-la no cliente. Objetivo final M01–M24 preservado. Logs completos em .cache/verification.
+Gate final217Rust/75PostgreSQLexecutados/19Python,0falhas/avisos. Docker build/migrate/readiness/smoke/restart e preservação0/0/0/identity1unused passaram. [Evidência sanitizada](evidence/auth/character-reservations-query.json). Não houve teste novo no cliente.

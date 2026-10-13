@@ -1,5 +1,5 @@
 {
-  "verified_at_utc": "2026-10-13T20:32:23.2951073+00:00",
+  "verified_at_utc": "2026-10-13T23:45:13.5838776+00:00",
   "database_integration_executed": true,
   "database_integration_runtime": "linux-docker-backend",
   "checks": [
@@ -23,7 +23,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/clippy.log",
-      "log_sha256": "4bb74d2cc15d4670b80212c836e0e548bc01f0f3a15ad7ba5a88f38aef91e0a1"
+      "log_sha256": "241fc748266f298666eec3d2a335cfe4c49f8a2cebdcb1885d3c7e85818cbf14"
     },
     {
       "name": "rust-tests",
@@ -31,10 +31,10 @@
       "exit_code": 0,
       "passed": 217,
       "failed": 0,
-      "ignored": 71,
+      "ignored": 75,
       "warnings": 0,
       "log": ".cache/verification/rust-tests.log",
-      "log_sha256": "17a79dec8ce76836108dc6a078ab120abe54c94b999d5e239ca3b764daa1e5e8"
+      "log_sha256": "f0006bc3173ec379afe8d8645718e19c51a2852ec3605f1924ead106692c17d2"
     },
     {
       "name": "doc-tests",
@@ -45,7 +45,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/doc-tests.log",
-      "log_sha256": "5eeee8562366e82c37263694a43dbc2a9aa925621464bb3a5b32990875f07775"
+      "log_sha256": "fb693c95144f23f6340edc4b277666aa17cbd5a0cb5fbcd12e3fab8cda9ada0b"
     },
     {
       "name": "build",
@@ -56,7 +56,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/build.log",
-      "log_sha256": "38981dd44308eb60ac3923041f374bddd1452d564cd4e39e5ed36dd0edce08a2"
+      "log_sha256": "a905345a90ddc157b63ecbee3cde890835d78819c7377bd2c2edc186eb82ade1"
     },
     {
       "name": "postgres-test-build",
@@ -73,12 +73,12 @@
       "name": "postgres-integration",
       "command": "docker compose -f compose.yaml -f scripts/dev/compose.tests.yaml run --rm --no-deps -T postgres-tests",
       "exit_code": 0,
-      "passed": 71,
+      "passed": 75,
       "failed": 0,
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/postgres-integration.log",
-      "log_sha256": "36504a01ad3c84eb7f36e242c29a8f002f15f21d385a87aebba5cc834e6c8eda"
+      "log_sha256": "f43c553a1c4f5a98ab0ac72b8bf4df4c84d805e277388e04537a42a614fa213e"
     },
     {
       "name": "client-python",
@@ -89,7 +89,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/client-python.log",
-      "log_sha256": "6df24f71ba42f8380bce7c2800bebc07eb1b9f1d5a8876492e9fc8ce02ad7253"
+      "log_sha256": "0f882307d41f629dc2eadf158aa653686b70a421e42eaf911a9769227c5caf17"
     },
     {
       "name": "content-python",
@@ -100,7 +100,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/content-python.log",
-      "log_sha256": "fc5685cf4411e4ad7d56e3e4b6ba6ce76378db3d649d484e67fa39e214ed5733"
+      "log_sha256": "f9f380727ceb5fe90f40cf66846eef7938e17d7641d7da6a6731a797f748fd14"
     }
   ],
   "game_compatibility_verified": false

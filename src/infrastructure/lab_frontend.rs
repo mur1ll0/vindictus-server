@@ -567,6 +567,45 @@ impl Connection {
                     .await;
             }
         }
+        let kind = SetupKind::Query;
+        if matches(category, body, kind.category(), kind.type_id()) {
+            let message = setup::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                .map_err(|_| RuntimeError::Message)?;
+            if matches!(message, Some(SetupMessage::Query))
+                && self.frontend.phase() == SessionPhase::PoliciesAccepted
+            {
+                let revision = self
+                    .password
+                    .as_ref()
+                    .map(PasswordSession::revision)
+                    .or(self.revision)
+                    .ok_or(RuntimeError::Operation)?;
+                match crate::application::character_reservations::query_admitted(
+                    &self.frontend,
+                    pool,
+                    revision,
+                )
+                .await
+                {
+                    Ok(info) => {
+                        let names = info.names.iter().map(|n| Some(n.as_str())).collect();
+                        let message = SetupMessage::Reserved {
+                            names: Some(names),
+                            titles: Some(info.titles),
+                        };
+                        let bytes =
+                            setup::encode(SetupKind::Reserved, Some(&message), DEFAULT_MAX_BODY)
+                                .map_err(|_| RuntimeError::Message)?;
+                        send(stream, sender, SetupKind::Reserved.category(), &bytes).await?;
+                    }
+                    Err(_) => {
+                        // Source request has OnComplete but no OnFail response.
+                        tracing::warn!("laboratory reservation query unavailable; values omitted");
+                    }
+                }
+            }
+            return Ok(());
+        }
         let kind = SetupKind::Play;
         if matches(category, body, kind.category(), kind.type_id()) {
             let message = setup::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)

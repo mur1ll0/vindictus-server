@@ -1,0 +1,35 @@
+{
+  "stage": "M13.3d.2c.2b.1",
+  "verified_at_utc": "2026-10-13T20:50:53.8776722-03:00",
+  "gate_verified_at_utc": "2026-10-13T20:45:13.5838776-03:00",
+  "rust_passed": 217,
+  "postgres_passed": 75,
+  "postgres_ignored": 0,
+  "python_passed": 19,
+  "failed": 0,
+  "warnings": 0,
+  "sql_synthetic_cases": 96,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/QueryReservedInfoProcessor.cs",
+      "sha256": "66c0e1260a2c25cd4f46745d70fef5ae93440ee733f32ffae3fbdc1445ff5771"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterList.cs",
+      "sha256": "8342a53227171c6472846f1e12c15c2dd1d059eac2ae8cdee690699b5bc22fa6"
+    },
+    {
+      "path": "scripts/reverse/generate-reservation-query-fixtures.ps1",
+      "sha256": "78bd731e34b9a517f64f633e4e5736a6f73232b3a69a679255ce95a03d329ecb"
+    }
+  ],
+  "fixture_sha256": "671050f1d94804d84137b10b39458dfabcd33a74c36d2ed9e4a36f97bbbaa647",
+  "docker_preservation_log_sha256": "0255a7494b23bac5143df9d9a8f7760a33c6d983b00c9e621a50a55224dbc5ab",
+  "scope": "Schema and real QueryReservedInfo, restricted admitted ASCII account profile; TCP integration verified",
+  "client_acceptance_verified": false,
+  "character_creation_available": false,
+  "full_name_availability_implemented": false,
+  "full_migration_complete": false,
+  "original_databases_written": false,
+  "original_services_executed": false
+}

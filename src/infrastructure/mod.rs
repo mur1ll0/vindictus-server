@@ -32,3 +32,5 @@ pub mod lab_clock;
 pub mod lab_runtime_config;
 
 pub mod lab_frontend;
+
+pub mod character_reservations;

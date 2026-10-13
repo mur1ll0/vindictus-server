@@ -1,0 +1,27 @@
+{
+  "verified_at_utc": "2026-10-13T23:50:53.8776722+00:00",
+  "source_read_only": true,
+  "source": {
+    "names": 0,
+    "titles": 0,
+    "logs": 0,
+    "identity_state": {
+      "seed": 1,
+      "increment": 1,
+      "last_value": null
+    }
+  },
+  "target": {
+    "migration14": true,
+    "names": 0,
+    "titles": 0,
+    "logs": 0,
+    "last_value": 1,
+    "is_called": false,
+    "foreign_keys": 0,
+    "log_pk_columns": 2,
+    "title_identity_columns": 0
+  },
+  "client_acceptance_verified": false,
+  "character_creation_available": false
+}
