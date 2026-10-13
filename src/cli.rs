@@ -33,6 +33,13 @@ pub enum Command {
         #[arg(long)]
         characters_file: std::path::PathBuf,
     },
+    /// Validate protected laboratory configuration without opening TCP or the database.
+    InspectLabFrontendProfile {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        policy_file: std::path::PathBuf,
+    },
     /// Read-only catalog projection diagnostic; stdin input, counts/digest output only.
     InspectItemCatalog {
         #[arg(long, required = true)]

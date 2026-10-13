@@ -179,3 +179,6 @@ O parsing comum de ItemClassEx e o sentinel de localização agora estão portad
 A cadeia de argumentos temporais de ItemClassEx agora possui contexto explícito e aritmética comparada ao Framework. Consulte [contrato temporal](docs/item-argument.md): o adaptador da gramática cultural de datas e sua ligação ao consumidor ainda estão pendentes.
 
 O [adaptador temporal do perfil offline](docs/item-argument-profile.md) implementa datas completas en-US e segundos relativos com clock explícito e UTC+8. Formatos desconhecidos são recusados; o consumidor real, catálogo/binder e inventário ainda estão pendentes.
+
+
+O [perfil privado de laboratório e relógio](docs/lab-frontend-runtime-profile.md) foi validado; a conexão TCP de login real e o aceite do cliente ainda dependem da etapa2b.

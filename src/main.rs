@@ -57,6 +57,20 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::InspectLabFrontendProfile { policy_file, .. } = &cli.command {
+        let content = vindictus_server::infrastructure::reward_policy::read_policy(
+            std::fs::File::open(policy_file)?,
+        )?;
+        let profile = vindictus_server::infrastructure::lab_runtime_config::LabRuntimeConfig::read(
+            std::io::stdin().lock(),
+            &content,
+        )?;
+        println!(
+            "{}",
+            serde_json::json!({"profile_validated":true,"allowlisted_count":profile.allowed_count(),"loopback":true,"original_manifest_matches":true,"database_opened":false,"listener_opened":false,"game_authentication_available":false})
+        );
+        return Ok(());
+    }
     if let Command::InspectItemCatalog { .. } = &cli.command {
         let package =
             vindictus_server::infrastructure::item_catalog::read_package(std::io::stdin().lock())?;
@@ -107,7 +121,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
     match cli.command {
         Command::ProbeFrontend { .. }
         | Command::InspectRewardPolicy { .. }
-        | Command::InspectItemCatalog { .. } => {}
+        | Command::InspectItemCatalog { .. }
+        | Command::InspectLabFrontendProfile { .. } => {}
         Command::Migrate => {
             postgres::migrate(&pool).await?;
             println!("PostgreSQL migrations applied; migrate does not import legacy data.");

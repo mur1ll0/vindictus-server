@@ -1,0 +1,1132 @@
+{
+  "oracle": "own Framework DateTime ticks/AddTicks; no original services executed",
+  "oracle_sha256": "5627c54239508d48f8cfe55f0456964ef4085cb1daaeaf3b1250edb92b903235",
+  "architectures": [
+    "x86",
+    "x64"
+  ],
+  "cases_per_architecture": 140,
+  "disagreements": 0,
+  "cases": [
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 0,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 0,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": "0"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 0,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": "288000000000"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 0,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": "504000000000"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 99,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 99,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": "0"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 99,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": "288000000000"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 99,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "0",
+      "civil_ticks": "504000000000"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 100,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "1",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 100,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "1",
+      "civil_ticks": "1"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 100,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "1",
+      "civil_ticks": "288000000001"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 100,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "1",
+      "civil_ticks": "504000000001"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 3333333,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "33333",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "33333",
+      "civil_ticks": "33333"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "33333",
+      "civil_ticks": "288000033333"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "33333",
+      "civil_ticks": "504000033333"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 999999999,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "9999999",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "9999999",
+      "civil_ticks": "9999999"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "9999999",
+      "civil_ticks": "288009999999"
+    },
+    {
+      "seconds": "-62135596800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "9999999",
+      "civil_ticks": "504009999999"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 0,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599265576000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 0,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599266080000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 0,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599266368000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 0,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599266584000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 99,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599265576000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 99,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599266080000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 99,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599266368000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 99,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000000",
+      "civil_ticks": "599266584000000000"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 100,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000001",
+      "civil_ticks": "599265576000000001"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 100,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000001",
+      "civil_ticks": "599266080000000001"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 100,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000001",
+      "civil_ticks": "599266368000000001"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 100,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000000001",
+      "civil_ticks": "599266584000000001"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 3333333,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000033333",
+      "civil_ticks": "599265576000033333"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "599266080000033333",
+      "civil_ticks": "599266080000033333"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "599266080000033333",
+      "civil_ticks": "599266368000033333"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080000033333",
+      "civil_ticks": "599266584000033333"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 999999999,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080009999999",
+      "civil_ticks": "599265576009999999"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "599266080009999999",
+      "civil_ticks": "599266080009999999"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "599266080009999999",
+      "civil_ticks": "599266368009999999"
+    },
+    {
+      "seconds": "-2208988800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "599266080009999999",
+      "civil_ticks": "599266584009999999"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 0,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621355463990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 0,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621355967990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 0,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621356255990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 0,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621356471990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 99,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621355463990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 99,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621355967990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 99,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621356255990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 99,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000000",
+      "civil_ticks": "621356471990000000"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 100,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000001",
+      "civil_ticks": "621355463990000001"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 100,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000001",
+      "civil_ticks": "621355967990000001"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 100,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000001",
+      "civil_ticks": "621356255990000001"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 100,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990000001",
+      "civil_ticks": "621356471990000001"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 3333333,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990033333",
+      "civil_ticks": "621355463990033333"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 3333333,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355967990033333",
+      "civil_ticks": "621355967990033333"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 3333333,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355967990033333",
+      "civil_ticks": "621356255990033333"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 3333333,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967990033333",
+      "civil_ticks": "621356471990033333"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 999999999,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967999999999",
+      "civil_ticks": "621355463999999999"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 999999999,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355967999999999",
+      "civil_ticks": "621355967999999999"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 999999999,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355967999999999",
+      "civil_ticks": "621356255999999999"
+    },
+    {
+      "seconds": "-1",
+      "nanoseconds": 999999999,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355967999999999",
+      "civil_ticks": "621356471999999999"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 0,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621355464000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 0,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621355968000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 0,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621356256000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 0,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621356472000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 99,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621355464000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 99,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621355968000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 99,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621356256000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 99,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000000",
+      "civil_ticks": "621356472000000000"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 100,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000001",
+      "civil_ticks": "621355464000000001"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 100,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000001",
+      "civil_ticks": "621355968000000001"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 100,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000001",
+      "civil_ticks": "621356256000000001"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 100,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000000001",
+      "civil_ticks": "621356472000000001"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 3333333,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000033333",
+      "civil_ticks": "621355464000033333"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 3333333,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355968000033333",
+      "civil_ticks": "621355968000033333"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 3333333,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355968000033333",
+      "civil_ticks": "621356256000033333"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 3333333,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968000033333",
+      "civil_ticks": "621356472000033333"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 999999999,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968009999999",
+      "civil_ticks": "621355464009999999"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 999999999,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "621355968009999999",
+      "civil_ticks": "621355968009999999"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 999999999,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "621355968009999999",
+      "civil_ticks": "621356256009999999"
+    },
+    {
+      "seconds": "0",
+      "nanoseconds": 999999999,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "621355968009999999",
+      "civil_ticks": "621356472009999999"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 0,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630822312000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 0,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630822816000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 0,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630823104000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 0,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630823320000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 99,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630822312000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 99,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630822816000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 99,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630823104000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 99,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000000",
+      "civil_ticks": "630823320000000000"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 100,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000001",
+      "civil_ticks": "630822312000000001"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 100,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000001",
+      "civil_ticks": "630822816000000001"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 100,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000001",
+      "civil_ticks": "630823104000000001"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 100,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000000001",
+      "civil_ticks": "630823320000000001"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 3333333,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000033333",
+      "civil_ticks": "630822312000033333"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "630822816000033333",
+      "civil_ticks": "630822816000033333"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "630822816000033333",
+      "civil_ticks": "630823104000033333"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 3333333,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816000033333",
+      "civil_ticks": "630823320000033333"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 999999999,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816009999999",
+      "civil_ticks": "630822312009999999"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "630822816009999999",
+      "civil_ticks": "630822816009999999"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "630822816009999999",
+      "civil_ticks": "630823104009999999"
+    },
+    {
+      "seconds": "946684800",
+      "nanoseconds": 999999999,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "630822816009999999",
+      "civil_ticks": "630823320009999999"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 0,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642830300480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 0,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642830804480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 0,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642831092480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 0,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642831308480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 99,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642830300480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 99,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642830804480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 99,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642831092480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 99,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000000",
+      "civil_ticks": "642831308480000000"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 100,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000001",
+      "civil_ticks": "642830300480000001"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 100,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000001",
+      "civil_ticks": "642830804480000001"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 100,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000001",
+      "civil_ticks": "642831092480000001"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 100,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480000001",
+      "civil_ticks": "642831308480000001"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 3333333,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480033333",
+      "civil_ticks": "642830300480033333"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 3333333,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "642830804480033333",
+      "civil_ticks": "642830804480033333"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 3333333,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "642830804480033333",
+      "civil_ticks": "642831092480033333"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 3333333,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804480033333",
+      "civil_ticks": "642831308480033333"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 999999999,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804489999999",
+      "civil_ticks": "642830300489999999"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 999999999,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "642830804489999999",
+      "civil_ticks": "642830804489999999"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 999999999,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "642830804489999999",
+      "civil_ticks": "642831092489999999"
+    },
+    {
+      "seconds": "2147483648",
+      "nanoseconds": 999999999,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "642830804489999999",
+      "civil_ticks": "642831308489999999"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 0,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": "3155378471990000000"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 0,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": "3155378975990000000"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 0,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 0,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 99,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": "3155378471990000000"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 99,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": "3155378975990000000"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 99,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 99,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000000",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 100,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000001",
+      "civil_ticks": "3155378471990000001"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 100,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000001",
+      "civil_ticks": "3155378975990000001"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 100,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000001",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 100,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990000001",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 3333333,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990033333",
+      "civil_ticks": "3155378471990033333"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 3333333,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990033333",
+      "civil_ticks": "3155378975990033333"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 3333333,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990033333",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 3333333,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975990033333",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 999999999,
+      "offset_seconds": -50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975999999999",
+      "civil_ticks": "3155378471999999999"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 999999999,
+      "offset_seconds": 0,
+      "utc_valid": true,
+      "utc_ticks": "3155378975999999999",
+      "civil_ticks": "3155378975999999999"
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 999999999,
+      "offset_seconds": 28800,
+      "utc_valid": true,
+      "utc_ticks": "3155378975999999999",
+      "civil_ticks": null
+    },
+    {
+      "seconds": "253402300799",
+      "nanoseconds": 999999999,
+      "offset_seconds": 50400,
+      "utc_valid": true,
+      "utc_ticks": "3155378975999999999",
+      "civil_ticks": null
+    }
+  ]
+}

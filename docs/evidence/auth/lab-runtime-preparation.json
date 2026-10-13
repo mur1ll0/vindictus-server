@@ -1,0 +1,13 @@
+{
+  "verified_at_utc": "2026-10-13T18:13:46.6818951+00:00",
+  "windows_acl_verified": true,
+  "source_ping_pong": false,
+  "civil_offset_seconds": 28800,
+  "synthetic_allowlisted_count": 1,
+  "native_profile_validation": true,
+  "docker_profile_validation": true,
+  "configuration_values_public": false,
+  "listener_opened": false,
+  "database_opened": false,
+  "game_authentication_available": false
+}

@@ -69,3 +69,6 @@ Lifecycle recuperado em LoginService.cs SHA256de436c28c7af04a8b9a8647049d44add2d
 M13.3d.1 concluída: HomeCafeBonus real preservado, consulta CIDNULL, feature efetiva e cinco codecs de controle verificados. A ordem seguinte é M13.3d.2: adapter TCP, proveniência sintética, falhas/cleanup antes da tentativa manual; depois criação/defaults/Summary, seleção/PlayerLoader e canal MMO/cidade. Sem desabilitar flags reais, retornar listas fictícias ou antecipar LoginOk. [Contratos e limites](frontend-login-controls.md).
 
 M13.3d.2a.1 concluída: a barreira de [proveniência sintética](lab-account-provenance.md) está na transação de criação e integrada à composição scoped. Antes do TCP faltam configuração/allowlist/relógio2a.2 e runtime/falhas/cleanup2b; somente então repetir no cliente.
+
+
+M13.3d.2a.2 concluída: [perfil privado e relógio explícito](lab-frontend-runtime-profile.md) validados Windows/Linux. O próximo bloqueio é o adapter TCP2b; nenhuma nova tentativa foi solicitada enquanto existe somente probe.

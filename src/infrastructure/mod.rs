@@ -27,3 +27,6 @@ pub mod character_lobby;
 pub mod lobby_export;
 
 pub mod home_cafe_bonus;
+
+pub mod lab_clock;
+pub mod lab_runtime_config;

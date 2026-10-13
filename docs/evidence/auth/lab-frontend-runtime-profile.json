@@ -1,0 +1,99 @@
+{
+  "stage": "M13.3d.2a.2",
+  "verified_at_utc": "2026-10-13T18:12:09.5469394+00:00",
+  "gate": {
+    "rust": 208,
+    "postgres": 65,
+    "python": 19,
+    "failures": 0,
+    "warnings": 0
+  },
+  "configuration": {
+    "verified_at_utc": "2026-10-13T18:13:46.6818951+00:00",
+    "windows_acl_verified": true,
+    "source_ping_pong": false,
+    "civil_offset_seconds": 28800,
+    "synthetic_allowlisted_count": 1,
+    "native_profile_validation": true,
+    "docker_profile_validation": true,
+    "configuration_values_public": false,
+    "listener_opened": false,
+    "database_opened": false,
+    "game_authentication_available": false
+  },
+  "clock_oracle": {
+    "architectures": 2,
+    "cases_per_architecture": 140,
+    "disagreements": 0,
+    "civil_offset_explicit": true,
+    "host_timezone_inferred": false
+  },
+  "scope": {
+    "original_source_hashes": true,
+    "framework_profile": true,
+    "service_and_channel": true,
+    "civil_offset": true,
+    "allowlist_or_subset_digest_changes_orphan_users": false,
+    "wire_fields_are_authority": false
+  },
+  "docker": {
+    "verified_at_utc": "2026-10-13T18:14:33.9362553+00:00",
+    "state": {
+      "migration13": true,
+      "origins": 0,
+      "origin_fk": true,
+      "origin_primary_key": true
+    },
+    "imported_users_marked": false,
+    "synthetic_tests_isolated": true,
+    "game_authentication_available": false
+  },
+  "actual_client_acceptance_verified": false,
+  "game_authentication_available": false,
+  "artifacts": [
+    {
+      "path": "src/cli.rs",
+      "sha256": "d20077551957845f1b1f62ec5b4156af12f20590afa3bb2fdc991e24829a0048"
+    },
+    {
+      "path": "src/main.rs",
+      "sha256": "74b3c94fac7deea2bcb3c076da500dd50bdf4adc0dcf66caed55a74bc9d8de85"
+    },
+    {
+      "path": "src/error.rs",
+      "sha256": "1e51c4a009740eea4534bbec5aeb68287e049b0ed081fa8ed7e774ba95bcee3d"
+    },
+    {
+      "path": "src/infrastructure/mod.rs",
+      "sha256": "47b230ffd67a2d2a0b0311496de7bf7c4ba7d0a3171536ecdd4c51ae5e808082"
+    },
+    {
+      "path": "src/infrastructure/lab_clock.rs",
+      "sha256": "02394dc8f56202aaa80d13ac06bdd07af04473dda95fef41dca8320964541198"
+    },
+    {
+      "path": "src/infrastructure/lab_runtime_config.rs",
+      "sha256": "826c15f398dc5de06f84eeb0eaffdc87ccb940d72cf9f08af4b885c287c0099f"
+    },
+    {
+      "path": "tests/lab_runtime_config.rs",
+      "sha256": "d871f9304ec3c8955b45357f0b0313166e3702878e595034e73303386643db5f"
+    },
+    {
+      "path": "tests/fixtures/framework-lab-clock.json",
+      "sha256": "dbb498effe78b53464e0642f572e103f19d516bdb6757692f5fe9ef9b9055bad"
+    },
+    {
+      "path": "scripts/reverse/framework/LabClockOracle.cs",
+      "sha256": "5627c54239508d48f8cfe55f0456964ef4085cb1daaeaf3b1250edb92b903235"
+    },
+    {
+      "path": "scripts/reverse/generate-lab-clock-fixtures.ps1",
+      "sha256": "fb0bfe49b740d5f542c88fb210b562a22ad795867d7c3ff928f776d0a6de340e"
+    },
+    {
+      "path": "scripts/dev/prepare-lab-frontend-profile.ps1",
+      "sha256": "4d45f1bd0b5e8d1c50e50f51e0a88827b70d7c3b165224012b86a35dc7805dda"
+    }
+  ]
+}
