@@ -1,0 +1,47 @@
+{
+  "stage": "M13.3d.1",
+  "verified_at_utc": "2026-10-13T14:04:42.4704459+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_counts": {
+    "home_cafe_bonus": 2
+  },
+  "source_columns": {
+    "home_cafe_bonus": 4
+  },
+  "export_sha256": "12abcedf5a97d0b56e130e267af67051afbe6233369e9a535197ddd176a95407",
+  "query_sha256": "ad121a24ae914c09a880771a463d54eb7b3c7f48b51d0796192834b95a7487f0",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "source_rows": 2,
+    "inserted": 0,
+    "existing": 2,
+    "verified": 2,
+    "game_authentication_available": false
+  },
+  "replay": {
+    "source_rows": 2,
+    "inserted": 0,
+    "existing": 2,
+    "verified": 2,
+    "game_authentication_available": false
+  },
+  "verified": {
+    "source_rows": 2,
+    "inserted": 0,
+    "existing": 2,
+    "verified": 2,
+    "game_authentication_available": false
+  },
+  "post_restart_verified": true,
+  "game_authentication_available": false,
+  "post_restart_verified_at_utc": "2026-10-13T14:06:04.0076562+00:00",
+  "post_restart_summary": {
+    "source_rows": 2,
+    "inserted": 0,
+    "existing": 2,
+    "verified": 2,
+    "game_authentication_available": false
+  }
+}

@@ -169,3 +169,5 @@ pub fn decode_frame(
 mod wire;
 
 pub mod empty_character_list;
+
+pub mod frontend_control;

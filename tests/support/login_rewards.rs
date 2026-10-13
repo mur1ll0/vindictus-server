@@ -560,27 +560,34 @@ async fn postgres_login_rewards_cancelled_wait_releases_claim_and_transaction() 
     let before = state(&pool).await;
     let id = Uuid::new_v4();
     let mut blocker = pool.begin().await.unwrap();
+    let blocker_pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+        .fetch_one(&mut *blocker)
+        .await
+        .unwrap();
     sqlx::query("SELECT id FROM game_users WHERE id=7 FOR UPDATE")
         .execute(&mut *blocker)
         .await
         .unwrap();
+    let marker = format!("reward_cancel_{}", Uuid::new_v4().simple());
+    let search_path = format!("SET search_path TO {schema}");
+    let connection_marker = marker.clone();
     let waiting_pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(1)
+        .after_connect(move |connection, _| {
+            let search_path = search_path.clone();
+            let marker = connection_marker.clone();
+            Box::pin(async move {
+                sqlx::query(&search_path).execute(&mut *connection).await?;
+                sqlx::query("SELECT set_config('application_name',$1,false)")
+                    .bind(&marker)
+                    .execute(connection)
+                    .await?;
+                Ok(())
+            })
+        })
         .connect(&std::env::var("TEST_DATABASE_URL").unwrap())
         .await
         .unwrap();
-    let marker = format!("reward_cancel_{}", Uuid::new_v4().simple());
-    let mut connection = waiting_pool.acquire().await.unwrap();
-    sqlx::query(&format!("SET search_path TO {schema}"))
-        .execute(&mut *connection)
-        .await
-        .unwrap();
-    sqlx::query("SELECT set_config('application_name',$1,false)")
-        .bind(&marker)
-        .execute(&mut *connection)
-        .await
-        .unwrap();
-    drop(connection);
     let (task_pool, task_case, task_package) =
         (waiting_pool.clone(), case.clone(), package.clone());
     let task = tokio::spawn(async move {
@@ -591,10 +598,12 @@ async fn postgres_login_rewards_cancelled_wait_releases_claim_and_transaction() 
         )
         .await
     });
-    let observed = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+    // Allow transaction setup to finish; cancellation still requires a real wait on this blocker.
+    // This observer deadline does not change production lock/statement deadlines (2s/5s).
+    let observed = tokio::time::timeout(std::time::Duration::from_secs(5), async {
         loop {
-            let waiting: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND wait_event='transactionid')")
-                .bind(&marker).fetch_one(&admin).await.unwrap();
+            let waiting: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND $2::integer=ANY(pg_blocking_pids(pid)))")
+                .bind(&marker).bind(blocker_pid).fetch_one(&admin).await.unwrap();
             if waiting { break; }
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
@@ -697,7 +706,7 @@ async fn postgres_login_rewards_upgrade_nine_to_ten_preserves_queue_and_user() {
             .await
             .unwrap();
     sqlx::raw_sql(
-        "DROP TABLE game_user_care_info,game_user_products,game_user_info;DELETE FROM _sqlx_migrations WHERE version=11;DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10",
+        "DROP TABLE game_home_cafe_bonus;DELETE FROM _sqlx_migrations WHERE version=12;DROP TABLE game_user_care_info,game_user_products,game_user_info;DELETE FROM _sqlx_migrations WHERE version=11;DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10",
     )
     .execute(&pool)
     .await

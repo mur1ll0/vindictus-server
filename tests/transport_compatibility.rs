@@ -224,3 +224,36 @@ fn generic_core_cipher_cannot_replace_the_frontend_cipher() {
     }
     assert_ne!(wire, vector.wire);
 }
+
+#[test]
+fn owned_frame_debug_redacts_payload_and_identity_metadata() {
+    let frame = OwnedFrame {
+        instance_id: i64::MAX,
+        category_id: 405,
+        body: b"synthetic private password".to_vec(),
+    };
+    let summary = format!("{frame:?}");
+    assert_eq!(summary, "OwnedFrame { category_id: 405, body_len: 26, .. }");
+    assert!(!summary.contains("password"));
+    assert!(!summary.contains(&format!("{:?}", frame.body)));
+    assert!(!summary.contains(&i64::MAX.to_string()));
+}
+#[test]
+fn transport_error_discards_partial_plaintext_and_closes_stream() {
+    use vindictus_server::protocol::transport::CipherProfile;
+    let mut sender =
+        LegacySender::with_profile(CipherProfile::VindictusFrontend, 123456, 1024).unwrap();
+    let wire = sender
+        .encode(&Frame {
+            instance_id: 0,
+            category_id: 405,
+            body: b"synthetic private password",
+        })
+        .unwrap();
+    let mut receiver = LegacyReceiver::with_profile(CipherProfile::VindictusFrontend, 5);
+    assert!(receiver.push(&wire[..8]).unwrap().is_empty());
+    assert_eq!(receiver.buffered_len(), 8);
+    assert!(receiver.push(&wire[8..]).is_err());
+    assert_eq!(receiver.buffered_len(), 0);
+    assert!(matches!(receiver.push(&[]), Err(TransportError::Closed)));
+}

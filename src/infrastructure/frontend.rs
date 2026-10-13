@@ -95,8 +95,8 @@ pub async fn probe_connection(
             }
             // Limit each read independently. The transport retains at most one incomplete frame.
             let frames = receiver.push(&buffer[..count])?;
-            if let Some(frame) = frames.into_iter().next() {
-                let body = Zeroizing::new(frame.body);
+            if let Some(mut frame) = frames.into_iter().next() {
+                let body = Zeroizing::new(std::mem::take(&mut frame.body));
                 if frame.category_id != 0 && frame.category_id != USER_LOGIN_MESSAGE_CATEGORY {
                     return Err(ProbeError::UnsupportedCategory(frame.category_id));
                 }

@@ -1,0 +1,649 @@
+{
+  "source_definition_sha256": "1e2d7d8a5f4e46126ad9b91238e1b8d42ee90571a164178abfda7527fb91ae5d",
+  "query_sha256": "16e498d0185b25bacacbd427cb3fd10692861861d1aad8888058b5e855a10f14",
+  "cases": [
+    {
+      "case_id": 0,
+      "mask": 0,
+      "initial_bonus_type": null,
+      "bonus_type": null,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 1,
+      "mask": 1,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 2,
+      "mask": 2,
+      "initial_bonus_type": null,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 3,
+      "mask": 3,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 4,
+      "mask": 4,
+      "initial_bonus_type": null,
+      "bonus_type": 2,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 5,
+      "mask": 5,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 6,
+      "mask": 6,
+      "initial_bonus_type": null,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 7,
+      "mask": 7,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 8,
+      "mask": 0,
+      "initial_bonus_type": 0,
+      "bonus_type": 0,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 9,
+      "mask": 1,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 10,
+      "mask": 2,
+      "initial_bonus_type": 0,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 11,
+      "mask": 3,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 12,
+      "mask": 4,
+      "initial_bonus_type": 0,
+      "bonus_type": 2,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 13,
+      "mask": 5,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 14,
+      "mask": 6,
+      "initial_bonus_type": 0,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 15,
+      "mask": 7,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 16,
+      "mask": 0,
+      "initial_bonus_type": 7,
+      "bonus_type": 7,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 17,
+      "mask": 1,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 18,
+      "mask": 2,
+      "initial_bonus_type": 7,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 19,
+      "mask": 3,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 20,
+      "mask": 4,
+      "initial_bonus_type": 7,
+      "bonus_type": 2,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 21,
+      "mask": 5,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 22,
+      "mask": 6,
+      "initial_bonus_type": 7,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 23,
+      "mask": 7,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 24,
+      "mask": 0,
+      "initial_bonus_type": 255,
+      "bonus_type": 255,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 25,
+      "mask": 1,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 26,
+      "mask": 2,
+      "initial_bonus_type": 255,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 27,
+      "mask": 3,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 28,
+      "mask": 4,
+      "initial_bonus_type": 255,
+      "bonus_type": 2,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 29,
+      "mask": 5,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 30,
+      "mask": 6,
+      "initial_bonus_type": 255,
+      "bonus_type": 4,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 31,
+      "mask": 7,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "1753-01-01T00:00:00",
+      "row_expiry_units300": "-1391644800000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 32,
+      "mask": 0,
+      "initial_bonus_type": null,
+      "bonus_type": null,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 33,
+      "mask": 1,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 34,
+      "mask": 2,
+      "initial_bonus_type": null,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 35,
+      "mask": 3,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 36,
+      "mask": 4,
+      "initial_bonus_type": null,
+      "bonus_type": 2,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 37,
+      "mask": 5,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 38,
+      "mask": 6,
+      "initial_bonus_type": null,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 39,
+      "mask": 7,
+      "initial_bonus_type": null,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 40,
+      "mask": 0,
+      "initial_bonus_type": 0,
+      "bonus_type": 0,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 41,
+      "mask": 1,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 42,
+      "mask": 2,
+      "initial_bonus_type": 0,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 43,
+      "mask": 3,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 44,
+      "mask": 4,
+      "initial_bonus_type": 0,
+      "bonus_type": 2,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 45,
+      "mask": 5,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 46,
+      "mask": 6,
+      "initial_bonus_type": 0,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 47,
+      "mask": 7,
+      "initial_bonus_type": 0,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 48,
+      "mask": 0,
+      "initial_bonus_type": 7,
+      "bonus_type": 7,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 49,
+      "mask": 1,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 50,
+      "mask": 2,
+      "initial_bonus_type": 7,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 51,
+      "mask": 3,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 52,
+      "mask": 4,
+      "initial_bonus_type": 7,
+      "bonus_type": 2,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 53,
+      "mask": 5,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 54,
+      "mask": 6,
+      "initial_bonus_type": 7,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 55,
+      "mask": 7,
+      "initial_bonus_type": 7,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 56,
+      "mask": 0,
+      "initial_bonus_type": 255,
+      "bonus_type": 255,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 57,
+      "mask": 1,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 58,
+      "mask": 2,
+      "initial_bonus_type": 255,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 59,
+      "mask": 3,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 60,
+      "mask": 4,
+      "initial_bonus_type": 255,
+      "bonus_type": 2,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 61,
+      "mask": 5,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 62,
+      "mask": 6,
+      "initial_bonus_type": 255,
+      "bonus_type": 4,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    },
+    {
+      "case_id": 63,
+      "mask": 7,
+      "initial_bonus_type": 255,
+      "bonus_type": 3,
+      "row_expiry": "2999-01-01T00:00:00",
+      "row_expiry_units300": "10404339840000",
+      "expired_output": "2000-01-01T00:00:00",
+      "expired_output_unchanged": true
+    }
+  ],
+  "method": "Original CID=NULL branch against synthetic VALUES only; assignment/ROWCOUNT ordering retained; no source rows read/exported or persistent writes",
+  "sqlserver_persistent_writes": false,
+  "source_rows_exported": false
+}

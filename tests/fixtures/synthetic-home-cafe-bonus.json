@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "source": "study_heroes.home-cafe-bonus",
+  "home_cafe_bonus": [
+    {
+      "uid": 2147483647,
+      "cid": "9223372036854775807",
+      "bonus_type": 255,
+      "expired_time_units300": "-1391644800000"
+    },
+    {
+      "uid": -2147483648,
+      "cid": "-9223372036854775808",
+      "bonus_type": 0,
+      "expired_time_units300": "76683386879999"
+    }
+  ]
+}

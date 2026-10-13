@@ -31,3 +31,5 @@ pub mod user_login_composition;
 pub mod second_password;
 
 pub mod character_lobby;
+
+pub mod home_cafe_bonus;

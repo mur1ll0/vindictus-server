@@ -18,3 +18,5 @@ pub mod local_login_session;
 pub mod second_password;
 
 pub mod character_lobby;
+
+pub mod home_cafe_bonus;

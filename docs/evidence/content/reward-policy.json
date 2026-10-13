@@ -1,6 +1,6 @@
 {
   "stage": "M13.2d.2b.2b.1",
-  "verified_at_utc": "2026-10-13T12:19:29.1615653+00:00",
+  "verified_at_utc": "2026-10-13T14:05:15.4272121+00:00",
   "profile": {
     "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
     "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
@@ -10,10 +10,10 @@
     "server_code": 1,
     "catalog_rows": 24
   },
-  "private_export_sha256": "95c7fec64dee6286a5f7e09c864253295a0d300079c6bab648f1bd7ce23944d2",
+  "private_export_sha256": "745edf5af0a46d07a3f2288ef274bfb388c780015121ba5942bb7eee7e7c8e37",
   "content_is_private": true,
   "acl": "current Windows user and SYSTEM; inheritance disabled",
-  "feature_subset_rows": 27,
+  "feature_subset_rows": 40,
   "original_files_hashes_unchanged": true,
   "catalog_iteration_order_preserved": true,
   "duplicate_rewards_preserved": true,
@@ -70,7 +70,7 @@
     },
     {
       "path": "scripts/content/export_reward_policy.py",
-      "sha256": "2daeb291e1f51ec736466e8fae05283c33dcc0353e1883a8907625e494a96da0"
+      "sha256": "6326bc93d9829719602d065258b319e3cfce3db7cc5698af8ef1d0fe26227859"
     },
     {
       "path": "scripts/content/Export-RewardPolicy.ps1",
@@ -94,7 +94,7 @@
     },
     {
       "path": "src/domain/feature_policy.rs",
-      "sha256": "c9acfb6675118b38c5539c518c52b39653c7c680b63edb8c89d229b3eda089c9"
+      "sha256": "242281d77940ea0f18bd9497c7f27184decb8da427a5fdf7b6eb2e106cdfc981"
     },
     {
       "path": "src/domain/feature_version_pairs.json",
@@ -118,11 +118,11 @@
     },
     {
       "path": "src/cli.rs",
-      "sha256": "871d1dbf8757d9bb3f2c088d97a80577e12b4882ebeca0415b54603f34d78321"
+      "sha256": "0cd00d6b78ba267cf71c68efdc8f2e26b1a323878f5d9e67af1939ede47ba740"
     },
     {
       "path": "src/main.rs",
-      "sha256": "da2106348cabc3103ed34cab73963cd2abf8a4e0c666c6c15867b938e264e84b"
+      "sha256": "fb64abb090d0e2088fe61ac749335728e65c6bdb6b575cd2c31cbb38942654bf"
     },
     {
       "path": "tests/reward_policy.rs",

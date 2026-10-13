@@ -25,3 +25,5 @@ pub mod second_password;
 pub mod character_lobby;
 
 pub mod lobby_export;
+
+pub mod home_cafe_bonus;

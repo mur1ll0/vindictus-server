@@ -4,6 +4,7 @@
 use super::isaac::LegacyIsaac;
 use super::{Frame, ProtocolError, decode_frame};
 use thiserror::Error;
+use zeroize::Zeroize;
 
 /// Choose the recovered cipher explicitly; the two seed initializations differ.
 #[derive(Clone, Copy)]
@@ -36,7 +37,7 @@ pub enum TransportError {
 }
 
 /// Frame detached from the decoder's bounded pending buffer.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct OwnedFrame {
     /// The first encrypted frame is delivered with instance id zero by the legacy analyzer.
     pub instance_id: i64,
@@ -44,6 +45,20 @@ pub struct OwnedFrame {
     pub category_id: i32,
     /// Serialized message bytes.
     pub body: Vec<u8>,
+}
+
+impl std::fmt::Debug for OwnedFrame {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OwnedFrame")
+            .field("category_id", &self.category_id)
+            .field("body_len", &self.body.len())
+            .finish_non_exhaustive()
+    }
+}
+impl Drop for OwnedFrame {
+    fn drop(&mut self) {
+        self.body.zeroize();
+    }
 }
 
 /// One outgoing direction. Choose a fresh salt for each connection externally.
@@ -119,7 +134,7 @@ impl LegacyReceiver {
         let result = self.consume(bytes);
         if result.is_err() {
             self.closed = true;
-            self.pending.clear();
+            self.pending.zeroize();
         }
         result
     }
@@ -152,9 +167,15 @@ impl LegacyReceiver {
                     category_id: frame.category_id,
                     body: frame.body.to_vec(),
                 });
-                self.pending.clear();
+                self.pending.zeroize();
             }
         }
         Ok(frames)
+    }
+}
+
+impl Drop for LegacyReceiver {
+    fn drop(&mut self) {
+        self.pending.zeroize();
     }
 }

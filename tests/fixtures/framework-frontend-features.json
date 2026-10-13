@@ -1,0 +1,86 @@
+{
+  "profiles": [
+    {
+      "architecture": "x86",
+      "cases": [
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "architecture": "x64",
+      "cases": [
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.02.05",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    },
+    {
+      "path": "scripts/reverse/generate-frontend-feature-fixtures.ps1",
+      "sha256": "7350ac4b3491e300ea4634d05e92f9e7b5df7185cbc3fbb708970c6e104e3fd4"
+    }
+  ],
+  "original_services_executed": false,
+  "sqlserver_access": false
+}
