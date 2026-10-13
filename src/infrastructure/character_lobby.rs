@@ -125,6 +125,25 @@ pub struct QueryConfig {
     pub max_free: i32,
     pub care_clock: Option<SqlDateTime>,
 }
+/// Recovered CharacterDataContext.ProloguePlayed: insert NULL CID or change only the flag.
+/// The revision lock prevents an older connection from writing after another login.
+pub async fn mark_prologue_played(pool: &PgPool, key: UserKey<'_>) -> Result<(), LobbyError> {
+    let name = LegacyNameKey::parse(key.name).map_err(|_| LobbyError::Ownership)?;
+    tokio::time::timeout(Duration::from_secs(10), async {
+        let mut tx = pool.begin().await?;
+        bounds(&mut tx).await?;
+        let owner: Option<(String, i64)> = sqlx::query_as(
+            "SELECT name_key,local_revision FROM game_users WHERE id=$1 FOR SHARE",
+        ).bind(key.uid).fetch_optional(&mut *tx).await?;
+        if !owner.is_some_and(|(n, r)| n == name.as_str() && r == key.revision) {
+            return Err(LobbyError::Ownership);
+        }
+        sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,NULL,true) ON CONFLICT(nexon_sn) DO UPDATE SET prologue_played=true WHERE NOT game_user_info.prologue_played")
+            .bind(key.uid).execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(())
+    }).await.map_err(|_| LobbyError::Timeout)?
+}
 pub async fn query_empty(
     pool: &PgPool,
     key: UserKey<'_>,

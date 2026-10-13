@@ -26,6 +26,24 @@ pub enum LobbyQueryError {
     #[error("character-lobby policy lacks recovered required declarations")]
     Profile,
 }
+/// No caller-provided UID and no invented wire acknowledgement.
+pub async fn mark_prologue_played_admitted(
+    frontend: &FrontendSession,
+    pool: &PgPool,
+    revision: i64,
+) -> Result<(), LobbyQueryError> {
+    let id = frontend.accepted_identity()?;
+    storage::mark_prologue_played(
+        pool,
+        UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision,
+        },
+    )
+    .await?;
+    Ok(())
+}
 pub async fn query_empty_admitted(
     frontend: &FrontendSession,
     pool: &PgPool,

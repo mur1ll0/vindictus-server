@@ -1,0 +1,14 @@
+{
+  "verified_at_utc": "2026-10-13T19:57:20.5002809+00:00",
+  "metadata": {
+    "synthetic_prologue_rows": 1,
+    "synthetic_characters": 0,
+    "unmarked_additional_user_info": 0
+  },
+  "native_success_log_count": 1,
+  "native_failure_log_count": 0,
+  "operator_observed_repeated_tutorial": true,
+  "operator_observed_creation_timeout_disconnect": true,
+  "character_creation_available": false,
+  "game_entry_verified": false
+}

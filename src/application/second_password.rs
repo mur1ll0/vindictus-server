@@ -238,7 +238,7 @@ impl PasswordSession {
             )?,
         })
     }
-    /// NULL is a caught source exception, never the empty-string clear request.
+    /// NULL follows the recovered hash-mode comparison/catch; it is distinct from an empty string.
     pub async fn check_nullable(
         &mut self,
         frontend: &FrontendSession,

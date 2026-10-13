@@ -19,6 +19,13 @@ async fn lobby(
     client: &mut tokio::net::TcpStream,
     rx: &mut vindictus_server::protocol::transport::LegacyReceiver,
 ) -> pwd::HasPassword {
+    lobby_with_prologue(client, rx, 0).await
+}
+async fn lobby_with_prologue(
+    client: &mut tokio::net::TcpStream,
+    rx: &mut vindictus_server::protocol::transport::LegacyReceiver,
+    expected: u8,
+) -> pwd::HasPassword {
     let (mut has, mut got_list) = (None, false);
     while has.is_none() || !got_list {
         let f = read(client, rx).await;
@@ -35,7 +42,7 @@ async fn lobby(
                 let q = list::decode(&f.body, DEFAULT_MAX_BODY).unwrap().unwrap();
                 assert_eq!(q.max_free, 20);
                 assert_eq!(q.max_purchased, 0);
-                assert_eq!(q.prologue_played, 0);
+                assert_eq!(q.prologue_played, expected);
                 got_list = true;
             }
             231 => {
@@ -305,5 +312,87 @@ async fn actual_tcp_nonempty_character_dependency_sends_source_reason9_null_and_
     assert!(now.elapsed() >= Duration::from_secs(5));
     assert!(task.await.unwrap().is_ok());
     assert_eq!(r.active_count().unwrap(), 0);
+    cleanup_game_pool(admin, pool, schema).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn actual_tcp_prologue_accepts_source_state_without_ack_and_reconnect_reads_persistence() {
+    use vindictus_server::protocol::character_setup::{self as setup, Kind, Message};
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let r = runtime();
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    let body = setup::encode(Kind::Play, Some(&Message::Play(i32::MIN)), DEFAULT_MAX_BODY).unwrap();
+    // Valid pre-admission play messages and nullable DTOs cannot create UserInfo.
+    send(&mut client, &mut tx, Kind::Play.category(), &body).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    lobby(&mut client, &mut rx).await;
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM game_user_info")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
+    let body = setup::encode(Kind::Play, None, DEFAULT_MAX_BODY).unwrap();
+    send(&mut client, &mut tx, Kind::Play.category(), &body).await;
+    // Password response acts as the barrier, not an invented play acknowledgement.
+    password(&mut client, &mut tx, &mut rx, PMessage::Set(Some("123456"))).await;
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM game_user_info")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
+    for value in [i32::MIN, 0, i32::MAX] {
+        let body =
+            setup::encode(Kind::Play, Some(&Message::Play(value)), DEFAULT_MAX_BODY).unwrap();
+        send(&mut client, &mut tx, Kind::Play.category(), &body).await;
+    }
+    password(
+        &mut client,
+        &mut tx,
+        &mut rx,
+        PMessage::Check(Some("123456")),
+    )
+    .await;
+    assert_eq!(
+        sqlx::query_as::<_, (Option<i64>, bool)>(
+            "SELECT last_login_cid,prologue_played FROM game_user_info"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        (None, true)
+    );
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    let has = lobby_with_prologue(&mut client, &mut rx, 1).await;
+    assert!(has.has_password && !has.passed);
+    // The source play branch does not require successful second-password validation.
+    let body = setup::encode(Kind::Play, Some(&Message::Play(-1)), DEFAULT_MAX_BODY).unwrap();
+    let mut unregistered = Kind::Play.type_id().as_bytes().to_vec();
+    unregistered.extend_from_slice(&body);
+    send(&mut client, &mut tx, 0, &unregistered).await;
+    password(
+        &mut client,
+        &mut tx,
+        &mut rx,
+        PMessage::Check(Some("123456")),
+    )
+    .await;
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    assert_eq!(r.active_count().unwrap(), 0);
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM game_character_info")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
     cleanup_game_pool(admin, pool, schema).await;
 }

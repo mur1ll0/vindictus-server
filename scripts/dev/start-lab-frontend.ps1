@@ -22,10 +22,15 @@ $database=if($settings.ContainsKey('POSTGRES_DB')){$settings.POSTGRES_DB}else{'v
 $port=if($settings.ContainsKey('POSTGRES_HOST_PORT')){[int]$settings.POSTGRES_HOST_PORT}else{5433}
 if($port-lt1-or$port-gt65535){throw 'Local PostgreSQL port is invalid'}
 $url='postgres://'+[Uri]::EscapeDataString($user)+':'+[Uri]::EscapeDataString($settings.APP_DATABASE_PASSWORD)+'@127.0.0.1:'+ $port+'/'+[Uri]::EscapeDataString($database)
-$exe=Join-Path $project 'target/debug/vindictus-server.exe'
+$sourceExe=Join-Path $project 'target/debug/vindictus-server.exe'
 $policy=Join-Path $project '.cache/private-content/reward-policy.json'
-if(-not(Test-Path -LiteralPath $exe)){throw 'Build the verified native binary first'}
+if(-not(Test-Path -LiteralPath $sourceExe)){throw 'Build the verified native binary first'}
 $tag=[Guid]::NewGuid().ToString('N')
+# Run a private copy so Windows does not lock the Cargo build output.
+$exe=Join-Path $private ('runtime-'+$tag+'.exe')
+[IO.File]::Copy($sourceExe,$exe,$false)
+$binaryHash=(Get-FileHash -LiteralPath $sourceExe -Algorithm SHA256).Hash.ToLowerInvariant()
+if((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()-cne$binaryHash){throw 'Runtime binary copy hash mismatch'}
 $out=Join-Path $project ('.cache/verification/lab-frontend-'+$tag+'.stdout.log')
 $err=Join-Path $project ('.cache/verification/lab-frontend-'+$tag+'.stderr.log')
 # Keep the prepared profile readable by verification tools: Windows holds redirected stdin
@@ -58,5 +63,5 @@ while([DateTime]::UtcNow-lt$deadline-and-not$process.HasExited){
  if($ready){break};Start-Sleep -Milliseconds 250
 }
 if(-not$ready){if(-not$process.HasExited){$process.Kill();$process.WaitForExit()};throw 'Laboratory frontend did not start; complete logs retained locally'}
-[ordered]@{process_id=$process.Id;executable=$exe;stdout_log=$out;stderr_log=$err;profile_path=$profile;stdin_copy_path=$stdinCopy;started_at_utc=[DateTimeOffset]::UtcNow.ToString('o');loopback=$true;client_acceptance_verified=$false;character_creation_available=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $private 'runtime-process.json') -Encoding utf8NoBOM
+[ordered]@{process_id=$process.Id;executable=$exe;binary_sha256=$binaryHash;stdout_log=$out;stderr_log=$err;profile_path=$profile;stdin_copy_path=$stdinCopy;started_at_utc=[DateTimeOffset]::UtcNow.ToString('o');loopback=$true;client_acceptance_verified=$false;character_creation_available=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $private 'runtime-process.json') -Encoding utf8NoBOM
 [ordered]@{process_id=$process.Id;loopback=$true;profile_redirected_from_private_file=$true;logs_retained_locally=$true;client_acceptance_verified=$false;character_creation_available=$false}|ConvertTo-Json -Compress

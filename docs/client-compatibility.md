@@ -1,5 +1,7 @@
 # Cliente, endereço e contas: evidências e limites
 
+Estado atual em 2026-10-13: o operador confirmou login de lab169_a, configuração da segunda senha, tutorial local com Fiona/Tieve e abertura da tela de criação no cliente candidato. Check permanece sem resposta e Create termina em Response from server Delayed. Após o novo handler, o evento do prólogo foi persistido no PostgreSQL, mas o tutorial continua em cada tentativa de criação. O operador relata desconexão após OK no timeout; zero personagens foram criados. Veja [observação do prólogo](evidence/auth/character-prologue-client.json). Isso não comprova personagem persistido, seleção ou cidade. Veja [evidência sanitizada](evidence/auth/lab-frontend-client.json) e [frontend TCP restrito](lab-frontend-tcp.md). As seções estáticas abaixo descrevem a investigação inicial; o comando probe-frontend continua sendo apenas diagnóstico.
+
 Verificação estática e preparação de cópia em 2026-10-10. Nenhum executável legado foi iniciado e nenhum arquivo original de cliente/servidor foi alterado nesta investigação.
 
 ## Qual cliente usar

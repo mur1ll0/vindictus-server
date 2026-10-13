@@ -398,3 +398,143 @@ async fn lobby_application_requires_admitted_owner_complete_policy_and_ready_sch
     assert!(storage::check_ready(&pool).await.is_err());
     cleanup_game_pool(admin, pool, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn prologue_persistence_matches_original_oracle_and_rolls_back_submit_failure() {
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../fixtures/framework-prologue-played.json")).unwrap();
+    for profile in fixture["profiles"].as_array().unwrap() {
+        for case in profile["cases"].as_array().unwrap() {
+            sqlx::query("DELETE FROM game_user_info")
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM game_users")
+                .execute(&pool)
+                .await
+                .unwrap();
+            let uid = i32::try_from(case["uid"].as_i64().unwrap()).unwrap();
+            provision_game_user(&pool, uid, "PrologueLab", 1, 0)
+                .await
+                .unwrap();
+            for row in case["before"].as_array().unwrap() {
+                let cid = row["last_cid"].as_str().map(|v| v.parse::<i64>().unwrap());
+                sqlx::query("INSERT INTO game_user_info VALUES($1,$2,$3)")
+                    .bind(row["uid"].as_i64().unwrap() as i32)
+                    .bind(cid)
+                    .bind(row["played"].as_bool().unwrap())
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+            }
+            let fail = !case["error"].is_null();
+            if fail {
+                sqlx::raw_sql("CREATE FUNCTION synthetic_prologue_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic submit failure'; END $$;CREATE TRIGGER synthetic_prologue_failure BEFORE INSERT OR UPDATE ON game_user_info FOR EACH ROW EXECUTE FUNCTION synthetic_prologue_failure()")
+                    .execute(&pool).await.unwrap();
+            }
+            for _ in 0..if fail { 1 } else { 2 } {
+                let result = mark_prologue_played(
+                    &pool,
+                    UserKey {
+                        uid,
+                        name: "PROLOGUELAB ",
+                        revision: 0,
+                    },
+                )
+                .await;
+                assert_eq!(result.is_err(), fail);
+            }
+            let rows:Vec<(i32,Option<i64>,bool)>=sqlx::query_as("SELECT nexon_sn,last_login_cid,prologue_played FROM game_user_info ORDER BY nexon_sn").fetch_all(&pool).await.unwrap();
+            let actual:Vec<serde_json::Value>=rows.into_iter().map(|(uid,cid,played)|serde_json::json!({"uid":uid,"last_cid":cid.map(|n|n.to_string()),"played":played})).collect();
+            assert_eq!(serde_json::json!(actual), case["after"]);
+            if fail {
+                sqlx::raw_sql("DROP TRIGGER synthetic_prologue_failure ON game_user_info;DROP FUNCTION synthetic_prologue_failure()").execute(&pool).await.unwrap();
+            }
+        }
+    }
+    cleanup_game_pool(admin, pool, schema).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn prologue_requires_admitted_owner_current_revision_and_cancelled_lock_writes_nothing() {
+    use vindictus_server::application::{
+        character_lobby::{LobbyQueryError, mark_prologue_played_admitted},
+        frontend_session::FrontendSession,
+        session_registry::SessionRegistry,
+    };
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let registry = SessionRegistry::with_capacity(4).unwrap();
+    let mut frontend = FrontendSession::new(&registry);
+    assert!(matches!(
+        mark_prologue_played_admitted(&frontend, &pool, 0).await,
+        Err(LobbyQueryError::Session(_))
+    ));
+    provision_game_user(&pool, 71, "PrologueOwner", 1, 0)
+        .await
+        .unwrap();
+    for (uid, name, revision) in [
+        (71, "WrongOwner", 0),
+        (71, "PrologueOwner", 1),
+        (72, "PrologueOwner", 0),
+    ] {
+        assert!(matches!(
+            mark_prologue_played(
+                &pool,
+                UserKey {
+                    uid,
+                    name,
+                    revision
+                }
+            )
+            .await,
+            Err(LobbyError::Ownership)
+        ));
+    }
+    let mut blocker = pool.begin().await.unwrap();
+    sqlx::query("SELECT id FROM game_users WHERE id=71 FOR UPDATE")
+        .execute(&mut *blocker)
+        .await
+        .unwrap();
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(75),
+            mark_prologue_played(
+                &pool,
+                UserKey {
+                    uid: 71,
+                    name: "PrologueOwner",
+                    revision: 0
+                }
+            )
+        )
+        .await
+        .is_err()
+    );
+    blocker.rollback().await.unwrap();
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM game_user_info")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
+    mark_prologue_played(
+        &pool,
+        UserKey {
+            uid: 71,
+            name: "PrologueOwner",
+            revision: 0,
+        },
+    )
+    .await
+    .unwrap();
+    frontend.close();
+    assert!(
+        mark_prologue_played_admitted(&frontend, &pool, 0)
+            .await
+            .is_err()
+    );
+    cleanup_game_pool(admin, pool, schema).await;
+}

@@ -1,5 +1,5 @@
 {
-  "verified_at_utc": "2026-10-13T19:07:36.5815313+00:00",
+  "verified_at_utc": "2026-10-13T19:51:45.7383453+00:00",
   "native_ready": true,
   "loopback_only": true,
   "protected_profile_stdin": true,
@@ -8,5 +8,7 @@
   "client_acceptance_verified": false,
   "creation_available": false,
   "prepared_profile_readable_during_runtime": true,
-  "protected_stdin_copy_verified": true
+  "protected_stdin_copy_verified": true,
+  "protected_binary_copy_verified": true,
+  "native_binary_sha256": "53186e1ff0d2368f889b18c5f82a4bfd6cb45f528b21d2dad08ab52045c76a67"
 }

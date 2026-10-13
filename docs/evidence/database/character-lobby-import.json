@@ -88,7 +88,7 @@
   },
   "post_restart_verified": true,
   "game_authentication_available": false,
-  "post_restart_verified_at_utc": "2026-10-13T19:07:18.9951698+00:00",
+  "post_restart_verified_at_utc": "2026-10-13T20:03:30.7059983+00:00",
   "post_restart_summary": {
     "source_rows": [
       25,
@@ -119,9 +119,12 @@
   },
   "target_post_restart_state": {
     "migration11": true,
-    "user_info": 25,
+    "user_info": 26,
     "user_products": 0,
     "user_care": 3,
+    "synthetic_user_info": 1,
+    "unmarked_additional_user_info": 0,
+    "invalid_synthetic_prologue": 0,
     "sequence_last_value": 1,
     "sequence_called": false
   }

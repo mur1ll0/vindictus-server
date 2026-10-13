@@ -1,0 +1,17 @@
+# Preparação de personagem e prólogo
+
+M13.3d.2c.1 liga `_UpdatePlayState` ao `ProloguePlayed` recuperado. O frontend usa a identidade admitida, não um UID recebido na mensagem. O campo State é ignorado pelo handler original; não representa posição nem conclusão de batalha. A operação insere UserInfo com LastLoginCID NULL ou altera apenas ProloguePlayed, conservando CID existente. Repetições são idempotentes; revisão antiga, dono incorreto e sessão não admitida não escrevem. O legado não envia resposta para esse evento.
+
+Os cinco codecs CheckCharacterNameMessage, CheckCharacterNameResultMessage, QueryReservedInfoMessage, ReservedInfoMessage e _UpdatePlayState foram recuperados dos DTOs/serializers e do registro de categorias originais. Fixtures sintéticas abrangem envelopes registrados e category0/GUID, NULL, limites e cifra contínua, sem publicar nomes privados. Codecs não implementam validação de nome ou reservas.
+
+O oracle próprio de ProloguePlayed extrai somente o método original para um harness local com contexto sintético. Ele mede inserção/atualização, preservação de LastLoginCID, repetição e falha de SubmitChanges em x86/x64. Testes PostgreSQL comparam o resultado persistido e verificam rollback, propriedade/revisão e cancelamento sob lock. O teste TCP usa a resposta de segunda senha como barreira, confirma ausência de ack inventado e lê o indicador na lista após reconexão.
+
+Reprodução: `scripts/reverse/generate-character-setup-wire-fixtures.ps1`, `scripts/reverse/generate-prologue-played-fixtures.ps1`, `scripts/reverse/generate-fixtures.ps1` e `scripts/dev/verify.ps1 -DatabaseIntegration -DatabaseIntegrationDocker`. Logs completos ficam em .cache/verification. Nenhum serviço original é executado pelo oracle; SQL Server e originais permanecem somente leitura.
+
+O evento do tutorial anterior foi ignorado pelo runtime então vigente. Após iniciar o handler atualizado, um novo evento do cliente persistiu ProloguePlayed=true: uma linha sintética com LastLoginCID NULL, zero personagens criados, um sucesso e nenhuma falha no log sanitizado. O operador ainda observa o tutorial em cada tentativa de criação; Create termina em Server response delayed e o cliente desconecta após OK. O indicador persistido não comprova criação nem elimina esse comportamento do tutorial. Evidência: [observação real](evidence/auth/character-prologue-client.json).
+
+Gate final:215Rust/71PostgreSQL executados/19Python, zero falhas/avisos. Fixtures:252casos wire e72casos ProloguePlayed por arquitetura, x86/x64 sem divergências. [Resumo e hashes](evidence/auth/character-setup.json).
+
+Próximo2c.2: preservar ReservedName/ReservedTitle/CharacterNameLog e recuperar NamingRule, ForbiddenName filtrado por LanguageTag e comparações SQL CI_AS antes de atender Check/QueryReservedInfo. CheckReservedName também consome a reserva; não tratá-lo como SELECT puro nem chamar o método contra o SQL Server original. Trinta e cinco dos49nomes de CharacterInfo existentes são fora do ASCII imprimível, portanto a duplicidade não pode ignorar esses registros.
+
+Depois: criação com CID/SN originais, defaults/aparência/itens/skills e CharacterSummary; seleção/PlayerLoader; canal MMO com posição/movimento. O tutorial local visível no cliente não comprova batalha portada. Migração completa M01–M24 continua sendo o objetivo final.

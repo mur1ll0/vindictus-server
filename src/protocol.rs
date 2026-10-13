@@ -171,3 +171,5 @@ mod wire;
 pub mod empty_character_list;
 
 pub mod frontend_control;
+
+pub mod character_setup;

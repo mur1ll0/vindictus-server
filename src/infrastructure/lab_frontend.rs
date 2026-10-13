@@ -1,7 +1,7 @@
 //! Restricted loopback candidate frontend. Login/lobby only; character services remain pending.
 use crate::{
     application::{
-        character_lobby::prepare_empty_character_list,
+        character_lobby::{mark_prologue_played_admitted, prepare_empty_character_list},
         frontend_session::{FrontendSession, LabAdmission, SessionError, SessionPhase},
         home_cafe_bonus::query_admitted,
         local_login_session::{LocalLoginConfig, evaluate_scoped_lab_user},
@@ -23,6 +23,7 @@ use crate::{
     protocol::{
         DEFAULT_MAX_BODY, Frame,
         bootstrap::encode_initial_packets,
+        character_setup::{self as setup, Kind as SetupKind, Message as SetupMessage},
         empty_character_list,
         features::{FeatureEntry, FeatureMatrix},
         frontend_control::{
@@ -565,6 +566,32 @@ impl Connection {
                     .password(runtime, pool, stream, sender, kind, (category, body))
                     .await;
             }
+        }
+        let kind = SetupKind::Play;
+        if matches(category, body, kind.category(), kind.type_id()) {
+            let message = setup::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                .map_err(|_| RuntimeError::Message)?;
+            // CharacterList ignores the numeric State and has no password guard/response here.
+            if matches!(message, Some(SetupMessage::Play(_)))
+                && self.frontend.phase() == SessionPhase::PoliciesAccepted
+            {
+                let revision = self
+                    .password
+                    .as_ref()
+                    .map(PasswordSession::revision)
+                    .or(self.revision)
+                    .ok_or(RuntimeError::Operation)?;
+                if mark_prologue_played_admitted(&self.frontend, pool, revision)
+                    .await
+                    .is_err()
+                {
+                    // Source sends an asynchronous operation without an OnFail callback.
+                    tracing::warn!("laboratory prologue persistence unavailable; values omitted");
+                } else {
+                    tracing::info!("laboratory prologue flag persisted; no character created");
+                }
+            }
+            return Ok(());
         }
         for kind in [ControlKind::Ng, ControlKind::Pong] {
             if matches(category, body, kind.category(), kind.type_id()) {
