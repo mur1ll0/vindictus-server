@@ -352,6 +352,7 @@ async fn account_effects_concurrent_revision_and_replay_and_cancelled_acquisitio
         });
     }
     let (mut success, mut refused) = (0, 0);
+    let mut bounded_revision_refusals = 0;
     while let Some(result) = tasks.join_next().await {
         match result.unwrap() {
             Ok(value) => {
@@ -359,10 +360,28 @@ async fn account_effects_concurrent_revision_and_replay_and_cancelled_acquisitio
                 success += 1;
             }
             Err(Error::GameUserRevisionConflict) => refused += 1,
+            Err(Error::Database(sqlx::Error::Database(error)))
+                if error.code().as_deref() == Some("55P03") =>
+            {
+                // A bounded lock refusal cannot turn a stale writer into a winner.
+                bounded_revision_refusals += 1;
+                refused += 1;
+            }
             Err(error) => panic!("unexpected sanitized error: {error}"),
         }
     }
     assert_eq!((success, refused), (1, 15));
+    for _ in 0..bounded_revision_refusals {
+        let effect_plan = plan(true, false, false, None, None, false);
+        assert!(matches!(
+            apply_existing_account_effects(
+                &pool,
+                &request(Uuid::new_v4(), 9, "ConcurrentEffects", 0, &effect_plan)
+            )
+            .await,
+            Err(Error::GameUserRevisionConflict)
+        ));
+    }
     let same_operation = Uuid::new_v4();
     for _ in 0..16 {
         let pool = pool.clone();
@@ -375,17 +394,45 @@ async fn account_effects_concurrent_revision_and_replay_and_cancelled_acquisitio
             .await
         });
     }
-    let (mut applied, mut replays) = (0, 0);
+    let (mut applied, mut replays, mut bounded_replay_refusals) = (0, 0, 0);
     while let Some(result) = tasks.join_next().await {
-        let result = result.unwrap().unwrap();
-        assert_eq!(result.revision, 1);
-        if result.replayed {
-            replays += 1
-        } else {
-            applied += 1
+        match result.unwrap() {
+            Ok(result) => {
+                assert_eq!(result.revision, 1);
+                if result.replayed {
+                    replays += 1
+                } else {
+                    applied += 1
+                }
+            }
+            Err(Error::Database(sqlx::Error::Database(error)))
+                if error.code().as_deref() == Some("55P03") =>
+            {
+                bounded_replay_refusals += 1;
+            }
+            Err(error) => panic!("unexpected replay failure: {error}"),
         }
     }
-    assert_eq!((applied, replays), (1, 15));
+    assert_eq!(applied, 1);
+    assert_eq!(replays + bounded_replay_refusals, 15);
+    for _ in 0..bounded_replay_refusals {
+        let effect_plan = plan(false, false, false, None, None, false);
+        let retry = apply_existing_account_effects(
+            &pool,
+            &request(same_operation, 9, "ConcurrentEffects", 1, &effect_plan),
+        )
+        .await
+        .unwrap();
+        assert!(retry.replayed);
+        assert_eq!(retry.revision, 1);
+    }
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM game_login_account_effect_runs")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        2
+    );
     let scoped_search_path = format!("SET search_path TO {schema}");
     let single = PgPoolOptions::new()
         .max_connections(1)
@@ -453,7 +500,7 @@ async fn account_effect_schema_upgrade_readiness_and_replay_preserve_existing_us
             .fetch_one(&pool)
             .await
             .unwrap();
-    sqlx::raw_sql("DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10;DROP TABLE game_dormant_item_runs,game_queue_identity;DELETE FROM _sqlx_migrations WHERE version=9;DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7;DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6")
+    sqlx::raw_sql("DROP TABLE game_user_care_info,game_user_products,game_user_info;DELETE FROM _sqlx_migrations WHERE version=11;DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10;DROP TABLE game_dormant_item_runs,game_queue_identity;DELETE FROM _sqlx_migrations WHERE version=9;DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7;DROP TABLE game_login_account_effect_runs,game_friend_loyalty,game_user_achievements;DELETE FROM _sqlx_migrations WHERE version=6")
         .execute(&pool).await.unwrap();
     assert!(postgres::check_ready(&pool).await.is_err());
     let previous = sqlx::migrate::Migrator {

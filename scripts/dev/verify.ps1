@@ -1,9 +1,12 @@
 [CmdletBinding()]
-param([switch]$DatabaseIntegration)
+param([switch]$DatabaseIntegration, [switch]$DatabaseIntegrationDocker)
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $taskProject = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-if ($DatabaseIntegration -and [string]::IsNullOrWhiteSpace($env:TEST_DATABASE_URL)) {
+if ($DatabaseIntegrationDocker -and -not $DatabaseIntegration) {
+    throw 'DatabaseIntegrationDocker requires DatabaseIntegration.'
+}
+if ($DatabaseIntegration -and -not $DatabaseIntegrationDocker -and [string]::IsNullOrWhiteSpace($env:TEST_DATABASE_URL)) {
     throw 'DatabaseIntegration requires TEST_DATABASE_URL pointing to PostgreSQL with CREATE SCHEMA permission. Its value will not be printed.'
 }
 $taskEvidence = Join-Path $taskProject '.cache\verification'
@@ -55,7 +58,13 @@ try {
     Invoke-VerificationCheck -Name 'doc-tests' -Executable cargo -Arguments @('test','--doc','--locked')
     Invoke-VerificationCheck -Name 'build' -Executable cargo -Arguments @('build','--locked')
     if ($DatabaseIntegration) {
-        Invoke-VerificationCheck -Name 'postgres-integration' -Executable cargo -Arguments @('test','--test','postgres','--locked','--','--ignored','--test-threads=1')
+        if ($DatabaseIntegrationDocker) {
+            $taskCompose = @('compose','-f','compose.yaml','-f','scripts/dev/compose.tests.yaml')
+            Invoke-VerificationCheck -Name 'postgres-test-build' -Executable docker -Arguments ($taskCompose + @('build','--quiet','postgres-tests'))
+            Invoke-VerificationCheck -Name 'postgres-integration' -Executable docker -Arguments ($taskCompose + @('run','--rm','--no-deps','-T','postgres-tests'))
+        } else {
+        Invoke-VerificationCheck -Name 'postgres-integration' -Executable cargo -Arguments @('test','--test','postgres','--locked','--','--ignored','--test-threads=1','--nocapture')
+        }
     } else {
         Write-Host 'PostgreSQL integration NOT RUN. Use -DatabaseIntegration with TEST_DATABASE_URL.'
     }
@@ -64,6 +73,7 @@ try {
     $taskResult = [ordered]@{
         verified_at_utc = [DateTimeOffset]::UtcNow.ToString('o');
         database_integration_executed = [bool]$DatabaseIntegration;
+        database_integration_runtime = $(if ($DatabaseIntegrationDocker) { 'linux-docker-backend' } elseif ($DatabaseIntegration) { 'native' } else { 'not-run' });
         checks = @($taskChecks.ToArray()); game_compatibility_verified = $false
     }
     $taskResult | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $taskProject 'docs/evidence/verification/gate.json') -Encoding utf8

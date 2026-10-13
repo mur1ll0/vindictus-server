@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error(transparent)]
+    CharacterLobby(#[from] crate::infrastructure::character_lobby::LobbyError),
     #[error("invalid or oversized private item catalog projection; values omitted")]
     ItemCatalogExport,
     #[error(transparent)]

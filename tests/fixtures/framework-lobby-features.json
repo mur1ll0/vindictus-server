@@ -1,0 +1,206 @@
+{
+  "profiles": [
+    {
+      "architecture": "x86",
+      "cases": [
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "architecture": "x64",
+      "cases": [
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.00.14",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.01.04",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "2.02.09",
+          "enabled": true
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    },
+    {
+      "path": "scripts/reverse/generate-lobby-feature-fixtures.ps1",
+      "sha256": "e33d24ae39f48f67abc34e4dcb57474ea03e17e9f37019debcd1d3bcdf9b5759"
+    }
+  ],
+  "original_services_executed": false,
+  "sqlserver_access": false
+}

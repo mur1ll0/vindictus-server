@@ -1,0 +1,33 @@
+{
+  "format_version": 1,
+  "source": "study_heroes.character-lobby",
+  "user_info": [
+    {
+      "nexon_sn": -2147483648,
+      "last_login_cid": "-9223372036854775808",
+      "prologue_played": true
+    },
+    {
+      "nexon_sn": 2147483647,
+      "last_login_cid": null,
+      "prologue_played": false
+    }
+  ],
+  "user_products": [
+    {
+      "id": "9223372036854775807",
+      "nexon_sn": -2147483648,
+      "product_name_utf16_hex": "43006800610072006100630074006500720053006C006F007400",
+      "argument_utf16_hex": "00D80000",
+      "expire_time_ticks": "3155378975999999999"
+    }
+  ],
+  "user_care_info": [
+    {
+      "uid": 2147483647,
+      "type": 255,
+      "state": -32768,
+      "last_update_units300": "-1391644800000"
+    }
+  ]
+}

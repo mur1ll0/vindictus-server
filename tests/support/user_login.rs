@@ -279,10 +279,40 @@ async fn new_user_barrier_rolls_back_unknown_achievement_and_concurrent_creation
         }));
     }
     let mut created = 0;
+    let mut bounded_refusals = 0;
     for t in tasks {
-        created += usize::from(t.await.unwrap().unwrap().created);
+        match t.await.unwrap() {
+            Ok(result) => created += usize::from(result.created),
+            // Eight callers can exceed the production two-second lock budget.
+            // Only that bounded refusal is allowed; all other failures fail this test.
+            Err(Error::Database(sqlx::Error::Database(error)))
+                if error.code().as_deref() == Some("55P03") =>
+            {
+                bounded_refusals += 1;
+            }
+            Err(error) => panic!("unexpected concurrent preparation failure: {error}"),
+        }
     }
     assert_eq!(created, 1);
+    for _ in 0..bounded_refusals {
+        assert!(!prepare_user(&pool, &u, true, now()).await.unwrap().created);
+    }
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM game_users")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM game_friend_loyalty WHERE recommender_uid=44 AND recommend_flag=1"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap(),
+        1
+    );
     assert!(matches!(
         prepare_user(
             &pool,

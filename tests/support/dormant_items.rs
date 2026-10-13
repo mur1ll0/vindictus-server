@@ -116,14 +116,33 @@ async fn queue_bootstrap_is_explicit_one_time_concurrent_and_never_uses_max_id()
     for _ in 0..16 {
         let pool = pool.clone();
         tasks.push(tokio::spawn(async move {
-            initialize_identity(&pool, Some(200)).await.unwrap()
+            initialize_identity(&pool, Some(200)).await
         }));
     }
     let mut initialized = 0;
+    let mut bounded_refusals = 0;
     for task in tasks {
-        initialized += usize::from(task.await.unwrap());
+        match task.await.unwrap() {
+            Ok(result) => initialized += usize::from(result),
+            Err(Error::Database(sqlx::Error::Database(error)))
+                if error.code().as_deref() == Some("55P03") =>
+            {
+                bounded_refusals += 1;
+            }
+            Err(error) => panic!("unexpected identity initialization failure: {error}"),
+        }
     }
     assert_eq!(initialized, 1);
+    for _ in 0..bounded_refusals {
+        assert!(!initialize_identity(&pool, Some(200)).await.unwrap());
+    }
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM game_queue_identity")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        1
+    );
     assert_eq!(
         enqueue_once(&pool, Uuid::new_v4(), &req)
             .await

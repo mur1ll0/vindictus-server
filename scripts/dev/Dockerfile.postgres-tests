@@ -1,0 +1,26 @@
+# syntax=docker/dockerfile:1
+FROM rust:1.98-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e AS tests-builder
+WORKDIR /build
+COPY Cargo.toml Cargo.lock build.rs ./
+COPY src ./src
+COPY migrations ./migrations
+COPY tests ./tests
+COPY docs/evidence/database/collation-oracle.json ./docs/evidence/database/collation-oracle.json
+COPY docs/evidence/database/ban-policy-oracle.json ./docs/evidence/database/ban-policy-oracle.json
+COPY docs/evidence/database/limited-account-oracle.json ./docs/evidence/database/limited-account-oracle.json
+COPY docs/evidence/database/login-account-oracle.json ./docs/evidence/database/login-account-oracle.json
+COPY docs/evidence/database/character-login-oracle.json ./docs/evidence/database/character-login-oracle.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
+    --mount=type=cache,target=/build/target,id=vindictus-postgres-tests,sharing=locked \
+    cargo test --test postgres --locked --no-run --message-format=json-render-diagnostics > /tmp/artifacts.json \
+    && sed -n '/"name":"postgres"/s/.*"executable":"\([^" ]*\)".*/\1/p' /tmp/artifacts.json > /tmp/test-path \
+    && test "$(wc -l < /tmp/test-path)" -eq 1 \
+    && mkdir /out && cp "$(cat /tmp/test-path)" /out/postgres-tests
+
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS postgres-tests
+WORKDIR /app
+COPY --link --from=tests-builder /out/postgres-tests /app/postgres-tests
+USER 10001:10001
+ENTRYPOINT ["/app/postgres-tests"]
+CMD ["--ignored", "--test-threads=1", "--nocapture"]

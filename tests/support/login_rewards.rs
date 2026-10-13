@@ -697,7 +697,7 @@ async fn postgres_login_rewards_upgrade_nine_to_ten_preserves_queue_and_user() {
             .await
             .unwrap();
     sqlx::raw_sql(
-        "DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10",
+        "DROP TABLE game_user_care_info,game_user_products,game_user_info;DELETE FROM _sqlx_migrations WHERE version=11;DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10",
     )
     .execute(&pool)
     .await

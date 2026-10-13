@@ -1,0 +1,16 @@
+# Same application role and backend network; tests create isolated random schemas.
+services:
+  postgres-tests:
+    image: vindictus-server-postgres-tests:local
+    build:
+      context: .
+      dockerfile: scripts/dev/Dockerfile.postgres-tests
+    profiles: [verification]
+    environment:
+      TEST_DATABASE_URL: postgres://${APP_DATABASE_USER:-vindictus_app}:${APP_DATABASE_PASSWORD:?Generate a local .env first}@postgres:5432/${POSTGRES_DB:-vindictus}
+    networks: [backend]
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

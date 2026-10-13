@@ -29,3 +29,5 @@ pub mod queued_item;
 pub mod user_login_composition;
 
 pub mod second_password;
+
+pub mod character_lobby;

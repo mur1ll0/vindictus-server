@@ -1,0 +1,63 @@
+{
+  "cases": [
+    {
+      "case_id": 0,
+      "product_name_utf16_hex": "43006800610072006100630074006500720053006C006F007400",
+      "character_slot": true,
+      "premium_slot": false
+    },
+    {
+      "case_id": 1,
+      "product_name_utf16_hex": "43004800410052004100430054004500520053004C004F005400",
+      "character_slot": true,
+      "premium_slot": false
+    },
+    {
+      "case_id": 2,
+      "product_name_utf16_hex": "63006800610072006100630074006500720073006C006F007400200020002000",
+      "character_slot": true,
+      "premium_slot": false
+    },
+    {
+      "case_id": 3,
+      "product_name_utf16_hex": "20005000720065006D00690075006D0043006800610072006100630074006500720053006C006F007400",
+      "character_slot": false,
+      "premium_slot": false
+    },
+    {
+      "case_id": 4,
+      "product_name_utf16_hex": "5000720065006D00690075006D0043006800610072006100630074006500720053006C006F007400",
+      "character_slot": false,
+      "premium_slot": true
+    },
+    {
+      "case_id": 5,
+      "product_name_utf16_hex": "5000520045004D00490055004D0043004800410052004100430054004500520053004C004F0054002000",
+      "character_slot": false,
+      "premium_slot": true
+    },
+    {
+      "case_id": 6,
+      "product_name_utf16_hex": "",
+      "character_slot": false,
+      "premium_slot": false
+    },
+    {
+      "case_id": 7,
+      "product_name_utf16_hex": "43006800610072006100630074006500720053006C006F0074005F0065007800740072006100",
+      "character_slot": false,
+      "premium_slot": false
+    },
+    {
+      "case_id": 8,
+      "product_name_utf16_hex": "43006800610072006100630074006500720053006C006F0074000000",
+      "character_slot": true,
+      "premium_slot": false
+    }
+  ],
+  "query_sha256": "bc9f0b687b4e3ed9908a4449390571b58a28b07d555d120890c976424975c057",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "method": "SELECT synthetic nvarchar comparisons in recovered SQL_Latin1_General_CP1_CI_AS; no procedure executed, no table reads/writes",
+  "source_rows_exported": false,
+  "sqlserver_persistent_writes": false
+}

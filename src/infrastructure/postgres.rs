@@ -80,6 +80,7 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
         return Err(Error::SchemaNotReady);
     }
     crate::infrastructure::characters::check_ready(pool).await?;
+    crate::infrastructure::character_lobby::check_ready(pool).await?;
     Ok(())
 }
 

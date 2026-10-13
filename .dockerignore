@@ -7,3 +7,16 @@
 !migrations/**
 !Dockerfile
 !build.rs
+!tests
+!tests/**
+!scripts
+!scripts/dev
+!scripts/dev/Dockerfile.postgres-tests
+!docs
+!docs/evidence
+!docs/evidence/database
+!docs/evidence/database/collation-oracle.json
+!docs/evidence/database/ban-policy-oracle.json
+!docs/evidence/database/limited-account-oracle.json
+!docs/evidence/database/login-account-oracle.json
+!docs/evidence/database/character-login-oracle.json

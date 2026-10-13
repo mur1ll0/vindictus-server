@@ -1,0 +1,238 @@
+{
+  "stage": "M13.3c",
+  "verified_at_utc": "2026-10-13T12:17:25.8361949+00:00",
+  "gate": {
+    "database_integration_runtime": "linux-docker-backend",
+    "rust": 195,
+    "postgres": 56,
+    "python": 19,
+    "failures": 0,
+    "warnings": 0
+  },
+  "source_counts": {
+    "user_products": 0,
+    "user_care_info": 2,
+    "user_info": 25
+  },
+  "source_columns": {
+    "user_products": 5,
+    "user_care_info": 4,
+    "user_info": 3
+  },
+  "character_list_wire": {
+    "category": 479,
+    "guid": "f2750037-d9ab-3b34-9697-e1626e224040",
+    "architectures": 2,
+    "cases_per_architecture": 183,
+    "serialization_modes": 3,
+    "wire_disagreements": 0,
+    "nonempty_characters_refused": true
+  },
+  "feature_observations": 30,
+  "synthetic_sql_product_cases": 9,
+  "source_fragments": [
+    {
+      "path": "scripts/reverse/framework/EmptyCharacterListWireOracle.cs",
+      "sha256": "3065a8d902e8836200527fc99d2dae127ad7e2bb599d5dc573f985108c9518b9"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/Packet.cs",
+      "sha256": "b4a2b399a7fe85f19305867a2ac2ae6a6667ee13f8363fd382029103aaf9531b"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/ClassInfo.cs",
+      "sha256": "7163c1826954786b907e54c67feca29c290e9f1da730e79f4c59c7a20e1eb465"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializeWriter.cs",
+      "sha256": "8d5b47b7472426fe68d935801ead87cfa9bf0bbfa441ef7a9528b4844d1ebdcb"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializeWriterHelper.cs",
+      "sha256": "b344b3116dcba9a592e1642b16c61bc346c63028fbb146490b690d5be8501a2f"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializedSizeCalculator.cs",
+      "sha256": "0db1098e0a968bfe7fd31e63dde6c381b1e1597a6f0465a887412c4817a8b066"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializedSizeCalculatorHelper.cs",
+      "sha256": "9e49c9e852e9143c5b7066a075734ed1d513d968f112af03bc58770a38ac1aa4"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializeReader.cs",
+      "sha256": "0d735be957a272280ce824ee7e999fc3522b6c5989092c65b2ace13e6cc5fe37"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/SerializeReaderHelper.cs",
+      "sha256": "e7a203e353e66c3ae388654ea6d2249ebb6c4d0927ae2a38f3d3113eca19c33b"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net/IPacket.cs",
+      "sha256": "49c0e5471ca6f89b87ab18dd5dbe8a245169979a8ec4dbc662a3e83b1230d0ff"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net/ICryptoTransform.cs",
+      "sha256": "9047050ac7899daa7bb4b0a16408f715dd069944adacfa7d6b3b9c7e02ae5a25"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/IMessage.cs",
+      "sha256": "116a92969f99c3c9fdd92593d70fa871ff51f4e0c86ed0b4b125e01a266056bf"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/CostumeInfo.cs",
+      "sha256": "7119e429724c02cd40b9e54f4ccd053928fe793a034ae804d4d33041eee92d4c"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/PetStatusInfo.cs",
+      "sha256": "1bc4cecf3da0a16008633ad3efc7f3aaff6a649914b7ccc8c825ccb72bee88a1"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/PetStatElement.cs",
+      "sha256": "d31b5f16a47e53f8ea0462c8d8b69120c5c41891374de7c08a27836e17684afc"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/PetSkillElement.cs",
+      "sha256": "5f3a472d2b08d60ff2cdeb66bce37360d69030c944b0c6309b66b1bb063452a8"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/PetAccessoryElement.cs",
+      "sha256": "ffe6ad2c1cb03a8f46b56cc4e67efa62cf2551bf207270997b4214fd4529049e"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/CharacterSummary.cs",
+      "sha256": "577b0066695672385aac485cbd5f7ab8688a2cde5de4b216822b60249d7540db"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/BaseCharacter.cs",
+      "sha256": "06d431a9eeb07d214280b1070fe3d06e4d3f3665d0c1debe387c2610a703f87d"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/VocationEnum.cs",
+      "sha256": "bf64586a4d0f12bf114a5b4633fe241ba09a4c43f6c189a34875a95cefe5268b"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/CharacterListMessage.cs",
+      "sha256": "1a6f64fe1481520a10e35752346a791c279c3a8b9f016eff17b4071c9b0dc3c5"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    },
+    {
+      "path": "scripts/reverse/generate-lobby-feature-fixtures.ps1",
+      "sha256": "e33d24ae39f48f67abc34e4dcb57474ea03e17e9f37019debcd1d3bcdf9b5759"
+    }
+  ],
+  "implementation": [
+    {
+      "path": "migrations/0011_character_lobby.sql",
+      "sha256": "3f34f2a255d7446765d9e92662c5b788e157e32aabbc43fe6c7a80da070315a2"
+    },
+    {
+      "path": "src/domain/character_lobby.rs",
+      "sha256": "f8342584476a67e49d38916238bb467da29a7f56c0b5995bb933917ac90472f6"
+    },
+    {
+      "path": "src/domain/feature_lobby_version_pairs.json",
+      "sha256": "ff214cd43a58b94cd3932b1b637aaefcaa979caf8b496d59fe5a007a4f2fb50c"
+    },
+    {
+      "path": "src/application/character_lobby.rs",
+      "sha256": "f9420a0d97b86d7ac67365aec47bd874372ab062bac0d5cbd02fd45b26f7a0f6"
+    },
+    {
+      "path": "src/infrastructure/character_lobby.rs",
+      "sha256": "2769f0f10e50020bc4a54990a083ea48ce068bf457cf51e6c570fdfe28154a1c"
+    },
+    {
+      "path": "src/infrastructure/lobby_export.rs",
+      "sha256": "023e1745a6ab7343ceeb4f80ba509442fc4cadbd63c287e8cfcc25b90ef96313"
+    },
+    {
+      "path": "src/protocol/empty_character_list.rs",
+      "sha256": "044000c8716b0c55866bf21f7469a963f2a6c28bd3e0fc52cedeb1208a97a420"
+    },
+    {
+      "path": "scripts/database/Import-CharacterLobby.ps1",
+      "sha256": "2751f278a300aa4107226867f3b73a1910a6b80154c690ee46e5ce8e4d05c088"
+    },
+    {
+      "path": "scripts/reverse/generate-empty-character-list-wire-fixtures.ps1",
+      "sha256": "40c1b82b1ea47078cadc1668bf344d1aba3472e60004c68fb83b58c13359637e"
+    },
+    {
+      "path": "tests/character_lobby.rs",
+      "sha256": "cd759316d314ff2e81be07aa33e85cd995a58836dc9d6a8fdf08c534ddc6e95f"
+    },
+    {
+      "path": "tests/empty_character_list_wire.rs",
+      "sha256": "53bc862ebe658d78686a8067e5482bb58ff7c1bdf74725008ca9689ecfa67a36"
+    },
+    {
+      "path": "tests/support/character_lobby.rs",
+      "sha256": "7c4293341c9150b3ef239dd29104fd997b88b947df2c700cc8da3b1d62ce2a0f"
+    },
+    {
+      "path": "tests/postgres.rs",
+      "sha256": "0aa2938590cf1b5f89ffb98132b5b5a16135fb55b339599e0d6ccfb49c8f211a"
+    },
+    {
+      "path": "tests/support/characters.rs",
+      "sha256": "346732ce772fe6c70a4d9ff386dcfe6eb14127476de5c3fa150d3b23183b24eb"
+    },
+    {
+      "path": "tests/support/login_account_effects.rs",
+      "sha256": "2d2b59704233e5b59c4be349a3ddfae1f9597800ee8ffdb29bf440ee9fb11755"
+    },
+    {
+      "path": "tests/support/login_rewards.rs",
+      "sha256": "fb0ef5e128c088573f8aef426576b8c4c1f7dae15dfff37642e3a06894681fea"
+    },
+    {
+      "path": "tests/support/user_login.rs",
+      "sha256": "afa835bcb2d81cc69e9964a5f9600ba1837946c65ba11ca89a808137ff63ff3f"
+    },
+    {
+      "path": "scripts/dev/verify.ps1",
+      "sha256": "05209e698521e2b889ce46421955b7c31475aab777c7698ca1872cece2b27f36"
+    },
+    {
+      "path": "tests/support/dormant_items.rs",
+      "sha256": "e7b96b951dc2d9e795b465dfa40f3498595213b80a2f4186dc5366c778d28218"
+    },
+    {
+      "path": ".dockerignore",
+      "sha256": "5393e5e76bdadec7818155b517c1418b52f4546624bfdc26fe77e463ea8725d8"
+    },
+    {
+      "path": "scripts/dev/Dockerfile.postgres-tests",
+      "sha256": "326b9d6beb1116c84900ae7ad291cba8fb3de27d84c918526d135ede640c54dc"
+    },
+    {
+      "path": "scripts/dev/compose.tests.yaml",
+      "sha256": "8c52815a1588d1312a7ecf36c634e2ca5b0c99d972ab93d4d07d23fc5cdf9e5d"
+    }
+  ],
+  "source_sql_procedures": [
+    {
+      "name": "GetCharacters",
+      "sha256": "816e36ea4ee9e1f7fc74805663d0d598851c9e1abd49c735ed20fea11c2e331d"
+    },
+    {
+      "name": "UserCareInfoUpdate",
+      "sha256": "6d238881e4d9d6dd6675961bf9de9fe796e2a5c5c20022726201f5d0e6cb0d79"
+    }
+  ],
+  "ownership_and_revision_required": true,
+  "real_character_count_required": true,
+  "user_care_uid_only_upsert": true,
+  "disabled_care_clock_not_evaluated": true,
+  "snapshot_import_replay_post_restart_verified": true,
+  "docker_preservation_at_utc": "2026-10-13T12:20:11.5658690+00:00",
+  "original_services_executed": false,
+  "sqlserver_persistent_writes": false,
+  "tcp_dispatch_available": false,
+  "game_authentication_available": false,
+  "game_compatibility_verified": false
+}

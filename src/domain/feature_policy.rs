@@ -41,17 +41,21 @@ impl FeaturePolicy {
         let mut pairs: Vec<VersionPair> =
             serde_json::from_str(include_str!("feature_version_pairs.json"))
                 .map_err(|_| Error::FeatureVersionUnsupported)?;
-        let extra: Vec<VersionPair> =
-            serde_json::from_str(include_str!("feature_catalog_version_pairs.json"))
-                .map_err(|_| Error::FeatureVersionUnsupported)?;
-        if extra.iter().any(|e| {
-            pairs
-                .iter()
-                .any(|p| p.current == e.current && p.value == e.value)
-        }) {
-            return Err(Error::FeatureVersionUnsupported);
+        for encoded in [
+            include_str!("feature_catalog_version_pairs.json"),
+            include_str!("feature_lobby_version_pairs.json"),
+        ] {
+            let extra: Vec<VersionPair> =
+                serde_json::from_str(encoded).map_err(|_| Error::FeatureVersionUnsupported)?;
+            if extra.iter().any(|e| {
+                pairs
+                    .iter()
+                    .any(|p| p.current == e.current && p.value == e.value)
+            }) {
+                return Err(Error::FeatureVersionUnsupported);
+            }
+            pairs.extend(extra);
         }
-        pairs.extend(extra);
         Ok(Self {
             current,
             values,

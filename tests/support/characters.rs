@@ -250,7 +250,7 @@ async fn character_schema_upgrade_preserves_user_and_requires_new_columns() {
             .fetch_one(&pool)
             .await
             .unwrap();
-    sqlx::raw_sql("DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10;DROP TABLE game_dormant_item_runs,game_queue_identity;DELETE FROM _sqlx_migrations WHERE version=9;DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7").execute(&pool).await.unwrap();
+    sqlx::raw_sql("DROP TABLE game_user_care_info,game_user_products,game_user_info;DELETE FROM _sqlx_migrations WHERE version=11;DROP TABLE game_login_reward_runs;DELETE FROM _sqlx_migrations WHERE version=10;DROP TABLE game_dormant_item_runs,game_queue_identity;DELETE FROM _sqlx_migrations WHERE version=9;DROP TABLE game_last_connect_info,game_character_info,game_characters,game_queued_items;DELETE FROM _sqlx_migrations WHERE version=8;DELETE FROM _sqlx_migrations WHERE version=7").execute(&pool).await.unwrap();
     assert!(postgres::check_ready(&pool).await.is_err());
     postgres::migrate(&pool).await.unwrap();
     postgres::check_ready(&pool).await.unwrap();

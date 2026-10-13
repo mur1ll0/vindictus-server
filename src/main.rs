@@ -88,6 +88,12 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let lobby = match &cli.command {
+        Command::ImportCharacterLobby { .. } => Some(
+            vindictus_server::infrastructure::lobby_export::read_snapshot(std::io::stdin().lock())?,
+        ),
+        _ => None,
+    };
     let config = Config::from_env()?;
     let pool = postgres::pool(&config)?;
     match cli.command {
@@ -119,6 +125,19 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::json!({"summary":result,"verify_only":verify_only,"game_authentication_available":false})
+            );
+        }
+        Command::ImportCharacterLobby { verify_only, .. } => {
+            let snapshot = lobby.ok_or(Error::CharacterExport)?;
+            let summary = vindictus_server::infrastructure::character_lobby::preserve(
+                &pool,
+                &snapshot,
+                verify_only,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| Error::CharacterExport)?
             );
         }
         Command::ImportUsers { verify_only, .. } => {

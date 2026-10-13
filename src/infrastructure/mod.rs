@@ -21,3 +21,7 @@ pub mod reward_policy;
 pub mod user_login;
 
 pub mod second_password;
+
+pub mod character_lobby;
+
+pub mod lobby_export;

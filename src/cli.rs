@@ -52,6 +52,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve UserInfo/UserProducts/UserCareInfo only; no playable character creation.
+    ImportCharacterLobby {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve complete legacy user snapshots; never activates game authentication.
     ImportUsers {
         /// Required: private JSON is read only from standard input.

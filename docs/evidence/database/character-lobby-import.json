@@ -1,0 +1,128 @@
+{
+  "stage": "M13.3c",
+  "verified_at_utc": "2026-10-13T12:15:05.6167577+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_counts": {
+    "user_products": 0,
+    "user_care_info": 2,
+    "user_info": 25
+  },
+  "source_columns": {
+    "user_products": 5,
+    "user_care_info": 4,
+    "user_info": 3
+  },
+  "export_sha256": "4a98e0ed1eedf30065442b7d3f0c6f06b59241fa34d2eb102ac2923d5c0862a4",
+  "query_sha256": "b3797c312818b586e934f8092a4b354be9c977cd46c4360bdcb1e30eafee41a1",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "source_rows": [
+      25,
+      0,
+      2
+    ],
+    "inserted": [
+      25,
+      0,
+      2
+    ],
+    "existing": [
+      0,
+      0,
+      0
+    ],
+    "verified": [
+      25,
+      0,
+      2
+    ],
+    "game_authentication_available": false
+  },
+  "replay": {
+    "source_rows": [
+      25,
+      0,
+      2
+    ],
+    "inserted": [
+      0,
+      0,
+      0
+    ],
+    "existing": [
+      25,
+      0,
+      2
+    ],
+    "verified": [
+      25,
+      0,
+      2
+    ],
+    "game_authentication_available": false
+  },
+  "verified": {
+    "source_rows": [
+      25,
+      0,
+      2
+    ],
+    "inserted": [
+      0,
+      0,
+      0
+    ],
+    "existing": [
+      25,
+      0,
+      2
+    ],
+    "verified": [
+      25,
+      0,
+      2
+    ],
+    "game_authentication_available": false
+  },
+  "post_restart_verified": true,
+  "game_authentication_available": false,
+  "post_restart_verified_at_utc": "2026-10-13T12:20:11.5658690+00:00",
+  "post_restart_summary": {
+    "source_rows": [
+      25,
+      0,
+      2
+    ],
+    "inserted": [
+      0,
+      0,
+      0
+    ],
+    "existing": [
+      25,
+      0,
+      2
+    ],
+    "verified": [
+      25,
+      0,
+      2
+    ],
+    "game_authentication_available": false
+  },
+  "source_product_identity": {
+    "seed": 1,
+    "increment": 1,
+    "source_last_value": null
+  },
+  "target_post_restart_state": {
+    "migration11": true,
+    "user_info": 25,
+    "user_products": 0,
+    "user_care": 2,
+    "sequence_last_value": 1,
+    "sequence_called": false
+  }
+}

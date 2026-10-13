@@ -92,6 +92,13 @@ impl FrontendSession {
             .map(|p| &p.identity)
             .ok_or(SessionError::InvalidPhase)
     }
+    pub(crate) fn accepted_permissions(&self) -> Result<LoginPermissions, SessionError> {
+        self.accepted_identity()?;
+        self.admitted
+            .as_ref()
+            .map(|p| p.permissions)
+            .ok_or(SessionError::InvalidPhase)
+    }
     pub(crate) fn accepted_profile(&self) -> Result<IdentityProfile, SessionError> {
         self.accepted_identity()?;
         self.admitted

@@ -16,3 +16,5 @@ pub mod user_login;
 pub mod local_login_session;
 
 pub mod second_password;
+
+pub mod character_lobby;
