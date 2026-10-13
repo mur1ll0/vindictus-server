@@ -1,0 +1,67 @@
+{
+  "stage": "M13.3d.2c.2a",
+  "verified_at_utc": "2026-10-13T20:43:14.033037+00:00",
+  "gate_verified_at_utc": "2026-10-13T20:32:23.2951073+00:00",
+  "rust_passed": 217,
+  "postgres_passed": 71,
+  "postgres_ignored": 0,
+  "python_passed": 19,
+  "failed": 0,
+  "warnings": 0,
+  "cases_per_architecture": 1050,
+  "architecture_differences": 0,
+  "source_profile": {
+    "verified_at_utc": "2026-10-13T20:08:18.217247+00:00",
+    "source_read_only": true,
+    "manifest": {
+      "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
+      "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
+      "region": "EN-EU-X-GM",
+      "override_region": null,
+      "game_code": 50393116,
+      "server_code": 1,
+      "catalog_rows": 24
+    },
+    "features": {
+      "NamingRule": "^[a-zA-Z]{2,}_?[a-zA-Z]{2,}$",
+      "NamingRuleMaxBytes": "20",
+      "NamingRuleRepeatingCharCheckCount": "-1",
+      "ChangedCharacterName_ProtectPeriod": "30"
+    },
+    "forbidden_terms_exported": false
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Functions/CharacterMaker.cs",
+      "sha256": "7d3fe4524e1da2eb71adef15cc6932a712fa7bd9c561ad84ce8bb58049d2af1e"
+    },
+    {
+      "path": "scripts/reverse/framework/CharacterNameOracle.cs.in",
+      "sha256": "22d9de6c7a0fccd3f96f129425976dec949b38f4f1cf1bf272d3057bf5ba93f7"
+    },
+    {
+      "path": "scripts/reverse/generate-character-name-fixtures.ps1",
+      "sha256": "ac2266888096508d2262a4c7e844e6e1c58741ac490129ef10003b599baf08e8"
+    },
+    {
+      "path": "scripts/reverse/read-character-name-profile.py",
+      "sha256": "58e2ee1ec1e56df945f1deff02ee478ac9a0e86c19d38a2687fb1d2c7fb795fb"
+    }
+  ],
+  "fixture_sha256": "37df815bdb3be614245bd9b9058d28dc14545aee853adf1d5da2fe40fdf57752",
+  "docker_preservation_log_sha256": "e457be1c3103786131315b73325abac4c93a19703ec9960776f59907dedbfc9a",
+  "scope": "CheckValidName with observed EN-EU naming pattern only",
+  "arbitrary_regex_implemented": false,
+  "forbidden_name_check_implemented": false,
+  "reservation_handlers_implemented": false,
+  "character_creation_available": false,
+  "selection_city_movement_verified": false,
+  "original_services_executed": false,
+  "original_databases_written": false,
+  "full_migration_complete": false,
+  "target_lab_metadata": {
+    "synthetic_prologue_rows": 1,
+    "synthetic_characters": 0
+  },
+  "target_lab_metadata_verified_at_utc": "2026-10-13T20:44:13.4145934+00:00"
+}

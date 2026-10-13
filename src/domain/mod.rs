@@ -35,3 +35,5 @@ pub mod character_lobby;
 pub mod home_cafe_bonus;
 
 pub mod lab_account;
+
+pub mod character_name;

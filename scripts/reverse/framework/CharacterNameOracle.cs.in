@@ -1,0 +1,8 @@
+using System;using System.Collections.Generic;using System.Text.RegularExpressions;using System.Web.Script.Serialization;
+class FeatureMatrix{public static int MaxBytes;public static int Repeating;public static int GetInteger(string key){if(key=="NamingRuleMaxBytes")return MaxBytes;if(key=="NamingRuleRepeatingCharCheckCount")return Repeating;throw new InvalidOperationException("Unexpected key");}}
+class Maker{private Regex namingRule;private Regex isAlphaNumeric;public Maker(string pattern){namingRule=new Regex(pattern,RegexOptions.Compiled);isAlphaNumeric=new Regex("^[a-zA-Z0-9_]*$",RegexOptions.Compiled);}
+__RECOVERED_METHOD__
+}
+class NameOracle{static void Main(){var cases=new List<object>();string pattern="^[a-zA-Z]{2,}_?[a-zA-Z]{2,}$";var maker=new Maker(pattern);string[] names={null,"","A","AB","ABC","ABCD","AbCd","LabFiona","AB_CD","A_BCD","ABC_D","AB__CD","AB12CD","AB CD","AB-CD","ABCD\n","ABCD\r\n","ABCD\n\n","\nABCD","ABCD\0","ÉéAb","ＡＢＣＤ","漢字AB","😀AB","iiii","IIII","AaAa",new string('a',19),new string('a',20),new string('a',21)};
+foreach(int max in new[]{-1,0,3,4,19,20,40})foreach(int repeating in new[]{-1,0,1,2,3})foreach(string name in names){FeatureMatrix.MaxBytes=max;FeatureMatrix.Repeating=repeating;bool? result=null;string error=null;try{result=maker.CheckValidName(name);}catch(Exception e){error=e.GetType().Name;}cases.Add(new{name,max_bytes=max,repeating,result,error});}
+Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=4*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",pattern,cases}));}}

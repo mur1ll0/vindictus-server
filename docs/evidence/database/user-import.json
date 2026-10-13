@@ -61,7 +61,7 @@
   "latest_gate_sha256": "93151582a23e01ef7341c2a50963422845acc0a09f64aa409cd2c019272b9263",
   "latest_docker_verified_at_utc": "2026-10-11T20:06:57.2624727+00:00",
   "latest_docker_smoke_sha256": "9675eb234c192d87d5eea5b288973f2275cc1e88f6aa2f63b8d8378f622828cb",
-  "post_restart_verified_at_utc": "2026-10-13T20:03:30.1641143+00:00",
+  "post_restart_verified_at_utc": "2026-10-13T20:37:28.7599102+00:00",
   "post_restart_summary": {
     "existing": 29,
     "game_authentication_available": false,
