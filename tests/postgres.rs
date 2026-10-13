@@ -1519,3 +1519,5 @@ mod character_lobby;
 
 #[path = "support/home_cafe_bonus.rs"]
 mod home_cafe_bonus;
+#[path = "support/lab_frontend.rs"]
+mod lab_frontend;

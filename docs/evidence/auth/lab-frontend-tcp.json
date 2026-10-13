@@ -1,0 +1,173 @@
+{
+  "stage": "M13.3d.2b",
+  "verified_at_utc": "2026-10-13T18:59:59.1376915+00:00",
+  "gate": {
+    "rust": 213,
+    "postgres": 68,
+    "python": 19,
+    "failures": 0,
+    "warnings": 0
+  },
+  "actual_tcp_tests": {
+    "native_without_database": 4,
+    "linux_postgres": 3,
+    "fragmented_and_batched_frames": true,
+    "shared_duplicate_registry": true,
+    "unmarked_users_refused": true,
+    "password_and_reconnect": true,
+    "existing_characters_refused_reason9": true
+  },
+  "nullable_password_oracle": {
+    "architectures": 2,
+    "nullable_cases_per_architecture": 15,
+    "comparison_cases_per_architecture": 18,
+    "reference_methods_executed": true
+  },
+  "client_observation": {
+    "observed_at_utc": "2026-10-13T19:07:36.4955471+00:00",
+    "observation_source": "operator report and sanitized runtime events",
+    "client_candidate": "Vindictus 1.69 EN",
+    "restricted_login_confirmed": true,
+    "primary_password_required_in_recovered_ngm_branch": false,
+    "secondary_password_registration_confirmed": true,
+    "client_local_fiona_tutorial_and_tieve_dialog_confirmed": true,
+    "character_creation_screen_reached": true,
+    "check_name_response_received": false,
+    "create_character_completed": false,
+    "client_create_timeout": "Response from server Delayed",
+    "persistent_character_selection_confirmed": false,
+    "town_entry_confirmed": false,
+    "town_movement_confirmed": false,
+    "server_battle_verified": false,
+    "protocol_messages_without_handlers": [
+      644,
+      501,
+      439,
+      261
+    ],
+    "private_values_published": false
+  },
+  "frontend_feature_oracle": {
+    "architectures": 2,
+    "cultures": 5,
+    "pairs": 2,
+    "observations": 20,
+    "disagreements": 0
+  },
+  "launch": {
+    "verified_at_utc": "2026-10-13T19:07:36.5815313+00:00",
+    "native_ready": true,
+    "loopback_only": true,
+    "protected_profile_stdin": true,
+    "credential_arguments": false,
+    "endpoint_http_status": 200,
+    "client_acceptance_verified": false,
+    "creation_available": false,
+    "prepared_profile_readable_during_runtime": true,
+    "protected_stdin_copy_verified": true
+  },
+  "docker_preservation": {
+    "verified_at_utc": "2026-10-13T19:07:20.0220581+00:00",
+    "state": {
+      "imported_origins": 0,
+      "nonlab_reward_receipts": 0,
+      "migration13": true,
+      "origins": 1,
+      "origin_fk": true,
+      "origin_primary_key": true
+    },
+    "imported_users_marked": false,
+    "synthetic_tests_isolated": true,
+    "game_authentication_available": false
+  },
+  "actual_client_acceptance_verified": false,
+  "character_creation_available": false,
+  "character_selection_available": false,
+  "town_movement_available": false,
+  "artifacts": [
+    {
+      "path": "src/infrastructure/lab_frontend.rs",
+      "sha256": "a8deae70147d4e0e3c976dbdbf6a5da65cc041bf39f4ea14144a35256700425e"
+    },
+    {
+      "path": "src/application/second_password.rs",
+      "sha256": "2fe89ab319ea17dc5717b6f73f85d93390d1209b4a980592a82b94a38d7a89d4"
+    },
+    {
+      "path": "src/domain/second_password.rs",
+      "sha256": "4d9de305aae74649160a46c6fc000a986177833d538975e17acdf23c584066dd"
+    },
+    {
+      "path": "src/infrastructure/second_password.rs",
+      "sha256": "28dafa4f6fda653d33cb3b6b1ca2453c983052d070dfb207b6007b182434f8d8"
+    },
+    {
+      "path": "src/cli.rs",
+      "sha256": "a0f3df3ddb8b08af2b125b4478519749a663ed30cea0ef8a2571d60d6b56aae3"
+    },
+    {
+      "path": "src/main.rs",
+      "sha256": "7932c8c61aea02afbe93ec22e818b15f49388888cfb81e6db97e8161bcd4d614"
+    },
+    {
+      "path": "src/error.rs",
+      "sha256": "fab502072c37c0acb399b67a22c7d1d59fb232906a3b269c14c54f653a4c8b96"
+    },
+    {
+      "path": "src/infrastructure/mod.rs",
+      "sha256": "d5f62a0b3b2ed234257eed6f63c116a9b69bf654aa27a957c8c56aaa8987e453"
+    },
+    {
+      "path": "tests/lab_frontend.rs",
+      "sha256": "3f53b46693645748ea75e5c599a603ae9a152674b38425c0968de1a3f1d20fe8"
+    },
+    {
+      "path": "tests/support/lab_frontend.rs",
+      "sha256": "7bb97f9e6a9784dfee4dbf4ff582e5e77ac55b68fe46a1cf2b1183a6feceb47d"
+    },
+    {
+      "path": "tests/support/lab_frontend_common.rs",
+      "sha256": "d75d6241905132d1ddc379ec1bbc986d8645cf0f4b33e4d78998fe93c8649028"
+    },
+    {
+      "path": "tests/postgres.rs",
+      "sha256": "2a9f3f3caacbe01fb3c92d0d192ac5fbcc5cc8e8f2649512ed2bca734bf3db0e"
+    },
+    {
+      "path": "tests/second_password.rs",
+      "sha256": "3d7bd3cdab4fdab3a836d17f109ef2ffd13e8477794c0804fe4eda9d0b3272a8"
+    },
+    {
+      "path": "tests/fixtures/framework-second-password.json",
+      "sha256": "29619308755bda56443e7a052b5102db8b5433a7bfe52973e7e640cc23e829f4"
+    },
+    {
+      "path": "scripts/reverse/framework/SecondPasswordOracle.cs",
+      "sha256": "42dffe5e17031c352e281a9f8e033a254768a352d388405c3d291cbfd7e77168"
+    },
+    {
+      "path": "scripts/reverse/generate-second-password-fixtures.ps1",
+      "sha256": "ece0f1d745319abaf3cd4eb869381078f98ff5482a75d08d7a9bcc6a2e22b04a"
+    },
+    {
+      "path": "scripts/dev/start-lab-frontend.ps1",
+      "sha256": "71b9ca542b951d42e7505064971b570bc6329367707f5bde3120d203cfbbb4db"
+    },
+    {
+      "path": "scripts/reverse/generate-frontend-feature-fixtures.ps1",
+      "sha256": "75cb6e5e8f3677de81a900688e7ae4b9fc48716049ce9d5577c9fea8f62394c6"
+    },
+    {
+      "path": "src/domain/feature_frontend_version_pairs.json",
+      "sha256": "0da52b1af5d8a62251417231f5f0c74d9d293d5deca696bab5427f755d0e300a"
+    },
+    {
+      "path": "tests/fixtures/framework-frontend-features.json",
+      "sha256": "76b5c5c9947c7aedb28385ff10dcb2d2c749e1e3afe1272903f85fd3d5272930"
+    },
+    {
+      "path": "tests/home_cafe_bonus.rs",
+      "sha256": "4b867c05dace484b46d012f770029b42a44affdd4f0111dec0313869cc01f754"
+    }
+  ]
+}

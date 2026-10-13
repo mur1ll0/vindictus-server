@@ -34,11 +34,11 @@ try {
   & 'C:\Program Files\dotnet\dotnet.exe' @taskArgs *> ('.cache/verification/second-password-'+$taskArch+'-build.log');if($LASTEXITCODE-ne0){throw 'Second-password oracle build failed; local log'}
   & (Join-Path $PWD $taskExe) *> ('.cache/verification/second-password-'+$taskArch+'.json');if($LASTEXITCODE-ne0){throw 'Second-password oracle failed; local log'}
   $taskData=Get-Content ('.cache/verification/second-password-'+$taskArch+'.json') -Raw|ConvertFrom-Json -DateKind String
-  if($taskData.architecture-ne$taskArch-or$taskData.hashes.Count-ne63-or$taskData.queries.Count-ne126-or$taskData.checks.Count-ne90-or$taskData.registers.Count-ne21){throw 'Second-password oracle counts differ'}
+  if($taskData.architecture-ne$taskArch-or$taskData.hashes.Count-ne63-or$taskData.queries.Count-ne126-or$taskData.checks.Count-ne90-or$taskData.registers.Count-ne21-or$taskData.nullable.Count-ne15-or$taskData.nullableChecks.Count-ne18){throw 'Second-password oracle counts differ'}
   $taskProfiles+=$taskData
  }
  $taskRuntime=@('C:/Windows/Microsoft.NET/Framework/v4.0.30319/mscorlib.dll','C:/Windows/Microsoft.NET/Framework64/v4.0.30319/mscorlib.dll')|ForEach-Object{[ordered]@{architecture=if($_ -like '*Framework64*'){'x64'}else{'x86'};sha256=(Get-FileHash $_).Hash.ToLowerInvariant();file_version=(Get-Item $_).VersionInfo.FileVersion}}
  $taskSources=@(@($taskSource,$taskEncrypt,$taskHas,$taskResult,$taskMin,$taskHarness)|ForEach-Object{[ordered]@{path=$_;sha256=(Get-FileHash $_).Hash.ToLowerInvariant()}})
  [ordered]@{profiles=$taskProfiles;framework_runtime=@($taskRuntime);sources=$taskSources;method='Extracted UserEntity methods/hash arrays unmodified except deterministic UtcNow substitution in isolated copies. Fake one-row context records mutations. Original StringEncrypter and SQLDateTime. Hash modes0/1/2; Framework architecture is explicit.';original_services_executed=$false}|ConvertTo-Json -Depth 12 -Compress|Set-Content tests/fixtures/framework-second-password.json -Encoding utf8NoBOM
- Write-Host 'Second-password oracle: x86/x64; each63hashes/8versions/126queries/90checks/21registrations; synthetic only.'
+ Write-Host 'Second-password oracle: x86/x64; each63hashes/8versions/126queries/90checks/21registrations/15nullable-read-failures/18null-check-cross-hashes; synthetic only.'
 } finally {Pop-Location}

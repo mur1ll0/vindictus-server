@@ -1,6 +1,6 @@
 {
   "stage": "M13.2d.2b.2b.1",
-  "verified_at_utc": "2026-10-13T18:13:52.4826906+00:00",
+  "verified_at_utc": "2026-10-13T19:06:36.3029365+00:00",
   "profile": {
     "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
     "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
@@ -118,11 +118,11 @@
     },
     {
       "path": "src/cli.rs",
-      "sha256": "d20077551957845f1b1f62ec5b4156af12f20590afa3bb2fdc991e24829a0048"
+      "sha256": "a0f3df3ddb8b08af2b125b4478519749a663ed30cea0ef8a2571d60d6b56aae3"
     },
     {
       "path": "src/main.rs",
-      "sha256": "74b3c94fac7deea2bcb3c076da500dd50bdf4adc0dcf66caed55a74bc9d8de85"
+      "sha256": "7932c8c61aea02afbe93ec22e818b15f49388888cfb81e6db97e8161bcd4d614"
     },
     {
       "path": "tests/reward_policy.rs",

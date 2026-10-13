@@ -1,6 +1,11 @@
 [
   {
     "current": "3.09.00",
+    "value": "1.08.02",
+    "enabled": true
+  },
+  {
+    "current": "3.09.00",
     "value": "2.02.05",
     "enabled": true
   }

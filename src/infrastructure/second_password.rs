@@ -128,6 +128,16 @@ pub async fn check(
     identity: crate::protocol::identity::IdentityProfile,
     clock: ClockSamples,
 ) -> Result<(CheckResult, i64), StorageError> {
+    check_optional(pool, key, Some(password), profile, identity, clock).await
+}
+pub async fn check_optional(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    password: Option<&[u16]>,
+    profile: HashProfile,
+    identity: crate::protocol::identity::IdentityProfile,
+    clock: ClockSamples,
+) -> Result<(CheckResult, i64), StorageError> {
     tokio::time::timeout(std::time::Duration::from_secs(10), async {
         let (mut tx, row) = lock(pool, key).await?;
         allowed(&row, clock)?;
@@ -135,19 +145,10 @@ pub async fn check(
             .password
             .as_ref()
             .ok_or(SecondPasswordError::Uninitialized)?;
-        let matched = rules::matches(key.name, password, stored, identity)?;
+        let comparison = rules::compare_nullable(key.name, password, stored, profile, identity)?;
+        let matched = comparison.matched;
+        let rewritten = comparison.replacement;
         let count = rules::checked_count(row.count, matched)?;
-        let rewritten = if matched
-            && rules::stored_version(stored.len() / 2)
-                != match profile {
-                    HashProfile::Legacy(_) => 0,
-                    HashProfile::Sha512 => 1,
-                    HashProfile::AccountSha512 => 2,
-                } {
-            Some(rules::hash(key.name, password, profile)?)
-        } else {
-            None
-        };
         let encoded = rewritten.as_deref().map(|b| b.as_slice()).unwrap_or(stored);
         if encoded.len() > 512 {
             return Err(SecondPasswordError::Input.into());

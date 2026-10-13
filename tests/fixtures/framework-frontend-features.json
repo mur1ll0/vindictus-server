@@ -6,7 +6,19 @@
         {
           "culture": "",
           "current": "3.09.00",
+          "value": "1.08.02",
+          "enabled": true
+        },
+        {
+          "culture": "",
+          "current": "3.09.00",
           "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "1.08.02",
           "enabled": true
         },
         {
@@ -18,13 +30,31 @@
         {
           "culture": "zh-TW",
           "current": "3.09.00",
+          "value": "1.08.02",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
           "value": "2.02.05",
           "enabled": true
         },
         {
           "culture": "zh-CN",
           "current": "3.09.00",
+          "value": "1.08.02",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
           "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "1.08.02",
           "enabled": true
         },
         {
@@ -41,7 +71,19 @@
         {
           "culture": "",
           "current": "3.09.00",
+          "value": "1.08.02",
+          "enabled": true
+        },
+        {
+          "culture": "",
+          "current": "3.09.00",
           "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "en-US",
+          "current": "3.09.00",
+          "value": "1.08.02",
           "enabled": true
         },
         {
@@ -53,13 +95,31 @@
         {
           "culture": "zh-TW",
           "current": "3.09.00",
+          "value": "1.08.02",
+          "enabled": true
+        },
+        {
+          "culture": "zh-TW",
+          "current": "3.09.00",
           "value": "2.02.05",
           "enabled": true
         },
         {
           "culture": "zh-CN",
           "current": "3.09.00",
+          "value": "1.08.02",
+          "enabled": true
+        },
+        {
+          "culture": "zh-CN",
+          "current": "3.09.00",
           "value": "2.02.05",
+          "enabled": true
+        },
+        {
+          "culture": "tr-TR",
+          "current": "3.09.00",
+          "value": "1.08.02",
           "enabled": true
         },
         {
@@ -78,7 +138,7 @@
     },
     {
       "path": "scripts/reverse/generate-frontend-feature-fixtures.ps1",
-      "sha256": "7350ac4b3491e300ea4634d05e92f9e7b5df7185cbc3fbb708970c6e104e3fd4"
+      "sha256": "75cb6e5e8f3677de81a900688e7ae4b9fc48716049ce9d5577c9fea8f62394c6"
     }
   ],
   "original_services_executed": false,

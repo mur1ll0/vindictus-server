@@ -1,12 +1,13 @@
 {
-  "verified_at_utc": "2026-10-13T18:14:32.6816188+00:00",
+  "verified_at_utc": "2026-10-13T19:07:18.6041568+00:00",
   "state": {
-    "batch_receipts": 0,
+    "batch_receipts": 1,
     "migration10": true,
     "queued_rows": 140,
     "sequence_last_value": 141,
     "sequence_called": false
   },
   "real_account_rewards_executed": false,
+  "synthetic_lab_receipts": 1,
   "game_authentication_available": false
 }

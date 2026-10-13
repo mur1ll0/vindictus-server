@@ -1,8 +1,10 @@
 {
-  "verified_at_utc": "2026-10-13T18:14:33.9362553+00:00",
+  "verified_at_utc": "2026-10-13T19:07:20.0220581+00:00",
   "state": {
+    "imported_origins": 0,
+    "nonlab_reward_receipts": 0,
     "migration13": true,
-    "origins": 0,
+    "origins": 1,
     "origin_fk": true,
     "origin_primary_key": true
   },

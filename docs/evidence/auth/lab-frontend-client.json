@@ -1,0 +1,24 @@
+{
+  "observed_at_utc": "2026-10-13T19:07:36.4955471+00:00",
+  "observation_source": "operator report and sanitized runtime events",
+  "client_candidate": "Vindictus 1.69 EN",
+  "restricted_login_confirmed": true,
+  "primary_password_required_in_recovered_ngm_branch": false,
+  "secondary_password_registration_confirmed": true,
+  "client_local_fiona_tutorial_and_tieve_dialog_confirmed": true,
+  "character_creation_screen_reached": true,
+  "check_name_response_received": false,
+  "create_character_completed": false,
+  "client_create_timeout": "Response from server Delayed",
+  "persistent_character_selection_confirmed": false,
+  "town_entry_confirmed": false,
+  "town_movement_confirmed": false,
+  "server_battle_verified": false,
+  "protocol_messages_without_handlers": [
+    644,
+    501,
+    439,
+    261
+  ],
+  "private_values_published": false
+}

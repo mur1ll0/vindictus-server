@@ -105,3 +105,6 @@ A cópia completa .cache/play-client abriu a tela inicial, confirmada pelo opera
 O diálogo Bad image de Mss32.dll foi resolvido somente na cópia. A DLL das pastas originais não tinha cabeçalhos MZ/PE; a entrada en-EU/Mss32.dll da distribuição split fornecida foi recuperada de Vindictus.z03 (disk3, offset1544037482, deflate174720→374272bytes), validada pelo CRC32b67c7f6c e PE x86. Backup da DLL copiada foi mantido; hashes originais permaneceram iguais. Nenhum binário ou asset foi incluído no Git. [runtime-ingress.json](evidence/client/runtime-ingress.json) contém apenas hashes/contagens e observações. A captura automatizada da janela falhou; as observações de tela são do operador.
 
 Pode manter o cliente na tela de login enquanto o servidor é implementado. Uma nova tentativa será útil depois de substituir a recusa diagnóstica por um fluxo recuperado e verificado; repetir agora produz a mesma recusa. Reinicie quando houver alteração na cópia/configuração de bootstrap.
+
+
+M13.3d.2b: o [servidor TCP de laboratório](lab-frontend-tcp.md) substitui a recusa diagnóstica no runtime preparado. O iniciador e endpoint foram verificados; o operador confirmou login, registro da segunda senha e tela de criação após tutorial local/Tieve. Criação/seleção/cidade não estão implementadas.

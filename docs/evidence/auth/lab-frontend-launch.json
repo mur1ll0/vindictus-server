@@ -1,0 +1,12 @@
+{
+  "verified_at_utc": "2026-10-13T19:07:36.5815313+00:00",
+  "native_ready": true,
+  "loopback_only": true,
+  "protected_profile_stdin": true,
+  "credential_arguments": false,
+  "endpoint_http_status": 200,
+  "client_acceptance_verified": false,
+  "creation_available": false,
+  "prepared_profile_readable_during_runtime": true,
+  "protected_stdin_copy_verified": true
+}

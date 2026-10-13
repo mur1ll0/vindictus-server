@@ -3,6 +3,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    LabFrontend(#[from] crate::infrastructure::lab_frontend::RuntimeError),
+    #[error(transparent)]
     LabRuntimeConfig(#[from] crate::infrastructure::lab_runtime_config::RuntimeConfigError),
     #[error("laboratory account provenance or profile is not valid; mutation refused")]
     LabAccountProvenance,

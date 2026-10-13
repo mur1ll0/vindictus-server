@@ -199,3 +199,60 @@ fn registration_encoding_and_reset_plan_match_framework() {
         }
     }
 }
+#[test]
+fn nullable_checks_and_caught_failures_match_original_user_entity_on_both_framework_profiles() {
+    let f = fixture();
+    for p in f["profiles"].as_array().unwrap() {
+        assert_eq!(p["nullableChecks"].as_array().unwrap().len(), 18);
+        for r in p["nullableChecks"].as_array().unwrap() {
+            let stored = bytes(&r["stored"]).unwrap();
+            let decision = compare_nullable(
+                "MiXeDLab",
+                None,
+                &stored,
+                profile(r["mode"].as_i64().unwrap() as i32, p),
+                identity(p),
+            );
+            let (passed, count, encoded) = match decision {
+                Ok(CheckComparison {
+                    matched,
+                    replacement: new,
+                }) => (
+                    matched,
+                    checked_count(Some(4), matched).unwrap(),
+                    new.map(|v| v.to_vec()).unwrap_or(stored),
+                ),
+                Err(_) => (false, -1, stored),
+            };
+            assert_eq!(passed, r["passed"].as_bool().unwrap());
+            assert_eq!(count, r["fail"].as_i64().unwrap() as i32);
+            assert_eq!(encoded, bytes(&r["after"]["password"]).unwrap());
+            let until = retry_until(
+                count,
+                clock(f["profiles"][0]["now"].as_i64().unwrap()).operation_now,
+            )
+            .unwrap();
+            assert_eq!(until, ticks(&r["until"]));
+            assert_eq!(
+                retry_seconds(until, clock(p["now"].as_i64().unwrap())).unwrap(),
+                r["retry"].as_i64().unwrap() as i32
+            );
+        }
+        for r in p["nullable"].as_array().unwrap() {
+            let operation = r["operation"].as_str().unwrap();
+            if operation == "null-set" || operation == "read-check" || operation == "read-set" {
+                assert!(!r["passed"].as_bool().unwrap());
+                assert_eq!(r["fail"], -1);
+                assert_eq!(r["retry"], 600);
+                assert!(r["unchanged"].as_bool().unwrap());
+            }
+            if operation == "read-query" {
+                assert!(!r["first"].as_bool().unwrap());
+                assert!(r["has"].as_bool().unwrap());
+                assert_eq!(r["fail"], 0);
+                assert_eq!(r["retry"], -1);
+                assert!(r["unchanged"].as_bool().unwrap());
+            }
+        }
+    }
+}

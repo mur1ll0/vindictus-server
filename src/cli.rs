@@ -23,6 +23,13 @@ pub enum Command {
         #[arg(long, default_value = "127.0.0.1:27015")]
         bind: std::net::SocketAddr,
     },
+    /// Restricted loopback candidate frontend: synthetic login/lobby; character services pending.
+    LabFrontend {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        policy_file: std::path::PathBuf,
+    },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
     /// Read-only reward diagnostic. Reads private policy from stdin and prints counts/digest only.

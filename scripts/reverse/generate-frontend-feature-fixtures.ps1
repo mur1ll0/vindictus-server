@@ -20,7 +20,7 @@ $($taskText.Substring($taskBegin,$taskEnd-$taskBegin))
 class FrontendFeatureOracle {
  static void Main(){var cases=new List<object>();foreach(string culture in new[]{"","en-US","zh-TW","zh-CN","tr-TR"}){
  CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo(culture);
- foreach(string value in new[]{"2.02.05"}){FeatureMatrix.Map["syntheticFeature"]=value;cases.Add(new{culture,current=FeatureMatrix.CurrentVer,value,enabled=FeatureMatrix.IsEnable("syntheticFeature")});}}
+ foreach(string value in new[]{"1.08.02","2.02.05"}){FeatureMatrix.Map["syntheticFeature"]=value;cases.Add(new{culture,current=FeatureMatrix.CurrentVer,value,enabled=FeatureMatrix.IsEnable("syntheticFeature")});}}
  Console.WriteLine(new JavaScriptSerializer().Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",cases}));}
 }
 "@
@@ -32,11 +32,11 @@ foreach($taskArch in 'x86','x64'){
  & 'C:/Program Files/dotnet/dotnet.exe' @taskArgs *> ('.cache/verification/frontend-feature-build-'+$taskArch+'.log');if($LASTEXITCODE-ne0){throw 'Feature oracle build failed; local log'}
  & (Join-Path $PWD ('.cache/framework/FrontendFeatureOracle-'+$taskArch+'.exe')) *> ('.cache/verification/frontend-feature-'+$taskArch+'.json');if($LASTEXITCODE-ne0){throw 'Feature oracle failed; local log'}
 }
-Write-Host 'Recovered lobby features:2 architectures x5cultures x1pair; outputs local.'
+Write-Host 'Recovered lobby features:2 architectures x5cultures x2pairs; outputs local.'
 
 $taskProfiles=@('x86','x64')|ForEach-Object{Get-Content ('.cache/verification/frontend-feature-'+$_+'.json') -Raw|ConvertFrom-Json}
 if(($taskProfiles[0].cases|ConvertTo-Json -Compress)-cne($taskProfiles[1].cases|ConvertTo-Json -Compress)){throw 'Lobby version architecture disagreement'}
-$taskPairs=@();foreach($taskValue in '2.02.05'){
+$taskPairs=@();foreach($taskValue in '1.08.02','2.02.05'){
  $taskGroup=@($taskProfiles[0].cases|Where-Object value -eq $taskValue)
  if($taskGroup.Count-ne5-or@($taskGroup.enabled|Sort-Object -Unique).Count-ne1){throw 'Lobby version culture disagreement'}
  $taskPairs+=[ordered]@{current='3.09.00';value=$taskValue;enabled=$taskGroup[0].enabled}

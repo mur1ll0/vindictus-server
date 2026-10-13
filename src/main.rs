@@ -81,6 +81,23 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::LabFrontend { policy_file, .. } = &cli.command {
+        use vindictus_server::infrastructure::{
+            lab_frontend, lab_runtime_config::LabRuntimeConfig, reward_policy,
+        };
+        let content = reward_policy::read_policy(std::fs::File::open(policy_file)?)?;
+        let profile = LabRuntimeConfig::read(std::io::stdin().lock(), &content)?;
+        let runtime = std::sync::Arc::new(lab_frontend::Runtime::new(profile, content)?);
+        let config = Config::from_env()?;
+        let pool = postgres::pool(&config)?;
+        postgres::check_ready(&pool).await?;
+        let listener = tokio::net::TcpListener::bind(runtime.bind()).await?;
+        tracing::info!(address=%listener.local_addr()?,client_acceptance_verified=false,character_creation_available=false,"restricted laboratory frontend listening");
+        let result = lab_frontend::run(listener, runtime, pool.clone(), shutdown()).await;
+        pool.close().await;
+        result?;
+        return Ok(());
+    }
     let credentials = match &cli.command {
         Command::CreateAccount { username, .. } => Some((
             Username::parse(username)?,
@@ -122,7 +139,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
         Command::ProbeFrontend { .. }
         | Command::InspectRewardPolicy { .. }
         | Command::InspectItemCatalog { .. }
-        | Command::InspectLabFrontendProfile { .. } => {}
+        | Command::InspectLabFrontendProfile { .. }
+        | Command::LabFrontend { .. } => {}
         Command::Migrate => {
             postgres::migrate(&pool).await?;
             println!("PostgreSQL migrations applied; migrate does not import legacy data.");

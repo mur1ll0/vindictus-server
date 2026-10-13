@@ -182,6 +182,49 @@ pub fn matches(
     }
     Ok(difference == 0)
 }
+/// Original CheckSecondPassword evaluates a new hash BEFORE comparing when modes differ.
+/// NULL concatenation in AccountSha512 becomes the account name; NULL comparison with
+/// a legacy decrypted string is false. SHA-only and legacy Encrypt(NULL) throw in source.
+pub struct CheckComparison {
+    pub matched: bool,
+    pub replacement: Option<Zeroizing<Vec<u8>>>,
+}
+pub fn compare_nullable(
+    name: &str,
+    password: Option<&[u16]>,
+    stored: &[u8],
+    profile: HashProfile,
+    identity: IdentityProfile,
+) -> Result<CheckComparison, SecondPasswordError> {
+    let old = stored_version(stored.len() / 2);
+    let target = match profile {
+        HashProfile::Legacy(_) => 0,
+        HashProfile::Sha512 => 1,
+        HashProfile::AccountSha512 => 2,
+    };
+    let candidate = if target != old {
+        Some(match password {
+            Some(v) => hash(name, v, profile)?,
+            None if profile == HashProfile::AccountSha512 => hash(name, &[], profile)?,
+            None => return Err(SecondPasswordError::Input),
+        })
+    } else {
+        None
+    };
+    let matched = match password {
+        Some(v) => matches(name, v, stored, identity)?,
+        None if old == 0 => {
+            matches(name, &[], stored, identity)?;
+            false
+        }
+        None if old == 2 => matches(name, &[], stored, identity)?,
+        None => return Err(SecondPasswordError::Input),
+    };
+    Ok(CheckComparison {
+        matched,
+        replacement: if matched { candidate } else { None },
+    })
+}
 pub fn retry_until(
     count: i32,
     last: SqlDateTime2,

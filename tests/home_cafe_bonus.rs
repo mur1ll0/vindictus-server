@@ -96,7 +96,7 @@ fn home_cafe_private_snapshot_retains_full_signed_keys_dates_and_rejects_malform
     assert!(read_snapshot(serde_json::to_vec(&v).unwrap().as_slice()).is_err());
 }
 #[test]
-fn home_cafe_feature_pair_matches_original_framework_across_architectures_and_cultures() {
+fn frontend_feature_pairs_match_original_framework_across_architectures_and_cultures() {
     let f: Value =
         serde_json::from_str(include_str!("fixtures/framework-frontend-features.json")).unwrap();
     let mut count = 0;
@@ -120,5 +120,5 @@ fn home_cafe_feature_pair_matches_original_framework_across_architectures_and_cu
             count += 1
         }
     }
-    assert_eq!(count, 10);
+    assert_eq!(count, 20);
 }

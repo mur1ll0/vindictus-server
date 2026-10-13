@@ -10,7 +10,7 @@ using Utility;
 using UserEntity = Recovered;
 static class Clock { public static DateTime Now=new DateTime(638000000000000000,DateTimeKind.Utc); }
 class User {public string Name="MiXeDLab";public string SecondPassword;public int? SecondPasswordFailCount;public DateTime? SecondPasswordLastFail;}
-class UserDBDataContext:IDisposable {public static User Row;public IQueryable<User> User {get{return new[]{Row}.AsQueryable();}}public void SubmitChanges(){}public int SecondPasswordLimitCheck(string ip){return 1;}public void Dispose(){}}
+class UserDBDataContext:IDisposable {public static User Row;public static bool ReadFailure;public IQueryable<User> User {get{if(ReadFailure)throw new InvalidOperationException("synthetic read failure");return new[]{Row}.AsQueryable();}}public void SubmitChanges(){}public int SecondPasswordLimitCheck(string ip){return 1;}public void Dispose(){}}
 static class FeatureMatrix {public static int Mode;public static int ServerCode=1;public static bool IsEnable(string k){return k=="SecondPassword";}public static int GetInteger(string k){return Mode;}}
 class Logger {public void Error(object m){}public void Error(string m,object e){}}
 static class Log<T>{public static Logger Logger=new Logger();}
@@ -46,6 +46,23 @@ static class Program {
    checks.Add(new{mode,oldMode,correct,count,stored=Units(stored),passed=m.Passed,fail=m.FailCount,retry=m.RetryLockedSec,until=r.Until,after=Row()});
   }
   foreach(int mode in new[]{0,1,2})foreach(var pw in passwords){FeatureMatrix.Mode=mode;UserDBDataContext.Row=new User{SecondPassword="old",SecondPasswordFailCount=4,SecondPasswordLastFail=Clock.Now};var r=new Recovered();SecondPasswordResultMessage m;r.RegisterSecondPassword(Password(pw),out m);registers.Add(new{mode,password=pw,type=(int)m.OperationType,passed=m.Passed,fail=m.FailCount,retry=m.RetryLockedSec,after=Row()});}
-  Console.OutputEncoding=new UTF8Encoding(false);Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=10000000}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",now=Clock.Now.Ticks,hashes,versions,queries,checks,registers}));
+  var nullableChecks=new List<object>();
+  foreach(int mode in new[]{0,1,2})foreach(int oldMode in new[]{0,1,2})foreach(bool storedEmpty in new[]{false,true}) {
+   FeatureMatrix.Mode=mode;string stored=Recovered.Hash("MiXeDLab",storedEmpty?"":"123456",oldMode);
+   UserDBDataContext.Row=new User{SecondPassword=stored,SecondPasswordFailCount=4,SecondPasswordLastFail=Clock.Now};
+   var r=new Recovered();SecondPasswordResultMessage m;r.CheckSecondPassword(null,out m);
+   nullableChecks.Add(new{mode,oldMode,storedEmpty,stored=Units(stored),type=(int)m.OperationType,passed=m.Passed,fail=m.FailCount,retry=m.RetryLockedSec,until=r.Until,after=Row()});
+  }
+  var nullable=new List<object>();
+  foreach(int mode in new[]{0,1,2})foreach(string operation in new[]{"null-check","null-set","read-query","read-check","read-set"}) {
+   FeatureMatrix.Mode=mode;UserDBDataContext.ReadFailure=operation.StartsWith("read-");
+   string stored=Recovered.Hash("MiXeDLab","123456",mode);UserDBDataContext.Row=new User{SecondPassword=stored,SecondPasswordFailCount=4,SecondPasswordLastFail=Clock.Now};
+   var r=new Recovered();int type=-1,fail,retry;bool passed=false,first=false,has=false;
+   if(operation=="read-query"){HasSecondPasswordMessage m;r.QuerySecondPassword(out m);fail=m.FailCount;retry=m.RetryLockedSec;first=m.IsFirstQuery;has=m.HasSecondPassword;}
+   else{SecondPasswordResultMessage m;if(operation=="null-set"||operation=="read-set")r.RegisterSecondPassword(operation=="null-set"?null:"654321",out m);else r.CheckSecondPassword(operation=="null-check"?null:"654321",out m);type=(int)m.OperationType;passed=m.Passed;fail=m.FailCount;retry=m.RetryLockedSec;}
+   nullable.Add(new{mode,operation,type,passed,first,has,fail,retry,until=r.Until,unchanged=UserDBDataContext.Row.SecondPassword==stored&&UserDBDataContext.Row.SecondPasswordFailCount==4&&UserDBDataContext.Row.SecondPasswordLastFail==Clock.Now});
+   UserDBDataContext.ReadFailure=false;
+  }
+  Console.OutputEncoding=new UTF8Encoding(false);Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=10000000}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",now=Clock.Now.Ticks,hashes,versions,queries,checks,registers,nullable,nullableChecks}));
  }
 }

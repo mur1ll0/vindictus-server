@@ -221,4 +221,117 @@ impl PasswordSession {
         };
         Ok(())
     }
+    /// Frontend OnFail changes visible state, without changing SQL or retry time.
+    pub fn lock_after_failure(&mut self) {
+        self.state = ClientState::Locked;
+    }
+    fn caught_failure(&mut self, clock: ClockSamples) -> Result<CheckResult, PasswordSessionError> {
+        // UserEntity catch leaves num=-1; RecordCheckSecondPasswordFail takes the default arm.
+        self.restricted_until =
+            crate::domain::second_password::retry_until(-1, clock.operation_now)?;
+        Ok(CheckResult {
+            passed: false,
+            fail_count: -1,
+            retry_seconds: crate::domain::second_password::retry_seconds(
+                self.restricted_until,
+                clock,
+            )?,
+        })
+    }
+    /// NULL is a caught source exception, never the empty-string clear request.
+    pub async fn check_nullable(
+        &mut self,
+        frontend: &FrontendSession,
+        pool: &PgPool,
+        password: Option<&str>,
+        clock: ClockSamples,
+    ) -> Result<CheckResult, PasswordSessionError> {
+        self.owner(frontend)?;
+        if self.state == ClientState::Unknown {
+            return Err(PasswordSessionError::State);
+        }
+        self.allowed(clock)?;
+        let units = password.map(|v| Zeroizing::new(v.encode_utf16().collect::<Vec<_>>()));
+        self.state = ClientState::Locked;
+        match storage::check_optional(
+            pool,
+            &self.key(),
+            units.as_deref().map(|v| v.as_slice()),
+            self.config.profile,
+            self.config.identity,
+            clock,
+        )
+        .await
+        {
+            Ok((result, revision)) => {
+                self.revision = revision;
+                self.restricted_until = crate::domain::second_password::retry_until(
+                    result.fail_count,
+                    clock.operation_now,
+                )?;
+                if result.passed {
+                    self.state = ClientState::Passed;
+                }
+                Ok(result)
+            }
+            Err(StorageError::Domain(SecondPasswordError::Locked)) => {
+                Err(SecondPasswordError::Locked.into())
+            }
+            Err(_) => self.caught_failure(clock),
+        }
+    }
+
+    pub async fn change_nullable(
+        &mut self,
+        frontend: &FrontendSession,
+        pool: &PgPool,
+        password: Option<&str>,
+        clock: ClockSamples,
+    ) -> Result<CheckResult, PasswordSessionError> {
+        self.owner(frontend)?;
+        if !self.state.passed(true) || self.state == ClientState::Unknown {
+            return Err(PasswordSessionError::State);
+        }
+        self.allowed(clock)?;
+        let before = self.state;
+        let Some(password) = password else {
+            return self.caught_failure(clock);
+        };
+        let units = Zeroizing::new(password.encode_utf16().collect::<Vec<_>>());
+        match self.change(frontend, pool, &units, clock).await {
+            Ok(()) => Ok(CheckResult {
+                passed: true,
+                fail_count: 0,
+                retry_seconds: -1,
+            }),
+            Err(PasswordSessionError::Storage(_)) => {
+                self.state = before;
+                self.caught_failure(clock)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// QueryHasSecondPassword completes even when the source context catches a database error.
+    pub async fn query_with_source_catch(
+        &mut self,
+        frontend: &FrontendSession,
+        pool: &PgPool,
+        clock: ClockSamples,
+    ) -> Result<QueryResult, PasswordSessionError> {
+        match self.query(frontend, pool, clock).await {
+            Err(PasswordSessionError::Storage(_)) => {
+                self.state = ClientState::Locked;
+                self.restricted_until = None;
+                Ok(QueryResult {
+                    restricted_until: None,
+                    first: false,
+                    has_password: true,
+                    fail_count: 0,
+                    retry_seconds: -1,
+                })
+            }
+            result => result,
+        }
+    }
 }

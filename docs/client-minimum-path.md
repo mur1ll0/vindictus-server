@@ -12,9 +12,9 @@ Investigação estática em 2026-10-12 a partir do Git limpo `3608a03`. Priorida
 ## Bloqueios concretos
 
 - .cache/play-client contém cópia completa; bootstrap HTTP200 e ingresso na TCP27015 observados. Originais permanecem somente leitura; segunda senha interna ainda não implica aceitação de login.
-- TCP diagnóstico recusa13; não há ligação TCP→FrontendSession nem respostas de lista/seleção/sucesso/cidade.
+- Adapter TCP restrito já liga FrontendSession à segunda senha e lista realmente vazia. Aceite de login/lista no cliente permanece pendente; criação/seleção/entrada/cidade continuam sem handlers. A recusa13 descrita na observação histórica era do probe.
 - Perfis de identidade/features limitados; runtime/cultura/arquitetura efetivos não observados. Credenciais importadas não ativas.
-- Composição interna de novo/existente e retorno integral ligados à sessão em M13.2d.3a; TCP e consumidor de itens ainda pendentes. Catálogo/stat/rates/inventário/correio pendentes. Verificar dependências alcançadas por cenário em vez de exigir ItemContents integral para toda investigação de login.
+- Composição interna de novo/existente e retorno integral ligados à sessão em M13.2d.3a; TCP de laboratório integrado em M13.3d.2b, consumidor de itens ainda pendente. Catálogo/stat/rates/inventário/correio pendentes. Verificar dependências alcançadas por cenário em vez de exigir ItemContents integral para toda investigação de login.
 - QueryCharacters/SelectCharacter precisam de dados além dos snapshots, codec/segunda senha/PlayerService e ownership de CID.
 - InGame tem dependências adicionais e dois ramos de canal; Rust não oferece cidade/movimento. Managed não comprova transporte nativo do ramo escolhido.
 
@@ -72,3 +72,6 @@ M13.3d.2a.1 concluída: a barreira de [proveniência sintética](lab-account-pro
 
 
 M13.3d.2a.2 concluída: [perfil privado e relógio explícito](lab-frontend-runtime-profile.md) validados Windows/Linux. O próximo bloqueio é o adapter TCP2b; nenhuma nova tentativa foi solicitada enquanto existe somente probe.
+
+
+M13.3d.2b concluída: [adapter TCP restrito](lab-frontend-tcp.md), segunda senha e lista vazia verificados. Login/segunda senha e tela de criação confirmados pelo operador. Próximo: CheckCharacterName/QueryReservedInfo/ProloguePlayed; criação/defaults/Summary e CID/SN, seleção/PlayerLoader e canal MMO/entrada/movimento.
