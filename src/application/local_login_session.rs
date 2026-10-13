@@ -50,6 +50,28 @@ pub async fn evaluate_local_lab_user(
     config: &LocalLoginConfig<'_>,
     reward_clock: impl FnMut() -> Result<SqlDateTime, Error>,
 ) -> Result<UserLoginOutcome, LocalLoginError> {
+    evaluate_lab_user_inner(session, token, pool, config, reward_clock, None).await
+}
+/// Runtime composition with an operator-owned provenance scope. The network runtime
+/// must use this path and a shared session registry; no field from a client supplies scope.
+pub async fn evaluate_scoped_lab_user(
+    session: &mut FrontendSession,
+    token: AttemptToken,
+    pool: &PgPool,
+    config: &LocalLoginConfig<'_>,
+    reward_clock: impl FnMut() -> Result<SqlDateTime, Error>,
+    scope: &crate::domain::lab_account::LabAccountScope,
+) -> Result<UserLoginOutcome, LocalLoginError> {
+    evaluate_lab_user_inner(session, token, pool, config, reward_clock, Some(scope)).await
+}
+async fn evaluate_lab_user_inner(
+    session: &mut FrontendSession,
+    token: AttemptToken,
+    pool: &PgPool,
+    config: &LocalLoginConfig<'_>,
+    reward_clock: impl FnMut() -> Result<SqlDateTime, Error>,
+    scope: Option<&crate::domain::lab_account::LabAccountScope>,
+) -> Result<UserLoginOutcome, LocalLoginError> {
     session.pending(token, Instant::now())?;
     let mut guard = LoginGuard {
         session,
@@ -83,10 +105,20 @@ pub async fn evaluate_local_lab_user(
         .session
         .attempt_deadline()
         .ok_or(SessionError::InvalidPhase)?;
-    let outcome = tokio::time::timeout_at(
-        deadline.into(),
-        execute_local_user_login(pool, &request, reward_clock),
-    )
+    let outcome = tokio::time::timeout_at(deadline.into(), async {
+        match scope {
+            Some(scope) => {
+                super::user_login::execute_scoped_lab_user_login(
+                    pool,
+                    &request,
+                    reward_clock,
+                    scope,
+                )
+                .await
+            }
+            None => execute_local_user_login(pool, &request, reward_clock).await,
+        }
+    })
     .await
     .map_err(|_| SessionError::Timeout)??;
     match &outcome {

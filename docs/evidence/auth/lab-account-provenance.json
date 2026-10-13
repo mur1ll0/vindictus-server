@@ -1,0 +1,108 @@
+{
+  "stage": "M13.3d.2a.1",
+  "verified_at_utc": "2026-10-13T14:27:00.0625276+00:00",
+  "gate": {
+    "rust": 204,
+    "postgres": 65,
+    "python": 19,
+    "failures": 0,
+    "warnings": 0
+  },
+  "provenance": {
+    "created_with_new_user_atomically": true,
+    "existing_unmarked_rows_adopted": false,
+    "user_name_prefix_is_proof": false,
+    "wire_fields_supply_scope": false,
+    "origin_is_local_metadata": true,
+    "indexed_local_fk": true,
+    "creation_identity_lock": true,
+    "dangling_owner_tables": 9,
+    "late_failure_rollback": true,
+    "concurrent_creator_count": 8,
+    "identity_race_real_blocker_observed": true,
+    "scoped_session_refusal_releases_reservation": true
+  },
+  "docker": {
+    "verified_at_utc": "2026-10-13T14:32:25.1448145+00:00",
+    "state": {
+      "migration13": true,
+      "origins": 0,
+      "origin_fk": true,
+      "origin_primary_key": true
+    },
+    "imported_users_marked": false,
+    "synthetic_tests_isolated": true,
+    "game_authentication_available": false
+  },
+  "source_preservation": {
+    "users": 29,
+    "user_fields": 15,
+    "character_bundle_rows": 287,
+    "character_bundle_fields": 64,
+    "queued_rows": 140,
+    "queue_next": 141,
+    "queue_next_used": false,
+    "user_info": 25,
+    "user_products": 0,
+    "user_care": 2,
+    "home_cafe": 2,
+    "all_fields_equal_after_restart": true
+  },
+  "runtime_configuration_ready": false,
+  "game_authentication_available": false,
+  "actual_client_acceptance_verified": false,
+  "artifacts": [
+    {
+      "path": "migrations/0013_lab_account_origins.sql",
+      "sha256": "d3ddfff114cdc9c30461120461c84159261f1bc7a961b77e0a7897b39db41fbe"
+    },
+    {
+      "path": "src/domain/lab_account.rs",
+      "sha256": "e309d31fd068c5d89eb869587d611731616327fbc494af5463d18dad8498629c"
+    },
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "8cf6c1a1ebf7588e8eca6bbf2737a6052c1bbba56f6205cbd1cd44d744ecf6f3"
+    },
+    {
+      "path": "src/error.rs",
+      "sha256": "fd31cbdc2d333baaa1e887eb904b4442d5e80870f6eaed95d8b05f10fbf33223"
+    },
+    {
+      "path": "src/infrastructure/postgres.rs",
+      "sha256": "2efd22a15fa2ea487735656e840671ec14047adffde1fd9cf17e576c4c850b1a"
+    },
+    {
+      "path": "src/infrastructure/user_login.rs",
+      "sha256": "9e2c07eda24187ddb464beeab826c7cf8d96a805df8d98640966459f265ef52c"
+    },
+    {
+      "path": "src/application/user_login.rs",
+      "sha256": "34f27d5a9c66201b8e1a10eea6338d28517fa02e2ff3071e9409cb8b796538c7"
+    },
+    {
+      "path": "src/application/local_login_session.rs",
+      "sha256": "7dc7a1b860b62fa66c34e8569cc69f57aa4a8460c438c8aeab9f6b0e6f06ef62"
+    },
+    {
+      "path": "tests/postgres.rs",
+      "sha256": "6e9e557cf438f44e428166d3b23ba2c1367ffeb5e3b60a208efd0cdba975db93"
+    },
+    {
+      "path": "tests/support/characters.rs",
+      "sha256": "cd0c2c8047e3c61004161e2dfecb35dddce35a65259859de0bfbc062921007bd"
+    },
+    {
+      "path": "tests/support/login_account_effects.rs",
+      "sha256": "298db3b0e902405259448df6c52c6c6d5c08c3c57417ff86df8bef8d57644bc9"
+    },
+    {
+      "path": "tests/support/login_rewards.rs",
+      "sha256": "43ce9e9ec7ed1af24f8751c1f2052404d0053cb12399255c3a235752f2594af9"
+    },
+    {
+      "path": "tests/support/user_login.rs",
+      "sha256": "5c239dd2a7ca4f30f6e2d48ddd269ed38e3682a91c70edb9e48d73d4f0f4d842"
+    }
+  ]
+}

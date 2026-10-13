@@ -72,7 +72,24 @@ pub enum UserLoginError {
 pub async fn execute_local_user_login(
     pool: &PgPool,
     request: &UserLoginRequest<'_>,
+    reward_clock: impl FnMut() -> Result<SqlDateTime, Error>,
+) -> Result<UserLoginOutcome, UserLoginError> {
+    execute_user_login_inner(pool, request, reward_clock, None).await
+}
+/// Laboratory runtime entry: imported or unmarked rows cannot reach reward/ban/IP writes.
+pub async fn execute_scoped_lab_user_login(
+    pool: &PgPool,
+    request: &UserLoginRequest<'_>,
+    reward_clock: impl FnMut() -> Result<SqlDateTime, Error>,
+    scope: &crate::domain::lab_account::LabAccountScope,
+) -> Result<UserLoginOutcome, UserLoginError> {
+    execute_user_login_inner(pool, request, reward_clock, Some(scope)).await
+}
+async fn execute_user_login_inner(
+    pool: &PgPool,
+    request: &UserLoginRequest<'_>,
     mut reward_clock: impl FnMut() -> Result<SqlDateTime, Error>,
+    scope: Option<&crate::domain::lab_account::LabAccountScope>,
 ) -> Result<UserLoginOutcome, UserLoginError> {
     let policy = &request.content.policy;
     for key in [
@@ -97,16 +114,23 @@ pub async fn execute_local_user_login(
     }
     tokio::time::timeout(std::time::Duration::from_secs(30), async {
         let user = &request.user;
-        let prepared = prepare_user(
-            pool,
-            user,
-            request
-                .content
-                .policy
-                .is_enabled(Some("friend_loyalty_system"))?,
-            request.loyalty_insert_now,
-        )
-        .await?;
+        let friend = request
+            .content
+            .policy
+            .is_enabled(Some("friend_loyalty_system"))?;
+        let prepared = match scope {
+            Some(scope) => {
+                crate::infrastructure::user_login::prepare_scoped_lab_user(
+                    pool,
+                    user,
+                    friend,
+                    request.loyalty_insert_now,
+                    scope,
+                )
+                .await?
+            }
+            None => prepare_user(pool, user, friend, request.loyalty_insert_now).await?,
+        };
         let effects = apply_existing_login_rewards(
             pool,
             &LoginRewardRequest {

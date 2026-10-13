@@ -1,0 +1,12 @@
+{
+  "verified_at_utc": "2026-10-13T14:32:25.1448145+00:00",
+  "state": {
+    "migration13": true,
+    "origins": 0,
+    "origin_fk": true,
+    "origin_primary_key": true
+  },
+  "imported_users_marked": false,
+  "synthetic_tests_isolated": true,
+  "game_authentication_available": false
+}

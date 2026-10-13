@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("laboratory account provenance or profile is not valid; mutation refused")]
+    LabAccountProvenance,
     #[error(transparent)]
     HomeCafe(#[from] crate::infrastructure::home_cafe_bonus::HomeCafeError),
     #[error(transparent)]
