@@ -44,3 +44,5 @@ pub mod name_retention;
 
 pub mod character_allocator;
 pub mod character_ledger;
+
+pub mod character_creation_admission;

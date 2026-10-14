@@ -1,0 +1,24 @@
+// Own harness: only selected allocator/probe statements are inserted into the local cache.
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Web.Script.Serialization;
+class Clock { public static int Samples; public static DateTime Next(){Samples++;return new DateTime(621355968000000000L,DateTimeKind.Utc);} }
+class FeatureMatrix {public static int ServerCode=-1;}
+static class Extention {private static readonly DateTime epoch=new DateTime(1970,1,1,0,0,0,DateTimeKind.Utc); __EPOCH__}
+class Probe {
+ public static int Rows,Queries; public static HashSet<int> Keys=new HashSet<int>();
+ public static object Single(int sn){Queries++;Keys.Add(sn);return Enumerable.Repeat(new object(),Rows).SingleOrDefault();}
+}
+class Maker {
+ __SERIAL__
+ public int Run(){int characterSN=-1;__SETUP__ __LOOP__ return characterSN;}
+}
+class Oracle {
+ static void Main(){CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;var cases=new List<object>();
+ for(int rows=0;rows<=2;rows++){Clock.Samples=0;Probe.Rows=rows;Probe.Queries=0;Probe.Keys.Clear();int? sn=null;string error=null;
+ try{sn=new Maker().Run();}catch(Exception e){error=e.GetType().Name;}
+ cases.Add(new{rows,sn,error,clock_samples=Clock.Samples,queries=Probe.Queries,keys=Probe.Keys.ToArray()});}
+ Console.WriteLine(new JavaScriptSerializer().Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",cases}));}
+}

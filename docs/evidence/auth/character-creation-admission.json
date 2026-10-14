@@ -1,0 +1,34 @@
+{
+  "stage": "M15.1b.2d.1",
+  "gate_verified_at_utc": "2026-10-14T15:09:13.7251725+00:00",
+  "docker_verified_at_utc": "2026-10-14T16:43:59.7299139+00:00",
+  "rust_passed": 234,
+  "postgres_passed": 90,
+  "python_passed": 19,
+  "failed": 0,
+  "warnings": 0,
+  "framework_architectures": 2,
+  "probe_cases_per_architecture": 3,
+  "disagreements": 0,
+  "fixture_sha256": "e543acc062166432ccd08f5d62783924d179d95f4ec061a96f8a5ba6c3945390",
+  "source_procedure_hashes": [
+    {
+      "name": "GetAdditionalCharacterSlots",
+      "sha256": "df916db68fbe23eb06b6e744a14d4761e3e12a643bb618ad5842bee2aad48d6b"
+    },
+    {
+      "name": "GetPremiumCharacterSlots",
+      "sha256": "df9ea48cc82233752d6bbbc36e8bf553daa04eae54c43f615ba0738ac8f22434"
+    }
+  ],
+  "source_visibility_file_sha256": "f745f3ebb880860796ea51cdc43641d6cede381a8af2d7a2afa01aa472630292",
+  "docker_builtin_frontend_used": true,
+  "dockerfile_source_sha256": "f1eded0109e36e46f6c48e9d79d062501257ec98984ca344727b4a9d77968152",
+  "original_services_executed": false,
+  "originals_read_only": true,
+  "synthetic_owner_only": true,
+  "atomic_slot_reservation": false,
+  "client_create_handler_enabled": false,
+  "character_creation_available": false,
+  "full_migration_complete": false
+}

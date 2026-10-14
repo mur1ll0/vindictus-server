@@ -1538,3 +1538,6 @@ mod character_collections;
 mod character_creation_core;
 #[path = "support/character_creation_ledger.rs"]
 mod character_creation_ledger;
+
+#[path = "support/character_creation_admission.rs"]
+mod character_creation_admission;

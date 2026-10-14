@@ -1,0 +1,11 @@
+{
+  "stage": "M15.1b.2d.1",
+  "verified_at_utc": "2026-10-14T16:43:59.7299139+00:00",
+  "source_snapshots_preserved": true,
+  "admission_tests_executed_in_isolated_schema": 3,
+  "slots_and_sn_queries_only": true,
+  "client_create_handler_enabled": false,
+  "character_creation_available": false,
+  "builtin_frontend_used": true,
+  "source_dockerfile_unchanged": true
+}

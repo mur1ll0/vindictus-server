@@ -1,0 +1,15 @@
+# Admissão antes da criação
+
+M15.1b.2d.1 implementa duas consultas internas de `CharacterMaker`: slots disponíveis e resolução do SN. Elas ainda não estão ligadas ao botão Create.
+
+`QueryCharacterCount` percorre os pais `Character` e conta apenas `CharacterInfo.IsVisible` (status 0 ou 2). As duas procedures de slots contam linhas de `UserProducts` do UID por ProductName, sem usar ExpireTime ou Argument. A igualdade ASCII CI_AS já medida no lobby é reutilizada; nomes fora desse perfil ou mais de 1000 produtos são recusados. O limite usa o valor efetivo MaxCharacterSlot fornecido pelo chamador e soma int32 sem overflow verificado, como a fonte. Não foi escolhido um valor padrão novo nem criada reserva atômica de slot.
+
+A geração do primeiro SN usa dois relógios UTC independentes e repete a alocação quando o resultado é zero. O laço consulta sempre o SN inicial e não filtra Status. Uma linha causa nova alocação, nenhuma encerra o laço, duas reproduzem a falha de SingleOrDefault. Depois de 256 iterações, o short circuit encerra sem uma 257ª consulta. Essa particularidade foi mantida mesmo quando o novo SN não está ocupado.
+
+As consultas exigem UID, nome/revisão admitidos e proveniência sintética do laboratório. Não modificam nomes reservados, logs, personagem ou contador de CID. Transações têm lock_timeout de 2s, statement_timeout de 5s e prazo total de 10s; cancelamento libera a transação. Essa proteção no PostgreSQL não declara equivalência de todas as condições de concorrência do legado.
+
+O harness próprio `generate-creation-probe-fixtures.ps1` extrai somente os métodos de SN, o retry de zero e o laço original para `.cache/framework`. Substitui relógio e consulta por fronteiras sintéticas revisadas. Três casos por arquitetura Framework x86/x64 medem zero, uma e duas linhas, incluindo as 256 consultas e o SN consultado. Não executa serviços originais. Os testes PostgreSQL comparam resultados/amostras ao oracle e verificam status, escopo, limite de produtos e cancelamento em esquemas isolados.
+
+O restante da criação precisa coordenar stop/slots/Check(logging true), alocador CID com Service.ID de sua autoridade própria, base SQL, limpeza por UID/nome e ramo DormantAccount. Depois deve inicializar itens, aparência, habilidades e títulos e consultar CharacterSummary real. Somente essa cadeia completa pode habilitar Create e justificar um novo teste no cliente. Seleção, PlayerLoader, canal MMO, entrada na cidade e movimento continuam pendentes. Login e Check Murael são os aceites reais anteriores; esta etapa não acrescenta aceite do cliente. A migração completa M01–M24 permanece o objetivo final.
+
+A verificação Docker desta etapa usa uma cópia temporária ignorada do Dockerfile, sem a diretiva syntax, para selecionar o frontend embutido. Todas as instruções de construção e a compilação --locked permanecem iguais. Duas tentativas com o frontend externo falharam com frontend grpc server closed unexpectedly; o builder estava running. O Dockerfile produtivo permaneceu intacto; nenhum volume foi removido. A falha do frontend externo continua uma limitação do ambiente e não foi atribuída ao servidor Rust.
