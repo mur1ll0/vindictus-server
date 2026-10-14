@@ -1,11 +1,11 @@
 VERIFICATION REPORT
 -------------------
-Claim: M15.1a recovered creation codecs/template and isolated CID/SN arithmetic; no persistent creation or city acceptance claimed.
-Command: generate-character-creation-wire-fixtures.ps1;generate-character-allocator-fixtures.ps1;generate-fixtures.ps1;verify.ps1 -DatabaseIntegration -DatabaseIntegrationDocker;.cache/verify-creation-primitives-docker.ps1.
-Executed: full gate 2026-10-14T01:40:00.7318277+00:00; Docker/preservation 2026-10-14T01:43:47.5310834+00:00, after the last code change.
+Claim: M15.1b.1 complete preservation of the four creation owner collections and MySettings; no persistent character creation or city acceptance claimed.
+Command: scripts/dev/verify.ps1 -DatabaseIntegration -DatabaseIntegrationDocker;.cache/verify-creation-collections-docker.ps1;scripts/database/Import-CharacterCollections.ps1 -Mode Import/Verify.
+Executed: final full gate 2026-10-14T12:04:33.0399728+00:00; Docker/import/restart 2026-10-14T12:13:46.5509674+00:00, after the last code change.
 Exit code:0.
-Output summary:227 Rust passed/0failed;78 PostgreSQL passed/0failed/0ignored;19 Python passed. Format/Clippy/doctests/build exit0.255 wire and851 allocator cases per architecture, x86/x64 zero differences. Docker build/migrate/readiness/account creation/duplicate/nonroot/restart PASS; original user/character/queue/lobby/HomeCafe/reservation snapshots preserved.
-Warnings:none in final production gate. Basic fixture regeneration emitted CA2200 in unchanged recovered C# MessageAnalyzer.cs; log retained locally, not suppressed or counted as clean oracle build. New creation/allocator oracle builds have no warnings.
-Errors:none in final gate.
-Verdict:PASS for these primitives. Actual operator Check of Murael shows That name is available and can be used. Create handler/persistence/defaults/items/skills/appearance/Summary pending; selection/PlayerLoader/MMO/city/movement pending. Full M01-M24 migration remains required.
-Evidence:character-creation-primitives.json;character-name-check-client.json;gate.json/docker-smoke.json and preservation evidence. Full logs and private sources/exports remain in .cache/verification or protected private cache. Originals and SQL Server read-only; local commit only; no push.
+Output summary:229Rust/0failed;81PostgreSQL/0failed/0ignored;19Python. Format/Clippy/doctests/build clean. Migration0015/source197rows in5tables preserved and compared; replay0. Four source FKs retain DELETE and UPDATE CASCADE, settings rawvarchar255 bytes/multiplicity/no keys/identity. PG8concurrent/replay/defaults/cascade update+delete/readiness tampering/late conflict/FK rejection/cancellation tested. Docker build/migrate/readiness/create-account/duplicate/nonroot/restart and prior source snapshots preserved; private source digest unchanged. Original SQL FreeItem char(1) assignment/predicate measured disabled; no config override.
+Warnings:none in final gate.
+Errors:none in final gate. First PG run79passed/2failed because older isolated DROP/TRUNCATE lists omitted the new FKs; fixed all lists without weakening assertions or broad CASCADE. DELETE/UPDATE source-action audit led to completion of the uncommitted migration and a fresh full gate; earlier runs are not final acceptance.
+Verdict:PASS for collection preservation and these prerequisites. Actual client login/secondary password and normal Check Murael were observed earlier. Create transaction/defaults/ledger/items/skills/appearance/Summary, selection/PlayerLoader/MMO/city/movement pending. Complete M01-M24 migration remains required.
+Evidence:character-creation-collections.json;character-collections-import.json;character-collections-docker.json;gate.json/docker-smoke.json and prior preservation summaries. Full logs/private exports remain in .cache/verification or protected private cache. Originals/SQL reference read-only; local commit only; no push.

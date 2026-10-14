@@ -81,3 +81,5 @@ M13.3d.2c.1: [preparação de personagem e prólogo](character-setup.md). Handle
 M13.3d.2c.2b.1: [consulta real de reservas](character-reservations.md) verificada em TCP/PG e schema preservado. Próximo bloqueio é o Check completo; Create/defaults/Summary e seleção/PlayerLoader/MMO continuam necessários. O novo handler ainda não foi exercitado no cliente.
 
 M13.3d.2c.2b.2: [Check no perfil Murael](character-name-availability.md) consulta estado real e responde nos dois ramos originais. Teste real ainda pendente. Próximo criar com codecs/template/CID/SN, defaults e Summary; criação bem-sucedida retorna à lista por CharacterProcessing, sem inventar CreateCharacterSuccessMessage. Seleção/PlayerLoader e canalMMO/cidade continuam necessários.
+
+Check normal Murael confirmado pelo operador em1.69EN; codecsCreate/Fail e CID/SN verificados em b8334bc. M15.1b.1 preserva quatro coleções/MySettings antes da transaçãoCreate; appearance/defaultitems/defaultskills/Summary, seleção/PlayerLoader e canalMMO ainda bloqueiam personagem jogável. Protocolo de criação não possui CreateCharacterSuccessMessage.

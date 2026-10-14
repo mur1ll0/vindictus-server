@@ -3,6 +3,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    CharacterCollections(#[from] crate::infrastructure::character_collections::CollectionError),
+    #[error(transparent)]
     CharacterNameProof(#[from] crate::infrastructure::character_name_proof::NameProofError),
     #[error(transparent)]
     LabFrontend(#[from] crate::infrastructure::lab_frontend::RuntimeError),

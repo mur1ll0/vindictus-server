@@ -1,0 +1,36 @@
+{
+  "stage": "M15.1b.1",
+  "gate_verified_at_utc": "2026-10-14T12:04:33.0399728+00:00",
+  "docker_verified_at_utc": "2026-10-14T12:13:46.5509674+00:00",
+  "rust_passed": 229,
+  "postgres_passed": 81,
+  "python_passed": 19,
+  "failed": 0,
+  "gate_warnings": 0,
+  "source_rows": [
+    49,
+    49,
+    49,
+    49,
+    1
+  ],
+  "source_columns": [
+    2,
+    2,
+    2,
+    3,
+    2
+  ],
+  "foreign_keys": 4,
+  "on_delete": "CASCADE",
+  "on_update": "CASCADE",
+  "settings_preserved_as": "varchar bytes and complete multiset; no primary key/identity/FK",
+  "free_item_original_sql_enabled": false,
+  "original_char1_assignment_and_sql_predicate_verified": true,
+  "source_export_sha256": "c774d9f49eb9a74a04e79b06a58f843891320b7abe0acbd92b276d12f5d73b66",
+  "source_schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "originals_read_only": true,
+  "character_creation_available": false,
+  "selection_city_movement_verified": false,
+  "full_migration_complete": false
+}

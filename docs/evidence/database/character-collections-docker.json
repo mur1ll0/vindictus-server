@@ -1,0 +1,20 @@
+{
+  "stage": "M15.1b.1",
+  "verified_at_utc": "2026-10-14T12:13:46.5509674+00:00",
+  "state": {
+    "migration15": true,
+    "counts": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "cascade_fks": 4,
+    "settings_keys": 0,
+    "settings_identity_columns": 0
+  },
+  "source_read_only": true,
+  "private_export_published": false,
+  "character_creation_available": false
+}

@@ -69,6 +69,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve creation collection owners and MySettings; does not create a character.
+    ImportCharacterCollections {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve HomeCafeBonus source rows only; no client authentication.
     ImportHomeCafeBonus {
         #[arg(long, required = true)]

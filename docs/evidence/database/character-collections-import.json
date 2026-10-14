@@ -1,0 +1,151 @@
+{
+  "stage": "M15.1b.1",
+  "verified_at_utc": "2026-10-14T12:13:23.2086554+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_counts": {
+    "mailboxes": 49,
+    "story_entries": 49,
+    "quest_collections": 49,
+    "item_collections": 49,
+    "settings": 1
+  },
+  "source_columns": {
+    "mailboxes": 2,
+    "story_entries": 3,
+    "quest_collections": 2,
+    "item_collections": 2,
+    "settings": 2
+  },
+  "export_sha256": "c774d9f49eb9a74a04e79b06a58f843891320b7abe0acbd92b276d12f5d73b66",
+  "query_sha256": "4f10d6bd766ec5d32db8956d8179fa337904a04dbf82ab99b07ffd109e418505",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "source_rows": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "inserted": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "existing": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "verified": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "character_creation_available": false
+  },
+  "replay": {
+    "source_rows": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "inserted": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "existing": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "verified": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "character_creation_available": false
+  },
+  "verified": {
+    "source_rows": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "inserted": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "existing": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "verified": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "character_creation_available": false
+  },
+  "post_restart_verified": true,
+  "character_creation_available": false,
+  "post_restart_verified_at_utc": "2026-10-14T12:13:46.1808241+00:00",
+  "post_restart_summary": {
+    "source_rows": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "inserted": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "existing": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "verified": [
+      49,
+      49,
+      49,
+      49,
+      1
+    ],
+    "character_creation_available": false
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "status": "preparatory source recovery; not a migrated creation executor",
+  "verified_at_utc": "2026-10-14T11:52:59.5600679+00:00",
+  "architectures": 2,
+  "culture": "InvariantCulture",
+  "decisions": [
+    {
+      "feature": "Arisha",
+      "enabled": true
+    },
+    {
+      "feature": "AsynchronousLogging",
+      "enabled": false
+    },
+    {
+      "feature": "CashShop",
+      "enabled": false
+    },
+    {
+      "feature": "CharacterExceptSystem",
+      "enabled": false
+    },
+    {
+      "feature": "CharacterTransferSystem",
+      "enabled": false
+    },
+    {
+      "feature": "CreatePresetJumping",
+      "enabled": false
+    },
+    {
+      "feature": "DisableLogging",
+      "enabled": false
+    },
+    {
+      "feature": "DormantAccount",
+      "enabled": true
+    },
+    {
+      "feature": "Event_Jumpingbuff",
+      "enabled": false
+    },
+    {
+      "feature": "Event_newbie_character_preset_item",
+      "enabled": false
+    },
+    {
+      "feature": "Evy",
+      "enabled": true
+    },
+    {
+      "feature": "Hurk",
+      "enabled": true
+    },
+    {
+      "feature": "KalokCreation",
+      "enabled": true
+    },
+    {
+      "feature": "Kay",
+      "enabled": true
+    },
+    {
+      "feature": "Lynn",
+      "enabled": true
+    },
+    {
+      "feature": "Vella",
+      "enabled": true
+    }
+  ],
+  "source_database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
+  "source_config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
+  "originals_read_only": true,
+  "original_services_executed": false,
+  "raw_values_published": false,
+  "character_creation_available": false
+}

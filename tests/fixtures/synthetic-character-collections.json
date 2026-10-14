@@ -1,0 +1,8 @@
+{
+ "format_version":1,"source":"study_heroes.creation-collections",
+ "item_collections":[{"owner_id":"1","permission":3},{"owner_id":"2","permission":-2147483648}],
+ "quest_collections":[{"owner_id":"1","permission":3},{"owner_id":"2","permission":2147483647}],
+ "mailboxes":[{"owner_id":"1","permission":3},{"owner_id":"2","permission":0}],
+ "story_entries":[{"cid":"1","permission":2,"hint_category":0},{"cid":"2","permission":-1,"hint_category":255}],
+ "settings":[{"code_hex":"","value_hex":"80FF20"},{"code_hex":"","value_hex":"80FF20"},{"code_hex":"416120","value_hex":"00"}]
+}

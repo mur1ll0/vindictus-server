@@ -151,6 +151,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let collections = match &cli.command {
+        Command::ImportCharacterCollections { .. } => Some(
+            vindictus_server::infrastructure::character_collections::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let config = Config::from_env()?;
     let pool = postgres::pool(&config)?;
     match cli.command {
@@ -184,6 +192,23 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::json!({"summary":result,"verify_only":verify_only,"game_authentication_available":false})
+            );
+        }
+        Command::ImportCharacterCollections { verify_only, .. } => {
+            let snapshot = collections.ok_or(
+                vindictus_server::infrastructure::character_collections::CollectionError::Export,
+            )?;
+            let summary = vindictus_server::infrastructure::character_collections::preserve(
+                &pool,
+                &snapshot,
+                verify_only,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| {
+                    vindictus_server::infrastructure::character_collections::CollectionError::Export
+                })?
             );
         }
         Command::ImportHomeCafeBonus { verify_only, .. } => {

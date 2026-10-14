@@ -1,0 +1,12 @@
+# Coleções necessárias à criação
+
+M15.1b.1 verificada no escopo abaixo. A migração0015 preserva ItemCollection, QuestCollection e MailBox (OwnerID/Permission), StoryEntry (CID/Permission/HintCategory) e MySettings (Code/Value). Chaves e quatro FKs para Character com ON DELETE CASCADE/ON UPDATE CASCADE vêm do catálogo SQL original. Permissions default3/3/3/2 e HintCategory0; MailBox.OwnerID default-1. MySettings não temPK/identity/FK/uniqueness: bytesvarchar255 originais e multiplicidade conservados, sem assumir UTF8 ou transformar espaços/case.
+
+ImportCharacterCollections lê somente stdin, JSON bounded2MiB/1000linhas por conjunto, campos obrigatórios/tipos estritos, dono64bits e buffers privados zeroizados. Duplicidade de chave em coleção é recusada; duplicatas idênticas de settings são conservadas. Escrita insert-only e comparação completa por chave; MySettings tem comparação de multiset sob lock de tabela, dentro da mesma transação curta com lock_timeout2s/statement_timeout5s/deadline10s. Conflito tardio, FK inválida e cancelamento desfazem todos os inserts. Importar não cria personagem e não ativa o botãoCreate.
+
+Referência readonly:49linhas em cada coleção e1emMySettings. O valor original medido de FreeItem não habilita as recompensas extras da procedureCreateCharacter; nenhuma configuração foi desabilitada pelo servidor novo. O contrato da procedure deve conservar ambos os ramos quando for portado. Exportação privada fica no cache protegido pelo usuárioWindows/SYSTEM; somente contagens/hashes são publicados.
+
+Reprodução: scripts/database/Import-CharacterCollections.ps1 -Mode Import; -Mode Verify após restart; scripts/dev/verify.ps1 -DatabaseIntegration -DatabaseIntegrationDocker. Testes sintéticos cobrem preservação/replay8concorrentes/defaults/cascade delete+update/readiness, multiset CP1252/zero/trailing/duplicatas/limites, rollback de conflito posterior e cancelamento bloqueado emStoryEntry.
+
+Próximo M15.1b.2: defaults completos deCharacterInfo/transaçãoCreate/FreeItem/CID-SNowner e ledger original. Aparência/customize, itens/habilidades/títulos/CharacterSummary, seleção/PlayerLoader e canalMMO/cidade/movimento continuam pendentes. M01–M24 permanece objetivo final.
+Gate final229Rust/81PostgreSQLexecutados/19Python,0falhas/avisos; Docker/import/replay/restart e preservação dos snapshots anteriores PASS. Evidências:evidence/auth/character-creation-collections.json e evidence/database/character-collections-import.json. Isso ainda não liga o botãoCreate.
