@@ -1541,3 +1541,6 @@ mod character_creation_ledger;
 
 #[path = "support/character_creation_admission.rs"]
 mod character_creation_admission;
+
+#[path = "support/character_creation_maker.rs"]
+mod character_creation_maker;

@@ -1,0 +1,8 @@
+// Own harness; recovered enum declarations and the ResultChanger method stay in local cache.
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;using ServiceCore.EndPointNetwork;
+__CREATE_ENUM__
+__NAME_ENUM__
+class Maker { __RESULT_CHANGER__ }
+class Oracle {static void Main(){var values=new Dictionary<string,int>();foreach(CreateCharacterResult r in Enum.GetValues(typeof(CreateCharacterResult)))values.Add(r.ToString(),(int)r);
+var cases=new List<object>();foreach(int r in new[]{int.MinValue,-1,0,1,2,3,4,5,6,7,int.MaxValue})cases.Add(new{input=r,result=(int)new Maker().ResultChanger((CharacterNameCheckResult)r)});
+Console.WriteLine(new JavaScriptSerializer().Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",values,cases}));}}

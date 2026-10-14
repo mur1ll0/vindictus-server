@@ -1,0 +1,42 @@
+{
+  "stage": "M15.1b.2d.2",
+  "gate_verified_at_utc": "2026-10-14T17:16:19.9241781+00:00",
+  "docker_verified_at_utc": "2026-10-14T17:21:31.2761577+00:00",
+  "rust_passed": 236,
+  "postgres_passed": 94,
+  "python_passed": 19,
+  "failed": 0,
+  "gate_warnings": 0,
+  "framework_architectures": 2,
+  "result_enum_values": 16,
+  "name_mapping_cases_per_architecture": 11,
+  "disagreements": 0,
+  "fixture_sha256": "f6bfc7e938da5ddb0a77765d120144ef61bc1dee97212beeb5f83446dc9369c2",
+  "sqlclient_parameter_fixture_sha256": "58260f7a75675c3758be8d704d7cee043b07407801a57b473d1e08274a6268e7",
+  "source_procedures": [
+    {
+      "name": "DeleteCharacter",
+      "uses_ansi_nulls": true,
+      "uses_quoted_identifier": true,
+      "definition_utf16_sha256": "AC1D285423558246CF8D1B20F30848CA698AD708EAE55B860B66AE9EB3C9E281"
+    },
+    {
+      "name": "UpdateLastConnectInfo",
+      "uses_ansi_nulls": true,
+      "uses_quoted_identifier": true,
+      "definition_utf16_sha256": "9EC1A88289E23131491E840C0EF88CB72B352A9C994F3D0000F6DBC32B5AC492"
+    }
+  ],
+  "builtin_docker_frontend_used": true,
+  "source_dockerfile_unchanged": true,
+  "original_services_executed": false,
+  "originals_read_only": true,
+  "synthetic_owner_only": true,
+  "ambiguous_cleanup_supported": false,
+  "deleted_name_reuse_supported": false,
+  "creation_lifecycle_bound": false,
+  "initializer_complete": false,
+  "runtime_create_handler_enabled": false,
+  "character_creation_available": false,
+  "full_migration_complete": false
+}
