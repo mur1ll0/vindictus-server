@@ -1,0 +1,13 @@
+{
+  "status": "preparatory recovered serializer; no Rust filled-list codec or runtime enabled",
+  "architectures": 2,
+  "cases_per_architecture": 75,
+  "differences": 0,
+  "category": 479,
+  "type_guid": "f2750037-d9ab-3b34-9697-e1626e224040",
+  "source_assembly_sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+  "fields_include": "CharacterSummary and CostumeInfo; Pet NULL only",
+  "synthetic_only": true,
+  "original_services_executed": false,
+  "character_creation_available": false
+}

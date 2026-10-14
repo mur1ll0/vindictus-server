@@ -45,6 +45,8 @@ pub enum NameCheckError {
     Database(#[from] sqlx::Error),
     #[error("name check no longer owns the admitted revision")]
     Ownership,
+    #[error(transparent)]
+    Ledger(#[from] super::character_creation_ledger::CreationLedgerError),
     #[error("name check is outside its measured private profile")]
     Profile,
     #[error("name-check deadline exceeded")]
@@ -85,7 +87,22 @@ pub async fn check(
 ) -> Result<NameCheckResult, NameCheckError> {
     tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        check_owned(pool, key, proof, name),
+        check_owned(pool, key, proof, name, false),
+    )
+    .await
+    .map_err(|_| NameCheckError::Timeout)?
+}
+/// CharacterMaker calls this branch with needChangedNameLogging=true during creation.
+/// The UI Check remains on the nonlogging branch.
+pub async fn check_for_creation(
+    pool: &PgPool,
+    key: UserKey<'_>,
+    proof: &NameProof,
+    name: Option<&str>,
+) -> Result<NameCheckResult, NameCheckError> {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        check_owned(pool, key, proof, name, true),
     )
     .await
     .map_err(|_| NameCheckError::Timeout)?
@@ -95,6 +112,7 @@ async fn check_owned(
     key: UserKey<'_>,
     proof: &NameProof,
     name: Option<&str>,
+    logging: bool,
 ) -> Result<NameCheckResult, NameCheckError> {
     if !proof.valid_request(name)? {
         return Ok(NameCheckResult::InvalidName);
@@ -197,6 +215,15 @@ async fn check_owned(
     .map_err(|_| NameCheckError::Profile)?;
     let blocked = history_name_blocked(dates, threshold);
     tx.commit().await?;
+    if !blocked && logging {
+        super::character_creation_ledger::changed_name_check(
+            pool,
+            &key,
+            name.ok_or(NameCheckError::Profile)?,
+            proof.protect_period,
+        )
+        .await?;
+    }
     Ok(if blocked {
         NameCheckResult::ChangedCharacterName
     } else {

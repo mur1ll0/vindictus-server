@@ -3,6 +3,9 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    CreationLedger(#[from] crate::infrastructure::character_creation_ledger::CreationLedgerError),
+
+    #[error(transparent)]
     CharacterCollections(#[from] crate::infrastructure::character_collections::CollectionError),
     #[error(transparent)]
     CharacterNameProof(#[from] crate::infrastructure::character_name_proof::NameProofError),

@@ -1,0 +1,21 @@
+{
+  "stage": "M15.1b.2b",
+  "gate_verified_at_utc": "2026-10-14T13:34:25.5580472+00:00",
+  "docker_verified_at_utc": "2026-10-14T13:40:17.0284602+00:00",
+  "rust_passed": 231,
+  "postgres_passed": 87,
+  "python_passed": 19,
+  "failed": 0,
+  "warnings": 0,
+  "sql_routing_synthetic_cases": 13,
+  "sql_fixture_sha256": "0b1302dec383b93edaff059850b975a171c77953f2f940e30092160eaaf1edb2",
+  "source_procedure_utf16_sha256": "897197c2880495f241f84ab3716f94cd0c196159a8b4075e1dedb56c2d418c21",
+  "scope": "creation events only; admitted synthetic owner/revision",
+  "source_ledger_history_imported": false,
+  "generic_add_character_ledger_migrated": false,
+  "new_source_rowversion_fabricated": false,
+  "originals_read_only": true,
+  "client_create_handler_enabled": false,
+  "character_creation_available": false,
+  "full_migration_complete": false
+}

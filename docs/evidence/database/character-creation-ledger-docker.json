@@ -1,0 +1,17 @@
+{
+  "stage": "M15.1b.2b",
+  "verified_at_utc": "2026-10-14T13:40:17.0284602+00:00",
+  "state": {
+    "migration16": true,
+    "counts": [
+      0,
+      0
+    ],
+    "keys": 0,
+    "identity_columns": 0
+  },
+  "prior_snapshots_preserved": true,
+  "source_ledger_history_imported": false,
+  "source_read_only": true,
+  "creation_available": false
+}

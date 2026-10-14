@@ -1,0 +1,70 @@
+{
+  "source": "SELECT only synthetic SQL datetime and original day parity",
+  "cases": [
+    {
+      "id": 0,
+      "sql_datetime_hex": "FFFF2E4600000000",
+      "partition": 1
+    },
+    {
+      "id": 1,
+      "sql_datetime_hex": "FFFFFFFF018B81FF",
+      "partition": 2
+    },
+    {
+      "id": 2,
+      "sql_datetime_hex": "0000000000000000",
+      "partition": 1
+    },
+    {
+      "id": 3,
+      "sql_datetime_hex": "00008EE700CF5941",
+      "partition": 2
+    },
+    {
+      "id": 4,
+      "sql_datetime_hex": "00009E5B00000000",
+      "partition": 2
+    },
+    {
+      "id": 5,
+      "sql_datetime_hex": "00009E5C018B81FF",
+      "partition": 1
+    },
+    {
+      "id": 6,
+      "sql_datetime_hex": "00009E5D00000000",
+      "partition": 2
+    },
+    {
+      "id": 7,
+      "sql_datetime_hex": "00009E5E00000000",
+      "partition": 1
+    },
+    {
+      "id": 8,
+      "sql_datetime_hex": "00009E5E018B81FF",
+      "partition": 1
+    },
+    {
+      "id": 9,
+      "sql_datetime_hex": "00009E5F00000000",
+      "partition": 2
+    },
+    {
+      "id": 10,
+      "sql_datetime_hex": "00009E6000C5C100",
+      "partition": 1
+    },
+    {
+      "id": 11,
+      "sql_datetime_hex": "0000B4E300C5C100",
+      "partition": 2
+    },
+    {
+      "id": 12,
+      "sql_datetime_hex": "002D247F018B81FF",
+      "partition": 2
+    }
+  ]
+}
