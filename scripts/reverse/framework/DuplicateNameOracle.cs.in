@@ -1,0 +1,11 @@
+using System;using System.Linq;using System.Collections.Generic;using System.Web.Script.Serialization;
+class CharacterInfo{public string Name;public int Status;public DateTime? DeleteTime;}
+class CharacterDataContext{public IQueryable<CharacterInfo> CharacterInfo;}
+class FeatureMatrix{public static bool Japanese;public static bool IsEnable(string key){if(key!="jaJP")throw new InvalidOperationException();return Japanese;}}
+class Maker{public static DateTime Clock;
+__RECOVERED_METHOD__
+public bool Run(CharacterDataContext c,string name){return CheckDuplicateName(c,name);}}
+class Oracle{static void Main(){var cases=new List<object>();var clock=new DateTime(2026,10,13,0,0,0,DateTimeKind.Utc);Maker.Clock=clock;
+foreach(int status in new[]{int.MinValue,-1,0,1,2,int.MaxValue})foreach(DateTime? deleted in new DateTime?[]{null,clock,clock.AddTicks(-1),clock.AddDays(-29),clock.AddDays(-30).AddTicks(1),clock.AddDays(-30),clock.AddDays(-30).AddTicks(-1),clock.AddDays(1),DateTime.MinValue,DateTime.MaxValue})foreach(bool jp in new[]{false,true})foreach(bool otherActive in new[]{false,true})foreach(bool match in new[]{false,true}){
+FeatureMatrix.Japanese=jp;var rows=new List<CharacterInfo>{new CharacterInfo{Name=match?"LabName":"OtherName",Status=status,DeleteTime=deleted}};if(otherActive)rows.Add(new CharacterInfo{Name="LabName",Status=0});bool value=new Maker().Run(new CharacterDataContext{CharacterInfo=rows.AsQueryable()},"LabName");cases.Add(new{status,deleted_ticks=deleted.HasValue?deleted.Value.Ticks.ToString():null,jp,other_active=otherActive,match,result=value});}
+Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=4*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",clock_ticks=clock.Ticks.ToString(),cases}));}}

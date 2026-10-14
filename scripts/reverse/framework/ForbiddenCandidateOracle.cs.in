@@ -1,0 +1,7 @@
+using System;using System.IO;using System.Linq;using System.Collections.Generic;using System.Globalization;using System.Web.Script.Serialization;
+class ForbiddenNameInfo{public string ForbiddenName{get;set;}public bool IsFullMatch{get;set;}public string Language{get;set;}}
+class Input{public string candidate{get;set;}public string language_tag{get;set;}public List<ForbiddenNameInfo> rows{get;set;}}
+class Contents{public static List<ForbiddenNameInfo> forbiddenNameInfoList;
+__RECOVERED_METHOD__
+}
+class Oracle{static void Main(){var serializer=new JavaScriptSerializer{MaxJsonLength=20*1024*1024};var input=serializer.Deserialize<Input>(Console.In.ReadToEnd());bool? result=null;int? count=null;int cultures=0;foreach(var culture in CultureInfo.GetCultures(CultureTypes.AllCultures)){CultureInfo.CurrentCulture=culture;string filter=input.language_tag.ToLower();Contents.forbiddenNameInfoList=input.rows.Where(x=>x.Language.ToLower()==filter).ToList();bool observed=Contents.IsForbiddenName(input.candidate);if(result.HasValue&&(result.Value!=observed||count.Value!=Contents.forbiddenNameInfoList.Count))throw new InvalidOperationException("Candidate forbidden proof is culture-dependent");result=observed;count=Contents.forbiddenNameInfoList.Count;cultures++;}Console.WriteLine(serializer.Serialize(new{candidate=input.candidate,forbidden=result,filtered_rows=count,cultures,architecture=IntPtr.Size==4?"x86":"x64"}));}}

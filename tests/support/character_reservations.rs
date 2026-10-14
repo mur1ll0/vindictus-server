@@ -31,6 +31,7 @@ async fn reservation_query_matches_source_sql_membership_without_consuming_or_ui
         let who = case["who"].as_str().unwrap();
         let mask = case["mask"].as_i64().unwrap() as i32;
         provision_game_user(&pool, 31, who, 1, 0).await.unwrap();
+        let mut setup = pool.begin().await.unwrap();
         for (id, owner, uid, name, created) in [
             (1, "Owner".to_owned(), -51, "LabFiona", mask & 1 != 0),
             (2, "OWNER ".to_owned(), 777, "Éλ", mask & 2 != 0),
@@ -46,7 +47,7 @@ async fn reservation_query_matches_source_sql_membership_without_consuming_or_ui
                 .bind(uid)
                 .bind(utf16(name))
                 .bind(created)
-                .execute(&pool)
+                .execute(&mut *setup)
                 .await
                 .unwrap();
         }
@@ -64,10 +65,11 @@ async fn reservation_query_matches_source_sql_membership_without_consuming_or_ui
                 .bind(uid)
                 .bind(title)
                 .bind(given)
-                .execute(&pool)
+                .execute(&mut *setup)
                 .await
                 .unwrap();
         }
+        setup.commit().await.unwrap();
         let before:(i64,i64)=sqlx::query_as("SELECT (SELECT COUNT(*) FROM game_reserved_names WHERE created),(SELECT COUNT(*) FROM game_reserved_titles WHERE title_given)").fetch_one(&pool).await.unwrap();
         let actual = storage::query(
             &pool,

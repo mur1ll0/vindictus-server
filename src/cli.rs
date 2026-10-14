@@ -29,6 +29,9 @@ pub enum Command {
         input_stdin: bool,
         #[arg(long)]
         policy_file: std::path::PathBuf,
+        /// Private finite name comparison proof, prepared from read-only recovered evidence.
+        #[arg(long)]
+        name_proof_file: Option<std::path::PathBuf>,
     },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,

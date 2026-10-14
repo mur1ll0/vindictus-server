@@ -34,3 +34,6 @@ pub mod lab_runtime_config;
 pub mod lab_frontend;
 
 pub mod character_reservations;
+
+pub mod character_name_check;
+pub mod character_name_proof;

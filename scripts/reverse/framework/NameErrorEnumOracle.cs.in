@@ -1,0 +1,4 @@
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;
+__NAME_ENUM__
+__CREATE_ENUM__
+class Oracle{static void Main(){var cases=new List<object>();foreach(int n in new[]{0,1,2,3,4,5,6}){object feedback=(CharacterNameCheckResult)n;string label=null,error=null;try{label=((CreateCharacterResult)feedback).ToString();}catch(Exception e){error=e.GetType().Name;}cases.Add(new{code=n,label,error});}Console.WriteLine(new JavaScriptSerializer().Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",cases}));}}

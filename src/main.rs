@@ -81,13 +81,31 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
-    if let Command::LabFrontend { policy_file, .. } = &cli.command {
+    if let Command::LabFrontend {
+        policy_file,
+        name_proof_file,
+        ..
+    } = &cli.command
+    {
         use vindictus_server::infrastructure::{
             lab_frontend, lab_runtime_config::LabRuntimeConfig, reward_policy,
         };
         let content = reward_policy::read_policy(std::fs::File::open(policy_file)?)?;
         let profile = LabRuntimeConfig::read(std::io::stdin().lock(), &content)?;
-        let runtime = std::sync::Arc::new(lab_frontend::Runtime::new(profile, content)?);
+        let name_proof = name_proof_file
+            .as_ref()
+            .map(|path| -> Result<_, Error> {
+                Ok(
+                    vindictus_server::infrastructure::character_name_proof::NameProof::read(
+                        std::fs::File::open(path)?,
+                        &content,
+                    )?,
+                )
+            })
+            .transpose()?;
+        let runtime = std::sync::Arc::new(
+            lab_frontend::Runtime::new(profile, content)?.with_name_check(name_proof),
+        );
         let config = Config::from_env()?;
         let pool = postgres::pool(&config)?;
         postgres::check_ready(&pool).await?;

@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$ProfileFile)
+param([Parameter(Mandatory)][string]$ProfileFile,[string]$NameProofFile)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $private=[IO.Path]::GetFullPath((Join-Path $project '.cache/private-frontend'))
@@ -44,7 +44,19 @@ try{
 $copyRules=@([IO.FileSystemAclExtensions]::GetAccessControl([IO.FileInfo]::new($stdinCopy)).GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
 if($copyRules.Count-lt1-or@($copyRules|Where-Object{$_.IdentityReference-ne$sid-and$_.IdentityReference-ne$system}).Count-ne0){throw 'Private stdin copy ACL contains unexpected principals'}
 # No secrets in arguments. The protected copy is redirected to bounded stdin.
-$process=Start-Process -FilePath $exe -ArgumentList @('lab-frontend','--input-stdin','--policy-file',('"'+$policy+'"')) -WorkingDirectory $project -WindowStyle Hidden -Environment @{DATABASE_URL=$url;DATABASE_URL_FILE=$null;DB_MAX_CONNECTIONS='8';RUST_LOG='info'} -RedirectStandardInput $stdinCopy -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
+$taskRuntimeArguments=@('lab-frontend','--input-stdin','--policy-file',('"'+$policy+'"'))
+if($NameProofFile){
+ $taskProof=[IO.Path]::GetFullPath($NameProofFile)
+ $taskContentPrivate=[IO.Path]::GetFullPath((Join-Path $project '.cache/private-content'))
+ if(-not$taskProof.StartsWith($taskContentPrivate+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)-or[IO.Path]::GetFileName($taskProof)-cne'character-name-proof.json'){throw 'Naming proof must be the prepared private laboratory file'}
+ foreach($taskProofPath in @($taskContentPrivate,$taskProof)){if((Get-Item -LiteralPath $taskProofPath).Attributes-band[IO.FileAttributes]::ReparsePoint){throw 'Private naming proof must not be a reparse point'}}
+ if((Get-Item -LiteralPath $taskProof).Length-gt1MB){throw 'Naming proof exceeds bound'}
+ $taskProofAcl=[IO.FileSystemAclExtensions]::GetAccessControl([IO.DirectoryInfo]::new($taskContentPrivate))
+ $taskProofRules=@([IO.FileSystemAclExtensions]::GetAccessControl([IO.FileInfo]::new($taskProof)).GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+ if(-not$taskProofAcl.AreAccessRulesProtected-or$taskProofRules.Count-lt1-or@($taskProofRules|Where-Object{$_.IdentityReference-ne$sid-and$_.IdentityReference-ne$system}).Count-ne0){throw 'Private naming proof ACL is not protected'}
+ $taskRuntimeArguments+=@('--name-proof-file',('"'+$taskProof+'"'))
+}
+$process=Start-Process -FilePath $exe -ArgumentList $taskRuntimeArguments -WorkingDirectory $project -WindowStyle Hidden -Environment @{DATABASE_URL=$url;DATABASE_URL_FILE=$null;DB_MAX_CONNECTIONS='8';RUST_LOG='info'} -RedirectStandardInput $stdinCopy -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
 $settings.Clear();$url=$null
 $deadline=[DateTime]::UtcNow.AddSeconds(20)
 $ready=$false

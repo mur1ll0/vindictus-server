@@ -469,3 +469,148 @@ async fn actual_tcp_reservation_query_returns_real_lists_before_password_without
     assert_eq!(r.active_count().unwrap(), 0);
     cleanup_game_pool(admin, pool, schema).await;
 }
+use super::name_check_common as naming_common;
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn actual_tcp_name_check_uses_source_dialog_and_name_change_result_before_second_password() {
+    use std::sync::Arc;
+    use vindictus_server::protocol::character_setup::{
+        self as setup, Kind as SKind, Message as SMessage,
+    };
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let c = content(&[]);
+    let proof = naming_common::proof(&c);
+    let r = Arc::new(
+        Runtime::new(profile(&c, false), c)
+            .unwrap()
+            .with_name_check(Some(proof)),
+    );
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    let bytes = setup::encode(
+        SKind::Check,
+        Some(&SMessage::Check {
+            name: Some("Murael"),
+            name_change: false,
+        }),
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap();
+    send(&mut client, &mut tx, SKind::Check.category(), &bytes).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    lobby(&mut client, &mut rx).await;
+    send(&mut client, &mut tx, SKind::Check.category(), &bytes).await;
+    let frame = read(&mut client, &mut rx).await;
+    assert_eq!(frame.category_id, CKind::System.category());
+    let message = ctl::decode(CKind::System, &frame.body, DEFAULT_MAX_BODY).unwrap();
+    assert!(
+        matches!(message,Some(CMessage::System{category:4,text:Some(ctl::HeroesText{format:Some("GameUI_Heroes_Create_Character_ValidName"),parameters:Some(ref p)})}) if p.is_empty())
+    );
+    assert!(
+        password(&mut client, &mut tx, &mut rx, PMessage::Set(Some("123456")))
+            .await
+            .passed
+    );
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    let password_state = lobby(&mut client, &mut rx).await;
+    assert!(password_state.has_password && !password_state.passed);
+    for (name, name_change, valid, error) in [
+        ("Murael", true, true, None),
+        (
+            "A!",
+            false,
+            false,
+            Some("GameUI_Heroes_Error_Create_Character_InvalidName"),
+        ),
+        (
+            "A!",
+            true,
+            false,
+            Some("GameUI_Heroes_Error_Create_Character_InvalidName"),
+        ),
+    ] {
+        let body = setup::encode(
+            SKind::Check,
+            Some(&SMessage::Check {
+                name: Some(name),
+                name_change,
+            }),
+            DEFAULT_MAX_BODY,
+        )
+        .unwrap();
+        send(&mut client, &mut tx, SKind::Check.category(), &body).await;
+        let frame = read(&mut client, &mut rx).await;
+        if name_change {
+            assert_eq!(frame.category_id, SKind::Result.category());
+            assert!(
+                setup::decode(SKind::Result, &frame.body, DEFAULT_MAX_BODY).unwrap()
+                    == Some(SMessage::Result {
+                        valid,
+                        name: Some(name),
+                        error
+                    })
+            );
+        } else {
+            assert_eq!(frame.category_id, CKind::System.category());
+            assert!(
+                ctl::decode(CKind::System, &frame.body, DEFAULT_MAX_BODY).unwrap()
+                    == Some(CMessage::System {
+                        category: 4,
+                        text: Some(ctl::HeroesText {
+                            format: error,
+                            parameters: Some(Vec::new())
+                        })
+                    })
+            );
+        }
+    }
+    // An unmeasured valid name receives no manufactured availability result; Query is a barrier.
+    let body = setup::encode(
+        SKind::Check,
+        Some(&SMessage::Check {
+            name: Some("OtherName"),
+            name_change: false,
+        }),
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap();
+    send(&mut client, &mut tx, SKind::Check.category(), &body).await;
+    let query = setup::encode(SKind::Query, Some(&SMessage::Query), DEFAULT_MAX_BODY).unwrap();
+    send(&mut client, &mut tx, SKind::Query.category(), &query).await;
+    let frame = read(&mut client, &mut rx).await;
+    assert_eq!(frame.category_id, SKind::Reserved.category());
+    sqlx::query("INSERT INTO game_character_name_logs(id,old_character_name_utf16,new_character_name_utf16) VALUES(1,$1,$2)").bind("Murael".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>()).bind("OtherName".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>()).execute(&pool).await.unwrap();
+    let body = setup::encode(
+        SKind::Check,
+        Some(&SMessage::Check {
+            name: Some("Murael"),
+            name_change: false,
+        }),
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap();
+    send(&mut client, &mut tx, SKind::Check.category(), &body).await;
+    let frame = read(&mut client, &mut rx).await;
+    assert!(
+        ctl::decode(CKind::System, &frame.body, DEFAULT_MAX_BODY).unwrap()
+            == Some(CMessage::System {
+                category: 4,
+                text: Some(ctl::HeroesText {
+                    format: Some("GameUI_Heroes_Error_Create_Character_ChangedCharacterName"),
+                    parameters: Some(Vec::new())
+                })
+            })
+    );
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM game_character_info")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        0
+    );
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    cleanup_game_pool(admin, pool, schema).await;
+}

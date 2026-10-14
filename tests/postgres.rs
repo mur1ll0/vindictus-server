@@ -230,7 +230,7 @@ async fn game_users_preserve_source_values_reject_collisions_and_enforce_schema(
         provision_game_user(&pool, x64.nexon_sn, &x64.nexon_id, 42, 0).await,
         Err(Error::GameUserNameConflict)
     ));
-    for name in ["Ã‰", "a\n", "AAAAAAAAAAAAAAAAAAAAAAAAA"] {
+    for name in ["Ãƒâ€°", "a\n", "AAAAAAAAAAAAAAAAAAAAAAAAA"] {
         assert!(matches!(
             provision_game_user(&pool, 54321, name, 42, 0).await,
             Err(Error::GameUserName(_))
@@ -1524,3 +1524,9 @@ mod lab_frontend;
 
 #[path = "support/character_reservations.rs"]
 mod character_reservations;
+
+#[path = "support/character_name_check.rs"]
+mod character_name_check;
+
+#[path = "support/name_check_common.rs"]
+mod name_check_common;

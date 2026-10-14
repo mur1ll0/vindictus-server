@@ -39,3 +39,5 @@ pub mod lab_account;
 pub mod character_name;
 
 pub mod character_reservations;
+
+pub mod name_retention;

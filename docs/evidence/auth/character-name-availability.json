@@ -1,0 +1,73 @@
+{
+  "stage": "M13.3d.2c.2b.2",
+  "verified_at_utc": "2026-10-14T01:10:51.9742061+00:00",
+  "gate_verified_at_utc": "2026-10-14T01:05:46.5702088+00:00",
+  "rust_passed": 223,
+  "postgres_passed": 78,
+  "postgres_ignored": 0,
+  "python_passed": 19,
+  "failed": 0,
+  "warnings": 0,
+  "candidate": "Murael",
+  "source_comparison_values": 49,
+  "source_candidate_matches": 0,
+  "forbidden": false,
+  "forbidden_filtered_rows": 768,
+  "forbidden_full_match_rows": 87,
+  "forbidden_substring_rows": 681,
+  "forbidden_cultures_per_architecture": 859,
+  "architectures": 2,
+  "duplicate_cases_per_architecture": 480,
+  "history_sql_cases": 25,
+  "synthetic_equality_cases": 8,
+  "enum_cases_per_architecture": 7,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContents.cs",
+      "sha256": "6bc2e3fa29ca1c3bf1b2bdb27af3445ed50717225905a059090c18067690aefe"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterDataContext.cs",
+      "sha256": "dc170d91bcb289c327971c68ce0a481a1a4cb5077b7563abccf39b63b7389888"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Functions/CharacterMaker.cs",
+      "sha256": "7d3fe4524e1da2eb71adef15cc6932a712fa7bd9c561ad84ce8bb58049d2af1e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/CheckCharacterNameProcessor.cs",
+      "sha256": "c740941c9099558327186e17706881bd14496a85fcceca4bd56ea81299710533"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterList.cs",
+      "sha256": "8342a53227171c6472846f1e12c15c2dd1d059eac2ae8cdee690699b5bc22fa6"
+    },
+    {
+      "path": "scripts/reverse/framework/ForbiddenCandidateOracle.cs.in",
+      "sha256": "99d6504e91eabd5f3d6c9bb077cea3c7b8905de9e40ad852b52e6600f2c34bcc"
+    },
+    {
+      "path": "scripts/reverse/prepare-forbidden-candidate.py",
+      "sha256": "df9bed97e2dd46455b64ce52e683c38d799e71d924e7b1ab4b87ee1cd4b9704f"
+    },
+    {
+      "path": "scripts/reverse/prepare-character-name-proof.ps1",
+      "sha256": "8dee7218ed9ded6130e6468c2476623114aea480c1436e8c2a5e50822824f975"
+    }
+  ],
+  "manifest": {
+    "database_sha256": "fe0cf8bcef275aaba3434953c413538bffeed9d4134440931da584e58a791370",
+    "config_sha256": "62d60999723fff380a2575ee2f7b665a613d70028321e91991b21961a75a140b",
+    "region": "EN-EU-X-GM",
+    "override_region": null,
+    "game_code": 50393116,
+    "server_code": 1,
+    "catalog_rows": 24
+  },
+  "client_acceptance_verified": false,
+  "character_creation_available": false,
+  "general_unicode_collation_implemented": false,
+  "original_services_executed": false,
+  "original_databases_written": false,
+  "full_migration_complete": false
+}

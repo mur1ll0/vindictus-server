@@ -88,6 +88,7 @@ pub struct Runtime {
     profile: LabRuntimeConfig,
     content: RewardPolicyPackage,
     registry: SessionRegistry,
+    name_proof: Option<super::character_name_proof::NameProof>,
 }
 impl Runtime {
     pub fn new(
@@ -121,9 +122,17 @@ impl Runtime {
         Ok(Self {
             profile,
             content,
+            name_proof: None,
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
+    }
+    pub fn with_name_check(
+        mut self,
+        proof: Option<super::character_name_proof::NameProof>,
+    ) -> Self {
+        self.name_proof = proof;
+        self
     }
     pub fn bind(&self) -> std::net::SocketAddr {
         self.profile.bind()
@@ -566,6 +575,70 @@ impl Connection {
                     .password(runtime, pool, stream, sender, kind, (category, body))
                     .await;
             }
+        }
+        let kind = SetupKind::Check;
+        if matches(category, body, kind.category(), kind.type_id()) {
+            let message = setup::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                .map_err(|_| RuntimeError::Message)?;
+            if let Some(SetupMessage::Check { name, name_change }) = message
+                && self.frontend.phase() == SessionPhase::PoliciesAccepted
+                && let Some(proof) = runtime.name_proof.as_ref()
+            {
+                let revision = self
+                    .password
+                    .as_ref()
+                    .map(PasswordSession::revision)
+                    .or(self.revision)
+                    .ok_or(RuntimeError::Operation)?;
+                match crate::application::character_name_check::check_admitted(
+                    &self.frontend,
+                    pool,
+                    revision,
+                    proof,
+                    name,
+                )
+                .await
+                {
+                    Ok(result) => {
+                        use super::character_name_check::NameCheckResult;
+                        if name_change {
+                            let result_message = SetupMessage::Result {
+                                valid: result == NameCheckResult::Success,
+                                name,
+                                error: result.error_key(),
+                            };
+                            let bytes = setup::encode(
+                                SetupKind::Result,
+                                Some(&result_message),
+                                DEFAULT_MAX_BODY,
+                            )
+                            .map_err(|_| RuntimeError::Message)?;
+                            send(stream, sender, SetupKind::Result.category(), &bytes).await?;
+                        } else {
+                            let format = result
+                                .error_key()
+                                .unwrap_or("GameUI_Heroes_Create_Character_ValidName");
+                            let bytes = ctl::encode(
+                                ControlKind::System,
+                                Some(&ControlMessage::System {
+                                    category: 4,
+                                    text: Some(HeroesText {
+                                        format: Some(format),
+                                        parameters: Some(Vec::new()),
+                                    }),
+                                }),
+                                DEFAULT_MAX_BODY,
+                            )
+                            .map_err(|_| RuntimeError::Message)?;
+                            send(stream, sender, ControlKind::System.category(), &bytes).await?;
+                        }
+                    }
+                    Err(_) => tracing::warn!(
+                        "laboratory name check unavailable or outside measured profile; values omitted"
+                    ),
+                }
+            }
+            return Ok(());
         }
         let kind = SetupKind::Query;
         if matches(category, body, kind.category(), kind.type_id()) {
