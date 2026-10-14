@@ -1,0 +1,9 @@
+{
+  "stage": "M15.1b.2c",
+  "verified_at_utc": "2026-10-14T14:22:15.8271016+00:00",
+  "source_snapshots_preserved": true,
+  "filled_list_codec_only": true,
+  "runtime_filled_list_enabled": false,
+  "client_create_handler_enabled": false,
+  "character_creation_available": false
+}

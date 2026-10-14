@@ -1,5 +1,5 @@
 {
-  "verified_at_utc": "2026-10-14T13:34:25.5580472+00:00",
+  "verified_at_utc": "2026-10-14T14:17:16.8695175+00:00",
   "database_integration_executed": true,
   "database_integration_runtime": "linux-docker-backend",
   "checks": [
@@ -29,12 +29,12 @@
       "name": "rust-tests",
       "command": "cargo test --all-targets --locked",
       "exit_code": 0,
-      "passed": 231,
+      "passed": 233,
       "failed": 0,
       "ignored": 87,
       "warnings": 0,
       "log": ".cache/verification/rust-tests.log",
-      "log_sha256": "3daafab34ee7575bde487845f60052f7dffef72a84296e2590e81a5fe0b06575"
+      "log_sha256": "7dc7222930753503e2f1651b869eaa812751562e047a9aeea4d73752fbb5723c"
     },
     {
       "name": "doc-tests",
@@ -45,7 +45,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/doc-tests.log",
-      "log_sha256": "d3fe61c8c2897323bbed960d42b428f355704237a7f814480e17e84e86cc2ebc"
+      "log_sha256": "09b253e6020302738e9a2d44d799984ac9addd45e20936171eba4e09e1af1192"
     },
     {
       "name": "build",
@@ -78,7 +78,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/postgres-integration.log",
-      "log_sha256": "58b83df3f5c180032187699e22243e0a0cad325a6887fc2cfbde2cd3ff219c2c"
+      "log_sha256": "0c5da560f202c103f64c7f152d55900162b029373f487f78a9a46a8b640ab421"
     },
     {
       "name": "client-python",
@@ -89,7 +89,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/client-python.log",
-      "log_sha256": "5bba79331138d0b7842519a0f6057a43f07a4a0fd1aa121b70bcfa399fdd82d2"
+      "log_sha256": "4b3f7d8a40568b04fee213b79eb12eb943bd3ec9be753f7b3f34447f04d16c43"
     },
     {
       "name": "content-python",
@@ -100,7 +100,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/content-python.log",
-      "log_sha256": "1c6a1652a392d6eb21ea2f06ccd32f6116f4346709656d2b0aa11cbb75719db8"
+      "log_sha256": "213733b453ad18fcc4fcdfc49b1479a96be3af9f999fb99923905b7f670e05c5"
     }
   ],
   "game_compatibility_verified": false

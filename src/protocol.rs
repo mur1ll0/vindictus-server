@@ -175,3 +175,5 @@ pub mod frontend_control;
 pub mod character_setup;
 
 pub mod character_creation;
+
+pub mod character_list;

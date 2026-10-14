@@ -1,20 +1,20 @@
 {
   "stage": "M15.1b.1",
-  "verified_at_utc": "2026-10-14T13:39:51.5803007+00:00",
+  "verified_at_utc": "2026-10-14T14:21:13.4393726+00:00",
   "source_read_only": true,
   "source_export_unchanged": true,
   "source_counts": {
-    "quest_collections": 49,
-    "mailboxes": 49,
     "story_entries": 49,
     "item_collections": 49,
+    "quest_collections": 49,
+    "mailboxes": 49,
     "settings": 1
   },
   "source_columns": {
-    "quest_collections": 2,
-    "mailboxes": 2,
     "story_entries": 3,
     "item_collections": 2,
+    "quest_collections": 2,
+    "mailboxes": 2,
     "settings": 2
   },
   "export_sha256": "c774d9f49eb9a74a04e79b06a58f843891320b7abe0acbd92b276d12f5d73b66",
@@ -116,7 +116,7 @@
   },
   "post_restart_verified": true,
   "character_creation_available": false,
-  "post_restart_verified_at_utc": "2026-10-14T13:40:16.6066216+00:00",
+  "post_restart_verified_at_utc": "2026-10-14T14:22:15.4089082+00:00",
   "post_restart_summary": {
     "source_rows": [
       49,
