@@ -180,3 +180,80 @@ pub async fn cleanup(
     .await
     .map_err(|_| CreationEffectsError::Timeout)?
 }
+
+/// Server-issued cleanup authority for one known base creation; never constructed from a wire CID.
+/// A reconnect can advance the session revision without revoking compensation for this attempt.
+pub(crate) struct CreationCleanupLease {
+    uid: i32,
+    owner: Zeroizing<String>,
+    cid: i64,
+}
+impl CreationCleanupLease {
+    pub(crate) fn issued_after_base(key: &UserKey<'_>, cid: i64) -> Self {
+        Self {
+            uid: key.uid,
+            owner: Zeroizing::new(key.name.to_owned()),
+            cid,
+        }
+    }
+}
+pub(crate) async fn cleanup_attempt(
+    pool: &PgPool,
+    lease: &CreationCleanupLease,
+    proof: &NameProof,
+) -> Result<u64, CreationEffectsError> {
+    let expected =
+        LegacyNameKey::parse(&lease.owner).map_err(|_| CreationEffectsError::Ownership)?;
+    tokio::time::timeout(Duration::from_secs(10), async {
+        let mut tx = pool.begin().await?;
+        sqlx::query("SET LOCAL lock_timeout='2s'")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("SET LOCAL statement_timeout='5s'")
+            .execute(&mut *tx)
+            .await?;
+        let actual: Option<String> =
+            sqlx::query_scalar("SELECT name_key FROM game_users WHERE id=$1 FOR SHARE")
+                .bind(lease.uid)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if actual.as_deref() != Some(expected.as_str()) {
+            return Err(CreationEffectsError::Ownership);
+        }
+        let origin: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM game_lab_account_origins WHERE uid=$1 AND name_key=$2)",
+        )
+        .bind(lease.uid)
+        .bind(expected.as_str())
+        .fetch_one(&mut *tx)
+        .await?;
+        if !origin {
+            return Err(CreationEffectsError::Ownership);
+        }
+        sqlx::query("LOCK TABLE game_character_info IN SHARE ROW EXCLUSIVE MODE")
+            .execute(&mut *tx)
+            .await?;
+        let key = UserKey {
+            uid: lease.uid,
+            name: &lease.owner,
+            revision: 0,
+        };
+        let ids = matching(&mut tx, &key, proof).await?;
+        if ids.len() > 1 || ids.first().is_some_and(|id| *id != lease.cid) {
+            return Err(CreationEffectsError::Profile);
+        }
+        let count = if let Some(cid) = ids.first() {
+            sqlx::query("DELETE FROM game_characters WHERE id=$1")
+                .bind(cid)
+                .execute(&mut *tx)
+                .await?
+                .rows_affected()
+        } else {
+            0
+        };
+        tx.commit().await?;
+        Ok(count)
+    })
+    .await
+    .map_err(|_| CreationEffectsError::Timeout)?
+}

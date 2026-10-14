@@ -1544,3 +1544,6 @@ mod character_creation_admission;
 
 #[path = "support/character_creation_maker.rs"]
 mod character_creation_maker;
+
+#[path = "support/creation_lifecycle.rs"]
+mod creation_lifecycle;

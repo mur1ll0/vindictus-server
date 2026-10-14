@@ -1,0 +1,14 @@
+// Own boundary harness; original methods/callbacks are inserted only into local cache.
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;
+class Logger {public void DebugFormat(string s,params object[] a){}public void InfoFormat(string s,params object[] a){}public void Error(string s,Exception e){}public void Fatal(string s){}}
+static class Log<T>{public static Logger Logger=new Logger();}
+class Operation {private bool eventCalled;public bool Result{get;set;}public event Action<Operation> OnComplete;public event Action<Operation> OnFail;__EVENTS__}
+class CreateCharacter:Operation {public int NexonSN=17;public string Name="Synthetic";}
+class CharacterMaker {public int Deletes;public bool Throws;public bool DeleteCharacter(int uid,string name,int sn){if(uid!=17||name!="Synthetic"||sn!=73)throw new Exception("Synthetic arguments changed");Deletes++;if(Throws)throw new InvalidOperationException();return true;}}
+class Service {public CharacterMaker Maker=new CharacterMaker();public T GetFunction<T>(){return (T)(object)Maker;}}
+class Holder {public CreateCharacter Operation=new CreateCharacter();}
+class Processor:Holder {public Service service=new Service();public void Register(bool createSuccess){int characterSN=73;__CALLBACKS__}}
+class Oracle {static void Main(){var cases=new List<object>();foreach(bool initialized in new[]{false,true})foreach(bool throws in new[]{false,true})for(int length=0;length<=4;length++)for(int bits=0;bits<(1<<length);bits++){
+var p=new Processor();p.service.Maker.Throws=throws;p.Register(initialized);string sequence="";for(int i=0;i<length;i++){bool complete=(bits&(1<<i))==0;sequence+=complete?"C":"F";if(complete)p.Operation.IssueCompleteEvent();else p.Operation.IssueFailEvent();}
+cases.Add(new{initialized,throws,sequence,deletes=p.service.Maker.Deletes,result=p.Operation.Result});}
+Console.WriteLine(new JavaScriptSerializer().Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",cases}));}}

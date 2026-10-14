@@ -1,0 +1,11 @@
+{
+  "stage": "M15.1b.2d.3",
+  "verified_at_utc": "2026-10-14T18:19:13.8928391+00:00",
+  "source_snapshots_preserved": true,
+  "lifecycle_tests_executed_in_isolated_schema": 5,
+  "builtin_frontend_used": true,
+  "source_dockerfile_unchanged": true,
+  "initializer_success_constructible": false,
+  "runtime_create_handler_enabled": false,
+  "character_creation_available": false
+}

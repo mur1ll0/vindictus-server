@@ -47,3 +47,4 @@ pub mod character_ledger;
 
 pub mod character_creation;
 pub mod character_creation_admission;
+pub mod creation_lifecycle;
