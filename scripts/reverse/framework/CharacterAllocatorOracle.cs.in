@@ -1,0 +1,19 @@
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;using System.Globalization;
+class Clock {public static Queue<DateTime> Samples=new Queue<DateTime>();public static DateTime Next(){return Samples.Dequeue();} public static void Set(params long[] ticks){Samples.Clear();foreach(long t in ticks)Samples.Enqueue(new DateTime(t,DateTimeKind.Utc));}}
+class FeatureMatrix {public static int ServerCode;}
+static class Extention {private static readonly DateTime epoch=new DateTime(1970,1,1,0,0,0,DateTimeKind.Utc);__EPOCH_METHOD__}
+class Service {public long id;public int serviceID;__ENTITY_METHODS__}
+class Maker {__SERIAL_METHODS__}
+class Oracle {
+ static void Main(){CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;var cidCases=new List<object>();var snCases=new List<object>();var secondsCases=new List<object>();
+ long epoch=621355968000000000L; long[] times={0L,1L,65535L,65536L,epoch-1,epoch,epoch+17672256000000000L,DateTime.MaxValue.Ticks-65536,DateTime.MaxValue.Ticks};
+ foreach(int sid in new[]{int.MinValue,-1,0,1,65535,65536,int.MaxValue})foreach(long now in times)foreach(long previous in new[]{0L,now-1,now,now+1}){
+ var s=new Service{id=previous,serviceID=sid};Clock.Set(now);string error=null,result=null,delay=null;try{TimeSpan ts;result=s.MakeEntityID(out ts).Ticks.ToString();delay=ts.Ticks.ToString();}catch(Exception e){error=e.GetType().Name;}
+ cidCases.Add(new{service_id=sid,now_ticks=now.ToString(),previous=previous.ToString(),after=s.id.ToString(),result_ticks=result,delay_ticks=delay,error});}
+ long[] seconds={-62135596800L,-2147483649L,-2147483648L,-1L,0L,1L,1767225600L,2147483647L,2147483648L,2147483904L};
+ foreach(long sec in seconds)foreach(long sub in new[]{-1L,0L,1L,9999999L}){long now=epoch+sec*10000000L+sub;if(now<0||now>DateTime.MaxValue.Ticks)continue;secondsCases.Add(new{utc_ticks=now.ToString(),seconds=new DateTime(now,DateTimeKind.Utc).ToInt32()});}
+ foreach(int sc in new[]{int.MinValue,-1,0,1,255,256,int.MaxValue})foreach(long sec in seconds){long now=epoch+sec*10000000L;if(now<0||now>DateTime.MaxValue.Ticks)continue;int current=new DateTime(now,DateTimeKind.Utc).ToInt32();FeatureMatrix.ServerCode=sc;
+ foreach(int old in new[]{int.MinValue,current-1,current,current+1,int.MaxValue}){Clock.Set(now);DateTime dt;TimeSpan ts;int result=new Maker().MakeCharacterSN(out dt,out ts,old);snCases.Add(new{server_code=sc,first_now_ticks=(string)null,now_ticks=now.ToString(),previous=(int?)old,result,delay_ticks=ts.Ticks.ToString()});}
+ foreach(long advance in new[]{0L,1L,257L}){long next=now+advance*10000000L;if(next>DateTime.MaxValue.Ticks)continue;Clock.Set(now,next);DateTime dt;TimeSpan ts;int result=new Maker().MakeCharacterSN(out dt,out ts);snCases.Add(new{server_code=sc,first_now_ticks=now.ToString(),now_ticks=next.ToString(),previous=(int?)null,result,delay_ticks=ts.Ticks.ToString()});}}
+ var serializer=new JavaScriptSerializer();serializer.MaxJsonLength=8*1024*1024;Console.WriteLine(serializer.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",cid=cidCases,sn=snCases,seconds=secondsCases}));}
+}

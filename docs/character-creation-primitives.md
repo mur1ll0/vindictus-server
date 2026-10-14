@@ -1,0 +1,13 @@
+# Criação: codecs e identificadores recuperados
+
+M15.1a verificada no escopo abaixo. CreateCharacterMessage482/GUID67721668-7ebf-3791-9ccd-53bb01933e99 e CreateCharacterFailMessage485/GUID8676de05-75e8-3b6a-b6a4-81065f352b9b foram recuperados da mesma assembly e conferidos em x86/x64. CharacterTemplate e CustomizeItemRequestInfo conservam NULL/coleções vazias, nomes/categorias/preços, cores/duração/coupon64bits, classebyte, nove camposint32 e dicionário de forma corporal. Bits IEEE754 são conservados como u32, incluindo zero negativo, Infinity e payloadNaN; isso não autoriza persistir valores inválidos no SQL. Limites operacionais128itens/128shapes/body configurado e chaves duplicadas recusados. Nenhum DTO privado tem Debug/Serialize.
+
+Oracle próprio usa cópias dos DTOs somente no cache, serializer recuperado e shim próprio de alocação.255casos por arquitetura nos três envelopes, campos e bytes comparados; truncamentos/limites/trailing/duplicatekeys cobertos. Tipo/categoria/GUID vêm da fonte, sem novo opcode. A criação original termina por CharacterProcessing→CharacterList; não há CreateCharacterSuccessMessage fabricada.
+
+Domínio de allocadores preserva Service.MakeEntityID, CharacterMaker.MakeCharacterSN e Utility.Extention.ToInt32:252CID/560SN/39tempo por arquitetura. Service.ID usa16bits no CID; FeatureMatrix.ServerCode usa faixa8bits no SN, não confundir. Amostras UTC independentes, truncamento em direção a zero, overflow int32/2038 e mudança do contador antes de erro DateTime reproduzidos. ColisãoSQL/zeroSN retry/limite256 e ownership continuam trabalho do executor; não declarar alocação persistente ou personagem criado somente por essas funções.
+
+Reprodução: generate-character-creation-wire-fixtures.ps1;generate-character-allocator-fixtures.ps1;generate-fixtures.ps1;verify.ps1 -DatabaseIntegration -DatabaseIntegrationDocker. Originais somente leitura, serviços originais não executados, logs completos em.cache/verification. O generator básico emitia CA2200 na fonte C# recuperada; original não foi modificado nem warning suprimido. Gate Rust/PG/Python deve passar sem warnings antes do commit.
+
+Próximo: criação SQL com seus seis alvos e MySettings, defaults/appearance/itens/skills/títulos, NameCheck com logging true, cleanup e CharacterSummary real para retorno à lista. Depois seleção/PlayerLoader/LoginOk e canalMMO/posição/movimento. O frontend ainda não possui handler Create acionável e o cliente continua sem personagem persistido confirmado. M01–M24 preservado.
+
+Gate227Rust/78PostgreSQL/19Python,0falhas/avisos no pipeline produtivo; Docker/preservação PASS. Evidência:evidence/auth/character-creation-primitives.json. Nome Check Murael confirmado pelo operador; Create ainda não implementado.

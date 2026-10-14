@@ -1,0 +1,14 @@
+{
+  "observed_at_utc": "2026-10-14T01:35:23.8496916+00:00",
+  "source": "operator actual Vindictus1.69EN candidate test",
+  "verified_scope": "CheckCharacterName normal creation dialog for measured Murael",
+  "candidate": "Murael",
+  "operator_message": "That name is available and can be used",
+  "frontend_commit": "19a9ccd",
+  "runtime_binary_sha256": "12a42ca86813415b1afea9792b6965f594e277b20529fbf5ecfdb4ed136c9600",
+  "name_check_client_verified": true,
+  "character_created_verified": false,
+  "selection_city_movement_verified": false,
+  "full_migration_complete": false,
+  "passwords_collected": false
+}

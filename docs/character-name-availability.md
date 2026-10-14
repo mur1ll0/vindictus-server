@@ -15,3 +15,5 @@ Reprodução: generate-duplicate-name-fixtures.ps1;generate-name-history-fixture
 Criação, defaults/aparência/itens/habilidades/Summary/CID/SN, seleção/PlayerLoader e canalMMO/posição/movimento permanecem necessários. Este handler não cria personagens. Não se declara compatibilidade no cliente antes de exercê-lo. A migração completa M01–M24 permanece objetivo final. Logs completos em .cache/verification.
 
 Gate final223Rust/78PostgreSQLexecutados/19Python,0falhas/avisos; Docker e preservação passaram. [Evidência sanitizada](evidence/auth/character-name-availability.json). Teste real no cliente ainda pendente.
+
+Aceite real subsequente: operador confirmou o diálogo That name is available and can be used para Murael no cliente1.69EN. [Observação sanitizada](evidence/auth/character-name-check-client.json). Isso verifica apenas o Check normal, não criação/troca de nome/cidade.

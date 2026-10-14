@@ -41,3 +41,5 @@ pub mod character_name;
 pub mod character_reservations;
 
 pub mod name_retention;
+
+pub mod character_allocator;
