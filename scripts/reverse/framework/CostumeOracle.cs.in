@@ -1,0 +1,21 @@
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
+public enum ExtraKey { Invalid=-1,Shineness,Height,Bust,PaintingPosX,PaintingPosY,PaintingRotation,PaintingSize }
+public class Costume { public bool IsBase;public byte Type,Key;public int? CostumeSN,C1,C2,C3,Effect;public byte? Gloss; }
+public class Box { readonly Dictionary<int,Costume> rows=new Dictionary<int,Costume>();public Costume TryGetValue(byte t,byte k){Costume r;return rows.TryGetValue(t*256+k,out r)?r:null;}public void Add(byte t,byte k,Costume c){rows.Add(t*256+k,c);} }
+public class Character { public EntitySet<Costume> Costume=new EntitySet<Costume>(); }
+public class Projection { public void Apply(Costume c,bool isAvatar){} }
+public class Manager { readonly Box bases=new Box(),items=new Box();readonly Character character=new Character();readonly Projection CostumeInfo=new Projection();Box CostumeDic(bool b){return b?bases:items;}
+__METHODS__
+public Costume[] Rows(){return character.Costume.ToArray();}
+}
+public static class Program {
+ public static void Main(){var floats=new List<object>();uint[] special={0,0x80000000,0x3f000000,0xbf000000,0x3f7fffff,0x3f800000,0x3f800001,0x7f800000,0xff800000,0x7fc00000,0x7fa00001,0xffc00001,0x4a03126e,0xca03126e};uint bits=17;for(int i=0;i<2062;i++){if(i<special.Length)bits=special[i];else bits=unchecked(bits*1664525+1013904223);float f=BitConverter.ToSingle(BitConverter.GetBytes(bits),0);var m=new Manager();int k=(i%5==0)?257:(i%5==1?-1:i%256);m.LoadBodyShape(k,f);var row=m.Rows()[0];floats.Add(new {bits=bits.ToString("x8"),key=k,storedKey=row.Key,sn=row.CostumeSN});}
+ var updates=new List<object>();for(int i=0;i<16;i++){var m=new Manager();var original=new Costume{IsBase=(i&1)!=0,Type=(byte)(i%4),Key=(byte)(i+1),CostumeSN=-12,C1=null,C2=-1,C3=int.MinValue,Gloss=255,Effect=91};m.SetCostume(original);m.SetCostume(new Costume{IsBase=original.IsBase,Type=original.Type,Key=original.Key,CostumeSN=(i&2)!=0?(int?)null:37,C1=3,C2=null,C3=0,Gloss=null,Effect=19});updates.Add(new {rows=m.Rows().Length,same=Object.ReferenceEquals(original,m.Rows()[0]),row=m.Rows()[0]});}
+ var extras=new List<object>();foreach(int k in new[]{-1,0,1,2,6,255,256,257,int.MinValue,int.MaxValue}){var m=new Manager();m.LoadExtraData((ExtraKey)k,-123);extras.Add(new {key=k,row=m.Rows()[0]});}
+ var ordered=new Manager();foreach(int k in new[]{2,1,0,2}){ordered.LoadExtraData((ExtraKey)k,k+10);}
+ Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=4000000}.Serialize(new {floats=floats,updates=updates,extras=extras,ordered=ordered.Rows()})); }
+}

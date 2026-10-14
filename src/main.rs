@@ -151,6 +151,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let costumes = match &cli.command {
+        Command::ImportCostumes { .. } => Some(
+            vindictus_server::infrastructure::character_costumes::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let collections = match &cli.command {
         Command::ImportCharacterCollections { .. } => Some(
             vindictus_server::infrastructure::character_collections::read_snapshot(
@@ -192,6 +200,23 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::json!({"summary":result,"verify_only":verify_only,"game_authentication_available":false})
+            );
+        }
+        Command::ImportCostumes { verify_only, .. } => {
+            let snapshot = costumes.ok_or(
+                vindictus_server::infrastructure::character_costumes::CostumeError::Export,
+            )?;
+            let summary = vindictus_server::infrastructure::character_costumes::preserve(
+                &pool,
+                &snapshot,
+                verify_only,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| {
+                    vindictus_server::infrastructure::character_costumes::CostumeError::Export
+                })?
             );
         }
         Command::ImportCharacterCollections { verify_only, .. } => {

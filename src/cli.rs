@@ -69,6 +69,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve recovered Costume rows and identity from private stdin; no playable creation.
+    ImportCostumes {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve creation collection owners and MySettings; does not create a character.
     ImportCharacterCollections {
         #[arg(long, required = true)]

@@ -1,0 +1,12 @@
+{
+  "stage": "M15.1b.2e.1",
+  "verified_at_utc": "2026-10-14T22:09:52.7764059+00:00",
+  "binary_sha256": "9c9c4b51b26de085d674310c6fc70f797cb4d3378462c63fb603a1bb2c163013",
+  "updated_native_runtime_started": true,
+  "schema_migration": 17,
+  "loopback": true,
+  "private_profile_reused": true,
+  "name_proof_reused": true,
+  "new_client_acceptance": false,
+  "character_creation_available": false
+}

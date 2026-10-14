@@ -3,6 +3,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    Costumes(#[from] crate::infrastructure::character_costumes::CostumeError),
+    #[error(transparent)]
     CreationLedger(#[from] crate::infrastructure::character_creation_ledger::CreationLedgerError),
 
     #[error(transparent)]

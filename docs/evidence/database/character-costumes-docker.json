@@ -1,0 +1,12 @@
+{
+  "stage": "M15.1b.2e.1",
+  "verified_at_utc": "2026-10-14T22:13:33.3905147+00:00",
+  "source_snapshots_preserved": true,
+  "costume_rows": 1533,
+  "fields_per_row": 11,
+  "costume_isolated_tests": 4,
+  "builtin_frontend_used": true,
+  "source_dockerfile_unchanged": true,
+  "runtime_create_handler_enabled": false,
+  "character_creation_available": false
+}

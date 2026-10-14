@@ -42,3 +42,5 @@ pub mod character_creation_effects;
 pub mod character_creation_ledger;
 pub mod character_name_check;
 pub mod character_name_proof;
+
+pub mod character_costumes;
