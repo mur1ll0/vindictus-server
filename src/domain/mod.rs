@@ -50,3 +50,5 @@ pub mod character_creation_admission;
 pub mod creation_lifecycle;
 
 pub mod character_costume;
+
+pub mod item_preparation;

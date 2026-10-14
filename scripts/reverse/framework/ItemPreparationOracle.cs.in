@@ -1,0 +1,77 @@
+// Own boundary harness. Recovered methods are inserted into ignored .cache only.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Script.Serialization;
+public class ItemClassInfo { public string ItemClass; public int MaxStack; public byte Storage; public bool equipped; public bool IsEquippable() { return equipped; } }
+public class ItemAttributeElement { public string Value; public int Arg; public int Arg2; }
+public interface ItemStackTrait { ItemClassInfo ItemClassInfo {get;} bool IsCharacterBinded {get;} DateTime? ExpireDateTime {get;} Dictionary<string,ItemAttributeElement> Attribute {get;} }
+public class ItemRequestProperty {
+ public int id; public ItemClassInfo info; public bool bound; public long? expires; public Dictionary<string,ItemAttributeElement> attrs = new Dictionary<string,ItemAttributeElement>();
+ public int[] colors; public int reduced; public int bonus;
+}
+public class GiveItemRequest : ItemStackTrait {
+ public ItemRequestProperty Property; public int Num; public long? BeforeItemID;
+ public GiveItemRequest(ItemRequestProperty p,int n,long? b) { Property=p; Num=n; BeforeItemID=b; }
+ public ItemClassInfo ItemClassInfo {get {return Property.info;}}
+ public bool IsCharacterBinded {get {return Property.bound;}}
+ public DateTime? ExpireDateTime {get {return Property.expires.HasValue ? (DateTime?)new DateTime(Property.expires.Value) : null;}}
+ public Dictionary<string,ItemAttributeElement> Attribute {get {return Property.attrs;}}
+}
+public class ItemOwner {}
+public class VirtualCreateItem { public ItemRequestProperty property; public int count; public long? before;
+ public VirtualCreateItem(ItemOwner o,ItemRequestProperty p,int n,long? b) {property=p;count=n;before=b;}}
+public static class Trait { __STACK__ }
+public class Factory { __FACTORY__ }
+public static class Oracle {
+ static Random rng=new Random(16917);
+ static ItemRequestProperty Property(int id,int variant) {
+  var p=new ItemRequestProperty {id=id,info=new ItemClassInfo {ItemClass="synthetic",MaxStack=7,Storage=1},colors=new[]{id,id+1,id+2},reduced=id,bonus=-id};
+  switch(variant) {
+   case 1:p.info.ItemClass="Synthetic";break;
+   case 2:p.info.equipped=true;break;
+   case 3:p.bound=true;break;
+   case 4:p.bound=true;p.info.Storage=3;break;
+   case 5:p.expires=0;break;
+   case 6:p.expires=3155378975999999999L;break;
+   case 7:p.attrs.Add("A",new ItemAttributeElement{Value=null,Arg=2,Arg2=id});break;
+   case 8:p.attrs.Add("A",new ItemAttributeElement{Value="",Arg=2,Arg2=id});break;
+   case 9:p.attrs.Add("A",new ItemAttributeElement{Value="x",Arg=2,Arg2=id});break;
+   case 10:p.attrs.Add("A",new ItemAttributeElement{Value="x",Arg=3,Arg2=id});break;
+   case 11:p.attrs.Add("a",new ItemAttributeElement{Value="x",Arg=2,Arg2=id});break;
+   case 12:p.info.MaxStack=1;break;
+   case 13:p.info.MaxStack=0;break;
+   case 14:p.info=null;break;
+   case 15:p.info.ItemClass="é";break;
+   case 16:p.info.ItemClass="e\u0301";break;
+   case 17:p.attrs.Add("A",new ItemAttributeElement{Value="x",Arg=2,Arg2=id});p.attrs.Add("B",new ItemAttributeElement{Value="y",Arg=5});break;
+   case 18:p.attrs.Add("B",new ItemAttributeElement{Value="y",Arg=5});p.attrs.Add("A",new ItemAttributeElement{Value="x",Arg=2,Arg2=id});break;
+   case 19:p.info.Storage=3;break;
+  }
+  return p;
+ }
+ static object Input(GiveItemRequest r) {var p=r.Property;return new {id=p.id,item=p.info==null ? null : new {name=p.info.ItemClass,max_stack=p.info.MaxStack,storage=p.info.Storage,equipped=p.info.equipped},bound=p.bound,expires=p.expires,attrs=p.attrs.Select(a=>new {key=a.Key,value=a.Value.Value,arg=a.Value.Arg,arg2=a.Value.Arg2}).ToArray(),colors=p.colors,reduced=p.reduced,bonus=p.bonus,count=r.Num,before=r.BeforeItemID};}
+ static object Batch(List<GiveItemRequest> r) {var result=new Factory().MakeVirtualItems(r,new ItemOwner());return new {requests=r.Select(Input).ToArray(),result=result==null?null:result.Select(v=>new {id=v.property.id,count=v.count,before=v.before}).ToArray()};}
+ public static void Main() {
+  var pairs=new List<object>();
+  for(int a=0;a<20;a++)for(int b=0;b<20;b++) {
+   var l=new GiveItemRequest(Property(0,a),2,17);var r=new GiveItemRequest(Property(1,b),3,18);
+   if(l.ItemClassInfo!=null && r.ItemClassInfo!=null)pairs.Add(new {left=Input(l),right=Input(r),stackable=l.IsStackableWith(r)});
+  }
+  var batches=new List<object>();batches.Add(Batch(new List<GiveItemRequest>()));
+  for(int i=0;i<180;i++) {
+   var r=new List<GiveItemRequest>();int size=1+rng.Next(18);
+   for(int j=0;j<size;j++)r.Add(new GiveItemRequest(Property(j,rng.Next(20)),rng.Next(-1,25),j%3==0 ? (long?)null : j+100));
+   batches.Add(Batch(r));
+  }
+  for(int a=0;a<20;a++)for(int b=0;b<20;b++)batches.Add(Batch(new List<GiveItemRequest>{new GiveItemRequest(Property(0,a),8,111),new GiveItemRequest(Property(1,b),9,222)}));
+  foreach(int n in new[]{1,2,3,int.MaxValue}) {
+   var p=Property(0,0);p.info.MaxStack=int.MaxValue;
+   var q=Property(1,0);q.info.MaxStack=int.MaxValue;
+   var z=Property(2,0);z.info.MaxStack=int.MaxValue;
+   batches.Add(Batch(new List<GiveItemRequest>{new GiveItemRequest(p,int.MaxValue,7),new GiveItemRequest(q,int.MaxValue,8),new GiveItemRequest(z,n,9)}));
+  }
+  var serializer=new JavaScriptSerializer {MaxJsonLength=8000000};
+  Console.WriteLine(serializer.Serialize(new {pairs=pairs,batches=batches}));
+ }
+}

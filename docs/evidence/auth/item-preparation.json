@@ -1,0 +1,47 @@
+{
+  "stage": "M15.1b.2e.2",
+  "verified_at_utc": "2026-10-14T22:40:09.5166232+00:00",
+  "rust_tests": 244,
+  "postgres_tests_executed": 103,
+  "python_tests": 19,
+  "failures": 0,
+  "warnings": 0,
+  "oracle_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "oracle_pairs_per_profile": 361,
+  "oracle_batches_per_profile": 585,
+  "differential_disagreements": 0,
+  "rust_new_tests": 4,
+  "preparation_only": true,
+  "full_property_first_identity_preserved": true,
+  "int32_wrapping_measured": true,
+  "bounded_work_and_output": true,
+  "source_hashes_verified": true,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/ItemFactory.cs",
+      "sha256": "4074932ac68879ce1a008ab2436a459c9f08977e421dafa070e40f7a95c09ce9"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/ItemTraitExtension.cs",
+      "sha256": "d127243de73626e53f35b94b2564c67f110e3b650e3e5ef27c933d857e22f5f8"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemPreparationOracle.cs.in",
+      "sha256": "178f6e3c603713f03027d3e67304349b4e0c5d04c7c17a0fdfa9f0a9e6b09f25"
+    },
+    {
+      "path": "scripts/reverse/generate-item-preparation-fixtures.ps1",
+      "sha256": "13389c981f780942d0032ca55b4d5e95e2092616493b71bdbf8cca7257e14282"
+    }
+  ],
+  "module_sha256": "9bd77a751eb2bdfe589d5cee2fc6328a9de792c006c0f78948e7004f55cbff8c",
+  "fixture_sha256": "93559e85649417b7065c5a6a15c6fd725f08bd771203d32558e913ae8c7039a9",
+  "schema_unchanged": 17,
+  "item_delivery_available": false,
+  "create_tcp_enabled": false,
+  "client_executed": false,
+  "game_compatibility_verified": false
+}
