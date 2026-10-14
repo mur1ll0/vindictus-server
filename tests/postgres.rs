@@ -1533,3 +1533,6 @@ mod name_check_common;
 
 #[path = "support/character_collections.rs"]
 mod character_collections;
+
+#[path = "support/character_creation_core.rs"]
+mod character_creation_core;

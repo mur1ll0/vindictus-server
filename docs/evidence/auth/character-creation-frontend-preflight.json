@@ -1,0 +1,19 @@
+{
+  "status": "preparatory source recovery; not migrated client handler",
+  "architectures": 2,
+  "culture": "InvariantCulture",
+  "decisions": [
+    {
+      "feature": "DisableCharacterCreation",
+      "enabled": false
+    },
+    {
+      "feature": "NexonGameSecurity",
+      "enabled": true
+    }
+  ],
+  "originals_read_only": true,
+  "original_feature_configuration_modified": false,
+  "nexon_security_callback_requires_existing_open_connection": true,
+  "character_creation_available": false
+}

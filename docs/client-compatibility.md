@@ -110,3 +110,5 @@ Pode manter o cliente na tela de login enquanto o servidor é implementado. Uma 
 
 
 M13.3d.2b: o [servidor TCP de laboratório](lab-frontend-tcp.md) substitui a recusa diagnóstica no runtime preparado. O iniciador e endpoint foram verificados; o operador confirmou login, registro da segunda senha e tela de criação após tutorial local/Tieve. Criação/seleção/cidade não estão implementadas.
+
+Check do nome Murael foi confirmado pelo operador no candidato1.69EN (That name is available and can be used). M15.1b.1 preserva as coleções de criação e MySettings; a transação base seguinte foi verificada no escopo interno restrito. O botãoCreate ainda não foi ligado ao fluxo completo e o último erro observado foi Server response delayed. Aparência/itens/habilidades/Summary, seleção/PlayerLoader e cidade/movimento continuam pendentes; não há compatibilidade completa declarada.

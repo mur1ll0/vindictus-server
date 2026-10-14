@@ -36,5 +36,6 @@ pub mod lab_frontend;
 pub mod character_reservations;
 
 pub mod character_collections;
+pub mod character_creation_core;
 pub mod character_name_check;
 pub mod character_name_proof;
