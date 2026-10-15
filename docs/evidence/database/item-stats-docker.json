@@ -1,0 +1,29 @@
+{
+  "stage": "M15.1b.2e.5",
+  "verified_at_utc": "2026-10-15T13:19:27.9036554+00:00",
+  "locked_build": true,
+  "original_dockerfile_used": true,
+  "test_image_frontend": "engine-bundled",
+  "docker_engine_version": "29.8.2",
+  "test_build_and_command_unchanged": true,
+  "migration_schema": 18,
+  "readiness": "ready",
+  "migrate_exit_code": 0,
+  "duplicate_rejected": true,
+  "restart_preserves_account": true,
+  "restart_preserves_game_user": true,
+  "runtime_user": "10001:10001",
+  "item_state_rows_verified": [
+    2336,
+    209,
+    1032,
+    19
+  ],
+  "costume_rows_verified": 1533,
+  "stats_readonly_network_none_profile_verified": true,
+  "source_equipment_rows_verified": 12377,
+  "new_item_delivery_enabled": false,
+  "create_tcp_enabled": false,
+  "client_executed": false,
+  "native_frontend_refresh_required": false
+}

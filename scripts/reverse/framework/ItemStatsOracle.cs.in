@@ -1,0 +1,90 @@
+// Own synthetic boundary harness. Original methods are inserted only under ignored .cache.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Script.Serialization;
+public class CharacterStats { public CharacterStats(Dictionary<string,int> d) {} }
+public static class UtilityExtensions { __UTILITY__ }
+__STAT__
+public class EquipItemInfo {
+ public int STR,DEX,INT,LUCK,WILL,HP,STAMINA,ATK,DEF,MATK,ATK_Speed,Critical,Balance,Res_Critical,PVP_ATK,PVP_MATK,PVP_DEF,TOWN_SPEED,MaxDurability,ArmorHP;
+ public double Weight;
+}
+public static class EquipExtension { __EQUIP__ }
+public class Entry {public int[] name;public int value;}
+public class State {public Entry[] character;public Entry[] effects;public int[] fields;}
+public class Op {public string kind;public int[] name;public int value;public State rhs;}
+public static class Oracle {
+ static int[] Key(string s) {return s.Select(c=>(int)c).ToArray();}
+ static string Text(int[] u) {return u==null?null:new string(u.Select(c=>(char)c).ToArray());}
+ static Entry E(string s,int v) {return new Entry {name=Key(s),value=v};}
+ static ItemStat Build(State s) {
+  if(s==null)return null;var x=new ItemStat();
+  foreach(var e in s.character)x.CharacterStats.Add(Text(e.name),e.value);
+  foreach(var e in s.effects)x.StatusEffect.Add(Text(e.name),e.value);
+  x.MaxDurability=s.fields[0];x.Weight=s.fields[1];x.DEF_Destroyed=s.fields[2];x.ArmorHP=s.fields[3];return x;
+ }
+ static Entry[] Entries(Dictionary<string,int> d) {return d.Select(p=>E(p.Key,p.Value)).ToArray();}
+ static object Snapshot(ItemStat s) {
+  Entry[] dictionary=null;bool collision=false;try {dictionary=Entries(s.ToDictionary());}catch(ArgumentException){collision=true;}
+  return new {character=Entries(s.CharacterStats),effects=Entries(s.StatusEffect),fields=new[]{s.MaxDurability,s.Weight,s.DEF_Destroyed,s.ArmorHP},dictionary=dictionary,dictionary_error=collision,lookups=new[]{s[null],s["STR"],s["Weight"],s["A"],s["missing"]}};
+ }
+ static State RandomState(Random r) {
+  var names=new[]{"A","a","STR","MaxDurability","Weight","DEF_Destroyed","ArmorHP","","\ud800","ATK"};
+  int[] numbers={0,1,-1,int.MaxValue,int.MinValue,1000,-1000};
+  return new State {character=names.Where(n=>r.Next(4)==0).Select(n=>E(n,numbers[r.Next(numbers.Length)])).ToArray(),effects=names.Where(n=>r.Next(4)==0).Select(n=>E(n,numbers[r.Next(numbers.Length)])).ToArray(),fields=Enumerable.Range(0,4).Select(i=>numbers[r.Next(numbers.Length)]).ToArray()};
+ }
+ public static void Main(string[] args) {
+  if(args.Length==1 && args[0]=="--private-stdin"){PrivateProjection.Run();return;}
+  var weights=new List<object>();
+  double[] values={0,-0.0,0.1,-0.1,1.999,-1.999,2147483647.0,2147483647.9,2147483648.0,-2147483648.0,-2147483648.9,-2147483649.0,double.NaN,double.PositiveInfinity,double.NegativeInfinity,double.MaxValue,double.MinValue};
+  foreach(var w in values.Concat(Enumerable.Range(-120,241).Select(i=>i/7.0))) {
+   var info=new EquipItemInfo {Weight=w,STR=1,DEX=-2,INT=int.MaxValue,LUCK=int.MinValue,WILL=5,HP=6,STAMINA=7,ATK=8,DEF=9,MATK=10,ATK_Speed=11,Critical=12,Balance=13,Res_Critical=14,PVP_ATK=15,PVP_MATK=16,PVP_DEF=17,MaxDurability=17,ArmorHP=23,TOWN_SPEED=42};
+   weights.Add(new {bits=unchecked((ulong)BitConverter.DoubleToInt64Bits(w)).ToString("x16"),values=new[]{info.STR,info.DEX,info.INT,info.LUCK,info.WILL,info.HP,info.STAMINA,info.ATK,info.DEF,info.MATK,info.ATK_Speed,info.Critical,info.Balance,info.Res_Critical,info.PVP_ATK,info.PVP_MATK,info.PVP_DEF,info.TOWN_SPEED},max_durability=info.MaxDurability,armor_hp=info.ArmorHP,result=Snapshot(info.GetItemStat())});
+  }
+  var batches=new List<object>();var rng=new Random(16919);
+  for(int b=0;b<80;b++) {
+   var initial=RandomState(rng);var stat=Build(initial);var steps=new List<object>();
+   for(int n=0;n<18;n++) {
+    var op=new Op {kind=new[]{"set","status","add","replace","copy","clear"}[n%6],name=n%7==0?null:Key(new[]{"A","a","STR","Weight",""}[rng.Next(5)]),value=n%2==0?int.MaxValue:int.MinValue,rhs=n%8==0?null:RandomState(rng)};
+    string error=null;
+    try {switch(op.kind) {
+     case "set":stat[Text(op.name)]=op.value;break;
+     case "status":stat.AddStatusEffect(Text(op.name),op.value);break;
+     case "add":stat.Add(Build(op.rhs));break;
+     case "replace":stat.ReplaceStatToZero(Build(op.rhs));break;
+     case "copy": if(op.rhs==null)op.rhs=RandomState(rng);stat.CopyFrom(Build(op.rhs));break;
+     case "clear":stat.Clear();break;
+    }}catch(Exception e) {error=e.GetType().Name;}
+    steps.Add(new {operation=op,error=error,result=Snapshot(stat)});
+   }
+   batches.Add(new {initial=initial,steps=steps});
+  }
+  Console.Write(new JavaScriptSerializer {MaxJsonLength=32000000}.Serialize(new {weights=weights,batches=batches}));
+ }
+}
+public class PrivateRow {public int source_index;public int[] stats;public int max_durability;public string weight_bits;public int armor_hp;}
+public class PrivatePackage {public PrivateRow[] rows;}
+public static class PrivateProjection {
+ public static void Run() {
+  string text=Console.In.ReadToEnd();if(text.Length>16*1024*1024)throw new Exception("Input bound");
+  var package=new JavaScriptSerializer {MaxJsonLength=16*1024*1024}.Deserialize<PrivatePackage>(text);
+  string[] names={"STR","DEX","INT","LUCK","WILL","HP","STAMINA","ATK","DEF","MATK","ATK_Speed","Critical","Balance","Res_Critical","PVP_ATK","PVP_MATK","PVP_DEF","TOWN_SPEED"};
+  using(var stream=new System.IO.MemoryStream()) {
+   byte[] prefix=System.Text.Encoding.UTF8.GetBytes("ItemStatsSourceRows\0v1");stream.Write(prefix,0,prefix.Length);
+   byte[] count=BitConverter.GetBytes(package.rows.Length);stream.Write(count,0,4);
+   for(int i=0;i<package.rows.Length;i++) {
+    var row=package.rows[i];if(row.source_index!=i||row.stats.Length!=18)throw new Exception("Profile shape");
+    var info=new EquipItemInfo {MaxDurability=row.max_durability,ArmorHP=row.armor_hp,Weight=BitConverter.Int64BitsToDouble(unchecked((long)Convert.ToUInt64(row.weight_bits,16)))};
+    for(int j=0;j<18;j++)typeof(EquipItemInfo).GetField(names[j]).SetValue(info,row.stats[j]);
+    var stat=info.GetItemStat();
+    foreach(string name in names){byte[] bytes=BitConverter.GetBytes(stat[name]);stream.Write(bytes,0,4);}
+    foreach(int value in new[]{stat.MaxDurability,stat.Weight,stat.DEF_Destroyed,stat.ArmorHP}){byte[] bytes=BitConverter.GetBytes(value);stream.Write(bytes,0,4);}
+   }
+   using(var hash=System.Security.Cryptography.SHA256.Create()) {
+    string digest=BitConverter.ToString(hash.ComputeHash(stream.ToArray())).Replace("-","").ToLowerInvariant();
+    Console.Write(new JavaScriptSerializer().Serialize(new {rows=package.rows.Length,projection_sha256=digest,values_emitted=false}));
+   }
+  }
+ }
+}

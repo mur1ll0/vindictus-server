@@ -3,6 +3,10 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    ItemStats(#[from] crate::domain::item_stats::StatError),
+    #[error("invalid or mismatched private item stats; values omitted")]
+    ItemStatsExport,
+    #[error(transparent)]
     ItemState(#[from] crate::infrastructure::item_state::ItemStateError),
     #[error(transparent)]
     Costumes(#[from] crate::infrastructure::character_costumes::CostumeError),

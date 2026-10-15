@@ -51,6 +51,14 @@ pub enum Command {
         policy_file: std::path::PathBuf,
     },
     /// Read-only catalog projection diagnostic; stdin input, counts/digest output only.
+    /// Validate private equipment stats against the pinned effective source catalog.
+    InspectItemStats {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        catalog_file: std::path::PathBuf,
+    },
+    /// Read-only catalog projection diagnostic; stdin input, counts/digest output only.
     InspectItemCatalog {
         #[arg(long, required = true)]
         input_stdin: bool,

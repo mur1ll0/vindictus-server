@@ -1,0 +1,65 @@
+{
+  "stage": "M15.1b.2e.5",
+  "verified_at_utc": "2026-10-15T13:19:27.9019601+00:00",
+  "native": {
+    "stage": "M15.1b.2e.5",
+    "verified_at_utc": "2026-10-15T13:18:13.9369569+00:00",
+    "runtime": "windows-native",
+    "source_read_only": true,
+    "private_acl": "current Windows user and SYSTEM only",
+    "source_rows": 12377,
+    "source_stat_inputs": 21,
+    "projected_integer_fields": 22,
+    "framework_profiles": [
+      "x86",
+      "x64"
+    ],
+    "rust_framework_differences": 0,
+    "raw_values_emitted": false,
+    "export_sha256": "f3ce23a5ac49b0f97babbf20634944a393fe765623ce95698bb3963b2bd2a731",
+    "catalog_export_sha256": "55fafe3a6dd96dbe15971dd90e155267b0f13667a0aa7d8c2e459315d21ee6a4",
+    "inspection": {
+      "equipment_rows": 12377,
+      "effective_equipment": 10967,
+      "effective_classes": 18547,
+      "classes_with_equipment_stats": 10693,
+      "projection_sha256": "b2dec49cbe07093db23a16e8ee74ed63ffe447859b48208ac7652fa838d0f0ae",
+      "source_rows_projection_sha256": "9ddc1d860ae05caa88a4815a2557216297b20010a39b9ba393f5c9f823aaa4bf",
+      "source_catalog_matched": true,
+      "database_mutations": false,
+      "character_creation_available": false
+    }
+  },
+  "linux_docker": {
+    "stage": "M15.1b.2e.5",
+    "verified_at_utc": "2026-10-15T13:19:26.0982011+00:00",
+    "runtime": "linux-docker-readonly-nonroot-network-none",
+    "source_read_only": true,
+    "private_acl": "current Windows user and SYSTEM only",
+    "source_rows": 12377,
+    "source_stat_inputs": 21,
+    "projected_integer_fields": 22,
+    "framework_profiles": [
+      "x86",
+      "x64"
+    ],
+    "rust_framework_differences": 0,
+    "raw_values_emitted": false,
+    "export_sha256": "f3ce23a5ac49b0f97babbf20634944a393fe765623ce95698bb3963b2bd2a731",
+    "catalog_export_sha256": "55fafe3a6dd96dbe15971dd90e155267b0f13667a0aa7d8c2e459315d21ee6a4",
+    "inspection": {
+      "equipment_rows": 12377,
+      "effective_equipment": 10967,
+      "effective_classes": 18547,
+      "classes_with_equipment_stats": 10693,
+      "projection_sha256": "b2dec49cbe07093db23a16e8ee74ed63ffe447859b48208ac7652fa838d0f0ae",
+      "source_rows_projection_sha256": "9ddc1d860ae05caa88a4815a2557216297b20010a39b9ba393f5c9f823aaa4bf",
+      "source_catalog_matched": true,
+      "database_mutations": false,
+      "character_creation_available": false
+    }
+  },
+  "source_profiles_equal": true,
+  "private_values_emitted": false,
+  "character_creation_available": false
+}

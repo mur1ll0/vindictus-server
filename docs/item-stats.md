@@ -1,0 +1,26 @@
+# Stats base do inventário inicial
+
+M15.1b.2e.5 implementa `ItemStat` e `EquipItemInfo.GetItemStat` recuperados e fornece um catálogo de stats vinculado à seleção efetiva existente. Essa dependência é usada por atributos variáveis e antecede a aplicação de durabilidade em `Item.Initialize`. Ainda não monta nem entrega os itens do personagem.
+
+O domínio conserva chaves UTF16 ordinais, inclusive unidades não pareadas, e a ordem de primeira inserção. O indexador trata separadamente MaxDurability/Weight/DEF_Destroyed/ArmorHP; chave ausente ou NULL no getter retorna zero, NULL em operações de escrita retorna erro. `Add` soma com overflow Int32 unchecked, conserva a ordem e combina efeitos pelo máximo, inclusive efeitos negativos inicialmente ausentes. `ReplaceStatToZero` altera somente as chaves CharacterStats do operando; `CopyFrom` copia sem compartilhar mapas e `Clear` reinicia os campos. Os operandos Rust são instâncias distintas; o empréstimo exclusivo impede aliases entre destino e operando. `ToDictionary` inclui os quatro campos especiais por último e recusa colisões com chaves brutas de CharacterStats.
+
+A projeção de equipamento mapeia os dezoito stats originais, MaxDurability e ArmorHP. Weight é convertido de double para Int32 antes de multiplicar por1000, com overflow unchecked. Conversões fora do intervalo/NaN reproduzem o resultado medido no Framework4.8 x86/x64; o cast saturante padrão de Rust daria resultados diferentes. DEF_Destroyed inicia zero porque GetItemStat não o atribui. São21 entradas de conteúdo e22 inteiros projetados. Nenhum valor de equipamento é inventado para substituir conteúdo ausente.
+
+Limites defensivos:256 entradas por mapa e256 unidades UTF16 por chave. União/adicionamento e substituição por zero são preparados em cópia temporária; ultrapassar limites retorna erro sem aplicar resultado parcial. Tipos privados não implementam Debug/Serialize. Expor uma consulta de stats não autoriza criação ou escrita de inventário.
+
+A exportação `scripts/content/export_item_stats.py` lê a SQLite original em transação somente leitura e verifica hashes antes/depois. O sidecar preserva a mesma ordem de SELECT*, índice de origem, chaves/Feature, dezoito inteiros, MaxDurability, ArmorHP e os bits IEEE754 de Weight. O perfil existente do catálogo v1 permanece inalterado. `infrastructure::item_stats::Package` limita o JSON a16MiB/50000 linhas, exige todos os campos e recusa tipos/formatos desconhecidos. O vínculo exige hashes de banco/configuração, número/índice de linhas, chaves e Feature iguais aos da projeção do catálogo. A seleção efetiva continua sendo a original: filtro de Feature e última ocorrência habilitada. Stats são construídos para os equipamentos efetivos antes da seleção de classes. Uma classe válida sem equipamento usa o ItemStat.Empty original; uma classe inexistente/inválida retorna ausência. Falta ou conflito do perfil inteiro retorna erro, nunca um catálogo vazio de sucesso.
+
+`inspect-item-stats --input-stdin --catalog-file <perfil-privado>` roda antes da configuração de banco, não abre listener e emite somente contagens/digests. O digest de equipamentos efetivos usa ordenação canônica de bytes UTF16LE para inspeção; não reivindica uma ordem de mensagens de rede. Um segundo digest cobre todas as linhas da origem em ordem, dezoito stats seguidos dos quatro campos especiais, para comparação privada com o método original em ambas as arquiteturas. Hashes no manifesto identificam o snapshot de uma exportação local confiável; não são assinaturas nem autorização recebida do cliente.
+
+O oracle compila os métodos originais em um harness próprio sob `.cache/framework`; não executa serviços legados. A fixture pública contém somente258 pesos de limite e80 lotes/1440 operações sintéticas por arquitetura. Verifica campos distintos, casts, overflow, NULL, efeitos negativos/máximos, cópia, limpeza, colisão e ordem. As entradas reais são enviadas por stdin; somente contagem/digest saem do harness. Exportações reais permanecem na cache com ACL do usuário Windows e SYSTEM. O teste Docker adicional roda sem rede, com filesystem somente leitura, catálogo montado somente leitura e UID/GID10001.
+
+~~~powershell
+./scripts/reverse/generate-item-stats-fixtures.ps1
+cargo test --locked --test item_stats --test item_stats_catalog
+py -3.13 -m unittest discover -s scripts/content -p test_export_item_stats.py -v
+./scripts/dev/verify.ps1 -DatabaseIntegration -DatabaseIntegrationDocker
+~~~
+
+Próximo: recuperar os atributos gerados e seu vínculo ao perfil Fiona, cores, durabilidade/HasDurability/limite, validação/checksum/MakeEntityID, colocação e gravação com Undo/ProcessAfterDeleteItem reais. Depois integrar Costume/perfil aritmético/skills/títulos/Summary ao lifecycle e habilitar Create TCP. Criação/relogin, seleção, cidade e movimento continuam pendentes de implementação e aceite no cliente real. A migração completa M01–M24 permanece o objetivo final.
+
+A imagem de integração usa o frontend embutido do Docker Engine, validado na versão29.8.2 com cache mounts e COPY --link. A diretiva externa foi removida após duas falhas gRPC anteriores à execução de testes; bases, instruções e comando da suíte permanecem iguais. O Dockerfile do produto não foi alterado.

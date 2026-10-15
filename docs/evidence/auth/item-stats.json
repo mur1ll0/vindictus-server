@@ -1,0 +1,55 @@
+{
+  "stage": "M15.1b.2e.5",
+  "verified_at_utc": "2026-10-15T13:17:12.0280211+00:00",
+  "component": "ItemStat and effective equipment base stats",
+  "framework_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "weight_cases": 258,
+  "operation_batches": 80,
+  "operations": 1440,
+  "rust_framework_differences": 0,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/ItemStat.cs",
+      "sha256": "eaa78150f94559673579da13811c5bd34a0fcbee047f104b8a83f39d1019c108"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContentsExtension.cs",
+      "sha256": "6feb45576793bf580018625d5a088b5eb359290baa83c325835cbb7ee53c7c6a"
+    },
+    {
+      "path": "legacy/decompiled/Utility-37359981d509/Utility/DictionaryExtension.cs",
+      "sha256": "5e693e1950e09e445e3ee73dc466a7e111c765159f21bfac91bfc0c65cf70206"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/EquipItemInfo.cs",
+      "sha256": "6b836e826b628e33168e4a5afde8dc966b866a3367d4ea61df117075799b1857"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemStatsOracle.cs.in",
+      "sha256": "14dc218597e83a6d214a69816273ce5d1466a84931f8feb36829a9c6e4df9155"
+    },
+    {
+      "path": "scripts/reverse/generate-item-stats-fixtures.ps1",
+      "sha256": "345665f7c5764f5de6e49418545afc6ad49dc36f9c2262331f3e20603fc2f59b"
+    }
+  ],
+  "fixture_sha256": "738c22fa1254fb36fe5367760ae723d116d9c1e413c04f5d1f82a454efa21f20",
+  "rust_tests": 253,
+  "postgres_tests_executed": 107,
+  "python_tests": 22,
+  "new_rust_tests": 5,
+  "new_python_tests": 3,
+  "source_equipment_rows": 12377,
+  "equipment_stats_bound_to_source_catalog": true,
+  "full_property_constructor_implemented": false,
+  "attribute_stats_applied": false,
+  "full_item_initialize_implemented": false,
+  "new_item_delivery_enabled": false,
+  "create_tcp_enabled": false,
+  "new_client_attempt": false,
+  "source_services_executed": false,
+  "logs_directory": ".cache/verification"
+}

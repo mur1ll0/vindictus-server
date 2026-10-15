@@ -78,7 +78,7 @@ pub struct Package {
     pub classes: Vec<Class>,
     pub extras: Vec<Equip>,
 }
-fn opaque(value: Option<PrivateText>) -> Result<Option<LegacyBytes<1024, true>>, Error> {
+pub(crate) fn opaque(value: Option<PrivateText>) -> Result<Option<LegacyBytes<1024, true>>, Error> {
     value
         .as_ref()
         .map(|v| {

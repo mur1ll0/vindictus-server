@@ -28,7 +28,7 @@ fn field(digest: &mut Sha256, value: Option<&[u8]>) {
         }
     }
 }
-pub fn inspect(package: &Package) -> Result<Inspection, Error> {
+pub fn catalog(package: &Package) -> Result<ItemCatalog<'_>, Error> {
     let equip = package
         .equips
         .iter()
@@ -57,7 +57,15 @@ pub fn inspect(package: &Package) -> Result<Inspection, Error> {
             feature: r.feature.as_deref(),
         })
         .collect::<Vec<_>>();
-    let catalog = ItemCatalog::load_with_policy(&equip, &rows, &extra, &package.policy)?;
+    Ok(ItemCatalog::load_with_policy(
+        &equip,
+        &rows,
+        &extra,
+        &package.policy,
+    )?)
+}
+pub fn inspect(package: &Package) -> Result<Inspection, Error> {
+    let catalog = catalog(package)?;
     let mut digest = Sha256::new();
     digest.update(b"ItemCatalogProjection\0v1");
     for (key, index) in catalog.equipment() {
