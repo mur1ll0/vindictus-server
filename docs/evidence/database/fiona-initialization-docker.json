@@ -1,0 +1,22 @@
+{
+  "stage": "M15.1b.2e.8",
+  "verified_at_utc": "2026-10-15T18:44:40.3631765+00:00",
+  "original_dockerfile_used": true,
+  "migration_schema": 18,
+  "migrate_exit_code": 0,
+  "readiness": "ready",
+  "duplicate_rejected": true,
+  "restart_preserves_account": true,
+  "restart_preserves_game_user": true,
+  "runtime_user": "10001:10001",
+  "item_state_rows_verified": [
+    2336,
+    209,
+    1032,
+    19
+  ],
+  "costume_rows_verified": 1533,
+  "native_frontend_refresh_required": false,
+  "create_tcp_enabled": false,
+  "client_executed": false
+}

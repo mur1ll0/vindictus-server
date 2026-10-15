@@ -1,0 +1,18 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
+public sealed class CharacterStats {}
+public sealed class EquipPartInfo {public int EquipPartNum;public int? CostumePartNum;public string CostumeCategory;}
+public sealed class EquipItemInfo {public int CostumeType;public string EquipClass;}
+public sealed class ItemClassInfo {public string ItemClass,Category;public bool Equippable=true;public EquipItemInfo Equip;public bool IsEquippable(){return Equippable;}public EquipItemInfo GetEquipItemInfo(){return Equip;}}
+public sealed class EquippedItemInfo {public int PartNum,CostumePartNum,CostumeSN,Color1,Color2,Color3,MaxDurability,Durability,ArmorHP,ItemLevel,Effect;public string ItemClass,EquipClass;public bool IsDecoration,IsAvatar;public CharacterStats StatBonus;public double Weight;}
+public sealed class Costume {public bool IsBase;public byte Type,Key;public int? CostumeSN,C1,C2,C3,Effect;public byte? Gloss;}
+public static class ItemContents {public static int Count;public static EquipPartInfo Part;public static IEnumerable<int> GetEquippablePart(string category){return Enumerable.Repeat(Part.EquipPartNum,Count);}public static EquipPartInfo GetEquipPartInfo(int part,string category){return Part;}}
+public static class Extensions {
+__BASE__
+__COSTUME__
+}
+public static class Oracle {
+ public static void Main(){var rows=new List<object>();for(int i=0;i<256;i++){int count=i%11==0?0:i%13==0?2:1;int? part=i%17==0?(int?)null:i%19==0?-1:(i*37-500);bool decoration=i%2==0;int serial=unchecked(i*1234567-999);int[] colors={unchecked(i*33333333),~i,-i};ItemContents.Count=count;ItemContents.Part=new EquipPartInfo{EquipPartNum=i,CostumePartNum=part,CostumeCategory=decoration?"Decoration":"Other"};var info=new ItemClassInfo{ItemClass="synthetic",Category="TEST",Equip=new EquipItemInfo{CostumeType=serial}};var value=info.ToBaseCostumeInfo(colors[0],colors[1],colors[2]);Costume costume=value==null||value.CostumePartNum==-1?null:value.ToCostume(true);rows.Add(new{count=count,part=part,decoration=decoration,serial=serial,colors=colors,accepted=value!=null,costume=costume});}Console.WriteLine(new JavaScriptSerializer().Serialize(rows));}
+}

@@ -71,6 +71,57 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::InspectFionaInventory {
+        catalog_file,
+        stats_file,
+        colors_file,
+        ..
+    } = &cli.command
+    {
+        use vindictus_server::{
+            application::{character_creation::EntityAuthority, fiona_inventory as fiona},
+            domain::{
+                item_colors::ColorRandom, item_time::ItemTimeError, legacy_user_data::SqlDateTime2,
+            },
+            infrastructure::{
+                fiona_inventory_profile::Profile, item_catalog, item_colors, item_stats,
+            },
+        };
+        let catalog = item_catalog::read_package(std::fs::File::open(catalog_file)?)?;
+        let stats = item_stats::Package::read(std::fs::File::open(stats_file)?)?;
+        let colors = item_colors::Package::read(std::fs::File::open(colors_file)?)?;
+        let profile = Profile::read(std::io::stdin().lock())?;
+        let mut authority = EntityAuthority::new(17);
+        let mut random = ColorRandom::from_seed(0);
+        let mut clock_calls = 0_i64;
+        let mut utc = || {
+            let ticks = 638448480000000000_i64 + 101 * clock_calls;
+            clock_calls += 1;
+            SqlDateTime2::from_ticks(ticks).map_err(|_| ItemTimeError::Clock)
+        };
+        let inventory = fiona::compose(
+            fiona::Inputs {
+                profile: &profile,
+                catalog: &catalog,
+                stats: &stats,
+                colors: &colors,
+            },
+            1,
+            &mut authority,
+            &mut random,
+            &mut utc,
+        )?;
+        let mut report = serde_json::to_value(fiona::inspect(&inventory))
+            .map_err(|_| Error::FionaInventoryProfile)?;
+        report["synthetic_diagnostic"] = serde_json::json!(true);
+        report["clock_calls"] = serde_json::json!(clock_calls);
+        report["default_candidates"] = serde_json::json!(profile.candidates());
+        println!(
+            "{}",
+            serde_json::to_string(&report).map_err(|_| Error::FionaInventoryProfile)?
+        );
+        return Ok(());
+    }
     if let Command::InspectItemColors { catalog_file, .. } = &cli.command {
         let catalog = vindictus_server::infrastructure::item_catalog::read_package(
             std::fs::File::open(catalog_file)?,
@@ -204,6 +255,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
     match cli.command {
         Command::ProbeFrontend { .. }
         | Command::InspectRewardPolicy { .. }
+        | Command::InspectFionaInventory { .. }
         | Command::InspectItemColors { .. }
         | Command::InspectItemStats { .. }
         | Command::InspectItemCatalog { .. }

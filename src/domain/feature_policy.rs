@@ -19,11 +19,23 @@ fn whitespace(c: char) -> bool {
 impl FeaturePolicy {
     /// Rows keep source overwrite order; keys are ordinal/case-sensitive. NULL becomes empty.
     pub fn new(rows: impl IntoIterator<Item = (String, Option<String>)>) -> Result<Self, Error> {
+        Self::bounded(rows, 128)
+    }
+    /// Recovered appearance content has 163 atoms. Other callers retain 128.
+    pub fn extended_source(
+        rows: impl IntoIterator<Item = (String, Option<String>)>,
+    ) -> Result<Self, Error> {
+        Self::bounded(rows, 256)
+    }
+    fn bounded(
+        rows: impl IntoIterator<Item = (String, Option<String>)>,
+        limit: usize,
+    ) -> Result<Self, Error> {
         let mut values = BTreeMap::new();
         let mut count = 0;
         for (key, value) in rows {
             count += 1;
-            if count > 128
+            if count > limit
                 || key.is_empty()
                 || key.len() > 256
                 || !key.is_ascii()
@@ -45,6 +57,8 @@ impl FeaturePolicy {
             include_str!("feature_catalog_version_pairs.json"),
             include_str!("feature_lobby_version_pairs.json"),
             include_str!("feature_frontend_version_pairs.json"),
+            include_str!("feature_inventory_version_pairs.json"),
+            include_str!("feature_appearance_version_pairs.json"),
         ] {
             let extra: Vec<VersionPair> =
                 serde_json::from_str(encoded).map_err(|_| Error::FeatureVersionUnsupported)?;

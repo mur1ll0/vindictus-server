@@ -1,0 +1,5254 @@
+{
+  "source_sha256": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContentsExtension.cs",
+      "sha256": "6feb45576793bf580018625d5a088b5eb359290baa83c325835cbb7ee53c7c6a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeDataExtension.cs",
+      "sha256": "8193b136651ff2703dc9e32b166f8c4a8d90a09605a8af6725d7f97f3912ad57"
+    },
+    {
+      "path": "scripts/reverse/framework/FionaAppearanceOracle.cs.in",
+      "sha256": "ffeca06815bbbbd6e97578b4f31415fbcda21614bb64561f372b8017ae0c7c74"
+    },
+    {
+      "path": "scripts/reverse/generate-fiona-appearance-fixtures.ps1",
+      "sha256": "2e9932f989e6f28f2ea61d4e4eaeb5ff6c75ead727f532592b8ca352721598da"
+    }
+  ],
+  "profiles": [
+    "Framework-x86",
+    "Framework-x64"
+  ],
+  "cases": [
+    {
+      "count": 0,
+      "part": null,
+      "decoration": true,
+      "serial": -999,
+      "colors": [
+        0,
+        -1,
+        0
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": -463,
+      "decoration": false,
+      "serial": 1233568,
+      "colors": [
+        33333333,
+        -2,
+        -1
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 49,
+        "CostumeSN": 1233568,
+        "C1": 33333333,
+        "C2": -2,
+        "C3": -1,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -426,
+      "decoration": true,
+      "serial": 2468135,
+      "colors": [
+        66666666,
+        -3,
+        -2
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 86,
+        "CostumeSN": 2468135,
+        "C1": 66666666,
+        "C2": -3,
+        "C3": -2,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -389,
+      "decoration": false,
+      "serial": 3702702,
+      "colors": [
+        99999999,
+        -4,
+        -3
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 123,
+        "CostumeSN": 3702702,
+        "C1": 99999999,
+        "C2": -4,
+        "C3": -3,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -352,
+      "decoration": true,
+      "serial": 4937269,
+      "colors": [
+        133333332,
+        -5,
+        -4
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 160,
+        "CostumeSN": 4937269,
+        "C1": 133333332,
+        "C2": -5,
+        "C3": -4,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -315,
+      "decoration": false,
+      "serial": 6171836,
+      "colors": [
+        166666665,
+        -6,
+        -5
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 197,
+        "CostumeSN": 6171836,
+        "C1": 166666665,
+        "C2": -6,
+        "C3": -5,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -278,
+      "decoration": true,
+      "serial": 7406403,
+      "colors": [
+        199999998,
+        -7,
+        -6
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 234,
+        "CostumeSN": 7406403,
+        "C1": 199999998,
+        "C2": -7,
+        "C3": -6,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -241,
+      "decoration": false,
+      "serial": 8640970,
+      "colors": [
+        233333331,
+        -8,
+        -7
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 15,
+        "CostumeSN": 8640970,
+        "C1": 233333331,
+        "C2": -8,
+        "C3": -7,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -204,
+      "decoration": true,
+      "serial": 9875537,
+      "colors": [
+        266666664,
+        -9,
+        -8
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 52,
+        "CostumeSN": 9875537,
+        "C1": 266666664,
+        "C2": -9,
+        "C3": -8,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -167,
+      "decoration": false,
+      "serial": 11110104,
+      "colors": [
+        299999997,
+        -10,
+        -9
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 89,
+        "CostumeSN": 11110104,
+        "C1": 299999997,
+        "C2": -10,
+        "C3": -9,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -130,
+      "decoration": true,
+      "serial": 12344671,
+      "colors": [
+        333333330,
+        -11,
+        -10
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 126,
+        "CostumeSN": 12344671,
+        "C1": 333333330,
+        "C2": -11,
+        "C3": -10,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": -93,
+      "decoration": false,
+      "serial": 13579238,
+      "colors": [
+        366666663,
+        -12,
+        -11
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": -56,
+      "decoration": true,
+      "serial": 14813805,
+      "colors": [
+        399999996,
+        -13,
+        -12
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 200,
+        "CostumeSN": 14813805,
+        "C1": 399999996,
+        "C2": -13,
+        "C3": -12,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": -19,
+      "decoration": false,
+      "serial": 16048372,
+      "colors": [
+        433333329,
+        -14,
+        -13
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 18,
+      "decoration": true,
+      "serial": 17282939,
+      "colors": [
+        466666662,
+        -15,
+        -14
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 18,
+        "CostumeSN": 17282939,
+        "C1": 466666662,
+        "C2": -15,
+        "C3": -14,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 55,
+      "decoration": false,
+      "serial": 18517506,
+      "colors": [
+        499999995,
+        -16,
+        -15
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 55,
+        "CostumeSN": 18517506,
+        "C1": 499999995,
+        "C2": -16,
+        "C3": -15,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 92,
+      "decoration": true,
+      "serial": 19752073,
+      "colors": [
+        533333328,
+        -17,
+        -16
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 92,
+        "CostumeSN": 19752073,
+        "C1": 533333328,
+        "C2": -17,
+        "C3": -16,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": false,
+      "serial": 20986640,
+      "colors": [
+        566666661,
+        -18,
+        -17
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 166,
+      "decoration": true,
+      "serial": 22221207,
+      "colors": [
+        599999994,
+        -19,
+        -18
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 166,
+        "CostumeSN": 22221207,
+        "C1": 599999994,
+        "C2": -19,
+        "C3": -18,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": false,
+      "serial": 23455774,
+      "colors": [
+        633333327,
+        -20,
+        -19
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 240,
+      "decoration": true,
+      "serial": 24690341,
+      "colors": [
+        666666660,
+        -21,
+        -20
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 240,
+        "CostumeSN": 24690341,
+        "C1": 666666660,
+        "C2": -21,
+        "C3": -20,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 277,
+      "decoration": false,
+      "serial": 25924908,
+      "colors": [
+        699999993,
+        -22,
+        -21
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 21,
+        "CostumeSN": 25924908,
+        "C1": 699999993,
+        "C2": -22,
+        "C3": -21,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 314,
+      "decoration": true,
+      "serial": 27159475,
+      "colors": [
+        733333326,
+        -23,
+        -22
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 351,
+      "decoration": false,
+      "serial": 28394042,
+      "colors": [
+        766666659,
+        -24,
+        -23
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 95,
+        "CostumeSN": 28394042,
+        "C1": 766666659,
+        "C2": -24,
+        "C3": -23,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 388,
+      "decoration": true,
+      "serial": 29628609,
+      "colors": [
+        799999992,
+        -25,
+        -24
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 132,
+        "CostumeSN": 29628609,
+        "C1": 799999992,
+        "C2": -25,
+        "C3": -24,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 425,
+      "decoration": false,
+      "serial": 30863176,
+      "colors": [
+        833333325,
+        -26,
+        -25
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 169,
+        "CostumeSN": 30863176,
+        "C1": 833333325,
+        "C2": -26,
+        "C3": -25,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 462,
+      "decoration": true,
+      "serial": 32097743,
+      "colors": [
+        866666658,
+        -27,
+        -26
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 499,
+      "decoration": false,
+      "serial": 33332310,
+      "colors": [
+        899999991,
+        -28,
+        -27
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 243,
+        "CostumeSN": 33332310,
+        "C1": 899999991,
+        "C2": -28,
+        "C3": -27,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 536,
+      "decoration": true,
+      "serial": 34566877,
+      "colors": [
+        933333324,
+        -29,
+        -28
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 24,
+        "CostumeSN": 34566877,
+        "C1": 933333324,
+        "C2": -29,
+        "C3": -28,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 573,
+      "decoration": false,
+      "serial": 35801444,
+      "colors": [
+        966666657,
+        -30,
+        -29
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 61,
+        "CostumeSN": 35801444,
+        "C1": 966666657,
+        "C2": -30,
+        "C3": -29,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 610,
+      "decoration": true,
+      "serial": 37036011,
+      "colors": [
+        999999990,
+        -31,
+        -30
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 98,
+        "CostumeSN": 37036011,
+        "C1": 999999990,
+        "C2": -31,
+        "C3": -30,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 647,
+      "decoration": false,
+      "serial": 38270578,
+      "colors": [
+        1033333323,
+        -32,
+        -31
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 135,
+        "CostumeSN": 38270578,
+        "C1": 1033333323,
+        "C2": -32,
+        "C3": -31,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 684,
+      "decoration": true,
+      "serial": 39505145,
+      "colors": [
+        1066666656,
+        -33,
+        -32
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 172,
+        "CostumeSN": 39505145,
+        "C1": 1066666656,
+        "C2": -33,
+        "C3": -32,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 721,
+      "decoration": false,
+      "serial": 40739712,
+      "colors": [
+        1099999989,
+        -34,
+        -33
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": true,
+      "serial": 41974279,
+      "colors": [
+        1133333322,
+        -35,
+        -34
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 795,
+      "decoration": false,
+      "serial": 43208846,
+      "colors": [
+        1166666655,
+        -36,
+        -35
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 27,
+        "CostumeSN": 43208846,
+        "C1": 1166666655,
+        "C2": -36,
+        "C3": -35,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 832,
+      "decoration": true,
+      "serial": 44443413,
+      "colors": [
+        1199999988,
+        -37,
+        -36
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 64,
+        "CostumeSN": 44443413,
+        "C1": 1199999988,
+        "C2": -37,
+        "C3": -36,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 869,
+      "decoration": false,
+      "serial": 45677980,
+      "colors": [
+        1233333321,
+        -38,
+        -37
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 101,
+        "CostumeSN": 45677980,
+        "C1": 1233333321,
+        "C2": -38,
+        "C3": -37,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": true,
+      "serial": 46912547,
+      "colors": [
+        1266666654,
+        -39,
+        -38
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 2,
+      "part": 943,
+      "decoration": false,
+      "serial": 48147114,
+      "colors": [
+        1299999987,
+        -40,
+        -39
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 980,
+      "decoration": true,
+      "serial": 49381681,
+      "colors": [
+        1333333320,
+        -41,
+        -40
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 212,
+        "CostumeSN": 49381681,
+        "C1": 1333333320,
+        "C2": -41,
+        "C3": -40,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1017,
+      "decoration": false,
+      "serial": 50616248,
+      "colors": [
+        1366666653,
+        -42,
+        -41
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 249,
+        "CostumeSN": 50616248,
+        "C1": 1366666653,
+        "C2": -42,
+        "C3": -41,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1054,
+      "decoration": true,
+      "serial": 51850815,
+      "colors": [
+        1399999986,
+        -43,
+        -42
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 30,
+        "CostumeSN": 51850815,
+        "C1": 1399999986,
+        "C2": -43,
+        "C3": -42,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1091,
+      "decoration": false,
+      "serial": 53085382,
+      "colors": [
+        1433333319,
+        -44,
+        -43
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 67,
+        "CostumeSN": 53085382,
+        "C1": 1433333319,
+        "C2": -44,
+        "C3": -43,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 1128,
+      "decoration": true,
+      "serial": 54319949,
+      "colors": [
+        1466666652,
+        -45,
+        -44
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 1165,
+      "decoration": false,
+      "serial": 55554516,
+      "colors": [
+        1499999985,
+        -46,
+        -45
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 141,
+        "CostumeSN": 55554516,
+        "C1": 1499999985,
+        "C2": -46,
+        "C3": -45,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1202,
+      "decoration": true,
+      "serial": 56789083,
+      "colors": [
+        1533333318,
+        -47,
+        -46
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 178,
+        "CostumeSN": 56789083,
+        "C1": 1533333318,
+        "C2": -47,
+        "C3": -46,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1239,
+      "decoration": false,
+      "serial": 58023650,
+      "colors": [
+        1566666651,
+        -48,
+        -47
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 215,
+        "CostumeSN": 58023650,
+        "C1": 1566666651,
+        "C2": -48,
+        "C3": -47,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1276,
+      "decoration": true,
+      "serial": 59258217,
+      "colors": [
+        1599999984,
+        -49,
+        -48
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 252,
+        "CostumeSN": 59258217,
+        "C1": 1599999984,
+        "C2": -49,
+        "C3": -48,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1313,
+      "decoration": false,
+      "serial": 60492784,
+      "colors": [
+        1633333317,
+        -50,
+        -49
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 33,
+        "CostumeSN": 60492784,
+        "C1": 1633333317,
+        "C2": -50,
+        "C3": -49,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1350,
+      "decoration": true,
+      "serial": 61727351,
+      "colors": [
+        1666666650,
+        -51,
+        -50
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 70,
+        "CostumeSN": 61727351,
+        "C1": 1666666650,
+        "C2": -51,
+        "C3": -50,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": false,
+      "serial": 62961918,
+      "colors": [
+        1699999983,
+        -52,
+        -51
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 2,
+      "part": 1424,
+      "decoration": true,
+      "serial": 64196485,
+      "colors": [
+        1733333316,
+        -53,
+        -52
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 1461,
+      "decoration": false,
+      "serial": 65431052,
+      "colors": [
+        1766666649,
+        -54,
+        -53
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 181,
+        "CostumeSN": 65431052,
+        "C1": 1766666649,
+        "C2": -54,
+        "C3": -53,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1498,
+      "decoration": true,
+      "serial": 66665619,
+      "colors": [
+        1799999982,
+        -55,
+        -54
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 218,
+        "CostumeSN": 66665619,
+        "C1": 1799999982,
+        "C2": -55,
+        "C3": -54,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 1535,
+      "decoration": false,
+      "serial": 67900186,
+      "colors": [
+        1833333315,
+        -56,
+        -55
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 1572,
+      "decoration": true,
+      "serial": 69134753,
+      "colors": [
+        1866666648,
+        -57,
+        -56
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 36,
+        "CostumeSN": 69134753,
+        "C1": 1866666648,
+        "C2": -57,
+        "C3": -56,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": false,
+      "serial": 70369320,
+      "colors": [
+        1899999981,
+        -58,
+        -57
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 1646,
+      "decoration": true,
+      "serial": 71603887,
+      "colors": [
+        1933333314,
+        -59,
+        -58
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 110,
+        "CostumeSN": 71603887,
+        "C1": 1933333314,
+        "C2": -59,
+        "C3": -58,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1683,
+      "decoration": false,
+      "serial": 72838454,
+      "colors": [
+        1966666647,
+        -60,
+        -59
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 147,
+        "CostumeSN": 72838454,
+        "C1": 1966666647,
+        "C2": -60,
+        "C3": -59,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1720,
+      "decoration": true,
+      "serial": 74073021,
+      "colors": [
+        1999999980,
+        -61,
+        -60
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 184,
+        "CostumeSN": 74073021,
+        "C1": 1999999980,
+        "C2": -61,
+        "C3": -60,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1757,
+      "decoration": false,
+      "serial": 75307588,
+      "colors": [
+        2033333313,
+        -62,
+        -61
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 221,
+        "CostumeSN": 75307588,
+        "C1": 2033333313,
+        "C2": -62,
+        "C3": -61,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1794,
+      "decoration": true,
+      "serial": 76542155,
+      "colors": [
+        2066666646,
+        -63,
+        -62
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 2,
+        "CostumeSN": 76542155,
+        "C1": 2066666646,
+        "C2": -63,
+        "C3": -62,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1831,
+      "decoration": false,
+      "serial": 77776722,
+      "colors": [
+        2099999979,
+        -64,
+        -63
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 39,
+        "CostumeSN": 77776722,
+        "C1": 2099999979,
+        "C2": -64,
+        "C3": -63,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 1868,
+      "decoration": true,
+      "serial": 79011289,
+      "colors": [
+        2133333312,
+        -65,
+        -64
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 76,
+        "CostumeSN": 79011289,
+        "C1": 2133333312,
+        "C2": -65,
+        "C3": -64,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 1905,
+      "decoration": false,
+      "serial": 80245856,
+      "colors": [
+        -2128300651,
+        -66,
+        -65
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 0,
+      "part": 1942,
+      "decoration": true,
+      "serial": 81480423,
+      "colors": [
+        -2094967318,
+        -67,
+        -66
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 1979,
+      "decoration": false,
+      "serial": 82714990,
+      "colors": [
+        -2061633985,
+        -68,
+        -67
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 187,
+        "CostumeSN": 82714990,
+        "C1": -2061633985,
+        "C2": -68,
+        "C3": -67,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": true,
+      "serial": 83949557,
+      "colors": [
+        -2028300652,
+        -69,
+        -68
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 2053,
+      "decoration": false,
+      "serial": 85184124,
+      "colors": [
+        -1994967319,
+        -70,
+        -69
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 5,
+        "CostumeSN": 85184124,
+        "C1": -1994967319,
+        "C2": -70,
+        "C3": -69,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2090,
+      "decoration": true,
+      "serial": 86418691,
+      "colors": [
+        -1961633986,
+        -71,
+        -70
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 42,
+        "CostumeSN": 86418691,
+        "C1": -1961633986,
+        "C2": -71,
+        "C3": -70,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2127,
+      "decoration": false,
+      "serial": 87653258,
+      "colors": [
+        -1928300653,
+        -72,
+        -71
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 79,
+        "CostumeSN": 87653258,
+        "C1": -1928300653,
+        "C2": -72,
+        "C3": -71,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2164,
+      "decoration": true,
+      "serial": 88887825,
+      "colors": [
+        -1894967320,
+        -73,
+        -72
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 116,
+        "CostumeSN": 88887825,
+        "C1": -1894967320,
+        "C2": -73,
+        "C3": -72,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2201,
+      "decoration": false,
+      "serial": 90122392,
+      "colors": [
+        -1861633987,
+        -74,
+        -73
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 153,
+        "CostumeSN": 90122392,
+        "C1": -1861633987,
+        "C2": -74,
+        "C3": -73,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2238,
+      "decoration": true,
+      "serial": 91356959,
+      "colors": [
+        -1828300654,
+        -75,
+        -74
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 190,
+        "CostumeSN": 91356959,
+        "C1": -1828300654,
+        "C2": -75,
+        "C3": -74,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2275,
+      "decoration": false,
+      "serial": 92591526,
+      "colors": [
+        -1794967321,
+        -76,
+        -75
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 227,
+        "CostumeSN": 92591526,
+        "C1": -1794967321,
+        "C2": -76,
+        "C3": -75,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": true,
+      "serial": 93826093,
+      "colors": [
+        -1761633988,
+        -77,
+        -76
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 0,
+      "part": 2349,
+      "decoration": false,
+      "serial": 95060660,
+      "colors": [
+        -1728300655,
+        -78,
+        -77
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 2,
+      "part": 2386,
+      "decoration": true,
+      "serial": 96295227,
+      "colors": [
+        -1694967322,
+        -79,
+        -78
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 2423,
+      "decoration": false,
+      "serial": 97529794,
+      "colors": [
+        -1661633989,
+        -80,
+        -79
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 119,
+        "CostumeSN": 97529794,
+        "C1": -1661633989,
+        "C2": -80,
+        "C3": -79,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2460,
+      "decoration": true,
+      "serial": 98764361,
+      "colors": [
+        -1628300656,
+        -81,
+        -80
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 156,
+        "CostumeSN": 98764361,
+        "C1": -1628300656,
+        "C2": -81,
+        "C3": -80,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2497,
+      "decoration": false,
+      "serial": 99998928,
+      "colors": [
+        -1594967323,
+        -82,
+        -81
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 193,
+        "CostumeSN": 99998928,
+        "C1": -1594967323,
+        "C2": -82,
+        "C3": -81,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2534,
+      "decoration": true,
+      "serial": 101233495,
+      "colors": [
+        -1561633990,
+        -83,
+        -82
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 230,
+        "CostumeSN": 101233495,
+        "C1": -1561633990,
+        "C2": -83,
+        "C3": -82,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2571,
+      "decoration": false,
+      "serial": 102468062,
+      "colors": [
+        -1528300657,
+        -84,
+        -83
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 11,
+        "CostumeSN": 102468062,
+        "C1": -1528300657,
+        "C2": -84,
+        "C3": -83,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2608,
+      "decoration": true,
+      "serial": 103702629,
+      "colors": [
+        -1494967324,
+        -85,
+        -84
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 48,
+        "CostumeSN": 103702629,
+        "C1": -1494967324,
+        "C2": -85,
+        "C3": -84,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": false,
+      "serial": 104937196,
+      "colors": [
+        -1461633991,
+        -86,
+        -85
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 2682,
+      "decoration": true,
+      "serial": 106171763,
+      "colors": [
+        -1428300658,
+        -87,
+        -86
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 122,
+        "CostumeSN": 106171763,
+        "C1": -1428300658,
+        "C2": -87,
+        "C3": -86,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2719,
+      "decoration": false,
+      "serial": 107406330,
+      "colors": [
+        -1394967325,
+        -88,
+        -87
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 159,
+        "CostumeSN": 107406330,
+        "C1": -1394967325,
+        "C2": -88,
+        "C3": -87,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 2756,
+      "decoration": true,
+      "serial": 108640897,
+      "colors": [
+        -1361633992,
+        -89,
+        -88
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 2793,
+      "decoration": false,
+      "serial": 109875464,
+      "colors": [
+        -1328300659,
+        -90,
+        -89
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 233,
+        "CostumeSN": 109875464,
+        "C1": -1328300659,
+        "C2": -90,
+        "C3": -89,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2830,
+      "decoration": true,
+      "serial": 111110031,
+      "colors": [
+        -1294967326,
+        -91,
+        -90
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 14,
+        "CostumeSN": 111110031,
+        "C1": -1294967326,
+        "C2": -91,
+        "C3": -90,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 2867,
+      "decoration": false,
+      "serial": 112344598,
+      "colors": [
+        -1261633993,
+        -92,
+        -91
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 2904,
+      "decoration": true,
+      "serial": 113579165,
+      "colors": [
+        -1228300660,
+        -93,
+        -92
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 88,
+        "CostumeSN": 113579165,
+        "C1": -1228300660,
+        "C2": -93,
+        "C3": -92,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2941,
+      "decoration": false,
+      "serial": 114813732,
+      "colors": [
+        -1194967327,
+        -94,
+        -93
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 125,
+        "CostumeSN": 114813732,
+        "C1": -1194967327,
+        "C2": -94,
+        "C3": -93,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 2978,
+      "decoration": true,
+      "serial": 116048299,
+      "colors": [
+        -1161633994,
+        -95,
+        -94
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 162,
+        "CostumeSN": 116048299,
+        "C1": -1161633994,
+        "C2": -95,
+        "C3": -94,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": false,
+      "serial": 117282866,
+      "colors": [
+        -1128300661,
+        -96,
+        -95
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3052,
+      "decoration": true,
+      "serial": 118517433,
+      "colors": [
+        -1094967328,
+        -97,
+        -96
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 236,
+        "CostumeSN": 118517433,
+        "C1": -1094967328,
+        "C2": -97,
+        "C3": -96,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3089,
+      "decoration": false,
+      "serial": 119752000,
+      "colors": [
+        -1061633995,
+        -98,
+        -97
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 17,
+        "CostumeSN": 119752000,
+        "C1": -1061633995,
+        "C2": -98,
+        "C3": -97,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3126,
+      "decoration": true,
+      "serial": 120986567,
+      "colors": [
+        -1028300662,
+        -99,
+        -98
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 54,
+        "CostumeSN": 120986567,
+        "C1": -1028300662,
+        "C2": -99,
+        "C3": -98,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 3163,
+      "decoration": false,
+      "serial": 122221134,
+      "colors": [
+        -994967329,
+        -100,
+        -99
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3200,
+      "decoration": true,
+      "serial": 123455701,
+      "colors": [
+        -961633996,
+        -101,
+        -100
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 128,
+        "CostumeSN": 123455701,
+        "C1": -961633996,
+        "C2": -101,
+        "C3": -100,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3237,
+      "decoration": false,
+      "serial": 124690268,
+      "colors": [
+        -928300663,
+        -102,
+        -101
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 165,
+        "CostumeSN": 124690268,
+        "C1": -928300663,
+        "C2": -102,
+        "C3": -101,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": true,
+      "serial": 125924835,
+      "colors": [
+        -894967330,
+        -103,
+        -102
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3311,
+      "decoration": false,
+      "serial": 127159402,
+      "colors": [
+        -861633997,
+        -104,
+        -103
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 239,
+        "CostumeSN": 127159402,
+        "C1": -861633997,
+        "C2": -104,
+        "C3": -103,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 3348,
+      "decoration": true,
+      "serial": 128393969,
+      "colors": [
+        -828300664,
+        -105,
+        -104
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3385,
+      "decoration": false,
+      "serial": 129628536,
+      "colors": [
+        -794967331,
+        -106,
+        -105
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 57,
+        "CostumeSN": 129628536,
+        "C1": -794967331,
+        "C2": -106,
+        "C3": -105,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3422,
+      "decoration": true,
+      "serial": 130863103,
+      "colors": [
+        -761633998,
+        -107,
+        -106
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 94,
+        "CostumeSN": 130863103,
+        "C1": -761633998,
+        "C2": -107,
+        "C3": -106,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3459,
+      "decoration": false,
+      "serial": 132097670,
+      "colors": [
+        -728300665,
+        -108,
+        -107
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 131,
+        "CostumeSN": 132097670,
+        "C1": -728300665,
+        "C2": -108,
+        "C3": -107,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3496,
+      "decoration": true,
+      "serial": 133332237,
+      "colors": [
+        -694967332,
+        -109,
+        -108
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 168,
+        "CostumeSN": 133332237,
+        "C1": -694967332,
+        "C2": -109,
+        "C3": -108,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3533,
+      "decoration": false,
+      "serial": 134566804,
+      "colors": [
+        -661633999,
+        -110,
+        -109
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 205,
+        "CostumeSN": 134566804,
+        "C1": -661633999,
+        "C2": -110,
+        "C3": -109,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 3570,
+      "decoration": true,
+      "serial": 135801371,
+      "colors": [
+        -628300666,
+        -111,
+        -110
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3607,
+      "decoration": false,
+      "serial": 137035938,
+      "colors": [
+        -594967333,
+        -112,
+        -111
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 23,
+        "CostumeSN": 137035938,
+        "C1": -594967333,
+        "C2": -112,
+        "C3": -111,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3644,
+      "decoration": true,
+      "serial": 138270505,
+      "colors": [
+        -561634000,
+        -113,
+        -112
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 60,
+        "CostumeSN": 138270505,
+        "C1": -561634000,
+        "C2": -113,
+        "C3": -112,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3681,
+      "decoration": false,
+      "serial": 139505072,
+      "colors": [
+        -528300667,
+        -114,
+        -113
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 97,
+        "CostumeSN": 139505072,
+        "C1": -528300667,
+        "C2": -114,
+        "C3": -113,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": true,
+      "serial": 140739639,
+      "colors": [
+        -494967334,
+        -115,
+        -114
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3755,
+      "decoration": false,
+      "serial": 141974206,
+      "colors": [
+        -461634001,
+        -116,
+        -115
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 171,
+        "CostumeSN": 141974206,
+        "C1": -461634001,
+        "C2": -116,
+        "C3": -115,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 3792,
+      "decoration": true,
+      "serial": 143208773,
+      "colors": [
+        -428300668,
+        -117,
+        -116
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 208,
+        "CostumeSN": 143208773,
+        "C1": -428300668,
+        "C2": -117,
+        "C3": -116,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 3829,
+      "decoration": false,
+      "serial": 144443340,
+      "colors": [
+        -394967335,
+        -118,
+        -117
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3866,
+      "decoration": true,
+      "serial": 145677907,
+      "colors": [
+        -361634002,
+        -119,
+        -118
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 26,
+        "CostumeSN": 145677907,
+        "C1": -361634002,
+        "C2": -119,
+        "C3": -118,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": false,
+      "serial": 146912474,
+      "colors": [
+        -328300669,
+        -120,
+        -119
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 3940,
+      "decoration": true,
+      "serial": 148147041,
+      "colors": [
+        -294967336,
+        -121,
+        -120
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 100,
+        "CostumeSN": 148147041,
+        "C1": -294967336,
+        "C2": -121,
+        "C3": -120,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 3977,
+      "decoration": false,
+      "serial": 149381608,
+      "colors": [
+        -261634003,
+        -122,
+        -121
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 4014,
+      "decoration": true,
+      "serial": 150616175,
+      "colors": [
+        -228300670,
+        -123,
+        -122
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 174,
+        "CostumeSN": 150616175,
+        "C1": -228300670,
+        "C2": -123,
+        "C3": -122,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4051,
+      "decoration": false,
+      "serial": 151850742,
+      "colors": [
+        -194967337,
+        -124,
+        -123
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 211,
+        "CostumeSN": 151850742,
+        "C1": -194967337,
+        "C2": -124,
+        "C3": -123,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4088,
+      "decoration": true,
+      "serial": 153085309,
+      "colors": [
+        -161634004,
+        -125,
+        -124
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 248,
+        "CostumeSN": 153085309,
+        "C1": -161634004,
+        "C2": -125,
+        "C3": -124,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4125,
+      "decoration": false,
+      "serial": 154319876,
+      "colors": [
+        -128300671,
+        -126,
+        -125
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 29,
+        "CostumeSN": 154319876,
+        "C1": -128300671,
+        "C2": -126,
+        "C3": -125,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4162,
+      "decoration": true,
+      "serial": 155554443,
+      "colors": [
+        -94967338,
+        -127,
+        -126
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 66,
+        "CostumeSN": 155554443,
+        "C1": -94967338,
+        "C2": -127,
+        "C3": -126,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4199,
+      "decoration": false,
+      "serial": 156789010,
+      "colors": [
+        -61634005,
+        -128,
+        -127
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 103,
+        "CostumeSN": 156789010,
+        "C1": -61634005,
+        "C2": -128,
+        "C3": -127,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4236,
+      "decoration": true,
+      "serial": 158023577,
+      "colors": [
+        -28300672,
+        -129,
+        -128
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 140,
+        "CostumeSN": 158023577,
+        "C1": -28300672,
+        "C2": -129,
+        "C3": -128,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4273,
+      "decoration": false,
+      "serial": 159258144,
+      "colors": [
+        5032661,
+        -130,
+        -129
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 177,
+        "CostumeSN": 159258144,
+        "C1": 5032661,
+        "C2": -130,
+        "C3": -129,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 4310,
+      "decoration": true,
+      "serial": 160492711,
+      "colors": [
+        38365994,
+        -131,
+        -130
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 4347,
+      "decoration": false,
+      "serial": 161727278,
+      "colors": [
+        71699327,
+        -132,
+        -131
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 251,
+        "CostumeSN": 161727278,
+        "C1": 71699327,
+        "C2": -132,
+        "C3": -131,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 4384,
+      "decoration": true,
+      "serial": 162961845,
+      "colors": [
+        105032660,
+        -133,
+        -132
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": false,
+      "serial": 164196412,
+      "colors": [
+        138365993,
+        -134,
+        -133
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 4458,
+      "decoration": true,
+      "serial": 165430979,
+      "colors": [
+        171699326,
+        -135,
+        -134
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 106,
+        "CostumeSN": 165430979,
+        "C1": 171699326,
+        "C2": -135,
+        "C3": -134,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4495,
+      "decoration": false,
+      "serial": 166665546,
+      "colors": [
+        205032659,
+        -136,
+        -135
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 143,
+        "CostumeSN": 166665546,
+        "C1": 205032659,
+        "C2": -136,
+        "C3": -135,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": true,
+      "serial": 167900113,
+      "colors": [
+        238365992,
+        -137,
+        -136
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 4569,
+      "decoration": false,
+      "serial": 169134680,
+      "colors": [
+        271699325,
+        -138,
+        -137
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 217,
+        "CostumeSN": 169134680,
+        "C1": 271699325,
+        "C2": -138,
+        "C3": -137,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4606,
+      "decoration": true,
+      "serial": 170369247,
+      "colors": [
+        305032658,
+        -139,
+        -138
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 254,
+        "CostumeSN": 170369247,
+        "C1": 305032658,
+        "C2": -139,
+        "C3": -138,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4643,
+      "decoration": false,
+      "serial": 171603814,
+      "colors": [
+        338365991,
+        -140,
+        -139
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 35,
+        "CostumeSN": 171603814,
+        "C1": 338365991,
+        "C2": -140,
+        "C3": -139,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4680,
+      "decoration": true,
+      "serial": 172838381,
+      "colors": [
+        371699324,
+        -141,
+        -140
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 72,
+        "CostumeSN": 172838381,
+        "C1": 371699324,
+        "C2": -141,
+        "C3": -140,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4717,
+      "decoration": false,
+      "serial": 174072948,
+      "colors": [
+        405032657,
+        -142,
+        -141
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 109,
+        "CostumeSN": 174072948,
+        "C1": 405032657,
+        "C2": -142,
+        "C3": -141,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4754,
+      "decoration": true,
+      "serial": 175307515,
+      "colors": [
+        438365990,
+        -143,
+        -142
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 146,
+        "CostumeSN": 175307515,
+        "C1": 438365990,
+        "C2": -143,
+        "C3": -142,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 4791,
+      "decoration": false,
+      "serial": 176542082,
+      "colors": [
+        471699323,
+        -144,
+        -143
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 4828,
+      "decoration": true,
+      "serial": 177776649,
+      "colors": [
+        505032656,
+        -145,
+        -144
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 220,
+        "CostumeSN": 177776649,
+        "C1": 505032656,
+        "C2": -145,
+        "C3": -144,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4865,
+      "decoration": false,
+      "serial": 179011216,
+      "colors": [
+        538365989,
+        -146,
+        -145
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 1,
+        "CostumeSN": 179011216,
+        "C1": 538365989,
+        "C2": -146,
+        "C3": -145,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4902,
+      "decoration": true,
+      "serial": 180245783,
+      "colors": [
+        571699322,
+        -147,
+        -146
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 38,
+        "CostumeSN": 180245783,
+        "C1": 571699322,
+        "C2": -147,
+        "C3": -146,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4939,
+      "decoration": false,
+      "serial": 181480350,
+      "colors": [
+        605032655,
+        -148,
+        -147
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 75,
+        "CostumeSN": 181480350,
+        "C1": 605032655,
+        "C2": -148,
+        "C3": -147,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 4976,
+      "decoration": true,
+      "serial": 182714917,
+      "colors": [
+        638365988,
+        -149,
+        -148
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 112,
+        "CostumeSN": 182714917,
+        "C1": 638365988,
+        "C2": -149,
+        "C3": -148,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5013,
+      "decoration": false,
+      "serial": 183949484,
+      "colors": [
+        671699321,
+        -150,
+        -149
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 149,
+        "CostumeSN": 183949484,
+        "C1": 671699321,
+        "C2": -150,
+        "C3": -149,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5050,
+      "decoration": true,
+      "serial": 185184051,
+      "colors": [
+        705032654,
+        -151,
+        -150
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 186,
+        "CostumeSN": 185184051,
+        "C1": 705032654,
+        "C2": -151,
+        "C3": -150,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5087,
+      "decoration": false,
+      "serial": 186418618,
+      "colors": [
+        738365987,
+        -152,
+        -151
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 223,
+        "CostumeSN": 186418618,
+        "C1": 738365987,
+        "C2": -152,
+        "C3": -151,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": true,
+      "serial": 187653185,
+      "colors": [
+        771699320,
+        -153,
+        -152
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": false,
+      "serial": 188887752,
+      "colors": [
+        805032653,
+        -154,
+        -153
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 0,
+      "part": 5198,
+      "decoration": true,
+      "serial": 190122319,
+      "colors": [
+        838365986,
+        -155,
+        -154
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 5235,
+      "decoration": false,
+      "serial": 191356886,
+      "colors": [
+        871699319,
+        -156,
+        -155
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 115,
+        "CostumeSN": 191356886,
+        "C1": 871699319,
+        "C2": -156,
+        "C3": -155,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 5272,
+      "decoration": true,
+      "serial": 192591453,
+      "colors": [
+        905032652,
+        -157,
+        -156
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 5309,
+      "decoration": false,
+      "serial": 193826020,
+      "colors": [
+        938365985,
+        -158,
+        -157
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 189,
+        "CostumeSN": 193826020,
+        "C1": 938365985,
+        "C2": -158,
+        "C3": -157,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5346,
+      "decoration": true,
+      "serial": 195060587,
+      "colors": [
+        971699318,
+        -159,
+        -158
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 226,
+        "CostumeSN": 195060587,
+        "C1": 971699318,
+        "C2": -159,
+        "C3": -158,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5383,
+      "decoration": false,
+      "serial": 196295154,
+      "colors": [
+        1005032651,
+        -160,
+        -159
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 7,
+        "CostumeSN": 196295154,
+        "C1": 1005032651,
+        "C2": -160,
+        "C3": -159,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5420,
+      "decoration": true,
+      "serial": 197529721,
+      "colors": [
+        1038365984,
+        -161,
+        -160
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 44,
+        "CostumeSN": 197529721,
+        "C1": 1038365984,
+        "C2": -161,
+        "C3": -160,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5457,
+      "decoration": false,
+      "serial": 198764288,
+      "colors": [
+        1071699317,
+        -162,
+        -161
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 81,
+        "CostumeSN": 198764288,
+        "C1": 1071699317,
+        "C2": -162,
+        "C3": -161,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5494,
+      "decoration": true,
+      "serial": 199998855,
+      "colors": [
+        1105032650,
+        -163,
+        -162
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 118,
+        "CostumeSN": 199998855,
+        "C1": 1105032650,
+        "C2": -163,
+        "C3": -162,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5531,
+      "decoration": false,
+      "serial": 201233422,
+      "colors": [
+        1138365983,
+        -164,
+        -163
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 155,
+        "CostumeSN": 201233422,
+        "C1": 1138365983,
+        "C2": -164,
+        "C3": -163,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5568,
+      "decoration": true,
+      "serial": 202467989,
+      "colors": [
+        1171699316,
+        -165,
+        -164
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 192,
+        "CostumeSN": 202467989,
+        "C1": 1171699316,
+        "C2": -165,
+        "C3": -164,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 5605,
+      "decoration": false,
+      "serial": 203702556,
+      "colors": [
+        1205032649,
+        -166,
+        -165
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 5642,
+      "decoration": true,
+      "serial": 204937123,
+      "colors": [
+        1238365982,
+        -167,
+        -166
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 10,
+        "CostumeSN": 204937123,
+        "C1": 1238365982,
+        "C2": -167,
+        "C3": -166,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5679,
+      "decoration": false,
+      "serial": 206171690,
+      "colors": [
+        1271699315,
+        -168,
+        -167
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 47,
+        "CostumeSN": 206171690,
+        "C1": 1271699315,
+        "C2": -168,
+        "C3": -167,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5716,
+      "decoration": true,
+      "serial": 207406257,
+      "colors": [
+        1305032648,
+        -169,
+        -168
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 84,
+        "CostumeSN": 207406257,
+        "C1": 1305032648,
+        "C2": -169,
+        "C3": -168,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 5753,
+      "decoration": false,
+      "serial": 208640824,
+      "colors": [
+        1338365981,
+        -170,
+        -169
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": true,
+      "serial": 209875391,
+      "colors": [
+        1371699314,
+        -171,
+        -170
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": false,
+      "serial": 211109958,
+      "colors": [
+        1405032647,
+        -172,
+        -171
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 5864,
+      "decoration": true,
+      "serial": 212344525,
+      "colors": [
+        1438365980,
+        -173,
+        -172
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 232,
+        "CostumeSN": 212344525,
+        "C1": 1438365980,
+        "C2": -173,
+        "C3": -172,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5901,
+      "decoration": false,
+      "serial": 213579092,
+      "colors": [
+        1471699313,
+        -174,
+        -173
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 13,
+        "CostumeSN": 213579092,
+        "C1": 1471699313,
+        "C2": -174,
+        "C3": -173,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5938,
+      "decoration": true,
+      "serial": 214813659,
+      "colors": [
+        1505032646,
+        -175,
+        -174
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 50,
+        "CostumeSN": 214813659,
+        "C1": 1505032646,
+        "C2": -175,
+        "C3": -174,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 5975,
+      "decoration": false,
+      "serial": 216048226,
+      "colors": [
+        1538365979,
+        -176,
+        -175
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 87,
+        "CostumeSN": 216048226,
+        "C1": 1538365979,
+        "C2": -176,
+        "C3": -175,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 6012,
+      "decoration": true,
+      "serial": 217282793,
+      "colors": [
+        1571699312,
+        -177,
+        -176
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 6049,
+      "decoration": false,
+      "serial": 218517360,
+      "colors": [
+        1605032645,
+        -178,
+        -177
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 161,
+        "CostumeSN": 218517360,
+        "C1": 1605032645,
+        "C2": -178,
+        "C3": -177,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6086,
+      "decoration": true,
+      "serial": 219751927,
+      "colors": [
+        1638365978,
+        -179,
+        -178
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 198,
+        "CostumeSN": 219751927,
+        "C1": 1638365978,
+        "C2": -179,
+        "C3": -178,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6123,
+      "decoration": false,
+      "serial": 220986494,
+      "colors": [
+        1671699311,
+        -180,
+        -179
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 235,
+        "CostumeSN": 220986494,
+        "C1": 1671699311,
+        "C2": -180,
+        "C3": -179,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6160,
+      "decoration": true,
+      "serial": 222221061,
+      "colors": [
+        1705032644,
+        -181,
+        -180
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 16,
+        "CostumeSN": 222221061,
+        "C1": 1705032644,
+        "C2": -181,
+        "C3": -180,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6197,
+      "decoration": false,
+      "serial": 223455628,
+      "colors": [
+        1738365977,
+        -182,
+        -181
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 53,
+        "CostumeSN": 223455628,
+        "C1": 1738365977,
+        "C2": -182,
+        "C3": -181,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 6234,
+      "decoration": true,
+      "serial": 224690195,
+      "colors": [
+        1771699310,
+        -183,
+        -182
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 6271,
+      "decoration": false,
+      "serial": 225924762,
+      "colors": [
+        1805032643,
+        -184,
+        -183
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 127,
+        "CostumeSN": 225924762,
+        "C1": 1805032643,
+        "C2": -184,
+        "C3": -183,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6308,
+      "decoration": true,
+      "serial": 227159329,
+      "colors": [
+        1838365976,
+        -185,
+        -184
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 164,
+        "CostumeSN": 227159329,
+        "C1": 1838365976,
+        "C2": -185,
+        "C3": -184,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6345,
+      "decoration": false,
+      "serial": 228393896,
+      "colors": [
+        1871699309,
+        -186,
+        -185
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 201,
+        "CostumeSN": 228393896,
+        "C1": 1871699309,
+        "C2": -186,
+        "C3": -185,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6382,
+      "decoration": true,
+      "serial": 229628463,
+      "colors": [
+        1905032642,
+        -187,
+        -186
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 238,
+        "CostumeSN": 229628463,
+        "C1": 1905032642,
+        "C2": -187,
+        "C3": -186,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": null,
+      "decoration": false,
+      "serial": 230863030,
+      "colors": [
+        1938365975,
+        -188,
+        -187
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 6456,
+      "decoration": true,
+      "serial": 232097597,
+      "colors": [
+        1971699308,
+        -189,
+        -188
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 56,
+        "CostumeSN": 232097597,
+        "C1": 1971699308,
+        "C2": -189,
+        "C3": -188,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6493,
+      "decoration": false,
+      "serial": 233332164,
+      "colors": [
+        2005032641,
+        -190,
+        -189
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 93,
+        "CostumeSN": 233332164,
+        "C1": 2005032641,
+        "C2": -190,
+        "C3": -189,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": true,
+      "serial": 234566731,
+      "colors": [
+        2038365974,
+        -191,
+        -190
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 6567,
+      "decoration": false,
+      "serial": 235801298,
+      "colors": [
+        2071699307,
+        -192,
+        -191
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 167,
+        "CostumeSN": 235801298,
+        "C1": 2071699307,
+        "C2": -192,
+        "C3": -191,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6604,
+      "decoration": true,
+      "serial": 237035865,
+      "colors": [
+        2105032640,
+        -193,
+        -192
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 204,
+        "CostumeSN": 237035865,
+        "C1": 2105032640,
+        "C2": -193,
+        "C3": -192,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6641,
+      "decoration": false,
+      "serial": 238270432,
+      "colors": [
+        2138365973,
+        -194,
+        -193
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 241,
+        "CostumeSN": 238270432,
+        "C1": 2138365973,
+        "C2": -194,
+        "C3": -193,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6678,
+      "decoration": true,
+      "serial": 239504999,
+      "colors": [
+        -2123267990,
+        -195,
+        -194
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 22,
+        "CostumeSN": 239504999,
+        "C1": -2123267990,
+        "C2": -195,
+        "C3": -194,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 6715,
+      "decoration": false,
+      "serial": 240739566,
+      "colors": [
+        -2089934657,
+        -196,
+        -195
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 6752,
+      "decoration": true,
+      "serial": 241974133,
+      "colors": [
+        -2056601324,
+        -197,
+        -196
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 96,
+        "CostumeSN": 241974133,
+        "C1": -2056601324,
+        "C2": -197,
+        "C3": -196,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6789,
+      "decoration": false,
+      "serial": 243208700,
+      "colors": [
+        -2023267991,
+        -198,
+        -197
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 133,
+        "CostumeSN": 243208700,
+        "C1": -2023267991,
+        "C2": -198,
+        "C3": -197,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 6826,
+      "decoration": true,
+      "serial": 244443267,
+      "colors": [
+        -1989934658,
+        -199,
+        -198
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 6863,
+      "decoration": false,
+      "serial": 245677834,
+      "colors": [
+        -1956601325,
+        -200,
+        -199
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 207,
+        "CostumeSN": 245677834,
+        "C1": -1956601325,
+        "C2": -200,
+        "C3": -199,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6900,
+      "decoration": true,
+      "serial": 246912401,
+      "colors": [
+        -1923267992,
+        -201,
+        -200
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 244,
+        "CostumeSN": 246912401,
+        "C1": -1923267992,
+        "C2": -201,
+        "C3": -200,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6937,
+      "decoration": false,
+      "serial": 248146968,
+      "colors": [
+        -1889934659,
+        -202,
+        -201
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 25,
+        "CostumeSN": 248146968,
+        "C1": -1889934659,
+        "C2": -202,
+        "C3": -201,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 6974,
+      "decoration": true,
+      "serial": 249381535,
+      "colors": [
+        -1856601326,
+        -203,
+        -202
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 62,
+        "CostumeSN": 249381535,
+        "C1": -1856601326,
+        "C2": -203,
+        "C3": -202,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7011,
+      "decoration": false,
+      "serial": 250616102,
+      "colors": [
+        -1823267993,
+        -204,
+        -203
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 99,
+        "CostumeSN": 250616102,
+        "C1": -1823267993,
+        "C2": -204,
+        "C3": -203,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": true,
+      "serial": 251850669,
+      "colors": [
+        -1789934660,
+        -205,
+        -204
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 7085,
+      "decoration": false,
+      "serial": 253085236,
+      "colors": [
+        -1756601327,
+        -206,
+        -205
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 173,
+        "CostumeSN": 253085236,
+        "C1": -1756601327,
+        "C2": -206,
+        "C3": -205,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7122,
+      "decoration": true,
+      "serial": 254319803,
+      "colors": [
+        -1723267994,
+        -207,
+        -206
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 210,
+        "CostumeSN": 254319803,
+        "C1": -1723267994,
+        "C2": -207,
+        "C3": -206,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7159,
+      "decoration": false,
+      "serial": 255554370,
+      "colors": [
+        -1689934661,
+        -208,
+        -207
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 247,
+        "CostumeSN": 255554370,
+        "C1": -1689934661,
+        "C2": -208,
+        "C3": -207,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 7196,
+      "decoration": true,
+      "serial": 256788937,
+      "colors": [
+        -1656601328,
+        -209,
+        -208
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 0,
+      "part": -1,
+      "decoration": false,
+      "serial": 258023504,
+      "colors": [
+        -1623267995,
+        -210,
+        -209
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 7270,
+      "decoration": true,
+      "serial": 259258071,
+      "colors": [
+        -1589934662,
+        -211,
+        -210
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 102,
+        "CostumeSN": 259258071,
+        "C1": -1589934662,
+        "C2": -211,
+        "C3": -210,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7307,
+      "decoration": false,
+      "serial": 260492638,
+      "colors": [
+        -1556601329,
+        -212,
+        -211
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 139,
+        "CostumeSN": 260492638,
+        "C1": -1556601329,
+        "C2": -212,
+        "C3": -211,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7344,
+      "decoration": true,
+      "serial": 261727205,
+      "colors": [
+        -1523267996,
+        -213,
+        -212
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 176,
+        "CostumeSN": 261727205,
+        "C1": -1523267996,
+        "C2": -213,
+        "C3": -212,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7381,
+      "decoration": false,
+      "serial": 262961772,
+      "colors": [
+        -1489934663,
+        -214,
+        -213
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 213,
+        "CostumeSN": 262961772,
+        "C1": -1489934663,
+        "C2": -214,
+        "C3": -213,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7418,
+      "decoration": true,
+      "serial": 264196339,
+      "colors": [
+        -1456601330,
+        -215,
+        -214
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 250,
+        "CostumeSN": 264196339,
+        "C1": -1456601330,
+        "C2": -215,
+        "C3": -214,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7455,
+      "decoration": false,
+      "serial": 265430906,
+      "colors": [
+        -1423267997,
+        -216,
+        -215
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 31,
+        "CostumeSN": 265430906,
+        "C1": -1423267997,
+        "C2": -216,
+        "C3": -215,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7492,
+      "decoration": true,
+      "serial": 266665473,
+      "colors": [
+        -1389934664,
+        -217,
+        -216
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 68,
+        "CostumeSN": 266665473,
+        "C1": -1389934664,
+        "C2": -217,
+        "C3": -216,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7529,
+      "decoration": false,
+      "serial": 267900040,
+      "colors": [
+        -1356601331,
+        -218,
+        -217
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 105,
+        "CostumeSN": 267900040,
+        "C1": -1356601331,
+        "C2": -218,
+        "C3": -217,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7566,
+      "decoration": true,
+      "serial": 269134607,
+      "colors": [
+        -1323267998,
+        -219,
+        -218
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 142,
+        "CostumeSN": 269134607,
+        "C1": -1323267998,
+        "C2": -219,
+        "C3": -218,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7603,
+      "decoration": false,
+      "serial": 270369174,
+      "colors": [
+        -1289934665,
+        -220,
+        -219
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 179,
+        "CostumeSN": 270369174,
+        "C1": -1289934665,
+        "C2": -220,
+        "C3": -219,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 7640,
+      "decoration": true,
+      "serial": 271603741,
+      "colors": [
+        -1256601332,
+        -221,
+        -220
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 2,
+      "part": null,
+      "decoration": false,
+      "serial": 272838308,
+      "colors": [
+        -1223267999,
+        -222,
+        -221
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 7714,
+      "decoration": true,
+      "serial": 274072875,
+      "colors": [
+        -1189934666,
+        -223,
+        -222
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 34,
+        "CostumeSN": 274072875,
+        "C1": -1189934666,
+        "C2": -223,
+        "C3": -222,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7751,
+      "decoration": false,
+      "serial": 275307442,
+      "colors": [
+        -1156601333,
+        -224,
+        -223
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 71,
+        "CostumeSN": 275307442,
+        "C1": -1156601333,
+        "C2": -224,
+        "C3": -223,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7788,
+      "decoration": true,
+      "serial": 276542009,
+      "colors": [
+        -1123268000,
+        -225,
+        -224
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 108,
+        "CostumeSN": 276542009,
+        "C1": -1123268000,
+        "C2": -225,
+        "C3": -224,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7825,
+      "decoration": false,
+      "serial": 277776576,
+      "colors": [
+        -1089934667,
+        -226,
+        -225
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 145,
+        "CostumeSN": 277776576,
+        "C1": -1089934667,
+        "C2": -226,
+        "C3": -225,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7862,
+      "decoration": true,
+      "serial": 279011143,
+      "colors": [
+        -1056601334,
+        -227,
+        -226
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 182,
+        "CostumeSN": 279011143,
+        "C1": -1056601334,
+        "C2": -227,
+        "C3": -226,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 7899,
+      "decoration": false,
+      "serial": 280245710,
+      "colors": [
+        -1023268001,
+        -228,
+        -227
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 219,
+        "CostumeSN": 280245710,
+        "C1": -1023268001,
+        "C2": -228,
+        "C3": -227,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": -1,
+      "decoration": true,
+      "serial": 281480277,
+      "colors": [
+        -989934668,
+        -229,
+        -228
+      ],
+      "accepted": true,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 7973,
+      "decoration": false,
+      "serial": 282714844,
+      "colors": [
+        -956601335,
+        -230,
+        -229
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 37,
+        "CostumeSN": 282714844,
+        "C1": -956601335,
+        "C2": -230,
+        "C3": -229,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8010,
+      "decoration": true,
+      "serial": 283949411,
+      "colors": [
+        -923268002,
+        -231,
+        -230
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 74,
+        "CostumeSN": 283949411,
+        "C1": -923268002,
+        "C2": -231,
+        "C3": -230,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 8047,
+      "decoration": false,
+      "serial": 285183978,
+      "colors": [
+        -889934669,
+        -232,
+        -231
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 8084,
+      "decoration": true,
+      "serial": 286418545,
+      "colors": [
+        -856601336,
+        -233,
+        -232
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 148,
+        "CostumeSN": 286418545,
+        "C1": -856601336,
+        "C2": -233,
+        "C3": -232,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8121,
+      "decoration": false,
+      "serial": 287653112,
+      "colors": [
+        -823268003,
+        -234,
+        -233
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 185,
+        "CostumeSN": 287653112,
+        "C1": -823268003,
+        "C2": -234,
+        "C3": -233,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": 8158,
+      "decoration": true,
+      "serial": 288887679,
+      "colors": [
+        -789934670,
+        -235,
+        -234
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 8195,
+      "decoration": false,
+      "serial": 290122246,
+      "colors": [
+        -756601337,
+        -236,
+        -235
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 3,
+        "CostumeSN": 290122246,
+        "C1": -756601337,
+        "C2": -236,
+        "C3": -235,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8232,
+      "decoration": true,
+      "serial": 291356813,
+      "colors": [
+        -723268004,
+        -237,
+        -236
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 40,
+        "CostumeSN": 291356813,
+        "C1": -723268004,
+        "C2": -237,
+        "C3": -236,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8269,
+      "decoration": false,
+      "serial": 292591380,
+      "colors": [
+        -689934671,
+        -238,
+        -237
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 77,
+        "CostumeSN": 292591380,
+        "C1": -689934671,
+        "C2": -238,
+        "C3": -237,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": true,
+      "serial": 293825947,
+      "colors": [
+        -656601338,
+        -239,
+        -238
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 8343,
+      "decoration": false,
+      "serial": 295060514,
+      "colors": [
+        -623268005,
+        -240,
+        -239
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 151,
+        "CostumeSN": 295060514,
+        "C1": -623268005,
+        "C2": -240,
+        "C3": -239,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8380,
+      "decoration": true,
+      "serial": 296295081,
+      "colors": [
+        -589934672,
+        -241,
+        -240
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 188,
+        "CostumeSN": 296295081,
+        "C1": -589934672,
+        "C2": -241,
+        "C3": -240,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8417,
+      "decoration": false,
+      "serial": 297529648,
+      "colors": [
+        -556601339,
+        -242,
+        -241
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 225,
+        "CostumeSN": 297529648,
+        "C1": -556601339,
+        "C2": -242,
+        "C3": -241,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 8454,
+      "decoration": true,
+      "serial": 298764215,
+      "colors": [
+        -523268006,
+        -243,
+        -242
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 8491,
+      "decoration": false,
+      "serial": 299998782,
+      "colors": [
+        -489934673,
+        -244,
+        -243
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 43,
+        "CostumeSN": 299998782,
+        "C1": -489934673,
+        "C2": -244,
+        "C3": -243,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8528,
+      "decoration": true,
+      "serial": 301233349,
+      "colors": [
+        -456601340,
+        -245,
+        -244
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 80,
+        "CostumeSN": 301233349,
+        "C1": -456601340,
+        "C2": -245,
+        "C3": -244,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8565,
+      "decoration": false,
+      "serial": 302467916,
+      "colors": [
+        -423268007,
+        -246,
+        -245
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 117,
+        "CostumeSN": 302467916,
+        "C1": -423268007,
+        "C2": -246,
+        "C3": -245,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8602,
+      "decoration": true,
+      "serial": 303702483,
+      "colors": [
+        -389934674,
+        -247,
+        -246
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 154,
+        "CostumeSN": 303702483,
+        "C1": -389934674,
+        "C2": -247,
+        "C3": -246,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 2,
+      "part": -1,
+      "decoration": false,
+      "serial": 304937050,
+      "colors": [
+        -356601341,
+        -248,
+        -247
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 8676,
+      "decoration": true,
+      "serial": 306171617,
+      "colors": [
+        -323268008,
+        -249,
+        -248
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 228,
+        "CostumeSN": 306171617,
+        "C1": -323268008,
+        "C2": -249,
+        "C3": -248,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8713,
+      "decoration": false,
+      "serial": 307406184,
+      "colors": [
+        -289934675,
+        -250,
+        -249
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 9,
+        "CostumeSN": 307406184,
+        "C1": -289934675,
+        "C2": -250,
+        "C3": -249,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8750,
+      "decoration": true,
+      "serial": 308640751,
+      "colors": [
+        -256601342,
+        -251,
+        -250
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 46,
+        "CostumeSN": 308640751,
+        "C1": -256601342,
+        "C2": -251,
+        "C3": -250,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8787,
+      "decoration": false,
+      "serial": 309875318,
+      "colors": [
+        -223268009,
+        -252,
+        -251
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 0,
+        "Key": 83,
+        "CostumeSN": 309875318,
+        "C1": -223268009,
+        "C2": -252,
+        "C3": -251,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": 8824,
+      "decoration": true,
+      "serial": 311109885,
+      "colors": [
+        -189934676,
+        -253,
+        -252
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 120,
+        "CostumeSN": 311109885,
+        "C1": -189934676,
+        "C2": -253,
+        "C3": -252,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 0,
+      "part": 8861,
+      "decoration": false,
+      "serial": 312344452,
+      "colors": [
+        -156601343,
+        -254,
+        -253
+      ],
+      "accepted": false,
+      "costume": null
+    },
+    {
+      "count": 1,
+      "part": 8898,
+      "decoration": true,
+      "serial": 313579019,
+      "colors": [
+        -123268010,
+        -255,
+        -254
+      ],
+      "accepted": true,
+      "costume": {
+        "IsBase": true,
+        "Type": 1,
+        "Key": 194,
+        "CostumeSN": 313579019,
+        "C1": -123268010,
+        "C2": -255,
+        "C3": -254,
+        "Effect": 0,
+        "Gloss": 255
+      }
+    },
+    {
+      "count": 1,
+      "part": null,
+      "decoration": false,
+      "serial": 314813586,
+      "colors": [
+        -89934677,
+        -256,
+        -255
+      ],
+      "accepted": false,
+      "costume": null
+    }
+  ]
+}

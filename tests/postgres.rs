@@ -1553,3 +1553,6 @@ mod character_costumes;
 
 #[path = "support/item_state.rs"]
 mod item_state;
+
+#[path = "support/initial_inventory.rs"]
+mod initial_inventory;

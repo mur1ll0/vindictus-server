@@ -2,6 +2,14 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid or unsupported source-bound Fiona appearance")]
+    FionaAppearanceProfile,
+    #[error("body shape requires an explicit recovered arithmetic profile")]
+    AppearanceArithmetic,
+    #[error("invalid source-bound Fiona inventory profile")]
+    FionaInventoryProfile,
+    #[error(transparent)]
+    InitialInventory(crate::domain::initial_inventory::InventoryError),
     #[error("invalid private item colors snapshot")]
     ItemColorsExport,
     #[error(transparent)]

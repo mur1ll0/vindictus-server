@@ -30,6 +30,7 @@ Scope: all development under vindictus-server. The requested deliverable is a co
 - Never execute unreviewed legacy services merely to inspect metadata.
 
 ## Verification
+- User instruction (2026-10-15): minimize terminal/test output collected into context. Redirect complete logs to .cache/verification; inspect only exit status, aggregate counts and bounded failure excerpts. Do not dump successful test output or repeatedly poll unchanged logs. Preserve this rule across sessions/compaction.
 - Run scripts/dev/verify.ps1 before reporting a code step complete.
 - Database integration tests must execute against an isolated schema; skipped tests are not passing evidence.
 - Regenerate protocol fixtures from recovered C# via scripts/reverse/generate-fixtures.ps1 when changing the recovered protocol.

@@ -45,6 +45,15 @@ impl EntityAuthority {
             previous: 0,
         }
     }
+    pub fn allocate(
+        &mut self,
+        utc: crate::domain::legacy_user_data::SqlDateTime2,
+    ) -> Result<
+        crate::domain::character_allocator::EntityAllocation,
+        crate::domain::legacy_user_data::LegacyUserDataError,
+    > {
+        make_entity_id(&mut self.previous, self.service_id, utc)
+    }
     pub fn counter(&self) -> i64 {
         self.previous
     }
@@ -124,9 +133,7 @@ where
     let sn = admission::serial_with_clock(pool, key(&r.owner), settings.server_code, &mut utc)
         .await?
         .serial;
-    let cid = make_entity_id(&mut authority.previous, authority.service_id, utc()?)?
-        .entity_time
-        .ticks();
+    let cid = authority.allocate(utc()?)?.entity_time.ticks();
     match core::create_base(
         pool,
         key(&r.owner),

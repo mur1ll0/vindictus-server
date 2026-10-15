@@ -1,0 +1,92 @@
+{
+  "stage": "M15.1b.2e.8",
+  "verified_at_utc": "2026-10-15T18:44:40.3483553+00:00",
+  "inventory_native": {
+    "stage": "M15.1b.2e.8",
+    "verified_at_utc": "2026-10-15T18:17:14.3674768+00:00",
+    "runtime": "windows-native",
+    "source_read_only": true,
+    "private_values_emitted": false,
+    "framework_profiles": [
+      "x86",
+      "x64"
+    ],
+    "source_rust_differences": 0,
+    "profile_export_sha256": "e9d2a08adc24affb7d9577c77010b450e6d7ebe7a7387f6fa6f563453b2718a0",
+    "inspection": {
+      "bag_items": 10,
+      "cash_items": 1,
+      "character_creation_available": false,
+      "checksum_rows": 0,
+      "clock_calls": 11,
+      "database_mutations": false,
+      "default_candidates": 33,
+      "equipment": 5,
+      "expiry_rows": 0,
+      "items": 11,
+      "projection_sha256": "96cc8f89a3d2cae3b64c70651edbea931cae5f4e408c4502d1c868f01a12eae9",
+      "synthetic_diagnostic": true
+    }
+  },
+  "inventory_linux": {
+    "stage": "M15.1b.2e.8",
+    "verified_at_utc": "2026-10-15T18:44:34.1701733+00:00",
+    "runtime": "linux-readonly-nonroot-network-none",
+    "source_read_only": true,
+    "private_values_emitted": false,
+    "framework_profiles": [
+      "x86",
+      "x64"
+    ],
+    "source_rust_differences": 0,
+    "profile_export_sha256": "e9d2a08adc24affb7d9577c77010b450e6d7ebe7a7387f6fa6f563453b2718a0",
+    "inspection": {
+      "bag_items": 10,
+      "cash_items": 1,
+      "character_creation_available": false,
+      "checksum_rows": 0,
+      "clock_calls": 11,
+      "database_mutations": false,
+      "default_candidates": 33,
+      "equipment": 5,
+      "expiry_rows": 0,
+      "items": 11,
+      "projection_sha256": "96cc8f89a3d2cae3b64c70651edbea931cae5f4e408c4502d1c868f01a12eae9",
+      "synthetic_diagnostic": true
+    }
+  },
+  "appearance": {
+    "actual_client_template_composed": false,
+    "source_profiles": [
+      "Framework-x86",
+      "Framework-x64"
+    ],
+    "projection_cases_per_architecture": 256,
+    "private_snapshot_part_rows": 201,
+    "feature_keys": 163,
+    "private_snapshot_color_rows": 396,
+    "source_boolean_profile": "SQLite text True/False",
+    "database_runtime_integrated": false,
+    "differences": 0,
+    "private_snapshot_custom_rows": 11349,
+    "rust_tests": 5
+  },
+  "gate": {
+    "postgres_executed": 110,
+    "python": 34.0,
+    "rust": 277
+  },
+  "character_creation_available": false,
+  "client_executed": false,
+  "private_values_emitted": false,
+  "post_gate_artifact_review": {
+    "change": "one trailing space removed from owned C# template",
+    "original_methods_changed": false,
+    "oracle_cases_and_pairs_unchanged": true,
+    "domain_version_tables_unchanged": true,
+    "source_hashes_regenerated": true,
+    "targeted_rust_tests_passed": 10,
+    "failed": 0,
+    "log": ".cache/verification/fiona-postgate-artifact-tests.log"
+  }
+}

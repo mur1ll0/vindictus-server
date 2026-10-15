@@ -50,6 +50,17 @@ pub enum Command {
         #[arg(long)]
         policy_file: std::path::PathBuf,
     },
+    /// Compose the private normal-Fiona profile without opening a database or listener.
+    InspectFionaInventory {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        catalog_file: std::path::PathBuf,
+        #[arg(long)]
+        stats_file: std::path::PathBuf,
+        #[arg(long)]
+        colors_file: std::path::PathBuf,
+    },
     /// Validate private material colors against the pinned effective source catalog.
     InspectItemColors {
         #[arg(long, required = true)]

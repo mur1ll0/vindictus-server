@@ -1,0 +1,161 @@
+// Own finite-profile harness. Original snippets are injected only in ignored .cache.
+using System;using System.IO;using System.Linq;using System.Text;using System.Collections;using System.Collections.Generic;using System.Globalization;using System.Security.Cryptography;using System.Reflection;using System.Web.Script.Serialization;
+using Utility;using ServiceCore;
+namespace Utility {public static class Log<T>{public static Logger Logger=new Logger();}public class Logger{public void WarnFormat(string s,params object[]a){}public void ErrorFormat(string s,params object[]a){}public void InfoFormat(string s,params object[]a){}public void Error(string s,Exception e){}}
+ __CRC__
+}
+namespace ServiceCore {public class FeatureMatrix{
+ public static Dictionary<string,string> map=new Dictionary<string,string>();public static string MaterialPathString;public static string CurrentVer{get{return GetString("CurrentVer");}}
+ public static string GetString(string key){string v;return map.TryGetValue(key,out v)?v:"";}
+ __ISENABLE__
+ __GETINTEGER__
+}}
+public static class ItemClassConst{public static string Gold="gold_synthetic";public static string TirCoin="coin_synthetic";}
+public interface IChecker {int GetCheckSum(Item item);bool NeedCheckSum(Item item);void SetCheckSum(Item item);bool IsValid(Item item);}
+__CHECKER__
+__COLOR__
+__MATERIAL__
+internal class ColorTable{
+ private static Dictionary<string,Material> materials=new Dictionary<string,Material>();
+ __TABLE__
+ public static void Reset(int seed){materials.Clear();typeof(Material).GetField("pickColorRandom",BindingFlags.Static|BindingFlags.NonPublic).SetValue(null,new Random(seed));}
+}
+public class EquipItemInfo{public int MaxDurability;public string Material1,Material2,Material3;}
+public class ItemStat{public int MaxDurability;}
+public class ItemClassInfo{public string ItemClass;public int MaxStack,Unique,Storage;public int? ExpireIn;public EquipItemInfo equipment;public ItemStat stat=new ItemStat();public EquipItemInfo GetEquipItemInfo(){return equipment;}public bool IsEquippable(){return equipment!=null;}public int GetInventoryFilterType(){return 0;}}
+public static class ClassExtension{__UNIQUE__}
+public class Property{public ItemClassInfo ItemClassInfo;public int Color1=-1,Color2=-1,Color3=-1,ReducedDurability,MaxDurabilityBonus;public Dictionary<string,object> Attribute=new Dictionary<string,object>();public DateTime? ExpireDateTime;public bool IsCharacterBinded;}
+public class Equippable{public int Color1,Color2,Color3,ReducedDurability,MaxDurabilityBonus;}
+public class ItemLocation{public byte Collection;public int Slot;public ItemLocation(byte c,int s){Collection=c;Slot=s;}public static ItemLocation CashLocation(int slot){return new ItemLocation(100,slot);}}
+public class Owner{public long CID=1;public void ScheduleRecreateItem(Item i){throw new Exception("Outside matching new-equipment profile");}}
+public enum ItemUpdateType{EquipmentStat,Color,Num}
+public static class ItemContents{public static Dictionary<string,ItemClassInfo> classes=new Dictionary<string,ItemClassInfo>();public static ItemClassInfo GetItemClassInfo(string key){ItemClassInfo v;return classes.TryGetValue(key,out v)?v:null;}}
+public class Item{
+ public long ID;public long? OwnerID;public string ItemClass;public int Count;public int Num{get{return Count;}set{if(value<0||IsEquippableItemClass&&value>1)throw new Exception("Source Num setter");Count=value;}}
+ public ItemClassInfo ItemClassInfo;public ItemClassInfo LookClassInfo{get{return ItemClassInfo;}}public ItemStat Stat;
+ public Equippable Equippable;public Owner Owner=new Owner();public bool IsEquippableItemClass{get{return ItemClassInfo.GetEquipItemInfo()!=null;}}
+ public ItemLocation Location;public byte Collection=255;public int Slot=-1;public object ItemAttributeDict=new object();public bool IsEquipped=false;public object EquippedPartInfo=null;public byte? EquippedPart;public DateTime? ExpireDateTime;public bool IsCharacterBinded;public int? CheckSum;
+ public void Update(ItemUpdateType type){}
+ public void SetNullLocation(){Location=new ItemLocation(255,-1);}
+ public void InitAttribute(IEnumerable<object> items){if(items.Any())throw new Exception("Nonempty attributes outside profile");Stat=new ItemStat{MaxDurability=ItemClassInfo.stat.MaxDurability};}
+ public void LoadAttribute(){throw new Exception("Attributes were not initialized");}
+ __HAS__
+ __DURFIELDS__
+ __DURABILITY__
+ __SETCOLOR__
+ __INITIALIZE__
+ public bool IsValid(){bool result=false;__VALIDITY__}
+}
+public class BaseAuthority{public int ID=17;}
+public class Authority:BaseAuthority{private long id;__ALLOCATOR__}
+public static class Clock{public static int calls;public static DateTime UtcNow{get{return new DateTime(638448480000000000L+101L*calls++,DateTimeKind.Utc);}}}
+public enum StorageType{Account,Cash,Story,Bag,Restore,Invalid}
+public class StorageSetting{
+ public static readonly List<byte> ValidBagStorageIDs=new List<byte>{0,1,6,2,3,4,5,7,8};
+ __AVAILABLE__
+}
+public interface ItemStackTrait {ItemClassInfo ItemClassInfo{get;}}
+public class VirtualCreateItem:ItemStackTrait{public Property Property;public int Num;public ItemLocation Location;public ItemClassInfo ItemClassInfo{get{return Property.ItemClassInfo;}}public VirtualCreateItem(object parent,Property property,int num,long? before){Property=property;Num=num;}public void SetLocation(ItemLocation l){Location=l;}}
+public class GiveItemRequest{public ItemClassInfo ItemClassInfo;public int Num;public string ItemClass{get{return ItemClassInfo.ItemClass;}}}
+public class ItemStorage{}
+public class ClassHelper{
+ public ItemClassInfo ItemClassInfo;public List<GiveItemRequest> GiveRequests=new List<GiveItemRequest>();public List<VirtualCreateItem> Created=new List<VirtualCreateItem>(),Created_UniqueFail=new List<VirtualCreateItem>();public object Parent;
+ __BUNDLE__
+ __CREATEVIRTUAL__
+ public string Build(int count){
+  if(count<0||ItemClassInfo.MaxStack<=0)return "Bound";
+  GiveRequests.Add(new GiveItemRequest{ItemClassInfo=ItemClassInfo,Num=count});if(BundleExceed())return "Limit";
+  int left=ItemClassInfo.UniqueConstraintLeft(0);var p=new Property{ItemClassInfo=ItemClassInfo};
+  while(count>0)count-=CreateItem(p,count,ref left,null);
+  return Created_UniqueFail.Count>0?"Limit":null;
+ }
+}
+public class CashStorage{
+ public StorageType Type=StorageType.Cash;private Dictionary<int,Item> Slots=new Dictionary<int,Item>();
+ __CASHEMPTY__
+ __CASHBIND__
+}
+public class ItemStorageStatus{public int StorageTag;}
+public class BagStorage{
+ public StorageType Type=StorageType.Bag;private Dictionary<byte,Item[]> ItemSlots=new Dictionary<byte,Item[]>{{0,new Item[48]},{1,new Item[48]},{6,new Item[48]}};private Dictionary<byte,ItemStorageStatus> StorageStatus=new Dictionary<byte,ItemStorageStatus>();
+ public bool IsAvailable(byte c){return c==0||c==1||c==6;}public Item[] GetCollection(byte c){return ItemSlots[c];}
+ __BAGEMPTY__
+ __BAGBIND__
+}
+public static class Oracle{
+ static JavaScriptSerializer ser=new JavaScriptSerializer{MaxJsonLength=64*1024*1024+4096};
+ static byte[] Hex(string s){var b=new byte[s.Length/2];for(int i=0;i<b.Length;i++)b[i]=Convert.ToByte(s.Substring(i*2,2),16);return b;}
+ static string Text(object s){return s==null?null:Encoding.Unicode.GetString(Hex((string)s));}
+ static object Get(Dictionary<string,object>d,string key){return d[key];}
+ static int I(object v){return Convert.ToInt32(v,CultureInfo.InvariantCulture);}
+ static List<VirtualCreateItem> Plan(List<Tuple<ItemClassInfo,int>> requests,out string error){
+  error=null;var created=new List<VirtualCreateItem>();
+  foreach(var r in requests){var h=new ClassHelper{ItemClassInfo=r.Item1};error=h.Build(r.Item2);if(error!=null)return null;created.AddRange(h.Created);}
+  var cash=new CashStorage();var bag=new BagStorage();List<VirtualCreateItem> bound,left;var result=new List<VirtualCreateItem>();
+  cash.BindVirtualItem(created,new HashSet<long>(),new List<ItemLocation>(),out bound,out left);result.AddRange(bound);
+  bag.BindVirtualItem(left,new HashSet<long>(),new List<ItemLocation>(),out bound,out left);result.AddRange(bound);
+  if(left.Count>0){error="Full";return null;}return result;
+ }
+ static string Digest(List<Item> items,long owner){
+  using(var stream=new MemoryStream())using(var w=new BinaryWriter(stream)){
+   w.Write(Encoding.UTF8.GetBytes("FionaInventory\0v1"));w.Write(owner);w.Write(items.Count);
+   foreach(var r in items){
+    w.Write(r.ID);var key=Encoding.Unicode.GetBytes(r.ItemClass);w.Write(key.Length);w.Write(key);w.Write(r.Count);w.Write(r.Location.Collection);w.Write(r.Location.Slot);
+    w.Write((byte)(r.ExpireDateTime.HasValue?1:0));if(r.ExpireDateTime.HasValue)w.Write(r.ExpireDateTime.Value.Ticks);
+    w.Write((byte)1);w.Write((byte)(r.CheckSum.HasValue?1:0));if(r.CheckSum.HasValue)w.Write(r.CheckSum.Value);
+    w.Write((byte)(r.Equippable!=null?1:0));if(r.Equippable!=null){w.Write(r.Equippable.Color1);w.Write(r.Equippable.Color2);w.Write(r.Equippable.Color3);w.Write(r.ReducedDurability);w.Write(r.MaxDurabilityBonus);}
+   }w.Flush();return BitConverter.ToString(SHA256.Create().ComputeHash(stream.ToArray())).Replace("-","").ToLowerInvariant();
+  }
+ }
+ static void Private(string input){
+  var wrapper=ser.Deserialize<Dictionary<string,object>>(input);var p=(Dictionary<string,object>)wrapper["profile"];var catalog=(Dictionary<string,object>)wrapper["catalog"];var stats=(Dictionary<string,object>)wrapper["stats"];var colors=(Dictionary<string,object>)wrapper["colors"];
+  FeatureMatrix.MaterialPathString=(string)wrapper["material_root"];foreach(Dictionary<string,object>f in(ArrayList)p["features"])FeatureMatrix.map[(string)f["key"]]=(string)f["value"]??"";
+  ItemClassConst.Gold=Text(p["gold_utf16"]);ItemClassConst.TirCoin=Text(p["tircoin_utf16"]);
+  var equipRows=(ArrayList)catalog["equips"];var statRows=(ArrayList)stats["rows"];var colorRows=(ArrayList)colors["rows"];var equips=new Dictionary<string,Tuple<EquipItemInfo,int>>();
+  for(int i=0;i<equipRows.Count;i++){
+   var e=(Dictionary<string,object>)equipRows[i];if(!FeatureMatrix.IsEnable((string)e["feature"]))continue;
+   var s=(Dictionary<string,object>)statRows[i];var c=(Dictionary<string,object>)colorRows[i];var names=(ArrayList)c["materials"];var info=new EquipItemInfo{MaxDurability=I(s["max_durability"]),Material1=Text(names[0]),Material2=Text(names[1]),Material3=Text(names[2])};equips[Text(e["item_utf16"])]=Tuple.Create(info,i);
+  }
+  var rawClasses=(ArrayList)p["classes"];var classRows=(ArrayList)catalog["classes"];var groups=new Dictionary<string,int>();
+  foreach(Dictionary<string,object>r in(ArrayList)p["requests"]){if(r["feature"]!=null&&!FeatureMatrix.IsEnable((string)r["feature"]))continue;string key=Text(r["item_utf16"]);int previous;groups[key]=groups.TryGetValue(key,out previous)?unchecked(previous+I(r["num"])):I(r["num"]);}
+  var requests=new List<Tuple<ItemClassInfo,int>>();
+  foreach(var g in groups){
+   int matches=0;ItemClassInfo info=null;
+   for(int i=0;i<classRows.Count;i++){var c=(Dictionary<string,object>)classRows[i];if(Text(c["item_utf16"])!=g.Key||!FeatureMatrix.IsEnable((string)c["feature"]))continue;matches++;var m=(Dictionary<string,object>)rawClasses[i];Tuple<EquipItemInfo,int>e;equips.TryGetValue(g.Key,out e);info=new ItemClassInfo{ItemClass=g.Key,MaxStack=I(c["max_stack"]),Storage=I(c["storage"]),Unique=I(m["unique"]),ExpireIn=m["expire_in"]==null?(int?)null:I(m["expire_in"]),equipment=e==null?null:e.Item1,stat=new ItemStat{MaxDurability=e==null?0:e.Item1.MaxDurability}};}
+   if(matches!=1||info==null||info.Storage<1||info.Storage>2)throw new Exception("Outside admitted unique-row source profile");ItemContents.classes[g.Key]=info;requests.Add(Tuple.Create(info,g.Value));
+  }
+  string error;var plan=Plan(requests,out error);if(error!=null)throw new Exception("Source initial plan refused");
+  Clock.calls=0;ColorTable.Reset(0);var authority=new Authority();var result=new List<Item>();
+  foreach(var v in plan){var r=new Item{ID=authority.MakeEntityID().Ticks};if(!r.Initialize(v.Property,v.Num))throw new Exception("Original Initialize refused");r.OwnerID=1;r.Location=v.Location;r.Collection=v.Location.Collection;r.Slot=v.Location.Slot;new Checker().SetCheckSum(r);result.Add(r);}
+  Console.WriteLine(ser.Serialize(new{items=result.Count,equipment=result.Count(r=>r.Equippable!=null),cash_items=result.Count(r=>r.Collection==100),bag_items=result.Count(r=>r.Collection!=100),clock_calls=Clock.calls,projection_sha256=Digest(result,1),values_emitted=false}));
+ }
+ public static void Main(string[]args){
+  CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("en-US");
+  if(args.Length==1&&args[0]=="--feature-pairs"){
+   var input=ser.Deserialize<Dictionary<string,object>>(Console.In.ReadToEnd());var result=new List<object>();
+   foreach(Dictionary<string,object> p in(ArrayList)input["pairs"]){string current=(string)p["current"],value=(string)p["value"];FeatureMatrix.map["CurrentVer"]=current;FeatureMatrix.map["candidate"]=value;result.Add(new{current=current,value=value,enabled=FeatureMatrix.IsEnable("candidate")});}
+   Console.WriteLine(ser.Serialize(result));return;
+  }
+  if(args.Length==1&&args[0]=="--private-stdin"){Private(Console.In.ReadToEnd());return;}
+  FeatureMatrix.map["CurrentVer"]="3.09.00";FeatureMatrix.map["MaxDurabilityLimit"]="30000";FeatureMatrix.map["BundleExceed"]="0";
+  var validity=new List<object>();int[] edges={int.MinValue,-1,0,1,100,int.MaxValue};uint state=73129;
+  for(int i=0;i<2000;i++){
+   int[] v=new int[5];for(int j=0;j<5;j++){state=unchecked(state*1664525+1013904223);v[j]=edges[state%6];}
+   FeatureMatrix.map["MaxDurabilityLimit"]=v[4].ToString(CultureInfo.InvariantCulture);FeatureMatrix.map["CheckEquipItemInfoVaild"]=i%2==0?"":"1.0";
+   var info=new ItemClassInfo{ItemClass="synthetic",MaxStack=1,equipment=new EquipItemInfo{MaxDurability=v[0]}};
+   var item=new Item{ItemClassInfo=info,ItemClass="synthetic",Stat=new ItemStat{MaxDurability=v[1]},Equippable=new Equippable{MaxDurabilityBonus=v[2],ReducedDurability=v[3]},Count=1,Location=new ItemLocation(255,-1)};
+   bool valid=item.IsValid();validity.Add(new{input=v,output=new[]{valid?1:0,item.MaxDurability,item.Durability,item.ReducedDurability,item.MaxDurabilityBonus}});
+  }
+  var checks=new List<object>();string[] names={"gold_synthetic","other","漢字","\ud800","a\0b","\ud800\udc00"};long[] ids={long.MinValue,-1,0,1,638448480000000000,long.MaxValue};long?[] owners={null,long.MinValue,-1,0,long.MaxValue};int[] counts={int.MinValue,-1,0,1,int.MaxValue};
+  foreach(string name in names)foreach(long id in ids)foreach(var owner in owners)foreach(int count in counts){
+   var item=new Item{ID=id,OwnerID=owner,ItemClass=name,Count=count};checks.Add(new{units=name.Select(c=>(int)c).ToArray(),id=id.ToString(CultureInfo.InvariantCulture),owner=owner.HasValue?owner.Value.ToString(CultureInfo.InvariantCulture):null,count=count,value=new Checker().GetCheckSum(item)});
+  }
+  var plans=new List<object>();
+  for(int n=0;n<96;n++){
+   FeatureMatrix.map["BundleExceed"]=(n%8==0?2:0).ToString();var requests=new List<Tuple<ItemClassInfo,int>>();var inputs=new List<int[]>();
+   for(int j=0;j<1+n%7;j++){int storage=(n+j)%3==0?2:1,max=1+(n*7+j)%5,count=(n*13+j*29)%120,unique=j%4==0?50:0;var info=new ItemClassInfo{ItemClass="synthetic_"+j,Storage=storage,MaxStack=max,Unique=unique};requests.Add(Tuple.Create(info,count));inputs.Add(new[]{storage,max,count,unique});}
+   string error;var p=Plan(requests,out error);plans.Add(new{input=inputs,bundle=n%8==0?2:0,error=error,output=p==null?null:p.Select(v=>new[]{int.Parse(v.ItemClassInfo.ItemClass.Substring(10)),v.Num,(int)v.Location.Collection,v.Location.Slot}).ToArray()});
+  }
+  Console.WriteLine(ser.Serialize(new{validity=validity,checks=checks,plans=plans}));
+ }
+}

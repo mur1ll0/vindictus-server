@@ -47,5 +47,8 @@ pub mod character_costumes;
 
 pub mod item_state;
 
+pub mod fiona_appearance;
+pub mod fiona_inventory_profile;
+pub mod initial_inventory;
 pub mod item_colors;
 pub mod item_stats;
