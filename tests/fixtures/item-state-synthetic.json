@@ -1,0 +1,15 @@
+{
+ "format_version":1,"source":"study_heroes.item-state","attribute_last_value":"10","storage_last_value":"20",
+ "items":[
+ {"id":"1","item_class_utf16":"00d800004100","owner_id":"1","count":-2147483648,"collection":255,"slot":-2147483648,"expire_ticks":"3155378975999999999","tradable":true,"checksum":null},
+ {"id":"2","item_class_utf16":"","owner_id":null,"count":2147483647,"collection":0,"slot":2147483647,"expire_ticks":null,"tradable":false,"checksum":-2147483648}],
+ "attributes":[
+ {"id":"2","item_id":"1","attribute_bytes":"44555220","value_bytes":"00ff80","arg":-2147483648,"arg2":2147483647},
+ {"id":"7","item_id":"99","attribute_bytes":"","value_bytes":"","arg":2147483647,"arg2":-2147483648}],
+ "equipment":[
+ {"id":"1","part":null,"color1":-2147483648,"color2":2147483647,"color3":-1,"reduced_durability":-2147483648,"max_durability_bonus":2147483647},
+ {"id":"99","part":255,"color1":1,"color2":2,"color3":3,"reduced_durability":4,"max_durability_bonus":5}],
+ "storage":[
+ {"id":"3","owner_id":"1","storage_type":255,"storage":0,"expire_units300":"-1391644800000","storage_name_utf16":"00d80000","storage_tag":-2147483648},
+ {"id":"7","owner_id":"1","storage_type":0,"storage":255,"expire_units300":null,"storage_name_utf16":"","storage_tag":2147483647}]
+}

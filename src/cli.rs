@@ -69,6 +69,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve full Item/Attribute/Equippable/Storage state from private stdin.
+    ImportItemState {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve recovered Costume rows and identity from private stdin; no playable creation.
     ImportCostumes {
         #[arg(long, required = true)]

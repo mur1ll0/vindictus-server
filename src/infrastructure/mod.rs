@@ -44,3 +44,5 @@ pub mod character_name_check;
 pub mod character_name_proof;
 
 pub mod character_costumes;
+
+pub mod item_state;

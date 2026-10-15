@@ -666,7 +666,7 @@ async fn scoped_creation_refuses_dangling_source_owners_and_pending_achievement_
             prepare_scoped_lab_user(&pool, &u, true, now(), &scope).await,
             Err(Error::LabAccountProvenance)
         ));
-        sqlx::raw_sql("TRUNCATE game_costumes,game_item_collections,game_quest_collections,game_mailboxes,game_story_entries,game_last_connect_info,game_character_info,game_characters,game_friend_loyalty,game_user_achievements,game_user_info,game_user_products,game_user_care_info,game_home_cafe_bonus,game_login_account_effect_runs,game_login_reward_runs").execute(&pool).await.unwrap();
+        sqlx::raw_sql("TRUNCATE game_items,game_item_storage_status,game_costumes,game_item_collections,game_quest_collections,game_mailboxes,game_story_entries,game_last_connect_info,game_character_info,game_characters,game_friend_loyalty,game_user_achievements,game_user_info,game_user_products,game_user_care_info,game_home_cafe_bonus,game_login_account_effect_runs,game_login_reward_runs").execute(&pool).await.unwrap();
     }
     let name: Vec<u8> = "ORPHANLAB  "
         .encode_utf16()

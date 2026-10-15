@@ -85,6 +85,7 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
     crate::infrastructure::character_reservations::check_ready(pool).await?;
     crate::infrastructure::character_collections::check_ready(pool).await?;
     crate::infrastructure::character_costumes::check_ready(pool).await?;
+    crate::infrastructure::item_state::check_ready(pool).await?;
     crate::infrastructure::character_creation_ledger::check_ready(pool).await?;
     sqlx::query(
         "SELECT uid,name_key,profile_fingerprint,created_at FROM game_lab_account_origins LIMIT 0",
