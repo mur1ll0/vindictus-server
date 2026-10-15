@@ -1,0 +1,61 @@
+// Own synthetic harness. Recovered methods are injected only in ignored .cache.
+using System;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
+public class StatInfo { public int MaxDurability; }
+public class EquipmentInfo { public int MaxDurability; }
+public class Info {
+ public EquipmentInfo equipment;
+ public EquipmentInfo GetEquipItemInfo() { return equipment; }
+ public bool IsEquippable() { return equipment != null; }
+}
+public class Equippable { public int ReducedDurability, MaxDurabilityBonus; }
+public class Property { public Info ItemClassInfo; public int ReducedDurability, MaxDurabilityBonus; }
+public enum ItemUpdateType { EquipmentStat }
+namespace ServiceCore { public static class FeatureMatrix {
+ public static int limit;
+ public static int GetInteger(string key) { if(key!="MaxDurabilityLimit")throw new Exception("Unexpected feature");return limit; }
+}}
+public class Item {
+ public Info ItemClassInfo;public StatInfo Stat;public Equippable Equippable;public int updates;
+ public bool IsEquippableItemClass { get { return ItemClassInfo.IsEquippable(); } }
+ public void Update(ItemUpdateType type) { updates++; }
+ __HAS__
+ __FIELDS__
+ __DURABILITY__
+ public void Initialize(Property property) { __INITIALIZE__ }
+}
+public static class Oracle {
+ static object Snapshot(Item item) {
+  return new {has=item.HasDurability,maximum=item.MaxDurability,current=item.Durability,reduced=item.ReducedDurability,bonus=item.MaxDurabilityBonus,updates=item.updates};
+ }
+ static Item New(int source,int stat,int reduced,int bonus,int limit) {
+  ServiceCore.FeatureMatrix.limit=limit;
+  return new Item {ItemClassInfo=new Info {equipment=new EquipmentInfo {MaxDurability=source}},Stat=new StatInfo {MaxDurability=stat},Equippable=new Equippable {ReducedDurability=reduced,MaxDurabilityBonus=bonus}};
+ }
+ public static void Main() {
+  var initial=new List<object>();var batches=new List<object>();
+  int[] edges={int.MinValue,-1,0,1,int.MaxValue};
+  foreach(int source in edges)foreach(int stat in edges)foreach(int bonus in edges)foreach(int reduced in edges)foreach(int limit in edges) {
+   var item=New(source,stat,0,0,limit);
+   item.Initialize(new Property {ItemClassInfo=item.ItemClassInfo,MaxDurabilityBonus=bonus,ReducedDurability=reduced});
+   initial.Add(new{input=new[]{source,stat,bonus,reduced,limit},output=Snapshot(item)});
+  }
+  int[] values={int.MinValue,-30000,-1,0,1,99,100,30000,int.MaxValue};
+  for(int i=0;i<180;i++) {
+   int source=values[i%9],stat=values[(i/9)%9],reduced=values[(i*7+2)%9],bonus=values[(i*5+4)%9];
+   var item=New(source,stat,reduced,bonus,0);var steps=new List<object>();
+   object before=Snapshot(item);
+   for(int j=0;j<9;j++){
+    int value=values[(i+j)%9],limit=values[(i+j*2+1)%9];bool maximum=j%2==0;
+    ServiceCore.FeatureMatrix.limit=limit;
+    if(maximum)item.MaxDurability=value;else item.Durability=value;
+    steps.Add(new{maximum=maximum,value=value,limit=limit,output=Snapshot(item)});
+   }
+   batches.Add(new{input=new[]{source,stat,reduced,bonus},before=before,steps=steps});
+  }
+  var absent=new Item {ItemClassInfo=new Info(),Stat=new StatInfo(),Equippable=null};
+  absent.Initialize(new Property {ItemClassInfo=absent.ItemClassInfo,MaxDurabilityBonus=int.MaxValue,ReducedDurability=int.MinValue});
+  Console.WriteLine(new JavaScriptSerializer {MaxJsonLength=16*1024*1024}.Serialize(new{initial=initial,batches=batches,non_equipment=Snapshot(absent)}));
+ }
+}

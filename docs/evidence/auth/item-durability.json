@@ -1,0 +1,43 @@
+{
+  "stage": "M15.1b.2e.6",
+  "verified_at_utc": "2026-10-15T13:54:58.4816413+00:00",
+  "component": "Equipment durability getters/setters and Initialize durability branch",
+  "framework_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "initializations": 3125,
+  "setter_batches": 180,
+  "setter_operations": 1620,
+  "non_equipment_case": true,
+  "rust_framework_differences": 0,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+      "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemDurabilityOracle.cs.in",
+      "sha256": "aae0b3bfd8ad224f0ddad8fe3e47206a74e279917b624c812fc9f93f5f317be7"
+    },
+    {
+      "path": "scripts/reverse/generate-item-durability-fixtures.ps1",
+      "sha256": "53c9952856dfa425a523557344ef68cf8897c6c9c48fc922834835549e09f89b"
+    }
+  ],
+  "fixture_sha256": "254ad2426ad5baf0d668d8870c962787a0a6cdf1ad65ef3b80fa051226e957f5",
+  "rust_tests": 256,
+  "postgres_tests_executed": 107,
+  "python_tests": 25,
+  "new_rust_tests": 3,
+  "new_python_tests": 3,
+  "full_property_constructor_implemented": false,
+  "equipment_colors_initialized": false,
+  "full_item_initialize_implemented": false,
+  "item_update_effects_applied": false,
+  "new_item_delivery_enabled": false,
+  "create_tcp_enabled": false,
+  "new_client_attempt": false,
+  "source_services_executed": false,
+  "logs_directory": ".cache/verification"
+}
