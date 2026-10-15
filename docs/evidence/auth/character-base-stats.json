@@ -1,0 +1,35 @@
+{
+  "stage": "M15.1b.2e.9",
+  "verified_at_utc": "2026-10-15T23:28:06.6761654+00:00",
+  "profiles": [
+    "Framework-x86",
+    "Framework-x64"
+  ],
+  "synthetic_cases_per_architecture": 256,
+  "differences": 0,
+  "source_sha256": [
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/CharacterStats.cs",
+      "sha256": "34f6f15beef5bebc596c137a7661ca0a5af44fcd2a35b57a863b83c01bca7250"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContents.cs",
+      "sha256": "6bc2e3fa29ca1c3bf1b2bdb27af3445ed50717225905a059090c18067690aefe"
+    },
+    {
+      "path": "scripts/reverse/framework/CharacterBaseStatsOracle.cs.in",
+      "sha256": "a5702dca0e25648a7ce0052cb46680a9e0d22c3313605cbe764ccab4b512b4aa"
+    },
+    {
+      "path": "scripts/reverse/generate-character-base-stats-fixtures.ps1",
+      "sha256": "c4a6c8242fbe0015a1e35f4bc3d7692f7133098b81afd4bb8806d9b5d22f853e"
+    }
+  ],
+  "scope": "seven persisted base stats;original GetCharacterStats constructor and unchecked title addition",
+  "actual_private_profile_runtime_integrated": false,
+  "explicit_title_contribution_required": true,
+  "new_postgres_cases": 2,
+  "new_rust_cases": 1,
+  "character_creation_available": false,
+  "client_executed": false
+}

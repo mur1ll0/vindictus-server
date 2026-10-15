@@ -234,6 +234,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let skills = match &cli.command {
+        Command::ImportCharacterSkills { .. } => Some(
+            vindictus_server::infrastructure::character_skills::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let costumes = match &cli.command {
         Command::ImportCostumes { .. } => Some(
             vindictus_server::infrastructure::character_costumes::read_snapshot(
@@ -295,6 +303,15 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| ItemStateError::Export)?
+            );
+        }
+        Command::ImportCharacterSkills { verify_only, .. } => {
+            use vindictus_server::infrastructure::character_skills::{SkillError, preserve};
+            let snapshot = skills.ok_or(SkillError::Export)?;
+            let summary = preserve(&pool, &snapshot, verify_only).await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| SkillError::Export)?
             );
         }
         Command::ImportCostumes { verify_only, .. } => {

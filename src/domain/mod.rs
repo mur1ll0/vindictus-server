@@ -55,6 +55,7 @@ pub mod item_preparation;
 
 pub mod item_time;
 
+pub mod character_base_stats;
 pub mod initial_inventory;
 pub mod item_colors;
 pub mod item_durability;

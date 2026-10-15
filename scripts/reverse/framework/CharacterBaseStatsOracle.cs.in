@@ -1,0 +1,35 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Script.Serialization;
+enum Stats { STR,DEX,INT,WILL,LUCK,HP,STAMINA }
+class CharacterClassInfo {public int BaseSTR,BaseDEX,BaseINT,BaseWILL,BaseHP,BaseSTAMINA;}
+class CharacterStats : IEnumerable<KeyValuePair<string,int>> {
+ Dictionary<string,int> stats=Enum.GetNames(typeof(Stats)).ToDictionary(x=>x,x=>0,StringComparer.OrdinalIgnoreCase);
+ public CharacterStats(){}
+ __CTOR__
+ __ADD__
+ public IEnumerator<KeyValuePair<string,int>> GetEnumerator(){return stats.GetEnumerator();}
+ IEnumerator IEnumerable.GetEnumerator(){return GetEnumerator();}
+ public int[] Values(){return Enum.GetNames(typeof(Stats)).Select(x=>stats[x]).ToArray();}
+}
+class Oracle {
+ static Dictionary<KeyValuePair<int,int>,CharacterClassInfo> characterClassInfo=new Dictionary<KeyValuePair<int,int>,CharacterClassInfo>();
+ __GET__
+ static int Value(int a,int b){return unchecked(a*1103515245+b*12345);}
+ static void Main(){
+  var cases=new List<object>();
+  for(int n=0;n<256;n++){
+   var b=Enumerable.Range(0,6).Select(k=>Value(n+1,k+3)).ToArray();
+   var t=Enumerable.Range(0,7).Select(k=>Value(n+7,k+11)).ToArray();
+   if(n==0){b=new int[6];t=new int[7];}
+   if(n==1){b=Enumerable.Repeat(int.MaxValue,6).ToArray();t=Enumerable.Repeat(1,7).ToArray();}
+   if(n==2){b=Enumerable.Repeat(int.MinValue,6).ToArray();t=Enumerable.Repeat(-1,7).ToArray();}
+   characterClassInfo.Clear();characterClassInfo.Add(new KeyValuePair<int,int>(1,1),new CharacterClassInfo{BaseSTR=b[0],BaseDEX=b[1],BaseINT=b[2],BaseWILL=b[3],BaseHP=b[4],BaseSTAMINA=b[5]});
+   var stats=GetCharacterStats(1,1);stats.Add(new CharacterStats(t[0],t[1],t[2],t[3],t[4],t[5],t[6]));
+   cases.Add(new {basis=b,titles=t,expected=stats.Values()});
+  }
+  Console.WriteLine(new JavaScriptSerializer().Serialize(cases));
+ }
+}

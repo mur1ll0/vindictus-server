@@ -1,0 +1,51 @@
+{
+  "stage": "M15.1b.2e.9",
+  "verified_at_utc": "2026-10-15T23:25:00.6799254+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_skills": 748,
+  "source_sp_slots": 49,
+  "source_columns": [
+    6,
+    4
+  ],
+  "export_sha256": "96968c1eb5676debaf81ba46c3f3ecff0abffe610b662fe32d2887d7c42e1913",
+  "query_sha256": "955529c5a6d9ca4eec540a6958788d771dbb5465434433cac7d6f7b214fb45c1",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "skills": 748,
+    "sp_slots": 49,
+    "inserted": 797,
+    "verified": 797,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "replay": {
+    "skills": 748,
+    "sp_slots": 49,
+    "inserted": 0,
+    "verified": 797,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "verified": {
+    "skills": 748,
+    "sp_slots": 49,
+    "inserted": 0,
+    "verified": 797,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "post_restart_verified": true,
+  "character_creation_available": false,
+  "post_restart_verified_at_utc": "2026-10-15T23:25:37.6825024+00:00",
+  "post_restart_summary": {
+    "skills": 748,
+    "sp_slots": 49,
+    "inserted": 0,
+    "verified": 797,
+    "identity_initialized": true,
+    "character_creation_available": false
+  }
+}

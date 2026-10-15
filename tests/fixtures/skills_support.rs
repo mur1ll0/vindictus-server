@@ -1,0 +1,3 @@
+use serde_json::{Value,json};
+pub fn export()->Value{json!({"format_version":1,"source":"study_heroes.skill-state","sp_source_last_value":"10","skills":[{"row_id":"-9223372036854775808","cid":"1","skill_utf16":"00d8","rank":-2147483648i64,"locked":255,"current_ap":2147483647},{"row_id":"9007199254740993","cid":"1","skill_utf16":"00d8","rank":2147483647,"locked":0,"current_ap":-2147483648i64}],"sp_slots":[{"row_id":-1,"cid":"1","slot_id":0,"skill_utf16":null},{"row_id":7,"cid":"1","slot_id":0,"skill_utf16":""}]})}
+pub fn empty()->Value{json!({"format_version":1,"source":"study_heroes.skill-state","sp_source_last_value":null,"skills":[],"sp_slots":[]})}

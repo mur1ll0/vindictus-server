@@ -1,0 +1,36 @@
+{
+  "stage": "M15.1b.2e.9",
+  "verified_at_utc": "2026-10-15T23:28:06.6886504+00:00",
+  "original_dockerfile_used": true,
+  "migration_schema": 19,
+  "migration19_sha256": "93baa52928c339e057c3b2cdaf7ee6ae3e73ea423827a4b81ab4172a64149ed4",
+  "migration19_line_endings": "LF",
+  "migrate_exit_code": 0,
+  "readiness": "ready",
+  "runtime_user": "10001:10001",
+  "duplicate_rejected": true,
+  "restart_preserves_account": true,
+  "restart_preserves_game_user": true,
+  "skill_rows_verified": 748,
+  "sp_slot_rows_verified": 49,
+  "skill_columns": 6,
+  "sp_slot_columns": 4,
+  "identity_replay_never_reseeds": true,
+  "post_restart_skills_verified": true,
+  "item_state_rows_verified": [
+    2336,
+    209,
+    1032,
+    19
+  ],
+  "costume_rows_verified": 1533,
+  "gate": {
+    "python": 34.0,
+    "postgres_executed": 116,
+    "postgres_ignored": 0,
+    "rust": 281
+  },
+  "native_frontend_refreshed": true,
+  "create_tcp_enabled": false,
+  "client_executed": false
+}
