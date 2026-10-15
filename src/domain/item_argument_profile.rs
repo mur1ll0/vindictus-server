@@ -114,7 +114,7 @@ fn time_fields(mut text: &[u16], iso: bool) -> Result<(u32, u32, u32, u32), Argu
     }
     Ok((hour, minute, second, fraction))
 }
-fn ticks(year: u32, month: u32, day: u32, time: (u32, u32, u32, u32)) -> Option<i64> {
+pub(crate) fn ticks(year: u32, month: u32, day: u32, time: (u32, u32, u32, u32)) -> Option<i64> {
     if !(1..=9999).contains(&year) || !(1..=12).contains(&month) {
         return None;
     }

@@ -1,0 +1,26 @@
+{
+  "stage": "M15.1b.2e.4",
+  "verified_at_utc": "2026-10-15T05:03:37.0000696+00:00",
+  "locked_build": true,
+  "builtin_frontend_used": false,
+  "source_dockerfile_unchanged": true,
+  "migration_schema": 18,
+  "readiness": "ready",
+  "migrate_exit_code": 0,
+  "duplicate_rejected": true,
+  "restart_preserves_account": true,
+  "restart_preserves_game_user": true,
+  "runtime_user": "10001:10001",
+  "item_state_rows_verified": [
+    2336,
+    209,
+    1032,
+    19
+  ],
+  "costume_rows_verified": 1533,
+  "item_writes_enabled": false,
+  "create_tcp_enabled": false,
+  "client_executed": false,
+  "native_frontend_refresh_required": false,
+  "reason": "Schema and game TCP unchanged; temporal component not yet composed into initializer."
+}

@@ -1,0 +1,59 @@
+// Own synthetic boundary harness; recovered methods are inserted only into ignored .cache.
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Web.Script.Serialization;
+public class ItemAttributeElement { public string Value; }
+public class Info { public int? ExpireIn; }
+public class Property {
+ public Dictionary<string,ItemAttributeElement> Attribute = new Dictionary<string,ItemAttributeElement>();
+ private Dictionary<string,ItemAttributeElement> attribute { get { return Attribute; } }
+ public DateTime? ExpireDateTime; public Info ItemClassInfo=new Info();
+ __PROPERTY__
+ public void Build() { Build_Attribute_Expire(); Build_Attribute_MinUpTime(); }
+}
+public static class Extention { __FORMAT__ }
+public static class Clock {
+ public static long now; public static int calls;
+ public static DateTime UtcNow { get { return new DateTime(checked(now + 101L*calls++),DateTimeKind.Utc); } }
+}
+public class Item {
+ public DateTime? ExpireDateTime;
+ public void Initialize(Property property) { __INITIALIZE__ }
+}
+public class Input {
+ public bool expire_present; public string expire_value; public long? expiry;
+ public bool min_present; public string min_value; public int? expire_in; public long now;
+}
+public static class Oracle {
+ static object Run(Input input) {
+  Clock.now=input.now;Clock.calls=0;
+  var p=new Property {ExpireDateTime=input.expiry.HasValue?(DateTime?)new DateTime(input.expiry.Value):null};
+  p.ItemClassInfo.ExpireIn=input.expire_in;
+  if(input.expire_present)p.Attribute.Add("EXPIRE",new ItemAttributeElement {Value=input.expire_value});
+  if(input.min_present)p.Attribute.Add("MIN_UPTIME",new ItemAttributeElement {Value=input.min_value});
+  var item=new Item();string error=null;string phase="property";
+  try { p.Build();phase="initialize";item.Initialize(p);phase="complete"; }
+  catch(Exception e) {error=e.GetType().Name;}
+  return new {input=input,error=error,phase=phase,property_expiry=p.ExpireDateTime.HasValue?(long?)p.ExpireDateTime.Value.Ticks:null,item_expiry=item.ExpireDateTime.HasValue?(long?)item.ExpireDateTime.Value.Ticks:null,has_expire=p.Attribute.ContainsKey("EXPIRE"),min_value=input.min_present?p.Attribute["MIN_UPTIME"].Value:null,clock_calls=Clock.calls};
+ }
+ public static void Main() {
+  CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("en-US");
+  var rows=new List<object>();
+  string[] dates={null,"","1/1/1/0/0/0","9999/12/31/23/59/59","2000/2/29/23/59/59","1900/2/29/0/0/0","2024/02/29/01/02/03","2023/02/29/01/02/03","  +2024 / 2 / 29 / 1 / 2 / 3 ","2024/2/29/1/2","2024/2/29/1/2/3/4","2024/2/29/24/0/0","2024/2/29/0/60/0","2024/2/29/0/0/60","0/1/1/0/0/0","-1/1/1/0/0/0","10000/1/1/0/0/0","2024/0/1/0/0/0","2024/13/1/0/0/0","2024/1/0/0/0/0","2024/1/32/0/0/0","2147483648/1/1/0/0/0","2024/1/1/0/0/-0","2024\0/1/1/0/0/0","2024/1/1/0/0/0\0","２０２４/1/1/0/0/0","2024/1/1/0/0/0.0","\u00a02024/1/1/0/0/0"};
+  long middle=new DateTime(2024,2,29,1,2,3).Ticks;
+  long?[] expires={null,0,middle-1,middle,middle+1,DateTime.MaxValue.Ticks};
+  int?[] seconds={null,0,1,-1,int.MaxValue,int.MinValue};
+  for(int i=0;i<dates.Length;i++)foreach(var expiry in expires)foreach(var sec in seconds) {
+   rows.Add(Run(new Input{expire_present=true,expire_value=dates[i],expiry=expiry,min_present=true,min_value=i%3==0?null:i%3==1?"":"existing",expire_in=sec,now=middle+3333}));
+  }
+  foreach(long now in new[]{0L,1L,DateTime.MaxValue.Ticks-1,DateTime.MaxValue.Ticks,middle})foreach(var expiry in expires)foreach(var sec in seconds)foreach(bool has in new[]{false,true}) {
+   rows.Add(Run(new Input{expire_present=has,expire_value="invalid",expiry=expiry,min_present=false,expire_in=sec,now=now}));
+  }
+  // Gregorian leap/century matrix, with independently constructed Framework dates.
+  foreach(int y in new[]{1,4,100,400,1600,1700,1900,2000,2024,9999})for(int m=1;m<=12;m++)foreach(int d in new[]{28,29,30,31}) {
+   rows.Add(Run(new Input{expire_present=true,expire_value=y+"/"+m+"/"+d+"/23/59/59",min_present=true,min_value=" ",now=middle}));
+  }
+  Console.Write(new JavaScriptSerializer {MaxJsonLength=16000000}.Serialize(rows));
+ }
+}

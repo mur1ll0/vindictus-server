@@ -1,0 +1,50 @@
+{
+  "stage": "M15.1b.2e.4",
+  "verified_at_utc": "2026-10-15T05:02:12.6765211+00:00",
+  "component": "ItemRequestProperty EXPIRE/MIN_UPTIME and Item.Initialize ExpireIn",
+  "profiles": [
+    "Framework48-x86-en-US",
+    "Framework48-x64-en-US"
+  ],
+  "cases_per_architecture": 1848,
+  "rust_framework_differences": 0,
+  "fixture_sha256": "49e91b88e7c9d556e35babe9838df3f2d88fd3309921d141f269330094a97121",
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/ItemRequestProperty.cs",
+      "sha256": "215f612ed00f7bdf461302064ba6788202c7968e4fad03316f7850de4974621b"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+      "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+    },
+    {
+      "path": "legacy/decompiled/Utility-37359981d509/Utility/Extention.cs",
+      "sha256": "06a5705f7166e9789ecccc0ae30e775d21ccf9dc054fe9838e5ffc5d3ff2c080"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemTimeOracle.cs.in",
+      "sha256": "5a61b4461741ddde6ac7ecdbab78cc013f6bfff9b51a53c8bc4d9e1a86edace7"
+    },
+    {
+      "path": "scripts/reverse/generate-item-time-fixtures.ps1",
+      "sha256": "0ecb5faf0270bb6091e0f647962ebdace1232679c7c9651320d645c86199afb4"
+    }
+  ],
+  "rust_tests": 248,
+  "postgres_tests_executed": 107,
+  "python_tests": 19,
+  "new_rust_tests": 2,
+  "new_postgres_tests": 0,
+  "schema_migrations": 18,
+  "source_services_executed": false,
+  "originals_read_only": true,
+  "host_locale_timezone_clock_used": false,
+  "clock_is_explicit_and_lazy": true,
+  "full_property_constructor_implemented": false,
+  "full_item_initialize_implemented": false,
+  "new_item_delivery_enabled": false,
+  "create_tcp_enabled": false,
+  "new_client_attempt": false,
+  "logs_directory": ".cache/verification"
+}
