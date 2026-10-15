@@ -1,0 +1,104 @@
+// Own replay harness. Original methods/classes are inserted only in ignored .cache.
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Web.Script.Serialization;
+using ServiceCore;
+using Utility;
+namespace ServiceCore { public static class FeatureMatrix {public static string MaterialPathString;} }
+namespace Utility {
+ public static class Log<T> {public static Logger Logger=new Logger();}
+ public class Logger {public void Error(string s,Exception e){}public void WarnFormat(string s,params object[] a){}}
+}
+__COLOR__
+__MATERIAL__
+internal class ColorTable {
+ private static Dictionary<string,Material> materials=new Dictionary<string,Material>();
+ public static void Reset(){materials.Clear();}
+ __TABLE__
+}
+public class Info {
+ public EquipItemInfo equipment;
+ public EquipItemInfo GetEquipItemInfo(){return equipment;}
+}
+public class EquipItemInfo {public string Material1,Material2,Material3;}
+public class Equippable {public int Color1,Color2,Color3;}
+public enum ItemUpdateType {Color}
+public class Item {
+ public Info ItemClassInfo,LookClassInfo;public Equippable Equippable=new Equippable();public long ID;public int updates;
+ public bool IsEquippableItemClass {get{return ItemClassInfo.GetEquipItemInfo()!=null;}}
+ public void Update(ItemUpdateType t){updates++;}
+ __SET__
+}
+public static class Oracle {
+ static Random Reset(int seed){
+  var random=new Random(seed);
+  typeof(Material).GetField("pickColorRandom",BindingFlags.Static|BindingFlags.NonPublic).SetValue(null,random);
+  ColorTable.Reset();return random;
+ }
+ static byte[] Decode(string s){var b=new byte[s.Length/2];for(int i=0;i<b.Length;i++)b[i]=Convert.ToByte(s.Substring(i*2,2),16);return b;}
+ static string Text(string s){return s==null?null:Encoding.Unicode.GetString(Decode(s));}
+ static void Private(string json){
+  var ser=new JavaScriptSerializer{MaxJsonLength=16*1024*1024};
+  var wrapper=ser.Deserialize<Dictionary<string,object>>(json);
+  FeatureMatrix.MaterialPathString=(string)wrapper["material_root"];
+  var package=(Dictionary<string,object>)wrapper["package"];
+  var entries=(ArrayList)package["materials"];var random=Reset(0);int total=0;
+  using(var stream=new MemoryStream())using(var writer=new BinaryWriter(stream)){
+   writer.Write(Encoding.UTF8.GetBytes("ItemColors\0v1"));writer.Write(entries.Count);
+   foreach(Dictionary<string,object> entry in entries){
+    string name=Text((string)entry["name_utf16"]);writer.Write(name.Length);writer.Write(Encoding.Unicode.GetBytes(name));
+    Material material=ColorTable.GetMaterial(name);writer.Write((byte)(material==null?0:1));
+    if(material!=null){
+     var colors=(List<Color>)typeof(Material).GetField("colors",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(material);
+     writer.Write(colors.Count);total+=colors.Count;foreach(var color in colors)writer.Write(color.ToInt());
+    }
+    for(int i=0;i<32;i++)writer.Write(ColorTable.PickColorInt(name));
+   }
+   writer.Flush();string digest=BitConverter.ToString(SHA256.Create().ComputeHash(stream.ToArray())).Replace("-","").ToLowerInvariant();
+   Console.WriteLine(ser.Serialize(new{material_count=entries.Count,total_colors=total,source_projection_sha256=digest,values_emitted=false}));
+  }
+ }
+ public static void Main(string[] args){
+  if(args.Length==1&&args[0]=="--private-stdin"){Private(Console.In.ReadToEnd());return;}
+  string folder=Path.Combine(Directory.GetCurrentDirectory(),".cache","framework","color-oracle-synthetic");Directory.CreateDirectory(folder);FeatureMatrix.MaterialPathString=folder;
+  var raw=new List<object>();
+  for(int n=0;n<=20;n++){
+   byte[] data=Enumerable.Range(0,n).Select(i=>(byte)(i*71+3)).ToArray();string name="raw"+n;
+   File.WriteAllBytes(Path.Combine(folder,name+".raw"),data);
+   var material=new Material(name);var colors=(List<Color>)typeof(Material).GetField("colors",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(material);
+   raw.Add(new{data=BitConverter.ToString(data).Replace("-",""),colors=colors.Select(c=>c.ToInt()).ToArray()});
+  }
+  File.WriteAllBytes(Path.Combine(folder,"full.raw"),new byte[]{0,1,2,253,254,255,17,34,51,1,3,5});
+  File.WriteAllBytes(Path.Combine(folder,"empty.raw"),new byte[0]);File.WriteAllBytes(Path.Combine(folder,"short.raw"),new byte[]{9,8});
+  File.WriteAllBytes(Path.Combine(folder,"tail.raw"),new byte[]{0,255,17,99});
+  var conversions=new List<object>();int[] edges={int.MinValue,-16777217,-1,0,1,255,256,65535,16777215,16777216,int.MaxValue};
+  foreach(int n in edges)conversions.Add(new{input=n,rgb=Color.From(n).Select(b=>(int)b).ToArray(),roundtrip=Color.From(Color.From(n)).ToInt()});
+  var rng=new List<object>();int[] maxima={-1,0,1,2,127,128,255,256,65535,65536,196608,int.MaxValue};
+  foreach(int seed in new[]{int.MinValue,int.MinValue+1,-161803399,-1,0,1,17,161803398,int.MaxValue}){
+   var random=new Random(seed);var output=new List<int?>();
+   for(int i=0;i<132;i++){try{output.Add(random.Next(maxima[i%maxima.Length]));}catch(ArgumentOutOfRangeException){output.Add(null);}}
+   rng.Add(new{seed=seed,maxima=maxima,output=output});
+  }
+  var coords=new List<object>();
+  foreach(string name in new string[]{null,"full","empty","short","tail","missing"})foreach(int x in new[]{int.MinValue,-257,-1,0,1,255,256,int.MaxValue})foreach(int y in new[]{int.MinValue,-257,-1,0,1,255,256,int.MaxValue}){
+   int? value=null;string error=null;try{value=ColorTable.PickColorInt(name,x,y);}catch(Exception e){error=e.GetType().Name;}
+   coords.Add(new{name=name,x=x,y=y,value=value,error=error});
+  }
+  var cases=new List<object>();int?[] requests={null,-1,-2,0,int.MaxValue};string[][] patterns={new string[]{null,null,null},new[]{"full","full","full"},new[]{"tail",null,"full"},new[]{"missing","empty","short"}};
+  int index=0;
+  foreach(var a in requests)foreach(var b in requests)foreach(var c in requests)for(int look=0;look<3;look++)foreach(bool equippable in new[]{false,true})foreach(var names in patterns){
+   int seed=unchecked(index++*161803398);var random=Reset(seed);
+   var equip=new EquipItemInfo{Material1=names[0],Material2=names[1],Material3=names[2]};
+   var item=new Item{ItemClassInfo=new Info{equipment=equippable?equip:null},LookClassInfo=look==0?null:new Info{equipment=look==1?null:equip},Equippable=new Equippable{Color1=7,Color2=8,Color3=9}};
+   string error=null;try{item.SetColor(a,b,c);}catch(Exception e){error=e.GetType().Name;}
+   cases.Add(new{requests=new[]{a,b,c},equippable=equippable,look=look,names=names,seed=seed,colors=new[]{item.Equippable.Color1,item.Equippable.Color2,item.Equippable.Color3},updates=item.updates,error=error,next=random.Next(1000000)});
+  }
+  Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=16*1024*1024}.Serialize(new{raw=raw,conversions=conversions,rng=rng,coords=coords,cases=cases}));
+ }
+}

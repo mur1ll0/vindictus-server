@@ -1,0 +1,61 @@
+{
+  "stage": "M15.1b.2e.7",
+  "verified_at_utc": "2026-10-15T17:05:35.6187532+00:00",
+  "native": {
+    "stage": "M15.1b.2e.7",
+    "verified_at_utc": "2026-10-15T17:05:28.3507629+00:00",
+    "runtime": "windows-native",
+    "source_read_only": true,
+    "private_acl": "current Windows user and SYSTEM only",
+    "source_equipment_rows": 12377,
+    "material_count": 103,
+    "framework_profiles": [
+      "x86",
+      "x64"
+    ],
+    "rust_framework_differences": 0,
+    "raw_values_emitted": false,
+    "export_sha256": "da42fcb509ceb79de3de5bb6530c57dfc8dc4bab0686b7d03c3945bfe677d88f",
+    "inspection": {
+      "equipment_rows": 12377,
+      "effective_equipment": 10967,
+      "material_count": 103,
+      "total_colors": 999082,
+      "source_projection_sha256": "a0025e9cda48cc2189e756ebba53b3597f59e9678cc9b8753fa39e48a93d9772",
+      "catalog_projection_sha256": "113ab189deb058d28553a796e1bc6884414632dd6345d98ce946fc70ea6faa38",
+      "source_catalog_matched": true,
+      "database_mutations": false,
+      "character_creation_available": false
+    }
+  },
+  "linux_docker": {
+    "stage": "M15.1b.2e.7",
+    "verified_at_utc": "2026-10-15T17:05:35.6088336+00:00",
+    "runtime": "linux-docker-readonly-nonroot-network-none",
+    "source_read_only": true,
+    "private_acl": "current Windows user and SYSTEM only",
+    "source_equipment_rows": 12377,
+    "material_count": 103,
+    "framework_profiles": [
+      "x86",
+      "x64"
+    ],
+    "rust_framework_differences": 0,
+    "raw_values_emitted": false,
+    "export_sha256": "da42fcb509ceb79de3de5bb6530c57dfc8dc4bab0686b7d03c3945bfe677d88f",
+    "inspection": {
+      "equipment_rows": 12377,
+      "effective_equipment": 10967,
+      "material_count": 103,
+      "total_colors": 999082,
+      "source_projection_sha256": "a0025e9cda48cc2189e756ebba53b3597f59e9678cc9b8753fa39e48a93d9772",
+      "catalog_projection_sha256": "113ab189deb058d28553a796e1bc6884414632dd6345d98ce946fc70ea6faa38",
+      "source_catalog_matched": true,
+      "database_mutations": false,
+      "character_creation_available": false
+    }
+  },
+  "source_profiles_equal": true,
+  "private_values_emitted": false,
+  "character_creation_available": false
+}

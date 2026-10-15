@@ -1,0 +1,71 @@
+{
+  "stage": "M15.1b.2e.7",
+  "verified_at_utc": "2026-10-15T14:38:53.4243196+00:00",
+  "component": "RGB materials, Framework color RNG and Item.SetColor",
+  "framework_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "set_color_cases": 3000,
+  "coordinate_cases": 384,
+  "seeded_rng_sequences": 9,
+  "rng_calls": 1188,
+  "raw_lengths": 21,
+  "signed_rgb_conversions": 11,
+  "rust_framework_differences": 0,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Static/Color.cs",
+      "sha256": "c10e425a86169c650f3767742482b1f2543ee50581f12fa0b9d844c7db1e67a4"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Static/Material.cs",
+      "sha256": "b4bfe8c06313914839986faa3011c9119e0329948d3ca619d0b2167047478df3"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Static/ColorTable.cs",
+      "sha256": "b7ced1c38d57cb7e6c20bc92e00eeedd66bf1547be2fa960b2b68d7c787d53c4"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+      "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+    },
+    {
+      "path": "scripts/reverse/framework/ItemColorsOracle.cs.in",
+      "sha256": "f001315bd47239a95dacc37bb7d56a9484943cf6eb4e76ad1c31883dd07abbf2"
+    },
+    {
+      "path": "scripts/reverse/generate-item-colors-fixtures.ps1",
+      "sha256": "596afe5048f5454ea40830fcc87f6a0c5695cecb48e65d8be25f56527ec889da"
+    }
+  ],
+  "framework_runtime": [
+    {
+      "sha256": "3547e626e1bc75044a0cb092000b262ef4be3284ce15db5b1c91f822f7d5e50c",
+      "file_version": "4.8.4084.0 built by: NET48REL1"
+    },
+    {
+      "sha256": "dfeef20a1f2a689ee2274d9565bb0cdc737fb37182cc2d283d0319ad6c83e966",
+      "file_version": "4.8.4084.0 built by: NET48REL1"
+    }
+  ],
+  "fixture_sha256": "463d1a32ff5a9253aeeaedd1be204036f528e12dff1440837760b3fda7b0fd8e",
+  "rust_tests": 264,
+  "postgres_tests_executed": 107,
+  "python_tests": 28,
+  "new_rust_tests": 8,
+  "new_python_tests": 3,
+  "equipment_rows": 12377,
+  "material_count": 103,
+  "rgb_triples": 999082,
+  "full_property_constructor_implemented": false,
+  "runtime_tickcount_seed_integrated": false,
+  "filesystem_watcher_migrated": false,
+  "full_item_initialize_implemented": false,
+  "item_update_effects_applied": false,
+  "new_item_delivery_enabled": false,
+  "create_tcp_enabled": false,
+  "new_client_attempt": false,
+  "source_services_executed": false,
+  "logs_directory": ".cache/verification"
+}

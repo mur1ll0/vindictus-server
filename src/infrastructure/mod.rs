@@ -47,4 +47,5 @@ pub mod character_costumes;
 
 pub mod item_state;
 
+pub mod item_colors;
 pub mod item_stats;

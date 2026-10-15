@@ -71,6 +71,19 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::InspectItemColors { catalog_file, .. } = &cli.command {
+        let catalog = vindictus_server::infrastructure::item_catalog::read_package(
+            std::fs::File::open(catalog_file)?,
+        )?;
+        let package =
+            vindictus_server::infrastructure::item_colors::Package::read(std::io::stdin().lock())?;
+        let inspection = package.inspect(&catalog)?;
+        println!(
+            "{}",
+            serde_json::to_string(&inspection).map_err(|_| Error::ItemColorsExport)?
+        );
+        return Ok(());
+    }
     if let Command::InspectItemStats { catalog_file, .. } = &cli.command {
         let catalog = vindictus_server::infrastructure::item_catalog::read_package(
             std::fs::File::open(catalog_file)?,
@@ -191,6 +204,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
     match cli.command {
         Command::ProbeFrontend { .. }
         | Command::InspectRewardPolicy { .. }
+        | Command::InspectItemColors { .. }
         | Command::InspectItemStats { .. }
         | Command::InspectItemCatalog { .. }
         | Command::InspectLabFrontendProfile { .. }

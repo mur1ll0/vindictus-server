@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("invalid private item colors snapshot")]
+    ItemColorsExport,
     #[error(transparent)]
     ItemStats(#[from] crate::domain::item_stats::StatError),
     #[error("invalid or mismatched private item stats; values omitted")]
