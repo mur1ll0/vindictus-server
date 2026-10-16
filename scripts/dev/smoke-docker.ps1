@@ -21,7 +21,8 @@ function Get-AppQuery {
     (Assert-DockerCommand -Arguments @('compose','exec','-T','postgres','bash','-c',$taskShell,'check',$Query)).Stdout.Trim()
 }
 function Wait-Ready {
-    $taskDeadline = [DateTime]::UtcNow.AddSeconds(45)
+    param([int]$TimeoutSeconds = 45)
+    $taskDeadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     do {
         try {
             $taskReady = Invoke-RestMethod ($taskBaseUrl + '/health/ready') -TimeoutSec 3
@@ -29,7 +30,7 @@ function Wait-Ready {
         } catch { }
         Start-Sleep -Seconds 1
     } while ([DateTime]::UtcNow -lt $taskDeadline)
-    throw 'Readiness did not return ready within 45 seconds.'
+    throw ('Readiness did not return ready within ' + $TimeoutSeconds + ' seconds.')
 }
 $taskUp = Assert-DockerCommand -Arguments @('compose','up','-d','--wait','server')
 Wait-Ready
@@ -92,8 +93,9 @@ try {
     $taskContainerId = (Assert-DockerCommand -Arguments @('compose','ps','-q','server')).Stdout.Trim()
     $taskRuntimeUser = (Assert-DockerCommand -Arguments @('inspect','--format','{{.Config.User}}',$taskContainerId)).Stdout.Trim()
     if ($taskRuntimeUser -ne '10001:10001') { throw 'Runtime container is not configured as dedicated non-root user.' }
-    $taskRestart = Assert-DockerCommand -Arguments @('compose','restart','postgres','server')
-    Wait-Ready
+    # The integration suite can leave many files to fsync. Do not SIGKILL a normal shutdown after 10s.
+    $taskRestart = Assert-DockerCommand -Arguments @('compose','restart','--timeout','120','postgres','server')
+    Wait-Ready -TimeoutSeconds 120
     $taskAfter = Get-AppQuery -Query ("SELECT id FROM accounts WHERE normalized_name = '" + $taskUser + "';")
     if ($taskAfter -ne $taskBefore) { throw 'Account identity changed or disappeared after PostgreSQL/server restart.' }
     $taskGameAfter = Get-AppQuery -Query $taskGameDigestQuery

@@ -473,7 +473,7 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), StateError> {
     .await?;
     Ok(())
 }
-async fn owned_first_fiona<'p>(
+pub(crate) async fn owned_first_fiona<'p>(
     pool: &'p PgPool,
     key: &crate::infrastructure::character_lobby::UserKey<'_>,
     cid: i64,

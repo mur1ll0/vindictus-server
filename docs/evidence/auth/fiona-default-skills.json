@@ -1,0 +1,65 @@
+{
+  "stage": "M15.1b.2e.10b.1",
+  "verified_at_utc": "2026-10-16T19:59:48.9696360+00:00",
+  "gate": {
+    "database_runtime": "native isolated schemas on Docker PostgreSQL",
+    "postgres_ignored": 0,
+    "python": 38.0,
+    "rust": 290,
+    "postgres_executed": 127
+  },
+  "schema": 21,
+  "migration21_sha256": "1a019d0ce26e03e4e40f40a4ac56ae21712d5216402a2d577e76c53a08dc9bac",
+  "migration_line_endings": "LF",
+  "source_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "source_sha256": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillManager.cs",
+      "sha256": "92008377c12280ae6fdc7d422a8855a159713d81463ea4f0b48f1094cc0b46cb"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContentsExtension.cs",
+      "sha256": "dd480d96b2400cd43030895ead7045244c3d789cfe4b7aa77a1e6517f8860cbf"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialSkillsOracle.cs.in",
+      "sha256": "670c21dea4f00e5242c2f712ca81a928ec8bab9c3e32ce1a29f0a5e73ed2253c"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-skills-fixtures.ps1",
+      "sha256": "06709f9e417539694dbb44ac21b8cc162b431b4ce82eef18049b6f74fec0a9d6"
+    }
+  ],
+  "synthetic_oracle_cases_per_architecture": 200,
+  "admitted_grant_preparations_compared": 40,
+  "clock_cases": 256,
+  "sql_reference_compatibility": 100,
+  "sql_reference_offset_minutes": 0,
+  "source_skill_procedure_sha256": "9219e7923e7889b75d0ad5b8900c0abbfb4495c9eba48f8bd6eaebdde395c160",
+  "source_title_procedure_sha256": "63a3cdbc93c962ea0f493a885a7a2032562a41b4383ee4f43b29d71483657d95",
+  "logger_failures_do_not_abort_grants": true,
+  "failed_or_cancelled_skill_submit_preserves_prior_logs": true,
+  "source_rowversions_fabricated": false,
+  "new_postgres_tests": 6,
+  "original_dockerfile_used": true,
+  "migrate_exit_code": 0,
+  "readiness": "ready",
+  "runtime_user": "10001:10001",
+  "duplicate_rejected": true,
+  "restart_preserves_account": true,
+  "restart_preserves_game_user": true,
+  "existing_state_verified_after_restart": true,
+  "skill_log_history_imported": false,
+  "title_log_history_imported": false,
+  "entity_callbacks_complete": false,
+  "native_frontend_refreshed": false,
+  "create_tcp_enabled": false,
+  "client_executed": false,
+  "first_smoke_timeout_during_interrupted_checkpoint": true,
+  "restart_grace_seconds": 120,
+  "post_restart_readiness_seconds": 120,
+  "operational_retry_passed": true
+}

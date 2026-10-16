@@ -1,0 +1,32 @@
+using System;using System.Linq;using System.Collections.Generic;using System.Web.Script.Serialization;
+public enum BaseCharacter{Fiona=1}
+public enum CharacterSkillEvent{GiveSkill=1}
+public class SkillEnhance{}
+public class Skill{public long RowID;public string SkillID;public int Rank,IsLocked,CurrentAP;public List<SkillEnhance> Enhances;}
+public class SkillInfo{public string SkillID;public int ClassRestriction;public bool IsActiveSkill;}
+public class SkillRankInfo{public string SkillID,Feature;public int Rank,LevelConstraint,RequiredAP;public bool RequireUnlock;}
+public class SkillConstraintInfo{public string RequiredSkillId;public int RequiredRank;}
+public static class Availability{__AVAILABLE__}
+public static class FeatureMatrix{public static bool IsEnable(string feature){return feature!="disabled";}}
+public static class ServiceCore{public static class FeatureMatrix{public static bool IsEnable(string feature){return global::FeatureMatrix.IsEnable(feature);}}}
+public class Log<T>{public static Logger Logger=new Logger();}public class Logger{public void ErrorFormat(string value,params object[] args){}public void WarnFormat(string value,params object[] args){}}
+public class Character{public long ID;public Info CharacterInfo=new Info();public List<Skill> Skill=new List<Skill>();}
+public class Info{public bool UsePreset;public string Name="synthetic";public byte Class=1;public int Level=1;}
+public class Service{public int Counter;public List<string> Events;public DateTime MakeEntityID(){Events.Add("allocate");return new DateTime(1000+(++Counter));}}
+public class Entity{public Service Service;public List<string> Events;public void AddSkillLog(CharacterSkillEvent e,string skill,int rank,int ap){Events.Add("log");}}
+public static class CharacterContents{public static SkillInfo Info;public static SkillRankInfo Rank,Next;public static List<SkillConstraintInfo> Constraints=new List<SkillConstraintInfo>();public static SkillInfo GetSkillInfoById(string id){return Info;}public static SkillRankInfo GetSkillRankInfo(string id,int rank){return Rank!=null&&Rank.Rank==rank?Rank:Next!=null&&Next.Rank==rank?Next:null;}public static IEnumerable<SkillConstraintInfo> GetSkillConstraintInfo(string id,int rank){return Constraints;}}
+public class Manager{
+ public Character Character=new Character();public Entity CharacterEntity;public Dictionary<string,int> BaseSkillRank=new Dictionary<string,int>();public Dictionary<string,int> RequiredAPForNextRank=new Dictionary<string,int>();public List<string> Events=new List<string>();public Action<string,int,int> SkillRankChanged;
+ public Manager(){CharacterEntity=new Entity{Events=Events,Service=new Service{Events=Events}};SkillRankChanged=delegate(string id,int before,int after){Events.Add("changed");BaseSkillRank[id]=after;};}
+ public string ForceConstraintPassed(SkillRankInfo info){throw new InvalidOperationException("Preset outside oracle");}
+ public int GetBaseSkillRank(string id){int value;return BaseSkillRank.TryGetValue(id,out value)?value:-1;}
+ public bool SetSpSkillToEmptySlot(string id){Events.Add("sp");return true;}
+ public bool TryUnlockStory(string id){Events.Add("story-check");if(Character.Skill.Single(x=>x.SkillID==id).IsLocked!=0)throw new InvalidOperationException("Story unlock outside default profile");return true;}
+ __CONSTRAINT__
+ __RECALCULATE__
+ __GIVE__
+}
+public static class Oracle{public static void Main(){var rows=new List<object>();for(int i=0;i<200;i++){
+ int scenario=i%10;int rank=1+i%4;var m=new Manager();CharacterContents.Info=scenario==1?null:new SkillInfo{SkillID="synthetic",ClassRestriction=scenario==3?1:2,IsActiveSkill=scenario==8};CharacterContents.Rank=scenario==0?null:new SkillRankInfo{SkillID="synthetic",Rank=rank,Feature=scenario==2?"disabled":null,LevelConstraint=scenario==4?2:1};CharacterContents.Next=i%3==0?null:new SkillRankInfo{SkillID="synthetic",Rank=rank+1,RequiredAP=i%5==0?-1:i,RequireUnlock=false};CharacterContents.Constraints=new List<SkillConstraintInfo>();if(scenario==5)CharacterContents.Constraints.Add(new SkillConstraintInfo{RequiredSkillId="required",RequiredRank=1});if(scenario==6)m.BaseSkillRank["synthetic"]=rank;
+ string reason=m.GiveSkill("synthetic",rank,delegate{m.Events.Add("done");});Skill skill=m.Character.Skill.SingleOrDefault();int ap;rows.Add(new{scenario=scenario,rank=rank,next_ap=CharacterContents.Next==null?(int?)null:CharacterContents.Next.RequiredAP,reason=reason,allocations=m.CharacterEntity.Service.Counter,skill=skill==null?null:new{row_id=skill.RowID,rank=skill.Rank,locked=skill.IsLocked,current_ap=skill.CurrentAP},required_ap=m.RequiredAPForNextRank.TryGetValue("synthetic",out ap)?(int?)ap:null,events=m.Events});
+ }Console.WriteLine(new JavaScriptSerializer().Serialize(rows));}}

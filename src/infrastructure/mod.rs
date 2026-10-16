@@ -56,3 +56,6 @@ pub mod fiona_inventory_profile;
 pub mod initial_inventory;
 pub mod item_colors;
 pub mod item_stats;
+
+pub mod character_initialization_logs;
+pub mod fiona_skill_grants;
