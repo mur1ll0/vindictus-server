@@ -1,0 +1,46 @@
+{
+  "stage": "M15.1b.2e.10b.3",
+  "verified_at_utc": "2026-10-16T20:59:22.211731+00:00",
+  "scope": "LogData/ItemLogManager projection and independent ItemLog/ItemLedger writers;not inventory delivery or entity runtime",
+  "schema": 23,
+  "rust_passed": 293,
+  "postgres_executed": 134,
+  "postgres_ignored": 0,
+  "python_passed": 38,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 2,
+  "new_postgres_tests": 4,
+  "oracle_cases_per_architecture": 64,
+  "oracle_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "oracle_instrumentation": [
+    "deterministic process civil clock",
+    "synthetic live owner counts",
+    "request/item ToItemClassEx providers",
+    "feature switches",
+    "log database context"
+  ],
+  "gate_verified_at_utc": "2026-10-16T20:57:17.1857022+00:00",
+  "source_contract": "item-event-log-source.json",
+  "fixture": "../../../tests/fixtures/framework-item-logs.json",
+  "docker_locked_build": true,
+  "docker_migrate": true,
+  "readiness_account_duplicate_nonroot_restart": true,
+  "previous_state_preserved_after_restart": true,
+  "native_frontend_refreshed": false,
+  "client_executed": false,
+  "character_creation_available": false,
+  "full_migration_complete": false,
+  "remaining": [
+    "emit actual Item/GiveItem/SaveWithoutSync event sequence and capture request ledger data before delivery",
+    "bind appearance and per-skill/title callbacks/APtime/stat/observables",
+    "Login/Logout and full lobby Summary/successful lifecycle/Create",
+    "real Create/relogin/selection/city/movement",
+    "historical log preservation and full M01-M24 migration"
+  ],
+  "logs": ".cache/verification",
+  "operations_log_sha256": "eeea7b6c43b18254254aa26988f229a58e094a5a6c6c8cb363ca1dc4d8aab8d5"
+}

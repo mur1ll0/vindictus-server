@@ -60,3 +60,5 @@ pub mod initial_inventory;
 pub mod item_colors;
 pub mod item_durability;
 pub mod item_stats;
+
+pub mod item_logs;

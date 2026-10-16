@@ -1,0 +1,43 @@
+using System;
+using ServiceCore;
+using Utility;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Script.Serialization;
+using PlayerService.ItemServiceCore;
+using PlayerService.ItemServiceCore.OperationLogSystem;
+namespace Utility { public static class Log<T> { public static Logger Logger=new Logger(); } public class Logger { public void Error(string s,Exception e){} public void FatalFormat(string s){} } }
+namespace ServiceCore {
+ public class LogKeyAttribute:Attribute {public LogKeyAttribute(string a,string b){} }
+ public static class FeatureMatrix {public static int Mask;public static bool IsEnable(string s){return s=="AutoItemLogging"?(Mask&1)!=0:s=="DisableLogging"&&(Mask&2)!=0;} }
+ public class LogDataContext:IDisposable {
+ public static List<object[]> Logs=new List<object[]>(),Ledgers=new List<object[]>();
+ public void AddItemLog(params object[] v){v[16]=((DateTime)v[16]).Ticks;Logs.Add(v);}
+ public void AddItemLedger(params object[] v){Ledgers.Add(v);}
+ public void Dispose(){} }
+}
+namespace ServiceCore.ItemServiceOperations {public class TransferredItemInfo {public long ItemID;public string ItemClassEx;public int ItemCount,Color1,Color2,Color3,ReducedDurability,MaxDurabilityBonus;} public class GiveItemRequest {public int Num;public Property Property;public string ToItemClassEx(){return "synthetic";} } public class Property {public int Color1,Color2,Color3,ReducedDurability,MaxDurabilityBonus;} }
+namespace ServiceCore.CharacterServiceOperations {public class EquippedItemInfo {public string ItemClass;public int Color1,Color2,Color3;} }
+namespace PlayerService.ItemServiceCore.ItemInstance {public class Item {public long ID;public string Class;public int Num,Color1,Color2,Color3,ReducedDurability,MaxDurabilityBonus;public bool IsNullLocation;public string ToItemClassEx(){return Class;} } }
+namespace PlayerService.ItemServiceCore {
+ public class ItemOwner {public int Count;public ItemOwner SharedItem;public int GetBundleItemCount(string s){return Count;} }
+ public static class ItemLog { __LEDGER__ __SIMPLE__ }
+}
+public static class OracleClock {public static long Tick;public static DateTime Now {get {return new DateTime(637999999999999999L+(Tick++)*17001L);} } }
+public static class Program {
+ public static void Main(){var cases=new List<object>();for(int mask=0;mask<64;mask++){
+ ServiceCore.FeatureMatrix.Mask=mask;OracleClock.Tick=0;ServiceCore.LogDataContext.Logs.Clear();ServiceCore.LogDataContext.Ledgers.Clear();
+ var owner=(mask&8)!=0?null:new ItemOwner {Count=0,SharedItem=(mask&16)!=0?null:new ItemOwner{Count=0}};
+ var item=new PlayerService.ItemServiceCore.ItemInstance.Item {ID=101,Class="Syn",Num=2,Color1=int.MinValue,Color2=0,Color3=int.MaxValue,ReducedDurability=-7,MaxDurabilityBonus=9,IsNullLocation=(mask&32)!=0};
+ var a=LogData.From(owner,item);item.ID=999;
+ var b=LogData.From(owner,new ServiceCore.ItemServiceOperations.GiveItemRequest{Num=3,Property=new ServiceCore.ItemServiceOperations.Property{Color1=-1,Color2=-1,Color3=-1}});
+ var c=LogData.From(owner,"Syn",-3);
+ long jid=(mask&4)!=0?-1:17;
+ var m=new ItemLogManager(23);m.SetJournal(jid,EventType.CustomizeCharacter);m.Add(a);m.Add(b);m.Add(c);
+ if(owner!=null){owner.Count=11;if(owner.SharedItem!=null)owner.SharedItem.Count=7;}
+ m.Write();int before=ServiceCore.LogDataContext.Logs.Count;m.Write();if(before!=ServiceCore.LogDataContext.Logs.Count)throw new Exception("queue not cleared");
+ foreach(var d in new[]{a,b,c})ItemLog.AddItemLedger(jid,23,ItemLogType.GiveItem,ActionType.CreateCharacter,d);
+ ItemLog.AddSimpleLog(jid,23,ItemLogType.OperationFail,ActionType.CreateCharacter,SimpleLogData.From("giveDefaultItemFail(save)"));
+ cases.Add(new{mask,logs=ServiceCore.LogDataContext.Logs.ToArray(),ledgers=ServiceCore.LogDataContext.Ledgers.ToArray()});
+ }Console.Write(new JavaScriptSerializer().Serialize(cases));}
+}

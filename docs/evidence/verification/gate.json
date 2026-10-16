@@ -1,5 +1,5 @@
 {
-  "verified_at_utc": "2026-10-16T20:29:18.7852197+00:00",
+  "verified_at_utc": "2026-10-16T20:57:17.1857022+00:00",
   "database_integration_executed": true,
   "database_integration_runtime": "native",
   "checks": [
@@ -23,18 +23,18 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/clippy.log",
-      "log_sha256": "d3e94a4f4d3383c918c92b62d004749427941773b359eb3b4bec9d4b85a5ec4b"
+      "log_sha256": "9d2f80581197ed3f66e3256193935473b56a466d0ccfabaca646e9d9b285decf"
     },
     {
       "name": "rust-tests",
       "command": "cargo test --all-targets --locked",
       "exit_code": 0,
-      "passed": 291,
+      "passed": 293,
       "failed": 0,
-      "ignored": 130,
+      "ignored": 134,
       "warnings": 0,
       "log": ".cache/verification/rust-tests.log",
-      "log_sha256": "12731c38c244f96420c2d28fdda050ee78c7fd08dfcd2355d26ea2631a08104b"
+      "log_sha256": "25a37442b477fe21f284b42fc3256b505c7f2f49eff2910779474d4aba01b351"
     },
     {
       "name": "doc-tests",
@@ -56,18 +56,18 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/build.log",
-      "log_sha256": "38981dd44308eb60ac3923041f374bddd1452d564cd4e39e5ed36dd0edce08a2"
+      "log_sha256": "4c2e60520679c557860d310b8f36cb4278aa7297cc41646e75c9688a2a4c599a"
     },
     {
       "name": "postgres-integration",
       "command": "cargo test --test postgres --locked -- --ignored --test-threads=1 --nocapture",
       "exit_code": 0,
-      "passed": 130,
+      "passed": 134,
       "failed": 0,
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/postgres-integration.log",
-      "log_sha256": "e3e3fe8af4b9036597eeb073f963329a0fcdc3b707111952327e0be7f5bc7259"
+      "log_sha256": "95848b6949a4bfa57e6cfac0f478bef0854c402c320540192d1c063553ffbccc"
     },
     {
       "name": "client-python",
@@ -78,7 +78,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/client-python.log",
-      "log_sha256": "4f41e88af707d73c66668383d6e7b9defdfb8086bd459cac8dea805129fe945c"
+      "log_sha256": "3981f1099def7214863f196ccce2dca925a0aece40b3b79b38b76ee658cd5893"
     },
     {
       "name": "content-python",

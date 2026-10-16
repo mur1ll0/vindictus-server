@@ -1,0 +1,47 @@
+{
+  "stage": "M15.1b.2e.10b.3",
+  "measured_at_utc": "2026-10-16T20:40:59.9514613+00:00",
+  "reference_read_only": true,
+  "source_procedures_executed": false,
+  "compatibility_level": 100,
+  "civil_offset_minutes": 0,
+  "procedures": [
+    {
+      "name": "AddItemLedger",
+      "sha256": "35fe6d85bae2cac3aa37e2080941081d163b53a20197ffa940273fbaeae76b2d"
+    },
+    {
+      "name": "AddItemLog",
+      "sha256": "cc7535d6790874631c50dd26f8e067acb3a79f3644f2df049f7a619b0ef2df12"
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemLog.cs",
+      "sha256": "8893b91d8d736de8614dc06657cd62f545e7bfc69175727d592a62c44e12412a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/LogData.cs",
+      "sha256": "5fba7e748d425eed828f6c1c630c9642a1b858f965e9e317bfeebc7fe50e926c"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs",
+      "sha256": "7ef6d87e9603f0fe0fae3b6dac7933a2bf4104af816a301ff6c7831c8760ac25"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+      "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.OperationLogSystem/ItemLogManager.cs",
+      "sha256": "8007b5320788a321cd4aaa9974e2dd4da65036d5a6b9c03406af3cc0172f9e74"
+    }
+  ],
+  "schema_sha256": "eb2cfe4ef30ef1fc482a3287ed55300e8e99ebf71469eb8bfd536b900072ede5",
+  "item_log_journal_minus_one_attempted": true,
+  "item_ledger_journal_minus_one_skipped": true,
+  "item_log_captured_process_civil_time": true,
+  "item_ledger_default_sql_civil_time": true,
+  "historical_log_preservation_complete": false,
+  "character_creation_available": false
+}

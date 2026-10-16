@@ -61,3 +61,5 @@ pub mod character_initialization_logs;
 pub mod fiona_skill_grants;
 
 pub mod item_journals;
+
+pub mod item_event_logs;

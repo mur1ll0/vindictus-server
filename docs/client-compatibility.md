@@ -118,3 +118,5 @@ M15.1b.2e.10a preserva os estados de títulos/MicroPlay/missões e valida a proj
 M15.1b.2e.10b.1 verifica o armazenamento dos defaults e as tentativas independentes de logs Skill/Title. Os callbacks completos e a ligação ao Create ainda faltam. Nenhum teste novo do cliente ou nova compatibilidade foi declarado.
 
 M15.1b.2e.10b.2 preserva os dois contadores de journal e verifica a gravação de CustomizeCharacter. ItemLog/ItemLedger e a integração completa do initializer/Summary/lifecycle ainda bloqueiam Create. Nenhum novo teste do cliente; seleção/cidade/movimento continuam pendentes.
+
+M15.1b.2e.10b.3 verifica as projeções e a persistência dos logs ItemLog/ItemLedger. A emissão real durante GiveItem/SaveWithoutSync e a integração do initializer/Summary/lifecycle ainda bloqueiam Create. Nenhum novo teste do cliente; seleção/cidade/movimento continuam pendentes.
