@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("normal Fiona initializer profile is outside the recovered bounds")]
+    FionaInitializerProfile,
     #[error("invalid or unsupported source-bound Fiona appearance")]
     FionaAppearanceProfile,
     #[error("body shape requires an explicit recovered arithmetic profile")]
@@ -22,6 +24,8 @@ pub enum Error {
     Costumes(#[from] crate::infrastructure::character_costumes::CostumeError),
     #[error(transparent)]
     CharacterSkills(#[from] crate::infrastructure::character_skills::SkillError),
+    #[error(transparent)]
+    CharacterState(#[from] crate::infrastructure::fiona_character_state::StateError),
     #[error(transparent)]
     CreationLedger(#[from] crate::infrastructure::character_creation_ledger::CreationLedgerError),
 

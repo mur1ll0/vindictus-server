@@ -1,0 +1,141 @@
+{
+  "stage": "M15.1b.2e.10a",
+  "verified_at_utc": "2026-10-16T19:12:12.5555845+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_rows": [
+    12986,
+    488,
+    274,
+    49,
+    49,
+    0
+  ],
+  "source_columns": [
+    6,
+    3,
+    2,
+    12,
+    3,
+    11
+  ],
+  "export_sha256": "0306037cdb0812d40301ab6f046844d279732d1b07d23f28a101dc163b7f7751",
+  "query_sha256": "ba4524d1bf657fc4059a4399f776289ffe814b80fe39af64045a6127e072173f",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "source_rows": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "inserted": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "verified": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "preservation_initialized": true,
+    "character_creation_available": false
+  },
+  "replay": {
+    "source_rows": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "inserted": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "verified": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "preservation_initialized": true,
+    "character_creation_available": false
+  },
+  "verified": {
+    "source_rows": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "inserted": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "verified": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "preservation_initialized": true,
+    "character_creation_available": false
+  },
+  "post_restart_verified": true,
+  "character_creation_available": false,
+  "post_restart_verified_at_utc": "2026-10-16T19:12:52.5148182+00:00",
+  "post_restart_summary": {
+    "source_rows": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "inserted": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "verified": [
+      12986,
+      488,
+      274,
+      49,
+      49,
+      0
+    ],
+    "preservation_initialized": true,
+    "character_creation_available": false
+  }
+}

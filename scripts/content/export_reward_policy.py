@@ -17,7 +17,7 @@ def feature_atoms(expression, depth=0):
 
 def digest(path):
     with path.open('rb') as stream: return hashlib.file_digest(stream,'sha256').hexdigest()
-def read_package(database, config):
+def read_package(database, config, additional_keys=()):
     source_hash=digest(database); config_hash=digest(config)
     settings={e.attrib['name']:e.findtext('value') for e in ET.parse(config).getroot().iter('setting') if 'name' in e.attrib}
     game_code=int(settings['GameCode']); server_code=int(settings['ServerCode'])
@@ -47,6 +47,9 @@ def read_package(database, config):
                 if key not in ('GameCode','CurrentVer','OverrideSetting'): features[key]=value
         if [r[1] for r in conn.execute('PRAGMA table_info(DormantReward)')] != COLUMNS: raise ValueError('Reward schema changed')
         rewards=[]; wanted=set(KEYS)
+        for key in additional_keys:
+            if not isinstance(key,str) or not key.isascii() or not 1<=len(key)<=512:raise ValueError('Feature key bound')
+            wanted.add(key)
         for item,num,minimum,maximum,feature in conn.execute('SELECT * FROM DormantReward'):
             if not isinstance(item,str) or len(item.encode('utf-16-le'))>100:raise ValueError('Invalid item class')
             if any(type(x) is not int or not -(2**31)<=x<2**31 for x in (num,minimum,maximum)):raise ValueError('Invalid integer reward field')

@@ -1,0 +1,38 @@
+{
+  "contents": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContents.cs",
+    "sha256": "6bc2e3fa29ca1c3bf1b2bdb27af3445ed50717225905a059090c18067690aefe"
+  },
+  "skills": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillManager.cs",
+    "sha256": "92008377c12280ae6fdc7d422a8855a159713d81463ea4f0b48f1094cc0b46cb"
+  },
+  "effects": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+    "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+  },
+  "stats": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/StatManager.cs",
+    "sha256": "1389e4852506edfd7a2e682b5ea134f51b55984843cd5fc4f7a406cae52ec73c"
+  },
+  "ap": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/APManager.cs",
+    "sha256": "3594eecafc937bc33da4b7225ee65759435af74419410d0b7f4129174b98defe"
+  },
+  "titles": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/TitleManager.cs",
+    "sha256": "74ec20c56a064c7e5518729121f58673586be7a13250f14ddbc2b8675c9b485a"
+  },
+  "loader": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Functions/CharacterLoader.cs",
+    "sha256": "c657f190af54204c996785277196777a30d9b002a899323b4d58763636bd38e2"
+  },
+  "query": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterDataContext.cs",
+    "sha256": "dc170d91bcb289c327971c68ce0a481a1a4cb5077b7563abccf39b63b7389888"
+  },
+  "feature_matrix": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+    "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+  }
+}

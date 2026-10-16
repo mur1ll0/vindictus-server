@@ -27,3 +27,5 @@ pub mod character_creation;
 pub mod character_name_check;
 pub mod creation_lifecycle;
 pub mod fiona_inventory;
+
+pub mod lobby_costume;

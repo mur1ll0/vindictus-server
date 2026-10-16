@@ -1,0 +1,31 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Script.Serialization;
+__EXTRA_ENUM__
+__TYPE_ENUM__
+class Costume {public bool IsBase;public byte Type,Key;public int? CostumeSN,C1,C2,C3,Effect;public byte? Gloss;}
+class CostumeInfo {
+ public Dictionary<int,int> CostumeTypeInfo,ColorInfo,AvatarHideInfo,EffectInfo,DecorationInfo,DecorationColorInfo;
+ public Dictionary<int,bool> AvatarInfo;public Dictionary<int,byte> PollutionInfo;public Dictionary<int,float> BodyShapeInfo;
+ public int Shineness,Height,Bust,PaintingPosX,PaintingPosY,PaintingRotation,PaintingSize,CafeType,VIPCode,BodyPaintingPosX,BodyPaintingPosY,BodyPaintingRotation,BodyPaintingSize,BodyPaintingSide,BodyPaintingClip,BodyPaintingMode,TownEffect;
+ public bool HideHeadCostume,IsReturn;
+ __CTOR__
+ public object Snapshot(){return new {dictionaries=new object[]{Pairs(CostumeTypeInfo),Pairs(ColorInfo),Pairs(AvatarInfo),Pairs(AvatarHideInfo),Pairs(PollutionInfo),Pairs(EffectInfo),Pairs(DecorationInfo),Pairs(DecorationColorInfo),BodyShapeInfo.Select(x=>new object[]{x.Key,BitConverter.ToUInt32(BitConverter.GetBytes(x.Value),0)}).ToArray()},scalars=new int[]{Shineness,Height,Bust,PaintingPosX,PaintingPosY,PaintingRotation,PaintingSize,HideHeadCostume?1:0,CafeType,IsReturn?1:0,VIPCode,BodyPaintingPosX,BodyPaintingPosY,BodyPaintingRotation,BodyPaintingSize,BodyPaintingSide,BodyPaintingClip,BodyPaintingMode,TownEffect}};}
+ static object Pairs<T>(Dictionary<int,T> d){return d.Select(x=>new object[]{x.Key,x.Value}).ToArray();}
+}
+static class Extension {__APPLY__}
+class Oracle {
+ static int V(int a,int b){return unchecked(a*1103515245+b*12345);}
+ static void Main(){var cases=new List<object>();for(int n=0;n<256;n++){
+ var rows=new List<Costume>();
+ for(byte k=0;k<25;k++){rows.Add(new Costume{IsBase=true,Type=2,Key=k,CostumeSN=n==0?(int?)null:(n==1?1:V(n,k))});}
+ for(byte kind=0;kind<4;kind++){for(byte k=0;k<5;k++){
+  rows.Add(new Costume{IsBase=false,Type=kind,Key=k,CostumeSN=n%3==0?(int?)null:V(n+1,k),C1=n%2==0?(int?)null:V(n,k),C2=V(n+2,k),C3=n,Gloss=(byte)n,Effect=n%5==0?(int?)null:n});
+  if(kind!=2)rows.Add(new Costume{IsBase=true,Type=kind,Key=k,CostumeSN=V(n+3,k),C1=n,C2=null,C3=-1,Gloss=null,Effect=-7});
+ }}
+ rows.Add(new Costume{IsBase=true,Type=255,Key=0,CostumeSN=7});
+ var info=new CostumeInfo();foreach(var row in rows.Where(x=>x.IsBase))info.Apply(row,false);foreach(var row in rows.Where(x=>!x.IsBase))info.Apply(row,false);
+ cases.Add(new {rows=rows.Select(x=>new{is_base=x.IsBase,kind=x.Type,key=x.Key,serial=x.CostumeSN,colors=new int?[]{x.C1,x.C2,x.C3},gloss=x.Gloss,effect=x.Effect}).ToArray(),expected=info.Snapshot()});
+ }Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=16*1024*1024}.Serialize(cases));}
+}

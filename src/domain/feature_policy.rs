@@ -77,6 +77,41 @@ impl FeaturePolicy {
             pairs,
         })
     }
+    /// Extend one private source snapshot with measured Framework comparisons.
+    /// The infrastructure caller must authenticate source/profile hashes first.
+    /// Existing public evidence cannot be overridden; no process-global table changes.
+    pub fn with_recorded_comparisons(
+        rows: impl IntoIterator<Item = (String, Option<String>)>,
+        recorded: impl IntoIterator<Item = (String, String, bool)>,
+    ) -> Result<Self, Error> {
+        let mut policy = Self::new(rows)?;
+        for (index, (current, value, enabled)) in recorded.into_iter().enumerate() {
+            if index >= 128
+                || current != policy.current
+                || value.len() > 512
+                || !current.is_ascii()
+                || !value.is_ascii()
+            {
+                return Err(Error::FeatureVersionUnsupported);
+            }
+            if let Some(existing) = policy
+                .pairs
+                .iter()
+                .find(|p| p.current == current && p.value == value)
+            {
+                if existing.enabled != enabled {
+                    return Err(Error::FeatureVersionUnsupported);
+                }
+            } else {
+                policy.pairs.push(VersionPair {
+                    current,
+                    value,
+                    enabled,
+                });
+            }
+        }
+        Ok(policy)
+    }
     /// Resolved ordinal map, for internal semantic replay binding; never log its values.
     pub(crate) fn entries(&self) -> impl Iterator<Item = (&str, &str)> {
         self.values

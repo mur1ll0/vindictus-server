@@ -1,0 +1,53 @@
+{
+  "stage": "M15.1b.2e.10a",
+  "verified_at_utc": "2026-10-16T19:13:09.3640545+00:00",
+  "source_sha256": [
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/CostumeInfo.cs",
+      "sha256": "7119e429724c02cd40b9e54f4ccd053928fe793a034ae804d4d33041eee92d4c"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeDataExtension.cs",
+      "sha256": "8193b136651ff2703dc9e32b166f8c4a8d90a09605a8af6725d7f97f3912ad57"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeManager.cs",
+      "sha256": "97a950548411eb3b31b1b867272e711016b3775687e7a666d5fadcf5428dd952"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/ExtraKey.cs",
+      "sha256": "0b2f5d9cab28eee4cb8b8750a93af0fa137c4634693581b8b127c3f69959ef56"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeType.cs",
+      "sha256": "c519dfa2186b52fb0b862ac9219cd47c8ea5e37e9e6fe2253434d9fed371594b"
+    },
+    {
+      "path": "scripts/reverse/framework/LobbyCostumeOracle.cs.in",
+      "sha256": "48ce627b801c54c3a05e853a674228bdd30139a084d91bf85d795be10be0f868"
+    },
+    {
+      "path": "scripts/reverse/generate-lobby-costume-fixtures.ps1",
+      "sha256": "aa32f0752a9571949869a2bd04f75ffcaa654ac5d8fb778c0f64f261695708fd"
+    },
+    {
+      "path": "scripts/reverse/compact-lobby-costume-fixtures.py",
+      "sha256": "7ac32d738d4e23645834b296b8a1a62b39bb4aceb34ffedbd5643fbdea469326"
+    }
+  ],
+  "profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "synthetic_cases_per_architecture": 256,
+  "differences": 0,
+  "complete_input_and_output_sha256_compared": true,
+  "private_values_published": false,
+  "private_profile_parsed_in_rust": true,
+  "private_profile_default_skill_count": 2,
+  "private_profile_fiona_title_preset_count": 221,
+  "additional_version_pairs_private_only": true,
+  "native_profile_integrated": false,
+  "create_tcp_enabled": false,
+  "client_executed": false
+}
