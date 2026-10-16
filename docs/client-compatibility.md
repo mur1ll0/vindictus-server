@@ -116,3 +116,5 @@ Check do nome Murael foi confirmado pelo operador no candidato1.69EN (That name 
 M15.1b.2e.10a preserva os estados de títulos/MicroPlay/missões e valida a projeção da aparência do lobby contra o original. Gate e import/replay/restart passaram; nenhum novo teste do cliente ocorreu. O Create continua indisponível até integrar grants/logs/journal,efeitos de abertura/fechamento,Summary/lista e lifecycle. A próxima tentativa deve aguardar essa integração; seleção/cidade/movimento ainda pendentes.
 
 M15.1b.2e.10b.1 verifica o armazenamento dos defaults e as tentativas independentes de logs Skill/Title. Os callbacks completos e a ligação ao Create ainda faltam. Nenhum teste novo do cliente ou nova compatibilidade foi declarado.
+
+M15.1b.2e.10b.2 preserva os dois contadores de journal e verifica a gravação de CustomizeCharacter. ItemLog/ItemLedger e a integração completa do initializer/Summary/lifecycle ainda bloqueiam Create. Nenhum novo teste do cliente; seleção/cidade/movimento continuam pendentes.

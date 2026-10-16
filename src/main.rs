@@ -242,6 +242,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let journals = match &cli.command {
+        Command::ImportJournalIdentities { .. } => Some(
+            vindictus_server::infrastructure::item_journals::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let skills = match &cli.command {
         Command::ImportCharacterSkills { .. } => Some(
             vindictus_server::infrastructure::character_skills::read_snapshot(
@@ -320,6 +328,15 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| StateError::Export)?
+            );
+        }
+        Command::ImportJournalIdentities { verify_only, .. } => {
+            use vindictus_server::infrastructure::item_journals::{JournalError, preserve};
+            let summary =
+                preserve(&pool, &journals.ok_or(JournalError::Input)?, verify_only).await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| JournalError::Input)?
             );
         }
         Command::ImportCharacterSkills { verify_only, .. } => {

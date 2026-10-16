@@ -59,3 +59,5 @@ pub mod item_stats;
 
 pub mod character_initialization_logs;
 pub mod fiona_skill_grants;
+
+pub mod item_journals;

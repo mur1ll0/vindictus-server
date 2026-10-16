@@ -23,6 +23,8 @@ pub enum Error {
     #[error(transparent)]
     Costumes(#[from] crate::infrastructure::character_costumes::CostumeError),
     #[error(transparent)]
+    ItemJournals(#[from] crate::infrastructure::item_journals::JournalError),
+    #[error(transparent)]
     CharacterSkills(#[from] crate::infrastructure::character_skills::SkillError),
     #[error(transparent)]
     CharacterState(#[from] crate::infrastructure::fiona_character_state::StateError),

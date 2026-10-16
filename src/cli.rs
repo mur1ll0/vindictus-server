@@ -115,6 +115,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve the two independent legacy journal identities from private stdin.
+    ImportJournalIdentities {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve Skill/SPSkill rows and the original SPSkill identity from private stdin.
     ImportCharacterSkills {
         #[arg(long, required = true)]

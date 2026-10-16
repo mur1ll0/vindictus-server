@@ -1,0 +1,31 @@
+{
+  "stage": "M15.1b.2e.10b.2",
+  "verified_at_utc": "2026-10-16T20:30:17.5458377+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_counters": 2,
+  "identity_rows_copied": 0,
+  "export_sha256": "8bf1409d4a4124375b776156e8a8ccaab36cea5da55fbcf8b3d3ee7983edf345",
+  "query_sha256": "f7f0e1042f87230cbd8b858c7fe4266bfa40be5b50b1cf693a11f1312906fb42",
+  "schema_sha256": "eb2cfe4ef30ef1fc482a3287ed55300e8e99ebf71469eb8bfd536b900072ede5",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "initialized": 2,
+    "character_creation_available": false
+  },
+  "replay": {
+    "initialized": 2,
+    "character_creation_available": false
+  },
+  "verified": {
+    "initialized": 2,
+    "character_creation_available": false
+  },
+  "post_restart_verified": true,
+  "character_creation_available": false,
+  "post_restart_verified_at_utc": "2026-10-16T20:31:04.1205319+00:00",
+  "post_restart_summary": {
+    "initialized": 2,
+    "character_creation_available": false
+  }
+}

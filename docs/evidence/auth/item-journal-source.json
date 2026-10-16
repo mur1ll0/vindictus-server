@@ -1,0 +1,33 @@
+{
+  "stage": "M15.1b.2e.10b.2",
+  "measured_at_utc": "2026-10-16T20:13:40.0837077+00:00",
+  "reference_read_only": true,
+  "source_allocators_executed": false,
+  "compatibility_level": 100,
+  "civil_offset_minutes": 0,
+  "procedures": [
+    {
+      "name": "AddItemJournal",
+      "sha256": "49f6cab4024bce0c029b01a8f430da154e7ddc7f90dec2f13a2fbf4a7fc92db2"
+    },
+    {
+      "name": "getCharacterJournalID",
+      "sha256": "c46f60c6d83e78a93427a508f89b5f3ecdea89683135ba6ba9d0d28818905515"
+    },
+    {
+      "name": "getItemJournalID",
+      "sha256": "d48b513ac232ff54e16f3df4d114b2a1773e0bc8dbc89a7d9014dd2ab326cd3a"
+    }
+  ],
+  "csharp": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemLog.cs",
+    "sha256": "8893b91d8d736de8614dc06657cd62f545e7bfc69175727d592a62c44e12412a"
+  },
+  "schema_sha256": "eb2cfe4ef30ef1fc482a3287ed55300e8e99ebf71469eb8bfd536b900072ede5",
+  "get_item_counter": "HLT_ItemJournalID",
+  "add_item_journal_counter": "HLT_CharacterJournalID",
+  "rollback_consumes_identity": true,
+  "failure_result": -1,
+  "history_preservation_complete": false,
+  "character_creation_available": false
+}
