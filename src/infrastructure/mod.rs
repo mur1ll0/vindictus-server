@@ -67,3 +67,5 @@ pub mod item_event_logs;
 pub mod fiona_inventory_delivery;
 
 pub mod shared_item_state;
+
+pub mod fiona_customization;

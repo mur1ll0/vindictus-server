@@ -1,0 +1,11 @@
+# Normal Fiona inventory and appearance coordination
+
+The internal customization entry point now awaits inventory storage, automatic item events and request ledgers before preparing and saving appearance. This follows CreateCharacterProcessor's normal branch: ItemProxy.CustomizeCharacter, LoadBaseCostumes, skin/SSS/eye, LoadItemCostumes, seven extras, body shape, Costume.Save, then default skills. The admitted initial Gear is empty; item-derived costumes and nonempty Gear are outside this path. No successful character-creation message is produced.
+
+Appearance uses the existing source-bound catalog, inventory and color profiles. It preserves inner/base alias resolution, skin/SSS/eye, extras and explicit Framework body arithmetic. Without an architecture selection only architecture-independent results are accepted. The synthetic appearance inputs were moved into one shared owned fixture; production sources and real content remain private.
+
+The creation-only costume writer rechecks preserved initializer state, laboratory provenance, user revision and ownership of the first level-one normal Fiona inside the same transaction that saves appearance. It also requires preserved Costume identity. All appearance rows commit together. A failed preparation or late storage error leaves previously committed inventory and logs intact, and the inventory coordinator refuses blind replay. This boundary is not durable interrupted-creation reconciliation or source entity compensation.
+
+Six native PostgreSQL scenarios verify all stored appearance fields, transaction visibility after inventory/events/ledgers, preparation failure, late costume rollback, missing identity, revision/class changes between phases and concurrent attempts. Existing Framework differential appearance/body/alias fixtures remain in the full gate. These checks do not execute the client.
+
+Remaining work includes per-skill and title callbacks/AP time/stats/observables, full ItemProxy second SaveWithoutSync/Undo and original appearance-failure ledgers, entity Login/Logout, Summary and creation lifecycle with compensation/reconciliation. Then wire TCP Create, verify real creation and relogin, and implement selection, city and movement. The full migration remains required.

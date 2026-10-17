@@ -18,6 +18,8 @@ use thiserror::Error;
 use zeroize::Zeroizing;
 #[derive(Debug, Error)]
 pub enum CostumeError {
+    #[error(transparent)]
+    Admission(#[from] super::fiona_character_state::StateError),
     #[error("costume database operation failed")]
     Database(#[from] sqlx::Error),
     #[error("costume snapshot IO failed")]
@@ -207,12 +209,30 @@ pub async fn save(
     cid: i64,
     changes: &[Costume],
 ) -> Result<usize, CostumeError> {
+    save_inner(pool, key, cid, changes, false).await
+}
+/// Creation-only boundary; rechecks the first normal Fiona inside the write transaction.
+pub(crate) async fn save_first_fiona(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    cid: i64,
+    changes: &[Costume],
+) -> Result<usize, CostumeError> {
+    save_inner(pool, key, cid, changes, true).await
+}
+async fn save_inner(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    cid: i64,
+    changes: &[Costume],
+    first_fiona: bool,
+) -> Result<usize, CostumeError> {
     if changes.len() > CostumeSet::MAX_ROWS {
         return Err(CostumeProfile.into());
     }
     let owner = LegacyNameKey::parse(key.name).map_err(|_| CostumeError::Ownership)?;
     tokio::time::timeout(Duration::from_secs(10),async{
-  let mut tx=transaction(pool).await?;
+  let mut tx=if first_fiona { super::fiona_character_state::owned_first_fiona(pool,key,cid).await? } else { transaction(pool).await? };
   let initialized:bool=sqlx::query_scalar("SELECT initialized FROM game_costume_identity WHERE singleton FOR SHARE").fetch_one(&mut *tx).await?;
   if !initialized{return Err(CostumeError::Uninitialized)}
   let actual:Option<(String,i64)>=sqlx::query_as("SELECT name_key,local_revision FROM game_users WHERE id=$1 FOR SHARE").bind(key.uid).fetch_optional(&mut *tx).await?;

@@ -289,3 +289,287 @@ async fn fiona_delivery_loaded_empty_shared_inventory_records_zero_for_the_last_
     assert_eq!(shared.iter().filter(|v| v.is_none()).count(), 3);
     cleanup_game_pool(a, p, s).await;
 }
+
+mod appearance_fixture {
+    include!("../fixtures/fiona_inventory_support.rs");
+    include!("../fixtures/fiona_appearance_support.rs");
+}
+struct AppearanceInputs {
+    profile: vindictus_server::infrastructure::fiona_appearance::Profile,
+    inventory: vindictus_server::infrastructure::fiona_inventory_profile::Profile,
+    catalog: vindictus_server::infrastructure::item_catalog::Package,
+    colors: vindictus_server::infrastructure::item_colors::Package,
+    template: vindictus_server::protocol::character_creation::Template<'static>,
+}
+impl AppearanceInputs {
+    fn new() -> Self {
+        use vindictus_server::infrastructure::{
+            fiona_appearance, fiona_inventory_profile, item_catalog, item_colors,
+        };
+        let (c, _, h, p) = appearance_fixture::fixtures();
+        let bytes = |v: &Value| serde_json::to_vec(v).unwrap();
+        Self {
+            profile: fiona_appearance::Profile::read(
+                bytes(&appearance_fixture::fixture()).as_slice(),
+            )
+            .unwrap(),
+            inventory: fiona_inventory_profile::Profile::read(bytes(&p).as_slice()).unwrap(),
+            catalog: item_catalog::read_package(bytes(&c).as_slice()).unwrap(),
+            colors: item_colors::Package::read(bytes(&h).as_slice()).unwrap(),
+            template: appearance_fixture::template(),
+        }
+    }
+    fn request(&self) -> vindictus_server::infrastructure::fiona_customization::Appearance<'_> {
+        vindictus_server::infrastructure::fiona_customization::Appearance {
+            profile: &self.profile,
+            inventory: &self.inventory,
+            catalog: &self.catalog,
+            colors: &self.colors,
+            template: &self.template,
+            arithmetic: None,
+        }
+    }
+}
+async fn appearance_setup(p: &PgPool, initialized: bool) {
+    setup(p).await;
+    if initialized {
+        use vindictus_server::infrastructure::character_costumes as costumes;
+        costumes::preserve(p, &costumes::read_snapshot(br#"{"format_version":1,"source":"study_heroes.costume","source_last_value":null,"rows":[]}"#.as_slice()).unwrap(), false).await.unwrap();
+    }
+}
+async fn costumes_count(p: &PgPool) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM game_costumes")
+        .fetch_one(p)
+        .await
+        .unwrap()
+}
+use vindictus_server::infrastructure::fiona_customization::{
+    self as customization, CustomizationError,
+};
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL"]
+async fn fiona_customization_saves_every_appearance_field_only_after_inventory_events() {
+    let (a, p, s) = isolated_game_pool().await;
+    appearance_setup(&p, true).await;
+    sqlx::query("CREATE FUNCTION costume_after_events() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN IF (SELECT count(*)FROM game_items)<>4 OR (SELECT count(*)FROM game_item_log01)+(SELECT count(*)FROM game_item_log02)<>4 OR (SELECT count(*)FROM game_item_ledger01)+(SELECT count(*)FROM game_item_ledger02)<>3 THEN RAISE EXCEPTION 'appearance before inventory and events'; END IF; RETURN NEW; END$$").execute(&p).await.unwrap();
+    sqlx::query("CREATE TRIGGER costume_after_events BEFORE INSERT ON game_costumes FOR EACH ROW EXECUTE FUNCTION costume_after_events()").execute(&p).await.unwrap();
+    let inputs = AppearanceInputs::new();
+    let outcome = customization::customize(
+        &p,
+        &fixture::key(),
+        1,
+        &profile(false),
+        inputs.request(),
+        prepared,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        (
+            outcome.costumes_changed,
+            outcome.appearance.len(),
+            outcome.inventory.item_logs.written
+        ),
+        (10, 10, 4)
+    );
+    use vindictus_server::domain::character_costume::Costume;
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        is_base: bool,
+        costume_type: i16,
+        costume_key: i16,
+        costume_sn: Option<i32>,
+        c1: Option<i32>,
+        c2: Option<i32>,
+        c3: Option<i32>,
+        gloss: Option<i16>,
+        effect: Option<i32>,
+    }
+    let stored: Vec<Row> = sqlx::query_as("SELECT is_base,costume_type,costume_key,costume_sn,c1,c2,c3,gloss,effect FROM game_costumes WHERE cid=1 ORDER BY row_id").fetch_all(&p).await.unwrap();
+    let actual = stored
+        .into_iter()
+        .map(|r| Costume {
+            is_base: r.is_base,
+            kind: r.costume_type.try_into().unwrap(),
+            key: r.costume_key.try_into().unwrap(),
+            serial: r.costume_sn,
+            colors: [r.c1, r.c2, r.c3],
+            gloss: r.gloss.map(|v| v.try_into().unwrap()),
+            effect: r.effect,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual, outcome.appearance);
+    assert_eq!(actual[0].colors, [Some(7), Some(8), Some(9)]);
+    assert_eq!(actual[1].colors, [Some(10), Some(30), Some(20)]);
+    assert_eq!(actual[9].serial, Some(500));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL"]
+async fn fiona_customization_invalid_appearance_keeps_inventory_and_refuses_replay() {
+    let (a, p, s) = isolated_game_pool().await;
+    appearance_setup(&p, true).await;
+    let mut inputs = AppearanceInputs::new();
+    inputs.template.eye_color = -999;
+    assert!(matches!(
+        customization::customize(
+            &p,
+            &fixture::key(),
+            1,
+            &profile(false),
+            inputs.request(),
+            prepared
+        )
+        .await,
+        Err(CustomizationError::Appearance(_))
+    ));
+    assert_eq!(
+        (
+            count(&p, "items").await,
+            count(&p, "logs").await,
+            count(&p, "ledgers").await,
+            costumes_count(&p).await
+        ),
+        (4, 4, 3, 0)
+    );
+    inputs.template.eye_color = 20;
+    assert!(matches!(
+        customization::customize(
+            &p,
+            &fixture::key(),
+            1,
+            &profile(false),
+            inputs.request(),
+            prepared
+        )
+        .await,
+        Err(CustomizationError::Inventory(DeliveryError::Reconcile))
+    ));
+    assert_eq!(
+        (
+            count(&p, "logs").await,
+            count(&p, "ledgers").await,
+            costumes_count(&p).await
+        ),
+        (4, 3, 0)
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL"]
+async fn fiona_customization_late_costume_failure_rolls_back_only_appearance() {
+    let (a, p, s) = isolated_game_pool().await;
+    appearance_setup(&p, true).await;
+    sqlx::query(
+        "ALTER TABLE game_costumes ADD CONSTRAINT reject_late_appearance CHECK(costume_type<>3)",
+    )
+    .execute(&p)
+    .await
+    .unwrap();
+    let inputs = AppearanceInputs::new();
+    assert!(matches!(
+        customization::customize(
+            &p,
+            &fixture::key(),
+            1,
+            &profile(false),
+            inputs.request(),
+            prepared
+        )
+        .await,
+        Err(CustomizationError::Storage(_))
+    ));
+    assert_eq!(
+        (
+            count(&p, "items").await,
+            count(&p, "logs").await,
+            count(&p, "ledgers").await,
+            costumes_count(&p).await
+        ),
+        (4, 4, 3, 0)
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL"]
+async fn fiona_customization_requires_preserved_identity_before_costume_write() {
+    let (a, p, s) = isolated_game_pool().await;
+    appearance_setup(&p, false).await;
+    let inputs = AppearanceInputs::new();
+    assert!(matches!(
+        customization::customize(
+            &p,
+            &fixture::key(),
+            1,
+            &profile(false),
+            inputs.request(),
+            prepared
+        )
+        .await,
+        Err(CustomizationError::Storage(
+            vindictus_server::infrastructure::character_costumes::CostumeError::Uninitialized
+        ))
+    ));
+    assert_eq!((count(&p, "items").await, costumes_count(&p).await), (4, 0));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL"]
+async fn fiona_customization_rechecks_revision_and_first_fiona_after_inventory_commit() {
+    for mutation in [
+        "UPDATE game_users SET service_id=service_id WHERE id=31",
+        "UPDATE game_character_info SET class=2 WHERE id=1",
+    ] {
+        let (a, p, s) = isolated_game_pool().await;
+        appearance_setup(&p, true).await;
+        sqlx::query(&format!("CREATE FUNCTION change_owner_at_ledger() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN {mutation}; RETURN NEW; END$$")).execute(&p).await.unwrap();
+        for t in ["game_item_ledger01", "game_item_ledger02"] {
+            sqlx::query(&format!("CREATE TRIGGER change_owner_at_ledger AFTER INSERT ON {t} FOR EACH ROW EXECUTE FUNCTION change_owner_at_ledger()")).execute(&p).await.unwrap();
+        }
+        let inputs = AppearanceInputs::new();
+        assert!(matches!(
+            customization::customize(
+                &p,
+                &fixture::key(),
+                1,
+                &profile(false),
+                inputs.request(),
+                prepared
+            )
+            .await,
+            Err(CustomizationError::Storage(
+                vindictus_server::infrastructure::character_costumes::CostumeError::Admission(_)
+            ))
+        ));
+        assert_eq!((count(&p, "items").await, costumes_count(&p).await), (4, 0));
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL"]
+async fn fiona_customization_race_writes_one_inventory_event_and_appearance_set() {
+    let (a, p, s) = isolated_game_pool().await;
+    appearance_setup(&p, true).await;
+    let inputs = AppearanceInputs::new();
+    let profile = profile(false);
+    let key = fixture::key();
+    let (x, y) = tokio::join!(
+        customization::customize(&p, &key, 1, &profile, inputs.request(), prepared),
+        customization::customize(&p, &key, 1, &profile, inputs.request(), prepared)
+    );
+    assert_eq!(usize::from(x.is_ok()) + usize::from(y.is_ok()), 1);
+    assert!(matches!(
+        x.err().or(y.err()).unwrap(),
+        CustomizationError::Inventory(DeliveryError::Reconcile)
+    ));
+    assert_eq!(
+        (
+            count(&p, "items").await,
+            count(&p, "logs").await,
+            count(&p, "ledgers").await,
+            costumes_count(&p).await
+        ),
+        (4, 4, 3, 10)
+    );
+    cleanup_game_pool(a, p, s).await;
+}

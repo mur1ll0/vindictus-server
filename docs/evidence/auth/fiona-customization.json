@@ -1,0 +1,52 @@
+{
+  "stage": "M15.1b.2e.10b.5",
+  "verified_at_utc": "2026-10-17T01:36:32.299439+00:00",
+  "schema": 24,
+  "rust_passed": 296,
+  "postgres_executed": 149,
+  "postgres_ignored": 0,
+  "python_passed": 38,
+  "failures": 0,
+  "warnings": 0,
+  "new_postgres_tests": 6,
+  "scope": "internal normal-Fiona inventory/events/ledgers then source-bound appearance preparation and transactional costume storage;not full ItemProxy/entity/lifecycle/TCP Create",
+  "reference_sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/CreateCharacterProcessor.cs",
+      "sha256": "90319d996c763a5fe28c199817e57242e2f6f33a041a4f889816df77f201a10a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs",
+      "sha256": "7ef6d87e9603f0fe0fae3b6dac7933a2bf4104af816a301ff6c7831c8760ac25"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeManager.cs",
+      "sha256": "97a950548411eb3b31b1b867272e711016b3775687e7a666d5fadcf5428dd952"
+    }
+  ],
+  "existing_framework_appearance_cases_per_architecture": 256,
+  "new_oracle_claimed": false,
+  "source_algorithm_changed": false,
+  "appearance_synthetic_integration_rows": 10,
+  "full_gate_sha256": "dd120e79e5f5be619d69eeeab2ef64ce8d9c38dbdab9a4227909aee3da288bc1",
+  "docker_smoke_sha256": "daf223ab826d42940737310e4c7c5b3efd068bdba24994e4512ce42b95869e0a",
+  "logs": {
+    "focused": ".cache/verification/customization-focused.log",
+    "full_gate": ".cache/verification/customization-final-gate.log",
+    "operations": ".cache/verification/customization-operations.log"
+  },
+  "remaining": [
+    "per-skill/title/APtime/stat/observable effects",
+    "complete ItemProxy second save/Undo and original appearance-failure ledgers",
+    "LoginLogout/Summary and successful lifecycle/compensation/reconciliation",
+    "TCP Create and real client creation/relogin",
+    "selection/city/movement",
+    "complete M01-M24 migration"
+  ],
+  "native_frontend_refreshed": false,
+  "real_client_tested": false,
+  "character_creation_available": false,
+  "private_payload_published": false,
+  "push_performed": false,
+  "verification_evidence_hash_scope": "Git-staged verification JSON bytes"
+}
