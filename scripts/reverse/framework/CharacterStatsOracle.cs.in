@@ -1,0 +1,43 @@
+using Utility;using System;using System.Collections.Generic;using System.Web.Script.Serialization;using ServiceCore.CharacterServiceOperations;
+namespace Utility{public static class Extensions{public static V TryGetValue<K,V>(this Dictionary<K,V> d,K k){V v;return d.TryGetValue(k,out v)?v:default(V);}public static int Linear(this int v,int bonus){throw new InvalidOperationException("equipped branch excluded");}}}
+public enum BaseCharacter{Fiona,Evy,Arisha}
+public class EquippedItemInfo{public CharacterStats StatBonus;public double Weight;public int ArmorHP,MaxDurability,CostumePartNum,DEF_Destroyed;public string ItemClass,EquipClass;public bool IsDecoration;}
+public class ItemClassInfo{public string Category;}
+public static class ItemContents{public static ItemClassInfo GetItemClassInfo(string s){throw new InvalidOperationException("equipped branch excluded");}}
+public class Skills{public CharacterEntity CharacterEntity;public int SkillRankSum;public SkillEffect Effect;public void OnIntStatChanged(){Events.Call("int");}}
+public class Status{public CharacterStats StatusEffectStat=new CharacterStats();}
+public class Observable{private string name;public Observable(string n){name=n;}public void Updated(){Events.Call(name);}}
+public class CharacterEntity{public BaseCharacter BaseCharacter;public Skills Skills;public Status StatusEffect=new Status();public Observable StatObservable=new Observable("stat"),MicroPlayObservable=new Observable("micro");}
+public class Logger{public void Warn(string s){throw new InvalidOperationException("null entity outside profile");}}
+public class Log<T>{public static Logger Logger=new Logger();}
+public static class Events{public static int Fail;public static List<string> Trace;public static void Call(string s){Trace.Add(s);if(Trace.Count==Fail)throw new InvalidOperationException();}}
+public class SkillEffect{
+ public Skills Skills;public int Seed;private static HashSet<int> stoneSkinPart=new HashSet<int>{4,5,6,7,8};
+ public static readonly string[] Names={"skill_str_mastery","skill_dex_mastery","skill_int_mastery","skill_will_mastery","skill_stamina_mastery","skill_evy_magic_mastery","skill_defence_mastery","skill_hp_mastery","skill_critical_hit","skill_stone_skin"};
+ public int Arg(string s,string k){int n=Array.IndexOf(Names,s);return Seed==0?0:unchecked((Seed+n*7)*(k=="frequency_bonus"?3:k=="dmg_bonus"?5:1));}
+ __ITEM__
+ __FINAL__
+}
+public class StatManager{
+ public CharacterEntity CharacterEntity;public CharacterStats BaseStat,ItemStat,FinalStat;public IDictionary<int,int> itemDefMap=new Dictionary<int,int>();public Dictionary<int,int> finalDefMap;public int destroyedDef;public Dictionary<string,int> FinalStatOverrider;
+ __CALCULATE__
+}
+public static class Oracle{
+ public static Dictionary<string,int> Map(IDictionary<int,int> d){var r=new Dictionary<string,int>();foreach(var p in d)r.Add(p.Key.ToString(),p.Value);return r;}
+ public static int[] Values(CharacterStats s){if(s==null)return null;var a=new int[25];for(int j=0;j<25;j++)a[j]=s[(Stats)j];return a;}
+ public static CharacterStats StatsOf(int[] a){var s=new CharacterStats();for(int j=0;j<25;j++)s[(Stats)j]=a[j];return s;}
+ public static void Main(){
+ var cases=new List<object>();var items=new List<object>();var callbacks=new List<object>();
+ for(int i=0;i<800;i++){
+ var input=new int[25];for(int j=0;j<25;j++)input[j]=i<640?unchecked((i*97+j*43)%8001-3000):unchecked((i*10000019+j*123456789));
+ if(i<40){int[] edge={-1,0,1,1999,2000,2001,int.MaxValue,int.MinValue};input[3]=edge[i%8];input[4]=edge[(i+1)%8];input[5]=edge[(i+2)%8];input[6]=edge[(i+3)%8];}
+ var character=new CharacterEntity{BaseCharacter=(BaseCharacter)(i%3)};var skills=new Skills{CharacterEntity=character,SkillRankSum=unchecked(i*33-8000)};var effect=new SkillEffect{Skills=skills,Seed=i%11==0?0:i%31==0?int.MaxValue:i%73-36};character.Skills=skills;skills.Effect=effect;
+ var defs=new Dictionary<int,int>();foreach(int part in new[]{2,4,5,6,7,8,9})defs.Add(part,i%7==0?int.MinValue:i%13==0?int.MaxValue:i*3-part*99);
+ CharacterStats output;Dictionary<int,int> finalDefs;int destroyed;effect.ApplyStatSkills(StatsOf(input),defs,out finalDefs,out output,out destroyed);
+ cases.Add(new{input=input,seed=effect.Seed,character=i%3,rank_sum=skills.SkillRankSum,defs=Map(defs),output=Values(output),final_defs=Map(finalDefs),destroyed=destroyed});
+ if(i<8){CharacterStats item;double weight;Dictionary<int,int> hp;IDictionary<int,int> armor;effect.ApplyItemSkills(StatsOf(input),new List<EquippedItemInfo>(),out item,out weight,out hp,out armor);items.Add(new{input=input,output=Values(item),weight=weight,hp_count=hp.Count,def_count=armor.Count});}
+ if(i<32){var m=new StatManager{CharacterEntity=character,BaseStat=StatsOf(input),ItemStat=i%8==0?null:new CharacterStats(),FinalStat=i%3==0?StatsOf(input):null};if(i%2==0)m.FinalStatOverrider=new Dictionary<string,int>{{"INT",77},{"TOWN_SPEED",-5}};Events.Fail=i%5;Events.Trace=new List<string>();bool error=false;try{m.CalculateFinalStat();}catch(InvalidOperationException){error=true;}callbacks.Add(new{case_index=i,item_present=i%8!=0,previous_present=i%3==0,override_present=i%2==0,fail_at=Events.Fail,error=error,trace=Events.Trace.ToArray(),output=Values(m.FinalStat)});}
+ }
+ Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(new{cases=cases,items=items,callbacks=callbacks}));
+ }
+}

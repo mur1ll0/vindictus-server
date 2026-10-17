@@ -1,0 +1,111 @@
+{
+  "stage": "M15.1b.2e.10b.8",
+  "verified_at_utc": "2026-10-17T15:51:06.795671+00:00",
+  "schema": 24,
+  "rust_passed": 310,
+  "postgres_executed": 152,
+  "postgres_ignored": 0,
+  "python_passed": 39,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 6,
+  "new_postgres_tests": 0,
+  "new_python_tests": 0,
+  "oracle_formula_cases_per_architecture": 800,
+  "oracle_empty_gear_cases_per_architecture": 8,
+  "oracle_callback_cases_per_architecture": 32,
+  "architecture_formula_differences": 288,
+  "reference_sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/StatManager.cs",
+      "sha256": "1389e4852506edfd7a2e682b5ea134f51b55984843cd5fc4f7a406cae52ec73c"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+      "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/CharacterStats.cs",
+      "sha256": "34f6f15beef5bebc596c137a7661ca0a5af44fcd2a35b57a863b83c01bca7250"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/Stats.cs",
+      "sha256": "ca927494856d57b810963c12e365cfdcf3da809a8169b4686b70c1bfd84595c3"
+    },
+    {
+      "path": "scripts/reverse/framework/CharacterStatsOracle.cs.in",
+      "sha256": "0b58a0673e6908f0300a42df579541617d8d7e3bed1cf22e0a63b5b28ac3adc4"
+    },
+    {
+      "path": "scripts/reverse/generate-character-stats-fixtures.ps1",
+      "sha256": "b42ee2b12120c3367ffb37c4b34cf6851a2daee25c2c279b186c3eb658c23d7e"
+    }
+  ],
+  "oracle_scope": "original ApplyStatSkills,empty-Gear ApplyItemSkills and CalculateFinalStat;Arg,owner,AP/observer callbacks instrumented;not equipped-item branches or native actor",
+  "scope": "known-field skill/final stats;proven empty equipped collection;store/override/INT/AP/observable suffix with partial-failure ordering;no native actor or SQL writer",
+  "private_diagnostic": {
+    "skills": 2,
+    "arguments": 5,
+    "base_and_skills_source_bound": true,
+    "equipment_title_status_inputs_synthetic": true,
+    "architecture_results_equal": false,
+    "callback_order_verified": true,
+    "database_opened": false,
+    "private_payload_disclosed": false
+  },
+  "native_frontend_refreshed": false,
+  "real_client_tested": false,
+  "character_creation_available": false,
+  "private_payload_published": false,
+  "push_performed": false,
+  "logs": [
+    ".cache/verification/character-stats-focused.log",
+    ".cache/verification/character-stats-oracle.log",
+    ".cache/verification/character-stats-private-diagnostic.log",
+    ".cache/verification/character-stats-final-gate.log",
+    ".cache/verification/character-stats-operations.log",
+    ".cache/verification/character-stats-architecture-rea-bundle.json"
+  ],
+  "remaining": [
+    "bind original PlayerService arithmetic architecture;private inputs differ too",
+    "baseLoad projection,medium/heavy/load penalty;general equipped-item effects",
+    "full skill multicast/dirty observables/title effects and AP changes in same character Submit",
+    "complete initializer/ItemProxy/Undo/failure ledgers/LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate",
+    "actual client Create/relogin/selection/city/movement",
+    "complete M01-M24 migration"
+  ],
+  "verification_interruptions": [
+    "Docker Desktop was stopped after the gate;started again",
+    "PostgreSQL completed fsync recovery without volume replacement",
+    "Rust service restarted gracefully after recovery;final operations/smoke/preservation passed"
+  ],
+  "architecture_inspection": {
+    "observations": [
+      {
+        "artifact": "HeroesServerHost.exe",
+        "sha256": "ea00533a8a2854909ba484180f18bbf51d2bb2e3371c7a1d7146849c517db003",
+        "evidence_id": "ev_2a5e05f390414fb31457d5958e69c73b6462fb4edab3ddb6723272c97140735f",
+        "managed_architecture": "anycpu",
+        "cli_flags": 1,
+        "coverage": "complete",
+        "executed": false
+      },
+      {
+        "artifact": "PlayerService.dll",
+        "sha256": "f23d8b9df77c45dc332921cc3ccb22cdefaaa98703a863c69f6bf9f53e9c04f6",
+        "evidence_id": "ev_9baa8f3042d55256b889ceaa6688d8049943043ff88b46067a8fc60ceab6b450",
+        "managed_architecture": "anycpu",
+        "cli_flags": 1,
+        "coverage": "complete",
+        "executed": false
+      }
+    ],
+    "inference": "Both files are IL-only AnyCPU;actual legacy process bitness is not established by PE32 metadata.",
+    "original_runtime_architecture_confirmed": false
+  },
+  "verification_receipts": {
+    "gate_sha256": "be118939c08b1161238217bb5dc536a5cd2121bb954b69955928812882740663",
+    "docker_smoke_sha256": "fbb4ffd449fb4e848f79db8463355d62cfcee451757c3e468f5ae97f4e98fba0"
+  },
+  "verification_receipt_scope": "Git-staged verification JSON bytes"
+}

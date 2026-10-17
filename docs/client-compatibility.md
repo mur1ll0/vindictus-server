@@ -128,3 +128,5 @@ M15.1b.2e.10b.5 liga internamente inventário/logs/ledgers à preparação e gra
 M15.1b.2e.10b.6 verifica argumentos privados/cache de habilidades e hooks por habilidade antes do Submit. Efeitos completos Stat/AP/observables/títulos,initializer/Summary/lifecycle/TCP Create pendentes. Sem teste novo do cliente;Create,seleção/cidade/movimento indisponíveis.
 
 M15.1b.2e.10b.7 verifica transições AP em memória e política APMax privada,sem gravar fora do Submit. Stats/multicast/observables/títulos e initializer/Summary/lifecycle/TCP Create pendentes. Sem teste novo do cliente;Create,seleção/cidade/movimento indisponíveis.
+
+M15.1b.2e.10b.8: fórmulas de stats,ramo de equipamentos vazios e ordem interna INT/AP/observables verificados em Framework x86/x64. Perfil privado real também difere por arquitetura; vincular o serviço original antes de integrar. Sem frontend novo/teste cliente;Create continua indisponível. Faltam peso/multicast/títulos/Submit,initializer e Summary/lifecycle/TCPCreate antes de criação/seleção/cidade/movimento.

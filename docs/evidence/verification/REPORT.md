@@ -67,3 +67,15 @@ Exit code:0.
 Output summary:304 Rust passed;152 native PostgreSQL passed,0 ignored;39 Python passed. Four new Rust tests compare448 AP cases+3prefixes per Framework architecture,complete post-error state and provider-call counts. Private profile2skills/5arguments/APMax checked with synthetic AP/clock/allocator,noDB/client. Docker locked build/schema24/readiness/account/duplicate/nonroot/restart and prior preservation checks passed.
 Warnings:none. Errors:none. Verdict:PASS for internal components only.
 Remaining:stats/multicast/observables/title effects,trained meditation/guildAP,same-character Submit and initializer,ItemProxy/Undo/failure paths,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate;real client creation/relogin/selection/city/movement;full migration. Evidence:docs/character-ap.md,auth/character-ap.json,framework-character-ap.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.8 — Character skill/final stat kernel and callback suffix
+Claim:known-field stats,proven empty-Gear branch and store/override/INT/AP/observer suffix;not full initializer,actor,persistence or client Create.
+Command:generate-character-stats-fixtures.ps1;cargo test --locked --test character_stats;verify.ps1 -DatabaseIntegration;docker compose build --quiet server;docker compose up -d --wait server;smoke-docker.ps1;existing import scripts -Mode Verify.
+Executed:2026-10-17T04:43:03.8312245+00:00 (gate);2026-10-17T15:49:53.5368082+00:00 (Docker smoke).
+Exit code:0.
+Output summary:310 Rust passed;152 native PostgreSQL passed,0 ignored;39 Python passed. Six new Rust tests compare800 formula/8empty-Gear/32callback cases per Framework architecture;288 formula cases differ across architectures. Injected AP/stat/microplay failures retain final state and suppress later callbacks. Private base profile and2skills/5arguments bind with synthetic title/set/status;architecture difference confirmed without DB/private values. Docker locked build/schema24/readiness/account/duplicate/nonroot/restart and six preservation checks passed.
+Warnings:none. Errors:none. Verdict:PASS for scoped internal components only.
+Remaining:original service arithmetic binding,baseLoad/weight,full multicast/title/dirty/AP and same-character Submit,initializer/ItemProxy/Undo/failure paths,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate;real creation/relogin/selection/city/movement;full migration.
+Evidence:docs/character-stats.md,auth/character-stats.json,framework-character-stats.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+Operational interruption before the final successful attempt: Docker Desktop stopped after the gate. Engine restarted;PostgreSQL completed data-directory fsync recovery;Rust service restarted gracefully. Final smoke and preservation checks passed without volume replacement. The full gate was not repeated because source code was unchanged.
