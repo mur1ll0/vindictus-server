@@ -1,0 +1,75 @@
+{
+  "stage": "M15.1b.2e.10b.7",
+  "verified_at_utc": "2026-10-17T04:22:07.198384+00:00",
+  "schema": 24,
+  "rust_passed": 304,
+  "postgres_executed": 152,
+  "postgres_ignored": 0,
+  "python_passed": 39,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 4,
+  "new_postgres_tests": 0,
+  "new_python_tests": 0,
+  "oracle_cases_per_architecture": 448,
+  "early_return_cases_per_architecture": 3,
+  "architecture_results_equal": true,
+  "reference_sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/APManager.cs",
+      "sha256": "3594eecafc937bc33da4b7225ee65759435af74419410d0b7f4129174b98defe"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+      "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+    },
+    {
+      "path": "scripts/reverse/framework/CharacterAPOracle.cs.in",
+      "sha256": "b9cfbc33143f03275a27ee0f4234f1e63dfb2eb2fd145c8647280948e93a69a8"
+    },
+    {
+      "path": "scripts/reverse/generate-character-ap-fixtures.ps1",
+      "sha256": "59b642d1c78136ab084da254737ece1fada4c7db4467b06e4c8cb496f9549241"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterInfo.cs",
+      "sha256": "f745f3ebb880860796ea51cdc43641d6cede381a8af2d7a2afa01aa472630292"
+    }
+  ],
+  "oracle_scope": "original AP Update/Recalculate/Use/Give;UTC,maximum policy,interval calculator instrumented;not AP-time formula,stats,persistence,network or guild",
+  "scope": "in-memory AP Update/Recalculate/Use/Give with partial-failure ordering;private APMax projection and guarded no-meditation prefix;not stat callbacks,persistence,guild or TCP",
+  "private_diagnostic": {
+    "skills": 2,
+    "arguments": 5,
+    "profile_bound": true,
+    "maximum_readable": true,
+    "untrained_transition_verified": true,
+    "synthetic_ap_allocator_clock": true,
+    "database_opened": false,
+    "private_payload_disclosed": false
+  },
+  "native_frontend_refreshed": false,
+  "real_client_tested": false,
+  "character_creation_available": false,
+  "private_payload_published": false,
+  "push_performed": false,
+  "logs": [
+    ".cache/verification/character-ap-final-gate.log",
+    ".cache/verification/character-ap-oracle.log",
+    ".cache/verification/character-ap-private-diagnostic.log",
+    ".cache/verification/character-ap-operations.log"
+  ],
+  "remaining": [
+    "final/item stats and multicast/observables/title effects",
+    "trained meditation floating-point interval and guild AP effects",
+    "AP changes in same character Submit and complete initializer",
+    "ItemProxy/Undo/failure ledgers",
+    "LoginLogout/Summary/lifecycle/compensation/reconciliation/TCP Create",
+    "real creation/relogin/selection/city/movement",
+    "complete M01-M24 migration"
+  ],
+  "persistence_handoff": "LastAPUpdate DateTime NOT NULL/UpdateCheck.Never;CLR ticks require original SqlClient datetime conversion at future owning Submit",
+  "full_gate_sha256": "405ef2031134ef8caf2dc563763dda36e10a922fce58e18da2ac3f393fe56462",
+  "docker_smoke_sha256": "3336122bd23876551d93d73e0106ced9f8e6dccfde9d0564541cce9d11ed6813",
+  "verification_evidence_hash_scope": "Git-staged verification JSON bytes"
+}

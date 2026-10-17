@@ -58,3 +58,12 @@ Exit code:0.
 Output summary:300 Rust passed;152 native PostgreSQL passed,0 ignored;39 Python passed. Four new Rust/three PG/one Python tests. Oracle120cases per Framework architecture;provider/world/AP/multicast dependencies instrumented. Private profile2skills/5arguments validated with synthetic clock/allocator,noDB/client. Docker locked build/schema24/readiness/account/duplicate/nonroot/restart and prior preservation checks passed.
 Warnings:none. Errors:none. Verdict:PASS for internal components only.
 Remaining:Stat/Item/AP-time/multicast/observables,title effects,full interleaved GiveSkill/initializer,ItemProxy/Undo/failure ledgers,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate;real client creation/relogin/selection/city/movement;full migration. Evidence:docs/skill-runtime-cache.md,auth/skill-runtime-cache.json,framework-skill-cache.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.7 — AP manager in-memory transitions
+Claim:source AP transitions and failure ordering;not persistence/full callbacks/client Create.
+Command:pwsh -File scripts/dev/verify.ps1 -DatabaseIntegration;generate-character-ap-fixtures.ps1;docker compose build --quiet server;docker compose up -d --wait server;smoke-docker.ps1;existing import scripts -Mode Verify.
+Executed:2026-10-17T04:21:08.0613398+00:00 (gate);2026-10-17T04:21:57.5766817+00:00 (Docker smoke).
+Exit code:0.
+Output summary:304 Rust passed;152 native PostgreSQL passed,0 ignored;39 Python passed. Four new Rust tests compare448 AP cases+3prefixes per Framework architecture,complete post-error state and provider-call counts. Private profile2skills/5arguments/APMax checked with synthetic AP/clock/allocator,noDB/client. Docker locked build/schema24/readiness/account/duplicate/nonroot/restart and prior preservation checks passed.
+Warnings:none. Errors:none. Verdict:PASS for internal components only.
+Remaining:stats/multicast/observables/title effects,trained meditation/guildAP,same-character Submit and initializer,ItemProxy/Undo/failure paths,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate;real client creation/relogin/selection/city/movement;full migration. Evidence:docs/character-ap.md,auth/character-ap.json,framework-character-ap.json,gate.json,docker-smoke.json. Full logs:.cache/verification.

@@ -195,3 +195,22 @@ fn initializer_arguments_are_required_bounded_and_preserved_for_runtime_provider
         Err(CacheError::Null)
     );
 }
+
+#[test]
+fn maximum_ap_policy_requires_exported_key_and_keeps_source_parsing_lazy() {
+    let mut v = synthetic();
+    assert_eq!(read(&v).unwrap().maximum_ap().unwrap(), -1);
+    for field in v["features"].as_array_mut().unwrap() {
+        if field["key"] == "APMax" {
+            field["value"] = json!("2147483648");
+        }
+    }
+    let p = read(&v).unwrap();
+    assert!(p.maximum_ap().is_err());
+    v["features"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|f| f["key"] != "APMax");
+    let p = read(&v).unwrap();
+    assert!(p.maximum_ap().is_err());
+}

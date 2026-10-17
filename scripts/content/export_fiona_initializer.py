@@ -12,7 +12,7 @@ SOURCE_FILES={
  'loader':'PlayerService.CharacterServiceCore.Functions/CharacterLoader.cs',
  'query':'PlayerService.CharacterServiceCore/CharacterDataContext.cs',
 }
-KEYS=('SharedInventory','DisableOperationLogging','AutoItemLogging','ProcessAfterDeleteItem','InGameGuild','GuildScore','RandomMission','Attendance_Newbie','AttendanceEvent_Newbie','AttendanceAdditionalPeriod_Newbie','MissionCompletionCountCleanTime','MissionCompletionCountCleanPeriod','AccountTitleStatRatio','CharacterTransferSystem','CharacterExceptSystem','AddTitleFromPreset','DeleteCharacterDelay','DisableCharacterCreation','ServerTrouble','Event_newbie_character_preset_item','PremiumCharacterEventItem')
+KEYS=('APMax','SharedInventory','DisableOperationLogging','AutoItemLogging','ProcessAfterDeleteItem','InGameGuild','GuildScore','RandomMission','Attendance_Newbie','AttendanceEvent_Newbie','AttendanceAdditionalPeriod_Newbie','MissionCompletionCountCleanTime','MissionCompletionCountCleanPeriod','AccountTitleStatRatio','CharacterTransferSystem','CharacterExceptSystem','AddTitleFromPreset','DeleteCharacterDelay','DisableCharacterCreation','ServerTrouble','Event_newbie_character_preset_item','PremiumCharacterEventItem')
 ENABLE_KEYS=('SharedInventory','DisableOperationLogging','AutoItemLogging','ProcessAfterDeleteItem','InGameGuild','GuildScore','RandomMission','Attendance_Newbie','CharacterTransferSystem','CharacterExceptSystem','AddTitleFromPreset','DisableCharacterCreation','ServerTrouble','DisableLogging','CashShop','DormantAccount','NexonGameSecurity')
 def integer(v):
  if type(v)is not int or not -(2**31)<=v<2**31:raise ValueError('Initializer Int32 profile')

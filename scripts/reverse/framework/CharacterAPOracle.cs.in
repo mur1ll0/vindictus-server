@@ -1,0 +1,34 @@
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;
+public static class Clock{public static long Ticks;public static bool Fail;public static int Calls;public static DateTime Now{get{Calls++;if(Fail)throw new InvalidOperationException();return new DateTime(Ticks);}}}
+public static class FeatureMatrix{public static int Value,Second,Calls,FailAt;public static int GetInteger(string k){Calls++;if(Calls==FailAt)throw new InvalidOperationException();return Calls==1?Value:Second;}}
+public class Info{public int AP;public DateTime LastAPUpdate;public string Name="synthetic";}
+public class Character{public Info CharacterInfo=new Info();}
+public enum Stats{INT}
+public class StatManager{public int this[Stats s]{get{return 0;}}}
+public class SkillEffect{public int Value,Calls;public bool Fail;public int CalculateAPTime(int stat){Calls++;if(Fail)throw new InvalidOperationException();return Value;}}
+public class Logger{public void WarnFormat(string s,params object[] v){}}
+public class Log<T>{public static Logger Logger=new Logger();}
+public class CharacterInfo{}
+public class APManager{
+ private Character Character=new Character();private StatManager Stat=new StatManager();private SkillEffect SkillEffect=new SkillEffect();
+ private int Default_MaxAP{get{return FeatureMatrix.GetInteger("APMax");}}public int BonusAPTime{get;set;}
+ public int GetMaxAP(){return Default_MaxAP;}
+ __UPDATE__
+ __RECALCULATE__
+ __USE__
+ __GIVE__
+ public static object Run(int i){
+ int op=i%4;int[] bonuses={-1,0,1,5,3599,int.MaxValue};int bonus=bonuses[(i/4)%6];long last=638448480000000000L;
+ long[] deltas={0,9999999,10000000,10000001,-10000000,35990000000L,123456789,30000000000000000L,-123456789};
+ long now=last+deltas[(i/24)%9];if(i%37==0){last=0;now=10000000;}if(i%41==0){last=DateTime.MaxValue.Ticks-10000000;now=DateTime.MaxValue.Ticks;}
+ int ap=i%9==0?int.MaxValue:i%7==0?int.MinValue:i-100;int[] maxima={-1,0,10,int.MaxValue};int max=maxima[(i/3)%4];int second=i%11==0?int.MinValue:max;int value=i%13==0?int.MinValue:i%17==0?int.MaxValue:i-120;bool exceed=i%3==0;
+ if(i>=432){bonus=i%2==0?1:3;last=i<440?0:DateTime.MaxValue.Ticks;now=i<440?DateTime.MaxValue.Ticks:0;ap=123;max=-1;second=-1;}
+ FeatureMatrix.Value=max;FeatureMatrix.Second=second;FeatureMatrix.Calls=0;FeatureMatrix.FailAt=i%19==0?2:i%29==0?1:0;Clock.Ticks=now;Clock.Fail=i%31==0;Clock.Calls=0;
+ var m=new APManager();m.BonusAPTime=bonus;m.Character.CharacterInfo.AP=ap;m.Character.CharacterInfo.LastAPUpdate=new DateTime(last);m.SkillEffect.Value=i%5==0?0:i%23==0?-1:7;m.SkillEffect.Fail=i%43==0;if(i>=432){FeatureMatrix.FailAt=0;Clock.Fail=false;m.SkillEffect.Fail=false;}
+ bool error=false;object result=null;try{switch(op){case 0:m.UpdateAP();break;case 1:m.CalculateBonusAPTime();break;case 2:result=m.UseAP(value);break;case 3:result=m.GiveAP(value,exceed);break;}}catch(ArgumentException){error=true;}catch(InvalidOperationException){error=true;}
+ return new{op=op,ap=ap,last=last.ToString(),now=now.ToString(),bonus=bonus,max=max,second_max=second,value=value,exceed=exceed,clock_fail=Clock.Fail,policy_fail_at=FeatureMatrix.FailAt,interval_fail=m.SkillEffect.Fail,interval=m.SkillEffect.Value,error=error,result=result,final_ap=m.Character.CharacterInfo.AP,final_last=m.Character.CharacterInfo.LastAPUpdate.Ticks.ToString(),final_bonus=m.BonusAPTime,clock_calls=Clock.Calls,policy_calls=FeatureMatrix.Calls,interval_calls=m.SkillEffect.Calls};
+ }
+}
+public static class ServiceCore{public static class FeatureMatrix{public static int Reads;public static float GetFloat(string key){Reads++;throw new InvalidOperationException("unsupported arithmetic branch");}}}
+public class IntervalPrefix{public int Reduction;private int Arg(string skill,string key,int value){return Reduction;}__PREFIX__}
+public static class Oracle{public static void Main(){var cases=new List<object>();for(int i=0;i<448;i++)cases.Add(APManager.Run(i));var prefixes=new List<object>();foreach(int n in new[]{-1,0,50}){ServiceCore.FeatureMatrix.Reads=0;bool failed=false;int? value=null;try{value=new IntervalPrefix{Reduction=n}.CalculateAPTime(0);}catch(InvalidOperationException){failed=true;}prefixes.Add(new{reduction=n,error=failed,result=value,float_reads=ServiceCore.FeatureMatrix.Reads});}Console.WriteLine(new JavaScriptSerializer().Serialize(new{cases=cases,prefixes=prefixes}));}}

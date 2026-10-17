@@ -429,6 +429,13 @@ impl Profile {
     pub fn base_stats(&self, title_contribution: [i32; 7]) -> BaseStats {
         BaseStats::compose(self.basis, title_contribution)
     }
+    /// Keep source integer parsing lazy: disabled AP paths do not query the maximum.
+    pub fn maximum_ap(&self) -> Result<i32, Error> {
+        if !self.policy.entries().any(|(key, _)| key == "APMax") {
+            return Err(fail());
+        }
+        self.policy.get_integer("APMax")
+    }
     pub fn level_up_exp(&self) -> i32 {
         self.level_exp
     }

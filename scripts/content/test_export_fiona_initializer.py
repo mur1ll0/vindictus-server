@@ -28,7 +28,7 @@ INSERT INTO SkillRankInfo VALUES('synthetic_skill',3,1,NULL,9,0,NULL,NULL,NULL);
 INSERT INTO SkillArgumentInfo VALUES('synthetic_skill',2,'synthetic_arg',7);INSERT INTO AttendanceEvent VALUES(7,'0001-01-01 00:00:00.0000001','0001-01-01 00:00:00.0000200');""");c.commit()
  def package(self):
   def reward(database,config,additional_keys):
-   self.assertIn('AutoItemLogging',additional_keys)
+   self.assertIn('AutoItemLogging',additional_keys);self.assertIn('APMax',additional_keys)
    self.assertIn('DisableOperationLogging',additional_keys);self.assertIn('SharedInventory',additional_keys)
    return dict(manifest=dict(database_sha256=subject.digest(database),config_sha256=subject.digest(config)),features=[])
   with patch.object(subject.reward,'read_package',side_effect=reward):return subject.read_package(self.db,self.config,self.src,self.state)

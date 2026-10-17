@@ -126,3 +126,5 @@ M15.1b.2e.10b.4 coordena internamente inventário→logs→ledgers e preserva o 
 M15.1b.2e.10b.5 liga internamente inventário/logs/ledgers à preparação e gravação da aparência da primeira Fiona. Gate e Docker/restart passaram; callbacks,fechamento ItemProxy,LoginLogout/Summary/lifecycle/TCP Create ainda pendentes. Sem novo teste do cliente;Create,seleção/cidade/movimento continuam indisponíveis.
 
 M15.1b.2e.10b.6 verifica argumentos privados/cache de habilidades e hooks por habilidade antes do Submit. Efeitos completos Stat/AP/observables/títulos,initializer/Summary/lifecycle/TCP Create pendentes. Sem teste novo do cliente;Create,seleção/cidade/movimento indisponíveis.
+
+M15.1b.2e.10b.7 verifica transições AP em memória e política APMax privada,sem gravar fora do Submit. Stats/multicast/observables/títulos e initializer/Summary/lifecycle/TCP Create pendentes. Sem teste novo do cliente;Create,seleção/cidade/movimento indisponíveis.

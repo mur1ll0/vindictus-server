@@ -64,3 +64,5 @@ pub mod item_stats;
 pub mod item_logs;
 
 pub mod skill_runtime;
+
+pub mod character_ap;
