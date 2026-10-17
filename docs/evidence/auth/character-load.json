@@ -1,0 +1,90 @@
+{
+  "stage": "M15.1b.2e.10b.9",
+  "verified_at_utc": "2026-10-17T16:17:22.346109+00:00",
+  "schema": 24,
+  "rust_passed": 315,
+  "postgres_executed": 152,
+  "postgres_ignored": 0,
+  "python_passed": 40,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 5,
+  "new_postgres_tests": 0,
+  "new_python_tests": 1,
+  "oracle_cases_per_architecture": 640,
+  "architecture_different_cases": 10,
+  "reference_sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/StatManager.cs",
+      "sha256": "1389e4852506edfd7a2e682b5ea134f51b55984843cd5fc4f7a406cae52ec73c"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+      "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContents.cs",
+      "sha256": "6bc2e3fa29ca1c3bf1b2bdb27af3445ed50717225905a059090c18067690aefe"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/CharacterBaseLoadInfo.cs",
+      "sha256": "a0e4bf8da33f934df25fb311aba710ecd2e09e46f26377a1fff725e3a88f4f48"
+    },
+    {
+      "path": "scripts/reverse/framework/CharacterLoadOracle.cs.in",
+      "sha256": "76858ead57f23da24099461b5a8fc3b90e0dca71d1a96879fe2364adfeefdc8f"
+    },
+    {
+      "path": "scripts/reverse/generate-character-load-fixtures.ps1",
+      "sha256": "28ddec290a4d69a4186c714183f26b4ce29e737b04476ddddf8f3e7faa538f39"
+    }
+  ],
+  "oracle_scope": "original CalculateItemStat,ApplyMediumLoadSkills,GetMediumLoadWeight and GetHeavyLoadMultiplier;empty item effect provider,owner/base query failures instrumented;not equipped-item effects,SQL,actor or network",
+  "scope": "finite-Double first-Fiona base-load projection;CalculateItemStat known-empty-Gear state transitions,retention,base-provider failures and medium/heavy/penalty arithmetic;no SQL writer/native actor",
+  "private_diagnostic": {
+    "skills": 2,
+    "arguments": 5,
+    "actual_base_load_source_bound": true,
+    "snapshots_compared_per_architecture": 3,
+    "each_architecture_matches_framework": true,
+    "known_empty_gear_retained": true,
+    "set_bonus_synthetic": true,
+    "database_opened": false,
+    "private_payload_disclosed": false
+  },
+  "reference_profile_binding": {
+    "next_mvp_target": "Framework48-x64",
+    "native_binding_implemented": false,
+    "original_deployment_bitness_observed": false,
+    "measured_alternatives": [
+      "Framework48-x86",
+      "Framework48-x64"
+    ],
+    "reason": "explicit measured target choice;both original host/service IL-only AnyCPU;no inference of original runtime or client compatibility"
+  },
+  "native_frontend_refreshed": false,
+  "real_client_tested": false,
+  "character_creation_available": false,
+  "private_payload_published": false,
+  "push_performed": false,
+  "logs": [
+    ".cache/verification/character-load-oracle.log",
+    ".cache/verification/character-load-expanded-focused.log",
+    ".cache/verification/character-load-python-focused.log",
+    ".cache/verification/character-load-private-diagnostic.log",
+    ".cache/verification/character-load-final-gate.log",
+    ".cache/verification/character-load-operations.log"
+  ],
+  "remaining": [
+    "bind measured Framework48-x64 reference consistently for next MVP integration;old deployment bitness remains full-parity investigation",
+    "full skill multicast/dirty observables/title effects and AP in the same character Submit with SqlClient datetime conversion",
+    "complete initializer/ItemProxy/Undo/failure ledgers/LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate",
+    "actual Create/relogin/selection/city/movement test with candidate client",
+    "general equipped items/arbitrary weight/nonfinite provider profiles/trained meditation/guild/full M01-M24 migration"
+  ],
+  "verification_receipts": {
+    "gate_sha256": "a0c4834c0c325fda066a3144869febbb57da2d2d1d36247aab0fa87bf376f0e4",
+    "docker_smoke_sha256": "3b3f10b690370e585007b5430144bdcf4b6ede4a7af53c4d284bfd7051b1e42d"
+  },
+  "verification_receipt_scope": "Git-staged verification JSON bytes"
+}

@@ -68,3 +68,5 @@ pub mod skill_runtime;
 pub mod character_ap;
 
 pub mod character_stats;
+
+pub mod character_load;

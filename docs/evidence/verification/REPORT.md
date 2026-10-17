@@ -79,3 +79,13 @@ Remaining:original service arithmetic binding,baseLoad/weight,full multicast/tit
 Evidence:docs/character-stats.md,auth/character-stats.json,framework-character-stats.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
 
 Operational interruption before the final successful attempt: Docker Desktop stopped after the gate. Engine restarted;PostgreSQL completed data-directory fsync recovery;Rust service restarted gracefully. Final smoke and preservation checks passed without volume replacement. The full gate was not repeated because source code was unchanged.
+
+M15.1b.2e.10b.9 -- First-Fiona base-load projection and empty-equipment state
+Claim:source-bound finite Double base load;CalculateItemStat null/retained/replaced inputs,partial-query-failure order and known-empty medium/heavy/penalty;not full equipped items,actor,persistence or client Create.
+Command:generate-character-load-fixtures.ps1;cargo test --test character_load --test fiona_initializer_profile;Python export_fiona_initializer focus;verify.ps1 -DatabaseIntegration;private readonly export/Framework measurement;Docker locked build/start/smoke/restart;existing imports -Mode Verify.
+Executed:2026-10-17T16:15:52.4692077+00:00 (gate);2026-10-17T16:16:46.4306368+00:00 (Docker smoke).
+Exit code:0.
+Output summary:315 Rust passed;152 native PostgreSQL passed,0 ignored;40 Python passed. Five new Rust tests and one Python test. Oracle640 cases per Framework architecture;10 extreme penalty cases differ. Real private base load and2skills/5arguments match three original-method snapshots per architecture,with synthetic set bonus and retained empty Gear,no DB/private values. Docker schema24/readiness/account/duplicate/nonroot/restart and six preservation checks passed.
+Warnings:none. Errors:none. Verdict:PASS for scoped internal components only.
+Remaining:explicit measured reference-profile binding,full multicast/dirty/title/AP and same-character Submit;initializer/ItemProxy/Undo/failure paths,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate;actual creation/relogin/selection/city/movement;full migration. Original deployment bitness remains unconfirmed;next MVP integration explicitly targets measured Framework48-x64 and makes no claim about that deployment.
+Evidence:docs/character-load.md,auth/character-load.json,framework-character-load.json,gate.json,docker-smoke.json. Full logs:.cache/verification.

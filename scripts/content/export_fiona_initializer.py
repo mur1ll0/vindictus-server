@@ -1,8 +1,9 @@
 """Readonly, source-bound normal first-Fiona initialization projection. Values stay private."""
-import argparse,contextlib,datetime,hashlib,json,pathlib,re,sqlite3
+import argparse,contextlib,datetime,hashlib,json,pathlib,re,sqlite3,math,struct
 from export_item_catalog import digest
 import export_reward_policy as reward
 SOURCE_FILES={
+ 'load_info':'../ServiceCore-be65d59d2385/ServiceCore.HeroesContents/CharacterBaseLoadInfo.cs',
  'contents':'PlayerService.CharacterServiceCore/CharacterContents.cs',
  'skills':'PlayerService.CharacterServiceCore/SkillManager.cs',
  'effects':'PlayerService.CharacterServiceCore/SkillEffect.cs',
@@ -67,6 +68,15 @@ def read_package(database,config,source_dir,state_file):
   selected=[r for r in classes if r['Identifier']==1 and r['Level']==1]
   if len(selected)!=1 or selected[0]['Feature']is not None:raise ValueError('First-Fiona class source changed')
   r=selected[0];basis=[integer(r[k])for k in('BaseSTR','BaseDEX','BaseINT','BaseWILL','BaseHP','BaseSTAMINA')]
+  load_rows=list(db.execute('SELECT Character,Level,BaseCharacterLoadWeight FROM CharacterBaseLoadInfo'))
+  load_keys=set();medium_base=-1.0
+  for row in load_rows:
+   character=integer(row['Character']);level=integer(row['Level']);value=row['BaseCharacterLoadWeight']
+   if not 0<=character<=255 or (character,level)in load_keys:raise ValueError('Base load dictionary profile')
+   load_keys.add((character,level))
+   if type(value)not in(int,float)or not math.isfinite(float(value)):raise ValueError('Base load finite Double provider profile')
+   if (character,level)==(1,1):medium_base=float(value)
+  base_load_bits=format(struct.unpack('<Q',struct.pack('<d',medium_base))[0],'016x')
   levels=list(db.execute('SELECT * FROM LevelUpExpInfo'));level_keys=[r['Level']for r in levels]
   if len(level_keys)!=len(set(level_keys)):raise ValueError('Level dictionary ambiguous')
   levels=[dict(level=integer(r['Level']),required_exp=integer(r['RequiredExp']),feature=feature(r['Feature']))for r in levels if r['Level']==1]
@@ -93,7 +103,7 @@ def read_package(database,config,source_dir,state_file):
  package=reward.read_package(database,config,additional_keys=wanted)
  if package['manifest']['database_sha256']!=initial_db or package['manifest']['config_sha256']!=initial_config or digest(state_file)!=initial_state:raise ValueError('Initializer source snapshot changed during read')
  if before!={k:digest(v)for k,v in files.items()}:raise ValueError('Initializer implementation changed during read')
- return dict(format_version=1,source='heroesContents.first-fiona-initializer',database_sha256=package['manifest']['database_sha256'],config_sha256=package['manifest']['config_sha256'],state_sha256=digest(state_file),implementations=before,features=package['features'],enabled_keys=sorted(enabled_keys),base_stats=basis,levels=levels,presets=presets,title_info=titles,skills=rows,attendance=attendance)
+ return dict(format_version=1,source='heroesContents.first-fiona-initializer',database_sha256=package['manifest']['database_sha256'],config_sha256=package['manifest']['config_sha256'],state_sha256=digest(state_file),implementations=before,features=package['features'],enabled_keys=sorted(enabled_keys),base_stats=basis,base_load_bits=base_load_bits,levels=levels,presets=presets,title_info=titles,skills=rows,attendance=attendance)
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--state',required=True);args=p.parse_args()
  root=pathlib.Path.cwd();out=pathlib.Path(args.output).resolve();private=(root/'.cache/private-content').resolve()

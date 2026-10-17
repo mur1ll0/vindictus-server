@@ -34,5 +34,9 @@
   "feature_matrix": {
     "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
     "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+  },
+  "load_info": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/CharacterBaseLoadInfo.cs",
+    "sha256": "a0e4bf8da33f934df25fb311aba710ecd2e09e46f26377a1fff725e3a88f4f48"
   }
 }

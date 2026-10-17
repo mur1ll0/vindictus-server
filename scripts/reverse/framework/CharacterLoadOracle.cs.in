@@ -1,0 +1,46 @@
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;
+public class CharacterStats{public int Value;}
+public class EquippedItemInfo{}
+public class Info{public byte Class=1;public int Level=1;}
+public class Character{public Info CharacterInfo=new Info();}
+public class Skills{public SkillEffect Effect=new SkillEffect();}
+public class Entity{public Skills Skills=new Skills();}
+public class SkillEffect{
+ public int Bonus;public int Calls;public bool Fail;
+ private int Arg(string skill,string key){return Bonus;}
+ __MEDIUM__
+ public void ApplyItemSkills(CharacterStats set,IList<EquippedItemInfo> gear,out CharacterStats stat,out double weight,out Dictionary<int,int> hp,out IDictionary<int,int> def){
+  Calls++;if(Fail)throw new InvalidOperationException();
+  if(gear.Count!=0)throw new InvalidOperationException("nonempty gear excluded");
+  stat=new CharacterStats{Value=set.Value};weight=0;hp=new Dictionary<int,int>();def=new Dictionary<int,int>();
+ }
+}
+public static class CharacterContents{
+ private static Dictionary<byte,Dictionary<int,double>> baseLoad;
+ public static int Calls;public static bool Fail;
+ __BASE__
+ __HEAVY__
+ public static void Init(double value,int present){baseLoad=new Dictionary<byte,Dictionary<int,double>>();if(present>0)baseLoad[1]=new Dictionary<int,double>();if(present>1)baseLoad[1][1]=value;}
+ public static double MeasuredBase(byte c,int l){Calls++;if(Fail)throw new InvalidOperationException();return GetMediumLoadWeight(c,l);}
+}
+public class StatManager{
+ public Entity CharacterEntity=new Entity();public Character Character=new Character();
+ private CharacterStats SetBonusStat=new CharacterStats{Value=-7};
+ private IList<EquippedItemInfo> EquippedItemInfo;
+ private CharacterStats ItemStat;private double TotalWeight,MediumLoad,HeavyLoad,LoadPenalty;private Dictionary<int,int> armorHPMap;private IDictionary<int,int> itemDefMap;
+ __CALCULATE__
+ public static object Run(int i){
+  double[] values={-1,0,-0.0,1,0.1,0.2,1234.5,-1234.5,double.Epsilon,-double.Epsilon,double.MaxValue,-double.MaxValue,1e300,-1e300,1e-300,-1e-300};
+  double value=values[(i/8)%values.Length];int[] bonus={0,1,-1,int.MaxValue,int.MinValue,19,-19};int b=bonus[(i/3)%bonus.Length];
+  int present=i%3;var m=new StatManager();m.ItemStat=i%4==0?null:new CharacterStats{Value=-99};m.TotalWeight=-2;m.MediumLoad=-3;m.HeavyLoad=-4;m.LoadPenalty=-5;
+  bool oldGear=i%2==0,newGear=i%4<2,newSet=i%5<3;if(oldGear)m.EquippedItemInfo=new List<EquippedItemInfo>();
+  if(i>=384){ulong u=unchecked((ulong)i*6364136223846793005UL+1442695040888963407UL);u=(u&0xfffffffffffffUL)|((ulong)(1000+i%40)<<52);if(i%2==0)u|=0x8000000000000000UL;value=BitConverter.Int64BitsToDouble(unchecked((long)u));b=unchecked(i*10000019+321);present=2;newGear=true;newSet=true;}
+  CharacterContents.Init(value,present);CharacterContents.Calls=0;CharacterContents.Fail=i%13==0;m.CharacterEntity.Skills.Effect.Bonus=b;m.CharacterEntity.Skills.Effect.Fail=false;
+  bool error=false;try{m.CalculateItemStat(newSet?new CharacterStats{Value=i}:null,newGear?new List<EquippedItemInfo>():null);}catch(InvalidOperationException){error=true;}
+  return new{base_bits=Bits(value),present=present,bonus=b,old_gear=oldGear,new_gear=newGear,new_set=newSet,set_value=i,old_item_present=i%4!=0,base_fail=CharacterContents.Fail,item_fail=m.CharacterEntity.Skills.Effect.Fail,error=error,
+   stored_set=m.SetBonusStat.Value,gear_known=m.EquippedItemInfo!=null,item_value=m.ItemStat==null?(int?)null:m.ItemStat.Value,weight_bits=Bits(m.TotalWeight),medium_bits=Bits(m.MediumLoad),heavy_bits=Bits(m.HeavyLoad),penalty=(int)m.LoadPenalty,
+   hp_present=m.armorHPMap!=null,def_present=m.itemDefMap!=null,item_calls=m.CharacterEntity.Skills.Effect.Calls,base_calls=CharacterContents.Calls};
+ }
+ public static string Bits(double v){return BitConverter.DoubleToInt64Bits(v).ToString("x16");}
+}
+public static class Oracle{public static void Main(){var cases=new List<object>();for(int i=0;i<640;i++)cases.Add(StatManager.Run(i));Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(cases));}}

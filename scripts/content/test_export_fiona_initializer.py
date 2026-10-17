@@ -16,6 +16,7 @@ class FionaInitializerExportTests(unittest.TestCase):
    target.write_text(text,encoding='utf-8')
   with contextlib.closing(sqlite3.connect(self.db))as c:
    c.executescript("""CREATE TABLE CharacterClassInfo(Identifier,Level,Feature,BaseSTR,BaseDEX,BaseINT,BaseWILL,BaseHP,BaseSTAMINA);
+CREATE TABLE CharacterBaseLoadInfo(Character,Level,BaseCharacterLoadWeight);INSERT INTO CharacterBaseLoadInfo VALUES(1,1,123.5);
 CREATE TABLE LevelUpExpInfo(Level,RequiredExp,Feature);CREATE TABLE TitleInfo(ID,AutoGiveLevel,ClassRestriction,Feature);
 CREATE TABLE DefaultSkillInfo(CharacterClass,SkillID,Rank);CREATE TABLE SkillInfo(SkillID,ClassRestriction,UseType);
 CREATE TABLE SkillRankInfo(SkillID,Rank,LevelConstraint,Feature,RequiredAP,RequireUnlock,StatusEffectType_01,StatusEffectType_02,StatusEffectType_03);
@@ -56,4 +57,15 @@ INSERT INTO SkillArgumentInfo VALUES('synthetic_skill',2,'synthetic_arg',7);INSE
   with contextlib.closing(sqlite3.connect(self.db))as c:c.execute('UPDATE SkillArgumentInfo SET KeyWord=?',('x'*513,));c.commit()
   with self.assertRaises(ValueError):self.package()
   self.assertEqual(subject.argument_text('\ud800'),'00d8')
+ def test_base_load_double_bits_fallback_and_dictionary_provider_guards(self):
+  self.assertEqual(self.package()['base_load_bits'],'405ee00000000000')
+  with contextlib.closing(sqlite3.connect(self.db))as c:c.execute('DELETE FROM CharacterBaseLoadInfo');c.commit()
+  self.assertEqual(self.package()['base_load_bits'],'bff0000000000000')
+  with contextlib.closing(sqlite3.connect(self.db))as c:c.execute('INSERT INTO CharacterBaseLoadInfo VALUES(1,1,0.1)');c.commit()
+  self.assertEqual(self.package()['base_load_bits'],'3fb999999999999a')
+  with contextlib.closing(sqlite3.connect(self.db))as c:c.execute('INSERT INTO CharacterBaseLoadInfo SELECT * FROM CharacterBaseLoadInfo');c.commit()
+  with self.assertRaises(ValueError):self.package()
+  for bad in [None,'invalid',float('inf')]:
+   with contextlib.closing(sqlite3.connect(self.db))as c:c.execute('DELETE FROM CharacterBaseLoadInfo');c.execute('INSERT INTO CharacterBaseLoadInfo VALUES(1,1,?)',(bad,));c.commit()
+   with self.assertRaises(ValueError):self.package()
 if __name__=='__main__':unittest.main()

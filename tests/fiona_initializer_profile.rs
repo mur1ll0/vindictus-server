@@ -214,3 +214,27 @@ fn maximum_ap_policy_requires_exported_key_and_keeps_source_parsing_lazy() {
     let p = read(&v).unwrap();
     assert!(p.maximum_ap().is_err());
 }
+
+#[test]
+fn base_load_projection_requires_canonical_finite_double_bits() {
+    let mut v = synthetic();
+    assert_eq!(read(&v).unwrap().base_load().value(), 123.5);
+    for bits in [
+        "405EE00000000000",
+        "7ff0000000000000",
+        "fff0000000000000",
+        "7ff8000000000000",
+        "not-bits",
+        "0",
+    ] {
+        v["base_load_bits"] = json!(bits);
+        assert!(read(&v).is_err());
+    }
+    v["base_load_bits"] = json!("8000000000000000");
+    assert_eq!(
+        read(&v).unwrap().base_load().value().to_bits(),
+        (-0.0_f64).to_bits()
+    );
+    v.as_object_mut().unwrap().remove("base_load_bits");
+    assert!(read(&v).is_err());
+}

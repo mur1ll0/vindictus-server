@@ -2,6 +2,7 @@
 use crate::{
     domain::{
         character_base_stats::BaseStats,
+        character_load::BaseLoad,
         feature_policy::FeaturePolicy,
         legacy_user_data::{LegacyBytes, SqlDateTime2},
     },
@@ -114,6 +115,7 @@ struct Export {
     features: Vec<Feature>,
     enabled_keys: Vec<String>,
     base_stats: [i32; 6],
+    base_load_bits: String,
     levels: Vec<Level>,
     presets: Vec<Preset>,
     title_info: Vec<Title>,
@@ -182,6 +184,7 @@ pub struct Profile {
     config: String,
     state: [u8; 32],
     basis: [i32; 6],
+    base_load: BaseLoad,
     level_exp: i32,
     presets: Vec<i32>,
     skills: Vec<InitialSkill>,
@@ -403,11 +406,23 @@ impl Profile {
                 return Err(fail());
             }
         }
+        if r.base_load_bits.len() != 16
+            || !r
+                .base_load_bits
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(fail());
+        }
+        let base_load =
+            BaseLoad::from_bits(u64::from_str_radix(&r.base_load_bits, 16).map_err(|_| fail())?)
+                .map_err(|_| fail())?;
         Ok(Self {
             db: r.database_sha256,
             config: r.config_sha256,
             state: hash_bytes(r.state_sha256)?,
             basis: r.base_stats,
+            base_load,
             level_exp,
             presets,
             skills,
@@ -425,6 +440,9 @@ impl Profile {
     }
     pub fn source_state(&self) -> &[u8; 32] {
         &self.state
+    }
+    pub fn base_load(&self) -> BaseLoad {
+        self.base_load
     }
     pub fn base_stats(&self, title_contribution: [i32; 7]) -> BaseStats {
         BaseStats::compose(self.basis, title_contribution)
