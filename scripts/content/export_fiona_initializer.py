@@ -22,6 +22,12 @@ def text(v):
  b=v.encode('utf-16-le',errors='surrogatepass')
  if len(b)>100:raise ValueError('Initializer text bound')
  return b.hex()
+def argument_text(v):
+ if not isinstance(v,str):raise ValueError('Skill argument key type')
+ b=v.encode('utf-16-le',errors='surrogatepass')
+ if len(b)>1024:raise ValueError('Skill argument key bound')
+ return b.hex()
+
 def boolean(v):
  # Original BIT provider returns System.Boolean and GetString throws, measured x86/x64.
  if type(v)is not int or v not in(0,1):raise ValueError('Initializer provider BIT profile')
@@ -80,7 +86,7 @@ def read_package(database,config,source_dir,state_file):
    constraints=list(db.execute('SELECT RequiredSkillId,RequiredRank FROM SkillConstraintInfo WHERE SkillId=? AND Rank=?',(key,rank)))
    arguments=[dict(a)for a in db.execute('SELECT * FROM SkillArgumentInfo WHERE SkillId=? AND Rank=?',(key,rank))]
    arg_hash=hashlib.sha256(json.dumps(arguments,ensure_ascii=True,separators=(',',':')).encode()).hexdigest()
-   rows.append(dict(id_utf16=text(key),rank=rank,class_restriction=integer(infos[0]['ClassRestriction']),use_type=integer(infos[0]['UseType']),level_constraint=integer(r['LevelConstraint']),rank_feature=feature(r['Feature']),constraints=[dict(id_utf16=text(c['RequiredSkillId']),rank=integer(c['RequiredRank']))for c in constraints],next_rank=None if nxt is None else dict(required_ap=integer(nxt['RequiredAP']),require_unlock=boolean(nxt['RequireUnlock'])),status_effect_types=[r['StatusEffectType_0'+str(n)]for n in(1,2,3)],item_callback=key in item_skills,stat_callback=key in stat_skills,meditation=key=='skill_meditation',argument_rows=len(arguments),argument_sha256=arg_hash))
+   rows.append(dict(id_utf16=text(key),rank=rank,class_restriction=integer(infos[0]['ClassRestriction']),use_type=integer(infos[0]['UseType']),level_constraint=integer(r['LevelConstraint']),rank_feature=feature(r['Feature']),constraints=[dict(id_utf16=text(c['RequiredSkillId']),rank=integer(c['RequiredRank']))for c in constraints],next_rank=None if nxt is None else dict(required_ap=integer(nxt['RequiredAP']),require_unlock=boolean(nxt['RequireUnlock'])),status_effect_types=[r['StatusEffectType_0'+str(n)]for n in(1,2,3)],item_callback=key in item_skills,stat_callback=key in stat_skills,meditation=key=='skill_meditation',argument_rows=len(arguments),argument_sha256=arg_hash,arguments=[dict(key_utf16=None if a["KeyWord"] is None else argument_text(a["KeyWord"]),value=None if a["Value"] is None else integer(a["Value"]))for a in arguments]))
   if len(rows)>256:raise ValueError('Default skill count bound')
   attendance=[dict(version=integer(r['AttendanceEventVer']),date_from_ticks=date_ticks(r['DateFrom']),date_until_ticks=date_ticks(r['DateUntil']))for r in db.execute('SELECT AttendanceEventVer,DateFrom,DateUntil FROM AttendanceEvent')]
   if len(attendance)>4096 or len(attendance)!=len(set(r['version']for r in attendance)):raise ValueError('Attendance dictionary profile')

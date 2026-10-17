@@ -49,3 +49,12 @@ Exit code:0.
 Output summary:296 Rust passed;149 native PostgreSQL passed,0 ignored;38 Python passed. Six new PG scenarios cover complete appearance fields,ordering,partial failure,ownership changes and concurrency. Existing Framework appearance/body/alias fixtures pass. Original locked Docker build/schema24/readiness/account/duplicate/nonroot/restart and existing preservation checks pass.
 Warnings:none. Errors:none. Verdict:PASS for internal components only.
 Remaining:per-skill/title/APtime/stat/observable callbacks;complete ItemProxy second save/Undo/appearance-failure ledgers;LoginLogout/Summary/creation lifecycle/compensation/reconciliation;TCP Create and real client creation/relogin;selection/city/movement;complete migration. No native frontend refresh or client compatibility claim. Evidence:docs/fiona-customization.md,auth/fiona-customization.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.6 — source skill cache and per-grant callback boundary
+Claim:cache mutations and internal hook ordering;not complete runtime callbacks or client Create.
+Command:pwsh -File scripts/dev/verify.ps1 -DatabaseIntegration;generate-skill-cache-fixtures.ps1;docker compose build --quiet server;docker compose up -d --wait server;smoke-docker.ps1;existing import scripts -Mode Verify.
+Executed:2026-10-17T02:16:03.9402149+00:00 (gate);2026-10-17T02:16:58.0521453+00:00 (Docker smoke).
+Exit code:0.
+Output summary:300 Rust passed;152 native PostgreSQL passed,0 ignored;39 Python passed. Four new Rust/three PG/one Python tests. Oracle120cases per Framework architecture;provider/world/AP/multicast dependencies instrumented. Private profile2skills/5arguments validated with synthetic clock/allocator,noDB/client. Docker locked build/schema24/readiness/account/duplicate/nonroot/restart and prior preservation checks passed.
+Warnings:none. Errors:none. Verdict:PASS for internal components only.
+Remaining:Stat/Item/AP-time/multicast/observables,title effects,full interleaved GiveSkill/initializer,ItemProxy/Undo/failure ledgers,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate;real client creation/relogin/selection/city/movement;full migration. Evidence:docs/skill-runtime-cache.md,auth/skill-runtime-cache.json,framework-skill-cache.json,gate.json,docker-smoke.json. Full logs:.cache/verification.

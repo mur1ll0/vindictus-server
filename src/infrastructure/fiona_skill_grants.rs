@@ -17,6 +17,7 @@ pub struct Grant {
     name: zeroize::Zeroizing<Vec<u8>>,
     rank: i32,
     required_ap: i32,
+    arguments: Vec<crate::domain::skill_runtime::Argument>,
     item_callback: bool,
     stat_callback: bool,
 }
@@ -32,6 +33,9 @@ impl Grant {
     }
     pub fn required_ap(&self) -> i32 {
         self.required_ap
+    }
+    pub fn arguments(&self) -> &[crate::domain::skill_runtime::Argument] {
+        &self.arguments
     }
     pub fn item_callback(&self) -> bool {
         self.item_callback
@@ -63,6 +67,7 @@ pub fn prepare(
             name: zeroize::Zeroizing::new(skill.key().to_vec()),
             rank: skill.rank(),
             required_ap: skill.required_ap(),
+            arguments: skill.arguments().to_vec(),
             item_callback: skill.item_callback(),
             stat_callback: skill.stat_callback(),
         });
@@ -96,6 +101,18 @@ pub async fn save(
     cid: i64,
     prepared: &Prepared,
 ) -> Result<Outcome, StateError> {
+    save_with_callbacks(pool, key, cid, prepared, |_| Ok(())).await
+}
+/// Execute each caller-owned runtime callback after that skill's independent log and
+/// before the next skill or Submit. Hook completion does not certify complete entity effects.
+/// Cancellation/failure can retain logs and in-memory effects without committed skill rows.
+pub async fn save_with_callbacks(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    cid: i64,
+    prepared: &Prepared,
+    mut callback: impl FnMut(&Grant) -> Result<(), StateError>,
+) -> Result<Outcome, StateError> {
     tokio::time::timeout(std::time::Duration::from_secs(30),async{
   let mut tx=state::owned_first_fiona(pool,key,cid).await?;
   let binding:Option<Vec<u8>>=sqlx::query_scalar("SELECT source_sha256 FROM game_character_state_preservation WHERE singleton").fetch_one(&mut *tx).await?;
@@ -110,7 +127,7 @@ pub async fn save(
   }
   let mut written=0;let mut failed=0;let deadline=tokio::time::Instant::now()+std::time::Duration::from_secs(15);
   // GiveSkill attempts each log before the single original SubmitChanges. Keep independent commits.
-  for row in &prepared.rows{if logs::give_skill(pool,&row.name,row.rank,deadline).await{written+=1}else{failed+=1}}
+  for row in &prepared.rows{if logs::give_skill(pool,&row.name,row.rank,deadline).await{written+=1}else{failed+=1};callback(row)?}
   for row in &prepared.rows{sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,$4,0,0)").bind(row.id).bind(cid).bind(row.name.as_slice()).bind(row.rank).execute(&mut *tx).await?;}
   tx.commit().await?;Ok(Outcome{inserted:prepared.rows.len(),logs_written:written,logs_failed:failed,runtime_callbacks_required:!prepared.rows.is_empty(),source_operation_failed:false})
  }).await.map_err(|_|StateError::Timeout)?

@@ -338,3 +338,92 @@ async fn original_title_preset_storage_failure_is_caught_without_events_or_obser
     );
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn default_grant_callbacks_run_per_log_before_submit_and_replay_never_repeats_them() {
+    use vindictus_server::domain::skill_runtime::Cache;
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    let batch = prepared();
+    let mut cache = Cache::default();
+    let mut seen = Vec::new();
+    let o = grants::save_with_callbacks(&p, &owner(), 1, &batch, |row| {
+        seen.push(row.id());
+        cache
+            .after_grant(row.key(), row.rank(), row.required_ap(), row.arguments())
+            .map_err(|_| StateError::Profile)
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        seen,
+        batch.rows().iter().map(|r| r.id()).collect::<Vec<_>>()
+    );
+    assert_eq!((o.inserted, o.logs_written, cache.rank_sum()), (2, 2, 10));
+    assert!(o.runtime_callbacks_required); // A hook is not a full Stat/AP/observable implementation.
+    let o = grants::save_with_callbacks(&p, &owner(), 1, &batch, |_| {
+        panic!("replay repeated callbacks")
+    })
+    .await
+    .unwrap();
+    assert_eq!(o.inserted, 0);
+    assert_eq!(counts(&p).await, (2, 2, 0));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn default_grant_callbacks_failure_stops_before_next_log_and_keeps_prior_cache_and_logs() {
+    use vindictus_server::domain::skill_runtime::Cache;
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    let batch = prepared();
+    let mut cache = Cache::default();
+    let mut seen = 0;
+    let result = grants::save_with_callbacks(&p, &owner(), 1, &batch, |row| {
+        seen += 1;
+        cache
+            .after_grant(row.key(), row.rank(), row.required_ap(), row.arguments())
+            .map_err(|_| StateError::Profile)?;
+        Err(StateError::Profile)
+    })
+    .await;
+    assert!(matches!(result, Err(StateError::Profile)));
+    assert_eq!((seen, cache.rank_sum()), (1, 4));
+    assert_eq!(counts(&p).await, (0, 1, 0));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn default_grant_callbacks_survive_logger_failure_and_precede_late_submit_failure() {
+    use vindictus_server::domain::skill_runtime::Cache;
+    for reject_submit in [false, true] {
+        let (a, p, s) = isolated_game_pool().await;
+        setup(&p).await;
+        if reject_submit {
+            sqlx::query("ALTER TABLE game_skills ADD CONSTRAINT reject_after_callbacks CHECK(false) NOT VALID").execute(&p).await.unwrap();
+        } else {
+            reject_logs(&p).await;
+        }
+        let batch = prepared();
+        let mut cache = Cache::default();
+        let mut seen = 0;
+        let result = grants::save_with_callbacks(&p, &owner(), 1, &batch, |row| {
+            seen += 1;
+            cache
+                .after_grant(row.key(), row.rank(), row.required_ap(), row.arguments())
+                .map_err(|_| StateError::Profile)
+        })
+        .await;
+        assert_eq!((seen, cache.rank_sum()), (2, 10));
+        if reject_submit {
+            assert!(matches!(result, Err(StateError::Database(_))));
+            assert_eq!(counts(&p).await, (0, 2, 0));
+        } else {
+            let outcome = result.unwrap();
+            assert_eq!((outcome.inserted, outcome.logs_failed), (2, 2));
+            assert_eq!(counts(&p).await, (2, 0, 0));
+        }
+        cleanup_game_pool(a, p, s).await;
+    }
+}

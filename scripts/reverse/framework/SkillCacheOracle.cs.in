@@ -1,0 +1,33 @@
+using System;using System.Linq;using System.Collections.Generic;using System.Web.Script.Serialization;
+public class Skill{public string SkillID;public int Rank;}
+public class SkillRankInfo{public int Rank;}
+public class SkillArgumentInfo{public string KeyWord;public int? Value;}
+public class Character{public List<Skill> Skill=new List<Skill>();}
+public static class DictionaryExtension{public static int TryGetValue(this Dictionary<string,int> d,string k){int v;return d.TryGetValue(k,out v)?v:0;}}
+public static class CharacterContents{public static List<SkillArgumentInfo> Rows;public static IEnumerable<SkillArgumentInfo> GetSkillArgumentInfo(string id,int rank){return Rows;}}
+public class Entity{public List<string> Events=new List<string>();public void ProcessGuildScoreEvent(string e,string id,int rank,int n){Events.Add("guild");}public void PushSkillList(bool isVocationReset){Events.Add("skills");}public void PushAPMessage(){throw new Exception("meditation outside this oracle");}}
+public class AP{public void CalculateBonusAPTime(){throw new Exception("meditation outside this oracle");}}
+public class SkillEffect{
+ public Manager Skills;private Dictionary<string,Dictionary<string,int>> SkillArguments=new Dictionary<string,Dictionary<string,int>>();
+ public static bool IsMeditation(string id){return false;}
+ __UPDATE__
+ __ARG__
+ public int Read(string id,string key,int value){return Arg(id,key,value);}
+}
+public class Manager{
+ public Character Character=new Character();public Dictionary<string,int> BaseSkillRank=new Dictionary<string,int>();public int SkillRankSum;public SkillEffect Effect;public Entity CharacterEntity=new Entity();public AP AP=new AP();public bool Known=true;
+ public Manager(){Effect=new SkillEffect{Skills=this};}
+ public SkillRankInfo GetFinalSkillRankInfo(string id){return Known?new SkillRankInfo{Rank=1}:null;}
+ public Skill GetSkill(string id){return Character.Skill.SingleOrDefault(x=>x.SkillID==id);}
+ __LOAD__
+ __RANK__
+ public void Fire(string id,int from,int to){OnSkillRankChanged(id,from,to);}
+}
+public static class Oracle{public static void Main(){var cases=new List<object>();for(int i=0;i<120;i++){
+ var m=new Manager();int? old=i%2==0?(int?)(i%7-3):null;if(old.HasValue){m.BaseSkillRank["synthetic"]=old.Value;m.SkillRankSum=old.Value;}
+ CharacterContents.Rows=new List<SkillArgumentInfo>{new SkillArgumentInfo{KeyWord="A",Value=19}};m.Effect.UpdateSkillArgument("synthetic");
+ int from=i%11==0?int.MinValue:(old??0);int to=i%13==0?int.MaxValue:i%20;int? current=i%7==0?(int?)null:to;if(current.HasValue)m.Character.Skill.Add(new Skill{SkillID="synthetic",Rank=current.Value});
+ int kind=i%8;var rows=new List<SkillArgumentInfo>();if(kind!=2)rows.Add(new SkillArgumentInfo{KeyWord=kind==1?"other":kind==6?null:"A",Value=kind==5?(int?)null:i});if(kind==4)rows.Add(new SkillArgumentInfo{KeyWord="A",Value=2});if(kind==7)rows.Add(new SkillArgumentInfo{KeyWord="a",Value=3});CharacterContents.Rows=rows;m.Known=kind!=3;
+ bool error=false;try{m.Fire("synthetic",from,to);}catch(ArgumentException){error=true;}catch(InvalidOperationException){error=true;}
+ int rank;cases.Add(new{initial_rank=old,current_rank=current,rank_from=from,rank_to=to,known_final=m.Known,arguments=rows.Select(x=>new{key=x.KeyWord,value=x.Value}).ToArray(),error=error,rank=m.BaseSkillRank.TryGetValue("synthetic",out rank)?rank:-1,rank_sum=m.SkillRankSum,arg_a=m.Effect.Read("synthetic","A",-123),arg_missing=m.Effect.Read("synthetic","missing",-9),events=m.CharacterEntity.Events});
+ }Console.WriteLine(new JavaScriptSerializer().Serialize(cases));}}

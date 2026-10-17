@@ -62,3 +62,5 @@ pub mod item_durability;
 pub mod item_stats;
 
 pub mod item_logs;
+
+pub mod skill_runtime;

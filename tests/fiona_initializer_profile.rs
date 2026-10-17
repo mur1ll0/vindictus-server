@@ -153,3 +153,45 @@ fn recorded_comparisons_are_bounded_conflict_checked_and_instance_local() {
             .is_err()
     );
 }
+
+#[test]
+fn initializer_arguments_are_required_bounded_and_preserved_for_runtime_provider_checks() {
+    use vindictus_server::domain::skill_runtime::{Cache, CacheError};
+    let p = read(&synthetic()).unwrap();
+    let skill = &p.skills()[0];
+    let mut cache = Cache::default();
+    cache
+        .after_grant(
+            skill.key(),
+            skill.rank(),
+            skill.required_ap(),
+            skill.arguments(),
+        )
+        .unwrap();
+    assert_eq!(cache.argument(skill.key(), &[65, 0], 0), 7);
+    for mode in 0..4 {
+        let mut v = synthetic();
+        match mode {
+            0 => {
+                v["skills"][0].as_object_mut().unwrap().remove("arguments");
+            }
+            1 => v["skills"][0]["argument_rows"] = json!(3),
+            2 => v["skills"][0]["arguments"][0]["key_utf16"] = json!("0"),
+            _ => v["skills"][0]["arguments"][0]["key_utf16"] = json!("00".repeat(1026)),
+        };
+        assert!(read(&v).is_err());
+    }
+    let mut v = synthetic();
+    v["skills"][0]["arguments"][0]["value"] = json!(null);
+    let p = read(&v).unwrap();
+    let skill = &p.skills()[0];
+    assert_eq!(
+        cache.after_grant(
+            skill.key(),
+            skill.rank(),
+            skill.required_ap(),
+            skill.arguments()
+        ),
+        Err(CacheError::Null)
+    );
+}

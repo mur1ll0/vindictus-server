@@ -1,0 +1,84 @@
+{
+  "stage": "M15.1b.2e.10b.6",
+  "verified_at_utc": "2026-10-17T02:17:07.371028+00:00",
+  "schema": 24,
+  "rust_passed": 300,
+  "postgres_executed": 152,
+  "postgres_ignored": 0,
+  "python_passed": 39,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 4,
+  "new_postgres_tests": 3,
+  "new_python_tests": 1,
+  "oracle_cases_per_architecture": 120,
+  "oracle_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "reference_sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillManager.cs",
+      "sha256": "92008377c12280ae6fdc7d422a8855a159713d81463ea4f0b48f1094cc0b46cb"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+      "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+    },
+    {
+      "path": "scripts/reverse/framework/SkillCacheOracle.cs.in",
+      "sha256": "18fdbcd4a4478858fc1654758ab10117630a52bc3fb3fc86b3a69b0a21d5e699"
+    },
+    {
+      "path": "scripts/reverse/generate-skill-cache-fixtures.ps1",
+      "sha256": "28906a15fba1db643a4426ceaa539375731a49a35b514f24cf365b0f88f95025"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContents.cs",
+      "sha256": "6bc2e3fa29ca1c3bf1b2bdb27af3445ed50717225905a059090c18067690aefe"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/SkillArgumentInfo.cs",
+      "sha256": "7382510cf3fcb8aeefb1f878750e8bd0f9f965406e0b448d5a12bc2673c21614"
+    }
+  ],
+  "oracle_scope": "original LoadBaseSkillRank/OnSkillRankChanged/UpdateSkillArgument/Arg;final-rank/provider and AP/guild/list/actor dependencies instrumented;no stat/multicast/network runtime",
+  "scope": "private skill arguments;rank/argument/required-AP cache prefix;per-skill hook after log before next grant and Submit;not complete runtime callbacks/entity",
+  "rank_sum_double_delta_preserved": true,
+  "argument_absent_dictionary_default_differs_from_missing_keyword": true,
+  "partial_cache_failure_retained": true,
+  "private_diagnostic": {
+    "skills": 2,
+    "arguments": 5,
+    "profile_bound": true,
+    "synthetic_allocator_clock": true,
+    "database_opened": false,
+    "private_payload_disclosed": false
+  },
+  "full_runtime_callbacks_implemented": false,
+  "native_frontend_refreshed": false,
+  "real_client_tested": false,
+  "character_creation_available": false,
+  "private_payload_published": false,
+  "push_performed": false,
+  "logs": [
+    ".cache/verification/skill-cache-final-gate.log",
+    ".cache/verification/skill-cache-pg-focused.log",
+    ".cache/verification/skill-cache-oracle.log",
+    ".cache/verification/skill-cache-operations.log"
+  ],
+  "remaining": [
+    "Stat/Item/AP-time/multicast/observables",
+    "title cache and effects",
+    "full interleaved GiveSkill/initializer",
+    "ItemProxy second save/Undo/failure ledgers",
+    "LoginLogout/Summary/lifecycle/compensation/reconciliation/TCP Create",
+    "real client creation/relogin/selection/city/movement",
+    "complete M01-M24 migration"
+  ],
+  "private_provider_order_verified": true,
+  "private_provider_order_log": ".cache/verification/skill-cache-provider-order.log",
+  "full_gate_sha256": "8c4f1c68b54eb99c09cb79ef36b7d0f67a63a0f9a412c8d12889f26549997542",
+  "docker_smoke_sha256": "f620230126bb73ea25df2957a951c76a8d7353b6e4c42d79ab370187bdc56572",
+  "verification_evidence_hash_scope": "Git-staged verification JSON bytes"
+}

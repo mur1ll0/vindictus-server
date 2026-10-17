@@ -68,6 +68,14 @@ struct Next {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct Argument {
+    #[serde(deserialize_with = "nullable")]
+    key_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    value: Option<i32>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Skill {
     id_utf16: PrivateText,
     rank: i32,
@@ -84,6 +92,7 @@ struct Skill {
     stat_callback: bool,
     meditation: bool,
     argument_rows: usize,
+    arguments: Vec<Argument>,
     argument_sha256: String,
 }
 #[derive(Deserialize)]
@@ -144,6 +153,7 @@ pub struct InitialSkill {
     key: LegacyBytes<50, true>,
     rank: i32,
     required_ap: i32,
+    arguments: Vec<crate::domain::skill_runtime::Argument>,
     item_callback: bool,
     stat_callback: bool,
 }
@@ -156,6 +166,9 @@ impl InitialSkill {
     }
     pub fn required_ap(&self) -> i32 {
         self.required_ap
+    }
+    pub fn arguments(&self) -> &[crate::domain::skill_runtime::Argument] {
+        &self.arguments
     }
     pub fn item_callback(&self) -> bool {
         self.item_callback
@@ -352,6 +365,7 @@ impl Profile {
                 || s.status_effect_types.iter().any(Option::is_some)
                 || s.meditation
                 || s.argument_rows > 4096
+                || s.argument_rows != s.arguments.len()
                 || !hash(&s.argument_sha256)
                 || s.next_rank.as_ref().is_some_and(|n| n.require_unlock)
             {
@@ -362,7 +376,16 @@ impl Profile {
                 .as_ref()
                 .filter(|n| n.required_ap > 0)
                 .map_or(-1, |n| n.required_ap);
+            let arguments = s
+                .arguments
+                .into_iter()
+                .map(|a| {
+                    let key = a.key_utf16.map(|v| user_export::hex(v, 1024)).transpose()?;
+                    crate::domain::skill_runtime::Argument::new(key, a.value).map_err(|_| fail())
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
             skills.push(InitialSkill {
+                arguments,
                 key: name,
                 rank: s.rank,
                 required_ap,
