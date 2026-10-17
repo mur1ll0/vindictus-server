@@ -2,7 +2,12 @@
 import argparse,contextlib,json,pathlib,re,sqlite3
 from export_item_catalog import read_package as catalog_read,digest
 import export_reward_policy as reward
-def read_package(database,config,implementation):
+MANIFEST_PATH=pathlib.Path(__file__).resolve().parents[2]/'src/domain/fiona_gear_sources.json'
+def source_manifest():
+ return json.loads(MANIFEST_PATH.read_text(encoding='utf-8-sig'))
+def read_package(database,config,implementation,gear_sources):
+ expected={k:v['sha256']for k,v in source_manifest().items()}
+ if gear_sources!=expected:raise ValueError('Initial Gear source implementations changed')
  catalog=catalog_read(database,config);m=catalog['manifest'];before=digest(implementation)
  source=implementation.read_text(encoding='utf-8-sig')
  section=source[source.index('public CustomizeCharacter.Result'):]if 'public CustomizeCharacter.Result'in source else source[source.index('CustomizeCharacter('):]
@@ -19,7 +24,12 @@ def read_package(database,config,implementation):
   # HeroesContentsLoader compares the provider raw string exactly to True.
   if type(v)is not str or v not in('True','False'):raise ValueError('Appearance bool profile')
   return v=='True'
- wanted={'CurrentVer','LanguageTag'}
+ def bit(v):
+  # Original BIT provider returns System.Boolean; GetString throws on both
+  # measured Framework profiles, so HeroesContentsLoader retains the bool value.
+  if type(v)is not int or v not in(0,1):raise ValueError('EquipPartInfo BIT storage profile')
+  return v==1
+ wanted={'CurrentVer','LanguageTag','AvatarSlotBonus','Avatar'}
  def feature(v):
   if v is not None and(not isinstance(v,str)or not v.isascii()or len(v)>512):raise ValueError('Appearance feature bound')
   wanted.update(reward.feature_atoms(v));return v
@@ -40,7 +50,9 @@ def read_package(database,config,implementation):
    equips.append(dict(source_index=i,item_utf16=text(r['ItemClass']),feature=feature(r['Feature']),costume_type=integer(r['CostumeType'])))
   custom=[dict(item_utf16=text(r['ItemClass']),feature=feature(r['Feature']),cash_type=tag(r['CashShopType']),is_cash=boolean(r['IsCash']))for r in rows(db,'CustomizeItemInfo')]
   colors=[dict(category_utf16=text(r['Category']),feature=feature(r['Feature']),cash_type=tag(r['CashShopType']),is_cash=boolean(r['IsCash']),order=integer(r['Order']),color=integer(r['Color']))for r in rows(db,'CustomizeColorInfo')]
-  parts=[dict(category_utf16=text(r['ItemCategory']),equip_part=integer(r['EquipPartNum']),costume_part=None if r['CostumePartNum']is None else integer(r['CostumePartNum']),decoration=r['CostumeCategory']=='Decoration')for r in rows(db,'EquipPartInfo')]
+  column_types={r[1]:r[2].casefold()for r in db.execute('PRAGMA table_info(EquipPartInfo)')}
+  if column_types.get('IsConsumable')!='bit':raise ValueError('EquipPartInfo boolean declared type changed')
+  parts=[dict(consumable=bit(r['IsConsumable']),category_utf16=text(r['ItemCategory']),equip_part=integer(r['EquipPartNum']),costume_part=None if r['CostumePartNum']is None else integer(r['CostumePartNum']),decoration=r['CostumeCategory']=='Decoration')for r in rows(db,'EquipPartInfo')]
  if len(wanted)>256:raise ValueError('Appearance feature subset bound')
  with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
@@ -59,12 +71,14 @@ def read_package(database,config,implementation):
    features.append(dict(key=key,value=value))
 
  if len(equips)!=len(catalog['equips'])or digest(database)!=m['database_sha256']or digest(config)!=m['config_sha256']or digest(implementation)!=before:raise ValueError('Appearance source snapshot changed')
- return dict(format_version=1,source='heroesContents.fiona-appearance',database_sha256=m['database_sha256'],config_sha256=m['config_sha256'],implementation_sha256=before,features=features,equips=equips,custom=custom,colors=colors,parts=parts,inner_item_utf16=text(match.group(1)),inner_colors=[int(match.group(i))for i in (2,3,4)])
+ return dict(format_version=1,source='heroesContents.fiona-appearance',database_sha256=m['database_sha256'],config_sha256=m['config_sha256'],implementation_sha256=before,gear_sources=gear_sources,features=features,equips=equips,custom=custom,colors=colors,parts=parts,inner_item_utf16=text(match.group(1)),inner_colors=[int(match.group(i))for i in (2,3,4)])
 if __name__=='__main__':
  parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);args=parser.parse_args()
  root=pathlib.Path(__file__).resolve().parents[2];base=root.parent/'ServidorVindictus/Server/zh-tw-x-gm/Bin';out=pathlib.Path(args.output).resolve()
  if not out.is_relative_to((root/'.cache/private-content').resolve()):raise ValueError('Private output outside ACL cache')
- p=read_package(base/'heroesContents.db3',base/'ServiceCore.dll.config',root/'legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs')
+ sources={k:digest(root/v['path'])for k,v in source_manifest().items()}
+ p=read_package(base/'heroesContents.db3',base/'ServiceCore.dll.config',root/'legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs',sources)
+ if sources!={k:digest(root/v['path'])for k,v in source_manifest().items()}:raise ValueError('Gear source changed during export')
  data=json.dumps(p,ensure_ascii=True,separators=(',',':'))
  if len(data.encode())>16*1024*1024:raise ValueError('Appearance JSON bound')
  out.write_text(data,encoding='utf-8');print('Appearance snapshot:custom'+str(len(p['custom']))+';colors'+str(len(p['colors']))+';parts'+str(len(p['parts']))+';feature keys'+str(len(p['features']))+';values private;readonly')

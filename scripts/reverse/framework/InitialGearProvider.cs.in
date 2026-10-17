@@ -1,0 +1,17 @@
+using System;using System.Data;using System.Reflection;using System.Collections.Generic;using System.Web.Script.Serialization;
+class Oracle {
+ static void Main(string[] args){
+  var asm=Assembly.LoadFile(args[0]);var type=asm.GetType("System.Data.SQLite.SQLiteConnection",true);
+  using(var conn=(IDbConnection)Activator.CreateInstance(type,new object[]{"Data Source="+args[1]+";Read Only=True;FailIfMissing=True;Pooling=False;"})){
+   conn.Open();using(var cmd=conn.CreateCommand()){
+    cmd.CommandText="PRAGMA query_only=ON";cmd.ExecuteNonQuery();
+    cmd.CommandText="SELECT IsConsumable FROM EquipPartInfo";
+    var rows=new List<object>();using(var reader=cmd.ExecuteReader()){while(reader.Read()){
+     var value=reader[0];bool loaded;bool stringBranch;
+     try{var text=reader.GetString(0);loaded=text=="True";stringBranch=true;}catch{loaded=(bool)value;stringBranch=false;}
+     rows.Add(new{runtime_type=value.GetType().FullName,string_branch=stringBranch,loaded=loaded});
+    }}Console.WriteLine(new JavaScriptSerializer().Serialize(rows));
+   }
+  }
+ }
+}

@@ -62,6 +62,7 @@ struct RawColor {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawPart {
+    consumable: bool,
     #[serde(deserialize_with = "nullable")]
     category_utf16: Option<PrivateText>,
     equip_part: i32,
@@ -77,6 +78,7 @@ struct Export {
     database_sha256: String,
     config_sha256: String,
     implementation_sha256: String,
+    gear_sources: BTreeMap<String, String>,
     features: Vec<Feature>,
     equips: Vec<RawEquip>,
     custom: Vec<RawCustom>,
@@ -105,6 +107,7 @@ struct Color {
     value: i32,
 }
 struct Part {
+    consumable: bool,
     key: Option<LegacyBytes<1024, true>>,
     number: i32,
     costume: Option<i32>,
@@ -152,6 +155,20 @@ impl Profile {
             return Err(fail());
         }
         let r: Export = serde_json::from_slice(&bytes).map_err(|_| fail())?;
+        #[derive(Deserialize)]
+        struct Source {
+            sha256: String,
+        }
+        let known: BTreeMap<String, Source> =
+            serde_json::from_str(include_str!("../domain/fiona_gear_sources.json"))
+                .map_err(|_| fail())?;
+        if r.gear_sources.len() != known.len()
+            || known
+                .iter()
+                .any(|(k, v)| r.gear_sources.get(k) != Some(&v.sha256))
+        {
+            return Err(fail());
+        }
         let hash = |s: &str| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit());
         if r.format_version != 1
             || r.source != "heroesContents.fiona-appearance"
@@ -221,6 +238,7 @@ impl Profile {
             .into_iter()
             .map(|r| {
                 Ok(Part {
+                    consumable: r.consumable,
                     key: item_catalog::opaque(r.category_utf16)?,
                     number: r.equip_part,
                     costume: r.costume_part,
@@ -269,6 +287,42 @@ impl Profile {
             }
         }
         Ok(())
+    }
+    /// Exact empty-slot projection for the fresh creation path, not a stored Gear loader.
+    pub fn initial_gear(
+        &self,
+        catalog: &Catalog,
+    ) -> Result<crate::domain::initial_gear::Projection, Error> {
+        self.bind(catalog)?;
+        // ToSetBonusInfo checks this feature even with no equipped items; num=0
+        // prevents the avatar-set lookup for either measured boolean outcome.
+        if !self.policy.entries().any(|(k, _)| k == "AvatarSlotBonus") {
+            return Err(fail());
+        }
+        self.policy.is_enabled(Some("AvatarSlotBonus"))?;
+        let mut keys = std::collections::BTreeSet::new();
+        let mut rows = Vec::new();
+        for r in &self.parts {
+            let key = r.key.as_ref().ok_or_else(fail)?.as_bytes();
+            if !keys.insert((r.number, key)) {
+                return Err(fail());
+            }
+            rows.push(crate::domain::initial_gear::SlotPart {
+                slot: u8::try_from(r.number).map_err(|_| fail())?,
+                costume_part: r.costume,
+                decoration: r.decoration,
+                consumable: r.consumable,
+            });
+        }
+        let projection =
+            crate::domain::initial_gear::Projection::from_empty_slots(&rows).map_err(|_| fail())?;
+        if projection.gear_slots() > 0 {
+            if !self.policy.entries().any(|(k, _)| k == "Avatar") {
+                return Err(fail());
+            }
+            self.policy.is_enabled(Some("Avatar"))?;
+        }
+        Ok(projection)
     }
     /// General appearance preparation for the admitted class and empty equipped-item set.
     /// None arithmetic admits only results equal in both measured Framework profiles.

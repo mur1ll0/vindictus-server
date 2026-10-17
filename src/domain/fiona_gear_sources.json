@@ -1,0 +1,42 @@
+{
+  "gear": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/Gear.cs",
+    "sha256": "963068da22db6dddb81f1ac7f58f808a7e506aeebbcd594429cf891774d4f9ea"
+  },
+  "slot": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/EquippableSlot.cs",
+    "sha256": "95e9e9f6bbe0a068674f8737883a72f98552a37e737a54e8b7750db6e252b4cb"
+  },
+  "contents": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContents.cs",
+    "sha256": "25962e36e582ae703708c0442137f7ccefad470cfc2410205ccae6dd1b72aa5a"
+  },
+  "item": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+    "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+  },
+  "storage": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/StorageSetting.cs",
+    "sha256": "9bee64a9c26633b9c66e4d3a48ccf2828fce8e3163f4aff32afb72c2133cdeff"
+  },
+  "part": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/EquipPartInfo.cs",
+    "sha256": "d7a17fc30ec4a3041b40848e9b92f8cf84baf613d7299f892207b7a34d62ed92"
+  },
+  "dto": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/EquippedItemInfo.cs",
+    "sha256": "d9446d46bbe3c3747a4e49a393dd85a2cca65430b148d20197290f0406196e18"
+  },
+  "loader": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/HeroesContentsLoader.cs",
+    "sha256": "816f4a467add0e5a2e6631e091433a84d3ab844567ea944316f944f0ede4b940"
+  },
+  "provider_x86": {
+    "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x86/System.Data.SQLite.DLL",
+    "sha256": "49261be7f20c9d9dfd1ff35d71e9f3b1b7de17f65581c67beed43d933f1eb85c"
+  },
+  "provider_x64": {
+    "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x64/System.Data.SQLite.DLL",
+    "sha256": "9866dceb181852eab3735afeebbac1ea7810857201319c2c5a2af4667eaa8d45"
+  }
+}

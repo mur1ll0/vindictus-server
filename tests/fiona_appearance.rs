@@ -198,3 +198,71 @@ fn appearance_projection_matches_original_framework_for_256_boundary_cases() {
         );
     }
 }
+
+#[test]
+fn initial_gear_requires_pinned_sources_consumable_metadata_and_unique_slot_category() {
+    let (c, _, _, _) = fixtures();
+    let catalog = item_catalog::read_package(bytes(&c).as_slice()).unwrap();
+    let mut v = fixture();
+    v["gear_sources"]["gear"] = json!("f".repeat(64));
+    assert!(Profile::read(bytes(&v).as_slice()).is_err());
+    let mut v = fixture();
+    v["parts"][0].as_object_mut().unwrap().remove("consumable");
+    assert!(Profile::read(bytes(&v).as_slice()).is_err());
+    let mut v = fixture();
+    let duplicate = v["parts"][0].clone();
+    v["parts"].as_array_mut().unwrap().push(duplicate);
+    assert!(
+        Profile::read(bytes(&v).as_slice())
+            .unwrap()
+            .initial_gear(&catalog)
+            .is_err()
+    );
+    let mut v = fixture();
+    v["parts"][0]["category_utf16"] = Value::Null;
+    assert!(
+        Profile::read(bytes(&v).as_slice())
+            .unwrap()
+            .initial_gear(&catalog)
+            .is_err()
+    );
+    let mut v = fixture();
+    v["parts"][0]["equip_part"] = json!(256);
+    assert!(
+        Profile::read(bytes(&v).as_slice())
+            .unwrap()
+            .initial_gear(&catalog)
+            .is_err()
+    );
+}
+#[test]
+fn initial_gear_keeps_source_slot_order_and_zero_set_bonus_with_avatar_flags() {
+    let (c, _, _, _) = fixtures();
+    let catalog = item_catalog::read_package(bytes(&c).as_slice()).unwrap();
+    let mut v = fixture();
+    v["parts"] = json!([
+        {"category_utf16":key("a"),"equip_part":9,"costume_part":8,"decoration":false,"consumable":false},
+        {"category_utf16":key("b"),"equip_part":1,"costume_part":7,"decoration":true,"consumable":false},
+        {"category_utf16":key("c"),"equip_part":9,"costume_part":8,"decoration":true,"consumable":false},
+        {"category_utf16":key("d"),"equip_part":5,"costume_part":4,"decoration":false,"consumable":true}
+    ]);
+    for enabled in [Value::Null, json!("")] {
+        for f in v["features"].as_array_mut().unwrap() {
+            if f["key"] == "Avatar" || f["key"] == "AvatarSlotBonus" {
+                f["value"] = enabled.clone();
+            }
+        }
+        let gear = Profile::read(bytes(&v).as_slice())
+            .unwrap()
+            .initial_gear(&catalog)
+            .unwrap();
+        let rows: Vec<_> = gear
+            .rows()
+            .iter()
+            .map(|r| (r.part, r.costume_part, r.decoration))
+            .collect();
+        assert_eq!(rows, vec![(9, 8, false), (1, 7, true)]);
+        assert_eq!(gear.set_bonus().values(), &[0; 25]);
+        assert!(gear.set_skills().is_empty());
+    }
+}

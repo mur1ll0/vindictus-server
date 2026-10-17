@@ -1,0 +1,22 @@
+{
+  "verified_at_utc": "2026-10-17T23:16:37.736904+00:00",
+  "provider": "REA managed static analysis",
+  "confidence": "observed",
+  "artifacts": [
+    {
+      "architecture": "x86",
+      "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x86/System.Data.SQLite.DLL",
+      "sha256": "49261be7f20c9d9dfd1ff35d71e9f3b1b7de17f65581c67beed43d933f1eb85c",
+      "evidence_id": "ev_44b5fa40c09d1764f2d976541a4a6369441da5b234c17fd4f8623a6d2b98e97e"
+    },
+    {
+      "architecture": "x64",
+      "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x64/System.Data.SQLite.DLL",
+      "sha256": "9866dceb181852eab3735afeebbac1ea7810857201319c2c5a2af4667eaa8d45",
+      "evidence_id": "ev_916e3346e2b47c499c810f0718a1fb93828dfdaeb5ea98bbad1b2f7c0a6aab0d"
+    }
+  ],
+  "static_target_executed": false,
+  "scope": "provider architecture and artifact identity only;not original PlayerService deployment bitness or runtime GetString behavior",
+  "full_evidence": ".cache/verification/initial-gear-provider-rea-bundle.json"
+}

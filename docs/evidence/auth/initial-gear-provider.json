@@ -1,0 +1,15 @@
+{
+  "verified_at_utc": "2026-10-17T23:09:02.0950698+00:00",
+  "rows": 201,
+  "true_rows": 141,
+  "runtime_type": "System.Boolean",
+  "GetString_throws": true,
+  "framework_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "reference_unchanged": true,
+  "legacy_service_executed": false,
+  "raw_rows_private": true,
+  "scope": "owned readonly SQLiteConnection query;original HeroesContentsLoader BIT fallback branch"
+}

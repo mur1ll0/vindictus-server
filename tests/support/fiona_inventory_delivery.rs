@@ -372,6 +372,22 @@ async fn fiona_customization_saves_every_appearance_field_only_after_inventory_e
         ),
         (10, 10, 4)
     );
+    assert_eq!(outcome.gear.rows().len(), 1);
+    assert_eq!(
+        outcome
+            .gear
+            .item_stats(&vindictus_server::domain::skill_runtime::Cache::default())
+            .unwrap()
+            .armor_hp
+            .get(&4),
+        Some(&0)
+    );
+    let assigned: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM game_equippables WHERE part IS NOT NULL")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(assigned, 0, "equippable type does not imply equipped Part");
     use vindictus_server::domain::character_costume::Costume;
     #[derive(sqlx::FromRow)]
     struct Row {
@@ -570,6 +586,43 @@ async fn fiona_customization_race_writes_one_inventory_event_and_appearance_set(
             costumes_count(&p).await
         ),
         (4, 4, 3, 10)
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL"]
+async fn fiona_customization_refuses_invalid_slot_metadata_before_inventory_effects() {
+    let (a, p, s) = isolated_game_pool().await;
+    appearance_setup(&p, true).await;
+    let mut inputs = AppearanceInputs::new();
+    let mut v = appearance_fixture::fixture();
+    let duplicate = v["parts"][0].clone();
+    v["parts"].as_array_mut().unwrap().push(duplicate);
+    inputs.profile = vindictus_server::infrastructure::fiona_appearance::Profile::read(
+        serde_json::to_vec(&v).unwrap().as_slice(),
+    )
+    .unwrap();
+    assert!(matches!(
+        customization::customize(
+            &p,
+            &fixture::key(),
+            1,
+            &profile(false),
+            inputs.request(),
+            |_| panic!("delivery must not start")
+        )
+        .await,
+        Err(CustomizationError::Binding(_))
+    ));
+    assert_eq!(
+        (
+            count(&p, "items").await,
+            count(&p, "logs").await,
+            count(&p, "ledgers").await,
+            costumes_count(&p).await
+        ),
+        (0, 0, 0, 0)
     );
     cleanup_game_pool(a, p, s).await;
 }

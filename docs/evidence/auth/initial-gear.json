@@ -1,0 +1,179 @@
+{
+  "stage": "M15.1b.2e.10b.11",
+  "verified_at_utc": "2026-10-17T23:25:09.827884+00:00",
+  "schema": 24,
+  "rust_passed": 325,
+  "postgres_executed": 153,
+  "postgres_ignored": 0,
+  "python_passed": 41,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 5,
+  "new_postgres_tests": 1,
+  "new_python_tests": 1,
+  "scope": "source-bound empty Gear projection and initial set bonus integrated into customization outcome;preflight before delivery;not stat/AP callbacks,native actor or Create",
+  "critical_path_correction": "equippable type is not equipped;fresh factory/storage keep Equippable.Part=NULL;general nonempty Gear/set loader is not an MVP dependency",
+  "oracle_cases_per_architecture": 160,
+  "architecture_different_cases": 0,
+  "duplicate_armor_failure_cases_per_architecture": 49,
+  "reference_sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+      "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/Gear.cs",
+      "sha256": "963068da22db6dddb81f1ac7f58f808a7e506aeebbcd594429cf891774d4f9ea"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/EquippableSlot.cs",
+      "sha256": "95e9e9f6bbe0a068674f8737883a72f98552a37e737a54e8b7750db6e252b4cb"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/CharacterStats.cs",
+      "sha256": "34f6f15beef5bebc596c137a7661ca0a5af44fcd2a35b57a863b83c01bca7250"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/Stats.cs",
+      "sha256": "ca927494856d57b810963c12e365cfdcf3da809a8169b4686b70c1bfd84595c3"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/EquippedItemInfo.cs",
+      "sha256": "d9446d46bbe3c3747a4e49a393dd85a2cca65430b148d20197290f0406196e18"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialGearOracle.cs.in",
+      "sha256": "a760d021171725c669a577d9f6d625815c8255962744f4a3365aa1406bd989b3"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-gear-fixtures.ps1",
+      "sha256": "e46bb72f10e80c5e2d541bf2cbe0b368d6cd0447dae9456297d50fc1c54821a7"
+    }
+  ],
+  "oracle_scope": "original empty-slot ToEquippedItemInfo,GetAvatarPart,ToEquippedItemInfos and ToSetBonusInfo and ApplyItemSkills;empty owner/metadata grouping/feature providers instrumented;not nonempty equipment,Gear loader,SQL or native actor",
+  "profile_sources": {
+    "gear": {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/Gear.cs",
+      "sha256": "963068da22db6dddb81f1ac7f58f808a7e506aeebbcd594429cf891774d4f9ea"
+    },
+    "slot": {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/EquippableSlot.cs",
+      "sha256": "95e9e9f6bbe0a068674f8737883a72f98552a37e737a54e8b7750db6e252b4cb"
+    },
+    "contents": {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContents.cs",
+      "sha256": "25962e36e582ae703708c0442137f7ccefad470cfc2410205ccae6dd1b72aa5a"
+    },
+    "item": {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+      "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+    },
+    "storage": {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/StorageSetting.cs",
+      "sha256": "9bee64a9c26633b9c66e4d3a48ccf2828fce8e3163f4aff32afb72c2133cdeff"
+    },
+    "part": {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/EquipPartInfo.cs",
+      "sha256": "d7a17fc30ec4a3041b40848e9b92f8cf84baf613d7299f892207b7a34d62ed92"
+    },
+    "dto": {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/EquippedItemInfo.cs",
+      "sha256": "d9446d46bbe3c3747a4e49a393dd85a2cca65430b148d20197290f0406196e18"
+    },
+    "loader": {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/HeroesContentsLoader.cs",
+      "sha256": "816f4a467add0e5a2e6631e091433a84d3ab844567ea944316f944f0ede4b940"
+    },
+    "provider_x86": {
+      "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x86/System.Data.SQLite.DLL",
+      "sha256": "49261be7f20c9d9dfd1ff35d71e9f3b1b7de17f65581c67beed43d933f1eb85c"
+    },
+    "provider_x64": {
+      "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x64/System.Data.SQLite.DLL",
+      "sha256": "9866dceb181852eab3735afeebbac1ea7810857201319c2c5a2af4667eaa8d45"
+    }
+  },
+  "additional_source": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/IEnumerableExtension.cs",
+    "sha256": "ef7e5fa777665742a56818458fe33012f1cbd1b6ef0bc72b373b69a797c21343",
+    "scope": "duplicate keys log and overwrite in legacy;explicitly refused by this initializer admission"
+  },
+  "provider_static_identity": "docs/evidence/auth/initial-gear-provider-identity.json",
+  "provider_measurement": {
+    "path": "docs/evidence/auth/initial-gear-provider.json",
+    "owned_sources": [
+      {
+        "path": "scripts/reverse/measure-initial-gear-provider.ps1",
+        "sha256": "ee866ef1c627718857d3b39382647d4287d341c51a78d01370367f91b9fb0810"
+      },
+      {
+        "path": "scripts/reverse/framework/InitialGearProvider.cs.in",
+        "sha256": "94f7c49dd9a3c8bcaeb1d267bce169dcdd476fc407f78dc788857de5620a990c"
+      }
+    ]
+  },
+  "private_diagnostic": {
+    "metadata_rows": 201,
+    "gear_slots": 35,
+    "placeholder_rows": 20,
+    "armor_entries": 12,
+    "prepared_items": 11,
+    "equippable_types": 5,
+    "bag_items": 10,
+    "cash_items": 1,
+    "x86_x64_rust_equal": true,
+    "source_bound": true,
+    "set_bonus_zero_by_empty_equipped_items": true,
+    "reference_flags_instrumented": true,
+    "allocator_rng_clock_synthetic": true,
+    "database_opened": false,
+    "private_payload_disclosed": false
+  },
+  "storage_evidence": "existing customization success test verifies every Equippable.Part remains NULL;new isolated DB test refuses invalid metadata before inventory/log/ledger/costume effects",
+  "admission": "4096 metadata rows;byte slot IDs;unique non-null slot/category keys;128 output records;fresh PreparedInventory,not arbitrary database inventory",
+  "callbacks_executed": false,
+  "native_frontend_refreshed": false,
+  "real_client_tested": false,
+  "character_creation_available": false,
+  "private_payload_published": false,
+  "push_performed": false,
+  "remaining": [
+    "first SaveWithoutSync stat/costume callbacks before appearance/skills;preserve placeholder maps in load/final stats",
+    "ordered skills/title/status/observables/AP and same-character Submit with SqlClient datetime conversion",
+    "ItemProxy second save/Undo/failure paths,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate",
+    "actual Create/relogin/selection/city/movement acceptance",
+    "general Gear/set/avatar/lock/quick-slot loader and complete M01-M24 migration"
+  ],
+  "logs": [
+    ".cache/verification/initial-gear-oracle.log",
+    ".cache/verification/initial-gear-provider.log",
+    ".cache/verification/initial-gear-focused.log",
+    ".cache/verification/initial-gear-pg-focused.log",
+    ".cache/verification/initial-gear-python-focused.log",
+    ".cache/verification/initial-gear-private-diagnostic.log",
+    ".cache/verification/initial-gear-final-gate.log",
+    ".cache/verification/initial-gear-operations.log"
+  ],
+  "verification_receipts": {
+    "gate": {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "f5ffd08e3d5447080ea061f22a9eb3c8e7cb062dba13d596b99f092f1060d0ae",
+      "scope": "Git-staged verification JSON bytes"
+    },
+    "docker-smoke": {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "26f973f6d21d8f93fe63cff804bb47622fcf979bc2b8dbe20cd6daab1ee24a2b",
+      "scope": "Git-staged verification JSON bytes"
+    },
+    "provider": {
+      "path": "docs/evidence/auth/initial-gear-provider.json",
+      "sha256": "8d458ed5aebba957efec5ea2c78ef29fdd4bd8ed804b2ed8129aebbe4744ad40",
+      "scope": "Git-staged verification JSON bytes"
+    },
+    "provider-identity": {
+      "path": "docs/evidence/auth/initial-gear-provider-identity.json",
+      "sha256": "c6e9b95455b35de17646837a68bb8ce62e3156ac1e02ce1af8739654918722ed",
+      "scope": "Git-staged verification JSON bytes"
+    }
+  }
+}

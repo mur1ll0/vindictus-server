@@ -34,6 +34,7 @@ pub enum CustomizationError {
     Binding(#[source] Error),
 }
 pub struct Outcome {
+    pub gear: crate::domain::initial_gear::Projection,
     pub inventory: fiona_inventory_delivery::Outcome,
     pub appearance: Vec<Costume>,
     pub costumes_changed: usize,
@@ -52,7 +53,13 @@ pub async fn customize(
     initializer
         .bind(appearance.catalog)
         .map_err(CustomizationError::Binding)?;
+    let gear = appearance
+        .profile
+        .initial_gear(appearance.catalog)
+        .map_err(CustomizationError::Binding)?;
     let inventory = fiona_inventory_delivery::deliver(pool, key, cid, initializer, prepare).await?;
+    gear.admit_new_inventory(inventory.prepared.inventory())
+        .map_err(|_| CustomizationError::Appearance(Error::FionaAppearanceProfile))?;
     // The admitted normal empty Gear has no item-derived costumes. Validation and
     // loading of base/skin/extras/body follow the first SaveWithoutSync and ledgers.
     let rows = appearance
@@ -67,6 +74,7 @@ pub async fn customize(
         .map_err(CustomizationError::Appearance)?;
     let changed = character_costumes::save_first_fiona(pool, key, cid, &rows).await?;
     Ok(Outcome {
+        gear,
         inventory,
         appearance: rows,
         costumes_changed: changed,

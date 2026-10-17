@@ -101,3 +101,15 @@ Docker:original locked build,migrate24,readiness,account/duplicate/nonroot/datab
 Verdict:PASS for scoped equipment effects component only.
 Remaining:actual Gear/slot/set-bonus projection,nonempty-equipment load/penalty,multicast/title/status/observables/AP and same-context Submit;initializer/ItemProxy/errors,LoginLogout/Summary/lifecycle/reconciliation/TCPCreate;actual Create/relogin/selection/city/movement;full M01-M24. Native frontend unchanged,no client run.
 Evidence:docs/equipped-skill-effects.md,auth/equipped-skill-effects.json,framework-equipped-skills.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.11 -- Fresh unequipped Gear projection
+Claim:source-bound initial empty-slot/set-bonus projection integrated into customization outcome and preflight;not callback execution,native actor or game Create.
+Command:generate-initial-gear-fixtures.ps1;measure-initial-gear-provider.ps1;private readonly appearance export/Framework comparison;focused Rust/Python/customization PG tests;verify.ps1 -DatabaseIntegration;original Docker locked build/smoke/restart;existing imports -Mode Verify.
+Executed:2026-10-17T23:23:56.0419544+00:00 (complete gate);2026-10-17T23:25:01.4571788+00:00 (Docker smoke).
+Exit code:0.
+Output summary:325 Rust passed;153 native isolated PostgreSQL passed,0 ignored;41 Python passed;0 failures/warnings. Five new Rust/one PG/one Python;existing PG asserts Part=NULL. Oracle160 cases per architecture,identical;five original methods,owner/grouping/flags/providers instrumented. Readonly original providers confirm201 Boolean BIT rows/GetString fallback. Actual metadata and synthetic prepared inventory agree with both Framework variants:35 Gear slots/20 placeholders/12 armor entries;11 items/5 equippable types,zero set bonus by no equipped items,no DB/private payload.
+Warnings:none. Errors:none in final verification. Early harness missing stubs/empty Keys and string-vs-BIT export mismatch corrected before focused/private checks and full gate;no product assertion or source behavior weakened.
+Docker:original locked build,migrate24/readiness/account/duplicate/nonroot/database+server restart and six preservation checks passed. Candidate shared state explicitly empty.
+Verdict:PASS for scoped internal projection only. Corrected critical path:equippable type is not equipped;general Gear/set loader does not block fresh-create MVP.
+Remaining:first SaveWithoutSync stat/costume callbacks before appearance/skills;load/final stats with placeholder maps;ordered skills/title/status/observables/AP and same-character Submit;ItemProxy second save/Undo/failures,LoginLogout/Summary/lifecycle/reconciliation/TCPCreate;actual Create/relogin/selection/city/movement;full M01-M24. Native frontend unchanged,no client run.
+Evidence:docs/initial-gear.md,auth/initial-gear.json,auth/initial-gear-provider.json,framework-initial-gear.json,gate.json,docker-smoke.json.Full logs:.cache/verification;raw metadata/profiles only in private cache.
