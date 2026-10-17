@@ -120,6 +120,10 @@ pub fn validate_durability(state: &mut EquipmentDurability, limit: i32) {
 pub trait InventoryClock {
     fn allocate(&mut self) -> Result<i64, InventoryError>;
     fn utc(&mut self) -> Result<SqlDateTime2, ItemTimeError>;
+    /// ItemFactory.MakeItem emits CreateItem after Initialize, before SetLocation/RegisterCreate.
+    fn created_before_location(&mut self, _item: &ItemRow) -> Result<(), InventoryError> {
+        Ok(())
+    }
 }
 /// Requests are the already Feature-selected, AddOrIncrease-grouped dictionary.
 /// Empty source storages are Cash100 and default Bag0/1/6. No attributes, deletes,
@@ -241,7 +245,7 @@ pub fn compose(
         } else {
             None
         };
-        rows.push(ItemRow {
+        let row = ItemRow {
             id,
             class: LegacyBytes::from_bytes(r.class.to_vec()).map_err(|_| InventoryError::Bound)?,
             count,
@@ -249,7 +253,9 @@ pub fn compose(
             expire: expiry,
             checksum,
             equipment,
-        });
+        };
+        clock.created_before_location(&row)?;
+        rows.push(row);
     }
     Ok(PreparedInventory { owner, rows })
 }

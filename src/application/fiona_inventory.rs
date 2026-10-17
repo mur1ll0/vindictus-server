@@ -143,3 +143,29 @@ pub fn inspect(inventory: &PreparedInventory) -> Inspection {
         character_creation_available: false,
     }
 }
+
+/// Source-bound request capture and factory-event preparation for the delivery coordinator.
+pub fn prepare_delivery(
+    inputs: Inputs<'_>,
+    owner: i64,
+    journals: super::inventory_delivery::Journals,
+    random: &mut ColorRandom,
+    clock: &mut super::inventory_delivery::DeliveryClock<'_>,
+) -> Result<super::inventory_delivery::Prepared, Error> {
+    let stats = inputs.stats.bind(inputs.catalog)?;
+    let colors = inputs.colors.bind(inputs.catalog)?;
+    let requests = inputs.profile.requests(inputs.catalog, &stats, &colors)?;
+    let (maximum, bundle) = inputs.profile.limits()?;
+    Ok(super::inventory_delivery::prepare(
+        super::inventory_delivery::Inputs {
+            requests: &requests,
+            materials: colors.materials(),
+            maximum_durability: maximum,
+            bundle_exceed: bundle,
+        },
+        owner,
+        journals,
+        random,
+        clock,
+    )?)
+}

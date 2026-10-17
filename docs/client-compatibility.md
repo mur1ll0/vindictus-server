@@ -120,3 +120,5 @@ M15.1b.2e.10b.1 verifica o armazenamento dos defaults e as tentativas independen
 M15.1b.2e.10b.2 preserva os dois contadores de journal e verifica a gravação de CustomizeCharacter. ItemLog/ItemLedger e a integração completa do initializer/Summary/lifecycle ainda bloqueiam Create. Nenhum novo teste do cliente; seleção/cidade/movimento continuam pendentes.
 
 M15.1b.2e.10b.3 verifica as projeções e a persistência dos logs ItemLog/ItemLedger. A emissão real durante GiveItem/SaveWithoutSync e a integração do initializer/Summary/lifecycle ainda bloqueiam Create. Nenhum novo teste do cliente; seleção/cidade/movimento continuam pendentes.
+
+M15.1b.2e.10b.4 coordena internamente inventário→logs→ledgers e preserva o estado compartilhado,com prova de conta candidata vazia. Aparência/callbacks/LoginLogout/Summary/lifecycle ainda bloqueiam Create. Nenhum novo teste do cliente;seleção/cidade/movimento permanecem pendentes.

@@ -115,6 +115,15 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve the shared inventory references/status and identity from private stdin.
+    ImportSharedItems {
+        #[arg(long)]
+        require_empty_owner: Option<String>,
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve the two independent legacy journal identities from private stdin.
     ImportJournalIdentities {
         #[arg(long, required = true)]

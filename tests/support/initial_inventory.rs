@@ -20,7 +20,7 @@ use vindictus_server::{
         item_state,
     },
 };
-fn key() -> UserKey<'static> {
+pub(super) fn key() -> UserKey<'static> {
     UserKey {
         uid: 31,
         name: "Owner",
@@ -75,7 +75,7 @@ fn batch(owner: i64) -> PreparedInventory {
     )
     .unwrap()
 }
-async fn setup(p: &PgPool, initialize: bool) {
+pub(super) async fn setup(p: &PgPool, initialize: bool) {
     provision_game_user(p, 31, "Owner", 900, 0).await.unwrap();
     sqlx::query("INSERT INTO game_lab_account_origins(uid,name_key,profile_fingerprint)SELECT id,name_key,$1 FROM game_users WHERE id=31").bind(vec![0u8;32]).execute(p).await.unwrap();
     sqlx::query("INSERT INTO game_my_settings(code_bytes,value_bytes)VALUES($1,$2)")

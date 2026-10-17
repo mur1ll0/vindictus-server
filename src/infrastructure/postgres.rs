@@ -90,6 +90,7 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
     crate::infrastructure::character_initialization_logs::check_ready(pool).await?;
     crate::infrastructure::item_journals::check_ready(pool).await?;
     crate::infrastructure::item_event_logs::check_ready(pool).await?;
+    crate::infrastructure::shared_item_state::check_ready(pool).await?;
     crate::infrastructure::item_state::check_ready(pool).await?;
     crate::infrastructure::character_creation_ledger::check_ready(pool).await?;
     sqlx::query(

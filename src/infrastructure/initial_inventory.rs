@@ -12,6 +12,8 @@ pub enum InventoryWriteError {
     Database(#[from] sqlx::Error),
     #[error("initial inventory does not own the synthetic Fiona revision")]
     Ownership,
+    #[error(transparent)]
+    Admission(#[from] super::fiona_character_state::StateError),
     #[error("initial inventory conflicts with stored state; nothing repaired")]
     Conflict,
     #[error("item reference preservation is not initialized")]
@@ -45,12 +47,27 @@ pub async fn save(
     key: &UserKey<'_>,
     inventory: &PreparedInventory,
 ) -> Result<usize, InventoryWriteError> {
+    save_inner(pool, key, inventory, false).await
+}
+pub(crate) async fn save_first_fiona(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    inventory: &PreparedInventory,
+) -> Result<usize, InventoryWriteError> {
+    save_inner(pool, key, inventory, true).await
+}
+async fn save_inner(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    inventory: &PreparedInventory,
+    first: bool,
+) -> Result<usize, InventoryWriteError> {
     let owner = LegacyNameKey::parse(key.name).map_err(|_| InventoryWriteError::Ownership)?;
     if inventory.items().len() > 4096 {
         return Err(InventoryWriteError::Conflict);
     }
     tokio::time::timeout(Duration::from_secs(15),async{
-  let mut tx=pool.begin().await?;
+  let mut tx=if first {super::fiona_character_state::owned_first_fiona(pool,key,inventory.owner()).await?}else{pool.begin().await?};
   sqlx::query("SET LOCAL lock_timeout='2s'").execute(&mut *tx).await?;
   sqlx::query("SET LOCAL statement_timeout='5s'").execute(&mut *tx).await?;
   let ready:bool=sqlx::query_scalar("SELECT initialized FROM game_item_identity WHERE singleton FOR SHARE").fetch_one(&mut *tx).await?;

@@ -1,0 +1,59 @@
+{
+  "stage": "M15.1b.2e.10b.4",
+  "verified_at_utc": "2026-10-17T00:43:28.559041+00:00",
+  "scope": "normal empty-inventory factory events,guarded commit/log/ledger coordinator and preserved empty shared-owner proof;not complete entity/Create",
+  "schema": 24,
+  "rust_passed": 296,
+  "postgres_executed": 143,
+  "postgres_ignored": 0,
+  "python_passed": 38,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 3,
+  "new_postgres_tests": 9,
+  "oracle_cases_per_architecture": 32,
+  "oracle_profiles": [
+    "Framework48-x86",
+    "Framework48-x64"
+  ],
+  "oracle_scope": "MakeItem/Initialize/Num/getters/LogData/owner and shared GetBundleItemCount originals;allocation,content,attributes,validity,colors,durability,storage/provider and clock instrumented;not a full ItemOwner",
+  "private_content_diagnostic": {
+    "items": "11",
+    "equipment": "5",
+    "factory_events": "11",
+    "ledger_requests": "11",
+    "projection_sha256": "96cc8f89a3d2cae3b64c70651edbea931cae5f4e408c4502d1c868f01a12eae9",
+    "synthetic_allocator_rng_clock": "true",
+    "empty_shared_diagnostic_input": "true",
+    "database_opened": "false",
+    "private_payload_disclosed": "false",
+    "character_creation_available": "false"
+  },
+  "private_feature_values_published": false,
+  "shared_items_preserved": 8,
+  "shared_storage_preserved": 5,
+  "shared_source_columns": [
+    4,
+    5
+  ],
+  "candidate_account_shared_empty_verified_after_restart": true,
+  "shared_preservation_report": "../database/shared-items-import.json",
+  "gate_verified_at_utc": "2026-10-17T00:41:27.7553891+00:00",
+  "docker_locked_build": true,
+  "docker_migrate": true,
+  "readiness_account_duplicate_nonroot_restart": true,
+  "previous_state_preserved_after_restart": true,
+  "native_frontend_refreshed": false,
+  "client_executed": false,
+  "character_creation_available": false,
+  "full_migration_complete": false,
+  "remaining": [
+    "appearance integration and per-skill/title callbacks/APtime/stat/observables",
+    "Login/Logout,full lobby Summary,successful lifecycle and TCP Create",
+    "real Create/relogin,selection,city,movement",
+    "general nonempty shared-state loader/tabs/items/observables/mutations",
+    "durable interrupted-delivery reconciliation and full M01-M24 migration"
+  ],
+  "logs": ".cache/verification",
+  "operations_log_sha256": "0d9843ef5e3e56769404497697f958090ddff64fb730265fee35ae785a4f278b"
+}

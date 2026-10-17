@@ -1,0 +1,38 @@
+using System;using System.Linq;using System.Collections.Generic;using System.Web.Script.Serialization;using Utility;
+namespace Utility { public static class Log<T>{public static Logger Logger=new Logger();}public class Logger{public void WarnFormat(string s,params object[] x){} } }
+public class ItemLocation{public byte Collection;public int Slot;public bool IsNull{get{return Collection==255;}}public ItemLocation(byte c,int s){Collection=c;Slot=s;} }
+public enum ItemUpdateType {Num,EquipmentStat,Color}
+public enum EventTypeDetail{None,CreateItem,GiveItem,DestroyItem,CreateSystemItem,GiveSystemItem,DestroySystemItem}
+public class ItemStat{public int MaxDurability=50;}
+public class Equippable{public int Color1,Color2,Color3,ReducedDurability,MaxDurabilityBonus;}
+public class ItemClassInfo{public string ItemClass;public int MaxStack;public bool Equipment;public int? ExpireIn=null;public bool IsEquippable(){return Equipment;} }
+public static class ItemContents{public static Dictionary<string,ItemClassInfo> Map=new Dictionary<string,ItemClassInfo>();public static ItemClassInfo GetItemClassInfo(string s){ItemClassInfo i;return Map.TryGetValue(s,out i)?i:null;} }
+public static class ItemClassExBuilder{public static bool Parse(string s,out string c){c=s;return true;} }
+public static class Extensions{public static int ItemCount(this IEnumerable<Item> items){int n=0;foreach(var i in items)n+=i.Num;return n;} }
+public class ItemRequestProperty{public ItemClassInfo ItemClassInfo;public int Color1=-1,Color2=-1,Color3=-1,ReducedDurability,MaxDurabilityBonus;public Dictionary<string,object> Attribute=new Dictionary<string,object>();public DateTime? ExpireDateTime;public bool IsCharacterBinded=true;}
+public static class AttributeClass{public static string[] ToEnumerable(){return new string[0];} }
+public class VirtualCreateItem{public int Num;public ItemLocation Location;public bool IsNullLocation{get{return Location.IsNull;}}public ItemRequestProperty Property;public long? BeforeItemID;}
+public class ItemOwner{public List<Item> Items=new List<Item>();public long CID=1;public ItemOwner SharedItem;public Loader Loader=new Loader();public LogManager LogManager=new LogManager();public IEnumerable<Item> GetItems(string s){return Items.Where(i=>i.ItemClass==s);}__BUNDLE__ public void RegisterCreate(Item i){Items.Add(i);} }
+public class Loader{public void CreateItem(Item i){} }
+public class Service{public long Last=638448480000000000;public DateTime MakeEntityID(){Last+=65536;return new DateTime(Last);} }
+public class Factory{private Service service=new Service();__MAKE__}
+public class Item{
+ public ItemOwner Parent;public long ID;public string ItemClass;public int Count;public ItemClassInfo ItemClassInfo;public ItemLocation Location=new ItemLocation(255,-1);public bool IsNullLocation{get{return Location.IsNull;}}public ItemStat Stat=new ItemStat();public Equippable Equippable;public DateTime? ExpireDateTime;public bool IsCharacterBinded;
+ public bool IsEquippableItemClass{get{return ItemClassInfo.IsEquippable();}}
+ __NUM__ __INITIALIZE__ __COLOR1__ __COLOR2__ __COLOR3__ __REDUCED__ __BONUS__
+ public void SetNullLocation(){Location=new ItemLocation(255,-1);}public void SetLocation(ItemLocation l){Location=l;}public void Update(ItemUpdateType t){}public void InitAttribute(IEnumerable<object> v){if(v.Any())throw new Exception("attributes outside scope");}public bool IsValid(){return true;}public void SetColor(int a,int b,int c){Equippable.Color1=0;Equippable.Color2=16777215;Equippable.Color3=16777215;}
+ public int MaxDurability{get{return Stat.MaxDurability+Equippable.MaxDurabilityBonus;}set{Equippable.MaxDurabilityBonus=value-Stat.MaxDurability;}}public int Durability{get{return MaxDurability-Equippable.ReducedDurability;}set{Equippable.ReducedDurability=MaxDurability-value;}}public string ToItemClassEx(){return ItemClass;}
+}
+public class TransferredItemInfo{public long ItemID;public string ItemClassEx;public int ItemCount,Color1,Color2,Color3,ReducedDurability,MaxDurabilityBonus;}
+public class EquippedItemInfo{public string ItemClass;public int Color1,Color2,Color3;}
+public class GiveItemRequest{public ItemRequestProperty Property;public int Num;public string ToItemClassEx(){return Property.ItemClassInfo.ItemClass;} }
+__LOGDATA__
+public class LogManager{public List<object> Events=new List<object>();public long Clock;public void Add(LogData d){throw new Exception("unexpected Num log during Initialize");}public void Add(LogData d,EventTypeDetail detail,long? before){Events.Add(new object[]{d.ItemID,d.ItemClassEx,d.Num,(int)detail,before,d.IsSystemItem,new[]{d.C1,d.C2,d.C3},d.ReducedDurability,d.MaxDurabilityBonus,637999999999999999L+17001*(Clock++)});} }
+public class SharedManager{private Dictionary<long,Item> ItemIDDic=new Dictionary<long,Item>();__SHARED_BUNDLE__}
+public static class Program{public static void Main(){var cases=new List<object>();for(int n=0;n<32;n++){
+ var owner=new ItemOwner();var factory=new Factory();var inputs=new List<object>();var requests=new List<GiveItemRequest>();
+ for(int k=0;k<3;k++){bool eq=k==0;int stack=eq?1:3+k;int count=eq?1:1+(n+k)%8;string key="synthetic"+k;var info=new ItemClassInfo{ItemClass=key,MaxStack=stack,Equipment=eq};ItemContents.Map[key]=info;var r=new GiveItemRequest{Property=new ItemRequestProperty{ItemClassInfo=info},Num=count};requests.Add(r);inputs.Add(new object[]{key,count,stack,eq,k==2?2:1});}
+ var ledger=requests.Select(r=>LogData.From(owner,r)).ToArray();
+ foreach(var k in new[]{2,0,1}){int left=requests[k].Num;while(left>0){int take=Math.Min(left,requests[k].Property.ItemClassInfo.MaxStack);factory.MakeItem(new VirtualCreateItem{Num=take,Property=requests[k].Property,Location=new ItemLocation((byte)(k==2?100:0),owner.Items.Count),BeforeItemID=null},owner);left-=take;}}
+ cases.Add(new{input=inputs,events=owner.LogManager.Events.ToArray(),ledger=ledger.Select(d=>new object[]{d.ItemID,d.ItemClassEx,d.Num,new[]{d.C1,d.C2,d.C3},d.ReducedDurability,d.MaxDurabilityBonus,d.BundleItemCount}).ToArray(),counts=requests.Select(r=>owner.GetBundleItemCount(r.Property.ItemClassInfo.ItemClass)).ToArray(),shared_counts=requests.Select(r=>new SharedManager().GetBundleItemCount(r.Property.ItemClassInfo.ItemClass)).ToArray()});
+ }Console.Write(new JavaScriptSerializer().Serialize(cases));} }

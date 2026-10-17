@@ -29,3 +29,5 @@ pub mod creation_lifecycle;
 pub mod fiona_inventory;
 
 pub mod lobby_costume;
+
+pub mod inventory_delivery;

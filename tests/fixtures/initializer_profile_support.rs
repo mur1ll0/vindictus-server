@@ -22,6 +22,8 @@ pub fn synthetic() -> Value {
         ("DisableCharacterCreation", false),
         ("ServerTrouble", false),
         ("DisableLogging", false),
+        ("DisableOperationLogging", false),
+        ("SharedInventory", false),
         ("Attendance_Newbie", true),
     ];
     let mut features = flags

@@ -273,10 +273,14 @@ impl Profile {
             ("DisableCharacterCreation", false),
             ("ServerTrouble", false),
             ("DisableLogging", false),
+            ("DisableOperationLogging", false),
         ] {
             if !enabled.contains(key) || policy.is_enabled(Some(key))? != value {
                 return Err(fail());
             }
+        }
+        if !enabled.contains("SharedInventory") {
+            return Err(fail());
         }
         if !policy
             .get_string("Event_newbie_character_preset_item")

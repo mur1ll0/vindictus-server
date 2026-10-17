@@ -242,6 +242,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let shared = match &cli.command {
+        Command::ImportSharedItems { .. } => Some(
+            vindictus_server::infrastructure::shared_item_state::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let journals = match &cli.command {
         Command::ImportJournalIdentities { .. } => Some(
             vindictus_server::infrastructure::item_journals::read_snapshot(
@@ -328,6 +336,42 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| StateError::Export)?
+            );
+        }
+        Command::ImportSharedItems {
+            verify_only,
+            require_empty_owner,
+            ..
+        } => {
+            use vindictus_server::infrastructure::shared_item_state::{SharedError, preserve};
+            let mut summary =
+                preserve(&pool, &shared.ok_or(SharedError::Export)?, verify_only).await?;
+            if let Some(name) = require_empty_owner {
+                use vindictus_server::{
+                    domain::game_user::LegacyNameKey, infrastructure::character_lobby::UserKey,
+                };
+                let key = LegacyNameKey::parse(&name).map_err(|_| SharedError::Unavailable)?;
+                let user: Option<(i32, String, i64)> = sqlx::query_as(
+                    "SELECT id,name,local_revision FROM game_users WHERE name_key=$1",
+                )
+                .bind(key.as_str())
+                .fetch_optional(&pool)
+                .await?;
+                let (uid, name, revision) = user.ok_or(SharedError::Unavailable)?;
+                vindictus_server::infrastructure::shared_item_state::require_empty(
+                    &pool,
+                    &UserKey {
+                        uid,
+                        name: &name,
+                        revision,
+                    },
+                )
+                .await?;
+                summary.empty_owner_verified = true;
+            }
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| SharedError::Export)?
             );
         }
         Command::ImportJournalIdentities { verify_only, .. } => {

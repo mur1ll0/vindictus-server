@@ -29,6 +29,7 @@ INSERT INTO SkillArgumentInfo VALUES('synthetic_skill',2,7);INSERT INTO Attendan
  def package(self):
   def reward(database,config,additional_keys):
    self.assertIn('AutoItemLogging',additional_keys)
+   self.assertIn('DisableOperationLogging',additional_keys);self.assertIn('SharedInventory',additional_keys)
    return dict(manifest=dict(database_sha256=subject.digest(database),config_sha256=subject.digest(config)),features=[])
   with patch.object(subject.reward,'read_package',side_effect=reward):return subject.read_package(self.db,self.config,self.src,self.state)
  def test_readonly_projection_hashes_provider_boolean_and_exact_ticks(self):
