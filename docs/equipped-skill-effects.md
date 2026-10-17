@@ -1,0 +1,17 @@
+# Equipment skill effects
+
+domain::equipped_skills::apply recovers SkillEffect.ApplyItemSkills for the explicit measured Framework48-x64 target. It consumes ordered EquippedItemInfo projections and the existing skill argument cache, producing item stats, total weight and armor HP/DEF maps.
+
+The initializer already prepares equipment; an empty-Gear calculation cannot stand in for those items. This dependency precedes the skill multicast/AP/Submit integration. It does not change the final M01-M24 migration objective.
+
+The recovered behavior includes all 22 equipment-class mastery branches; four armor DEF bonuses; weight reductions; shield/armor durability; and the dual-sword critical-damage assignment. The original Linear(Int32,Int32) wraps both addition and multiplication before integer division. Durability augmentation uses Single multiplication after the unchecked MaxDurability - 10000 subtraction. Stats and armor DEF arithmetic also wrap.
+
+An item class containing the case-sensitive substring avatar_ triggers a lazy category lookup. Only a category beginning with avatar_, ignoring ASCII case, skips mastery effects. IsAvatar is not used by this method. Negative resulting weight becomes zero. Costume parts -1 and 2 and decorations do not enter armor maps; other parts, including negative values, follow the original dictionary behavior.
+
+Outputs reset to a copy of the supplied set bonus and empty maps before processing admitted equipment. A category failure preserves prior items. A duplicate armor part fails after accumulating the current item's stats and weight, retaining earlier map entries. No rollback or overwrite is invented.
+
+Admission is bounded to 128 items, class/equip strings of at most 100 bytes, finite input weights, ASCII alphanumeric/underscore item identifiers and ASCII equip classes. Categories must be ASCII and at most 256 bytes. These are explicit implementation bounds, not recovered game rules. Input admission failure leaves the previous outputs untouched; a category returned outside its admitted profile fails when queried. Null/general Unicode inputs, extra string stat fields and other reference architectures are outside this kernel. Finite weights may still overflow the accumulated Double total, as in the original.
+
+The oracle generator extracts the original ApplyItemSkills and integer Linear methods into an ignored headless harness. Original CharacterStats, Stats and EquippedItemInfo compile unchanged; argument/category providers are instrumented. Public fixtures contain only synthetic values. Both Framework architectures are measured and retained; Rust comparisons target x64 explicitly, without asserting the original deployment bitness. Five Rust tests cover 640 comparisons, all mastery branches with nonzero arguments, lazy avatar lookup, numeric boundaries, partial failures, empty output reset and admission.
+
+This is not an equipment loader or an integrated Create handler. Next recover and validate Gear.ToEquippedItemInfos/ToSetBonusInfo and the inventory-to-stat projection, then connect nonempty equipment load/penalty, final stats, title/status contributions, ordered skill callbacks and AP in the same character Submit. ItemProxy completion/errors, LoginLogout, Summary, lifecycle/compensation/reconciliation and TCPCreate follow. Actual character creation/relogin, selection, city and movement remain client acceptance tests.

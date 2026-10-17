@@ -70,3 +70,5 @@ pub mod character_ap;
 pub mod character_stats;
 
 pub mod character_load;
+
+pub mod equipped_skills;

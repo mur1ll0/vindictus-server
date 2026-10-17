@@ -1,0 +1,98 @@
+{
+  "stage": "M15.1b.2e.10b.10",
+  "verified_at_utc": "2026-10-17T16:56:51.371345+00:00",
+  "schema": 24,
+  "rust_passed": 320,
+  "postgres_executed": 152,
+  "postgres_ignored": 0,
+  "python_passed": 40,
+  "failures": 0,
+  "warnings": 0,
+  "new_rust_tests": 5,
+  "new_postgres_tests": 0,
+  "new_python_tests": 0,
+  "oracle_cases_per_architecture": 640,
+  "architecture_different_cases": 129,
+  "rust_reference_target": "Framework48-x64",
+  "original_deployment_bitness_observed": false,
+  "reference_sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+      "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/LinearFormulaExtension.cs",
+      "sha256": "d1aa6677442ca1c57653e5ac6c0a5285d41561f73c5354ce2792fb37685159cd"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/CharacterStats.cs",
+      "sha256": "34f6f15beef5bebc596c137a7661ca0a5af44fcd2a35b57a863b83c01bca7250"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/Stats.cs",
+      "sha256": "ca927494856d57b810963c12e365cfdcf3da809a8169b4686b70c1bfd84595c3"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/EquippedItemInfo.cs",
+      "sha256": "d9446d46bbe3c3747a4e49a393dd85a2cca65430b148d20197290f0406196e18"
+    },
+    {
+      "path": "scripts/reverse/framework/EquippedSkillsOracle.cs.in",
+      "sha256": "5a4ebc25ca211b8b8485c534e94f42ab31848ca1c6cde2805451fa4be90b4921"
+    },
+    {
+      "path": "scripts/reverse/generate-equipped-skills-fixtures.ps1",
+      "sha256": "8119388cafe2935a84827cebc9281a2c6eef79c23b8decbcf5a4c653361c261b"
+    }
+  ],
+  "oracle_scope": "original ApplyItemSkills and Int32 Linear;CharacterStats/Stats/EquippedItemInfo compiled unchanged;Arg and lazy category provider instrumented;ASCII finite input profile;Framework48-x64 target,not loader/SQL/native actor",
+  "scope": "ApplyItemSkills on bounded known-stat projections:22 mastery branches,avatar category guard,Int32 Linear,weight,durability,armor maps and partial failures;not equipment loader/actor/persistence",
+  "failure_cases": {
+    "duplicate_parts": 12,
+    "category_provider": 7
+  },
+  "admission": {
+    "maximum_items": 128,
+    "maximum_class_bytes": 100,
+    "item_class": "ASCII alphanumeric/underscore",
+    "equip_class": "ASCII",
+    "input_weight": "finite Double",
+    "maximum_category_bytes": 256,
+    "category": "ASCII"
+  },
+  "initial_equipment_requires_projection": true,
+  "real_private_equipment_compared": false,
+  "native_frontend_refreshed": false,
+  "real_client_tested": false,
+  "character_creation_available": false,
+  "private_payload_published": false,
+  "push_performed": false,
+  "preliminary_verification": "interrupted before DB execution to narrow String.IndexOf admission;complete final gate after final source changes",
+  "docker_build": "fresh build after final admission changes;original Dockerfile --locked",
+  "logs": [
+    ".cache/verification/equipped-skills-oracle.log",
+    ".cache/verification/equipped-skills-focused.log",
+    ".cache/verification/equipped-skills-final-gate.log",
+    ".cache/verification/equipped-skills-docker-build.log",
+    ".cache/verification/equipped-skills-operations.log"
+  ],
+  "remaining": [
+    "source-bound Gear/EquippableSlot.ToEquippedItemInfo and set-bonus projection for actual initial Fiona equipment;do not assume empty set/gear or omit empty-slot placeholders",
+    "nonempty-equipment load/penalty,full skill multicast/title/status/observables and AP in same character Submit with SqlClient datetime conversion",
+    "initializer/ItemProxy/Undo/failure ledgers/LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate",
+    "actual creation/relogin/selection/city/movement with candidate client",
+    "general Unicode/null/extra-string stat profiles,other reference architectures/trained meditation/guild/full M01-M24 migration"
+  ],
+  "verification_receipts": {
+    "gate": {
+      "path": "docs/evidence/verification/gate.json",
+      "sha256": "baa91570e278e8d2f70c40a322ff71121575467a6aa596f99e98737c9153a373",
+      "scope": "Git-staged verification JSON bytes"
+    },
+    "docker-smoke": {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "sha256": "d0f7177a2875c3e5d794d749696c717ca52db38ed8d984388fa63258720466ee",
+      "scope": "Git-staged verification JSON bytes"
+    }
+  }
+}

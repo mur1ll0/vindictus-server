@@ -89,3 +89,15 @@ Output summary:315 Rust passed;152 native PostgreSQL passed,0 ignored;40 Python 
 Warnings:none. Errors:none. Verdict:PASS for scoped internal components only.
 Remaining:explicit measured reference-profile binding,full multicast/dirty/title/AP and same-character Submit;initializer/ItemProxy/Undo/failure paths,LoginLogout/Summary/lifecycle/compensation/reconciliation/TCPCreate;actual creation/relogin/selection/city/movement;full migration. Original deployment bitness remains unconfirmed;next MVP integration explicitly targets measured Framework48-x64 and makes no claim about that deployment.
 Evidence:docs/character-load.md,auth/character-load.json,framework-character-load.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.10 -- Equipped-item skill effects
+Claim:ordered source-derived ApplyItemSkills for22 equipment mastery branches on bounded known-stat/ASCII/finite projections,explicit Framework48-x64;not Gear loader,persistence,native Create or client compatibility.
+Command:generate-equipped-skills-fixtures.ps1;cargo test --locked --test equipped_skills;verify.ps1 -DatabaseIntegration;docker compose build --quiet server;original Docker smoke/restart;existing imports -Mode Verify.
+Executed:2026-10-17T16:55:41.4126052+00:00 (complete final gate);2026-10-17T16:56:40.6373306+00:00 (Docker smoke).
+Exit code:0.
+Output summary:320 Rust passed;152 native isolated PostgreSQL passed,0 ignored;40 Python passed;0 failures/warnings. Five new Rust tests;640 synthetic oracle cases per architecture,129 differences;Rust targets all640 x64 comparisons including12 duplicate and7 category-provider failures. Original integer Linear and ApplyItemSkills extracted;CharacterStats/Stats/EquippedItemInfo compiled unchanged. Category/argument providers instrumented;no real equipment/private data published.
+Warnings:none. Errors:none in final verification. Preliminary gate intentionally interrupted before DB execution for admission hardening;complete final gate and rebuilt Docker image after final source changes passed.
+Docker:original locked build,migrate24,readiness,account/duplicate/nonroot/database+server restart and six prior preservation checks passed. Candidate shared inventory remains empty by explicit verify.
+Verdict:PASS for scoped equipment effects component only.
+Remaining:actual Gear/slot/set-bonus projection,nonempty-equipment load/penalty,multicast/title/status/observables/AP and same-context Submit;initializer/ItemProxy/errors,LoginLogout/Summary/lifecycle/reconciliation/TCPCreate;actual Create/relogin/selection/city/movement;full M01-M24. Native frontend unchanged,no client run.
+Evidence:docs/equipped-skill-effects.md,auth/equipped-skill-effects.json,framework-equipped-skills.json,gate.json,docker-smoke.json. Full logs:.cache/verification.

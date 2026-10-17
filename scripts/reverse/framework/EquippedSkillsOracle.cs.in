@@ -1,0 +1,40 @@
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;using ServiceCore.CharacterServiceOperations;
+namespace Utility {public static class Extensions {public static V TryGetValue<K,V>(this Dictionary<K,V> d,K k){V v;return d.TryGetValue(k,out v)?v:default(V);}}}
+public static class LinearExtension {__LINEAR__}
+public class ItemClassInfo {public string Category;}
+public static class ItemContents {
+ public static Dictionary<string,string> Categories;public static List<string> Calls;public static string Failed;
+ public static ItemClassInfo GetItemClassInfo(string key){Calls.Add(key);if(key==Failed)throw new InvalidOperationException();return new ItemClassInfo{Category=Categories[key]};}
+}
+public class SkillEffect {
+ public static readonly string[] Names={"skill_cloth_mastery","skill_light_armor_mastery","skill_heavy_armor_mastery","skill_plate_armor_mastery","skill_fiona_longsword_mastery","skill_lethita_dualsword_mastery","skill_fiona_longhammer_mastery","skill_lethita_dualspear_mastery","skill_evy_staff_mastery","skill_fiona_shield_mastery","skill_fiona_largeshield_mastery","skill_evy_scythe_mastery","skill_kalok_battlepillar_mastery","skill_kalok_blaster_mastery","skill_kay_bow_mastery","skill_kay_crossgun_mastery","skill_vella_dualblade_mastery","skill_hurk_greatsword_mastery","skill_lynn_battleglaive_mastery","skill_arisha_longblade_mastery","skill_arisha_castlet_mastery","skill_hagie_phantomdagger_mastery","skill_lethita_critical_damage"};
+ public int Seed;
+ public int Arg(string skill,string key){int n=Array.IndexOf(Names,skill),k=key=="def_bonus"?0:key=="weight_reduction_bonus"?1:key=="durability_bonus"?2:3;return Seed==0?0:unchecked(Seed+(n+1)*17+(k+1)*101);}
+ __ITEM__
+}
+public static class Oracle {
+ static int[] Values(CharacterStats s){var v=new int[25];for(int j=0;j<25;j++)v[j]=s[(Stats)j];return v;}
+ static CharacterStats StatsOf(int seed){var s=new CharacterStats();for(int j=0;j<25;j++)s[(Stats)j]=unchecked(seed*(j+3)+j*19);return s;}
+ static string Bits(double v){return BitConverter.DoubleToInt64Bits(v).ToString("x16");}
+ static Dictionary<string,int> Map(IDictionary<int,int> d){var r=new Dictionary<string,int>();foreach(var p in d)r.Add(p.Key.ToString(),p.Value);return r;}
+ public static void Main(){
+ var result=new List<object>();string[] classes={"CLOTH","LIGHT_ARMOR","HEAVY_ARMOR","PLATE_ARMOR","LONGSWORD","DUALSWORD","HAMMER","DUALSPEAR","STAFF","SHIELD","LARGESHIELD","SCYTHE","PILLAR","BLASTER","BOW","CROSSGUN","DUALBLADE","GREATSWORD","BATTLEGLAIVE","LONGBLADE","CASTLET","PHANTOMDAGGER","OTHER","cloth"};
+ int[] extremes={0,1,-1,19999,10000,10001,int.MinValue,int.MaxValue,123456789,-123456789};double[] weights={0,-0.0,-1,1,0.1,0.2,12345.6,double.MaxValue,-double.MaxValue,double.Epsilon};
+ for(int i=0;i<640;i++){
+ var effect=new SkillEffect{Seed=(i/24)%6==0?0:extremes[(i/24)%extremes.Length]};var set=StatsOf(unchecked(i*101));
+ var gear=new List<EquippedItemInfo>();var inputs=new List<object>();ItemContents.Categories=new Dictionary<string,string>();ItemContents.Calls=new List<string>();ItemContents.Failed=null;
+ int count=i<576?1:3;for(int j=0;j<count;j++){
+ string itemClass=((i/24)%6==0?"avatar_":(i/24)%6==1?"prefix_avatar_":(i/24)%6==2?"Avatar_":"item_")+j;
+ string category=(i/48)%4==0?"AvAtAr_costume":(i/48)%4==1?"avatar_":"armor";
+ ItemContents.Categories[itemClass]=category;bool fail=i>=576&&i%7==0&&j==1;if(fail)ItemContents.Failed=itemClass;
+ int part=i%8==0?-1:i%8==1?2:i%8==2?4:i%8==3?-4:j+4;bool decoration=i%9==0;
+ var item=new EquippedItemInfo{ItemClass=itemClass,EquipClass=classes[i%classes.Length],StatBonus=StatsOf(unchecked(i*10000019+j*937)),Weight=weights[(i+j)%weights.Length],ArmorHP=extremes[(i/3+j)%extremes.Length],MaxDurability=extremes[(i/7+j)%extremes.Length],CostumePartNum=part,DEF_Destroyed=extremes[(i/11+j)%extremes.Length],IsDecoration=decoration};
+ gear.Add(item);inputs.Add(new{item_class=itemClass,equip_class=item.EquipClass,stats=Values(item.StatBonus),weight_bits=Bits(item.Weight),hp=item.ArmorHP,maximum=item.MaxDurability,part=part,destroyed=item.DEF_Destroyed,decoration=decoration,category=category,category_fail=fail});
+ }
+ CharacterStats stat=null;double weight=0;Dictionary<int,int> hp=null;IDictionary<int,int> def=null;string error=null;
+ try{effect.ApplyItemSkills(set,gear,out stat,out weight,out hp,out def);}catch(ArgumentException){error="duplicate";}catch(InvalidOperationException){error="category";}
+ result.Add(new{seed=effect.Seed,set=Values(set),items=inputs,stats=Values(stat),weight_bits=Bits(weight),hp=Map(hp),def=Map(def),calls=ItemContents.Calls,error=error});
+ }
+ Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(result));
+ }
+}
