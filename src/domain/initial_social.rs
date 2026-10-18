@@ -6,7 +6,7 @@ struct PlayerContext {
     uid: i32,
     cid: i64,
 }
-struct CharacterContext {
+pub(crate) struct CharacterContext {
     player: Arc<PlayerContext>,
 }
 /// The two source links share the same admitted player context.
@@ -45,6 +45,9 @@ impl Loaded {
         };
         Ok(Self { whisper, guild })
     }
+    pub(crate) fn character_context(&self) -> Arc<CharacterContext> {
+        Arc::clone(&self.whisper.character)
+    }
     pub fn whisper(&self) -> &Whisper {
         &self.whisper
     }
@@ -79,5 +82,14 @@ impl Guild {
     /// Constructor projection only. No DailyItemProcedure queue mutation is exposed.
     pub fn pending_procedure_count(&self) -> usize {
         self.pending_procedures
+    }
+}
+
+impl CharacterContext {
+    pub(crate) fn uid(&self) -> i32 {
+        self.player.uid
+    }
+    pub(crate) fn cid(&self) -> i64 {
+        self.player.cid
     }
 }

@@ -38,6 +38,37 @@ pub enum Field {
 #[derive(Clone, PartialEq, Eq, Default)]
 pub struct Stats([i32; 25]);
 impl Stats {
+    /// Names and order from the recovered Stats enum, excluding its sentinels.
+    pub fn entries(&self) -> impl Iterator<Item = (&'static str, i32)> + '_ {
+        const NAMES: [&str; 25] = [
+            "ATK",
+            "MATK",
+            "DEF",
+            "STR",
+            "DEX",
+            "INT",
+            "WILL",
+            "LUCK",
+            "HP",
+            "STAMINA",
+            "HEAVY_LOAD",
+            "LOAD_PENALTY",
+            "MEDIUM_LOAD",
+            "TOTAL_LOAD",
+            "ATK_Speed",
+            "ATK_Absolute",
+            "Critical",
+            "CritFactor",
+            "Res_Critical",
+            "Balance",
+            "PVP_ATK",
+            "PVP_MATK",
+            "PVP_DEF",
+            "TOWN_SPEED",
+            "SKILL_RANK_SUM",
+        ];
+        NAMES.into_iter().zip(self.0)
+    }
     pub fn from_values(values: [i32; 25]) -> Self {
         Self(values)
     }

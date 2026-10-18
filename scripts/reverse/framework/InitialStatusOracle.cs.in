@@ -1,0 +1,86 @@
+using System;using System.Collections;using System.Collections.Generic;using System.Linq;using System.Diagnostics;using System.Reflection;using System.Web.Script.Serialization;
+using Utility;
+enum FlowBehavior { Default,Return,ThrowException,Continue }
+class Arguments<T> { public T Arg0; }
+struct DeclarationIdentifier { public DeclarationIdentifier(long value){} }
+class MethodExecutionArgs {public MethodExecutionArgs(object o,object a){} public DeclarationIdentifier DeclarationIdentifier;public MethodBase Method;public Exception Exception;public FlowBehavior FlowBehavior=FlowBehavior.Default;}
+class OnMethodBoundaryAspect { __SUCCESS__ __EXCEPTION__ public virtual void OnEntry(MethodExecutionArgs args){}public virtual void OnExit(MethodExecutionArgs args){} }
+class ProfileThisMethod:OnMethodBoundaryAspect {
+ string tag="synthetic-status";Stopwatch stopwatch;
+ __ENTRY__ __EXIT__
+}
+static class _003C_003Ez__a_6 { public static MethodBase _1=typeof(StatusEffectManager).GetConstructor(new[]{typeof(CharacterEntity)});public static ProfileThisMethod a6=new ProfileThisMethod(); }
+static class Events { public static int ClockCalls,Submits,Stats,Pushes,Frontend,Micro,Reload;public static bool FailClock,FailFrontend; public static DateTime UtcNow {get{ClockCalls++;if(FailClock)throw new InvalidOperationException("synthetic clock");return new DateTime(100,DateTimeKind.Utc);}}public static void Clear(){ClockCalls=Submits=Stats=Pushes=Frontend=Micro=Reload=0;FailClock=FailFrontend=false;}}
+class Service {}
+interface IEntity {long ID{get;}}
+class Entity:IEntity {public long ID{get;set;}}
+class ObservableCollection {public object Bound;public void BindEntity(object e){Bound=e;}}
+class PlayerEntity {
+ public Service Service;public IEntity Entity;public ObservableCollection ObservableCollection;
+ public object FrontendConn;public CharacterEntity Character;public long CID{get{return Entity.ID;}}
+ __PLAYER__
+}
+class StatusEffect {}
+class CharacterInfo {public string Name="Synthetic";}
+class Entry {public List<StatusEffect> StatusEffect=new List<StatusEffect>();public CharacterInfo CharacterInfo=new CharacterInfo();}
+class Context {public void SubmitChanges(){Events.Submits++;}}
+class StatCalc {public void CalculateFinalStat(){Events.Stats++;}}
+class Observable {public void Updated(){Events.Micro++;}}
+class CharacterEntity {
+ public PlayerEntity Player;public Entry Entry=new Entry();public Context Context=new Context();public StatCalc Stats=new StatCalc();public Observable MicroPlayObservable=new Observable();
+ public void PushUpdateStat(){Events.Pushes++;} public void SendFrontendMessage(object message){Events.Frontend++;if(Events.FailFrontend)throw new Exception("synthetic frontend");}
+}
+class CharacterLoader {public void ReloadCharacter(object entity){Events.Reload++;}}
+class PlayerService {public static PlayerService Instance=new PlayerService();public T GetFunction<T>()where T:new(){return new T();}}
+static class Log<T>{public static Logger Logger=new Logger();}
+class Logger {public void ErrorFormat(string format,params object[] args){}}
+class StatusEffectElement {}
+class StatusEffectUpdated {public StatusEffectUpdated(string name,List<StatusEffectElement> elements){}}
+class Info {public Dictionary<string,int> StatAdder=new Dictionary<string,int>();}
+class StatusEffectData {
+ public string Type=null,Tag=null;public Info Info=new Info();
+ public static StatusEffectData LoadDB(StatusEffect s,DateTime time){throw new NotSupportedException("nonempty effects");}
+ public bool IsExpired(DateTime time){throw new NotSupportedException();}
+ public StatusEffectElement ToStatusEffectElement(DateTime time){throw new NotSupportedException();}
+}
+__ENUM__
+class CharacterStats {
+ public static Dictionary<string,Stats> StatNames;private Dictionary<string,int> stats;
+ __STATICSTATS__ __STATS__
+ public Dictionary<string,int> Values{get{return stats;}}
+ public void AddStat(Dictionary<string,int> other){throw new NotSupportedException("nonempty stat adder");}
+}
+class StatusEffectManager {
+ public int StatusEffectUpdatedCount;private PlayerEntity Player{get;set;}private CharacterEntity CharacterEntity{get;set;}
+ public Dictionary<string,StatusEffectData> StatusEffectByType{get;private set;}public Dictionary<string,StatusEffectData> StatusEffectByTag{get;private set;}
+ public IEnumerable<StatusEffectData> StatusEffects{get{return StatusEffectByType.Values;}}
+ public bool NeedDBSubmit{get;set;}public bool NeedUpdateStat{get;set;}public CharacterStats StatusEffectStat{get;set;}
+ __STATUS__ __SAVE__ __ELEMENTS__
+ void AddStatusEffectToMemory(string type,StatusEffectData data){throw new NotSupportedException("nonempty effects");}
+ public void FixtureSetUpdatedCount(int value){StatusEffectUpdatedCount=value;}
+ public bool SameCharacter(CharacterEntity c){return object.ReferenceEquals(c,CharacterEntity);}
+}
+class TownCampfireManager {
+ CharacterEntity CharacterEntity{get;set;}public string Status{get;set;}
+ __CAMPFIRE__
+ public bool SameCharacter(CharacterEntity c){return object.ReferenceEquals(c,CharacterEntity);}
+}
+class Oracle {
+ static object Run(int n,int mode) {
+  Events.Clear();Utility.ProfileScope.Clear();
+  var p=new PlayerEntity(new Service(),new Entity{ID=n==1?long.MaxValue:n-16});
+  var c=new CharacterEntity{Player=p};
+  if(p.FrontendConn!=null||p.Character!=null||!object.ReferenceEquals(p.ObservableCollection.Bound,p.Entity))throw new Exception("source player boundary");
+  if(mode==1)Events.FailClock=true;
+  if(mode>=2)p.FrontendConn=new object();
+  if(mode>=3)p.Character=c;
+  if(mode==4)Events.FailFrontend=true;
+  StatusEffectManager status=null;TownCampfireManager fire=null;bool success=true;
+  try {status=new StatusEffectManager(c);fire=new TownCampfireManager(c);}catch(InvalidOperationException){success=false;}
+  var profile=Utility.ProfileScope.DataList.Single();
+  return new {cid=p.CID,mode=mode,success=success,clock_calls=Events.ClockCalls,submits=Events.Submits,stat_calculations=Events.Stats,pushes=Events.Pushes,frontend=Events.Frontend,micro=Events.Micro,reloads=Events.Reload,
+   profile_calls=profile.TotalCallCount,profile_valid=profile.MinDuration>=0&&profile.MaxDuration>=profile.MinDuration&&profile.TotalDuration>=profile.MaxDuration&&profile.AvgDuration==profile.TotalDuration,
+   expected=status==null?null:new{types=status.StatusEffectByType.Count,tags=status.StatusEffectByTag.Count,need_db=status.NeedDBSubmit,need_stat=status.NeedUpdateStat,updated=status.StatusEffectUpdatedCount,stats=status.StatusEffectStat.Values,same_context=status.SameCharacter(c)&&fire.SameCharacter(c),campfire=fire.Status}};
+ }
+ static void Main(){var cases=new List<object>();for(int n=0;n<32;n++)cases.Add(Run(n,n%4==0?1:0));var probes=new List<object>();for(int mode=2;mode<=4;mode++)probes.Add(Run(0,mode));Console.WriteLine(new JavaScriptSerializer().Serialize(new{cases=cases,probes=probes}));}
+}

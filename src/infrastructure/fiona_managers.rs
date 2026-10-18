@@ -1,5 +1,6 @@
 //! Ordered fresh first-Fiona constructor prefix: MissionBook, initial titles/base
-//! stats, then SkillManager's SP slot. Stops before Costume/status/attendance/Join.
+//! stats, SP slot, Costume/Vocation, detached Social and empty Status/TownCampfire.
+//! Stops before Attendance and remaining constructors/Join/Login/Create.
 use super::{
     character_base_stats::{self, BaseStatError},
     character_costumes::{self, CostumeError},
@@ -20,6 +21,10 @@ use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
 pub enum ManagerError {
+    #[error(transparent)]
+    Status(#[from] super::character_status_effects::StatusError),
+    #[error(transparent)]
+    Clock(#[from] super::lab_clock::ClockError),
     #[error(transparent)]
     Vocation(#[from] VocationError),
     #[error(transparent)]
@@ -258,6 +263,50 @@ pub async fn load_social(
             crate::domain::initial_social::Loaded::load(owner.uid, prior.cid(), profile.policy())?;
         tx.commit().await?;
         Ok(SocialManagers { prior, social })
+    })
+    .await
+    .map_err(|_| ManagerError::Timeout)?
+}
+
+#[must_use = "initial StatusEffect/TownCampfire only;Attendance and remaining constructors/Join/Login/Create must still run"]
+pub struct StatusManagers {
+    prior: SocialManagers,
+    loaded: crate::domain::initial_status::Loaded,
+}
+impl StatusManagers {
+    pub fn prior(&self) -> &SocialManagers {
+        &self.prior
+    }
+    pub fn loaded(&self) -> &crate::domain::initial_status::Loaded {
+        &self.loaded
+    }
+}
+/// Consume Social state before constructing empty StatusEffect then TownCampfire.
+/// No runtime clock/Save is reached until all retained state and absence are
+/// revalidated in the same transaction. A clock failure preserves earlier commits.
+pub async fn load_status(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    prior: SocialManagers,
+    clock: impl FnOnce() -> Result<SqlDateTime2, super::lab_clock::ClockError>,
+    observations: &mut crate::domain::initial_status::Profile,
+) -> Result<StatusManagers, ManagerError> {
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = constructor_tx(pool, owner, &prior.prior.prior.prefix).await?;
+        let rows = character_costumes::load_for_constructor(&mut tx, prior.cid()).await?;
+        if !prior
+            .costume()
+            .matches_source(rows)
+            .map_err(CostumeError::from)?
+        {
+            return Err(ManagerError::Conflict);
+        }
+        let _vocation = character_vocation::load_first(&mut tx, prior.cid()).await?;
+        super::character_status_effects::require_absent(&mut tx, prior.cid()).await?;
+        let loaded =
+            crate::domain::initial_status::Loaded::load(prior.social(), clock, observations)?;
+        tx.commit().await?;
+        Ok(StatusManagers { prior, loaded })
     })
     .await
     .map_err(|_| ManagerError::Timeout)?

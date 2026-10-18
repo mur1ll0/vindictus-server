@@ -766,3 +766,149 @@ async fn social_constructor_refuses_stale_prior_owner_source_profile_and_catalog
         cleanup_game_pool(a, p, s).await;
     }
 }
+
+async fn status_prior(p: &PgPool, initialized: bool) -> managers::SocialManagers {
+    let prior = social_prior(p).await;
+    if initialized {
+        use vindictus_server::infrastructure::character_status_effects as db;
+        let raw=serde_json::json!({"format_version":1,"source":"study_heroes.status-effects","source_last_value":"100","effects":[]}).to_string();
+        let source = db::read_snapshot(raw.as_bytes()).unwrap();
+        db::preserve(p, &source, false).await.unwrap();
+    }
+    managers::load_social(p, &owner(), prior, &profile("25"), &catalog())
+        .await
+        .unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn status_constructor_runs_clock_save_then_campfire_without_writes_or_ids() {
+    use vindictus_server::domain::initial_status::Profile;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = status_prior(&p, true).await;
+    let before = counts(&p).await;
+    let sequences = social_sequences(&p).await;
+    sqlx::query("CREATE FUNCTION reject_status_write()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'unexpected constructor write';END$$").execute(&p).await.unwrap();
+    let tables:Vec<String>=sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname=current_schema() AND tablename LIKE 'game_%'").fetch_all(&p).await.unwrap();
+    for table in tables {
+        assert!(
+            table
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        );
+        sqlx::query(&format!("CREATE TRIGGER reject_status_write BEFORE INSERT OR UPDATE OR DELETE ON {table} FOR EACH STATEMENT EXECUTE FUNCTION reject_status_write()")).execute(&p).await.unwrap();
+    }
+    let mut observations = Profile::default();
+    let mut calls = 0;
+    let out = managers::load_status(
+        &p,
+        &owner(),
+        prior,
+        || {
+            calls += 1;
+            vindictus_server::infrastructure::lab_clock::utc_now()
+        },
+        &mut observations,
+    )
+    .await
+    .unwrap();
+    assert_eq!(calls, 1);
+    assert_eq!(observations.calls(), 1);
+    assert_eq!(out.prior().cid(), 1);
+    let loaded = out.loaded();
+    assert!(loaded.matches_social(out.prior().social()));
+    assert!(loaded.shares_character_context());
+    assert_eq!(loaded.status().cid(), 1);
+    assert_eq!(loaded.status().uid(), 31);
+    assert_eq!(loaded.status().type_count(), 0);
+    assert_eq!(loaded.status().tag_count(), 0);
+    assert!(loaded.status().save_succeeded());
+    assert!(!loaded.status().need_db_submit());
+    assert!(!loaded.status().need_update_stat());
+    assert_eq!(loaded.status().stats().entries().count(), 25);
+    assert!(loaded.status().stats().entries().all(|(_, v)| v == 0));
+    assert_eq!(loaded.campfire().status(), "");
+    assert_eq!(counts(&p).await, before);
+    assert_eq!(social_sequences(&p).await, sequences);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn status_constructor_refuses_invalid_boundaries_before_clock_and_preserves_clock_failure() {
+    use vindictus_server::{
+        domain::initial_status::Profile, infrastructure::lab_clock::ClockError,
+    };
+    for phase in 0..8 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = status_prior(&p, phase != 0).await;
+        let mut key = owner();
+        match phase {
+            1 => {
+                sqlx::query("INSERT INTO game_status_effects VALUES(1,1,$1,0,0,0,0)")
+                    .bind(vec![65u8, 0])
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            2 => {
+                sqlx::query("UPDATE game_users SET name=name WHERE id=31")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            3 => {
+                sqlx::query("INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn)VALUES(1,1,true,0,0,99)").execute(&p).await.unwrap();
+            }
+            4 => {
+                sqlx::query("INSERT INTO game_vocations VALUES(1,0,0,0,NULL)")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            5 => {
+                sqlx::query(
+                    "UPDATE game_character_state_preservation SET source_sha256=$1 WHERE singleton",
+                )
+                .bind(vec![7u8; 32])
+                .execute(&p)
+                .await
+                .unwrap();
+            }
+            6 => key.uid = 32,
+            _ => {}
+        }
+        let before = counts(&p).await;
+        let sequences = social_sequences(&p).await;
+        let mut observations = Profile::default();
+        let mut calls = 0;
+        let result = managers::load_status(
+            &p,
+            &key,
+            prior,
+            || {
+                calls += 1;
+                Err(ClockError::Range)
+            },
+            &mut observations,
+        )
+        .await;
+        assert!(result.is_err());
+        if phase == 7 {
+            assert!(matches!(result, Err(ManagerError::Clock(_))));
+            assert_eq!(calls, 1);
+            assert_eq!(observations.calls(), 1)
+        } else {
+            assert_eq!(calls, 0);
+            assert_eq!(observations.calls(), 0)
+        }
+        if phase == 0 || phase == 1 {
+            assert!(matches!(result, Err(ManagerError::Status(_))));
+        }
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, sequences);
+        if phase == 1 {
+            let row:(i64,Vec<u8>,i32,Option<i32>,Option<i64>,Option<i16>)=sqlx::query_as("SELECT cid,type_utf16,level,remain_time,expire_ticks,remain_micro FROM game_status_effects WHERE row_id=1").fetch_one(&p).await.unwrap();
+            assert_eq!(row, (1, vec![65u8, 0], 0, Some(0), Some(0), Some(0)));
+        }
+        cleanup_game_pool(a, p, s).await;
+    }
+}

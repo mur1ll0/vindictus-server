@@ -80,3 +80,5 @@ pub mod skill_multicast;
 pub mod initial_vocation;
 
 pub mod initial_social;
+
+pub mod initial_status;

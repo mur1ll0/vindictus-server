@@ -222,3 +222,18 @@ Environment: native tests in isolated PG17 tmpfs schemas, same image/restricted 
 Verdict: PASS for preservation/readiness/absence guard only. Guard locks an existing character, requires initialized reference and caller ownership proof, refuses existing effects, never expires/removes data or consumes identity. Schema26 additive; five downgrade fixtures/one TRUNCATE updated for FK dependencies without weaker assertions.
 Remaining: complete StatusEffect constructor/Save/clock/profiling/CharacterStats and TownCampfire; remaining constructors/Join/Login/ItemProxy/Summary/lifecycle/TCP Create; actual creation/relogin/selection/city/movement;full M01-M24. No new client/native frontend run.
 Evidence: docs/status-effect-preservation.md,auth/status-effect-preservation.json,database/status-effect-import.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.18b -- Restricted empty StatusEffect and TownCampfire constructors
+VERIFICATION REPORT
+-------------------
+Claim: empty detached StatusEffect UTC/Save/25 zero stats and following TownCampfire composed after opaque Social; not general effects/connected Save/full actors/Create.
+Command: scripts/reverse/generate-initial-status-fixtures.ps1; cargo test --locked --test initial_status; cargo test --locked --test postgres fiona_managers::status_constructor_ -- --ignored --test-threads=1; scripts/dev/verify.ps1 -DatabaseIntegration; docker compose -f compose.yaml -f .cache/compose.initial-status-build.yaml build server; scripts/dev/smoke-docker.ps1; eight existing preservation import scripts -Mode Verify.
+Executed: 2026-10-18T20:39:23.6447447+00:00 (full gate); 2026-10-18T20:40:40.2566842+00:00 (Docker).
+Exit code: 0.
+Output summary: 346 Rust passed; 175 native isolated PostgreSQL passed, 0 ignored; 41 Python passed; 0 failures/warnings. Three new Rust/two PG. Oracle32cases+3connected control probes per architecture, x86=x64. Complete original Status ctor/Save/list,Player/TownCampfire constructors,CharacterStats static/instance+enum,profiling hooks and original ProfileScope/Data. UTC/boundaries instrumented;nonempty effects trapped;no legacy service execution. Synthetic profiler tag disclosed.
+Warnings: none.
+Errors: none in final verification. Oracle source-signature mismatch corrected before compilation; no code/assertion/coverage suppression.
+Environment: native Rust process,isolated PG17 tmpfs schemas,same pinned image/restricted role,fsync/synchronous_commit/full_page_writes on;test instance removed without volume removal. Locked Docker builtin frontend uses copy with only #syntax removed and active instructions byte-identical;original Dockerfile unchanged,hashes retained. Normal-volume smoke/restart and eight preservation Verify checks passed.
+Verdict: PASS for restricted constructor composition. DML forbidden on all game_* tables;all sequence positions stable;eight invalid-boundary/clock-error cases preserve earlier commits. One UTC read and successful empty Save;TownCampfire follows;shared detached context cannot acquire frontend/Player.Character. Native profiling is a dedicated duration collector including clock Result errors,not global PostSharp registry/tag.
+Remaining: Attendance and remaining constructors,Join/Login/CountBonus,ItemProxy second Save/Undo,Summary/lifecycle/reconciliation/TCPCreate,real client creation/relogin/selection/city/movement,complete M01-M24. Nonempty effects/expiry and connected Save/profiling registry remain outside this profile. Schema26 unchanged;no new frontend/client run.
+Evidence: docs/initial-status.md,auth/initial-status.json,framework-initial-status.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
