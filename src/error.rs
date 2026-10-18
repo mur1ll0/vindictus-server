@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error(transparent)]
+    Vocation(#[from] crate::infrastructure::character_vocation::VocationError),
     #[error("normal Fiona initializer profile is outside the recovered bounds")]
     FionaInitializerProfile,
     #[error("invalid or unsupported source-bound Fiona appearance")]

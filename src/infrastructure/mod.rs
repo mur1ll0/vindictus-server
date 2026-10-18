@@ -71,3 +71,5 @@ pub mod shared_item_state;
 pub mod fiona_customization;
 
 pub mod fiona_managers;
+
+pub mod character_vocation;

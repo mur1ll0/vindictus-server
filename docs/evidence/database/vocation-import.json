@@ -1,0 +1,51 @@
+{
+  "stage": "M15.1b.2e.10b.16",
+  "verified_at_utc": "2026-10-18T17:41:37.6897034+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_vocations": 3,
+  "source_skills": 33,
+  "source_columns": [
+    5,
+    4
+  ],
+  "export_sha256": "5f9bef00ea797a4f65f9daa0aae97c3fdb3c464bf9dd6e31f42c3e85b17e3efb",
+  "query_sha256": "e4f7c7c29d711dc617912b5f1efc94cb29867bf751b080d66639c0e606ebdc3c",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "vocations": 3,
+    "skills": 33,
+    "inserted": 36,
+    "verified": 36,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "replay": {
+    "vocations": 3,
+    "skills": 33,
+    "inserted": 0,
+    "verified": 36,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "verified": {
+    "vocations": 3,
+    "skills": 33,
+    "inserted": 0,
+    "verified": 36,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "post_restart_verified": true,
+  "character_creation_available": false,
+  "post_restart_verified_at_utc": "2026-10-18T17:42:34.7505979+00:00",
+  "post_restart_summary": {
+    "vocations": 3,
+    "skills": 33,
+    "inserted": 0,
+    "verified": 36,
+    "identity_initialized": true,
+    "character_creation_available": false
+  }
+}

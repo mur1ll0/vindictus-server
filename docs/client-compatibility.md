@@ -144,3 +144,5 @@ M15.1b.2e.10b.13: fase interna de skills com runtime concreto detached/unloaded,
 M15.1b.2e.10b.14: prefixo interno MissionBook/titulos iniciais/stats/SP composto e verificado,com falhas/commits na ordem recuperada. Ainda faltam demais construtores/Join/Login/ItemProxy,Summary/lifecycle/TCPCreate. Nenhum novo teste do cliente;Create,selecao,cidade/movimento continuam indisponiveis.
 
 M15.1b.2e.10b.15: carga interna CostumeManager ligada ao prefixo opaco,com contexto/mapas e ausencia de Save/identidade verificados. Ainda faltam Vocation/demais construtores/Join/Login/ItemProxy,Summary/lifecycle/TCPCreate. Nenhum novo testecliente;Create,selecao,cidade/movimento indisponiveis.
+
+M15.1b.2e.10b.16: Vocation/VocationSkill preservados no schema 25 e construtor inicial com ausencia comprovada vinculado ao estado de Costume. Restam os demais construtores, Join/Login/ItemProxy, Summary/lifecycle e TCP Create. Nao houve novo teste do cliente; criacao persistente, selecao e cidade/movimento continuam indisponiveis.

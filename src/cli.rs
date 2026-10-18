@@ -131,6 +131,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve Vocation/VocationSkill and original identity from private stdin.
+    ImportCharacterVocation {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve Skill/SPSkill rows and the original SPSkill identity from private stdin.
     ImportCharacterSkills {
         #[arg(long, required = true)]

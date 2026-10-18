@@ -5,6 +5,7 @@ use super::{
     character_costumes::{self, CostumeError},
     character_lobby::UserKey,
     character_skills::{self, SkillError},
+    character_vocation::{self, VocationError},
     fiona_character_state::{self as state, StateError},
     fiona_initializer_profile::Profile,
     item_catalog::Package,
@@ -19,6 +20,8 @@ use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]
 pub enum ManagerError {
+    #[error(transparent)]
+    Vocation(#[from] VocationError),
     #[error(transparent)]
     Costume(#[from] CostumeError),
     #[error("initial manager database operation failed")]
@@ -118,17 +121,87 @@ pub async fn load_costume(
     prefix: Managers,
     context: initial_costume::Context,
 ) -> Result<CostumedManagers, ManagerError> {
-    tokio::time::timeout(std::time::Duration::from_secs(15),async{
- let mut tx=state::owned_first_fiona(pool,owner,prefix.cid).await?;
- let source:Option<Vec<u8>>=sqlx::query_scalar("SELECT source_sha256 FROM game_character_state_preservation WHERE singleton").fetch_one(&mut *tx).await?;
- if source.as_deref()!=Some(prefix.state_source.as_slice()){return Err(ManagerError::Conflict)}
- let stored:(i32,i32,i32,i32,i32,i32,i32,bool,bool)=sqlx::query_as("SELECT str,dex,int,will,luck,hp,stamina,dirty,legacy_last_update IS NULL AND ap=0 AND total_used_ap=0 AND exp=0 AND play_time=0 AND selected_title=0 FROM game_character_info WHERE id=$1").bind(prefix.cid).fetch_one(&mut *tx).await?;
- if [stored.0,stored.1,stored.2,stored.3,stored.4,stored.5,stored.6]!=*prefix.base.values()||stored.7||!stored.8{return Err(ManagerError::Conflict)}
- let boundary:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_character_mission_info WHERE cid=$1 AND completed_mission_count=0 AND last_clear_ticks=0) AND (SELECT COUNT(*) FROM game_sp_skills WHERE cid=$1)=1 AND EXISTS(SELECT 1 FROM game_sp_skills WHERE cid=$1 AND slot_id=0 AND skill_utf16 IS NULL) AND NOT EXISTS(SELECT 1 FROM game_titles WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_title_goal_progress WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_mission_assignments WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_micro_play_status WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_skills WHERE cid=$1)").bind(prefix.cid).fetch_one(&mut *tx).await?;
- if !boundary{return Err(ManagerError::Conflict)}
- let rows=character_costumes::load_for_constructor(&mut tx,prefix.cid).await?;
- let costume=Loaded::load(rows,context).map_err(CostumeError::from)?;
- tx.commit().await?;
- Ok(CostumedManagers{prefix,costume})
- }).await.map_err(|_|ManagerError::Timeout)?
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = constructor_tx(pool, owner, &prefix).await?;
+        let rows = character_costumes::load_for_constructor(&mut tx, prefix.cid).await?;
+        let costume = Loaded::load(rows, context).map_err(CostumeError::from)?;
+        tx.commit().await?;
+        Ok(CostumedManagers { prefix, costume })
+    })
+    .await
+    .map_err(|_| ManagerError::Timeout)?
+}
+
+async fn constructor_tx<'p>(
+    pool: &'p PgPool,
+    owner: &UserKey<'_>,
+    prefix: &Managers,
+) -> Result<sqlx::Transaction<'p, sqlx::Postgres>, ManagerError> {
+    let mut tx = state::owned_first_fiona(pool, owner, prefix.cid).await?;
+    let source: Option<Vec<u8>> = sqlx::query_scalar(
+        "SELECT source_sha256 FROM game_character_state_preservation WHERE singleton",
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if source.as_deref() != Some(prefix.state_source.as_slice()) {
+        return Err(ManagerError::Conflict);
+    }
+    let stored:(i32,i32,i32,i32,i32,i32,i32,bool,bool)=sqlx::query_as("SELECT str,dex,int,will,luck,hp,stamina,dirty,legacy_last_update IS NULL AND ap=0 AND total_used_ap=0 AND exp=0 AND play_time=0 AND selected_title=0 FROM game_character_info WHERE id=$1").bind(prefix.cid).fetch_one(&mut *tx).await?;
+    if [
+        stored.0, stored.1, stored.2, stored.3, stored.4, stored.5, stored.6,
+    ] != *prefix.base.values()
+        || stored.7
+        || !stored.8
+    {
+        return Err(ManagerError::Conflict);
+    }
+    let boundary:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_character_mission_info WHERE cid=$1 AND completed_mission_count=0 AND last_clear_ticks=0) AND (SELECT COUNT(*) FROM game_sp_skills WHERE cid=$1)=1 AND EXISTS(SELECT 1 FROM game_sp_skills WHERE cid=$1 AND slot_id=0 AND skill_utf16 IS NULL) AND NOT EXISTS(SELECT 1 FROM game_titles WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_title_goal_progress WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_mission_assignments WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_micro_play_status WHERE cid=$1) AND NOT EXISTS(SELECT 1 FROM game_skills WHERE cid=$1)").bind(prefix.cid).fetch_one(&mut *tx).await?;
+    if !boundary {
+        return Err(ManagerError::Conflict);
+    }
+
+    Ok(tx)
+}
+#[must_use = "Vocation absent and initialized only;remaining constructors/Join/Login/Create must still run"]
+pub struct VocatedManagers {
+    prior: CostumedManagers,
+    vocation: crate::domain::initial_vocation::Loaded,
+}
+impl VocatedManagers {
+    pub fn cid(&self) -> i64 {
+        self.prior.cid()
+    }
+    pub fn base(&self) -> BaseStats {
+        self.prior.base()
+    }
+    pub fn costume(&self) -> &Loaded {
+        self.prior.costume()
+    }
+    pub fn vocation(&self) -> &crate::domain::initial_vocation::Loaded {
+        &self.vocation
+    }
+}
+/// Source VocationManager follows Costume. Admit only a proven absent vocation;
+/// no content provider,skill grant,transformation or Submit is invoked.
+pub async fn load_vocation(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    prior: CostumedManagers,
+) -> Result<VocatedManagers, ManagerError> {
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = constructor_tx(pool, owner, &prior.prefix).await?;
+        let rows = character_costumes::load_for_constructor(&mut tx, prior.cid()).await?;
+        if !prior
+            .costume
+            .matches_source(rows)
+            .map_err(CostumeError::from)?
+        {
+            return Err(ManagerError::Conflict);
+        }
+        let vocation = character_vocation::load_first(&mut tx, prior.cid()).await?;
+        tx.commit().await?;
+        Ok(VocatedManagers { prior, vocation })
+    })
+    .await
+    .map_err(|_| ManagerError::Timeout)?
 }

@@ -1,0 +1,150 @@
+{
+  "stage": "M15.1b.2e.10b.16",
+  "schema_version": 25,
+  "scope": "full source Vocation/VocationSkill preservation and restricted absent-Vocation constructor after opaque Costume state;not remaining constructors/Join/Login/Create",
+  "gate_verified_at_utc": "2026-10-18T17:40:57.8832947+00:00",
+  "docker_verified_at_utc": "2026-10-18T17:42:31.6742620+00:00",
+  "passed": {
+    "rust": 338,
+    "postgres_native": 167,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "preservation": {
+    "vocations": 3,
+    "skills": 33,
+    "fields": [
+      5,
+      4
+    ],
+    "source_identity_last_value": 51,
+    "identity_seed": 1,
+    "identity_increment": 1,
+    "bootstrap": "transactional RESTART from source last_value+1,never MAX+1;replay never reseeds",
+    "datetime2": "nullable 100ns ticks in BIGINT;four synthetic SQL reference cases exact",
+    "source_sha256_frozen": true,
+    "foreign_keys": "source trusted/enabled;both update/delete CASCADE;target matches",
+    "skill_ids": "raw UTF16LE bytes;source duplicate ordinal IDs retained;RowID sole key",
+    "private_acl": "current Windows user and SYSTEM only",
+    "private_exports_in_git": false
+  },
+  "oracle": {
+    "fixture": "tests/fixtures/framework-initial-vocation.json",
+    "cases_per_architecture": 128,
+    "x86_equals_x64": true,
+    "original": "complete VocationManager constructor,InitSkillDict,CalculateUsedSkillPoint",
+    "instrumented": "parent/association and privacy-safe error logger;not content providers,training or transformation",
+    "covered": [
+      "None",
+      "ordinal UTF16 including unpaired surrogates and case distinctions",
+      "duplicate first wins/log count",
+      "unchecked rank sum",
+      "ChangedSkills empty,VocationChanged false,TransformLevel0"
+    ]
+  },
+  "boundary": {
+    "opaque_costume_consumed": true,
+    "owner_revision_source_base_mission_sp_rechecked": true,
+    "retained_costume_rechecked": true,
+    "absence_requires_complete_initialized_preservation": true,
+    "existing_vocation_refused": true,
+    "read_only_constructor": true,
+    "identity_not_consumed": true,
+    "prior_commits_preserved": true,
+    "not_invoked": [
+      "Whisper/Guild/StatusEffect/remaining constructors",
+      "Join/Login",
+      "Vocation Save/Train/Transform",
+      "TCP Create"
+    ]
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore._Vocation_/VocationManager.cs",
+      "sha256": "9cd9e820d9d439e2211d886f15b45c08ea75a30e3e4e1a56af48fa8793825380"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/Character.cs",
+      "sha256": "1d074cc8e93e0c734f5fbbb52a4871b5441ef21f2ae63faf94132707ff1d2cc2"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+      "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/Vocation.cs",
+      "sha256": "e18031d992df18afbe0626bbff550b0a325bda793fd4768baa08e7d82ccac756"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/VocationSkill.cs",
+      "sha256": "98fe88134ccee5e6bd6a2e38dd1ba4684e2d5bcd9e29ec4f0c9b3b682f064630"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialVocationOracle.cs.in",
+      "sha256": "c7e8393329404347c7ca59d773afafacd9cee91cf9d4216f8587991e1a9bf23f"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-vocation-fixtures.ps1",
+      "sha256": "0c35e8675e2fbef5a8bbf3f31d61d7612a9470488c639dc5f8fae2f0583e9271"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "postgres_verification_environment": {
+    "persistent_volume_mounts": 0,
+    "native_rust_test_runtime": true,
+    "image_matches_main": true,
+    "app_role_restricted": true,
+    "full_page_writes": "on",
+    "synchronous_commit": "on",
+    "fsync": "on",
+    "storage": "tmpfs",
+    "removed_after_verification": true
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "82df375553414511ef31122cb9c43ac47ac54685ab1cc5fbd017720057a2171b"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "48f097e2902e879cda6c1d3be572c132070b2ef4ddaada0dca36d0078cb3e3c8"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "11780491ebb3b8146aad0283177401faafe583419ac379946cc5f2f17724280e"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "3fc28c5bfc8c04d89ced9baec9ed685a0fc5979448538d0a0d6347190afdef7c"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "66873791276f042acae9cdc5a0aa61fb65e2fe82122e61f1ea93f04f9a122223"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "ab5942c51c28266b237beb5a3015bcb204ea7f2bd78d345cbfb1b8cf44a39dc5"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "6341cad0aa52d4edac81cff4c171b32bcf7f06ec4bb8d0b880d590b13731b370"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "3ba293816fd335f6fa6eb4b24908453163169b6dfc7f6bcc45f2eea45ab10dc5"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "e6006e5cc08ebbbb0dfbe7b5e64e2823d6bd0b9697ee1abe0ceb2cd4d64f5677"
+      }
+    ]
+  }
+}

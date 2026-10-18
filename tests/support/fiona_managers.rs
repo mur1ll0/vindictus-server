@@ -400,3 +400,241 @@ async fn constructor_costume_refuses_ambiguous_and_excess_rows_preserving_prefix
         cleanup_game_pool(a, p, s).await;
     }
 }
+
+fn vocation_export() -> Value {
+    json!({"format_version":1,"source":"study_heroes.vocation-state","source_last_value":"100","vocations":[{"cid":"1","vocation_class":-2,"vocation_level":0,"vocation_exp":i32::MIN,"last_transform_ticks":"3155378975999999999"}],"skills":[{"row_id":"2","cid":"1","skill_utf16":"4100","rank":i32::MAX},{"row_id":"9","cid":"1","skill_utf16":"4100","rank":1},{"row_id":"10","cid":"1","skill_utf16":"6100","rank":-1}]})
+}
+fn vocation_snapshot(v: &Value) -> vindictus_server::infrastructure::character_vocation::Snapshot {
+    vindictus_server::infrastructure::character_vocation::read_snapshot(
+        serde_json::to_vec(v).unwrap().as_slice(),
+    )
+    .unwrap()
+}
+async fn empty_vocation_source(p: &PgPool) {
+    use vindictus_server::infrastructure::character_vocation as v;
+    let e = json!({"format_version":1,"source":"study_heroes.vocation-state","source_last_value":null,"vocations":[],"skills":[]});
+    v::preserve(p, &vocation_snapshot(&e), false).await.unwrap();
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn vocation_preservation_compares_all_fields_freezes_source_and_never_reseeds_replay() {
+    use vindictus_server::infrastructure::character_vocation::{self as v, VocationError};
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    let e = vocation_export();
+    let snapshot = vocation_snapshot(&e);
+    let (x, y) = tokio::join!(
+        v::preserve(&p, &snapshot, false),
+        v::preserve(&p, &snapshot, false)
+    );
+    assert_eq!(x.unwrap().inserted + y.unwrap().inserted, 4);
+    assert_eq!(v::preserve(&p, &snapshot, true).await.unwrap().verified, 4);
+    let actual:(i32,i32,i32,Option<i64>)=sqlx::query_as("SELECT vocation_class,vocation_level,vocation_exp,last_transform_ticks FROM game_vocations WHERE cid=1").fetch_one(&p).await.unwrap();
+    assert_eq!(actual, (-2, 0, i32::MIN, Some(3155378975999999999)));
+    let actual: Vec<(i64, i64, Vec<u8>, i32)> = sqlx::query_as(
+        "SELECT row_id,cid,skill_utf16,rank FROM game_vocation_skills ORDER BY row_id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(
+        actual,
+        vec![
+            (2, 1, vec![65, 0], i32::MAX),
+            (9, 1, vec![65, 0], 1),
+            (10, 1, vec![97, 0], -1)
+        ]
+    );
+    let first: i64 = sqlx::query_scalar("SELECT nextval('game_vocation_skill_row_id')")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(first, 101);
+    v::preserve(&p, &snapshot, false).await.unwrap();
+    let second: i64 = sqlx::query_scalar("SELECT nextval('game_vocation_skill_row_id')")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(second, 102);
+    let mut changed = e.clone();
+    changed["vocations"][0]["vocation_exp"] = json!(0);
+    assert!(matches!(
+        v::preserve(&p, &vocation_snapshot(&changed), false).await,
+        Err(VocationError::Conflict)
+    ));
+    sqlx::query("UPDATE game_vocation_skills SET rank=7 WHERE row_id=9")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        v::preserve(&p, &snapshot, true).await,
+        Err(VocationError::Conflict)
+    ));
+    let rank: i32 = sqlx::query_scalar("SELECT rank FROM game_vocation_skills WHERE row_id=9")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(rank, 7);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn vocation_preservation_late_conflict_rolls_back_rows_marker_and_sequence() {
+    use vindictus_server::infrastructure::character_vocation::{self as v, VocationError};
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    sqlx::query("INSERT INTO game_vocations VALUES(1,-2,0,-2147483648,3155378975999999999)")
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO game_vocation_skills VALUES(9,1,$1,7)")
+        .bind(vec![65u8, 0])
+        .execute(&p)
+        .await
+        .unwrap();
+    let snapshot = vocation_snapshot(&vocation_export());
+    assert!(matches!(
+        v::preserve(&p, &snapshot, false).await,
+        Err(VocationError::Conflict)
+    ));
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM game_vocation_skills")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(n, 1);
+    let state:(bool,Option<i64>,Option<Vec<u8>>)=sqlx::query_as("SELECT initialized,source_last_value,source_sha256 FROM game_vocation_preservation WHERE singleton").fetch_one(&p).await.unwrap();
+    assert_eq!(state, (false, None, None));
+    let seq: (i64, bool) =
+        sqlx::query_as("SELECT last_value,is_called FROM game_vocation_skill_row_id")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(seq, (1, false));
+    assert!(
+        sqlx::query("INSERT INTO game_vocation_skills VALUES(99,999,$1,0)")
+            .bind(vec![65u8, 0])
+            .execute(&p)
+            .await
+            .is_err()
+    );
+    sqlx::query("DELETE FROM game_vocation_skills")
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO game_vocation_skills VALUES(99,1,$1,0)")
+        .bind(vec![65u8, 0])
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        v::preserve(&p, &snapshot, false).await,
+        Err(VocationError::Conflict)
+    ));
+    let n: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM game_vocation_skills")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(n, 1);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn vocation_constructor_after_costume_proves_none_without_write_or_identity() {
+    use vindictus_server::application::initial_costume::Context;
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    costume_source(&p, false).await;
+    empty_vocation_source(&p).await;
+    let prefix = managers::initialize(&p, &owner(), 1, &profile("25"), &catalog())
+        .await
+        .unwrap();
+    let prior = managers::load_costume(
+        &p,
+        &owner(),
+        prefix,
+        Context {
+            cafe_type: 0,
+            is_return: true,
+        },
+    )
+    .await
+    .unwrap();
+    sqlx::query("CREATE FUNCTION reject_vocation_write()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'unexpected vocation constructor write';END$$").execute(&p).await.unwrap();
+    for table in [
+        "game_vocations",
+        "game_vocation_skills",
+        "game_vocation_preservation",
+    ] {
+        sqlx::query(&format!("CREATE TRIGGER reject_vocation_write BEFORE INSERT OR UPDATE OR DELETE ON {table} FOR EACH STATEMENT EXECUTE FUNCTION reject_vocation_write()")).execute(&p).await.unwrap();
+    }
+    let out = managers::load_vocation(&p, &owner(), prior).await.unwrap();
+    assert_eq!(out.cid(), 1);
+    assert_eq!(*out.base().values(), [1, 2, 3, 4, 100, 5, 6]);
+    assert!(out.costume().info().is_return);
+    let v = out.vocation();
+    assert!(v.details().is_none());
+    assert_eq!(v.skills().count(), 0);
+    assert!(v.changed_skills().is_empty());
+    assert_eq!(v.used_points(), 0);
+    assert_eq!(v.duplicates(), 0);
+    assert!(!v.vocation_changed());
+    assert_eq!(v.transform_level(), 0);
+    let seq: (i64, bool) =
+        sqlx::query_as("SELECT last_value,is_called FROM game_vocation_skill_row_id")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(seq, (1, false));
+    assert_eq!(counts(&p).await, (1, 1, 0, 0, 0));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn vocation_constructor_refuses_uninitialized_existing_stale_costume_and_revision() {
+    use vindictus_server::{
+        application::initial_costume::Context, infrastructure::character_vocation as v,
+    };
+    for phase in 0..4 {
+        let (a, p, s) = isolated_game_pool().await;
+        setup(&p).await;
+        costume_source(&p, false).await;
+        if phase == 1 {
+            v::preserve(&p, &vocation_snapshot(&vocation_export()), false)
+                .await
+                .unwrap();
+        } else if phase != 0 {
+            empty_vocation_source(&p).await;
+        }
+        let prefix = managers::initialize(&p, &owner(), 1, &profile("25"), &catalog())
+            .await
+            .unwrap();
+        let prior = managers::load_costume(
+            &p,
+            &owner(),
+            prefix,
+            Context {
+                cafe_type: 0,
+                is_return: false,
+            },
+        )
+        .await
+        .unwrap();
+        if phase == 2 {
+            sqlx::query("INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn)VALUES(1,1,true,0,0,99)").execute(&p).await.unwrap();
+        }
+        if phase == 3 {
+            sqlx::query("UPDATE game_users SET name=name WHERE id=31")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        let result = managers::load_vocation(&p, &owner(), prior).await;
+        match phase {
+            0 | 1 => assert!(matches!(result, Err(ManagerError::Vocation(_)))),
+            2 => assert!(matches!(result, Err(ManagerError::Conflict))),
+            _ => assert!(matches!(result, Err(ManagerError::State(_)))),
+        }
+        assert_eq!(counts(&p).await, (1, 1, 0, 0, 0));
+        cleanup_game_pool(a, p, s).await;
+    }
+}

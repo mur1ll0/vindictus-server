@@ -1,0 +1,31 @@
+using System;using System.Collections.Generic;using System.Linq;using System.Text;using System.Web.Script.Serialization;
+class VocationSkill{public long RowID,CID;public string SkillID;public int Rank;}
+class Vocation{public List<VocationSkill> VocationSkill=new List<VocationSkill>();}
+class Entry{public Vocation Vocation;}
+class CharacterEntity{public object Player;public Entry Entry;}
+class Logger{public void ErrorFormat(params object[] args){Oracle.Duplicates++;}}
+class Log<T>{public static Logger Logger=new Logger();}
+class VocationManager{
+ object Player;CharacterEntity CharacterEntity;
+ Vocation Vocation{get{return CharacterEntity.Entry.Vocation;}}
+ public Dictionary<string,VocationSkill> Skills{get;private set;}
+ public int UsedSkillPoint{get;private set;}
+ bool VocationChanged{get;set;}
+ Dictionary<string,int> ChangedSkills{get;set;}
+ int TransformLevel{get;set;}
+ __CTOR__
+ __INIT__
+ __SUM__
+ public object Snapshot(){return new{skills=Skills.Values.Select(x=>new{row_id=x.RowID,id_utf16=Oracle.Hex(x.SkillID),rank=x.Rank}).ToArray(),used=UsedSkillPoint,changed=ChangedSkills.Count,vocation_changed=VocationChanged,transform_level=TransformLevel};}
+}
+class Oracle{
+ public static int Duplicates;
+ public static string Hex(string s){var b=new byte[s.Length*2];for(int j=0;j<s.Length;j++){b[j*2]=(byte)s[j];b[j*2+1]=(byte)(s[j]>>8);}return BitConverter.ToString(b).Replace("-","").ToLowerInvariant();}
+ static void Main(){var cases=new List<object>();
+ for(int n=0;n<128;n++){bool absent=n%4==0;var rows=new List<VocationSkill>();string[] keys=n%2==0?new[]{"A","a","A","","\ud800","\ud800","B\0"}:new[]{"\u00e9","e\u0301","\u00e9","a","","","A"};
+ if(!absent)for(int j=0;j<keys.Length;j++)rows.Add(new VocationSkill{RowID=j+1,CID=1,SkillID=keys[j],Rank=n==1?(j==0?int.MaxValue:j==1?1:-j):unchecked(n*1103515245+j*12345)});
+ var parent=new CharacterEntity{Player=new object(),Entry=new Entry{Vocation=absent?null:new Vocation{VocationSkill=rows}}};
+ Duplicates=0;var m=new VocationManager(parent);
+ cases.Add(new{n=n,absent=absent,input=rows.Select(x=>new{row_id=x.RowID,id_utf16=Hex(x.SkillID),rank=x.Rank}).ToArray(),expected=m.Snapshot(),duplicates=Duplicates});
+ }Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=16*1024*1024}.Serialize(cases));}
+}

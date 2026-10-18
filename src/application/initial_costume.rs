@@ -31,6 +31,18 @@ impl Loaded {
         }
         Ok(Self { base, item, info })
     }
+    /// Detect changes between constructor stages without treating a projection-equivalent
+    /// row mutation as the same retained snapshot.
+    pub fn matches_source(&self, rows: CostumeSet) -> Result<bool, CostumeProfile> {
+        let other = Self::load(
+            rows,
+            Context {
+                cafe_type: self.info.cafe_type,
+                is_return: self.info.is_return,
+            },
+        )?;
+        Ok(self.base == other.base && self.item == other.item && self.info == other.info)
+    }
     pub fn info(&self) -> &Info {
         &self.info
     }
