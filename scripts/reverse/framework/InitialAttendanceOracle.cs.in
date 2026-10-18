@@ -1,0 +1,86 @@
+using System;using System.Collections;using System.Collections.Generic;using System.Linq;using System.Linq.Expressions;using System.Web.Script.Serialization;using System.Globalization;
+static class Events {
+ public static List<string> Trace=new List<string>();public static List<UserInfo> Users;
+ public static bool Enabled;public static string Version;public static long[] Times;public static int FailClock,ClockCalls,Unsupported,Caught;
+ public static DateTime UtcNow{get{ClockCalls++;Trace.Add("clock");if(FailClock==ClockCalls)throw new Exception("synthetic clock");return new DateTime(Times[Math.Min(ClockCalls-1,Times.Length-1)]);}}
+}
+class UserInfo {public int NexonSN;public long? LastLoginCID;}
+class Query<T>:IQueryable<T>,IQueryProvider {
+ IQueryable<T> inner;public Query(IQueryable<T> q){inner=q;}
+ public Type ElementType{get{return typeof(T);}}public Expression Expression{get{return inner.Expression;}}public IQueryProvider Provider{get{return this;}}
+ public IEnumerator<T> GetEnumerator(){return inner.GetEnumerator();}IEnumerator IEnumerable.GetEnumerator(){return GetEnumerator();}
+ public IQueryable CreateQuery(Expression e){return new Query<T>(inner.Provider.CreateQuery<T>(e));}
+ public IQueryable<U> CreateQuery<U>(Expression e){return new Query<U>(inner.Provider.CreateQuery<U>(e));}
+ public object Execute(Expression e){Events.Trace.Add(((MethodCallExpression)e).Method.Name);return inner.Provider.Execute(e);}
+ public U Execute<U>(Expression e){Events.Trace.Add(((MethodCallExpression)e).Method.Name);return inner.Provider.Execute<U>(e);}
+}
+class CharacterDataContext:IDisposable {
+ public CharacterDataContext(){Events.Trace.Add("character-context");}
+ public IQueryable<UserInfo> UserInfo{get{return new Query<UserInfo>(Events.Users.AsQueryable());}}
+ __FIRST__
+ public void Dispose(){Events.Trace.Add("dispose-character");}
+}
+class Service {}
+class PlayerEntity{public long CID;}
+class CharacterInfo{public long ID;}
+class Entry{public CharacterInfo CharacterInfo=new CharacterInfo{ID=101};}
+class CharacterEntity{public int UID=31;public PlayerEntity Player=new PlayerEntity{CID=101};public Entry Entry=new Entry();}
+namespace ServiceCore {class FeatureMatrix {
+ public static bool IsEnable(string key){if(key!="Attendance_Newbie")throw new Exception();Events.Trace.Add("feature");return Events.Enabled;}
+ public static string GetString(string key){Events.Trace.Add("nullable-int");return Events.Version;}
+ __NULLABLE__
+ public static int GetInteger(string key){Events.Unsupported++;throw new NotSupportedException();}
+}}
+static class Log<T>{public static Logger Logger=new Logger(typeof(T));}
+class Logger {Type kind;public Logger(Type t){kind=t;}public void ErrorFormat(string f,params object[] a){Events.Trace.Add(kind==typeof(ServiceCore.FeatureMatrix)?"format-error":"caught");if(kind!=typeof(ServiceCore.FeatureMatrix))Events.Caught++;}}
+class AttendanceEvent {public DateTime DateFrom,DateUntil;public int Period=1,AttendanceTotal=1,AttendanceEventVer=7;}
+static class ItemContents {public static Dictionary<int,AttendanceEvent> attendanceEventMap=new Dictionary<int,AttendanceEvent>();}
+class AttendanceNewbieInfoGetResult{public int EventVersion=0;}
+class ItemInstanceDataContext:IDisposable {
+ public ItemInstanceDataContext(){Events.Trace.Add("item-context");}
+ public void Dispose(){Events.Trace.Add("dispose-item");}
+ public void AttendanceNewbieInfoInsert(int uid,int version,DateTime from,DateTime until){Events.Unsupported++;throw new NotSupportedException();}
+ public IEnumerable<AttendanceNewbieInfoGetResult> AttendanceNewbieInfoGet(int uid){Events.Unsupported++;throw new NotSupportedException();}
+}
+class LogDataContext:IDisposable{
+ public void AddCharacterJournal(long cid,string key,ref long? id){Events.Unsupported++;throw new NotSupportedException();}
+ public void AddCharacterLedger(long id,string key,string value,int version){throw new NotSupportedException();}
+ public void Dispose(){}
+}
+__TYPE_ENUM__
+__ERROR_ENUM__
+class Attendance {
+ protected long CID;protected AttendanceEventManager Manager;protected CharacterEntity Parent;protected ItemInstanceDataContext Context;
+ protected DateTime DateFrom=default(DateTime),DateUntil=default(DateTime);protected Action AttendanceDBDestroyed;
+ private List<object> attendanceInfo=new List<object>();private Dictionary<int,object> bonusRewardInfo=new Dictionary<int,object>();
+ public int EventVersion{get;protected set;}private AttendanceErrorResult lastFeatureError=AttendanceErrorResult.None;
+ __BASE__
+ public object Observe(){return new{cid=CID,uid=Parent.UID,version=EventVersion,from_ticks=DateFrom.Ticks,until_ticks=DateUntil.Ticks,callback=AttendanceDBDestroyed!=null,attendance_count=attendanceInfo.Count,bonus_count=bonusRewardInfo.Count,last_error=(int)lastFeatureError,parent_matches=object.ReferenceEquals(Parent,Manager.Parent),context_present=Context!=null};}
+}
+class AttendanceAllUser:Attendance {__ALL__}
+class AttendanceNewbie:Attendance {
+ public AttendanceNewbie(CharacterEntity p,AttendanceEventManager m,int v):base(p,m){Events.Unsupported++;throw new NotSupportedException();}
+}
+class AttendanceEventManager {
+ private CharacterEntity parent;private Service service;private Dictionary<AttendanceEventType,Attendance> instanceDic;
+ __MANAGER__ __INITIALIZE__ __NEWBIE__
+ public CharacterEntity Parent{get{return parent;}}
+ public int Count{get{return instanceDic.Count;}}
+ public object Observe(){return instanceDic[AttendanceEventType.AllUser].Observe();}
+}
+class Oracle {
+ static void Main(){
+ CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("en-US");
+ var cases=new List<object>();string[] versions={null,""," ","bad","0","-1","7","2147483648","+7"," 7 ","7\0","\u00a07","-2147483649","0007","7x","-0"};
+ for(int n=0;n<96;n++){
+  Events.Trace.Clear();Events.ClockCalls=Events.Unsupported=Events.Caught=0;Events.Enabled=n%9!=0;Events.Version=versions[n%versions.Length];
+  int userMode=n%7;Events.Users=new List<UserInfo>();if(userMode!=0)Events.Users.Add(new UserInfo{NexonSN=31,LastLoginCID=userMode==1?(long?)42:null});
+  long start=100,end=200;bool hasPeriod=n%5!=0;long first=n%4==0?50:n%4==1?150:250;long second=n%6==0?150:250;
+  Events.Times=new[]{first,second};Events.FailClock=n%11==0?1:n%13==0?2:0;
+  ItemContents.attendanceEventMap.Clear();if(hasPeriod)ItemContents.attendanceEventMap.Add(7,new AttendanceEvent{DateFrom=new DateTime(start),DateUntil=new DateTime(end)});
+  var m=new AttendanceEventManager(new CharacterEntity(),new Service());
+  cases.Add(new{enabled=Events.Enabled,version=Events.Version,user_mode=userMode,has_period=hasPeriod,from_ticks=start,until_ticks=end,times=Events.Times,fail_clock=Events.FailClock,supported=Events.Unsupported==0,trace=Events.Trace.ToArray(),clock_calls=Events.ClockCalls,caught=Events.Caught,instances=m.Count,expected=m.Observe()});
+ }
+ Console.WriteLine(new JavaScriptSerializer().Serialize(cases));
+ }
+}

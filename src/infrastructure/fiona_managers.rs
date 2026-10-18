@@ -22,6 +22,8 @@ use thiserror::Error as ThisError;
 #[derive(Debug, ThisError)]
 pub enum ManagerError {
     #[error(transparent)]
+    Attendance(#[from] crate::domain::initial_attendance::AdmissionError),
+    #[error(transparent)]
     Status(#[from] super::character_status_effects::StatusError),
     #[error(transparent)]
     Clock(#[from] super::lab_clock::ClockError),
@@ -307,6 +309,79 @@ pub async fn load_status(
             crate::domain::initial_status::Loaded::load(prior.social(), clock, observations)?;
         tx.commit().await?;
         Ok(StatusManagers { prior, loaded })
+    })
+    .await
+    .map_err(|_| ManagerError::Timeout)?
+}
+
+#[must_use = "initial Attendance only;Roulette/Marble/Captcha/Join/Login/Create remain"]
+pub struct AttendanceManagers {
+    prior: StatusManagers,
+    loaded: crate::domain::initial_attendance::Loaded,
+}
+impl AttendanceManagers {
+    pub fn prior(&self) -> &StatusManagers {
+        &self.prior
+    }
+    pub fn loaded(&self) -> &crate::domain::initial_attendance::Loaded {
+        &self.loaded
+    }
+}
+/// Source FirstCharacterCreated reads UserInfo, not CharacterInfo count. Keep its
+/// Count/First order; lock the UserInfo row through window consumption. Fail closed
+/// on database/admission errors rather than treating unavailable state as empty.
+pub async fn load_attendance(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    prior: StatusManagers,
+    profile: &Profile,
+    catalog: &Package,
+    mut clock: impl FnMut() -> Result<SqlDateTime2, super::lab_clock::ClockError>,
+) -> Result<AttendanceManagers, ManagerError> {
+    profile.bind(catalog)?;
+    if profile.source_state() != &prior.prior.prior.prior.prefix.state_source {
+        return Err(ManagerError::Conflict);
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = constructor_tx(pool, owner, &prior.prior.prior.prior.prefix).await?;
+        let rows = character_costumes::load_for_constructor(&mut tx, prior.prior.cid()).await?;
+        if !prior
+            .prior
+            .costume()
+            .matches_source(rows)
+            .map_err(CostumeError::from)?
+        {
+            return Err(ManagerError::Conflict);
+        }
+        let _vocation = character_vocation::load_first(&mut tx, prior.prior.cid()).await?;
+        super::character_status_effects::require_absent(&mut tx, prior.prior.cid()).await?;
+        let mut loaded = crate::domain::initial_attendance::Loaded::all_user(prior.prior.social());
+        if crate::domain::initial_attendance::Loaded::enabled(profile.policy())? {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM game_user_info WHERE nexon_sn=$1")
+                    .bind(owner.uid)
+                    .fetch_one(&mut *tx)
+                    .await?;
+            let first = if count > 0 {
+                let cid: Option<i64> = sqlx::query_scalar(
+                    "SELECT last_login_cid FROM game_user_info WHERE nexon_sn=$1 FOR SHARE",
+                )
+                .bind(owner.uid)
+                .fetch_one(&mut *tx)
+                .await?;
+                cid.is_none()
+            } else {
+                false
+            };
+            loaded.initialize_newbie(
+                first,
+                profile.policy(),
+                |v| profile.attendance_period(v),
+                &mut clock,
+            )?;
+        }
+        tx.commit().await?;
+        Ok(AttendanceManagers { prior, loaded })
     })
     .await
     .map_err(|_| ManagerError::Timeout)?

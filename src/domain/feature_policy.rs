@@ -136,6 +136,21 @@ impl FeaturePolicy {
         }
         text.parse().map_err(|_| Error::FeatureIntegerOverflow)
     }
+    /// Recovered GetNullableInt: missing/empty/FormatException -> None;
+    /// OverflowException propagates to its caller's catch.
+    pub fn get_nullable_integer(&self, key: &str) -> Result<Option<i32>, Error> {
+        let text = self
+            .get_string(key)
+            .trim_end_matches('\0')
+            .trim_matches(|c| matches!(c, ' ' | '\u{0009}'..='\u{000d}'));
+        let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+            return Ok(None);
+        }
+        text.parse()
+            .map(Some)
+            .map_err(|_| Error::FeatureIntegerOverflow)
+    }
     pub fn is_enabled(&self, expression: Option<&str>) -> Result<bool, Error> {
         let mut budget = 256;
         self.evaluate(expression.unwrap_or(""), 0, &mut budget)

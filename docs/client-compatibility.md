@@ -152,3 +152,5 @@ M15.1b.2e.10b.17: contexto inicial Whisper/Guild composto apos Vocation no ramo 
 M15.1b.2e.10b.18a: StatusEffect preservado integralmente no schema26 e guard de ausencia sob lock verificado. Construtor/Save/clock/profiling e TownCampfire ainda pendentes. Nenhum novo teste do cliente; Create,selecao,cidade/movimento indisponiveis.
 
 M15.1b.2e.10b.18b: StatusEffect vazio/UTC/Save e TownCampfire internos compostos apos Social,comparados ao Framework. Sem novo frontend ou testecliente;restam Attendance/demais construtores/Join/Login/ItemProxy/Summary/lifecycle/TCPCreate. Criacao persistente,selecao,cidade/movimento continuam indisponiveis.
+
+M15.1b.2e.10b.19: Attendance inicial composto apos Status/TownCampfire no ramo primeira personagem/evento expirado,com consulta UserInfo e clock/parse/catches validados. Restam Roulette/Marble/Captcha,Join/Login/ItemProxy/Summary/lifecycle/TCPCreate. Nenhum novo frontend/testecliente;Create,selecao,cidade/movimento indisponiveis.

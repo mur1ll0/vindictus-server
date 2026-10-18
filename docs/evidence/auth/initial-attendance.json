@@ -1,0 +1,167 @@
+{
+  "stage": "M15.1b.2e.10b.19",
+  "schema_version": 26,
+  "scope": "restricted first-Fiona Attendance constructor/expired or nonregistering Newbie;not scheduler/rewards/existing Newbie/active registration/full providers/Create",
+  "passed": {
+    "rust": 349,
+    "postgres_native": 178,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "gate_verified_at_utc": "2026-10-18T22:37:31.6074900+00:00",
+  "docker_verified_at_utc": "2026-10-18T22:38:13.4823836+00:00",
+  "oracle": {
+    "cases_per_architecture": 96,
+    "x86_equals_x64": true,
+    "scope": "original Attendance manager/Initialize/CreateNewbieInstance,Attendance and AllUser constructors,FirstCharacterCreated and GetNullableInt complete;LINQ provider counted,contexts/content/UTC instrumented;existing/active writers trapped and explicitly excluded;initial fields projected,not scheduler/full DataContext",
+    "supported_cases": 74,
+    "external_control_cases": 22
+  },
+  "real_profile": {
+    "profile_sha256": "0ba722fbaca42c23c189d143e606dab8155373ae22c8ef320910e4ed185e794d",
+    "framework_pairs": 30,
+    "newbie_enabled": true,
+    "period_branch": "expired",
+    "values_or_private_export_in_git": false,
+    "candidate_user_info_last_cid_null": true
+  },
+  "boundary": {
+    "opaque_status_consumed": true,
+    "prior_state_rechecked": true,
+    "all_user_before_feature": true,
+    "user_info_count_then_first": true,
+    "user_info_locked_through_use": true,
+    "nullable_integer_after_first_query": true,
+    "two_independent_short_circuit_utc_reads": true,
+    "source_clock_and_integer_catches": true,
+    "existing_and_active_providers_refused": true,
+    "database_errors_fail_closed": true,
+    "no_dml_or_identity": true,
+    "previous_commits_preserved": true,
+    "mutable_actor_graph_available": false
+  },
+  "postgres_verification_environment": {
+    "native_runner": true,
+    "restricted_role": true,
+    "same_pinned_image": true,
+    "full_page_writes": "on",
+    "removed_without_volumes": true,
+    "project": "vindictus-initial-attendance-verification",
+    "tmpfs": true,
+    "fsync": "on",
+    "synchronous_commit": "on"
+  },
+  "docker_build_profile": {
+    "frontend": "BuildKit builtin",
+    "original_dockerfile_unchanged": true,
+    "original_sha256": "f1eded0109e36e46f6c48e9d79d062501257ec98984ca344727b4a9d77968152",
+    "active_instructions_identical": true,
+    "active_instructions_sha256": "f3a0fc47525cf45d57ca027c2259066275aea634a1731cd2f9606d0254594d99",
+    "removed_only": "external #syntax directive",
+    "locked_build": true,
+    "pinned_base_images": true,
+    "nonroot_runtime": true
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Attendance/AttendanceEventManager.cs",
+      "sha256": "ef3ead592ecfd0b2448787df38b3ad20695d908db2e65e420138317642e606bb"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Attendance/Attendance.cs",
+      "sha256": "4e7e6b6f1371f14673edcb70b14437335e98a8d4b082ea56fa7f7653409ba571"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Attendance/AttendanceAllUser.cs",
+      "sha256": "fb764b13c8bd8f7593b3de6e3bb631fe3cccb081b9f6e17570588b45c2df1499"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterDataContext.cs",
+      "sha256": "dc170d91bcb289c327971c68ce0a481a1a4cb5077b7563abccf39b63b7389888"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Attendance/AttendanceEventType.cs",
+      "sha256": "f8c9431ce45b97dcbdb9c975068796296098763797b269649ae7c84139cb9447"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Attendance/AttendanceErrorResult.cs",
+      "sha256": "8a4357e8153746d55a63fec1850b8ff3409190aa2f87f2fa99ea1d27410b15bf"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/ItemInstanceDataContext.cs",
+      "sha256": "b9ebd1a5395e3ea2941acae30cf5f2971a3a1d996cba4fa501642dc737b3336a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService/PlayerService.cs",
+      "sha256": "37b52bf20c55590526bed8f271abae9eb28aaefdce0b1035eae89f034f39c71c"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/RouletteManager.cs",
+      "sha256": "e5771634b922f8b3646e494708932827a25599effaa44a25597d10f15c8fb490"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialAttendanceOracle.cs.in",
+      "sha256": "48c040369167b1980e220d955cb1741b0604366ed2790c9e7060d73259ab1518"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-attendance-fixtures.ps1",
+      "sha256": "3830eb11cd3dd84616bad62f4677e224c6c21f2c4580bbbdb0419a322ae723e6"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "30451134fe6b9fd6a2151d02a645b9a85007f8edbfb51316b075a282468dc3c1"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "801c682a0cd7672f4522fa5288d69a61b142ac5a582d15eebec160681bd37545"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "ea888eecde654e8017f0abecb613a72a2b1bc9a6bdb4cedfd6cc82f4459544c2"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "12fdbd773c0573f8a6c09dee205f9067944d4f5be0ac03305251a38812785002"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "b7060d6656433d33b9ceed2ed35f5c887307948bdadc49b997bfe316835a095d"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "d6a05ce67fa1cb6619e64ea1844b75affa85f20cdcf994b71292522936ca8441"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "87598826f0a16225bc96b8ed05bd91ccc1bee857d6a4bcd46ec2b6215f05e227"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "23ad5015d80da147f818c387f9125eb672393552c01c3ac5b2355d6272648454"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "0a67aa21c1bede309b791b0bf97ce575839ad327623d21285d3c2f67bdffb6c0"
+      },
+      {
+        "path": "docs/evidence/database/status-effect-import.json",
+        "sha256": "ce20006e4af12e62e97095c25764226f5edec2ba5a9f4b3741e3942bf6e08ecb"
+      }
+    ]
+  }
+}

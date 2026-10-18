@@ -82,3 +82,5 @@ pub mod initial_vocation;
 pub mod initial_social;
 
 pub mod initial_status;
+
+pub mod initial_attendance;

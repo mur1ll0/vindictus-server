@@ -479,6 +479,9 @@ impl Profile {
     pub fn policy(&self) -> &FeaturePolicy {
         &self.policy
     }
+    pub fn attendance_period(&self, version: i32) -> Option<(i64, i64)> {
+        self.attendance.get(&version).map(|p| (p.from, p.until))
+    }
     /// A currently active newbie registration needs the full attendance writer, not a no-op.
     pub fn validate_attendance_window(&self, now: SqlDateTime2) -> Result<(), Error> {
         if self.policy.is_enabled(Some("Attendance_Newbie"))? {

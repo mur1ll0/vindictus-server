@@ -912,3 +912,238 @@ async fn status_constructor_refuses_invalid_boundaries_before_clock_and_preserve
         cleanup_game_pool(a, p, s).await;
     }
 }
+
+async fn attendance_prior(p: &PgPool) -> managers::StatusManagers {
+    let prior = status_prior(p, true).await;
+    let mut observations = vindictus_server::domain::initial_status::Profile::default();
+    managers::load_status(
+        p,
+        &owner(),
+        prior,
+        vindictus_server::infrastructure::lab_clock::utc_now,
+        &mut observations,
+    )
+    .await
+    .unwrap()
+}
+fn attendance_profile(version: &str, enabled: bool) -> Profile {
+    let mut raw = profile_fixture::synthetic();
+    raw["state_sha256"] = json!(format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&state_export()).unwrap())
+    ));
+    for r in raw["features"].as_array_mut().unwrap() {
+        if r["key"] == "AttendanceEvent_Newbie" {
+            r["value"] = json!(version);
+        }
+        if r["key"] == "Attendance_Newbie" {
+            r["value"] = json!(if enabled {
+                "synthetic-on"
+            } else {
+                "synthetic-off"
+            });
+        }
+    }
+    profile_fixture::read(&raw).unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn attendance_constructor_expired_first_user_without_dml_or_identity() {
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = attendance_prior(&p).await;
+    sqlx::query("INSERT INTO game_user_info VALUES(31,NULL,true)")
+        .execute(&p)
+        .await
+        .unwrap();
+    let before = counts(&p).await;
+    let sequences = social_sequences(&p).await;
+    sqlx::query("CREATE FUNCTION reject_attendance_write()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'unexpected attendance constructor write';END$$").execute(&p).await.unwrap();
+    let tables:Vec<String>=sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname=current_schema() AND tablename LIKE 'game_%'").fetch_all(&p).await.unwrap();
+    for table in tables {
+        assert!(
+            table
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        );
+        sqlx::query(&format!("CREATE TRIGGER reject_attendance_write BEFORE INSERT OR UPDATE OR DELETE ON {table} FOR EACH STATEMENT EXECUTE FUNCTION reject_attendance_write()")).execute(&p).await.unwrap();
+    }
+    let mut calls = 0;
+    let out = managers::load_attendance(&p, &owner(), prior, &profile("25"), &catalog(), || {
+        calls += 1;
+        vindictus_server::infrastructure::lab_clock::utc_now()
+    })
+    .await
+    .unwrap();
+    assert_eq!(calls, 2);
+    assert_eq!(out.prior().prior().cid(), 1);
+    let loaded = out.loaded();
+    assert!(loaded.matches_social(out.prior().prior().social()));
+    assert_eq!(loaded.instance_count(), 1);
+    assert_eq!(
+        loaded.outcome(),
+        vindictus_server::domain::initial_attendance::Outcome::NoNewbie
+    );
+    let all = loaded.all_user_state();
+    assert_eq!(all.uid(), 31);
+    assert_eq!(all.cid(), 1);
+    assert_eq!(all.event_version(), -1);
+    assert_eq!(
+        (
+            all.date_from_ticks(),
+            all.date_until_ticks(),
+            all.last_feature_error()
+        ),
+        (0, 0, 0)
+    );
+    assert!(!all.db_destroyed_callback_present());
+    assert!(all.context_matches_parent());
+    assert_eq!((all.attendance_count(), all.bonus_count()), (0, 0));
+    let user: (Option<i64>, bool) = sqlx::query_as(
+        "SELECT last_login_cid,prologue_played FROM game_user_info WHERE nexon_sn=31",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(user, (None, true));
+    assert_eq!(counts(&p).await, before);
+    assert_eq!(social_sequences(&p).await, sequences);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn attendance_constructor_refuses_stale_prior_before_utc() {
+    for phase in 0..8 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = attendance_prior(&p).await;
+        sqlx::query("INSERT INTO game_user_info VALUES(31,NULL,true)")
+            .execute(&p)
+            .await
+            .unwrap();
+        let mut key = owner();
+        let mut cat = catalog();
+        let mut prof = profile("25");
+        match phase {
+            0 => {
+                sqlx::query("UPDATE game_users SET name=name WHERE id=31")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            1 => {
+                sqlx::query("INSERT INTO game_status_effects VALUES(1,1,$1,0,0,0,0)")
+                    .bind(vec![65u8, 0])
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            2 => {
+                sqlx::query("INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn)VALUES(1,1,true,0,0,99)").execute(&p).await.unwrap();
+            }
+            3 => {
+                sqlx::query("INSERT INTO game_vocations VALUES(1,0,0,0,NULL)")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            4 => {
+                sqlx::query(
+                    "UPDATE game_character_state_preservation SET source_sha256=$1 WHERE singleton",
+                )
+                .bind(vec![7u8; 32])
+                .execute(&p)
+                .await
+                .unwrap();
+            }
+            5 => cat.manifest.config_sha256 = "c".repeat(64),
+            6 => {
+                let mut raw = profile_fixture::synthetic();
+                raw["state_sha256"] = json!("c".repeat(64));
+                prof = profile_fixture::read(&raw).unwrap();
+            }
+            _ => key.uid = 32,
+        }
+        let before = counts(&p).await;
+        let sequences = social_sequences(&p).await;
+        let mut calls = 0;
+        assert!(
+            managers::load_attendance(&p, &key, prior, &prof, &cat, || {
+                calls += 1;
+                vindictus_server::infrastructure::lab_clock::utc_now()
+            })
+            .await
+            .is_err()
+        );
+        assert_eq!(calls, 0);
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, sequences);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn attendance_constructor_preserves_first_query_window_and_caught_failure_order() {
+    use vindictus_server::{
+        domain::{initial_attendance::Outcome, legacy_user_data::SqlDateTime2},
+        infrastructure::lab_clock::ClockError,
+    };
+    for phase in 0..9 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = attendance_prior(&p).await;
+        if phase != 0 && phase != 7 {
+            sqlx::query("INSERT INTO game_user_info VALUES(31,$1,true)")
+                .bind(if phase == 1 { Some(42i64) } else { None })
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        let prof = attendance_profile(if phase == 8 { "2147483648" } else { "7" }, phase != 7);
+        let before = counts(&p).await;
+        let sequences = social_sequences(&p).await;
+        let mut calls = 0;
+        let result = managers::load_attendance(&p, &owner(), prior, &prof, &catalog(), || {
+            calls += 1;
+            if (phase == 5 && calls == 1) || (phase == 6 && calls == 2) {
+                Err(ClockError::Range)
+            } else {
+                Ok(SqlDateTime2::from_ticks(match phase {
+                    3 => 50,
+                    4 => 250,
+                    _ => 150,
+                })
+                .unwrap())
+            }
+        })
+        .await;
+        match phase {
+            0 | 1 => {
+                assert!(matches!(result, Err(ManagerError::Attendance(_))));
+                assert_eq!(calls, 0);
+            }
+            2 => {
+                assert!(matches!(result, Err(ManagerError::Attendance(_))));
+                assert_eq!(calls, 2);
+            }
+            _ => {
+                let out = result.unwrap();
+                let expected = match phase {
+                    5 | 6 => Outcome::CaughtClockError,
+                    7 => Outcome::Disabled,
+                    8 => Outcome::CaughtIntegerOverflow,
+                    _ => Outcome::NoNewbie,
+                };
+                assert_eq!(out.loaded().outcome(), expected);
+                assert_eq!(
+                    calls,
+                    match phase {
+                        3 | 5 => 1,
+                        4 | 6 => 2,
+                        _ => 0,
+                    }
+                );
+            }
+        }
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, sequences);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
