@@ -148,3 +148,5 @@ M15.1b.2e.10b.15: carga interna CostumeManager ligada ao prefixo opaco,com conte
 M15.1b.2e.10b.16: Vocation/VocationSkill preservados no schema 25 e construtor inicial com ausencia comprovada vinculado ao estado de Costume. Restam os demais construtores, Join/Login/ItemProxy, Summary/lifecycle e TCP Create. Nao houve novo teste do cliente; criacao persistente, selecao e cidade/movimento continuam indisponiveis.
 
 M15.1b.2e.10b.17: contexto inicial Whisper/Guild composto apos Vocation no ramo InGameGuild ativo. Sem novo teste do cliente; ainda faltam demais construtores, Join/Login/ItemProxy/Summary/lifecycle/TCP Create. Criacao persistente, selecao e cidade/movimento continuam indisponiveis.
+
+M15.1b.2e.10b.18a: StatusEffect preservado integralmente no schema26 e guard de ausencia sob lock verificado. Construtor/Save/clock/profiling e TownCampfire ainda pendentes. Nenhum novo teste do cliente; Create,selecao,cidade/movimento indisponiveis.

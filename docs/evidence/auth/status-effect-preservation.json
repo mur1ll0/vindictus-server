@@ -1,0 +1,168 @@
+{
+  "stage": "M15.1b.2e.10b.18a",
+  "schema_version": 26,
+  "scope": "complete StatusEffect reference preservation and transactional absence guard;not StatusEffectManager/Save/TownCampfire or a mutable actor",
+  "passed": {
+    "rust": 343,
+    "postgres_native": 173,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "gate_verified_at_utc": "2026-10-18T19:55:17.9094465+00:00",
+  "docker_verified_at_utc": "2026-10-18T19:59:28.8348399+00:00",
+  "preservation": {
+    "source_rows": 18,
+    "columns": 7,
+    "identity_seed": 1,
+    "identity_increment": 1,
+    "identity_last_value": 107,
+    "next_value": 108,
+    "bootstrap": "transactional RESTART from source last_value+1,never MAX(RowID);replay never reseeds",
+    "nullable_fields": [
+      "RemainTime",
+      "ExpireTime",
+      "RemainMicroPlay"
+    ],
+    "type": "raw UTF16LE,RowID sole key,duplicate types preserved",
+    "datetime2": "nullable 100ns ticks;four synthetic SQL reference cases exact",
+    "remain_micro": "nullable tinyint preserved via checked SMALLINT",
+    "foreign_key": "trusted/enabled source,CID to Character.ID,update/delete CASCADE matched",
+    "private_acl": "current Windows user and SYSTEM only",
+    "private_export_in_git": false,
+    "source_export_unchanged": true
+  },
+  "guard": {
+    "initialized_preservation_required": true,
+    "existing_character_locked": true,
+    "ownership_proof_required_from_caller": true,
+    "missing_character_refused": true,
+    "existing_effects_refused": true,
+    "no_expiry_cleanup_or_Save": true,
+    "no_dml_or_identity_allocation": true,
+    "not_constructor_or_actor_capability": true
+  },
+  "postgres_verification_environment": {
+    "storage": "tmpfs",
+    "synchronous_commit": "on",
+    "image_matches_main": true,
+    "fsync": "on",
+    "persistent_volume_mounts": 0,
+    "native_rust_test_runtime": true,
+    "app_role_restricted": true,
+    "full_page_writes": "on",
+    "removed_after_verification": true
+  },
+  "build": {
+    "frontend": "BuildKit builtin",
+    "original_dockerfile_unchanged": true,
+    "original_sha256": "f1eded0109e36e46f6c48e9d79d062501257ec98984ca344727b4a9d77968152",
+    "active_instructions_identical": true,
+    "active_instructions_sha256": "f3a0fc47525cf45d57ca027c2259066275aea634a1731cd2f9606d0254594d99",
+    "removed_only": "external #syntax directive",
+    "locked_build": true,
+    "pinned_base_images": true,
+    "nonroot_runtime": true
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/StatusEffect.cs",
+      "sha256": "5a61a72b6157eca6363a163f28f1c8f44e97cdbdaeb4ba58c8b5af3363597b80"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/Character.cs",
+      "sha256": "1d074cc8e93e0c734f5fbbb52a4871b5441ef21f2ae63faf94132707ff1d2cc2"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/StatusEffectManager.cs",
+      "sha256": "79ccd5e8397c6499a8a6563c0998a501063b2aafa67329de047cade11088347a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/TownCampfireManager.cs",
+      "sha256": "8bf2867839c7511eb8fa0f01b34f7a741f75c2317a95ba086277279a9c01e80e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Functions/CharacterLoader.cs",
+      "sha256": "c657f190af54204c996785277196777a30d9b002a899323b4d58763636bd38e2"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService/PlayerEntity.cs",
+      "sha256": "2d0813de53ee9bc794f2cf3bd95a37f480a3bbaf1751788fb864f48ca5e00ec1"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService/PlayerService.cs",
+      "sha256": "37b52bf20c55590526bed8f271abae9eb28aaefdce0b1035eae89f034f39c71c"
+    },
+    {
+      "path": "legacy/decompiled/Utility-37359981d509/Utility/ProfileThisMethod.cs",
+      "sha256": "eb0d4e5fe1cf01a6dd710a2661c26fcd68844308d9148f88f860493ecdb6c738"
+    },
+    {
+      "path": "legacy/decompiled/PostSharp-9e55c1c3978c/PostSharp.Aspects/OnMethodBoundaryAspect.cs",
+      "sha256": "f3092e47fa2cb8abbf830ef145836e0b3460412e9e891e08c13bfbde5ecaf528"
+    },
+    {
+      "path": "docs/evidence/database/study_heroes.schema.json",
+      "sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "7d89cef77ef3cd0334499d628df32376494b2226a9f4ec711df9be55b955f782"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "50f7e1f733d1b9ef604bfc276b07acc349bb6ca8950c72797e801a8c2f49544e"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "458bdcd3f34f9da99733db8379282a882b7b56fab049239637a43b4104326d28"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "0fd46a2b496072e39632bd6e80e514ba88c4538c829d0a6b0326e0bbafede716"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "b3ad65e9bad3ec4502ffb59cdf72e6c5e010bd94a5947babecc47e703aa54fb4"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "3eb10e16c4815ac8e9e42cc966d56da7bede44cf40c70ea8da2f8abf301f997d"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "aca18c0a5bd0925538b550852cfc23fc0039b8c6e69b057598ca5016d97461be"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "5dc59d1b713a810131e05ed17a3298fca29460d3e948a51da69cddcb411b69ac"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "07a4529d0da4ed2448ff6f2c26d0a97de71c9c3f4f91060e2bdab48a2bbfe0f8"
+      },
+      {
+        "path": "docs/evidence/database/status-effect-import.json",
+        "sha256": "fd953510aada7ddf361d3572b2b07f4a7fbfde81f3aa4c472f2fb37b1f63f1b9"
+      }
+    ]
+  },
+  "post_restart_main_state": {
+    "schema": 26,
+    "effects": 18,
+    "preservation_initialized": true,
+    "source_identity_last_value": 107,
+    "sequence_next_value": 108,
+    "sequence_is_called": false
+  }
+}

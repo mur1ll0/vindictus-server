@@ -73,3 +73,5 @@ pub mod fiona_customization;
 pub mod fiona_managers;
 
 pub mod character_vocation;
+
+pub mod character_status_effects;

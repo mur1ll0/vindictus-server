@@ -3,6 +3,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    StatusEffects(#[from] crate::infrastructure::character_status_effects::StatusError),
+    #[error(transparent)]
     Vocation(#[from] crate::infrastructure::character_vocation::VocationError),
     #[error("normal Fiona initializer profile is outside the recovered bounds")]
     FionaInitializerProfile,

@@ -1,0 +1,44 @@
+{
+  "stage": "M15.1b.2e.10b.18a",
+  "verified_at_utc": "2026-10-18T19:58:40.6831873+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_rows": 18,
+  "source_columns": 7,
+  "source_identity_last_value": 107,
+  "export_sha256": "9ea114376ebb15bcc10c7d1c760d5eb42642e9ffbbddd150bb3ff06f12b38e1e",
+  "query_sha256": "1a63c3dfa0c02e6ff539391da4e99f350b42a20ecb8de1586b06bfb0fb7375f5",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "effects": 18,
+    "inserted": 18,
+    "verified": 18,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "replay": {
+    "effects": 18,
+    "inserted": 0,
+    "verified": 18,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "verified": {
+    "effects": 18,
+    "inserted": 0,
+    "verified": 18,
+    "identity_initialized": true,
+    "character_creation_available": false
+  },
+  "post_restart_verified": true,
+  "character_creation_available": false,
+  "post_restart_verified_at_utc": "2026-10-18T19:59:31.9771374+00:00",
+  "post_restart_summary": {
+    "effects": 18,
+    "inserted": 0,
+    "verified": 18,
+    "identity_initialized": true,
+    "character_creation_available": false
+  }
+}

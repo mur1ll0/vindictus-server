@@ -207,3 +207,18 @@ Environment: same pinned PG17 image/restricted init-role; native Rust test proce
 Verdict: PASS for this restricted constructor composition. All game_* DML forbidden and all sequence positions stable; eight stale/context/catalog/source/owner scenarios refused with earlier commits preserved. Schema remains 25. No new client/native frontend run.
 Remaining: StatusEffect association/clock/aspects and TownCampfire, Attendance and remaining constructors, Join/Login/CountBonus, ItemProxy second-save/Undo, Summary/lifecycle/reconciliation/TCP Create, actual creation/relogin/selection/city/movement and complete M01-M24 migration.
 Evidence: docs/initial-social.md, auth/initial-social.json, framework-initial-social.json, gate.json, docker-smoke.json. Full logs: .cache/verification.
+
+M15.1b.2e.10b.18a -- StatusEffect preservation prerequisite
+VERIFICATION REPORT
+-------------------
+Claim: all source StatusEffect fields preserved and transactional absence guard verified; not StatusEffectManager/Save/TownCampfire/actor/client compatibility.
+Command: verify-status-effect-reference.ps1; cargo test --locked --test status_effect_preservation; cargo test --locked --test postgres status_effects:: -- --ignored --test-threads=1; scripts/dev/verify.ps1 -DatabaseIntegration; docker compose -f compose.yaml -f .cache/compose.status-build.yaml build server; Import-CharacterStatusEffects.ps1 Import/Verify; scripts/dev/smoke-docker.ps1; seven previous preservation imports Verify.
+Executed: 2026-10-18T19:55:17.9094465+00:00 (full gate); 2026-10-18T19:59:28.8348399+00:00 (Docker).
+Exit code: 0.
+Output summary: 343 Rust passed; 173 native isolated PostgreSQL passed, 0 ignored; 41 Python passed; 0 failures/warnings. Two new Rust/four PG. Source18 rows/7 fields, identity107, trusted/enabled cascade FK and one unique index. Four synthetic SQL DateTime2 precision cases exact. Full18-row import/replay/Verify and post-restart comparison passed; no source write or private export in Git.
+Warnings: none.
+Errors: none in final verification. Clippy type_complexity corrected with named stored-row types, no suppression or assertion changes. Two external docker/dockerfile frontend builds failed gRPC before instructions; engine/PG responded. Successful builtin-frontend build uses a temporary recipe removing only #syntax, all active instructions byte-identical, --locked/pinned images/nonroot preserved; repository Dockerfile unchanged. Failed logs retained locally.
+Environment: native tests in isolated PG17 tmpfs schemas, same image/restricted init-role, fsync/synchronous_commit/full_page_writes on; test instance removed without volume removal. Normal-volume Docker smoke/restart and eight preservation checks passed; candidate inventory empty.
+Verdict: PASS for preservation/readiness/absence guard only. Guard locks an existing character, requires initialized reference and caller ownership proof, refuses existing effects, never expires/removes data or consumes identity. Schema26 additive; five downgrade fixtures/one TRUNCATE updated for FK dependencies without weaker assertions.
+Remaining: complete StatusEffect constructor/Save/clock/profiling/CharacterStats and TownCampfire; remaining constructors/Join/Login/ItemProxy/Summary/lifecycle/TCP Create; actual creation/relogin/selection/city/movement;full M01-M24. No new client/native frontend run.
+Evidence: docs/status-effect-preservation.md,auth/status-effect-preservation.json,database/status-effect-import.json,gate.json,docker-smoke.json. Full logs:.cache/verification.

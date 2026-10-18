@@ -131,6 +131,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve all StatusEffect fields and original identity from private stdin.
+    ImportCharacterStatusEffects {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve Vocation/VocationSkill and original identity from private stdin.
     ImportCharacterVocation {
         #[arg(long, required = true)]

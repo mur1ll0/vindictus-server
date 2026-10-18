@@ -258,6 +258,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let status_effects = match &cli.command {
+        Command::ImportCharacterStatusEffects { .. } => Some(
+            vindictus_server::infrastructure::character_status_effects::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let vocation = match &cli.command {
         Command::ImportCharacterVocation { .. } => Some(
             vindictus_server::infrastructure::character_vocation::read_snapshot(
@@ -389,6 +397,21 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| JournalError::Input)?
+            );
+        }
+        Command::ImportCharacterStatusEffects { verify_only, .. } => {
+            use vindictus_server::infrastructure::character_status_effects::{
+                StatusError, preserve,
+            };
+            let summary = preserve(
+                &pool,
+                &status_effects.ok_or(StatusError::Export)?,
+                verify_only,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| StatusError::Export)?
             );
         }
         Command::ImportCharacterVocation { verify_only, .. } => {
