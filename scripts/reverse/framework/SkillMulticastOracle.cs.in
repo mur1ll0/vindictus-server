@@ -1,0 +1,54 @@
+using System;using System.Linq;using System.Collections.Generic;using System.Web.Script.Serialization;
+public class Skill{public string SkillID;public int Rank;}
+public class SkillRankInfo{public int Rank;}
+public class SkillArgumentInfo{public string KeyWord;public int? Value;}
+public class Character{public List<Skill> Skill=new List<Skill>();}
+public static class DictionaryExtension{public static int TryGetValue(this Dictionary<string,int>d,string k){int v;return d.TryGetValue(k,out v)?v:0;}}
+public static class CharacterContents{public static List<SkillArgumentInfo> Rows;public static IEnumerable<SkillArgumentInfo> GetSkillArgumentInfo(string id,int rank){return Rows;}}
+public class SkillManager{}
+public class Logger{public void Warn(string s){throw new InvalidOperationException("unexpected null actor");}}
+public static class Log<T>{public static Logger Logger=new Logger();}
+public class Observable{public Entity Owner;public string Name;public void Updated(){Owner.Hit(Name);}}
+public class Entity{
+ public Manager Manager;public int Fail;public string Key;public List<object> Events=new List<object>();public Observable SkillObservable,MicroPlayObservable;
+ public Entity(){SkillObservable=new Observable{Owner=this,Name="skill"};MicroPlayObservable=new Observable{Owner=this,Name="micro"};}
+ public void Hit(string name){Events.Add(new{name=name,sum=Manager.SkillRankSum,arg=Manager.Effect.Read(Key,"A",-123)});if(Fail==Events.Count)throw new InvalidOperationException("hook");}
+ public void ProcessGuildScoreEvent(string e,string id,int rank,int n){if(e!="SkillUp"||id!=Key||rank!=Manager.Character.Skill[0].Rank||n!=1)throw new Exception("invalid guild args");Hit("guild");}
+ public void PushSkillList(bool isVocationReset){if(isVocationReset)throw new Exception();Hit("skills");}
+ public void PushAPMessage(){Hit("ap-push");}public void PushUpdateStat(){Hit("stat-push");}
+}
+public class AP{public Entity Owner;public void CalculateBonusAPTime(){Owner.Hit("ap");}}
+public class SkillEffect{
+ public Manager Skills;public static bool Item,Stat;private Dictionary<string,Dictionary<string,int>> SkillArguments=new Dictionary<string,Dictionary<string,int>>();
+ __UPDATE__
+ __ARG__
+ __MEDITATION__
+ public static bool IsItemSkill(string id){return Item;}public static bool IsStatSkill(string id){return Stat;}
+ public int Read(string id,string key,int value){return Arg(id,key,value);}
+}
+public class StatManager{
+ public Entity CharacterEntity;public void CalculateItemStat(object s,object e){if(s!=null||e!=null)throw new Exception();CharacterEntity.Hit("item");}
+ public void CalculateFinalStat(){CharacterEntity.Hit("final");}
+ __STAT_RANK__
+}
+public class Manager{
+ public Character Character=new Character();public Dictionary<string,int> BaseSkillRank=new Dictionary<string,int>();public int SkillRankSum;
+ public SkillEffect Effect;public Entity CharacterEntity;public AP AP;public StatManager Stat;public event Action<string,int,int> SkillRankChanged;
+ public Manager(Entity entity){CharacterEntity=entity;entity.Manager=this;Effect=new SkillEffect{Skills=this};AP=new AP{Owner=entity};Stat=new StatManager{CharacterEntity=entity};
+ __SUBSCRIBE__
+ }
+ public SkillRankInfo GetFinalSkillRankInfo(string id){return new SkillRankInfo{Rank=Character.Skill[0].Rank};}
+ public Skill GetSkill(string id){return Character.Skill.SingleOrDefault(x=>x.SkillID==id);}
+ __LOAD__
+ __RANK__
+ public void Fire(string id,int rank){SkillRankChanged(id,0,rank);}
+}
+public static class Oracle{public static void Main(){var cases=new List<object>();for(int i=0;i<256;i++){
+ var e=new Entity();var m=new Manager(e);string key=i%3==0?"skill_meditation":i%3==1?"Skill_meditation":"synthetic";e.Key=key;e.Fail=i%12;
+ int rank=i%17==0?int.MaxValue:i%19==0?int.MinValue:i%16-4;
+ bool item=(i/3)%2==0,stat=(i/5)%2==0;SkillEffect.Item=item;SkillEffect.Stat=stat;
+ int kind=i%23;CharacterContents.Rows=new List<SkillArgumentInfo>{new SkillArgumentInfo{KeyWord=kind==2?null:"A",Value=kind==3?(int?)null:i}};
+ if(kind==1)CharacterContents.Rows.Add(new SkillArgumentInfo{KeyWord="A",Value=9});
+ m.Character.Skill.Add(new Skill{SkillID=key,Rank=rank});bool error=false;try{m.Fire(key,rank);}catch(ArgumentException){error=true;}catch(InvalidOperationException){error=true;}
+ cases.Add(new{key=key,rank=rank,item=item,stat=stat,kind=kind,fail=e.Fail,error=error,rank_sum=m.SkillRankSum,arg=m.Effect.Read(key,"A",-123),events=e.Events});
+ }Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(cases));}}

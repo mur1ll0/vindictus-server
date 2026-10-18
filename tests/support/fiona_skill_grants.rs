@@ -427,3 +427,69 @@ async fn default_grant_callbacks_survive_logger_failure_and_precede_late_submit_
         cleanup_game_pool(a, p, s).await;
     }
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn ordered_multicast_preserves_prefix_on_runtime_failure_and_never_replays_success() {
+    use vindictus_server::domain::{
+        skill_multicast::{Call, Runtime},
+        skill_runtime::Cache,
+    };
+    struct Hooks {
+        fail: bool,
+        skills: usize,
+        micro: usize,
+    }
+    impl Runtime for Hooks {
+        type Error = StateError;
+        fn call(&mut self, call: Call<'_>, cache: &Cache) -> Result<(), StateError> {
+            assert!(cache.rank_sum() > 0);
+            match call {
+                Call::GuildSkillUp { key, rank } => assert_eq!(cache.base_rank(key), rank),
+                Call::SkillUpdated => {
+                    self.skills += 1;
+                    if self.fail {
+                        return Err(StateError::Profile);
+                    }
+                }
+                Call::MicroPlayUpdated => self.micro += 1,
+                _ => {}
+            }
+            Ok(())
+        }
+    }
+    for fail in [true, false] {
+        let (a, p, s) = isolated_game_pool().await;
+        setup(&p).await;
+        let batch = prepared();
+        let mut cache = Cache::default();
+        let mut hooks = Hooks {
+            fail,
+            skills: 0,
+            micro: 0,
+        };
+        let outcome =
+            grants::save_with_ordered_runtime(&p, &owner(), 1, &batch, &mut cache, &mut hooks)
+                .await;
+        if fail {
+            assert!(matches!(outcome, Err(StateError::Profile)));
+            assert_eq!((cache.rank_sum(), hooks.skills, hooks.micro), (4, 1, 0));
+            assert_eq!(counts(&p).await, (0, 1, 0));
+        } else {
+            let done = outcome.unwrap();
+            assert!(done.runtime_callbacks_required);
+            assert_eq!((cache.rank_sum(), hooks.skills, hooks.micro), (10, 2, 2));
+            assert_eq!(counts(&p).await, (2, 2, 0));
+            hooks.fail = true;
+            let replay =
+                grants::save_with_ordered_runtime(&p, &owner(), 1, &batch, &mut cache, &mut hooks)
+                    .await
+                    .unwrap();
+            assert_eq!(
+                (replay.inserted, cache.rank_sum(), hooks.skills, hooks.micro),
+                (0, 10, 2, 2)
+            );
+        }
+        cleanup_game_pool(a, p, s).await;
+    }
+}

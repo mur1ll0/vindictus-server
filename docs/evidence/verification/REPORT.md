@@ -113,3 +113,15 @@ Docker:original locked build,migrate24/readiness/account/duplicate/nonroot/datab
 Verdict:PASS for scoped internal projection only. Corrected critical path:equippable type is not equipped;general Gear/set loader does not block fresh-create MVP.
 Remaining:first SaveWithoutSync stat/costume callbacks before appearance/skills;load/final stats with placeholder maps;ordered skills/title/status/observables/AP and same-character Submit;ItemProxy second save/Undo/failures,LoginLogout/Summary/lifecycle/reconciliation/TCPCreate;actual Create/relogin/selection/city/movement;full M01-M24. Native frontend unchanged,no client run.
 Evidence:docs/initial-gear.md,auth/initial-gear.json,auth/initial-gear-provider.json,framework-initial-gear.json,gate.json,docker-smoke.json.Full logs:.cache/verification;raw metadata/profiles only in private cache.
+
+M15.1b.2e.10b.12 -- Ordered skill multicast
+Claim:ordered GiveSkill multicast and per-log/pre-Submit PostgreSQL adapter;not concrete actor/AP/stat/observable execution or game Create.
+Command:generate-skill-multicast-fixtures.ps1;focused Rust/multicast PostgreSQL tests;verify.ps1 -DatabaseIntegration;original Docker locked build/smoke/restart;existing six imports -Mode Verify.
+Executed:2026-10-18T00:43:23.5768789+00:00 (full gate);2026-10-18T00:44:10.2475036+00:00 (Docker smoke).
+Exit code:0.
+Output summary:327 Rust passed;154 native isolated PostgreSQL passed,0 ignored;41 Python passed;0 failures/warnings. Oracle256 cases per architecture,x86=x64,154 failure cases each. Two new Rust/one PostgreSQL. Cache/partial failures match original subscribers/subscriptions;actor effects/classification/pushes instrumented.
+Warnings:none. Errors:none in final verification. Early oracle logging stub type corrected before fixtures/tests;no source method or product assertion weakened.
+Docker:locked build,migrate24/readiness/account/duplicate/nonroot/database+server restart and six preservation checks passed;candidate inventory explicitly empty.
+Verdict:PASS for dispatch/integration boundary only. Fresh Outcome retains runtime callback debt. Corrected memory:SaveWithoutSync invokes no stat sync;Create loads costumes then grants skills;Select initializes equipment stats explicitly.
+Remaining:concrete AP/stat/observer runtime and original guards;same-context Submit;title/status/LoginCharacter/ItemProxy failures;LoginLogout/Summary/lifecycle/reconciliation/TCPCreate;actual creation/relogin,selection,city/movement;full M01-M24. Native frontend unchanged,no client run.
+Evidence:docs/skill-multicast.md,auth/skill-multicast.json,framework-skill-multicast.json,gate.json,docker-smoke.json. Full logs:.cache/verification;private data remains local.

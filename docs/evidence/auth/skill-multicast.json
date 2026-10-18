@@ -1,0 +1,110 @@
+{
+  "stage": "M15.1b.2e.10b.12",
+  "schema_version": 24,
+  "scope": "ordered default-skill multicast and per-log/pre-Submit adapter;not concrete actor effects or game Create",
+  "gate_verified_at_utc": "2026-10-18T00:43:23.5768789+00:00",
+  "docker_verified_at_utc": "2026-10-18T00:44:10.2475036+00:00",
+  "passed": {
+    "rust": 327,
+    "postgres_native": 154,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "oracle": {
+    "fixture": "tests/fixtures/framework-skill-multicast.json",
+    "cases_per_architecture": 256,
+    "x86_equals_x64": true,
+    "failure_cases_per_architecture": 154,
+    "original": "manager/stat subscribers,constructor subscriptions,LoadBaseSkillRank,UpdateSkillArgument,Arg,IsMeditation",
+    "instrumented": "classification,actor operations,AP/stat calculations,pushes,observables"
+  },
+  "creation_order_source_sha256": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+      "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs",
+      "sha256": "7ef6d87e9603f0fe0fae3b6dac7933a2bf4104af816a301ff6c7831c8760ac25"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemTransactionScope.cs",
+      "sha256": "b79b63ef2f4e5df1d4b727a428636611318bf3603e9c67d03ad4612732cf68cf"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/CreateCharacterProcessor.cs",
+      "sha256": "90319d996c763a5fe28c199817e57242e2f6f33a041a4f889816df77f201a10a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/SelectCharacterProcessor.cs",
+      "sha256": "3d2111cae5c48067de0b02c85e48d42060c012af00f59be3b8822b8b2792ab68"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+      "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+    }
+  ],
+  "outcome_runtime_callbacks_required_for_fresh_rows": true,
+  "native_frontend_replaced": false,
+  "client_executed": false,
+  "game_compatibility_verified": false,
+  "remaining": [
+    "concrete AP/stat/observer runtime and guards;same-context AP/skills Submit",
+    "title/status/LoginCharacter effects and ItemProxy failures/second save/Undo",
+    "LoginLogout/Summary/lifecycle/reconciliation/TCPCreate",
+    "actual client creation/relogin,selection,city/movement",
+    "general Gear/set loaders and complete M01-M24"
+  ],
+  "logs": [
+    ".cache/verification/skill-multicast-oracle.log",
+    ".cache/verification/skill-multicast-focused.log",
+    ".cache/verification/skill-multicast-pg-focused.log",
+    ".cache/verification/skill-multicast-final-gate.log",
+    ".cache/verification/skill-multicast-operations.log"
+  ],
+  "private_profile_aggregate": {
+    "skills": 2,
+    "meditation_grants": 0,
+    "item_callbacks": 1,
+    "stat_callbacks": 0,
+    "scope": "readonly aggregate;does not prove actor null/observer state"
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "27ab0857b75a3f255c055943d3d34756541e75ec8ae0fb9b8bca845dbe1e36c7"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "7789872cb32cf47334e13558a6d04b95bc93d1faf2e0345a323c434af0deb723"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "e7e4421f83cf7088434da86e24d7aef2b627e6fe840e2f1bc58520613da9aef8"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "0e6fa9fb9db9bfd2223deb05d7ed790f914b4daacf6df7dd4c71b05ceea04bc1"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "5a731d5fec19f677dd7c5f1338f13eec671defffa6bc85f5e68e256980c18857"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "14e39cdfb67e6e184a839b33ffeff11df815eaea1babd1ba79b068fb282295c6"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "16ba29c29c2aa2782e104548635e0b7b49c17d40968916463bce5cd134fc3361"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "ca4f217cb334e88ba13a6121bff0ab5b2aa64f478859db2637b76f77d1009d01"
+      }
+    ]
+  }
+}

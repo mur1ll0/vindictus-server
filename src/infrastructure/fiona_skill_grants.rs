@@ -132,6 +132,41 @@ pub async fn save_with_callbacks(
   tx.commit().await?;Ok(Outcome{inserted:prepared.rows.len(),logs_written:written,logs_failed:failed,runtime_callbacks_required:!prepared.rows.is_empty(),source_operation_failed:false})
  }).await.map_err(|_|StateError::Timeout)?
 }
+/// Dispatch the recovered multicast after each independent log, inside the existing
+/// pre-Submit boundary. SQL replay dispatches nothing. Runtime/AP persistence and
+/// actor lifecycle remain caller obligations; Outcome retains that explicit debt.
+pub async fn save_with_ordered_runtime<R>(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    cid: i64,
+    prepared: &Prepared,
+    cache: &mut crate::domain::skill_runtime::Cache,
+    runtime: &mut R,
+) -> Result<Outcome, StateError>
+where
+    R: crate::domain::skill_multicast::Runtime<Error = StateError>,
+{
+    use crate::domain::skill_multicast::{self, DispatchError, Grant};
+    save_with_callbacks(pool, key, cid, prepared, |row| {
+        skill_multicast::after_grant(
+            cache,
+            Grant {
+                key: row.key(),
+                rank: row.rank(),
+                required_ap: row.required_ap(),
+                arguments: row.arguments(),
+                item_skill: row.item_callback(),
+                stat_skill: row.stat_callback(),
+            },
+            runtime,
+        )
+        .map_err(|error| match error {
+            DispatchError::Cache(_) => StateError::Profile,
+            DispatchError::Runtime(error) => error,
+        })
+    })
+    .await
+}
 /// GiveTitlePreset logs once per newly inserted title; exact replay does not repeat its events.
 /// This wrapper must be used instead of the storage-only seed when composing creation.
 pub async fn seed_titles(
