@@ -269,3 +269,26 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), CostumeError> {
     .await?;
     Ok(())
 }
+
+/// Read constructor state only after the caller locks/admit the first-Fiona row.
+/// The identity SHARE lock excludes preservation; all appearance writers cooperate
+/// with the character row lock held by the caller. No identity allocation or Save.
+pub(crate) async fn load_for_constructor(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<CostumeSet, CostumeError> {
+    let initialized: bool = sqlx::query_scalar(
+        "SELECT initialized FROM game_costume_identity WHERE singleton FOR SHARE",
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if !initialized {
+        return Err(CostumeError::Uninitialized);
+    }
+    let rows:Vec<Stored>=sqlx::query_as("SELECT row_id,cid,is_base,costume_type,costume_key,costume_sn,c1,c2,c3,gloss,effect FROM game_costumes WHERE cid=$1 ORDER BY row_id LIMIT 1025 FOR SHARE").bind(cid).fetch_all(&mut **tx).await?;
+    let records = rows
+        .into_iter()
+        .map(record)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(CostumeSet::load(records.into_iter().map(|r| r.costume))?)
+}

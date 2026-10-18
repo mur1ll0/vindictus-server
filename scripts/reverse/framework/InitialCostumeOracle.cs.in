@@ -1,0 +1,41 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Script.Serialization;
+__EXTRA_ENUM__
+__TYPE_ENUM__
+class Costume {public bool IsBase;public byte Type,Key;public int? CostumeSN,C1,C2,C3,Effect;public byte? Gloss;}
+class CostumeInfo {
+ public Dictionary<int,int> CostumeTypeInfo,ColorInfo,AvatarHideInfo,EffectInfo,DecorationInfo,DecorationColorInfo;
+ public Dictionary<int,bool> AvatarInfo;public Dictionary<int,byte> PollutionInfo;public Dictionary<int,float> BodyShapeInfo;
+ public int Shineness,Height,Bust,PaintingPosX,PaintingPosY,PaintingRotation,PaintingSize,CafeType,VIPCode,BodyPaintingPosX,BodyPaintingPosY,BodyPaintingRotation,BodyPaintingSize,BodyPaintingSide,BodyPaintingClip,BodyPaintingMode,TownEffect;
+ public bool HideHeadCostume,IsReturn;
+ __CTOR__
+ public object Snapshot(){return new {dictionaries=new object[]{Pairs(CostumeTypeInfo),Pairs(ColorInfo),Pairs(AvatarInfo),Pairs(AvatarHideInfo),Pairs(PollutionInfo),Pairs(EffectInfo),Pairs(DecorationInfo),Pairs(DecorationColorInfo),BodyShapeInfo.Select(x=>new object[]{x.Key,BitConverter.ToUInt32(BitConverter.GetBytes(x.Value),0)}).ToArray()},scalars=new int[]{Shineness,Height,Bust,PaintingPosX,PaintingPosY,PaintingRotation,PaintingSize,HideHeadCostume?1:0,CafeType,IsReturn?1:0,VIPCode,BodyPaintingPosX,BodyPaintingPosY,BodyPaintingRotation,BodyPaintingSize,BodyPaintingSide,BodyPaintingClip,BodyPaintingMode,TownEffect}};}
+ static object Pairs<T>(Dictionary<int,T> d){return d.Select(x=>new object[]{x.Key,x.Value}).ToArray();}
+}
+static class Extension {
+ public static void Add(this Dictionary<byte,Dictionary<byte,Costume>> d,byte kind,byte key,Costume row){Dictionary<byte,Costume> inner;if(!d.TryGetValue(kind,out inner)){inner=new Dictionary<byte,Costume>();d.Add(kind,inner);}inner.Add(key,row);}
+ __APPLY__
+}
+class Character{public List<Costume> Costume;}
+class CostumeManager{
+ public Character character;public int cafeType;public bool isReturn;
+ public Dictionary<byte,Dictionary<byte,Costume>> BaseCostume,ItemCostume;
+ public CostumeInfo CostumeInfo;
+ __LOAD__
+}
+class Oracle{
+ static object Row(Costume x){return new{is_base=x.IsBase,kind=x.Type,key=x.Key,serial=x.CostumeSN,colors=new int?[]{x.C1,x.C2,x.C3},gloss=x.Gloss,effect=x.Effect};}
+ static object[] Map(Dictionary<byte,Dictionary<byte,Costume>> d){return d.SelectMany(g=>g.Value.Values).Select(Row).ToArray();}
+ static void Main(){var cases=new List<object>();int[] cafes={int.MinValue,-1,0,1,3,int.MaxValue};
+ for(int n=0;n<64;n++){int mode=n%4;var rows=new List<Costume>();
+ if(mode==3){rows.Add(new Costume{IsBase=false,Type=0,Key=4,CostumeSN=null,C2=2,Gloss=9,Effect=null});
+ rows.Add(new Costume{IsBase=true,Type=0,Key=4,CostumeSN=100+n,C1=1,C3=3,Effect=-7});
+ rows.Add(new Costume{IsBase=true,Type=3,Key=2,CostumeSN=n});
+ rows.Add(new Costume{IsBase=true,Type=0,Key=1,CostumeSN=-n});
+ rows.Add(new Costume{IsBase=false,Type=255,Key=0,CostumeSN=7});}
+ var m=new CostumeManager{character=mode==0?null:new Character{Costume=mode==1?null:rows},cafeType=cafes[n%cafes.Length],isReturn=(n/4)%2==1};
+ m.LoadFromDB();cases.Add(new{n=n,mode=mode,cafe_type=m.cafeType,is_return=m.isReturn,rows=rows.Select(Row).ToArray(),expected=m.CostumeInfo.Snapshot(),base_map=Map(m.BaseCostume),item_map=Map(m.ItemCostume)});
+ }Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=16*1024*1024}.Serialize(cases));}
+}

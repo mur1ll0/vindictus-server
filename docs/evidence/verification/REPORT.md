@@ -163,3 +163,17 @@ Docker:locked build,migrate24/readiness/account/duplicate/nonroot/database+serve
 Verdict:PASS for the admitted manager prefix. Ratio overflow/base-write/SP-write failures preserve original prior commits;partial/replay/source conflicts rejected.
 Remaining:other constructors,StatusEffect/Attendance/Join/Login/CountBonus,ItemProxy second-save/Undo/failures,Summary/lifecycle/reconciliation/TCPCreate;actual creation/relogin,selection,city/movement;full M01-M24. No new native frontend/client run.
 Evidence:docs/fiona-managers.md,auth/fiona-managers.json,framework-initial-titles.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.15 -- Initial constructor costume snapshot
+VERIFICATION REPORT
+-------------------
+Claim:read-only constructor CostumeManager snapshot after opaque admitted prefix;not full actor/Vocation/Join/Login or Create.
+Command:generate-initial-costume-fixtures.ps1;cargo test --locked --test initial_costume;cargo test --locked --test postgres fiona_managers::constructor_costume -- --ignored --test-threads=1;scripts/dev/verify.ps1 -DatabaseIntegration;docker compose build server;original smoke-docker.ps1;six imports -Mode Verify.
+Executed:2026-10-18T16:11:34.3071593+00:00 (full gate);2026-10-18T16:12:40.1695023+00:00 (Docker).
+Exit code:0.
+Output summary:335 Rust passed;163 native isolated PostgreSQL passed,0 ignored;41 Python passed;0 failures/warnings. Two new Rust/three PostgreSQL. Oracle64cases per architecture,x86=x64,complete LoadFromDB/CostumeInfo/Apply;association/context/helperAdd instrumented.
+Warnings:none. Errors:none in final verification. Early stale-revision test setup attempted a direct update of a database-managed revision;corrected to an ordinary user update invoking the existing revision trigger. No product invariant or assertion weakened;original failed log retained locally.
+Docker:locked build,migrate24/readiness/account/duplicate/nonroot/database+server restart and six preservation checks passed;candidate inventory empty.
+Verdict:PASS for this read-only constructor snapshot. No costume write/identity advance;invalid source/revision/constructor boundary/uninitialized/ambiguous/excess data refused with previous commits intact.
+Remaining:Vocation relationship and initial proof,other constructors/Join/Login/CountBonus,ItemProxy second-save/Undo/failures,Summary/lifecycle/reconciliation/TCPCreate,actual creation/relogin/selection/city/movement;full M01-M24. No new client/native frontend run.
+Evidence:docs/initial-costume.md,auth/initial-costume.json,framework-initial-costume.json,gate.json,docker-smoke.json. Full logs:.cache/verification.

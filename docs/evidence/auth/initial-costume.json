@@ -1,0 +1,129 @@
+{
+  "stage": "M15.1b.2e.10b.15",
+  "schema_version": 24,
+  "scope": "read-only CostumeManager constructor snapshot after ordered first-Fiona prefix;not Vocation/remaining constructors/Join/Login/Create",
+  "gate_verified_at_utc": "2026-10-18T16:11:34.3071593+00:00",
+  "docker_verified_at_utc": "2026-10-18T16:12:40.1695023+00:00",
+  "passed": {
+    "rust": 335,
+    "postgres_native": 163,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "oracle": {
+    "fixture": "tests/fixtures/framework-initial-costume.json",
+    "cases_per_architecture": 64,
+    "x86_equals_x64": true,
+    "original": "complete LoadFromDB,CostumeInfo constructor and Apply",
+    "instrumented": "Character.Costume association,context fields and nested Add helper;no original service constructors/aspects or database query provider",
+    "covered": [
+      "null character/null association/empty/nonempty",
+      "explicit signed CafeType and IsReturn",
+      "base-before-item projection",
+      "nested type/key map order",
+      "nullable overlays and ignored costume type"
+    ]
+  },
+  "boundary": {
+    "opaque_prefix_consumed": true,
+    "cid_and_base_stats_not_mutable_by_caller": true,
+    "owner_revision_rechecked": true,
+    "state_source_rechecked": true,
+    "prior_commits_preserved": true,
+    "no_costume_write_or_identity_allocation": true,
+    "costume_identity_initialization_required": true,
+    "limits": "1024 unique rows,existing summary dictionary limits;ambiguity/excess rejected without truncation",
+    "not_invoked": [
+      "Vocation",
+      "remaining constructors",
+      "Join/Login",
+      "Save",
+      "item customization",
+      "frontend",
+      "TCP Create"
+    ]
+  },
+  "constructor_order_source": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+    "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/CostumeInfo.cs",
+      "sha256": "7119e429724c02cd40b9e54f4ccd053928fe793a034ae804d4d33041eee92d4c"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeDataExtension.cs",
+      "sha256": "8193b136651ff2703dc9e32b166f8c4a8d90a09605a8af6725d7f97f3912ad57"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeManager.cs",
+      "sha256": "97a950548411eb3b31b1b867272e711016b3775687e7a666d5fadcf5428dd952"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/ExtraKey.cs",
+      "sha256": "0b2f5d9cab28eee4cb8b8750a93af0fa137c4634693581b8b127c3f69959ef56"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeType.cs",
+      "sha256": "c519dfa2186b52fb0b862ac9219cd47c8ea5e37e9e6fe2253434d9fed371594b"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialCostumeOracle.cs.in",
+      "sha256": "7882a5041de4c9423b4f44f60597ecf7240fc3a04e75af4bb18d95d545ab23b7"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-costume-fixtures.ps1",
+      "sha256": "1936c8aa23e25a79d8756fb2f33023cd5314212fc7ff0a0f131dcbd9a160c827"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "source_fresh_constructor_context": {
+    "cafe_type": 0,
+    "is_return": "copied from player.IsReturn before CostumeManager",
+    "caller_composition_pending": true
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "a0d6d761515f6d464486e1bb778171730f91222dc293e21ef6030f5e13611b2b"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "4692876e903d7d987e0b1e182f11cacdfd2ea813bca78215985fb7eee6751415"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "2721fa7d7f80a6636e8d8897d23aff92e8329de90bd726227d6e7da4e76e4a7e"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "40294b644750c91739b096fc9e869607f3c2a7d0c378c29c5fcaee4a737865bf"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "7ee9d892bb522507bcca66d003a0502fd07f59a714d686ffd6fda6da00cecb1d"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "11239167daacf02b6b1a284d54dc6e2e0fe92a9c00c03bdc7e713944a2011fa8"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "8cac212f651e95b79806b758456dbe726fea751f0adfe40b658988556de49834"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "8c14bd50a1868fb39081b37eb309fa159de534a6b991fb8af5ff400dd39110da"
+      }
+    ]
+  }
+}

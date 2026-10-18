@@ -142,3 +142,5 @@ M15.1b.2e.10b.12: multicast interno de skills por-log/pre-Submit validado contra
 M15.1b.2e.10b.13: fase interna de skills com runtime concreto detached/unloaded,APsemalteracao/callbacks concluido e transacao verificada;replay fresh recusado. Guards completos comparados ao Framework e perfilprivadovinculado. Ainda faltam initializer/Join/Login/titulos/status/ItemProxy,Summary/lifecycle/TCPCreate antes de testar Create,selecao,cidade/movimento. Nenhum novo frontend ou teste de cliente nesta etapa.
 
 M15.1b.2e.10b.14: prefixo interno MissionBook/titulos iniciais/stats/SP composto e verificado,com falhas/commits na ordem recuperada. Ainda faltam demais construtores/Join/Login/ItemProxy,Summary/lifecycle/TCPCreate. Nenhum novo teste do cliente;Create,selecao,cidade/movimento continuam indisponiveis.
+
+M15.1b.2e.10b.15: carga interna CostumeManager ligada ao prefixo opaco,com contexto/mapas e ausencia de Save/identidade verificados. Ainda faltam Vocation/demais construtores/Join/Login/ItemProxy,Summary/lifecycle/TCPCreate. Nenhum novo testecliente;Create,selecao,cidade/movimento indisponiveis.
