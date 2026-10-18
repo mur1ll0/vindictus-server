@@ -137,3 +137,29 @@ Docker:locked build,migrate24/readiness/account/duplicate/nonroot/database+serve
 Verdict:PASS for concrete admitted skill phase. Fresh callbacks complete with AP clean/no UPDATE/date roundtrip;fresh replay refused;late Submit failure retains independent logs and original AP. Generic runtime/storage behavior preserved.
 Remaining:surrounding initializer/title/status/CountBonus/Join/Login and ItemProxy second-save/Undo/failures;Summary/lifecycle/reconciliation/TCPCreate;actual creation/relogin,selection,city/movement;general connected/equipped runtime and full M01-M24. Native frontend unchanged,no client run.
 Evidence:docs/fresh-skill-runtime.md,auth/fresh-skill-runtime.json,framework-fresh-skills.json,gate.json,docker-smoke.json. Full logs:.cache/verification;private data remains local.
+
+M15.1b.2e.10b.14 -- IN PROGRESS, NO VERIFIED STAGE/COMMIT
+VERIFICATION REPORT
+Claim:complete verification of the ordered fresh manager prefix.
+Command:scripts/dev/verify.ps1 -DatabaseIntegration (CARGO_BUILD_JOBS=1,CARGO_INCREMENTAL=0);focused cargo test --locked --test initial_title_stats;focused postgres fiona_managers::;docker compose build server.
+Executed:2026-10-18T14:44:31.018885+00:00.
+Exit code:1 (full gate interrupted while Rust suite compiling after environment failure).
+Output summary:focused Rust3passed/0failed/0ignored;oracle72cases and2counterfactual provider probes per Framework architecture;private readonly projection probe passed;format/clippy exit0 and0warnings. PG first attempt lost connection during isolated migration preparation then PoolTimedOut;retry0passed/3failed due PoolTimedOut. Docker build exit1:frontend grpc server closed unexpectedly.
+Warnings:none in completed format/clippy;full pipeline incomplete.
+Errors:PostgreSQL rejecting connections in recovery;initial isolated migration UnexpectedEof,then PoolTimedOut. Docker build frontend failure. No new gate/smoke receipts or stage success claims.
+Verdict:FAIL/incomplete verification;product code remains uncommitted. No real client/Create/selection/city test. Original data/volumes were not repaired/restarted/deleted.
+Next:restore Docker/PostgreSQL availability,repeat focused integration and full gate,then Docker smoke/preservation checks,final evidence and local commit. Full logs:.cache/verification/managers-*.log;prepared runners/finalizer in cache. Do not run finalizer without fresh successful evidence.
+
+M15.1b.2e.10b.14 -- Ordered initial manager prefix
+VERIFICATION REPORT
+-------------------
+Claim:strict fresh MissionBook/initial-title/base-stat/SP composition only;not full initializer,Join/Login or game Create.
+Command:generate-initial-titles-fixtures.ps1;cargo test --locked --test initial_title_stats;cargo test --locked --test postgres fiona_managers:: -- --ignored --test-threads=1;private readonly projection probe;scripts/dev/verify.ps1 -DatabaseIntegration;docker compose build server;original smoke-docker.ps1;six imports -Mode Verify.
+Executed:2026-10-18T15:10:34.5910687+00:00 (full gate);2026-10-18T15:11:34.4678816+00:00 (Docker smoke).
+Exit code:0.
+Output summary:333 Rust passed;160 native isolated PostgreSQL passed,0 ignored;41 Python passed;0 failures/warnings. Three new Rust/three PostgreSQL. Oracle72cases per architecture and two positive provider probes,x86=x64. Private profile binding/ratio projection checked with no database or actor publication.
+Warnings:none. Errors:none in final verification. Initial focused PG run lost connection during schema preparation,then PoolTimedOut;engine recovered and failed logs retained. After recovery,the synthetic catalog fixture lacked required CurrentVer;fixture corrected before focused/full verification,without changing product guards or test assertions. Full gate executed without test skips.
+Docker:locked build,migrate24/readiness/account/duplicate/nonroot/database+server restart and six preservation checks passed;candidate inventory empty.
+Verdict:PASS for the admitted manager prefix. Ratio overflow/base-write/SP-write failures preserve original prior commits;partial/replay/source conflicts rejected.
+Remaining:other constructors,StatusEffect/Attendance/Join/Login/CountBonus,ItemProxy second-save/Undo/failures,Summary/lifecycle/reconciliation/TCPCreate;actual creation/relogin,selection,city/movement;full M01-M24. No new native frontend/client run.
+Evidence:docs/fiona-managers.md,auth/fiona-managers.json,framework-initial-titles.json,gate.json,docker-smoke.json. Full logs:.cache/verification.

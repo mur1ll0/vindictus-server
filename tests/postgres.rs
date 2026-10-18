@@ -1576,3 +1576,6 @@ mod fiona_inventory_delivery;
 
 #[path = "support/shared_item_state.rs"]
 mod shared_item_state;
+
+#[path = "support/fiona_managers.rs"]
+mod fiona_managers;

@@ -1,0 +1,18 @@
+using Utility;using System;using System.Collections.Generic;using System.Globalization;using System.Web.Script.Serialization;using ServiceCore.CharacterServiceOperations;
+namespace Utility{public static class Extensions{public static V TryGetValue<K,V>(this Dictionary<K,V> d,K k){V v;return d.TryGetValue(k,out v)?v:default(V);}}}
+namespace ServiceCore{public class FeatureMatrix{public static string Raw;public static int Reads,Formats;public static string GetString(string k){if(k!="AccountTitleStatRatio")throw new Exception();Reads++;return Raw??"";}__INTEGER__}}
+public class Logger{public void ErrorFormat(params object[] args){ServiceCore.FeatureMatrix.Formats++;}}
+public class Log<T>{public static Logger Logger=new Logger();}
+public class Title{public bool Acquired;public int TitleID;}
+public class TitleSlotInfo{public int TitleID;}
+public class TitleInfo{public int RequiredLevel;public CharacterStats GetCharacterStats(){throw new InvalidOperationException();}}
+public static class CharacterContents{public static int Calls;public static TitleInfo GetTitleInfo(int id){Calls++;throw new InvalidOperationException();}}
+public class Entity{public int Level=1;}
+public class TitleManager{public Dictionary<int,Title> Titles=new Dictionary<int,Title>();public Dictionary<int,TitleSlotInfo> TitleByAccountCharacters=new Dictionary<int,TitleSlotInfo>();public Entity CharacterEntity=new Entity();__TITLES__}
+public static class Oracle{public static void Main(){CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("en-US");var cases=new List<object>();
+string[] inputs={null,"","0","25","-25","100","2147483647","-2147483648","2147483648","-2147483649","  +73 \t","1.5","0x20","nan"," ","+","12\0","-17\0\0","\uff11\uff12","1,000","-0","000025","--2","1 2"};
+foreach(var raw in inputs)for(int n=0;n<3;n++){ServiceCore.FeatureMatrix.Raw=raw;int? integer=null;string parseError=null,error=null;try{integer=ServiceCore.FeatureMatrix.GetInteger("AccountTitleStatRatio");}catch(OverflowException){parseError="overflow";}
+ServiceCore.FeatureMatrix.Reads=0;ServiceCore.FeatureMatrix.Formats=0;CharacterContents.Calls=0;var m=new TitleManager();for(int j=0;j<n;j++)m.Titles.Add(j,new Title{TitleID=j,Acquired=false});int[] stats=null;try{var s=m.GetTitleStats();stats=new int[25];for(int j=0;j<25;j++)stats[j]=s[(Stats)j];}catch(OverflowException){error="overflow";}
+cases.Add(new{raw=raw,own_unacquired=n,integer=integer,parse_error=parseError,error=error,reads=ServiceCore.FeatureMatrix.Reads,format_logs=ServiceCore.FeatureMatrix.Formats,provider_calls=CharacterContents.Calls,stats=stats});}
+var hits=new List<int>();for(int j=0;j<2;j++){var m=new TitleManager();if(j==0)m.Titles.Add(1,new Title{TitleID=1,Acquired=true});else m.TitleByAccountCharacters.Add(1,new TitleSlotInfo{TitleID=1});CharacterContents.Calls=0;try{m.GetTitleStats();}catch(InvalidOperationException){}hits.Add(CharacterContents.Calls);}
+Console.WriteLine(new JavaScriptSerializer().Serialize(new{cases=cases,counterfactual_hits=hits}));}}

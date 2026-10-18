@@ -69,3 +69,5 @@ pub mod fiona_inventory_delivery;
 pub mod shared_item_state;
 
 pub mod fiona_customization;
+
+pub mod fiona_managers;

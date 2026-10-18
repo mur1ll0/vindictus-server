@@ -447,6 +447,19 @@ impl Profile {
     pub fn base_stats(&self, title_contribution: [i32; 7]) -> BaseStats {
         BaseStats::compose(self.basis, title_contribution)
     }
+    /// The initial title query still reads this integer when both title collections are
+    /// empty. Require its projection; a missing export field is not proof of a missing
+    /// legacy setting. Keep overflow lazy at the original stats-construction boundary.
+    pub fn account_title_stat_ratio(&self) -> Result<i32, Error> {
+        if !self
+            .policy
+            .entries()
+            .any(|(key, _)| key == "AccountTitleStatRatio")
+        {
+            return Err(fail());
+        }
+        self.policy.get_integer("AccountTitleStatRatio")
+    }
     /// Keep source integer parsing lazy: disabled AP paths do not query the maximum.
     pub fn maximum_ap(&self) -> Result<i32, Error> {
         if !self.policy.entries().any(|(key, _)| key == "APMax") {

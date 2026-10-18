@@ -1,0 +1,133 @@
+{
+  "stage": "M15.1b.2e.10b.14",
+  "schema_version": 24,
+  "scope": "strict fresh first-Fiona MissionBook -> zero initial title contribution/base stats -> SkillManager SP slot;not complete CharacterEntity/Join/Login or Create",
+  "gate_verified_at_utc": "2026-10-18T15:10:34.5910687+00:00",
+  "docker_verified_at_utc": "2026-10-18T15:11:34.4678816+00:00",
+  "passed": {
+    "rust": 333,
+    "postgres_native": 160,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "oracle": {
+    "fixture": "tests/fixtures/framework-initial-titles.json",
+    "cases_per_architecture": 72,
+    "x86_equals_x64": true,
+    "counterfactual_provider_hits_per_architecture": [
+      1,
+      1
+    ],
+    "original": "complete GetTitleStats,GetInteger,CharacterStats and Stats",
+    "instrumented": "FeatureMatrix.GetString/log sink,title collections/provider/owner;acquired or account title probes cross provider boundary;not service constructors"
+  },
+  "composition": {
+    "empty_own_titles": true,
+    "other_account_characters_refused": true,
+    "ratio_lookup_even_when_zero": true,
+    "ratio_lookup_after_mission_commit": true,
+    "single_caller_elected_by_mission_insert": true,
+    "partial_attempts_and_replay": "refused;no automatic resume or deletion",
+    "commit_boundaries": [
+      "mission",
+      "base_stats",
+      "sp_slot"
+    ],
+    "failure_cases": [
+      "ratio overflow leaves mission only",
+      "base update failure leaves mission only",
+      "SP insert failure leaves mission and base stats"
+    ],
+    "not_invoked": [
+      "MicroPlay",
+      "preset grants",
+      "remaining constructors",
+      "UpdateLastCID",
+      "Join/Login",
+      "ItemProxy",
+      "TCP Create"
+    ]
+  },
+  "private_probe": {
+    "source_binding_checked": true,
+    "ratio_projection_checked": true,
+    "database_opened": false,
+    "actor_published": false,
+    "private_values_disclosed": false
+  },
+  "environment_failure": "first focused PG attempt lost connection during schema preparation then PoolTimedOut;logs retained;engine recovered;full isolated gate rerun without skipping",
+  "client": {
+    "new_run": false,
+    "create_implemented": false,
+    "selection_implemented": false,
+    "city_movement_implemented": false
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/TitleManager.cs",
+      "sha256": "74ec20c56a064c7e5518729121f58673586be7a13250f14ddbc2b8675c9b485a"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/CharacterStats.cs",
+      "sha256": "34f6f15beef5bebc596c137a7661ca0a5af44fcd2a35b57a863b83c01bca7250"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/Stats.cs",
+      "sha256": "ca927494856d57b810963c12e365cfdcf3da809a8169b4686b70c1bfd84595c3"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialTitlesOracle.cs.in",
+      "sha256": "b8b7c6d75659d0b6b444891a727cc49a58f5a4888287083ccb251dad4cdc2ad2"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-titles-fixtures.ps1",
+      "sha256": "ad9c265dafdc2750b09070c9eafd14943b72eb372d21cdc84782001cbb805d14"
+    }
+  ],
+  "constructor_order_source": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+    "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "dc47737a2406477aeb3f79bc529b3aee6b285b773e242d066019ef8920db0490"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "4708fe95a718fb8157e01f80e03c9c395dbf69f742c32f13f813923f9f8f402d"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "eb18ed72b6737752fef08cae2404eb380214142c426954ae754823edafdeaf9e"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "1eab1a78c29c8b90dcd4d1d5386d72617ea866fc2900875dc336243b23c83bcf"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "89e448de21bb12732855865aa78cf4de374d470d662587b9178ffb742d793721"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "e94ab31f2334171a0ac713e071c202f9ae29d1bb02bd3c6442600be61fec7e29"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "36565f9317c09646dac52c1436a1890eccc5ce8b83c088c9106a9c062057f8a3"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "07c7dc8d71ce1c27f9f22c1af4a89672a1d8623862b1c8622cd8e1570e743f69"
+      }
+    ]
+  }
+}

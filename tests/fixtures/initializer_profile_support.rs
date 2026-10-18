@@ -34,6 +34,7 @@ pub fn synthetic() -> Value {
         json!({"key":"CurrentVer","value":"synthetic-current"}),
         json!({"key":"AttendanceEvent_Newbie","value":"7"}),
         json!({"key":"APMax","value":"-1"}),
+        json!({"key":"AccountTitleStatRatio","value":"25"}),
         json!({"key":"Event_newbie_character_preset_item","value":null}),
     ]);
     json!({"format_version":1,"source":"heroesContents.first-fiona-initializer","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"state_sha256":"c".repeat(64),"implementations":implementations,"features":features,"enabled_keys":flags.iter().map(|(k,_)|*k).collect::<Vec<_>>(),"base_stats":[1,2,3,4,5,6],"base_load_bits":"405ee00000000000","levels":[{"level":1,"required_exp":81,"feature":null}],"presets":[{"title_id":17,"class_restriction":2},{"title_id":18,"class_restriction":0}],"title_info":[{"title_id":17,"class_restriction":99,"auto_give_level":1,"feature":null},{"title_id":18,"class_restriction":2,"auto_give_level":1,"feature":null}],"skills":[{"id_utf16":"530079006e00","rank":2,"class_restriction":2,"use_type":0,"level_constraint":1,"rank_feature":null,"constraints":[],"next_rank":{"required_ap":9,"require_unlock":false},"status_effect_types":[null,null,null],"item_callback":true,"stat_callback":false,"meditation":false,"argument_rows":2,"arguments":[{"key_utf16":"4100","value":7},{"key_utf16":"4200","value":-3}],"argument_sha256":"d".repeat(64)}],"attendance":[{"version":7,"date_from_ticks":"100","date_until_ticks":"200"}]})
