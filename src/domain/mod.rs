@@ -78,3 +78,5 @@ pub mod initial_gear;
 pub mod skill_multicast;
 
 pub mod initial_vocation;
+
+pub mod initial_social;

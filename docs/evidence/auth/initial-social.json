@@ -1,0 +1,131 @@
+{
+  "stage": "M15.1b.2e.10b.17",
+  "schema_version": 25,
+  "scope": "restricted detached Whisper/Guild constructor links and initial state after opaque Vocation;not mutable actors/full services/remaining constructors/Join/Login/Create",
+  "passed": {
+    "rust": 341,
+    "postgres_native": 169,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "gate_verified_at_utc": "2026-10-18T18:09:47.5904699+00:00",
+  "docker_verified_at_utc": "2026-10-18T18:11:04.2495847+00:00",
+  "oracle": {
+    "cases_per_architecture": 32,
+    "x86_equals_x64": true,
+    "methods": "complete original WhisperFilter/GuildInfoManager constructors and parameterless UpdateBriefGuildInfo",
+    "instrumented": "owner/character context and feature result;false overload trapped,never simulated",
+    "admitted": "InGameGuild true;shared context,GuildInfoLoaded false,procedure-count projection zero",
+    "unsupported": "false branch needs original persistence/notifications/rank/daily item processing"
+  },
+  "real_feature_evidence": {
+    "profile_sha256": "0ba722fbaca42c23c189d143e606dab8155373ae22c8ef320910e4ed185e794d",
+    "reference_sha256": "b4a2dc93b1c1fdea859d3e9fc35c392c43d7617b177ea0104d0224bc7199cf03",
+    "framework_comparisons": 30,
+    "architectures": [
+      "Framework48-x86-en-US",
+      "Framework48-x64-en-US"
+    ],
+    "in_game_guild": true,
+    "values_or_private_export_in_git": false
+  },
+  "boundary": {
+    "opaque_vocation_consumed": true,
+    "source_owner_revision_base_mission_sp_costume_vocation_rechecked": true,
+    "profile_and_catalog_binding_required": true,
+    "no_writes_or_identity_allocation": true,
+    "previous_commits_retained": true,
+    "guild_and_whisper_storage_not_queried": true,
+    "guild_queue_projection_only": true,
+    "mutable_actor_graph_available": false
+  },
+  "postgres_verification_environment": {
+    "synchronous_commit": "on",
+    "persistent_volume_mounts": 0,
+    "storage": "tmpfs",
+    "image_matches_main": true,
+    "native_rust_test_runtime": true,
+    "full_page_writes": "on",
+    "app_role_restricted": true,
+    "fsync": "on",
+    "removed_after_verification": true
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/WhisperFilter.cs",
+      "sha256": "b0efe63edaa8a4856f3f70fa8a9e5ff221c529e49179b87a768dcf0045ab92d7"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/GuildInfoManager.cs",
+      "sha256": "03d532bf88bcd0389bc35829efed46b2a4af8c8a8bdfa2a5c6b6fb91785f1ad0"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+      "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService/PlayerEntity.cs",
+      "sha256": "2d0813de53ee9bc794f2cf3bd95a37f480a3bbaf1751788fb864f48ca5e00ec1"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialSocialOracle.cs.in",
+      "sha256": "4e71183c29fe866a01e3e8d604eb54bb51b36783604c2525aab455fe1cf0b1ee"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-social-fixtures.ps1",
+      "sha256": "0108004ee5b215615d13560ff666545f8b0848a2b4016b3179e6efd204a3d6dc"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore/FeatureMatrix.cs",
+      "sha256": "fc6f88d27ed1d9b3762b5800d56f605c81277ab1ddb3b8dfb5395dc0ed9ed9ed"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "d4be7649a796adfe0a8d13d8ec4c2fe6df66a796c333cce1c3587f9926e42efe"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "8f092999fe4ac44da2b7d173fe6f1ad13f9a86372b7998f888d84ebaa5a34d7c"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "5d67315b3d0e9a9cdf461633ff5a096bdca6c046fa3bba8e0a0c3630efdc2f73"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "937a64965514b692be0b219f0c78ce56ac57355533708ab0e82a7068277bb692"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "8761fc7f8e4b4a80a15207d79acdfb371c130248d61955590803ff05b13c8558"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "5362b761ed2fb7cd5c661fc0f9f84393f756a8b7da8272d6e86cdbccb68dd70f"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "764c4c70e91322b07937ed9c9480d8fd710ab1dfbd71e1cf749c8c10627fa3c2"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "ea543f4ef132b5009653d824124bee1037694c7e383a53af7ab4deade9ce0991"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "8f747cfe430ce1827b22043d877fc88824a56b9adc6b8ccccfbe2baf2f0cd127"
+      }
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;
+class PlayerEntity { public int UID;public long CID; }
+class CharacterEntity { public PlayerEntity Player; }
+namespace ServiceCore { static class FeatureMatrix { public static bool Enabled; public static int Queries; public static bool IsEnable(string key){if(key!="InGameGuild")throw new Exception("unexpected feature");Queries++;return Enabled;} } }
+class WhisperFilter {
+ CharacterEntity CharEntity;PlayerEntity Player {get;set;}
+ __WHISPER__
+ public bool SamePlayer(PlayerEntity p){return object.ReferenceEquals(Player,p);}
+ public bool SameCharacter(CharacterEntity c){return object.ReferenceEquals(CharEntity,c);}
+ public int UID {get{return Player.UID;}} public long CID {get{return Player.CID;}}
+}
+class DailyItemProcedure {}
+class GuildInfoManager {
+ internal PlayerEntity Parent{get;set;}
+ public bool GuildInfoLoaded{get;set;}
+ public List<DailyItemProcedure> OnGuildInfoLoaded{get;set;}
+ public static int ExternalBranchCalls;
+ __GUILD__
+ __GUARD__
+ // Instrumented boundary only. The unsupported false branch is never simulated.
+ public void UpdateBriefGuildInfo(object info){ExternalBranchCalls++;throw new NotSupportedException("external guild branch");}
+}
+class Oracle {
+ static void Main(){var cases=new List<object>();
+ for(int n=0;n<32;n++){
+ int uid=n==1?int.MinValue:n-16;long cid=n==2?long.MaxValue:101-n;
+ bool enabled=n%4!=0;ServiceCore.FeatureMatrix.Enabled=enabled;ServiceCore.FeatureMatrix.Queries=0;GuildInfoManager.ExternalBranchCalls=0;
+ var player=new PlayerEntity{UID=uid,CID=cid};var character=new CharacterEntity{Player=player};var whisper=new WhisperFilter(character);GuildInfoManager guild=null;
+ bool supported=true;try{guild=new GuildInfoManager(player);}catch(NotSupportedException){supported=false;}
+ object expected=null;if(supported)expected=new{whisper_uid=whisper.UID,whisper_cid=whisper.CID,guild_uid=guild.Parent.UID,guild_cid=guild.Parent.CID,same_player=whisper.SamePlayer(guild.Parent),same_character=whisper.SameCharacter(character),guild_info_loaded=guild.GuildInfoLoaded,pending=guild.OnGuildInfoLoaded.Count};
+ cases.Add(new{uid=uid,cid=cid,enabled=enabled,supported=supported,feature_queries=ServiceCore.FeatureMatrix.Queries,external_branch_calls=GuildInfoManager.ExternalBranchCalls,expected=expected});
+ }Console.WriteLine(new JavaScriptSerializer().Serialize(cases));}
+}

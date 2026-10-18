@@ -1,5 +1,5 @@
 {
-  "verified_at_utc": "2026-10-18T17:40:57.8832947+00:00",
+  "verified_at_utc": "2026-10-18T18:09:47.5904699+00:00",
   "database_integration_executed": true,
   "database_integration_runtime": "native",
   "checks": [
@@ -23,18 +23,18 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/clippy.log",
-      "log_sha256": "dd8bfb68889066026bf9a60b5c76c4fe41b04b1563207e7fd91583fbea1b3821"
+      "log_sha256": "520eede9afde5f4f5dd0c7fabd2c41af4e4b505d8d1d1dd0398b703baa8bdf60"
     },
     {
       "name": "rust-tests",
       "command": "cargo test --all-targets --locked",
       "exit_code": 0,
-      "passed": 338,
+      "passed": 341,
       "failed": 0,
-      "ignored": 167,
+      "ignored": 169,
       "warnings": 0,
       "log": ".cache/verification/rust-tests.log",
-      "log_sha256": "b561c199fe42410d6efc223fd6ca37f29b58847aaf636e0075041d2b04b25d15"
+      "log_sha256": "c0137c8d6d6fd68a73fcb5be4b904648fc17cf46ffd5596ee10fed4d27990ba6"
     },
     {
       "name": "doc-tests",
@@ -45,7 +45,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/doc-tests.log",
-      "log_sha256": "e5faa8a95919e3531b5b12ec3c95ed5a94ab6253148210c40a47ba64f51cc9bd"
+      "log_sha256": "5335e3bcdb73eb617a76d30793ccac580e997be4ace5a4a9f29017ed50faaca2"
     },
     {
       "name": "build",
@@ -56,18 +56,18 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/build.log",
-      "log_sha256": "b69fc43da68fc15f09dab08ea8c4ed8e6f48d1e1ede593119e76d146228b8ec7"
+      "log_sha256": "4c2e60520679c557860d310b8f36cb4278aa7297cc41646e75c9688a2a4c599a"
     },
     {
       "name": "postgres-integration",
       "command": "cargo test --test postgres --locked -- --ignored --test-threads=1 --nocapture",
       "exit_code": 0,
-      "passed": 167,
+      "passed": 169,
       "failed": 0,
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/postgres-integration.log",
-      "log_sha256": "a3b9ad5fe354bcdf4bff6592e42e53e048c2a6ad515034e765b6a7bf9462d5d9"
+      "log_sha256": "7e361dc6e46f80d6eb2a253236266b90facb851e4d0fd3af84bcb5d7d22b1dd4"
     },
     {
       "name": "client-python",
@@ -78,7 +78,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/client-python.log",
-      "log_sha256": "0d4a0a3852d9fc15c8ca3db49d608f91493cb4aeac8483f217f9588864416859"
+      "log_sha256": "aead2a2ed92a9a39d28f7c19f777be743d2ef66af69eacaf57a4f42dd1c9df35"
     },
     {
       "name": "content-python",
@@ -89,7 +89,7 @@
       "ignored": 0,
       "warnings": 0,
       "log": ".cache/verification/content-python.log",
-      "log_sha256": "5957ca259abd3d58074c1adead9d47c43c3c96d2e2dfc39438a076e287db5188"
+      "log_sha256": "584a364b7a24b1a89bdf76735e70e1ba07d365fcb40a8dfad6b012b31dcca7b0"
     }
   ],
   "game_compatibility_verified": false

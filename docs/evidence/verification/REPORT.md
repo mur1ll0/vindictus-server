@@ -192,3 +192,18 @@ Docker:locked build,migrate25/readiness/account/duplicate/nonroot/database+serve
 Verdict:PASS for preserved source state and restricted None constructor. Vocation absence requires initialized/frozen preservation;existing vocation/stale costume/revision refused;no constructor write/identity allocation,prior commits retained.
 Remaining:Whisper/Guild/StatusEffect/other constructors,Join/Login/CountBonus,ItemProxy second-save/Undo/failures,Summary/lifecycle/reconciliation/TCPCreate,actual creation/relogin/selection/city/movement;Vocation training/transformation/content getters;full M01-M24. No new client/native frontend run.
 Evidence:docs/initial-vocation.md,auth/initial-vocation.json,database/vocation-import.json,framework-initial-vocation.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+M15.1b.2e.10b.17 -- Restricted initial Whisper/Guild composition
+VERIFICATION REPORT
+-------------------
+Claim: recovered initial Whisper/Guild links and immutable guild-state projection after Vocation; not mutable actors/full services/remaining constructors/Join/Login/Create.
+Command: generate-initial-social-fixtures.ps1; measure-fiona-initializer-features.ps1; cargo test --locked --test initial_social; cargo test --locked --test postgres fiona_managers::social_constructor_ -- --ignored --test-threads=1; scripts/dev/verify.ps1 -DatabaseIntegration; docker compose build server; scripts/dev/smoke-docker.ps1; seven previous preservation imports -Mode Verify.
+Executed: 2026-10-18T18:09:47.5904699+00:00 (full gate); 2026-10-18T18:11:04.2495847+00:00 (Docker).
+Exit code: 0.
+Output summary: 341 Rust passed; 169 native isolated PostgreSQL passed, 0 ignored; 41 Python passed; 0 failures/warnings. Three new Rust/two PG. Oracle 32 cases per architecture, x86=x64; two original constructors and parameterless UpdateBriefGuildInfo complete. Feature/context instrumented; false external overload trapped, never implemented. Real feature measurement: 30 Framework comparisons x86=x64; InGameGuild active, private payload excluded.
+Warnings: none.
+Errors: none in final verification. Initial UID binding type mismatch corrected to source Int32 before the full gate.
+Environment: same pinned PG17 image/restricted init-role; native Rust test process; isolated tmpfs schemas; fsync/synchronous_commit/full_page_writes on; disposable environment removed without volume removal. Docker smoke/restart and seven preservation checks on normal persistent volume passed; candidate inventory empty.
+Verdict: PASS for this restricted constructor composition. All game_* DML forbidden and all sequence positions stable; eight stale/context/catalog/source/owner scenarios refused with earlier commits preserved. Schema remains 25. No new client/native frontend run.
+Remaining: StatusEffect association/clock/aspects and TownCampfire, Attendance and remaining constructors, Join/Login/CountBonus, ItemProxy second-save/Undo, Summary/lifecycle/reconciliation/TCP Create, actual creation/relogin/selection/city/movement and complete M01-M24 migration.
+Evidence: docs/initial-social.md, auth/initial-social.json, framework-initial-social.json, gate.json, docker-smoke.json. Full logs: .cache/verification.

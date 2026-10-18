@@ -205,3 +205,60 @@ pub async fn load_vocation(
     .await
     .map_err(|_| ManagerError::Timeout)?
 }
+
+#[must_use = "initial Whisper/Guild context only;remaining constructors/Join/Login/Create must still run"]
+pub struct SocialManagers {
+    prior: VocatedManagers,
+    social: crate::domain::initial_social::Loaded,
+}
+impl SocialManagers {
+    pub fn cid(&self) -> i64 {
+        self.prior.cid()
+    }
+    pub fn base(&self) -> BaseStats {
+        self.prior.base()
+    }
+    pub fn costume(&self) -> &Loaded {
+        self.prior.costume()
+    }
+    pub fn vocation(&self) -> &crate::domain::initial_vocation::Loaded {
+        self.prior.vocation()
+    }
+    pub fn social(&self) -> &crate::domain::initial_social::Loaded {
+        &self.social
+    }
+}
+/// WhisperFilter binds context; GuildInfoManager creates its initial projection and
+/// skips UpdateBriefGuildInfo(null) only with the source-validated InGameGuild flag.
+/// This detached context is not a published actor or a mutable service graph.
+pub async fn load_social(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    prior: VocatedManagers,
+    profile: &Profile,
+    catalog: &Package,
+) -> Result<SocialManagers, ManagerError> {
+    profile.bind(catalog)?;
+    if profile.source_state() != &prior.prior.prefix.state_source {
+        return Err(ManagerError::Conflict);
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = constructor_tx(pool, owner, &prior.prior.prefix).await?;
+        let rows = character_costumes::load_for_constructor(&mut tx, prior.cid()).await?;
+        if !prior
+            .costume()
+            .matches_source(rows)
+            .map_err(CostumeError::from)?
+        {
+            return Err(ManagerError::Conflict);
+        }
+        // Reprove the retained absent-Vocation boundary under the same owner lock.
+        let _vocation = character_vocation::load_first(&mut tx, prior.cid()).await?;
+        let social =
+            crate::domain::initial_social::Loaded::load(owner.uid, prior.cid(), profile.policy())?;
+        tx.commit().await?;
+        Ok(SocialManagers { prior, social })
+    })
+    .await
+    .map_err(|_| ManagerError::Timeout)?
+}

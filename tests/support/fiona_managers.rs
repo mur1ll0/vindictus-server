@@ -638,3 +638,131 @@ async fn vocation_constructor_refuses_uninitialized_existing_stale_costume_and_r
         cleanup_game_pool(a, p, s).await;
     }
 }
+
+async fn social_prior(p: &PgPool) -> managers::VocatedManagers {
+    use vindictus_server::application::initial_costume::Context;
+    setup(p).await;
+    costume_source(p, false).await;
+    empty_vocation_source(p).await;
+    let prefix = managers::initialize(p, &owner(), 1, &profile("25"), &catalog())
+        .await
+        .unwrap();
+    let costume = managers::load_costume(
+        p,
+        &owner(),
+        prefix,
+        Context {
+            cafe_type: 0,
+            is_return: true,
+        },
+    )
+    .await
+    .unwrap();
+    managers::load_vocation(p, &owner(), costume).await.unwrap()
+}
+async fn social_sequences(p: &PgPool) -> Vec<(String, Option<i64>)> {
+    sqlx::query_as("SELECT sequencename::text,last_value FROM pg_sequences WHERE schemaname=current_schema() ORDER BY sequencename").fetch_all(p).await.unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn social_constructor_binds_shared_context_without_writes_ids_or_guild_query() {
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = social_prior(&p).await;
+    let before = counts(&p).await;
+    let sequences = social_sequences(&p).await;
+    sqlx::query("CREATE FUNCTION reject_social_write()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'unexpected social constructor write';END$$").execute(&p).await.unwrap();
+    let tables:Vec<String>=sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname=current_schema() AND tablename LIKE 'game_%'").fetch_all(&p).await.unwrap();
+    for table in tables {
+        assert!(
+            table
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        );
+        sqlx::query(&format!("CREATE TRIGGER reject_social_write BEFORE INSERT OR UPDATE OR DELETE ON {table} FOR EACH STATEMENT EXECUTE FUNCTION reject_social_write()")).execute(&p).await.unwrap();
+    }
+    // Guild/Whisper service tables are intentionally absent: the admitted original
+    // constructors do not query them. This does not infer empty persisted state.
+    let out = managers::load_social(&p, &owner(), prior, &profile("25"), &catalog())
+        .await
+        .unwrap();
+    assert_eq!(out.cid(), 1);
+    assert_eq!(*out.base().values(), [1, 2, 3, 4, 100, 5, 6]);
+    assert!(out.costume().info().is_return);
+    assert!(out.vocation().details().is_none());
+    let social = out.social();
+    assert_eq!(social.whisper().uid(), 31);
+    assert_eq!(social.whisper().cid(), 1);
+    assert_eq!(social.guild().uid(), 31);
+    assert_eq!(social.guild().cid(), 1);
+    assert!(social.shares_player_context());
+    assert!(social.whisper().shares_character_player_context());
+    assert!(!social.guild().info_loaded());
+    assert_eq!(social.guild().pending_procedure_count(), 0);
+    assert_eq!(counts(&p).await, before);
+    assert_eq!(social_sequences(&p).await, sequences);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn social_constructor_refuses_stale_prior_owner_source_profile_and_catalog() {
+    for phase in 0..8 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = social_prior(&p).await;
+        let before = counts(&p).await;
+        let sequences = social_sequences(&p).await;
+        let mut key = owner();
+        let mut cat = catalog();
+        let mut prof = profile("25");
+        match phase {
+            0 => {
+                sqlx::query("UPDATE game_users SET name=name WHERE id=31")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            1 => {
+                sqlx::query("INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn)VALUES(1,1,true,0,0,99)").execute(&p).await.unwrap();
+            }
+            2 => {
+                sqlx::query("INSERT INTO game_vocations VALUES(1,0,0,0,NULL)")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            3 => {
+                sqlx::query(
+                    "UPDATE game_vocation_preservation SET initialized=false WHERE singleton",
+                )
+                .execute(&p)
+                .await
+                .unwrap();
+            }
+            4 => {
+                sqlx::query(
+                    "UPDATE game_character_state_preservation SET source_sha256=$1 WHERE singleton",
+                )
+                .bind(vec![7u8; 32])
+                .execute(&p)
+                .await
+                .unwrap();
+            }
+            5 => cat.manifest.config_sha256 = "c".repeat(64),
+            6 => {
+                let mut raw = profile_fixture::synthetic();
+                raw["state_sha256"] = json!("d".repeat(64));
+                prof = profile_fixture::read(&raw).unwrap();
+            }
+            _ => key.uid = 32,
+        }
+        let out = managers::load_social(&p, &key, prior, &prof, &cat).await;
+        match phase {
+            0 | 7 => assert!(matches!(out, Err(ManagerError::State(_)))),
+            2 | 3 => assert!(matches!(out, Err(ManagerError::Vocation(_)))),
+            5 => assert!(matches!(out, Err(ManagerError::Content(_)))),
+            _ => assert!(matches!(out, Err(ManagerError::Conflict))),
+        }
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, sequences);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
