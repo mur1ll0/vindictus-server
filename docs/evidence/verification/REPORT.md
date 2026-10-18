@@ -125,3 +125,15 @@ Docker:locked build,migrate24/readiness/account/duplicate/nonroot/database+serve
 Verdict:PASS for dispatch/integration boundary only. Fresh Outcome retains runtime callback debt. Corrected memory:SaveWithoutSync invokes no stat sync;Create loads costumes then grants skills;Select initializes equipment stats explicitly.
 Remaining:concrete AP/stat/observer runtime and original guards;same-context Submit;title/status/LoginCharacter/ItemProxy failures;LoginLogout/Summary/lifecycle/reconciliation/TCPCreate;actual creation/relogin,selection,city/movement;full M01-M24. Native frontend unchanged,no client run.
 Evidence:docs/skill-multicast.md,auth/skill-multicast.json,framework-skill-multicast.json,gate.json,docker-smoke.json. Full logs:.cache/verification;private data remains local.
+
+M15.1b.2e.10b.13 -- Concrete detached skill phase
+Claim:concrete detached/unloaded skill runtime and shared-transaction integration;not complete CharacterEntity/Join/Login,actor reconstruction or game Create.
+Command:generate-fresh-skill-fixtures.ps1;focused Rust/multicast and fresh_detached PostgreSQL tests;private source-bound profile probe;verify.ps1 -DatabaseIntegration;original Docker locked build/smoke/restart;six existing imports -Mode Verify.
+Executed:2026-10-18T01:12:14.0644513+00:00 (full gate);2026-10-18T01:13:00.3879533+00:00 (Docker smoke).
+Exit code:0.
+Output summary:330 Rust passed;157 native isolated PostgreSQL passed,0 ignored;41 Python passed;0 failures/warnings. Three new Rust/three PostgreSQL. Oracle128 cases and four positive counterfactual probes per architecture,x86=x64;original complete guards/multicast,initial graph/classification/features instrumented. Private bound profile:two grants,cache applied,AP unchanged,no DB/actor publication.
+Warnings:none. Errors:none in final verification. First full-gate attempt hit a transient Rust1.98 internal compiler error in the existing character_stats test with incremental disabled;focused unchanged target passed6 tests with one job,then full gate reran with one job. Original failed logs preserved locally. Early oracle missing INT handler/type-warning and counterfactual default DateTime underflow corrected before fixtures/tests;original method bodies/assertions unchanged.
+Docker:locked build,migrate24/readiness/account/duplicate/nonroot/database+server restart and six preservation checks passed;candidate inventory explicitly empty.
+Verdict:PASS for concrete admitted skill phase. Fresh callbacks complete with AP clean/no UPDATE/date roundtrip;fresh replay refused;late Submit failure retains independent logs and original AP. Generic runtime/storage behavior preserved.
+Remaining:surrounding initializer/title/status/CountBonus/Join/Login and ItemProxy second-save/Undo/failures;Summary/lifecycle/reconciliation/TCPCreate;actual creation/relogin,selection,city/movement;general connected/equipped runtime and full M01-M24. Native frontend unchanged,no client run.
+Evidence:docs/fresh-skill-runtime.md,auth/fresh-skill-runtime.json,framework-fresh-skills.json,gate.json,docker-smoke.json. Full logs:.cache/verification;private data remains local.

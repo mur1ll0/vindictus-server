@@ -493,3 +493,146 @@ async fn ordered_multicast_preserves_prefix_on_runtime_failure_and_never_replays
         cleanup_game_pool(a, p, s).await;
     }
 }
+
+async fn prepare_fresh_stats(p: &PgPool) {
+    vindictus_server::infrastructure::character_base_stats::initialize(
+        p,
+        &owner(),
+        1,
+        &profile().base_stats([0; 7]),
+    )
+    .await
+    .unwrap();
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn fresh_detached_skills_complete_callbacks_without_ap_update_or_datetime_roundtrip() {
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    prepare_fresh_stats(&p).await;
+    let units = 1_234_567_890_124i64;
+    sqlx::query("UPDATE game_character_info SET last_ap_update_units300=$1 WHERE id=1")
+        .bind(units)
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query("CREATE FUNCTION reject_ap_write()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'AP must stay clean';END$$").execute(&p).await.unwrap();
+    sqlx::query("CREATE TRIGGER reject_ap_write BEFORE UPDATE OF ap,last_ap_update_units300 ON game_character_info FOR EACH ROW EXECUTE FUNCTION reject_ap_write()").execute(&p).await.unwrap();
+    let batch = prepared();
+    let done = grants::save_fresh_detached(&p, &owner(), 1, &batch)
+        .await
+        .unwrap();
+    assert_eq!(
+        (
+            done.storage.inserted,
+            done.storage.logs_written,
+            done.cache.rank_sum()
+        ),
+        (2, 2, 10)
+    );
+    assert!(!done.storage.runtime_callbacks_required);
+    assert_eq!(
+        (done.runtime.ap().ap, done.runtime.ap().bonus_seconds),
+        (0, -1)
+    );
+    assert_eq!(
+        done.runtime.ap().last_update,
+        SqlDateTime::from_units300(units)
+            .unwrap()
+            .framework_date_time()
+            .unwrap()
+    );
+    let stored: (i32, i32, i64) = sqlx::query_as(
+        "SELECT ap,total_used_ap,last_ap_update_units300 FROM game_character_info WHERE id=1",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(stored, (0, 0, units));
+    assert_eq!(counts(&p).await, (2, 2, 0));
+    assert!(matches!(
+        grants::save_fresh_detached(&p, &owner(), 1, &batch).await,
+        Err(StateError::Conflict)
+    ));
+    assert_eq!(counts(&p).await, (2, 2, 0));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn fresh_detached_admission_rejects_dirty_changed_or_imported_rows_and_actual_meditation_key_before_logs()
+ {
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    let batch = prepared();
+    assert!(matches!(
+        grants::save_fresh_detached(&p, &owner(), 1, &batch).await,
+        Err(StateError::Conflict)
+    ));
+    prepare_fresh_stats(&p).await;
+    for statement in [
+        "UPDATE game_character_info SET ap=1 WHERE id=1",
+        "UPDATE game_character_info SET ap=0,total_used_ap=1 WHERE id=1",
+        "UPDATE game_character_info SET total_used_ap=0,legacy_last_update=decode('0000000000000001','hex') WHERE id=1",
+        "UPDATE game_character_info SET legacy_last_update=NULL,exp=1 WHERE id=1",
+        "UPDATE game_character_info SET exp=0,selected_title=17 WHERE id=1",
+    ] {
+        sqlx::query(statement).execute(&p).await.unwrap();
+        assert!(matches!(
+            grants::save_fresh_detached(&p, &owner(), 1, &batch).await,
+            Err(StateError::Conflict)
+        ));
+    }
+    let mut raw = profile_fixture::synthetic();
+    raw["state_sha256"] = json!(format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&state_export()).unwrap())
+    ));
+    let key: Vec<u8> = "skill_meditation"
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    raw["skills"][0]["id_utf16"] =
+        json!(key.iter().map(|b| format!("{b:02x}")).collect::<String>());
+    raw["skills"][0]["meditation"] = json!(false);
+    let profile = profile_fixture::read(&raw).unwrap();
+    let med = grants::prepare(&profile, &mut EntityAuthority::new(17), || {
+        SqlDateTime2::from_ticks(638000000000000000).unwrap()
+    })
+    .unwrap();
+    assert!(matches!(
+        grants::save_fresh_detached(&p, &owner(), 1, &med).await,
+        Err(StateError::Profile)
+    ));
+    assert_eq!(counts(&p).await, (0, 0, 0));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn fresh_detached_late_submit_failure_keeps_independent_logs_and_original_ap() {
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    prepare_fresh_stats(&p).await;
+    let before: (i32, i64) =
+        sqlx::query_as("SELECT ap,last_ap_update_units300 FROM game_character_info WHERE id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    sqlx::query(
+        "ALTER TABLE game_skills ADD CONSTRAINT reject_fresh_submit CHECK(false) NOT VALID",
+    )
+    .execute(&p)
+    .await
+    .unwrap();
+    assert!(matches!(
+        grants::save_fresh_detached(&p, &owner(), 1, &prepared()).await,
+        Err(StateError::Database(_))
+    ));
+    assert_eq!(counts(&p).await, (0, 2, 0));
+    let after: (i32, i64) =
+        sqlx::query_as("SELECT ap,last_ap_update_units300 FROM game_character_info WHERE id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(after, before);
+    cleanup_game_pool(a, p, s).await;
+}

@@ -54,7 +54,7 @@ pub fn after_grant<R: Runtime>(
             .map_err(DispatchError::Runtime)
     };
     // Original IsMeditation uses case-sensitive string equality.
-    if grant.key == b"s\0k\0i\0l\0l\0_\0m\0e\0d\0i\0t\0a\0t\0i\0o\0n\0" {
+    if is_meditation(grant.key) {
         call(Call::RecalculateAp)?;
         call(Call::PushAp)?;
     }
@@ -74,4 +74,8 @@ pub fn after_grant<R: Runtime>(
     }
     call(Call::SkillUpdated)?;
     call(Call::MicroPlayUpdated)
+}
+
+pub(crate) fn is_meditation(key: &[u8]) -> bool {
+    key == b"s\0k\0i\0l\0l\0_\0m\0e\0d\0i\0t\0a\0t\0i\0o\0n\0"
 }

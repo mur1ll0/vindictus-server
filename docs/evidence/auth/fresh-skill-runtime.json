@@ -1,0 +1,136 @@
+{
+  "stage": "M15.1b.2e.10b.13",
+  "schema_version": 24,
+  "scope": "concrete unpublished/unloaded detached skill phase with ordered cache callbacks and shared transaction;not complete CharacterEntity/Join/Login or game Create",
+  "gate_verified_at_utc": "2026-10-18T01:12:14.0644513+00:00",
+  "docker_verified_at_utc": "2026-10-18T01:13:00.3879533+00:00",
+  "passed": {
+    "rust": 330,
+    "postgres_native": 157,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "oracle": {
+    "fixture": "tests/fixtures/framework-fresh-skills.json",
+    "cases_per_architecture": 128,
+    "x86_equals_x64": true,
+    "counterfactual_guard_probes_per_architecture": 4,
+    "unexpected_provider_effects": 0,
+    "original": "complete guarded stat calculations,frontend pushes,GuildScore,Observable.Updated and multicast/cache handlers including INT",
+    "instrumented": "initial graph/null fields,classification,disabled FeatureMatrix;providers/messages fail if guard crossed;not original service constructors or network graph"
+  },
+  "runtime": {
+    "frontend_attachment": false,
+    "equipment_load": false,
+    "observer_attachment": false,
+    "guild_score_enabled": false,
+    "meditation_rejected_by_actual_key": true,
+    "ap_dirty": false,
+    "bonus_ap_seconds": -1,
+    "sql_datetime_roundtrip_update": false,
+    "fresh_skill_callback_debt": false,
+    "replay": "refused before another log;no actor silently reconstructed",
+    "failure": "skill rollback;independent logs retained;local context not returned"
+  },
+  "private_profile_probe": {
+    "source_binding_checked": true,
+    "grants": 2,
+    "database_opened": false,
+    "actor_published": false,
+    "scope": "aggregate-only private-profile execution of detached phase;not original service/client"
+  },
+  "source_graph_review_sha256": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/APManager.cs",
+      "sha256": "3594eecafc937bc33da4b7225ee65759435af74419410d0b7f4129174b98defe"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/TitleManager.cs",
+      "sha256": "74ec20c56a064c7e5518729121f58673586be7a13250f14ddbc2b8675c9b485a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+      "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Functions/CharacterLoader.cs",
+      "sha256": "c657f190af54204c996785277196777a30d9b002a899323b4d58763636bd38e2"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+      "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs",
+      "sha256": "7ef6d87e9603f0fe0fae3b6dac7933a2bf4104af816a301ff6c7831c8760ac25"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService/PlayerEntity.cs",
+      "sha256": "2d0813de53ee9bc794f2cf3bd95a37f480a3bbaf1751788fb864f48ca5e00ec1"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/CreateCharacterProcessor.cs",
+      "sha256": "90319d996c763a5fe28c199817e57242e2f6f33a041a4f889816df77f201a10a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/SelectCharacterProcessor.cs",
+      "sha256": "3d2111cae5c48067de0b02c85e48d42060c012af00f59be3b8822b8b2792ab68"
+    }
+  ],
+  "native_frontend_replaced": false,
+  "client_executed": false,
+  "game_compatibility_verified": false,
+  "remaining": [
+    "surrounding initializer and title/status/CountBonus/Join/Login obligations",
+    "ItemProxy second save/Undo/error handling",
+    "Summary/lifecycle/reconciliation/TCPCreate",
+    "actual client creation/relogin,selection,city/movement",
+    "general connected/equipped runtime and complete M01-M24"
+  ],
+  "logs": [
+    ".cache/verification/fresh-skill-oracle.log",
+    ".cache/verification/fresh-skill-focused.log",
+    ".cache/verification/fresh-skill-pg-focused.log",
+    ".cache/verification/fresh-skill-private.log",
+    ".cache/verification/fresh-skill-final-gate.log",
+    ".cache/verification/fresh-skill-operations.log"
+  ],
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "9d1f5ec704acead8ae1fc1d98b484fad6c57febe99561b2a49625ff9052a9e53"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "540b58f071c68f542e07dc98741d6e515b43d078da5f81fc18cd669ee08b33c3"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "1f690a625bfc2e52817e09557b2a57192d22eb72276cb57b1297e297715bd039"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "32f819d7da556e03d0062ac0c401e0c9cbbb0cc363d9e62324470a2ba910659a"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "e1b6be0d5ae0151f15e890841decbb942c164c6788991c139e894b3506b9d5d0"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "7312f423e9912e07932140a8b080fc1a58dabfc2d8f11d004f8c70b19a1492f4"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "cde0a17db8eaa85ca594a0a71b5f660cda9da9c5211bed72235d613d7b1d508c"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "02a9d8f478047885a68b9195750b31c630a129b1eb2d15e9fb4a03c37fac8e65"
+      }
+    ]
+  }
+}

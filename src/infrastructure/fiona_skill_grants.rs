@@ -111,7 +111,22 @@ pub async fn save_with_callbacks(
     key: &UserKey<'_>,
     cid: i64,
     prepared: &Prepared,
+    callback: impl FnMut(&Grant) -> Result<(), StateError>,
+) -> Result<Outcome, StateError> {
+    save_inner(pool, key, cid, prepared, callback, None).await
+}
+#[derive(Default)]
+struct FreshContext {
+    cache: crate::domain::skill_runtime::Cache,
+    runtime: Option<crate::domain::fresh_skill_runtime::Detached>,
+}
+async fn save_inner(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    cid: i64,
+    prepared: &Prepared,
     mut callback: impl FnMut(&Grant) -> Result<(), StateError>,
+    mut fresh: Option<&mut FreshContext>,
 ) -> Result<Outcome, StateError> {
     tokio::time::timeout(std::time::Duration::from_secs(30),async{
   let mut tx=state::owned_first_fiona(pool,key,cid).await?;
@@ -122,15 +137,63 @@ pub async fn save_with_callbacks(
   if slots!=[(0,None)]{return Err(StateError::Conflict)}
   let old:Vec<Stored>=sqlx::query_as("SELECT row_id AS id,skill_utf16 AS name,rank,locked,current_ap AS ap FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 257 FOR UPDATE").bind(cid).fetch_all(&mut *tx).await?;
   if !old.is_empty(){
+   if fresh.is_some(){return Err(StateError::Conflict)}
    if old.len()!=prepared.rows.len()||old.iter().any(|old|!prepared.rows.iter().any(|r|r.id==old.id&&r.name.as_slice()==old.name&&r.rank==old.rank&&old.locked==0&&old.ap==0)){return Err(StateError::Conflict)}
    tx.commit().await?;return Ok(Outcome{inserted:0,logs_written:0,logs_failed:0,runtime_callbacks_required:false,source_operation_failed:false});
   }
+  if let Some(context)=fresh.as_deref_mut(){
+   // The owner/revision/CID lock is already held. Existing AP is not independently
+   // saved: these admitted callbacks leave it clean, just as LINQ SubmitChanges does.
+   let row:Option<(i32,i32,i64)>=sqlx::query_as("SELECT ap,total_used_ap,last_ap_update_units300 FROM game_character_info WHERE id=$1 AND NOT dirty AND legacy_last_update IS NULL AND exp=0 AND play_time=0 AND selected_title=0").bind(cid).fetch_optional(&mut *tx).await?;
+   let (ap,used,last)=row.ok_or(StateError::Conflict)?;
+   if ap!=0||used!=0{return Err(StateError::Conflict)}
+   let last=crate::domain::legacy_user_data::SqlDateTime::from_units300(last).and_then(|d|d.framework_date_time()).map_err(|_|StateError::Profile)?;
+   context.runtime=Some(crate::domain::fresh_skill_runtime::Detached::new(ap,last,false).map_err(|_|StateError::Profile)?);
+  }
   let mut written=0;let mut failed=0;let deadline=tokio::time::Instant::now()+std::time::Duration::from_secs(15);
   // GiveSkill attempts each log before the single original SubmitChanges. Keep independent commits.
-  for row in &prepared.rows{if logs::give_skill(pool,&row.name,row.rank,deadline).await{written+=1}else{failed+=1};callback(row)?}
+  for row in &prepared.rows{if logs::give_skill(pool,&row.name,row.rank,deadline).await{written+=1}else{failed+=1};
+   if let Some(context)=fresh.as_deref_mut(){
+    let runtime=context.runtime.as_mut().ok_or(StateError::Profile)?;
+    crate::domain::skill_multicast::after_grant(&mut context.cache,crate::domain::skill_multicast::Grant{key:row.key(),rank:row.rank(),required_ap:row.required_ap(),arguments:row.arguments(),item_skill:row.item_callback(),stat_skill:row.stat_callback()},runtime).map_err(|_|StateError::Profile)?;
+   }else{callback(row)?}
+  }
   for row in &prepared.rows{sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,$4,0,0)").bind(row.id).bind(cid).bind(row.name.as_slice()).bind(row.rank).execute(&mut *tx).await?;}
-  tx.commit().await?;Ok(Outcome{inserted:prepared.rows.len(),logs_written:written,logs_failed:failed,runtime_callbacks_required:!prepared.rows.is_empty(),source_operation_failed:false})
+  tx.commit().await?;Ok(Outcome{inserted:prepared.rows.len(),logs_written:written,logs_failed:failed,runtime_callbacks_required:fresh.is_none()&&!prepared.rows.is_empty(),source_operation_failed:false})
  }).await.map_err(|_|StateError::Timeout)?
+}
+/// Completed only the detached skill phase, not title/status/ItemProxy/actor lifecycle.
+/// The returned context has no network/observer/equipment attachment capabilities.
+pub struct FreshOutcome {
+    pub storage: Outcome,
+    pub cache: crate::domain::skill_runtime::Cache,
+    pub runtime: crate::domain::fresh_skill_runtime::Detached,
+}
+/// Fresh local context only. Refuses existing skill rows rather than silently reconstructing
+/// an actor on replay. Profile construction already requires GuildScore=false; admission
+/// additionally checks the actual Meditation key before any log or database effect.
+/// Source timestamps remain untouched when AP is clean: no datetime round-trip UPDATE.
+pub async fn save_fresh_detached(
+    pool: &PgPool,
+    key: &UserKey<'_>,
+    cid: i64,
+    prepared: &Prepared,
+) -> Result<FreshOutcome, StateError> {
+    if prepared
+        .rows
+        .iter()
+        .any(|r| !crate::domain::fresh_skill_runtime::Detached::admits(r.key()))
+    {
+        return Err(StateError::Profile);
+    }
+    let mut context = FreshContext::default();
+    let storage = save_inner(pool, key, cid, prepared, |_| Ok(()), Some(&mut context)).await?;
+    let runtime = context.runtime.ok_or(StateError::Profile)?;
+    Ok(FreshOutcome {
+        storage,
+        cache: context.cache,
+        runtime,
+    })
 }
 /// Dispatch the recovered multicast after each independent log, inside the existing
 /// pre-Submit boundary. SQL replay dispatches nothing. Runtime/AP persistence and

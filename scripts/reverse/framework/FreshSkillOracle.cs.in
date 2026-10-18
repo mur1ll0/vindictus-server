@@ -1,0 +1,91 @@
+using System;using System.Linq;using System.Collections.Generic;using System.Web.Script.Serialization;
+using CharacterEntity=Entity;using SkillManager=Manager;
+public static class Bomb {public static int Hits;public static void Hit(){Hits++;throw new InvalidOperationException("guard crossed");}}
+public class Skill{public string SkillID;public int Rank;}
+public class SkillRankInfo{public int Rank;}
+public class SkillArgumentInfo{public string KeyWord;public int? Value;}
+public class Info{public byte Class=1;public int Level=1;public int AP;public DateTime LastAPUpdate;}
+public class Character{public List<Skill> Skill=new List<Skill>();public Info CharacterInfo=new Info();public int GuildId;}
+public static class DictionaryExtension{public static int TryGetValue(this Dictionary<string,int>d,string k){int v;return d.TryGetValue(k,out v)?v:0;}}
+public static class CharacterContents{public static List<SkillArgumentInfo> Rows;public static IEnumerable<SkillArgumentInfo> GetSkillArgumentInfo(string id,int rank){return Rows;}public static double GetMediumLoadWeight(byte c,int l){Bomb.Hit();return 0;}public static double GetHeavyLoadMultiplier(){Bomb.Hit();return 0;}public static IEnumerable<GuildScoreEvaluateInfo> GuildScoreSheet{get{Bomb.Hit();return null;}}}
+namespace ServiceCore{public static class FeatureMatrix{public static int GameCode,ServerCode;public static bool IsEnable(string s){return false;}}}
+public class GuildScoreEvaluateInfo{public string Event,StringValue;public int? IntValue;public int EventCode,Score;}
+public class GuildReportDataContext:IDisposable{public GuildReportDataContext(){Bomb.Hit();}public void UpdateGuildRankingBasisScore(params object[] p){Bomb.Hit();}public void Dispose(){}}
+public class Logger{public void Warn(string s){Bomb.Hit();}public void Error(params object[] p){}public void InfoFormat(params object[] p){Bomb.Hit();}}
+public static class Log<T>{public static Logger Logger=new Logger();}
+public class ObserverProxy{public void SetDirty(){Bomb.Hit();}}
+public class Observable{private Dictionary<int,ObserverProxy> proxies=new Dictionary<int,ObserverProxy>();public event EventHandler CacheUpdated;
+ __UPDATED__
+ public void Probe(){proxies.Add(1,new ObserverProxy());}
+}
+public class Connection{public void RequestOperation(object o){Bomb.Hit();}}
+public class Player{public Connection FrontendConn;public long CID;}
+public class BriefSkillInfo{}
+public class SendPacket{public static SendPacket Create(object o){Bomb.Hit();return null;}}
+public class APMessage{public APMessage(params object[] p){Bomb.Hit();}}
+public class SkillListMessage{public SkillListMessage(params object[] p){Bomb.Hit();}}
+public class UpdateStatMessage{public UpdateStatMessage(params object[] p){Bomb.Hit();}}
+public class Entity{
+ public Manager Manager;public Manager Skills{get{return Manager;}}public StatManager Stats{get{return Manager.Stat;}}public Player Player=new Player();public Character Entry{get{return Manager.Character;}}public int UID;
+ public StatusEffect StatusEffect=new StatusEffect();public Observable StatObservable=new Observable(),SkillObservable=new Observable(),MicroPlayObservable=new Observable();
+ __GUILD__
+ __PUSH_AP__
+ __PUSH_SKILLS__
+ __PUSH_STATS__
+}
+public class AP{public int BonusAPTime=-1;public void CalculateBonusAPTime(){Bomb.Hit();}public int GetMaxAP(){Bomb.Hit();return 0;}}
+public enum Stats{INT}
+public class CharacterStats{public int this[Stats s]{get{Bomb.Hit();return 0;}}public static CharacterStats operator+(CharacterStats a,CharacterStats b){Bomb.Hit();return null;}public void Override(object o){Bomb.Hit();}}
+public class EquippedItemInfo{}
+public class StatusEffect{public CharacterStats StatusEffectStat=new CharacterStats();}
+public class SkillEffect{
+ public Manager Skills;public static bool Item,Stat;private Dictionary<string,Dictionary<string,int>> SkillArguments=new Dictionary<string,Dictionary<string,int>>();
+ __UPDATE__
+ __ARG__
+ __MEDITATION__
+ public static bool IsItemSkill(string id){return Item;}public static bool IsStatSkill(string id){return Stat;}
+ public int Read(string id,string key,int value){return Arg(id,key,value);}
+ public void ApplyItemSkills(CharacterStats s,IList<EquippedItemInfo> e,out CharacterStats i,out double w,out Dictionary<int,int> h,out IDictionary<int,int>d){Bomb.Hit();throw new Exception();}
+ public double ApplyMediumLoadSkills(double b){Bomb.Hit();return 0;}
+ public void ApplyStatSkills(CharacterStats s,IDictionary<int,int>d,out Dictionary<int,int> f,out CharacterStats t,out int v){Bomb.Hit();throw new Exception();}
+}
+public class StatManager{
+ public Entity CharacterEntity;public Character Character{get{return CharacterEntity.Entry;}}
+ private CharacterStats BaseStat=new CharacterStats(),SetBonusStat=new CharacterStats(),ItemStat,FinalStat;
+ private IList<EquippedItemInfo> EquippedItemInfo;private double TotalWeight,MediumLoad,HeavyLoad,LoadPenalty;
+ private Dictionary<int,int> armorHPMap,finalDefMap;private IDictionary<int,int> itemDefMap;private int destroyedDef;private object FinalStatOverrider=null;
+ __ITEM__
+ __FINAL__
+ __STAT_RANK__
+ public object GetDictionary(){Bomb.Hit();return null;}
+ public bool ItemLoaded{get{return ItemStat!=null;}}public bool FinalLoaded{get{return FinalStat!=null;}}
+ public void ProbeItem(){EquippedItemInfo=new List<EquippedItemInfo>();CalculateItemStat(null,null);}
+ public void ProbeFinal(){ItemStat=new CharacterStats();CalculateFinalStat();}
+}
+public class Manager{
+ public Character Character=new Character();public Dictionary<string,int> BaseSkillRank=new Dictionary<string,int>();public int SkillRankSum;
+ public SkillEffect Effect;public Entity CharacterEntity;public AP AP;public StatManager Stat;public event Action<string,int,int> SkillRankChanged;
+ public Manager(Entity entity){CharacterEntity=entity;entity.Manager=this;Effect=new SkillEffect{Skills=this};AP=new AP();Stat=new StatManager{CharacterEntity=entity};
+ __SUBSCRIBE__
+ }
+ public SkillRankInfo GetFinalSkillRankInfo(string id){return new SkillRankInfo{Rank=Character.Skill[0].Rank};}
+ public Skill GetSkill(string id){return Character.Skill.SingleOrDefault(x=>x.SkillID==id);}
+ public List<BriefSkillInfo> ToSkillList(){Bomb.Hit();return null;}
+ __LOAD__
+ __RANK__
+ __INT__
+ public void Fire(string id,int rank){SkillRankChanged(id,0,rank);}
+}
+public static class Oracle{public static void Main(){var cases=new List<object>();for(int i=0;i<128;i++){
+ Bomb.Hits=0;var e=new Entity();var m=new Manager(e);string key=i%2==0?"synthetic":"Skill_meditation";
+ int rank=i%17==0?int.MaxValue:i%19==0?int.MinValue:i%16-4;
+ bool item=(i/3)%2==0,stat=(i/5)%2==0;SkillEffect.Item=item;SkillEffect.Stat=stat;ServiceCore.FeatureMatrix.GameCode=i%2==0?0:126991;e.Entry.GuildId=i%3;
+ CharacterContents.Rows=new List<SkillArgumentInfo>{new SkillArgumentInfo{KeyWord="A",Value=i}};
+ int ap=i%3==0?int.MaxValue:i%3==1?0:-17;long ticks=638000000000000000L+i*10000;m.Character.CharacterInfo.AP=ap;m.Character.CharacterInfo.LastAPUpdate=new DateTime(ticks);
+ m.Character.Skill.Add(new Skill{SkillID=key,Rank=rank});m.Fire(key,rank);
+ // Direct detached pushes are also guarded, including APMax/clock/message construction.
+ e.PushAPMessage();e.PushSkillList(false);e.PushUpdateStat();
+ cases.Add(new{key=key,rank=rank,item=item,stat=stat,arg=i,ap=ap,last_ticks=ticks.ToString(),bonus=m.AP.BonusAPTime,rank_sum=m.SkillRankSum,arg_value=m.Effect.Read(key,"A",-123),item_loaded=m.Stat.ItemLoaded,final_loaded=m.Stat.FinalLoaded,unexpected_calls=Bomb.Hits});
+ }
+ var probes=new List<int>();for(int i=0;i<4;i++){Bomb.Hits=0;var e=new Entity();var m=new Manager(e);e.Entry.CharacterInfo.LastAPUpdate=new DateTime(638000000000000000L);try{if(i==0)m.Stat.ProbeItem();else if(i==1)m.Stat.ProbeFinal();else if(i==2){e.Player.FrontendConn=new Connection();e.PushAPMessage();}else{e.SkillObservable.Probe();e.SkillObservable.Updated();}}catch(InvalidOperationException){}probes.Add(Bomb.Hits);}
+ Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(new{cases=cases,counterfactual_hits=probes}));}}
