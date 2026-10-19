@@ -259,3 +259,23 @@ async fn captcha_readiness_migration_replay_constraints_and_reference_stability(
     }
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_schema28_backfills_only_preverified_schema27_source_set() {
+    let (a, p, s) = isolated_game_pool().await;
+    let snap = snapshot(&input());
+    db::preserve(&p, &snap, false).await.unwrap();
+    sqlx::raw_sql("DROP TABLE game_user_captcha_native_state;ALTER TABLE game_user_captcha_preservation DROP COLUMN source_uids;DELETE FROM _sqlx_migrations WHERE version=28").execute(&p).await.unwrap();
+    postgres::migrate(&p).await.unwrap();
+    let ids: Vec<i32> = sqlx::query_scalar(
+        "SELECT source_uids FROM game_user_captcha_preservation WHERE singleton",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(ids, vec![-7, 1]);
+    let verified = db::preserve(&p, &snap, true).await.unwrap();
+    assert_eq!((verified.verified, verified.native_verified), (2, 0));
+    cleanup_game_pool(a, p, s).await;
+}

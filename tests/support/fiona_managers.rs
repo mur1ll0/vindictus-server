@@ -1415,6 +1415,28 @@ async fn captcha_prior(p: &PgPool) -> managers::EventManagers {
         .await
         .unwrap()
 }
+async fn seed_native_captcha(
+    p: &PgPool,
+    prior: &managers::EventManagers,
+    source: vindictus_server::domain::initial_captcha::Source,
+) {
+    use vindictus_server::{
+        domain::{initial_captcha::Loaded, legacy_user_data::SqlDateTime2},
+        infrastructure::user_captcha as db,
+    };
+    let now = source
+        .last_failure
+        .map(|d| d.framework_date_time().unwrap())
+        .unwrap_or(SqlDateTime2::from_ticks(0).unwrap());
+    let state = Loaded::construct(prior.prior().prior().prior().social(), Some(source), || {
+        Ok(now)
+    })
+    .unwrap();
+    assert_eq!(
+        db::save_empty_logout(p, &state).await,
+        db::LogoutSave::Saved
+    );
+}
 async fn captcha_bootstrap(p: &PgPool) {
     use vindictus_server::infrastructure::user_captcha as db;
     let snap = db::read_snapshot(
@@ -1459,10 +1481,24 @@ async fn captcha_nullable_day_reset_and_independent_empty_logout_save_survive_ow
         let (a, p, s) = isolated_game_pool().await;
         let prior = captcha_prior(&p).await;
         captcha_bootstrap(&p).await;
-        sqlx::query("INSERT INTO game_user_captcha VALUES(31,NULL,255,-1,1,255)")
-            .execute(&p)
-            .await
-            .unwrap();
+        seed_native_captcha(
+            &p,
+            &prior,
+            vindictus_server::domain::initial_captcha::Source {
+                punished: None,
+                failure: Some(255),
+                last_failure: Some(
+                    vindictus_server::domain::legacy_user_data::SqlDateTime::from_units300(-1)
+                        .unwrap(),
+                ),
+                last_succeed: Some(
+                    vindictus_server::domain::legacy_user_data::SqlDateTime::from_units300(1)
+                        .unwrap(),
+                ),
+                condition: Some(255),
+            },
+        )
+        .await;
         let mut clocks = 0;
         let loaded =
             managers::load_captcha(&p, &owner(), prior, &events_profile(), &catalog(), || {
@@ -1521,10 +1557,21 @@ async fn captcha_failures_keep_marble_journal_and_refuse_stale_prior_before_cloc
             captcha_bootstrap(&p).await;
         }
         if mode == 1 {
-            sqlx::query("INSERT INTO game_user_captcha VALUES(31,0,1,0,NULL,0)")
-                .execute(&p)
-                .await
-                .unwrap();
+            seed_native_captcha(
+                &p,
+                &prior,
+                vindictus_server::domain::initial_captcha::Source {
+                    punished: Some(0),
+                    failure: Some(1),
+                    last_failure: Some(
+                        vindictus_server::domain::legacy_user_data::SqlDateTime::from_units300(0)
+                            .unwrap(),
+                    ),
+                    last_succeed: None,
+                    condition: Some(0),
+                },
+            )
+            .await;
         }
         if mode == 2 {
             sqlx::query("UPDATE game_user_info SET last_login_cid=1 WHERE nexon_sn=31")
@@ -1620,3 +1667,163 @@ type CaptchaStored = (
     Option<i64>,
     Option<i16>,
 );
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_native_provenance_preserves_reference_and_refuses_drift_without_repair() {
+    use vindictus_server::infrastructure::user_captcha as db;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = captcha_prior(&p).await;
+    let snap=db::read_snapshot(br#"{"format_version":1,"source":"study_heroes.user-captcha","rows":[{"uid":-7,"punished_count":null,"failure_count":255,"last_failure_units300":"-1","last_succeed_units300":null,"condition":255}]}"#.as_slice()).unwrap();
+    db::preserve(&p, &snap, false).await.unwrap();
+    let state = vindictus_server::domain::initial_captcha::Loaded::construct(
+        prior.prior().prior().prior().social(),
+        None,
+        || panic!("no clock for absent row"),
+    )
+    .unwrap();
+    assert_eq!(
+        db::save_empty_logout(&p, &state).await,
+        db::LogoutSave::Saved
+    );
+    let verified = db::preserve(&p, &snap, true).await.unwrap();
+    assert_eq!(
+        (
+            verified.verified,
+            verified.native_verified,
+            verified.inserted
+        ),
+        (1, 1, 0)
+    );
+    assert_eq!(db::preserve(&p, &snap, false).await.unwrap().inserted, 0);
+    for change in [
+        "UPDATE game_user_captcha SET failure_count=2 WHERE uid=31",
+        "UPDATE game_user_captcha_native_state SET saved_sha256=decode(repeat('01',32),'hex') WHERE uid=31",
+        "UPDATE game_user_captcha_native_state SET origin_fingerprint=decode(repeat('01',32),'hex') WHERE uid=31",
+        "DELETE FROM game_user_captcha WHERE uid=31",
+        "DELETE FROM game_user_captcha_native_state WHERE uid=31",
+    ] {
+        sqlx::query(change).execute(&p).await.unwrap();
+        assert!(matches!(
+            db::preserve(&p, &snap, true).await,
+            Err(db::CaptchaError::Conflict)
+        ));
+        let mut tx = p.begin().await.unwrap();
+        assert!(matches!(
+            db::read_initial(&mut tx, &owner()).await,
+            Err(db::CaptchaError::Conflict)
+        ));
+        tx.rollback().await.unwrap();
+        assert_eq!(
+            db::save_empty_logout(&p, &state).await,
+            db::LogoutSave::Saved
+        );
+    }
+    let mut tx = p.begin().await.unwrap();
+    assert!(db::read_initial(&mut tx, &owner()).await.unwrap().is_some());
+    tx.rollback().await.unwrap();
+    // Source fields are still compared exactly, even with an audited native row.
+    sqlx::query("UPDATE game_user_captcha SET condition=1 WHERE uid=-7")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        db::preserve(&p, &snap, false).await,
+        Err(db::CaptchaError::Conflict)
+    ));
+    let actual: Option<i16> =
+        sqlx::query_scalar("SELECT condition FROM game_user_captcha WHERE uid=-7")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(actual, Some(1), "replay must not repair source drift");
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_native_save_and_receipt_are_atomic_and_require_synthetic_origin() {
+    use vindictus_server::infrastructure::user_captcha as db;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = captcha_prior(&p).await;
+    captcha_bootstrap(&p).await;
+    let state = vindictus_server::domain::initial_captcha::Loaded::construct(
+        prior.prior().prior().prior().social(),
+        None,
+        || panic!("no clock"),
+    )
+    .unwrap();
+    let sequences = social_sequences(&p).await;
+    sqlx::raw_sql("CREATE FUNCTION reject_native_receipt() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'synthetic receipt failure';END$$;CREATE TRIGGER reject_native_receipt BEFORE INSERT ON game_user_captcha_native_state FOR EACH STATEMENT EXECUTE FUNCTION reject_native_receipt()").execute(&p).await.unwrap();
+    assert_eq!(
+        db::save_empty_logout(&p, &state).await,
+        db::LogoutSave::Caught
+    );
+    let n:i64=sqlx::query_scalar("SELECT (SELECT count(*) FROM game_user_captcha)+(SELECT count(*) FROM game_user_captcha_native_state)").fetch_one(&p).await.unwrap();
+    assert_eq!(n, 0, "late receipt error rolls back data upsert");
+    sqlx::query("DROP TRIGGER reject_native_receipt ON game_user_captcha_native_state")
+        .execute(&p)
+        .await
+        .unwrap();
+    for revision in 1..=2i64 {
+        assert_eq!(
+            db::save_empty_logout(&p, &state).await,
+            db::LogoutSave::Saved
+        );
+        let got: (i64, i64) = sqlx::query_as(
+            "SELECT last_cid,revision FROM game_user_captcha_native_state WHERE uid=31",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap();
+        assert_eq!(got, (1, revision));
+    }
+    sqlx::query("DELETE FROM game_lab_account_origins WHERE uid=31")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert_eq!(
+        db::save_empty_logout(&p, &state).await,
+        db::LogoutSave::Caught
+    );
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM game_user_captcha_native_state")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+    assert_eq!(social_sequences(&p).await, sequences);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_logout_never_overwrites_source_uid_even_with_synthetic_origin() {
+    use vindictus_server::infrastructure::user_captcha as db;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = captcha_prior(&p).await;
+    let snap=db::read_snapshot(br#"{"format_version":1,"source":"study_heroes.user-captcha","rows":[{"uid":31,"punished_count":null,"failure_count":255,"last_failure_units300":null,"last_succeed_units300":null,"condition":255}]}"#.as_slice()).unwrap();
+    db::preserve(&p, &snap, false).await.unwrap();
+    let state = vindictus_server::domain::initial_captcha::Loaded::construct(
+        prior.prior().prior().prior().social(),
+        None,
+        || panic!("no clock"),
+    )
+    .unwrap();
+    assert_eq!(
+        db::save_empty_logout(&p, &state).await,
+        db::LogoutSave::Caught
+    );
+    assert_eq!(
+        db::preserve(&p, &snap, true).await.unwrap().native_verified,
+        0
+    );
+    sqlx::query("DELETE FROM game_user_captcha WHERE uid=31")
+        .execute(&p)
+        .await
+        .unwrap();
+    let mut tx = p.begin().await.unwrap();
+    assert!(matches!(
+        db::read_initial(&mut tx, &owner()).await,
+        Err(db::CaptchaError::Conflict)
+    ));
+    tx.rollback().await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}

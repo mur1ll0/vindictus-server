@@ -110,42 +110,70 @@ pub struct Summary {
     pub rows: usize,
     pub inserted: usize,
     pub verified: usize,
+    pub native_verified: usize,
     pub initialized: bool,
     pub empty_owner_verified: bool,
     pub character_creation_available: bool,
 }
-pub async fn preserve(pool: &PgPool, s: &Snapshot, verify: bool) -> Result<Summary, CaptchaError> {
-    tokio::time::timeout(Duration::from_secs(20), async {
-        let mut tx = pool.begin().await?;
-        timeouts(&mut tx).await?;
-        sqlx::query("LOCK TABLE game_user_captcha_preservation,game_user_captcha IN SHARE ROW EXCLUSIVE MODE")
-            .execute(&mut *tx).await?;
-        let marker: Option<Vec<u8>> = sqlx::query_scalar(
-            "SELECT source_sha256 FROM game_user_captcha_preservation WHERE singleton",
-        ).fetch_optional(&mut *tx).await?;
-        let mut inserted = 0;
-        if let Some(hash) = marker {
-            if hash != s.hash { return Err(CaptchaError::Conflict); }
-        } else {
-            let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_user_captcha)")
-                .fetch_one(&mut *tx).await?;
-            if verify || exists { return Err(CaptchaError::Conflict); }
-            for r in &s.rows {
-                inserted += sqlx::query("INSERT INTO game_user_captcha(uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition)VALUES($1,$2,$3,$4,$5,$6)")
-                    .bind(r.uid).bind(r.punished_count).bind(r.failure_count)
-                    .bind(r.last_failure_units300).bind(r.last_succeed_units300).bind(r.condition)
-                    .execute(&mut *tx).await?.rows_affected() as usize;
+fn row_hash(r: &Row) -> [u8; 32] {
+    let mut h = Sha256::new();
+    h.update(b"UserCaptcha/native/v1");
+    h.update(r.uid.to_le_bytes());
+    for v in [r.punished_count, r.failure_count, r.condition] {
+        match v {
+            Some(v) => {
+                h.update([1]);
+                h.update(v.to_le_bytes());
             }
-            sqlx::query("INSERT INTO game_user_captcha_preservation(singleton,source_sha256)VALUES(true,$1)")
-                .bind(s.hash.as_slice()).execute(&mut *tx).await?;
+            None => h.update([0]),
         }
-        let actual: Vec<Row> = sqlx::query_as("SELECT uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition FROM game_user_captcha ORDER BY uid LIMIT 100001")
-            .fetch_all(&mut *tx).await?;
-        if actual != s.rows { return Err(CaptchaError::Conflict); }
-        tx.commit().await?;
-        Ok(Summary { rows: s.rows.len(), inserted, verified: s.rows.len(), initialized: true,
-            empty_owner_verified: false, character_creation_available: false })
-    }).await.map_err(|_| CaptchaError::Timeout)?
+    }
+    for v in [r.last_failure_units300, r.last_succeed_units300] {
+        match v {
+            Some(v) => {
+                h.update([1]);
+                h.update(v.to_le_bytes());
+            }
+            None => h.update([0]),
+        }
+    }
+    h.finalize().into()
+}
+pub async fn preserve(pool: &PgPool, s: &Snapshot, verify: bool) -> Result<Summary, CaptchaError> {
+    tokio::time::timeout(Duration::from_secs(20),async{
+        let mut tx=pool.begin().await?;timeouts(&mut tx).await?;
+        sqlx::query("LOCK TABLE game_user_captcha_preservation,game_user_captcha,game_user_captcha_native_state IN SHARE ROW EXCLUSIVE MODE").execute(&mut *tx).await?;
+        let ids:Vec<i32>=s.rows.iter().map(|r|r.uid).collect();
+        let marker:Option<(Vec<u8>,Vec<i32>)>=sqlx::query_as("SELECT source_sha256,source_uids FROM game_user_captcha_preservation WHERE singleton").fetch_optional(&mut *tx).await?;
+        let mut inserted=0;
+        if let Some((hash,stored_ids))=marker {
+            if hash!=s.hash||stored_ids!=ids{return Err(CaptchaError::Conflict)}
+        }else{
+            let occupied:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_user_captcha) OR EXISTS(SELECT 1 FROM game_user_captcha_native_state)").fetch_one(&mut *tx).await?;
+            if verify||occupied{return Err(CaptchaError::Conflict)}
+            for r in &s.rows{inserted+=sqlx::query("INSERT INTO game_user_captcha(uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition)VALUES($1,$2,$3,$4,$5,$6)")
+                .bind(r.uid).bind(r.punished_count).bind(r.failure_count).bind(r.last_failure_units300).bind(r.last_succeed_units300).bind(r.condition).execute(&mut *tx).await?.rows_affected()as usize;}
+            sqlx::query("INSERT INTO game_user_captcha_preservation(singleton,source_sha256,source_uids)VALUES(true,$1,$2)").bind(s.hash.as_slice()).bind(&ids).execute(&mut *tx).await?;
+        }
+        let all:Vec<Row>=sqlx::query_as("SELECT uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition FROM game_user_captcha ORDER BY uid LIMIT 100001").fetch_all(&mut *tx).await?;
+        let total:i64=sqlx::query_scalar("SELECT count(*) FROM game_user_captcha").fetch_one(&mut *tx).await?;
+        if total!=all.len()as i64{return Err(CaptchaError::Conflict)}
+        let reference:Vec<&Row>=all.iter().filter(|r|ids.binary_search(&r.uid).is_ok()).collect();
+        if reference.len()!=s.rows.len()||reference.iter().zip(&s.rows).any(|(a,b)|*a!=b){return Err(CaptchaError::Conflict)}
+        let mut native_verified=0;
+        for r in all.iter().filter(|r|ids.binary_search(&r.uid).is_err()){
+            if !native_proof(&mut tx,r).await?{return Err(CaptchaError::Conflict)}
+            native_verified+=1;
+        }
+        let receipts:i64=sqlx::query_scalar("SELECT count(*) FROM game_user_captcha_native_state").fetch_one(&mut *tx).await?;
+        if receipts!=native_verified as i64{return Err(CaptchaError::Conflict)}
+        tx.commit().await?;Ok(Summary{rows:s.rows.len(),inserted,verified:s.rows.len(),native_verified,initialized:true,empty_owner_verified:false,character_creation_available:false})
+    }).await.map_err(|_|CaptchaError::Timeout)?
+}
+async fn native_proof(tx: &mut Transaction<'_, Postgres>, r: &Row) -> Result<bool, CaptchaError> {
+    let proof:Option<Vec<u8>>=sqlx::query_scalar("SELECT n.saved_sha256 FROM game_user_captcha_native_state n JOIN game_lab_account_origins o ON o.uid=n.uid AND o.profile_fingerprint=n.origin_fingerprint JOIN game_users u ON u.id=o.uid AND u.name_key=o.name_key WHERE n.uid=$1")
+        .bind(r.uid).fetch_optional(&mut **tx).await?;
+    Ok(proof.as_deref() == Some(row_hash(r).as_slice()))
 }
 async fn timeouts(tx: &mut Transaction<'_, Postgres>) -> Result<(), CaptchaError> {
     sqlx::query("SET LOCAL lock_timeout='2s'")
@@ -185,19 +213,35 @@ pub async fn read_initial(
     {
         return Err(CaptchaError::Owner);
     }
-    sqlx::query("LOCK TABLE game_user_captcha_preservation,game_user_captcha IN SHARE MODE")
+    sqlx::query("LOCK TABLE game_user_captcha_preservation,game_user_captcha,game_user_captcha_native_state IN SHARE MODE")
         .execute(&mut **tx)
         .await?;
-    let initialized: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM game_user_captcha_preservation WHERE singleton)",
+    let ids: Option<Vec<i32>> = sqlx::query_scalar(
+        "SELECT source_uids FROM game_user_captcha_preservation WHERE singleton",
     )
-    .fetch_one(&mut **tx)
+    .fetch_optional(&mut **tx)
     .await?;
-    if !initialized {
-        return Err(CaptchaError::Uninitialized);
+    let ids = ids.ok_or(CaptchaError::Uninitialized)?;
+    if !ids.windows(2).all(|p| p[0] < p[1]) {
+        return Err(CaptchaError::Conflict);
     }
     let row:Option<Row>=sqlx::query_as("SELECT uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition FROM game_user_captcha WHERE uid=$1")
         .bind(owner.uid).fetch_optional(&mut **tx).await?;
+    if let Some(r) = &row {
+        if ids.binary_search(&r.uid).is_err() && !native_proof(tx, r).await? {
+            return Err(CaptchaError::Conflict);
+        }
+    } else {
+        let orphan: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM game_user_captcha_native_state WHERE uid=$1)",
+        )
+        .bind(owner.uid)
+        .fetch_one(&mut **tx)
+        .await?;
+        if ids.binary_search(&owner.uid).is_ok() || orphan {
+            return Err(CaptchaError::Conflict);
+        }
+    }
     row.map(|r| {
         let byte = |v: Option<i16>| {
             v.map(|v| u8::try_from(v).map_err(|_| CaptchaError::Export))
@@ -233,9 +277,16 @@ pub async fn save_empty_logout(
         let failure=date(state.last_failure()).map_err(|_|CaptchaError::Export)?;
         let succeed=date(state.last_succeed()).map_err(|_|CaptchaError::Export)?;
         let mut tx=pool.begin().await?;timeouts(&mut tx).await?;
+        let ids:Option<Vec<i32>>=sqlx::query_scalar("SELECT source_uids FROM game_user_captcha_preservation WHERE singleton FOR SHARE").fetch_optional(&mut *tx).await?;
+        if ids.is_none_or(|ids|ids.contains(&state.uid())){return Err(CaptchaError::Conflict)}
+        // No owner lock: the recovered Save commits independently of the owner transaction.
+        let origin:Option<Vec<u8>>=sqlx::query_scalar("SELECT o.profile_fingerprint FROM game_lab_account_origins o JOIN game_users u ON u.id=o.uid AND u.name_key=o.name_key WHERE o.uid=$1").bind(state.uid()).fetch_optional(&mut *tx).await?;
+        let origin=origin.ok_or(CaptchaError::Owner)?;
+        let row=Row{uid:state.uid(),punished_count:Some(i16::from(state.punished())),failure_count:Some(i16::from(state.failure())),last_failure_units300:failure,last_succeed_units300:succeed,condition:Some(i16::from(u8::from(state.force())))};
         sqlx::query("INSERT INTO game_user_captcha(uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition)VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(uid) DO UPDATE SET punished_count=excluded.punished_count,failure_count=excluded.failure_count,last_failure_units300=excluded.last_failure_units300,last_succeed_units300=excluded.last_succeed_units300,condition=excluded.condition")
-            .bind(state.uid()).bind(i16::from(state.punished())).bind(i16::from(state.failure())).bind(failure).bind(succeed).bind(i16::from(u8::from(state.force())))
-            .execute(&mut *tx).await?;
+            .bind(row.uid).bind(row.punished_count).bind(row.failure_count).bind(failure).bind(succeed).bind(row.condition).execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO game_user_captcha_native_state(uid,last_cid,origin_fingerprint,saved_sha256,revision)VALUES($1,$2,$3,$4,1) ON CONFLICT(uid) DO UPDATE SET last_cid=excluded.last_cid,origin_fingerprint=excluded.origin_fingerprint,saved_sha256=excluded.saved_sha256,revision=game_user_captcha_native_state.revision+1")
+            .bind(state.uid()).bind(state.cid()).bind(origin).bind(row_hash(&row).as_slice()).execute(&mut *tx).await?;
         tx.commit().await?;Ok::<_,CaptchaError>(())
     }).await;
     if matches!(attempt, Ok(Ok(()))) {
@@ -248,7 +299,8 @@ pub async fn save_empty_logout(
 pub async fn check_ready(pool: &PgPool) -> Result<(), CaptchaError> {
     for q in [
         "SELECT uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition FROM game_user_captcha LIMIT 0",
-        "SELECT singleton,source_sha256 FROM game_user_captcha_preservation LIMIT 0",
+        "SELECT singleton,source_sha256,source_uids FROM game_user_captcha_preservation LIMIT 0",
+        "SELECT uid,last_cid,origin_fingerprint,saved_sha256,revision FROM game_user_captcha_native_state LIMIT 0",
     ] {
         sqlx::query(q).execute(pool).await?;
     }

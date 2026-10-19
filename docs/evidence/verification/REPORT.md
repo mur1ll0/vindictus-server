@@ -297,3 +297,19 @@ Environment:own PG tmpfs,same pinned image/restricted role,fsync/synchronous_com
 Verdict:PASS for initial constructor/empty logout. Source full methods/fields/mapper recovered,clock only when LastFailureTime exists,no timezone conversion in Date comparison,all nullable/default/byte conversions exact. Save unconditional for empty pool,new context/independent commit,errors caught;prior Marble journal survives later rollback/failure. Source3procedure hashes unchanged,readonly/no procedures executed. Stable native read stronger than source NOLOCK;serial upsert does not claim all MERGE race equivalence or mutable actor lifecycle. Static Rand/challenges/Check/scheduler not migrated. Native composition15s/Save5s resource bounds do not introduce an Operation timeout.
 Remaining:close root constructor,Join transfer/except/observables/UpdateLastCID/MicroPlay/daily reset timezone/titles/LoginTime/LoadPlayer/Login/CountBonus,ItemProxy secondSave/Undo,Summary/lifecycle/reconciliation/TCPCreate,actual Create/relogin/selection/city/movement and full M01-M24. No new frontend/client run.
 Evidence:docs/initial-captcha.md,auth/initial-captcha.json,auth/user-captcha-source.json,framework-initial-captcha.json,gate.json,docker-smoke.json. Full logs:.cache/verification.
+
+
+M15.1b.2e.10b.22a — synthetic Captcha logout provenance before Create activation
+VERIFICATION REPORT
+-------------------
+Claim: immutable UserCaptcha reference preservation coexists with audited synthetic logout writes;Create/login of a persisted character remains unavailable.
+Command: cargo test --locked --test postgres captcha_ -- --ignored --test-threads=1;scripts/dev/verify.ps1 -DatabaseIntegration;locked Docker build;schema27 pre-upgrade source/candidate Verify;schema28 startup;scripts/dev/smoke-docker.ps1;nine preservation Verify after restart.
+Executed:2026-10-19T12:21:29.6853613+00:00,after final code changes;operations in local creation-activation logs.
+Exit code:0.
+Output summary:358Rust;194native isolated PG,0ignored;41Python;0failures/warnings. Focus12passed. Four PG tests added,covering source/native separation,five drift boundaries,missing source,atomic late receipt error,origin removal,revision,source UID protection,no sequence changes and27→28 migration backfill.
+Warnings:none.
+Errors:none in final code verification. A redundant focus launch encountered an existing log handle and did not replace the active run;the original focused run completed12/12. Startup container was independently healthy;no unrelated process/container stopped.
+Environment:own pinned-image tmpfs PG with normal durability,removed without volumes;locked builtin Docker copy removes only frontend directive,active bytes unchanged,pre/post source hashes checked. Normal volume preverified as schema27 before28;readiness/stdin account/duplicate/nonroot/restart and nine preservations passed. Source24rows/6fields exact,candidate absent,native rows0 on normal volume.
+Verdict:PASS for synthetic logout provenance and source verification only. Save+receipt atomic and independent;source UIDs protected;no source row repair;no new frontend/client execution. All original data and SQLServer read-only;no push.
+Remaining:guard before constructors,root/Join/LoadPlayer,second ItemProxy Save/Undo,reserved titles,release/logout,filled Summary/lifecycle/TCPCreate;actual Create/relogin/select/city/movement;full M01–M24.
+Evidence:docs/create-activation.md;auth/create-activation-source.json;auth/captcha-native-state.json;gate.json;docker-smoke.json. Full logs:.cache/verification.

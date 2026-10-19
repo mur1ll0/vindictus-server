@@ -1,0 +1,84 @@
+{
+  "stage": "M15.1b.2e.10b.22a",
+  "verified_at_utc": "2026-10-19T12:21:29.6853613+00:00",
+  "schema_version": 28,
+  "reference_rows": 24,
+  "reference_fields": 6,
+  "reference_immutable": true,
+  "native_rows_normal_volume": 0,
+  "candidate_absent": true,
+  "rust_passed": 358,
+  "postgres_native_passed": 194,
+  "postgres_ignored": 0,
+  "python_passed": 41,
+  "failures": 0,
+  "warnings": 0,
+  "focus_passed": 12,
+  "source27_preupgrade_verified": true,
+  "docker_locked_build": true,
+  "docker_source_hashes_unchanged": true,
+  "nine_preservations_after_restart": true,
+  "tmpfs_test_project_removed_without_volumes": true,
+  "create_available": false,
+  "new_client_execution": false,
+  "native_save_scope": "synthetic origins only,source UID immutable;empty-pool independent logout",
+  "limits": [
+    "not a challenge/Captcha actor implementation",
+    "no full MERGE race equivalence",
+    "no reconciliation for cancellation with unknown commit outcome",
+    "no TCP successful Create route yet"
+  ],
+  "verification_receipts": {
+    "scope": "Git-staged JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/auth/create-activation-source.json",
+        "sha256": "f53c0fdff4065668cd6d4c116932c97b2eafb17fd5df1eb6cc8c58a0b8567aa8"
+      },
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "0bf6b0fcd847d466f8bb3ee9583419727dc2bc269ca84f94f9732a8962a945c8"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "391fc0700fba4c0782a43f5b4dc664fcdfbbad5848e9e2fbb21d57514388b64f"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "908686ab3e5ab7b014ca08f12a735d7fc74f18761bad55f88c6c00365cdccd72"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "d7fadefe973f696a1d73411b90606a11987af68686023a343ef5377ea52cfd88"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "d257090b6549fa4e50f2c138fea6a2ef036293e66ac374da0a47ee2d0e7bbf98"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "336fa600591de781586e09907d388d5a19f3610397cfaaf5293069fb1a90498e"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "dd0d729c4e6e01394fa4dec1e4ec631de28b2729607f4ec3dc13809b478966a5"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "30f0b35ba4fbd3df3346817f430931ec79a610d8c11d5ed7b3da8d94c46ca924"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "8cbfa4d17d47069b04694e180628b91f710fbe6af765e0a9c60c613a777a909e"
+      },
+      {
+        "path": "docs/evidence/database/status-effect-import.json",
+        "sha256": "567e216bdc1905ed7c626ae72a0908ee636427342c730c58876c3ca19eeb4aed"
+      },
+      {
+        "path": "docs/evidence/database/user-captcha-import.json",
+        "sha256": "26069792e411a34554514de4f48047c59585486501d89560d8af741c0324e22b"
+      }
+    ]
+  }
+}

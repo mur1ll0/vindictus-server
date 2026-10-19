@@ -1,4 +1,4 @@
-param([ValidateSet('Import','Verify')][string]$Mode='Import',[string]$RequireEmptyOwner='lab169_a')
+param([ValidateSet('Import','Verify')][string]$Mode='Import',[string]$RequireEmptyOwner='')
 $ErrorActionPreference='Stop'
 $taskProject=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 . (Join-Path $taskProject 'scripts/dev/docker-process.ps1')
@@ -29,11 +29,11 @@ COMMIT;
  return [pscustomobject]@{Json=$json;QuerySha256=Get-TaskHash $taskQuery}
 }
 function Invoke-TaskImport([string]$Json,[bool]$Verify){
- $taskArgs=@('compose','--project-directory',$taskProject,'exec','-T','server','/app/vindictus-server','import-user-captcha','--input-stdin','--require-empty-owner',$RequireEmptyOwner);if($Verify){$taskArgs+='--verify-only'}
+ $taskArgs=@('compose','--project-directory',$taskProject,'exec','-T','server','/app/vindictus-server','import-user-captcha','--input-stdin');if($RequireEmptyOwner){$taskArgs+=@('--require-empty-owner',$RequireEmptyOwner)};if($Verify){$taskArgs+='--verify-only'}
  $r=Invoke-ProjectDocker -Arguments $taskArgs -InputText $Json
  if($r.ExitCode-ne0){throw 'UserCaptcha preservation failed;private values suppressed'}
  try{$summary=$r.Stdout.Trim()|ConvertFrom-Json -DateKind String}catch{throw 'Invalid sanitized user-captcha summary'}
- if($summary.rows-ne24-or$summary.verified-ne24-or-not$summary.initialized-or-not$summary.empty_owner_verified-or$summary.character_creation_available){throw 'UserCaptcha summary mismatch'}
+ if($summary.rows-ne24-or$summary.verified-ne24-or-not$summary.initialized-or($RequireEmptyOwner-and-not$summary.empty_owner_verified)-or$summary.character_creation_available){throw 'UserCaptcha summary mismatch'}
  return $summary
 }
 if($Mode-eq'Import'){
@@ -47,7 +47,7 @@ if($Mode-eq'Import'){
  $replay=Invoke-TaskImport $export.Json $false;if($replay.inserted-ne0){throw 'UserCaptcha replay inserted rows'}
  $verified=Invoke-TaskImport $export.Json $true
  $after=Get-TaskExport;if((Get-TaskHash $after.Json)-ne(Get-TaskHash $export.Json)){throw 'UserCaptcha reference changed during read-only preservation'}
- $report=[ordered]@{stage='M15.1b.2e.10b.21a';verified_at_utc=[DateTimeOffset]::UtcNow.ToString('o');source_read_only=$true;source_export_unchanged=$true;source_rows=24;source_columns=6;source_identity=$false;source_foreign_keys=0;empty_owner_verified=$true;export_sha256=Get-TaskHash $export.Json;query_sha256=$export.QuerySha256;schema_sha256=(Get-FileHash (Join-Path $taskProject 'docs/evidence/database/study_heroes.schema.json')).Hash.ToLowerInvariant();private_acl='current Windows user and SYSTEM only';imported=$imported;replay=$replay;verified=$verified;post_restart_verified=$false;character_creation_available=$false}
+ $report=[ordered]@{stage='M15.1b.2e.10b.21a';verified_at_utc=[DateTimeOffset]::UtcNow.ToString('o');source_read_only=$true;source_export_unchanged=$true;source_rows=24;source_columns=6;source_identity=$false;source_foreign_keys=0;empty_owner_verified=[bool]$RequireEmptyOwner;export_sha256=Get-TaskHash $export.Json;query_sha256=$export.QuerySha256;schema_sha256=(Get-FileHash (Join-Path $taskProject 'docs/evidence/database/study_heroes.schema.json')).Hash.ToLowerInvariant();private_acl='current Windows user and SYSTEM only';imported=$imported;replay=$replay;verified=$verified;post_restart_verified=$false;character_creation_available=$false}
 }else{
  $report=Get-Content $taskEvidence -Raw|ConvertFrom-Json -DateKind String
  $json=[IO.File]::ReadAllText($taskFile);if((Get-TaskHash $json)-ne$report.export_sha256){throw 'Private user-captcha export digest changed'}
@@ -55,6 +55,7 @@ if($Mode-eq'Import'){
  $report.post_restart_verified=$true
  $report|Add-Member -Force -NotePropertyName post_restart_verified_at_utc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o'))
  $report|Add-Member -Force -NotePropertyName post_restart_summary -NotePropertyValue $verified
+ $report|Add-Member -Force -NotePropertyName post_restart_candidate_absence_requested -NotePropertyValue ([bool]$RequireEmptyOwner)
 }
 $report|ConvertTo-Json -Depth 7|Set-Content $taskEvidence -Encoding utf8NoBOM
-Write-Host ('UserCaptcha '+$Mode+' PASS:24 rows;6 fields;full typed comparison;candidate absence verified;no identity;source unchanged;character creation=false.')
+Write-Host ('UserCaptcha '+$Mode+' PASS:source24 rows/6 fields;native_verified='+$verified.native_verified+';candidate_absence_requested='+[bool]$RequireEmptyOwner+';source unchanged;character creation=false.')

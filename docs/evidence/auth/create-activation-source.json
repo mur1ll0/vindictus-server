@@ -1,0 +1,75 @@
+{
+  "stage": "M15.1b.2e.10b.22a",
+  "kind": "static-create-path-recovery",
+  "client_create_verified": false,
+  "player_service_sha256": "f23d8b9df77c45dc332921cc3ccb22cdefaaa98703a863c69f6bf9f53e9c04f6",
+  "reference_read_only": true,
+  "legacy_services_executed": false,
+  "transfer_guard_observation": {
+    "source_read_only": true,
+    "procedures_executed": false,
+    "transfer_rows": 0,
+    "transfer_columns": 8,
+    "procedure": "IsTransCharacter",
+    "procedure_sha256": "6f47c1f5f6926d7d5bd474fa91547c2e31343d3afc0f8853e3a0ffee0370baaa",
+    "source_schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+    "measured_at_utc": "2026-10-19T11:42:58.5895882+00:00",
+    "native_guard_implemented": false
+  },
+  "timezone_authority": {
+    "path": "docs/evidence/database/offline-vm-clock.json",
+    "sha256": "338f7d4ff7822d57dac8f4785f05f292d108520d69c8810bd9edc8441ba8c2db",
+    "offset_minutes": 480,
+    "runtime_timezone_observed": false
+  },
+  "source_references": [
+    {
+      "file": "PlayerService.CharacterServiceCore/CharacterEntity.cs",
+      "lines": "289-336,567-571,715-727,1348-1397",
+      "findings": "constructor tail;today-playtime;CountBonus;local09 reset;separate UTC samples"
+    },
+    {
+      "file": "PlayerService.CharacterServiceCore.Functions/CharacterLoader.cs",
+      "lines": "140-199",
+      "findings": "transfer guard before constructors;observables;independent UpdateLastCID;micro;titles;attach;connected Submit caught;LoginCharacter"
+    },
+    {
+      "file": "PlayerService.CharacterServiceCore/CharacterDataContext.cs",
+      "lines": "148-168,240-263",
+      "findings": "UpdateLastCID own context;reserved titles consumed independently before acquired titles save"
+    },
+    {
+      "file": "PlayerService.ItemServiceCore/ItemImpl.cs",
+      "lines": "302-421",
+      "findings": "second item Save false is not null customization;double Undo path and reloaded Gear result"
+    },
+    {
+      "file": "PlayerService/PlayerEntity.cs",
+      "lines": "49-78,151-220",
+      "findings": "fresh IsReturn false;LoadPlayer constructors;release triggers actual logout"
+    },
+    {
+      "file": "PlayerService.CharacterServiceCore.Processor/CreateCharacterProcessor.cs",
+      "lines": "138-390",
+      "findings": "Join before customization;post-skill gates;release before success"
+    },
+    {
+      "file": "FrontendServiceCore.States/CharacterList.cs",
+      "lines": "327-462,610-674",
+      "findings": "nonempty lobby branches;Create failure485;success refresh CharacterList479"
+    }
+  ],
+  "implementation_order": [
+    "Separate immutable imported captcha source from audited synthetic logout writes (this stage).",
+    "Transfer empty-source admission before constructor;close root constructor;ordered Join with independent LastCID,local09 micro and title callbacks.",
+    "LoadPlayer inventory,QuestOwner,StoryEntity,Fishing,TodayMission and Login/CountBonus in source order.",
+    "ItemProxy second Save and Undo semantics;reserved titles and measured post-skill feature branches.",
+    "Real release/logout;successful lifecycle reconciliation;filled lobby Summary and frontend guards;TCP Create dispatch.",
+    "Actual candidate Create/relogin/select;then initial city/movement;retain full M01-M24 migration."
+  ],
+  "audit_limits": [
+    "Static source and package configuration do not prove runtime compatibility.",
+    "No original services or stored procedures executed.",
+    "No source logs,exports,credentials or proprietary decompilation included."
+  ]
+}

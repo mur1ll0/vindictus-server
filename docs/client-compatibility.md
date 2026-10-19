@@ -160,3 +160,5 @@ M15.1b.2e.10b.20: Roulette/Marble de instancia compostos apos Attendance,com Mar
 M15.1b.2e.10b.21a: schema27 preserva UserCaptcha integral e comprova ausencia do candidato sob lock e apos reinicio. Construtor Captcha/Join/Login/ItemProxy/Summary/TCPCreate continuam pendentes. Nenhum novo frontend/testecliente;criacao,selecao e cidade/movimento indisponiveis.
 
 M15.1b.2e.10b.21b: Captcha inicial e Save/logout vazio recuperados e comparados ao Framework. Nenhum frontend novo/testecliente;restam fechamento do construtor,Join/Login/ItemProxy/Summary/lifecycle/TCPCreate e aceite real. Create/relogin de personagem,selecao e cidade/movimento indisponiveis.
+
+M15.1b.2e.10b.22a: schema28 permite verificar as linhas sinteticas de Captcha gravadas no logout sem enfraquecer os24registros importados. Gate358Rust/194PG executados/41Python e Docker/reinicio/nove preservacoes passaram. Fonte inalterada,candidato ausente,native0 no volume normal. A ordem restante de Create/Join/lista esta em [create-activation.md](create-activation.md). Nenhum novo testecliente ou frontend;Create continua indisponivel.

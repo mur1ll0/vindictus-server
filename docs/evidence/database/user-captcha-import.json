@@ -38,13 +38,15 @@
   },
   "post_restart_verified": true,
   "character_creation_available": false,
-  "post_restart_verified_at_utc": "2026-10-19T11:52:06.9544905+00:00",
+  "post_restart_verified_at_utc": "2026-10-19T12:23:03.2655169+00:00",
   "post_restart_summary": {
     "rows": 24,
     "inserted": 0,
     "verified": 24,
+    "native_verified": 0,
     "initialized": true,
     "empty_owner_verified": true,
     "character_creation_available": false
-  }
+  },
+  "post_restart_candidate_absence_requested": true
 }
