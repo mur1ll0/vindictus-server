@@ -1,0 +1,131 @@
+{
+  "scope": "complete original QueryMailList SELECT including TOP300/UNIONALL/ORDER;only dbo.Mail replaced by synthetic CTE;no procedure execution or reference DML",
+  "procedure_sha256": "c17336ad0fb0aca9d1cb6320580dd58538227ee48bd7a4292cf6e06cd33f484c",
+  "generator_sha256": "dee625c99a10f554e8b3f3a421f481c63201d8d45bb03730e29fadb61b8da624",
+  "rows": [
+    {
+      "is_deleted": false,
+      "to_cid": 6,
+      "from_cid": 5,
+      "mail_id": 1
+    },
+    {
+      "is_deleted": true,
+      "to_cid": 8,
+      "from_cid": 7,
+      "mail_id": 2
+    },
+    {
+      "is_deleted": true,
+      "to_cid": 9,
+      "from_cid": 9,
+      "mail_id": 3
+    },
+    {
+      "is_deleted": false,
+      "to_cid": 11,
+      "from_cid": 11,
+      "mail_id": 4
+    },
+    {
+      "is_deleted": false,
+      "to_cid": 12,
+      "from_cid": -1,
+      "mail_id": 5
+    },
+    {
+      "is_deleted": false,
+      "to_cid": 13,
+      "from_cid": 21,
+      "mail_id": 6
+    },
+    {
+      "is_deleted": false,
+      "to_cid": 5,
+      "from_cid": 6,
+      "mail_id": 7
+    }
+  ],
+  "cases": [
+    {
+      "mail_ids": [
+        5
+      ],
+      "empty": false,
+      "cid": -1
+    },
+    {
+      "mail_ids": [],
+      "empty": true,
+      "cid": 0
+    },
+    {
+      "mail_ids": [
+        1,
+        7
+      ],
+      "empty": false,
+      "cid": 5
+    },
+    {
+      "mail_ids": [
+        1,
+        7
+      ],
+      "empty": false,
+      "cid": 6
+    },
+    {
+      "mail_ids": [
+        2
+      ],
+      "empty": false,
+      "cid": 7
+    },
+    {
+      "mail_ids": [],
+      "empty": true,
+      "cid": 8
+    },
+    {
+      "mail_ids": [
+        3
+      ],
+      "empty": false,
+      "cid": 9
+    },
+    {
+      "mail_ids": [],
+      "empty": true,
+      "cid": 10
+    },
+    {
+      "mail_ids": [
+        4
+      ],
+      "empty": false,
+      "cid": 11
+    },
+    {
+      "mail_ids": [
+        5
+      ],
+      "empty": false,
+      "cid": 12
+    },
+    {
+      "mail_ids": [
+        6
+      ],
+      "empty": false,
+      "cid": 13
+    },
+    {
+      "mail_ids": [
+        6
+      ],
+      "empty": false,
+      "cid": 21
+    }
+  ]
+}

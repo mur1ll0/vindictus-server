@@ -3,6 +3,9 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    MailReference(#[from] crate::infrastructure::mail_reference::MailError),
+
+    #[error(transparent)]
     ItemLoader(#[from] crate::infrastructure::item_loader_state::LoaderError),
     #[error(transparent)]
     NewbieAttendance(#[from] crate::infrastructure::newbie_attendance::AttendanceError),

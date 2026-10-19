@@ -149,6 +149,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve complete Mail records;protected stdin,counts-only output.
+    ImportMailReference {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve all four AttendanceNewbieInfo fields from protected stdin.
     ImportNewbieAttendance {
         #[arg(long, required = true)]

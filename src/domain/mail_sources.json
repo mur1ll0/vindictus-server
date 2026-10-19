@@ -1,0 +1,26 @@
+{
+  "scope": "complete Mail reference preservation and scoped empty QueryMailList proof;not mail scheduler or ItemOwner completion",
+  "procedure_sha256": "c17336ad0fb0aca9d1cb6320580dd58538227ee48bd7a4292cf6e06cd33f484c",
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Mail.cs",
+      "sha256": "011122b7b7d3791d06b194750d3f835368eb458f0cbd3f1263a4d5c57fa4f6cf"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/MailBox.cs",
+      "sha256": "3bc47adb8f350794f7fd1c9b2569f30da46314efec790b8935ac7b8fb9ea8a50"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.MailSystem/TimeLine.cs",
+      "sha256": "4c47a398a4612ae760c527d70e0903bd5087d9bb860f1c3dc995df0b6969be54"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/DBLoader.cs",
+      "sha256": "a7028bc8c801894347d2b8b397b9eee6e0137146edd6b2adb262962c5d6c5710"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+      "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    }
+  ]
+}

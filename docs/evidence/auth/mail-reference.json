@@ -1,0 +1,104 @@
+{
+  "stage": "M15.1b.2e.10b.22f.1",
+  "verified_at_utc": "2026-10-19T23:50:03.9747108+00:00",
+  "schema_version": 32,
+  "scope": "complete Mail reference and exact negative QueryMailList lookup;not scheduler or ItemOwner completion",
+  "rust_passed": 375,
+  "postgres_native_passed": 227,
+  "postgres_ignored": 0,
+  "python_passed": 44,
+  "failures": 0,
+  "warnings": 0,
+  "oracle_cases": 12,
+  "oracle_synthetic_rows": 7,
+  "source_rows": 169,
+  "source_fields": 14,
+  "source_read_only": true,
+  "source_hashes_verified": true,
+  "post_restart_preservations": 13,
+  "client_compatibility_verified": false,
+  "create_available": false,
+  "private_exports_committed": false,
+  "receipts": [
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "git_sha256": "bd5e98cfe6c41a38b7d4fb31c7b1cd61aff9e2e910374d9d848c6933a7efcfa6"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "git_sha256": "651e576d68240027cb973d689d4932ce3e8828521253c1059071310b48af0961"
+    },
+    {
+      "path": "docs/evidence/database/character-state-import.json",
+      "git_sha256": "537aeca2c5785b70ba189a3e6a8b0e1b0036b0224be7088d3e4a842fddd417b7"
+    },
+    {
+      "path": "docs/evidence/database/costumes-import.json",
+      "git_sha256": "0b5d0b8225d2958a7e11effb255ea5a7dfccd199254d83c03fc3f8fb72f297b4"
+    },
+    {
+      "path": "docs/evidence/database/item-state-import.json",
+      "git_sha256": "03f63a6b7363fa6bc6d8bfc14e4669007ffff8ca45c9cc21a3d25e7a3777e700"
+    },
+    {
+      "path": "docs/evidence/database/journal-identities-import.json",
+      "git_sha256": "d1e200d64df07f88dd6471bce8f049eaad15bd7819d72d8bbcd86a96795fd5b5"
+    },
+    {
+      "path": "docs/evidence/database/shared-items-import.json",
+      "git_sha256": "17c571e6f5216976f0f9fbf5acc158bb8fdd86fd5cb7fe65b86c91eb13f8d710"
+    },
+    {
+      "path": "docs/evidence/database/skills-import.json",
+      "git_sha256": "a7c2c07a38323fe83a73247c16afd121ddad71c0794ddf41fd8020ce246cc508"
+    },
+    {
+      "path": "docs/evidence/database/vocation-import.json",
+      "git_sha256": "76c8d8276c035db7ddbb254fcadb11b432aad1820011fd05e2f520dae9c4bb1a"
+    },
+    {
+      "path": "docs/evidence/database/status-effect-import.json",
+      "git_sha256": "6120009485db1bb910802ca85eebe0d49bac80940e6d9fd0e0da27aaaa691bf3"
+    },
+    {
+      "path": "docs/evidence/database/user-captcha-import.json",
+      "git_sha256": "2d39b6b86e01af46d9be0c484dec2ef92245a085faf7af361c82a49697e01f8d"
+    },
+    {
+      "path": "docs/evidence/database/newbie-attendance-import.json",
+      "git_sha256": "d1752086729fa915561a1a47d759ec7d8b081f76eb98b8d3c77ad5b0ec4df558"
+    },
+    {
+      "path": "docs/evidence/database/item-loader-import.json",
+      "git_sha256": "caf993799e10cfc7fd373687411ed9481410aae313add15ad9af8ed9fbdfb0dd"
+    },
+    {
+      "path": "docs/evidence/database/character-transfer-guard-import.json",
+      "git_sha256": "462814681908e9188cbcb5c7b8d22c32d9a212153cb4abb139a3ed2644c14048"
+    },
+    {
+      "path": "docs/evidence/database/mail-import.json",
+      "git_sha256": "e11b2e5f5c8cdf998707ac11ac170531c0a144452b2a63a178f1360ba71fcd79"
+    },
+    {
+      "path": "src/domain/mail_sources.json",
+      "git_sha256": "e779e0108a3bedc409190848d590d690b72a45f01c0a947085b09987f8246fdc"
+    },
+    {
+      "path": "tests/fixtures/sqlserver-empty-mail.json",
+      "git_sha256": "0de18bc43aca6c7d146fa91ccf933235919bc646b94054388849a29fc71d478d"
+    },
+    {
+      "path": "scripts/database/mail-source.sql",
+      "git_sha256": "a497ae432c100e412969df5f9693a0208693b32227a602886a4781078f056216"
+    },
+    {
+      "path": "scripts/reverse/generate-empty-mail-fixtures.ps1",
+      "git_sha256": "dee625c99a10f554e8b3f3a421f481c63201d8d45bb03730e29fadb61b8da624"
+    },
+    {
+      "path": "migrations/0032_mail_reference.sql",
+      "git_sha256": "bc51aade06df35ca3b576298009b9eff6b3e3d8fb2da976a83df972f05d708a7"
+    }
+  ]
+}

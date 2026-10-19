@@ -288,6 +288,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let mail_reference = match &cli.command {
+        Command::ImportMailReference { .. } => Some(
+            vindictus_server::infrastructure::mail_reference::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let newbie_attendance = match &cli.command {
         Command::ImportNewbieAttendance { .. } => Some(
             vindictus_server::infrastructure::newbie_attendance::read_snapshot(
@@ -459,6 +467,15 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| LoaderError::Input)?
+            );
+        }
+        Command::ImportMailReference { verify_only, .. } => {
+            use vindictus_server::infrastructure::mail_reference::{MailError, preserve};
+            let summary =
+                preserve(&pool, &mail_reference.ok_or(MailError::Input)?, verify_only).await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| MailError::Input)?
             );
         }
         Command::ImportNewbieAttendance {
