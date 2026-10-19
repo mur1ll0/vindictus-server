@@ -715,3 +715,11 @@ async fn item_loader_gear_refuses_nonempty_associations_stale_owner_and_changed_
     assert_eq!(count(&p, "items").await, 0);
     cleanup_game_pool(a, p, s).await;
 }
+
+pub(super) fn initial_appearance_inputs() -> (
+    vindictus_server::infrastructure::fiona_appearance::Profile,
+    vindictus_server::infrastructure::item_catalog::Package,
+) {
+    let i = AppearanceInputs::new();
+    (i.profile, i.catalog)
+}

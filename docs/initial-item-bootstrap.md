@@ -1,0 +1,17 @@
+# Prefixo inicial de ItemOwner
+
+M15.1b.2e.10b.22e. A composicao consome TitlesJoined, conserva CID/UID e a mesma colecao de observables e termina antes de Active/mail. Nao retorna ItemOwner completo, LoadPlayer concluido ou sucesso de Create.
+
+A ordem recuperada e LoginTime UTC, CharacterImpl/Entity, Player.Character, journal de operacao/evento124, ItemImpl/SQLMinLatestSort, observables All/Inventory/Equipment e SharedInven quando habilitado, construtor SharedItemManager, DBLoader/Gear/Storage, LoadItems/Save incondicional, ManufactureReport e caches Manufacture/ManufactureRecipe/NewRecipe. Player.Item permanece sem publicacao. O grafo Arc/Weak conserva referencias reais dentro deste contexto privado; nao representa o servico de entidades completo.
+
+IsCharacter e determinado por CID >> 54 == 35, conforme a propriedade original; Tag ou classe Fiona nao substituem essa classificacao. O CID existente e reutilizado sem nova chamada ao alocador. Observables de personagem usam CID e SharedInven usa UID. O clock ocorre uma vez, depois de admitir perfil/dono/fonte e antes dos journals.
+
+O caminho aceito exige fonte schema31 inicializada, colecao/mailbox permission3 e providers atuais vazios. Gear reutiliza a projecao ja validada; bags0/1/6 alocam48slots cada, Restore/Account/Cash/Story iniciam mapas vazios. Associacoes nao vazias sao recusadas sem reparo ou limpeza. Locks mantem as provas durante o consumo. Nenhum item e entregue nesta etapa.
+
+Save executa commit mesmo com ChangeSet vazio. Sucesso enfileira Sync, processa exclusoes quando habilitado e chama WriteLogs; o manager vazio conserva journal/evento ao limpar. O contexto tem frontendNULL e Sync encerra no guard externo, sem atualizar equipamentos/stats/frontend. ItemsLoad e definido durante a carga e volta a null ao final. Falha de Submit retorna ReloadRequired: Undo completo ainda nao foi implementado. ManufactureReport usa a identidade de CharacterJournal, separada de GetItemJournalID. Falha desse logger retorna -1; falha posterior de provider preserva os commits/identidades anteriores. Nenhum retry automatico e permitido.
+
+O perfil atualmente admitido fixa AutoItemLogging=true, ProcessAfterDeleteItem=false e DisableLogging/DisableOperationLogging=false. Os testes nativos variam SharedInventory dentro do contrato; nao ampliam o perfil para cobrir flags ainda nao admitidas. O oracle cobre separadamente a ordem de Save nas combinacoes de flags/queue/falha, com fronteiras instrumentadas. Undo e apenas registrado como necessario.
+
+Fontes completas e hashes: src/domain/item_bootstrap_sources.json e tests/fixtures/framework-empty-item-save.json. O gerador extrai os metodos originais Save de ItemOwner/DBLoader, metodos do manager vazio, construtores CharacterImpl/ItemImpl e IsCharacter; compila harness isolado Framework x86/x64. Providers/logger/scheduler sao fronteiras instrumentadas; nao executa o servico legado. Fixture32casos por arquitetura, oito classificacoes de ID por caso.
+
+Restam Active/mail timeline e carga de correio comprovada, Shared.LoadInfo/LoginState/Buyback/PetManager/PetItem/fatigue/currencies/history, restante de LoadPlayer (Quest/Story/Fishing/TodayMission), LoginCharacter/CountBonus, personalizacao/skills/reservedtitles, segundo Save/Undo, Release/logout, Summary preenchido, reconciliacao e TCPCreate. Depois verificar criacao/relogin/selecao/cidade/movimento no cliente real. Migracao completa M01-M24 preservada. Fontes originais e SQLServer somente leitura; logs integrais em .cache/verification, apenas resumos coletados.

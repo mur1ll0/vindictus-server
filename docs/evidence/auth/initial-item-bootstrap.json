@@ -1,0 +1,86 @@
+{
+  "stage": "M15.1b.2e.10b.22e",
+  "verified_at_utc": "2026-10-19T21:50:27.7136578+00:00",
+  "schema_version": 31,
+  "scope": "unpublished initial ItemOwner prefix before Active/mail",
+  "rust_passed": 373,
+  "postgres_native_passed": 222,
+  "postgres_ignored": 0,
+  "python_passed": 44,
+  "failures": 0,
+  "warnings": 0,
+  "oracle_cases_per_architecture": 32,
+  "source_read_only": true,
+  "source_hashes_verified": true,
+  "post_restart_preservations": 12,
+  "client_compatibility_verified": false,
+  "create_available": false,
+  "undo_complete": false,
+  "item_published": false,
+  "receipts": [
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "git_sha256": "4535726bc1e1c9f6e16d1ee75d7ec0f7a97af4b5369b182f111a73c031895b1a"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "git_sha256": "e6760e62e784f6e14fd67c157f236647ccd990f7f4deb01b765fa12b68965a35"
+    },
+    {
+      "path": "docs/evidence/database/character-state-import.json",
+      "git_sha256": "4a36389c7aa0b2b5be16e404179e2934f524ac391386f55cb89ece12aebd380f"
+    },
+    {
+      "path": "docs/evidence/database/costumes-import.json",
+      "git_sha256": "fce587659623fcdb96e60ddb5a427dccfe45d740a03a6388af88d98b351d6a21"
+    },
+    {
+      "path": "docs/evidence/database/item-state-import.json",
+      "git_sha256": "e5ae341a39caa21a8fbe22affb4d761fe33d8b1454c8ca3f3fa132730fd0df6a"
+    },
+    {
+      "path": "docs/evidence/database/journal-identities-import.json",
+      "git_sha256": "4558b3379b4ed6d8880def752b2504db4df5f14a67c411f30c04694afe90c191"
+    },
+    {
+      "path": "docs/evidence/database/shared-items-import.json",
+      "git_sha256": "09af561f4074ea0d71dd8ef22c2bf9705d8c00a89a71dd3dd2897681fd28e307"
+    },
+    {
+      "path": "docs/evidence/database/skills-import.json",
+      "git_sha256": "b9f11388d4ed0cedc01fd9053119cc03b3006d5af83e8880d5e3371121eeaf67"
+    },
+    {
+      "path": "docs/evidence/database/vocation-import.json",
+      "git_sha256": "65232b12b045c221c638b3f5df0cba76695f1d6a766b15ecb6e5ec8842f2fdf7"
+    },
+    {
+      "path": "docs/evidence/database/status-effect-import.json",
+      "git_sha256": "72e287917b290cd8870eeb0d023e829250e406701206b50e6c5ce84f35093711"
+    },
+    {
+      "path": "docs/evidence/database/user-captcha-import.json",
+      "git_sha256": "069bd6005f121736499e3d96f3d082c7021995acb198e1d85bfec70d6a498751"
+    },
+    {
+      "path": "docs/evidence/database/newbie-attendance-import.json",
+      "git_sha256": "b9c7dff684181744dd3c66d6507bdc3c3d37f72d2781872f819c624447078d2a"
+    },
+    {
+      "path": "docs/evidence/database/item-loader-import.json",
+      "git_sha256": "89ef4290bf2e5b16d2983f8ad0b584e743b4e86ff10bedc5880a8dd92a8ed8d3"
+    },
+    {
+      "path": "docs/evidence/database/character-transfer-guard-import.json",
+      "git_sha256": "527b183fd6db164a990136605bf13e821c34bb36cb434459c6e8bb92a6d7f33b"
+    },
+    {
+      "path": "src/domain/item_bootstrap_sources.json",
+      "git_sha256": "d39ff2724163811be91a912420fd319c8661c5a050d6f20e2a94612ad7a5e3b7"
+    },
+    {
+      "path": "tests/fixtures/framework-empty-item-save.json",
+      "git_sha256": "9c9fd93833dd584af9c95be111408532f705da504682c7f9d3565454eebbff28"
+    }
+  ]
+}

@@ -33,3 +33,5 @@ pub mod lobby_costume;
 pub mod inventory_delivery;
 
 pub mod initial_costume;
+
+pub mod empty_item_save;

@@ -1,0 +1,41 @@
+{
+  "scope": "closed unpublished ItemOwner prefix;queued Sync with no frontend;not complete constructor/Undo/LoadPlayer/Create",
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+      "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs",
+      "sha256": "7ef6d87e9603f0fe0fae3b6dac7933a2bf4104af816a301ff6c7831c8760ac25"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterImpl.cs",
+      "sha256": "de6294dab5dcf5e3e2988d270af08f0cec84d9c5719a573d036195b9280731b3"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/DBLoader.cs",
+      "sha256": "a7028bc8c801894347d2b8b397b9eee6e0137146edd6b2adb262962c5d6c5710"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/ItemStorage.cs",
+      "sha256": "9434b62f01cbb2efa29651a5cd6f1f30227ad711dcc2d7a8b61c3f5c2428707e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/StorageSetting.cs",
+      "sha256": "9bee64a9c26633b9c66e4d3a48ccf2828fce8e3163f4aff32afb72c2133cdeff"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.SharedItemSystem/SharedItemManager.cs",
+      "sha256": "41b4d7c1372f52e461aafd50d034d58dbe999ef9dae9f437ca33d78bf850c720"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ManufactureSystem/ManufactureManager.cs",
+      "sha256": "a0048619fb6c883384fcff2889aec314a5fdee915d3093efc2712ec365647182"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/EventType.cs",
+      "sha256": "15657036aa544d0516cd19b82e7be71b08e0a7872ae3da751c4fe1039683d7fe"
+    }
+  ]
+}

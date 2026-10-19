@@ -168,3 +168,5 @@ M15.1b.2e.10b.22b: [root e inicio do Join](first-root-join.md) verificados inter
 M15.1b.2e.10b.22c: [Attendance e titulos iniciais](initial-title-runtime.md) verificados no backend:370Rust/210PG nativos/44Python,Docker/reinicio e11preservacoes. Nenhum novo teste do cliente. Create,relogin,selecao,cidade e movimento continuam pendentes.
 
 M15.1b.2e.10b.22d: [associacoes do inventario inicial](item-loader-state.md) preservadas eGear inicial admitido somente com provedores comprovados vazios. Gate372Rust/216PGnativos/44Python,Docker/restart e12preservacoes passaram. Nenhum novo frontend/testecliente;Create,relogin,selecao,cidade e movimento continuam pendentes.
+
+M15.1b.2e.10b.22e: [prefixo inicial ItemOwner](initial-item-bootstrap.md) composto ate receitas,antes Active/mail. 373 Rust;222 PostgreSQL nativos isolados,zero ignorados;44 Python;zero falhas/avisos. Docker locked/schema31/readiness/conta/duplicata/nonroot/restart e12preservacoes passaram. Nenhum novo frontend/testecliente;Create/relogin/selecao/cidade/movimento continuam pendentes.

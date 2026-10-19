@@ -693,20 +693,45 @@ pub struct LastCidCommitted {
 /// CacheSync connections/subscribers are not admitted by this detached scope.
 pub struct JoinObservables {
     cid: i64,
-    categories: [&'static str; 5],
+    categories: Vec<&'static str>,
+    shared_uid: Option<i32>,
 }
 impl JoinObservables {
     fn register(cid: i64) -> Self {
         Self {
             cid,
-            categories: ["Stat", "Skill", "Title", "MicroPlay", "Fishing"],
+            categories: vec!["Stat", "Skill", "Title", "MicroPlay", "Fishing"],
+            shared_uid: None,
         }
     }
     pub fn cid(&self) -> i64 {
         self.cid
     }
-    pub fn categories(&self) -> &[&'static str; 5] {
+    pub fn categories(&self) -> &[&'static str] {
         &self.categories
+    }
+    pub(crate) fn register_items(&mut self, uid: i32, shared: bool) -> bool {
+        if self.categories != ["Stat", "Skill", "Title", "MicroPlay", "Fishing"]
+            || self.shared_uid.is_some()
+        {
+            return false;
+        }
+        self.categories.extend(["All", "Inventory", "Equipment"]);
+        if shared {
+            self.categories.push("SharedInven");
+            self.shared_uid = Some(uid)
+        }
+        true
+    }
+    pub fn entity_for_category(&self, category: &str) -> Option<i64> {
+        if !self.categories.contains(&category) {
+            return None;
+        }
+        if category == "SharedInven" {
+            self.shared_uid.map(i64::from)
+        } else {
+            Some(self.cid)
+        }
     }
     pub fn proxy_count(&self) -> usize {
         0
@@ -746,6 +771,10 @@ pub struct MicroJoined {
     reported: SqlDateTime2,
 }
 impl MicroJoined {
+    pub(crate) fn register_items(&mut self, uid: i32, shared: bool) -> bool {
+        self.prior.observables.register_items(uid, shared)
+    }
+
     pub fn prior(&self) -> &LastCidCommitted {
         &self.prior
     }

@@ -302,16 +302,7 @@ async fn require_absent(
     cid: i64,
     manufacture: bool,
 ) -> Result<(), LoaderError> {
-    bounds(tx).await?;
-    sqlx::query("LOCK TABLE game_quick_slots,game_expanded_slots,game_manufacture,game_manufacture_recipes,game_new_recipes,game_item_loader_preservation IN SHARE MODE").execute(&mut **tx).await?;
-    let ready: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM game_item_loader_preservation WHERE singleton)",
-    )
-    .fetch_one(&mut **tx)
-    .await?;
-    if !ready {
-        return Err(LoaderError::Uninitialized);
-    }
+    lock_initialized(tx).await?;
     let queries = if manufacture {
         &[
             "SELECT EXISTS(SELECT 1 FROM game_manufacture WHERE cid=$1)",
@@ -332,6 +323,22 @@ async fn require_absent(
         {
             return Err(LoaderError::Nonempty);
         }
+    }
+    Ok(())
+}
+/// Internal shared proof/lock prefix;does not query association rows out of order.
+pub(crate) async fn lock_initialized(
+    tx: &mut Transaction<'_, Postgres>,
+) -> Result<(), LoaderError> {
+    bounds(tx).await?;
+    sqlx::query("LOCK TABLE game_quick_slots,game_expanded_slots,game_manufacture,game_manufacture_recipes,game_new_recipes,game_item_loader_preservation IN SHARE MODE").execute(&mut **tx).await?;
+    let ready: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM game_item_loader_preservation WHERE singleton)",
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    if !ready {
+        return Err(LoaderError::Uninitialized);
     }
     Ok(())
 }

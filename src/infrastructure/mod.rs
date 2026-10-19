@@ -85,3 +85,5 @@ pub mod newbie_attendance;
 pub mod fiona_title_preset;
 
 pub mod item_loader_state;
+
+pub mod fiona_item_bootstrap;

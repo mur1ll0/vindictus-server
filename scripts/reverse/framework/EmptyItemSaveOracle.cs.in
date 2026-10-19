@@ -1,0 +1,45 @@
+using System;using System.Collections.Generic;using System.Linq;using System.Web.Script.Serialization;
+class Trace{public static List<string> Calls=new List<string>();public static bool Accepted,Auto,Delete;}
+static class FeatureMatrix{public static bool IsEnable(string k){return k=="AutoItemLogging"?Trace.Auto:k=="ProcessAfterDeleteItem"?Trace.Delete:false;}}
+class Logger{public void Error(string s,Exception e){Trace.Calls.Add("provider-error");}}
+class Log<T>{public static Logger Logger=new Logger();}
+class Context{public void SubmitChanges(){Trace.Calls.Add("submit");if(!Trace.Accepted)throw new Exception("synthetic submit");}}
+class Loader{public Context Context=new Context();public virtual bool Save(){throw new Exception("unexpected base save");}}
+class DBLoader:Loader{__DBSAVE__}
+class Job{public static Action Create(Action a){return a;}}
+class Worker{public List<Action> Jobs=new List<Action>();public void Enqueue(Action a){Trace.Calls.Add("enqueue");Jobs.Add(a);}}
+class Service{public Worker Thread;}
+__EVENT__
+enum EventTypeDetail{CreateSystemItem=1}
+class LogData{public int Num=0;}
+class LogInfo{public EventType eventType=EventType.None;public EventTypeDetail eventTypeDetail=EventTypeDetail.CreateSystemItem;public int? afterSharedCount=0;public LogData data=new LogData();public void SetAfterCount(){throw new Exception("nonempty logs unsupported");}public void Write(long cid){throw new Exception("nonempty logs unsupported");}}
+class ItemLogManager{
+ private long cid;private long curJid;private EventType curEventType;private List<LogInfo> LogList;
+ __LOGCTOR__
+ __SETJOURNAL__
+ private bool IsEnable(){return FeatureMatrix.IsEnable("AutoItemLogging");}
+ __CLEAR__
+ __AFTERCOUNT__
+ __WRITE__
+ public long Journal{get{return curJid;}}public int Event{get{return(int)curEventType;}}
+}
+class ItemOwner{
+ public IEntity Entity=new Entity();
+ __ISCHARACTER__
+ public Loader Loader=new DBLoader();public Service Service=new Service();public ItemLogManager LogManager=new ItemLogManager(101);public bool DeletedInitialized=false;
+ public void Sync(){Trace.Calls.Add("sync");}
+ public void ProcessAfterDeleteItem(){Trace.Calls.Add("after-delete");if(FeatureMatrix.IsEnable("ProcessAfterDeleteItem"))DeletedInitialized=true;}
+ public void Undo(){Trace.Calls.Add("undo-required");}
+ __SAVE__
+}
+interface IEntity{object Tag{get;set;}long ID{get;set;}}
+class Entity:IEntity{public object Tag{get;set;}public long ID{get;set;}}
+class PlayerEntity{public ItemOwner Item=null;}
+class CharacterImpl{public IEntity Entity{get;private set;}public PlayerEntity Player{get;set;}public Service Service{get;private set;}__CHARCTOR__}
+class ItemImpl{public IEntity Entity{get;private set;}public Service Service{get;private set;}__ITEMCTOR__}
+class Program{static void Main(){var cases=new List<object>();foreach(bool accepted in new[]{false,true})foreach(bool queued in new[]{false,true})foreach(bool auto in new[]{false,true})foreach(bool delete in new[]{false,true})foreach(long jid in new long[]{-1,77}){
+ Trace.Calls.Clear();Trace.Accepted=accepted;Trace.Auto=auto;Trace.Delete=delete;var o=new ItemOwner();o.Service.Thread=queued?new Worker():null;o.LogManager.SetJournal(jid,EventType.ItemOwnerConstructor);
+ var entity=new Entity();var player=new PlayerEntity();entity.Tag=player;var character=new CharacterImpl(entity,o.Service);var item=new ItemImpl(entity,o.Service);
+ var kinds=new List<object>();foreach(long id in new long[]{-1,0,1,(35L<<54)-1,35L<<54,638448480000000001L,(36L<<54)-1,36L<<54}){o.Entity.ID=id;kinds.Add(new{id=id.ToString(),character=o.IsCharacter});}
+ bool saved=o.Save();cases.Add(new{kinds,accepted,queued,auto,delete,jid=jid.ToString(),saved,calls=Trace.Calls.ToArray(),jobs=queued?o.Service.Thread.Jobs.Count:0,deleted=o.DeletedInitialized,journal=o.LogManager.Journal.ToString(),evt=o.LogManager.Event,bindings=Object.ReferenceEquals(character.Entity,entity)&&Object.ReferenceEquals(character.Player,player)&&Object.ReferenceEquals(character.Service,o.Service)&&Object.ReferenceEquals(item.Entity,entity)&&Object.ReferenceEquals(item.Service,o.Service),published=player.Item!=null});
+ }Console.Write(new JavaScriptSerializer().Serialize(cases));}}

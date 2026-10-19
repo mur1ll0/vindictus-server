@@ -189,6 +189,9 @@ pub struct TitlesJoined {
     logs_failed: usize,
 }
 impl TitlesJoined {
+    pub(crate) fn register_items(&mut self, uid: i32, shared: bool) -> bool {
+        self.prior.register_items(uid, shared)
+    }
     pub fn prior(&self) -> &MicroJoined {
         &self.prior
     }

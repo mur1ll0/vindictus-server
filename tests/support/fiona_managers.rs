@@ -180,6 +180,9 @@ async fn ordered_prefix_refuses_catalog_source_and_preexisting_state_before_writ
     cleanup_game_pool(a, p, s).await;
 }
 async fn setup(p: &PgPool) {
+    setup_cid(p, 1).await
+}
+async fn setup_cid(p: &PgPool, cid: i64) {
     provision_game_user(p, 31, "Owner", 900, 0).await.unwrap();
     sqlx::query("INSERT INTO game_lab_account_origins(uid,name_key,profile_fingerprint) SELECT id,name_key,$1 FROM game_users WHERE id=31").bind(vec![0u8;32]).execute(p).await.unwrap();
     sqlx::query("INSERT INTO game_my_settings(code_bytes,value_bytes)VALUES($1,$2)")
@@ -194,7 +197,7 @@ async fn setup(p: &PgPool) {
         owner(),
         &proof,
         CreationCoreRequest {
-            cid: 1,
+            cid,
             character_sn: 12,
             name: "Murael",
             class: 1,
@@ -1829,7 +1832,10 @@ async fn captcha_logout_never_overwrites_source_uid_even_with_synthetic_origin()
 }
 
 async fn root_sources(p: &PgPool) {
-    setup(p).await;
+    root_sources_cid(p, 1).await
+}
+async fn root_sources_cid(p: &PgPool, cid: i64) {
+    setup_cid(p, cid).await;
     costume_source(p, false).await;
     empty_vocation_source(p).await;
     use vindictus_server::infrastructure::{
@@ -2381,5 +2387,329 @@ async fn title_preset_log_failure_continues_cache_and_observable_without_replayi
     assert_eq!((out.logs_written(), out.logs_failed()), (0, 1));
     assert_eq!(out.cache().titles().count(), 1);
     assert_eq!(event_journals(&p).await, journal);
+    cleanup_game_pool(a, p, s).await;
+}
+
+mod prefix_loader {
+    include!("../fixtures/item_loader_support.rs");
+}
+fn prefix_content() -> (
+    vindictus_server::infrastructure::fiona_appearance::Profile,
+    Package,
+) {
+    super::fiona_inventory_delivery::initial_appearance_inputs()
+}
+const PREFIX_CID: i64 = ((638448480000000000_i64 - 8) | 65535) + 8;
+async fn prefix_prior(
+    p: &PgPool,
+    changes: &[(&str, bool)],
+) -> (
+    vindictus_server::infrastructure::fiona_title_preset::TitlesJoined,
+    Profile,
+) {
+    use vindictus_server::infrastructure::{item_loader_state, item_state};
+    root_sources_cid(p, PREFIX_CID).await;
+    transfer_source(p).await;
+    let mut raw = profile_fixture::synthetic();
+    raw["state_sha256"] = json!(format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&state_export()).unwrap())
+    ));
+    for (k, value) in changes {
+        raw["features"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|f| f["key"] == *k)
+            .unwrap()["value"] = if *value {
+            json!("synthetic-on")
+        } else {
+            json!("synthetic-off")
+        }
+    }
+    let prof = profile_fixture::read(&raw).unwrap();
+    sqlx::query("INSERT INTO game_user_info VALUES(31,NULL,true)")
+        .execute(p)
+        .await
+        .unwrap();
+    let mut obs = vindictus_server::domain::initial_status::Profile::default();
+    let root = managers::load_first_root(
+        p,
+        &owner(),
+        PREFIX_CID,
+        &prof,
+        &catalog(),
+        vindictus_server::infrastructure::lab_clock::utc_now,
+        &mut obs,
+    )
+    .await
+    .unwrap();
+    let last = managers::commit_join_last_cid(p, &owner(), root, &prof, &catalog())
+        .await
+        .unwrap();
+    let micro = managers::initialize_join_micro(
+        p,
+        &owner(),
+        last,
+        &prof,
+        &catalog(),
+        vindictus_server::infrastructure::lab_clock::utc_now,
+    )
+    .await
+    .unwrap();
+    let goals = title_goals_profile(&prof, &[(17, vec![34])]);
+    let titles = vindictus_server::infrastructure::fiona_title_preset::give_presets(
+        p,
+        &owner(),
+        micro,
+        &prof,
+        &catalog(),
+        &goals,
+    )
+    .await
+    .unwrap();
+    let v = json!({"format_version":1,"source":"study_heroes.item-state","attribute_last_value":null,"storage_last_value":null,"items":[],"attributes":[],"equipment":[],"storage":[]});
+    let snap = item_state::read_snapshot(serde_json::to_vec(&v).unwrap().as_slice()).unwrap();
+    item_state::preserve(p, &snap, false).await.unwrap();
+    let snap = item_loader_state::read_snapshot(
+        serde_json::to_vec(&prefix_loader::empty())
+            .unwrap()
+            .as_slice(),
+    )
+    .unwrap();
+    item_loader_state::preserve(p, &snap, false).await.unwrap();
+    (titles, prof)
+}
+async fn prefix_sequences(p: &PgPool) -> ((i64, bool), (i64, bool)) {
+    (
+        sqlx::query_as("SELECT last_value,is_called FROM game_item_journal_id")
+            .fetch_one(p)
+            .await
+            .unwrap(),
+        sqlx::query_as("SELECT last_value,is_called FROM game_character_journal_id")
+            .fetch_one(p)
+            .await
+            .unwrap(),
+    )
+}
+fn prefix_utc() -> Result<vindictus_server::domain::legacy_user_data::SqlDateTime2, ()> {
+    vindictus_server::domain::legacy_user_data::SqlDateTime2::from_ticks(638448480000000001)
+        .map_err(|_| ())
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_prefix_composes_shared_graph_stores_save_queue_and_manufacture_in_source_order() {
+    use vindictus_server::infrastructure::fiona_item_bootstrap as prefix;
+    for shared in [false, true] {
+        let (a, p, s) = isolated_game_pool().await;
+        let (titles, prof) = prefix_prior(
+            &p,
+            &[
+                ("SharedInventory", shared),
+                ("ProcessAfterDeleteItem", false),
+            ],
+        )
+        .await;
+        let (app, cat) = prefix_content();
+        let before = prefix_sequences(&p).await;
+        let mut calls = 0;
+        let mut out = prefix::load_prefix(&p, &owner(), titles, &prof, &cat, &app, || {
+            calls += 1;
+            prefix_utc()
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!((out.uid(), out.cid()), (31, PREFIX_CID));
+        assert!(out.bindings_valid());
+        assert!(!out.item_published());
+        assert!(!out.active());
+        assert_eq!(out.login_time().ticks(), 638448480000000001);
+        assert_eq!(
+            out.latest_sort().units300(),
+            vindictus_server::domain::legacy_user_data::SqlDateTime::MIN
+        );
+        assert_eq!(out.gear().gear_slots(), 1);
+        assert_eq!(out.storage().bag_slots(), 144);
+        assert_eq!(out.storage().other_stores(), [0; 4]);
+        assert_eq!(out.manufacture_counts(), [0; 3]);
+        assert_eq!(out.shared_initialized(), shared);
+        assert_eq!(
+            out.shared_cache_counts(),
+            if shared {
+                Some([0, 0, 0, 0, 0, 0, 1])
+            } else {
+                None
+            }
+        );
+        assert_eq!(out.deleted_count(), None);
+        assert_eq!(out.log_write_calls(), 1);
+        assert_eq!(out.transaction_scope().unwrap(), None);
+        let categories = out.categories().unwrap();
+        assert_eq!(categories.len(), if shared { 9 } else { 8 });
+        assert!(
+            categories
+                .iter()
+                .all(|(id, c)| *id == if *c == "SharedInven" { 31 } else { PREFIX_CID })
+        );
+        assert_eq!(out.pending_sync().unwrap(), 1);
+        assert_eq!(out.drain_detached_sync().unwrap(), 1);
+        assert_eq!(out.pending_sync().unwrap(), 0);
+        assert_eq!(out.sync_drained(), 1);
+        let after = prefix_sequences(&p).await;
+        assert_eq!(after.0.0, before.0.0 + i64::from(before.0.1));
+        assert_eq!(after.1.0, before.1.0 + i64::from(before.1.1));
+        let j:i64=sqlx::query_scalar("SELECT count(*) FROM game_item_journal01 WHERE category_utf16=$1 UNION ALL SELECT count(*) FROM game_item_journal02 WHERE category_utf16=$1").bind("ManufactureReport".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>()).fetch_all(&p).await.unwrap().iter().sum();
+        assert_eq!(j, 1);
+        let n:i64=sqlx::query_scalar("SELECT (SELECT count(*) FROM game_items)+(SELECT count(*) FROM game_item_log01)+(SELECT count(*) FROM game_item_log02)").fetch_one(&p).await.unwrap();
+        assert_eq!(n, 0);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_prefix_stale_owner_and_clock_failure_stop_before_journal_without_repair() {
+    use vindictus_server::infrastructure::fiona_item_bootstrap::{self as prefix, BootstrapError};
+    for stale in [false, true] {
+        let (a, p, s) = isolated_game_pool().await;
+        let (titles, prof) = prefix_prior(&p, &[]).await;
+        let (app, cat) = prefix_content();
+        let before = prefix_sequences(&p).await;
+        if stale {
+            sqlx::query("UPDATE game_users SET service_id=service_id WHERE id=31")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        let mut calls = 0;
+        let result = prefix::load_prefix(&p, &owner(), titles, &prof, &cat, &app, || {
+            calls += 1;
+            Err::<vindictus_server::domain::legacy_user_data::SqlDateTime2, _>(())
+        })
+        .await;
+        assert!(if stale {
+            matches!(
+                result,
+                Err(BootstrapError::Owner(state::StateError::Ownership))
+            )
+        } else {
+            matches!(result, Err(BootstrapError::Clock))
+        });
+        assert_eq!(calls, if stale { 0 } else { 1 });
+        assert_eq!(prefix_sequences(&p).await, before);
+        let cid: Option<i64> =
+            sqlx::query_scalar("SELECT last_login_cid FROM game_user_info WHERE nexon_sn=31")
+                .fetch_one(&p)
+                .await
+                .unwrap();
+        assert_eq!(cid, Some(PREFIX_CID));
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_prefix_collection_or_dirty_inventory_failure_retains_only_constructor_identity() {
+    use vindictus_server::infrastructure::fiona_item_bootstrap as prefix;
+    for dirty in [false, true] {
+        let (a, p, s) = isolated_game_pool().await;
+        let (titles, prof) = prefix_prior(&p, &[]).await;
+        let (app, cat) = prefix_content();
+        let before = prefix_sequences(&p).await;
+        if dirty {
+            sqlx::query("INSERT INTO game_items(id,item_class_utf16,owner_id,count,collection,slot,tradable)VALUES(77,$1,638448480000016391,1,0,0,true)").bind(vec![65u8,0]).execute(&p).await.unwrap();
+        } else {
+            sqlx::query("DELETE FROM game_mailboxes WHERE owner_id=638448480000016391")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        assert!(
+            prefix::load_prefix(&p, &owner(), titles, &prof, &cat, &app, prefix_utc)
+                .await
+                .is_err()
+        );
+        let after = prefix_sequences(&p).await;
+        assert_eq!(after.0.0, before.0.0 + i64::from(before.0.1));
+        assert_eq!(after.1, before.1);
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+        assert_eq!(count, if dirty { 1 } else { 0 });
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_prefix_manufacture_failure_keeps_save_and_independent_report_journal() {
+    use vindictus_server::infrastructure::fiona_item_bootstrap::{self as prefix, BootstrapError};
+    let (a, p, s) = isolated_game_pool().await;
+    let (titles, prof) = prefix_prior(&p, &[]).await;
+    let (app, cat) = prefix_content();
+    let before = prefix_sequences(&p).await;
+    sqlx::raw_sql("ALTER TABLE game_manufacture RENAME TO game_manufacture_saved;CREATE FUNCTION fail_manufacture_cid()RETURNS BIGINT LANGUAGE plpgsql VOLATILE AS $$BEGIN RAISE EXCEPTION 'synthetic provider failure';END$$;CREATE VIEW game_manufacture AS SELECT 0 AS row_id,fail_manufacture_cid()AS cid,''::bytea AS manufacture_utf16,0 AS grade,0 AS experience_point").execute(&p).await.unwrap();
+    assert!(matches!(
+        prefix::load_prefix(&p, &owner(), titles, &prof, &cat, &app, prefix_utc).await,
+        Err(BootstrapError::Database(_))
+    ));
+    let after = prefix_sequences(&p).await;
+    assert_eq!(after.0.0, before.0.0 + i64::from(before.0.1));
+    assert_eq!(after.1.0, before.1.0 + i64::from(before.1.1));
+    let cid: Option<i64> =
+        sqlx::query_scalar("SELECT last_login_cid FROM game_user_info WHERE nexon_sn=31")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(cid, Some(PREFIX_CID));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_prefix_failed_journals_use_source_sentinel_and_continue_empty_load() {
+    use vindictus_server::infrastructure::fiona_item_bootstrap as prefix;
+    let (a, p, s) = isolated_game_pool().await;
+    let (titles, prof) = prefix_prior(&p, &[]).await;
+    let (app, cat) = prefix_content();
+    sqlx::query("DELETE FROM game_journal_identity")
+        .execute(&p)
+        .await
+        .unwrap();
+    let before = prefix_sequences(&p).await;
+    let out = prefix::load_prefix(&p, &owner(), titles, &prof, &cat, &app, prefix_utc)
+        .await
+        .unwrap();
+    assert_eq!(
+        (out.operation_journal(), out.manufacture_journal()),
+        (-1, -1)
+    );
+    assert_eq!(prefix_sequences(&p).await, before);
+    assert_eq!(out.pending_sync().unwrap(), 1);
+    assert!(out.bindings_valid());
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_prefix_rejects_non_character_entity_before_clock_and_journal() {
+    use vindictus_server::infrastructure::{
+        fiona_item_bootstrap as prefix, fiona_title_preset as titles,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = title_join_prior(&p).await;
+    let prof = events_profile();
+    let goals = title_goals_profile(&prof, &[(17, vec![])]);
+    let joined = titles::give_presets(&p, &owner(), prior, &prof, &catalog(), &goals)
+        .await
+        .unwrap();
+    let (app, cat) = prefix_content();
+    let before = prefix_sequences(&p).await;
+    let mut calls = 0;
+    let result = prefix::load_prefix(&p, &owner(), joined, &prof, &cat, &app, || {
+        calls += 1;
+        prefix_utc()
+    })
+    .await;
+    assert!(matches!(result, Err(prefix::BootstrapError::Conflict)));
+    assert_eq!(calls, 0);
+    assert_eq!(prefix_sequences(&p).await, before);
     cleanup_game_pool(a, p, s).await;
 }
