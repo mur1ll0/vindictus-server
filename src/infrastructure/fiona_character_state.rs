@@ -619,3 +619,22 @@ pub async fn verify_source_binding(pool: &PgPool, expected: &[u8; 32]) -> Result
     }
     Ok(())
 }
+
+/// Reset following this fresh row's insert. Compare all twelve retained fields;
+/// the source first Submit remains committed if this later Submit fails.
+pub async fn reset_fresh_micro(
+    pool: &PgPool,
+    key: &crate::infrastructure::character_lobby::UserKey<'_>,
+    cid: i64,
+    seed: MicroSeed,
+    reset: SqlDateTime,
+) -> Result<(), StateError> {
+    tokio::time::timeout(Duration::from_secs(15),async{
+  let mut tx=owned_first_fiona(pool,key,cid).await?;
+  let stored:Option<Micro>=sqlx::query_as("SELECT cid,micro_play_count,micro_play_time,success_micro_play_count,success_micro_play_time,daily_micro_play_count,daily_free_play_count,last_micro_play_started_units300,daily_report_count,last_reported_time_units300,current_quest_utf16,report_received_count FROM game_micro_play_status WHERE cid=$1 FOR UPDATE").bind(cid).fetch_optional(&mut *tx).await?;
+  let expected=Micro{cid,micro_play_count:0,micro_play_time:0,success_micro_play_count:0,success_micro_play_time:0,daily_micro_play_count:0,daily_free_play_count:0,last_micro_play_started_units300:seed.started.units300(),daily_report_count:0,last_reported_time_units300:seed.reported.units300(),current_quest_utf16:None,report_received_count:None};
+  if stored!=Some(expected){return Err(StateError::Conflict)}
+  sqlx::query("UPDATE game_micro_play_status SET daily_micro_play_count=0,daily_free_play_count=0,last_micro_play_started_units300=$2 WHERE cid=$1").bind(cid).bind(reset.units300()).execute(&mut *tx).await?;
+  tx.commit().await?;Ok(())
+ }).await.map_err(|_|StateError::Timeout)?
+}

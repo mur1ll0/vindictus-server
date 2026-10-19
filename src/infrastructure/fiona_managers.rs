@@ -22,6 +22,10 @@ use thiserror::Error as ThisError;
 #[derive(Debug, ThisError)]
 pub enum ManagerError {
     #[error(transparent)]
+    Date(#[from] crate::domain::legacy_user_data::LegacyUserDataError),
+    #[error(transparent)]
+    Transfer(#[from] super::character_transfer_guard::TransferError),
+    #[error(transparent)]
     Captcha(#[from] super::user_captcha::CaptchaError),
     #[error(transparent)]
     CaptchaConstructor(#[from] crate::domain::initial_captcha::ConstructorError),
@@ -55,6 +59,7 @@ pub struct Managers {
     cid: i64,
     base: BaseStats,
     state_source: [u8; 32],
+    preset_used_count: i32,
 }
 /// Strictly fresh admission. The first mission insert elects a single caller even if
 /// two preflights race. A partial attempt is never silently resumed. Commits remain
@@ -80,6 +85,17 @@ pub async fn initialize(
         // clear DateTime is zero, not a newly sampled wall clock.
         let clear=SqlDateTime2::from_ticks(0).map_err(|_|StateError::Profile)?;
         if state::initialize_mission(pool,owner,cid,clear).await?!=1{return Err(ManagerError::Conflict)}
+        // Root constructor reads preset count and visible CharacterInfo after
+        // MissionBook.Load, before Title/Stat managers. Native fresh admission
+        // proves zero other characters but does not omit these query failures.
+        let preset_used_count={
+            let mut tx=state::owned_first_fiona(pool,owner,cid).await?;
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM game_character_info WHERE uid=$1 AND use_preset AND status<>1").bind(owner.uid).fetch_one(&mut *tx).await?;
+            let visible:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_character_info i JOIN game_characters c ON c.id=i.id WHERE i.uid=$1 AND i.id=$2 AND i.status IN(0,2))").bind(owner.uid).bind(cid).fetch_one(&mut *tx).await?;
+            if !visible||count!=0{return Err(ManagerError::Conflict)}
+            tx.commit().await?;
+            i32::try_from(count).map_err(|_|ManagerError::Conflict)?
+        };
         let base={
             let mut tx=state::owned_first_fiona(pool,owner,cid).await?;
             // No other CharacterInfo for this account (owned_first_fiona), no own
@@ -95,7 +111,7 @@ pub async fn initialize(
         };
         if character_base_stats::initialize(pool,owner,cid,&base).await?!=1{return Err(ManagerError::Conflict)}
         if character_skills::initialize_sp_slot(pool,owner,cid).await?!=1{return Err(ManagerError::Conflict)}
-        Ok(Managers{cid,base,state_source:*profile.source_state()})
+        Ok(Managers{cid,base,state_source:*profile.source_state(),preset_used_count})
     }).await.map_err(|_|ManagerError::Timeout)?
 }
 
@@ -533,4 +549,251 @@ pub async fn load_captcha(
     })
     .await
     .map_err(|_| ManagerError::Timeout)?
+}
+
+/// A fresh root constructor completed in source order,not attached by LoadPlayer.
+/// Join still requires observables,MicroPlay,titles,LoadPlayer and LoginCharacter.
+#[must_use = "root constructed only;Join/LoadPlayer/Login/Create still required"]
+pub struct FreshRoot {
+    prior: CaptchaManagers,
+    preset_used_count: i32,
+    is_in_game: bool,
+    remove_town_effect_schedule: i64,
+    needs_user_care_meeting: bool,
+}
+impl FreshRoot {
+    pub fn uid(&self) -> i32 {
+        self.prior.loaded.uid()
+    }
+    pub fn cid(&self) -> i64 {
+        self.prior.loaded.cid()
+    }
+    pub fn managers(&self) -> &CaptchaManagers {
+        &self.prior
+    }
+    pub fn preset_used_count(&self) -> i32 {
+        self.preset_used_count
+    }
+    pub fn is_first_login(&self) -> bool {
+        true
+    }
+    pub fn is_return(&self) -> bool {
+        false
+    }
+    pub fn cafe_type(&self) -> i32 {
+        0
+    }
+    pub fn is_in_game(&self) -> bool {
+        self.is_in_game
+    }
+    pub fn remove_town_effect_schedule(&self) -> i64 {
+        self.remove_town_effect_schedule
+    }
+    pub fn needs_user_care_meeting(&self) -> bool {
+        self.needs_user_care_meeting
+    }
+}
+/// Actual closed fresh profile: transfer+except disabled,InGameGuild enabled.
+/// The transfer proof is consumed before MissionBook and every later constructor.
+/// A partial failure retains prior commits and is never retried/resumed here.
+pub async fn load_first_root(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    cid: i64,
+    profile: &Profile,
+    catalog: &Package,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, super::lab_clock::ClockError>,
+    observations: &mut crate::domain::initial_status::Profile,
+) -> Result<FreshRoot, ManagerError> {
+    profile.bind(catalog)?;
+    if ["CharacterTransferSystem", "CharacterExceptSystem"]
+        .iter()
+        .any(|required| !profile.policy().entries().any(|(key, _)| key == *required))
+    {
+        return Err(ManagerError::Conflict);
+    }
+
+    if profile
+        .policy()
+        .is_enabled(Some("CharacterTransferSystem"))?
+        || profile.policy().is_enabled(Some("CharacterExceptSystem"))?
+        || !profile.policy().is_enabled(Some("InGameGuild"))?
+    {
+        return Err(ManagerError::Conflict);
+    }
+    {
+        let mut tx = state::owned_first_fiona(pool, owner, cid).await?;
+        super::character_transfer_guard::require_empty(&mut tx).await?;
+        tx.commit().await?;
+    }
+    let first = initialize(pool, owner, cid, profile, catalog).await?;
+    let preset_used_count = first.preset_used_count;
+    let costume = load_costume(
+        pool,
+        owner,
+        first,
+        initial_costume::Context {
+            cafe_type: 0,
+            is_return: false,
+        },
+    )
+    .await?;
+    let vocation = load_vocation(pool, owner, costume).await?;
+    let social = load_social(pool, owner, vocation, profile, catalog).await?;
+    let status = load_status(pool, owner, social, &mut utc, observations).await?;
+    let attendance = load_attendance(pool, owner, status, profile, catalog, &mut utc).await?;
+    let events = load_events(pool, owner, attendance, profile, catalog).await?;
+    let prior = load_captcha(pool, owner, events, profile, catalog, || {
+        utc().map_err(|_| crate::domain::initial_captcha::ConstructorError::Clock)
+    })
+    .await?;
+    // Source InGameGuild=true skips Entry.UpdateGuildInfo at this point.
+    Ok(FreshRoot {
+        prior,
+        preset_used_count,
+        is_in_game: false,
+        remove_town_effect_schedule: 0,
+        needs_user_care_meeting: false,
+    })
+}
+/// UpdateLastCID is a separate CharacterDataContext commit before MicroPlay.
+/// Dropping this result or failing a later phase does not restore the previous CID.
+#[must_use = "LastCID committed;remaining Join phases still required"]
+pub struct LastCidCommitted {
+    root: FreshRoot,
+    observables: JoinObservables,
+}
+/// Exact registrations on a fresh Player collection with no observer proxies.
+/// CacheSync connections/subscribers are not admitted by this detached scope.
+pub struct JoinObservables {
+    cid: i64,
+    categories: [&'static str; 5],
+}
+impl JoinObservables {
+    fn register(cid: i64) -> Self {
+        Self {
+            cid,
+            categories: ["Stat", "Skill", "Title", "MicroPlay", "Fishing"],
+        }
+    }
+    pub fn cid(&self) -> i64 {
+        self.cid
+    }
+    pub fn categories(&self) -> &[&'static str; 5] {
+        &self.categories
+    }
+    pub fn proxy_count(&self) -> usize {
+        0
+    }
+}
+impl LastCidCommitted {
+    pub fn root(&self) -> &FreshRoot {
+        &self.root
+    }
+    pub fn observables(&self) -> &JoinObservables {
+        &self.observables
+    }
+}
+pub async fn commit_join_last_cid(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    root: FreshRoot,
+    profile: &Profile,
+    catalog: &Package,
+) -> Result<LastCidCommitted, ManagerError> {
+    tokio::time::timeout(std::time::Duration::from_secs(15),async{
+        let observables=JoinObservables::register(root.cid());
+        let mut tx=attendance_tx(pool,owner,&root.prior.prior.prior,profile,catalog).await?;
+        super::character_transfer_guard::require_empty(&mut tx).await?;
+        // Missing UserInfo starts ProloguePlayed=false;existing preserves that flag.
+        sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played)VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=excluded.last_login_cid").bind(root.uid()).bind(root.cid()).execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(LastCidCommitted{root,observables})
+    }).await.map_err(|_|ManagerError::Timeout)?
+}
+
+#[must_use = "MicroPlay initialized;title callbacks,LoadPlayer and Login remain"]
+pub struct MicroJoined {
+    prior: LastCidCommitted,
+    window: crate::domain::join_micro::Window,
+    started: SqlDateTime2,
+    reported: SqlDateTime2,
+}
+impl MicroJoined {
+    pub fn prior(&self) -> &LastCidCommitted {
+        &self.prior
+    }
+    pub fn window(&self) -> crate::domain::join_micro::Window {
+        self.window
+    }
+    pub fn started(&self) -> SqlDateTime2 {
+        self.started
+    }
+    pub fn reported(&self) -> SqlDateTime2 {
+        self.reported
+    }
+}
+/// Fresh missing-row branch of InitializeMicroPlayStatus,with independent UTC
+/// samples and commits. In-memory started/report timestamps retain full ticks;
+/// only SqlClient parameter boundaries quantize to 1/300 seconds.
+pub async fn initialize_join_micro(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    prior: LastCidCommitted,
+    profile: &Profile,
+    catalog: &Package,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, super::lab_clock::ClockError>,
+) -> Result<MicroJoined, ManagerError> {
+    profile.bind(catalog)?;
+    let cid = prior.root.cid();
+    {
+        let mut tx = state::owned_first_fiona(pool, owner, cid).await?;
+        let info: Option<Option<i64>> = sqlx::query_scalar(
+            "SELECT last_login_cid FROM game_user_info WHERE nexon_sn=$1 FOR SHARE",
+        )
+        .bind(owner.uid)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let source: Option<Vec<u8>> = sqlx::query_scalar(
+            "SELECT source_sha256 FROM game_character_state_preservation WHERE singleton",
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        if owner.uid != prior.root.uid()
+            || info != Some(Some(cid))
+            || profile.fingerprint() != &prior.root.prior.prior.prior.profile
+            || source.as_deref() != Some(profile.source_state().as_slice())
+        {
+            return Err(ManagerError::Conflict);
+        }
+        let occupied: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_micro_play_status WHERE cid=$1)")
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
+        if occupied {
+            return Err(ManagerError::Conflict);
+        }
+        tx.commit().await?;
+    }
+    let mut started = utc()?;
+    let reported = utc()?;
+    let seed = state::MicroSeed {
+        started: started.sql_parameter()?,
+        reported: reported.sql_parameter()?,
+    };
+    if state::initialize_micro(pool, owner, cid, seed).await? != 1 {
+        return Err(ManagerError::Conflict);
+    }
+    let window = crate::domain::join_micro::Window::reference_vm(utc()?)?;
+    if window.needs_reset(started) {
+        started = utc()?;
+        state::reset_fresh_micro(pool, owner, cid, seed, started.sql_parameter()?).await?;
+    }
+    Ok(MicroJoined {
+        prior,
+        window,
+        started,
+        reported,
+    })
 }

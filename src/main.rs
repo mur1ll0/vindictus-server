@@ -258,6 +258,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let transfer_guard = match &cli.command {
+        Command::ImportCharacterTransferGuard { .. } => Some(
+            vindictus_server::infrastructure::character_transfer_guard::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let captcha = match &cli.command {
         Command::ImportUserCaptcha { .. } => Some(
             vindictus_server::infrastructure::user_captcha::read_snapshot(std::io::stdin().lock())?,
@@ -403,6 +411,21 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| JournalError::Input)?
+            );
+        }
+        Command::ImportCharacterTransferGuard { verify_only, .. } => {
+            use vindictus_server::infrastructure::character_transfer_guard::{
+                TransferError, preserve,
+            };
+            let summary = preserve(
+                &pool,
+                &transfer_guard.ok_or(TransferError::Input)?,
+                verify_only,
+            )
+            .await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| TransferError::Input)?
             );
         }
         Command::ImportUserCaptcha {

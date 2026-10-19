@@ -3,6 +3,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    CharacterTransfer(#[from] crate::infrastructure::character_transfer_guard::TransferError),
+    #[error(transparent)]
     UserCaptcha(#[from] crate::infrastructure::user_captcha::CaptchaError),
     #[error(transparent)]
     StatusEffects(#[from] crate::infrastructure::character_status_effects::StatusError),

@@ -77,3 +77,5 @@ pub mod character_vocation;
 pub mod character_status_effects;
 
 pub mod user_captcha;
+
+pub mod character_transfer_guard;

@@ -266,7 +266,7 @@ async fn captcha_schema28_backfills_only_preverified_schema27_source_set() {
     let (a, p, s) = isolated_game_pool().await;
     let snap = snapshot(&input());
     db::preserve(&p, &snap, false).await.unwrap();
-    sqlx::raw_sql("DROP TABLE game_user_captcha_native_state;ALTER TABLE game_user_captcha_preservation DROP COLUMN source_uids;DELETE FROM _sqlx_migrations WHERE version=28").execute(&p).await.unwrap();
+    sqlx::raw_sql("DROP TABLE game_character_transfer_info,game_character_transfer_guard;DELETE FROM _sqlx_migrations WHERE version=29;DROP TABLE game_user_captcha_native_state;ALTER TABLE game_user_captcha_preservation DROP COLUMN source_uids;DELETE FROM _sqlx_migrations WHERE version=28").execute(&p).await.unwrap();
     postgres::migrate(&p).await.unwrap();
     let ids: Vec<i32> = sqlx::query_scalar(
         "SELECT source_uids FROM game_user_captcha_preservation WHERE singleton",

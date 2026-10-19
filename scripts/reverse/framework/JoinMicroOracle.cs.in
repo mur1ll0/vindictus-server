@@ -1,0 +1,35 @@
+using System;using System.Collections.Generic;using System.Data.SqlTypes;using System.Web.Script.Serialization;
+static class Events{
+ public static DateTime[] Times;public static int ClockFail,SaveFail,Clocks,Saves;public static object Persisted;public static List<string> Trace=new List<string>();
+ public static DateTime UtcNow{get{Trace.Add("clock");if(++Clocks==ClockFail)throw new Exception("clock");return Times[Clocks-1];}}
+ public static string Units(DateTime d){var s=new SqlDateTime(d);return ((long)s.DayTicks*25920000+s.TimeTicks).ToString();}
+}
+class Player{public long CID=1;}
+class MicroPlayStatus{
+ public long CID,MicroPlayTime,SuccessMicroPlayTime;public int MicroPlayCount,SuccessMicroPlayCount,DailyMicroPlayCount,DailyFreePlayCount,DailyReportCount;public DateTime LastMicroPlayStarted,LastReportedTime;public string CurrentQuest=null;public int? ReportReceivedCount=null;
+ __CHAT__
+}
+class Entry{public MicroPlayStatus MicroPlayStatus;}
+class Rows{public void InsertOnSubmit(MicroPlayStatus row){Events.Trace.Add("insert");}}
+class Context{
+ public Entry Entry;public Rows MicroPlayStatus=new Rows();
+ public void SubmitChanges(){Events.Trace.Add("submit");if(++Events.Saves==Events.SaveFail)throw new Exception("submit");var r=Entry.MicroPlayStatus;Events.Persisted=new{started=Events.Units(r.LastMicroPlayStarted),reported=Events.Units(r.LastReportedTime),daily=r.DailyMicroPlayCount,free=r.DailyFreePlayCount,report_received=r.ReportReceivedCount};}
+}
+class CharacterEntity{
+ public Entry Entry=new Entry();public Player Player=new Player();public Context Context;public DateTime LastDailyResetTime,NextDailyResetTime;static TimeSpan TimeOfDay=new TimeSpan(9,0,0);
+ public CharacterEntity(){Context=new Context{Entry=Entry};}
+ static DateTime Local(DateTime d){return d.AddMinutes(480);}static DateTime Universal(DateTime d){return d.AddMinutes(-480);}
+ __INIT__
+ __RESET__
+}
+class Oracle{
+ static void Main(){var cases=new List<object>();
+ for(int n=0;n<128;n++){
+  var boundary=new DateTime(2026,n%12+1,n%25+1,1,0,0,DateTimeKind.Utc);
+  long[] delta={-1,0,1,36000000000L};var started=boundary.AddTicks(delta[n%4]);var now=boundary.AddTicks(delta[(n/4)%4]);
+  Events.Times=new[]{started,started.AddTicks(17),now,now.AddTicks(12345)};Events.ClockFail=n%7;Events.SaveFail=n%4;Events.Clocks=0;Events.Saves=0;Events.Persisted=null;Events.Trace.Clear();var c=new CharacterEntity();bool failed=false;
+  try{c.InitializeMicroPlayStatus();}catch(Exception){failed=true;}
+  cases.Add(new{times=Array.ConvertAll(Events.Times,d=>d.Ticks.ToString()),clock_fail=Events.ClockFail,save_fail=Events.SaveFail,failed=failed,clocks=Events.Clocks,saves=Events.Saves,last=c.LastDailyResetTime.Ticks.ToString(),next=c.NextDailyResetTime.Ticks.ToString(),started=c.Entry.MicroPlayStatus==null?null:c.Entry.MicroPlayStatus.LastMicroPlayStarted.Ticks.ToString(),persisted=Events.Persisted,trace=Events.Trace.ToArray()});
+ }
+ Console.WriteLine(new JavaScriptSerializer().Serialize(cases));}
+}

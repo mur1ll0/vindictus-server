@@ -1,0 +1,14 @@
+{
+  "stage": "M15.1b.2e.10b.22b",
+  "source_read_only": true,
+  "procedures_executed": false,
+  "table": "AttendanceNewbieInfo",
+  "source_rows": 1,
+  "source_columns": 4,
+  "procedure": "AttendanceNewbieInfoGet",
+  "procedure_sha256": "489df2616260e7ccd6f1b6d50c5ff2662f85c2d7718170a2f6ce32d8d9a6d8d4",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "measured_at_utc": "2026-10-19T12:31:11.4531782+00:00",
+  "native_existing_branch_implemented": false,
+  "private_rows_exported": false
+}

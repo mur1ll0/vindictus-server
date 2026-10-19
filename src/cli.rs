@@ -131,6 +131,13 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve the proven empty CharacterInfo_Trans reference for native Join.
+    ImportCharacterTransferGuard {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve all six UserCaptcha fields from private stdin.
     ImportUserCaptcha {
         #[arg(long, required = true)]

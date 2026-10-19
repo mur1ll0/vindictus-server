@@ -1827,3 +1827,348 @@ async fn captcha_logout_never_overwrites_source_uid_even_with_synthetic_origin()
     tx.rollback().await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }
+
+async fn root_sources(p: &PgPool) {
+    setup(p).await;
+    costume_source(p, false).await;
+    empty_vocation_source(p).await;
+    use vindictus_server::infrastructure::{
+        character_status_effects as status, item_journals as j,
+    };
+    let snap=status::read_snapshot(br#"{"format_version":1,"source":"study_heroes.status-effects","source_last_value":"100","effects":[]}"#.as_slice()).unwrap();
+    status::preserve(p, &snap, false).await.unwrap();
+    let snap=j::read_snapshot(br#"{"format_version":1,"source":"study_heroesLog.journal-identities","item_last":"611635799","character_last":"4419699"}"#.as_slice()).unwrap();
+    j::preserve(p, &snap, false).await.unwrap();
+    captcha_bootstrap(p).await;
+}
+async fn transfer_source(p: &PgPool) {
+    use vindictus_server::infrastructure::character_transfer_guard as db;
+    let v = json!({"format_version":1,"source":"study_heroes.character-transfer-empty","rows":0,"columns":8,"schema_sha256":"a".repeat(64),"procedure_sha256":"6f47c1f5f6926d7d5bd474fa91547c2e31343d3afc0f8853e3a0ffee0370baaa"});
+    let snap = db::read_snapshot(serde_json::to_vec(&v).unwrap().as_slice()).unwrap();
+    db::preserve(p, &snap, false).await.unwrap();
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn first_root_transfer_guard_precedes_all_constructor_writes_and_clocks() {
+    for initialized in [false, true] {
+        let (a, p, s) = isolated_game_pool().await;
+        root_sources(&p).await;
+        if initialized {
+            transfer_source(&p).await;
+            sqlx::query("INSERT INTO game_character_transfer_info VALUES(31,''::bytea,10,1,''::bytea,20,2,NULL)").execute(&p).await.unwrap();
+        }
+        let before = counts(&p).await;
+        let seq = social_sequences(&p).await;
+        let mut obs = vindictus_server::domain::initial_status::Profile::default();
+        assert!(matches!(
+            managers::load_first_root(
+                &p,
+                &owner(),
+                1,
+                &events_profile(),
+                &catalog(),
+                || panic!("guard must run first"),
+                &mut obs
+            )
+            .await,
+            Err(ManagerError::Transfer(_))
+        ));
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, seq);
+        assert!(event_journals(&p).await.is_empty());
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn first_root_and_join_last_cid_preserve_separate_commit_missing_and_existing_prologue() {
+    for prior_flag in [None, Some(false), Some(true)] {
+        let (a, p, s) = isolated_game_pool().await;
+        root_sources(&p).await;
+        transfer_source(&p).await;
+        if let Some(flag) = prior_flag {
+            sqlx::query("INSERT INTO game_user_info VALUES(31,NULL,$1)")
+                .bind(flag)
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        // Missing UserInfo enters existing-attendance loading when enabled,which
+        // remains unsupported. Exercise UpdateLastCID's missing-row source branch
+        // under a synthetic disabled Attendance profile instead of bypassing it.
+        let prof = if prior_flag.is_none() {
+            attendance_profile("7", false)
+        } else {
+            events_profile()
+        };
+        let mut obs = vindictus_server::domain::initial_status::Profile::default();
+        let root = managers::load_first_root(
+            &p,
+            &owner(),
+            1,
+            &prof,
+            &catalog(),
+            vindictus_server::infrastructure::lab_clock::utc_now,
+            &mut obs,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            (root.uid(), root.cid(), root.preset_used_count()),
+            (31, 1, 0)
+        );
+        assert!(root.is_first_login());
+        assert!(!root.is_return());
+        assert_eq!(root.cafe_type(), 0);
+        assert!(!root.is_in_game());
+        assert_eq!(root.remove_town_effect_schedule(), 0);
+        assert!(!root.needs_user_care_meeting());
+        assert_eq!(
+            root.managers().prior().loaded().marble().journal_id(),
+            4419700
+        );
+        let joined = managers::commit_join_last_cid(&p, &owner(), root, &prof, &catalog())
+            .await
+            .unwrap();
+        assert_eq!(
+            joined.observables().categories(),
+            &["Stat", "Skill", "Title", "MicroPlay", "Fishing"]
+        );
+        assert_eq!(joined.observables().cid(), 1);
+        assert_eq!(joined.observables().proxy_count(), 0);
+        // A later independent owner-context rollback must not restore LastCID.
+        let mut later = p.begin().await.unwrap();
+        sqlx::query("UPDATE game_user_info SET last_login_cid=NULL WHERE nexon_sn=31")
+            .execute(&mut *later)
+            .await
+            .unwrap();
+        later.rollback().await.unwrap();
+        drop(joined);
+        let actual: (Option<i64>, bool) = sqlx::query_as(
+            "SELECT last_login_cid,prologue_played FROM game_user_info WHERE nexon_sn=31",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap();
+        assert_eq!(actual, (Some(1), prior_flag.unwrap_or(false)));
+        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM game_micro_play_status")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+        assert_eq!(n, 0, "next Join phase not implicitly run");
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn first_root_late_captcha_failure_keeps_mission_stats_sp_and_marble_without_last_cid() {
+    let (a, p, s) = isolated_game_pool().await;
+    root_sources(&p).await;
+    transfer_source(&p).await;
+    sqlx::query("INSERT INTO game_user_info VALUES(31,NULL,true)")
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM game_user_captcha_preservation")
+        .execute(&p)
+        .await
+        .unwrap();
+    let mut obs = vindictus_server::domain::initial_status::Profile::default();
+    assert!(matches!(
+        managers::load_first_root(
+            &p,
+            &owner(),
+            1,
+            &events_profile(),
+            &catalog(),
+            vindictus_server::infrastructure::lab_clock::utc_now,
+            &mut obs
+        )
+        .await,
+        Err(ManagerError::Captcha(_))
+    ));
+    let actual = counts(&p).await;
+    assert_eq!(actual.0, 1);
+    assert_eq!(actual.1, 1);
+    assert_eq!(event_journals(&p).await.len(), 1);
+    let n: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM game_user_info WHERE nexon_sn=31 AND last_login_cid IS NOT NULL",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(n, 0);
+    cleanup_game_pool(a, p, s).await;
+}
+
+async fn micro_join_prior(p: &PgPool) -> managers::LastCidCommitted {
+    root_sources(p).await;
+    transfer_source(p).await;
+    sqlx::query("INSERT INTO game_user_info VALUES(31,NULL,true)")
+        .execute(p)
+        .await
+        .unwrap();
+    let mut obs = vindictus_server::domain::initial_status::Profile::default();
+    let root = managers::load_first_root(
+        p,
+        &owner(),
+        1,
+        &events_profile(),
+        &catalog(),
+        vindictus_server::infrastructure::lab_clock::utc_now,
+        &mut obs,
+    )
+    .await
+    .unwrap();
+    managers::commit_join_last_cid(p, &owner(), root, &events_profile(), &catalog())
+        .await
+        .unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn first_root_micro_separate_clocks_strict_reset_and_raw_ticks_survive_quantization() {
+    use vindictus_server::domain::legacy_user_data::SqlDateTime2;
+    let boundary = 639017856000000000i64 + 36_000_000_000;
+    for (delta, now_delta) in [(-1, 1), (0, 1), (-1, 0)] {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = micro_join_prior(&p).await;
+        let seq = social_sequences(&p).await;
+        let times = [
+            boundary + delta,
+            boundary + 17,
+            boundary + now_delta,
+            boundary + 12345,
+        ];
+        let mut clocks = 0;
+        let out = managers::initialize_join_micro(
+            &p,
+            &owner(),
+            prior,
+            &events_profile(),
+            &catalog(),
+            || {
+                let v = SqlDateTime2::from_ticks(times[clocks]).unwrap();
+                clocks += 1;
+                Ok(v)
+            },
+        )
+        .await
+        .unwrap();
+        let reset = delta < 0 && now_delta > 0;
+        assert_eq!(clocks, if reset { 4 } else { 3 });
+        assert_eq!(out.started().ticks(), times[if reset { 3 } else { 0 }]);
+        assert_eq!(out.reported().ticks(), times[1]);
+        assert_eq!(
+            out.window().last().ticks(),
+            boundary + if now_delta > 0 { 0 } else { -864000000000 }
+        );
+        let actual:(i64,i64,Option<i32>)=sqlx::query_as("SELECT last_micro_play_started_units300,last_reported_time_units300,report_received_count FROM game_micro_play_status WHERE cid=1").fetch_one(&p).await.unwrap();
+        assert_eq!(
+            actual,
+            (
+                out.started().sql_parameter().unwrap().units300(),
+                out.reported().sql_parameter().unwrap().units300(),
+                None
+            )
+        );
+        assert_eq!(social_sequences(&p).await, seq);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn first_root_micro_later_clock_or_submit_failure_keeps_initial_micro_and_last_cid() {
+    use vindictus_server::{
+        domain::legacy_user_data::SqlDateTime2, infrastructure::lab_clock::ClockError,
+    };
+    let boundary = 639017856000000000i64 + 36_000_000_000;
+    for mode in 0..3 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = micro_join_prior(&p).await;
+        if mode == 2 {
+            sqlx::raw_sql("CREATE FUNCTION reject_micro_reset() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'synthetic reset submit failure';END$$;CREATE TRIGGER reject_micro_reset BEFORE UPDATE ON game_micro_play_status FOR EACH STATEMENT EXECUTE FUNCTION reject_micro_reset()").execute(&p).await.unwrap();
+        }
+        let mut clocks = 0;
+        let result = managers::initialize_join_micro(
+            &p,
+            &owner(),
+            prior,
+            &events_profile(),
+            &catalog(),
+            || {
+                clocks += 1;
+                if (mode == 0 && clocks == 3) || (mode == 1 && clocks == 4) {
+                    return Err(ClockError::Range);
+                };
+                SqlDateTime2::from_ticks(if clocks <= 2 {
+                    boundary - 1
+                } else {
+                    boundary + 1
+                })
+                .map_err(|_| ClockError::Range)
+            },
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(clocks, if mode == 0 { 3 } else { 4 });
+        let actual:(i64,i64)=sqlx::query_as("SELECT last_micro_play_started_units300,last_reported_time_units300 FROM game_micro_play_status WHERE cid=1").fetch_one(&p).await.unwrap();
+        let seed = SqlDateTime2::from_ticks(boundary - 1)
+            .unwrap()
+            .sql_parameter()
+            .unwrap()
+            .units300();
+        assert_eq!(actual, (seed, seed));
+        let cid: Option<i64> =
+            sqlx::query_scalar("SELECT last_login_cid FROM game_user_info WHERE nexon_sn=31")
+                .fetch_one(&p)
+                .await
+                .unwrap();
+        assert_eq!(cid, Some(1));
+        assert_eq!(event_journals(&p).await.len(), 1);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn first_root_missing_transfer_projection_is_not_a_disabled_feature() {
+    for missing in ["CharacterTransferSystem", "CharacterExceptSystem"] {
+        let (a, p, s) = isolated_game_pool().await;
+        root_sources(&p).await;
+        transfer_source(&p).await;
+        let mut raw = profile_fixture::synthetic();
+        raw["state_sha256"] = json!(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&state_export()).unwrap())
+        ));
+        raw["features"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|f| f["key"] != missing);
+        raw["enabled_keys"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|k| k != missing);
+        let prof = profile_fixture::read(&raw).unwrap();
+        let before = counts(&p).await;
+        let seq = social_sequences(&p).await;
+        let mut obs = vindictus_server::domain::initial_status::Profile::default();
+        assert!(matches!(
+            managers::load_first_root(
+                &p,
+                &owner(),
+                1,
+                &prof,
+                &catalog(),
+                || panic!("missing projection must fail before clocks"),
+                &mut obs
+            )
+            .await,
+            Err(ManagerError::Conflict)
+        ));
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, seq);
+        assert!(event_journals(&p).await.is_empty());
+        cleanup_game_pool(a, p, s).await;
+    }
+}

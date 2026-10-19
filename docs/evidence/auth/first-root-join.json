@@ -1,0 +1,128 @@
+{
+  "stage": "M15.1b.2e.10b.22b",
+  "verified_at_utc": "2026-10-19T16:37:44.7825191+00:00",
+  "schema_version": 29,
+  "scope": "fresh synthetic first Fiona root and initial Join phases;not complete Join/Create",
+  "rust_passed": 363,
+  "postgres_native_passed": 202,
+  "postgres_ignored": 0,
+  "python_passed": 41,
+  "failures": 0,
+  "warnings": 0,
+  "framework_cases_per_architecture": 128,
+  "framework_x86_equals_x64": true,
+  "framework_compile_warnings": 0,
+  "transfer_rows": 0,
+  "transfer_fields": 8,
+  "transfer_pk": "newCharacterID",
+  "source_read_only": true,
+  "procedures_executed": false,
+  "feature_projections_required": [
+    "CharacterTransferSystem",
+    "CharacterExceptSystem"
+  ],
+  "fresh_defaults": {
+    "cafe_type": 0,
+    "is_return": false,
+    "is_first_login": true,
+    "is_in_game": false,
+    "town_effect_schedule": 0,
+    "needs_user_care_meeting": false
+  },
+  "observables": [
+    "Stat",
+    "Skill",
+    "Title",
+    "MicroPlay",
+    "Fishing"
+  ],
+  "observer_scope": "fresh collection,no proxies/subscribers;not full CacheSync",
+  "last_cid_separate_commit": true,
+  "missing_info_prologue_default": false,
+  "existing_info_prologue_preserved": true,
+  "micro_utc_samples": "started,reported,boundary,conditional-reset;separate commits",
+  "micro_raw_ticks_retained": true,
+  "micro_sql_parameter_quantized": true,
+  "timezone_offset_minutes": 480,
+  "timezone_runtime_observed": false,
+  "old_preservations_after_restart": 9,
+  "new_transfer_proof_after_restart": true,
+  "locked_build_source_hashes_unchanged": true,
+  "tmpfs_project_removed_without_volumes": true,
+  "candidate_absent_normal_volume": true,
+  "native_captcha_rows_normal_volume": 0,
+  "create_available": false,
+  "new_frontend_or_client_execution": false,
+  "remaining": [
+    "existing Attendance",
+    "TitlePreset runtime",
+    "LoadPlayer inventory/quest/story/fishing/todaymission",
+    "Login and attached callbacks",
+    "ItemProxy second Save/Undo/reserved titles",
+    "Release/logout/Summary/lifecycle/TCPCreate",
+    "actual Create/relogin/selection/city/movement",
+    "full M01-M24"
+  ],
+  "full_gate_log_archive": ".cache/verification/first-root-full-gate",
+  "verification_receipts": {
+    "scope": "Git-staged JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/auth/existing-attendance-source.json",
+        "sha256": "7e6498d9deec6c10b7cfe8b3e2c8bd922f1dcfdf265794471fb22a01482f8627"
+      },
+      {
+        "path": "tests/fixtures/framework-join-micro.json",
+        "sha256": "4ed3adbf0f3a14b8579c2aa6c9301f92ea8fc05eb28c71985bb742d586a25e40"
+      },
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "75576b4c6d7c32c216491e73f780056f5ee2a76b5ab18e04356c37a23336ddc5"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "7861866b72bf192c451dd1b0bebec09e07a95ba9725cb033594cd25dc787df0a"
+      },
+      {
+        "path": "docs/evidence/database/character-transfer-guard-import.json",
+        "sha256": "a14635bb382da4f4728bbd5c9199664784de3e56e00ee64c834608e5b43814d9"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "5fef8c8c3aacde233a30185a978ba64769a5379d28d65dbeb8c85b4ff6a96300"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "8d89751d5fe4fc3a3c022ebe9bf57b606b2f6f52067979c9836fcb2ad62c7d8c"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "2354927ccb9699fa79523cf4cfe2498d0a755ef91457e78cda66d959d20f8087"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "e35567e2f49e840095a1a10b190afaee36f62e8721a09261d51d0f955006a259"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "342be6047cad0464b2db40f92a318e0bc60fa90c047da7cbf93a0df22d726396"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "4c269e191d33e8e429c7040b384e1295c9d42f32e238314582bc54ab0e5470f1"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "1f40c30eb8e2fef04f6b0f5264d4d77c019925339a543a6a4153a4b9e342fc8c"
+      },
+      {
+        "path": "docs/evidence/database/status-effect-import.json",
+        "sha256": "6e33c05ebbde2d64786feca84295b72c3a632dc2f778cc7be13656460f88c6be"
+      },
+      {
+        "path": "docs/evidence/database/user-captcha-import.json",
+        "sha256": "702ce711364f1ec7105ed728c48462239e2304bb9b7e388e8bdf76a551e1eb91"
+      }
+    ]
+  }
+}

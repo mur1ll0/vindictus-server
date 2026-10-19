@@ -79,6 +79,9 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
     if !revision_trigger {
         return Err(Error::SchemaNotReady);
     }
+    crate::infrastructure::character_transfer_guard::check_ready(pool)
+        .await
+        .map_err(|_| Error::SchemaNotReady)?;
     crate::infrastructure::user_captcha::check_ready(pool)
         .await
         .map_err(|_| Error::SchemaNotReady)?;
