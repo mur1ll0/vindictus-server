@@ -258,6 +258,12 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let captcha = match &cli.command {
+        Command::ImportUserCaptcha { .. } => Some(
+            vindictus_server::infrastructure::user_captcha::read_snapshot(std::io::stdin().lock())?,
+        ),
+        _ => None,
+    };
     let status_effects = match &cli.command {
         Command::ImportCharacterStatusEffects { .. } => Some(
             vindictus_server::infrastructure::character_status_effects::read_snapshot(
@@ -397,6 +403,47 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| JournalError::Input)?
+            );
+        }
+        Command::ImportUserCaptcha {
+            verify_only,
+            require_empty_owner,
+            ..
+        } => {
+            use vindictus_server::{
+                domain::game_user::LegacyNameKey,
+                infrastructure::{
+                    character_lobby::UserKey,
+                    user_captcha::{CaptchaError, preserve, require_absent},
+                },
+            };
+            let mut summary =
+                preserve(&pool, &captcha.ok_or(CaptchaError::Export)?, verify_only).await?;
+            if let Some(name) = require_empty_owner {
+                let key = LegacyNameKey::parse(&name).map_err(|_| CaptchaError::Owner)?;
+                let mut tx = pool.begin().await?;
+                let row: Option<(i32, String, i64)> = sqlx::query_as(
+                    "SELECT id,name,local_revision FROM game_users WHERE name_key=$1",
+                )
+                .bind(key.as_str())
+                .fetch_optional(&mut *tx)
+                .await?;
+                let (uid, name, revision) = row.ok_or(CaptchaError::Owner)?;
+                require_absent(
+                    &mut tx,
+                    &UserKey {
+                        uid,
+                        name: &name,
+                        revision,
+                    },
+                )
+                .await?;
+                tx.commit().await?;
+                summary.empty_owner_verified = true;
+            }
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| CaptchaError::Export)?
             );
         }
         Command::ImportCharacterStatusEffects { verify_only, .. } => {

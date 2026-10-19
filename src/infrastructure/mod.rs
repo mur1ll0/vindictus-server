@@ -75,3 +75,5 @@ pub mod fiona_managers;
 pub mod character_vocation;
 
 pub mod character_status_effects;
+
+pub mod user_captcha;

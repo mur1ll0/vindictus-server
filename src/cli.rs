@@ -131,6 +131,15 @@ pub enum Command {
         #[arg(long)]
         verify_only: bool,
     },
+    /// Preserve all six UserCaptcha fields from private stdin.
+    ImportUserCaptcha {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+        #[arg(long)]
+        require_empty_owner: Option<String>,
+    },
     /// Preserve all StatusEffect fields and original identity from private stdin.
     ImportCharacterStatusEffects {
         #[arg(long, required = true)]

@@ -1,0 +1,143 @@
+{
+  "stage": "M15.1b.2e.10b.21a",
+  "schema_version": 27,
+  "scope": "complete six-field UserCaptcha preservation and stable absence observation;not Captcha constructor/challenge/Save or Create",
+  "passed": {
+    "rust": 355,
+    "postgres_native": 186,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "gate_verified_at_utc": "2026-10-19T03:08:04.3727425+00:00",
+  "docker_verified_at_utc": "2026-10-19T03:10:55.9334210+00:00",
+  "source_read_only": true,
+  "source_rows": 24,
+  "source_columns": 6,
+  "source_primary_key": "UID",
+  "source_identity": false,
+  "source_foreign_keys": 0,
+  "sql_datetime": "signed units300 since 1900;no timezone inference",
+  "datetime_synthetic_cases": 7,
+  "all_fields_compared": true,
+  "complete_row_set_compared": true,
+  "atomic_bootstrap": true,
+  "replay_inserts_zero": true,
+  "candidate_absence_verified_after_restart": true,
+  "native_isolation_limitation": "table SHARE guard gives stable absence;stronger than original WITH(NOLOCK),not dirty-read equivalence",
+  "preservation_script_private_acl": "current Windows user and SYSTEM only",
+  "postgres_verification_environment": {
+    "native_runner": true,
+    "tmpfs": true,
+    "project": "vindictus-user-captcha-verification",
+    "full_page_writes": "on",
+    "same_pinned_image": true,
+    "restricted_role": true,
+    "synchronous_commit": "on",
+    "fsync": "on",
+    "removed_without_volumes": true
+  },
+  "docker_build_profile": {
+    "frontend": "BuildKit builtin",
+    "original_dockerfile_unchanged": true,
+    "original_sha256": "f1eded0109e36e46f6c48e9d79d062501257ec98984ca344727b4a9d77968152",
+    "active_instructions_identical": true,
+    "active_instructions_sha256": "f3a0fc47525cf45d57ca027c2259066275aea634a1731cd2f9606d0254594d99",
+    "removed_only": "external #syntax directive",
+    "locked_build": true,
+    "pinned_base_images": true,
+    "nonroot_runtime": true
+  },
+  "sources": [
+    {
+      "path": "src/infrastructure/user_captcha.rs",
+      "sha256": "608a56ee2488a2240942b298b8c1be9d200e075ecd0512540c9d19a23a07e3b7"
+    },
+    {
+      "path": "migrations/0027_user_captcha.sql",
+      "sha256": "efd034ae76477b71bef88c58b3724be1b9e4ef5a83ca8565fe348c19a25fdc8d"
+    },
+    {
+      "path": "scripts/database/Import-UserCaptcha.ps1",
+      "sha256": "e6e7814048a1d64e71b61aab46c74fb5f28e6b38846553ac87436d772951b98e"
+    },
+    {
+      "path": "scripts/reverse/verify-user-captcha-reference.ps1",
+      "sha256": "88e24aadee0e4115b20c5192a58ef67a05d709b94fcfd2ffc83b611621d94f6e"
+    },
+    {
+      "path": "tests/user_captcha.rs",
+      "sha256": "55c23fe537f33c992d76309405d7736373f9ecd783b9008b242b97dda12d8741"
+    },
+    {
+      "path": "tests/support/user_captcha.rs",
+      "sha256": "1218d4c24885956ce0908d6f825ac8e7f3ac1fbe9831bb41cbdbd56f814f7e44"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "lifecycle_dependency": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+    "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f",
+    "line": 649,
+    "observed": "LogoutCharacter calls captcha.OnLogOut when nonnull;CaptchaManager.OnLogOut calls Save even with empty pool;Save uses UserCaptchaSet",
+    "implemented": false
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/auth/user-captcha-source.json",
+        "sha256": "8b17baa3f233509661fc1687ab09eccceb880111d1c0cac84ee3de561db21626"
+      },
+      {
+        "path": "docs/evidence/database/user-captcha-import.json",
+        "sha256": "6c4d4fcf8e1ec6b9b6a04451ca710aaa2418d0bd58f4780a93e476afc022d463"
+      },
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "bb313e4d3d7c70c7eb9c65c60465cf913949fd7ee7b681126eda40065a57a67f"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "3405faa856297e09bb20f0dd2595e593849cf293c5166916847197be5b7d3f49"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "3d28be37c53e011dae30c06e0c3c2cd9ae6ce7c87e6b37b67d9ccb098fa0a2a2"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "605f8fc953f88fed76a1276ff480b42cc3f888e5406cd1e6e45d692d3c99f78e"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "93c2bd0eca8bccb85353742f84cb0471ed32fb5b316e8b82f46ee837bafc6387"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "9b5298f217e273fccf6e1c910b5b4097a340909a4b8c13386f2ac09a48f4a63d"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "b00882f56dbe5219b27a83effb3acacec3860ccc9e5ab89ed04abf7bddc103f6"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "47e3f009ef18776501f4d81040cb558b1d4eba7049e5a4ea7915499f6af1f202"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "d1960d91a7cfbb5e77b48e155da856b664e211e17ed1ea576d790a0778b7165b"
+      },
+      {
+        "path": "docs/evidence/database/status-effect-import.json",
+        "sha256": "6c3da35fb4677243843ec6742f28dc59d99b480a0837cb07a38ede70e88c051f"
+      }
+    ]
+  }
+}
