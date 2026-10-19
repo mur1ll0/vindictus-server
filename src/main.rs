@@ -280,6 +280,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let item_loader = match &cli.command {
+        Command::ImportItemLoaderState { .. } => Some(
+            vindictus_server::infrastructure::item_loader_state::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let newbie_attendance = match &cli.command {
         Command::ImportNewbieAttendance { .. } => Some(
             vindictus_server::infrastructure::newbie_attendance::read_snapshot(
@@ -442,6 +450,15 @@ async fn run(cli: Cli) -> Result<(), Error> {
             println!(
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| JournalError::Input)?
+            );
+        }
+        Command::ImportItemLoaderState { verify_only, .. } => {
+            use vindictus_server::infrastructure::item_loader_state::{LoaderError, preserve};
+            let summary =
+                preserve(&pool, &item_loader.ok_or(LoaderError::Input)?, verify_only).await?;
+            println!(
+                "{}",
+                serde_json::to_string(&summary).map_err(|_| LoaderError::Input)?
             );
         }
         Command::ImportNewbieAttendance {

@@ -1,0 +1,108 @@
+{
+  "stage": "M15.1b.2e.10b.22d",
+  "verified_at_utc": "2026-10-19T18:24:20.3730580+00:00",
+  "source_read_only": true,
+  "source_export_unchanged": true,
+  "source_rows": [
+    261,
+    0,
+    0,
+    0,
+    0
+  ],
+  "source_columns": [
+    4,
+    3,
+    5,
+    4,
+    4
+  ],
+  "identities": 5,
+  "export_sha256": "eabeac7ab831f6f1aae55143acfcbcdf2b01b98d25497658b3834ffe6c26354b",
+  "query_sha256": "cb328c71d3ef58cca1b30a11fc341b5c2f4511b35e02b2b092bcbf5ea7f5e3d5",
+  "schema_sha256": "082783d4a95662d6debb541db6eb891321de50e169bb8389a229dbdf80884206",
+  "private_acl": "current Windows user and SYSTEM only",
+  "imported": {
+    "rows": [
+      261,
+      0,
+      0,
+      0,
+      0
+    ],
+    "fields": [
+      4,
+      3,
+      5,
+      4,
+      4
+    ],
+    "inserted": 261,
+    "verified": 261,
+    "identities_initialized": 5,
+    "character_creation_available": false
+  },
+  "replay": {
+    "rows": [
+      261,
+      0,
+      0,
+      0,
+      0
+    ],
+    "fields": [
+      4,
+      3,
+      5,
+      4,
+      4
+    ],
+    "inserted": 0,
+    "verified": 261,
+    "identities_initialized": 5,
+    "character_creation_available": false
+  },
+  "verified": {
+    "rows": [
+      261,
+      0,
+      0,
+      0,
+      0
+    ],
+    "fields": [
+      4,
+      3,
+      5,
+      4,
+      4
+    ],
+    "inserted": 0,
+    "verified": 261,
+    "identities_initialized": 5,
+    "character_creation_available": false
+  },
+  "post_restart_verified": true,
+  "character_creation_available": false,
+  "post_restart_verified_at_utc": "2026-10-19T18:25:30.8310734+00:00",
+  "post_restart_summary": {
+    "rows": [
+      261,
+      0,
+      0,
+      0,
+      0
+    ],
+    "fields": [
+      4,
+      3,
+      5,
+      4,
+      4
+    ],
+    "inserted": 0,
+    "verified": 261,
+    "identities_initialized": 5,
+    "character_creation_available": false
+  }
+}

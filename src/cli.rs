@@ -142,6 +142,13 @@ pub enum Command {
         #[arg(long, required = true)]
         input_stdin: bool,
     },
+    /// Preserve all initial item-loader association rows and five identities.
+    ImportItemLoaderState {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+    },
     /// Preserve all four AttendanceNewbieInfo fields from protected stdin.
     ImportNewbieAttendance {
         #[arg(long, required = true)]

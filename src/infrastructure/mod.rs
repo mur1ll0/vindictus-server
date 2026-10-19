@@ -83,3 +83,5 @@ pub mod character_transfer_guard;
 pub mod newbie_attendance;
 
 pub mod fiona_title_preset;
+
+pub mod item_loader_state;

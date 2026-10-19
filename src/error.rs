@@ -3,6 +3,8 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(transparent)]
+    ItemLoader(#[from] crate::infrastructure::item_loader_state::LoaderError),
+    #[error(transparent)]
     NewbieAttendance(#[from] crate::infrastructure::newbie_attendance::AttendanceError),
     #[error(transparent)]
     CharacterTransfer(#[from] crate::infrastructure::character_transfer_guard::TransferError),

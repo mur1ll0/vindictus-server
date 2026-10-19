@@ -1,0 +1,96 @@
+{
+  "stage": "M15.1b.2e.10b.22d",
+  "verified_at_utc": "2026-10-19T18:20:10.2312381+00:00",
+  "schema_version": 31,
+  "scope": "five item-loader associations and guarded empty Gear projection;not complete ItemOwner or Create",
+  "rust_passed": 372,
+  "postgres_native_passed": 216,
+  "postgres_ignored": 0,
+  "python_passed": 44,
+  "failures": 0,
+  "warnings": 0,
+  "source_read_only": true,
+  "source_rows": [
+    261,
+    0,
+    0,
+    0,
+    0
+  ],
+  "source_fields": [
+    4,
+    3,
+    5,
+    4,
+    4
+  ],
+  "identities": 5,
+  "source_metadata_verified": true,
+  "source_snapshot_unchanged": true,
+  "post_restart_preservations": 12,
+  "private_exports_committed": false,
+  "client_compatibility_verified": false,
+  "create_available": false,
+  "receipts": [
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "git_sha256": "238b5de02e71ac99294ca4a140cca0643b0234f0f64e8cf70547da399e24ad77"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "git_sha256": "0d72d7e0bd4c8131b5b068dbf8689f270ac75f7f8fec24af743339244b2f4d7f"
+    },
+    {
+      "path": "docs/evidence/database/character-state-import.json",
+      "git_sha256": "1a3e50f74cec2a8193c2b734053043650649ef2e671c611b2406b88af1b0b496"
+    },
+    {
+      "path": "docs/evidence/database/costumes-import.json",
+      "git_sha256": "0b391b99245959aee7eac6cde922291f857a70e5854fb8f0c19a7edd25d17b13"
+    },
+    {
+      "path": "docs/evidence/database/item-state-import.json",
+      "git_sha256": "1238b9db6368561c52264a03170307347369fb18b8fba29953fd433706944d53"
+    },
+    {
+      "path": "docs/evidence/database/journal-identities-import.json",
+      "git_sha256": "b4d587ca81a78a55b1b632df3b82e017faf6921f7fbe2d5678803ab37e811373"
+    },
+    {
+      "path": "docs/evidence/database/shared-items-import.json",
+      "git_sha256": "01083c621a4134088d501ceed9d00960eeaec38683b95456a8e1ec80aba42cfb"
+    },
+    {
+      "path": "docs/evidence/database/skills-import.json",
+      "git_sha256": "046ec7cc78b2b6f7cb0b92e6b4059974591d5effa69151d15bfb70d0e9cb9c0c"
+    },
+    {
+      "path": "docs/evidence/database/vocation-import.json",
+      "git_sha256": "327256d3172802283d9e4c54bda70fe48845ebe3e6fb6174191866ceba23101f"
+    },
+    {
+      "path": "docs/evidence/database/status-effect-import.json",
+      "git_sha256": "679237dfc241ae2c5f6bed9b83373e49457f377246d175823e83e625f0900df6"
+    },
+    {
+      "path": "docs/evidence/database/user-captcha-import.json",
+      "git_sha256": "9713c18937612ae936a96640e77790a29ecd8f2f16d3880f512b70fb000c26e5"
+    },
+    {
+      "path": "docs/evidence/database/newbie-attendance-import.json",
+      "git_sha256": "bc04549e1311679c57f514bec88671ce5fa50b4f6a62c18050d732b24ae43dd8"
+    },
+    {
+      "path": "docs/evidence/database/character-transfer-guard-import.json",
+      "git_sha256": "da6c4116c5c8cc48f7d971baa737ee5b0407360f03460a42e1c3c513fc58a9bf"
+    },
+    {
+      "path": "docs/evidence/database/item-loader-import.json",
+      "git_sha256": "eaec7cb99d8ba9d6ec635d24f5d57ec9097d8abb7486f0be5c625cd2cfbf1336"
+    },
+    {
+      "path": "src/domain/item_loader_sources.json",
+      "git_sha256": "93f9acfd474a8de4c3400426cc39bc80ff49308d3d0456cbea1a47546994f28c"
+    }
+  ]
+}

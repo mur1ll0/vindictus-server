@@ -626,3 +626,92 @@ async fn fiona_customization_refuses_invalid_slot_metadata_before_inventory_effe
     );
     cleanup_game_pool(a, p, s).await;
 }
+
+mod loader_fixture {
+    include!("../fixtures/item_loader_support.rs");
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_loader_gear_proves_both_associations_before_empty_projection_without_writes() {
+    use vindictus_server::infrastructure::item_loader_state as loader;
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    let input = AppearanceInputs::new();
+    assert!(matches!(
+        loader::load_initial_gear(&p, &fixture::key(), 1, &input.profile, &input.catalog).await,
+        Err(loader::LoaderError::Uninitialized)
+    ));
+    let snap = loader::read_snapshot(
+        serde_json::to_vec(&loader_fixture::empty())
+            .unwrap()
+            .as_slice(),
+    )
+    .unwrap();
+    loader::preserve(&p, &snap, false).await.unwrap();
+    let seq: (i64, bool) = sqlx::query_as("SELECT last_value,is_called FROM game_quick_slot_id")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let out = loader::load_initial_gear(&p, &fixture::key(), 1, &input.profile, &input.catalog)
+        .await
+        .unwrap();
+    assert_eq!(out.gear_slots(), 1);
+    sqlx::query("INSERT INTO game_items(id,item_class_utf16,owner_id,count,collection,slot,tradable)VALUES(77,$1,1,1,0,0,true)").bind(vec![65u8,0]).execute(&p).await.unwrap();
+    assert!(matches!(
+        loader::load_initial_gear(&p, &fixture::key(), 1, &input.profile, &input.catalog).await,
+        Err(loader::LoaderError::Nonempty)
+    ));
+    sqlx::query("DELETE FROM game_items WHERE id=77")
+        .execute(&p)
+        .await
+        .unwrap();
+
+    let after: (i64, bool) = sqlx::query_as("SELECT last_value,is_called FROM game_quick_slot_id")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(seq, after);
+    assert_eq!(count(&p, "items").await, 0);
+    assert_eq!(count(&p, "logs").await, 0);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn item_loader_gear_refuses_nonempty_associations_stale_owner_and_changed_content() {
+    use vindictus_server::infrastructure::item_loader_state as loader;
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    let mut input = AppearanceInputs::new();
+    let snap = loader::read_snapshot(
+        serde_json::to_vec(&loader_fixture::empty())
+            .unwrap()
+            .as_slice(),
+    )
+    .unwrap();
+    loader::preserve(&p, &snap, false).await.unwrap();
+    input.catalog.manifest.config_sha256 = "d".repeat(64);
+    assert!(matches!(
+        loader::load_initial_gear(&p, &fixture::key(), 1, &input.profile, &input.catalog).await,
+        Err(loader::LoaderError::Content)
+    ));
+    input = AppearanceInputs::new();
+    sqlx::query("INSERT INTO game_quick_slots(owner_id,item_class_utf16,slot)VALUES(1,$1,0)")
+        .bind(vec![65u8, 0])
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        loader::load_initial_gear(&p, &fixture::key(), 1, &input.profile, &input.catalog).await,
+        Err(loader::LoaderError::Nonempty)
+    ));
+    sqlx::query("UPDATE game_users SET service_id=service_id WHERE id=31")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        loader::load_initial_gear(&p, &fixture::key(), 1, &input.profile, &input.catalog).await,
+        Err(loader::LoaderError::Owner(state::StateError::Ownership))
+    ));
+    assert_eq!(count(&p, "items").await, 0);
+    cleanup_game_pool(a, p, s).await;
+}
