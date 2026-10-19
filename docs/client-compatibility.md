@@ -164,3 +164,5 @@ M15.1b.2e.10b.21b: Captcha inicial e Save/logout vazio recuperados e comparados 
 M15.1b.2e.10b.22a: schema28 permite verificar as linhas sinteticas de Captcha gravadas no logout sem enfraquecer os24registros importados. Gate358Rust/194PG executados/41Python e Docker/reinicio/nove preservacoes passaram. Fonte inalterada,candidato ausente,native0 no volume normal. A ordem restante de Create/Join/lista esta em [create-activation.md](create-activation.md). Nenhum novo testecliente ou frontend;Create continua indisponivel.
 
 M15.1b.2e.10b.22b: [root e inicio do Join](first-root-join.md) verificados internamente:guard transfer0/8campos,composicao inicial,LastCID e MicroPlay. Gate363Rust/202PG executados/41Python e Docker/reinicio/dez verificacoes de preservacao passaram. Nenhum novo frontend ou testecliente. Create,personagem persistido/relogin,selecao,cidade e movimento continuam pendentes.
+
+M15.1b.2e.10b.22c: [Attendance e titulos iniciais](initial-title-runtime.md) verificados no backend:370Rust/210PG nativos/44Python,Docker/reinicio e11preservacoes. Nenhum novo teste do cliente. Create,relogin,selecao,cidade e movimento continuam pendentes.

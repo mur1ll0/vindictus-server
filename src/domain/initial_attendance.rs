@@ -13,6 +13,8 @@ pub enum Outcome {
     NoNewbie,
     CaughtIntegerOverflow,
     CaughtClockError,
+    ExistingAbsent,
+    CaughtExistingLookupError,
 }
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum AdmissionError {
@@ -35,6 +37,7 @@ pub struct AllUser {
     bonus_info: BTreeMap<i32, std::convert::Infallible>,
 }
 pub struct Loaded {
+    pending_existing: bool,
     all_user: AllUser,
     outcome: Outcome,
 }
@@ -53,6 +56,7 @@ impl Loaded {
                 bonus_info: BTreeMap::new(),
             },
             outcome: Outcome::Disabled,
+            pending_existing: false,
         }
     }
     pub fn enabled(policy: &FeaturePolicy) -> Result<bool, Error> {
@@ -69,6 +73,7 @@ impl Loaded {
         period: impl FnOnce(i32) -> Option<(i64, i64)>,
         mut clock: impl FnMut() -> Result<SqlDateTime2, E>,
     ) -> Result<(), AdmissionError> {
+        self.pending_existing = false;
         self.outcome = Outcome::NoNewbie;
         let version = match policy.get_nullable_integer("AttendanceEvent_Newbie") {
             Ok(v) => v,
@@ -78,6 +83,7 @@ impl Loaded {
             }
         };
         if !first {
+            self.pending_existing = true;
             return Err(AdmissionError::Existing);
         }
         if let Some(version) = version.filter(|v| *v > 0)
@@ -112,6 +118,24 @@ impl Loaded {
     }
     pub fn outcome(&self) -> Outcome {
         self.outcome
+    }
+    /// Resolve only the dependency requested by initialize_newbie(!first).
+    /// The application supplies either proven no-row or the caught provider fault.
+    /// A present-row Newbie constructor is still outside this restricted type.
+    pub fn resolve_existing_absence(
+        &mut self,
+        provider_failed: bool,
+    ) -> Result<(), AdmissionError> {
+        if !self.pending_existing {
+            return Err(AdmissionError::Existing);
+        }
+        self.pending_existing = false;
+        self.outcome = if provider_failed {
+            Outcome::CaughtExistingLookupError
+        } else {
+            Outcome::ExistingAbsent
+        };
+        Ok(())
     }
     pub fn instance_count(&self) -> usize {
         1

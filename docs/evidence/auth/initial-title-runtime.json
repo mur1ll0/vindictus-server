@@ -1,0 +1,84 @@
+{
+  "stage": "M15.1b.2e.10b.22c",
+  "verified_at_utc": "2026-10-19T17:34:25.1376502+00:00",
+  "schema_version": 30,
+  "rust_passed": 370,
+  "postgres_native_passed": 210,
+  "postgres_ignored": 0,
+  "python_passed": 44,
+  "failures": 0,
+  "warnings": 0,
+  "source_read_only": true,
+  "private_exports_committed": false,
+  "create_available": false,
+  "client_compatibility_verified": false,
+  "framework_cases_per_architecture": {
+    "existing_attendance": 72,
+    "title_preset": 40
+  },
+  "real_title_count": 221,
+  "real_goal_count": 221,
+  "post_restart_preservations": 11,
+  "receipts": [
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "git_sha256": "0e4892b6760d8025d0c687ce9e76aeeb9b6ea806124344691e9d592c7e3235ed"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "git_sha256": "9c0abb98cf020a9fe120ded728ce82e988891467bdbd9a34de5d6290032dca10"
+    },
+    {
+      "path": "docs/evidence/database/character-state-import.json",
+      "git_sha256": "19fcf0ed18de82eff1d69041f1c71a7f40b34fae2dd57b0c40ea64782decb184"
+    },
+    {
+      "path": "docs/evidence/database/costumes-import.json",
+      "git_sha256": "0a0ac6af794a6d4b258fa450423376c8018f9a0f347b2712cdc25aec46681547"
+    },
+    {
+      "path": "docs/evidence/database/item-state-import.json",
+      "git_sha256": "9bcb84185b878f671fb90f9f48910adb2bc66b5915d0861a40ec6dbec42451ba"
+    },
+    {
+      "path": "docs/evidence/database/journal-identities-import.json",
+      "git_sha256": "1ff551ac13ddc0eab703335f56ed44ba22ac7c71d336fa8939fafae88dd39ed7"
+    },
+    {
+      "path": "docs/evidence/database/shared-items-import.json",
+      "git_sha256": "17e9d3fc90a801b276cedf70f4f747b903dc6d9b60b46af947a14475465711b8"
+    },
+    {
+      "path": "docs/evidence/database/skills-import.json",
+      "git_sha256": "4aaaf4f825c4547b2b6a1ea38a13729fc1d74d4a08615256f35bc8b11559666d"
+    },
+    {
+      "path": "docs/evidence/database/vocation-import.json",
+      "git_sha256": "75a3f66276bb2658f3b69bff8a8fe21d150f26362798bba6760d05fbab374be7"
+    },
+    {
+      "path": "docs/evidence/database/status-effect-import.json",
+      "git_sha256": "749c9a43bc924982d05e9c94b5a8f199eebef014fd72dff6e09b8e60f1a80770"
+    },
+    {
+      "path": "docs/evidence/database/user-captcha-import.json",
+      "git_sha256": "2a7a57cf864107ae541e9feeaa9dacb7261c66f716eed0359c065b636142e8b4"
+    },
+    {
+      "path": "docs/evidence/database/character-transfer-guard-import.json",
+      "git_sha256": "67e526e65ffded34a8f8034c9ca813e6b972fcbd56878809cba2fff70f479dc3"
+    },
+    {
+      "path": "docs/evidence/database/newbie-attendance-import.json",
+      "git_sha256": "fbe2cbcb428be83cd9123ee04797ed06605b776bfc5234be4d2087fd5f79d68c"
+    },
+    {
+      "path": "tests/fixtures/framework-existing-attendance.json",
+      "git_sha256": "9ec60560bde48cb67baaeb33af5ca1592b54e0d793501d1525ee1f78c7eae461"
+    },
+    {
+      "path": "tests/fixtures/framework-title-preset.json",
+      "git_sha256": "1c3e280688a3f5a4cf182dfa36c46844e8b7fb8970a6fbd1650dbe66b87ecd06"
+    }
+  ]
+}

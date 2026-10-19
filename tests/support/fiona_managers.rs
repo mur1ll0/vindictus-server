@@ -1116,7 +1116,7 @@ async fn attendance_constructor_preserves_first_query_window_and_caught_failure_
         .await;
         match phase {
             0 | 1 => {
-                assert!(matches!(result, Err(ManagerError::Attendance(_))));
+                assert!(matches!(result, Err(ManagerError::NewbieAttendance(vindictus_server::infrastructure::newbie_attendance::AttendanceError::Reference))));
                 assert_eq!(calls, 0);
             }
             2 => {
@@ -2171,4 +2171,215 @@ async fn first_root_missing_transfer_projection_is_not_a_disabled_feature() {
         assert!(event_journals(&p).await.is_empty());
         cleanup_game_pool(a, p, s).await;
     }
+}
+
+async fn newbie_reference(p: &PgPool, uid: i32) {
+    use vindictus_server::infrastructure::newbie_attendance as db;
+    let raw = json!({"format_version":1,"source":"study_heroes.newbie-attendance","rows":[{"uid":uid,"event_version":7,"start_ticks":"0","end_ticks":"200"}]});
+    let snap = db::read_snapshot(serde_json::to_vec(&raw).unwrap().as_slice()).unwrap();
+    db::preserve(p, &snap, false).await.unwrap();
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn attendance_existing_empty_history_supports_missing_info_and_previous_last_cid_without_clock()
+ {
+    use vindictus_server::domain::initial_attendance::Outcome;
+    for old_cid in [None, Some(77i64)] {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = attendance_prior(&p).await;
+        newbie_reference(&p, -7).await;
+        if let Some(cid) = old_cid {
+            sqlx::query("INSERT INTO game_user_info VALUES(31,$1,true)")
+                .bind(cid)
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        let before = counts(&p).await;
+        let seq = social_sequences(&p).await;
+        let out =
+            managers::load_attendance(&p, &owner(), prior, &events_profile(), &catalog(), || {
+                panic!("existing get has no clock")
+            })
+            .await
+            .unwrap();
+        assert_eq!(out.loaded().outcome(), Outcome::ExistingAbsent);
+        assert_eq!(out.loaded().instance_count(), 1);
+        assert!(out.loaded().matches_social(out.prior().prior().social()));
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, seq);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn attendance_existing_provider_failure_is_caught_but_present_reference_remains_unsupported()
+{
+    use vindictus_server::domain::initial_attendance::Outcome;
+    for fail in [false, true] {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = attendance_prior(&p).await;
+        newbie_reference(&p, 31).await;
+        sqlx::query("INSERT INTO game_user_info VALUES(31,77,true)")
+            .execute(&p)
+            .await
+            .unwrap();
+        if fail {
+            sqlx::raw_sql("ALTER TABLE game_newbie_attendance_info RENAME TO game_newbie_attendance_saved;CREATE FUNCTION fail_existing_lookup(INTEGER) RETURNS BOOLEAN LANGUAGE plpgsql VOLATILE AS $$BEGIN RAISE EXCEPTION 'synthetic provider failure';END$$;CREATE VIEW game_newbie_attendance_info AS SELECT * FROM game_newbie_attendance_saved WHERE fail_existing_lookup(uid)").execute(&p).await.unwrap();
+        }
+        let before = counts(&p).await;
+        let result =
+            managers::load_attendance(&p, &owner(), prior, &events_profile(), &catalog(), || {
+                panic!("no existing clock")
+            })
+            .await;
+        if fail {
+            assert_eq!(
+                result.unwrap().loaded().outcome(),
+                Outcome::CaughtExistingLookupError
+            );
+        } else {
+            assert!(matches!(
+                result,
+                Err(ManagerError::NewbieAttendance(
+                    vindictus_server::infrastructure::newbie_attendance::AttendanceError::Present
+                ))
+            ));
+        }
+        assert_eq!(counts(&p).await, before);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+
+fn title_goals_profile(
+    prof: &Profile,
+    ids: &[(i32, Vec<i32>)],
+) -> vindictus_server::infrastructure::fiona_title_preset::GoalProfile {
+    use vindictus_server::infrastructure::fiona_title_preset::GoalProfile;
+    let code: Value = serde_json::from_str(include_str!(
+        "../../src/domain/fiona_initializer_sources.json"
+    ))
+    .unwrap();
+    let hash = prof
+        .fingerprint()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
+    let data = json!({"format_version":1,"source":"heroesContents.initial-title-goals","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"initializer_sha256":hash,"title_manager_sha256":code["titles"]["sha256"],"contents_sha256":code["contents"]["sha256"],"titles":ids.iter().map(|(id,goals)|json!({"title_id":id,"goal_ids":goals})).collect::<Vec<_>>()});
+    GoalProfile::read(
+        serde_json::to_vec(&data).unwrap().as_slice(),
+        prof,
+        &catalog(),
+    )
+    .unwrap()
+}
+async fn title_join_prior(p: &PgPool) -> managers::MicroJoined {
+    let prior = micro_join_prior(p).await;
+    managers::initialize_join_micro(
+        p,
+        &owner(),
+        prior,
+        &events_profile(),
+        &catalog(),
+        vindictus_server::infrastructure::lab_clock::utc_now,
+    )
+    .await
+    .unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn title_preset_phase_builds_shared_goals_without_sql_progress_and_calls_detached_observable()
+{
+    use vindictus_server::infrastructure::fiona_title_preset as titles;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = title_join_prior(&p).await;
+    let prof = events_profile();
+    let goals = title_goals_profile(&prof, &[(17, vec![34, 35])]);
+    let seq = social_sequences(&p).await;
+    let out = titles::give_presets(&p, &owner(), prior, &prof, &catalog(), &goals)
+        .await
+        .unwrap();
+    assert!(!out.source_caught());
+    assert!(out.title_updated());
+    assert_eq!((out.logs_written(), out.logs_failed()), (1, 0));
+    assert_eq!(out.cache().titles().count(), 1);
+    assert_eq!(out.cache().goals().count(), 2);
+    let title = out.cache().titles().next().unwrap();
+    assert_eq!((title.cid(), title.id(), title.acquired()), (1, 17, false));
+    for g in title.goals() {
+        assert_eq!((g.cid(), g.progress()), (1, 0));
+        assert!(
+            out.cache()
+                .goals()
+                .any(|other| std::sync::Arc::ptr_eq(g, other))
+        );
+    }
+    let actual:(i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM game_titles WHERE cid=1),(SELECT count(*) FROM game_title_goal_progress WHERE cid=1)").fetch_one(&p).await.unwrap();
+    assert_eq!(actual, (1, 0));
+    assert_eq!(social_sequences(&p).await, seq);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn title_preset_provider_failures_keep_insert_commit_and_catch_without_false_observable() {
+    use vindictus_server::infrastructure::fiona_title_preset as titles;
+    for mode in 0..2 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = title_join_prior(&p).await;
+        let prof = events_profile();
+        let goals = title_goals_profile(&prof, &[(17, vec![34])]);
+        if mode == 0 {
+            sqlx::raw_sql("CREATE FUNCTION fail_title_insert()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'synthetic insert failure';END$$;CREATE TRIGGER fail_title_insert BEFORE INSERT ON game_titles FOR EACH STATEMENT EXECUTE FUNCTION fail_title_insert()").execute(&p).await.unwrap();
+        } else {
+            // Empty preflight succeeds;only enumeration of the committed new row fails.
+            sqlx::raw_sql("ALTER TABLE game_titles RENAME TO game_titles_saved;CREATE FUNCTION fail_title_result(INTEGER,BOOLEAN)RETURNS BOOLEAN LANGUAGE plpgsql VOLATILE AS $$BEGIN RAISE EXCEPTION 'synthetic result failure';END$$;CREATE VIEW game_titles AS SELECT cid,title_id,fail_title_result(title_id,acquired) AS acquired,acquired_time_units300,acquired_quest_utf16,expire_ticks FROM game_titles_saved;CREATE FUNCTION insert_title_view()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN INSERT INTO game_titles_saved VALUES(NEW.cid,NEW.title_id,NEW.acquired,NEW.acquired_time_units300,NEW.acquired_quest_utf16,NEW.expire_ticks);RETURN NEW;END$$;CREATE TRIGGER insert_title_view INSTEAD OF INSERT ON game_titles FOR EACH ROW EXECUTE FUNCTION insert_title_view()").execute(&p).await.unwrap();
+        }
+        let out = titles::give_presets(&p, &owner(), prior, &prof, &catalog(), &goals)
+            .await
+            .unwrap();
+        assert!(out.source_caught());
+        assert!(!out.title_updated());
+        assert_eq!(out.cache().titles().count(), 0);
+        assert_eq!(out.logs_written(), 0);
+        let table = if mode == 0 {
+            "game_titles"
+        } else {
+            "game_titles_saved"
+        };
+        let n: i64 = sqlx::query_scalar(&format!("SELECT count(*) FROM {table} WHERE cid=1"))
+            .fetch_one(&p)
+            .await
+            .unwrap();
+        assert_eq!(n, if mode == 0 { 0 } else { 1 });
+        let cid: Option<i64> =
+            sqlx::query_scalar("SELECT last_login_cid FROM game_user_info WHERE nexon_sn=31")
+                .fetch_one(&p)
+                .await
+                .unwrap();
+        assert_eq!(cid, Some(1));
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn title_preset_log_failure_continues_cache_and_observable_without_replaying_journals() {
+    use vindictus_server::infrastructure::fiona_title_preset as titles;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = title_join_prior(&p).await;
+    let prof = events_profile();
+    let goals = title_goals_profile(&prof, &[(17, vec![])]);
+    let journal = event_journals(&p).await;
+    sqlx::query("CREATE FUNCTION reject_preset_log()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'synthetic log failure';END$$").execute(&p).await.unwrap();
+    for table in ["game_character_title_log01", "game_character_title_log02"] {
+        sqlx::query(&format!("CREATE TRIGGER reject_preset_log BEFORE INSERT ON {table} FOR EACH STATEMENT EXECUTE FUNCTION reject_preset_log()")).execute(&p).await.unwrap();
+    }
+    let out = titles::give_presets(&p, &owner(), prior, &prof, &catalog(), &goals)
+        .await
+        .unwrap();
+    assert!(!out.source_caught());
+    assert!(out.title_updated());
+    assert_eq!((out.logs_written(), out.logs_failed()), (0, 1));
+    assert_eq!(out.cache().titles().count(), 1);
+    assert_eq!(event_journals(&p).await, journal);
+    cleanup_game_pool(a, p, s).await;
 }

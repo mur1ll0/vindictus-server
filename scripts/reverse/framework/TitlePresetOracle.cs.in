@@ -1,0 +1,35 @@
+using System;using System.Collections;using System.Collections.Generic;using System.Data.Linq;using System.Linq;using System.Web.Script.Serialization;
+static class Events{public static int Mode,N,Caught,Observed,LogFailed;public static List<int> Stored=new List<int>();public static List<int> Logs=new List<int>();public static List<string> Trace=new List<string>();}
+class TitleInsertFromPresetResult{public long CID;public int TitleID;public bool Acquired=false;public DateTime? AcquiredTime=null,ExpireDateTime=null;public string AcquiredQuest=null;}
+class Results:ISingleResult<TitleInsertFromPresetResult>{
+ public object ReturnValue{get{return null;}}public void Dispose(){}
+ public IEnumerator<TitleInsertFromPresetResult> GetEnumerator(){for(int i=0;i<Events.N;i++){if(Events.Mode==3&&i==Events.N/2)throw new Exception("synthetic enumerate");Events.Trace.Add("row:"+i);yield return new TitleInsertFromPresetResult{CID=101,TitleID=17+i};}}IEnumerator IEnumerable.GetEnumerator(){return GetEnumerator();}
+}
+class TitleDBDataContext{
+ public TitleDBDataContext(){Events.Trace.Add("context");}
+ public ISingleResult<TitleInsertFromPresetResult> TitleInsertFromPreset(long cid,byte character){Events.Trace.Add("insert");if(Events.Mode==1)throw new Exception("synthetic insert");for(int i=0;i<Events.N;i++)Events.Stored.Add(17+i);if(Events.Mode==2)throw new Exception("synthetic result acquisition");return new Results();}
+ public void TitleRemove(long cid,int id){throw new Exception("disabled feature outside synchronized profile");}
+}
+class TitleGoalInfo{public int ID;}
+class TitleInfo{public string Feature=null;public int ID;public List<TitleGoalInfo> GetTitleGoalInfo(){return new List<TitleGoalInfo>{new TitleGoalInfo{ID=ID*2},new TitleGoalInfo{ID=ID*2+1}};}}
+static class CharacterContents{public static TitleInfo GetTitleInfo(int id){return new TitleInfo{ID=id};}}
+namespace ServiceCore{static class FeatureMatrix{public static bool IsEnable(string f){return true;}}}
+class TitleGoalProgress{public long CID;public int TitleGoalID,Progress;__GOAL_CTOR__}
+class Title{public long CID;public int TitleID;public bool Acquired;public DateTime? AcquiredTime,ExpireDateTime;public string AcquiredQuest;public List<TitleGoalProgress> TitleGoalProgress;__TITLE_CTOR__ __TITLE_SET__}
+class Player{public long CID=101;}
+class Observable{public void Updated(){Events.Trace.Add("observable");Events.Observed++;}}
+class CharacterEntity{public Player Player=new Player();public int BaseCharacter=1;public Observable TitleObservable=new Observable();public void AddTitleLog(CharacterTitleEvent e,int id,int goal,int value){Events.Trace.Add("log:"+id);if(Events.Mode==4){Events.LogFailed++;return;}Events.Logs.Add(id);}}
+__EVENT_ENUM__
+static class Log<T>{public static Logger Logger=new Logger();}
+class Logger{public void Error(string m){}public void Error(string m,Exception e){Events.Trace.Add("caught");Events.Caught++;}}
+class TitleManager{
+ public CharacterEntity CharacterEntity=new CharacterEntity();public Dictionary<int,Title> Titles=new Dictionary<int,Title>();public Dictionary<int,TitleGoalProgress> TitleGoalProgresses=new Dictionary<int,TitleGoalProgress>();
+ Title GetTitle(int id){Title t;Titles.TryGetValue(id,out t);return t;}
+ __PRESET__
+}
+class Oracle{
+ static void Main(){var cases=new List<object>();for(int n=0;n<40;n++){
+  Events.Mode=n%5;Events.N=n/5;Events.Stored.Clear();Events.Logs.Clear();Events.Trace.Clear();Events.Caught=Events.Observed=Events.LogFailed=0;var m=new TitleManager();m.GiveTitlePreset();
+  cases.Add(new{mode=Events.Mode,count=Events.N,stored=Events.Stored.ToArray(),titles=m.Titles.Values.Select(t=>new{id=t.TitleID,cid=t.CID.ToString(),acquired=t.Acquired,goals=t.TitleGoalProgress.Select(g=>new{id=g.TitleGoalID,progress=g.Progress,same=object.ReferenceEquals(g,m.TitleGoalProgresses[g.TitleGoalID])}).ToArray()}).ToArray(),logs=Events.Logs.ToArray(),log_failed=Events.LogFailed,caught=Events.Caught,observed=Events.Observed,trace=Events.Trace.ToArray()});
+ }Console.WriteLine(new JavaScriptSerializer().Serialize(cases));}
+}

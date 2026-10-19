@@ -122,6 +122,28 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::InspectFionaTitleGoals {
+        initializer_file,
+        reference_file,
+        catalog_file,
+        ..
+    } = &cli.command
+    {
+        use vindictus_server::infrastructure::{
+            fiona_initializer_profile::Profile, fiona_title_preset::GoalProfile, item_catalog,
+        };
+        let catalog = item_catalog::read_package(std::fs::File::open(catalog_file)?)?;
+        let profile = Profile::read(
+            std::fs::File::open(initializer_file)?,
+            std::fs::File::open(reference_file)?,
+        )?;
+        let goals = GoalProfile::read(std::io::stdin().lock(), &profile, &catalog)?;
+        println!(
+            "{}",
+            serde_json::json!({"titles":goals.title_count(),"goals":goals.goal_count(),"bound":true,"create_available":false})
+        );
+        return Ok(());
+    }
     if let Command::InspectItemColors { catalog_file, .. } = &cli.command {
         let catalog = vindictus_server::infrastructure::item_catalog::read_package(
             std::fs::File::open(catalog_file)?,
@@ -258,6 +280,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
         ),
         _ => None,
     };
+    let newbie_attendance = match &cli.command {
+        Command::ImportNewbieAttendance { .. } => Some(
+            vindictus_server::infrastructure::newbie_attendance::read_snapshot(
+                std::io::stdin().lock(),
+            )?,
+        ),
+        _ => None,
+    };
     let transfer_guard = match &cli.command {
         Command::ImportCharacterTransferGuard { .. } => Some(
             vindictus_server::infrastructure::character_transfer_guard::read_snapshot(
@@ -320,6 +350,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         | Command::InspectFionaInventory { .. }
         | Command::InspectItemColors { .. }
         | Command::InspectItemStats { .. }
+        | Command::InspectFionaTitleGoals { .. }
         | Command::InspectItemCatalog { .. }
         | Command::InspectLabFrontendProfile { .. }
         | Command::LabFrontend { .. } => {}
@@ -412,6 +443,36 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 "{}",
                 serde_json::to_string(&summary).map_err(|_| JournalError::Input)?
             );
+        }
+        Command::ImportNewbieAttendance {
+            verify_only,
+            require_empty_owner,
+            ..
+        } => {
+            use vindictus_server::{
+                domain::game_user::LegacyNameKey,
+                infrastructure::newbie_attendance::{AttendanceError, preserve, require_absent},
+            };
+            let summary = preserve(
+                &pool,
+                &newbie_attendance.ok_or(AttendanceError::Input)?,
+                verify_only,
+            )
+            .await?;
+            let mut empty_owner_verified = false;
+            if let Some(name) = require_empty_owner {
+                let key = LegacyNameKey::parse(&name).map_err(|_| AttendanceError::Input)?;
+                let mut tx = pool.begin().await?;
+                let uid: Option<i32> =
+                    sqlx::query_scalar("SELECT id FROM game_users WHERE name_key=$1 FOR SHARE")
+                        .bind(key.as_str())
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                require_absent(&mut tx, uid.ok_or(AttendanceError::Input)?).await?;
+                tx.commit().await?;
+                empty_owner_verified = true;
+            }
+            println!("{}",serde_json::to_string(&serde_json::json!({"summary":summary,"empty_owner_verified":empty_owner_verified})).map_err(|_|AttendanceError::Input)?);
         }
         Command::ImportCharacterTransferGuard { verify_only, .. } => {
             use vindictus_server::infrastructure::character_transfer_guard::{

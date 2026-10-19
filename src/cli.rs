@@ -1,6 +1,6 @@
 use crate::{domain::validate_password, error::Error};
 use clap::{Parser, Subcommand};
-use std::io::Read;
+use std::{io::Read, path::PathBuf};
 use zeroize::Zeroizing;
 
 #[derive(Debug, Parser)]
@@ -130,6 +130,26 @@ pub enum Command {
         input_stdin: bool,
         #[arg(long)]
         verify_only: bool,
+    },
+    /// Inspect the bound private title-goal constructor profile;counts only.
+    InspectFionaTitleGoals {
+        #[arg(long)]
+        initializer_file: PathBuf,
+        #[arg(long)]
+        reference_file: PathBuf,
+        #[arg(long)]
+        catalog_file: PathBuf,
+        #[arg(long, required = true)]
+        input_stdin: bool,
+    },
+    /// Preserve all four AttendanceNewbieInfo fields from protected stdin.
+    ImportNewbieAttendance {
+        #[arg(long, required = true)]
+        input_stdin: bool,
+        #[arg(long)]
+        verify_only: bool,
+        #[arg(long)]
+        require_empty_owner: Option<String>,
     },
     /// Preserve the proven empty CharacterInfo_Trans reference for native Join.
     ImportCharacterTransferGuard {

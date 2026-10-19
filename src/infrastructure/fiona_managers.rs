@@ -22,6 +22,8 @@ use thiserror::Error as ThisError;
 #[derive(Debug, ThisError)]
 pub enum ManagerError {
     #[error(transparent)]
+    NewbieAttendance(#[from] super::newbie_attendance::AttendanceError),
+    #[error(transparent)]
     Date(#[from] crate::domain::legacy_user_data::LegacyUserDataError),
     #[error(transparent)]
     Transfer(#[from] super::character_transfer_guard::TransferError),
@@ -385,6 +387,7 @@ pub async fn load_attendance(
         super::character_status_effects::require_absent(&mut tx, prior.prior.cid()).await?;
         let mut loaded = crate::domain::initial_attendance::Loaded::all_user(prior.prior.social());
         let mut user_info = AttendanceInfo::NotRead;
+        let mut caught_lookup = false;
         if crate::domain::initial_attendance::Loaded::enabled(profile.policy())? {
             let count: i64 =
                 sqlx::query_scalar("SELECT COUNT(*) FROM game_user_info WHERE nexon_sn=$1")
@@ -404,14 +407,34 @@ pub async fn load_attendance(
                 user_info = AttendanceInfo::Missing;
                 false
             };
-            loaded.initialize_newbie(
+            let initial = loaded.initialize_newbie(
                 first,
                 profile.policy(),
                 |v| profile.attendance_period(v),
                 &mut clock,
-            )?;
+            );
+            match initial {
+                Err(crate::domain::initial_attendance::AdmissionError::Existing) => {
+                    match super::newbie_attendance::require_absent(&mut tx, owner.uid).await {
+                        Ok(()) => loaded.resolve_existing_absence(false)?,
+                        Err(super::newbie_attendance::AttendanceError::Lookup(_)) => {
+                            tracing::warn!(
+                                "existing attendance lookup failed;private details suppressed"
+                            );
+                            loaded.resolve_existing_absence(true)?;
+                            caught_lookup = true;
+                        }
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                other => other?,
+            }
         }
-        tx.commit().await?;
+        if caught_lookup {
+            let _ = tx.rollback().await;
+        } else {
+            tx.commit().await?;
+        }
         Ok(AttendanceManagers {
             prior,
             loaded,
@@ -570,6 +593,9 @@ impl FreshRoot {
     }
     pub fn managers(&self) -> &CaptchaManagers {
         &self.prior
+    }
+    pub fn profile_fingerprint(&self) -> &[u8; 32] {
+        &self.prior.prior.prior.profile
     }
     pub fn preset_used_count(&self) -> i32 {
         self.preset_used_count

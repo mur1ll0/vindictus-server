@@ -79,3 +79,7 @@ pub mod character_status_effects;
 pub mod user_captcha;
 
 pub mod character_transfer_guard;
+
+pub mod newbie_attendance;
+
+pub mod fiona_title_preset;
