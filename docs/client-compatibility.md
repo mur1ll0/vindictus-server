@@ -158,3 +158,5 @@ M15.1b.2e.10b.19: Attendance inicial composto apos Status/TownCampfire no ramo p
 M15.1b.2e.10b.20: Roulette/Marble de instancia compostos apos Attendance,com MarbleLog independente e falhas/identidade preservadas. Restam Captcha e fechamento do construtor,Join/Login/ItemProxy/Summary/lifecycle/TCPCreate. Nenhum novo frontend/testecliente;Create,selecao,cidade/movimento indisponiveis.
 
 M15.1b.2e.10b.21a: schema27 preserva UserCaptcha integral e comprova ausencia do candidato sob lock e apos reinicio. Construtor Captcha/Join/Login/ItemProxy/Summary/TCPCreate continuam pendentes. Nenhum novo frontend/testecliente;criacao,selecao e cidade/movimento indisponiveis.
+
+M15.1b.2e.10b.21b: Captcha inicial e Save/logout vazio recuperados e comparados ao Framework. Nenhum frontend novo/testecliente;restam fechamento do construtor,Join/Login/ItemProxy/Summary/lifecycle/TCPCreate e aceite real. Create/relogin de personagem,selecao e cidade/movimento indisponiveis.

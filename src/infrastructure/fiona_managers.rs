@@ -22,6 +22,10 @@ use thiserror::Error as ThisError;
 #[derive(Debug, ThisError)]
 pub enum ManagerError {
     #[error(transparent)]
+    Captcha(#[from] super::user_captcha::CaptchaError),
+    #[error(transparent)]
+    CaptchaConstructor(#[from] crate::domain::initial_captcha::ConstructorError),
+    #[error(transparent)]
     Attendance(#[from] crate::domain::initial_attendance::AdmissionError),
     #[error(transparent)]
     Status(#[from] super::character_status_effects::StatusError),
@@ -431,35 +435,8 @@ pub async fn load_events(
         return Err(ManagerError::Conflict);
     }
     tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = attendance_tx(pool, owner, &prior, profile, catalog).await?;
         let social = prior.prior.prior.social();
-        let cid = prior.prior.prior.cid();
-        let mut tx = constructor_tx(pool, owner, &prior.prior.prior.prior.prior.prefix).await?;
-        let rows = character_costumes::load_for_constructor(&mut tx, cid).await?;
-        if !prior
-            .prior
-            .prior
-            .costume()
-            .matches_source(rows)
-            .map_err(CostumeError::from)?
-        {
-            return Err(ManagerError::Conflict);
-        }
-        let _vocation = character_vocation::load_first(&mut tx, cid).await?;
-        super::character_status_effects::require_absent(&mut tx, cid).await?;
-        if prior.user_info != AttendanceInfo::NotRead {
-            let row: Option<(Option<i64>,)> = sqlx::query_as(
-                "SELECT last_login_cid FROM game_user_info WHERE nexon_sn=$1 FOR SHARE",
-            )
-            .bind(owner.uid)
-            .fetch_optional(&mut *tx)
-            .await?;
-            let current = row.map_or(AttendanceInfo::Missing, |(last,)| {
-                AttendanceInfo::Present(last)
-            });
-            if current != prior.user_info {
-                return Err(ManagerError::Conflict);
-            }
-        }
         let pending = crate::domain::initial_events::Pending::before_journal(social);
         let disabled = profile.policy().is_enabled(Some("DisableLogging"))?;
         if !disabled {
@@ -476,6 +453,83 @@ pub async fn load_events(
         let loaded = pending.finish(journal);
         tx.commit().await?;
         Ok(EventManagers { prior, loaded })
+    })
+    .await
+    .map_err(|_| ManagerError::Timeout)?
+}
+
+/// Recheck retained state without rerunning Attendance clock or independent journals.
+async fn attendance_tx<'p>(
+    pool: &'p PgPool,
+    owner: &UserKey<'_>,
+    prior: &AttendanceManagers,
+    profile: &Profile,
+    catalog: &Package,
+) -> Result<sqlx::Transaction<'p, sqlx::Postgres>, ManagerError> {
+    profile.bind(catalog)?;
+    if profile.fingerprint() != &prior.profile {
+        return Err(ManagerError::Conflict);
+    }
+    let cid = prior.prior.prior.cid();
+    let mut tx = constructor_tx(pool, owner, &prior.prior.prior.prior.prior.prefix).await?;
+    let rows = character_costumes::load_for_constructor(&mut tx, cid).await?;
+    if !prior
+        .prior
+        .prior
+        .costume()
+        .matches_source(rows)
+        .map_err(CostumeError::from)?
+    {
+        return Err(ManagerError::Conflict);
+    }
+    let _vocation = character_vocation::load_first(&mut tx, cid).await?;
+    super::character_status_effects::require_absent(&mut tx, cid).await?;
+    if prior.user_info != AttendanceInfo::NotRead {
+        let row: Option<(Option<i64>,)> =
+            sqlx::query_as("SELECT last_login_cid FROM game_user_info WHERE nexon_sn=$1 FOR SHARE")
+                .bind(owner.uid)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let current = row.map_or(AttendanceInfo::Missing, |(last,)| {
+            AttendanceInfo::Present(last)
+        });
+        if current != prior.user_info {
+            return Err(ManagerError::Conflict);
+        }
+    }
+    Ok(tx)
+}
+#[must_use = "Captcha initial state only;root constructor/Join/Login/Create remain"]
+pub struct CaptchaManagers {
+    prior: EventManagers,
+    loaded: crate::domain::initial_captcha::Loaded,
+}
+impl CaptchaManagers {
+    pub fn prior(&self) -> &EventManagers {
+        &self.prior
+    }
+    pub fn loaded(&self) -> &crate::domain::initial_captcha::Loaded {
+        &self.loaded
+    }
+}
+pub async fn load_captcha(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    prior: EventManagers,
+    profile: &Profile,
+    catalog: &Package,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, crate::domain::initial_captcha::ConstructorError>,
+) -> Result<CaptchaManagers, ManagerError> {
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = attendance_tx(pool, owner, &prior.prior, profile, catalog).await?;
+        let row = super::user_captcha::read_initial(&mut tx, owner).await?;
+        let loaded = crate::domain::initial_captcha::Loaded::construct(
+            prior.prior.prior.prior.social(),
+            row,
+            &mut utc,
+        )?;
+        tx.commit().await?;
+        Ok(CaptchaManagers { prior, loaded })
     })
     .await
     .map_err(|_| ManagerError::Timeout)?

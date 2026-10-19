@@ -1,0 +1,164 @@
+{
+  "stage": "M15.1b.2e.10b.21b",
+  "schema_version": 27,
+  "scope": "full initial Captcha constructor after opaque EventManagers and independent empty-pool OnLogOut/Save;not challenges/RNG/actors/Join/Create",
+  "passed": {
+    "rust": 358,
+    "postgres_native": 190,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "gate_verified_at_utc": "2026-10-19T11:45:13.1500727+00:00",
+  "docker_verified_at_utc": "2026-10-19T11:51:54.7737299+00:00",
+  "oracle": {
+    "cases_per_architecture": 128,
+    "x86_equals_x64": true,
+    "scope": "complete original constructor/nonstatic fields/result mapper/IsInProgress/OnLogOut/Save;query/context/UTC/logger and SQL parameter boundaries instrumented;pool remains empty;static Rand/challenges/scheduler/UserCaptchaCheck excluded"
+  },
+  "boundary": {
+    "query_unconditional": true,
+    "clock_only_when_last_failure_exists": true,
+    "date_comparison_without_timezone_conversion": true,
+    "nullable_counts_default_zero": true,
+    "condition_null_or_zero_false_nonzero_true": true,
+    "empty_pool_logout_always_saves": true,
+    "save_new_context_and_commit": true,
+    "save_catches_failure": true,
+    "condition_saved_zero_or_one": true,
+    "source_no_identity": true,
+    "prior_journal_not_replayed_or_rolled_back": true,
+    "actor_and_general_merge_race_equivalence": false,
+    "native_read_isolation_stronger_than_nolock": true,
+    "normal_reference_24_rows_unchanged": true,
+    "normal_candidate_still_absent": true
+  },
+  "postgres_verification_environment": {
+    "native_runner": true,
+    "tmpfs": true,
+    "project": "vindictus-initial-captcha-verification",
+    "full_page_writes": "on",
+    "same_pinned_image": true,
+    "restricted_role": true,
+    "synchronous_commit": "on",
+    "fsync": "on",
+    "removed_without_volumes": true
+  },
+  "docker_build_profile": {
+    "frontend": "BuildKit builtin",
+    "original_dockerfile_unchanged": true,
+    "original_sha256": "f1eded0109e36e46f6c48e9d79d062501257ec98984ca344727b4a9d77968152",
+    "active_instructions_identical": true,
+    "active_instructions_sha256": "f3a0fc47525cf45d57ca027c2259066275aea634a1731cd2f9606d0254594d99",
+    "removed_only": "external #syntax directive",
+    "locked_build": true,
+    "pinned_base_images": true,
+    "nonroot_runtime": true
+  },
+  "fresh_build_source_snapshot_verified": true,
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CaptchaManager.cs",
+      "sha256": "c85eb217d611bb5561982f88094630cb9d12a208ed1a3bed6301f2a8fb43fb44"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/UserCaptchaGetResult.cs",
+      "sha256": "e0a474078fa43c0f8c3d887992a0d9349067ed762f144cebe0a2a76777de63a6"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterDataContext.cs",
+      "sha256": "dc170d91bcb289c327971c68ce0a481a1a4cb5077b7563abccf39b63b7389888"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+      "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialCaptchaOracle.cs.in",
+      "sha256": "66c5f8de47aac3c7542ad3375a3e734202a67aa96ac62c1db514cb9150c628ed"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-captcha-fixtures.ps1",
+      "sha256": "e218ad6b36b1abb7451a10f7501cc756f12271e20376f24430349ee2cafb9de4"
+    },
+    {
+      "path": "src/domain/initial_captcha.rs",
+      "sha256": "071b81935f3fedbc382b205bf17326166d03869d04485bc22b94ff244a5b2bc3"
+    },
+    {
+      "path": "src/infrastructure/user_captcha.rs",
+      "sha256": "6ff0f3480e6e86e076b7b97e092f19257ccb3523f293a441689617898dd0ccfb"
+    },
+    {
+      "path": "src/infrastructure/fiona_managers.rs",
+      "sha256": "5fbc0063dfe1bdf7ced301420d57495ebd8d58fcb085a20a81a5c9ef9eb14d22"
+    },
+    {
+      "path": "tests/initial_captcha.rs",
+      "sha256": "5b2375c4d843870a8c8ea394b8f69a97c69258b9d63a37309bac537aebe2ed08"
+    },
+    {
+      "path": "tests/support/fiona_managers.rs",
+      "sha256": "a7c5cf56212e2a3f2cd2dc02448448aa8e296b8d36093563582770b2ed3c106e"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "verification_receipts": {
+    "scope": "Git-staged JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/auth/user-captcha-source.json",
+        "sha256": "c21c2c0a94493bfe3da818eccaff78621330c817396202ddd4f833cb0517a5a8"
+      },
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "64ef6b973b13755b2519e3ef29ae7407a64b5c895c90c4959d1f7defa88cc23e"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "2fb8f981e75fb14b16d766144e017d8b9b7c8acc527bd89468ab6b62a6f8319d"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "4b03eb7d5e2c872cf2a590e874f555920bdcbc1130e6129c34a0e42bf8346d03"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "5e682dd32a7740671a38e964a6c4d5c58f50efe6be69385b921b5a59a4e56203"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "f72075e23608017c9e020809ca475be8beefa092d38e65383570956d867a3d1c"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "4bcf30eafefc0028a1d1ec698e5679ee4f9e444f7095ca46da63f9f62d0c4cf5"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "1943d3cd9b8179f590fef22b094fc7eb59cd8d0741f29ae376fac6cc02fb77a4"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "c30737bf7d24dc255e7615c5d3e138658cd1d6dbcf1a1e1d7c7459b8adaf3dde"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "d73433b41e029625a62a1e40be526bec5053509d5c31fab70eb40142dad31abc"
+      },
+      {
+        "path": "docs/evidence/database/status-effect-import.json",
+        "sha256": "a4d9da0be2d916320a3e97661cfe60f407c49a9471e11f040fddee08d4c6df87"
+      },
+      {
+        "path": "docs/evidence/database/user-captcha-import.json",
+        "sha256": "ba696c41669416a7684643cfb841d287fabc323a0b7ebce7eae7e72cb59b0eee"
+      }
+    ]
+  }
+}

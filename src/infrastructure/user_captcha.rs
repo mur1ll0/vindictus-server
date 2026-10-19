@@ -163,6 +163,16 @@ pub async fn require_absent(
     tx: &mut Transaction<'_, Postgres>,
     owner: &UserKey<'_>,
 ) -> Result<(), CaptchaError> {
+    if read_initial(tx, owner).await?.is_some() {
+        return Err(CaptchaError::Existing);
+    }
+    Ok(())
+}
+/// Exact zero/one UserCaptchaGet row. Stable native admission is stronger than NOLOCK.
+pub async fn read_initial(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+) -> Result<Option<crate::domain::initial_captcha::Source>, CaptchaError> {
     timeouts(tx).await?;
     let current: Option<(String, i64)> =
         sqlx::query_as("SELECT name,local_revision FROM game_users WHERE id=$1 FOR UPDATE")
@@ -186,15 +196,54 @@ pub async fn require_absent(
     if !initialized {
         return Err(CaptchaError::Uninitialized);
     }
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_user_captcha WHERE uid=$1)")
-            .bind(owner.uid)
-            .fetch_one(&mut **tx)
-            .await?;
-    if exists {
-        return Err(CaptchaError::Existing);
+    let row:Option<Row>=sqlx::query_as("SELECT uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition FROM game_user_captcha WHERE uid=$1")
+        .bind(owner.uid).fetch_optional(&mut **tx).await?;
+    row.map(|r| {
+        let byte = |v: Option<i16>| {
+            v.map(|v| u8::try_from(v).map_err(|_| CaptchaError::Export))
+                .transpose()
+        };
+        let date = |v: Option<i64>| {
+            v.map(|v| SqlDateTime::from_units300(v).map_err(|_| CaptchaError::Export))
+                .transpose()
+        };
+        Ok(crate::domain::initial_captcha::Source {
+            punished: byte(r.punished_count)?,
+            failure: byte(r.failure_count)?,
+            last_failure: date(r.last_failure_units300)?,
+            last_succeed: date(r.last_succeed_units300)?,
+            condition: byte(r.condition)?,
+        })
+    })
+    .transpose()
+}
+#[derive(Debug, PartialEq, Eq)]
+pub enum LogoutSave {
+    Saved,
+    Caught,
+}
+/// Empty-pool OnLogOut always calls Save. Independent context/upsert,all provider
+/// failures caught like the original. No constructor/reward/journal replay.
+pub async fn save_empty_logout(
+    pool: &PgPool,
+    state: &crate::domain::initial_captcha::Loaded,
+) -> LogoutSave {
+    let attempt=tokio::time::timeout(Duration::from_secs(5),async{
+        let date=|v:Option<crate::domain::legacy_user_data::SqlDateTime2>|v.map(|v|v.sql_parameter().map(|v|v.units300())).transpose();
+        let failure=date(state.last_failure()).map_err(|_|CaptchaError::Export)?;
+        let succeed=date(state.last_succeed()).map_err(|_|CaptchaError::Export)?;
+        let mut tx=pool.begin().await?;timeouts(&mut tx).await?;
+        sqlx::query("INSERT INTO game_user_captcha(uid,punished_count,failure_count,last_failure_units300,last_succeed_units300,condition)VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(uid) DO UPDATE SET punished_count=excluded.punished_count,failure_count=excluded.failure_count,last_failure_units300=excluded.last_failure_units300,last_succeed_units300=excluded.last_succeed_units300,condition=excluded.condition")
+            .bind(state.uid()).bind(i16::from(state.punished())).bind(i16::from(state.failure())).bind(failure).bind(succeed).bind(i16::from(u8::from(state.force())))
+            .execute(&mut *tx).await?;
+        tx.commit().await?;Ok::<_,CaptchaError>(())
+    }).await;
+    if matches!(attempt, Ok(Ok(()))) {
+        LogoutSave::Saved
+    } else {
+        tracing::warn!("captcha save attempt failed;private details suppressed");
+        LogoutSave::Caught
     }
-    Ok(())
 }
 pub async fn check_ready(pool: &PgPool) -> Result<(), CaptchaError> {
     for q in [

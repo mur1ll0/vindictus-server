@@ -1408,3 +1408,215 @@ async fn events_marble_journal_survives_independent_owner_rollback_without_repla
     ));
     cleanup_game_pool(a, p, s).await;
 }
+
+async fn captcha_prior(p: &PgPool) -> managers::EventManagers {
+    let prior = events_prior(p, true).await;
+    managers::load_events(p, &owner(), prior, &events_profile(), &catalog())
+        .await
+        .unwrap()
+}
+async fn captcha_bootstrap(p: &PgPool) {
+    use vindictus_server::infrastructure::user_captcha as db;
+    let snap = db::read_snapshot(
+        br#"{"format_version":1,"source":"study_heroes.user-captcha","rows":[]}"#.as_slice(),
+    )
+    .unwrap();
+    db::preserve(p, &snap, false).await.unwrap();
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_constructor_absent_consumes_opaque_events_without_clock_dml_or_new_journal() {
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = captcha_prior(&p).await;
+    captcha_bootstrap(&p).await;
+    let before = counts(&p).await;
+    let seq = social_sequences(&p).await;
+    let journals = event_journals(&p).await;
+    let loaded = managers::load_captcha(&p, &owner(), prior, &events_profile(), &catalog(), || {
+        panic!("absent row must not read clock")
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        (
+            loaded.loaded().uid(),
+            loaded.loaded().cid(),
+            loaded.loaded().pool_count()
+        ),
+        (31, 1, 0)
+    );
+    assert_eq!(counts(&p).await, before);
+    assert_eq!(social_sequences(&p).await, seq);
+    assert_eq!(event_journals(&p).await, journals);
+    assert_eq!(loaded.prior().loaded().marble().journal_id(), 4419700);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_nullable_day_reset_and_independent_empty_logout_save_survive_owner_rollback() {
+    use vindictus_server::infrastructure::user_captcha as db;
+    for day in [0_i64, 1] {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = captcha_prior(&p).await;
+        captcha_bootstrap(&p).await;
+        sqlx::query("INSERT INTO game_user_captcha VALUES(31,NULL,255,-1,1,255)")
+            .execute(&p)
+            .await
+            .unwrap();
+        let mut clocks = 0;
+        let loaded =
+            managers::load_captcha(&p, &owner(), prior, &events_profile(), &catalog(), || {
+                clocks += 1;
+                Ok(
+                    vindictus_server::domain::legacy_user_data::SqlDateTime2::from_ticks(
+                        599266080000000000 - 864000000000 + day * 864000000000,
+                    )
+                    .unwrap(),
+                )
+            })
+            .await
+            .unwrap();
+        assert_eq!(clocks, 1);
+        assert_eq!(loaded.loaded().failure(), if day == 0 { 255 } else { 0 });
+        assert!(loaded.loaded().force());
+        let before_save_sequence = social_sequences(&p).await;
+        let mut tx = p.begin().await.unwrap();
+        sqlx::query("SELECT id FROM game_users WHERE id=31 FOR UPDATE")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        assert_eq!(
+            db::save_empty_logout(&p, loaded.loaded()).await,
+            db::LogoutSave::Saved
+        );
+        tx.rollback().await.unwrap();
+        let actual:CaptchaStored=sqlx::query_as("SELECT punished_count,failure_count,last_failure_units300,last_succeed_units300,condition FROM game_user_captcha WHERE uid=31").fetch_one(&p).await.unwrap();
+        assert_eq!(
+            actual,
+            (
+                Some(0),
+                Some(if day == 0 { 255 } else { 0 }),
+                Some(-1),
+                Some(1),
+                Some(1)
+            )
+        );
+        assert_eq!(event_journals(&p).await.len(), 1);
+        assert_eq!(
+            db::save_empty_logout(&p, loaded.loaded()).await,
+            db::LogoutSave::Saved
+        );
+        assert_eq!(social_sequences(&p).await, before_save_sequence);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_failures_keep_marble_journal_and_refuse_stale_prior_before_clock() {
+    use vindictus_server::domain::initial_captcha::ConstructorError;
+    for mode in 0..7 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = captcha_prior(&p).await;
+        if mode != 0 {
+            captcha_bootstrap(&p).await;
+        }
+        if mode == 1 {
+            sqlx::query("INSERT INTO game_user_captcha VALUES(31,0,1,0,NULL,0)")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        if mode == 2 {
+            sqlx::query("UPDATE game_user_info SET last_login_cid=1 WHERE nexon_sn=31")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        if mode == 3 {
+            sqlx::query("UPDATE game_character_info SET str=str+1 WHERE id=1")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        if mode == 4 {
+            sqlx::query("UPDATE game_users SET service_id=service_id+1 WHERE id=31")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        if mode == 6 {
+            sqlx::query("DROP TABLE game_user_captcha")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        let prof = if mode == 5 {
+            profile("26")
+        } else {
+            events_profile()
+        };
+        let before = counts(&p).await;
+        let seq = social_sequences(&p).await;
+        let mut clocks = 0;
+        let result = managers::load_captcha(&p, &owner(), prior, &prof, &catalog(), || {
+            clocks += 1;
+            Err(ConstructorError::Clock)
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(clocks, usize::from(mode == 1));
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, seq);
+        assert_eq!(event_journals(&p).await.len(), 1);
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn captcha_empty_logout_inserts_missing_state_and_catches_provider_failure_without_rollback_of_prior()
+ {
+    use vindictus_server::infrastructure::user_captcha as db;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = captcha_prior(&p).await;
+    captcha_bootstrap(&p).await;
+    let loaded = managers::load_captcha(&p, &owner(), prior, &events_profile(), &catalog(), || {
+        panic!("unexpected clock")
+    })
+    .await
+    .unwrap();
+    sqlx::raw_sql("CREATE FUNCTION reject_captcha_save()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'synthetic save failure';END$$;CREATE TRIGGER reject_captcha_save BEFORE INSERT OR UPDATE ON game_user_captcha FOR EACH STATEMENT EXECUTE FUNCTION reject_captcha_save()").execute(&p).await.unwrap();
+    assert_eq!(
+        db::save_empty_logout(&p, loaded.loaded()).await,
+        db::LogoutSave::Caught
+    );
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM game_user_captcha")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+    assert_eq!(event_journals(&p).await.len(), 1);
+    sqlx::query("DROP TRIGGER reject_captcha_save ON game_user_captcha")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert_eq!(
+        db::save_empty_logout(&p, loaded.loaded()).await,
+        db::LogoutSave::Saved
+    );
+    let actual:CaptchaStored=sqlx::query_as("SELECT punished_count,failure_count,last_failure_units300,last_succeed_units300,condition FROM game_user_captcha WHERE uid=31").fetch_one(&p).await.unwrap();
+    assert_eq!(actual, (Some(0), Some(0), None, None, Some(0)));
+    p.close().await;
+    assert_eq!(
+        db::save_empty_logout(&p, loaded.loaded()).await,
+        db::LogoutSave::Caught
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+
+type CaptchaStored = (
+    Option<i16>,
+    Option<i16>,
+    Option<i64>,
+    Option<i64>,
+    Option<i16>,
+);

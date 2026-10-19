@@ -1,0 +1,45 @@
+using System;using System.Collections;using System.Collections.Generic;using System.Linq;using System.Data.Linq;using System.Data.Linq.Mapping;using System.Data.SqlTypes;using System.Web.Script.Serialization;
+static class Events {
+ public static int QueryMode,SaveMode,Caught;public static bool ClockFail;public static DateTime Now;public static UserCaptchaGetResult Row;public static object Payload;
+ public static List<string> Trace=new List<string>();
+ public static DateTime UtcNow{get{Trace.Add("clock");if(ClockFail)throw new Exception("synthetic clock");return Now;}}
+ public static string Units(DateTime? d){if(!d.HasValue)return null;var x=new SqlDateTime(d.Value);return ((long)x.DayTicks*25920000+x.TimeTicks).ToString();}
+ public static DateTime? Date(long? n){if(!n.HasValue)return null;long days=n.Value/25920000;long time=n.Value%25920000;if(time<0){days--;time+=25920000;}return new SqlDateTime((int)days,(int)time).Value;}
+}
+class Single:ISingleResult<UserCaptchaGetResult>{public object ReturnValue{get{return null;}}public void Dispose(){}public IEnumerator<UserCaptchaGetResult> GetEnumerator(){Events.Trace.Add("first");if(Events.QueryMode==5)return Enumerable.Empty<UserCaptchaGetResult>().GetEnumerator();return new[]{Events.QueryMode==6?null:Events.Row}.AsEnumerable().GetEnumerator();}IEnumerator IEnumerable.GetEnumerator(){return GetEnumerator();}}
+class CharacterDataContext {
+ public CharacterDataContext(){Events.Trace.Add("save-context");if(Events.SaveMode==1)throw new Exception("synthetic context");}
+ public ISingleResult<UserCaptchaGetResult> UserCaptchaGet(int uid){Events.Trace.Add("query");if(Events.QueryMode==7)throw new Exception("synthetic query");return Events.QueryMode==4?null:new Single();}
+ public void UserCaptchaSet(int uid,byte punished,byte failure,DateTime? lastFailure,DateTime? lastSucceed,byte condition){Events.Trace.Add("save");Events.Payload=new{uid=uid,punished=punished,failure=failure,last_failure_units300=Events.Units(lastFailure),last_succeed_units300=Events.Units(lastSucceed),condition=condition};if(Events.SaveMode==2)throw new Exception("synthetic save");}
+}
+class Player {public long CID;}
+class CharacterEntity {public int UID;public Player Player;public CharacterDataContext Context;public void AddUserCaptchaLog(int u,long c,UserCaptchaEvent e,object o){throw new Exception("challenge path excluded");}}
+enum UserCaptchaEvent{LoggedOut}
+class CaptchaResponseData{}
+static class Log<T>{public static Logger Logger=new Logger();}
+class Logger{public void Error(string m,Exception e){Events.Caught++;Events.Trace.Add("caught");}public void Info(string m){throw new Exception("challenge path excluded");}}
+__RESULT__
+class CaptchaManager {
+ __FIELDS__
+ __CTOR__
+ __SAVE__
+ __LOGOUT__
+ __PROGRESS__
+ void StopProgress(){throw new Exception("challenge path excluded");}void CancelTimeout(){throw new Exception("challenge path excluded");}void OnFail(){throw new Exception("challenge path excluded");}
+ public object Observe(){return new{uid=UID,cid=CID.ToString(),punished=PunishedCount,failure=FailureCount,last_failure_ticks=LastFailureTime.HasValue?LastFailureTime.Value.Ticks.ToString():null,last_succeed_ticks=LastSucceedTime.HasValue?LastSucceedTime.Value.Ticks.ToString():null,force=ForceCondition,pool_count=Pool.Count,timeout=TimeoutSchedulerID,refresh_count=RefreshCount,last_check=LastCheckConditionTime,last_refresh=LastRefreshTime,parent_matches=object.ReferenceEquals(Parent.Context,ContextForTest)};}
+ CharacterDataContext ContextForTest{get{return Parent.Context;}}
+}
+class Oracle {
+ static void Main(){var cases=new List<object>();var current=new SqlDateTime(new DateTime(2026,10,19,10,0,0));long today=(long)current.DayTicks*25920000+current.TimeTicks;
+ long?[] dates={null,-1391644800000L,76683386879999L,-1,0,1,2,today,today-25920000,today+25920000};
+ for(int n=0;n<128;n++){
+ Events.QueryMode=n%8;Events.SaveMode=n%3;Events.ClockFail=n%7==0;Events.Now=new DateTime(2026,10,19,12,0,0,DateTimeKind.Utc).AddDays(n%3-1);
+ var r=new UserCaptchaGetResult{UID=n==0?int.MinValue:n==1?int.MaxValue:31+n,PunishedCount=n%3==0?(byte?)null:(n%3==1?(byte)0:(byte)255),FailureCount=n%4==0?(byte?)null:(n%4==1?(byte)1:(byte)255),LastFailureTime=Events.Date(dates[n%10]),LastSucceedTime=Events.Date(dates[(n+3)%10]),Condition=n%3==0?(byte?)null:(n%3==1?(byte)0:(byte)255)};
+ Events.Row=r;Events.SaveMode=0;var entity=new CharacterEntity{UID=r.UID,Player=new Player{CID=n==2?long.MinValue:n==3?long.MaxValue:1000+n},Context=new CharacterDataContext()};Events.SaveMode=n%3;
+ Events.Trace.Clear();Events.Caught=0;Events.Payload=null;CaptchaManager m=null;
+ try{m=new CaptchaManager(entity);}catch(Exception){}
+ object loaded=m==null?null:m.Observe();if(m!=null)m.OnLogOut();
+ cases.Add(new{uid=r.UID,cid=entity.Player.CID.ToString(),query_mode=Events.QueryMode,save_mode=Events.SaveMode,clock_fail=Events.ClockFail,now_ticks=Events.Now.Ticks.ToString(),row=new{punished=r.PunishedCount,failure=r.FailureCount,last_failure_units300=Events.Units(r.LastFailureTime),last_succeed_units300=Events.Units(r.LastSucceedTime),condition=r.Condition},loaded=loaded,payload=Events.Payload,caught=Events.Caught,trace=Events.Trace.ToArray()});
+ }
+ Console.WriteLine(new JavaScriptSerializer().Serialize(cases));}
+}
