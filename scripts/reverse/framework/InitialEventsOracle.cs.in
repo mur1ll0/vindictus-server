@@ -1,0 +1,57 @@
+using System;using System.Collections.Generic;using System.Linq;using System.Web.Script.Serialization;
+static class Events {
+ public static bool Disabled;public static int Mode,Allocations,Errors,Contexts;public static long Result;
+ public static List<string> Trace=new List<string>();public static object Before;
+ public static long Journal(MarbleManager m){Trace.Add("journal-boundary");Before=m.Observe();return ItemLog.AddItemJournal("MarbleLog");}
+}
+class PlayerEntity{public long CID;}
+class CharacterEntity{public int UID;public PlayerEntity Player;}
+class ItemInstanceDataContext{public ItemInstanceDataContext(){Events.Contexts++;Events.Trace.Add("item-context");}}
+class LogDataContext:IDisposable{
+ public LogDataContext(){Events.Trace.Add("log-context");if(Events.Mode==3)throw new Exception("synthetic constructor");}
+ public void AddItemJournal(string operation,ref long? id){
+  if(operation!="MarbleLog")throw new Exception("wrong operation");Events.Trace.Add("allocate");Events.Allocations++;
+  if(Events.Mode==1)throw new Exception("synthetic provider");
+  id=Events.Mode==2?(long?)null:Events.Result;
+ }
+ public void Dispose(){Events.Trace.Add("dispose-log");}
+}
+class FeatureMatrix {public static bool IsEnable(string key){if(key!="DisableLogging")throw new Exception("unexpected feature query");Events.Trace.Add("DisableLogging");return Events.Disabled;}}
+class ItemOwner{}
+static class Log<T>{public static Logger Logger=new Logger();}
+class Logger{public void Error(string message,Exception e){Events.Errors++;Events.Trace.Add("caught");}}
+static class ItemLog{__ADDJOURNAL__}
+class RouletteManager{
+ private ItemInstanceDataContext context;public CharacterEntity Parent{get;private set;}
+ __ROULETTE_FIELDS__
+ __ROULETTE__ __EXPIRED__
+ public object Observe(){return new{cid=Parent.Player.CID,uid=Parent.UID,id=rouletteID,version=rouletteVersion,expiry_ticks=rouletteExpire.Ticks,expired=IsExpired,slots=rouletteSlotInfo.Count,appearances=appearanceCount.Count,context_present=context!=null};}
+ public ItemInstanceDataContext ContextForTest{get{return context;}}
+ public void FutureExpiryWrite(DateTime v){rouletteExpire=v;}
+}
+class MarbleBoardInfo{}
+class MarbleNodeInfo{}
+class MarbleManager{
+ private CharacterEntity Parent;private long CID;private ItemInstanceDataContext Context;
+ __MARBLE_FIELDS__ __STATE_ENUM__
+ public int MarbleID{get;private set;}public int CurrentIndex{get;private set;}public long DTScheduleID{get;private set;}
+ __MARBLE__ __INITIALIZED__
+ public CharacterEntity ParentForTest{get{return Parent;}}
+ public ItemInstanceDataContext ContextForTest{get{return Context;}}
+ public object Observe(){return new{cid=CID,uid=Parent.UID,id=MarbleID,index=CurrentIndex,schedule=DTScheduleID,journal=JournalID,state=(int)State,chance_face=ChanceDiceFaceNumber,chance_indices=ChanceResultNodeIndexList.Count,board_present=MarbleBoardInfo!=null,nodes_present=MarbleNodeInfoList!=null,initialized=Initilized,context_present=Context!=null};}
+ public void FutureBoardWrite(MarbleBoardInfo b,List<MarbleNodeInfo> n){MarbleBoardInfo=b;MarbleNodeInfoList=n;}
+}
+class Oracle{
+ static void Main(){
+ var cases=new List<object>();
+ for(int n=0;n<64;n++){
+  Events.Trace.Clear();Events.Allocations=Events.Errors=Events.Contexts=0;Events.Before=null;
+  Events.Disabled=n%5==0;Events.Mode=n%4;Events.Result=n==1?long.MaxValue:201+n;
+  var c=new CharacterEntity{UID=n==1?int.MinValue:31+n,Player=new PlayerEntity{CID=n==2?long.MinValue:101+n}};
+  var r=new RouletteManager(c);MarbleManager m=null;bool supported=true;
+  try{m=new MarbleManager(c);}catch(Exception){supported=false;}
+  cases.Add(new{uid=c.UID,cid=c.Player.CID,disabled=Events.Disabled,mode=Events.Mode,journal_result=Events.Result,supported=supported,allocations=Events.Allocations,errors=Events.Errors,contexts=Events.Contexts,trace=Events.Trace.ToArray(),before=Events.Before,roulette=r.Observe(),marble=m==null?null:m.Observe(),same_parent=m!=null&&object.ReferenceEquals(r.Parent,m.ParentForTest),distinct_contexts=m!=null&&!object.ReferenceEquals(r.ContextForTest,m.ContextForTest)});
+ }
+ Console.WriteLine(new JavaScriptSerializer().Serialize(cases));
+ }
+}

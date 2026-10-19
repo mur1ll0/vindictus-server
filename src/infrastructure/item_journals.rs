@@ -153,6 +153,13 @@ pub async fn get_item_journal_id(pool: &PgPool, disable_operation_logging: bool)
 }
 /// Caller must validate the normal creation profile. SQL insertion failure consumes the ID.
 pub async fn add_customization_journal(pool: &PgPool, disable_logging: bool) -> i64 {
+    add_named_journal(pool, disable_logging, "CustomizeCharacter").await
+}
+/// Same recovered AddItemJournal procedure and independent counter/context.
+pub async fn add_marble_journal(pool: &PgPool, disable_logging: bool) -> i64 {
+    add_named_journal(pool, disable_logging, "MarbleLog").await
+}
+async fn add_named_journal(pool: &PgPool, disable_logging: bool, name: &str) -> i64 {
     if disable_logging {
         return -1;
     }
@@ -173,10 +180,7 @@ pub async fn add_customization_journal(pool: &PgPool, disable_logging: bool) -> 
                 "INSERT INTO game_item_journal02(id,category_utf16)VALUES($1,$2)"
             }
         };
-        let category: Vec<u8> = "CustomizeCharacter"
-            .encode_utf16()
-            .flat_map(u16::to_le_bytes)
-            .collect();
+        let category: Vec<u8> = name.encode_utf16().flat_map(u16::to_le_bytes).collect();
         sqlx::query(q).bind(id).bind(category).execute(pool).await?;
         Ok::<_, sqlx::Error>(id)
     })
@@ -184,7 +188,7 @@ pub async fn add_customization_journal(pool: &PgPool, disable_logging: bool) -> 
     match r {
         Ok(Ok(id)) => id,
         _ => {
-            tracing::warn!("customization journal attempt failed;private details suppressed");
+            tracing::warn!("item journal attempt failed;private details suppressed");
             -1
         }
     }

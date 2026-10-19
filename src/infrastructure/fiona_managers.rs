@@ -314,8 +314,16 @@ pub async fn load_status(
     .map_err(|_| ManagerError::Timeout)?
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AttendanceInfo {
+    NotRead,
+    Missing,
+    Present(Option<i64>),
+}
 #[must_use = "initial Attendance only;Roulette/Marble/Captcha/Join/Login/Create remain"]
 pub struct AttendanceManagers {
+    user_info: AttendanceInfo,
+    profile: [u8; 32],
     prior: StatusManagers,
     loaded: crate::domain::initial_attendance::Loaded,
 }
@@ -356,6 +364,7 @@ pub async fn load_attendance(
         let _vocation = character_vocation::load_first(&mut tx, prior.prior.cid()).await?;
         super::character_status_effects::require_absent(&mut tx, prior.prior.cid()).await?;
         let mut loaded = crate::domain::initial_attendance::Loaded::all_user(prior.prior.social());
+        let mut user_info = AttendanceInfo::NotRead;
         if crate::domain::initial_attendance::Loaded::enabled(profile.policy())? {
             let count: i64 =
                 sqlx::query_scalar("SELECT COUNT(*) FROM game_user_info WHERE nexon_sn=$1")
@@ -369,8 +378,10 @@ pub async fn load_attendance(
                 .bind(owner.uid)
                 .fetch_one(&mut *tx)
                 .await?;
+                user_info = AttendanceInfo::Present(cid);
                 cid.is_none()
             } else {
+                user_info = AttendanceInfo::Missing;
                 false
             };
             loaded.initialize_newbie(
@@ -381,7 +392,90 @@ pub async fn load_attendance(
             )?;
         }
         tx.commit().await?;
-        Ok(AttendanceManagers { prior, loaded })
+        Ok(AttendanceManagers {
+            prior,
+            loaded,
+            user_info,
+            profile: *profile.fingerprint(),
+        })
+    })
+    .await
+    .map_err(|_| ManagerError::Timeout)?
+}
+
+#[must_use = "Roulette/Marble instance constructors only;Captcha/Join/Login/Create remain"]
+pub struct EventManagers {
+    prior: AttendanceManagers,
+    loaded: crate::domain::initial_events::Loaded,
+}
+impl EventManagers {
+    pub fn prior(&self) -> &AttendanceManagers {
+        &self.prior
+    }
+    pub fn loaded(&self) -> &crate::domain::initial_events::Loaded {
+        &self.loaded
+    }
+}
+/// Independent AddItemJournal commit is deliberately outside the owner transaction.
+/// Refuse stale retained state before any sequence/log side effect; no automatic
+/// retry. Cancellation or a later failure can leave a consumed identity/journal.
+pub async fn load_events(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    prior: AttendanceManagers,
+    profile: &Profile,
+    catalog: &Package,
+) -> Result<EventManagers, ManagerError> {
+    profile.bind(catalog)?;
+    if profile.fingerprint() != &prior.profile {
+        return Err(ManagerError::Conflict);
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let social = prior.prior.prior.social();
+        let cid = prior.prior.prior.cid();
+        let mut tx = constructor_tx(pool, owner, &prior.prior.prior.prior.prior.prefix).await?;
+        let rows = character_costumes::load_for_constructor(&mut tx, cid).await?;
+        if !prior
+            .prior
+            .prior
+            .costume()
+            .matches_source(rows)
+            .map_err(CostumeError::from)?
+        {
+            return Err(ManagerError::Conflict);
+        }
+        let _vocation = character_vocation::load_first(&mut tx, cid).await?;
+        super::character_status_effects::require_absent(&mut tx, cid).await?;
+        if prior.user_info != AttendanceInfo::NotRead {
+            let row: Option<(Option<i64>,)> = sqlx::query_as(
+                "SELECT last_login_cid FROM game_user_info WHERE nexon_sn=$1 FOR SHARE",
+            )
+            .bind(owner.uid)
+            .fetch_optional(&mut *tx)
+            .await?;
+            let current = row.map_or(AttendanceInfo::Missing, |(last,)| {
+                AttendanceInfo::Present(last)
+            });
+            if current != prior.user_info {
+                return Err(ManagerError::Conflict);
+            }
+        }
+        let pending = crate::domain::initial_events::Pending::before_journal(social);
+        let disabled = profile.policy().is_enabled(Some("DisableLogging"))?;
+        if !disabled {
+            let source: Option<(Option<i64>,)> = sqlx::query_as(
+                "SELECT source_last FROM game_journal_identity WHERE kind=2 FOR SHARE",
+            )
+            .fetch_optional(&mut *tx)
+            .await?;
+            if source.is_none() {
+                return Err(ManagerError::Conflict);
+            }
+        }
+        let journal = super::item_journals::add_marble_journal(pool, disabled).await;
+        let loaded = pending.finish(journal);
+        tx.commit().await?;
+        Ok(EventManagers { prior, loaded })
     })
     .await
     .map_err(|_| ManagerError::Timeout)?

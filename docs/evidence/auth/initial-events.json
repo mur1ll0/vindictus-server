@@ -1,0 +1,227 @@
+{
+  "stage": "M15.1b.2e.10b.20",
+  "schema_version": 26,
+  "scope": "initial instance Roulette/Marble after opaque Attendance,independent MarbleLog;not static lifecycle/full events/RNG/actors/Create",
+  "passed": {
+    "rust": 352,
+    "postgres_native": 182,
+    "postgres_ignored": 0,
+    "python": 41,
+    "warnings": 0
+  },
+  "gate_verified_at_utc": "2026-10-18T23:47:50.6331973+00:00",
+  "docker_verified_at_utc": "2026-10-19T01:31:43.4349202+00:00",
+  "oracle": {
+    "cases_per_architecture": 64,
+    "x86_equals_x64": true,
+    "scope": "complete original instance constructors/nonstatic field initializers/initial getters and ItemLog.AddItemJournal;contexts/features/journal provider instrumented;Marble call wrapped only to observe pre-journal state;static initialization explicitly excluded and identified separately,not forced by empty startup call;context-construction-failure controls outside native admission"
+  },
+  "static_metadata": {
+    "player_service_sha256": "f23d8b9df77c45dc332921cc3ccb22cdefaaa98703a863c69f6bf9f53e9c04f6",
+    "inspector": "existing ilspycmd -il;static analysis only,no target execution",
+    "types": {
+      "RouletteManager": {
+        "beforefieldinit": true,
+        "header_sha256": "16c6cbc77d888a339ede1ca18e649b6073773968f8b48e80966949f4df2ec37f"
+      },
+      "PlayerService.ItemServiceCore.MarbleSystem.MarbleManager": {
+        "beforefieldinit": true,
+        "header_sha256": "dd442d909110d853b2e2675f86fd630d4522508d613b2f626422142ca0427113"
+      }
+    },
+    "framework_random": {
+      "x86_assembly_sha256": "3547e626e1bc75044a0cb092000b262ef4be3284ce15db5b1c91f822f7d5e50c",
+      "x64_assembly_sha256": "dfeef20a1f2a689ee2274d9565bb0cdc737fb37182cc2d283d0319ad6c83e966",
+      "type_source_sha256": "f9bac62c66d528846a3cc57720fa923f86c98a998accb97be4dfa5c9bb91f59a",
+      "x86_x64_type_source_equal": true,
+      "default_seed": "Environment.TickCount",
+      "migrated_in_this_step": false
+    }
+  },
+  "rea_partial": {
+    "framework": {
+      "evidence_id": "ev_14320d433bab542adca25591c1249bb6a681283cf3e87141ba3a3f480ec6835b",
+      "authority": "shipped-artifact",
+      "confidence": "observed",
+      "artifact": {
+        "path": "C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\mscorlib.dll",
+        "sha256": "3547e626e1bc75044a0cb092000b262ef4be3284ce15db5b1c91f822f7d5e50c",
+        "byte_length": 5680104,
+        "format": "pe"
+      },
+      "coverage": {
+        "state": "partial",
+        "issues": [
+          {
+            "code": "resource-limit",
+            "scope": "metadata.representation",
+            "offset": 1589606,
+            "detail": "Managed metadata exceeds the 67108864 byte representation budget"
+          }
+        ]
+      },
+      "limitations": [
+        "CLI metadata inspection stopped at its representation budget; omitted facts are unknown."
+      ]
+    },
+    "player_service": {
+      "evidence_id": "ev_674bc0d65b7207d7e5da651ccbd3e2b8fb2ee1395c3bfcd74eb3a2696700e055",
+      "authority": "shipped-artifact",
+      "confidence": "observed",
+      "artifact": {
+        "path": "D:\\PROJETOS\\VindictusPrivate\\ServidorVindictus\\Server\\zh-tw-x-gm\\Bin\\PlayerService.dll",
+        "sha256": "f23d8b9df77c45dc332921cc3ccb22cdefaaa98703a863c69f6bf9f53e9c04f6",
+        "byte_length": 2385510,
+        "format": "pe"
+      },
+      "coverage": {
+        "state": "unavailable",
+        "issues": [
+          {
+            "code": "resource-limit",
+            "scope": "metadata.representation",
+            "offset": 644320,
+            "detail": "Managed metadata exceeds the 67108864 byte representation budget"
+          }
+        ]
+      },
+      "limitations": [
+        "The CLI metadata could not be admitted; managed member inspection is unavailable."
+      ]
+    }
+  },
+  "real_profile": {
+    "profile_sha256": "0ba722fbaca42c23c189d143e606dab8155373ae22c8ef320910e4ed185e794d",
+    "framework_comparisons": 30,
+    "disable_logging": false,
+    "private_values_published": false
+  },
+  "journal_source_receipt": "docs/evidence/auth/item-journal-source.json",
+  "boundary": {
+    "opaque_attendance_consumed": true,
+    "retained_owner_state_user_info_and_exact_profile_rechecked": true,
+    "two_distinct_deferred_item_contexts": true,
+    "journal_independent_commit": true,
+    "insert_failure_consumes_identity": true,
+    "rollback_does_not_erase_journal": true,
+    "normal_profile_not_relaxed": true,
+    "static_state_migrated": false,
+    "exact_original_initialization_time_known": false,
+    "automatic_retry": false
+  },
+  "postgres_verification_environment": {
+    "native_runner": true,
+    "tmpfs": true,
+    "project": "vindictus-initial-events-verification",
+    "full_page_writes": "on",
+    "same_pinned_image": true,
+    "restricted_role": true,
+    "synchronous_commit": "on",
+    "fsync": "on",
+    "removed_without_volumes": true
+  },
+  "docker_build_profile": {
+    "frontend": "BuildKit builtin",
+    "original_dockerfile_unchanged": true,
+    "original_sha256": "f1eded0109e36e46f6c48e9d79d062501257ec98984ca344727b4a9d77968152",
+    "active_instructions_identical": true,
+    "active_instructions_sha256": "f3a0fc47525cf45d57ca027c2259066275aea634a1731cd2f9606d0254594d99",
+    "removed_only": "external #syntax directive",
+    "locked_build": true,
+    "pinned_base_images": true,
+    "nonroot_runtime": true
+  },
+  "sources": [
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/RouletteManager.cs",
+      "sha256": "e5771634b922f8b3646e494708932827a25599effaa44a25597d10f15c8fb490"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.MarbleSystem/MarbleManager.cs",
+      "sha256": "33b3f76c3ad9c0e2cd1498fdff20d31f0eab90e89c0b719fc93d266b488f5d4d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemLog.cs",
+      "sha256": "8893b91d8d736de8614dc06657cd62f545e7bfc69175727d592a62c44e12412a"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterEntity.cs",
+      "sha256": "8611c063de183dcc0774e4aa5d646de149882d46545b0c2ad5d84a0efc91981f"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService/PlayerService.cs",
+      "sha256": "37b52bf20c55590526bed8f271abae9eb28aaefdce0b1035eae89f034f39c71c"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/ItemInstanceDataContext.cs",
+      "sha256": "b9ebd1a5395e3ea2941acae30cf5f2971a3a1d996cba4fa501642dc737b3336a"
+    },
+    {
+      "path": "scripts/reverse/framework/InitialEventsOracle.cs.in",
+      "sha256": "0f21770687c3ef25a1e8da2cd992d9161041f3758304ca39c2b3a508a2bba0a8"
+    },
+    {
+      "path": "scripts/reverse/recover-initial-events-metadata.ps1",
+      "sha256": "3306e3a55b4c265d7bde6e6d992153ca36614dad5f6e466043d7c4a142d4995c"
+    },
+    {
+      "path": "scripts/reverse/generate-initial-events-fixtures.ps1",
+      "sha256": "55b00214e18c959625f028307b758ec4b9b4c0fd7fc8a74e3c6f472547b99578"
+    }
+  ],
+  "client": {
+    "new_run": false,
+    "create_available": false,
+    "selection_available": false,
+    "city_movement_available": false
+  },
+  "verification_receipts": {
+    "scope": "Git-staged verification JSON bytes",
+    "files": [
+      {
+        "path": "docs/evidence/auth/item-journal-source.json",
+        "sha256": "44d8a787d720e222102600a0e387e8e170a459703a34d7626dec926fe430f7fe"
+      },
+      {
+        "path": "docs/evidence/verification/gate.json",
+        "sha256": "a5f0d66b484ef50578b6ad75e84eb8d50a3b3f5c026a511ba659d9ea7c433149"
+      },
+      {
+        "path": "docs/evidence/verification/docker-smoke.json",
+        "sha256": "e993ce710c4294cb5f2acc6f8a3fe3fe86e47225ea9eaa06cc024964a78cbd03"
+      },
+      {
+        "path": "docs/evidence/database/character-state-import.json",
+        "sha256": "dff346077bcf83fc3679ce9124b4b706d75bfc46b3747add299c19d0ac050a14"
+      },
+      {
+        "path": "docs/evidence/database/costumes-import.json",
+        "sha256": "0fe77ce4d3ffc87f547d9457618b8d57876ffebb8d66ed83a4b89051681bb652"
+      },
+      {
+        "path": "docs/evidence/database/item-state-import.json",
+        "sha256": "fe16ed23fe27519f58fa9ddd66f95c6cc82bc8c50241fb89b19db60260c4acff"
+      },
+      {
+        "path": "docs/evidence/database/journal-identities-import.json",
+        "sha256": "f37b63df9ed616a478f83d3b68888028eb2851f80d0508f1ff37ee49c2138ca1"
+      },
+      {
+        "path": "docs/evidence/database/shared-items-import.json",
+        "sha256": "2715729ed45534595354a46cd9d9414d7e892ee596214e03dc159a2bb85059de"
+      },
+      {
+        "path": "docs/evidence/database/skills-import.json",
+        "sha256": "bcd8d0ad9d7f734972b249cb5fdcb122e1ec9a2eb2499a7b51dc6f7909aed3f0"
+      },
+      {
+        "path": "docs/evidence/database/vocation-import.json",
+        "sha256": "557597d651c8fab8cdfa8b0a6a61ceb5c35a52f6060e639e7888e25d88e5a032"
+      },
+      {
+        "path": "docs/evidence/database/status-effect-import.json",
+        "sha256": "8e518900e6ca6d9fe5772bcb9daf1dfda3843deb8a941f6cb63b8bed559ff8a9"
+      }
+    ]
+  }
+}

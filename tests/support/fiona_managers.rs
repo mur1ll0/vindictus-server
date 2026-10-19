@@ -1147,3 +1147,264 @@ async fn attendance_constructor_preserves_first_query_window_and_caught_failure_
         cleanup_game_pool(a, p, s).await;
     }
 }
+
+fn events_profile() -> Profile {
+    profile("25")
+}
+async fn events_prior(p: &PgPool, bootstrap: bool) -> managers::AttendanceManagers {
+    let prior = attendance_prior(p).await;
+    sqlx::query("INSERT INTO game_user_info VALUES(31,NULL,true)")
+        .execute(p)
+        .await
+        .unwrap();
+    if bootstrap {
+        use vindictus_server::infrastructure::item_journals as j;
+        let source=j::read_snapshot(br#"{"format_version":1,"source":"study_heroesLog.journal-identities","item_last":"611635799","character_last":"4419699"}"#.as_slice()).unwrap();
+        j::preserve(p, &source, false).await.unwrap();
+    }
+    managers::load_attendance(
+        p,
+        &owner(),
+        prior,
+        &events_profile(),
+        &catalog(),
+        vindictus_server::infrastructure::lab_clock::utc_now,
+    )
+    .await
+    .unwrap()
+}
+type EventJournalRow = (i64, Vec<u8>, i64, Option<Vec<u8>>);
+async fn event_journals(p: &PgPool) -> Vec<EventJournalRow> {
+    sqlx::query_as("SELECT id,category_utf16,time_ticks,legacy_last_update FROM game_item_journal01 UNION ALL SELECT id,category_utf16,time_ticks,legacy_last_update FROM game_item_journal02 ORDER BY id").fetch_all(p).await.unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn events_constructor_writes_only_independent_marble_journal_and_character_counter() {
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = events_prior(&p, true).await;
+    let before = counts(&p).await;
+    let sequences = social_sequences(&p).await;
+    sqlx::query("CREATE FUNCTION reject_event_write()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'unexpected event constructor write';END$$").execute(&p).await.unwrap();
+    let tables:Vec<String>=sqlx::query_scalar("SELECT tablename::text FROM pg_tables WHERE schemaname=current_schema() AND tablename LIKE 'game_%' AND tablename NOT IN('game_item_journal01','game_item_journal02')").fetch_all(&p).await.unwrap();
+    for table in tables {
+        assert!(
+            table
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        );
+        sqlx::query(&format!("CREATE TRIGGER reject_event_write BEFORE INSERT OR UPDATE OR DELETE ON {table} FOR EACH STATEMENT EXECUTE FUNCTION reject_event_write()")).execute(&p).await.unwrap();
+    }
+    let out = managers::load_events(&p, &owner(), prior, &events_profile(), &catalog())
+        .await
+        .unwrap();
+    let events = out.loaded();
+    assert!(events.matches_social(out.prior().prior().prior().social()));
+    assert!(events.shares_parent());
+    assert!(events.contexts_distinct());
+    assert_eq!(events.roulette().id(), -1);
+    assert_eq!(events.roulette().version(), -1);
+    assert!(events.roulette().initially_expired());
+    assert_eq!(events.marble().journal_id(), 4419700);
+    assert_eq!(events.marble().chance_face(), -1);
+    assert!(!events.marble().initialized());
+    let rows = event_journals(&p).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].0, 4419700);
+    assert_eq!(
+        rows[0].1,
+        "MarbleLog"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>()
+    );
+    assert!(rows[0].2 > 0);
+    assert!(rows[0].3.is_none());
+    let item: (i64, bool) = sqlx::query_as("SELECT last_value,is_called FROM game_item_journal_id")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(item, (611635800, false));
+    let character: (i64, bool) =
+        sqlx::query_as("SELECT last_value,is_called FROM game_character_journal_id")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(character, (4419700, true));
+    let after = social_sequences(&p).await;
+    assert_eq!(before, counts(&p).await);
+    assert_eq!(
+        sequences
+            .into_iter()
+            .filter(|(n, _)| n != "game_character_journal_id")
+            .collect::<Vec<_>>(),
+        after
+            .into_iter()
+            .filter(|(n, _)| n != "game_character_journal_id")
+            .collect::<Vec<_>>()
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn events_constructor_keeps_suppressed_and_failed_journal_sentinel_without_reclaiming_id() {
+    for phase in 0..3 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = events_prior(&p, phase != 0).await;
+        if phase == 1 {
+            sqlx::query("CREATE FUNCTION reject_marble_journal()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'injected journal insert failure';END$$").execute(&p).await.unwrap();
+            for table in ["game_item_journal01", "game_item_journal02"] {
+                sqlx::query(&format!("CREATE TRIGGER reject_marble_journal BEFORE INSERT ON {table} FOR EACH STATEMENT EXECUTE FUNCTION reject_marble_journal()")).execute(&p).await.unwrap();
+            }
+        }
+        if phase == 2 {
+            sqlx::query("SELECT setval('game_character_journal_id',9223372036854775807,true)")
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+        let before = counts(&p).await;
+        let id = if phase == 0 {
+            // The normal profile forbids DisableLogging=true; test suppression
+            // at the source helper without widening constructor admission.
+            drop(prior);
+            vindictus_server::infrastructure::item_journals::add_marble_journal(&p, true).await
+        } else {
+            let out = managers::load_events(&p, &owner(), prior, &events_profile(), &catalog())
+                .await
+                .unwrap();
+            assert_eq!(out.loaded().marble().chance_face(), -1);
+            out.loaded().marble().journal_id()
+        };
+        assert_eq!(id, -1);
+        assert_eq!(event_journals(&p).await.len(), 0);
+        assert_eq!(counts(&p).await, before);
+        let seq: (i64, bool) =
+            sqlx::query_as("SELECT last_value,is_called FROM game_character_journal_id")
+                .fetch_one(&p)
+                .await
+                .unwrap();
+        assert_eq!(
+            seq,
+            match phase {
+                0 => (4419625, false),
+                1 => (4419700, true),
+                _ => (i64::MAX, true),
+            }
+        );
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn events_constructor_refuses_stale_prior_before_journal_or_identity() {
+    for phase in 0..12 {
+        let (a, p, s) = isolated_game_pool().await;
+        let prior = events_prior(&p, phase != 8).await;
+        let mut key = owner();
+        let mut prof = events_profile();
+        let mut cat = catalog();
+        match phase {
+            0 => {
+                sqlx::query("UPDATE game_users SET name=name WHERE id=31")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            1 => {
+                sqlx::query("INSERT INTO game_status_effects VALUES(1,1,$1,0,0,0,0)")
+                    .bind(vec![65u8, 0])
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            2 => {
+                sqlx::query("INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn)VALUES(1,1,true,0,0,99)").execute(&p).await.unwrap();
+            }
+            3 => {
+                sqlx::query("INSERT INTO game_vocations VALUES(1,0,0,0,NULL)")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            4 => {
+                sqlx::query("UPDATE game_user_info SET last_login_cid=42 WHERE nexon_sn=31")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            5 => {
+                sqlx::query("DELETE FROM game_user_info WHERE nexon_sn=31")
+                    .execute(&p)
+                    .await
+                    .unwrap();
+            }
+            6 => prof = profile("26"),
+            7 => cat.manifest.config_sha256 = "c".repeat(64),
+            9 => {
+                sqlx::query(
+                    "UPDATE game_character_state_preservation SET source_sha256=$1 WHERE singleton",
+                )
+                .bind(vec![7u8; 32])
+                .execute(&p)
+                .await
+                .unwrap();
+            }
+            10 => key.uid = 32,
+            11 => {
+                sqlx::query(
+                    "UPDATE game_status_effect_preservation SET initialized=false WHERE singleton",
+                )
+                .execute(&p)
+                .await
+                .unwrap();
+            }
+            _ => {}
+        }
+        let before = counts(&p).await;
+        let sequences = social_sequences(&p).await;
+        assert!(
+            managers::load_events(&p, &key, prior, &prof, &cat)
+                .await
+                .is_err()
+        );
+        assert_eq!(counts(&p).await, before);
+        assert_eq!(social_sequences(&p).await, sequences);
+        assert!(event_journals(&p).await.is_empty());
+        cleanup_game_pool(a, p, s).await;
+    }
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn events_marble_journal_survives_independent_owner_rollback_without_replay_reseed() {
+    use vindictus_server::infrastructure::item_journals as j;
+    let (a, p, s) = isolated_game_pool().await;
+    let prior = events_prior(&p, true).await;
+    let mut tx = p.begin().await.unwrap();
+    let uid: i32 = sqlx::query_scalar("SELECT id FROM game_users WHERE id=31 FOR UPDATE")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    let cid: i64 = sqlx::query_scalar("SELECT id FROM game_characters WHERE id=1 FOR UPDATE")
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap();
+    assert_eq!((uid, cid), (31, 1));
+    let id = j::add_marble_journal(&p, false).await;
+    assert_eq!(id, 4419700);
+    tx.rollback().await.unwrap();
+    drop(prior);
+    assert_eq!(event_journals(&p).await.len(), 1);
+    let source=j::read_snapshot(br#"{"format_version":1,"source":"study_heroesLog.journal-identities","item_last":"611635799","character_last":"4419699"}"#.as_slice()).unwrap();
+    j::preserve(&p, &source, true).await.unwrap();
+    let seq: (i64, bool) =
+        sqlx::query_as("SELECT last_value,is_called FROM game_character_journal_id")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(seq, (4419700, true));
+    assert!(matches!(
+        managers::initialize(&p, &owner(), 1, &events_profile(), &catalog()).await,
+        Err(ManagerError::Conflict)
+    ));
+    cleanup_game_pool(a, p, s).await;
+}

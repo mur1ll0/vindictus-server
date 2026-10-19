@@ -180,6 +180,7 @@ impl InitialSkill {
     }
 }
 pub struct Profile {
+    fingerprint: [u8; 32],
     db: String,
     config: String,
     state: [u8; 32],
@@ -418,6 +419,7 @@ impl Profile {
             BaseLoad::from_bits(u64::from_str_radix(&r.base_load_bits, 16).map_err(|_| fail())?)
                 .map_err(|_| fail())?;
         Ok(Self {
+            fingerprint: Sha256::digest(&*data).into(),
             db: r.database_sha256,
             config: r.config_sha256,
             state: hash_bytes(r.state_sha256)?,
@@ -437,6 +439,9 @@ impl Profile {
             return Err(fail());
         };
         Ok(())
+    }
+    pub fn fingerprint(&self) -> &[u8; 32] {
+        &self.fingerprint
     }
     pub fn source_state(&self) -> &[u8; 32] {
         &self.state
