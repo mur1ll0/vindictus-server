@@ -858,6 +858,83 @@ impl Connection {
                 return Ok(());
             }
         }
+        {
+            use crate::protocol::equipment::{self as wire, Kind, Message};
+            if matches(
+                category,
+                body,
+                Kind::EquipItem.category(),
+                Kind::EquipItem.type_id(),
+            ) {
+                if !self
+                    .password
+                    .as_ref()
+                    .is_some_and(|p| p.selection_allowed(&self.frontend))
+                {
+                    locked(stream, sender).await?;
+                    return Ok(());
+                }
+                let Some(Message::EquipItem { item_id, part }) =
+                    wire::decode_ingress(Kind::EquipItem, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                let Some(selected) = self.selected.as_ref() else {
+                    locked(stream, sender).await?;
+                    return Ok(());
+                };
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let assets = &runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .assets;
+                let outcome = super::minimum_equip::equip(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    item_id,
+                    part,
+                    runtime.minimum_header()?,
+                    runtime.stat_arithmetic(),
+                )
+                .await;
+                match outcome {
+                    Ok(super::minimum_equip::Outcome::Applied { packets, look }) => {
+                        for packet in &packets {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        if let Some(selected) = self.selected.as_mut() {
+                            selected.look = look;
+                        }
+                        tracing::info!("minimum equipment change saved and synchronized");
+                    }
+                    Ok(super::minimum_equip::Outcome::Refused(packet)) => {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                        tracing::info!("minimum equipment change refused by source rules");
+                    }
+                    Ok(super::minimum_equip::Outcome::Unchanged) => {}
+                    // Unsupported states and storage failures keep the session; nothing changed.
+                    Err(_) => tracing::warn!("minimum equipment change rejected; values omitted"),
+                }
+                return Ok(());
+            }
+        }
         if self.selected.is_some() {
             return Ok(());
         }

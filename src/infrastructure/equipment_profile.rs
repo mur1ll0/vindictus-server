@@ -20,7 +20,17 @@ struct Class {
     feature: Option<String>,
     category_utf16: PrivateText,
     level: i32,
+    required_level: i32,
+    level_upper_bound: i32,
+    class_restriction: i32,
+    cafe_only: i32,
+    #[serde(deserialize_with = "nullable")]
+    required_skill_utf16: Option<PrivateText>,
+    required_skill_rank: i32,
+    required_enhance: i32,
+    required_enchant: i32,
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Equip {
@@ -104,7 +114,7 @@ impl Profile {
             .iter()
             .map(|(k, v)| (k.clone(), v["sha256"].as_str().unwrap_or("").to_owned()))
             .collect();
-        if p.format_version != 1
+        if p.format_version != 2
             || p.source != "heroesContents.normal-equipment"
             || p.implementations != expected
             || p.classes.is_empty()
@@ -121,6 +131,7 @@ impl Profile {
         for c in &p.classes {
             raw(&c.item_utf16)?;
             text(&c.category_utf16)?;
+            c.required_skill_utf16.as_ref().map(text).transpose()?;
         }
         for e in &p.equips {
             raw(&e.item_utf16)?;
@@ -211,6 +222,45 @@ impl Profile {
             equip_class: text(&e.equip_utf16)?,
             serial: e.serial,
             sets,
+        })
+    }
+    /// ItemClassInfoConstraintTrait for a bound normal equipment class.
+    pub fn constraint(
+        &self,
+        catalog: &Catalog,
+        key: &[u8],
+    ) -> Result<crate::domain::item_constraint::Constraint, MinimumError> {
+        self.bind(catalog)?;
+        let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
+        let item = effective.get(Some(key)).ok_or_else(fail)?;
+        let c = self
+            .classes
+            .iter()
+            .find(|c| c.source_index == item.source_index)
+            .ok_or_else(fail)?;
+        let class = raw(&c.item_utf16)?;
+        Ok(crate::domain::item_constraint::Constraint {
+            cafe_only: c.cafe_only,
+            required_level: c.required_level,
+            level_upper_bound: c.level_upper_bound,
+            class_restriction: c.class_restriction,
+            required_guild_level: if class
+                == "guild_campfire_kit_lvl1"
+                    .encode_utf16()
+                    .flat_map(u16::to_le_bytes)
+                    .collect::<Vec<_>>()
+            {
+                10
+            } else {
+                0
+            },
+            required_skill: c
+                .required_skill_utf16
+                .as_ref()
+                .map(|s| text(s).map(|s| (s, c.required_skill_rank)))
+                .transpose()?,
+            required_enhance: c.required_enhance,
+            required_enchant: c.required_enchant,
         })
     }
     pub fn bonus(

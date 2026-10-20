@@ -40,3 +40,20 @@ As fontes originais permanecem somente leitura; Fiona/schema33 e os 11 itens sã
 - Oracles Framework (Gear/costume/load) x86=x64 com fixtures sintéticas; testes PostgreSQL/TCP de seleção com equipamento salvo, consultas repetidas e reentrada sem escrita.
 - Gate 2026-10-20T19:56:44Z: 390 Rust, 241 PostgreSQL nativos (0 ignorados), 48 Python, zero falhas/avisos. Pré-verificação somente leitura na base real: 11 itens, 5 classes de metadata, 0 equipados, nenhum DML. Evidência: [minimum-equipped-read.json](evidence/auth/minimum-equipped-read.json).
 - Ainda não habilitado: handler EquipItem457 (transação, ItemFail, UpdateInventoryInfo/EquipmentInfo/UpdateStat/CostumeUpdate). Próxima fatia.
+
+## Entrega P0-02c — equipar/desequipar no cliente (20/10/2026)
+
+Handler `EquipItem457` ligado no frontend após a seleção (mesma admissão de segunda senha/seleção do QueryInventory). Coordenador `minimum_equip` segue `EquipItemProcessor` → `ItemOwner.Equip` → `Gear`/`EquippableSlot`:
+
+- `ItemID=-1`: `Unequip(part)`; slot vazio ou quickslot vazio não salva nem envia nada; parte inexistente (NRE no original) é rejeitada sem resposta e sem desconectar.
+- Item inexistente/de outro dono → `ItemFail358("GameUI_Heroes_EquipItemFail_System")`. `cash_freepass_` sem LOOK → sem alteração.
+- Item vestido em outra parte é retirado antes; depois `IsConstraintSatisfied` (café, nível mín./máx., ClassRestriction `1<<class`, guilda, skill exigida com rank ausente = -1, enhance/enchant), `CheckEquippable` (InvalidSlot / CheckSettable), retirada do destino e `Set`. Recusas enviam `ItemFail358` com o nome do `ItemOperationResult`.
+- Sucesso: `game_equippables.part` atualizado; `CostumeManager.Save` após `LoadItemCostumes` (insere/atualiza linhas de item, remove com `DeleteOnNull`; linhas base nunca alteradas). Ordem de pacotes do `Sync`: `UpdateInventoryInfo617` (SlotInfo dos itens modificados, ordem de registro do HashSet), `EquipmentInfo458`, e do `UpdateItemStat`: `UpdateStat619`, `CostumeUpdate447`. A aparência do canal (`look`) da sessão é atualizada para entradas seguintes.
+- Perfil de equipamento v2 inclui os campos de requisito de `ItemClassInfo`; os 5 itens iniciais: nível 1, sem limite superior, classe 2047/2, sem café/skill/enhance.
+
+Diferenças deliberadas e limites:
+- Uma única transação para item + costume + projeção. No original, falha de restrição/slot após retirar o item de outra parte deixava o estado em memória não salvo; aqui há rollback completo.
+- `ItemLog`/journal `EventType.EquipItem` e `NotifyLook` para outros jogadores no canal ainda não são gravados/difundidos (sessão solo).
+- Itens fora do perfil de equipamento, Avatar, atributos, expiração, quickslots e slots expandidos continuam recusados.
+
+Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arquitetura, x86=x64); testes de requisitos; PostgreSQL de equipar → recusas → relogin → desequipar restaurando todas as linhas; TCP desequipar → reequipar → recusa pelo socket. Aceite no cliente ainda pendente.

@@ -1,0 +1,139 @@
+{
+ "stage": "P0-02c EquipItem457 transaction and client sync (617/458/619/447, ItemFail358)",
+ "gate": {
+  "verified_at_utc": "2026-10-20T20:23:13.3318899+00:00",
+  "checks": {
+   "format": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "clippy": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "rust-tests": {
+    "exit_code": 0,
+    "passed": 395,
+    "failed": 0,
+    "ignored": 242,
+    "warnings": 0
+   },
+   "doc-tests": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "build": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "postgres-integration": {
+    "exit_code": 0,
+    "passed": 242,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "client-python": {
+    "exit_code": 0,
+    "passed": 7,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "content-python": {
+    "exit_code": 0,
+    "passed": 41,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   }
+  }
+ },
+ "oracle": {
+  "item_sync_wire_cases_per_architecture": 72,
+  "x86_equals_x64": true
+ },
+ "private_profile": {
+  "format_version": 2,
+  "classes": 5,
+  "all_constraints_satisfied_by_initial_fiona": true,
+  "values_omitted": true
+ },
+ "real_database_writes": false,
+ "client_acceptance": "pending",
+ "known_gaps": [
+  "ItemLog/journal EventType.EquipItem not written",
+  "NotifyLook broadcast to other channel members not sent",
+  "items outside the equipment profile are rejected"
+ ],
+ "sources": [
+  {
+   "path": "src/infrastructure/minimum_equip.rs",
+   "sha256": "f4265256cf2cb3fda66e404fec9c012b8e9b3b39d1577b531ad14ade63c78f98"
+  },
+  {
+   "path": "src/domain/item_constraint.rs",
+   "sha256": "3b8d6e6ddfacdf4fb7e7657de66d28511b0dc159dfe45bdaa6f378279204039d"
+  },
+  {
+   "path": "src/infrastructure/equipment_profile.rs",
+   "sha256": "2223554f685292d59e9e74846767a39e8559e58245c2c4b45a2d5dcecbdbd550"
+  },
+  {
+   "path": "src/infrastructure/minimum_selection.rs",
+   "sha256": "adbdfedb0b2d4d5918f88fc1d94ff2dd0f84316ddcc77496a5ea2ac1d952b57f"
+  },
+  {
+   "path": "src/infrastructure/minimum_inventory.rs",
+   "sha256": "8af1e1c8df7a0e66fb8721c6224264381e9043db08c743fb3c2290479e956335"
+  },
+  {
+   "path": "src/infrastructure/character_costumes.rs",
+   "sha256": "7419c56f917f1aeed62e25fa6cd302b60b84236f75845d685e0584e2e559cc44"
+  },
+  {
+   "path": "src/infrastructure/lab_frontend.rs",
+   "sha256": "fe3d0e4f55aa471ba87391c58d1cb08ee51fdc5caf9f2393c8719d776c033434"
+  },
+  {
+   "path": "src/protocol/inventory.rs",
+   "sha256": "0539e0d22981b99c4eaf7d2a65f7a36677658a743acd25a8819c27c909ca0e24"
+  },
+  {
+   "path": "src/protocol/character_list.rs",
+   "sha256": "2499b437ea160a5b4c3666db593d67d9c1c44751915c19e2b310c32babb5367e"
+  },
+  {
+   "path": "src/domain/equipped_gear_sources.json",
+   "sha256": "42b12f483d024efa2c6c917b2604983f98d317f5eeed8899c19cc3a68938b10b"
+  },
+  {
+   "path": "scripts/reverse/framework/ItemSyncWireOracle.cs",
+   "sha256": "b2449f3a54b06e464d8337a7f685a6de9574710ccd2bb4bdfa57033fcf8a90dd"
+  },
+  {
+   "path": "scripts/reverse/generate-item-sync-wire-fixtures.ps1",
+   "sha256": "5b2f71ce1d43625a22fd7ec45d199747b03c5fd75c9f4810d14fd4989248fd28"
+  },
+  {
+   "path": "tests/fixtures/framework-item-sync-wire.json",
+   "sha256": "da0a271599402527dd06a776f93c5abe824d452771c8e7654337aac06bd3df96"
+  },
+  {
+   "path": "scripts/content/export_equipment_profile.py",
+   "sha256": "d4413857a3b30db14e543cde57c666d911a099fcf620ba4248af0edaa4bf4357"
+  }
+ ]
+}

@@ -292,3 +292,49 @@ pub(crate) async fn load_for_constructor(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(CostumeSet::load(records.into_iter().map(|r| r.costume))?)
 }
+/// CostumeManager.Save after LoadItemCostumes. Character.Costume removal deletes the
+/// row (association DeleteOnNull); SetCostume keeps Effect of an existing row. Only
+/// item (non-base) rows may differ; base rows are compared and never written here.
+pub(crate) async fn persist_item_costumes(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+    before: &CostumeSet,
+    after: &CostumeSet,
+) -> Result<usize, CostumeError> {
+    let old: BTreeMap<_, _> = before.rows().map(|c| (c.identity(), *c)).collect();
+    let new: BTreeMap<_, _> = after.rows().map(|c| (c.identity(), *c)).collect();
+    if old.iter().any(|(k, c)| k.0 && new.get(k) != Some(c))
+        || new.keys().any(|k| k.0 && !old.contains_key(k))
+    {
+        return Err(CostumeError::Conflict);
+    }
+    let mut changed = 0;
+    for (k, _) in old.iter().filter(|(k, _)| !new.contains_key(*k)) {
+        let n = sqlx::query("DELETE FROM game_costumes WHERE cid=$1 AND NOT is_base AND costume_type=$2 AND costume_key=$3")
+            .bind(cid).bind(i16::from(k.1)).bind(i16::from(k.2)).execute(&mut **tx).await?.rows_affected();
+        if n != 1 {
+            return Err(CostumeError::Conflict);
+        }
+        changed += 1;
+    }
+    // Insertions follow the EntitySet enumeration of `after`.
+    for c in after.rows().filter(|c| !c.is_base) {
+        match old.get(&c.identity()) {
+            Some(o) if o == c => {}
+            Some(_) => {
+                let n = sqlx::query("UPDATE game_costumes SET costume_sn=$4,c1=$5,c2=$6,c3=$7,gloss=$8 WHERE cid=$1 AND NOT is_base AND costume_type=$2 AND costume_key=$3")
+                    .bind(cid).bind(i16::from(c.kind)).bind(i16::from(c.key)).bind(c.serial).bind(c.colors[0]).bind(c.colors[1]).bind(c.colors[2]).bind(c.gloss.map(i16::from)).execute(&mut **tx).await?.rows_affected();
+                if n != 1 {
+                    return Err(CostumeError::Conflict);
+                }
+                changed += 1;
+            }
+            None => {
+                sqlx::query("INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn,c1,c2,c3,gloss,effect) VALUES(nextval('game_costume_row_id'),$1,false,$2,$3,$4,$5,$6,$7,$8,$9)")
+                    .bind(cid).bind(i16::from(c.kind)).bind(i16::from(c.key)).bind(c.serial).bind(c.colors[0]).bind(c.colors[1]).bind(c.colors[2]).bind(c.gloss.map(i16::from)).bind(c.effect).execute(&mut **tx).await?;
+                changed += 1;
+            }
+        }
+    }
+    Ok(changed)
+}

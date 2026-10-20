@@ -12,18 +12,24 @@ const MAX_ROWS: usize = 4096;
 pub enum Kind {
     QueryInventory,
     InventoryInfo,
+    UpdateInventoryInfo,
+    ItemFail,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
         match self {
             Self::QueryInventory => 529,
             Self::InventoryInfo => 468,
+            Self::UpdateInventoryInfo => 617,
+            Self::ItemFail => 358,
         }
     }
     pub const fn type_id(self) -> Uuid {
         Uuid::from_u128(match self {
             Self::QueryInventory => 0xefe95078_ef7e_34eb_82e1_2daf3280a576,
             Self::InventoryInfo => 0xbdc965b5_aca1_3b62_b222_279e96683d93,
+            Self::UpdateInventoryInfo => 0xabacd3bc_1a84_3570_a62c_f1b0007675fb,
+            Self::ItemFail => 0x2f756b90_8fba_38b8_bcb2_a51f0f132502,
         })
     }
 }
@@ -89,16 +95,28 @@ pub struct Inventory {
     pub quick_slots: Option<QuickSlots>,
     pub unequippable: Option<Vec<i32>>,
 }
+/// ServiceCore HeroesString: Format and Parameters (ICollection<string>).
+#[derive(Clone, PartialEq, Eq)]
+pub struct HeroesString {
+    pub format: Option<String>,
+    pub parameters: Option<Vec<Option<String>>>,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     QueryInventory,
     InventoryInfo(Inventory),
+    /// UpdateInventoryInfoMessage.slotInfos.
+    UpdateInventoryInfo(Option<Vec<Option<Slot>>>),
+    /// ItemFailMessage.Message.
+    ItemFail(Option<HeroesString>),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
         match self {
             Self::QueryInventory => Kind::QueryInventory,
             Self::InventoryInfo(_) => Kind::InventoryInfo,
+            Self::UpdateInventoryInfo(_) => Kind::UpdateInventoryInfo,
+            Self::ItemFail(_) => Kind::ItemFail,
         }
     }
 }
@@ -240,6 +258,7 @@ object!(Slot {
     min_up_diff
 });
 object!(QuickSlots { classes });
+object!(HeroesString { format, parameters });
 object!(Inventory {
     storages,
     slots,
@@ -265,8 +284,11 @@ pub fn encode(
             return Err(InventoryWireError::Kind);
         }
         w.append(&[1])?;
-        if let Message::InventoryInfo(v) = m {
-            v.write(&mut w)?
+        match m {
+            Message::QueryInventory => {}
+            Message::InventoryInfo(v) => v.write(&mut w)?,
+            Message::UpdateInventoryInfo(v) => v.write(&mut w)?,
+            Message::ItemFail(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -293,6 +315,8 @@ pub fn decode(
         Some(match kind {
             Kind::QueryInventory => Message::QueryInventory,
             Kind::InventoryInfo => Message::InventoryInfo(Inventory::read(&mut r)?),
+            Kind::UpdateInventoryInfo => Message::UpdateInventoryInfo(Wire::read(&mut r)?),
+            Kind::ItemFail => Message::ItemFail(Wire::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

@@ -511,3 +511,47 @@ pub fn decode_ingress(
     }
     Err(CharacterListError::Type)
 }
+/// CostumeUpdateMessage (447): a nullable message whose only field is CostumeInfo.
+pub const COSTUME_UPDATE_CATEGORY: i32 = 447;
+pub const COSTUME_UPDATE_TYPE_ID: uuid::Uuid =
+    uuid::Uuid::from_u128(0x099b778f_141e_359d_b270_60c9d2f99bbb);
+/// Outer None is a null message; inner None is a null CostumeInfo.
+pub fn encode_costume_update(
+    message: Option<Option<&Costume>>,
+    max_body: usize,
+) -> Result<Zeroizing<Vec<u8>>, CharacterListError> {
+    let mut w = Writer {
+        bytes: Vec::new(),
+        limit: max_body,
+    };
+    let result = match message {
+        None => w.append(&[0]).map_err(CharacterListError::from),
+        Some(costume) => w
+            .append(&[1])
+            .map_err(CharacterListError::from)
+            .and_then(|()| write_costume(&mut w, costume)),
+    };
+    if result.is_err() {
+        w.bytes.zeroize();
+    }
+    result?;
+    Ok(Zeroizing::new(w.bytes))
+}
+pub fn decode_costume_update(
+    body: &[u8],
+    max_body: usize,
+) -> Result<Option<Option<Costume>>, CharacterListError> {
+    if body.len() > max_body {
+        return Err(PayloadError::TooLarge.into());
+    }
+    let mut r = Reader { remaining: body };
+    let result = if r.byte()? == 0 {
+        None
+    } else {
+        Some(read_costume(&mut r)?)
+    };
+    if !r.remaining.is_empty() {
+        return Err(PayloadError::TrailingBytes.into());
+    }
+    Ok(result)
+}

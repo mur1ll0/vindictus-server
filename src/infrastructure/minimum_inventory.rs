@@ -70,6 +70,26 @@ pub(super) async fn load(
     assets: &Assets,
     cid: i64,
 ) -> Result<OutgoingPacket, MinimumError> {
+    let inventory = snapshot(tx, owner, assets, cid).await?;
+    let body = wire::encode(
+        Kind::InventoryInfo,
+        Some(&Message::InventoryInfo(inventory)),
+        DEFAULT_MAX_BODY,
+    )
+    .map_err(|_| MinimumError::Conflict)?
+    .to_vec();
+    Ok(OutgoingPacket {
+        category: Kind::InventoryInfo.category(),
+        body,
+    })
+}
+/// ItemOwner.ToInventoryInfo projection; SlotInfo rows are also Sync's ToSlotInfo.
+pub(super) async fn snapshot(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Inventory, MinimumError> {
     let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
     if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
         return Err(MinimumError::Conflict);
@@ -223,15 +243,5 @@ pub(super) async fn load(
         }),
         unequippable: Some(locked),
     };
-    let body = wire::encode(
-        Kind::InventoryInfo,
-        Some(&Message::InventoryInfo(inventory)),
-        DEFAULT_MAX_BODY,
-    )
-    .map_err(|_| MinimumError::Conflict)?
-    .to_vec();
-    Ok(OutgoingPacket {
-        category: Kind::InventoryInfo.category(),
-        body,
-    })
+    Ok(inventory)
 }

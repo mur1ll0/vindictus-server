@@ -55,7 +55,7 @@ pub enum BodyArithmetic {
 #[derive(Debug, Error)]
 #[error("costume set is ambiguous or exceeds its bounded profile")]
 pub struct CostumeProfile;
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct CostumeSet {
     rows: Vec<Costume>,
     positions: BTreeMap<(bool, u8, u8), usize>,

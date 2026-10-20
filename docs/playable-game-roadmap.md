@@ -56,3 +56,5 @@ Diagnóstico histórico e contrato do incremento de leitura: [minimum-inventory-
 P0-01: sincronização inicial e QueryInventory implementados para os 11 itens preservados; inventário e equipamentos na bolsa aceitos pelo operador em 20/10/2026. Reabertura/relogin não confirmados separadamente. Detalhes/limites em [minimum-inventory-client.md](minimum-inventory-client.md). P0-02 equipar/desequipar ainda não habilitado.
 
 P0-02a: contratos EquipItem457/EquipmentInfo458 e kernel de slots preparados, com oracles Framework e testes diferenciais. A ligação ao cliente depende primeiro do loader de equipamento vestido, requisitos, carga e aparência persistida; ainda não habilitada. Sequência e limites: [minimum-equipment-client.md](minimum-equipment-client.md).
+
+P0-02b/c: equipamento vestido carregado na seleção/inventário/relogin e EquipItem457 (equipar/desequipar com requisitos, ItemFail, sync 617/458/619/447 e Costume.Save) implementados e verificados automaticamente em 20/10/2026; aceite no cliente pendente. Ver [minimum-equipment-client.md](minimum-equipment-client.md).

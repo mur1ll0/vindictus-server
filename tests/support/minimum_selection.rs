@@ -189,6 +189,28 @@ pub(super) async fn exercise(
         assert_eq!(repeated.category_id, 468);
         assert_eq!(repeated.body, inventory_frame.body);
     }
+    // EquipItem over the frontend: unequip, re-equip, then the IsEquipped refusal.
+    if let Some(&(part, id)) = equipped.first() {
+        use vindictus_server::protocol::equipment::{
+            self as eq, Kind as EqKind, Message as EqMessage,
+        };
+        for (item_id, expected) in [
+            (-1, vec![617, 458, 619, 447]),
+            (id, vec![617, 458, 619, 447]),
+            (id, vec![358]),
+        ] {
+            let message = EqMessage::EquipItem { item_id, part };
+            let body = eq::encode(EqKind::EquipItem, Some(&message), DEFAULT_MAX_BODY).unwrap();
+            send(client, tx, EqKind::EquipItem.category(), &body).await;
+            let mut categories = Vec::new();
+            for _ in 0..expected.len() {
+                categories.push(read(client, rx).await.category_id);
+            }
+            assert_eq!(categories, expected);
+        }
+        let stored: Vec<(i32, i64)> = sqlx::query_as("SELECT e.part::integer,e.id FROM game_equippables e JOIN game_items i ON i.id=e.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY e.part").bind(cid).fetch_all(pool).await.unwrap();
+        assert_eq!(stored, equipped);
+    }
     let state:(bool,Option<i64>,Option<Vec<u8>>)=sqlx::query_as("SELECT is_connected,(SELECT last_login_cid FROM game_user_info WHERE nexon_sn=uid),(SELECT current_quest_utf16 FROM game_micro_play_status WHERE cid=id) FROM game_character_info WHERE id=$1").bind(cid).fetch_one(pool).await.unwrap();
     assert_eq!(state, (true, Some(cid), None));
     let (bind, channel) = r.channel().unwrap();

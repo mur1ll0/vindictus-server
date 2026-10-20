@@ -66,5 +66,21 @@
   "item_extension": {
     "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContentsExtension.cs",
     "sha256": "6feb45576793bf580018625d5a088b5eb359290baa83c325835cbb7ee53c7c6a"
+  },
+  "constraint": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Component/EntityCommunicator.cs",
+    "sha256": "1cee8d6ea4f62489ea9c4edb7557e0d67f90776d23f0d3c56bbb9cb63e884359"
+  },
+  "equip_processor": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/EquipItemProcessor.cs",
+    "sha256": "e821187e6fa200020e04f3101b814c45648b2c72de185f0c9db5772e9def3499"
+  },
+  "item_owner": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+    "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+  },
+  "class_info": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/ItemClassInfo.cs",
+    "sha256": "b7daa5fe90611b46f5ce7716532cb0961e259262330df160d9cfd0b9a234c923"
   }
 }

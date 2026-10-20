@@ -4,6 +4,7 @@ use super::{
     minimum_assets::Assets,
     minimum_character::MinimumError,
 };
+use crate::domain::character_costume::CostumeSet;
 use crate::{
     domain::{
         character_load::{EmptyGear, State},
@@ -55,8 +56,77 @@ pub async fn select(
     }
     let cid = ids[0];
     let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let row = sqlx::query(
+        "SELECT dirty,region_code,map_state_info,is_connected FROM game_character_info WHERE id=$1",
+    )
+    .bind(cid)
+    .fetch_one(&mut *tx)
+    .await?;
+    if row.try_get::<bool, _>("dirty")? || row.try_get::<bool, _>("is_connected")? {
+        return Err(MinimumError::Conflict);
+    }
+    let view = view(&mut tx, owner, assets, cid, config, arithmetic, false).await?;
+    let look = view.look;
+    let mut packets = vec![
+        packet(Message::LoginOk {
+            region_code: map_partition::login_ok_region_code(row.try_get("region_code")?),
+            time: map_partition::utility_epoch_seconds(
+                super::lab_clock::utc_now().map_err(|_| MinimumError::Conflict)?,
+            ),
+            limited: 0,
+            facebook_token: Some(""),
+            // UserInfo defaults / UserCareType.Nothing / UserCareState.Nothing.
+            // Zero means CareUser + Promise and incorrectly enters the event lobby.
+            user_care_type: -1,
+            user_care_next_state: -1,
+            map_state_info: u8::try_from(row.try_get::<i16, _>("map_state_info")?)
+                .map_err(|_| MinimumError::Conflict)?,
+        })?,
+        packet(Message::NoticeGameEnvironment {
+            cafe_type: 0,
+            is_otp: false,
+        })?,
+        view.common,
+        view.stat,
+    ];
+    packets.push(super::minimum_inventory::load(&mut tx, owner, assets, cid).await?);
+    sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=EXCLUDED.last_login_cid").bind(owner.uid).bind(cid).execute(&mut *tx).await?;
+    sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=$1")
+        .bind(cid)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("UPDATE game_micro_play_status SET current_quest_utf16=NULL WHERE cid=$1")
+        .bind(cid)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Selected { cid, packets, look })
+}
+pub(super) struct View {
+    /// CharacterCommonInfo with the summary used by the lobby list.
+    pub common: OutgoingPacket,
+    /// UpdateStat after CalculateItemStat/CalculateFinalStat.
+    pub stat: OutgoingPacket,
+    pub look: OutgoingPacket,
+    /// CostumeManager.CostumeInfo for CostumeUpdate.
+    pub costume: Option<character_list::Costume>,
+    /// Stored rows and rows after LoadItemCostumes, when projected.
+    pub costumes: Option<(CostumeSet, CostumeSet)>,
+    pub equipment: Vec<(i32, i64)>,
+}
+/// Character state derived from persisted base stats, skills, Gear and costumes.
+/// `project` applies LoadItemCostumes even for an empty Gear (UpdateItemStat path).
+pub(super) async fn view(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+    project: bool,
+) -> Result<View, MinimumError> {
     let bytes = super::minimum_character_list::load(
-        &mut tx,
+        tx,
         owner,
         &assets.initializer,
         config,
@@ -68,7 +138,12 @@ pub async fn select(
         cid,
     )
     .await?;
-    let row = sqlx::query("SELECT dirty,str,dex,int,will,luck,hp,stamina,region_code,map_state_info,is_connected FROM game_character_info WHERE id=$1").bind(cid).fetch_one(&mut *tx).await?;
+    let row = sqlx::query(
+        "SELECT dirty,str,dex,int,will,luck,hp,stamina FROM game_character_info WHERE id=$1",
+    )
+    .bind(cid)
+    .fetch_one(&mut **tx)
+    .await?;
     let mut values = [0; 7];
     for (i, key) in ["str", "dex", "int", "will", "luck", "hp", "stamina"]
         .iter()
@@ -77,17 +152,14 @@ pub async fn select(
         values[i] = row.try_get(*key)?;
     }
     let base = assets.initializer.base_stats([0; 7]);
-    if row.try_get::<bool, _>("dirty")?
-        || row.try_get::<bool, _>("is_connected")?
-        || values != *base.values()
-    {
+    if row.try_get::<bool, _>("dirty")? || values != *base.values() {
         return Err(MinimumError::Conflict);
     }
     let skills: Vec<(Vec<u8>, i32)> = sqlx::query_as(
         "SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id FOR SHARE",
     )
     .bind(cid)
-    .fetch_all(&mut *tx)
+    .fetch_all(&mut **tx)
     .await?;
     if skills.len() != assets.initializer.skills().len() {
         return Err(MinimumError::Conflict);
@@ -101,7 +173,7 @@ pub async fn select(
             .load_base(key, *rank, Some(expected.arguments()))
             .map_err(|_| MinimumError::Conflict)?;
     }
-    let gear = super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
+    let gear = super::minimum_equipment::load(tx, owner, assets, cid).await?;
     if !gear.bonus.skills.is_empty() {
         return Err(MinimumError::Conflict);
     }
@@ -142,59 +214,36 @@ pub async fn select(
         .and_then(|mut c| c.pop())
         .flatten()
         .ok_or(MinimumError::Conflict)?;
-    if !gear.projection.equipment.is_empty() {
-        let mut costumes = super::character_costumes::load_for_constructor(&mut tx, cid)
+    let mut costumes = None;
+    if project || !gear.projection.equipment.is_empty() {
+        let before = super::character_costumes::load_for_constructor(tx, cid)
             .await
             .map_err(|_| MinimumError::Conflict)?;
+        let mut after = before.clone();
         gear.projection
-            .load_costumes_x64(&mut costumes)
+            .load_costumes_x64(&mut after)
             .map_err(|_| MinimumError::Conflict)?;
         summary.costume = Some(
-            crate::application::lobby_costume::project(&costumes)
+            crate::application::lobby_costume::project(&after)
                 .map_err(|_| MinimumError::Conflict)?,
         );
+        costumes = Some((before, after));
     }
     let look =
         Channel::encode_look_summary(cid, Some(&summary)).map_err(|_| MinimumError::Conflict)?;
-    let mut packets = vec![
-        packet(Message::LoginOk {
-            region_code: map_partition::login_ok_region_code(row.try_get("region_code")?),
-            time: map_partition::utility_epoch_seconds(
-                super::lab_clock::utc_now().map_err(|_| MinimumError::Conflict)?,
-            ),
-            limited: 0,
-            facebook_token: Some(""),
-            // UserInfo defaults / UserCareType.Nothing / UserCareState.Nothing.
-            // Zero means CareUser + Promise and incorrectly enters the event lobby.
-            user_care_type: -1,
-            user_care_next_state: -1,
-            map_state_info: u8::try_from(row.try_get::<i16, _>("map_state_info")?)
-                .map_err(|_| MinimumError::Conflict)?,
-        })?,
-        packet(Message::NoticeGameEnvironment {
-            cafe_type: 0,
-            is_otp: false,
-        })?,
-        packet(Message::CharacterCommonInfo {
+    Ok(View {
+        common: packet(Message::CharacterCommonInfo {
             query_id: 0,
-            info: Some(summary),
+            info: Some(summary.clone()),
         })?,
-        packet(Message::UpdateStat {
+        stat: packet(Message::UpdateStat {
             stat: Some(dictionary),
         })?,
-    ];
-    packets.push(super::minimum_inventory::load(&mut tx, owner, assets, cid).await?);
-    sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=EXCLUDED.last_login_cid").bind(owner.uid).bind(cid).execute(&mut *tx).await?;
-    sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=$1")
-        .bind(cid)
-        .execute(&mut *tx)
-        .await?;
-    sqlx::query("UPDATE game_micro_play_status SET current_quest_utf16=NULL WHERE cid=$1")
-        .bind(cid)
-        .execute(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(Selected { cid, packets, look })
+        look,
+        costume: summary.costume,
+        costumes,
+        equipment: gear.projection.equipment,
+    })
 }
 pub async fn disconnect(pool: &PgPool, cid: i64) -> Result<(), MinimumError> {
     sqlx::query("UPDATE game_character_info SET is_connected=false,channel=NULL WHERE id=$1")

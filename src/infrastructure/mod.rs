@@ -100,3 +100,5 @@ pub mod minimum_inventory;
 
 pub mod equipment_profile;
 pub mod minimum_equipment;
+
+pub mod minimum_equip;

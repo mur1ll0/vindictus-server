@@ -6,7 +6,7 @@ use vindictus_server::{
         character_lobby::{QueryConfig, UserKey},
         equipment_profile::Profile,
         minimum_assets::Assets,
-        minimum_equipment, minimum_inventory, minimum_selection,
+        minimum_equip, minimum_equipment, minimum_inventory, minimum_selection,
     },
     protocol::{
         DEFAULT_MAX_BODY,
@@ -176,5 +176,221 @@ async fn minimum_equipment_refuses_unsupported_states_and_preserves_disabled_equ
             .await
             .is_err()
     );
+    cleanup_game_pool(a, p, s).await;
+}
+fn config() -> QueryConfig {
+    QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    }
+}
+fn fail_format(packet: &vindictus_server::domain::map_partition::OutgoingPacket) -> String {
+    assert_eq!(packet.category, 358);
+    let Some(Message::ItemFail(Some(s))) =
+        inventory::decode(Kind::ItemFail, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("item fail missing")
+    };
+    assert_eq!(s.parameters, Some(Vec::new()));
+    s.format.unwrap()
+}
+async fn equip(
+    p: &sqlx::PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    item: i64,
+    part: i32,
+) -> Result<minimum_equip::Outcome, vindictus_server::infrastructure::minimum_character::MinimumError>
+{
+    minimum_equip::equip(
+        p,
+        owner,
+        assets,
+        1,
+        item,
+        part,
+        config(),
+        Arithmetic::FrameworkX64,
+    )
+    .await
+}
+async fn costumes(p: &sqlx::PgPool) -> Vec<(bool, i16, i16, Option<i32>)> {
+    sqlx::query_as("SELECT is_base,costume_type,costume_key,costume_sn FROM game_costumes WHERE cid=1 ORDER BY row_id")
+        .fetch_all(p)
+        .await
+        .unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_equip_saves_syncs_refuses_unequips_and_survives_relogin() {
+    use vindictus_server::protocol::{character_list, equipment};
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets();
+    let owner = super::initial_inventory::key();
+    let id: i64 = sqlx::query_scalar("SELECT min(id)FROM game_equippables")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    // Not selected: is_connected is false.
+    let untouched = state(&p).await;
+    assert!(equip(&p, &owner, &assets, id, 1).await.is_err());
+    let baseline =
+        minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    let base_costumes = costumes(&p).await;
+    // Refusals keep every row unchanged and answer with the source dialog.
+    let before = state(&p).await;
+    for (item, part, expected) in [
+        (id, 2, "GameUI_Heroes_EquipItemFail_InvalidSlot"),
+        (id, 200, "GameUI_Heroes_EquipItemFail_InvalidSlot"),
+        (id, -1, "GameUI_Heroes_EquipItemFail_InvalidSlot"),
+        (i64::MAX, 1, "GameUI_Heroes_EquipItemFail_System"),
+    ] {
+        let Ok(minimum_equip::Outcome::Refused(packet)) =
+            equip(&p, &owner, &assets, item, part).await
+        else {
+            panic!("refusal expected")
+        };
+        assert_eq!(fail_format(&packet), expected);
+        assert_eq!(state(&p).await, before);
+    }
+    let Ok(minimum_equip::Outcome::Applied { packets, look }) =
+        equip(&p, &owner, &assets, id, 1).await
+    else {
+        panic!("equip expected")
+    };
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 458, 619, 447]
+    );
+    let Some(Message::UpdateInventoryInfo(Some(slots))) = inventory::decode(
+        Kind::UpdateInventoryInfo,
+        &packets[0].body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
+        panic!("slot update missing")
+    };
+    assert_eq!(
+        slots
+            .iter()
+            .map(|s| s.as_ref().unwrap().id)
+            .collect::<Vec<_>>(),
+        [id]
+    );
+    let Some(equipment::Message::EquipmentInfo(info)) = equipment::decode(
+        equipment::Kind::EquipmentInfo,
+        &packets[1].body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
+        panic!("equipment info missing")
+    };
+    assert_eq!(info.0.unwrap(), vec![(1, id)]);
+    let costume = character_list::decode_costume_update(&packets[3].body, DEFAULT_MAX_BODY)
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_ne!(packets[2].body, baseline.packets[3].body);
+    assert_ne!(look.body, baseline.look.body);
+    let part: Option<i16> = sqlx::query_scalar("SELECT part FROM game_equippables WHERE id=$1")
+        .bind(id)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(part, Some(1));
+    let equipped_costumes = costumes(&p).await;
+    assert_ne!(equipped_costumes, base_costumes);
+    assert!(
+        equipped_costumes
+            .iter()
+            .any(|c| !c.0 && c.2 == 4 && c.3 == Some(29))
+    );
+    // Equipping the same item to its own part is CheckSettable's IsEquipped failure.
+    let before = state(&p).await;
+    let Ok(minimum_equip::Outcome::Refused(packet)) = equip(&p, &owner, &assets, id, 1).await
+    else {
+        panic!("refusal expected")
+    };
+    assert_eq!(fail_format(&packet), "GameUI_Heroes_EquipItemFail_System");
+    assert_eq!(state(&p).await, before);
+    // Relogin reproduces the synchronized stats, look and CostumeInfo.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    let again =
+        minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    assert_eq!(again.packets[3].body, packets[2].body);
+    assert_eq!(again.look.body, look.body);
+    let Some(character_list_info) = vindictus_server::protocol::minimum_map::decode(
+        vindictus_server::protocol::minimum_map::Kind::CharacterCommonInfo,
+        &again.packets[2].body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
+        panic!("common info missing")
+    };
+    let vindictus_server::protocol::minimum_map::Message::CharacterCommonInfo {
+        info: Some(summary),
+        ..
+    } = character_list_info
+    else {
+        panic!("summary missing")
+    };
+    assert!(summary.costume.as_ref() == Some(&costume));
+    // Unequip clears the part, deletes the item costume row and restores the base view.
+    let Ok(minimum_equip::Outcome::Applied {
+        packets: off,
+        look: off_look,
+    }) = equip(&p, &owner, &assets, -1, 1).await
+    else {
+        panic!("unequip expected")
+    };
+    assert_eq!(
+        off.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 458, 619, 447]
+    );
+    assert_eq!(off[2].body, baseline.packets[3].body);
+    assert_eq!(off_look.body, baseline.look.body);
+    assert_eq!(costumes(&p).await, base_costumes);
+    let part: Option<i16> = sqlx::query_scalar("SELECT part FROM game_equippables WHERE id=$1")
+        .bind(id)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(part, None);
+    // Empty slot and unknown part: nothing saved; the unknown part raises in the source.
+    let before = state(&p).await;
+    assert!(matches!(
+        equip(&p, &owner, &assets, -1, 1).await,
+        Ok(minimum_equip::Outcome::Unchanged)
+    ));
+    assert!(equip(&p, &owner, &assets, -1, 200).await.is_err());
+    let stale = UserKey {
+        uid: owner.uid,
+        name: owner.name,
+        revision: owner.revision + 1,
+    };
+    assert!(
+        minimum_equip::equip(
+            &p,
+            &stale,
+            &assets,
+            1,
+            id,
+            1,
+            config(),
+            Arithmetic::FrameworkX64
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(state(&p).await, before);
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    // The full equip, relogin and unequip cycle restores every persisted row.
+    assert_eq!(state(&p).await, untouched);
     cleanup_game_pool(a, p, s).await;
 }

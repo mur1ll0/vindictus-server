@@ -33,7 +33,7 @@ def read_package(database, config, selected):
         classes=[]; equips=[]
         for i, row in enumerate(db.execute('SELECT * FROM ItemClassInfo')):
             if text(row['ItemClass']) in selected:
-                classes.append(dict(source_index=i, item_utf16=text(row['ItemClass']), feature=row['Feature'], category_utf16=text(row['Category']), level=integer(row['Level'])))
+                classes.append(dict(source_index=i, item_utf16=text(row['ItemClass']), feature=row['Feature'], category_utf16=text(row['Category']), level=integer(row['Level']), required_level=integer(row['RequiredLevel']), level_upper_bound=integer(row['LevelUpperBound']), class_restriction=integer(row['ClassRestriction']), cafe_only=integer(row['IsCafeOnly']), required_skill_utf16=text(row['RequiredSkill']), required_skill_rank=integer(row['RequiredSkillRank']), required_enhance=integer(row['RequiredEnhanceLevel']), required_enchant=integer(row['RequiredEnchantLevel'])))
         for i, row in enumerate(db.execute('SELECT * FROM EquipItemInfo')):
             if text(row['ItemClass']) in selected:
                 equips.append(dict(source_index=i, item_utf16=text(row['ItemClass']), feature=row['Feature'], equip_utf16=text(row['EquipClass']), serial=integer(row['CostumeType'])))
@@ -49,7 +49,7 @@ def read_package(database, config, selected):
         effects=[dict(set_utf16=text(r['SetID']),count=integer(r['SetCount']),target_utf16=text(r['EffectTarget']),amount=integer(r['Amount'])) for r in db.execute('SELECT * FROM SetEffectInfo') if text(r['SetID']) in wanted]
     if digest(database) != package['manifest']['database_sha256'] or digest(config) != package['manifest']['config_sha256']:
         raise ValueError('Equipment source changed during export')
-    return dict(format_version=1,source='heroesContents.normal-equipment',database_sha256=package['manifest']['database_sha256'],config_sha256=package['manifest']['config_sha256'],implementations={k:r['sha256'] for k,r in sources.items()},classes=classes,equips=equips,sets=sets,effects=effects)
+    return dict(format_version=2,source='heroesContents.normal-equipment',database_sha256=package['manifest']['database_sha256'],config_sha256=package['manifest']['config_sha256'],implementations={k:r['sha256'] for k,r in sources.items()},classes=classes,equips=equips,sets=sets,effects=effects)
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--classes-file',required=True);args=parser.parse_args()
