@@ -903,6 +903,7 @@ impl Connection {
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
                     .assets;
+                let started = std::time::Instant::now();
                 let outcome = super::minimum_equip::equip(
                     pool,
                     &owner,
@@ -922,11 +923,17 @@ impl Connection {
                         if let Some(selected) = self.selected.as_mut() {
                             selected.look = look;
                         }
-                        tracing::info!("minimum equipment change saved and synchronized");
+                        tracing::info!(
+                            elapsed_ms = started.elapsed().as_millis() as u64,
+                            "minimum equipment change saved and synchronized"
+                        );
                     }
                     Ok(super::minimum_equip::Outcome::Refused(packet)) => {
                         send(stream, sender, packet.category, &packet.body).await?;
-                        tracing::info!("minimum equipment change refused by source rules");
+                        tracing::info!(
+                            elapsed_ms = started.elapsed().as_millis() as u64,
+                            "minimum equipment change refused by source rules"
+                        );
                     }
                     Ok(super::minimum_equip::Outcome::Unchanged) => {}
                     // Unsupported states and storage failures keep the session; nothing changed.
@@ -936,6 +943,7 @@ impl Connection {
             }
         }
         if self.selected.is_some() {
+            self.log_unhandled(category, body);
             return Ok(());
         }
         {
@@ -1162,23 +1170,20 @@ impl Connection {
                 return Ok(());
             }
         }
+        self.log_unhandled(category, body);
+        Ok(())
+    }
+    /// Category identity only; message values are never logged.
+    fn log_unhandled(&mut self, category: i32, body: &[u8]) {
         self.ignored_messages = self.ignored_messages.saturating_add(1);
-        if self.ignored_messages <= 8 {
-            let registered_category = if category == 0 {
-                crate::protocol::server_profile::REGISTERED_CLASSES
-                    .iter()
-                    .find(|entry| body.get(..16) == Some(entry.type_id.as_bytes().as_slice()))
-                    .map(|entry| entry.category_id)
-            } else {
-                Some(category)
-            };
+        if self.ignored_messages <= 32 {
             tracing::info!(
                 category,
-                registered_category,
+                registered_category = super::channel_server::registered_category(category, body),
+                selected = self.selected.is_some(),
                 "laboratory frontend message has no implemented handler; no response/effect"
             );
         }
-        Ok(())
     }
 }
 /// Retains cipher and all complete frames from each read. Cancellation cleans up before reservation release.

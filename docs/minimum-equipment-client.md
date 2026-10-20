@@ -57,3 +57,10 @@ Diferenças deliberadas e limites:
 - Itens fora do perfil de equipamento, Avatar, atributos, expiração, quickslots e slots expandidos continuam recusados.
 
 Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arquitetura, x86=x64); testes de requisitos; PostgreSQL de equipar → recusas → relogin → desequipar restaurando todas as linhas; TCP desequipar → reequipar → recusa pelo socket. Aceite no cliente ainda pendente.
+
+## Aceite e ajustes (20/10/2026)
+
+- **Aceito pelo operador no cliente 1.69 EN:** equipar/desequipar e relogin mantendo o resultado.
+- **Latência observada (~2 s por troca):** causa medida no nosso código, não no Docker. `item_catalog_inspection::catalog` reconstrói o catálogo efetivo (19.702 classes) a cada chamada: ~46 ms em debug, ~11 ms em release. Um equipar fazia ~35–40 reconstruções. Correção: metadados/requisitos do perfil resolvidos uma vez ao anexar os assets; stats vinculados uma vez por operação; o snapshot do inventário reaproveita o EquipmentInfo já projetado. Commits do PostgreSQL no Docker Desktop: ~15–30 ms, com picos ocasionais de ~1 s no volume.
+- **Voltar à seleção de personagem desconectava:** o servidor de canal tratava qualquer mensagem diferente de MovePartition/UpdateAction como erro e encerrava a conexão. Agora mensagens sem handler (canal e frontend após seleção) são registradas apenas por categoria e ignoradas; o retorno ao lobby em si ainda não está implementado e depende de identificar a mensagem enviada pelo cliente.
+- Gate 2026-10-20T22:12:05.8417607+00:00: 395 Rust, 242 PostgreSQL, 48 Python, zero falhas/avisos.

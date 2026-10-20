@@ -56,7 +56,7 @@ pub async fn query(
 ) -> Result<OutgoingPacket, MinimumError> {
     tokio::time::timeout(Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
-        let packet = load(&mut tx, owner, assets, cid).await?;
+        let packet = load(&mut tx, owner, assets, cid, None).await?;
         tx.commit().await?;
         Ok(packet)
     })
@@ -69,8 +69,9 @@ pub(super) async fn load(
     owner: &UserKey<'_>,
     assets: &Assets,
     cid: i64,
+    equipment_info: Option<Vec<(i32, i64)>>,
 ) -> Result<OutgoingPacket, MinimumError> {
-    let inventory = snapshot(tx, owner, assets, cid).await?;
+    let inventory = snapshot_with_equipment(tx, owner, assets, cid, equipment_info).await?;
     let body = wire::encode(
         Kind::InventoryInfo,
         Some(&Message::InventoryInfo(inventory)),
@@ -84,11 +85,14 @@ pub(super) async fn load(
     })
 }
 /// ItemOwner.ToInventoryInfo projection; SlotInfo rows are also Sync's ToSlotInfo.
-pub(super) async fn snapshot(
+/// `equipment` is the EquipmentInfo already projected by the caller from the same
+/// locked transaction; None loads and validates Gear here.
+pub(super) async fn snapshot_with_equipment(
     tx: &mut Transaction<'_, Postgres>,
     owner: &UserKey<'_>,
     assets: &Assets,
     cid: i64,
+    equipment_info: Option<Vec<(i32, i64)>>,
 ) -> Result<Inventory, MinimumError> {
     let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
     if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
@@ -220,7 +224,15 @@ pub(super) async fn snapshot(
         return Err(MinimumError::Conflict);
     }
     let locked = assets.appearance.inventory_locked_parts()?;
-    let gear = super::minimum_equipment::load(tx, owner, assets, cid).await?;
+    let equipment_info = match equipment_info {
+        Some(e) => e,
+        None => {
+            super::minimum_equipment::load(tx, owner, assets, cid)
+                .await?
+                .projection
+                .equipment
+        }
+    };
     let inventory = Inventory {
         storages: Some(
             [0, 1, 6]
@@ -237,7 +249,7 @@ pub(super) async fn snapshot(
                 .collect(),
         ),
         slots: Some(slots),
-        equipment: Dict(Some(gear.projection.equipment)),
+        equipment: Dict(Some(equipment_info)),
         quick_slots: Some(QuickSlots {
             classes: Dict(Some(Vec::new())),
         }),

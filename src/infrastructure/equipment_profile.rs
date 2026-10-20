@@ -67,7 +67,13 @@ pub struct Profile {
     equips: Vec<Equip>,
     sets: Vec<Set>,
     effects: Vec<Effect>,
+    /// Per-class resolution against the bound catalog. The effective catalog is
+    /// rebuilt from every class row, so it is resolved once instead of per lookup.
+    #[serde(skip)]
+    resolved: std::sync::OnceLock<Resolved>,
 }
+type Resolved = BTreeMap<Vec<u8>, (Metadata, crate::domain::item_constraint::Constraint)>;
+#[derive(Clone)]
 pub struct Metadata {
     pub category: String,
     pub level: i32,
@@ -188,7 +194,48 @@ impl Profile {
         }
         Ok(())
     }
+    /// Resolves every profile class once; the database/config hashes checked by
+    /// `bind` determine both the catalog rows and the feature policy.
+    pub fn resolve(&self, catalog: &Catalog) -> Result<(), MinimumError> {
+        self.bind(catalog)?;
+        if self.resolved.get().is_some() {
+            return Ok(());
+        }
+        let mut map = BTreeMap::new();
+        for c in &self.classes {
+            let key = raw(&c.item_utf16)?;
+            if map.contains_key(&key) {
+                continue;
+            }
+            // Classes that do not resolve stay absent and keep failing on lookup.
+            if let (Ok(m), Ok(k)) = (
+                self.resolve_metadata(catalog, &key),
+                self.resolve_constraint(catalog, &key),
+            ) {
+                map.insert(key, (m, k));
+            }
+        }
+        let _ = self.resolved.set(map);
+        Ok(())
+    }
+    fn cached(
+        &self,
+        catalog: &Catalog,
+        key: &[u8],
+    ) -> Result<Option<&(Metadata, crate::domain::item_constraint::Constraint)>, MinimumError> {
+        let Some(map) = self.resolved.get() else {
+            return Ok(None);
+        };
+        self.bind(catalog)?;
+        Ok(Some(map.get(key).ok_or_else(fail)?))
+    }
     pub fn metadata(&self, catalog: &Catalog, key: &[u8]) -> Result<Metadata, MinimumError> {
+        if let Some((m, _)) = self.cached(catalog, key)? {
+            return Ok(m.clone());
+        }
+        self.resolve_metadata(catalog, key)
+    }
+    fn resolve_metadata(&self, catalog: &Catalog, key: &[u8]) -> Result<Metadata, MinimumError> {
         self.bind(catalog)?;
         let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
         let item = effective.get(Some(key)).ok_or_else(fail)?;
@@ -226,6 +273,16 @@ impl Profile {
     }
     /// ItemClassInfoConstraintTrait for a bound normal equipment class.
     pub fn constraint(
+        &self,
+        catalog: &Catalog,
+        key: &[u8],
+    ) -> Result<crate::domain::item_constraint::Constraint, MinimumError> {
+        if let Some((_, k)) = self.cached(catalog, key)? {
+            return Ok(k.clone());
+        }
+        self.resolve_constraint(catalog, key)
+    }
+    fn resolve_constraint(
         &self,
         catalog: &Catalog,
         key: &[u8],

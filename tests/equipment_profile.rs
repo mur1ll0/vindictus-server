@@ -25,6 +25,32 @@ fn equipment_metadata_is_bound_to_catalog_source_indices_and_implementations() {
         ("WEAPON", 7, "LONGSWORD", 29)
     );
     assert_eq!(m.sets.len(), 1);
+    // The resolved cache returns the same metadata/constraint and still refuses absent keys.
+    let constraint = profile.constraint(&catalog, &key).unwrap();
+    profile.resolve(&catalog).unwrap();
+    let cached = profile.metadata(&catalog, &key).unwrap();
+    assert_eq!(
+        (
+            cached.category,
+            cached.level,
+            cached.equip_class,
+            cached.serial,
+            cached.sets
+        ),
+        (
+            m.category.clone(),
+            m.level,
+            m.equip_class.clone(),
+            m.serial,
+            m.sets.clone()
+        )
+    );
+    assert_eq!(profile.constraint(&catalog, &key).unwrap(), constraint);
+    let absent = "absent"
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect::<Vec<_>>();
+    assert!(profile.metadata(&catalog, &absent).is_err());
     for field in ["source_index", "item_utf16", "feature"] {
         let mut bad = v.clone();
         bad["classes"][0][field] = match field {

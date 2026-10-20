@@ -190,7 +190,7 @@ impl Assets {
         mut self,
         profile: super::equipment_profile::Profile,
     ) -> Result<Self, MinimumError> {
-        profile.bind(&self.catalog)?;
+        profile.resolve(&self.catalog)?;
         self.equipment = Some(profile);
         Ok(self)
     }

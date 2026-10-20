@@ -200,9 +200,13 @@ pub async fn connection(
                     let id = cid.ok_or(RuntimeError::Message)?;
                     let mut state = runtime.state.lock().await;
                     if state.peers.get(&id).is_none_or(|p| p.token != token) { return Ok(()); }
-                    let kind = [Kind::MovePartition, Kind::UpdateAction].into_iter().find(|k|
+                    let Some(kind) = [Kind::MovePartition, Kind::UpdateAction].into_iter().find(|k|
                         frame.category_id == k.category() || (frame.category_id == 0 && frame.body.get(..16) == Some(k.type_id().as_bytes().as_slice()))
-                    ).ok_or(RuntimeError::Message)?;
+                    ) else {
+                        // Unimplemented channel services are observed, not treated as protocol errors.
+                        tracing::info!(category = frame.category_id, registered_category = registered_category(frame.category_id, &frame.body), "minimum channel message has no implemented handler; no response/effect");
+                        continue;
+                    };
                     let output = match wire::decode_ingress(kind, frame.category_id, &frame.body, DEFAULT_MAX_BODY).map_err(|_| RuntimeError::Message)? {
                         Some(Message::MovePartition { target_partition_id }) => state.channel.move_partition(id, target_partition_id),
                         Some(Message::UpdateAction { data }) => state.channel.update_action(id, data),
@@ -218,6 +222,16 @@ pub async fn connection(
     }
     let _ = stream.shutdown().await;
     result
+}
+/// Registered category of a GUID-prefixed (category 0) frame; the GUID is a type identity.
+pub(crate) fn registered_category(category: i32, body: &[u8]) -> Option<i32> {
+    if category != 0 {
+        return Some(category);
+    }
+    crate::protocol::server_profile::REGISTERED_CLASSES
+        .iter()
+        .find(|entry| body.get(..16) == Some(entry.type_id.as_bytes().as_slice()))
+        .map(|entry| entry.category_id)
 }
 pub async fn run(
     listener: TcpListener,
