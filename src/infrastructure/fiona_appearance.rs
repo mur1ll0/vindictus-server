@@ -62,6 +62,8 @@ struct RawColor {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawPart {
+    #[serde(default)]
+    expanded_slot: Option<bool>,
     consumable: bool,
     #[serde(deserialize_with = "nullable")]
     category_utf16: Option<PrivateText>,
@@ -107,6 +109,7 @@ struct Color {
     value: i32,
 }
 struct Part {
+    expanded_slot: Option<bool>,
     consumable: bool,
     key: Option<LegacyBytes<1024, true>>,
     number: i32,
@@ -238,6 +241,7 @@ impl Profile {
             .into_iter()
             .map(|r| {
                 Ok(Part {
+                    expanded_slot: r.expanded_slot,
                     consumable: r.consumable,
                     key: item_catalog::opaque(r.category_utf16)?,
                     number: r.equip_part,
@@ -287,6 +291,39 @@ impl Profile {
             }
         }
         Ok(())
+    }
+    /// Fresh Gear constructor lock state, before expanded-slot rows are loaded.
+    /// Old appearance-only exports cannot silently supply an empty inventory lock list.
+    pub fn inventory_locked_parts(&self) -> Result<Vec<i32>, Error> {
+        for key in [
+            "E3_Event_2010",
+            "Event_PAX_2011_enUS",
+            "ItemPriceInfoInItemSlot",
+            "ItemPriceInfoInService",
+        ] {
+            if !self.policy.entries().any(|(k, _)| k == key) {
+                return Err(fail());
+            }
+        }
+        let unlocked = self.policy.is_enabled(Some("E3_Event_2010"))?
+            || self.policy.is_enabled(Some("Event_PAX_2011_enUS"))?;
+        let mut seen = std::collections::BTreeSet::new();
+        let (mut equip, mut quick) = (Vec::new(), Vec::new());
+        for row in &self.parts {
+            if !seen.insert(row.number) {
+                continue;
+            }
+            u8::try_from(row.number).map_err(|_| fail())?;
+            if row.expanded_slot.ok_or_else(fail)? && !(row.consumable && unlocked) {
+                if row.consumable {
+                    quick.push(row.number)
+                } else {
+                    equip.push(row.number)
+                }
+            }
+        }
+        equip.extend(quick);
+        Ok(equip)
     }
     /// Exact empty-slot projection for the fresh creation path, not a stored Gear loader.
     pub fn initial_gear(

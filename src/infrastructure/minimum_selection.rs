@@ -127,7 +127,7 @@ pub async fn select(
         .ok_or(MinimumError::Conflict)?;
     let look =
         Channel::encode_look_summary(cid, Some(&summary)).map_err(|_| MinimumError::Conflict)?;
-    let packets = vec![
+    let mut packets = vec![
         packet(Message::LoginOk {
             region_code: map_partition::login_ok_region_code(row.try_get("region_code")?),
             time: map_partition::utility_epoch_seconds(
@@ -154,6 +154,7 @@ pub async fn select(
             stat: Some(dictionary),
         })?,
     ];
+    packets.push(super::minimum_inventory::load(&mut tx, owner, assets, cid).await?);
     sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=EXCLUDED.last_login_cid").bind(owner.uid).bind(cid).execute(&mut *tx).await?;
     sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=$1")
         .bind(cid)

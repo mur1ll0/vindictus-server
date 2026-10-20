@@ -266,3 +266,47 @@ fn initial_gear_keeps_source_slot_order_and_zero_set_bonus_with_avatar_flags() {
         assert!(gear.set_skills().is_empty());
     }
 }
+
+#[test]
+fn inventory_lock_projection_preserves_first_part_order_and_event_quickslot_override() {
+    let mut v = fixture();
+    v["parts"] = json!([
+        {"category_utf16":key("a"),"equip_part":8,"costume_part":null,"decoration":false,"consumable":true,"expanded_slot":true},
+        {"category_utf16":key("b"),"equip_part":2,"costume_part":null,"decoration":false,"consumable":false,"expanded_slot":true},
+        {"category_utf16":key("c"),"equip_part":1,"costume_part":null,"decoration":false,"consumable":false,"expanded_slot":false},
+        {"category_utf16":key("d"),"equip_part":8,"costume_part":null,"decoration":false,"consumable":true,"expanded_slot":false}
+    ]);
+    assert_eq!(
+        Profile::read(bytes(&v).as_slice())
+            .unwrap()
+            .inventory_locked_parts()
+            .unwrap(),
+        [2, 8]
+    );
+    for name in ["E3_Event_2010", "Event_PAX_2011_enUS"] {
+        let mut enabled = v.clone();
+        enabled["features"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|r| r["key"] == name)
+            .unwrap()["value"] = json!("1");
+        assert_eq!(
+            Profile::read(bytes(&enabled).as_slice())
+                .unwrap()
+                .inventory_locked_parts()
+                .unwrap(),
+            [2]
+        );
+    }
+    v["parts"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("expanded_slot");
+    assert!(
+        Profile::read(bytes(&v).as_slice())
+            .unwrap()
+            .inventory_locked_parts()
+            .is_err()
+    );
+}

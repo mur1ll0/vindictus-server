@@ -27,6 +27,16 @@ pub(super) async fn setup(p: &PgPool) {
     fixture::appearance_setup(p, true).await;
     character_skills::preserve(p,&character_skills::read_snapshot(br#"{"format_version":1,"source":"study_heroes.skill-state","sp_source_last_value":null,"skills":[],"sp_slots":[]}"#.as_slice()).unwrap(),false).await.unwrap();
     super::fiona_managers::empty_vocation_source(p).await;
+    let source: serde_json::Value =
+        serde_json::from_str(include_str!("../../src/domain/item_loader_sources.json")).unwrap();
+    let empty = serde_json::json!({"format_version":1,"source":"study_heroes.item-loader-state","schema_sha256":source["schema_sha256"],"source_last":[null,null,null,null,null],"quick_slots":[],"expanded_slots":[],"manufacture":[],"recipes":[],"new_recipes":[]});
+    let snapshot = vindictus_server::infrastructure::item_loader_state::read_snapshot(
+        serde_json::to_vec(&empty).unwrap().as_slice(),
+    )
+    .unwrap();
+    vindictus_server::infrastructure::item_loader_state::preserve(p, &snapshot, false)
+        .await
+        .unwrap();
 }
 fn config() -> QueryConfig {
     QueryConfig {
@@ -68,7 +78,7 @@ pub(super) fn body() -> zeroize::Zeroizing<Vec<u8>> {
     )
     .unwrap()
 }
-async fn initialize(p: &PgPool) -> Result<minimum::Initialized, minimum::MinimumError> {
+pub(super) async fn initialize(p: &PgPool) -> Result<minimum::Initialized, minimum::MinimumError> {
     let i = fixture::AppearanceInputs::new();
     minimum::initialize(
         p,
@@ -451,7 +461,7 @@ async fn minimum_selection_rejects_partial_stats_skills_titles_and_stale_owner()
             .iter()
             .map(|p| p.category)
             .collect::<Vec<_>>(),
-        [483, 345, 609, 619]
+        [483, 345, 609, 619, 468]
     );
     assert!(
         selection::select(

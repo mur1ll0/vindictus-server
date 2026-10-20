@@ -310,6 +310,9 @@ impl Profile {
             })
             .collect()
     }
+    pub(super) fn is_gold(&self, key: &[u8]) -> bool {
+        self.gold.as_bytes() == key
+    }
     pub fn limits(&self) -> Result<(i32, i32), Error> {
         Ok((
             self.policy.get_integer("MaxDurabilityLimit")?,

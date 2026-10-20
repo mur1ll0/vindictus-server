@@ -1,0 +1,250 @@
+{
+  "stage": "M15.1c.3",
+  "priority": "P0-01",
+  "verified_at_utc": "2026-10-20T17:00:35.6949104+00:00",
+  "scope": "Read-only snapshot for initialized, nonexpiring, attribute-free, unequipped first Fiona; initial delivery and repeat QueryInventory",
+  "previous_city_movement_operator_acceptance": {
+    "commit": "07e6485",
+    "accepted": true
+  },
+  "wire": {
+    "query_category": 529,
+    "snapshot_category": 468,
+    "framework_cases_per_architecture": 48,
+    "x86_equals_x64": true,
+    "original_assembly_sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+    "original_services_executed": false,
+    "public_values_synthetic_only": true
+  },
+  "snapshot": {
+    "storage_ids": [
+      0,
+      1,
+      6
+    ],
+    "items_queried_from_storage": true,
+    "equippables_in_bag": 5,
+    "equipped_parts": 0,
+    "empty_slots_and_storages_proven_under_locks": true,
+    "owner_revision_origin_marker_profile_checked": true,
+    "no_item_delivery_or_repair": true,
+    "optional_market_prices": "zero fallback for absent TradeManager cache entries; no trading service implemented"
+  },
+  "native_readonly_preflight": {
+    "readonly_native_inventory": true,
+    "packet_category": 468,
+    "existing_items_delivered": 11,
+    "storages": 3,
+    "locked_parts": 0,
+    "equipped_items": 0,
+    "item_ids_match_storage": true,
+    "dml_executed": false
+  },
+  "focused": {
+    "postgres_tcp_passed": 10,
+    "rust_wire_map_appearance_passed": 12,
+    "appearance_python_passed": 5,
+    "clippy_library_exit": 0,
+    "repeated_registered_and_guid_queries_match_initial_snapshot": true,
+    "locked_query_refused": true,
+    "partial_stale_owner_wrong_cid_expiring_equipped_quick_expanded_checksum_attribute_states_refused": true,
+    "no_write_on_query_or_refusal": true
+  },
+  "full_gate": {
+    "command": "scripts/dev/verify.ps1 -DatabaseIntegration",
+    "runs_this_batch": 1,
+    "exit_code": 0,
+    "counts": {
+      "rust": 381,
+      "postgres": 237,
+      "python": 45
+    },
+    "failures": 0,
+    "warnings": 0,
+    "format_clippy_doc_tests_build_passed": true
+  },
+  "activation": {
+    "frontend_channel_restarted": true,
+    "loopback_ports": [
+      8081,
+      27015,
+      27003
+    ],
+    "http_status": 200,
+    "binary_sha256": "91318658b5d270d30435455af7f62c6a6be31ae4ccd2840ec073e5292753dd83",
+    "private_appearance_profile_refreshed": true,
+    "initializer_fingerprint_unchanged": true
+  },
+  "preservation": {
+    "before": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "after": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "identical": true,
+    "real_database_checked_readonly": true,
+    "schema_migration_added": false,
+    "client_or_original_directories_changed": false
+  },
+  "disposable_postgres_removed": true,
+  "real_client_inventory_verified": true,
+  "operator_retest_pending": false,
+  "local_commit_pending_operator_verification": false,
+  "mutations_enabled": false,
+  "next": "P0-02 equip/unequip with persisted equipment loading, appearance/stats/load synchronization and source-bound requirements",
+  "sources": [
+    {
+      "path": "scripts/content/export_fiona_appearance.py",
+      "sha256": "3d88fc0d9d69f4fa1a6d4f5fe0935adcae27646e304b36b7a86d8c5438785683"
+    },
+    {
+      "path": "scripts/content/test_export_fiona_appearance.py",
+      "sha256": "834f08d116f3e107d4b6165c2655b390000dc3f7aaf8af604b846f3a8b1a9362"
+    },
+    {
+      "path": "scripts/reverse/framework/InventoryWireOracle.cs",
+      "sha256": "86ef8fe5a8b4af3aabbf364bc5c5df74c8ad0d4e862dc47cdc0be6507c27ed02"
+    },
+    {
+      "path": "scripts/reverse/generate-inventory-wire-fixtures.ps1",
+      "sha256": "56db1643a68c0fcff17b478450d5b8f32292ffb7672de6d5e97e4cddce2ca4c1"
+    },
+    {
+      "path": "src/domain/fiona_gear_sources.json",
+      "sha256": "ccc8851a9cab90527b915e8dc907fc581249599d6c9b8cabc7cd2337aa36df58"
+    },
+    {
+      "path": "src/infrastructure/fiona_appearance.rs",
+      "sha256": "6376465c879b77878626bacfd553ea458c35ca1ac90802ac6fe50422172cba8f"
+    },
+    {
+      "path": "src/infrastructure/fiona_inventory_profile.rs",
+      "sha256": "a28eafd76fadf71f567b33324ecb107c54539c170f544fae93a6c4f6fac303ab"
+    },
+    {
+      "path": "src/infrastructure/lab_frontend.rs",
+      "sha256": "63e7fa36c738a688a22cd27513346adae954829f192f7d3ec47b4176819ce565"
+    },
+    {
+      "path": "src/infrastructure/minimum_assets.rs",
+      "sha256": "6625fb899dc7cf18ad8ac5b4b0a8573d287724822210e333def2c6341df6c39f"
+    },
+    {
+      "path": "src/infrastructure/minimum_inventory.rs",
+      "sha256": "7c3873fd57b07ad47d8c47e8b10f0cd5ce5432e13d211844c03287fb34ea96d6"
+    },
+    {
+      "path": "src/infrastructure/minimum_selection.rs",
+      "sha256": "e01b7b484df3f90f83309c04fd45d284f3f57a24022756049d1775f8442ef26d"
+    },
+    {
+      "path": "src/infrastructure/mod.rs",
+      "sha256": "a1fca4cf92ea641d240508ae5b6e70395a288ab92fc528d1ce95b3393c496eb5"
+    },
+    {
+      "path": "src/protocol.rs",
+      "sha256": "34c9cc30329a2fb762798f5e3aed3d8244feaac9813041085eb55af40cae9f8f"
+    },
+    {
+      "path": "src/protocol/inventory.rs",
+      "sha256": "6c28843c6ce0789cc3c1880884d71ba68f9031c8e285efaa174d4a0542a6fbce"
+    },
+    {
+      "path": "tests/fiona_appearance.rs",
+      "sha256": "59137f249f56ba09d8f94d14ca5849ebd8ecad51c9d29274f3d67e9909f2687c"
+    },
+    {
+      "path": "tests/fixtures/fiona_appearance_support.rs",
+      "sha256": "5db5e1e6f5c118bd96aa32415ad34231d41630284cdddb2dced8e2c6ba56991d"
+    },
+    {
+      "path": "tests/fixtures/framework-inventory-wire.json",
+      "sha256": "f6d82da2e0989c889fc5817d33754a21768cab1b023df0abac2a6c0a2913cd8b"
+    },
+    {
+      "path": "tests/inventory_wire.rs",
+      "sha256": "7c4784f07d5f110137e88bd440abe0dc6ed0e579cebfb2aca2e3b03f1c094feb"
+    },
+    {
+      "path": "tests/postgres.rs",
+      "sha256": "6dd0ad8aa6f8aa79e036ca5d7b6e4b897a8132827fb649e203898fa20ac0d586"
+    },
+    {
+      "path": "tests/support/minimum_character.rs",
+      "sha256": "4998b9be39fcfd6a991edaeab909a2669370d4fd79a966c5f8ab83628be342b1"
+    },
+    {
+      "path": "tests/support/minimum_inventory.rs",
+      "sha256": "4aa5852656905fad6fe90aae1fabd2295459ce2772fa7d9ee99ca85b8ac84aed"
+    },
+    {
+      "path": "tests/support/minimum_selection.rs",
+      "sha256": "b9247d4872eec9106b17ae97e4eb5ed71c3f9a6e48e6cf1e3ebc69ed0f9e0524"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".cache/verification/inventory-wire-generation.log",
+      "sha256": "6680ccc6897b02352c9d567e97c467f1ac2bae099103c50d58bd073d99f9e1df"
+    },
+    {
+      "path": ".cache/verification/inventory-focused-pg-green.log",
+      "sha256": "4a956e3fcee64f60c648342b0b901668331bd43547b5a5001d9f65b10539752b"
+    },
+    {
+      "path": ".cache/verification/inventory-focused-rust-green.log",
+      "sha256": "c6470946d27a785167ad76018f47574fe1aef943a07444e76e6c4eef296cbe8c"
+    },
+    {
+      "path": ".cache/verification/inventory-clippy-focus.log",
+      "sha256": "a8697d7a03f5f3d85feefe72a9cfad9407996aba002446f28c1846ed0920b096"
+    },
+    {
+      "path": ".cache/verification/inventory-appearance-python.log",
+      "sha256": "b0c5abea9abcbb4cc3233014af907c56fd069b7cae0b84056d0671e2166f3c73"
+    },
+    {
+      "path": ".cache/verification/inventory-native-build.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": ".cache/verification/inventory-native-read.json",
+      "sha256": "4405db7c31da0c6811c3db3c2c34daf285b8467615ef13f720522dd07873f9ba"
+    },
+    {
+      "path": ".cache/verification/inventory-final-gate.log",
+      "sha256": "0f2b424ba54951dd1cff83a2a586ebadf1ec5c0349c44d20bd9f0a0a3d24f9a7"
+    },
+    {
+      "path": ".cache/verification/inventory-activation.log",
+      "sha256": "9493f7db6a03ecaea460168028677edca24e6bd9b0620b716c69bdb16dee7f1c"
+    },
+    {
+      "path": ".cache/verification/inventory-live-after.json",
+      "sha256": "35e1368f7b36b6b31435dbe3e242c41604aa573dd8115ba0946666e9959880fd"
+    },
+    {
+      "path": ".cache/verification/inventory-pg-stop.log",
+      "sha256": "18b0710c3bece5e9504abb33a602e3be3805e5ed4d99d86b393b3b0ebe3312df"
+    }
+  ],
+  "operator_acceptance": {
+    "date": "2026-10-20",
+    "inventory_opens": true,
+    "initial_equipment_visible_in_bag": true,
+    "quote": "Entrei de novo e funcionou. Inventario apareceu e tenho o equipamento inicial la",
+    "reported_login_refusal": "Operator confirmed mistyped identifier; exact authorized identifier worked, no login code change",
+    "reopen_relogin_independently_confirmed": false
+  }
+}

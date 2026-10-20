@@ -57,6 +57,17 @@ pub(super) async fn locked_selection(
     rx: &mut vindictus_server::protocol::transport::LegacyReceiver,
     tx: &mut vindictus_server::protocol::transport::LegacySender,
 ) {
+    use vindictus_server::protocol::inventory::{
+        self as inv, Kind as InvKind, Message as InvMessage,
+    };
+    let body = inv::encode(
+        InvKind::QueryInventory,
+        Some(&InvMessage::QueryInventory),
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap();
+    send(client, tx, 529, &body).await;
+    assert_eq!(read(client, rx).await.category_id, CKind::System.category());
     frontend_send(client, tx, Message::SelectCharacter { index: 0 }).await;
     assert_eq!(read(client, rx).await.category_id, CKind::System.category());
 }
@@ -117,6 +128,64 @@ pub(super) async fn exercise(
             }
             _ => {}
         }
+    }
+    let inventory_frame = read(client, rx).await;
+    assert_eq!(inventory_frame.category_id, 468);
+    let Some(vindictus_server::protocol::inventory::Message::InventoryInfo(snapshot)) =
+        vindictus_server::protocol::inventory::decode(
+            vindictus_server::protocol::inventory::Kind::InventoryInfo,
+            &inventory_frame.body,
+            DEFAULT_MAX_BODY,
+        )
+        .unwrap()
+    else {
+        panic!("initial inventory missing")
+    };
+    let stored: Vec<i64> =
+        sqlx::query_scalar("SELECT id FROM game_items WHERE owner_id=$1 ORDER BY id")
+            .bind(cid)
+            .fetch_all(pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        snapshot
+            .slots
+            .unwrap()
+            .iter()
+            .map(|s| s.as_ref().unwrap().id)
+            .collect::<Vec<_>>(),
+        stored
+    );
+    assert!(snapshot.equipment.0.unwrap().is_empty());
+    assert_eq!(
+        snapshot
+            .storages
+            .unwrap()
+            .iter()
+            .map(|s| s.as_ref().unwrap().id)
+            .collect::<Vec<_>>(),
+        [0, 1, 6]
+    );
+    for category in [529, 0] {
+        use vindictus_server::protocol::inventory::{
+            self as inv, Kind as InvKind, Message as InvMessage,
+        };
+        let mut body = inv::encode(
+            InvKind::QueryInventory,
+            Some(&InvMessage::QueryInventory),
+            DEFAULT_MAX_BODY,
+        )
+        .unwrap()
+        .to_vec();
+        if category == 0 {
+            let mut raw = InvKind::QueryInventory.type_id().as_bytes().to_vec();
+            raw.extend(body);
+            body = raw;
+        }
+        send(client, tx, category, &body).await;
+        let repeated = read(client, rx).await;
+        assert_eq!(repeated.category_id, 468);
+        assert_eq!(repeated.body, inventory_frame.body);
     }
     let state:(bool,Option<i64>,Option<Vec<u8>>)=sqlx::query_as("SELECT is_connected,(SELECT last_login_cid FROM game_user_info WHERE nexon_sn=uid),(SELECT current_quest_utf16 FROM game_micro_play_status WHERE cid=id) FROM game_character_info WHERE id=$1").bind(cid).fetch_one(pool).await.unwrap();
     assert_eq!(state, (true, Some(cid), None));

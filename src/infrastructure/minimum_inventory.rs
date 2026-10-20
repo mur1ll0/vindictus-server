@@ -1,0 +1,233 @@
+//! Read-only initial inventory snapshot for the initialized, unequipped Fiona scope.
+//! Expanded/shared/expiring/attribute-bearing states are refused until their loaders exist.
+use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
+use crate::{
+    domain::{item_durability::EquipmentDurability, map_partition::OutgoingPacket},
+    protocol::{
+        DEFAULT_MAX_BODY,
+        inventory::{self as wire, Dict, Inventory, Kind, Message, QuickSlots, Slot, Storage},
+    },
+};
+use sqlx::{PgPool, Postgres, Transaction};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    time::Duration,
+};
+#[derive(sqlx::FromRow)]
+struct Item {
+    id: i64,
+    item_class_utf16: Vec<u8>,
+    count: i32,
+    collection: i16,
+    slot: i32,
+    expire_ticks: Option<i64>,
+    tradable: bool,
+    checksum: Option<i32>,
+}
+#[derive(sqlx::FromRow)]
+struct Equipment {
+    id: i64,
+    part: Option<i16>,
+    color1: i32,
+    color2: i32,
+    color3: i32,
+    reduced_durability: i32,
+    max_durability_bonus: i32,
+}
+fn text(b: &[u8]) -> Result<String, MinimumError> {
+    if !b.len().is_multiple_of(2) || b.len() > 2048 {
+        return Err(MinimumError::Conflict);
+    }
+    String::from_utf16(
+        &b.as_chunks::<2>()
+            .0
+            .iter()
+            .map(|v| u16::from_le_bytes(*v))
+            .collect::<Vec<_>>(),
+    )
+    .map_err(|_| MinimumError::Conflict)
+}
+/// Handler admission uses the current selected CID; storage independently rechecks ownership.
+pub async fn query(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<OutgoingPacket, MinimumError> {
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let packet = load(&mut tx, owner, assets, cid).await?;
+        tx.commit().await?;
+        Ok(packet)
+    })
+    .await
+    .map_err(|_| MinimumError::Conflict)?
+}
+/// Caller retains the same character lock for selection and initial delivery.
+pub(super) async fn load(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<OutgoingPacket, MinimumError> {
+    let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
+    if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
+        return Err(MinimumError::Conflict);
+    }
+    super::item_loader_state::require_slots_absent(tx, cid)
+        .await
+        .map_err(|_| MinimumError::Conflict)?;
+    sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;
+    let storage: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM game_item_storage_status WHERE owner_id=$1)",
+    )
+    .bind(cid)
+    .fetch_one(&mut **tx)
+    .await?;
+    if storage {
+        return Err(MinimumError::Conflict);
+    }
+    let rows:Vec<Item>=sqlx::query_as("SELECT id,item_class_utf16,count,collection,slot,expire_ticks,tradable,checksum FROM game_items WHERE owner_id=$1 ORDER BY id LIMIT 4097").bind(cid).fetch_all(&mut **tx).await?;
+    if rows.is_empty() || rows.len() > 4096 {
+        return Err(MinimumError::Conflict);
+    }
+    let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
+    let attributes: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM game_item_attributes WHERE item_id=ANY($1))",
+    )
+    .bind(&ids)
+    .fetch_one(&mut **tx)
+    .await?;
+    if attributes {
+        return Err(MinimumError::Conflict);
+    }
+    let equipment:Vec<Equipment>=sqlx::query_as("SELECT id,part,color1,color2,color3,reduced_durability,max_durability_bonus FROM game_equippables WHERE id=ANY($1)").bind(&ids).fetch_all(&mut **tx).await?;
+    let mut equipment: BTreeMap<_, _> = equipment.into_iter().map(|e| (e.id, e)).collect();
+    let stats = assets.stats.bind(&assets.catalog)?;
+    let mut slots = Vec::with_capacity(rows.len());
+    let mut positions = BTreeSet::new();
+    for row in rows {
+        let bag = matches!(row.collection, 0 | 1 | 6);
+        if row.count <= 0
+            || row.expire_ticks.is_some()
+            || !(bag || row.collection == 100)
+            || row.slot < 0
+            || (bag && row.slot >= 48)
+            || !positions.insert((row.collection, row.slot))
+        {
+            return Err(MinimumError::Conflict);
+        }
+        let class = stats
+            .catalog()
+            .get(Some(&row.item_class_utf16))
+            .ok_or(MinimumError::Conflict)?;
+        if class.storage != if bag { 1 } else { 2 } {
+            return Err(MinimumError::Conflict);
+        }
+        if assets.inventory.is_gold(&row.item_class_utf16) {
+            let key = row
+                .item_class_utf16
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|v| u16::from_le_bytes(*v))
+                .collect::<Vec<_>>();
+            if row.checksum
+                != Some(crate::domain::initial_inventory::gold_checksum(
+                    row.id,
+                    Some(cid),
+                    &key,
+                    row.count,
+                ))
+            {
+                return Err(MinimumError::Conflict);
+            }
+        } else if row.checksum.is_some() {
+            return Err(MinimumError::Conflict);
+        }
+        let equippable = class.binding.equippable;
+        let (colors, durability, maximum, bonus) = match (equippable, equipment.remove(&row.id)) {
+            (false, None) => (vec![-1; 3], 0, 0, 0),
+            (true, Some(e)) if e.part.is_none() => {
+                let base = stats
+                    .get(Some(&row.item_class_utf16))
+                    .ok_or(MinimumError::Conflict)?;
+                let d = EquipmentDurability::load(
+                    base,
+                    base,
+                    e.reduced_durability,
+                    e.max_durability_bonus,
+                );
+                (
+                    vec![e.color1, e.color2, e.color3],
+                    d.current(),
+                    d.maximum(),
+                    d.bonus(),
+                )
+            }
+            _ => return Err(MinimumError::Conflict),
+        };
+        slots.push(Some(Slot {
+            id: row.id,
+            class: Some(text(&row.item_class_utf16)?),
+            count: if equippable { 1 } else { row.count },
+            tab: i32::from(row.collection),
+            slot: row.slot,
+            expireable: false,
+            expire_diff: -1,
+            expire_ticks: -1,
+            colors: Some(colors),
+            durability,
+            maximum,
+            bonus,
+            tradable: row.tradable,
+            expander: Some(String::new()),
+            attributes: Some(Vec::new()),
+            prefix: Dict(Some(Vec::new())),
+            suffix: Dict(Some(Vec::new())),
+            // TradeManager.UpdatePrice initializes an empty cache before its query. Missing
+            // market entries retain the SlotInfo default zeros; trading remains deferred.
+            min_price: 0,
+            max_price: 0,
+            avg_price: 0,
+            min_up_diff: if equippable { -1 } else { 0 },
+        }));
+    }
+    if !equipment.is_empty() {
+        return Err(MinimumError::Conflict);
+    }
+    let locked = assets.appearance.inventory_locked_parts()?;
+    let inventory = Inventory {
+        storages: Some(
+            [0, 1, 6]
+                .into_iter()
+                .map(|id| {
+                    Some(Storage {
+                        id,
+                        available: 1,
+                        last_seconds: -1,
+                        name: Some(String::new()),
+                        tag: 0,
+                    })
+                })
+                .collect(),
+        ),
+        slots: Some(slots),
+        equipment: Dict(Some(Vec::new())),
+        quick_slots: Some(QuickSlots {
+            classes: Dict(Some(Vec::new())),
+        }),
+        unequippable: Some(locked),
+    };
+    let body = wire::encode(
+        Kind::InventoryInfo,
+        Some(&Message::InventoryInfo(inventory)),
+        DEFAULT_MAX_BODY,
+    )
+    .map_err(|_| MinimumError::Conflict)?
+    .to_vec();
+    Ok(OutgoingPacket {
+        category: Kind::InventoryInfo.category(),
+        body,
+    })
+}

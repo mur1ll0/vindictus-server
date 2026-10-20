@@ -41,9 +41,9 @@ struct Files {
 pub struct Assets {
     pub initializer: fiona_initializer_profile::Profile,
     pub(super) catalog: item_catalog::Package,
-    stats: item_stats::Package,
+    pub(super) stats: item_stats::Package,
     colors: item_colors::Package,
-    inventory: fiona_inventory_profile::Profile,
+    pub(super) inventory: fiona_inventory_profile::Profile,
     pub(super) appearance: fiona_appearance::Profile,
     pub entity_service_id: i32,
     pub(super) arithmetic: Option<BodyArithmetic>,

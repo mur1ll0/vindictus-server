@@ -806,6 +806,58 @@ impl Connection {
                 return Ok(());
             }
         }
+        {
+            use crate::protocol::inventory::{self as wire, Kind, Message};
+            if matches(
+                category,
+                body,
+                Kind::QueryInventory.category(),
+                Kind::QueryInventory.type_id(),
+            ) {
+                if !self
+                    .password
+                    .as_ref()
+                    .is_some_and(|p| p.selection_allowed(&self.frontend))
+                {
+                    locked(stream, sender).await?;
+                    return Ok(());
+                }
+                let Some(Message::QueryInventory) =
+                    wire::decode_ingress(Kind::QueryInventory, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                let Some(selected) = self.selected.as_ref() else {
+                    locked(stream, sender).await?;
+                    return Ok(());
+                };
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let assets = &runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .assets;
+                let packet = super::minimum_inventory::query(pool, &owner, assets, selected.cid)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                send(stream, sender, packet.category, &packet.body).await?;
+                tracing::info!("minimum inventory snapshot sent; values omitted");
+                return Ok(());
+            }
+        }
         if self.selected.is_some() {
             return Ok(());
         }

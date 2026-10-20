@@ -29,7 +29,7 @@ def read_package(database,config,implementation,gear_sources):
   # measured Framework profiles, so HeroesContentsLoader retains the bool value.
   if type(v)is not int or v not in(0,1):raise ValueError('EquipPartInfo BIT storage profile')
   return v==1
- wanted={'CurrentVer','LanguageTag','AvatarSlotBonus','Avatar'}
+ wanted={'CurrentVer','LanguageTag','AvatarSlotBonus','Avatar','E3_Event_2010','Event_PAX_2011_enUS','ItemPriceInfoInItemSlot','ItemPriceInfoInService'}
  def feature(v):
   if v is not None and(not isinstance(v,str)or not v.isascii()or len(v)>512):raise ValueError('Appearance feature bound')
   wanted.update(reward.feature_atoms(v));return v
@@ -51,8 +51,8 @@ def read_package(database,config,implementation,gear_sources):
   custom=[dict(item_utf16=text(r['ItemClass']),feature=feature(r['Feature']),cash_type=tag(r['CashShopType']),is_cash=boolean(r['IsCash']))for r in rows(db,'CustomizeItemInfo')]
   colors=[dict(category_utf16=text(r['Category']),feature=feature(r['Feature']),cash_type=tag(r['CashShopType']),is_cash=boolean(r['IsCash']),order=integer(r['Order']),color=integer(r['Color']))for r in rows(db,'CustomizeColorInfo')]
   column_types={r[1]:r[2].casefold()for r in db.execute('PRAGMA table_info(EquipPartInfo)')}
-  if column_types.get('IsConsumable')!='bit':raise ValueError('EquipPartInfo boolean declared type changed')
-  parts=[dict(consumable=bit(r['IsConsumable']),category_utf16=text(r['ItemCategory']),equip_part=integer(r['EquipPartNum']),costume_part=None if r['CostumePartNum']is None else integer(r['CostumePartNum']),decoration=r['CostumeCategory']=='Decoration')for r in rows(db,'EquipPartInfo')]
+  if column_types.get('IsConsumable')!='bit' or column_types.get('IsExpandedSlot')!='bit':raise ValueError('EquipPartInfo boolean declared type changed')
+  parts=[dict(consumable=bit(r['IsConsumable']),expanded_slot=bit(r['IsExpandedSlot']),category_utf16=text(r['ItemCategory']),equip_part=integer(r['EquipPartNum']),costume_part=None if r['CostumePartNum']is None else integer(r['CostumePartNum']),decoration=r['CostumeCategory']=='Decoration')for r in rows(db,'EquipPartInfo')]
  if len(wanted)>256:raise ValueError('Appearance feature subset bound')
  with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')

@@ -5,13 +5,13 @@ Prioridade do operador em 20/10/2026: primeiro o ciclo PvE jogável. PvP, guilda
 ## Estado confirmado
 
 - Create/relogin da Fiona mínima e seleção/entrada na cidade/movimento foram aceitos no cliente 1.69 EN.
-- A criação persistiu 11 itens, 23 registros de aparência e 2 skills. Diagnóstico somente leitura confirmou 5 equipamentos na bolsa, com 0 partes equipadas. Falta sincronização com as telas; não há evidência de perda dos defaults.
-- Bloqueios relatados: inventário em “Downloading data” infinito e personagem visualmente sem equipamentos. Não apagar/recriar a Fiona nem entregar defaults novamente para contornar esses sintomas.
-- O frontend mínimo ainda descarta mensagens comuns após a seleção. QueryInventory/InventoryInfo e SkillList precisam de integração. Contratos/tabelas recuperados não equivalem a funcionalidades disponíveis no cliente.
+- A criação persistiu 11 itens, 23 registros de aparência e 2 skills. Diagnóstico somente leitura confirmou 5 equipamentos na bolsa, com 0 partes equipadas. Os itens foram sincronizados e aceitos no inventário; equipamento vestido depende de P0-02.
+- O inventário abriu e exibiu os equipamentos iniciais no teste aceito. Próximo bloqueio: equipar/desequipar e carregar equipamento persistido. Não apagar/recriar a Fiona nem entregar defaults novamente para contornar esses sintomas.
+- QueryInventory/InventoryInfo foram integrados e aceitos; mutações de inventário e SkillList ainda precisam de integração. Contratos/tabelas recuperados não equivalem a funcionalidades disponíveis no cliente.
 
 ## P0 — personagem utilizável na cidade
 
-1. **P0-01 / M15.1c.3 — inventário e equipamento inicial (diagnóstico concluído; integração pendente).** Recuperar QueryInventory → InventoryInfo, storages, slots, detalhes dos itens, equipamentos e quickslots. Conferir os itens/slots persistidos contra o perfil original e sincronizar aparência/stats a partir do equipamento real. Separar leitura inicial de mutações. Aceite: inventário abre sem download infinito, mesmos itens/quantidades, equipamentos corretos e relogin preservado, sem duplicar defaults.
+1. **P0-01 / M15.1c.3 — inventário e equipamento inicial (leitura aceita no cliente em 20/10/2026).** Recuperar QueryInventory → InventoryInfo, storages, slots, detalhes dos itens, equipamentos e quickslots. Conferir os itens/slots persistidos contra o perfil original e sincronizar aparência/stats a partir do equipamento real. Separar leitura inicial de mutações. Aceite: inventário abre sem download infinito, mesmos itens/quantidades, equipamentos corretos e relogin preservado, sem duplicar defaults.
 2. **P0-02 — ações básicas de inventário.** Equipar/desequipar, mover slots, empilhar/separar, usar consumível e atualizar aparência/stats/carga. Validar requisitos, slots incompatíveis, propriedade e concorrência. Aceite: trocar equipamento, usar consumível e relogar mantendo os resultados; recusas não perdem nem duplicam itens.
 3. **P0-03 — skills e barra de ações.** Entregar SkillList/AP/SP e quickslots persistidos; habilidades iniciais, efeitos passivos, custos, cooldowns, aprendizado/evolução conforme contratos recuperados. Aceite: skills iniciais visíveis, atalhos utilizáveis, recursos coerentes e relogin sem reset indevido.
 
@@ -51,4 +51,6 @@ Prioridade do operador em 20/10/2026: primeiro o ciclo PvE jogável. PvP, guilda
 
 O workflow `.github/workflows/verify.yaml`, que executava build/testes em todo push e pull request, foi removido a pedido do operador. A verificação local `scripts/dev/verify.ps1` permanece. A remoção afeta o GitHub quando o commit for enviado ao remoto; um commit local não dispara GitHub Actions. A causa das falhas históricas do workflow não foi diagnosticada neste lote.
 
-Diagnóstico e contrato do próximo incremento: [minimum-inventory-client.md](minimum-inventory-client.md), com evidência de QueryInventory529 sem handler, resposta InventoryInfo468 ausente e 5 equipamentos existentes na bolsa.
+Diagnóstico histórico e contrato do incremento de leitura: [minimum-inventory-client.md](minimum-inventory-client.md), com a correção de QueryInventory529/InventoryInfo468 e os 5 equipamentos existentes na bolsa.
+
+P0-01: sincronização inicial e QueryInventory implementados para os 11 itens preservados; inventário e equipamentos na bolsa aceitos pelo operador em 20/10/2026. Reabertura/relogin não confirmados separadamente. Detalhes/limites em [minimum-inventory-client.md](minimum-inventory-client.md). P0-02 equipar/desequipar ainda não habilitado.

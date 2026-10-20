@@ -1604,3 +1604,6 @@ mod mail_reference;
 
 #[path = "support/minimum_character.rs"]
 mod minimum_character;
+
+#[path = "support/minimum_inventory.rs"]
+mod minimum_inventory;

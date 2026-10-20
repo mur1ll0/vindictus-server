@@ -1,6 +1,6 @@
 # M15.1c.3 — inventário e equipamentos no cliente
 
-Status: diagnóstico inicial concluído; integração TCP ainda pendente. Prioridade P0-01 do [roteiro PvE](playable-game-roadmap.md).
+Status: leitura/sincronização inicial verificadas e aceitas pelo operador em 20/10/2026: inventário abriu e equipamentos iniciais apareceram na bolsa. Reabertura/relogin não foram confirmados separadamente. Prioridade P0-01 do [roteiro PvE](playable-game-roadmap.md).
 
 ## Evidência atual
 
@@ -8,7 +8,7 @@ O operador confirmou cidade/movimento, mas observou “Downloading data” infin
 
 O writer inicial grava `game_equippables.part=NULL` e o `Gear.Load` original só carrega itens `IsEquipped`. `Gear.ToEquipmentInfo` projeta somente itens equipados. Portanto, equipamentos na bolsa não devem ser anunciados como vestidos sem implementar/recuperar a operação de equipar. A projeção atual `initial_gear` representa slots vazios, não um loader de equipamento persistido.
 
-O frontend retorna imediatamente para mensagens comuns depois de `selected.is_some()`. **QueryInventoryMessage 529 não possui handler**, e o caminho mínimo de seleção não envia o snapshot inicial do inventário. Isso deixa a consulta sem resposta e é compatível com o download infinito relatado. Nenhum pacote capturado do cliente foi usado para afirmar campos além dos contratos recuperados.
+No diagnóstico anterior a este incremento, o frontend retornava imediatamente para mensagens comuns depois de `selected.is_some()`: QueryInventoryMessage 529 não tinha handler e a seleção não enviava o snapshot inicial do inventário. Isso deixa a consulta sem resposta e é compatível com o download infinito relatado. Nenhum pacote capturado do cliente foi usado para afirmar campos além dos contratos recuperados.
 
 ## Caminho recuperado
 
@@ -27,3 +27,13 @@ O frontend retorna imediatamente para mensagens comuns depois de `selected.is_so
 5. Seguir P0-02: equipar/desequipar e demais mutações, com persistência, aparência/NotifyLook, stats/carga e validação de requisitos. Confirmar o comportamento de autoequipar na criação pela fonte antes de alterar a política dos defaults.
 
 Evidência sanitizada e hashes das fontes: [minimum-inventory-gap.json](evidence/auth/minimum-inventory-gap.json). Banco real consultado somente leitura; nenhum item, aparência, skill ou equipamento alterado nesta investigação.
+
+
+## Implementação do incremento de leitura
+
+- Codec InventoryInfo468 e QueryInventory529 com envelope registrado/GUID e nulidade dos tipos aninhados, limitado por tamanho/contagem. Oracle Framework x86=x64: 48 casos por arquitetura; Rust verifica campos, bytes, roundtrip, truncamentos, limites e chaves duplicadas.
+- Snapshot transacional do CID selecionado com dono/revisão/origem/marcador/perfil conferidos e locks retidos. Lê IDs/classes/quantidades/slots/cores/durabilidade reais; não chama entrega inicial. O mesmo snapshot é enviado na seleção (após 483→345→609→619) e em cada QueryInventory.
+- A consulta real somente leitura confirmou pacote468 com os 11 IDs persistidos e as 3 abas padrão. Cinco equipamentos continuam na bolsa, sem partes equipadas; não há autoequipar nem mudança de aparência neste lote.
+- Expiração, atributos, equipamentos já vestidos, quickslots/slots expandidos e configurações adicionais de storage são recusados neste recorte, sem reparo. Ausência é comprovada no banco; os slots bloqueados vêm dos dados/Features originais. Leitores gerais e mutações ficam em incrementos próprios. Preços de mercado usam o fallback zero de SlotInfo quando não há entrada no cache TradeManager; mercado não foi implementado.
+- Export de aparência passou a preservar IsExpandedSlot BIT e os flags dos slots consumíveis; fontes de StackableSlot/BagStorage vinculadas por hash. Perfil privado atualizado; fingerprint do inicializador/marcador permanece igual.
+- Verificação e ativação: [minimum-inventory-runtime.json](evidence/auth/minimum-inventory-runtime.json). Frontend/canal atualizados, Fiona preservada e base descartável removida. **Aceite em 20/10/2026:** o operador confirmou que entrou novamente, o inventário apareceu e os equipamentos iniciais estavam na bolsa. Reabertura/relogin não foram confirmados separadamente. A recusa de login foi identificador digitado errado, conforme o operador; nenhum código de login foi alterado. Equipar/desequipar permanece P0-02.

@@ -1,7 +1,7 @@
 {
-  "stage": "M15.1c.2",
-  "verified_at_utc": "2026-10-20T13:04:39.4824117+00:00",
-  "binary_sha256": "0469da7602640d21f1bd2cb5ae2a18dcee6d45eba8e8d1a7a470d7d9db950194",
+  "stage": "M15.1c.3",
+  "verified_at_utc": "2026-10-20T17:01:33.6877023+00:00",
+  "binary_sha256": "91318658b5d270d30435455af7f62c6a6be31ae4ccd2840ec073e5292753dd83",
   "updated_native_runtime_started": true,
   "schema_migration": 33,
   "loopback": true,
@@ -11,17 +11,13 @@
   "character_creation_available": true,
   "selection_available": true,
   "city_available": true,
-  "client_city_verified": true,
+  "client_city_verified": false,
   "optional_services_deferred": true,
-  "user_care_inactive": {
-    "type": -1,
-    "next_state": -1
-  },
-  "client_selection_verified_before_this_fix": true,
-  "real_client_city_verified": true,
-  "incident_evidence": "docs/evidence/auth/minimum-inactive-user-care.json",
-  "real_client_movement_verified": true,
-  "operator_acceptance_recorded_at_utc": "2026-10-20T13:14:50.033879+00:00",
-  "inventory_client_verified": false,
-  "roadmap": "docs/playable-game-roadmap.md"
+  "inventory_read_available": true,
+  "inventory_initial_snapshot_available": true,
+  "inventory_client_verified": true,
+  "inventory_mutations_available": false,
+  "previous_city_acceptance_commit": "07e6485",
+  "inventory_evidence": "docs/evidence/auth/minimum-inventory-runtime.json",
+  "inventory_operator_acceptance_date": "2026-10-20"
 }
