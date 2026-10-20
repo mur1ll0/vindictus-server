@@ -129,7 +129,7 @@ struct Target {
 
 fn slot_item(
     assets: &Assets,
-    stats: &super::item_stats::StatsCatalog<'_>,
+    stats: &super::item_stats::StatsIndex,
     id: i64,
     class: &[u8],
     part: Option<u8>,
@@ -182,12 +182,11 @@ pub async fn equip(
         // Validates marker/profile/ownership and refuses unsupported item states.
         super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
         let mut gear = Gear::new(assets)?;
-        // Binding rebuilds the effective catalog; keep one binding per operation.
-        let stats = assets.stats.bind(&assets.catalog)?;
+        let stats = &assets.stats_index;
         let equipped:Vec<(i64,Vec<u8>,i16,i32,i32)>=sqlx::query_as("SELECT i.id,i.item_class_utf16,e.part,e.reduced_durability,e.max_durability_bonus FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY i.id LIMIT 4097").bind(cid).fetch_all(&mut *tx).await?;
         for (id, class, p, reduced, bonus) in equipped {
             let p = u8::try_from(p).map_err(|_| fail())?;
-            let item = slot_item(assets, &stats, id, &class, Some(p), reduced, bonus)?;
+            let item = slot_item(assets, stats, id, &class, Some(p), reduced, bonus)?;
             let slot = gear.equipment.get_mut(&p).ok_or_else(fail)?;
             if !slot.load(item).map_err(|_| fail())? {
                 return Err(fail());
@@ -237,7 +236,7 @@ pub async fn equip(
             }
             let item = slot_item(
                 assets,
-                &stats,
+                stats,
                 item_id,
                 &target.item_class_utf16,
                 gear.part_of(item_id),

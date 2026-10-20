@@ -123,7 +123,7 @@ pub(super) async fn load(
     }
     let profile = assets.equipment.as_ref().ok_or_else(fail)?;
     profile.bind(&assets.catalog)?;
-    let stats = assets.stats.bind(&assets.catalog)?;
+    let stats = &assets.stats_index;
     let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
     let attributes: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM game_item_attributes WHERE item_id=ANY($1))",

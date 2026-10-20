@@ -127,7 +127,7 @@ pub(super) async fn snapshot_with_equipment(
     }
     let equipment:Vec<Equipment>=sqlx::query_as("SELECT id,part,color1,color2,color3,reduced_durability,max_durability_bonus FROM game_equippables WHERE id=ANY($1)").bind(&ids).fetch_all(&mut **tx).await?;
     let mut equipment: BTreeMap<_, _> = equipment.into_iter().map(|e| (e.id, e)).collect();
-    let stats = assets.stats.bind(&assets.catalog)?;
+    let stats = &assets.stats_index;
     let mut slots = Vec::with_capacity(rows.len());
     let mut positions = BTreeSet::new();
     for row in rows {
@@ -142,8 +142,7 @@ pub(super) async fn snapshot_with_equipment(
             return Err(MinimumError::Conflict);
         }
         let class = stats
-            .catalog()
-            .get(Some(&row.item_class_utf16))
+            .class(Some(&row.item_class_utf16))
             .ok_or(MinimumError::Conflict)?;
         if class.storage != if bag { 1 } else { 2 } {
             return Err(MinimumError::Conflict);
@@ -169,7 +168,7 @@ pub(super) async fn snapshot_with_equipment(
         } else if row.checksum.is_some() {
             return Err(MinimumError::Conflict);
         }
-        let equippable = class.binding.equippable;
+        let equippable = class.equippable;
         let (colors, durability, maximum, bonus) = match (equippable, equipment.remove(&row.id)) {
             (false, None) => (vec![-1; 3], 0, 0, 0),
             (true, Some(e)) => {

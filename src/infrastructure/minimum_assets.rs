@@ -44,6 +44,8 @@ pub struct Assets {
     pub initializer: fiona_initializer_profile::Profile,
     pub(super) catalog: item_catalog::Package,
     pub(super) stats: item_stats::Package,
+    /// `stats` bound to `catalog` once; lookups must not rebind per request.
+    pub(super) stats_index: item_stats::StatsIndex,
     colors: item_colors::Package,
     pub(super) inventory: fiona_inventory_profile::Profile,
     pub(super) appearance: fiona_appearance::Profile,
@@ -166,8 +168,9 @@ impl Assets {
         {
             return Err(MinimumError::Conflict);
         }
-        let out = Self {
+        let mut out = Self {
             equipment: None,
+            stats_index: item_stats::StatsIndex::default(),
             initializer: parts.initializer,
             catalog: parts.catalog,
             stats: parts.stats,
@@ -182,7 +185,7 @@ impl Assets {
         out.initializer.bind(&out.catalog)?;
         out.inventory.bind(&out.catalog)?;
         out.appearance.bind(&out.catalog)?;
-        out.stats.bind(&out.catalog)?;
+        out.stats_index = out.stats.bind(&out.catalog)?.to_index();
         out.colors.bind(&out.catalog)?;
         Ok(out)
     }

@@ -44,6 +44,18 @@ fn stats_bind_to_the_same_effective_equipment_winner_and_unknown_classes_stay_ab
     assert!(bound.get(Some(&bytes("other"))).is_none());
     assert!(bound.get(None).is_none());
     assert!(bound.get(Some(&bytes("unknown"))).is_none());
+    // The owned index answers exactly like the bound catalog.
+    let index = bound.to_index();
+    for key in [a.clone(), plain.clone(), bytes("other"), bytes("unknown")] {
+        assert!(index.get(Some(&key)) == bound.get(Some(&key)));
+        let class = bound.catalog().get(Some(&key));
+        let indexed = index.class(Some(&key));
+        assert_eq!(class.is_some(), indexed.is_some());
+        if let (Some(c), Some(i)) = (class, indexed) {
+            assert_eq!((c.storage, c.binding.equippable), (i.storage, i.equippable));
+        }
+    }
+    assert!(index.get(None).is_none());
     let report = p.inspect(&catalog).unwrap();
     assert_eq!(report.effective_equipment, 2);
     assert_eq!(report.effective_classes, 2);

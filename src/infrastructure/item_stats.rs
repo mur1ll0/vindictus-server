@@ -209,4 +209,54 @@ impl StatsCatalog<'_> {
     pub fn catalog(&self) -> &ItemCatalog<'_> {
         &self.catalog
     }
+    /// Owned lookup index with the same `get` semantics, for process-lifetime assets:
+    /// binding rebuilds the effective catalog and every equipment stat.
+    pub fn to_index(&self) -> StatsIndex {
+        let items = self
+            .catalog
+            .items()
+            .map(|(key, item)| {
+                (
+                    key.to_vec(),
+                    IndexedItem {
+                        storage: item.storage,
+                        equippable: item.binding.equippable,
+                        stat: self.stats.get(item.binding.item_class).cloned(),
+                    },
+                )
+            })
+            .collect();
+        StatsIndex {
+            items,
+            empty: self.empty.clone(),
+        }
+    }
+}
+#[derive(Default)]
+pub struct StatsIndex {
+    items: BTreeMap<Vec<u8>, IndexedItem>,
+    empty: ItemStat,
+}
+struct IndexedItem {
+    storage: u8,
+    equippable: bool,
+    stat: Option<ItemStat>,
+}
+/// Effective class properties used by the inventory projection.
+#[derive(Clone, Copy)]
+pub struct IndexedClass {
+    pub storage: u8,
+    pub equippable: bool,
+}
+impl StatsIndex {
+    pub fn get(&self, key: Option<&[u8]>) -> Option<&ItemStat> {
+        let item = self.items.get(key?)?;
+        Some(item.stat.as_ref().unwrap_or(&self.empty))
+    }
+    pub fn class(&self, key: Option<&[u8]>) -> Option<IndexedClass> {
+        self.items.get(key?).map(|i| IndexedClass {
+            storage: i.storage,
+            equippable: i.equippable,
+        })
+    }
 }
