@@ -1,0 +1,170 @@
+{
+  "stage": "M15.1c.3",
+  "status": "diagnosis complete; wire/storage/TCP implementation pending",
+  "recorded_at_utc": "2026-10-20T13:17:02.082645+00:00",
+  "previous_accepted_commit": "07e6485",
+  "operator_observation": [
+    "city and movement work",
+    "inventory Downloading data never finishes",
+    "no visible basic equipment"
+  ],
+  "live_readonly": {
+    "items": 11,
+    "equippables": 5,
+    "assigned_parts": 0,
+    "locations": [
+      {
+        "collection": 0,
+        "slot": 0,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 1,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 2,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 3,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 4,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 5,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 6,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 7,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 8,
+        "items": 1
+      },
+      {
+        "collection": 0,
+        "slot": 9,
+        "items": 1
+      },
+      {
+        "collection": 100,
+        "slot": 0,
+        "items": 1
+      }
+    ]
+  },
+  "query_inventory_handler_present": false,
+  "initial_inventory_snapshot_sent": false,
+  "item_data_changed": false,
+  "equipment_auto_equip_policy_changed": false,
+  "framework_identities": [
+    {
+      "architecture": "x86",
+      "source_sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+      "messages": [
+        {
+          "name": "ServiceCore.EndPointNetwork.InventoryInfoMessage",
+          "category": 468,
+          "guid": "bdc965b5-aca1-3b62-b222-279e96683d93"
+        },
+        {
+          "name": "ServiceCore.EndPointNetwork.QueryInventoryMessage",
+          "category": 529,
+          "guid": "efe95078-ef7e-34eb-82e1-2daf3280a576"
+        }
+      ]
+    },
+    {
+      "architecture": "x64",
+      "source_sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+      "messages": [
+        {
+          "name": "ServiceCore.EndPointNetwork.InventoryInfoMessage",
+          "category": 468,
+          "guid": "bdc965b5-aca1-3b62-b222-279e96683d93"
+        },
+        {
+          "name": "ServiceCore.EndPointNetwork.QueryInventoryMessage",
+          "category": 529,
+          "guid": "efe95078-ef7e-34eb-82e1-2daf3280a576"
+        }
+      ]
+    }
+  ],
+  "known_source_behavior": [
+    "Gear.Load requires IsEquipped",
+    "Gear.ToEquipmentInfo projects EquippedItems_IncludeDisabled",
+    "initial writer saves part NULL",
+    "initial_gear is an empty-slot projection",
+    "proxy initial and forced sync send InventoryInfoMessage"
+  ],
+  "real_inventory_client_verified": false,
+  "next": "framework wire oracle, bounded persisted snapshot, initial and QueryInventory delivery; then equip/unequip mutations",
+  "sources": [
+    {
+      "path": "src/infrastructure/lab_frontend.rs",
+      "sha256": "2e7f21e113e5da0a62de2176f242613ab7b6d7363b2841678b7e9d237af9448a"
+    },
+    {
+      "path": "src/infrastructure/initial_inventory.rs",
+      "sha256": "d51e636ec97c899ae65355952594b95f204ce9d491e1dafec4554bd4cabaec5b"
+    },
+    {
+      "path": "src/infrastructure/fiona_appearance.rs",
+      "sha256": "4484f1acd3a3722efc2e4e57c5f475f6dc9b27c13c62ac1843f2b864f8d7d290"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.Proxy/ItemServiceProxy.cs",
+      "sha256": "96c2845b63bcf8b229bb7921217fb9938ff790ef0b11e5f2cbc887b14798f515"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
+      "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/Gear.cs",
+      "sha256": "963068da22db6dddb81f1ac7f58f808a7e506aeebbcd594429cf891774d4f9ea"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/ItemStorage.cs",
+      "sha256": "9434b62f01cbb2efa29651a5cd6f1f30227ad711dcc2d7a8b61c3f5c2428707e"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/QueryInventoryMessage.cs",
+      "sha256": "6f7ce142dda04dd7fc2e74eb59a4041caadb6b2e3022a69348b2a43514ccd02e"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/InventoryInfoMessage.cs",
+      "sha256": "398877fc2b27fbe487d98b4514414ce902fd10e43cb83751b454ee6890b07ab3"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/StorageInfo.cs",
+      "sha256": "f211a909e0058aa318ec727c3c12f84ff2f2c3f74b15d2f428044e59e4bedfc9"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/QuickSlotInfo.cs",
+      "sha256": "66a375f4c3d255eb9cb5c0b62ce482ff799fa3635d4d9b3c8e2886ce08549e09"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.ItemServiceOperations/SlotInfo.cs",
+      "sha256": "3b73a48ab9fc6bc6fa504bf49bcd1e960e58429c3ed77a2a78cc2f99cace7e0a"
+    }
+  ]
+}
