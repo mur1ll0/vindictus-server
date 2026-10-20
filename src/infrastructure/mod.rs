@@ -97,3 +97,6 @@ pub mod minimum_character_list;
 pub mod minimum_selection;
 
 pub mod minimum_inventory;
+
+pub mod equipment_profile;
+pub mod minimum_equipment;

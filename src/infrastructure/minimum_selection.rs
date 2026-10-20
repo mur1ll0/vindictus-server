@@ -101,30 +101,59 @@ pub async fn select(
             .load_base(key, *rank, Some(expected.arguments()))
             .map_err(|_| MinimumError::Conflict)?;
     }
-    let gear = assets.appearance.initial_gear(&assets.catalog)?;
+    let gear = super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
+    if !gear.bonus.skills.is_empty() {
+        return Err(MinimumError::Conflict);
+    }
     let items = gear
-        .item_stats(&cache)
+        .projection
+        .item_stats(&gear.bonus.stats, &cache)
         .map_err(|_| MinimumError::Conflict)?;
-    let mut load = State::new(gear.set_bonus().clone());
-    load.recalculate(
-        Some(gear.set_bonus().clone()),
-        Some(EmptyGear),
-        &cache,
-        arithmetic,
-        || Ok::<_, MinimumError>(assets.initializer.base_load()),
-    )?;
     let total = Stats::from_base(&base).add(&items.stats);
-    let stats = character_stats::apply_skills(&total, &items.armor_def, &cache, false, arithmetic)
+    let armor_def = items.armor_def.clone();
+    let weight = items.weight;
+    let l = if gear.projection.equipment.is_empty() {
+        let mut load = State::new(gear.bonus.stats.clone());
+        load.recalculate(
+            Some(gear.bonus.stats.clone()),
+            Some(EmptyGear),
+            &cache,
+            arithmetic,
+            || Ok::<_, MinimumError>(assets.initializer.base_load()),
+        )?;
+        load.snapshot().clone()
+    } else {
+        crate::domain::character_load::equipped_x64(
+            items,
+            gear.bonus.stats.clone(),
+            &cache,
+            assets.initializer.base_load(),
+            arithmetic,
+        )
+        .map_err(|_| MinimumError::Conflict)?
+    };
+    let stats = character_stats::apply_skills(&total, &armor_def, &cache, false, arithmetic)
         .map_err(|_| MinimumError::Conflict)?;
-    let l = load.snapshot();
     let dictionary =
-        character_stats::stat_dictionary(&stats.stats, items.weight, l.medium, l.heavy, l.penalty);
-    let summary = character_list::decode(&bytes, DEFAULT_MAX_BODY)
+        character_stats::stat_dictionary(&stats.stats, weight, l.medium, l.heavy, l.penalty);
+    let mut summary = character_list::decode(&bytes, DEFAULT_MAX_BODY)
         .map_err(|_| MinimumError::Conflict)?
         .and_then(|m| m.characters)
         .and_then(|mut c| c.pop())
         .flatten()
         .ok_or(MinimumError::Conflict)?;
+    if !gear.projection.equipment.is_empty() {
+        let mut costumes = super::character_costumes::load_for_constructor(&mut tx, cid)
+            .await
+            .map_err(|_| MinimumError::Conflict)?;
+        gear.projection
+            .load_costumes_x64(&mut costumes)
+            .map_err(|_| MinimumError::Conflict)?;
+        summary.costume = Some(
+            crate::application::lobby_costume::project(&costumes)
+                .map_err(|_| MinimumError::Conflict)?,
+        );
+    }
     let look =
         Channel::encode_look_summary(cid, Some(&summary)).map_err(|_| MinimumError::Conflict)?;
     let mut packets = vec![

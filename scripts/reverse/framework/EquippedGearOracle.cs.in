@@ -1,0 +1,65 @@
+using System;using System.Collections.Generic;using System.Linq;using System.Web.Script.Serialization;using ServiceCore.CharacterServiceOperations;using Utility;
+namespace Utility {
+ public static class Extensions {public static int Linear(this int value,int bonus){return unchecked(value*(100+bonus))/100;}public static V TryGetValue<K,V>(this Dictionary<K,V> d,K k){V v;return d.TryGetValue(k,out v)?v:default(V);}}
+ public class MultiDictionary<K,V>{Dictionary<K,HashSet<V>> rows=new Dictionary<K,HashSet<V>>();public IEnumerable<K> Keys{get{return rows.Keys;}}public bool Contains(K k,V v){return rows.ContainsKey(k)&&rows[k].Contains(v);}public void Add(K k,V v){if(!rows.ContainsKey(k))rows[k]=new HashSet<V>();rows[k].Add(v);}public int CountValues(K k){return rows[k].Count;}}
+}
+namespace ServiceCore {public static class FeatureMatrix {public static bool Avatar,Bonus;public static bool IsEnable(string key){return key=="Avatar"?Avatar:key=="AvatarSlotBonus"?Bonus:throw new Exception("unexpected feature");}}}
+public class EquipPartInfo {public int EquipPartNum;public int? CostumePartNum;public string CostumeCategory;public bool IsConsumable,IsExpandedSlot;}
+public class ItemClassInfo {public string ExtraData,Category,ItemClass;public int Level;public EquipItemInfo Equip;public EquipItemInfo GetEquipItemInfo(){return Equip;}}
+public class EquipItemInfo{public string EquipClass;public int CostumeType;public List<SetInfo> Sets=new List<SetInfo>();}
+public class ItemStat{public int Weight,ArmorHP,DEF_Destroyed;public CharacterStats Values=new CharacterStats();public CharacterStats ToCharacterStats(){return new CharacterStats(Values);}}
+public class Item {public long ID;public byte? EquippedPart;public EquipPartInfo EquippedPartInfo;public ItemClassInfo ItemClassInfo,LookClassInfo;public bool IsExpired,IsAvatarPartItem,IsSetItem;public int? BadStatus;public ItemStat Stat;public int Color1,Color2,Color3,Durability,MaxDurability;public Equippable Equippable;public bool HasAttributeEntity(string s){return Enhance!=null;}public Enhance Enhance;}
+public class Equippable{public int Color1,Color2,Color3;}public class Enhance{public int Effect;}
+public class SetInfo{public string SetID;public Dictionary<string,int> GetSetEffect(int i){return ItemContents.Effects(SetID,i);}}
+public static class EquipExtensions{public static List<SetInfo> GetSetInfos(this EquipItemInfo m){return m.Sets;}}
+public class AvatarSetBonusInfo{public int STR,DEX,INT,WILL,LUCK,HP,STAMINA,ATK,DEF,MATK;}
+public class SetBonusInfo{public CharacterStats SetStatBonus;public Dictionary<string,int> SetSkillBonus;}
+public static class ItemContents {
+ public static int Queries;
+ public static ItemClassInfo GetItemClassInfo(string s){Queries++;throw new Exception("unexpected item");}
+ public static IEnumerable<int> GetEquippablePart(string s){Queries++;throw new Exception("unexpected item");}
+ public static EquipPartInfo GetEquipPartInfo(int n,string s){Queries++;throw new Exception("unexpected item");}
+ public static SetInfo GetSetInfo(string s){return new SetInfo{SetID=s};}public static Dictionary<string,int> Effects(string s,int n){var d=new Dictionary<string,int>();if(n==2){d.Add("STR",int.MaxValue);d.Add("DEF",7);d.Add(s=="A"?"synthetic_skill":"synthetic_skill_b",3);}if(n==3){d.Add("STR",-1);d.Add("HP",13);}return d;}
+ public static AvatarSetBonusInfo GetAvatarSetBonusInfoByPartsCount(int n){Queries++;throw new Exception("unexpected avatar set");}
+}
+public static class CostumeManager {public static Dictionary<string,int> CostumeKeyDict=new Dictionary<string,int>(),DecorationKeyDict=new Dictionary<string,int>();}
+public class CostumeInfo{public Dictionary<int,int> AvatarHideInfo=new Dictionary<int,int>();}
+public class Costumes{public CostumeInfo CostumeInfo=new CostumeInfo();}
+public class Character{public Costumes Costume=new Costumes();}
+public class CharacterWrapper{public Character Character=new Character();}
+public class Owner {public CharacterWrapper Character=new CharacterWrapper();}
+public class EquippableSlot {
+ public byte Part;public bool IsEmpty=true,ItemDisabled;public Dictionary<string,EquipPartInfo> EquipPartInfos=new Dictionary<string,EquipPartInfo>();public Item Data=null;public Item Value{get{return Data;}}
+ __SLOT__
+}
+public class SkillEffect {private int Arg(string s,string k){return 0;} __ITEM__ }
+public class Gear {
+ public Owner Parent=new Owner();public Dictionary<int,EquippableSlot> Equipments=new Dictionary<int,EquippableSlot>();
+ public IEnumerable<Item> EquippedItems{get{return Equipments.Values.Where(s=>!s.IsEmpty&&!s.ItemDisabled).Select(s=>s.Data);}}public IEnumerable<Item> EquippedItems_IncludeDisabled{get{return Equipments.Values.Where(s=>!s.IsEmpty).Select(s=>s.Data);}}
+ __EQUIPMENT__
+ public Item GetEquippedItem(int part){return Equipments.ContainsKey(part)?Equipments[part].Data:null;}
+ __AVATAR__
+ __GEAR__
+ __SET__
+}
+public class Row {public int slot;public string category;public int? costume;public bool decoration,consumable;}
+public class ItemInput {public long id;public int part;public string category,item_class,equip_class;public int serial,level,weight,durability,maximum,hp,destroyed;public bool disabled;public int[] colors;public int[] stats;public int? effect;public string[] sets;}
+public class Input {public Row[] rows;public ItemInput[] items;}
+public static class Oracle{
+ static int[] Values(CharacterStats s){return Enumerable.Range(0,25).Select(n=>s[(Stats)n]).ToArray();}
+ static object Run(Input input){
+ ServiceCore.FeatureMatrix.Avatar=false;ServiceCore.FeatureMatrix.Bonus=false;var gear=new Gear();
+ foreach(var r in input.rows){if(!gear.Equipments.ContainsKey(r.slot)){if(r.consumable)continue;gear.Equipments.Add(r.slot,new EquippableSlot{Part=(byte)r.slot});}if(gear.Equipments.ContainsKey(r.slot))gear.Equipments[r.slot].EquipPartInfos.Add(r.category,new EquipPartInfo{EquipPartNum=r.slot,CostumePartNum=r.costume,CostumeCategory=r.decoration?"Decoration":null});}
+ foreach(var i in input.items){var slot=gear.Equipments[i.part];var info=slot.EquipPartInfos[i.category];var stats=new CharacterStats();for(int n=0;n<25;n++)stats[(Stats)n]=i.stats[n];
+ var c=new ItemClassInfo{ItemClass=i.item_class,Category=i.category,Level=i.level,Equip=new EquipItemInfo{EquipClass=i.equip_class,CostumeType=i.serial,Sets=i.sets.Select(s=>new SetInfo{SetID=s}).ToList()}};
+ slot.Data=new Item{ID=i.id,EquippedPart=(byte)i.part,EquippedPartInfo=info,ItemClassInfo=c,LookClassInfo=c,BadStatus=i.disabled?(int?)1:null,Stat=new ItemStat{Values=stats,Weight=i.weight,ArmorHP=i.hp,DEF_Destroyed=i.destroyed},Equippable=new Equippable{Color1=i.colors[0],Color2=i.colors[1],Color3=i.colors[2]},Durability=i.durability,MaxDurability=i.maximum,IsSetItem=i.sets.Length>0,Enhance=i.effect.HasValue?new Enhance{Effect=i.effect.Value}:null};slot.IsEmpty=false;slot.ItemDisabled=i.disabled;
+ }
+ var set=gear.ToSetBonusInfo();var infos=gear.ToEquippedItemInfos(); CharacterStats sum;double weight;Dictionary<int,int> hp;IDictionary<int,int> def;new SkillEffect().ApplyItemSkills(set.SetStatBonus,infos,out sum,out weight,out hp,out def);
+ return new{input=input,item_stats=Values(sum),weight_bits=BitConverter.DoubleToInt64Bits(weight).ToString("x16"),armor_hp=hp.ToDictionary(x=>x.Key.ToString(),x=>x.Value),armor_def=def.ToDictionary(x=>x.Key.ToString(),x=>x.Value),equipment=gear.ToEquipmentInfo().Select(e=>new{part=e.Key,id=e.Value}).ToArray(),infos=infos.Select(r=>new{part=r.PartNum,costume=r.CostumePartNum,decoration=r.IsDecoration,serial=r.CostumeSN,colors=new[]{r.Color1,r.Color2,r.Color3},level=r.ItemLevel,weight_bits=BitConverter.DoubleToInt64Bits(r.Weight).ToString("x16"),durability=r.Durability,maximum=r.MaxDurability,hp=r.ArmorHP,stats=Values(r.StatBonus),destroyed=r.DEF_Destroyed,effect=r.Effect,item_class=r.ItemClass,equip_class=r.EquipClass}).ToArray(),set_stats=Values(set.SetStatBonus),set_skills=set.SetSkillBonus};
+ }
+ public static void Main(){var cases=new List<object>();for(int n=0;n<128;n++){
+ var rows=new List<Row>();for(int part=0;part<5;part++){rows.Add(new Row{slot=part,category="A",costume=part==0?(int?)null:part+2,decoration=part==4});rows.Add(new Row{slot=part,category="B",costume=part+12,decoration=part==4});rows.Add(new Row{slot=part,category="C",costume=part==0?(int?)null:part+2});}
+ var items=new List<ItemInput>();for(int j=0;j<n%6;j++){var stats=new int[25];stats[2]=j*9;stats[3]=j+1;items.Add(new ItemInput{id=j==0?long.MaxValue:j,part=j,category=j%2==0?"A":"B",item_class=j%2==0?"synthetic_same":"synthetic_"+j,equip_class="LIGHT_ARMOR",serial=j+10,level=j,weight=new[]{int.MinValue,-1001,999,1001,int.MaxValue}[(j+n)%5],durability=n%3==0?0:10000,maximum=10000,hp=33,stats=stats,destroyed=7,colors=new[]{-1,j,int.MaxValue},disabled=(n+j)%5==0,effect=n%2==0?(int?)7:null,sets=j==4?new[]{"B"}:new[]{"A","A"}});}
+ if(n%2==0)rows.Reverse();cases.Add(Run(new Input{rows=rows.ToArray(),items=items.ToArray()}));
+ }Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(cases));}
+}

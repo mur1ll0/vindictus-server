@@ -31,3 +31,12 @@ Verificação e hashes: [minimum-equipment-foundation.json](evidence/auth/minimu
 5. Testes PostgreSQL/TCP de troca, desequipar, requisitos, falhas e relogin; gate único do lote e teste real. Aceite: vestir/retirar os cinco equipamentos, conferir aparência/atributos e relogar, sem perder ou duplicar itens. Somente então habilitar outras mutações P0-02 e seguir para skills P0-03.
 
 As fontes originais permanecem somente leitura; Fiona/schema33 e os 11 itens são preservados nesta preparação.
+
+## Entrega P0-02b — equipamento vestido na leitura (20/10/2026)
+
+- Perfil somente leitura `heroesContents.normal-equipment` (classe/categoria/nível, EquipClass/CostumeType, sets e efeitos) vinculado aos hashes do catálogo e às fontes; exportador Python com testes.
+- `minimum_equipment::load` carrega Gear a partir de `game_equippables.part`, recusa partes inválidas/duplicadas, Avatar, atributos, expiração, storages extras e quickslots. Projeção `ToEquippedItemInfo` (placeholders, peso inteiro, slots desativados por durabilidade), `ToEquipmentInfo` e set bonus com dedup por (SetID, ItemClass).
+- Seleção/relogin: EquipmentInfo do InventoryInfo468 reflete as partes vestidas; UpdateStat usa CalculateItemStat com peso real (perfil Framework x64) e a aparência aplica `LoadItemCostumes` sobre os costumes salvos. Sem itens vestidos, o caminho aceito anteriormente fica inalterado.
+- Oracles Framework (Gear/costume/load) x86=x64 com fixtures sintéticas; testes PostgreSQL/TCP de seleção com equipamento salvo, consultas repetidas e reentrada sem escrita.
+- Gate 2026-10-20T19:56:44Z: 390 Rust, 241 PostgreSQL nativos (0 ignorados), 48 Python, zero falhas/avisos. Pré-verificação somente leitura na base real: 11 itens, 5 classes de metadata, 0 equipados, nenhum DML. Evidência: [minimum-equipped-read.json](evidence/auth/minimum-equipped-read.json).
+- Ainda não habilitado: handler EquipItem457 (transação, ItemFail, UpdateInventoryInfo/EquipmentInfo/UpdateStat/CostumeUpdate). Próxima fatia.

@@ -80,6 +80,8 @@ pub(super) async fn exercise(
     tx: &mut vindictus_server::protocol::transport::LegacySender,
 ) {
     // CharacterSN is not the list index (only list index zero is admitted).
+    let equipped:Vec<(i32,i64)>=sqlx::query_as("SELECT e.part::integer,e.id FROM game_equippables e JOIN game_items i ON i.id=e.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY e.part").bind(cid).fetch_all(pool).await.unwrap();
+    let expected_def = if equipped.is_empty() { 9 } else { 16 };
     let sn: i32 = sqlx::query_scalar("SELECT character_sn FROM game_character_info WHERE id=$1")
         .bind(cid)
         .fetch_one(pool)
@@ -119,7 +121,7 @@ pub(super) async fn exercise(
             }
             Message::UpdateStat { stat: Some(stat) } => {
                 assert_eq!(stat.len(), 25);
-                assert!(stat.iter().any(|(k, v)| *k == "DEF" && *v == 9));
+                assert!(stat.iter().any(|(k, v)| *k == "DEF" && *v == expected_def));
                 assert!(stat.iter().any(|(k, v)| *k == "HP" && *v > 0));
             }
             Message::NoticeGameEnvironment { cafe_type, is_otp } => {
@@ -156,7 +158,7 @@ pub(super) async fn exercise(
             .collect::<Vec<_>>(),
         stored
     );
-    assert!(snapshot.equipment.0.unwrap().is_empty());
+    assert_eq!(snapshot.equipment.0.unwrap(), equipped);
     assert_eq!(
         snapshot
             .storages

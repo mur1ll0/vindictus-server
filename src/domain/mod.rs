@@ -94,3 +94,5 @@ pub mod join_micro;
 pub mod map_partition;
 
 pub mod equipment_slot;
+
+pub mod equipped_gear;

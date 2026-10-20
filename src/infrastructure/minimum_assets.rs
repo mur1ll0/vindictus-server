@@ -37,8 +37,10 @@ struct Files {
     body_arithmetic: String,
     map_partition_dir: Option<PathBuf>,
     channel_bind: Option<std::net::SocketAddr>,
+    equipment: Option<PathBuf>,
 }
 pub struct Assets {
+    pub(super) equipment: Option<super::equipment_profile::Profile>,
     pub initializer: fiona_initializer_profile::Profile,
     pub(super) catalog: item_catalog::Package,
     pub(super) stats: item_stats::Package,
@@ -148,6 +150,10 @@ impl Assets {
             (None, None) => {}
             _ => return Err(MinimumError::Conflict),
         }
+        if let Some(path) = f.equipment {
+            assets =
+                assets.with_equipment(super::equipment_profile::Profile::read(open(&path)?)?)?;
+        }
         Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
@@ -161,6 +167,7 @@ impl Assets {
             return Err(MinimumError::Conflict);
         }
         let out = Self {
+            equipment: None,
             initializer: parts.initializer,
             catalog: parts.catalog,
             stats: parts.stats,
@@ -178,6 +185,14 @@ impl Assets {
         out.stats.bind(&out.catalog)?;
         out.colors.bind(&out.catalog)?;
         Ok(out)
+    }
+    pub fn with_equipment(
+        mut self,
+        profile: super::equipment_profile::Profile,
+    ) -> Result<Self, MinimumError> {
+        profile.bind(&self.catalog)?;
+        self.equipment = Some(profile);
+        Ok(self)
     }
     pub async fn initialize_and_list(
         &self,

@@ -148,7 +148,10 @@ pub(super) async fn load(
         let equippable = class.binding.equippable;
         let (colors, durability, maximum, bonus) = match (equippable, equipment.remove(&row.id)) {
             (false, None) => (vec![-1; 3], 0, 0, 0),
-            (true, Some(e)) if e.part.is_none() => {
+            (true, Some(e)) => {
+                if e.part.is_some() && assets.equipment.is_none() {
+                    return Err(MinimumError::Conflict);
+                }
                 let base = stats
                     .get(Some(&row.item_class_utf16))
                     .ok_or(MinimumError::Conflict)?;
@@ -197,6 +200,7 @@ pub(super) async fn load(
         return Err(MinimumError::Conflict);
     }
     let locked = assets.appearance.inventory_locked_parts()?;
+    let gear = super::minimum_equipment::load(tx, owner, assets, cid).await?;
     let inventory = Inventory {
         storages: Some(
             [0, 1, 6]
@@ -213,7 +217,7 @@ pub(super) async fn load(
                 .collect(),
         ),
         slots: Some(slots),
-        equipment: Dict(Some(Vec::new())),
+        equipment: Dict(Some(gear.projection.equipment)),
         quick_slots: Some(QuickSlots {
             classes: Dict(Some(Vec::new())),
         }),

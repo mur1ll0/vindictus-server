@@ -1,0 +1,70 @@
+{
+  "gear": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/Gear.cs",
+    "sha256": "963068da22db6dddb81f1ac7f58f808a7e506aeebbcd594429cf891774d4f9ea"
+  },
+  "slot": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/EquippableSlot.cs",
+    "sha256": "95e9e9f6bbe0a068674f8737883a72f98552a37e737a54e8b7750db6e252b4cb"
+  },
+  "contents": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContents.cs",
+    "sha256": "25962e36e582ae703708c0442137f7ccefad470cfc2410205ccae6dd1b72aa5a"
+  },
+  "item": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+    "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+  },
+  "storage": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/StorageSetting.cs",
+    "sha256": "9bee64a9c26633b9c66e4d3a48ccf2828fce8e3163f4aff32afb72c2133cdeff"
+  },
+  "part": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/EquipPartInfo.cs",
+    "sha256": "d7a17fc30ec4a3041b40848e9b92f8cf84baf613d7299f892207b7a34d62ed92"
+  },
+  "dto": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/EquippedItemInfo.cs",
+    "sha256": "d9446d46bbe3c3747a4e49a393dd85a2cca65430b148d20197290f0406196e18"
+  },
+  "loader": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/HeroesContentsLoader.cs",
+    "sha256": "816f4a467add0e5a2e6631e091433a84d3ab844567ea944316f944f0ede4b940"
+  },
+  "provider_x86": {
+    "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x86/System.Data.SQLite.DLL",
+    "sha256": "49261be7f20c9d9dfd1ff35d71e9f3b1b7de17f65581c67beed43d933f1eb85c"
+  },
+  "provider_x64": {
+    "path": "../ServidorVindictus/Server/zh-tw-x-gm/Bin/x64/System.Data.SQLite.DLL",
+    "sha256": "9866dceb181852eab3735afeebbac1ea7810857201319c2c5a2af4667eaa8d45"
+  },
+  "stackable": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/StackableSlot.cs",
+    "sha256": "a9910604fbb459b581b9227e69a6aea133a739aabd784cc87dfacc1eb77d6099"
+  },
+  "bag_storage": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage.Component/BagStorage.cs",
+    "sha256": "36c1769f6e66d1c281043a8ba97c052e3506e46ce0f0a34f49be8d093a0039a8"
+  },
+  "costume_extension": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeDataExtension.cs",
+    "sha256": "8193b136651ff2703dc9e32b166f8c4a8d90a09605a8af6725d7f97f3912ad57"
+  },
+  "costume_manager": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CostumeManager.cs",
+    "sha256": "97a950548411eb3b31b1b867272e711016b3775687e7a666d5fadcf5428dd952"
+  },
+  "stat_manager": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/StatManager.cs",
+    "sha256": "1389e4852506edfd7a2e682b5ea134f51b55984843cd5fc4f7a406cae52ec73c"
+  },
+  "skill_effect": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+    "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+  },
+  "item_extension": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemContentsExtension.cs",
+    "sha256": "6feb45576793bf580018625d5a088b5eb359290baa83c325835cbb7ee53c7c6a"
+  }
+}

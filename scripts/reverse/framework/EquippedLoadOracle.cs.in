@@ -1,0 +1,42 @@
+using System;using System.Collections.Generic;using System.Web.Script.Serialization;
+public class CharacterStats{public int Value;}
+public class EquippedItemInfo{}
+public class Info{public byte Class=1;public int Level=1;}
+public class Character{public Info CharacterInfo=new Info();}
+public class Skills{public SkillEffect Effect=new SkillEffect();}
+public class Entity{public Skills Skills=new Skills();}
+public class SkillEffect{
+ public int Bonus;public int Calls;public bool Fail;public double Weight;
+ private int Arg(string skill,string key){return Bonus;}
+ __MEDIUM__
+ public void ApplyItemSkills(CharacterStats set,IList<EquippedItemInfo> gear,out CharacterStats stat,out double weight,out Dictionary<int,int> hp,out IDictionary<int,int> def){
+  Calls++;if(Fail)throw new InvalidOperationException();
+  if(gear.Count!=1)throw new InvalidOperationException("one projected equipment result required");
+  stat=new CharacterStats{Value=set.Value};weight=Weight;hp=new Dictionary<int,int>();def=new Dictionary<int,int>();
+ }
+}
+public static class CharacterContents{
+ private static Dictionary<byte,Dictionary<int,double>> baseLoad;
+ public static int Calls;public static bool Fail;
+ __BASE__
+ __HEAVY__
+ public static void Init(double value,int present){baseLoad=new Dictionary<byte,Dictionary<int,double>>();if(present>0)baseLoad[1]=new Dictionary<int,double>();if(present>1)baseLoad[1][1]=value;}
+ public static double MeasuredBase(byte c,int l){Calls++;if(Fail)throw new InvalidOperationException();return GetMediumLoadWeight(c,l);}
+}
+public class StatManager{
+ public Entity CharacterEntity=new Entity();public Character Character=new Character();
+ private CharacterStats SetBonusStat=new CharacterStats{Value=-7};
+ private IList<EquippedItemInfo> EquippedItemInfo;
+ private CharacterStats ItemStat;private double TotalWeight,MediumLoad,HeavyLoad,LoadPenalty;private Dictionary<int,int> armorHPMap;private IDictionary<int,int> itemDefMap;
+ __CALCULATE__
+ public static object Run(int i){
+ double[] loads={0,1,-1,0.1,12.3,1234.5,double.MaxValue,-double.MaxValue,1e-300};
+ double[] weights={0,1,15,20,1234.5,1e300,-1,Math.PI};int[] bonuses={0,1,-1,19,-19,int.MaxValue,int.MinValue};
+ double value=loads[(i/3)%loads.Length],weight=weights[(i/7)%weights.Length];int bonus=bonuses[i%bonuses.Length];
+ var m=new StatManager();CharacterContents.Init(value,2);CharacterContents.Fail=false;m.CharacterEntity.Skills.Effect.Weight=weight;m.CharacterEntity.Skills.Effect.Bonus=bonus;
+ m.CalculateItemStat(new CharacterStats{Value=i},new List<EquippedItemInfo>{new EquippedItemInfo()});
+ return new{base_bits=Bits(value),weight_bits=Bits(weight),bonus=bonus,item_value=i,medium_bits=Bits(m.MediumLoad),heavy_bits=Bits(m.HeavyLoad),penalty=(int)m.LoadPenalty};
+ }
+ public static string Bits(double v){return BitConverter.DoubleToInt64Bits(v).ToString("x16");}
+}
+public static class Oracle{public static void Main(){var cases=new List<object>();for(int i=0;i<256;i++)cases.Add(StatManager.Run(i));Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(cases));}}

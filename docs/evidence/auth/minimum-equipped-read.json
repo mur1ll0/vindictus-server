@@ -1,0 +1,126 @@
+{
+ "stage": "P0-02b equipped Gear read path (loader, appearance, stats/load, selection/inventory/relogin)",
+ "gate": {
+  "verified_at_utc": "2026-10-20T19:56:44.8652823+00:00",
+  "checks": {
+   "format": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "clippy": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "rust-tests": {
+    "exit_code": 0,
+    "passed": 390,
+    "failed": 0,
+    "ignored": 241,
+    "warnings": 0
+   },
+   "doc-tests": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "build": {
+    "exit_code": 0,
+    "passed": 0,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "postgres-integration": {
+    "exit_code": 0,
+    "passed": 241,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "client-python": {
+    "exit_code": 0,
+    "passed": 7,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   },
+   "content-python": {
+    "exit_code": 0,
+    "passed": 41,
+    "failed": 0,
+    "ignored": 0,
+    "warnings": 0
+   }
+  }
+ },
+ "native_readonly_preflight": {
+  "readonly_native_equipment": true,
+  "existing_equipped_items": 0,
+  "inventory_ids_match": true,
+  "inventory_items": 11,
+  "metadata_classes": 5,
+  "simulated_combinations_from_native_metadata": 32,
+  "simulation_did_not_write_parts_or_costumes": true,
+  "dml_executed": false
+ },
+ "equip_mutation_enabled": false,
+ "client_acceptance": "pending",
+ "sources": [
+  {
+   "path": "src/domain/equipped_gear.rs",
+   "sha256": "5dc641d9014174c18f26c579c90b00731c2e75aa2e29a497dc5abc45ea81e42b"
+  },
+  {
+   "path": "src/domain/equipped_gear_sources.json",
+   "sha256": "d6686b9fd98489569b59184f9d410bf4a942f6762a066f07774c00e23c853a19"
+  },
+  {
+   "path": "src/infrastructure/equipment_profile.rs",
+   "sha256": "da779a8e76aef7b0c4501484102295670d31c826f3b9bdaaf1b908197a3b2019"
+  },
+  {
+   "path": "src/infrastructure/minimum_equipment.rs",
+   "sha256": "dffcb3322326d142efea38fcb593cc290fe21294e0764678bf031c24a7e7dcc3"
+  },
+  {
+   "path": "src/infrastructure/minimum_selection.rs",
+   "sha256": "4288cf8b0d69077553956883f7bd950d9fe787181c1bc849cdc12a253bdf7da1"
+  },
+  {
+   "path": "src/infrastructure/minimum_inventory.rs",
+   "sha256": "5a3303f3f31cfefe113c987026a15988fc373d2c5d9a1a63c35ed22d05ec2bef"
+  },
+  {
+   "path": "src/domain/character_load.rs",
+   "sha256": "a2d0c2ac5ff48e17bcc03ace42a7f521d61f24aca3591286e97b3adcff03212f"
+  },
+  {
+   "path": "src/domain/character_costume.rs",
+   "sha256": "b1ba39ce92b3147ee86189f34b40651e15a65a2676112ddccae488bcea3d5895"
+  },
+  {
+   "path": "scripts/content/export_equipment_profile.py",
+   "sha256": "8a57f645768190cca4b22b77f510c618c16e26d194e9b6faf483a2462c9be564"
+  },
+  {
+   "path": "tests/fixtures/framework-equipped-gear.json",
+   "sha256": "74557e00502e643a42d1ebb635fbc54dddade1e20ab9801ac314201e5bdd23b6"
+  },
+  {
+   "path": "tests/fixtures/framework-equipped-costume.json",
+   "sha256": "893fbe43cff3fd3e79ef1828ee7c5465066fa5b0e98346efde09549c0dd23957"
+  },
+  {
+   "path": "tests/fixtures/framework-equipped-load.json",
+   "sha256": "ffc1aab0c14086bdf122708b27f66192dd46cdcb562a89a73e68b8abde77c18f"
+  }
+ ]
+}

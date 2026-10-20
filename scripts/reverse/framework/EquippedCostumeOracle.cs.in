@@ -1,0 +1,25 @@
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
+public enum ExtraKey { Invalid=-1,Shineness,Height,Bust,PaintingPosX,PaintingPosY,PaintingRotation,PaintingSize }
+public class Costume { public bool IsBase;public byte Type,Key;public int? CostumeSN,C1,C2,C3,Effect;public byte? Gloss; }
+public class Box { readonly Dictionary<int,Costume> rows=new Dictionary<int,Costume>();public Costume TryGetValue(byte t,byte k){Costume r;return rows.TryGetValue(t*256+k,out r)?r:null;}public void Add(byte t,byte k,Costume c){rows.Add(t*256+k,c);}public void Remove(byte t,byte k){rows.Remove(t*256+k);} }
+public class Character { public EntitySet<Costume> Costume=new EntitySet<Costume>(); }
+public class Projection { public void Apply(Costume c,bool isAvatar){}public void Remove(byte t,byte k){} }
+public class Manager { readonly Box bases=new Box(),items=new Box();readonly Character character=new Character();readonly Projection CostumeInfo=new Projection();Box CostumeDic(bool b){return b?bases:items;}
+__METHODS__
+public Costume[] Rows(){return character.Costume.ToArray();}
+}
+public class EquippedItemInfo{public int Durability,CostumePartNum,CostumeSN,Color1,Color2,Color3;public bool IsDecoration,IsAvatar;public int? Effect;}
+public static class EquipmentCostume{__TO_COSTUME__}
+public static class Program{
+ public static void Main(){var cases=new List<object>();for(int i=0;i<256;i++){
+ int[] ds={int.MinValue,-1,0,1999,2000,2001,3999,4000,4001,5999,6000,6001,9999,10000,int.MaxValue};int d=i<ds.Length?ds[i]:unchecked(i*7919)%15000;
+ var info=new EquippedItemInfo{Durability=d,CostumePartNum=2,CostumeSN=i%2==0?-1:i,Color1=-1,Color2=int.MinValue,Color3=int.MaxValue,IsDecoration=i%3==0,Effect=i%2==0?(int?)null:17};
+ var m=new Manager();m.SetCostume(new Costume{IsBase=true,Type=0,Key=1,CostumeSN=3,C1=1,C2=2,C3=3});m.SetCostume(new Costume{IsBase=false,Type=0,Key=2,CostumeSN=9,Effect=91});m.SetCostume(new Costume{IsBase=false,Type=0,Key=3,CostumeSN=11,Effect=0});
+ var steps=new[]{new EquippedItemInfo{CostumePartNum=2,CostumeSN=-1},new EquippedItemInfo{CostumePartNum=1,CostumeSN=i,Durability=10000},new EquippedItemInfo{CostumePartNum=3,CostumeSN=77,Effect=42,Durability=d},new EquippedItemInfo{CostumePartNum=2,CostumeSN=i+1,Durability=10000}};
+ m.LoadItemCostumes(steps);cases.Add(new{info=info,converted=info.ToCostume(false),steps=steps,rows=m.Rows()});
+ }Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(cases));}
+}

@@ -361,6 +361,33 @@ impl Profile {
         }
         Ok(projection)
     }
+    pub(super) fn normal_parts(
+        &self,
+        catalog: &Catalog,
+    ) -> Result<Vec<crate::domain::equipped_gear::Part>, Error> {
+        self.initial_gear(catalog)?;
+        self.parts
+            .iter()
+            .map(|p| {
+                let raw = p.key.as_ref().ok_or_else(fail)?.as_bytes();
+                let category = String::from_utf16(
+                    &raw.as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|a| u16::from_le_bytes(*a))
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|_| fail())?;
+                Ok(crate::domain::equipped_gear::Part {
+                    slot: u8::try_from(p.number).map_err(|_| fail())?,
+                    category,
+                    costume: p.costume,
+                    decoration: p.decoration,
+                    consumable: p.consumable,
+                })
+            })
+            .collect()
+    }
     /// General appearance preparation for the admitted class and empty equipped-item set.
     /// None arithmetic admits only results equal in both measured Framework profiles.
     pub fn prepare(

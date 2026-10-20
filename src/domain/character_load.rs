@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use thiserror::Error;
 
 use super::{
-    character_stats::{Arithmetic, Stats, empty_gear},
+    character_stats::{Arithmetic, ItemResult, Stats, empty_gear},
     skill_runtime::Cache,
 };
 
@@ -26,10 +26,56 @@ impl BaseLoad {
         self.0
     }
 }
+
+/// CalculateItemStat load portion after ApplyItemSkills produced the equipped
+/// outputs. Nonempty x87 arithmetic is not inferred from the empty-Gear oracle.
+/// The current native laboratory uses Framework x64. A base-provider failure is
+/// returned to the transaction coordinator before publishing any character state.
+pub fn equipped_x64(
+    items: ItemResult,
+    set_bonus: Stats,
+    cache: &Cache,
+    base: BaseLoad,
+    arithmetic: Arithmetic,
+) -> Result<Snapshot, LoadError> {
+    if !matches!(arithmetic, Arithmetic::FrameworkX64) || !items.weight.is_finite() {
+        return Err(LoadError);
+    }
+    let text = |s: &str| {
+        s.encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>()
+    };
+    let bonus = cache.argument(
+        &text("skill_weight_mastery"),
+        &text("max_weight_increament_bonus"),
+        0,
+    );
+    let medium = base.value() + f64::from(bonus);
+    let heavy = medium * 1.2;
+    let ratio = (items.weight - medium) * 100.0 / (heavy - medium);
+    let penalty = if ratio.is_nan() {
+        i32::MIN
+    } else {
+        ratio.clamp(0.0, 100.0) as i32
+    };
+    Ok(Snapshot {
+        set_bonus,
+        equipped_empty: false,
+        item_stats: Some(items.stats),
+        weight: items.weight,
+        armor_hp: Some(items.armor_hp),
+        armor_def: Some(items.armor_def),
+        medium,
+        heavy,
+        penalty,
+    })
+}
 /// The caller has established a non-null, empty Gear collection. A failed/missing
 /// loader is not evidence of this state.
 pub struct EmptyGear;
 
+#[derive(Clone)]
 pub struct Snapshot {
     pub set_bonus: Stats,
     pub equipped_empty: bool,

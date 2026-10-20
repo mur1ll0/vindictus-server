@@ -24,6 +24,14 @@ async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
     minimum_flow(false).await;
 }
 async fn minimum_flow(with_channel: bool) {
+    minimum_flow_equipment(with_channel, false).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn actual_tcp_minimum_equipped_selection_channel_and_relogin() {
+    minimum_flow_equipment(true, true).await;
+}
+async fn minimum_flow_equipment(with_channel: bool, with_equipment: bool) {
     use vindictus_server::protocol::{character_creation as create, character_list as filled};
     let (admin, pool, schema) = isolated_game_pool().await;
     super::minimum_character::setup(&pool).await;
@@ -59,6 +67,18 @@ async fn minimum_flow(with_channel: bool) {
             minimum_selection::topology(),
         ));
     }
+    if with_equipment {
+        assets = assets
+            .with_equipment(
+                vindictus_server::infrastructure::equipment_profile::Profile::read(
+                    serde_json::to_vec(&super::minimum_equipment::equipment_profile_fixture())
+                        .unwrap()
+                        .as_slice(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
     let runtime = Runtime::new(profile(&c, false), c)
         .unwrap()
         .with_name_check(Some(proof))
@@ -92,6 +112,9 @@ async fn minimum_flow(with_channel: bool) {
         .as_ref()
         .unwrap()
         .cid;
+    if with_equipment {
+        sqlx::query("UPDATE game_equippables SET part=1,color1=31,color2=32,color3=33 WHERE id=(SELECT min(e.id)FROM game_equippables e JOIN game_items i ON i.id=e.id WHERE i.owner_id=$1)").bind(cid).execute(&pool).await.unwrap();
+    }
     assert_eq!(
         decoded.characters.as_ref().unwrap()[0]
             .as_ref()

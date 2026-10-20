@@ -93,4 +93,16 @@ impl CostumeSet {
     pub fn rows(&self) -> impl Iterator<Item = &Costume> {
         self.rows.iter()
     }
+    /// Character.Costume is an EntitySet: removal shifts its enumeration, and a
+    /// later Set appends. The separate lookup dictionary does not dictate row order.
+    pub fn remove(&mut self, identity: (bool, u8, u8)) -> Option<Costume> {
+        let index = self.positions.remove(&identity)?;
+        let removed = self.rows.remove(index);
+        for position in self.positions.values_mut() {
+            if *position > index {
+                *position -= 1
+            }
+        }
+        Some(removed)
+    }
 }

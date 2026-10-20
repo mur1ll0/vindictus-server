@@ -1607,3 +1607,6 @@ mod minimum_character;
 
 #[path = "support/minimum_inventory.rs"]
 mod minimum_inventory;
+
+#[path = "support/minimum_equipment.rs"]
+mod minimum_equipment;
