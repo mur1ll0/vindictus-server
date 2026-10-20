@@ -102,7 +102,7 @@ impl Message {
         }
     }
 }
-trait Wire: Sized {
+pub(super) trait Wire: Sized {
     fn write(&self, w: &mut Writer) -> Result<(), PayloadError>;
     fn read(r: &mut Reader<'_>) -> Result<Self, PayloadError>;
 }

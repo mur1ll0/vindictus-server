@@ -1,0 +1,158 @@
+{
+  "stage": "P0-02a",
+  "verified_at_utc": "2026-10-20T17:46:51.1285132+00:00",
+  "scope": "Pure equipment slot transitions/effect planning and EquipItem457/EquipmentInfo458 codecs; prerequisites for authoritative runtime integration",
+  "foundation_complete": true,
+  "runtime_mutation_enabled": false,
+  "real_client_equipment_verified": false,
+  "original_service_or_native_actor_executed": false,
+  "sql_or_item_mutations_executed": false,
+  "original_source_methods_executed": true,
+  "providers": "Synthetic metadata/items with traced owner/attribute/enhancement effects; callback exceptions not covered",
+  "slot_oracle": {
+    "cases_per_architecture": 128,
+    "x86_equals_x64": true,
+    "methods": [
+      "constructor",
+      "Load(Item)",
+      "Load(ExpandSlotInfo)",
+      "CheckSettable",
+      "Set",
+      "Clear",
+      "Reset",
+      "Unlock"
+    ],
+    "preserved": [
+      "first-row expanded flag",
+      "ordinal UTF16 categories",
+      "refusal priority",
+      "source effect order",
+      "disabled state",
+      "equipped-part state",
+      "cleared item identity"
+    ]
+  },
+  "wire_oracle": {
+    "cases_per_architecture": 90,
+    "x86_equals_x64": true,
+    "categories": [
+      457,
+      458
+    ],
+    "original_servicecore_sha256": "be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683",
+    "metadata_checked_both_architectures": true,
+    "unequip_item_id": -1,
+    "null_objects_and_dictionaries_distinguished": true
+  },
+  "focused": {
+    "command": "cargo test --test equipment_slot --test equipment_wire --test inventory_wire --test initial_gear --locked",
+    "passed": 9,
+    "failed": 0,
+    "clippy_library_exit": 0
+  },
+  "full_gate": {
+    "command": "scripts/dev/verify.ps1 -DatabaseIntegration",
+    "runs_this_batch": 1,
+    "exit_code": 0,
+    "rust_passed": 385,
+    "postgres_passed": 237,
+    "postgres_ignored": 0,
+    "python_passed": 45,
+    "warnings": 0,
+    "failures": 0
+  },
+  "preservation": {
+    "schema": 33,
+    "markers": 1,
+    "initialized": 1,
+    "costumes": 23,
+    "skills": 2,
+    "items": 11
+  },
+  "accepted_inventory_commit": "d2fc604",
+  "accepted_runtime_restarted": false,
+  "next": [
+    "source-bound requirements and equipped Gear loader/projection",
+    "nonempty weight/load calculation and item skill/set effects",
+    "transactional equip/unequip and original journals/logs",
+    "EquipmentInfo/UpdateStat/Costume.Save/NotifyLook and relogin",
+    "native client acceptance"
+  ],
+  "source_hashes": [
+    {
+      "path": "src/domain/equipment_slot.rs",
+      "sha256": "4dadeaa6488ad15451036de1b381c94f8576c2c76c09ab538fea3f84b871c150"
+    },
+    {
+      "path": "src/domain/mod.rs",
+      "sha256": "8ba4d0d025c6ddc4402d4aaa16fce2a631c7c6315c8b9743fd0075e0902e68b5"
+    },
+    {
+      "path": "src/protocol/equipment.rs",
+      "sha256": "c5ea3ef77acccb60683af6c2531a06d22ae87cf57f626a8f38b18f3853b2eb6c"
+    },
+    {
+      "path": "src/protocol/inventory.rs",
+      "sha256": "3612fa5bb1a4bd3d3a08d76fad0d256ff577056b34b4aa2643b2166e0daa0aa8"
+    },
+    {
+      "path": "src/protocol.rs",
+      "sha256": "db8b4118532d5894e0e4d135d1f7206cbdaa078afe34ffe69787c6725cfb421d"
+    },
+    {
+      "path": "tests/equipment_slot.rs",
+      "sha256": "a6027587a0d0a07a7894e9fb161070e83ecd406c3ae0bbad081348a647be8c00"
+    },
+    {
+      "path": "tests/equipment_wire.rs",
+      "sha256": "fc8065b86aed30de13e4a2602acaec5616f49a686afdce4a5280b79018e4b2dc"
+    },
+    {
+      "path": "scripts/reverse/framework/EquipmentSlotOracle.cs.in",
+      "sha256": "d57e0dd56225cceead2d7f6fab24981ae3d407833c3e0545783db87d91e9b413"
+    },
+    {
+      "path": "scripts/reverse/framework/EquipmentWireOracle.cs",
+      "sha256": "4c93746691456c4b901cf77bf5d835b1b922553980fe8192f5605ba36ea03ade"
+    },
+    {
+      "path": "scripts/reverse/generate-equipment-slot-fixtures.ps1",
+      "sha256": "658082cce30f6b94494252dbf81d650247da35ef619396c55ccef6e882e01745"
+    },
+    {
+      "path": "scripts/reverse/generate-equipment-wire-fixtures.ps1",
+      "sha256": "e992fb67ff1edf58fae6ad3cf936a481b3d2e7f585f12a099cbabc2aa8d70318"
+    },
+    {
+      "path": "tests/fixtures/framework-equipment-slot.json",
+      "sha256": "5600f49a5f3af4c236989717629afa64253251d825e7302189eca3d5540e44d7"
+    },
+    {
+      "path": "tests/fixtures/framework-equipment-wire.json",
+      "sha256": "0532a0e8dbe85263b847403420c02cbb48a0f38a54175deb7b669b5347a355fd"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".cache/verification/equipment-slot-oracle.log",
+      "sha256": "457ca0e30be85baffb5ad36b5416598b54bab83dd761ad5dba9ac1000ee93070"
+    },
+    {
+      "path": ".cache/verification/equipment-wire-oracle.log",
+      "sha256": "8d7db9cecb17a92106437c3777cae491ce9859f4be71713b6a7ece1d8988e44d"
+    },
+    {
+      "path": ".cache/verification/equipment-focused.log",
+      "sha256": "ce0fdaa328c439d2065e654f948f1aeb11fb2318c10b7df3e567f590ac7dff30"
+    },
+    {
+      "path": ".cache/verification/equipment-clippy-focus.log",
+      "sha256": "b2bab47390fddab8f1b452c9b18a1919441c61c5c161ecf3ee91c2916cdf1cb8"
+    },
+    {
+      "path": ".cache/verification/equipment-foundation-final-gate.log",
+      "sha256": "0f69fef9bcd9c65609ced66bb97d1069534589f967ff87fe6aab7e5f764c8ad9"
+    }
+  ],
+  "push_performed": false
+}

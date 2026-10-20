@@ -1,0 +1,64 @@
+using System;using System.Collections.Generic;using System.Linq;using System.Web.Script.Serialization;
+public enum ItemOperationResult{Success,InvalidItemClass,EquipItemFail_System,EquipItemFail_InvalidSlot,EquipItemFail_InvalidItemCategory,EnhanceItemFail_System}
+public enum EnhanceOtherType{None,Other}public enum ItemUpdateType{Any}public enum UpdateItemStatEvent{EnhanceOtherChanged}public enum InvenUpdateType{UnequippableSlots}
+public class EquipPartInfo{public int EquipPartNum;public bool IsExpandedSlot;}
+public class ExpandSlotInfo{public int Slot;}
+public class ItemClassInfo{public string Category;}
+public static class Extensions{public static V TryGetValue<K,V>(this Dictionary<K,V>d,K k){V v;return d.TryGetValue(k,out v)?v:default(V);}}
+public static class ItemContents{public static Dictionary<string,EquipPartInfo> Rows;public static Dictionary<string,EquipPartInfo> GetEquipPartInfo(byte p){return Rows;}}
+public static class Trace{public static List<string> Events=new List<string>();}
+public class Item{
+ public long ID;public ItemClassInfo ItemClassInfo=new ItemClassInfo();public bool IsEquippable;public byte? EquippedPart;public EquipPartInfo EquippedPartInfo;
+ public bool IsEquipped{get{return EquippedPart.HasValue;}}public int? BadStatus;public EnhanceOtherType EnhanceOtherType;
+ public void CheckAttributeExpired(){Trace.Events.Add("CheckExpired");}public void UpdateItemStat(UpdateItemStatEvent e){Trace.Events.Add("UpdateStat");}public void Update(ItemUpdateType t){Trace.Events.Add("UpdateItem");}
+}
+public class Loader{public void AddExpandedSlot(byte p){Trace.Events.Add("AddExpandedSlot");}}
+public class ItemOwner{public Loader Loader=new Loader();public void RegisterChange(Item i){Trace.Events.Add("RegisterChange");}public void ApplyEnhanceOtherStatus(){Trace.Events.Add("EnhanceOther");}public void Update(InvenUpdateType t){Trace.Events.Add("UpdateLockedParts");}}
+public class EquippableSlot{
+ public ItemOwner ItemOwner;public byte Part;public Dictionary<string,EquipPartInfo> EquipPartInfos;public bool IsLocked,ItemDisabled;private Item Data;
+ public bool IsEmpty{get{return Data==null;}}public Item Value{get{return Data;}}
+ __CONSTRUCTOR__
+ __LOAD_ITEM__
+ __LOAD_EXPANSION__
+ __CLEAR__
+ __CHECK__
+ __SET__
+ __SET_CHECK__
+ __RESET__
+ __UNLOCK__
+}
+public class ItemInput{public long id;public int[] category;public bool equippable,bad_status,enhance_other;public int? equipped_part,resolved_part;}
+public class Step{public string action;public ItemInput item;public int part;public bool bad_status;}
+public class Row{public int[] category;public bool expanded;}
+public class Input{public byte part;public Row[] rows;public Step[] steps;}
+public static class Oracle{
+ static string Text(int[] v){return new string(v.Select(x=>(char)x).ToArray());}
+ static Item Make(ItemInput i){if(i==null)return null;return new Item{ID=i.id,ItemClassInfo=new ItemClassInfo{Category=Text(i.category)},IsEquippable=i.equippable,EquippedPart=i.equipped_part.HasValue?(byte?)i.equipped_part.Value:null,EquippedPartInfo=i.resolved_part.HasValue?new EquipPartInfo{EquipPartNum=i.resolved_part.Value}:null,BadStatus=i.bad_status?(int?)1:null,EnhanceOtherType=i.enhance_other?EnhanceOtherType.Other:EnhanceOtherType.None};}
+ static ItemInput ItemFor(int n,int part){return new ItemInput{id=n%2==0?long.MaxValue:long.MinValue,category=n%3==0?new[]{65}:n%3==1?new[]{66}:new[]{0xd800},equippable=n%5!=0,bad_status=n%2==0,enhance_other=n%3==0,equipped_part=n%7==0?(int?)part:null,resolved_part=n%4==0?(int?)null:n%4==1?part:part+1};}
+ static object Run(Input input){
+  ItemContents.Rows=new Dictionary<string,EquipPartInfo>();foreach(var r in input.rows)ItemContents.Rows.Add(Text(r.category),new EquipPartInfo{EquipPartNum=input.part,IsExpandedSlot=r.expanded});
+  var slot=new EquippableSlot(new ItemOwner(),input.part);var outcomes=new List<object>();
+  foreach(var step in input.steps){Trace.Events.Clear();string result=null;Item changed=null;bool? loaded=null;
+   switch(step.action){
+    case "load":var item=Make(step.item);bool empty=slot.IsEmpty;slot.Load(item);loaded=empty&&slot.Value==item;break;
+    case "check":result=slot.CheckSettable(Make(step.item)).ToString();break;
+    case "set":result=slot.Set(Make(step.item)).ToString();break;
+    case "clear":changed=slot.Value;slot.Clear();break;
+    case "reset":if(slot.Value!=null)slot.Value.BadStatus=step.bad_status?(int?)1:null;result=slot.Reset(ItemUpdateType.Any).ToString();break;
+    case "load_expansion":slot.Load(new ExpandSlotInfo{Slot=step.part});break;
+    case "unlock":slot.Unlock();break;
+    default:throw new Exception("unknown step");
+   }
+   outcomes.Add(new{result=result,loaded=loaded,locked=slot.IsLocked,disabled=slot.ItemDisabled,id=slot.Value==null?(long?)null:slot.Value.ID,equipped_part=slot.Value==null?(byte?)null:slot.Value.EquippedPart,cleared_id=changed==null?(long?)null:changed.ID,cleared_part=changed==null?(byte?)null:changed.EquippedPart,effects=Trace.Events.ToArray()});
+  }return new{input=input,outcomes=outcomes};
+ }
+ public static void Main(){var cases=new List<object>();for(int i=0;i<128;i++){
+  byte part=(byte)(i%2==0?0:255);var rows=new[]{new Row{category=new[]{65},expanded=i%2==0},new Row{category=new[]{66},expanded=i%2!=0},new Row{category=new[]{0xd800},expanded=true}};
+  var steps=new List<Step>{new Step{action="check",item=ItemFor(i,part)},new Step{action="check"},new Step{action="reset",bad_status=true}};
+  if(i%3==0)steps.Add(new Step{action="load",item=ItemFor(i+1,part)});
+  steps.Add(new Step{action="set",item=ItemFor(i+2,part)});steps.Add(new Step{action="load_expansion",part=i%4==0?part:254});steps.Add(new Step{action="unlock"});steps.Add(new Step{action="unlock"});
+  steps.Add(new Step{action="set",item=ItemFor(i+3,part)});steps.Add(new Step{action="load",item=ItemFor(i+4,part)});steps.Add(new Step{action="reset",bad_status=i%2==0});steps.Add(new Step{action="clear"});steps.Add(new Step{action="clear"});
+  steps.Add(new Step{action="set",item=ItemFor(i+5,part)});steps.Add(new Step{action="check",item=ItemFor(i+6,part)});steps.Add(new Step{action="load_expansion",part=part});
+  cases.Add(Run(new Input{part=part,rows=rows,steps=steps.ToArray()}));
+ }Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=int.MaxValue}.Serialize(cases));}
+}

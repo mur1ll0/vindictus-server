@@ -54,3 +54,5 @@ O workflow `.github/workflows/verify.yaml`, que executava build/testes em todo p
 Diagnóstico histórico e contrato do incremento de leitura: [minimum-inventory-client.md](minimum-inventory-client.md), com a correção de QueryInventory529/InventoryInfo468 e os 5 equipamentos existentes na bolsa.
 
 P0-01: sincronização inicial e QueryInventory implementados para os 11 itens preservados; inventário e equipamentos na bolsa aceitos pelo operador em 20/10/2026. Reabertura/relogin não confirmados separadamente. Detalhes/limites em [minimum-inventory-client.md](minimum-inventory-client.md). P0-02 equipar/desequipar ainda não habilitado.
+
+P0-02a: contratos EquipItem457/EquipmentInfo458 e kernel de slots preparados, com oracles Framework e testes diferenciais. A ligação ao cliente depende primeiro do loader de equipamento vestido, requisitos, carga e aparência persistida; ainda não habilitada. Sequência e limites: [minimum-equipment-client.md](minimum-equipment-client.md).

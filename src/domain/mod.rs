@@ -92,3 +92,5 @@ pub mod initial_captcha;
 pub mod join_micro;
 
 pub mod map_partition;
+
+pub mod equipment_slot;
