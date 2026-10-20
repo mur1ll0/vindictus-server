@@ -20,7 +20,7 @@ pub struct Message<'a> {
     pub preset_used: i32,
     pub party_states: Option<Vec<i32>>,
 }
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Costume {
     pub costume_type_info: Dictionary<i32>,
     pub color_info: Dictionary<i32>,
@@ -51,7 +51,7 @@ pub struct Costume {
     pub body_shape_info: Dictionary<u32>,
     pub town_effect: i32,
 }
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Summary<'a> {
     pub cid: i64,
     pub nexon_sn: i32,
@@ -263,7 +263,10 @@ fn read_costume(r: &mut Reader<'_>) -> Result<Option<Costume>, CharacterListErro
         town_effect: i32::read(r)?,
     }))
 }
-fn write_summary(w: &mut Writer, s: Option<&Summary<'_>>) -> Result<(), CharacterListError> {
+pub(super) fn write_summary(
+    w: &mut Writer,
+    s: Option<&Summary<'_>>,
+) -> Result<(), CharacterListError> {
     let Some(s) = s else {
         w.append(&[0])?;
         return Ok(());
@@ -310,7 +313,9 @@ fn write_summary(w: &mut Writer, s: Option<&Summary<'_>>) -> Result<(), Characte
     s.arena_successive_win_count.write(w)?;
     Ok(())
 }
-fn read_summary<'a>(r: &mut Reader<'a>) -> Result<Option<Summary<'a>>, CharacterListError> {
+pub(super) fn read_summary<'a>(
+    r: &mut Reader<'a>,
+) -> Result<Option<Summary<'a>>, CharacterListError> {
     if r.byte()? == 0 {
         return Ok(None);
     }

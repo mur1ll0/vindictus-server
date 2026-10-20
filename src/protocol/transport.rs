@@ -179,3 +179,54 @@ impl Drop for LegacyReceiver {
         self.pending.zeroize();
     }
 }
+
+/// Unencrypted incoming framing matching MessageAnalyzer with a null CryptoTransform
+/// (HeroesChannelServer.Server.server_ClientAccept). No first-packet salt is consumed.
+pub struct PlainReceiver {
+    pending: Vec<u8>,
+    max_body: usize,
+    closed: bool,
+}
+impl PlainReceiver {
+    pub fn new(max_body: usize) -> Self {
+        Self {
+            pending: Vec::new(),
+            max_body,
+            closed: false,
+        }
+    }
+    pub fn buffered_len(&self) -> usize {
+        self.pending.len()
+    }
+    pub fn push(&mut self, bytes: &[u8]) -> Result<Vec<OwnedFrame>, TransportError> {
+        if self.closed {
+            return Err(TransportError::Closed);
+        }
+        let result = self.consume(bytes);
+        if result.is_err() {
+            self.closed = true;
+            self.pending.zeroize();
+        }
+        result
+    }
+    fn consume(&mut self, bytes: &[u8]) -> Result<Vec<OwnedFrame>, TransportError> {
+        let mut frames = Vec::new();
+        for &byte in bytes {
+            self.pending.push(byte);
+            if let Some((frame, _)) = decode_frame(&self.pending, self.max_body)? {
+                frames.push(OwnedFrame {
+                    instance_id: frame.instance_id,
+                    category_id: frame.category_id,
+                    body: frame.body.to_vec(),
+                });
+                self.pending.zeroize();
+            }
+        }
+        Ok(frames)
+    }
+}
+impl Drop for PlainReceiver {
+    fn drop(&mut self) {
+        self.pending.zeroize();
+    }
+}

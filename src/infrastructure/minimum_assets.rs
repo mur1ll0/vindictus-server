@@ -35,17 +35,20 @@ struct Files {
     entity_service_id: i32,
     color_seed: i32,
     body_arithmetic: String,
+    map_partition_dir: Option<PathBuf>,
+    channel_bind: Option<std::net::SocketAddr>,
 }
 pub struct Assets {
     pub initializer: fiona_initializer_profile::Profile,
-    catalog: item_catalog::Package,
+    pub(super) catalog: item_catalog::Package,
     stats: item_stats::Package,
     colors: item_colors::Package,
     inventory: fiona_inventory_profile::Profile,
-    appearance: fiona_appearance::Profile,
+    pub(super) appearance: fiona_appearance::Profile,
     pub entity_service_id: i32,
-    arithmetic: Option<BodyArithmetic>,
+    pub(super) arithmetic: Option<BodyArithmetic>,
     random: Mutex<ColorRandom>,
+    pub channel: Option<(std::net::SocketAddr, crate::domain::map_partition::Topology)>,
 }
 /// Already parsed, source-bound packages; construction still validates all bindings.
 pub struct Parts {
@@ -95,7 +98,7 @@ impl Assets {
             "unambiguous-only" => None,
             _ => return Err(MinimumError::Conflict),
         };
-        Self::from_parts(Parts {
+        let mut assets = Self::from_parts(Parts {
             initializer: fiona_initializer_profile::Profile::read(
                 open(&f.initializer)?,
                 open(&f.initializer_reference)?,
@@ -108,7 +111,44 @@ impl Assets {
             entity_service_id: f.entity_service_id,
             arithmetic,
             color_seed: f.color_seed,
-        })
+        })?;
+        match (f.map_partition_dir, f.channel_bind) {
+            (Some(dir), Some(bind)) if bind.ip().is_loopback() => {
+                let mut paths = std::fs::read_dir(dir)
+                    .map_err(Error::from)?
+                    .map(|p| p.map(|p| p.path()))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(Error::from)?;
+                paths.retain(|p| p.extension().is_some_and(|e| e == "dat"));
+                paths.sort();
+                if paths.len() != 8 {
+                    return Err(MinimumError::Conflict);
+                }
+                let mut maps = Vec::new();
+                for path in paths {
+                    let mut bytes = Vec::new();
+                    open(&path)?
+                        .take((crate::domain::map_partition::MAX_MAP_FILE_BYTES + 1) as u64)
+                        .read_to_end(&mut bytes)
+                        .map_err(Error::from)?;
+                    let bsp = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .ok_or(MinimumError::Conflict)?;
+                    maps.push(
+                        crate::domain::map_partition::MapFile::parse(bsp, &bytes)
+                            .map_err(|_| MinimumError::Conflict)?,
+                    );
+                }
+                assets.channel = Some((
+                    bind,
+                    crate::domain::map_partition::Topology::from_maps(&maps),
+                ));
+            }
+            (None, None) => {}
+            _ => return Err(MinimumError::Conflict),
+        }
+        Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
         if !(0..=65534).contains(&parts.entity_service_id)
@@ -130,6 +170,7 @@ impl Assets {
             entity_service_id: parts.entity_service_id,
             arithmetic: parts.arithmetic,
             random: Mutex::new(ColorRandom::from_seed(parts.color_seed)),
+            channel: None,
         };
         out.initializer.bind(&out.catalog)?;
         out.inventory.bind(&out.catalog)?;

@@ -70,21 +70,35 @@ pub async fn query(
     }
     let cid = ids[0];
     let mut tx = state::owned_first_fiona(pool, owner, cid).await?;
-    let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut *tx).await?;
+    let bytes = load(&mut tx, owner, profile, config, delete_delay, &mut utc, cid).await?;
+    tx.commit().await?;
+    Ok(bytes)
+}
+/// Builds the summary while the caller retains ownership and character locks.
+pub(super) async fn load(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    profile: &Profile,
+    config: QueryConfig,
+    delete_delay: i32,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
+    cid: i64,
+) -> Result<Zeroizing<Vec<u8>>, MinimumError> {
+    let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
     if marker != Some((owner.uid, profile.fingerprint().to_vec(), true)) {
         return Err(MinimumError::Conflict);
     }
-    super::character_vocation::load_first(&mut tx, cid)
+    super::character_vocation::load_first(tx, cid)
         .await
         .map_err(|_| MinimumError::Conflict)?;
     let titles: i64 = sqlx::query_scalar("SELECT count(*)FROM game_titles WHERE cid=$1")
         .bind(cid)
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut **tx)
         .await?;
     if titles != 0 {
         return Err(MinimumError::Conflict);
     }
-    let info=sqlx::query("SELECT name_utf16,character_sn,class,level,exp,selected_title,total_used_ap,quote_utf16,is_premium,free_match_win_count,free_match_lose_count,free_title_name_utf16,delete_time_units300 FROM game_character_info WHERE id=$1 FOR SHARE").bind(cid).fetch_one(&mut *tx).await?;
+    let info=sqlx::query("SELECT name_utf16,character_sn,class,level,exp,selected_title,total_used_ap,quote_utf16,is_premium,free_match_win_count,free_match_lose_count,free_title_name_utf16,delete_time_units300 FROM game_character_info WHERE id=$1 FOR SHARE").bind(cid).fetch_one(&mut **tx).await?;
     let name = text(info.try_get("name_utf16")?)?;
     let quote = text(info.try_get("quote_utf16")?)?;
     let free_title = text(info.try_get("free_title_name_utf16")?)?;
@@ -95,14 +109,14 @@ pub async fn query(
         .and_then(|d| d.map(|d| d.framework_date_time()).transpose())
         .map_err(|_| MinimumError::Conflict)?;
     let wait = delete_wait(delete_delay, delete, &mut utc)?;
-    let micro:Option<(i32,i32)>=sqlx::query_as("SELECT daily_micro_play_count,daily_free_play_count FROM game_micro_play_status WHERE cid=$1").bind(cid).fetch_optional(&mut *tx).await?;
+    let micro:Option<(i32,i32)>=sqlx::query_as("SELECT daily_micro_play_count,daily_free_play_count FROM game_micro_play_status WHERE cid=$1").bind(cid).fetch_optional(&mut **tx).await?;
     let (daily, free) = micro.unwrap_or((0, 0));
-    let set = super::character_costumes::load_for_constructor(&mut tx, cid)
+    let set = super::character_costumes::load_for_constructor(tx, cid)
         .await
         .map_err(|_| MinimumError::Conflict)?;
     let costume = lobby_costume::project(&set).map_err(|_| MinimumError::Conflict)?;
     let (purchased, premium, prologue, preset) = character_lobby::filled_header(
-        &mut tx,
+        tx,
         owner.uid,
         QueryConfig {
             max_free: config.max_free,
@@ -164,11 +178,12 @@ pub async fn query(
             max_premium: premium,
             prologue_played: u8::from(prologue),
             preset_used: preset,
-            party_states: Some(vec![]),
+            // CharacterList.OnEnter adds one None (0) state per character even
+            // with CombatRejoinSystem disabled. The native lobby indexes by row.
+            party_states: Some(vec![0]),
         }),
         DEFAULT_MAX_BODY,
     )
     .map_err(|_| MinimumError::Conflict)?;
-    tx.commit().await?;
     Ok(bytes)
 }

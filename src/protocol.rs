@@ -177,3 +177,5 @@ pub mod character_setup;
 pub mod character_creation;
 
 pub mod character_list;
+
+pub mod minimum_map;

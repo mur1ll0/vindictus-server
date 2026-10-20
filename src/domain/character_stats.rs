@@ -297,3 +297,20 @@ impl FinalState {
         callbacks.microplay_updated()
     }
 }
+
+/// StatManager.GetDictionary() for a non-null ItemStat: copies FinalStat in enum order
+/// and overwrites TOTAL_LOAD, MEDIUM_LOAD, HEAVY_LOAD, and LOAD_PENALTY in place.
+pub fn stat_dictionary(
+    final_stats: &Stats,
+    total_weight: f64,
+    medium_load: f64,
+    heavy_load: f64,
+    load_penalty: i32,
+) -> Vec<(&'static str, i32)> {
+    let mut s = final_stats.clone();
+    s.set(Field::TotalLoad, clr_i32(total_weight * 100.0));
+    s.set(Field::MediumLoad, clr_i32(medium_load * 100.0));
+    s.set(Field::HeavyLoad, clr_i32(heavy_load * 100.0));
+    s.set(Field::LoadPenalty, load_penalty);
+    s.entries().collect()
+}

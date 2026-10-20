@@ -90,3 +90,5 @@ pub mod initial_events;
 pub mod initial_captcha;
 
 pub mod join_micro;
+
+pub mod map_partition;

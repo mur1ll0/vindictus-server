@@ -16,9 +16,14 @@ use vindictus_server::{
     },
 };
 
+#[path = "minimum_selection.rs"]
+mod minimum_selection;
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
 async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
+    minimum_flow(false).await;
+}
+async fn minimum_flow(with_channel: bool) {
     use vindictus_server::protocol::{character_creation as create, character_list as filled};
     let (admin, pool, schema) = isolated_game_pool().await;
     super::minimum_character::setup(&pool).await;
@@ -40,10 +45,20 @@ async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
         serde_json::to_vec(&super::name_check_common::value(&c)).unwrap(),
     )
     .unwrap();
-    let assets = match std::sync::Arc::try_unwrap(super::minimum_character::assets()) {
+    let mut assets = match std::sync::Arc::try_unwrap(super::minimum_character::assets()) {
         Ok(a) => a,
         Err(_) => panic!("assets unexpectedly shared"),
     };
+    if with_channel {
+        // DEX=18 produces DEF=8 on Framework x86 and DEF=9 on x64.
+        // Body arithmetic remains unambiguous-only; stats follow the frontend.
+        assets.initializer =
+            super::fiona_inventory_delivery::profile_with_base(false, [29, 18, 18, 43, 901, 140]);
+        assets.channel = Some((
+            "127.0.0.1:0".parse().unwrap(),
+            minimum_selection::topology(),
+        ));
+    }
     let runtime = Runtime::new(profile(&c, false), c)
         .unwrap()
         .with_name_check(Some(proof))
@@ -72,6 +87,7 @@ async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
     let decoded = filled::decode(&response.body, DEFAULT_MAX_BODY)
         .unwrap()
         .unwrap();
+    assert_eq!(decoded.party_states.as_deref(), Some([0].as_slice()));
     let cid = decoded.characters.as_ref().unwrap()[0]
         .as_ref()
         .unwrap()
@@ -100,6 +116,11 @@ async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
         match f.category_id {
             479 => {
                 let d = filled::decode(&f.body, DEFAULT_MAX_BODY).unwrap().unwrap();
+                assert_eq!(d.party_states.as_deref(), Some([0].as_slice()));
+                assert_eq!(
+                    d.characters.as_ref().unwrap().len(),
+                    d.party_states.as_ref().unwrap().len()
+                );
                 assert_eq!(d.characters.unwrap()[0].as_ref().unwrap().cid, cid);
                 got_list = true
             }
@@ -109,6 +130,9 @@ async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
             231 => {}
             _ => panic!("unexpected relogin response"),
         }
+    }
+    if with_channel {
+        minimum_selection::locked_selection(&mut client, &mut rx, &mut tx).await;
     }
     assert!(
         password(
@@ -120,6 +144,9 @@ async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
         .await
         .passed
     );
+    if with_channel {
+        minimum_selection::exercise(&r, &pool, cid, &mut client, &mut rx, &mut tx).await;
+    }
     client.shutdown().await.unwrap();
     assert!(task.await.unwrap().is_ok());
     r.shutdown_minimum().await.unwrap();

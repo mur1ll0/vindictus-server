@@ -1,0 +1,165 @@
+{
+  "stage": "M15.1c.2",
+  "batch": "selection-explicit-framework-arithmetic",
+  "verified_at_utc": "2026-10-20T12:36:00.1885674+00:00",
+  "operator_observation": {
+    "login_confirmed_after_party_state_fix": true,
+    "selection_disconnected_before_this_fix": true,
+    "new_city_movement_result_pending": false,
+    "selection_confirmed_after_arithmetic_fix": true,
+    "following_issue": "Red lobby_event loaded; see minimum-inactive-user-care.json; city/movement still unverified"
+  },
+  "readonly_diagnosis": {
+    "frontend_framework_architecture": "x64",
+    "body_arithmetic": "unambiguous-only",
+    "base_stats_match": true,
+    "stored_skill_order_and_ranks_match": true,
+    "initialized_marker": true,
+    "dirty": false,
+    "is_connected_before_selection": false,
+    "titles": 0,
+    "counterexample": {
+      "dex": 18,
+      "def_framework_x86": 8,
+      "def_framework_x64": 9
+    },
+    "confirmed_bug": "selection reused body arithmetic None and rejected unequal x86/x64 final stats instead of using the explicit frontend CLR architecture",
+    "fix": "minimum_selection::select requires Arithmetic and frontend maps its declared FrameworkArchitecture to it; body policy is unchanged",
+    "live_diagnosis_readonly": true,
+    "operator_confirmed_login_after_previous_fix": true,
+    "real_selection_retest_pending": false
+  },
+  "fix": {
+    "selection_requires_explicit_stat_arithmetic": true,
+    "frontend_supplies_declared_framework_architecture": true,
+    "active_profile": "x64",
+    "body_arithmetic_remains": "unambiguous-only",
+    "no_persisted_character_stats_changed": true,
+    "base_stats_owner_marker_titles_vocation_skill_guards_preserved": true
+  },
+  "regression": {
+    "before": {
+      "passed": 0,
+      "failed": 1,
+      "symptom": "TCP EOF during selection"
+    },
+    "after": {
+      "focused_postgres_tcp_passed": 8,
+      "minimum_map_passed": 2,
+      "tcp_fixture_base_stats": [
+        29,
+        18,
+        18,
+        43,
+        901,
+        140
+      ],
+      "x64_def_asserted": 9
+    }
+  },
+  "full_gate": {
+    "runs_this_fix_batch": 1,
+    "command": "scripts/dev/verify.ps1 -DatabaseIntegration",
+    "wrapper": ".cache/run-minimum-map-checks.ps1 -Gate -GateLog minimum-selection-arithmetic-final-gate.log",
+    "exit_code": 0,
+    "rust_passed": 378,
+    "postgres_passed": 235,
+    "postgres_ignored": 0,
+    "python_passed": 44,
+    "warnings": 0,
+    "failures": 0,
+    "format_clippy_doc_tests_build_passed": true
+  },
+  "activation": {
+    "loopback_ports": [
+      8081,
+      27015,
+      27003
+    ],
+    "http_status": 200,
+    "frontend_channel_restarted": true,
+    "binary_sha256": "24d98fd79084bed2ec821878c8903ddda229b049c208b5717b45181afafa507f"
+  },
+  "preservation": {
+    "before": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "after": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "identical": true,
+    "checked_readonly": true,
+    "client_and_legacy_directories_changed": false,
+    "historical_migrations_changed": false,
+    "study_databases_accessed": false
+  },
+  "disposable_postgres_removed": true,
+  "operator_retest_requested": true,
+  "local_commit_pending_city_movement_acceptance": true,
+  "sources": [
+    {
+      "path": "src/infrastructure/minimum_selection.rs",
+      "sha256": "4ca14874878cb21bf75ddaecd205f7d56bf6970d00a1ce8d0e5bb3013562dce3"
+    },
+    {
+      "path": "src/infrastructure/lab_frontend.rs",
+      "sha256": "2e7f21e113e5da0a62de2176f242613ab7b6d7363b2841678b7e9d237af9448a"
+    },
+    {
+      "path": "src/domain/character_stats.rs",
+      "sha256": "5e067800497d2e9132fb1c6f98ae9bb0dfa23f43ec2dd633d8a40385d06d95eb"
+    },
+    {
+      "path": "tests/support/minimum_selection.rs",
+      "sha256": "3e4d6b4e94f8ed5a4035704c7d825938cd2003e885b6e68a45cb6f26820dae39"
+    },
+    {
+      "path": "tests/support/lab_frontend.rs",
+      "sha256": "c622812e8658316f435e1515368d8831139cb24d96e40cdd30483dd43b7a8bb8"
+    },
+    {
+      "path": "tests/support/minimum_character.rs",
+      "sha256": "5d6c74569778b095a1197b23fc831dc5714a493edebf13386af9a277a71b2f0d"
+    },
+    {
+      "path": "tests/support/fiona_inventory_delivery.rs",
+      "sha256": "ad8b5997b9cc9d68ec646a2b876a7ffa2b833ae11366968ed927feac9d54baad"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".cache/verification/minimum-stat-diagnostic.log",
+      "sha256": "b55e92bd30e92afbf221f95c85ced310e6b954da3482575759208339ab96ad4e"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-red.log",
+      "sha256": "2ef7a096f1acc4d3c243c9a832f3e551b058180b49e64b97638577600bdf4a2e"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-green.log",
+      "sha256": "545921f8c232b51e54586bb5bbc0b4a22ac1732e59b747d3a79d660918a086fa"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-map.log",
+      "sha256": "d6d3ba711ed01104304cdfbdf84940cf4174a5f14d5d5eac48857470e47e861a"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-final-gate.log",
+      "sha256": "8471b603733f986912d0c87b2901e427d058b0f7486526d1c920b843abebd7a7"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-activation.log",
+      "sha256": "9493f7db6a03ecaea460168028677edca24e6bd9b0620b716c69bdb16dee7f1c"
+    }
+  ]
+}

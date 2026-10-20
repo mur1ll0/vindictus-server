@@ -1,7 +1,7 @@
 {
-  "stage": "M15.1c.1",
-  "verified_at_utc": "2026-10-20T01:22:27.6383900+00:00",
-  "binary_sha256": "4014d8fa55a757e1881681ed79936c8f20994429d927c47ce7d8068c3363a0eb",
+  "stage": "M15.1c.2",
+  "verified_at_utc": "2026-10-20T13:04:39.4824117+00:00",
+  "binary_sha256": "0469da7602640d21f1bd2cb5ae2a18dcee6d45eba8e8d1a7a470d7d9db950194",
   "updated_native_runtime_started": true,
   "schema_migration": 33,
   "loopback": true,
@@ -9,7 +9,19 @@
   "name_proof_reused": true,
   "new_client_acceptance": true,
   "character_creation_available": true,
-  "selection_available": false,
-  "city_available": false,
-  "optional_services_deferred": true
+  "selection_available": true,
+  "city_available": true,
+  "client_city_verified": true,
+  "optional_services_deferred": true,
+  "user_care_inactive": {
+    "type": -1,
+    "next_state": -1
+  },
+  "client_selection_verified_before_this_fix": true,
+  "real_client_city_verified": true,
+  "incident_evidence": "docs/evidence/auth/minimum-inactive-user-care.json",
+  "real_client_movement_verified": true,
+  "operator_acceptance_recorded_at_utc": "2026-10-20T13:14:50.033879+00:00",
+  "inventory_client_verified": false,
+  "roadmap": "docs/playable-game-roadmap.md"
 }

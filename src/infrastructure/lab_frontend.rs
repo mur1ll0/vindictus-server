@@ -94,6 +94,7 @@ pub struct Runtime {
     registry: SessionRegistry,
     name_proof: Option<super::character_name_proof::NameProof>,
     minimum: Option<MinimumRuntime>,
+    channel: Option<(std::net::SocketAddr, Arc<super::channel_server::Runtime>)>,
 }
 impl Runtime {
     pub fn new(
@@ -129,6 +130,7 @@ impl Runtime {
             content,
             name_proof: None,
             minimum: None,
+            channel: None,
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
@@ -154,11 +156,20 @@ impl Runtime {
             MAX_CONNECTIONS,
         )
         .map_err(|_| RuntimeError::Profile)?;
+        self.channel = assets.channel.as_ref().map(|(bind, topology)| {
+            (
+                *bind,
+                Arc::new(super::channel_server::Runtime::new(topology.clone())),
+            )
+        });
         self.minimum = Some(MinimumRuntime {
             assets: Arc::new(assets),
             creation,
         });
         Ok(self)
+    }
+    pub fn channel(&self) -> Option<(std::net::SocketAddr, Arc<super::channel_server::Runtime>)> {
+        self.channel.as_ref().map(|(a, r)| (*a, r.clone()))
     }
     pub async fn shutdown_minimum(&self) -> Result<(), RuntimeError> {
         if let Some(m) = &self.minimum {
@@ -245,6 +256,15 @@ impl Runtime {
             .active_count()
             .map_err(|_| RuntimeError::Operation)
     }
+    fn stat_arithmetic(&self) -> crate::domain::character_stats::Arithmetic {
+        use crate::{
+            domain::character_stats::Arithmetic, protocol::identity::FrameworkArchitecture,
+        };
+        match self.profile.identity_options().profile.architecture {
+            FrameworkArchitecture::X86 => Arithmetic::FrameworkX86,
+            FrameworkArchitecture::X64 => Arithmetic::FrameworkX64,
+        }
+    }
     fn civil(&self) -> Result<SqlDateTime2, RuntimeError> {
         lab_clock::civil_now(self.profile.civil_offset_seconds())
             .map_err(|_| RuntimeError::Operation)
@@ -320,6 +340,7 @@ struct Connection {
     close_at: Option<tokio::time::Instant>,
     login_deadline: tokio::time::Instant,
     ignored_messages: u32,
+    selected: Option<super::minimum_selection::Selected>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -331,9 +352,23 @@ impl Connection {
             close_at: None,
             login_deadline: tokio::time::Instant::now() + ADMISSION_TIMEOUT,
             ignored_messages: 0,
+            selected: None,
         }
     }
     async fn cleanup(&mut self, runtime: &Runtime, pool: &PgPool) {
+        if let Some(selected) = self.selected.take() {
+            if let Some((_, channel)) = &runtime.channel
+                && channel.remove(selected.cid, pool).await.is_err()
+            {
+                tracing::warn!("minimum channel cleanup failed; values omitted");
+            }
+            if super::minimum_selection::disconnect(pool, selected.cid)
+                .await
+                .is_err()
+            {
+                tracing::warn!("minimum selection cleanup failed; values omitted");
+            }
+        }
         let revision = self
             .password
             .as_ref()
@@ -670,6 +705,109 @@ impl Connection {
                     .password(runtime, pool, stream, sender, kind, (category, body))
                     .await;
             }
+        }
+        {
+            use crate::protocol::minimum_map::{self as wire, Kind, Message};
+            for kind in [Kind::SelectCharacter, Kind::EnterChannel] {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                if !self
+                    .password
+                    .as_ref()
+                    .is_some_and(|p| p.selection_allowed(&self.frontend))
+                {
+                    locked(stream, sender).await?;
+                    return Ok(());
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                    .ok_or(RuntimeError::Message)?;
+                match message {
+                    Message::SelectCharacter { index } => {
+                        if self.selected.is_some() || runtime.channel.is_none() {
+                            return Err(RuntimeError::Profile);
+                        }
+                        let id = self
+                            .frontend
+                            .accepted_identity()
+                            .map_err(|_| RuntimeError::Operation)?;
+                        let owner = super::character_lobby::UserKey {
+                            uid: id.nexon_sn,
+                            name: &id.nexon_id,
+                            revision: self
+                                .password
+                                .as_ref()
+                                .ok_or(RuntimeError::Operation)?
+                                .revision(),
+                        };
+                        let assets = &runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .assets;
+                        let selected = super::minimum_selection::select(
+                            pool,
+                            &owner,
+                            assets,
+                            index,
+                            runtime.minimum_header()?,
+                            runtime.stat_arithmetic(),
+                        )
+                        .await
+                        .map_err(|_| RuntimeError::Operation)?;
+                        self.selected = Some(selected);
+                        for packet in &self
+                            .selected
+                            .as_ref()
+                            .ok_or(RuntimeError::Operation)?
+                            .packets
+                        {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        tracing::info!(
+                            "minimum character selected; optional services deferred; values omitted"
+                        );
+                    }
+                    Message::EnterChannel {
+                        channel_id,
+                        partition_id,
+                        action,
+                    } => {
+                        let selected = self.selected.as_ref().ok_or(RuntimeError::Message)?;
+                        let (bind, channel) =
+                            runtime.channel.as_ref().ok_or(RuntimeError::Profile)?;
+                        let key = channel
+                            .enter(
+                                selected.cid,
+                                channel_id,
+                                partition_id,
+                                action,
+                                selected.look.clone(),
+                            )
+                            .await?;
+                        let address = bind.ip().to_string();
+                        let message = Message::ChannelServerAddress {
+                            channel_id: 1,
+                            address: Some(&address),
+                            port: i32::from(bind.port()),
+                            key,
+                        };
+                        let body = wire::encode(
+                            Kind::ChannelServerAddress,
+                            Some(&message),
+                            DEFAULT_MAX_BODY,
+                        )
+                        .map_err(|_| RuntimeError::Message)?;
+                        send(stream, sender, Kind::ChannelServerAddress.category(), &body).await?;
+                    }
+                    _ => return Err(RuntimeError::Message),
+                }
+                return Ok(());
+            }
+        }
+        if self.selected.is_some() {
+            return Ok(());
         }
         {
             use crate::protocol::character_creation::{self as wire, Kind, Message};

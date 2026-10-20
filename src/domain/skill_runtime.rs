@@ -129,4 +129,18 @@ impl Cache {
         self.rank_sum = self.rank_sum.wrapping_add(to.wrapping_sub(from));
         self.update_arguments(skill, rows)
     }
+    /// Original LoadBaseSkillRank during CharacterEntity construction: updates baseSkillRank,
+    /// adds (new - old) to SkillRankSum once, and calls Effect.UpdateSkillArgument.
+    pub fn load_base(
+        &mut self,
+        skill: &[u8],
+        rank: i32,
+        rows: Option<&[Argument]>,
+    ) -> Result<(), CacheError> {
+        self.admit(skill)?;
+        let old = self.ranks.get(skill).copied().unwrap_or_default();
+        self.ranks.insert(skill.to_vec(), rank);
+        self.rank_sum = self.rank_sum.wrapping_add(rank.wrapping_sub(old));
+        self.update_arguments(skill, rows)
+    }
 }

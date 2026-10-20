@@ -239,14 +239,36 @@ async fn run(cli: Cli) -> Result<(), Error> {
         }
         let runtime = std::sync::Arc::new(runtime);
         let listener = tokio::net::TcpListener::bind(runtime.bind()).await?;
+        let channel_listener = match runtime.channel() {
+            Some((bind, channel)) => Some((tokio::net::TcpListener::bind(bind).await?, channel)),
+            None => None,
+        };
         tracing::info!(address=%listener.local_addr()?,client_acceptance_verified=false,character_creation_available=runtime.minimum_creation_available(),"restricted laboratory frontend listening");
-        let result = lab_frontend::run(
-            listener,
-            std::sync::Arc::clone(&runtime),
-            pool.clone(),
-            shutdown(),
-        )
-        .await;
+        let result = if let Some((channel_listener, channel)) = channel_listener {
+            tracing::info!(address=%channel_listener.local_addr()?, "minimum channel listening without cipher");
+            let (stop, signal) = tokio::sync::watch::channel(false);
+            let mut front_signal = signal.clone();
+            let mut channel_signal = signal;
+            let front = lab_frontend::run(listener, runtime.clone(), pool.clone(), async move {
+                let _ = front_signal.changed().await;
+            });
+            let city = vindictus_server::infrastructure::channel_server::run(
+                channel_listener,
+                channel,
+                pool.clone(),
+                async move {
+                    let _ = channel_signal.changed().await;
+                },
+            );
+            tokio::pin!(front, city);
+            tokio::select! {
+                () = shutdown() => { let _ = stop.send(true); let (f,c) = tokio::join!(front, city); f.and(c) }
+                result = &mut front => { let _ = stop.send(true); result.and(city.await) }
+                result = &mut city => { let _ = stop.send(true); result.and(front.await) }
+            }
+        } else {
+            lab_frontend::run(listener, runtime.clone(), pool.clone(), shutdown()).await
+        };
         let minimum_cleanup = runtime.shutdown_minimum().await;
         pool.close().await;
         result?;

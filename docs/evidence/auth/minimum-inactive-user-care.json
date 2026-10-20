@@ -1,0 +1,210 @@
+{
+  "stage": "M15.1c.2",
+  "batch": "selection-inactive-user-care",
+  "verified_at_utc": "2026-10-20T13:04:23.0495014+00:00",
+  "operator_observation": {
+    "login_confirmed": true,
+    "selection_loaded_without_disconnect": true,
+    "red_event_background_frozen": true,
+    "city_movement_acceptance_pending": false,
+    "red_event_background_resolved_by_operator": true
+  },
+  "diagnosis": {
+    "client_observation": {
+      "loaded_map": "lobby_event",
+      "local_log_time": "2026-10-20 09:41:55",
+      "city_channel_entry_not_observed": true
+    },
+    "live_readonly_state": {
+      "region_code": 0,
+      "map_state_info": 0,
+      "prologue_played": true
+    },
+    "confirmed_contract_bug": {
+      "sent_user_care_type": 0,
+      "sent_user_care_next_state": 0,
+      "expected_inactive": [
+        -1,
+        -1
+      ]
+    },
+    "source_evidence": [
+      {
+        "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/UserCareType.cs",
+        "finding": "Nothing=-1, CareUser=0"
+      },
+      {
+        "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/UserCareState.cs",
+        "finding": "Nothing=-1, Promise=0"
+      },
+      {
+        "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/UserInfo.cs",
+        "lines": [
+          134,
+          137
+        ],
+        "finding": "UserInfo constructor initializes both fields to -1"
+      },
+      {
+        "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterSelecting.cs",
+        "lines": [
+          129,
+          138
+        ],
+        "finding": "LoginOk forwards both UserInfo fields"
+      },
+      {
+        "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/SelectCharacterProcessor.cs",
+        "lines": [
+          171,
+          192
+        ],
+        "finding": "Nonnegative UserCare fields enter Event_usercare_kokr_2013 phase A for Promise"
+      }
+    ],
+    "causal_limit": "Event activation is confirmed by recovered server source; native client branch not decompiled. Real city/movement acceptance remains pending.",
+    "framework_wire_oracle": {
+      "fixture": "tests/fixtures/framework-minimum-map-wire.json",
+      "x86_inactive_fields": [
+        -1,
+        -1
+      ],
+      "x64_inactive_fields": [
+        -1,
+        -1
+      ],
+      "existing_oracle_covers_corrected_values": true
+    }
+  },
+  "fix": {
+    "login_ok_user_care_type": -1,
+    "login_ok_user_care_next_state": -1,
+    "semantics": "Nothing, matching original UserInfo constructor and enums",
+    "persistent_character_data_changed": false,
+    "event_npc_or_reward_implemented": false
+  },
+  "regression": {
+    "before": {
+      "exit_code": 101,
+      "passed": 1,
+      "failed": 1,
+      "actual": 0,
+      "expected": -1
+    },
+    "after": {
+      "focused_postgres_tcp_passed": 8,
+      "minimum_map_passed": 2,
+      "login_ok_both_inactive_fields_asserted": true
+    }
+  },
+  "full_gate": {
+    "command": "scripts/dev/verify.ps1 -DatabaseIntegration",
+    "runs_this_batch": 1,
+    "exit_code": 0,
+    "rust_passed": 378,
+    "postgres_passed": 235,
+    "python_passed": 44,
+    "warnings": 0,
+    "failures": 0,
+    "format_clippy_doc_tests_build_passed": true
+  },
+  "activation": {
+    "frontend_channel_restarted": true,
+    "loopback_ports": [
+      8081,
+      27015,
+      27003
+    ],
+    "http_status": 200,
+    "binary_sha256": "0469da7602640d21f1bd2cb5ae2a18dcee6d45eba8e8d1a7a470d7d9db950194"
+  },
+  "preservation": {
+    "before": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "after": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "checked_readonly": true,
+    "identical": true
+  },
+  "disposable_postgres_removed": true,
+  "real_client_city_verified": true,
+  "local_commit_pending_city_movement_acceptance": false,
+  "sources": [
+    {
+      "path": "src/infrastructure/minimum_selection.rs",
+      "sha256": "4379dcae890fb1beba16fe44e00c433e0c7fba5e7d3a06e2b3703b2580f1d598"
+    },
+    {
+      "path": "tests/support/minimum_selection.rs",
+      "sha256": "429633f96b1539fea4e7b9f515017e875b083d7c08423d34e00703e4b83c5d4a"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/UserCareType.cs",
+      "sha256": "f75b3d4bcb127ad86ae0f6bd76137e9acb7e8f7205bb93d4dcef097d9acfc89c"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/UserCareState.cs",
+      "sha256": "81b558832ada73160155178a2f746c98b9b8e7ee81f5695904f6ce79e81e8a2b"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/UserInfo.cs",
+      "sha256": "d470c53ea4a943f5df765dd6127009c4da6949a68e34bb4868fbc73ccf35f0fa"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterSelecting.cs",
+      "sha256": "6e40c901aff1da774920e266fbe83c6b5f30ccf0caf3d99e36260e4e7665ffb6"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/SelectCharacterProcessor.cs",
+      "sha256": "3d2111cae5c48067de0b02c85e48d42060c012af00f59be3b8822b8b2792ab68"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".cache/verification/minimum-inactive-event-diagnosis.json",
+      "sha256": "810b59ac2f3e0cfd8d846f3c73fdf5a9616646837f717e919ac1d274470d09cc"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-red.log",
+      "sha256": "b100495d18a9b5eb27c68ad98f068be2c66a7d9292e29411b3e03509d25fdb1f"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-green.log",
+      "sha256": "f6bb13b720e238f8b10fcfa3c43a495d5c68b706835bc31de87b886f8ea3999b"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-map.log",
+      "sha256": "ce9ee479c8dab771426ce95ffe5bacf42bbbda3a7fdd5633fcfcbf53c9035f14"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-final-gate.log",
+      "sha256": "8471b603733f986912d0c87b2901e427d058b0f7486526d1c920b843abebd7a7"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-activation.log",
+      "sha256": "9493f7db6a03ecaea460168028677edca24e6bd9b0620b716c69bdb16dee7f1c"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-live-after.json",
+      "sha256": "35e1368f7b36b6b31435dbe3e242c41604aa573dd8115ba0946666e9959880fd"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-pg-stop.log",
+      "sha256": "18b0710c3bece5e9504abb33a602e3be3805e5ed4d99d86b393b3b0ebe3312df"
+    }
+  ],
+  "real_client_movement_verified": true,
+  "operator_acceptance_recorded_at_utc": "2026-10-20T13:14:50.033879+00:00"
+}

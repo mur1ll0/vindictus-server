@@ -1,0 +1,190 @@
+{
+  "stage": "M15.1c.2",
+  "batch": "login-party-state-crash-fix",
+  "verified_at_utc": "2026-10-20T12:10:16.5885992+00:00",
+  "operator_observation": {
+    "login_crashed_before_character_selection": true,
+    "error": "EXCEPTION_ACCESS_VIOLATION",
+    "client_retry_requested": true,
+    "retry_result_pending": false,
+    "login_confirmed_after_fix": true,
+    "retry_result": "login passed; selection disconnected before the following arithmetic fix"
+  },
+  "native_evidence": {
+    "observed_crashes": [
+      {
+        "dump_basename": "heroes_[2016-01-14][17_02]_[2026-10-20][08_47_11].mdmp",
+        "dump_sha256": "625193d7be7de763bb0a28310a2c17484aca0b47a41167fb521f05a992b65f7c",
+        "exception_code": "0xc0000005",
+        "access_operation": 0,
+        "access_address": "0x0",
+        "module": "client.dll",
+        "module_base": "0x38000000",
+        "instruction_rva": "0x520c87",
+        "eax": "0x0",
+        "ebp": "0x0"
+      },
+      {
+        "dump_basename": "heroes_[2016-01-14][17_02]_[2026-10-20][08_48_02].mdmp",
+        "dump_sha256": "b8e699c92c7daa6d4a2acad14dabcc0ab62308ad6a86fa0a92a4e41be4f0708f",
+        "exception_code": "0xc0000005",
+        "access_operation": 0,
+        "access_address": "0x0",
+        "module": "client.dll",
+        "module_base": "0x38000000",
+        "instruction_rva": "0x520c87",
+        "eax": "0x0",
+        "ebp": "0x0"
+      }
+    ],
+    "native_instruction": {
+      "rva": "0x520c87",
+      "bytes": "8b0ca8",
+      "assembly": "mov ecx,dword ptr [eax+ebp*4]",
+      "null_read_observed": true
+    },
+    "client_artifact": {
+      "path": ".cache/play-client/bin/client.dll",
+      "sha256": "b284ba719047556b8468ff58b82d93578de6a7b46a11e33709b4dc42f1bebb02",
+      "modified": false
+    },
+    "method": "read-only Windows minidump stream parser and installed Microsoft dumpbin; ordinary local-tool observations, not REA-produced native analysis",
+    "limitations": [
+      "REA native providers are not configured on this host.",
+      "No live debugger replay; exact source-level type at the native access remains inferred.",
+      "The invalid parallel-list contract is independently established by recovered CharacterList.cs and failing TCP/database regressions."
+    ],
+    "private_memory_committed": false
+  },
+  "confirmed_server_contract_bug": {
+    "packet": 479,
+    "characters_before": 1,
+    "party_states_before": [],
+    "characters_after": 1,
+    "party_states_after": [
+      0
+    ],
+    "rule": "one LoginPartyState per character, in character-list order; fresh non-rejoining state is None=0",
+    "recovered_caller": "FrontendServiceCore.States/CharacterList.cs: InitSecondPassword followed by list.Add(0) per character when CombatRejoinSystem is disabled",
+    "native_connection": "Two observed null indexed reads are consistent with the missing parallel vector; exact source-level native field identity remains inferred."
+  },
+  "regression": {
+    "before_fix": {
+      "passed": 0,
+      "failed": 2,
+      "expected_failure": "Some([]) != Some([0])"
+    },
+    "after_fix": {
+      "minimum_postgres_tcp_passed": 8,
+      "minimum_map_passed": 2
+    },
+    "checks_cover": [
+      "filled-list cardinality",
+      "Create response",
+      "relogin TCP response",
+      "second-password gate",
+      "selection",
+      "Identify and replay",
+      "movement",
+      "cleanup and rollback"
+    ]
+  },
+  "full_gate": {
+    "command": "scripts/dev/verify.ps1 -DatabaseIntegration",
+    "wrapper": ".cache/run-minimum-map-checks.ps1 -Gate -GateLog minimum-login-crash-final-gate.log",
+    "runs_this_fix_batch": 1,
+    "exit_code": 0,
+    "rust_passed": 378,
+    "postgres_passed": 235,
+    "postgres_ignored": 0,
+    "python_passed": 44,
+    "failed": 0,
+    "warnings": 0,
+    "format_clippy_doc_tests_build_passed": true
+  },
+  "activation": {
+    "loopback_ports": [
+      8081,
+      27015,
+      27003
+    ],
+    "bootstrap_http_status": 200,
+    "frontend_channel_restarted": true,
+    "binary_sha256": "0b175c8b338804136d7b3c67e29de28ee7002193bc3cd69326c81db8ea4a8070"
+  },
+  "preservation": {
+    "before": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "after": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "identical": true,
+    "live_database_checked_readonly": true,
+    "client_artifacts_changed": false,
+    "historical_migrations_changed": false,
+    "study_databases_accessed": false
+  },
+  "disposable_postgres_removed": true,
+  "local_commit_pending_operator_acceptance": true,
+  "private_dump_memory_committed": false,
+  "sources": [
+    {
+      "path": "src/infrastructure/minimum_character_list.rs",
+      "sha256": "ffe593426247ce9f0164a417c86a30cc17d39cfe1fb60567bfe8836585f4e0ab"
+    },
+    {
+      "path": "tests/support/minimum_character.rs",
+      "sha256": "336daa0917a9f3783243b220f46fe4a418775bb81455d9d2bfdfe0ea3b2dcf12"
+    },
+    {
+      "path": "tests/support/lab_frontend.rs",
+      "sha256": "13053527cfc05f9278c1297be58526db84f19264b2a22fabbc85f9663c631fc4"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterList.cs",
+      "sha256": "8342a53227171c6472846f1e12c15c2dd1d059eac2ae8cdee690699b5bc22fa6"
+    },
+    {
+      "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/CharacterListMessage.cs",
+      "sha256": "1a6f64fe1481520a10e35752346a791c279c3a8b9f016eff17b4071c9b0dc3c5"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".cache/verification/minimum-login-crash-red.log",
+      "sha256": "87adb2c931b2fb06e0c0f1167b0100eff6ee936144ad0aff0d94fc7b6f5eebaa"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-green.log",
+      "sha256": "1a443f56b7ae439354c6fc0de83b7a79e5f3002a6b29f629879c774f2912fc65"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-map.log",
+      "sha256": "64b0af62ef842e005944f4aecb487ff251da8c7e6ba597333783bc210edcd06b"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-final-gate.log",
+      "sha256": "8471b603733f986912d0c87b2901e427d058b0f7486526d1c920b843abebd7a7"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-disassembly.log",
+      "sha256": "13e1515d855fd72f1254b7a1bc6a055df97146baa15724f144e5e808b4357e2a"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-activation.log",
+      "sha256": "9493f7db6a03ecaea460168028677edca24e6bd9b0620b716c69bdb16dee7f1c"
+    }
+  ],
+  "follow_up": "docs/evidence/auth/minimum-selection-arithmetic.json"
+}

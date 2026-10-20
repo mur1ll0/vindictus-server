@@ -90,6 +90,8 @@ pub mod fiona_item_bootstrap;
 
 pub mod mail_reference;
 
+pub mod channel_server;
 pub mod minimum_assets;
 pub mod minimum_character;
 pub mod minimum_character_list;
+pub mod minimum_selection;

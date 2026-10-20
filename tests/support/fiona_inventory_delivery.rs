@@ -37,7 +37,11 @@ fn snapshot() -> Value {
     json!({"format_version":1,"source":"study_heroes.character-initialization","titles":[],"goals":[],"presets":[{"title_id":17,"class_restriction":2},{"title_id":18,"class_restriction":0}],"micro":[],"missions":[],"assignments":[]})
 }
 pub(super) fn profile(shared: bool) -> Profile {
+    profile_with_base(shared, [1, 2, 3, 4, 5, 6])
+}
+pub(super) fn profile_with_base(shared: bool, base: [i32; 6]) -> Profile {
     let mut v = profile_fixture::synthetic();
+    v["base_stats"] = json!(base);
     v["features"]
         .as_array_mut()
         .unwrap()

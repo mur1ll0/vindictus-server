@@ -8,7 +8,9 @@ use vindictus_server::{
         character_creation::EntityAuthority,
         creation_lifecycle::{MinimumOutcome, MinimumRequest},
     },
-    domain::{item_colors::ColorRandom, legacy_user_data::SqlDateTime2},
+    domain::{
+        character_stats::Arithmetic, item_colors::ColorRandom, legacy_user_data::SqlDateTime2,
+    },
     infrastructure::{
         character_lobby::QueryConfig,
         character_skills,
@@ -108,6 +110,11 @@ async fn minimum_create_persists_inventory_appearance_skills_and_filled_list() {
     let decoded = character_list::decode(&bytes, DEFAULT_MAX_BODY)
         .unwrap()
         .unwrap();
+    assert_eq!(decoded.party_states.as_deref(), Some([0].as_slice()));
+    assert_eq!(
+        decoded.characters.as_ref().unwrap().len(),
+        decoded.party_states.as_ref().unwrap().len()
+    );
     let summary = decoded.characters.unwrap().pop().unwrap().unwrap();
     assert_eq!(
         (
@@ -318,5 +325,146 @@ async fn minimum_cancel_joins_initializer_before_deleting_committed_base() {
     runtime.shutdown().await.unwrap();
     let n:(i64,i64,i64)=sqlx::query_as("SELECT(SELECT count(*)FROM game_characters),(SELECT count(*)FROM game_items),(SELECT count(*)FROM game_minimum_character_initialization)").fetch_one(&p).await.unwrap();
     assert_eq!(n, (0, 0, 0));
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_selection_rejects_partial_stats_skills_titles_and_stale_owner() {
+    use vindictus_server::infrastructure::minimum_selection as selection;
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    initialize(&p).await.unwrap();
+    let assets = assets();
+    for index in [-1, 1, i32::MAX] {
+        assert!(
+            selection::select(
+                &p,
+                &initial_inventory::key(),
+                &assets,
+                index,
+                config(),
+                Arithmetic::FrameworkX64
+            )
+            .await
+            .is_err()
+        );
+    }
+    let mut stale = initial_inventory::key();
+    stale.revision += 1;
+    assert!(
+        selection::select(&p, &stale, &assets, 0, config(), Arithmetic::FrameworkX64)
+            .await
+            .is_err()
+    );
+    for (change, restore) in [
+        (
+            "UPDATE game_minimum_character_initialization SET initialized=false",
+            "UPDATE game_minimum_character_initialization SET initialized=true",
+        ),
+        (
+            "UPDATE game_character_info SET dirty=true",
+            "UPDATE game_character_info SET dirty=false",
+        ),
+        (
+            "UPDATE game_character_info SET str=str+1",
+            "UPDATE game_character_info SET str=str-1",
+        ),
+        (
+            "UPDATE game_skills SET rank=rank+1",
+            "UPDATE game_skills SET rank=rank-1",
+        ),
+        (
+            "INSERT INTO game_titles(cid,title_id,acquired) VALUES(1,999,false)",
+            "DELETE FROM game_titles WHERE cid=1",
+        ),
+    ] {
+        sqlx::query(change).execute(&p).await.unwrap();
+        assert!(
+            selection::select(
+                &p,
+                &initial_inventory::key(),
+                &assets,
+                0,
+                config(),
+                Arithmetic::FrameworkX64
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            !sqlx::query_scalar::<_, bool>(
+                "SELECT is_connected FROM game_character_info WHERE id=1"
+            )
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        );
+        sqlx::query(restore).execute(&p).await.unwrap();
+    }
+    // A late write failure rolls back connectivity and last-login changes together.
+    sqlx::query("UPDATE game_user_info SET last_login_cid=NULL WHERE nexon_sn=31")
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO game_micro_play_status VALUES(1,0,0,0,0,0,0,0,0,0,decode('5100','hex'),NULL)",
+    )
+    .execute(&p)
+    .await
+    .unwrap();
+    let before: (bool, Option<i64>) = sqlx::query_as("SELECT is_connected,(SELECT last_login_cid FROM game_user_info WHERE nexon_sn=31) FROM game_character_info WHERE id=1").fetch_one(&p).await.unwrap();
+    sqlx::query("CREATE FUNCTION reject_selection() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'synthetic';END$$").execute(&p).await.unwrap();
+    sqlx::query("CREATE TRIGGER reject_selection BEFORE UPDATE ON game_micro_play_status FOR EACH ROW EXECUTE FUNCTION reject_selection()").execute(&p).await.unwrap();
+    assert!(
+        selection::select(
+            &p,
+            &initial_inventory::key(),
+            &assets,
+            0,
+            config(),
+            Arithmetic::FrameworkX64
+        )
+        .await
+        .is_err()
+    );
+    let persisted:(bool,Option<i64>)=sqlx::query_as("SELECT is_connected,(SELECT last_login_cid FROM game_user_info WHERE nexon_sn=31) FROM game_character_info WHERE id=1").fetch_one(&p).await.unwrap();
+    assert_eq!(persisted, before);
+    sqlx::query("DROP TRIGGER reject_selection ON game_micro_play_status")
+        .execute(&p)
+        .await
+        .unwrap();
+    let selected = selection::select(
+        &p,
+        &initial_inventory::key(),
+        &assets,
+        0,
+        config(),
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    assert_eq!(selected.cid, 1);
+    assert_eq!(
+        selected
+            .packets
+            .iter()
+            .map(|p| p.category)
+            .collect::<Vec<_>>(),
+        [483, 345, 609, 619]
+    );
+    assert!(
+        selection::select(
+            &p,
+            &initial_inventory::key(),
+            &assets,
+            0,
+            config(),
+            Arithmetic::FrameworkX64
+        )
+        .await
+        .is_err()
+    );
+    selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

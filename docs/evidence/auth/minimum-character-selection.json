@@ -1,0 +1,285 @@
+{
+  "stage": "M15.1c.2",
+  "verified_at_utc": "2026-10-20T13:04:23.0495014+00:00",
+  "scope": "explicit native first Fiona; selection and a single loopback laboratory channel",
+  "automated_verification": {
+    "command": "scripts/dev/verify.ps1 -DatabaseIntegration",
+    "exit_code": 0,
+    "rust_passed": 378,
+    "postgres_passed": 235,
+    "postgres_ignored": 0,
+    "python_passed": 44,
+    "warnings": 0,
+    "gate": "docs/evidence/verification/gate.json",
+    "batch": "selection-inactive-user-care",
+    "full_gate_runs_this_batch": 1
+  },
+  "focused_verification": {
+    "wire_and_topology_passed": 2,
+    "postgres_and_tcp_passed": 8,
+    "wrong_key_consumed": true,
+    "replay_refused": true,
+    "identify_required_first": true,
+    "password_admission_checked": true,
+    "channel_disconnect_removes_member": true,
+    "frontend_disconnect_revokes_pending_key": true,
+    "late_write_rollback_checked": true,
+    "quest_cleared": true
+  },
+  "selection": {
+    "index_is_list_index": true,
+    "owner_revision_origin_marker_checked": true,
+    "base_stats_dirty_titles_vocation_skills_checked": true,
+    "packet_order": [
+      483,
+      345,
+      609,
+      619
+    ],
+    "cached_look_category": 373,
+    "user_care_inactive": {
+      "type": -1,
+      "next_state": -1
+    }
+  },
+  "channel": {
+    "bind": "127.0.0.1:27003",
+    "cipher": false,
+    "single_use_identify": true,
+    "map_files_copied": 8,
+    "original_map_sha256_matches": true,
+    "movement_categories": [
+      368,
+      369
+    ],
+    "notification_categories": [
+      372,
+      373,
+      374
+    ]
+  },
+  "activation": {
+    "http_bind": "127.0.0.1:8081",
+    "frontend_bind": "127.0.0.1:27015",
+    "channel_bind": "127.0.0.1:27003",
+    "listeners_checked": true,
+    "bootstrap_http_status": 200,
+    "binary_sha256": "0469da7602640d21f1bd2cb5ae2a18dcee6d45eba8e8d1a7a470d7d9db950194"
+  },
+  "preservation": {
+    "before": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "after": {
+      "schema": 33,
+      "markers": 1,
+      "initialized": 1,
+      "costumes": 23,
+      "skills": 2,
+      "items": 11
+    },
+    "identical": true,
+    "live_database_snapshot_readonly": true,
+    "schema_migrations_changed": false,
+    "legacy_directories_changed": false
+  },
+  "disposable_postgres": {
+    "separate_container": true,
+    "tmpfs": true,
+    "fsync": "on",
+    "synchronous_commit": "on",
+    "full_page_writes": "on",
+    "removed_after_gate": true
+  },
+  "real_client_city_verified": true,
+  "operator_test_requested": false,
+  "local_commit_pending_operator_verification": false,
+  "optional_services_deferred": [
+    "mail",
+    "pets",
+    "titles",
+    "quests",
+    "stories"
+  ],
+  "sources": [
+    {
+      "path": "src/infrastructure/minimum_selection.rs",
+      "sha256": "4379dcae890fb1beba16fe44e00c433e0c7fba5e7d3a06e2b3703b2580f1d598"
+    },
+    {
+      "path": "src/infrastructure/channel_server.rs",
+      "sha256": "e7b746605ce14643f9bf626eb4140eb3bd28015501974d814b482ff60323e2ff"
+    },
+    {
+      "path": "src/infrastructure/minimum_assets.rs",
+      "sha256": "ad34211e5e40a649e93ca41ba8a8d8b540a04feaddda4e8e518fe0d9a0677b59"
+    },
+    {
+      "path": "src/infrastructure/minimum_character_list.rs",
+      "sha256": "ffe593426247ce9f0164a417c86a30cc17d39cfe1fb60567bfe8836585f4e0ab"
+    },
+    {
+      "path": "src/infrastructure/lab_frontend.rs",
+      "sha256": "2e7f21e113e5da0a62de2176f242613ab7b6d7363b2841678b7e9d237af9448a"
+    },
+    {
+      "path": "src/main.rs",
+      "sha256": "37aac07a3407c04cba717ca8daac4a442e2ddbd4fb05c22fac3c2286286b0178"
+    },
+    {
+      "path": "src/domain/map_partition.rs",
+      "sha256": "d0db63809941dce79f72daaaf066879bb7b9611532f9c2423526f76be633ff3d"
+    },
+    {
+      "path": "src/protocol/minimum_map.rs",
+      "sha256": "e942651784ffdd87c3a5986ecbd536b1469cdcb1a85be201b68a4f3bedd06ab2"
+    },
+    {
+      "path": "tests/support/minimum_selection.rs",
+      "sha256": "429633f96b1539fea4e7b9f515017e875b083d7c08423d34e00703e4b83c5d4a"
+    },
+    {
+      "path": "tests/support/minimum_character.rs",
+      "sha256": "5d6c74569778b095a1197b23fc831dc5714a493edebf13386af9a277a71b2f0d"
+    },
+    {
+      "path": "tests/support/lab_frontend.rs",
+      "sha256": "c622812e8658316f435e1515368d8831139cb24d96e40cdd30483dd43b7a8bb8"
+    },
+    {
+      "path": "src/domain/character_stats.rs",
+      "sha256": "5e067800497d2e9132fb1c6f98ae9bb0dfa23f43ec2dd633d8a40385d06d95eb"
+    },
+    {
+      "path": "tests/support/fiona_inventory_delivery.rs",
+      "sha256": "ad8b5997b9cc9d68ec646a2b876a7ffa2b833ae11366968ed927feac9d54baad"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".cache/verification/minimum-map-focused.log",
+      "sha256": "142520020621a87a2f41bc614bfa08488ca231f71a67321badf61e606460a0d2"
+    },
+    {
+      "path": ".cache/verification/minimum-map-pg-focus.log",
+      "sha256": "188b7dbeda633e6fc3318e20a687330074af9a9c18661b7947c13d19bdaafd5f"
+    },
+    {
+      "path": ".cache/verification/minimum-map-final-gate.log",
+      "sha256": "8471b603733f986912d0c87b2901e427d058b0f7486526d1c920b843abebd7a7"
+    },
+    {
+      "path": ".cache/verification/minimum-map-assets.log",
+      "sha256": "5f618467d74db19f6b2332cb253ff28a7b14bd9da293a239551d469466d3be62"
+    },
+    {
+      "path": ".cache/verification/minimum-map-activation.log",
+      "sha256": "2117e4db60f1b4d98764f387ccaec94d9bba0bfefccffb0e8da9d17d6abc130b"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-red.log",
+      "sha256": "87adb2c931b2fb06e0c0f1167b0100eff6ee936144ad0aff0d94fc7b6f5eebaa"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-green.log",
+      "sha256": "1a443f56b7ae439354c6fc0de83b7a79e5f3002a6b29f629879c774f2912fc65"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-map.log",
+      "sha256": "64b0af62ef842e005944f4aecb487ff251da8c7e6ba597333783bc210edcd06b"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-final-gate.log",
+      "sha256": "8471b603733f986912d0c87b2901e427d058b0f7486526d1c920b843abebd7a7"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-disassembly.log",
+      "sha256": "13e1515d855fd72f1254b7a1bc6a055df97146baa15724f144e5e808b4357e2a"
+    },
+    {
+      "path": ".cache/verification/minimum-login-crash-activation.log",
+      "sha256": "9493f7db6a03ecaea460168028677edca24e6bd9b0620b716c69bdb16dee7f1c"
+    },
+    {
+      "path": ".cache/verification/minimum-stat-diagnostic.log",
+      "sha256": "b55e92bd30e92afbf221f95c85ced310e6b954da3482575759208339ab96ad4e"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-red.log",
+      "sha256": "2ef7a096f1acc4d3c243c9a832f3e551b058180b49e64b97638577600bdf4a2e"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-green.log",
+      "sha256": "545921f8c232b51e54586bb5bbc0b4a22ac1732e59b747d3a79d660918a086fa"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-map.log",
+      "sha256": "d6d3ba711ed01104304cdfbdf84940cf4174a5f14d5d5eac48857470e47e861a"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-final-gate.log",
+      "sha256": "8471b603733f986912d0c87b2901e427d058b0f7486526d1c920b843abebd7a7"
+    },
+    {
+      "path": ".cache/verification/minimum-selection-arithmetic-activation.log",
+      "sha256": "9493f7db6a03ecaea460168028677edca24e6bd9b0620b716c69bdb16dee7f1c"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-diagnosis.json",
+      "sha256": "810b59ac2f3e0cfd8d846f3c73fdf5a9616646837f717e919ac1d274470d09cc"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-red.log",
+      "sha256": "b100495d18a9b5eb27c68ad98f068be2c66a7d9292e29411b3e03509d25fdb1f"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-green.log",
+      "sha256": "f6bb13b720e238f8b10fcfa3c43a495d5c68b706835bc31de87b886f8ea3999b"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-map.log",
+      "sha256": "ce9ee479c8dab771426ce95ffe5bacf42bbbda3a7fdd5633fcfcbf53c9035f14"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-final-gate.log",
+      "sha256": "8471b603733f986912d0c87b2901e427d058b0f7486526d1c920b843abebd7a7"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-activation.log",
+      "sha256": "9493f7db6a03ecaea460168028677edca24e6bd9b0620b716c69bdb16dee7f1c"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-live-after.json",
+      "sha256": "35e1368f7b36b6b31435dbe3e242c41604aa573dd8115ba0946666e9959880fd"
+    },
+    {
+      "path": ".cache/verification/minimum-inactive-event-pg-stop.log",
+      "sha256": "18b0710c3bece5e9504abb33a602e3be3805e5ed4d99d86b393b3b0ebe3312df"
+    }
+  ],
+  "client_login_crash_follow_up": "docs/evidence/auth/minimum-login-crash.json",
+  "client_retest_pending": true,
+  "client_login_verified_by_operator": true,
+  "selection_arithmetic_follow_up": "docs/evidence/auth/minimum-selection-arithmetic.json",
+  "client_selection_verified_by_operator": true,
+  "client_event_lobby_observed_by_operator": true,
+  "inactive_user_care_fix": "docs/evidence/auth/minimum-inactive-user-care.json",
+  "real_client_movement_verified": true,
+  "local_commit_authorized": true,
+  "operator_acceptance": {
+    "recorded_at_utc": "2026-10-20T13:14:50.033879+00:00",
+    "selection_city_movement": true,
+    "statement": "Sim funcionou. Comite tudo que foi feito.",
+    "limitations": [
+      "inventory Downloading data does not finish",
+      "no visible basic equipment"
+    ],
+    "next_increment": "P0-01 / M15.1c.3",
+    "roadmap": "docs/playable-game-roadmap.md"
+  }
+}
