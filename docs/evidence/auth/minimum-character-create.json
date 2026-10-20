@@ -1,0 +1,48 @@
+{
+  "stage": "M15.1c.1",
+  "verified_at_utc": "2026-10-20T01:04:48.8740879+00:00",
+  "client_verified_at_utc": "2026-10-20T02:00:45.2693480+00:00",
+  "schema_version": 33,
+  "scope": "explicit native minimum Fiona Create, filled CharacterList/relogin and real client Create acceptance; optional services deferred; selection/city/movement pending",
+  "rust_passed": 376,
+  "postgres_native_passed": 233,
+  "postgres_ignored": 0,
+  "python_passed": 44,
+  "failures": 0,
+  "warnings": 0,
+  "oracle_cases_per_arch": 96,
+  "focused_postgres_cases": 6,
+  "client_create_verified": true,
+  "client_persisted_initialized_characters": 1,
+  "client_persisted_costumes": 23,
+  "client_persisted_skills": 2,
+  "client_persisted_items": 11,
+  "client_observed_next_unhandled_category": 481,
+  "selection_available": false,
+  "city_available": false,
+  "optional_services_deferred": true,
+  "source_read_only": true,
+  "private_exports_committed": false,
+  "receipts": [
+    {
+      "path": "docs/evidence/verification/gate.json",
+      "git_sha256": "e42f2fbc7a96d81329581fdd9ca197b3446196d71d10ea980cf6869baada463c"
+    },
+    {
+      "path": "docs/evidence/verification/docker-smoke.json",
+      "git_sha256": "8af2148eeb75aeccb2c46c9a714f50a0a9868cfeecd00e34784a64a23ff2f0bd"
+    },
+    {
+      "path": "docs/evidence/auth/minimum-character-runtime.json",
+      "git_sha256": "44aec37b21da0c9c7765fdafeea2e879987c1f8505676d5624a70211714de276"
+    },
+    {
+      "path": "docs/evidence/reverse/minimum-map-path.json",
+      "git_sha256": "18e98e5bc1bc1eef63b42e2c1acaba5effd060ee9ed3c9c62272a04fa2dfe9d4"
+    },
+    {
+      "path": "tests/fixtures/framework-minimum-delete-wait.json",
+      "git_sha256": "ef45fc420a5143bd89f23c260b9ea887b805395b9dea489451f89ccc0653c8d8"
+    }
+  ]
+}

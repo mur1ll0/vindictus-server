@@ -14,8 +14,8 @@ use crate::{
 use std::collections::BTreeMap;
 pub struct DeliveryClock<'a> {
     pub authority: &'a mut EntityAuthority,
-    pub utc: &'a mut dyn FnMut() -> Result<SqlDateTime2, ItemTimeError>,
-    pub civil: &'a mut dyn FnMut() -> Result<SqlDateTime2, InventoryError>,
+    pub utc: &'a mut (dyn FnMut() -> Result<SqlDateTime2, ItemTimeError> + Send),
+    pub civil: &'a mut (dyn FnMut() -> Result<SqlDateTime2, InventoryError> + Send),
 }
 pub struct Inputs<'a> {
     pub requests: &'a [InitialRequest<'a>],

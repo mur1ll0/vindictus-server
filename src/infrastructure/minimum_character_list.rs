@@ -1,0 +1,174 @@
+//! Filled list only for the explicit native minimum marker;legacy/source rows remain refused.
+use super::{
+    character_lobby::{self, QueryConfig, UserKey},
+    fiona_character_state as state,
+    fiona_initializer_profile::Profile,
+    minimum_character::MinimumError,
+};
+use crate::{
+    application::lobby_costume,
+    domain::legacy_user_data::SqlDateTime2,
+    protocol::{
+        DEFAULT_MAX_BODY,
+        character_list::{self, Summary},
+    },
+};
+use sqlx::{PgPool, Row};
+use zeroize::Zeroizing;
+fn text(b: Option<Vec<u8>>) -> Result<Option<Zeroizing<String>>, MinimumError> {
+    b.map(|b| {
+        if !b.len().is_multiple_of(2) {
+            return Err(MinimumError::Conflict);
+        }
+        String::from_utf16(
+            &b.as_chunks::<2>()
+                .0
+                .iter()
+                .map(|a| u16::from_le_bytes(*a))
+                .collect::<Vec<_>>(),
+        )
+        .map(Zeroizing::new)
+        .map_err(|_| MinimumError::Conflict)
+    })
+    .transpose()
+}
+/// Complete recovered arithmetic,including two UTC reads when DeleteTime is null.
+pub fn delete_wait(
+    delay: i32,
+    deleted: Option<SqlDateTime2>,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
+) -> Result<i32, MinimumError> {
+    let first = utc()?;
+    let second = match deleted {
+        Some(t) => t,
+        None => utc()?,
+    };
+    let elapsed = ((first.ticks() - second.ticks()) as f64 / 10_000_000.0).trunc();
+    let elapsed = if (i32::MIN as f64..2147483648.0).contains(&elapsed) {
+        elapsed as i32
+    } else {
+        i32::MIN
+    };
+    Ok(delay.wrapping_mul(60).wrapping_sub(elapsed).max(0))
+}
+pub async fn query(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    profile: &Profile,
+    config: QueryConfig,
+    delete_delay: i32,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
+) -> Result<Zeroizing<Vec<u8>>, MinimumError> {
+    let ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM game_character_info WHERE uid=$1 ORDER BY character_sn LIMIT 2",
+    )
+    .bind(owner.uid)
+    .fetch_all(pool)
+    .await?;
+    if ids.len() != 1 {
+        return Err(MinimumError::Conflict);
+    }
+    let cid = ids[0];
+    let mut tx = state::owned_first_fiona(pool, owner, cid).await?;
+    let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut *tx).await?;
+    if marker != Some((owner.uid, profile.fingerprint().to_vec(), true)) {
+        return Err(MinimumError::Conflict);
+    }
+    super::character_vocation::load_first(&mut tx, cid)
+        .await
+        .map_err(|_| MinimumError::Conflict)?;
+    let titles: i64 = sqlx::query_scalar("SELECT count(*)FROM game_titles WHERE cid=$1")
+        .bind(cid)
+        .fetch_one(&mut *tx)
+        .await?;
+    if titles != 0 {
+        return Err(MinimumError::Conflict);
+    }
+    let info=sqlx::query("SELECT name_utf16,character_sn,class,level,exp,selected_title,total_used_ap,quote_utf16,is_premium,free_match_win_count,free_match_lose_count,free_title_name_utf16,delete_time_units300 FROM game_character_info WHERE id=$1 FOR SHARE").bind(cid).fetch_one(&mut *tx).await?;
+    let name = text(info.try_get("name_utf16")?)?;
+    let quote = text(info.try_get("quote_utf16")?)?;
+    let free_title = text(info.try_get("free_title_name_utf16")?)?;
+    let delete: Option<i64> = info.try_get("delete_time_units300")?;
+    let delete = delete
+        .map(crate::domain::legacy_user_data::SqlDateTime::from_units300)
+        .transpose()
+        .and_then(|d| d.map(|d| d.framework_date_time()).transpose())
+        .map_err(|_| MinimumError::Conflict)?;
+    let wait = delete_wait(delete_delay, delete, &mut utc)?;
+    let micro:Option<(i32,i32)>=sqlx::query_as("SELECT daily_micro_play_count,daily_free_play_count FROM game_micro_play_status WHERE cid=$1").bind(cid).fetch_optional(&mut *tx).await?;
+    let (daily, free) = micro.unwrap_or((0, 0));
+    let set = super::character_costumes::load_for_constructor(&mut tx, cid)
+        .await
+        .map_err(|_| MinimumError::Conflict)?;
+    let costume = lobby_costume::project(&set).map_err(|_| MinimumError::Conflict)?;
+    let (purchased, premium, prologue, preset) = character_lobby::filled_header(
+        &mut tx,
+        owner.uid,
+        QueryConfig {
+            max_free: config.max_free,
+            care_clock: config.care_clock,
+        },
+    )
+    .await
+    .map_err(|_| MinimumError::Conflict)?;
+    // Optional guild/pet/event/arena services are explicitly deferred by this native profile.
+    // These are initial native fields,not a general projection of existing legacy characters.
+    let summary = Summary {
+        cid,
+        nexon_sn: owner.uid,
+        character_id: name.as_deref().map(|s| s.as_str()),
+        character_sn: info.try_get("character_sn")?,
+        base_character: u8::try_from(info.try_get::<i16, _>("class")?)
+            .map_err(|_| MinimumError::Conflict)?,
+        level: info.try_get("level")?,
+        exp: info.try_get::<i64, _>("exp")? as i32,
+        level_up_exp: profile.level_up_exp(),
+        title: info
+            .try_get::<Option<i32>, _>("selected_title")?
+            .ok_or(MinimumError::Conflict)?,
+        title_count: 0,
+        costume: Some(costume),
+        daily_micro_play_count: daily,
+        daily_free_play_count: free,
+        quote: quote.as_deref().map(|s| s.as_str()),
+        total_used_ap: info.try_get("total_used_ap")?,
+        guild_id: 0,
+        guild_name: Some(""),
+        cafe_type: 0,
+        is_premium: info.try_get("is_premium")?,
+        has_bonus_effect: false,
+        is_return: false,
+        is_deleting: false,
+        delete_wait_left_sec: wait,
+        is_should_name_change: false,
+        vip_code: 0,
+        vocation_class: -1,
+        vocation_level: 0,
+        vocation_exp: 0,
+        vocation_level_up_exp: -1,
+        vocation_skill_point_available: 0,
+        free_match_win_count: info.try_get("free_match_win_count")?,
+        free_match_lose_count: info.try_get("free_match_lose_count")?,
+        is_event_jumping: false,
+        free_title_name: free_title.as_deref().map(|s| s.as_str()),
+        pattern: 0,
+        arena_win_count: 0,
+        arena_lose_count: 0,
+        arena_successive_win_count: 0,
+    };
+    let bytes = character_list::encode(
+        Some(&character_list::Message {
+            characters: Some(vec![Some(summary)]),
+            max_free: config.max_free,
+            max_purchased: purchased,
+            max_premium: premium,
+            prologue_played: u8::from(prologue),
+            preset_used: preset,
+            party_states: Some(vec![]),
+        }),
+        DEFAULT_MAX_BODY,
+    )
+    .map_err(|_| MinimumError::Conflict)?;
+    tx.commit().await?;
+    Ok(bytes)
+}

@@ -36,8 +36,12 @@ mod profile_fixture {
 fn snapshot() -> Value {
     json!({"format_version":1,"source":"study_heroes.character-initialization","titles":[],"goals":[],"presets":[{"title_id":17,"class_restriction":2},{"title_id":18,"class_restriction":0}],"micro":[],"missions":[],"assignments":[]})
 }
-fn profile(shared: bool) -> Profile {
+pub(super) fn profile(shared: bool) -> Profile {
     let mut v = profile_fixture::synthetic();
+    v["features"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"key":"DeleteCharacterDelay","value":"123"}));
     v["state_sha256"] = json!(format!(
         "{:x}",
         Sha256::digest(serde_json::to_vec(&snapshot()).unwrap())
@@ -294,21 +298,26 @@ mod appearance_fixture {
     include!("../fixtures/fiona_inventory_support.rs");
     include!("../fixtures/fiona_appearance_support.rs");
 }
-struct AppearanceInputs {
-    profile: vindictus_server::infrastructure::fiona_appearance::Profile,
-    inventory: vindictus_server::infrastructure::fiona_inventory_profile::Profile,
-    catalog: vindictus_server::infrastructure::item_catalog::Package,
-    colors: vindictus_server::infrastructure::item_colors::Package,
-    template: vindictus_server::protocol::character_creation::Template<'static>,
+pub(super) struct AppearanceInputs {
+    pub(super) profile: vindictus_server::infrastructure::fiona_appearance::Profile,
+    pub(super) inventory: vindictus_server::infrastructure::fiona_inventory_profile::Profile,
+    pub(super) catalog: vindictus_server::infrastructure::item_catalog::Package,
+    pub(super) colors: vindictus_server::infrastructure::item_colors::Package,
+    pub(super) template: vindictus_server::protocol::character_creation::Template<'static>,
+    pub(super) stats: vindictus_server::infrastructure::item_stats::Package,
 }
 impl AppearanceInputs {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         use vindictus_server::infrastructure::{
             fiona_appearance, fiona_inventory_profile, item_catalog, item_colors,
         };
-        let (c, _, h, p) = appearance_fixture::fixtures();
+        let (c, s, h, p) = appearance_fixture::fixtures();
         let bytes = |v: &Value| serde_json::to_vec(v).unwrap();
         Self {
+            stats: vindictus_server::infrastructure::item_stats::Package::read(
+                bytes(&s).as_slice(),
+            )
+            .unwrap(),
             profile: fiona_appearance::Profile::read(
                 bytes(&appearance_fixture::fixture()).as_slice(),
             )
@@ -319,7 +328,9 @@ impl AppearanceInputs {
             template: appearance_fixture::template(),
         }
     }
-    fn request(&self) -> vindictus_server::infrastructure::fiona_customization::Appearance<'_> {
+    pub(super) fn request(
+        &self,
+    ) -> vindictus_server::infrastructure::fiona_customization::Appearance<'_> {
         vindictus_server::infrastructure::fiona_customization::Appearance {
             profile: &self.profile,
             inventory: &self.inventory,
@@ -330,7 +341,7 @@ impl AppearanceInputs {
         }
     }
 }
-async fn appearance_setup(p: &PgPool, initialized: bool) {
+pub(super) async fn appearance_setup(p: &PgPool, initialized: bool) {
     setup(p).await;
     if initialized {
         use vindictus_server::infrastructure::character_costumes as costumes;

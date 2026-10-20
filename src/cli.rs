@@ -32,6 +32,9 @@ pub enum Command {
         /// Private finite name comparison proof, prepared from read-only recovered evidence.
         #[arg(long)]
         name_proof_file: Option<std::path::PathBuf>,
+        /// Explicit native minimum;optional game services remain deferred.
+        #[arg(long)]
+        minimum_creation_assets: Option<std::path::PathBuf>,
     },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
@@ -49,6 +52,11 @@ pub enum Command {
         input_stdin: bool,
         #[arg(long)]
         policy_file: std::path::PathBuf,
+    },
+    /// Compose the private normal-Fiona profile without opening a database or listener.
+    InspectMinimumCreationAssets {
+        #[arg(long)]
+        assets_file: std::path::PathBuf,
     },
     /// Compose the private normal-Fiona profile without opening a database or listener.
     InspectFionaInventory {

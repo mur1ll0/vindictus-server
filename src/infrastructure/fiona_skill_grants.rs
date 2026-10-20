@@ -59,9 +59,17 @@ pub fn prepare(
     authority: &mut EntityAuthority,
     mut utc: impl FnMut() -> SqlDateTime2,
 ) -> Result<Prepared, Error> {
+    prepare_checked(profile, authority, || Ok(utc()))
+}
+/// Fallible process clock for the explicitly bounded native initialization path.
+pub fn prepare_checked(
+    profile: &Profile,
+    authority: &mut EntityAuthority,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, Error>,
+) -> Result<Prepared, Error> {
     let mut rows = Vec::new();
     for skill in profile.skills() {
-        let id = authority.allocate(utc())?.entity_time.ticks();
+        let id = authority.allocate(utc()?)?.entity_time.ticks();
         rows.push(Grant {
             id,
             name: zeroize::Zeroizing::new(skill.key().to_vec()),

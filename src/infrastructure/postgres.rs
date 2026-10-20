@@ -79,6 +79,7 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
     if !revision_trigger {
         return Err(Error::SchemaNotReady);
     }
+    sqlx::query("SELECT cid,uid,profile_sha256,initialized FROM game_minimum_character_initialization LIMIT 0").execute(pool).await?;
     crate::infrastructure::mail_reference::check_ready(pool)
         .await
         .map_err(|_| Error::SchemaNotReady)?;

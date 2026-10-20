@@ -413,7 +413,7 @@ fn vocation_snapshot(v: &Value) -> vindictus_server::infrastructure::character_v
     )
     .unwrap()
 }
-async fn empty_vocation_source(p: &PgPool) {
+pub(super) async fn empty_vocation_source(p: &PgPool) {
     use vindictus_server::infrastructure::character_vocation as v;
     let e = json!({"format_version":1,"source":"study_heroes.vocation-state","source_last_value":null,"vocations":[],"skills":[]});
     v::preserve(p, &vocation_snapshot(&e), false).await.unwrap();

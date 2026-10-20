@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$ProfileFile,[string]$NameProofFile)
+param([Parameter(Mandatory)][string]$ProfileFile,[string]$NameProofFile,[string]$MinimumCreationAssetsFile)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $private=[IO.Path]::GetFullPath((Join-Path $project '.cache/private-frontend'))
@@ -56,6 +56,17 @@ if($NameProofFile){
  if(-not$taskProofAcl.AreAccessRulesProtected-or$taskProofRules.Count-lt1-or@($taskProofRules|Where-Object{$_.IdentityReference-ne$sid-and$_.IdentityReference-ne$system}).Count-ne0){throw 'Private naming proof ACL is not protected'}
  $taskRuntimeArguments+=@('--name-proof-file',('"'+$taskProof+'"'))
 }
+if($MinimumCreationAssetsFile){
+ if(-not$NameProofFile){throw 'Minimum creation requires the verified naming proof'}
+ $taskAssets=[IO.Path]::GetFullPath($MinimumCreationAssetsFile)
+ $taskAssetsRoot=[IO.Path]::GetFullPath((Join-Path $project '.cache/private-content'))
+ if(-not$taskAssets.StartsWith($taskAssetsRoot+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)-or[IO.Path]::GetFileName($taskAssets)-cne'minimum-creation-assets.json'){throw 'Minimum assets must use the prepared private configuration'}
+ foreach($taskAssetsPath in @($taskAssetsRoot,$taskAssets)){if((Get-Item -LiteralPath $taskAssetsPath).Attributes-band[IO.FileAttributes]::ReparsePoint){throw 'Private assets configuration must not be a reparse point'}}
+ if((Get-Item -LiteralPath $taskAssets).Length-gt16384){throw 'Private assets configuration exceeds bound'}
+ $taskAssetsRules=@([IO.FileSystemAclExtensions]::GetAccessControl([IO.FileInfo]::new($taskAssets)).GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
+ if($taskAssetsRules.Count-lt1-or@($taskAssetsRules|Where-Object{$_.IdentityReference-ne$sid-and$_.IdentityReference-ne$system}).Count-ne0){throw 'Private assets configuration ACL is not protected'}
+ $taskRuntimeArguments+=@('--minimum-creation-assets',('"'+$taskAssets+'"'))
+}
 $process=Start-Process -FilePath $exe -ArgumentList $taskRuntimeArguments -WorkingDirectory $project -WindowStyle Hidden -Environment @{DATABASE_URL=$url;DATABASE_URL_FILE=$null;DB_MAX_CONNECTIONS='8';RUST_LOG='info'} -RedirectStandardInput $stdinCopy -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
 $settings.Clear();$url=$null
 $deadline=[DateTime]::UtcNow.AddSeconds(20)
@@ -75,5 +86,5 @@ while([DateTime]::UtcNow-lt$deadline-and-not$process.HasExited){
  if($ready){break};Start-Sleep -Milliseconds 250
 }
 if(-not$ready){if(-not$process.HasExited){$process.Kill();$process.WaitForExit()};throw 'Laboratory frontend did not start; complete logs retained locally'}
-[ordered]@{process_id=$process.Id;executable=$exe;binary_sha256=$binaryHash;stdout_log=$out;stderr_log=$err;profile_path=$profile;stdin_copy_path=$stdinCopy;started_at_utc=[DateTimeOffset]::UtcNow.ToString('o');loopback=$true;client_acceptance_verified=$false;character_creation_available=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $private 'runtime-process.json') -Encoding utf8NoBOM
-[ordered]@{process_id=$process.Id;loopback=$true;profile_redirected_from_private_file=$true;logs_retained_locally=$true;client_acceptance_verified=$false;character_creation_available=$false}|ConvertTo-Json -Compress
+[ordered]@{process_id=$process.Id;executable=$exe;binary_sha256=$binaryHash;stdout_log=$out;stderr_log=$err;profile_path=$profile;stdin_copy_path=$stdinCopy;started_at_utc=[DateTimeOffset]::UtcNow.ToString('o');loopback=$true;client_acceptance_verified=$false;character_creation_available=[bool]$MinimumCreationAssetsFile}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $private 'runtime-process.json') -Encoding utf8NoBOM
+[ordered]@{process_id=$process.Id;loopback=$true;profile_redirected_from_private_file=$true;logs_retained_locally=$true;client_acceptance_verified=$false;character_creation_available=[bool]$MinimumCreationAssetsFile}|ConvertTo-Json -Compress

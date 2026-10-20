@@ -29,7 +29,7 @@ use vindictus_server::{
     },
     protocol::identity::derive_lab_identity,
 };
-fn package() -> RewardPolicyPackage {
+pub(super) fn package() -> RewardPolicyPackage {
     let mut p = common::content();
     p.manifest.server_code = 23;
     p.policy = FeaturePolicy::new(
@@ -44,11 +44,11 @@ fn package() -> RewardPolicyPackage {
     .unwrap();
     p
 }
-fn runtime(pool: &sqlx::PgPool, p: &RewardPolicyPackage) -> CreationRuntime {
+pub(super) fn runtime(pool: &sqlx::PgPool, p: &RewardPolicyPackage) -> CreationRuntime {
     let proof = serde_json::to_vec(&common::value(p)).unwrap();
     CreationRuntime::new(pool.clone(), p, proof.as_slice(), 77, 8).unwrap()
 }
-async fn setup(pool: &sqlx::PgPool) -> (FrontendSession, i64, i32) {
+pub(super) async fn setup(pool: &sqlx::PgPool) -> (FrontendSession, i64, i32) {
     let registry = SessionRegistry::with_capacity(8).unwrap();
     let admission = super::lab_admission();
     let name = "LifecycleOwner";

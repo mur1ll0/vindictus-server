@@ -176,3 +176,40 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), LobbyError> {
         .await?;
     Ok(())
 }
+
+/// Shared header fields for an admitted native list;does not fabricate an EmptyLobby.
+pub(crate) async fn filled_header(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    uid: i32,
+    config: QueryConfig,
+) -> Result<(i32, i32, bool, i32), LobbyError> {
+    let u = info(tx, uid).await?;
+    let products=sqlx::query_as::<_,ProductRow>("SELECT id,nexon_sn,product_name_utf16,argument_utf16,expire_time_ticks FROM game_user_products WHERE nexon_sn=$1 ORDER BY id LIMIT 1001").bind(uid).fetch_all(&mut **tx).await?;
+    if products.len() > MAX_ROWS {
+        return Err(LobbyValueError::Bound.into());
+    }
+    let (mut purchased, mut premium) = (0, 0);
+    for r in products {
+        let r = r.decode()?;
+        match classify_product(&r.product_name)? {
+            ProductKind::CharacterSlot => purchased += 1,
+            ProductKind::PremiumCharacterSlot => premium += 1,
+            ProductKind::Other => {}
+        }
+    }
+    let preset: i64 = sqlx::query_scalar(
+        "SELECT count(*)FROM game_character_info WHERE uid=$1 AND use_preset AND status<>1",
+    )
+    .bind(uid)
+    .fetch_one(&mut **tx)
+    .await?;
+    if let Some(now) = config.care_clock {
+        sqlx::query("INSERT INTO game_user_care_info(uid,kind,state,last_update_units300)VALUES($1,1,2,$2)ON CONFLICT(uid)DO UPDATE SET kind=EXCLUDED.kind,state=EXCLUDED.state,last_update_units300=EXCLUDED.last_update_units300").bind(uid).bind(now.units300()).execute(&mut **tx).await?;
+    }
+    Ok((
+        purchased,
+        premium,
+        u.is_some_and(|r| r.prologue_played),
+        i32::try_from(preset).map_err(|_| LobbyValueError::Bound)?,
+    ))
+}

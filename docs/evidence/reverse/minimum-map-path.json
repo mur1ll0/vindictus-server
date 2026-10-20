@@ -1,0 +1,346 @@
+{
+  "scope": "Static minimum selection/city path only;not native or client acceptance",
+  "source_services_executed": false,
+  "native_selection_implemented": false,
+  "client_city_verified": false,
+  "findings": [
+    "Selection index addresses lobby list;not CharacterSN",
+    "LoginOk emitted after selection;RegionCode 1 maps to 0;time is signed seconds from Utility epoch",
+    "InGame sends environment,summary,stats and skill observers;optional services deferred by operator",
+    "EnterChannel requests city admission with channel,partition and ActionSync",
+    "ChannelServerAddress directs a second TCP connection;Identify must be first;one-use key consumed even on mismatch",
+    "City accept uses MessageAnalyzer with null crypto;do not assume frontend ISAAC or first-packet salt",
+    "Client.Enter creates Location,Look,Kinetics and partition observer;movement uses MovePartition and UpdateAction",
+    "MapFile reads original .dat topology readonly;bounded parser and client acceptance still pending"
+  ],
+  "types": [
+    {
+      "name": "ServiceCore.EndPointNetwork.NoticeGameEnvironmentMessage",
+      "guid": "97636de8-6ff1-3d4c-8c53-b8f1da851df4",
+      "category": 345,
+      "token": 33555594,
+      "fields": [
+        {
+          "name": "<CafeType>k__BackingField",
+          "type": "System.Int32",
+          "token": 67112498
+        },
+        {
+          "name": "<IsOTP>k__BackingField",
+          "type": "System.Boolean",
+          "token": 67112499
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.Identify",
+      "guid": "428dee64-190d-3cf6-8450-3e511769c608",
+      "category": 363,
+      "token": 33555621,
+      "fields": [
+        {
+          "name": "<ID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112611
+        },
+        {
+          "name": "<Key>k__BackingField",
+          "type": "System.Int32",
+          "token": 67112612
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.EnterChannel",
+      "guid": "79ce9a53-8956-3645-a67b-f69681ea7a35",
+      "category": 364,
+      "token": 33555622,
+      "fields": [
+        {
+          "name": "<ChannelID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112613
+        },
+        {
+          "name": "<PartitionID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112614
+        },
+        {
+          "name": "<Action>k__BackingField",
+          "type": "ServiceCore.EndPointNetwork.ActionSync",
+          "token": 67112615
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.ChannelServerAddress",
+      "guid": "85bf1995-487c-3e7e-8603-e88d75d21b46",
+      "category": 365,
+      "token": 33555623,
+      "fields": [
+        {
+          "name": "<ChannelID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112616
+        },
+        {
+          "name": "<Address>k__BackingField",
+          "type": "System.String",
+          "token": 67112617
+        },
+        {
+          "name": "<Port>k__BackingField",
+          "type": "System.Int32",
+          "token": 67112618
+        },
+        {
+          "name": "<Key>k__BackingField",
+          "type": "System.Int32",
+          "token": 67112619
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.IdentifyFailed",
+      "guid": "42fa5d33-391e-320b-85db-0c61e1b7f6ba",
+      "category": 366,
+      "token": 33555624,
+      "fields": [
+        {
+          "name": "<ErrorMessage>k__BackingField",
+          "type": "System.String",
+          "token": 67112620
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.MovePartition",
+      "guid": "d3cf4e65-f3a6-37f4-aae6-d8819a02e728",
+      "category": 368,
+      "token": 33555626,
+      "fields": [
+        {
+          "name": "<TargetPartitionID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112622
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.UpdateAction",
+      "guid": "bb98e908-edbe-32d5-89c2-eb38d6508cad",
+      "category": 369,
+      "token": 33555627,
+      "fields": [
+        {
+          "name": "<Data>k__BackingField",
+          "type": "ServiceCore.EndPointNetwork.ActionSync",
+          "token": 67112623
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.Disappeared",
+      "guid": "4f13a705-3f02-37cb-b869-ebfbf3852ce2",
+      "category": 372,
+      "token": 33555630,
+      "fields": [
+        {
+          "name": "<ID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112625
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.NotifyLook",
+      "guid": "711f48ae-c601-344c-bb5a-9320b001f809",
+      "category": 373,
+      "token": 33555631,
+      "fields": [
+        {
+          "name": "<ID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112626
+        },
+        {
+          "name": "<Look>k__BackingField",
+          "type": "ServiceCore.CharacterServiceOperations.CharacterSummary",
+          "token": 67112627
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.NotifyAction",
+      "guid": "86b97474-ac74-3722-bda1-a8ba43968733",
+      "category": 374,
+      "token": 33555632,
+      "fields": [
+        {
+          "name": "<ID>k__BackingField",
+          "type": "System.Int64",
+          "token": 67112628
+        },
+        {
+          "name": "<Action>k__BackingField",
+          "type": "ServiceCore.EndPointNetwork.ActionSync",
+          "token": 67112629
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.SelectCharacterMessage",
+      "guid": "1f34c672-5581-353f-9944-d5ab72e808a5",
+      "category": 481,
+      "token": 33555781,
+      "fields": [
+        {
+          "name": "index",
+          "type": "System.Int32",
+          "token": 67113169
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.LoginOkMessage",
+      "guid": "e301ee14-10c2-3886-8533-fbba9ef1cbe1",
+      "category": 483,
+      "token": 33555785,
+      "fields": [
+        {
+          "name": "<RegionCode>k__BackingField",
+          "type": "System.Int32",
+          "token": 67113183
+        },
+        {
+          "name": "<Time>k__BackingField",
+          "type": "System.Int32",
+          "token": 67113184
+        },
+        {
+          "name": "<Limited>k__BackingField",
+          "type": "System.Int32",
+          "token": 67113185
+        },
+        {
+          "name": "<FacebookToken>k__BackingField",
+          "type": "System.String",
+          "token": 67113186
+        },
+        {
+          "name": "<UserCareType>k__BackingField",
+          "type": "System.Int32",
+          "token": 67113187
+        },
+        {
+          "name": "<UserCareNextState>k__BackingField",
+          "type": "System.Int32",
+          "token": 67113188
+        },
+        {
+          "name": "<MapStateInfo>k__BackingField",
+          "type": "System.Byte",
+          "token": 67113189
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.CharacterCommonInfoMessage",
+      "guid": "9756914f-6753-3228-b0b8-38b30dc1a612",
+      "category": 609,
+      "token": 33555946,
+      "fields": [
+        {
+          "name": "queryID",
+          "type": "System.Int64",
+          "token": 67113696
+        },
+        {
+          "name": "info",
+          "type": "ServiceCore.CharacterServiceOperations.CharacterSummary",
+          "token": 67113697
+        }
+      ]
+    },
+    {
+      "name": "ServiceCore.EndPointNetwork.UpdateStatMessage",
+      "guid": "a1407a79-5353-3455-9a2c-859f8825c200",
+      "category": 619,
+      "token": 33555959,
+      "fields": [
+        {
+          "name": "<Stat>k__BackingField",
+          "type": "System.Collections.Generic.IDictionary`2[[System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089],[System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089]]",
+          "token": 67113723
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterList.cs",
+      "sha256": "8342a53227171c6472846f1e12c15c2dd1d059eac2ae8cdee690699b5bc22fa6"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/CharacterSelecting.cs",
+      "sha256": "6e40c901aff1da774920e266fbe83c6b5f30ccf0caf3d99e36260e4e7665ffb6"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.States/InGame.cs",
+      "sha256": "3c30d6f53b40ff302e0985ee81f0e86ba2cda69dda3f1ce2d069d03beea5f747"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.Proxy/MMOChannelProxy.cs",
+      "sha256": "08d0c30380856cc3867dc0978046463b84f454bc7cc6e7f3631b0f0ee021905b"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/SelectCharacterProcessor.cs",
+      "sha256": "3d2111cae5c48067de0b02c85e48d42060c012af00f59be3b8822b8b2792ab68"
+    },
+    {
+      "path": "legacy/decompiled/MMOChannelService-bd760399728c/MMOChannelService.Processor/JoinChannelProcessor.cs",
+      "sha256": "c191be024aaec3996b89127c55c1029f93d59dd490e88f2069d325cd204e20ed"
+    },
+    {
+      "path": "legacy/decompiled/MMOChannelService-bd760399728c/MMOChannelService/MMOChannelService.cs",
+      "sha256": "aac41da97c270b8485d81dd85f508fad80ecef9c1eaa157eab727fe298cce42e"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Server.cs",
+      "sha256": "c2a9760c9fcb08fc9b2a5772383ce896553d1c4c156530fee8453845fa6bc160"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Client.cs",
+      "sha256": "fb69cb0dc64aa00859f1afe70854afacf502df7fe21b30ec27d5ed0f7c496b28"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Player.cs",
+      "sha256": "f27ebbc76f27d286b887ce813613e4d3f8b568aa1505708078b925852cea9759"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Kinetics.cs",
+      "sha256": "7025f30589d0636759b21469896845ff58ac66be638a4bfad8c5b4a426002176"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/Look.cs",
+      "sha256": "733dd043b69e5ca4ad87ad383e607d9de1c01e6ced414d95f4864fce9c5367c3"
+    },
+    {
+      "path": "legacy/decompiled/HeroesChannelServer-3264f671bce0/HeroesChannelServer/MapFile.cs",
+      "sha256": "57c220f973f2476848fd5c1c58f492d0a87063cb2d6c6e7b9bde3596adf2a1c7"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net/TcpClient.cs",
+      "sha256": "5790195ccc86b95a82c35d8ec6c8bcb13e875f080feb3ad2b38943355dec8188"
+    },
+    {
+      "path": "legacy/decompiled/Core-8942a0c26a9a/Devcat.Core.Net.Message/MessageAnalyzer.cs",
+      "sha256": "ae55af270b0fda349ecb633e0fefc7d4b31c2177b1835af2f677f3c24316b2c3"
+    },
+    {
+      "path": "legacy/decompiled/Utility-37359981d509/Utility/Extention.cs",
+      "sha256": "06a5705f7166e9789ecccc0ae30e775d21ccf9dc054fe9838e5ffc5d3ff2c080"
+    }
+  ]
+}

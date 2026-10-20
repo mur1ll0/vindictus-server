@@ -57,6 +57,15 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::InspectMinimumCreationAssets { assets_file } = &cli.command {
+        vindictus_server::infrastructure::minimum_assets::Assets::read(assets_file)
+            .map_err(|_| Error::Configuration("minimum creation assets invalid".into()))?;
+        println!(
+            "{}",
+            serde_json::json!({"assets_validated":true,"database_opened":false,"listener_opened":false,"client_acceptance_verified":false})
+        );
+        return Ok(());
+    }
     if let Command::InspectLabFrontendProfile { policy_file, .. } = &cli.command {
         let content = vindictus_server::infrastructure::reward_policy::read_policy(
             std::fs::File::open(policy_file)?,
@@ -183,6 +192,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
     if let Command::LabFrontend {
         policy_file,
         name_proof_file,
+        minimum_creation_assets,
         ..
     } = &cli.command
     {
@@ -202,17 +212,45 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 )
             })
             .transpose()?;
-        let runtime = std::sync::Arc::new(
-            lab_frontend::Runtime::new(profile, content)?.with_name_check(name_proof),
-        );
         let config = Config::from_env()?;
         let pool = postgres::pool(&config)?;
         postgres::check_ready(&pool).await?;
+        let mut runtime = lab_frontend::Runtime::new(profile, content)?.with_name_check(name_proof);
+        if let Some(path) = minimum_creation_assets {
+            let assets = vindictus_server::infrastructure::minimum_assets::Assets::read(path)
+                .map_err(|_| {
+                    Error::Configuration("invalid private minimum creation assets".into())
+                })?;
+            vindictus_server::infrastructure::fiona_character_state::verify_source_binding(
+                &pool,
+                assets.initializer.source_state(),
+            )
+            .await
+            .map_err(|_| {
+                Error::Configuration("minimum creation source binding unavailable".into())
+            })?;
+            runtime = runtime.with_minimum_creation(
+                pool.clone(),
+                assets,
+                name_proof_file.as_deref().ok_or_else(|| {
+                    Error::Configuration("minimum creation requires name proof".into())
+                })?,
+            )?;
+        }
+        let runtime = std::sync::Arc::new(runtime);
         let listener = tokio::net::TcpListener::bind(runtime.bind()).await?;
-        tracing::info!(address=%listener.local_addr()?,client_acceptance_verified=false,character_creation_available=false,"restricted laboratory frontend listening");
-        let result = lab_frontend::run(listener, runtime, pool.clone(), shutdown()).await;
+        tracing::info!(address=%listener.local_addr()?,client_acceptance_verified=false,character_creation_available=runtime.minimum_creation_available(),"restricted laboratory frontend listening");
+        let result = lab_frontend::run(
+            listener,
+            std::sync::Arc::clone(&runtime),
+            pool.clone(),
+            shutdown(),
+        )
+        .await;
+        let minimum_cleanup = runtime.shutdown_minimum().await;
         pool.close().await;
         result?;
+        minimum_cleanup?;
         return Ok(());
     }
     let credentials = match &cli.command {
@@ -369,6 +407,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         | Command::InspectFionaTitleGoals { .. }
         | Command::InspectItemCatalog { .. }
         | Command::InspectLabFrontendProfile { .. }
+        | Command::InspectMinimumCreationAssets { .. }
         | Command::LabFrontend { .. } => {}
         Command::Migrate => {
             postgres::migrate(&pool).await?;

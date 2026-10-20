@@ -80,7 +80,7 @@ struct Inner {
     server_code: i32,
     max_free: i32,
     dormant: bool,
-    process: AsyncMutex<ProcessState>,
+    process: Arc<AsyncMutex<ProcessState>>,
     shutdown: watch::Sender<bool>,
 }
 struct Workers {
@@ -138,10 +138,10 @@ impl CreationRuntime {
                 server_code: package.manifest.server_code,
                 max_free,
                 dormant,
-                process: AsyncMutex::new(ProcessState {
+                process: Arc::new(AsyncMutex::new(ProcessState {
                     authority: EntityAuthority::new(entity_service_id),
                     stopped: false,
-                }),
+                })),
                 shutdown,
             }),
             workers: AsyncMutex::new(Workers {
@@ -192,6 +192,70 @@ impl CreationRuntime {
                 .push(tokio::spawn(worker(inner, owner, name, tx, initialize)));
         }
         // Dropping this receiver signals cancellation; it doesn't abort a possibly committed base.
+        rx.await.map_err(|_| CreationRunError::Runtime)?
+    }
+    pub async fn run_minimum_admitted(
+        &self,
+        session: &FrontendSession,
+        request: MinimumRequest<'_>,
+    ) -> Result<MinimumOutcome, CreationRunError> {
+        let MinimumRequest {
+            revision,
+            name,
+            assets,
+            body,
+            offset,
+            config,
+            delete_delay,
+        } = request;
+        use crate::protocol::character_creation::{self as wire, Kind, Message};
+        let Some(Message::Create {
+            name: Some(request_name),
+            template: Some(template),
+            preset: false,
+            premium: false,
+        }) = wire::decode(Kind::Create, &body, crate::protocol::DEFAULT_MAX_BODY)
+            .map_err(|_| CreationRunError::Profile)?
+        else {
+            return Err(CreationRunError::Profile);
+        };
+        if request_name != name || template.character_class != 1 {
+            return Err(CreationRunError::Profile);
+        }
+        let identity = session.accepted_identity()?;
+        if session.accepted_permissions()?.has_cheat() || name.len() > 256 {
+            return Err(CreationRunError::Profile);
+        }
+        self.drain().await?;
+        let owner = Owner {
+            uid: identity.nexon_sn,
+            name: Zeroizing::new(identity.nexon_id.clone()),
+            revision,
+        };
+        let name = Zeroizing::new(name.to_owned());
+        let (tx, rx) = oneshot::channel();
+        {
+            let mut workers = self.workers.lock().await;
+            if workers.closed
+                || *self.inner.shutdown.borrow()
+                || workers.handles.len() >= self.capacity
+            {
+                return Err(CreationRunError::Runtime);
+            }
+            workers.handles.push(tokio::spawn(worker_minimum(
+                Arc::clone(&self.inner),
+                owner,
+                name,
+                tx,
+                MinimumJob {
+                    assets,
+                    body,
+                    offset,
+                    config,
+                    delete_delay,
+                },
+            )))
+        }
         rx.await.map_err(|_| CreationRunError::Runtime)?
     }
     /// Drain finished/active attempts without cancelling their client. No failure is hidden.
@@ -350,4 +414,193 @@ where
         Err(CreationRunError::Cleanup)
     });
     clean
+}
+
+/// Explicit native minimum outcome;does not certify legacy service actors or map compatibility.
+pub enum MinimumOutcome {
+    Rejected(CreateResult),
+    InitializationFailed(InitializationFailure),
+    Created(crate::infrastructure::minimum_assets::Created),
+}
+async fn worker_minimum(
+    inner: Arc<Inner>,
+    owner: Owner,
+    name: Zeroizing<String>,
+    mut reply: oneshot::Sender<Result<MinimumOutcome, CreationRunError>>,
+    job: MinimumJob,
+) -> bool {
+    let MinimumJob {
+        assets,
+        body,
+        offset,
+        config,
+        delete_delay,
+    } = job;
+    let mut shutdown = inner.shutdown.subscribe();
+    if reply.is_closed() || *shutdown.borrow() {
+        return true;
+    }
+    let mut state = inner.process.clone().lock_owned().await;
+    let result = {
+        if reply.is_closed() || *shutdown.borrow() {
+            return true;
+        }
+        let settings = MakerSettings {
+            stopped: state.stopped,
+            max_free: inner.max_free,
+            server_code: inner.server_code,
+        };
+        maker::make_normal_fiona_base(
+            &inner.pool,
+            NormalFionaRequest {
+                owner: owner.key(),
+                proof: &inner.proof,
+                name: &name,
+            },
+            &settings,
+            &mut state.authority,
+            || lab_clock::utc_now().map_err(|_| CreationAdmissionError::Clock),
+        )
+        .await
+    };
+    let base = match result {
+        Ok(BaseOutcome::Created { cid, serial }) => CreationBase { cid, serial },
+        Ok(BaseOutcome::Rejected { result, .. }) => {
+            let _ = reply.send(Ok(MinimumOutcome::Rejected(result)));
+            return true;
+        }
+        Err(error) => {
+            let _ = reply.send(Err(CreationRunError::Maker(error)));
+            return true;
+        }
+    };
+    let lease = CreationCleanupLease::issued_after_base(&owner.key(), base.cid);
+    let mut callbacks = CreationCallbacks::default();
+    if reply.is_closed() || *shutdown.borrow() {
+        return compensate(&inner, &lease, &mut callbacks, true).await;
+    }
+    if inner.dormant {
+        let outcome = match lab_clock::utc_now() {
+            Ok(now) => maker::prepare_dormant(&inner.pool, &owner.key(), base.cid, now).await,
+            Err(_) => Err(MakerError::Admission(CreationAdmissionError::Clock)),
+        };
+        match outcome {
+            Ok(DormantOutcome::Ready { .. }) => {}
+            Ok(DormantOutcome::InitCharacterFailed) => {
+                let clean = compensate(&inner, &lease, &mut callbacks, false).await;
+                let _ = reply.send(if clean {
+                    Ok(MinimumOutcome::InitializationFailed(
+                        InitializationFailure::InitCharacterFailed,
+                    ))
+                } else {
+                    Err(CreationRunError::Cleanup)
+                });
+                return clean;
+            }
+            Err(error) => {
+                let clean = compensate(&inner, &lease, &mut callbacks, true).await;
+                let _ = reply.send(if clean {
+                    Err(CreationRunError::Maker(error))
+                } else {
+                    Err(CreationRunError::Cleanup)
+                });
+                return clean;
+            }
+        }
+    }
+    if reply.is_closed() || *shutdown.borrow() {
+        return compensate(&inner, &lease, &mut callbacks, true).await;
+    }
+    // Source Dispose disposes the enumerator BEFORE OnFail. Join cancellation before cleanup.
+    let pool = inner.pool.clone();
+    let mut init = tokio::spawn(async move {
+        assets
+            .initialize_and_list(
+                &pool,
+                &owner.key(),
+                &mut state.authority,
+                crate::infrastructure::minimum_assets::Attempt {
+                    cid: base.cid,
+                    body: &body,
+                    offset,
+                    config,
+                    delay: delete_delay,
+                },
+            )
+            .await
+            .map_err(|error| {
+                let result=match &error {
+                    crate::infrastructure::minimum_character::MinimumError::Customization(crate::infrastructure::fiona_customization::CustomizationError::Storage(_))=>InitializationFailure::CostumeSaveFailed,
+                    crate::infrastructure::minimum_character::MinimumError::Customization(crate::infrastructure::fiona_customization::CustomizationError::Inventory(_) | crate::infrastructure::fiona_customization::CustomizationError::Appearance(_))=>InitializationFailure::CustomizeOperationFailed,
+                    _=>InitializationFailure::InitCharacterFailed,
+                };
+                let stage = match error {
+                    crate::infrastructure::minimum_character::MinimumError::State(_) => "state",
+                    crate::infrastructure::minimum_character::MinimumError::Managers(_) => {
+                        "base-managers"
+                    }
+                    crate::infrastructure::minimum_character::MinimumError::Customization(_) => {
+                        "inventory-or-appearance"
+                    }
+                    crate::infrastructure::minimum_character::MinimumError::Content(_) => {
+                        "content-or-skills"
+                    }
+                    crate::infrastructure::minimum_character::MinimumError::Database(_) => {
+                        "database"
+                    }
+                    crate::infrastructure::minimum_character::MinimumError::Conflict => {
+                        "profile-or-readback"
+                    }
+                };
+                tracing::warn!(
+                    stage,
+                    "native minimum creation failed; compensation required"
+                );
+                result
+            })
+    });
+    let result = tokio::select! {
+        _=reply.closed()=>None,
+        _=shutdown.changed()=>None,
+        outcome=&mut init=>Some(outcome),
+    };
+    let response = match result {
+        None => {
+            init.abort();
+            let _ = init.await;
+            let clean = compensate(&inner, &lease, &mut callbacks, true).await;
+            return clean;
+        }
+        Some(Err(_)) => Err(CreationRunError::Initializer),
+        Some(Ok(Err(reason))) => Ok(MinimumOutcome::InitializationFailed(reason)),
+        Some(Ok(Ok(created))) => {
+            callbacks.completed(true);
+            let _ = reply.send(Ok(MinimumOutcome::Created(created)));
+            return true;
+        }
+    };
+    let clean = compensate(&inner, &lease, &mut callbacks, response.is_err()).await;
+    let _ = reply.send(if clean {
+        response
+    } else {
+        Err(CreationRunError::Cleanup)
+    });
+    clean
+}
+
+pub struct MinimumRequest<'a> {
+    pub revision: i64,
+    pub name: &'a str,
+    pub assets: Arc<crate::infrastructure::minimum_assets::Assets>,
+    pub body: Zeroizing<Vec<u8>>,
+    pub offset: i32,
+    pub config: crate::infrastructure::character_lobby::QueryConfig,
+    pub delete_delay: i32,
+}
+struct MinimumJob {
+    assets: Arc<crate::infrastructure::minimum_assets::Assets>,
+    body: Zeroizing<Vec<u8>>,
+    offset: i32,
+    config: crate::infrastructure::character_lobby::QueryConfig,
+    delete_delay: i32,
 }

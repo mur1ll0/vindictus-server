@@ -15,6 +15,116 @@ use vindictus_server::{
         server_profile::LOGIN_FAIL_MESSAGE_CATEGORY,
     },
 };
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin() {
+    use vindictus_server::protocol::{character_creation as create, character_list as filled};
+    let (admin, pool, schema) = isolated_game_pool().await;
+    super::minimum_character::setup(&pool).await;
+    sqlx::query("DELETE FROM game_characters")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let c = content(&[
+        ("DeleteCharacterDelay", Some("1440")),
+        ("DormantAccount", None),
+    ]);
+    let proof = super::name_check_common::proof(&c);
+    let path = std::env::temp_dir().join(format!(
+        "vindictus-minimum-proof-{}.json",
+        uuid::Uuid::new_v4()
+    ));
+    std::fs::write(
+        &path,
+        serde_json::to_vec(&super::name_check_common::value(&c)).unwrap(),
+    )
+    .unwrap();
+    let assets = match std::sync::Arc::try_unwrap(super::minimum_character::assets()) {
+        Ok(a) => a,
+        Err(_) => panic!("assets unexpectedly shared"),
+    };
+    let runtime = Runtime::new(profile(&c, false), c)
+        .unwrap()
+        .with_name_check(Some(proof))
+        .with_minimum_creation(pool.clone(), assets, &path)
+        .unwrap();
+    std::fs::remove_file(path).unwrap();
+    let r = std::sync::Arc::new(runtime);
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    lobby(&mut client, &mut rx).await;
+    assert!(
+        password(&mut client, &mut tx, &mut rx, PMessage::Set(Some("123456")))
+            .await
+            .passed
+    );
+    let bytes = super::minimum_character::body();
+    send(
+        &mut client,
+        &mut tx,
+        create::Kind::Create.category(),
+        &bytes,
+    )
+    .await;
+    let response = read(&mut client, &mut rx).await;
+    assert_eq!(response.category_id, 479);
+    let decoded = filled::decode(&response.body, DEFAULT_MAX_BODY)
+        .unwrap()
+        .unwrap();
+    let cid = decoded.characters.as_ref().unwrap()[0]
+        .as_ref()
+        .unwrap()
+        .cid;
+    assert_eq!(
+        decoded.characters.as_ref().unwrap()[0]
+            .as_ref()
+            .unwrap()
+            .delete_wait_left_sec,
+        123 * 60
+    );
+    assert_eq!(
+        decoded.characters.as_ref().unwrap()[0]
+            .as_ref()
+            .unwrap()
+            .character_id,
+        Some("Murael")
+    );
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    let (mut got_list, mut got_password) = (false, false);
+    while !got_list || !got_password {
+        let f = read(&mut client, &mut rx).await;
+        match f.category_id {
+            479 => {
+                let d = filled::decode(&f.body, DEFAULT_MAX_BODY).unwrap().unwrap();
+                assert_eq!(d.characters.unwrap()[0].as_ref().unwrap().cid, cid);
+                got_list = true
+            }
+            413 => {
+                got_password = true;
+            }
+            231 => {}
+            _ => panic!("unexpected relogin response"),
+        }
+    }
+    assert!(
+        password(
+            &mut client,
+            &mut tx,
+            &mut rx,
+            PMessage::Check(Some("123456"))
+        )
+        .await
+        .passed
+    );
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    r.shutdown_minimum().await.unwrap();
+    cleanup_game_pool(admin, pool, schema).await;
+}
 async fn lobby(
     client: &mut tokio::net::TcpStream,
     rx: &mut vindictus_server::protocol::transport::LegacyReceiver,

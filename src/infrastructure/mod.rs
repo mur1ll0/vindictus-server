@@ -89,3 +89,7 @@ pub mod item_loader_state;
 pub mod fiona_item_bootstrap;
 
 pub mod mail_reference;
+
+pub mod minimum_assets;
+pub mod minimum_character;
+pub mod minimum_character_list;

@@ -84,11 +84,16 @@ impl From<Error> for RuntimeError {
     }
 }
 /// Validate dependencies before connecting storage/binding. No external flag is disabled here.
+struct MinimumRuntime {
+    assets: Arc<super::minimum_assets::Assets>,
+    creation: crate::application::creation_lifecycle::CreationRuntime,
+}
 pub struct Runtime {
     profile: LabRuntimeConfig,
     content: RewardPolicyPackage,
     registry: SessionRegistry,
     name_proof: Option<super::character_name_proof::NameProof>,
+    minimum: Option<MinimumRuntime>,
 }
 impl Runtime {
     pub fn new(
@@ -123,6 +128,7 @@ impl Runtime {
             profile,
             content,
             name_proof: None,
+            minimum: None,
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
@@ -133,6 +139,103 @@ impl Runtime {
     ) -> Self {
         self.name_proof = proof;
         self
+    }
+    pub fn with_minimum_creation(
+        mut self,
+        pool: PgPool,
+        assets: super::minimum_assets::Assets,
+        proof_file: &std::path::Path,
+    ) -> Result<Self, RuntimeError> {
+        let creation = crate::application::creation_lifecycle::CreationRuntime::new(
+            pool,
+            &self.content,
+            std::fs::File::open(proof_file)?,
+            assets.entity_service_id,
+            MAX_CONNECTIONS,
+        )
+        .map_err(|_| RuntimeError::Profile)?;
+        self.minimum = Some(MinimumRuntime {
+            assets: Arc::new(assets),
+            creation,
+        });
+        Ok(self)
+    }
+    pub async fn shutdown_minimum(&self) -> Result<(), RuntimeError> {
+        if let Some(m) = &self.minimum {
+            m.creation
+                .shutdown()
+                .await
+                .map_err(|_| RuntimeError::Operation)?
+        }
+        Ok(())
+    }
+    pub fn minimum_creation_available(&self) -> bool {
+        self.minimum.is_some()
+    }
+    async fn character_list(
+        &self,
+        frontend: &FrontendSession,
+        pool: &PgPool,
+        revision: i64,
+    ) -> Result<Zeroizing<Vec<u8>>, RuntimeError> {
+        let id = frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let present: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_character_info WHERE uid=$1)")
+                .bind(id.nexon_sn)
+                .fetch_one(pool)
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+        if present {
+            let m = self.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+            let config = self.minimum_header()?;
+            return super::minimum_character_list::query(
+                pool,
+                &super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision,
+                },
+                &m.assets.initializer,
+                config,
+                m.assets
+                    .initializer
+                    .policy()
+                    .get_integer("DeleteCharacterDelay")?,
+                || {
+                    lab_clock::utc_now()
+                        .map_err(|_| super::minimum_character::MinimumError::Conflict)
+                },
+            )
+            .await
+            .map_err(|_| RuntimeError::Operation);
+        }
+        Ok(Zeroizing::new(
+            prepare_empty_character_list(
+                frontend,
+                pool,
+                revision,
+                &self.content.policy,
+                self.civil()?,
+            )
+            .await
+            .map_err(|_| RuntimeError::Operation)?,
+        ))
+    }
+    fn minimum_header(&self) -> Result<super::character_lobby::QueryConfig, RuntimeError> {
+        Ok(super::character_lobby::QueryConfig {
+            max_free: self.content.policy.get_integer("MaxCharacterSlot")?,
+            care_clock: if self.content.policy.is_enabled(Some("UserCareSystem"))? {
+                Some(
+                    self.civil()?
+                        .sql_parameter()
+                        .map_err(|_| RuntimeError::Operation)?,
+                )
+            } else {
+                None
+            },
+        })
     }
     pub fn bind(&self) -> std::net::SocketAddr {
         self.profile.bind()
@@ -370,16 +473,8 @@ impl Connection {
             legacy_journal_available = false,
             "laboratory frontend Login journal unavailable; source catch permits failure"
         );
-        // Actual zero-character query; an existing summary is refused, never replaced with an empty list.
-        let list = match prepare_empty_character_list(
-            &self.frontend,
-            pool,
-            revision,
-            &runtime.content.policy,
-            runtime.civil()?,
-        )
-        .await
-        {
+        // Existing legacy/partial characters remain refused;only explicit initialized minimum rows can be listed.
+        let list = match runtime.character_list(&self.frontend, pool, revision).await {
             Ok(list) => list,
             Err(_) => {
                 failure(stream, sender, 9, None).await?;
@@ -574,6 +669,93 @@ impl Connection {
                 return self
                     .password(runtime, pool, stream, sender, kind, (category, body))
                     .await;
+            }
+        }
+        {
+            use crate::protocol::character_creation::{self as wire, Kind, Message};
+            let kind = Kind::Create;
+            if matches(category, body, kind.category(), kind.type_id()) {
+                if !self
+                    .password
+                    .as_ref()
+                    .is_some_and(|p| p.selection_allowed(&self.frontend))
+                {
+                    locked(stream, sender).await?;
+                    return Ok(());
+                }
+                let Some(
+                    message @ Message::Create {
+                        name: Some(name), ..
+                    },
+                ) = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                let bytes = wire::encode(Kind::Create, Some(&message), DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?;
+                let m = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let revision = self
+                    .password
+                    .as_ref()
+                    .map(PasswordSession::revision)
+                    .or(self.revision)
+                    .ok_or(RuntimeError::Operation)?;
+                let outcome = m
+                    .creation
+                    .run_minimum_admitted(
+                        &self.frontend,
+                        crate::application::creation_lifecycle::MinimumRequest {
+                            revision,
+                            name,
+                            assets: Arc::clone(&m.assets),
+                            body: bytes,
+                            offset: runtime.profile.civil_offset_seconds(),
+                            config: runtime.minimum_header()?,
+                            delete_delay: m
+                                .assets
+                                .initializer
+                                .policy()
+                                .get_integer("DeleteCharacterDelay")?,
+                        },
+                    )
+                    .await;
+                use crate::application::creation_lifecycle::MinimumOutcome;
+                match outcome {
+                    Ok(MinimumOutcome::Created(created)) => {
+                        send(
+                            stream,
+                            sender,
+                            crate::protocol::character_list::CATEGORY,
+                            &created.body,
+                        )
+                        .await?;
+                        tracing::info!(
+                            "native minimum character creation completed;optional services deferred;values omitted"
+                        );
+                    }
+                    result => {
+                        let code = match result {
+                            Ok(MinimumOutcome::Rejected(r)) => r,
+                            Ok(MinimumOutcome::InitializationFailed(r)) => r.source_result(),
+                            _ => {
+                                crate::domain::character_creation::CreateResult::InitCharacterFailed
+                            }
+                        };
+                        let failure = wire::encode(
+                            Kind::Fail,
+                            Some(&Message::Fail(code as i32)),
+                            DEFAULT_MAX_BODY,
+                        )
+                        .map_err(|_| RuntimeError::Message)?;
+                        send(stream, sender, Kind::Fail.category(), &failure).await?;
+                        tracing::warn!(
+                            result = code as i32,
+                            "native minimum creation rejected or compensated;values omitted"
+                        );
+                    }
+                }
+                return Ok(());
             }
         }
         let kind = SetupKind::Check;
