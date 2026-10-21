@@ -317,6 +317,38 @@ pub(super) async fn exercise(
     })
     .await
     .unwrap();
+    // LogOutMessage closes the character session and returns the character list on
+    // the same frontend connection; the character can then be selected again.
+    for category in [493, 0] {
+        let mut body = vec![1_u8];
+        if category == 0 {
+            let mut raw = uuid::Uuid::from_u128(0x312f4152_ab0d_3ac2_99fa_fffa1e3f7e5e)
+                .as_bytes()
+                .to_vec();
+            raw.extend(body);
+            body = raw;
+        }
+        send(client, tx, category, &body).await;
+        let list = read(client, rx).await;
+        assert_eq!(list.category_id, 479);
+        let state: (bool, Option<i16>) =
+            sqlx::query_as("SELECT is_connected,channel FROM game_character_info WHERE id=$1")
+                .bind(cid)
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        assert_eq!(state, (false, None));
+        frontend_send(client, tx, Message::SelectCharacter { index: 0 }).await;
+        for kind in [
+            Kind::LoginOk,
+            Kind::NoticeGameEnvironment,
+            Kind::CharacterCommonInfo,
+            Kind::UpdateStat,
+        ] {
+            assert_eq!(read(client, rx).await.category_id, kind.category());
+        }
+        assert_eq!(read(client, rx).await.category_id, 468);
+    }
     frontend_send(client, tx, enter()).await;
     let frame = read(client, rx).await;
     let Some(Message::ChannelServerAddress { key, .. }) =

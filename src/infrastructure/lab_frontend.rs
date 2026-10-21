@@ -315,6 +315,9 @@ async fn failure(
     );
     send(stream, sender, LOGIN_FAIL_MESSAGE_CATEGORY, &bytes).await
 }
+/// ServiceCore.EndPointNetwork.LogOutMessage (fieldless).
+const LOG_OUT_CATEGORY: i32 = 493;
+const LOG_OUT_TYPE_ID: uuid::Uuid = uuid::Uuid::from_u128(0x312f4152_ab0d_3ac2_99fa_fffa1e3f7e5e);
 fn matches(category: i32, body: &[u8], typed: i32, type_id: uuid::Uuid) -> bool {
     category == typed || (category == 0 && body.get(..16) == Some(type_id.as_bytes().as_slice()))
 }
@@ -355,7 +358,8 @@ impl Connection {
             selected: None,
         }
     }
-    async fn cleanup(&mut self, runtime: &Runtime, pool: &PgPool) {
+    /// PlayerConn.Close: the character leaves the channel and its session ends.
+    async fn release_selected(&mut self, runtime: &Runtime, pool: &PgPool) {
         if let Some(selected) = self.selected.take() {
             if let Some((_, channel)) = &runtime.channel
                 && channel.remove(selected.cid, pool).await.is_err()
@@ -369,6 +373,9 @@ impl Connection {
                 tracing::warn!("minimum selection cleanup failed; values omitted");
             }
         }
+    }
+    async fn cleanup(&mut self, runtime: &Runtime, pool: &PgPool) {
+        self.release_selected(runtime, pool).await;
         let revision = self
             .password
             .as_ref()
@@ -857,6 +864,35 @@ impl Connection {
                 tracing::info!("minimum inventory snapshot sent; values omitted");
                 return Ok(());
             }
+        }
+        if matches(category, body, LOG_OUT_CATEGORY, LOG_OUT_TYPE_ID) {
+            // LogOutMessage has no fields; a null message is not `is LogOutMessage`.
+            let fields = if category == 0 { &body[16..] } else { body };
+            match fields {
+                [1] => {}
+                [0] => return Ok(()),
+                _ => return Err(RuntimeError::Message),
+            }
+            if self.selected.is_none() {
+                // CleanUpConnections without a PlayerConn has no effect.
+                return Ok(());
+            }
+            // GameClient: CleanUpConnections(disconnectLoginConnection: false). The
+            // PlayerConn.Closed handler of CharacterSelecting enters
+            // CharacterList(sendList: true) while the client stays connected.
+            self.release_selected(runtime, pool).await;
+            let revision = self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision();
+            // InitSecondPassword sends nothing once the password has passed.
+            let list = runtime
+                .character_list(&self.frontend, pool, revision)
+                .await?;
+            send(stream, sender, empty_character_list::CATEGORY, &list).await?;
+            tracing::info!("minimum character logged out; character list sent");
+            return Ok(());
         }
         {
             use crate::protocol::equipment::{self as wire, Kind, Message};
