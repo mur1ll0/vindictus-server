@@ -223,3 +223,23 @@ pub fn learn(
         completed: true,
     }))
 }
+
+/// ToSkillList's vocation entry: VocationEnum.Paladin = 0, DarkKnight = 1 (None = -1).
+pub fn vocation_entry(vocation_class: Option<i32>) -> Option<Brief> {
+    let id = match vocation_class {
+        Some(0) => "skill_voc_pl_transform00",
+        Some(1) => "skill_voc_dk_transform00",
+        _ => return None,
+    };
+    Some(Brief {
+        id: id.to_owned(),
+        base_rank: 1,
+        final_rank: 1,
+        required_ap: -1,
+        is_locked: 0,
+        can_start_training: 0,
+        current_ap: 0,
+        reset_ap: 0,
+        untrain_ap: 0,
+    })
+}

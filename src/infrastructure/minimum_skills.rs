@@ -66,15 +66,12 @@ pub(super) async fn packet(
     level: i32,
     class: i32,
 ) -> Result<OutgoingPacket, MinimumError> {
-    // Paladin appends a transform entry that is not migrated.
+    // VocationManager.VocationClass: no stored vocation is VocationEnum.None.
     let vocation: Option<i32> =
         sqlx::query_scalar("SELECT vocation_class FROM game_vocations WHERE cid=$1")
             .bind(cid)
             .fetch_optional(&mut **tx)
             .await?;
-    if vocation == Some(0) {
-        return Err(fail());
-    }
     let contents = assets.skills.as_ref().ok_or_else(fail)?;
     let rows: Vec<(Vec<u8>, i32, i16, i32)> = sqlx::query_as(
             "SELECT skill_utf16,rank,locked,current_ap FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097",
@@ -113,6 +110,8 @@ pub(super) async fn packet(
         },
     )
     .map_err(|_| fail())?;
+    let mut list = list;
+    list.extend(skill_list::vocation_entry(vocation));
     let message = Message::SkillList(SkillList {
         learning: Some(String::new()),
         current_ap: 0,

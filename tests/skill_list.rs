@@ -218,3 +218,24 @@ fn learning_spends_ap_completes_ranks_and_refunds_excess() {
     let done = learn(&s, &locking, &c, "skill_a", 30, 30).unwrap().unwrap();
     assert_eq!((done.rank, done.locked, done.completed), (2, 1, true));
 }
+
+#[test]
+fn vocation_entries_follow_the_source() {
+    use vindictus_server::domain::skill_list::vocation_entry;
+    assert!(vocation_entry(None).is_none());
+    assert!(vocation_entry(Some(-1)).is_none());
+    let paladin = vocation_entry(Some(0)).unwrap();
+    assert_eq!(
+        (
+            paladin.id.as_str(),
+            paladin.base_rank,
+            paladin.required_ap,
+            paladin.can_start_training
+        ),
+        ("skill_voc_pl_transform00", 1, -1, 0)
+    );
+    assert_eq!(
+        vocation_entry(Some(1)).unwrap().id,
+        "skill_voc_dk_transform00"
+    );
+}
