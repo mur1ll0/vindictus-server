@@ -17,6 +17,10 @@ use vindictus_server::{
 };
 /// Fixture assets plus a source-shaped Account gold class and the economy rows.
 fn assets(cash_unique: i32) -> Assets {
+    assets_with(cash_unique, 0, 0)
+}
+/// `assets` with UseInTown and RequiredLevel of the cash class.
+fn assets_with(cash_unique: i32, cash_use_in_town: i32, cash_level: i32) -> Assets {
     let i = super::fiona_inventory_delivery::AppearanceInputs::new();
     let (mut catalog, _, _, mut profile) = appearance_fixture::fixtures();
     let gold = appearance_fixture::key("synthetic_gold");
@@ -28,9 +32,9 @@ fn assets(cash_unique: i32) -> Assets {
         .unwrap()
         .iter()
         .enumerate()
-        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":0,"class_restriction":0,"use_in_town":0,"indestructible":0}))
+        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":if n == 1 { cash_level } else { 0 },"class_restriction":if n == 1 { 2047 } else { 0 },"use_in_town":if n == 1 { cash_use_in_town } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0}))
         .collect();
-    let economy = json!({"format_version":2,"source":"heroesContents.item-economy","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":3},"classes":rows});
+    let economy = json!({"format_version":3,"source":"heroesContents.item-economy","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":3},"classes":rows});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -274,8 +278,32 @@ async fn minimum_learn_new_skill_pays_gold_once_and_survives_relogin() {
         };
         code
     };
+    // OpenLog: one CharacterJournal row and its "Login" ledger row.
+    let journal =
+        vindictus_server::infrastructure::character_initialization_logs::open_character_journal(
+            &p, 1,
+        )
+        .await;
+    assert!(journal > 0);
+    let opened: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM game_character_journal01 WHERE id=$1 AND character_id=1)+(SELECT count(*) FROM game_character_journal02 WHERE id=$1 AND character_id=1)+(SELECT count(*) FROM game_character_ledger01 WHERE journal_id=$1)+(SELECT count(*) FROM game_character_ledger02 WHERE journal_id=$1)",
+    )
+    .bind(journal)
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(opened, 2);
     let learn = |ids: Vec<i64>| {
-        minimum_skills::learn_new(&p, &owner, &assets, 1, "skill_new_synthetic", ids, log)
+        minimum_skills::learn_new(
+            &p,
+            &owner,
+            &assets,
+            1,
+            "skill_new_synthetic",
+            ids,
+            log,
+            journal,
+        )
     };
     // Not selected: no InGame character.
     assert!(learn(vec![900_000_000_000_000_001]).await.is_err());
@@ -325,6 +353,16 @@ async fn minimum_learn_new_skill_pays_gold_once_and_survives_relogin() {
             .await
             .unwrap();
     assert_eq!(row, 900_000_000_000_000_003);
+    // AddSkillLog(GiveSkill, skill, 1, 0) under the login journal.
+    let logged: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM game_character_skill_log01 WHERE journal_id=$1 AND event=1 AND skill_utf16=$2 AND skill_level=1)+(SELECT count(*) FROM game_character_skill_log02 WHERE journal_id=$1 AND event=1 AND skill_utf16=$2 AND skill_level=1)",
+    )
+    .bind(journal)
+    .bind(utf16("skill_new_synthetic"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(logged, 1);
     // Already learnt: refused before any payment.
     let packets = learn(vec![900_000_000_000_000_004]).await.unwrap();
     assert_eq!(result(&packets[0]), 7);
@@ -1282,5 +1320,91 @@ async fn minimum_quest_login_gives_first_and_level_quests_once_and_pushes_progre
         .await
         .unwrap();
     assert_eq!(queried[0].body, again[0].body);
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_use_answers_town_and_constraint_dialogs_without_changes() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_use,
+        },
+        protocol::inventory::UseItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let fail_of = |packets: Vec<vindictus_server::domain::map_partition::OutgoingPacket>| {
+        assert_eq!(packets.len(), 1);
+        let Some(Message::ItemFail(fail)) =
+            inventory::decode(Kind::ItemFail, &packets[0].body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("item fail missing")
+        };
+        fail
+    };
+    for (use_in_town, level, expected) in [
+        (0, 0, "UseItemFail_NotUseableItem"),
+        (1, 10, "ConstraintFail_LowLevel"),
+    ] {
+        let assets = assets_with(0, use_in_town, level);
+        let log = minimum_item_logs::Context {
+            flags: minimum_item_logs::flags(&assets).unwrap(),
+            civil_offset_seconds: 0,
+        };
+        sqlx::query("DELETE FROM game_items WHERE item_class_utf16=$1")
+            .bind(utf16("synthetic_cash"))
+            .execute(&p)
+            .await
+            .unwrap();
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_cash", 3, 9)
+            .await
+            .unwrap()
+            .unwrap();
+        minimum_selection::select(
+            &p,
+            &owner,
+            &assets,
+            0,
+            QueryConfig {
+                max_free: 5,
+                care_clock: None,
+            },
+            Arithmetic::FrameworkX64,
+        )
+        .await
+        .unwrap();
+        let item: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1")
+            .bind(utf16("synthetic_cash"))
+            .fetch_one(&p)
+            .await
+            .unwrap();
+        let before = items(&p).await;
+        let outcome = minimum_use::use_item(
+            &p,
+            &owner,
+            &assets,
+            1,
+            UseItem {
+                item_id: item,
+                target_item_id: -1,
+            },
+            log,
+        )
+        .await
+        .unwrap();
+        let minimum_use::Outcome::Applied(packets) = outcome else {
+            panic!("dialog missing")
+        };
+        assert_eq!(
+            fail_of(packets).and_then(|f| f.format),
+            Some(format!("GameUI_Heroes_{expected}"))
+        );
+        assert_eq!(items(&p).await, before);
+        minimum_selection::disconnect(&p, 1).await.unwrap();
+    }
     cleanup_game_pool(a, p, s).await;
 }

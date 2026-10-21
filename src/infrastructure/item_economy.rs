@@ -33,6 +33,13 @@ struct RawClass {
     class_restriction: i32,
     use_in_town: i32,
     indestructible: i32,
+    level_upper_bound: i32,
+    cafe_only: i32,
+    #[serde(deserialize_with = "nullable")]
+    required_skill_utf16: Option<PrivateText>,
+    required_skill_rank: i32,
+    required_enhance: i32,
+    required_enchant: i32,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,6 +62,8 @@ pub struct EconomyClass {
     pub use_in_town: bool,
     /// ItemClassInfo.Indestructible (1 cannot be sold).
     pub indestructible: i32,
+    /// ItemClassInfoConstraintTrait (EntityCommunicator.IsConstraintSatisfied).
+    pub constraint: crate::domain::item_constraint::Constraint,
 }
 pub struct Profile {
     manifest: Manifest,
@@ -71,7 +80,7 @@ impl Profile {
             return Err(MinimumError::Conflict);
         }
         let export: Export = serde_json::from_slice(&bytes).map_err(|_| MinimumError::Conflict)?;
-        if export.format_version != 2
+        if export.format_version != 3
             || export.source != "heroesContents.item-economy"
             || export.classes.len() != export.manifest.class_rows
             || export.classes.len() > 50_000
@@ -82,8 +91,50 @@ impl Profile {
             .classes
             .into_iter()
             .map(|r| {
+                let item_class = item_catalog::opaque(r.item_utf16)?;
+                let skill = item_catalog::opaque(r.required_skill_utf16)?
+                    .map(|s| {
+                        let raw = s.as_bytes();
+                        if !raw.len().is_multiple_of(2) {
+                            return Err(crate::error::Error::Configuration(
+                                "economy required skill".into(),
+                            ));
+                        }
+                        let units: Vec<u16> = raw
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|a| u16::from_le_bytes(*a))
+                            .collect();
+                        String::from_utf16(&units).map_err(|_| {
+                            crate::error::Error::Configuration("economy required skill".into())
+                        })
+                    })
+                    .transpose()?;
+                let campfire: Vec<u8> = "guild_campfire_kit_lvl1"
+                    .encode_utf16()
+                    .flat_map(u16::to_le_bytes)
+                    .collect();
+                let constraint = crate::domain::item_constraint::Constraint {
+                    cafe_only: r.cafe_only,
+                    required_level: r.required_level,
+                    level_upper_bound: r.level_upper_bound,
+                    class_restriction: r.class_restriction,
+                    required_guild_level: if item_class
+                        .as_ref()
+                        .is_some_and(|c| c.as_bytes() == campfire.as_slice())
+                    {
+                        10
+                    } else {
+                        0
+                    },
+                    required_skill: skill.map(|s| (s, r.required_skill_rank)),
+                    required_enhance: r.required_enhance,
+                    required_enchant: r.required_enchant,
+                };
                 Ok(EconomyClass {
-                    item_class: item_catalog::opaque(r.item_utf16)?,
+                    constraint,
+                    item_class,
                     category: item_catalog::opaque(r.category_utf16)?,
                     unique: r.unique,
                     expire_in: r.expire_in,

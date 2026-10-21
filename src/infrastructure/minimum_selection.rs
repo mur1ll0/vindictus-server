@@ -27,6 +27,8 @@ pub struct Selected {
     pub story: crate::domain::npc_talk::Session,
     /// ItemOwner.BuybackList (in memory for the entered character).
     pub buyback: Vec<super::minimum_shop::BuybackEntry>,
+    /// CharacterEntity.LogJournalID (OpenLog; 0 until opened or when it failed).
+    pub log_journal: i64,
 }
 fn packet(message: Message<'_>) -> Result<OutgoingPacket, MinimumError> {
     Ok(OutgoingPacket {
@@ -122,6 +124,7 @@ pub async fn select(
         look,
         story: Default::default(),
         buyback: Vec::new(),
+        log_journal: 0,
     })
 }
 /// Skill runtime cache of the initialized first Fiona: the initializer's skills come

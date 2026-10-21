@@ -78,3 +78,10 @@ Pré-condição: runtime com a migração 0036 aplicada (`migrate`) e o perfil `
 - [ ] Na história GuidePlay, ao chegar no passo que manda ir ao distrito de combate, o diálogo segue pelo ramo "quest ainda não concluída" (guia aponta o distrito de combate).
 - [ ] Relogar → as mesmas quests, sem duplicar.
 Limites conhecidos: concluir quests (objetivos de combate, recompensas, contagem de jogadas, tempos de conclusão) fica para o B2; bônus de cafe/VIP não migrado (sem bônus = limite de jogadas normal); a quest do dia segue o sorteio original pelo perfil de arquitetura do runtime.
+
+### B1.6 — usáveis na cidade
+Pré-condição: perfil `item-economy` reexportado no formato 3 (`scripts/content/export_item_economy.py`) e migração 0037 aplicada (`migrate`).
+- [ ] Usar (clique direito/uso) a caixa Level Up (`randomitem_levelup_v2_10`) com a Fiona abaixo do nível 10 → diálogo de nível insuficiente; a caixa continua no inventário.
+- [ ] Usar uma poção de vida, pena de fênix, kit de reparo, dardo ou bomba na cidade → diálogo de item não utilizável aqui; nada é consumido.
+- [ ] Usar uma cápsula de AP (se houver) → continua funcionando como no B0 (AP aumenta, cápsula consumida).
+Limites conhecidos: abrir caixas (sorteio RandomItemV2, itens raros e sequências) fica para o B2, quando a Fiona alcança o nível da caixa; demais usáveis (comida, pets, megafones, bônus de cafe/VIP) seguem recusados sem resposta.

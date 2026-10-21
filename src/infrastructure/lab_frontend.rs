@@ -790,6 +790,15 @@ impl Connection {
                         tracing::info!(
                             "minimum character selected; optional services deferred; values omitted"
                         );
+                        // SelectCharacterProcessor: OpenLog (AddCharacterJournal "Login").
+                        if let Some(selected) = self.selected.as_mut() {
+                            selected.log_journal =
+                                super::character_initialization_logs::open_character_journal(
+                                    pool,
+                                    selected.cid,
+                                )
+                                .await;
+                        }
                         // StoryEntity construction: login auto-give and SyncStoryProgress.
                         if assets.npc.is_some() {
                             let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
@@ -1450,6 +1459,7 @@ impl Connection {
                             skill.as_deref().unwrap_or(""),
                             ids,
                             runtime.item_log_context(assets)?,
+                            self.selected.as_ref().map_or(0, |s| s.log_journal),
                         )
                         .await
                         {

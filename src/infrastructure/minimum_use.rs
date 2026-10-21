@@ -1,6 +1,7 @@
-//! UseInventoryItemProcessor for the selected first Fiona. Only the capsule_ap
-//! branch (UseUseableItem + CharacterImpl.GiveAP) is supported; other usable item
-//! types are rejected without changes until their branches are migrated.
+//! UseInventoryItemProcessor for the selected first Fiona: the UseInTown dispatch with
+//! its dialogs (UseInTown 0 and IsConstraintSatisfied failures) and the capsule_ap
+//! branch (UseUseableItem + CharacterImpl.GiveAP). Other usable branches (food,
+//! RandomItemV2 opening, pets, ...) are rejected without changes until migrated.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::map_partition::OutgoingPacket,
@@ -28,6 +29,69 @@ fn fail() -> MinimumError {
 fn capsule_amount(class: &str) -> Option<i32> {
     let suffix = class.strip_prefix("capsule_ap")?;
     Some(suffix.parse::<i32>().unwrap_or(0))
+}
+
+/// EntityCommunicator.IsConstraintSatisfied(item) with the selected character (no cafe,
+/// guild or equipped enhancement in the migrated state).
+async fn constraint_failure(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    constraint: &crate::domain::item_constraint::Constraint,
+) -> Result<Option<&'static str>, MinimumError> {
+    use crate::domain::item_constraint::{self, Character, Equipped};
+    let (level, class): (i32, i32) =
+        sqlx::query_as("SELECT level,class::integer FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    let skills: Vec<(Vec<u8>, i32)> = sqlx::query_as(
+        "SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    let skills = skills
+        .into_iter()
+        .map(|(k, r)| {
+            if !k.len().is_multiple_of(2) || k.len() > 400 {
+                return Err(fail());
+            }
+            let units: Vec<u16> = k
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|a| u16::from_le_bytes(*a))
+                .collect();
+            Ok((String::from_utf16(&units).map_err(|_| fail())?, r))
+        })
+        .collect::<Result<std::collections::BTreeMap<_, _>, MinimumError>>()?;
+    // Only enhancement/enchant requirements read the equipped list (all level 0 here).
+    let gear = if constraint.required_enhance > 0 && constraint.required_enchant > 0 {
+        Some(super::minimum_equipment::load(tx, owner, assets, cid).await?)
+    } else {
+        None
+    };
+    let levels: Vec<Equipped> = gear
+        .iter()
+        .flat_map(|g| g.projection.equipment.iter())
+        .map(|_| Equipped {
+            enhance: 0,
+            prefix: 0,
+            suffix: 0,
+        })
+        .collect();
+    let character = Character {
+        level,
+        class,
+        cafe_type: 0,
+        cafe: false,
+        guild_level: None,
+        skills: &skills,
+        equipped: Some(&levels),
+    };
+    Ok(item_constraint::check(&character, constraint).map(|f| f.name()))
 }
 
 /// Admission (selection and UseSecondPassword) belongs to the frontend.
@@ -73,11 +137,41 @@ pub async fn use_item(
         let class = item.class.clone().unwrap_or_default();
         let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
         let indexed = assets.stats_index.class(Some(&key)).ok_or_else(fail)?;
+        // Branches dispatched before the UseInTown test are not migrated.
+        if [
+            "coupon_bingo_shuffle",
+            "pet_",
+            "skill_untrain_",
+            "guild_advanced_feather",
+        ]
+        .iter()
+        .any(|p| class.starts_with(p))
+        {
+            return Err(fail());
+        }
+        let economy = assets.economy.as_ref().ok_or_else(fail)?;
+        let info = economy.get(indexed.source_index).ok_or_else(fail)?;
+        // Run: ItemLog.AddItemJournal("UseItem") once the item and BadStatus checks pass.
+        let use_journal = super::minimum_item_logs::use_item_journal(pool, log.flags).await;
+        if !info.use_in_town {
+            return Ok((
+                Outcome::Applied(vec![super::minimum_equip::item_fail(
+                    "UseItemFail_NotUseableItem",
+                )?]),
+                None,
+            ));
+        }
+        if let Some(failure) =
+            constraint_failure(&mut tx, owner, assets, cid, &info.constraint).await?
+        {
+            return Ok((
+                Outcome::Applied(vec![super::minimum_equip::item_fail(failure)?]),
+                None,
+            ));
+        }
         let Some(amount) = capsule_amount(&class).filter(|_| !indexed.equippable) else {
             return Err(fail());
         };
-        // Run: ItemLog.AddItemJournal("UseItem") once the item and BadStatus checks pass.
-        let use_journal = super::minimum_item_logs::use_item_journal(pool, log.flags).await;
         // UseUseableItem: DestroyItem(Useable(item), 1) and Save before onSuccess.
         let deleted = item.count == 1;
         if deleted {

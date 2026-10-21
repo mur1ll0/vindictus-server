@@ -277,6 +277,7 @@ fn learn_new_result(code: i32) -> Result<OutgoingPacket, MinimumError> {
 /// LearnNewSkillProcessor for the selected first Fiona: rank-1 checks, the gold
 /// DestroyItem (ItemService Save and Sync), GiveSkill and the result message. The
 /// gold and the skill are written in one transaction.
+#[allow(clippy::too_many_arguments)]
 pub async fn learn_new(
     pool: &PgPool,
     owner: &UserKey<'_>,
@@ -285,6 +286,7 @@ pub async fn learn_new(
     skill_id: &str,
     entity_ids: Vec<i64>,
     log: super::minimum_item_logs::Context,
+    character_journal: i64,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     use crate::domain::skill_list::{LEARN_NEW_SUCCEEDED, LearnNewRefusal};
     let flags = log.flags;
@@ -292,7 +294,7 @@ pub async fn learn_new(
     let operation = super::minimum_item_logs::operation_journal(pool, flags).await;
     let journal = super::minimum_item_logs::destroy_item_journal(pool, flags).await;
     let mut ids = entity_ids.into_iter();
-    let (packets, paid) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+    let (packets, paid, learned) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
         let (connected, level, class): (bool, i32, i32) = sqlx::query_as(
             "SELECT is_connected,level,class::integer FROM game_character_info WHERE id=$1",
@@ -334,7 +336,7 @@ pub async fn learn_new(
             .map_err(|_| fail())?
         {
             Ok(new) => new,
-            Err(refusal) => return Ok((vec![learn_new_result(refusal as i32)?], None)),
+            Err(refusal) => return Ok((vec![learn_new_result(refusal as i32)?], None, false)),
         };
         if new.locked == 1 {
             // TryUnlockStory needs the story service, which is not migrated.
@@ -364,6 +366,7 @@ pub async fn learn_new(
                 return Ok((
                     vec![learn_new_result(LearnNewRefusal::NotEnoughGold as i32)?],
                     None,
+                    false,
                 ));
             };
             // ItemOwner.Save → Sync: the gold slot update reaches the client first.
@@ -400,10 +403,16 @@ pub async fn learn_new(
         packets.push(packet(&mut tx, owner, assets, cid, level, class).await?);
         packets.push(learn_new_result(LEARN_NEW_SUCCEEDED)?);
         tx.commit().await?;
-        Ok((packets, paid))
+        Ok((packets, paid, true))
     })
     .await
     .map_err(|_| fail())??;
+    if learned {
+        // GiveSkill: AddSkillLog(CharacterSkillEvent.GiveSkill, skillID, 1, 0).
+        let key: Vec<u8> = skill_id.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        super::character_initialization_logs::skill_log(pool, character_journal, 1, &key, 1, 0)
+            .await;
+    }
     if let Some((applied, gold, price)) = paid {
         super::minimum_item_logs::write_give(
             pool,
