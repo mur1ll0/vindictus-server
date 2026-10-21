@@ -1,6 +1,6 @@
 //! Quick slots of the selected first Fiona: loader for ToQuickSlotInfo and the
 //! EquipBundleProcessor (assign or clear an item class), synchronized with
-//! QuickSlotInfoMessage. Skill quick slots ("skill_" classes) belong to P0-03.
+//! QuickSlotInfoMessage, including skill quick slots ("skill_" classes).
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::{
@@ -186,8 +186,50 @@ pub async fn equip_bundle(
             }
         } else {
             if item_class.starts_with("skill_") {
-                // EquipSkill: skills on the action bar are P0-03.
-                return Err(fail());
+                // EquipBundleProcessor: Character.Skills.GetSkill, then ItemOwner.EquipSkill.
+                let key: Vec<u8> = item_class
+                    .encode_utf16()
+                    .flat_map(u16::to_le_bytes)
+                    .collect();
+                let owned: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM game_skills WHERE cid=$1 AND skill_utf16=$2)",
+                )
+                .bind(cid)
+                .bind(&key)
+                .fetch_one(&mut *tx)
+                .await?;
+                if !owned {
+                    return Ok(Outcome::Refused(super::minimum_equip::item_fail(
+                        "ConstraintFail_InvalidData",
+                    )?));
+                }
+                if slots.equipped(&item_class).map(i32::from) == Some(part) {
+                    return Ok(Outcome::Unchanged);
+                }
+                let contents = assets.skills.as_ref().ok_or_else(fail)?;
+                // The bound profile covers every owned skill; absence is not evidence of
+                // a missing SkillInfo row.
+                let content = contents.get(&item_class).ok_or_else(fail)?;
+                if content.use_type.is_none_or(|use_type| use_type == 0) {
+                    return Ok(Outcome::Refused(super::minimum_equip::item_fail(
+                        "ConstraintFail_InvalidData",
+                    )?));
+                }
+                if let Some(previous) = slots.equipped(&item_class) {
+                    changes.extend(slots.clear(i32::from(previous)).flatten());
+                }
+                match slots.set_skill(part, &item_class) {
+                    Ok(change) => changes.push(change),
+                    Err(refusal) => {
+                        return Ok(Outcome::Refused(super::minimum_equip::item_fail(
+                            refusal.name(),
+                        )?));
+                    }
+                }
+                persist(&mut tx, cid, &changes).await?;
+                let packet = packet(&slots)?;
+                tx.commit().await?;
+                return Ok(Outcome::Applied(packet));
             }
             if slots.equipped(&item_class).map(i32::from) == Some(part) {
                 return Ok(Outcome::Unchanged);

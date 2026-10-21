@@ -586,13 +586,13 @@ async fn minimum_skill_list_projects_stored_skills_without_writes() {
     let mut ranks = Vec::new();
     for (n, (key, rank)) in stored.iter().enumerate() {
         skills.push(
-            serde_json::json!({"source_index":n,"skill_utf16":hex(key),"class_restriction":2}),
+            serde_json::json!({"source_index":n,"skill_utf16":hex(key),"class_restriction":2,"use_type":1}),
         );
         for (r, ap) in [(*rank, 0), (rank + 1, 30)] {
             ranks.push(serde_json::json!({"source_index":ranks.len(),"skill_utf16":hex(key),"rank":r,"level":1,"required_ap":ap,"require_unlock":false,"feature":null}));
         }
     }
-    let profile = serde_json::json!({"format_version":1,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[]});
+    let profile = serde_json::json!({"format_version":2,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[]});
     let assets = assets()
         .with_skills(
             skill_profile::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),

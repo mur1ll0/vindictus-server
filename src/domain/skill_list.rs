@@ -22,6 +22,8 @@ pub struct RankInfo {
 pub struct SkillContent {
     /// SkillInfo.ClassRestriction; None when the SkillInfo row is absent.
     pub class_restriction: Option<i32>,
+    /// SkillInfo.UseType; IsActiveSkill is UseType != 0.
+    pub use_type: Option<i32>,
     pub ranks: BTreeMap<i32, RankInfo>,
     /// SkillConstraintInfo by rank, in source list order.
     pub constraints: BTreeMap<i32, Vec<(String, i32)>>,

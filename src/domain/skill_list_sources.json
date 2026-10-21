@@ -26,5 +26,17 @@
   "brief": {
     "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/BriefSkillInfo.cs",
     "sha256": "88c54506ebeaadd0cbd4c0ea228d4fc1dcf475ff46dad9b15fec74a4ee10c951"
+  },
+  "skill_info": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/SkillInfo.cs",
+    "sha256": "c4c705be99f3aaf945fa566b1568fecc55b3388515de8d8dea701a27d273f39d"
+  },
+  "equip_bundle": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/EquipBundleProcessor.cs",
+    "sha256": "8f7a6f2a7f7d1d0e2208af095239d1c2d009929d78594a280c55cc3d082a5f1a"
+  },
+  "stackable": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/StackableSlot.cs",
+    "sha256": "a9910604fbb459b581b9227e69a6aea133a739aabd784cc87dfacc1eb77d6099"
   }
 }

@@ -66,3 +66,25 @@ fn set_and_clear_follow_stackable_slot_rules() {
     assert_eq!(s.clear(55), None);
     assert_eq!(Refusal::InvalidSlot.name(), "EquipItemFail_InvalidSlot");
 }
+
+#[test]
+fn skill_slots_check_only_the_lock() {
+    let mut s = slots();
+    // StackableSlot.SetSkill has no category check, unlike Set.
+    assert_eq!(
+        s.set_skill(101, "skill_fiona_guard"),
+        Ok(Change::Insert {
+            part: 101,
+            class: "skill_fiona_guard".to_owned()
+        })
+    );
+    assert_eq!(s.equipped("skill_fiona_guard"), Some(101));
+    assert_eq!(
+        s.set_skill(102, "skill_fiona_guard"),
+        Err(Refusal::InvalidSlot)
+    );
+    assert_eq!(
+        s.set_skill(55, "skill_fiona_guard"),
+        Err(Refusal::InvalidSlot)
+    );
+}

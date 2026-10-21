@@ -103,3 +103,9 @@ Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arqu
 - `QuerySkillListProcessor`: `SkillListMessage("", 0, ToSkillList(), false)`. Domínio `skill_list` recupera BaseSkillRank (ordem das linhas, duplicata recusada), FinalRank com rank de set bonus, `CalculateRequiredAP` (próximo rank com AP > 0, senão −1), `ConstraintPassedForNextRank` (bloqueio 1/2, rank e AP do próximo, SkillInfo, feature, classe `(restrição & bit) == bit`, nível, pré-requisitos), `GetUntrainAP` e `GetResetAP`. Paladino (entrada de transformação) recusado; enhances de skill não migrados (sem tabela, lista vazia).
 - Perfil privado `heroesContents.skill-ranks` (exportador `scripts/content/export_skill_profile.py`, testado): SkillInfo/SkillRankInfo/SkillConstraintInfo das skills selecionadas em ordem de linha (o último duplicado vence, como `ToDoubleDictionary`), vinculado aos hashes do catálogo e das fontes; features avaliadas na política do catálogo. Exportado para as 2 skills da Fiona; configuração do runtime aponta `skills`.
 - Testes focados: 4 unitários `skill_list`, wire (618), PostgreSQL `QuerySkillList` sem escrita e regressão (19).
+
+## P0-03c — atalhos de skill
+
+- `EquipBundle` com classe `skill_`: skill inexistente no personagem → `ConstraintFail_InvalidData`; já no mesmo atalho → sem mudança; `SkillInfo` ausente ou `IsActiveSkill` falso (`UseType == 0`) → `ConstraintFail_InvalidData`; sai do atalho anterior; `StackableSlot.SetSkill` só verifica bloqueio (sem categoria). Perfil de skills v2 inclui `UseType`.
+- No conteúdo original as duas skills iniciais da Fiona são passivas (`UseType = 0`), portanto não vão para a barra; o comportamento esperado no cliente é a recusa.
+- Testes focados: unitários `quick_slot`/`skill_list`, PostgreSQL de skills/equipamento.

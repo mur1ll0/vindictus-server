@@ -113,6 +113,31 @@ impl QuickSlots {
                 .map(|_| Change::Delete { part: slot.part }),
         )
     }
+    /// Gear.EquipSkill after its duplicate check, i.e. StackableSlot.SetSkill: only the
+    /// lock is checked (no category).
+    pub fn set_skill(&mut self, part: i32, skill: &str) -> Result<Change, Refusal> {
+        let slot = self
+            .slots
+            .iter_mut()
+            .find(|s| i32::from(s.part) == part)
+            .ok_or(Refusal::InvalidSlot)?;
+        if slot.locked {
+            return Err(Refusal::InvalidSlot);
+        }
+        let change = if slot.class.is_some() {
+            Change::Update {
+                part: slot.part,
+                class: skill.to_owned(),
+            }
+        } else {
+            Change::Insert {
+                part: slot.part,
+                class: skill.to_owned(),
+            }
+        };
+        slot.class = Some(skill.to_owned());
+        Ok(change)
+    }
     /// Gear.Equip(part, itemClass) after its duplicate check, i.e. StackableSlot.Set.
     /// `category` is the ItemClassInfo.Category of the existing class.
     pub fn set(&mut self, part: i32, class: &str, category: &str) -> Result<Change, Refusal> {

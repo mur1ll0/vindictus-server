@@ -35,7 +35,7 @@ def read_package(database, config, selected):
         db.row_factory = sqlite3.Row
         # GetTable reads the provider row order; ToDouble*Dictionary keeps the last
         # duplicate, so every selected row is exported in that order.
-        skills=[dict(source_index=i, skill_utf16=text(r['SkillID']), class_restriction=integer(r['ClassRestriction']))
+        skills=[dict(source_index=i, skill_utf16=text(r['SkillID']), class_restriction=integer(r['ClassRestriction']), use_type=integer(r['UseType']))
                 for i, r in enumerate(db.execute('SELECT * FROM SkillInfo')) if text(r['SkillID']) in selected]
         ranks=[dict(source_index=i, skill_utf16=text(r['SkillID']), rank=integer(r['Rank']), level=integer(r['LevelConstraint']),
                     required_ap=integer(r['RequiredAP']), require_unlock=boolean(r['RequireUnlock']), feature=r['Feature'])
@@ -49,7 +49,7 @@ def read_package(database, config, selected):
         raise ValueError('Skill feature type')
     if digest(database) != package['manifest']['database_sha256'] or digest(config) != package['manifest']['config_sha256']:
         raise ValueError('Skill source changed during export')
-    return dict(format_version=1, source='heroesContents.skill-ranks', database_sha256=package['manifest']['database_sha256'],
+    return dict(format_version=2, source='heroesContents.skill-ranks', database_sha256=package['manifest']['database_sha256'],
                 config_sha256=package['manifest']['config_sha256'], implementations={k:r['sha256'] for k,r in sources.items()},
                 skills=skills, ranks=ranks, constraints=constraints)
 

@@ -36,6 +36,9 @@ Pré-condição: runtime iniciado com `scripts/dev/start-lab-frontend.ps1` (perf
 ### Lista de skills (P0-03b)
 - [ ] Abrir a janela de skills: aparecem Shield Mastery e Guard no rank 1, com custo do próximo rank e treino disponível.
 
+### Atalhos de skill (P0-03c)
+- [ ] Arrastar Shield Mastery ou Guard para a barra: o original recusa (são passivas, `UseType = 0`) com o diálogo de dados inválidos; nada é gravado. Skills ativas aprendidas depois poderão ir para a barra.
+
 ### AP e cápsula de AP (P0-03a)
 - [ ] Abrir a janela de skills: o AP exibido corresponde ao salvo (o cliente pede `QueryAP`).
 - [ ] Aba Cash: há uma pilha de **5× cápsula de AP 50** (concedida para teste em 21/10/2026).

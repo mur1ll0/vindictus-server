@@ -647,3 +647,5 @@ P0-02f — quickslots: EquipBundle456/QuickSlotInfo551 (oracle 465 casos x86=x64
 P0-03a — QueryAP526/APMessage229 e UseInventoryItem629 (capsule_ap: consumo, UseInventoryItemOk627, GiveAP allowExceed, APMessage, Sync617) implementados; meditação treinada recusada; outros usáveis recusados. Oracle 585 casos x86=x64; testes focados PG (18). Concedidas 5× capsule_ap50 na aba Cash da Fiona a pedido do operador. Próximo: QuerySkillList540/SkillListMessage583 (ToSkillList, custos de rank), depois atalhos de skill; suíte completa ao fim do bloco.
 
 P0-03b — QuerySkillList540/SkillListMessage583 com ToSkillList recuperado (custos/treino/untrain/reset), perfil privado de skills vinculado a hashes; oracle 618 casos x86=x64; testes focados (unitários e PG 19). Próximo: atalhos de skill (EquipBundle "skill_" → EquipSkill/IsActiveSkill) e suíte completa do bloco P0-02/P0-03.
+
+P0-03c — atalhos de skill via EquipBundle (EquipSkill/IsActiveSkill/SetSkill); skills iniciais da Fiona são passivas (UseType 0) e são recusadas como no original. Perfil de skills v2 (UseType). Testes focados passaram; suíte completa do bloco P0-02/P0-03 em seguida.
