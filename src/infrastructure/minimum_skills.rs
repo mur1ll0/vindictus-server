@@ -353,6 +353,7 @@ pub async fn learn_new(
                     class: &gold,
                     count: new.price,
                     bound: false,
+                    equipment: None,
                 }],
                 &[],
                 &mut || ids.next().ok_or_else(fail),

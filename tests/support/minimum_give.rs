@@ -28,9 +28,9 @@ fn assets(cash_unique: i32) -> Assets {
         .unwrap()
         .iter()
         .enumerate()
-        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":0,"required_level":0,"class_restriction":0,"use_in_town":0}))
+        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":0,"class_restriction":0,"use_in_town":0,"indestructible":0}))
         .collect();
-    let economy = json!({"format_version":1,"source":"heroesContents.item-economy","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":3},"classes":rows});
+    let economy = json!({"format_version":2,"source":"heroesContents.item-economy","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":3},"classes":rows});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -396,7 +396,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     ]);
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":0,"RewardAp":0,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
-    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"}],
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"}],
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
     "shops":[
@@ -719,5 +719,161 @@ async fn minimum_shop_buy_pays_once_refuses_without_changes_and_survives_relogin
         .await
         .unwrap();
     assert_eq!((gold().await, cash().await), (200, before_cash + 6));
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_shop_sell_pays_sell_price_and_buyback_restores_the_sold_items() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_shop,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 100, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let gold = || async {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT count FROM game_items WHERE owner_id=1 AND collection=101",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let (stack, held): (i64, i32) = sqlx::query_as(
+        "SELECT id,count FROM game_items WHERE owner_id=1 AND item_class_utf16=$1 AND count>=2 ORDER BY id LIMIT 1",
+    )
+    .bind(utf16("synthetic_cash"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let mut buyback = Vec::new();
+    let categories = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        packets.iter().map(|p| p.category).collect::<Vec<_>>()
+    };
+    // Too many: a dialog and no change; the gold item itself cannot be sold.
+    let before = items(&p).await;
+    let packets = minimum_shop::sell(
+        &p,
+        &owner,
+        &assets,
+        1,
+        stack,
+        held + 1,
+        &mut buyback,
+        vec![],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(categories(&packets), [602]);
+    let gold_id: i64 =
+        sqlx::query_scalar("SELECT id FROM game_items WHERE owner_id=1 AND collection=101")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert!(
+        minimum_shop::sell(
+            &p,
+            &owner,
+            &assets,
+            1,
+            gold_id,
+            1,
+            &mut buyback,
+            vec![],
+            log
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(items(&p).await, before);
+    // Two sold at SellPrice 7: +14 gold, one buyback entry at 7 × BuybackPriceRatio 2.
+    let packets = minimum_shop::sell(&p, &owner, &assets, 1, stack, 2, &mut buyback, vec![], log)
+        .await
+        .unwrap();
+    assert_eq!(categories(&packets), [617, 294, 602]);
+    assert_eq!(gold().await, 114);
+    let count: i32 = sqlx::query_scalar("SELECT count FROM game_items WHERE id=$1")
+        .bind(stack)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(count, held - 2);
+    let Some(Message::BuybackListResult(Some(list))) =
+        inventory::decode(Kind::BuybackListResult, &packets[1].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("buyback list missing")
+    };
+    let entry = list[0].clone().unwrap();
+    assert_eq!(
+        (entry.order, entry.item_count, entry.price_count),
+        (0, 2, 14)
+    );
+    // Buyback costs 7 × 2 × 1 × 2 = 28 gold and returns the two items.
+    let packets = minimum_shop::buy_back(
+        &p,
+        &owner,
+        &assets,
+        1,
+        0,
+        1,
+        &mut buyback,
+        vec![930_000_000_000_000_001],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(categories(&packets), [617, 294, 235]);
+    assert_eq!(gold().await, 86);
+    assert!(buyback.is_empty());
+    let total: i64 = sqlx::query_scalar(
+        "SELECT sum(count) FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+    )
+    .bind(utf16("synthetic_cash"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let before_total: i64 = before
+        .iter()
+        .filter(|r| r.1 == utf16("synthetic_cash"))
+        .map(|r| i64::from(r.2))
+        .sum();
+    assert_eq!(total, before_total);
+    assert!(
+        minimum_shop::buy_back(&p, &owner, &assets, 1, 0, 1, &mut buyback, vec![], log)
+            .await
+            .is_err()
+    );
     cleanup_game_pool(a, p, s).await;
 }

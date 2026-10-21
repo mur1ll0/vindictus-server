@@ -32,6 +32,7 @@ struct RawClass {
     required_level: i32,
     class_restriction: i32,
     use_in_town: i32,
+    indestructible: i32,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -52,6 +53,8 @@ pub struct EconomyClass {
     pub required_level: i32,
     pub class_restriction: i32,
     pub use_in_town: bool,
+    /// ItemClassInfo.Indestructible (1 cannot be sold).
+    pub indestructible: i32,
 }
 pub struct Profile {
     manifest: Manifest,
@@ -68,7 +71,7 @@ impl Profile {
             return Err(MinimumError::Conflict);
         }
         let export: Export = serde_json::from_slice(&bytes).map_err(|_| MinimumError::Conflict)?;
-        if export.format_version != 1
+        if export.format_version != 2
             || export.source != "heroesContents.item-economy"
             || export.classes.len() != export.manifest.class_rows
             || export.classes.len() > 50_000
@@ -89,6 +92,7 @@ impl Profile {
                     required_level: r.required_level,
                     class_restriction: r.class_restriction,
                     use_in_town: r.use_in_town != 0,
+                    indestructible: r.indestructible,
                 })
             })
             .collect::<Result<Vec<_>, crate::error::Error>>()?;

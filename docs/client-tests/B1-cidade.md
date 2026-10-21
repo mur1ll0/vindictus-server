@@ -44,3 +44,14 @@ Pré-condição: Fiona com ouro (B1.1) e espaço livre na bolsa; runtime com os 
 - [ ] Tentar comprar algo mais caro que o saldo → recusa de ouro insuficiente; ouro e inventário inalterados.
 - [ ] Relogar → itens comprados e saldo preservados.
 Limites conhecidos: itens com limite de compra (restrição por período), itens pagos com AP, itens com atributo na classe (ex.: `[ENHANCE:3]`) e as abas recompra/Buyback/cupom são recusados sem alterar nada (sem resposta); a consulta de limites (QueryShopItemInfo) não responde.
+
+### B1.4b — vender e recomprar
+Pré-condição: Fiona com itens vendáveis na bolsa (ex.: poções compradas no B1.4a).
+- [ ] Na loja, vender parte de uma pilha (ex.: 2 de 5) → a pilha diminui, o ouro aumenta no preço de venda × quantidade e aparece a mensagem de venda no chat.
+- [ ] Vender a pilha inteira → o item some do inventário.
+- [ ] Tentar vender mais do que tem → diálogo de quantidade insuficiente; nada muda.
+- [ ] Tentar vender um item equipado ou que está na barra de atalhos → diálogo de item equipado; nada muda.
+- [ ] Abrir a aba de recompra → os itens vendidos aparecem (mais recente primeiro) com preço = venda × 2.
+- [ ] Recomprar um item → volta ao inventário (equipamento com as mesmas cores) e o ouro diminui no preço de recompra; a lista de recompra é atualizada.
+- [ ] Relogar → a lista de recompra fica vazia (como no original, ela vive só na sessão); itens e ouro preservados.
+Limites conhecidos: venda cujo ouro não caiba é recusada inteira (o original removeria o item mesmo assim); restauração por AP (Buyback_byAP) não migrada.

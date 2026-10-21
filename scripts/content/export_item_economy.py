@@ -27,12 +27,12 @@ def read_package(database, config):
                              price=integer(r['Price']), sell_price=integer(r['SellPrice']),
                              required_level=integer(r['RequiredLevel']),
                              class_restriction=integer(r['ClassRestriction']),
-                             use_in_town=integer(r['UseInTown'])))
+                             use_in_town=integer(r['UseInTown']), indestructible=integer(r['Indestructible'])))
             if len(rows) > 50000: raise ValueError('Economy row bound')
     if [r['item_utf16'] for r in rows] != [c['item_utf16'] for c in catalog['classes']]:
         raise ValueError('Economy rows differ from the catalog projection')
     m = catalog['manifest']
-    return {'format_version': 1, 'source': 'heroesContents.item-economy',
+    return {'format_version': 2, 'source': 'heroesContents.item-economy',
             'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
             'classes': rows}
 

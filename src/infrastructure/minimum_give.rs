@@ -21,6 +21,16 @@ pub struct Request<'a> {
     pub count: i32,
     /// GiveItemRequest IsCharacterBinded (ignored for destroy requests).
     pub bound: bool,
+    /// ItemRequestProperty colors and durability of an existing equipment (buyback);
+    /// None draws material colors with full durability.
+    pub equipment: Option<Equipment>,
+}
+/// Equippable fields kept by Item.ToRequestInfo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Equipment {
+    pub colors: [i32; 3],
+    pub reduced: i32,
+    pub bonus: i32,
 }
 /// Item created by MakeItem, for LogManager CreateItem records.
 pub struct CreatedItem {
@@ -164,6 +174,7 @@ pub(super) async fn apply(
         Ok(plan) => plan,
         Err(e) => return Ok(Err(e)),
     };
+    let properties: Vec<Option<Equipment>> = gives.iter().map(|g| g.equipment).collect();
     let applied = write(
         tx,
         owner,
@@ -172,6 +183,7 @@ pub(super) async fn apply(
         &held,
         &infos,
         plan,
+        &properties,
         maximum_durability,
         ids,
     )
@@ -188,6 +200,7 @@ async fn write(
     held: &[(Vec<u8>, Held)],
     infos: &[ClassInfo],
     plan: Plan,
+    properties: &[Option<Equipment>],
     maximum_durability: i32,
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Applied, MinimumError> {
@@ -254,7 +267,19 @@ async fn write(
                 .bind(checksum)
                 .execute(&mut **tx)
                 .await?;
-            let (colors, reduced, bonus) = if info.equippable {
+            let given = properties.get(c.request).copied().flatten();
+            let (colors, reduced, bonus) = if let (true, Some(e)) = (info.equippable, given) {
+                sqlx::query("INSERT INTO game_equippables(id,part,color1,color2,color3,reduced_durability,max_durability_bonus) VALUES($1,NULL,$2,$3,$4,$5,$6)")
+                    .bind(id)
+                    .bind(e.colors[0])
+                    .bind(e.colors[1])
+                    .bind(e.colors[2])
+                    .bind(e.reduced)
+                    .bind(e.bonus)
+                    .execute(&mut **tx)
+                    .await?;
+                (e.colors, e.reduced, e.bonus)
+            } else if info.equippable {
                 let base = assets
                     .stats_index
                     .get(Some(&c.class))
@@ -401,6 +426,7 @@ pub async fn lab_grant(
             class: &key,
             count,
             bound: false,
+            equipment: None,
         }],
         &mut ids,
     )
@@ -423,4 +449,34 @@ pub async fn lab_grant(
     )
     .await;
     Ok(Ok(applied.slots.len()))
+}
+
+impl Applied {
+    /// The log records of this change, without the slot diff.
+    pub fn clone_for_logs(&self) -> Self {
+        Self {
+            slots: Vec::new(),
+            changes: self
+                .changes
+                .iter()
+                .map(|c| NumChange {
+                    item_id: c.item_id,
+                    class_utf16: c.class_utf16.clone(),
+                    delta: c.delta,
+                })
+                .collect(),
+            created: self
+                .created
+                .iter()
+                .map(|c| CreatedItem {
+                    id: c.id,
+                    class_utf16: c.class_utf16.clone(),
+                    count: c.count,
+                    colors: c.colors,
+                    reduced: c.reduced,
+                    bonus: c.bonus,
+                })
+                .collect(),
+        }
+    }
 }

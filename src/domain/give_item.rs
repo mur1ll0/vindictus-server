@@ -71,6 +71,9 @@ pub struct Created {
     pub count: i32,
     pub bound: bool,
     pub location: ItemLocation,
+    /// Index of the give request whose ItemRequestProperty initializes the item
+    /// (the first of merged requests).
+    pub request: usize,
 }
 /// Successful plan: VirtualModifyItem results then bound VirtualCreateItems,
 /// in the source application order.
@@ -117,9 +120,9 @@ struct Helper<'a> {
     info: &'a ClassInfo,
     items: Vec<Held>,
     destroys: Vec<i32>,
-    gives: Vec<(i32, bool)>,
+    gives: Vec<(i32, bool, usize)>,
     modified: Vec<(Held, i32)>,
-    created: Vec<(i32, bool)>,
+    created: Vec<(i32, bool, usize)>,
     unique_fail: bool,
 }
 impl<'a> Helper<'a> {
@@ -222,14 +225,14 @@ impl<'a> Helper<'a> {
             return Err(GiveError::ExceedBundleCount);
         }
         // ItemFactory.MergeDuplicatedRequest: stackable requests of the class are summed.
-        let mut merged: Vec<(i32, bool)> = Vec::new();
-        for &(num, bound) in &self.gives {
+        let mut merged: Vec<(i32, bool, usize)> = Vec::new();
+        for &(num, bound, request) in &self.gives {
             match merged
                 .iter_mut()
                 .find(|m| !self.info.equippable && (self.info.storage == 3 || m.1 == bound))
             {
                 Some(m) => m.0 = m.0.checked_add(num).ok_or(GiveError::Unsupported)?,
-                None => merged.push((num, bound)),
+                None => merged.push((num, bound, request)),
             }
         }
         let count = self
@@ -242,7 +245,7 @@ impl<'a> Helper<'a> {
         } else {
             self.info.unique - count
         };
-        for (num, bound) in merged {
+        for (num, bound, request) in merged {
             let mut num = num;
             if unique_left > 0 {
                 for item in self.stack_order() {
@@ -264,7 +267,7 @@ impl<'a> Helper<'a> {
                     self.unique_fail = true;
                 } else {
                     n = n.min(unique_left);
-                    self.created.push((n, bound));
+                    self.created.push((n, bound, request));
                     unique_left -= n;
                 }
                 num -= n;
@@ -295,13 +298,13 @@ pub fn plan(
             .destroys
             .push(d.count);
     }
-    for g in gives {
+    for (request, g) in gives.iter().enumerate() {
         if g.count < 0 {
             return Err(GiveError::InvalidRequest);
         }
         index(&mut helpers, g.class, inventory)
             .gives
-            .push((g.count, g.bound));
+            .push((g.count, g.bound, request));
     }
     for h in &helpers {
         if h.info.tircoin || h.info.expire_in.is_some() && !h.gives.is_empty() {
@@ -321,9 +324,9 @@ pub fn plan(
         }
     }
     let destroyed: Vec<i64> = out.destroyed().collect();
-    let mut pending: Vec<(&ClassInfo, i32, bool)> = helpers
+    let mut pending: Vec<(&ClassInfo, i32, bool, usize)> = helpers
         .iter()
-        .flat_map(|h| h.created.iter().map(move |&(n, b)| (h.info, n, b)))
+        .flat_map(|h| h.created.iter().map(move |&(n, b, r)| (h.info, n, b, r)))
         .collect();
     for storage in [
         Storage::Account,
@@ -333,9 +336,9 @@ pub fn plan(
     ] {
         let mut left = Vec::new();
         let mut free = free_slots(storage, inventory, &destroyed).into_iter();
-        for (info, count, bound) in pending {
+        for (info, count, bound, request) in pending {
             if storage_of(info, inventory.story_tab) != storage {
-                left.push((info, count, bound));
+                left.push((info, count, bound, request));
                 continue;
             }
             let location = match storage {
@@ -349,7 +352,7 @@ pub fn plan(
                         .iter()
                         .any(|c| c.class == info.class && c.location == ACCOUNT);
                     if held {
-                        left.push((info, count, bound));
+                        left.push((info, count, bound, request));
                         continue;
                     }
                     if twice {
@@ -361,7 +364,7 @@ pub fn plan(
                 Storage::Cash | Storage::Bag => match free.next() {
                     Some(l) => l,
                     None => {
-                        left.push((info, count, bound));
+                        left.push((info, count, bound, request));
                         continue;
                     }
                 },
@@ -372,6 +375,7 @@ pub fn plan(
                 count,
                 bound,
                 location,
+                request,
             });
         }
         pending = left;

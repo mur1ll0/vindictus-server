@@ -56,6 +56,7 @@ fn gold_goes_to_the_account_location_and_then_stacks_on_it() {
             count: 500,
             bound: false,
             location: at(101, -1),
+            request: 0,
         }]
     );
     let items = [held(&gold, 9, 500, at(101, -1))];

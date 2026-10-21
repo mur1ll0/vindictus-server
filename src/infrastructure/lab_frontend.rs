@@ -1069,6 +1069,8 @@ impl Connection {
                 Kind::ExecuteNpcServerCommand,
                 Kind::BuyItem,
                 Kind::QueryShopItemInfo,
+                Kind::SellItem,
+                Kind::QueryBuybackList,
                 Kind::QueryCharacterCommonInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -1173,6 +1175,98 @@ impl Connection {
                                 );
                             }
                             Err(_) => tracing::warn!("minimum NPC talk refused; values omitted"),
+                        }
+                    }
+                    Message::BuyItem(request)
+                        if request
+                            .shop_id
+                            .as_deref()
+                            .is_some_and(|s| s.eq_ignore_ascii_case("buyback")) =>
+                    {
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(1)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        let list = &mut self
+                            .selected
+                            .as_mut()
+                            .ok_or(RuntimeError::Operation)?
+                            .buyback;
+                        match super::minimum_shop::buy_back(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            request.order,
+                            request.count,
+                            list,
+                            ids,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum buyback processed; values omitted");
+                            }
+                            Err(_) => tracing::warn!("minimum buyback refused; values omitted"),
+                        }
+                    }
+                    Message::SellItem(request) => {
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(1)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        let list = &mut self
+                            .selected
+                            .as_mut()
+                            .ok_or(RuntimeError::Operation)?
+                            .buyback;
+                        match super::minimum_shop::sell(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            request.item_id,
+                            request.count,
+                            list,
+                            ids,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum sale processed; values omitted");
+                            }
+                            Err(_) => tracing::warn!("minimum sale refused; values omitted"),
+                        }
+                    }
+                    Message::QueryBuybackList => {
+                        let list = &self
+                            .selected
+                            .as_ref()
+                            .ok_or(RuntimeError::Operation)?
+                            .buyback;
+                        match super::minimum_shop::buyback_list(assets, list) {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum buyback list rejected; values omitted")
+                            }
                         }
                     }
                     Message::BuyItem(request) => {

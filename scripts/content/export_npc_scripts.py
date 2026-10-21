@@ -119,7 +119,7 @@ def read_package(base, database, config):
             if row['ID'] is not None and (type(row['ID']) is not int or not -(2**31) <= row['ID'] < 2**31): raise ValueError('ShopInfo ID')
             shops.append(row)
             if len(shops) > 100000: raise ValueError('ShopInfo bound')
-    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'RestoreItem'}
+    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'BuybackListCount', 'RestoreItem'}
     for row in shops: wanted |= feature_atoms(row['Feature'] or '')
     for d in defaults:
         wanted |= feature_atoms(d['feature']); condition_atoms(d['tree'], wanted)
