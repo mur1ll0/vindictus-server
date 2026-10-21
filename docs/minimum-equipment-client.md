@@ -109,3 +109,9 @@ Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arqu
 - `EquipBundle` com classe `skill_`: skill inexistente no personagem → `ConstraintFail_InvalidData`; já no mesmo atalho → sem mudança; `SkillInfo` ausente ou `IsActiveSkill` falso (`UseType == 0`) → `ConstraintFail_InvalidData`; sai do atalho anterior; `StackableSlot.SetSkill` só verifica bloqueio (sem categoria). Perfil de skills v2 inclui `UseType`.
 - No conteúdo original as duas skills iniciais da Fiona são passivas (`UseType = 0`), portanto não vão para a barra; o comportamento esperado no cliente é a recusa.
 - Testes focados: unitários `quick_slot`/`skill_list`, PostgreSQL de skills/equipamento.
+
+## Correção (21/10/2026): skills e AP na entrada
+
+- Teste no cliente: a janela de skills ficou vazia e o log mostrou que o cliente nunca envia `QueryAP`/`QuerySkillList` ao abrir a janela. No original, `InGame.OnEnter` força o observer de Stat (609/619), o de Skill (`SkillListMessage` 583) e o `QueryAP` (`APMessage` 229) sem consulta do cliente. A seleção passa a enviar 483 → 345 → 609 → 619 → 583 → 229 → 468 quando o perfil de skills está configurado. TitleList, SpSkill, VocationSkillList, pescaria, sussurros e missões do mesmo `OnEnter` continuam adiados.
+- "Depot" no cliente é o depósito da loja Cash (`CashShopService`: 242 lista de produtos, 238 saldo — sem handler). Fica no P3; as cápsulas de teste estão na aba Cash do inventário (coleção 100).
+- Checagem somente leitura na Fiona real: sem vocação, 2 skills cobertas pelo perfil, AP 0. Testes focados: 19 PostgreSQL/TCP com a sequência de entrada verificada.

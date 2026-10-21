@@ -5,6 +5,9 @@ Lista acumulada do que já foi implementado e verificado por testes automáticos
 Pré-condição: runtime iniciado com `scripts/dev/start-lab-frontend.ps1` (perfil privado, prova de nomes e `minimum-creation-assets.json`).
 
 ## Já aceitos
+- [x] (21/10) Login sem o aviso do "Security Code".
+- [x] (21/10) Mover/trocar itens na bolsa.
+- [x] (21/10) Barra de atalhos (consumíveis).
 - [x] Login, segunda senha, criação/lista, seleção, cidade e movimento.
 - [x] Inventário abre com os itens iniciais.
 - [x] Equipar/desequipar os 5 equipamentos; aparência e atributos mudam; relogin preserva.
@@ -12,8 +15,6 @@ Pré-condição: runtime iniciado com `scripts/dev/start-lab-frontend.ps1` (perf
 - [x] Equipar responde rápido (≈80–300 ms no log `elapsed_ms`).
 
 ## Pendentes
-### Login
-- [ ] Na tela da segunda senha **não** aparece "The Crimson Blade Security Code is not currently available".
 
 ### Mover/trocar itens (P0-02d)
 - [ ] Arrastar uma pilha (ex.: poções) para um slot vazio da bolsa.
@@ -34,14 +35,14 @@ Pré-condição: runtime iniciado com `scripts/dev/start-lab-frontend.ps1` (perf
 - [ ] Usar o consumível pela barra só será possível dentro de fase (combate ainda não implementado).
 
 ### Lista de skills (P0-03b)
-- [ ] Abrir a janela de skills: aparecem Shield Mastery e Guard no rank 1, com custo do próximo rank e treino disponível.
+- [ ] Abrir a janela de skills: aparecem Shield Mastery e Guard no rank 1, com custo do próximo rank e treino disponível. (21/10: corrigido — a lista e o AP agora são enviados na entrada, como o `InGame.OnEnter` original; antes só respondíamos a consultas que o cliente não faz.)
 
 ### Atalhos de skill (P0-03c)
 - [ ] Arrastar Shield Mastery ou Guard para a barra: o original recusa (são passivas, `UseType = 0`) com o diálogo de dados inválidos; nada é gravado. Skills ativas aprendidas depois poderão ir para a barra.
 
 ### AP e cápsula de AP (P0-03a)
 - [ ] Abrir a janela de skills: o AP exibido corresponde ao salvo (o cliente pede `QueryAP`).
-- [ ] Aba Cash: há uma pilha de **5× cápsula de AP 50** (concedida para teste em 21/10/2026).
+- [ ] Aba **Cash do inventário** (onde está a caixa "Level Up"; não é o "Depot"): há uma pilha de **5× cápsula de AP 50** (concedida para teste em 21/10/2026). O "Depot" é o depósito da loja Cash (serviço de loja, P3) e continua desabilitado.
 - [ ] Usar uma cápsula: a pilha cai para 4 e o AP sobe 50; reabrir a janela de skills confirma.
 - [ ] Relogar: pilha e AP preservados.
 - [ ] Usar até acabar: a pilha some da aba Cash.

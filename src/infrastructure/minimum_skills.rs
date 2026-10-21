@@ -48,85 +48,99 @@ pub async fn query(
         if !connected {
             return Err(fail());
         }
-        // Paladin appends a transform entry that is not migrated.
-        let vocation: Option<i32> =
-            sqlx::query_scalar("SELECT vocation_class FROM game_vocations WHERE cid=$1")
-                .bind(cid)
-                .fetch_optional(&mut *tx)
-                .await?;
-        if vocation == Some(0) {
-            return Err(fail());
-        }
-        let contents = assets.skills.as_ref().ok_or_else(fail)?;
-        let rows: Vec<(Vec<u8>, i32, i16, i32)> = sqlx::query_as(
-            "SELECT skill_utf16,rank,locked,current_ap FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097",
-        )
-        .bind(cid)
-        .fetch_all(&mut *tx)
-        .await?;
-        if rows.len() > 4096 {
-            return Err(fail());
-        }
-        let skills = rows
-            .into_iter()
-            .map(|(id, rank, locked, current_ap)| {
-                Ok(Skill {
-                    id: text(&id)?,
-                    rank,
-                    locked: u8::try_from(locked).map_err(|_| fail())?,
-                    current_ap,
-                })
-            })
-            .collect::<Result<Vec<_>, MinimumError>>()?;
-        // Every skill must be in the bound content subset; absent SkillInfo or rank
-        // rows are valid source states only for content the profile covers.
-        if skills.iter().any(|s| !contents.contains_key(&s.id)) {
-            return Err(fail());
-        }
-        // ItemSkillRank comes from the equipped set bonus (validated by the Gear loader).
-        let gear = super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
-        let list = skill_list::to_skill_list(
-            &skills,
-            contents,
-            &Character {
-                class,
-                level,
-                item_ranks: &gear.bonus.skills,
-            },
-        )
-        .map_err(|_| fail())?;
-        let message = Message::SkillList(SkillList {
-            learning: Some(String::new()),
-            current_ap: 0,
-            skills: Some(
-                list.into_iter()
-                    .map(|b| {
-                        Some(BriefSkill {
-                            id: Some(b.id),
-                            base_rank: b.base_rank,
-                            final_rank: b.final_rank,
-                            required_ap: b.required_ap,
-                            is_locked: b.is_locked,
-                            can_start_training: b.can_start_training,
-                            current_ap: b.current_ap,
-                            reset_ap: b.reset_ap,
-                            untrain_ap: b.untrain_ap,
-                            // Skill enhances are not migrated: no stored rows exist.
-                            enhances: Some(Vec::new()),
-                        })
-                    })
-                    .collect(),
-            ),
-            reset_vocation: false,
-        });
+        let packet = packet(&mut tx, owner, assets, cid, level, class).await?;
         tx.commit().await?;
-        Ok(OutgoingPacket {
-            category: Kind::SkillList.category(),
-            body: wire::encode(Kind::SkillList, Some(&message), DEFAULT_MAX_BODY)
-                .map_err(|_| fail())?
-                .to_vec(),
-        })
+        Ok(packet)
     })
     .await
     .map_err(|_| fail())?
+}
+
+/// QuerySkillList projection inside the caller's character transaction (also used
+/// by the InGame entry, which forces the Skill observer sync).
+pub(super) async fn packet(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    level: i32,
+    class: i32,
+) -> Result<OutgoingPacket, MinimumError> {
+    // Paladin appends a transform entry that is not migrated.
+    let vocation: Option<i32> =
+        sqlx::query_scalar("SELECT vocation_class FROM game_vocations WHERE cid=$1")
+            .bind(cid)
+            .fetch_optional(&mut **tx)
+            .await?;
+    if vocation == Some(0) {
+        return Err(fail());
+    }
+    let contents = assets.skills.as_ref().ok_or_else(fail)?;
+    let rows: Vec<(Vec<u8>, i32, i16, i32)> = sqlx::query_as(
+            "SELECT skill_utf16,rank,locked,current_ap FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097",
+        )
+        .bind(cid)
+        .fetch_all(&mut **tx)
+        .await?;
+    if rows.len() > 4096 {
+        return Err(fail());
+    }
+    let skills = rows
+        .into_iter()
+        .map(|(id, rank, locked, current_ap)| {
+            Ok(Skill {
+                id: text(&id)?,
+                rank,
+                locked: u8::try_from(locked).map_err(|_| fail())?,
+                current_ap,
+            })
+        })
+        .collect::<Result<Vec<_>, MinimumError>>()?;
+    // Every skill must be in the bound content subset; absent SkillInfo or rank
+    // rows are valid source states only for content the profile covers.
+    if skills.iter().any(|s| !contents.contains_key(&s.id)) {
+        return Err(fail());
+    }
+    // ItemSkillRank comes from the equipped set bonus (validated by the Gear loader).
+    let gear = super::minimum_equipment::load(tx, owner, assets, cid).await?;
+    let list = skill_list::to_skill_list(
+        &skills,
+        contents,
+        &Character {
+            class,
+            level,
+            item_ranks: &gear.bonus.skills,
+        },
+    )
+    .map_err(|_| fail())?;
+    let message = Message::SkillList(SkillList {
+        learning: Some(String::new()),
+        current_ap: 0,
+        skills: Some(
+            list.into_iter()
+                .map(|b| {
+                    Some(BriefSkill {
+                        id: Some(b.id),
+                        base_rank: b.base_rank,
+                        final_rank: b.final_rank,
+                        required_ap: b.required_ap,
+                        is_locked: b.is_locked,
+                        can_start_training: b.can_start_training,
+                        current_ap: b.current_ap,
+                        reset_ap: b.reset_ap,
+                        untrain_ap: b.untrain_ap,
+                        // Skill enhances are not migrated: no stored rows exist.
+                        enhances: Some(Vec::new()),
+                    })
+                })
+                .collect(),
+        ),
+        reset_vocation: false,
+    });
+    Ok(OutgoingPacket {
+        category: Kind::SkillList.category(),
+        body: wire::encode(Kind::SkillList, Some(&message), DEFAULT_MAX_BODY)
+            .map_err(|_| fail())?
+            .to_vec(),
+    })
 }

@@ -57,7 +57,7 @@ pub async fn select(
     let cid = ids[0];
     let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
     let row = sqlx::query(
-        "SELECT dirty,region_code,map_state_info,is_connected FROM game_character_info WHERE id=$1",
+        "SELECT dirty,region_code,map_state_info,is_connected,level,class::integer AS class FROM game_character_info WHERE id=$1",
     )
     .bind(cid)
     .fetch_one(&mut *tx)
@@ -90,6 +90,16 @@ pub async fn select(
         view.common,
         view.stat,
     ];
+    // InGame.OnEnter forces the Skill observer (SkillListMessage) and QueryAP
+    // (APMessage) after the Stat observer, without a client query.
+    if assets.skills.is_some() {
+        let (level, class): (i32, i32) = (row.try_get("level")?, row.try_get("class")?);
+        packets
+            .push(super::minimum_skills::packet(&mut tx, owner, assets, cid, level, class).await?);
+        packets.push(super::minimum_ap::packet(
+            super::minimum_ap::current(&mut tx, assets, cid).await?,
+        )?);
+    }
     packets
         .push(super::minimum_inventory::load(&mut tx, owner, assets, cid, Some(equipment)).await?);
     sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=EXCLUDED.last_login_cid").bind(owner.uid).bind(cid).execute(&mut *tx).await?;

@@ -600,9 +600,19 @@ async fn minimum_skill_list_projects_stored_skills_without_writes() {
         .unwrap();
     let owner = super::initial_inventory::key();
     assert!(minimum_skills::query(&p, &owner, &assets, 1).await.is_err());
-    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
-        .await
-        .unwrap();
+    let selected =
+        minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    // InGame.OnEnter: Stat observer, Skill observer, QueryAP, then the inventory sync.
+    assert_eq!(
+        selected
+            .packets
+            .iter()
+            .map(|p| p.category)
+            .collect::<Vec<_>>(),
+        [483, 345, 609, 619, 583, 229, 468]
+    );
     let before = state(&p).await;
     let packet = minimum_skills::query(&p, &owner, &assets, 1).await.unwrap();
     assert_eq!(packet.category, 583);
