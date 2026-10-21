@@ -104,6 +104,9 @@ class ItemSyncWireOracle {
   AddCases("item_fail",358,new Guid("2f756b90-8fba-38b8-bcb2-a51f0f132502"),fails,cases);
   var costumes=new List<CostumeUpdateMessage>{null,new CostumeUpdateMessage(null),new CostumeUpdateMessage(new CostumeInfo())};
   foreach(int seed in new[]{0,-1,1,int.MinValue,int.MaxValue})costumes.Add(new CostumeUpdateMessage(Costume(seed)));
+  var moves=new List<MoveInventoryItemMessage>{null};
+  foreach(long id in new[]{long.MinValue,-1L,0L,long.MaxValue})foreach(byte st in new byte[]{0,6,100,255})foreach(int sl in new[]{int.MinValue,-1,0,47,48,int.MaxValue}){var m=new MoveInventoryItemMessage();m.ItemID=id;m.Storage=st;m.Target=sl;moves.Add(m);}
+  AddCases("move_inventory_item",502,new Guid("7c957f24-e8d7-338f-a93c-97bc6903f320"),moves,cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

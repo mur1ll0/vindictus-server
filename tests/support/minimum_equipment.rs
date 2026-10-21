@@ -394,3 +394,112 @@ async fn minimum_equip_saves_syncs_refuses_unequips_and_survives_relogin() {
     assert_eq!(state(&p).await, untouched);
     cleanup_game_pool(a, p, s).await;
 }
+async fn positions(p: &sqlx::PgPool) -> Vec<(i64, i16, i32)> {
+    sqlx::query_as("SELECT id,collection,slot FROM game_items WHERE owner_id=1 ORDER BY id")
+        .fetch_all(p)
+        .await
+        .unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_move_swaps_bag_slots_refuses_source_failures_and_survives_relogin() {
+    use vindictus_server::{infrastructure::minimum_move, protocol::inventory::Move};
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets();
+    let owner = super::initial_inventory::key();
+    let id: i64 = sqlx::query_scalar("SELECT min(id)FROM game_equippables")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    // A second bag item of the same equippable class (not stackable) for the swap.
+    let other = id + 1;
+    sqlx::query("INSERT INTO game_items(id,item_class_utf16,owner_id,count,collection,slot,expire_ticks,tradable,checksum) SELECT $2,item_class_utf16,owner_id,count,collection,7,expire_ticks,tradable,checksum FROM game_items WHERE id=$1").bind(id).bind(other).execute(&p).await.unwrap();
+    sqlx::query("INSERT INTO game_equippables SELECT $2,part,color1,color2,color3,reduced_durability,max_durability_bonus FROM game_equippables WHERE id=$1").bind(id).bind(other).execute(&p).await.unwrap();
+    let request = |item_id, storage, slot| Move {
+        item_id,
+        storage,
+        slot,
+    };
+    let mv = |r| minimum_move::move_item(&p, &owner, &assets, 1, r);
+    assert!(mv(request(id, 0, 5)).await.is_err());
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let decode = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        assert_eq!(packet.category, 617);
+        let Some(Message::UpdateInventoryInfo(Some(slots))) =
+            inventory::decode(Kind::UpdateInventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("slot update missing")
+        };
+        slots
+            .into_iter()
+            .map(|s| {
+                let s = s.unwrap();
+                (s.id, s.tab, s.slot)
+            })
+            .collect::<Vec<_>>()
+    };
+    let Ok(minimum_move::Outcome::Applied(packet)) = mv(request(id, 0, 5)).await else {
+        panic!("move expected")
+    };
+    assert_eq!(decode(&packet), [(id, 0, 5)]);
+    // Swap: the moved item takes the target, the occupant takes the source slot.
+    let Ok(minimum_move::Outcome::Applied(packet)) = mv(request(id, 0, 7)).await else {
+        panic!("swap expected")
+    };
+    assert_eq!(decode(&packet), [(id, 0, 7), (other, 0, 5)]);
+    let before = state(&p).await;
+    for r in [
+        request(id, 0, 48),
+        request(id, 0, -1),
+        request(id, 2, 0),
+        request(id, 100, 1),
+        request(i64::MAX, 0, 1),
+    ] {
+        let Ok(minimum_move::Outcome::Refused(packet)) = mv(r).await else {
+            panic!("refusal expected")
+        };
+        assert_eq!(packet.category, 602);
+        assert_eq!(state(&p).await, before);
+    }
+    assert!(matches!(
+        mv(request(id, 0, 7)).await,
+        Ok(minimum_move::Outcome::Unchanged)
+    ));
+    // Cash storage moves are outside this slice and change nothing.
+    let cash: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE collection=100")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert!(mv(request(cash, 100, 3)).await.is_err());
+    assert_eq!(state(&p).await, before);
+    let moved = positions(&p).await;
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    let again =
+        minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    let Some(Message::InventoryInfo(info)) = inventory::decode(
+        Kind::InventoryInfo,
+        &again.packets.last().unwrap().body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
+        panic!("inventory missing")
+    };
+    let mut relogin: Vec<(i64, i16, i32)> = info
+        .slots
+        .unwrap()
+        .into_iter()
+        .map(|s| {
+            let s = s.unwrap();
+            (s.id, s.tab as i16, s.slot)
+        })
+        .collect();
+    relogin.sort();
+    assert_eq!(relogin, moved);
+    cleanup_game_pool(a, p, s).await;
+}

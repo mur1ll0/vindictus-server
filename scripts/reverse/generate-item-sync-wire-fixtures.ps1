@@ -11,7 +11,7 @@ try {
  $taskOriginalHash='be65d59d23859320236643b7bdf7496822bfe9d5ec0c63c364f50aa7d6412683'
  if((Get-FileHash '../ServidorVindictus/Server/zh-tw-x-gm/Bin/ServiceCore.dll').Hash.ToLowerInvariant()-cne$taskOriginalHash){throw 'Original assembly changed'}
  $taskCopies=@();$taskOriginals=@()
- foreach($taskType in @(@('UpdateInventoryInfoMessage',617,'abacd3bc-1a84-3570-a62c-f1b0007675fb'),@('ItemFailMessage',358,'2f756b90-8fba-38b8-bcb2-a51f0f132502'),@('CostumeUpdateMessage',447,'099b778f-141e-359d-b270-60c9d2f99bbb'))){
+ foreach($taskType in @(@('UpdateInventoryInfoMessage',617,'abacd3bc-1a84-3570-a62c-f1b0007675fb'),@('ItemFailMessage',358,'2f756b90-8fba-38b8-bcb2-a51f0f132502'),@('CostumeUpdateMessage',447,'099b778f-141e-359d-b270-60c9d2f99bbb'),@('MoveInventoryItemMessage',502,'7c957f24-e8d7-338f-a93c-97bc6903f320'))){
   foreach($taskArch in 'x86','x64'){$taskTable=Get-Content ('docs/evidence/reverse/framework-types-'+$taskArch+'.json') -Raw|ConvertFrom-Json;$taskRow=@($taskTable.messages|Where-Object name -eq ('ServiceCore.EndPointNetwork.'+$taskType[0]));if($taskTable.source_sha256-cne$taskOriginalHash-or$taskRow.Count-ne1-or$taskRow[0].category-ne$taskType[1]-or$taskRow[0].guid-cne$taskType[2]){throw 'Item sync type identity changed'}}
   $taskSource='legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.EndPointNetwork/'+$taskType[0]+'.cs';$taskCode=[IO.File]::ReadAllText((Join-Path $PWD $taskSource));$taskCode=$taskCode.Replace('[Serializable]','[Serializable, System.Runtime.InteropServices.Guid("'+$taskType[2]+'")]');$taskCopy='.cache/framework/ItemSyncWire-'+$taskType[0]+'.cs';[IO.File]::WriteAllText((Join-Path $PWD $taskCopy),$taskCode,[Text.UTF8Encoding]::new($false));$taskCopies+=$taskCopy;$taskOriginals+=$taskSource
  }

@@ -95,7 +95,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
             let expected = opt(&c["fields"], |v| match kind {
                 Kind::QueryInventory => Message::QueryInventory,
                 Kind::InventoryInfo => Message::InventoryInfo(inventory(v)),
-                Kind::UpdateInventoryInfo | Kind::ItemFail => {
+                Kind::UpdateInventoryInfo | Kind::ItemFail | Kind::MoveInventoryItem => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

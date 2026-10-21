@@ -82,6 +82,15 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 }
             }
         }
+        Some(Message::MoveInventoryItem(m)) => {
+            assert_eq!(m.item_id, f["ItemID"].as_i64().unwrap(), "case {n}");
+            assert_eq!(
+                i64::from(m.storage),
+                f["Storage"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(i64::from(m.slot), f["Target"].as_i64().unwrap(), "case {n}");
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -153,16 +162,21 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     );
     registered(Kind::ItemFail.category(), Kind::ItemFail.type_id());
     registered(
+        Kind::MoveInventoryItem.category(),
+        Kind::MoveInventoryItem.type_id(),
+    );
+    registered(
         character_list::COSTUME_UPDATE_CATEGORY,
         character_list::COSTUME_UPDATE_TYPE_ID,
     );
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 72);
+        assert_eq!(cases.len(), 363);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
                 "item_fail" => check_inventory(Kind::ItemFail, case, n),
+                "move_inventory_item" => check_inventory(Kind::MoveInventoryItem, case, n),
                 "costume_update" => check_costume(case, n),
                 _ => panic!("unknown fixture type"),
             }

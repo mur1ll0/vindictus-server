@@ -867,6 +867,68 @@ impl Connection {
                 return Ok(());
             }
         }
+        {
+            use crate::protocol::inventory::{self as wire, Kind, Message};
+            if matches(
+                category,
+                body,
+                Kind::MoveInventoryItem.category(),
+                Kind::MoveInventoryItem.type_id(),
+            ) {
+                let Some(Message::MoveInventoryItem(request)) =
+                    wire::decode_ingress(Kind::MoveInventoryItem, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                // Without a selected character there is no PlayerConn/ItemServiceProxy.
+                let (Some(selected), true) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let assets = &runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .assets;
+                let started = std::time::Instant::now();
+                match super::minimum_move::move_item(pool, &owner, assets, cid, request).await {
+                    Ok(super::minimum_move::Outcome::Applied(packet)) => {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                        tracing::info!(
+                            elapsed_ms = started.elapsed().as_millis() as u64,
+                            "minimum inventory move saved and synchronized"
+                        );
+                    }
+                    Ok(super::minimum_move::Outcome::Refused(packet)) => {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                        tracing::info!("minimum inventory move refused by source rules");
+                    }
+                    Ok(super::minimum_move::Outcome::Unchanged) => {}
+                    Err(_) => tracing::warn!("minimum inventory move rejected; values omitted"),
+                }
+                return Ok(());
+            }
+        }
         if matches(category, body, LOG_OUT_CATEGORY, LOG_OUT_TYPE_ID) {
             // LogOutMessage has no fields; a null message is not `is LogOutMessage`.
             let fields = if category == 0 { &body[16..] } else { body };

@@ -8,12 +8,14 @@ use thiserror::Error;
 use uuid::Uuid;
 use zeroize::{Zeroize, Zeroizing};
 const MAX_ROWS: usize = 4096;
+const MOVE_TYPE_ID: u128 = 0x7c957f24_e8d7_338f_a93c_97bc6903f320;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     QueryInventory,
     InventoryInfo,
     UpdateInventoryInfo,
     ItemFail,
+    MoveInventoryItem,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -22,6 +24,7 @@ impl Kind {
             Self::InventoryInfo => 468,
             Self::UpdateInventoryInfo => 617,
             Self::ItemFail => 358,
+            Self::MoveInventoryItem => 502,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -30,6 +33,7 @@ impl Kind {
             Self::InventoryInfo => 0xbdc965b5_aca1_3b62_b222_279e96683d93,
             Self::UpdateInventoryInfo => 0xabacd3bc_1a84_3570_a62c_f1b0007675fb,
             Self::ItemFail => 0x2f756b90_8fba_38b8_bcb2_a51f0f132502,
+            Self::MoveInventoryItem => MOVE_TYPE_ID,
         })
     }
 }
@@ -109,6 +113,14 @@ pub enum Message {
     UpdateInventoryInfo(Option<Vec<Option<Slot>>>),
     /// ItemFailMessage.Message.
     ItemFail(Option<HeroesString>),
+    /// MoveInventoryItemMessage: targetItemID, targetStorage, targetSlot.
+    MoveInventoryItem(Move),
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Move {
+    pub item_id: i64,
+    pub storage: u8,
+    pub slot: i32,
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -117,6 +129,7 @@ impl Message {
             Self::InventoryInfo(_) => Kind::InventoryInfo,
             Self::UpdateInventoryInfo(_) => Kind::UpdateInventoryInfo,
             Self::ItemFail(_) => Kind::ItemFail,
+            Self::MoveInventoryItem(_) => Kind::MoveInventoryItem,
         }
     }
 }
@@ -259,6 +272,11 @@ object!(Slot {
 });
 object!(QuickSlots { classes });
 object!(HeroesString { format, parameters });
+object!(Move {
+    item_id,
+    storage,
+    slot
+});
 object!(Inventory {
     storages,
     slots,
@@ -289,6 +307,7 @@ pub fn encode(
             Message::InventoryInfo(v) => v.write(&mut w)?,
             Message::UpdateInventoryInfo(v) => v.write(&mut w)?,
             Message::ItemFail(v) => v.write(&mut w)?,
+            Message::MoveInventoryItem(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -317,6 +336,7 @@ pub fn decode(
             Kind::InventoryInfo => Message::InventoryInfo(Inventory::read(&mut r)?),
             Kind::UpdateInventoryInfo => Message::UpdateInventoryInfo(Wire::read(&mut r)?),
             Kind::ItemFail => Message::ItemFail(Wire::read(&mut r)?),
+            Kind::MoveInventoryItem => Message::MoveInventoryItem(Move::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

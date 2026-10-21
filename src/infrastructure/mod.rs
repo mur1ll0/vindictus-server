@@ -102,3 +102,4 @@ pub mod equipment_profile;
 pub mod minimum_equipment;
 
 pub mod minimum_equip;
+pub mod minimum_move;
