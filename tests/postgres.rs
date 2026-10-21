@@ -1610,3 +1610,6 @@ mod minimum_inventory;
 
 #[path = "support/minimum_equipment.rs"]
 mod minimum_equipment;
+
+#[path = "support/minimum_give.rs"]
+mod minimum_give;

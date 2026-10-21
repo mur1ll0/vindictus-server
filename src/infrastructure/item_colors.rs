@@ -255,4 +255,28 @@ impl ColorCatalog<'_> {
     pub fn materials(&self) -> &Materials {
         &self.package.materials
     }
+    /// Owned per-class material names of every effective equipment class, bound once.
+    pub fn to_index(&self) -> ColorIndex {
+        ColorIndex(
+            self.catalog
+                .items()
+                .filter_map(|(key, _)| {
+                    let names = self.get(Some(key))?;
+                    Some((key.to_vec(), names.map(|n| n.map(<[u16]>::to_vec))))
+                })
+                .collect(),
+        )
+    }
+}
+#[derive(Default)]
+pub struct ColorIndex(BTreeMap<Vec<u8>, [Option<Vec<u16>>; 3]>);
+impl ColorIndex {
+    pub fn get(&self, key: &[u8]) -> Option<[Option<&[u16]>; 3]> {
+        self.0.get(key).map(|n| n.each_ref().map(|v| v.as_deref()))
+    }
+}
+impl Package {
+    pub fn materials(&self) -> &Materials {
+        &self.materials
+    }
 }

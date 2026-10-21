@@ -132,10 +132,13 @@ pub(super) async fn snapshot_with_equipment(
     let mut positions = BTreeSet::new();
     for row in rows {
         let bag = matches!(row.collection, 0 | 1 | 6);
+        // AccountStorage: one item per class at AccountLocation (101, -1).
+        let account = row.collection == 101;
         if row.count <= 0
             || row.expire_ticks.is_some()
-            || !(bag || row.collection == 100)
-            || row.slot < 0
+            || !(bag || account || row.collection == 100)
+            || (account != (row.slot == -1))
+            || (!account && row.slot < 0)
             || (bag && row.slot >= 48)
             || !positions.insert((row.collection, row.slot))
         {
@@ -144,7 +147,15 @@ pub(super) async fn snapshot_with_equipment(
         let class = stats
             .class(Some(&row.item_class_utf16))
             .ok_or(MinimumError::Conflict)?;
-        if class.storage != if bag { 1 } else { 2 } {
+        if class.storage
+            != if bag {
+                1
+            } else if account {
+                3
+            } else {
+                2
+            }
+        {
             return Err(MinimumError::Conflict);
         }
         if assets.inventory.is_gold(&row.item_class_utf16) {

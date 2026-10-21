@@ -15,6 +15,7 @@ pub mod character_export;
 pub mod characters;
 pub mod dormant_items;
 pub mod item_catalog;
+pub mod item_economy;
 pub mod login_rewards;
 pub mod reward_policy;
 
@@ -103,6 +104,7 @@ pub mod minimum_equipment;
 
 pub mod minimum_ap;
 pub mod minimum_equip;
+pub mod minimum_give;
 pub mod minimum_item_logs;
 pub mod minimum_move;
 pub mod minimum_quickslot;

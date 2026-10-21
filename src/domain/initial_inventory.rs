@@ -102,6 +102,34 @@ pub fn gold_checksum(id: i64, owner: Option<i64>, class: &[u16], count: i32) -> 
     }
     (!crc) as i32
 }
+/// Item.Initialize for equipment with request colors -1 and no durability changes:
+/// SetColor draws each material color, then MaxDurability/Durability and IsValid.
+pub fn new_equipment(
+    base: &ItemStat,
+    names: [Option<&[u16]>; 3],
+    materials: &Materials,
+    random: &mut ColorRandom,
+    maximum_durability: i32,
+) -> Result<Equipment, InventoryError> {
+    let mut colors = [0; 3];
+    item_colors::set_colors(
+        &mut colors,
+        [Some(-1); 3],
+        true,
+        Look::Equipment(names),
+        materials,
+        random,
+    )?;
+    let (mut durability, _) =
+        item_durability::initialize(Some(base), base, 0, 0, maximum_durability)
+            .ok_or(InventoryError::Bound)?;
+    validate_durability(&mut durability, maximum_durability);
+    Ok(Equipment {
+        colors,
+        reduced: durability.reduced(),
+        bonus: durability.bonus(),
+    })
+}
 /// IsValid's matching-equipment/new-null-Part branch; source profiler only measures.
 pub fn validate_durability(state: &mut EquipmentDurability, limit: i32) {
     if state.maximum() < 0 {
@@ -212,24 +240,13 @@ pub fn compose(
             .expiry
             .map(|v| v.ticks());
         let equipment = if r.equipment {
-            let mut colors = [0; 3];
-            item_colors::set_colors(
-                &mut colors,
-                [Some(-1); 3],
-                true,
-                Look::Equipment(r.materials),
+            Some(new_equipment(
+                r.base,
+                r.materials,
                 materials,
                 random,
-            )?;
-            let (mut durability, _) =
-                item_durability::initialize(Some(r.base), r.base, 0, 0, maximum_durability)
-                    .ok_or(InventoryError::Bound)?;
-            validate_durability(&mut durability, maximum_durability);
-            Some(Equipment {
-                colors,
-                reduced: durability.reduced(),
-                bonus: durability.bonus(),
-            })
+                maximum_durability,
+            )?)
         } else {
             None
         };

@@ -310,6 +310,16 @@ impl Profile {
             })
             .collect()
     }
+    /// ItemClassHelper: giveRequest.ItemClass.Contains(ItemClassConst.TirCoin).
+    pub(super) fn contains_tircoin(&self, key: &[u8]) -> bool {
+        let needle = self.tircoin.as_bytes().as_chunks::<2>().0;
+        !needle.is_empty()
+            && key
+                .as_chunks::<2>()
+                .0
+                .windows(needle.len())
+                .any(|w| w == needle)
+    }
     pub(super) fn is_gold(&self, key: &[u8]) -> bool {
         self.gold.as_bytes() == key
     }

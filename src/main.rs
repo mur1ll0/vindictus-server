@@ -435,6 +435,37 @@ async fn run(cli: Cli) -> Result<(), Error> {
             postgres::migrate(&pool).await?;
             println!("PostgreSQL migrations applied; migrate does not import legacy data.");
         }
+        Command::LabGiveItem {
+            assets_file,
+            cid,
+            item_class,
+            count,
+            service_id,
+        } => {
+            use vindictus_server::infrastructure::{minimum_assets::Assets, minimum_give};
+            let assets = Assets::read(&assets_file)
+                .map_err(|_| Error::Configuration("minimum creation assets invalid".into()))?;
+            postgres::check_ready(&pool).await?;
+            let outcome =
+                minimum_give::lab_grant(&pool, &assets, cid, &item_class, count, service_id)
+                    .await
+                    .map_err(|_| {
+                        Error::Configuration(
+                            "grant refused: character must be an offline initialized first Fiona"
+                                .into(),
+                        )
+                    })?;
+            match outcome {
+                Ok(slots) => println!(
+                    "{}",
+                    serde_json::json!({"granted":true,"changed_slots":slots,"client_visible_after":"character selection"})
+                ),
+                Err(e) => println!(
+                    "{}",
+                    serde_json::json!({"granted":false,"result":e.to_string()})
+                ),
+            }
+        }
         Command::CreateAccount { .. } => {
             let (username, password) = credentials.ok_or(Error::PasswordInput)?;
             let id =

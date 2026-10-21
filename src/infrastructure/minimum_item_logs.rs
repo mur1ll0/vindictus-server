@@ -12,6 +12,10 @@ pub const EQUIP_BUNDLE: i16 = 32;
 pub const EQUIP_ITEM: i16 = 33;
 pub const MOVE_INVENTORY_ITEM: i16 = 53;
 pub const USE_INVENTORY_ITEM: i16 = 68;
+/// EventType.Cheat: the laboratory grant mirrors the GM GiveItem cheat.
+pub const LAB_GRANT: i16 = 1;
+/// EventTypeDetail.CreateItem (ItemFactory.MakeItem).
+const DETAIL_CREATE_ITEM: i16 = 1;
 /// ItemLogType.DestroyItem and ActionType.Use for UseUseableItem's ledger.
 const LEDGER_DESTROY_ITEM: i16 = 3;
 const ACTION_USE: i16 = 9;
@@ -150,4 +154,75 @@ pub async fn write_use_ledger(
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
     let _attempt =
         item_event_logs::write_ledger(pool, cid, &ledger, flags.disable_logging, deadline).await;
+}
+
+/// GiveItem effects after Save: Num-change records of the modified items, then the
+/// MakeItem CreateItem records, the last one with live owner counts.
+pub async fn write_give(
+    pool: &PgPool,
+    cid: i64,
+    journal: i64,
+    event: i16,
+    applied: &super::minimum_give::Applied,
+    context: Context,
+) {
+    let flags = context.flags;
+    if !flags.auto || (applied.changes.is_empty() && applied.created.is_empty()) {
+        return;
+    }
+    let mut manager = Manager::default();
+    manager.set_journal(journal, event);
+    let now = || super::lab_clock::civil_now(context.civil_offset_seconds).ok();
+    for change in &applied.changes {
+        let (Some(d), Some(captured)) = (data(change, change.delta), now()) else {
+            tracing::warn!("minimum item log record skipped; values omitted");
+            continue;
+        };
+        if manager.add(d, true, || captured).is_err() {
+            tracing::warn!("minimum item log record skipped; values omitted");
+        }
+    }
+    for item in &applied.created {
+        let record = Data::new(
+            item.id,
+            item.class_utf16.clone(),
+            item.count,
+            item.colors,
+            item.reduced,
+            item.bonus,
+            true,
+        );
+        let (Ok(d), Some(captured)) = (record, now()) else {
+            tracing::warn!("minimum item log record skipped; values omitted");
+            continue;
+        };
+        if manager
+            .add_detail(d, DETAIL_CREATE_ITEM, true, || captured)
+            .is_err()
+        {
+            tracing::warn!("minimum item log record skipped; values omitted");
+        }
+    }
+    let last = applied
+        .created
+        .last()
+        .map(|c| c.class_utf16.clone())
+        .or_else(|| applied.changes.last().map(|c| c.class_utf16.clone()))
+        .unwrap_or_default();
+    let inventory = bundle_count(pool, cid, &last).await;
+    let outcome = item_event_logs::write_manager(pool, cid, &mut manager, true, |_| Counts {
+        inventory,
+        shared: if flags.shared && inventory.is_some() {
+            Some(0)
+        } else {
+            None
+        },
+    })
+    .await;
+    if outcome.failed > 0 {
+        tracing::warn!(
+            failed = outcome.failed,
+            "minimum item logs partially written"
+        );
+    }
 }

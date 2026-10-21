@@ -36,6 +36,23 @@ pub enum Command {
         #[arg(long)]
         minimum_creation_assets: Option<std::path::PathBuf>,
     },
+    /// Laboratory GiveItem for an offline first Fiona (gold or any item class); the
+    /// client sees the result after selecting the character. Not a game command.
+    LabGiveItem {
+        #[arg(long)]
+        assets_file: std::path::PathBuf,
+        /// Omit to use the only initialized first Fiona.
+        #[arg(long)]
+        cid: Option<i64>,
+        /// Source ItemClass, ASCII (for example `gold`).
+        #[arg(long)]
+        item_class: String,
+        #[arg(long)]
+        count: i32,
+        /// Entity Service.ID for new item IDs; must differ from the running frontend's.
+        #[arg(long, default_value_t = 65534)]
+        service_id: i32,
+    },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
     /// Read-only reward diagnostic. Reads private policy from stdin and prints counts/digest only.

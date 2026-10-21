@@ -298,7 +298,7 @@ async fn fiona_delivery_loaded_empty_shared_inventory_records_zero_for_the_last_
     cleanup_game_pool(a, p, s).await;
 }
 
-mod appearance_fixture {
+pub(super) mod appearance_fixture {
     include!("../fixtures/fiona_inventory_support.rs");
     include!("../fixtures/fiona_appearance_support.rs");
 }

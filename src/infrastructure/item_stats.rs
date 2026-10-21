@@ -222,6 +222,7 @@ impl StatsCatalog<'_> {
                         storage: item.storage,
                         equippable: item.binding.equippable,
                         max_stack: item.max_stack,
+                        source_index: item.source_index,
                         stat: self.stats.get(item.binding.item_class).cloned(),
                     },
                 )
@@ -242,6 +243,7 @@ struct IndexedItem {
     storage: u8,
     equippable: bool,
     max_stack: i32,
+    source_index: usize,
     stat: Option<ItemStat>,
 }
 /// Effective class properties used by the inventory projection.
@@ -250,6 +252,8 @@ pub struct IndexedClass {
     pub storage: u8,
     pub equippable: bool,
     pub max_stack: i32,
+    /// Effective ItemClassInfo row, for source-bound per-class profiles.
+    pub source_index: usize,
 }
 impl StatsIndex {
     pub fn get(&self, key: Option<&[u8]>) -> Option<&ItemStat> {
@@ -261,6 +265,7 @@ impl StatsIndex {
             storage: i.storage,
             equippable: i.equippable,
             max_stack: i.max_stack,
+            source_index: i.source_index,
         })
     }
 }

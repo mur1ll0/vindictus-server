@@ -39,6 +39,7 @@ struct Files {
     channel_bind: Option<std::net::SocketAddr>,
     equipment: Option<PathBuf>,
     skills: Option<PathBuf>,
+    economy: Option<PathBuf>,
 }
 pub struct Assets {
     pub(super) equipment: Option<super::equipment_profile::Profile>,
@@ -51,11 +52,15 @@ pub struct Assets {
     /// `stats` bound to `catalog` once; lookups must not rebind per request.
     pub(super) stats_index: item_stats::StatsIndex,
     colors: item_colors::Package,
+    /// Effective equipment material names, bound once with `catalog`.
+    pub(super) color_index: item_colors::ColorIndex,
+    /// ItemClassInfo economy rows bound to `catalog` (Unique, ExpireIn, prices).
+    pub(super) economy: Option<super::item_economy::Profile>,
     pub(super) inventory: fiona_inventory_profile::Profile,
     pub(super) appearance: fiona_appearance::Profile,
     pub entity_service_id: i32,
     pub(super) arithmetic: Option<BodyArithmetic>,
-    random: Mutex<ColorRandom>,
+    pub(super) random: Mutex<ColorRandom>,
     pub channel: Option<(std::net::SocketAddr, crate::domain::map_partition::Topology)>,
 }
 /// Already parsed, source-bound packages; construction still validates all bindings.
@@ -163,6 +168,9 @@ impl Assets {
         if let Some(path) = f.skills {
             assets = assets.with_skills(super::skill_profile::Profile::read(open(&path)?)?)?;
         }
+        if let Some(path) = f.economy {
+            assets = assets.with_economy(super::item_economy::Profile::read(open(&path)?)?)?;
+        }
         Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
@@ -179,6 +187,8 @@ impl Assets {
             equipment: None,
             skills: None,
             stats_index: item_stats::StatsIndex::default(),
+            color_index: item_colors::ColorIndex::default(),
+            economy: None,
             initializer: parts.initializer,
             catalog: parts.catalog,
             stats: parts.stats,
@@ -194,7 +204,7 @@ impl Assets {
         out.inventory.bind(&out.catalog)?;
         out.appearance.bind(&out.catalog)?;
         out.stats_index = out.stats.bind(&out.catalog)?.to_index();
-        out.colors.bind(&out.catalog)?;
+        out.color_index = out.colors.bind(&out.catalog)?.to_index();
         Ok(out)
     }
     pub fn with_equipment(
@@ -203,6 +213,17 @@ impl Assets {
     ) -> Result<Self, MinimumError> {
         profile.resolve(&self.catalog)?;
         self.equipment = Some(profile);
+        Ok(self)
+    }
+    pub(super) fn colors_materials(&self) -> &crate::domain::item_colors::Materials {
+        self.colors.materials()
+    }
+    pub fn with_economy(
+        mut self,
+        profile: super::item_economy::Profile,
+    ) -> Result<Self, MinimumError> {
+        profile.bind(&self.catalog)?;
+        self.economy = Some(profile);
         Ok(self)
     }
     pub fn with_skills(
