@@ -199,6 +199,24 @@ pub async fn equip(
             }
         }
         let mut modified: Vec<i64> = Vec::new();
+        let profile = assets.equipment.as_ref().ok_or_else(fail)?;
+        let artifact_feature = assets.catalog.policy.is_enabled(Some("Artifact"))?;
+        let mut quick = super::minimum_quickslot::load(&mut tx, assets, cid).await?;
+        let mut quick_changes = Vec::new();
+        // Gear.GetEquippedArtifactQuickSlot: first quick slot whose class is ARTIFACT
+        // (skills and empty values have no ItemClassInfo).
+        let artifact_slot = |quick: &crate::domain::quick_slot::QuickSlots| {
+            quick
+                .values()
+                .find(|(_, class)| {
+                    !class.is_empty()
+                        && !class.starts_with("skill_")
+                        && profile
+                            .category(&assets.catalog, &utf16(class))
+                            .is_ok_and(|c| c == "ARTIFACT")
+                })
+                .map(|(part, _)| part)
+        };
         if item_id == -1 {
             // ItemOwner.Unequip(part) -> Gear.Unequip(part). Quick slots are verified
             // absent; a part outside both collections raises in the source.
@@ -206,12 +224,17 @@ pub async fn equip(
                 return Err(fail());
             };
             if let Some(slot) = gear.equipment.get_mut(&p) {
+                // ItemOwner.Unequip(16) also clears the artifact quick slot.
+                if p == 16
+                    && let Some(a) = artifact_slot(&quick)
+                {
+                    quick_changes.extend(quick.clear(i32::from(a)).flatten());
+                }
                 if let (Some(old), _) = slot.clear() {
                     touch(old.id, &mut modified);
                 }
             } else if gear.quick.contains(&p) {
                 // StackableSlot.Clear: only QuickSlotInfo is synchronized.
-                let mut quick = super::minimum_quickslot::load(&mut tx, assets, cid).await?;
                 let Some(Some(change)) = quick.clear(part) else {
                     tx.commit().await?;
                     return Ok(Outcome::Unchanged);
@@ -311,8 +334,46 @@ pub async fn equip(
             if checked != Operation::Success {
                 return Ok(Outcome::Refused(item_fail(operation_name(checked))?));
             }
+            // ItemOwner.Equip: artifact quick slot sampled before Unequip(part).
+            let saved_artifact = artifact_slot(&quick);
+            if part == 16
+                && let Some(a) = saved_artifact
+            {
+                quick_changes.extend(quick.clear(i32::from(a)).flatten());
+            }
             if let (Some(old), _) = slot.clear() {
                 touch(old.id, &mut modified);
+            }
+            // EquipArtifactQuickSlot: only for an ARTIFACT item with the feature on.
+            if artifact_feature
+                && profile.category(&assets.catalog, &target.item_class_utf16)? == "ARTIFACT"
+            {
+                let class_text = String::from_utf16(
+                    &target
+                        .item_class_utf16
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|a| u16::from_le_bytes(*a))
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|_| fail())?;
+                // Gear.Equip(part, itemClass) results are ignored by the source; an
+                // empty equipment part fails as InvalidSlot, so quick slots are tried.
+                let target_slot = match saved_artifact {
+                    Some(a) => Some(a),
+                    None => quick
+                        .empty_for("ARTIFACT")
+                        .first()
+                        .copied()
+                        .or_else(|| quick.max_part()),
+                };
+                if let Some(t) = target_slot
+                    && quick.equipped(&class_text).is_none()
+                    && let Ok(change) = quick.set(i32::from(t), &class_text, "ARTIFACT")
+                {
+                    quick_changes.push(change);
+                }
             }
             let (result, _) = slot.set(Some(item)).map_err(|_| fail())?;
             if result != Operation::Success {
@@ -320,15 +381,14 @@ pub async fn equip(
             }
             touch(item_id, &mut modified);
         }
-        if modified.is_empty() {
+        if modified.is_empty() && quick_changes.is_empty() {
             tx.commit().await?;
             return Ok(Outcome::Unchanged);
         }
         // Gear.Unequip(part) runs UnequipConsumablesByConstraint over the quick slot
         // classes; only classes without enhance/enchant requirements are supported.
-        let quick = super::minimum_quickslot::load(&mut tx, assets, cid).await?;
-        let profile = assets.equipment.as_ref().ok_or_else(fail)?;
-        for class in quick.classes() {
+        // Skill entries have no ItemClassInfo and are skipped, as in the source.
+        for class in quick.classes().filter(|c| !c.starts_with("skill_")) {
             let constraint = profile.constraint(&assets.catalog, &utf16(class))?;
             if constraint.required_enhance > 0
                 || constraint.required_enchant > 0
@@ -405,6 +465,12 @@ pub async fn equip(
                 .to_vec(),
             },
         ];
+        let mut packets = packets;
+        if !quick_changes.is_empty() {
+            // Sync: QuickSlots after inventory, equipment and UpdateItemStat.
+            super::minimum_quickslot::persist(&mut tx, cid, &quick_changes).await?;
+            packets.push(super::minimum_quickslot::packet(&quick)?);
+        }
         tx.commit().await?;
         Ok(Outcome::Applied {
             packets,

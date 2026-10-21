@@ -282,8 +282,32 @@ pub async fn equip_bundle(
                 )?));
             }
             if category == "ARTIFACT" {
-                // Artifact quick slots depend on the equipped part 16; not in this slice.
-                return Err(fail());
+                // ItemOwner.Equip(part, itemClass): the same artifact must be equipped
+                // on part 16.
+                let equipped16 = gear
+                    .projection
+                    .equipment
+                    .iter()
+                    .find(|(p, _)| *p == 16)
+                    .map(|(_, id)| *id);
+                let same = match equipped16 {
+                    Some(id) => {
+                        let stored: Option<Vec<u8>> = sqlx::query_scalar(
+                            "SELECT item_class_utf16 FROM game_items WHERE id=$1 AND owner_id=$2",
+                        )
+                        .bind(id)
+                        .bind(cid)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                        stored.as_deref() == Some(key.as_slice())
+                    }
+                    None => false,
+                };
+                if !same {
+                    return Ok(Outcome::Refused(super::minimum_equip::item_fail(
+                        "ConstraintFail_ArtifactQuickSlotFail",
+                    )?));
+                }
             }
             if let Some(previous) = slots.equipped(&item_class) {
                 changes.extend(slots.clear(i32::from(previous)).flatten());

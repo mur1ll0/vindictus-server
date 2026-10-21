@@ -88,3 +88,22 @@ fn skill_slots_check_only_the_lock() {
         Err(Refusal::InvalidSlot)
     );
 }
+
+#[test]
+fn artifact_helpers_follow_gear_enumeration() {
+    let mut s = QuickSlots::new([
+        (100, false, vec!["POTION".to_owned(), "ARTIFACT".to_owned()]),
+        (101, false, vec!["POTION".to_owned(), "ARTIFACT".to_owned()]),
+        (102, true, vec!["ARTIFACT".to_owned()]),
+    ])
+    .unwrap();
+    // GetEquippableEmptySlots skips locked and occupied slots.
+    assert_eq!(s.empty_for("ARTIFACT"), [100, 101]);
+    s.set(100, "artifact_a", "ARTIFACT").unwrap();
+    assert_eq!(s.empty_for("ARTIFACT"), [101]);
+    assert_eq!(s.max_part(), Some(102));
+    assert_eq!(
+        s.values().collect::<Vec<_>>(),
+        [(100, "artifact_a"), (101, "")]
+    );
+}

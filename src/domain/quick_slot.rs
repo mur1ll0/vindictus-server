@@ -101,6 +101,26 @@ impl QuickSlots {
             .find(|s| Self::value(s) == Some(class))
             .map(|s| s.part)
     }
+    /// (part, Value) for unlocked slots, in slot order (Gear.QuickSlots enumeration).
+    pub fn values(&self) -> impl Iterator<Item = (u8, &str)> {
+        self.slots
+            .iter()
+            .filter_map(|s| Self::value(s).map(|v| (s.part, v)))
+    }
+    /// Gear.GetEquippableEmptySlots, quick-slot part: unlocked, empty, category accepted.
+    pub fn empty_for(&self, category: &str) -> Vec<u8> {
+        self.slots
+            .iter()
+            .filter(|s| {
+                !s.locked && s.class.is_none() && s.categories.iter().any(|c| c == category)
+            })
+            .map(|s| s.part)
+            .collect()
+    }
+    /// Gear.GetMaxQuickSlotID.
+    pub fn max_part(&self) -> Option<u8> {
+        self.slots.iter().map(|s| s.part).max()
+    }
     pub fn classes(&self) -> impl Iterator<Item = &str> {
         self.slots.iter().filter_map(|s| s.class.as_deref())
     }
