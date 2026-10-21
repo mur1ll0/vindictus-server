@@ -65,7 +65,7 @@ pub async fn select(
     if row.try_get::<bool, _>("dirty")? || row.try_get::<bool, _>("is_connected")? {
         return Err(MinimumError::Conflict);
     }
-    let view = view(&mut tx, owner, assets, cid, config, arithmetic, false).await?;
+    let view = view(&mut tx, owner, assets, cid, config, arithmetic, false, 0).await?;
     let look = view.look;
     let equipment = view.equipment;
     let mut packets = vec![
@@ -132,11 +132,49 @@ pub(super) async fn skill_cache(
     }
     let mut cache = Cache::default();
     for ((key, rank), expected) in skills.iter().zip(assets.initializer.skills()) {
-        if key != expected.key() || *rank != expected.rank() {
+        if key != expected.key() {
             return Err(MinimumError::Conflict);
         }
+        if *rank == expected.rank() {
+            cache
+                .load_base(key, *rank, Some(expected.arguments()))
+                .map_err(|_| MinimumError::Conflict)?;
+            continue;
+        }
+        // A trained rank: SkillEffect.UpdateSkillArgument reads SkillArgumentInfo of the
+        // final rank (set-bonus ranks are refused by the Gear loader); no rank info
+        // removes the arguments.
+        let contents = assets.skills.as_ref().ok_or(MinimumError::Conflict)?;
+        let id = String::from_utf16(
+            &key.as_chunks::<2>()
+                .0
+                .iter()
+                .map(|a| u16::from_le_bytes(*a))
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|_| MinimumError::Conflict)?;
+        let content = contents.get(&id).ok_or(MinimumError::Conflict)?;
+        if !content.ranks.contains_key(rank) {
+            cache
+                .load_base(key, *rank, None)
+                .map_err(|_| MinimumError::Conflict)?;
+            continue;
+        }
+        let rows = content
+            .arguments
+            .get(rank)
+            .map(|rows| {
+                rows.iter()
+                    .map(|(k, v)| {
+                        crate::domain::skill_runtime::Argument::new(Some(k.clone()), *v)
+                            .map_err(|_| MinimumError::Conflict)
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?
+            .unwrap_or_default();
         cache
-            .load_base(key, *rank, Some(expected.arguments()))
+            .load_base(key, *rank, Some(&rows))
             .map_err(|_| MinimumError::Conflict)?;
     }
     Ok(cache)
@@ -155,6 +193,7 @@ pub(super) struct View {
 }
 /// Character state derived from persisted base stats, skills, Gear and costumes.
 /// `project` applies LoadItemCostumes even for an empty Gear (UpdateItemStat path).
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn view(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     owner: &UserKey<'_>,
@@ -163,6 +202,7 @@ pub(super) async fn view(
     config: QueryConfig,
     arithmetic: Arithmetic,
     project: bool,
+    query_id: i64,
 ) -> Result<View, MinimumError> {
     let bytes = super::minimum_character_list::load(
         tx,
@@ -255,7 +295,7 @@ pub(super) async fn view(
         Channel::encode_look_summary(cid, Some(&summary)).map_err(|_| MinimumError::Conflict)?;
     Ok(View {
         common: packet(Message::CharacterCommonInfo {
-            query_id: 0,
+            query_id,
             info: Some(summary.clone()),
         })?,
         stat: packet(Message::UpdateStat {
@@ -266,6 +306,37 @@ pub(super) async fn view(
         costumes,
         equipment: gear.projection.equipment,
     })
+}
+/// InGame QueryCharacterCommonInfoMessage for the selected character's own CID:
+/// WhoIs(Costume) → CharacterCommonInfoMessage with the request QueryID.
+pub async fn common_info(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    query_id: i64,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<OutgoingPacket, MinimumError> {
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let connected: bool =
+            sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !connected {
+            return Err(MinimumError::Conflict);
+        }
+        let view = view(
+            &mut tx, owner, assets, cid, config, arithmetic, false, query_id,
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(view.common)
+    })
+    .await
+    .map_err(|_| MinimumError::Conflict)?
 }
 pub async fn disconnect(pool: &PgPool, cid: i64) -> Result<(), MinimumError> {
     sqlx::query("UPDATE game_character_info SET is_connected=false,channel=NULL WHERE id=$1")

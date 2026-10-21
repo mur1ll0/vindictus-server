@@ -18,6 +18,9 @@ pub struct RankInfo {
     pub feature_enabled: bool,
 }
 
+/// SkillArgumentInfo KeyWord (UTF16 bytes) and nullable Value.
+pub type SkillArgument = (Vec<u8>, Option<i32>);
+
 #[derive(Clone, Debug, Default)]
 pub struct SkillContent {
     /// SkillInfo.ClassRestriction; None when the SkillInfo row is absent.
@@ -27,6 +30,8 @@ pub struct SkillContent {
     pub ranks: BTreeMap<i32, RankInfo>,
     /// SkillConstraintInfo by rank, in source list order.
     pub constraints: BTreeMap<i32, Vec<(String, i32)>>,
+    /// SkillArgumentInfo by rank: (KeyWord UTF16, Value) in source list order.
+    pub arguments: BTreeMap<i32, Vec<SkillArgument>>,
 }
 
 /// Character.Skill row.
@@ -141,4 +146,80 @@ pub fn to_skill_list(
         });
     }
     Ok(list)
+}
+
+/// Result of SkillManager.Learn followed by CompleteSkill.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Learned {
+    /// Character AP after UseAP and any refund.
+    pub ap: i32,
+    /// TotalUsedAP increment (ap - refund).
+    pub used: i32,
+    pub rank: i32,
+    pub current_ap: i32,
+    pub locked: u8,
+    /// CompleteSkill raised the rank (SkillCompletionMessage is sent).
+    pub completed: bool,
+}
+
+/// Learn(skill, ap) then CompleteSkill(skill), for an AP manager with BonusAPTime 0
+/// (UpdateAP is a no-op). None is the source `false` path: nothing changes.
+pub fn learn(
+    skills: &[Skill],
+    contents: &BTreeMap<String, SkillContent>,
+    character: &Character<'_>,
+    skill_id: &str,
+    character_ap: i32,
+    ap: i32,
+) -> Result<Option<Learned>, SkillListError> {
+    let list = to_skill_list(skills, contents, character)?;
+    let (Some(skill), Some(brief)) = (
+        skills.iter().find(|s| s.id == skill_id),
+        list.iter().find(|b| b.id == skill_id),
+    ) else {
+        return Ok(None);
+    };
+    // Learn: ap > 0, ConstraintPassedForNextRank == null, RequiredAP > 0 and UseAP.
+    if ap <= 0 || brief.can_start_training == 0 || brief.required_ap <= 0 || ap > character_ap {
+        return Ok(None);
+    }
+    let required = brief.required_ap;
+    let mut remaining = character_ap - ap;
+    let mut current = skill.current_ap.wrapping_add(ap);
+    let mut refund = 0;
+    if current > required {
+        refund = current - required;
+        current = required;
+        // GiveAP(refund, allowExceed: true): unchecked Int32 addition.
+        remaining = remaining.wrapping_add(refund);
+    }
+    let used = ap - refund;
+    // CompleteSkill: only when CurrentAP reaches the next rank's RequiredAP.
+    if required - current > 0 {
+        return Ok(Some(Learned {
+            ap: remaining,
+            used,
+            rank: skill.rank,
+            current_ap: current,
+            locked: skill.locked,
+            completed: false,
+        }));
+    }
+    let rank = skill.rank.wrapping_add(1);
+    // RecalculateRequiredAP: the new next rank's RequireUnlock locks the skill.
+    let content = contents.get(skill_id).ok_or(SkillListError)?;
+    let locked = u8::from(
+        content
+            .ranks
+            .get(&rank.wrapping_add(1))
+            .is_some_and(|r| r.require_unlock),
+    );
+    Ok(Some(Learned {
+        ap: remaining,
+        used,
+        rank,
+        current_ap: 0,
+        locked,
+        completed: true,
+    }))
 }

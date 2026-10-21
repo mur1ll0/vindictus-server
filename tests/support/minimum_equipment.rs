@@ -592,7 +592,7 @@ async fn minimum_skill_list_projects_stored_skills_without_writes() {
             ranks.push(serde_json::json!({"source_index":ranks.len(),"skill_utf16":hex(key),"rank":r,"level":1,"required_ap":ap,"require_unlock":false,"feature":null}));
         }
     }
-    let profile = serde_json::json!({"format_version":2,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[]});
+    let profile = serde_json::json!({"format_version":3,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[],"arguments":[]});
     let assets = assets()
         .with_skills(
             skill_profile::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
@@ -645,5 +645,60 @@ async fn minimum_skill_list_projects_stored_skills_without_writes() {
         assert!(b.enhances == Some(Vec::new()));
     }
     assert_eq!(state(&p).await, before);
+    // QueryCharacterCommonInfo for the own CID answers the summary with the QueryID.
+    let common = minimum_selection::common_info(
+        &p,
+        &owner,
+        &assets,
+        1,
+        77,
+        config(),
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    assert_eq!(common.category, 609);
+    // LearnSkill: partial training, then completion with a refund of the excess AP.
+    let first = String::from_utf16(
+        &stored[0]
+            .0
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|a| u16::from_le_bytes(*a))
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    sqlx::query("UPDATE game_character_info SET ap=40,total_used_ap=0 WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(
+        minimum_skills::learn(&p, &owner, &assets, 1, &first, 41)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let partial = minimum_skills::learn(&p, &owner, &assets, 1, &first, 20)
+        .await
+        .unwrap();
+    assert_eq!(
+        partial.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [229, 583]
+    );
+    let done = minimum_skills::learn(&p, &owner, &assets, 1, &first, 20)
+        .await
+        .unwrap();
+    assert_eq!(
+        done.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [583, 229, 583, 582]
+    );
+    let (ap, used, rank, current): (i32, i32, i32, i32) = sqlx::query_as("SELECT c.ap,c.total_used_ap,s.rank,s.current_ap FROM game_character_info c JOIN game_skills s ON s.cid=c.id WHERE c.id=1 AND s.skill_utf16=$1").bind(&stored[0].0).fetch_one(&p).await.unwrap();
+    assert_eq!((ap, used, rank, current), (10, 30, stored[0].1 + 1, 0));
+    // Relogin loads the trained rank from the content profile.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
     cleanup_game_pool(a, p, s).await;
 }

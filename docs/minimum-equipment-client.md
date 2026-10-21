@@ -115,3 +115,12 @@ Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arqu
 - Teste no cliente: a janela de skills ficou vazia e o log mostrou que o cliente nunca envia `QueryAP`/`QuerySkillList` ao abrir a janela. No original, `InGame.OnEnter` força o observer de Stat (609/619), o de Skill (`SkillListMessage` 583) e o `QueryAP` (`APMessage` 229) sem consulta do cliente. A seleção passa a enviar 483 → 345 → 609 → 619 → 583 → 229 → 468 quando o perfil de skills está configurado. TitleList, SpSkill, VocationSkillList, pescaria, sussurros e missões do mesmo `OnEnter` continuam adiados.
 - "Depot" no cliente é o depósito da loja Cash (`CashShopService`: 242 lista de produtos, 238 saldo — sem handler). Fica no P3; as cápsulas de teste estão na aba Cash do inventário (coleção 100).
 - Checagem somente leitura na Fiona real: sem vocação, 2 skills cobertas pelo perfil, AP 0. Testes focados: 19 PostgreSQL/TCP com a sequência de entrada verificada.
+
+## P0-03d — treinar skills com AP (LearnSkill) e tela do personagem
+
+- Codecs `LearnSkillMessage` 475, `SkillCompletionMessage` 582 e `QueryCharacterCommonInfoMessage` 527 verificados no oracle (732 casos/arquitetura, x86=x64).
+- `LearnSkillProcessor` → `SkillManager.Learn` (AP > 0, `ConstraintPassedForNextRank`, `RequiredAP` > 0, `UseAP`; excedente devolvido com `GiveAP` e `TotalUsedAP += ap − troco`) e `CompleteSkill` (rank + 1, `CurrentAP` = 0, `RecalculateRequiredAP` bloqueia se o próximo rank exige desbloqueio). Mensagens: completo → SkillList (OnSkillRankChanged), AP, SkillList, SkillCompletion; parcial → AP, SkillList; `Learn` falso → nada. Desbloqueio por história (`TryUnlockStory`) e meditação são recusados sem escrita. Logs de skill/crescimento, pontuação de guilda e `UpdateRankBasis` não são gravados.
+- Ranks treinados carregam os argumentos de `SkillArgumentInfo` do rank final (`UpdateSkillArgument`), no cache usado por seleção/equipar; perfil de skills v3 inclui os argumentos. O efeito nos atributos aparece no próximo recálculo (equipar ou entrar), como no original.
+- `QueryCharacterCommonInfo` do próprio CID responde `CharacterCommonInfoMessage` com o `QueryID` (WhoIs Costume); outros CIDs ainda sem handler.
+- `LearnNewSkill` (340, cobra ouro pelo preço da skill) fica para a fatia seguinte, com a carteira de ouro.
+- Testes focados: 5 unitários `skill_list`, wire 732, 19 PostgreSQL/TCP (treino parcial, conclusão com troco, relogin no rank treinado, 527).

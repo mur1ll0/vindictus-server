@@ -38,5 +38,17 @@
   "stackable": {
     "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/StackableSlot.cs",
     "sha256": "a9910604fbb459b581b9227e69a6aea133a739aabd784cc87dfacc1eb77d6099"
+  },
+  "skill_effect": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillEffect.cs",
+    "sha256": "4d75fce8193cd491748f7b57ff017c55f229d585fba9400afa98f2d927743d15"
+  },
+  "learn_processor": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/LearnSkillProcessor.cs",
+    "sha256": "10c564c0a7414b8534bdbbff1aea45917389132bc570d5ed74ab58a29600bf6a"
+  },
+  "ap_manager": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/APManager.cs",
+    "sha256": "3594eecafc937bc33da4b7225ee65759435af74419410d0b7f4129174b98defe"
   }
 }

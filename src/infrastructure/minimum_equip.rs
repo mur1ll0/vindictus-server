@@ -348,7 +348,7 @@ pub async fn equip(
             }
         }
         let view =
-            super::minimum_selection::view(&mut tx, owner, assets, cid, config, arithmetic, true)
+            super::minimum_selection::view(&mut tx, owner, assets, cid, config, arithmetic, true, 0)
                 .await?;
         let (before, after) = view.costumes.as_ref().ok_or_else(fail)?;
         super::character_costumes::persist_item_costumes(&mut tx, cid, before, after)

@@ -998,7 +998,13 @@ impl Connection {
         }
         {
             use crate::protocol::inventory::{self as wire, Kind, Message};
-            for kind in [Kind::QueryAp, Kind::UseInventoryItem, Kind::QuerySkillList] {
+            for kind in [
+                Kind::QueryAp,
+                Kind::UseInventoryItem,
+                Kind::QuerySkillList,
+                Kind::LearnSkill,
+                Kind::QueryCharacterCommonInfo,
+            ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
                 }
@@ -1042,6 +1048,58 @@ impl Connection {
                                 tracing::info!("minimum AP sent; values omitted");
                             }
                             Err(_) => tracing::warn!("minimum AP query rejected; values omitted"),
+                        }
+                    }
+                    Message::LearnSkill(request) => {
+                        let skill = request.skill.as_deref().unwrap_or("");
+                        match super::minimum_skills::learn(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            skill,
+                            request.value,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    changed = !packets.is_empty(),
+                                    "minimum skill training processed; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum skill training rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::QueryCharacterCommonInfo(query) => {
+                        if query.cid != cid {
+                            // Other characters are answered by their PlayerService entity.
+                            self.log_unhandled(category, body);
+                            return Ok(());
+                        }
+                        match super::minimum_selection::common_info(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            query.query_id,
+                            runtime.minimum_header()?,
+                            runtime.stat_arithmetic(),
+                        )
+                        .await
+                        {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!("minimum character info sent; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum character info rejected; values omitted")
+                            }
                         }
                     }
                     Message::QuerySkillList => {

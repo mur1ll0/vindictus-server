@@ -174,6 +174,22 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 }
             }
         }
+        Some(Message::LearnSkill(v)) => {
+            assert_eq!(v.skill.as_deref(), f["SkillID"].as_str(), "case {n}");
+            assert_eq!(i64::from(v.value), f["AP"].as_i64().unwrap(), "case {n}");
+        }
+        Some(Message::SkillCompletion(v)) => {
+            assert_eq!(v.skill.as_deref(), f["SkillID"].as_str(), "case {n}");
+            assert_eq!(
+                i64::from(v.value),
+                f["SkillRank"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::QueryCharacterCommonInfo(q)) => {
+            assert_eq!(q.query_id, f["QueryID"].as_i64().unwrap(), "case {n}");
+            assert_eq!(q.cid, f["CID"].as_i64().unwrap(), "case {n}");
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -264,12 +280,15 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::UseInventoryItemOk,
         Kind::QuerySkillList,
         Kind::SkillList,
+        Kind::LearnSkill,
+        Kind::SkillCompletion,
+        Kind::QueryCharacterCommonInfo,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 618);
+        assert_eq!(cases.len(), 732);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -283,6 +302,9 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "use_inventory_item_ok" => check_inventory(Kind::UseInventoryItemOk, case, n),
                 "query_skill_list" => check_inventory(Kind::QuerySkillList, case, n),
                 "skill_list" => check_inventory(Kind::SkillList, case, n),
+                "learn_skill" => check_inventory(Kind::LearnSkill, case, n),
+                "skill_completion" => check_inventory(Kind::SkillCompletion, case, n),
+                "query_common_info" => check_inventory(Kind::QueryCharacterCommonInfo, case, n),
                 "costume_update" => check_costume(case, n),
                 _ => panic!("unknown fixture type"),
             }

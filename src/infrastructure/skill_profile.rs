@@ -41,6 +41,16 @@ struct Constraint {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct Argument {
+    source_index: usize,
+    skill_utf16: PrivateText,
+    rank: i32,
+    key_utf16: PrivateText,
+    #[serde(deserialize_with = "nullable")]
+    value: Option<i32>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Profile {
     format_version: u32,
     source: String,
@@ -50,6 +60,7 @@ pub struct Profile {
     skills: Vec<Skill>,
     ranks: Vec<Rank>,
     constraints: Vec<Constraint>,
+    arguments: Vec<Argument>,
 }
 
 fn fail() -> MinimumError {
@@ -92,7 +103,7 @@ impl Profile {
             .iter()
             .map(|(k, v)| (k.clone(), v["sha256"].as_str().unwrap_or("").to_owned()))
             .collect();
-        if p.format_version != 2
+        if p.format_version != 3
             || p.source != "heroesContents.skill-ranks"
             || p.implementations != expected
             || p.skills.is_empty()
@@ -102,6 +113,8 @@ impl Profile {
             || !ordered(&p.skills, |s| s.source_index)
             || !ordered(&p.ranks, |r| r.source_index)
             || !ordered(&p.constraints, |c| c.source_index)
+            || p.arguments.len() > 65536
+            || !ordered(&p.arguments, |a| a.source_index)
         {
             return Err(fail());
         }
@@ -121,6 +134,19 @@ impl Profile {
                 return Err(fail());
             }
             entry.use_type = Some(s.use_type);
+        }
+        for a in &self.arguments {
+            // ToDoubleListDictionary keeps every row in source order.
+            let key = super::item_catalog::opaque(Some(PrivateText(a.key_utf16.0.clone())))?
+                .ok_or_else(fail)?
+                .as_bytes()
+                .to_vec();
+            out.entry(text(&a.skill_utf16)?)
+                .or_default()
+                .arguments
+                .entry(a.rank)
+                .or_default()
+                .push((key, a.value));
         }
         for c in &self.constraints {
             out.entry(text(&c.skill_utf16)?)

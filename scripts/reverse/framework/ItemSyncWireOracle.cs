@@ -130,6 +130,15 @@ class ItemSyncWireOracle {
    lists.Add(new SkillListMessage(seed==-1?null:"skill_learning",seed,new List<BriefSkillInfo>{b,null},seed%2==0));
   }
   AddCases("skill_list",583,new Guid("dd3b94a9-64da-381a-b2e7-0fad58835746"),lists,cases);
+  var learns=new List<LearnSkillMessage>{null};
+  foreach(string sk in new[]{null,"","skill_fiona_guard"})foreach(int ap in new[]{int.MinValue,-1,0,30,int.MaxValue})learns.Add(new LearnSkillMessage(sk,ap));
+  AddCases("learn_skill",475,new Guid("3ec00564-95e3-3507-b9dc-a5a185215b19"),learns,cases);
+  var completions=new List<SkillCompletionMessage>{null};
+  foreach(string sk in new[]{null,"skill_fiona_guard"})foreach(int r in new[]{int.MinValue,0,2,int.MaxValue})completions.Add(new SkillCompletionMessage(sk,r));
+  AddCases("skill_completion",582,new Guid("2b5614fc-8830-3aec-a03f-c33c270de9f1"),completions,cases);
+  var commons=new List<QueryCharacterCommonInfoMessage>{null};
+  foreach(long q in new[]{long.MinValue,0L,7L,long.MaxValue})foreach(long c in new[]{-1L,1L,long.MaxValue})commons.Add(Obj<QueryCharacterCommonInfoMessage>("QueryID",q,"CID",c));
+  AddCases("query_common_info",527,new Guid("c9cda3f6-8b67-3c69-ba31-ba2fe827fd7b"),commons,cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

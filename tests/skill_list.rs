@@ -165,3 +165,56 @@ fn item_ranks_raise_final_rank_and_duplicates_are_refused() {
         .is_err()
     );
 }
+
+#[test]
+fn learning_spends_ap_completes_ranks_and_refunds_excess() {
+    use vindictus_server::domain::skill_list::{Learned, learn};
+    let contents = BTreeMap::from([("skill_a".to_owned(), content())]);
+    let items = BTreeMap::new();
+    let c = Character {
+        class: 1,
+        level: 1,
+        item_ranks: &items,
+    };
+    let s = [skill("skill_a", 1, 0, 0)];
+    // Partial training keeps the rank and accumulates CurrentAP.
+    assert_eq!(
+        learn(&s, &contents, &c, "skill_a", 50, 20).unwrap(),
+        Some(Learned {
+            ap: 30,
+            used: 20,
+            rank: 1,
+            current_ap: 20,
+            locked: 0,
+            completed: false
+        })
+    );
+    // Excess AP above RequiredAP is given back and the rank completes.
+    let partial = [skill("skill_a", 1, 0, 20)];
+    assert_eq!(
+        learn(&partial, &contents, &c, "skill_a", 30, 30).unwrap(),
+        Some(Learned {
+            ap: 20,
+            used: 10,
+            rank: 2,
+            current_ap: 0,
+            locked: 0,
+            completed: true
+        })
+    );
+    // Source false paths: no AP, non-positive AP, unknown skill.
+    assert_eq!(learn(&s, &contents, &c, "skill_a", 10, 20).unwrap(), None);
+    assert_eq!(learn(&s, &contents, &c, "skill_a", 50, 0).unwrap(), None);
+    assert_eq!(learn(&s, &contents, &c, "skill_x", 50, 10).unwrap(), None);
+    // A next rank that requires unlocking locks the skill after completion.
+    let mut locking = contents.clone();
+    locking.get_mut("skill_a").unwrap().ranks.insert(
+        3,
+        RankInfo {
+            require_unlock: true,
+            ..rank(1, 130)
+        },
+    );
+    let done = learn(&s, &locking, &c, "skill_a", 30, 30).unwrap().unwrap();
+    assert_eq!((done.rank, done.locked, done.completed), (2, 1, true));
+}

@@ -144,3 +144,120 @@ pub(super) async fn packet(
             .to_vec(),
     })
 }
+
+/// LearnSkillProcessor: Learn + CompleteSkill + SubmitChanges, then the frontend
+/// messages. `Ok(vec![])` is the source path where Learn returns false (no message).
+pub async fn learn(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    skill_id: &str,
+    ap: i32,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let (connected, level, class): (bool, i32, i32) = sqlx::query_as(
+            "SELECT is_connected,level,class::integer FROM game_character_info WHERE id=$1",
+        )
+        .bind(cid)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !connected {
+            return Err(fail());
+        }
+        let contents = assets.skills.as_ref().ok_or_else(fail)?;
+        let rows: Vec<(i64, Vec<u8>, i32, i16, i32)> = sqlx::query_as(
+            "SELECT row_id,skill_utf16,rank,locked,current_ap FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097 FOR UPDATE",
+        )
+        .bind(cid)
+        .fetch_all(&mut *tx)
+        .await?;
+        if rows.len() > 4096 {
+            return Err(fail());
+        }
+        let mut row_ids = Vec::with_capacity(rows.len());
+        let mut skills = Vec::with_capacity(rows.len());
+        for (row_id, id, rank, locked, current_ap) in rows {
+            row_ids.push(row_id);
+            skills.push(Skill {
+                id: text(&id)?,
+                rank,
+                locked: u8::try_from(locked).map_err(|_| fail())?,
+                current_ap,
+            });
+        }
+        // GetSkill == null: FailMessage only.
+        let Some(index) = skills.iter().position(|s| s.id == skill_id) else {
+            return Ok(Vec::new());
+        };
+        if !contents.contains_key(skill_id) {
+            return Err(fail());
+        }
+        let gear = super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
+        // Validates the AP manager profile (BonusAPTime 0) and reads the stored AP.
+        let before = super::minimum_ap::current(&mut tx, assets, cid).await?;
+        let character = Character {
+            class,
+            level,
+            item_ranks: &gear.bonus.skills,
+        };
+        let Some(learned) =
+            skill_list::learn(&skills, contents, &character, skill_id, before.ap, ap)
+                .map_err(|_| fail())?
+        else {
+            return Ok(Vec::new());
+        };
+        if learned.completed
+            && (learned.locked == 1
+                || crate::domain::skill_multicast::is_meditation(&skills[index].id.encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>()))
+        {
+            // TryUnlockStory (story service) and meditation's BonusAPTime change are
+            // not migrated; nothing is written.
+            return Err(fail());
+        }
+        sqlx::query("UPDATE game_skills SET rank=$2,locked=$3,current_ap=$4 WHERE row_id=$1")
+            .bind(row_ids[index])
+            .bind(learned.rank)
+            .bind(i16::from(learned.locked))
+            .bind(learned.current_ap)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE game_character_info SET ap=$2,total_used_ap=total_used_ap+$3 WHERE id=$1")
+            .bind(cid)
+            .bind(learned.ap)
+            .bind(learned.used)
+            .execute(&mut *tx)
+            .await?;
+        let list = packet(&mut tx, owner, assets, cid, level, class).await?;
+        let ap_packet = super::minimum_ap::packet(super::minimum_ap::current(&mut tx, assets, cid).await?)?;
+        let mut packets = Vec::new();
+        if learned.completed {
+            // CompleteSkill → OnSkillRankChanged pushes the list before SubmitChanges.
+            packets.push(OutgoingPacket {
+                category: list.category,
+                body: list.body.clone(),
+            });
+        }
+        // LearnSkillProcessor after SubmitChanges: PushAPMessage, PushSkillList and,
+        // for a completed rank, SkillCompletionMessage.
+        packets.push(ap_packet);
+        packets.push(list);
+        if learned.completed {
+            let completion = Message::SkillCompletion(wire::SkillAp {
+                skill: Some(skill_id.to_owned()),
+                value: learned.rank,
+            });
+            packets.push(OutgoingPacket {
+                category: Kind::SkillCompletion.category(),
+                body: wire::encode(Kind::SkillCompletion, Some(&completion), DEFAULT_MAX_BODY)
+                    .map_err(|_| fail())?
+                    .to_vec(),
+            });
+        }
+        tx.commit().await?;
+        Ok(packets)
+    })
+    .await
+    .map_err(|_| fail())?
+}

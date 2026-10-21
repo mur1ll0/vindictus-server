@@ -43,15 +43,19 @@ def read_package(database, config, selected):
         constraints=[dict(source_index=i, skill_utf16=text(r['SkillId']), rank=integer(r['Rank']),
                           required_skill_utf16=text(r['RequiredSkillId']), required_rank=integer(r['RequiredRank']))
                      for i, r in enumerate(db.execute('SELECT * FROM SkillConstraintInfo')) if text(r['SkillId']) in selected]
+        # SkillArgumentInfo.Value is Int32?; a null value throws in UpdateSkillArgument.
+        arguments=[dict(source_index=i, skill_utf16=text(r['SkillId']), rank=integer(r['Rank']), key_utf16=text(r['KeyWord']),
+                        value=None if r['Value'] is None else integer(r['Value']))
+                   for i, r in enumerate(db.execute('SELECT * FROM SkillArgumentInfo')) if text(r['SkillId']) in selected]
     if {s['skill_utf16'] for s in skills} != selected or {r['skill_utf16'] for r in ranks} != selected:
         raise ValueError('Selected skill missing from source tables')
     if any(r['feature'] is not None and not isinstance(r['feature'], str) for r in ranks):
         raise ValueError('Skill feature type')
     if digest(database) != package['manifest']['database_sha256'] or digest(config) != package['manifest']['config_sha256']:
         raise ValueError('Skill source changed during export')
-    return dict(format_version=2, source='heroesContents.skill-ranks', database_sha256=package['manifest']['database_sha256'],
+    return dict(format_version=3, source='heroesContents.skill-ranks', database_sha256=package['manifest']['database_sha256'],
                 config_sha256=package['manifest']['config_sha256'], implementations={k:r['sha256'] for k,r in sources.items()},
-                skills=skills, ranks=ranks, constraints=constraints)
+                skills=skills, ranks=ranks, constraints=constraints, arguments=arguments)
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--skills-file',required=True);args=parser.parse_args()

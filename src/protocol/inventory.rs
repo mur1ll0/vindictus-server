@@ -24,6 +24,9 @@ pub enum Kind {
     UseInventoryItemOk,
     QuerySkillList,
     SkillList,
+    LearnSkill,
+    SkillCompletion,
+    QueryCharacterCommonInfo,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -41,6 +44,9 @@ impl Kind {
             Self::UseInventoryItemOk => 627,
             Self::QuerySkillList => 540,
             Self::SkillList => 583,
+            Self::LearnSkill => 475,
+            Self::SkillCompletion => 582,
+            Self::QueryCharacterCommonInfo => 527,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -58,6 +64,9 @@ impl Kind {
             Self::UseInventoryItemOk => 0x451d459f_bb17_325c_bb10_d608f03f4c3f,
             Self::QuerySkillList => 0x860e6484_d1b5_34a9_9412_70807bbbf79c,
             Self::SkillList => 0xdd3b94a9_64da_381a_b2e7_0fad58835746,
+            Self::LearnSkill => 0x3ec00564_95e3_3507_b9dc_a5a185215b19,
+            Self::SkillCompletion => 0x2b5614fc_8830_3aec_a03f_c33c270de9f1,
+            Self::QueryCharacterCommonInfo => 0xc9cda3f6_8b67_3c69_ba31_ba2fe827fd7b,
         })
     }
 }
@@ -153,6 +162,22 @@ pub enum Message {
     /// QuerySkillListMessage (fieldless).
     QuerySkillList,
     SkillList(SkillList),
+    /// LearnSkillMessage: skillID, ap.
+    LearnSkill(SkillAp),
+    /// SkillCompletionMessage: SkillID, SkillRank.
+    SkillCompletion(SkillAp),
+    /// QueryCharacterCommonInfoMessage: QueryID, CID.
+    QueryCharacterCommonInfo(CommonQuery),
+}
+#[derive(Clone, PartialEq, Eq)]
+pub struct SkillAp {
+    pub skill: Option<String>,
+    pub value: i32,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct CommonQuery {
+    pub query_id: i64,
+    pub cid: i64,
 }
 /// BriefSkillEnhance in declaration order.
 #[derive(Clone, PartialEq, Eq)]
@@ -224,6 +249,9 @@ impl Message {
             Self::UseInventoryItemOk(_) => Kind::UseInventoryItemOk,
             Self::QuerySkillList => Kind::QuerySkillList,
             Self::SkillList(_) => Kind::SkillList,
+            Self::LearnSkill(_) => Kind::LearnSkill,
+            Self::SkillCompletion(_) => Kind::SkillCompletion,
+            Self::QueryCharacterCommonInfo(_) => Kind::QueryCharacterCommonInfo,
         }
     }
 }
@@ -398,6 +426,8 @@ object!(SkillList {
     skills,
     reset_vocation
 });
+object!(SkillAp { skill, value });
+object!(CommonQuery { query_id, cid });
 object!(UseItem {
     item_id,
     target_item_id
@@ -446,6 +476,8 @@ pub fn encode(
             Message::UseInventoryItemOk(v) => v.write(&mut w)?,
             Message::QuerySkillList => {}
             Message::SkillList(v) => v.write(&mut w)?,
+            Message::LearnSkill(v) | Message::SkillCompletion(v) => v.write(&mut w)?,
+            Message::QueryCharacterCommonInfo(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -483,6 +515,11 @@ pub fn decode(
             Kind::UseInventoryItemOk => Message::UseInventoryItemOk(Wire::read(&mut r)?),
             Kind::QuerySkillList => Message::QuerySkillList,
             Kind::SkillList => Message::SkillList(SkillList::read(&mut r)?),
+            Kind::LearnSkill => Message::LearnSkill(SkillAp::read(&mut r)?),
+            Kind::SkillCompletion => Message::SkillCompletion(SkillAp::read(&mut r)?),
+            Kind::QueryCharacterCommonInfo => {
+                Message::QueryCharacterCommonInfo(CommonQuery::read(&mut r)?)
+            }
         })
     };
     if !r.remaining.is_empty() {
