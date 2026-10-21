@@ -998,7 +998,7 @@ impl Connection {
         }
         {
             use crate::protocol::inventory::{self as wire, Kind, Message};
-            for kind in [Kind::QueryAp, Kind::UseInventoryItem] {
+            for kind in [Kind::QueryAp, Kind::UseInventoryItem, Kind::QuerySkillList] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
                 }
@@ -1042,6 +1042,17 @@ impl Connection {
                                 tracing::info!("minimum AP sent; values omitted");
                             }
                             Err(_) => tracing::warn!("minimum AP query rejected; values omitted"),
+                        }
+                    }
+                    Message::QuerySkillList => {
+                        match super::minimum_skills::query(pool, &owner, assets, cid).await {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!("minimum skill list sent; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum skill list rejected; values omitted")
+                            }
                         }
                     }
                     Message::UseInventoryItem(request) => {

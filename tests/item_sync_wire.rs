@@ -132,6 +132,48 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
         Some(Message::UseInventoryItemOk(class)) => {
             assert_eq!(class.as_deref(), f["UseItemClass"].as_str(), "case {n}");
         }
+        Some(Message::QuerySkillList) => {}
+        Some(Message::SkillList(l)) => {
+            assert_eq!(
+                l.learning.as_deref(),
+                f["LearningSkillID"].as_str(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(l.current_ap),
+                f["CurrentAp"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                l.reset_vocation,
+                f["IsResetVocation"].as_bool().unwrap(),
+                "case {n}"
+            );
+            let rows = f["SkillList"].as_array();
+            assert_eq!(
+                l.skills.as_ref().map(Vec::len),
+                rows.map(Vec::len),
+                "case {n}"
+            );
+            if let (Some(skills), Some(rows)) = (l.skills, rows) {
+                for (skill, row) in skills.iter().zip(rows) {
+                    assert_eq!(skill.is_none(), row.is_null(), "case {n}");
+                    if let Some(b) = skill {
+                        assert_eq!(b.id.as_deref(), row["SkillID"].as_str(), "case {n}");
+                        assert_eq!(
+                            i64::from(b.untrain_ap),
+                            row["UntrainSkillAP"].as_i64().unwrap(),
+                            "case {n}"
+                        );
+                        assert_eq!(
+                            b.enhances.as_ref().map(Vec::len),
+                            row["Enhances"].as_array().map(Vec::len),
+                            "case {n}"
+                        );
+                    }
+                }
+            }
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -220,12 +262,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::Ap,
         Kind::UseInventoryItem,
         Kind::UseInventoryItemOk,
+        Kind::QuerySkillList,
+        Kind::SkillList,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 585);
+        assert_eq!(cases.len(), 618);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -237,6 +281,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "ap" => check_inventory(Kind::Ap, case, n),
                 "use_inventory_item" => check_inventory(Kind::UseInventoryItem, case, n),
                 "use_inventory_item_ok" => check_inventory(Kind::UseInventoryItemOk, case, n),
+                "query_skill_list" => check_inventory(Kind::QuerySkillList, case, n),
+                "skill_list" => check_inventory(Kind::SkillList, case, n),
                 "costume_update" => check_costume(case, n),
                 _ => panic!("unknown fixture type"),
             }

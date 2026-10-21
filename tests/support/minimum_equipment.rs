@@ -560,3 +560,80 @@ async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing(
     assert_eq!(state(&p).await, before);
     cleanup_game_pool(a, p, s).await;
 }
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_skill_list_projects_stored_skills_without_writes() {
+    use vindictus_server::infrastructure::{minimum_skills, skill_profile};
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let stored: Vec<(Vec<u8>, i32)> =
+        sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=1 ORDER BY row_id")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert!(!stored.is_empty());
+    let sources: serde_json::Value =
+        serde_json::from_str(include_str!("../../src/domain/skill_list_sources.json")).unwrap();
+    let implementations: serde_json::Map<String, serde_json::Value> = sources
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(k, v)| (k.clone(), v["sha256"].clone()))
+        .collect();
+    let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+    let mut skills = Vec::new();
+    let mut ranks = Vec::new();
+    for (n, (key, rank)) in stored.iter().enumerate() {
+        skills.push(
+            serde_json::json!({"source_index":n,"skill_utf16":hex(key),"class_restriction":2}),
+        );
+        for (r, ap) in [(*rank, 0), (rank + 1, 30)] {
+            ranks.push(serde_json::json!({"source_index":ranks.len(),"skill_utf16":hex(key),"rank":r,"level":1,"required_ap":ap,"require_unlock":false,"feature":null}));
+        }
+    }
+    let profile = serde_json::json!({"format_version":1,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[]});
+    let assets = assets()
+        .with_skills(
+            skill_profile::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
+        )
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    assert!(minimum_skills::query(&p, &owner, &assets, 1).await.is_err());
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let before = state(&p).await;
+    let packet = minimum_skills::query(&p, &owner, &assets, 1).await.unwrap();
+    assert_eq!(packet.category, 583);
+    let Some(Message::SkillList(list)) =
+        inventory::decode(Kind::SkillList, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("skill list missing")
+    };
+    assert_eq!(
+        (
+            list.learning.as_deref(),
+            list.current_ap,
+            list.reset_vocation
+        ),
+        (Some(""), 0, false)
+    );
+    let skills = list.skills.unwrap();
+    assert_eq!(skills.len(), stored.len());
+    for (b, (_, rank)) in skills.iter().zip(&stored) {
+        let b = b.as_ref().unwrap();
+        assert_eq!(
+            (
+                b.base_rank,
+                b.final_rank,
+                b.required_ap,
+                b.can_start_training
+            ),
+            (*rank, *rank, 30, 1)
+        );
+        assert!(b.enhances == Some(Vec::new()));
+    }
+    assert_eq!(state(&p).await, before);
+    cleanup_game_pool(a, p, s).await;
+}

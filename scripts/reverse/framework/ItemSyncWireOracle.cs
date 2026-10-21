@@ -9,6 +9,7 @@ using System.Web.Script.Serialization;
 using Devcat.Core.Net.Message;
 using ServiceCore.EndPointNetwork;
 using ServiceCore.ItemServiceOperations;
+using ServiceCore.CharacterServiceOperations;
 class ItemSyncWireOracle {
  static int[] Body(Packet p) { return p.Array.Skip(p.Offset+p.BodyOffset).Take(p.Length).Select(b=>(int)b).ToArray(); }
  static object Capture(object v) {
@@ -120,6 +121,15 @@ class ItemSyncWireOracle {
   foreach(long id in new[]{long.MinValue,-1L,0L,long.MaxValue})foreach(long tid in new[]{-1L,0L,long.MaxValue})uses.Add(new UseInventoryItemMessage(id,tid));
   AddCases("use_inventory_item",629,new Guid("c182cb18-7469-3390-a0e7-8eba31d6e45d"),uses,cases);
   AddCases("use_inventory_item_ok",627,new Guid("451d459f-bb17-325c-bb10-d608f03f4c3f"),new[]{null,Obj<UseInventoryItemOkMessage>(),Obj<UseInventoryItemOkMessage>("UseItemClass",""),Obj<UseInventoryItemOkMessage>("UseItemClass","capsule_ap50")},cases);
+  AddCases("query_skill_list",540,new Guid("860e6484-d1b5-34a9-9412-70807bbbf79c"),new[]{null,new QuerySkillListMessage()},cases);
+  var lists=new List<SkillListMessage>{null,new SkillListMessage(null,0,null,false),new SkillListMessage("",0,new List<BriefSkillInfo>(),true)};
+  foreach(int seed in new[]{int.MinValue,-1,0,1,30,int.MaxValue}){
+   var b=new BriefSkillInfo{SkillID=seed==0?null:"skill_synthetic",BaseRank=seed,FinalRank=seed,RequiredAP=-1,IsLocked=(byte)(seed&255),CanStartTraining=(byte)(seed==30?1:0),CurrentAP=seed,ResetSkillAP=-1,UntrainSkillAP=seed};
+   if(seed==1)b.Enhances=null;
+   if(seed==30)b.Enhances.Add(new BriefSkillEnhance{GroupKey=seed,IndexKey=-1,Type=255,ReduceDurability=int.MinValue,MaxDurabilityBonus=int.MaxValue});
+   lists.Add(new SkillListMessage(seed==-1?null:"skill_learning",seed,new List<BriefSkillInfo>{b,null},seed%2==0));
+  }
+  AddCases("skill_list",583,new Guid("dd3b94a9-64da-381a-b2e7-0fad58835746"),lists,cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

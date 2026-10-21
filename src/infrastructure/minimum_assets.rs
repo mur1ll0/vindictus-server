@@ -38,9 +38,13 @@ struct Files {
     map_partition_dir: Option<PathBuf>,
     channel_bind: Option<std::net::SocketAddr>,
     equipment: Option<PathBuf>,
+    skills: Option<PathBuf>,
 }
 pub struct Assets {
     pub(super) equipment: Option<super::equipment_profile::Profile>,
+    /// Skill contents with features evaluated against `catalog`.
+    pub(super) skills:
+        Option<std::collections::BTreeMap<String, crate::domain::skill_list::SkillContent>>,
     pub initializer: fiona_initializer_profile::Profile,
     pub(super) catalog: item_catalog::Package,
     pub(super) stats: item_stats::Package,
@@ -156,6 +160,9 @@ impl Assets {
             assets =
                 assets.with_equipment(super::equipment_profile::Profile::read(open(&path)?)?)?;
         }
+        if let Some(path) = f.skills {
+            assets = assets.with_skills(super::skill_profile::Profile::read(open(&path)?)?)?;
+        }
         Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
@@ -170,6 +177,7 @@ impl Assets {
         }
         let mut out = Self {
             equipment: None,
+            skills: None,
             stats_index: item_stats::StatsIndex::default(),
             initializer: parts.initializer,
             catalog: parts.catalog,
@@ -195,6 +203,13 @@ impl Assets {
     ) -> Result<Self, MinimumError> {
         profile.resolve(&self.catalog)?;
         self.equipment = Some(profile);
+        Ok(self)
+    }
+    pub fn with_skills(
+        mut self,
+        profile: super::skill_profile::Profile,
+    ) -> Result<Self, MinimumError> {
+        self.skills = Some(profile.contents(&self.catalog)?);
         Ok(self)
     }
     pub async fn initialize_and_list(

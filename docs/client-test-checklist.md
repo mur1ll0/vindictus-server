@@ -33,6 +33,9 @@ Pré-condição: runtime iniciado com `scripts/dev/start-lab-frontend.ps1` (perf
 - [ ] Relogar: atalhos preservados.
 - [ ] Usar o consumível pela barra só será possível dentro de fase (combate ainda não implementado).
 
+### Lista de skills (P0-03b)
+- [ ] Abrir a janela de skills: aparecem Shield Mastery e Guard no rank 1, com custo do próximo rank e treino disponível.
+
 ### AP e cápsula de AP (P0-03a)
 - [ ] Abrir a janela de skills: o AP exibido corresponde ao salvo (o cliente pede `QueryAP`).
 - [ ] Aba Cash: há uma pilha de **5× cápsula de AP 50** (concedida para teste em 21/10/2026).

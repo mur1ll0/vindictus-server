@@ -22,6 +22,8 @@ pub enum Kind {
     Ap,
     UseInventoryItem,
     UseInventoryItemOk,
+    QuerySkillList,
+    SkillList,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -37,6 +39,8 @@ impl Kind {
             Self::Ap => 229,
             Self::UseInventoryItem => 629,
             Self::UseInventoryItemOk => 627,
+            Self::QuerySkillList => 540,
+            Self::SkillList => 583,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -52,6 +56,8 @@ impl Kind {
             Self::Ap => 0x3d59ac68_6b3c_3f92_968e_b569b973f065,
             Self::UseInventoryItem => 0xc182cb18_7469_3390_a0e7_8eba31d6e45d,
             Self::UseInventoryItemOk => 0x451d459f_bb17_325c_bb10_d608f03f4c3f,
+            Self::QuerySkillList => 0x860e6484_d1b5_34a9_9412_70807bbbf79c,
+            Self::SkillList => 0xdd3b94a9_64da_381a_b2e7_0fad58835746,
         })
     }
 }
@@ -144,6 +150,40 @@ pub enum Message {
     UseInventoryItem(UseItem),
     /// UseInventoryItemOkMessage.UseItemClass.
     UseInventoryItemOk(Option<String>),
+    /// QuerySkillListMessage (fieldless).
+    QuerySkillList,
+    SkillList(SkillList),
+}
+/// BriefSkillEnhance in declaration order.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SkillEnhance {
+    pub group_key: i32,
+    pub index_key: i32,
+    pub kind: u8,
+    pub reduce_durability: i32,
+    pub max_durability_bonus: i32,
+}
+/// BriefSkillInfo in declaration order.
+#[derive(Clone, PartialEq, Eq)]
+pub struct BriefSkill {
+    pub id: Option<String>,
+    pub base_rank: i32,
+    pub final_rank: i32,
+    pub required_ap: i32,
+    pub is_locked: u8,
+    pub can_start_training: u8,
+    pub current_ap: i32,
+    pub reset_ap: i32,
+    pub untrain_ap: i32,
+    pub enhances: Option<Vec<Option<SkillEnhance>>>,
+}
+/// SkillListMessage: LearningSkillID, CurrentAp, SkillList, IsResetVocation.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SkillList {
+    pub learning: Option<String>,
+    pub current_ap: i32,
+    pub skills: Option<Vec<Option<BriefSkill>>>,
+    pub reset_vocation: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Ap {
@@ -182,6 +222,8 @@ impl Message {
             Self::Ap(_) => Kind::Ap,
             Self::UseInventoryItem(_) => Kind::UseInventoryItem,
             Self::UseInventoryItemOk(_) => Kind::UseInventoryItemOk,
+            Self::QuerySkillList => Kind::QuerySkillList,
+            Self::SkillList(_) => Kind::SkillList,
         }
     }
 }
@@ -331,6 +373,31 @@ object!(Ap {
     max_ap,
     bonus_interval
 });
+object!(SkillEnhance {
+    group_key,
+    index_key,
+    kind,
+    reduce_durability,
+    max_durability_bonus
+});
+object!(BriefSkill {
+    id,
+    base_rank,
+    final_rank,
+    required_ap,
+    is_locked,
+    can_start_training,
+    current_ap,
+    reset_ap,
+    untrain_ap,
+    enhances
+});
+object!(SkillList {
+    learning,
+    current_ap,
+    skills,
+    reset_vocation
+});
 object!(UseItem {
     item_id,
     target_item_id
@@ -377,6 +444,8 @@ pub fn encode(
             Message::Ap(v) => v.write(&mut w)?,
             Message::UseInventoryItem(v) => v.write(&mut w)?,
             Message::UseInventoryItemOk(v) => v.write(&mut w)?,
+            Message::QuerySkillList => {}
+            Message::SkillList(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -412,6 +481,8 @@ pub fn decode(
             Kind::Ap => Message::Ap(Ap::read(&mut r)?),
             Kind::UseInventoryItem => Message::UseInventoryItem(UseItem::read(&mut r)?),
             Kind::UseInventoryItemOk => Message::UseInventoryItemOk(Wire::read(&mut r)?),
+            Kind::QuerySkillList => Message::QuerySkillList,
+            Kind::SkillList => Message::SkillList(SkillList::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

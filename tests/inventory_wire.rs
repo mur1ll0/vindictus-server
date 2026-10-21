@@ -103,7 +103,9 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::QueryAp
                 | Kind::Ap
                 | Kind::UseInventoryItem
-                | Kind::UseInventoryItemOk => {
+                | Kind::UseInventoryItemOk
+                | Kind::QuerySkillList
+                | Kind::SkillList => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

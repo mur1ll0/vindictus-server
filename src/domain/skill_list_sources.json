@@ -1,0 +1,30 @@
+{
+  "skill_manager": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/SkillManager.cs",
+    "sha256": "92008377c12280ae6fdc7d422a8855a159713d81463ea4f0b48f1094cc0b46cb"
+  },
+  "contents": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContents.cs",
+    "sha256": "6bc2e3fa29ca1c3bf1b2bdb27af3445ed50717225905a059090c18067690aefe"
+  },
+  "contents_extension": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/CharacterContentsExtension.cs",
+    "sha256": "dd480d96b2400cd43030895ead7045244c3d789cfe4b7aa77a1e6517f8860cbf"
+  },
+  "double_dictionary": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/IEnumerableExtension.cs",
+    "sha256": "ef7e5fa777665742a56818458fe33012f1cbd1b6ef0bc72b373b69a797c21343"
+  },
+  "loader": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.HeroesContents/HeroesContentsLoader.cs",
+    "sha256": "816f4a467add0e5a2e6631e091433a84d3ab844567ea944316f944f0ede4b940"
+  },
+  "query_processor": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/QuerySkillListProcessor.cs",
+    "sha256": "2da8325b6db54c6cabacd8c769366e39320abdcb2fb518e631b2920416e9f6a7"
+  },
+  "brief": {
+    "path": "legacy/decompiled/ServiceCore-be65d59d2385/ServiceCore.CharacterServiceOperations/BriefSkillInfo.cs",
+    "sha256": "88c54506ebeaadd0cbd4c0ea228d4fc1dcf475ff46dad9b15fec74a4ee10c951"
+  }
+}
