@@ -132,14 +132,47 @@ def read_package(base, database, config):
         # EquipItemInfo in provider order, aligned with the catalog projection's equips.
         repair['equip_item_class'] = [nullable_text(r['EquipClass']) for r in db.execute('Select * From [EquipItemInfo]')]
     if len(repair['equip_item_class']) != len(catalog['equips']): raise ValueError('EquipItemInfo differs from the catalog projection')
-    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'BuybackListCount', 'RestoreItem', 'RepairPriceRate'}
+    def flag(v):
+        if v in ('True', 'False'): return v == 'True'
+        if v in (0, 1): return bool(v)
+        raise ValueError('Quest bit')
+    def nullable_int32(v):
+        return None if v is None else int32(v)
+    # QuestContents.Load tables in provider order (Select * From [Table]).
+    quests = {}
+    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        quests['quests'] = [{'ID': nullable_text(r['ID']), 'AutoGiveLevel': int32(r['AutoGiveLevel']), 'QuestSet': int32(r['QuestSet']),
+                             'ServiceCoin': int32(r['ServiceCoin']), 'MaxMemberCount': int32(r['MaxMemberCount']),
+                             'MaxPlayCount': nullable_int32(r['MaxPlayCount']), 'EnableTodayQuest': nullable_text(r['EnableTodayQuest']),
+                             'Season3TodayGroup': nullable_text(r['Season3TodayGroup']), 'AutoReveal': flag(r['AutoReveal']),
+                             'Feature': nullable_text(r['Feature']), 'IsSeason2': flag(r['IsSeason2'])}
+                            for r in db.execute('Select * From [QuestInfo]')]
+        quests['goals'] = [[int32(r['ID']), nullable_text(r['QuestID']), int32(r['Relation']), int32(r['Weight'])]
+                           for r in db.execute('Select * From [QuestGoalInfo]')]
+        quests['constraints'] = [[nullable_text(r['QuestID']), nullable_text(r['RequiredQuestID']), int32(r['RequiredStatus'])]
+                                 for r in db.execute('Select * From [QuestConstraintInfo]')]
+        quests['difficulties'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['MinLevel']), nullable_text(r['Feature'])]
+                                  for r in db.execute('Select * From [QuestDifficultyInfo]')]
+        quests['periods'] = [[nullable_text(r['QuestID']), nullable_text(r['DateFrom']), int32(r['Period']), nullable_int32(r['MaxPlayCount']), nullable_text(r['Feature'])]
+                             for r in db.execute('Select * From [QuestPeriodInfo]')]
+    if any(len(v) > 100000 for v in quests.values()): raise ValueError('Quest table bound')
+    if any(q['ID'] is None for q in quests['quests']): raise ValueError('QuestInfo ID')
+    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'BuybackListCount', 'RestoreItem', 'RepairPriceRate',
+              'GoldRate_Story', 'ExpRate_Story', 'APRate_Story', 'TodayQuest', 'TodayQuest_S2', 'TodayQuest_S3', 'TodayQuest_InitTimeAdder',
+              'CafeBonusQuestPlus', 'Event_PlayCount_Unlimited', 'AddDeparture', 'AddDepartureCount', 'Event_PlayCount_Plus',
+              'ChangeBasicBattleGoal', 'E3_Event_2010', 'Event_PAX_2011_enUS', 'DisableInGameCheat', 'zhCN', 'zhTW'}
+    for q in quests['quests']:
+        wanted |= feature_atoms(q['Feature'] or ''); wanted |= feature_atoms(q['EnableTodayQuest'] or '')
+    for d in quests['difficulties']: wanted |= feature_atoms(d[3] or '')
+    for d in quests['periods']: wanted |= feature_atoms(d[4] or '')
     for row in shops: wanted |= feature_atoms(row['Feature'] or '')
     for d in defaults:
         wanted |= feature_atoms(d['feature']); condition_atoms(d['tree'], wanted)
     for s in storylines:
         wanted |= feature_atoms(s['info']['Feature'] or '')
         if s['tree'] is not None: condition_atoms(s['tree'], wanted)
-    if len(wanted) > 512 or any(not k.isascii() or not k or len(k) > 256 for k in wanted): raise ValueError('Feature subset bound')
+    if len(wanted) > 1024 or any(not k.isascii() or not k or len(k) > 256 for k in wanted): raise ValueError('Feature subset bound')
     with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN')
         values = region_features(db, config)
@@ -151,7 +184,7 @@ def read_package(base, database, config):
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
                          'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
-            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair}
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

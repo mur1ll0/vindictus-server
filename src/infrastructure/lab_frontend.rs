@@ -265,6 +265,12 @@ impl Runtime {
             FrameworkArchitecture::X64 => Arithmetic::FrameworkX64,
         }
     }
+    fn quest_clock(&self) -> super::minimum_quest::QuestClock {
+        super::minimum_quest::QuestClock {
+            arithmetic: self.stat_arithmetic(),
+            civil_offset_seconds: i64::from(self.profile.civil_offset_seconds()),
+        }
+    }
     fn item_log_context(
         &self,
         assets: &super::minimum_assets::Assets,
@@ -817,6 +823,44 @@ impl Connection {
                                     tracing::warn!("minimum story login rejected; values omitted")
                                 }
                             }
+                            // QuestOwner construction and NotifyLevel: QuestProgress.
+                            if assets.npc.as_ref().is_some_and(|n| n.quests.is_some()) {
+                                let clock = runtime.quest_clock();
+                                let quests = async {
+                                    let n = super::minimum_quest::login_openings(
+                                        pool, &owner, assets, cid,
+                                    )
+                                    .await?;
+                                    let ids = runtime
+                                        .minimum
+                                        .as_ref()
+                                        .ok_or(super::minimum_character::MinimumError::Conflict)?
+                                        .creation
+                                        .entity_ids(n)
+                                        .await
+                                        .map_err(|_| {
+                                            super::minimum_character::MinimumError::Conflict
+                                        })?;
+                                    super::minimum_quest::login(
+                                        pool, &owner, assets, cid, ids, clock,
+                                    )
+                                    .await
+                                };
+                                match quests.await {
+                                    Ok(packets) => {
+                                        for packet in &packets {
+                                            send(stream, sender, packet.category, &packet.body)
+                                                .await?;
+                                        }
+                                        tracing::info!(
+                                            "minimum quest login processed; values omitted"
+                                        );
+                                    }
+                                    Err(_) => tracing::warn!(
+                                        "minimum quest login rejected; values omitted"
+                                    ),
+                                }
+                            }
                         }
                     }
                     Message::EnterChannel {
@@ -1072,6 +1116,7 @@ impl Connection {
                 Kind::SellItem,
                 Kind::QueryBuybackList,
                 Kind::RepairItem,
+                Kind::QueryQuestProgress,
                 Kind::QueryCharacterCommonInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -1169,8 +1214,9 @@ impl Connection {
                             .map_err(|_| RuntimeError::Operation)?;
                         let session =
                             &mut self.selected.as_mut().ok_or(RuntimeError::Operation)?.story;
+                        let clock = runtime.quest_clock();
                         match super::minimum_story::talk(
-                            pool, &owner, assets, cid, session, request, ids,
+                            pool, &owner, assets, cid, session, request, ids, clock,
                         )
                         .await
                         {
@@ -1287,6 +1333,27 @@ impl Connection {
                                 tracing::info!("minimum repair processed; values omitted");
                             }
                             Err(_) => tracing::warn!("minimum repair refused; values omitted"),
+                        }
+                    }
+                    Message::QueryQuestProgress => {
+                        match super::minimum_quest::query_progress(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            runtime.quest_clock(),
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum quest progress pushed; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum quest progress refused; values omitted")
+                            }
                         }
                     }
                     Message::QueryBuybackList => {

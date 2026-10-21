@@ -407,6 +407,64 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             );
             assert_eq!(g.message.as_deref(), f["GuideMessage"].as_str(), "case {n}");
         }
+        Some(Message::QueryQuestProgress) => {}
+        Some(Message::QuestProgress(q)) => {
+            let expected = f["QuestProgress"].as_array();
+            assert_eq!(
+                q.progress.as_ref().map(Vec::len),
+                expected.map(Vec::len),
+                "case {n}"
+            );
+            for (v, e) in q
+                .progress
+                .iter()
+                .flatten()
+                .zip(expected.into_iter().flatten())
+            {
+                assert_eq!(v.is_none(), e.is_null(), "case {n}");
+                let Some(v) = v else { continue };
+                assert_eq!(v.id.as_deref(), e["ID"].as_str(), "case {n}");
+                assert_eq!(
+                    i64::from(v.max_play_count),
+                    e["MaxPlayCount"].as_i64().unwrap(),
+                    "case {n}"
+                );
+                assert_eq!(
+                    v.today_quest,
+                    e["TodayQuest"].as_bool().unwrap(),
+                    "case {n}"
+                );
+                assert_eq!(
+                    v.clear_times.as_ref().map(Vec::len),
+                    e["ClearTimes"].as_array().map(Vec::len),
+                    "case {n}"
+                );
+            }
+            let goals = f["AchievedGoals"].as_array();
+            assert_eq!(
+                q.achieved_goals.as_ref().map(Vec::len),
+                goals.map(Vec::len),
+                "case {n}"
+            );
+            for (v, e) in q
+                .achieved_goals
+                .iter()
+                .flatten()
+                .zip(goals.into_iter().flatten())
+            {
+                let Some(v) = v else { continue };
+                assert_eq!(
+                    i64::from(v.regened_ap),
+                    e["RegenedAP"].as_i64().unwrap(),
+                    "case {n}"
+                );
+                assert_eq!(
+                    i64::from(v.last_clear_time_diff),
+                    e["LastClearTimeDiff"].as_i64().unwrap(),
+                    "case {n}"
+                );
+            }
+        }
         Some(Message::StoryVariables(vars)) => {
             let expected = f["StoryVariables"].as_array();
             assert_eq!(
@@ -540,12 +598,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::RepairItem,
         Kind::UpdateStoryGuide,
         Kind::StoryVariables,
+        Kind::QueryQuestProgress,
+        Kind::QuestProgress,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1161);
+        assert_eq!(cases.len(), 1191);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -579,6 +639,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "repair_item" => check_inventory(Kind::RepairItem, case, n),
                 "update_story_guide" => check_inventory(Kind::UpdateStoryGuide, case, n),
                 "story_variables" => check_inventory(Kind::StoryVariables, case, n),
+                "query_quest_progress" => check_inventory(Kind::QueryQuestProgress, case, n),
+                "quest_progress" => check_inventory(Kind::QuestProgress, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

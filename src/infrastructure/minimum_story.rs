@@ -273,7 +273,9 @@ pub enum TalkRequest<'a> {
     ExecuteServerCommand,
 }
 
-struct Facts {
+struct Facts<'a> {
+    quests: Option<&'a crate::domain::quest::QuestContents>,
+    raid_coupons: i64,
     class: i32,
     level: i32,
     titles: std::collections::BTreeSet<i32>,
@@ -282,7 +284,7 @@ struct Facts {
     gold: i32,
     manufactures: std::collections::BTreeMap<String, (i32, i32)>,
 }
-impl crate::domain::npc_talk::Facts for Facts {
+impl crate::domain::npc_talk::Facts for Facts<'_> {
     fn class(&self) -> i32 {
         self.class
     }
@@ -298,9 +300,11 @@ impl crate::domain::npc_talk::Facts for Facts {
     fn manufacture(&self, id: &str) -> Option<(i32, i32)> {
         self.manufactures.get(id).copied()
     }
-    /// The quest service is not migrated and no quest can be given yet: no state.
-    fn quest_progress(&self, _: &str) -> i32 {
-        -1
+    fn quests(&self) -> Option<&crate::domain::quest::QuestContents> {
+        self.quests
+    }
+    fn quest_context(&self) -> (bool, i64) {
+        (false, self.raid_coupons)
     }
     fn repair_price(&self) -> i32 {
         self.repair_price
@@ -312,6 +316,7 @@ impl crate::domain::npc_talk::Facts for Facts {
 
 /// QueryNpcTalk/SelectButton/ExecuteNpcServerCommand processors. A refused request
 /// (CanStartQuery, DEV without cheat permission, unmigrated branch) sends nothing.
+#[allow(clippy::too_many_arguments)]
 pub async fn talk(
     pool: &PgPool,
     owner: &UserKey<'_>,
@@ -320,6 +325,7 @@ pub async fn talk(
     session: &mut crate::domain::npc_talk::Session,
     request: TalkRequest<'_>,
     entity_ids: Vec<i64>,
+    clock: super::minimum_quest::QuestClock,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     use crate::domain::npc_talk::{StoryState, Talker};
     let npc = assets.npc.as_ref().ok_or_else(fail)?;
@@ -359,15 +365,30 @@ pub async fn talk(
         .bind(&gold_key)
         .fetch_one(&mut *tx)
         .await?;
+        // QuestOwner after Load (InitQuestStatus) with the NotifyLevel CharacterLevel.
+        let contents = npc.quests.as_ref();
+        let raw_quests = match contents {
+            Some(c) => super::minimum_quest::load(&mut tx, cid, c).await?,
+            None => crate::domain::quest::QuestOwner::default(),
+        };
+        let mut quests = raw_quests.clone();
+        if let Some(q) = contents {
+            quests.init_status(q);
+            quests.level = c.level;
+        }
+        let raid_coupons = super::minimum_quest::raid_coupons(&mut tx, cid).await?;
         let mut state = StoryState {
             progress: rows,
             saves: saves(&mut tx, cid).await?,
             variables: variables(&mut tx, cid).await?,
             guide: guide(&mut tx, cid).await?,
             item_delta: Vec::new(),
+            quests,
         };
         let original = state.clone();
         let facts = Facts {
+            quests: contents,
+            raid_coupons,
             repair_price,
             gold: i32::try_from(gold).map_err(|_| fail())?,
             class: c.class,
@@ -435,7 +456,23 @@ pub async fn talk(
             }
         };
         let mut ids = entity_ids.into_iter();
-        let applied = apply_outputs(&mut tx, owner, assets, cid, c.hint, pushed.outputs, &mut ids).await;
+        let quest_ctx = contents.map(|contents| crate::domain::quest::Context {
+            contents,
+            policy: &npc.policy,
+            cafe: false,
+            raid_coupons,
+        });
+        let applied = apply_outputs(
+            &mut tx,
+            owner,
+            assets,
+            cid,
+            c.hint,
+            pushed.outputs,
+            &mut ids,
+            (quest_ctx, clock),
+        )
+        .await;
         let packets = match applied {
             Ok(p) => p,
             Err(e) => {
@@ -445,6 +482,12 @@ pub async fn talk(
             }
         };
         if let Err(e) = save_state(&mut tx, cid, &original, &state, &mut ids).await {
+            *session = backup;
+            return Err(e);
+        }
+        if let Err(e) =
+            super::minimum_quest::save(&mut tx, cid, &raw_quests, &state.quests, &mut ids).await
+        {
             *session = backup;
             return Err(e);
         }
@@ -460,6 +503,7 @@ pub const TALK_ENTITY_IDS: usize = 32;
 
 /// Packets of the query outputs in source order; item effects run in the caller's
 /// transaction, so a failed give (no mail fallback) refuses the whole request.
+#[allow(clippy::too_many_arguments)]
 async fn apply_outputs(
     tx: &mut Transaction<'_, Postgres>,
     owner: &UserKey<'_>,
@@ -468,6 +512,10 @@ async fn apply_outputs(
     hint: i16,
     outputs: Vec<crate::domain::npc_talk::Output>,
     ids: &mut std::vec::IntoIter<i64>,
+    quests: (
+        Option<crate::domain::quest::Context<'_>>,
+        super::minimum_quest::QuestClock,
+    ),
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     use super::minimum_give::Request;
     use crate::domain::npc_talk::{Effect, Output};
@@ -491,6 +539,19 @@ async fn apply_outputs(
             Output::SyncStory(rows) => {
                 packets.push(story_lines_packet(npc, &rows, hint)?);
                 packets.push(npc_list_packet(&npc.scripts, &npc.policy, &rows)?);
+            }
+            Output::QuestProgress(snapshot) => {
+                let (ctx, clock) = quests;
+                let ctx = ctx.ok_or_else(fail)?;
+                // PushQuestProgressMessage needs CharacterLevel > 0.
+                if snapshot.level > 0 {
+                    packets.push(super::minimum_quest::progress_packet(
+                        &snapshot,
+                        ctx,
+                        clock,
+                        super::minimum_quest::now_units()?,
+                    )?);
+                }
             }
             Output::Guide(target, message) => packets.push(packet(
                 Kind::UpdateStoryGuide,

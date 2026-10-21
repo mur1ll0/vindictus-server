@@ -179,6 +179,11 @@ class ItemSyncWireOracle {
   AddCases("update_story_guide",622,new Guid("4f661234-1161-3db9-8127-877ed7807435"),new[]{null,new UpdateStoryGuideMessage(null,null),new UpdateStoryGuideMessage("",""),new UpdateStoryGuideMessage("colhen.adv_guild","HEROES_STORYLINE_GUIDE")},cases);
   var vars=new List<StoryVariableInfo>{new StoryVariableInfo("GuidePlay","count",3),null,new StoryVariableInfo(null,null,int.MinValue)};
   AddCases("story_variables",599,new Guid("de76b127-f09d-369a-8008-26af3e5c8383"),new[]{null,new StoryVariablesMessage(null),new StoryVariablesMessage(new List<StoryVariableInfo>()),new StoryVariablesMessage(vars)},cases);
+  AddCases("query_quest_progress",535,new Guid("5b634b00-c047-339e-a4fe-b0ef8e3b9a2e"),new[]{null,new QueryQuestProgressMessage()},cases);
+  var times=new List<ClearTimeElement>{new ClearTimeElement{Difficulty=2,MemberCount=4,ClearTime=612,PlayRank=1,ClearInfo=7,IsOld=true},new ClearTimeElement()};
+  var goal=new AchieveGoalInfo(10010,2,3,255,new DateTime(2020,1,1));goal.LastClearTimeDiff=int.MinValue;
+  var progress=new List<QuestProgressInfo>{new QuestProgressInfo("quest_gnoll_watchman",0,0,true,true,false,true,-1,0,new List<ClearTimeElement>()),null,new QuestProgressInfo(null,int.MinValue,int.MaxValue,false,false,true,false,5,4,null),new QuestProgressInfo("quest_x",100,2,false,true,true,true,int.MaxValue,1,times)};
+  AddCases("quest_progress",546,new Guid("c229a0f5-4eda-3bbc-a4be-61f3aad3f82b"),new[]{null,new QuestProgressMessage(null,null),new QuestProgressMessage(new List<QuestProgressInfo>(),new List<AchieveGoalInfo>()),new QuestProgressMessage(new List<QuestProgressInfo>{progress[0],null},null),new QuestProgressMessage(new List<QuestProgressInfo>{progress[2]},null),new QuestProgressMessage(new List<QuestProgressInfo>{progress[3]},null),new QuestProgressMessage(null,new List<AchieveGoalInfo>{goal}),new QuestProgressMessage(null,new List<AchieveGoalInfo>{null})},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

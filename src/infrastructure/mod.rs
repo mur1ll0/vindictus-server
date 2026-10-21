@@ -108,6 +108,7 @@ pub mod minimum_equip;
 pub mod minimum_give;
 pub mod minimum_item_logs;
 pub mod minimum_move;
+pub mod minimum_quest;
 pub mod minimum_quickslot;
 pub mod minimum_repair;
 pub mod minimum_shop;

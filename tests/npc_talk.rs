@@ -38,8 +38,8 @@ impl Facts for Fiona {
     fn manufacture(&self, _: &str) -> Option<(i32, i32)> {
         None
     }
-    fn quest_progress(&self, _: &str) -> i32 {
-        -1
+    fn quests(&self) -> Option<&vindictus_server::domain::quest::QuestContents> {
+        None
     }
     fn repair_price(&self) -> i32 {
         0
@@ -510,4 +510,156 @@ fn take_item_without_the_item_answers_the_source_error() {
     )));
     assert!(state.item_delta.is_empty());
     assert_eq!(state.progress[0].phase.as_deref(), Some("B"));
+}
+
+struct QuestFiona(vindictus_server::domain::quest::QuestContents);
+impl Facts for QuestFiona {
+    fn class(&self) -> i32 {
+        1
+    }
+    fn level(&self) -> i32 {
+        1
+    }
+    fn title_acquired(&self, _: i32) -> bool {
+        false
+    }
+    fn item_count(&self, _: &str) -> i32 {
+        0
+    }
+    fn manufacture(&self, _: &str) -> Option<(i32, i32)> {
+        None
+    }
+    fn quests(&self) -> Option<&vindictus_server::domain::quest::QuestContents> {
+        Some(&self.0)
+    }
+    fn repair_price(&self) -> i32 {
+        0
+    }
+    fn gold(&self) -> i32 {
+        0
+    }
+}
+
+#[test]
+fn give_quest_reveals_the_quest_pushes_progress_and_feeds_quest_conditions() {
+    use vindictus_server::domain::quest::{QuestContents, QuestInfo, QuestTables};
+    let cond = |name: &str, arg: &str, yes: &str, no: &str| {
+        el(
+            "If",
+            &[],
+            "",
+            vec![
+                el("Condition", &[], "", vec![leaf(name, arg)]),
+                el("Then", &[], "", vec![leaf("talk", yes)]),
+                el("Else", &[], "", vec![leaf("talk", no)]),
+            ],
+        )
+    };
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "AIDAN")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![
+                        cond("has_quest", "quest_x", "OWNED", "NONE"),
+                        leaf("give_quest", "quest_x"),
+                        cond("has_quest", "quest_x", "OWNED", "NONE"),
+                        cond("quest_progress", "quest_x,1", "P1", "P0"),
+                        cond("quest_available", "quest_x", "FREE", "LOCKED"),
+                        leaf("give_quest", "missing"),
+                    ],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let quest = QuestInfo {
+        id: "quest_x".to_owned(),
+        auto_give_level: 0,
+        quest_set: 1,
+        service_coin: 0,
+        max_member_count: 4,
+        max_play_count: None,
+        enable_today_quest: None,
+        season3_today_group: None,
+        auto_reveal: false,
+        feature: None,
+        is_season2: false,
+    };
+    let contents = QuestContents::load(
+        QuestTables {
+            quests: vec![quest],
+            ..Default::default()
+        },
+        &p,
+    )
+    .unwrap();
+    let facts = QuestFiona(contents);
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 0,
+        }],
+        ..Default::default()
+    };
+    state.quests.level = 1;
+    let mut session = Session::default();
+    let mut pick = |_| 0;
+    let mut outputs = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+        .talk_to(None, "AIDAN", Some("Guide"), None)
+        .unwrap()
+        .outputs;
+    while session.last_server_command.is_some() {
+        outputs.extend(
+            Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+                .execute_server_command()
+                .unwrap()
+                .outputs,
+        );
+    }
+    let talk: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    let said: Vec<&str> = talk
+        .iter()
+        .filter(|e| e.0 == "talk")
+        .map(|e| e.1.as_str())
+        .collect();
+    assert_eq!(said, ["NONE", "OWNED", "P0", "FREE"]);
+    assert!(talk.contains(&t("give_quest_successful", "quest_x", "")));
+    assert!(talk.contains(&t(
+        "Error",
+        "GameUI_Heroes_NPCTalkEntity_Talk_NullError,give_quest",
+        ""
+    )));
+    let owned = state.quests.owned("quest_x").unwrap();
+    assert_eq!((owned.revealed, owned.row_id), (1, None));
+    assert!(matches!(
+        outputs.iter().find(|o| matches!(o, Output::QuestProgress(_))),
+        Some(Output::QuestProgress(q)) if q.owned("quest_x").is_some()
+    ));
 }

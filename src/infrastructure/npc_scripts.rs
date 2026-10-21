@@ -104,6 +104,8 @@ struct Export {
     storylines: Vec<RawStoryLine>,
     shops: Vec<RawShop>,
     repair: RawRepair,
+    #[serde(default)]
+    quests: Option<crate::domain::quest::QuestTables>,
 }
 
 fn fail() -> MinimumError {
@@ -153,6 +155,8 @@ pub struct Profile {
     pub repair: crate::domain::repair::RepairTables,
     /// EquipItemInfo.EquipClass aligned with the catalog equips rows.
     pub equip_item_class: Vec<Option<String>>,
+    /// QuestContents after Load (absent from profiles exported before the quest tables).
+    pub quests: Option<crate::domain::quest::QuestContents>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -277,7 +281,13 @@ impl Profile {
             rate: policy.get_integer("RepairPriceRate").unwrap_or(0),
         };
         let equip_item_class = raw.equip_item_class;
+        let quests = export
+            .quests
+            .map(|t| crate::domain::quest::QuestContents::load(t, &policy))
+            .transpose()
+            .map_err(|_| fail())?;
         Ok(Self {
+            quests,
             repair,
             equip_item_class,
             shop_rows,

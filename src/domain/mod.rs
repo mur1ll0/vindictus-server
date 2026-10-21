@@ -107,6 +107,7 @@ pub mod item_constraint;
 
 pub mod item_stack;
 
+pub mod quest;
 pub mod quick_slot;
 
 pub mod skill_list;

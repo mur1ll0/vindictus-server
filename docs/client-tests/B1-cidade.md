@@ -70,3 +70,11 @@ Pré-condição: Fiona nível 1 após o login com as histórias automáticas abe
 - [ ] Repetir o diálogo do NPC seguinte indicado pelo guia até a história pedir combate ou missão.
 - [ ] Relogar → fase, guia e itens entregues pela história preservados (o NPC continua no ponto em que parou).
 Limites conhecidos: conclusões de história com recompensa de EXP/AP/título/skill/item, `give_quest`/missões (B1.5b), `set_timer`/`time_passed` e itens de história com atributo (`[...]`/`_lvl`) não respondem (o diálogo para sem mudar nada); entrega de item sem espaço é recusada inteira (o original manda por correio); recompensa de ouro de história usa GoldRate_Story.
+
+### B1.5b — registro de quests
+Pré-condição: runtime com a migração 0036 aplicada (`migrate`) e o perfil `npc_scripts` reexportado com as tabelas de quest (`scripts/content/export_npc_scripts.py`).
+- [ ] Entrar com a Fiona → nenhum erro; a lista de quests do cliente (diário/quadro de quests, onde o cliente a mostrar na cidade) traz as quests iniciais de nível 1, com a do Gnoll Watchman revelada.
+- [ ] Abrir/fechar a janela de quests algumas vezes → a lista se mantém igual (o cliente pede QueryQuestProgress e recebe o mesmo estado).
+- [ ] Na história GuidePlay, ao chegar no passo que manda ir ao distrito de combate, o diálogo segue pelo ramo "quest ainda não concluída" (guia aponta o distrito de combate).
+- [ ] Relogar → as mesmas quests, sem duplicar.
+Limites conhecidos: concluir quests (objetivos de combate, recompensas, contagem de jogadas, tempos de conclusão) fica para o B2; bônus de cafe/VIP não migrado (sem bônus = limite de jogadas normal); a quest do dia segue o sorteio original pelo perfil de arquitetura do runtime.

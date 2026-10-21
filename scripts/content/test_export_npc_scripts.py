@@ -20,6 +20,12 @@ class NpcScriptExportTests(unittest.TestCase):
             db.executescript('CREATE TABLE RepairEnhanceInfo(EnhanceLevel INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairQualityInfo(Quality INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEnchantInfo(EnchantLevel INT,PrefixPoint INT,SuffixPoint INT,PrefixMaxDurabilityRecoveryPoint INT,SuffixMaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEquipClassInfo(EquipClass TEXT,Point INT,MaxDurabilityRecoveryPoint INT);')
             db.execute('INSERT INTO RepairQualityInfo VALUES(2,5,0)')
             db.execute('ALTER TABLE EquipItemInfo ADD COLUMN EquipClass TEXT')
+            db.executescript("CREATE TABLE QuestInfo(ID TEXT,AutoGiveLevel INT,QuestSet INT,ServiceCoin INT,MaxMemberCount INT,MaxPlayCount INT,EnableTodayQuest TEXT,Season3TodayGroup TEXT,AutoReveal bit,Feature TEXT,IsSeason2 bit);"
+                             "INSERT INTO QuestInfo VALUES('quest_a',1,1,0,4,NULL,'Enable',NULL,'False','EP3','False');"
+                             "CREATE TABLE QuestGoalInfo(ID INT,QuestID TEXT,Relation INT,Weight INT);INSERT INTO QuestGoalInfo VALUES(10,'quest_a',0,100);"
+                             "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
+                             "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL);"
+                             "CREATE TABLE QuestPeriodInfo(RowID INT,QuestID TEXT,DateFrom TEXT,Period INT,MaxPlayCount INT,Feature TEXT);INSERT INTO QuestPeriodInfo VALUES(1,'quest_a','2010-07-21 00:00:00.000',24,5,'enEU');")
             db.execute('INSERT INTO StoryLineInfo VALUES(' + ','.join('?' * 21) + ')', ('GuidePlay', 'n', 'QuestSet01', None, 'MainStream', None, 0, 0, 0, 0, None, '', None, 0, 1, 1023, 'False', 'True', 1, None, None))
             db.commit()
     def test_trees_keep_order_tails_and_source_integer_reads(self):

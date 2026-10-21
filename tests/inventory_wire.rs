@@ -126,7 +126,9 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::BuybackListResult
                 | Kind::RepairItem
                 | Kind::UpdateStoryGuide
-                | Kind::StoryVariables => {
+                | Kind::StoryVariables
+                | Kind::QueryQuestProgress
+                | Kind::QuestProgress => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

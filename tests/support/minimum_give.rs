@@ -338,6 +338,12 @@ async fn minimum_learn_new_skill_pays_gold_once_and_survives_relogin() {
     cleanup_game_pool(a, p, s).await;
 }
 /// Minimal NPC script projection: one default NPC and one level-1 auto-give storyline.
+fn quest_clock() -> vindictus_server::infrastructure::minimum_quest::QuestClock {
+    vindictus_server::infrastructure::minimum_quest::QuestClock {
+        arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+        civil_offset_seconds: 0,
+    }
+}
 fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     let leaf = |name: &str, text: &str| json!([name, [], text, [], ""]);
     let default = json!([
@@ -427,6 +433,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                             leaf("set_token", "count,3"),
                             leaf("increase_token", "count,4"),
                             leaf("give_item", "synthetic_gold,25"),
+                            leaf("give_quest", "quest_story"),
                             leaf("goto_phase", "p0")
                         ],
                         ""
@@ -444,6 +451,9 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
     "repair":{"enhance":[[0,0]],"quality":[[2,6]],"enchant":[[0,0,0]],"equip_class":[["SWORD",2]],"equip_item_class":["sword"]},
+    "quests":{"quests":[{"ID":"quest_gnoll_watchman","AutoGiveLevel":1,"QuestSet":1,"ServiceCoin":0,"MaxMemberCount":4,"MaxPlayCount":null,"EnableTodayQuest":"Enable","Season3TodayGroup":null,"AutoReveal":false,"Feature":null,"IsSeason2":false},{"ID":"quest_gnoll_shadowfang","AutoGiveLevel":1,"QuestSet":1,"ServiceCoin":0,"MaxMemberCount":4,"MaxPlayCount":null,"EnableTodayQuest":"Enable","Season3TodayGroup":null,"AutoReveal":false,"Feature":null,"IsSeason2":false},{"ID":"quest_story","AutoGiveLevel":0,"QuestSet":1,"ServiceCoin":0,"MaxMemberCount":4,"MaxPlayCount":null,"EnableTodayQuest":"Enable","Season3TodayGroup":null,"AutoReveal":false,"Feature":null,"IsSeason2":false}],
+        "goals":[[10010,"quest_gnoll_watchman",0,100]],"constraints":[["quest_gnoll_shadowfang","quest_gnoll_watchman",100]],
+        "difficulties":[["quest_gnoll_watchman",2,1,null],["quest_gnoll_shadowfang",2,1,null]],"periods":[]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -583,6 +593,7 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
             command: Some("greeting"),
         },
         vec![],
+        quest_clock(),
     )
     .await
     .unwrap();
@@ -606,6 +617,7 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
             command: None,
         },
         vec![],
+        quest_clock(),
     )
     .await
     .unwrap();
@@ -996,6 +1008,7 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
             command: Some("repair"),
         },
         vec![],
+        quest_clock(),
     )
     .await
     .unwrap();
@@ -1101,9 +1114,18 @@ async fn minimum_story_commands_persist_phase_guide_tokens_and_items_together() 
             .map(|i| 920_000_000_000_000_000 + i)
             .collect::<Vec<i64>>()
     };
-    let mut packets = minimum_story::talk(&p, &owner, &assets, 1, &mut session, request(), ids())
-        .await
-        .unwrap();
+    let mut packets = minimum_story::talk(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        request(),
+        ids(),
+        quest_clock(),
+    )
+    .await
+    .unwrap();
     while session.last_server_command.is_some() {
         packets.extend(
             minimum_story::talk(
@@ -1114,6 +1136,7 @@ async fn minimum_story_commands_persist_phase_guide_tokens_and_items_together() 
                 &mut session,
                 minimum_story::TalkRequest::ExecuteServerCommand,
                 ids().into_iter().map(|i| i + 100).collect(),
+                quest_clock(),
             )
             .await
             .unwrap(),
@@ -1155,5 +1178,109 @@ async fn minimum_story_commands_persist_phase_guide_tokens_and_items_together() 
     .unwrap();
     assert_eq!(token, (utf16("GuidePlay_1_SkillTrain"), utf16("count"), 7));
     assert_eq!(gold().await, before + 25);
+    // give_quest adds the quest revealed and pushes QuestProgress.
+    assert!(categories.contains(&Kind::QuestProgress.category()));
+    let given: (i32, i64) = sqlx::query_as(
+        "SELECT revealed,last_play_units300 FROM game_quests WHERE owner_id=1 AND quest_utf16=$1",
+    )
+    .bind(utf16("quest_story"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(given, (1, vindictus_server::domain::quest::NEVER_PLAYED));
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_quest_login_gives_first_and_level_quests_once_and_pushes_progress() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_quest, minimum_selection},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!(
+        minimum_quest::login_openings(&p, &owner, &assets, 1)
+            .await
+            .unwrap(),
+        2
+    );
+    // A wrong number of entity IDs writes nothing.
+    assert!(
+        minimum_quest::login(&p, &owner, &assets, 1, vec![], quest_clock())
+            .await
+            .is_err()
+    );
+    let ids = vec![930_000_000_000_000_001, 930_000_000_000_000_002];
+    let packets = minimum_quest::login(&p, &owner, &assets, 1, ids, quest_clock())
+        .await
+        .unwrap();
+    assert_eq!(packets.len(), 1);
+    let decode = |body: &[u8]| {
+        let Some(Message::QuestProgress(q)) =
+            inventory::decode(Kind::QuestProgress, body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("quest progress missing")
+        };
+        q
+    };
+    let q = decode(&packets[0].body);
+    let listed: Vec<(String, bool, bool, i32)> = q
+        .progress
+        .unwrap()
+        .into_iter()
+        .map(|e| {
+            let e = e.unwrap();
+            (e.id.unwrap(), e.revealed, e.available, e.max_play_count)
+        })
+        .collect();
+    // The first quest is revealed; shadowfang needs watchman progress 100.
+    assert_eq!(
+        listed,
+        [
+            ("quest_gnoll_watchman".to_owned(), true, true, -1),
+            ("quest_gnoll_shadowfang".to_owned(), false, false, -1)
+        ]
+    );
+    assert_eq!(q.achieved_goals, Some(vec![]));
+    let rows: Vec<i64> =
+        sqlx::query_scalar("SELECT row_id FROM game_quests WHERE owner_id=1 ORDER BY row_id")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(rows, [930_000_000_000_000_001, 930_000_000_000_000_002]);
+    // Relogin gives nothing again; QueryQuestProgress pushes the same state.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!(
+        minimum_quest::login_openings(&p, &owner, &assets, 1)
+            .await
+            .unwrap(),
+        0
+    );
+    let again = minimum_quest::login(&p, &owner, &assets, 1, vec![], quest_clock())
+        .await
+        .unwrap();
+    assert_eq!(decode(&again[0].body).progress.unwrap().len(), 2);
+    let queried = minimum_quest::query_progress(&p, &owner, &assets, 1, quest_clock())
+        .await
+        .unwrap();
+    assert_eq!(queried[0].body, again[0].body);
     cleanup_game_pool(a, p, s).await;
 }

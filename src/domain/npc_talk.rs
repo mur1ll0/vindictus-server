@@ -80,8 +80,12 @@ pub trait Facts {
     fn item_count(&self, class: &str) -> i32;
     /// QueryManufactureStatus: (grade, exp) when the manufacture is known.
     fn manufacture(&self, id: &str) -> Option<(i32, i32)>;
-    /// QueryQuestState(questID).Progress.
-    fn quest_progress(&self, id: &str) -> i32;
+    /// QuestContents when the quest service is loaded (None: quest commands unsupported).
+    fn quests(&self) -> Option<&crate::domain::quest::QuestContents>;
+    /// Quest checks outside the quest service (cafe/VIP condition, raid coupons).
+    fn quest_context(&self) -> (bool, i64) {
+        (false, 0)
+    }
     /// ItemImpl.QueryRepairPrice(null, addAllRepairableItems: true).
     fn repair_price(&self) -> i32;
     /// Useable gold count (DestroyItem(gold, n) succeeds when n does not exceed it).
@@ -113,6 +117,8 @@ pub struct StoryState {
     pub guide: Option<(String, String)>,
     /// Item count changes made by give/take_item in this query, by ItemClass.
     pub item_delta: Vec<(String, i64)>,
+    /// QuestOwner of the character (give_quest and quest conditions).
+    pub quests: crate::domain::quest::QuestOwner,
 }
 impl StoryState {
     fn variable(&self, line: &str, key: &str) -> i32 {
@@ -134,6 +140,8 @@ pub enum Output {
     Guide(String, String),
     /// StoryVariablesMessage after SetVariable: Entry.StoryVariable in order.
     Variables(Vec<(String, String, i32)>),
+    /// PushQuestProgressMessage of this quest state.
+    QuestProgress(crate::domain::quest::QuestOwner),
     Effect(Effect),
 }
 
@@ -518,6 +526,14 @@ impl<'a> Talker<'a> {
                 .map(|(_, d)| *d)
                 .sum::<i64>()
     }
+    fn delta_of(&self, class: &str) -> i64 {
+        self.state
+            .item_delta
+            .iter()
+            .filter(|(c, _)| c == class)
+            .map(|(_, d)| *d)
+            .sum()
+    }
     fn add_delta(&mut self, class: &str, delta: i64) {
         match self.state.item_delta.iter_mut().find(|(c, _)| c == class) {
             Some(e) => e.1 += delta,
@@ -789,6 +805,30 @@ impl<'a> Talker<'a> {
                     self.on_error("take_item")
                 }
             }
+            "give_quest" => {
+                let Some(contents) = self.facts.quests() else {
+                    return Err(TalkError::Unsupported("give_quest".into()));
+                };
+                let quest = arg1.unwrap_or("");
+                let (result, coin) = self.state.quests.give_quest(contents, quest, true);
+                match result {
+                    crate::domain::quest::GiveQuest::NoSuchQuest => self.on_error("give_quest"),
+                    _ => {
+                        // Save → PushQuestProgressMessage, then the ServiceCoin.
+                        let snapshot = self.state.quests.clone();
+                        self.pushed.outputs.push(Output::QuestProgress(snapshot));
+                        if coin > 0 {
+                            self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
+                                class: "silver_coin".to_owned(),
+                                count: coin,
+                            }));
+                            self.add_delta("silver_coin", i64::from(coin));
+                        }
+                        self.add(entity("give_quest_successful", Some(quest), None));
+                        self.resume(k)
+                    }
+                }
+            }
             "set_token" | "increase_token" | "decrease_token" => {
                 let key = arg1.unwrap_or("");
                 let line = self.session.story_line.clone();
@@ -996,8 +1036,54 @@ impl<'a> Talker<'a> {
             "has_item_enhanced" => {
                 level(arg2).map(|l| self.item_count(arg1.unwrap_or("")) > 0 && 0 >= l)
             }
-            "has_quest" => Some(self.facts.quest_progress(arg1.unwrap_or("")) >= 0),
-            "quest_cleared" => Some(self.facts.quest_progress(arg1.unwrap_or("")) > 0),
+            "has_quest" => Some(self.state.quests.progress_of(arg1.unwrap_or("")) >= 0),
+            "quest_cleared" => Some(self.state.quests.progress_of(arg1.unwrap_or("")) > 0),
+            // QueryQuestState: CheckConstraint(questID, 0, ignorePlayCount: false).
+            "quest_available" => {
+                let contents = self
+                    .facts
+                    .quests()
+                    .ok_or_else(|| TalkError::Unsupported("quest".into()))?;
+                let (cafe, coupons) = self.facts.quest_context();
+                let coupons = coupons + self.delta_of("coupon_cash_raid_1");
+                let ctx = crate::domain::quest::Context {
+                    contents,
+                    policy: self.policy,
+                    cafe,
+                    raid_coupons: coupons,
+                };
+                Some(
+                    self.state
+                        .quests
+                        .check_constraint(ctx, arg1.unwrap_or(""), 0, false)
+                        .map_err(|_| TalkError::Unsupported("quest".into()))?
+                        == crate::domain::quest::Constraint::Success,
+                )
+            }
+            "goal_cleared" => match arg2.and_then(|v| v.trim().parse::<i32>().ok()) {
+                None => None,
+                Some(goal) => {
+                    let contents = self
+                        .facts
+                        .quests()
+                        .ok_or_else(|| TalkError::Unsupported("quest".into()))?;
+                    Some(
+                        self.state
+                            .quests
+                            .achieved_goal_ids(contents, arg1.unwrap_or(""))
+                            .contains(&goal),
+                    )
+                }
+            },
+            "quest_progress" => {
+                // int.TryParse leaves 0 on failure; only -1 is a null result.
+                let wanted = arg2.and_then(|v| v.trim().parse::<i32>().ok()).unwrap_or(0);
+                if wanted == -1 {
+                    None
+                } else {
+                    Some(self.state.quests.progress_of(arg1.unwrap_or("")) >= wanted)
+                }
+            }
             "has_storyline" => Some(progress(arg1).is_some()),
             "storyline_cleared" => Some(progress(arg1).is_some_and(|p| p.phase.is_none())),
             "storyline_is" => Some(progress(arg1).is_some_and(|p| p.phase.as_deref() == arg2)),

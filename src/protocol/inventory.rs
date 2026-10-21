@@ -45,6 +45,8 @@ pub enum Kind {
     RepairItem,
     UpdateStoryGuide,
     StoryVariables,
+    QueryQuestProgress,
+    QuestProgress,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -83,6 +85,8 @@ impl Kind {
             Self::RepairItem => 424,
             Self::UpdateStoryGuide => 622,
             Self::StoryVariables => 599,
+            Self::QueryQuestProgress => 535,
+            Self::QuestProgress => 546,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -121,6 +125,8 @@ impl Kind {
             Self::RepairItem => 0xb83c8562_c97c_343c_b421_d3cdada26774,
             Self::UpdateStoryGuide => 0x4f661234_1161_3db9_8127_877ed7807435,
             Self::StoryVariables => 0xde76b127_f09d_369a_8008_26af3e5c8383,
+            Self::QueryQuestProgress => 0x5b634b00_c047_339e_a4fe_b0ef8e3b9a2e,
+            Self::QuestProgress => 0xc229a0f5_4eda_3bbc_a4be_61f3aad3f82b,
         })
     }
 }
@@ -252,6 +258,46 @@ pub enum Message {
     UpdateStoryGuide(StoryGuide),
     /// StoryVariablesMessage.StoryVariables.
     StoryVariables(Option<Vec<Option<StoryVariable>>>),
+    QueryQuestProgress,
+    /// QuestProgressMessage: QuestProgress, AchievedGoals.
+    QuestProgress(QuestProgress),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuestProgress {
+    pub progress: Option<Vec<Option<QuestProgressInfo>>>,
+    pub achieved_goals: Option<Vec<Option<AchieveGoal>>>,
+}
+/// QuestProgressInfo fields in declaration order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuestProgressInfo {
+    pub id: Option<String>,
+    pub progress: i32,
+    pub clear_count: i32,
+    pub today_quest: bool,
+    pub appear_named_monster: bool,
+    pub available: bool,
+    pub revealed: bool,
+    pub max_play_count: i32,
+    pub play_count: i32,
+    pub clear_times: Option<Vec<Option<ClearTimeElement>>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClearTimeElement {
+    pub difficulty: i32,
+    pub member_count: i32,
+    pub clear_time: i32,
+    pub play_rank: i32,
+    pub clear_info: i32,
+    pub is_old: bool,
+}
+/// AchieveGoalInfo: ID, Status, ClearCount, RegenedAP, LastClearTimeDiff.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AchieveGoal {
+    pub id: i32,
+    pub status: i32,
+    pub clear_count: u8,
+    pub regened_ap: u8,
+    pub last_clear_time_diff: i32,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StoryGuide {
@@ -459,6 +505,8 @@ impl Message {
             Self::RepairItem(_) => Kind::RepairItem,
             Self::UpdateStoryGuide(_) => Kind::UpdateStoryGuide,
             Self::StoryVariables(_) => Kind::StoryVariables,
+            Self::QueryQuestProgress => Kind::QueryQuestProgress,
+            Self::QuestProgress(_) => Kind::QuestProgress,
         }
     }
 }
@@ -693,6 +741,37 @@ object!(RepairItem {
     all_repairable
 });
 object!(StoryGuide { target, message });
+object!(QuestProgress {
+    progress,
+    achieved_goals
+});
+object!(QuestProgressInfo {
+    id,
+    progress,
+    clear_count,
+    today_quest,
+    appear_named_monster,
+    available,
+    revealed,
+    max_play_count,
+    play_count,
+    clear_times
+});
+object!(ClearTimeElement {
+    difficulty,
+    member_count,
+    clear_time,
+    play_rank,
+    clear_info,
+    is_old
+});
+object!(AchieveGoal {
+    id,
+    status,
+    clear_count,
+    regened_ap,
+    last_clear_time_diff
+});
 object!(StoryVariable {
     story_line,
     key,
@@ -771,6 +850,8 @@ pub fn encode(
             Message::RepairItem(v) => v.write(&mut w)?,
             Message::UpdateStoryGuide(v) => v.write(&mut w)?,
             Message::StoryVariables(v) => v.write(&mut w)?,
+            Message::QueryQuestProgress => {}
+            Message::QuestProgress(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -831,6 +912,8 @@ pub fn decode(
             Kind::RepairItem => Message::RepairItem(RepairItem::read(&mut r)?),
             Kind::UpdateStoryGuide => Message::UpdateStoryGuide(StoryGuide::read(&mut r)?),
             Kind::StoryVariables => Message::StoryVariables(Wire::read(&mut r)?),
+            Kind::QueryQuestProgress => Message::QueryQuestProgress,
+            Kind::QuestProgress => Message::QuestProgress(QuestProgress::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {
