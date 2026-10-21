@@ -145,6 +145,20 @@ class ItemSyncWireOracle {
   var results=new List<LearnNewSkillResultMessage>{null};
   foreach(LearnNewSkillResultMessage.LearnNewSkillResult r in Enum.GetValues(typeof(LearnNewSkillResultMessage.LearnNewSkillResult)))results.Add(new LearnNewSkillResultMessage(r));
   AddCases("learn_new_skill_result",341,new Guid("0430910f-e20e-3736-850d-b619e836f14f"),results,cases);
+  AddCases("query_npc_list",533,new Guid("6d029dfe-89e5-32d0-aa79-27d298e3b87c"),new[]{null,new QueryNpcListMessage()},cases);
+  var stories=new List<StoryInfo>{new StoryInfo(null,false),null,new StoryInfo("story_synthetic",true)};
+  var npcs=new List<NpcInfo>{new NpcInfo(null,null,null),null,new NpcInfo("FERGHUS","",new List<StoryInfo>()),new NpcInfo("ARIEL","S2EP1&&SpiritInjection",stories)};
+  var buildings=new List<BuildingInfo>{new BuildingInfo(null,null),null,new BuildingInfo("t01_bs",npcs),new BuildingInfo("t01_inn",new List<NpcInfo>())};
+  AddCases("npc_list",507,new Guid("35be098a-89fe-3185-a8f3-1cf91f5c07c1"),new[]{null,new NpcListMessage(null),new NpcListMessage(new List<BuildingInfo>()),new NpcListMessage(buildings)},cases);
+  var talks=new List<QueryNpcTalkMessage>{null};
+  foreach(string loc in new[]{null,"","t01_bs"})foreach(string npc in new[]{null,"FERGHUS"})foreach(string sl in new[]{null,"default"})foreach(string cmd in new[]{null,"greeting"})talks.Add(new QueryNpcTalkMessage(loc,npc,sl,cmd));
+  AddCases("query_npc_talk",534,new Guid("986c6c40-c9b6-3aed-9303-0b5679aa8f53"),talks,cases);
+  var entities=new List<NpcTalkEntity>{new NpcTalkEntity("talk","HEROES_STORYLINE_SYNTHETIC"),null,new NpcTalkEntity("change_npc",null,"x"),Obj<NpcTalkEntity>("Command",null,"Arg1",null,"Arg2",null)};
+  AddCases("npc_talk",508,new Guid("859ce7b4-cfd1-3695-9a73-b5c094d7085e"),new[]{null,new NpcTalkMessage(null),new NpcTalkMessage(new List<NpcTalkEntity>()),new NpcTalkMessage(entities)},cases);
+  var buttons=new List<SelectButtonMessage>{null};
+  foreach(int b in new[]{int.MinValue,-1,0,3,int.MaxValue})buttons.Add(new SelectButtonMessage(b));
+  AddCases("select_button",564,new Guid("d5dda62d-44c1-3c6a-8906-72164e564921"),buttons,cases);
+  AddCases("execute_npc_server_command",459,new Guid("048fdbb2-e452-3c5f-b0b2-cfc80994e365"),new[]{null,new ExecuteNpcServerCommandMessage()},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

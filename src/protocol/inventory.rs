@@ -29,6 +29,12 @@ pub enum Kind {
     QueryCharacterCommonInfo,
     LearnNewSkill,
     LearnNewSkillResult,
+    QueryNpcList,
+    NpcList,
+    QueryNpcTalk,
+    NpcTalk,
+    SelectButton,
+    ExecuteNpcServerCommand,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -51,6 +57,12 @@ impl Kind {
             Self::QueryCharacterCommonInfo => 527,
             Self::LearnNewSkill => 340,
             Self::LearnNewSkillResult => 341,
+            Self::QueryNpcList => 533,
+            Self::NpcList => 507,
+            Self::QueryNpcTalk => 534,
+            Self::NpcTalk => 508,
+            Self::SelectButton => 564,
+            Self::ExecuteNpcServerCommand => 459,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -73,6 +85,12 @@ impl Kind {
             Self::QueryCharacterCommonInfo => 0xc9cda3f6_8b67_3c69_ba31_ba2fe827fd7b,
             Self::LearnNewSkill => 0x7fbd47e1_96a3_3472_9e71_f36d90f7294f,
             Self::LearnNewSkillResult => 0x0430910f_e20e_3736_850d_b619e836f14f,
+            Self::QueryNpcList => 0x6d029dfe_89e5_32d0_aa79_27d298e3b87c,
+            Self::NpcList => 0x35be098a_89fe_3185_a8f3_1cf91f5c07c1,
+            Self::QueryNpcTalk => 0x986c6c40_c9b6_3aed_9303_0b5679aa8f53,
+            Self::NpcTalk => 0x859ce7b4_cfd1_3695_9a73_b5c094d7085e,
+            Self::SelectButton => 0xd5dda62d_44c1_3c6a_8906_72164e564921,
+            Self::ExecuteNpcServerCommand => 0x048fdbb2_e452_3c5f_b0b2_cfc80994e365,
         })
     }
 }
@@ -178,6 +196,51 @@ pub enum Message {
     LearnNewSkill(Option<String>),
     /// LearnNewSkillResultMessage.result (LearnNewSkillResult as Int32).
     LearnNewSkillResult(i32),
+    /// QueryNpcListMessage (fieldless).
+    QueryNpcList,
+    /// NpcListMessage.Buildings.
+    NpcList(Option<Vec<Option<Building>>>),
+    QueryNpcTalk(NpcQuery),
+    /// NpcTalkMessage.Content.
+    NpcTalk(Option<Vec<Option<TalkEntity>>>),
+    /// SelectButtonMessage.ButtonIndex.
+    SelectButton(i32),
+    /// ExecuteNpcServerCommandMessage (fieldless).
+    ExecuteNpcServerCommand,
+}
+/// StoryInfo: StoryLineID, IsRevealing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoryInfo {
+    pub story_line: Option<String>,
+    pub is_revealing: bool,
+}
+/// NpcInfo: NpcID, Feature, StoryLines.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NpcInfo {
+    pub npc: Option<String>,
+    pub feature: Option<String>,
+    pub story_lines: Option<Vec<Option<StoryInfo>>>,
+}
+/// BuildingInfo: BuildingID, Npcs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Building {
+    pub building: Option<String>,
+    pub npcs: Option<Vec<Option<NpcInfo>>>,
+}
+/// QueryNpcTalkMessage: Location, NpcID, StoryLine, Command.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NpcQuery {
+    pub location: Option<String>,
+    pub npc: Option<String>,
+    pub story_line: Option<String>,
+    pub command: Option<String>,
+}
+/// NpcTalkEntity: Command, Arg1, Arg2.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TalkEntity {
+    pub command: Option<String>,
+    pub arg1: Option<String>,
+    pub arg2: Option<String>,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct SkillAp {
@@ -264,6 +327,12 @@ impl Message {
             Self::QueryCharacterCommonInfo(_) => Kind::QueryCharacterCommonInfo,
             Self::LearnNewSkill(_) => Kind::LearnNewSkill,
             Self::LearnNewSkillResult(_) => Kind::LearnNewSkillResult,
+            Self::QueryNpcList => Kind::QueryNpcList,
+            Self::NpcList(_) => Kind::NpcList,
+            Self::QueryNpcTalk(_) => Kind::QueryNpcTalk,
+            Self::NpcTalk(_) => Kind::NpcTalk,
+            Self::SelectButton(_) => Kind::SelectButton,
+            Self::ExecuteNpcServerCommand => Kind::ExecuteNpcServerCommand,
         }
     }
 }
@@ -439,6 +508,27 @@ object!(SkillList {
     reset_vocation
 });
 object!(SkillAp { skill, value });
+object!(StoryInfo {
+    story_line,
+    is_revealing
+});
+object!(NpcInfo {
+    npc,
+    feature,
+    story_lines
+});
+object!(Building { building, npcs });
+object!(NpcQuery {
+    location,
+    npc,
+    story_line,
+    command
+});
+object!(TalkEntity {
+    command,
+    arg1,
+    arg2
+});
 object!(CommonQuery { query_id, cid });
 object!(UseItem {
     item_id,
@@ -492,6 +582,11 @@ pub fn encode(
             Message::QueryCharacterCommonInfo(v) => v.write(&mut w)?,
             Message::LearnNewSkill(v) => v.write(&mut w)?,
             Message::LearnNewSkillResult(v) => v.write(&mut w)?,
+            Message::QueryNpcList | Message::ExecuteNpcServerCommand => {}
+            Message::NpcList(v) => v.write(&mut w)?,
+            Message::QueryNpcTalk(v) => v.write(&mut w)?,
+            Message::NpcTalk(v) => v.write(&mut w)?,
+            Message::SelectButton(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -536,6 +631,12 @@ pub fn decode(
             }
             Kind::LearnNewSkill => Message::LearnNewSkill(Wire::read(&mut r)?),
             Kind::LearnNewSkillResult => Message::LearnNewSkillResult(Wire::read(&mut r)?),
+            Kind::QueryNpcList => Message::QueryNpcList,
+            Kind::NpcList => Message::NpcList(Wire::read(&mut r)?),
+            Kind::QueryNpcTalk => Message::QueryNpcTalk(NpcQuery::read(&mut r)?),
+            Kind::NpcTalk => Message::NpcTalk(Wire::read(&mut r)?),
+            Kind::SelectButton => Message::SelectButton(Wire::read(&mut r)?),
+            Kind::ExecuteNpcServerCommand => Message::ExecuteNpcServerCommand,
         })
     };
     if !r.remaining.is_empty() {

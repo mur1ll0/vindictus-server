@@ -196,6 +196,85 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
         Some(Message::LearnNewSkillResult(result)) => {
             assert_eq!(i64::from(result), f["result"].as_i64().unwrap(), "case {n}");
         }
+        Some(Message::QueryNpcList) | Some(Message::ExecuteNpcServerCommand) => {}
+        Some(Message::NpcList(buildings)) => {
+            let expected = f["Buildings"].as_array();
+            assert_eq!(
+                buildings.as_ref().map(Vec::len),
+                expected.map(Vec::len),
+                "case {n}"
+            );
+            for (b, e) in buildings
+                .iter()
+                .flatten()
+                .zip(expected.into_iter().flatten())
+            {
+                assert_eq!(b.is_none(), e.is_null(), "case {n}");
+                let Some(b) = b else { continue };
+                assert_eq!(b.building.as_deref(), e["BuildingID"].as_str(), "case {n}");
+                let npcs = e["Npcs"].as_array();
+                assert_eq!(
+                    b.npcs.as_ref().map(Vec::len),
+                    npcs.map(Vec::len),
+                    "case {n}"
+                );
+                for (npc, e) in b.npcs.iter().flatten().zip(npcs.into_iter().flatten()) {
+                    assert_eq!(npc.is_none(), e.is_null(), "case {n}");
+                    let Some(npc) = npc else { continue };
+                    assert_eq!(npc.npc.as_deref(), e["NpcID"].as_str(), "case {n}");
+                    assert_eq!(npc.feature.as_deref(), e["Feature"].as_str(), "case {n}");
+                    let lines = e["StoryLines"].as_array();
+                    assert_eq!(
+                        npc.story_lines.as_ref().map(Vec::len),
+                        lines.map(Vec::len),
+                        "case {n}"
+                    );
+                    for (l, e) in npc
+                        .story_lines
+                        .iter()
+                        .flatten()
+                        .zip(lines.into_iter().flatten())
+                    {
+                        assert_eq!(l.is_none(), e.is_null(), "case {n}");
+                        let Some(l) = l else { continue };
+                        assert_eq!(
+                            l.story_line.as_deref(),
+                            e["StoryLineID"].as_str(),
+                            "case {n}"
+                        );
+                        assert_eq!(Some(l.is_revealing), e["IsRevealing"].as_bool(), "case {n}");
+                    }
+                }
+            }
+        }
+        Some(Message::QueryNpcTalk(q)) => {
+            assert_eq!(q.location.as_deref(), f["Location"].as_str(), "case {n}");
+            assert_eq!(q.npc.as_deref(), f["NpcID"].as_str(), "case {n}");
+            assert_eq!(q.story_line.as_deref(), f["StoryLine"].as_str(), "case {n}");
+            assert_eq!(q.command.as_deref(), f["Command"].as_str(), "case {n}");
+        }
+        Some(Message::NpcTalk(content)) => {
+            let expected = f["Content"].as_array();
+            assert_eq!(
+                content.as_ref().map(Vec::len),
+                expected.map(Vec::len),
+                "case {n}"
+            );
+            for (t, e) in content.iter().flatten().zip(expected.into_iter().flatten()) {
+                assert_eq!(t.is_none(), e.is_null(), "case {n}");
+                let Some(t) = t else { continue };
+                assert_eq!(t.command.as_deref(), e["Command"].as_str(), "case {n}");
+                assert_eq!(t.arg1.as_deref(), e["Arg1"].as_str(), "case {n}");
+                assert_eq!(t.arg2.as_deref(), e["Arg2"].as_str(), "case {n}");
+            }
+        }
+        Some(Message::SelectButton(index)) => {
+            assert_eq!(
+                i64::from(index),
+                f["ButtonIndex"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -291,12 +370,18 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::QueryCharacterCommonInfo,
         Kind::LearnNewSkill,
         Kind::LearnNewSkillResult,
+        Kind::QueryNpcList,
+        Kind::NpcList,
+        Kind::QueryNpcTalk,
+        Kind::NpcTalk,
+        Kind::SelectButton,
+        Kind::ExecuteNpcServerCommand,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 780);
+        assert_eq!(cases.len(), 909);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -315,6 +400,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "query_common_info" => check_inventory(Kind::QueryCharacterCommonInfo, case, n),
                 "learn_new_skill" => check_inventory(Kind::LearnNewSkill, case, n),
                 "learn_new_skill_result" => check_inventory(Kind::LearnNewSkillResult, case, n),
+                "query_npc_list" => check_inventory(Kind::QueryNpcList, case, n),
+                "npc_list" => check_inventory(Kind::NpcList, case, n),
+                "query_npc_talk" => check_inventory(Kind::QueryNpcTalk, case, n),
+                "npc_talk" => check_inventory(Kind::NpcTalk, case, n),
+                "select_button" => check_inventory(Kind::SelectButton, case, n),
+                "execute_npc_server_command" => {
+                    check_inventory(Kind::ExecuteNpcServerCommand, case, n)
+                }
                 "costume_update" => check_costume(case, n),
                 _ => panic!("unknown fixture type"),
             }

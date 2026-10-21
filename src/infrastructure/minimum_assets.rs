@@ -40,6 +40,7 @@ struct Files {
     equipment: Option<PathBuf>,
     skills: Option<PathBuf>,
     economy: Option<PathBuf>,
+    npc_scripts: Option<PathBuf>,
 }
 pub struct Assets {
     pub(super) equipment: Option<super::equipment_profile::Profile>,
@@ -56,6 +57,8 @@ pub struct Assets {
     pub(super) color_index: item_colors::ColorIndex,
     /// ItemClassInfo economy rows bound to `catalog` (Unique, ExpireIn, prices).
     pub(super) economy: Option<super::item_economy::Profile>,
+    /// NpcTalkInfo defaults and storylines bound to `catalog`.
+    pub(super) npc: Option<super::npc_scripts::Profile>,
     pub(super) inventory: fiona_inventory_profile::Profile,
     pub(super) appearance: fiona_appearance::Profile,
     pub entity_service_id: i32,
@@ -171,6 +174,9 @@ impl Assets {
         if let Some(path) = f.economy {
             assets = assets.with_economy(super::item_economy::Profile::read(open(&path)?)?)?;
         }
+        if let Some(path) = f.npc_scripts {
+            assets = assets.with_npc_scripts(super::npc_scripts::Profile::read(open(&path)?)?)?;
+        }
         Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
@@ -189,6 +195,7 @@ impl Assets {
             stats_index: item_stats::StatsIndex::default(),
             color_index: item_colors::ColorIndex::default(),
             economy: None,
+            npc: None,
             initializer: parts.initializer,
             catalog: parts.catalog,
             stats: parts.stats,
@@ -217,6 +224,14 @@ impl Assets {
     }
     pub(super) fn colors_materials(&self) -> &crate::domain::item_colors::Materials {
         self.colors.materials()
+    }
+    pub fn with_npc_scripts(
+        mut self,
+        profile: super::npc_scripts::Profile,
+    ) -> Result<Self, MinimumError> {
+        profile.bind(&self.catalog)?;
+        self.npc = Some(profile);
+        Ok(self)
     }
     pub fn with_economy(
         mut self,

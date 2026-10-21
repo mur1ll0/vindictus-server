@@ -17,6 +17,7 @@ pub mod dormant_items;
 pub mod item_catalog;
 pub mod item_economy;
 pub mod login_rewards;
+pub mod npc_scripts;
 pub mod reward_policy;
 
 pub mod user_login;

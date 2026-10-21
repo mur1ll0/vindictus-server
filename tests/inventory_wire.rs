@@ -110,7 +110,13 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::SkillCompletion
                 | Kind::QueryCharacterCommonInfo
                 | Kind::LearnNewSkill
-                | Kind::LearnNewSkillResult => {
+                | Kind::LearnNewSkillResult
+                | Kind::QueryNpcList
+                | Kind::NpcList
+                | Kind::QueryNpcTalk
+                | Kind::NpcTalk
+                | Kind::SelectButton
+                | Kind::ExecuteNpcServerCommand => {
                     unreachable!("covered by item_sync_wire")
                 }
             });
