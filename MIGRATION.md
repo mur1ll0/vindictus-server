@@ -649,3 +649,5 @@ P0-03a — QueryAP526/APMessage229 e UseInventoryItem629 (capsule_ap: consumo, U
 P0-03b — QuerySkillList540/SkillListMessage583 com ToSkillList recuperado (custos/treino/untrain/reset), perfil privado de skills vinculado a hashes; oracle 618 casos x86=x64; testes focados (unitários e PG 19). Próximo: atalhos de skill (EquipBundle "skill_" → EquipSkill/IsActiveSkill) e suíte completa do bloco P0-02/P0-03.
 
 P0-03c — atalhos de skill via EquipBundle (EquipSkill/IsActiveSkill/SetSkill); skills iniciais da Fiona são passivas (UseType 0) e são recusadas como no original. Perfil de skills v2 (UseType). Testes focados passaram; suíte completa do bloco P0-02/P0-03 em seguida.
+
+Bloco P0-02/P0-03 (mover/empilhar, quickslots, AP/cápsula, lista e atalhos de skill) — suíte completa 2026-10-21T15:19:54.4276201+00:00: 403 Rust, 245 PostgreSQL (0 ignorados), 50 Python, zero falhas/avisos. Aceite no cliente pendente pelo roteiro docs/client-test-checklist.md. Próximo no roteiro: P1-01 NPCs essenciais/diálogos (lojas, reparo) e P1-02 quests iniciais; treino de skill com AP (LearnSkill) pode ser antecipado se o operador quiser usar o AP das cápsulas.
