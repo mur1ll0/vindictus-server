@@ -3,10 +3,22 @@
 Scope: all development under vindictus-server. The requested deliverable is a complete Rust migration; the current foundation is not that deliverable.
 
 ## Session memory
-- Read MIGRATION.md before changing code. Continue the earliest actionable incomplete step.
-- Update MIGRATION.md after each verified step with command, evidence, remaining dependencies and next action.
+- Read MIGRATION.md and docs/playable-game-roadmap.md before changing code. The roadmap's blocks (B0–B5) set the work order; continue the earliest actionable incomplete step of the current block.
+- Update MIGRATION.md after each verified step with command, evidence, remaining dependencies, client-test status (checklist entry or "cliente: não necessário") and next action.
 - Never mark a service migrated merely because ILSpy exported C# or a Rust placeholder compiles.
 - Game compatibility requires a reproducible client login, character creation, battle and persistence test.
+
+## Continuous execution (user instruction 2026-10-21)
+- After committing a verified step, start the next step of the current block in the same turn. Do not ask the operator to continue and do not end the turn with only a summary.
+- Steps with client-visible effects add an entry (preconditions, client steps, expected result) to the block's test script, docs/client-tests/<block>.md, instead of waiting for a client test. At the gate, complete that script with preparation, gameplay order and reporting instructions (format in docs/playable-game-roadmap.md).
+- Stop and hand control back only when:
+  1. the current block is complete: run the full gate, finish the block's test script, commit, and ask for the client gameplay session;
+  2. the next step cannot be verified without confirming an earlier step in the client (for example, the first dungeon load before combat inside it);
+  3. a decision belongs to the operator (scope, trade-off without evidence), or an action is destructive or outside existing authorization;
+  4. required evidence is missing and cannot be recovered;
+  5. a test or gate keeps failing after one focused investigation.
+- When stopping, record the reason and the resumable next action in MIGRATION.md.
+- Design every state change visible to other players through a single broadcast/authority point so B5 multiplayer does not require rewrites; multiplayer is tested only in B5.
 
 ## Skills
 - Rust: .agents/skills/rust-best-practices/SKILL.md and relevant reference chapters.
@@ -31,7 +43,7 @@ Scope: all development under vindictus-server. The requested deliverable is a co
 
 ## Verification
 - User instruction (2026-10-15): minimize terminal/test output collected into context. Redirect complete logs to .cache/verification; inspect only exit status, aggregate counts and bounded failure excerpts. Do not dump successful test output or repeatedly poll unchanged logs. Preserve this rule across sessions/compaction.
-- User instruction (2026-10-20): run the full suite (scripts/dev/verify.ps1 -DatabaseIntegration) only when finishing a complete implementation block and integrity with the other game features must be validated, before its commit. Otherwise run simple, fast, focused tests (affected test targets and filtered PostgreSQL tests).
+- User instruction (2026-10-21, replaces 2026-10-20): the full gate (scripts/dev/verify.ps1 -DatabaseIntegration plus the Docker smoke) runs only when closing a roadmap block (B1 NPCs/money/shops/quests, B2 dungeons/combat, B3 craft/enhance/enchant, B4 admin panel, B5 multiplayer/remaining), to validate integration with the other game features. Every step inside a block runs only fast focused tests (affected test targets and filtered PostgreSQL tests). The operator may also request a full gate explicitly.
 - User authorization (2026-10-20): builds/tests may use multiple CPU cores; CARGO_BUILD_JOBS=1 is no longer required.
 - The disposable tmpfs PostgreSQL test container (vindictus-map-verification-postgres-1) accumulates WAL; restart it before a full suite run when usage is high.
 - Database integration tests must execute against an isolated schema; skipped tests are not passing evidence.
@@ -41,7 +53,7 @@ Scope: all development under vindictus-server. The requested deliverable is a co
 
 ## Git and stage completion
 - User authorized local commits after each completed, verified migration stage.
-- Commit each stage with its code, tests, sanitized evidence and MIGRATION.md status together.
-- Run the full gate before commits. Stage explicit paths and review the staged diff and file list.
+- Commit each step with its code, focused tests, sanitized evidence, block test-script entry and MIGRATION.md status together. The block's closing commit records the full gate result.
+- Stage explicit paths and review the staged diff and file list.
 - Never commit credentials, private exports, restored raw SQL catalogs, original game assets or decompiled proprietary sources.
 - Use the configured Git author. No push or remote creation is implied by local commit authorization.

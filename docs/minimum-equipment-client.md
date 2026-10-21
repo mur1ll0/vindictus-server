@@ -86,7 +86,7 @@ Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arqu
 - `game_quick_slots` passa a ser carregado (linhas duplicadas/partes desconhecidas recusadas); `InventoryInfo` envia `ToQuickSlotInfo` real: todo atalho desbloqueado em ordem de conteúdo, vazio como `""` (antes era um dicionário vazio). Slots expandidos continuam recusados.
 - `Gear.Unequip` executa `UnequipConsumablesByConstraint`: suportado apenas quando as classes da barra não têm requisito de enhance/enchant nem são poções de despertar.
 - Perfil de conteúdo v3 inclui categoria/requisitos das 5 classes consumíveis da Fiona; exportador aceita classes sem `EquipItemInfo`.
-- Testes focados: unitários `quick_slot`, perfil, wire; 17 PostgreSQL/TCP de regressão. Fixture sintética sem parte consumível; aceite no cliente pelo roteiro [client-test-checklist.md](client-test-checklist.md).
+- Testes focados: unitários `quick_slot`, perfil, wire; 17 PostgreSQL/TCP de regressão. Fixture sintética sem parte consumível; aceito no cliente em 21/10/2026.
 
 ## P0-03a — AP e cápsula de AP
 

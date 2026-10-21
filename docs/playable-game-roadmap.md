@@ -1,62 +1,117 @@
 # Caminho incremental para o jogo funcionar
 
-Prioridade do operador em 20/10/2026: primeiro o ciclo PvE jogável. PvP, guildas e eventos ficam para depois. Este roteiro organiza a integração no cliente e reutiliza os módulos de banco/domínio já recuperados. A migração integral M01–M24 permanece como objetivo.
+Plano revisado pelo operador em 21/10/2026. A ordem prioriza o ciclo PvE jogável de uma Fiona solo. Sistemas que dependem de fases vêm depois delas. A administração e a análise de extensões (novas classes) vêm antes do multijogador. A migração integral M01–M24 do `MIGRATION.md` continua sendo o objetivo final, e este roteiro define a ordem de trabalho.
+
+## Como os blocos funcionam
+
+- O trabalho é organizado em **blocos grandes**. Cada bloco é uma sequência de etapas pequenas (fatias cliente → armazenamento).
+- **Dentro do bloco:** a cada etapa rodam só testes focados (alvos Rust afetados e testes PostgreSQL filtrados), seguidos de um commit local. A etapa seguinte começa sem pedir confirmação ao operador. Toda etapa com efeito visível no cliente acrescenta uma entrada ao roteiro de testes do bloco; uma etapa sem efeito visível registra `cliente: não necessário` no `MIGRATION.md`.
+- **No fim do bloco (gate):**
+  1. Reiniciar o PostgreSQL de teste se o WAL estiver alto.
+  2. Rodar a suíte completa `scripts/dev/verify.ps1 -DatabaseIntegration` e o smoke Docker.
+  3. Finalizar o roteiro de testes do bloco (ver abaixo).
+  4. Fazer o commit de fechamento do bloco.
+  5. Parar para a sessão de gameplay do operador, que segue o roteiro do bloco.
+
+## Roteiro de testes de cada bloco
+
+- Cada bloco tem um arquivo próprio, `docs/client-tests/<bloco>.md` (exemplo: `docs/client-tests/B1-cidade.md`). O arquivo é criado na primeira etapa do bloco com efeito visível no cliente.
+- Cada etapa visível acrescenta uma entrada:
+
+  ```
+  ### <ID da etapa> — <funcionalidade>
+  Pré-condição: <ouro/itens/quest/estado necessário; comando CLI de laboratório, se houver>
+  - [ ] <ação no cliente> → <resultado esperado>
+  - [ ] Relogar → <o que deve estar preservado>
+  Limites conhecidos: <o que ainda é recusado de propósito>
+  ```
+
+- No gate, o roteiro ganha no topo:
+  - a **preparação**: como iniciar o runtime (`scripts/dev/start-lab-frontend.ps1`), quais comandos de laboratório rodar e qual personagem usar;
+  - uma **ordem de gameplay** que percorre todas as entradas numa sessão natural;
+  - **como relatar**: ID da entrada, o que fez, o que apareceu na tela e o horário, para comparar com os logs em `.cache/verification`.
+- Depois da sessão, as falhas relatadas viram correções no mesmo bloco. Quando o operador confirmar o bloco inteiro, o aceite é registrado no `MIGRATION.md` e o arquivo do roteiro é removido.
+- Itens que só podem ser testados num bloco seguinte ficam listados naquele bloco deste roadmap, e não no roteiro atual.
+- **Checkpoint de cliente no meio do bloco:** parar apenas quando a próxima etapa não puder ser verificada sem confirmar no cliente uma etapa anterior (exemplo: o primeiro carregamento de uma dungeon antes de implementar combate dentro dela).
+- **Sincronização desde já:** toda mudança de estado visível a outros jogadores (look, posição, ações, spawn, HP, drops, estado de instância) passa por um ponto único de difusão/autoridade. Assim, o multijogador do bloco B5 não exige reescrita. Testes multijogador reais ficam para o B5.
+- **Ferramentas de laboratório antes do painel:** conceder ouro ou itens para testar pode ser feito por comandos CLI pontuais, registrados no checklist. O painel completo é o bloco B4.
 
 ## Estado confirmado
 
-- Create/relogin da Fiona mínima e seleção/entrada na cidade/movimento foram aceitos no cliente 1.69 EN.
-- A criação persistiu 11 itens, 23 registros de aparência e 2 skills. Diagnóstico somente leitura confirmou 5 equipamentos na bolsa, com 0 partes equipadas. Os itens foram sincronizados e aceitos no inventário; equipamento vestido depende de P0-02.
-- O inventário abriu e exibiu os equipamentos iniciais no teste aceito. Próximo bloqueio: equipar/desequipar e carregar equipamento persistido. Não apagar/recriar a Fiona nem entregar defaults novamente para contornar esses sintomas.
-- QueryInventory/InventoryInfo foram integrados e aceitos; mutações de inventário e SkillList ainda precisam de integração. Contratos/tabelas recuperados não equivalem a funcionalidades disponíveis no cliente.
+- **B0 fechado.** Suíte completa em 2026-10-21T17:13:11Z com 406 Rust, 245 PostgreSQL (0 ignorados), 50 Python e zero falhas.
+- **B0 aceito no cliente (21/10/2026):** criação/relogin da Fiona, seleção, cidade, movimento, inventário, equipar/desequipar, mover itens, quickslots de consumíveis, lista de skills/AP, cápsula de AP e treino de skill com AP.
+- **Testes adiados:** aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 via loja ou B2.6 via loot), usar consumível pela barra (B2.5) e o "Depot" da loja Cash (B5).
 
-## P0 — personagem utilizável na cidade
+## B0 — personagem na cidade (fechado em 21/10/2026)
 
-1. **P0-01 / M15.1c.3 — inventário e equipamento inicial (leitura aceita no cliente em 20/10/2026).** Recuperar QueryInventory → InventoryInfo, storages, slots, detalhes dos itens, equipamentos e quickslots. Conferir os itens/slots persistidos contra o perfil original e sincronizar aparência/stats a partir do equipamento real. Separar leitura inicial de mutações. Aceite: inventário abre sem download infinito, mesmos itens/quantidades, equipamentos corretos e relogin preservado, sem duplicar defaults.
-2. **P0-02 — ações básicas de inventário.** Equipar/desequipar, mover slots, empilhar/separar, usar consumível e atualizar aparência/stats/carga. Validar requisitos, slots incompatíveis, propriedade e concorrência. Aceite: trocar equipamento, usar consumível e relogar mantendo os resultados; recusas não perdem nem duplicam itens.
-3. **P0-03 — skills e barra de ações.** Entregar SkillList/AP/SP e quickslots persistidos; habilidades iniciais, efeitos passivos, custos, cooldowns, aprendizado/evolução conforme contratos recuperados. Aceite: skills iniciais visíveis, atalhos utilizáveis, recursos coerentes e relogin sem reset indevido.
+Inventário, equipamento, mover/empilhar, quickslots, AP/cápsula, lista, treino e atalhos de skill (P0-01 a P0-03d). Aceito no cliente em 21/10/2026.
 
-## P1 — primeiro ciclo PvE completo
+## B1 — cidade: dinheiro, NPCs, lojas e quests
 
-4. **P1-01 — NPCs essenciais e diálogos.** Presença/interação, conversa e navegação; estado mínimo das histórias exigidas pelo percurso inicial. Loja, compra/venda e reparo necessários ao ciclo. Não habilitar histórias de eventos para substituir o caminho normal. Aceite: conversar com o NPC inicial e abrir/fechar serviços sem travar a interface.
-5. **P1-02 — quests iniciais.** Oferta, aceite, objetivos, acompanhamento, conclusão, recompensas e desbloqueios; persistência do estado de conversa/história. Aceite: aceitar a primeira quest, acompanhar um objetivo e manter o estado no relogin. Antecipar correio/conta apenas se uma dependência real exigir.
-6. **P1-03 — acesso à primeira fase.** Quadro/barco, seleção de batalha, requisitos, criação/admissão na instância, carregamento, spawn, setores/portais e retorno à cidade. Recuperar a integração original com a autoridade da simulação/serviços de batalha. Aceite: partir solo, carregar a fase correta e retornar; timeout/desconexão não deixam personagem preso.
-7. **P1-04 — combate e inimigos.** Spawn/AI, aggro, ações/hits, dano, bloqueio/esquiva, HP/stamina/SP, morte/revive e chefe; autoridade e sincronização dos resultados. Aceite: concluir combate real usando equipamento/skills, incluindo falha/morte, sem resultados fictícios.
-8. **P1-05 — loot, vitória e progressão.** Drops/coleta, ouro/itens, XP/level/AP, objetivos de quest, conclusão/falha e recompensas; gravação consistente sem reaplicar recompensas no retry. Aceite: cidade → quest → fase → combate → recompensa → NPC → relogin conservando todos os resultados.
-9. **P1-06 — robustez desse ciclo.** Logout/reconexão, queda durante missão/recompensa, recuperação de sessão, limites de pacote, propriedade e operações atômicas. Aceite: repetir ciclo/cancelamento/desconexão sem duplicação, perda de progresso ou loading infinito.
+Objetivo: a Fiona vive a cidade inteira sem entrar em fases.
 
-## P2 — ampliar o PvE e a economia básica
+1. **Dinheiro do personagem:** carteira de ouro, persistência, logs/ledgers e mensagens de saldo. GiveItem geral (entrega de itens a partir de loja/recompensa, com empilhamento e falta de espaço).
+2. **LearnNewSkill com ouro:** aprender as skills novas pagando o preço original.
+3. **NPCs:** presença na cidade, interação, diálogos e navegação de menus. Estado mínimo das histórias exigidas no percurso inicial.
+4. **Lojas de NPC:** catálogo da loja, compra, venda, recompra (se o original tiver) e reparo pago. Recusas por ouro/espaço/requisitos sem perder nem duplicar itens.
+5. **Quests iniciais:** oferta, aceite, objetivos que não exigem combate (conversa/entrega), acompanhamento, conclusão, recompensas (ouro/itens/XP quando aplicável) e persistência no relogin. Objetivos de combate são implementados até o ponto de registro e concluídos no B2.
+6. **Usáveis restantes alcançados no percurso:** caixas (RandomItemV2, por exemplo a caixa Level Up) e logs de personagem que as operações acima exigirem.
 
-10. **Craft e coleta.** NPC/ofício, receitas/desbloqueios, materiais, custos, fabricação/filas e resultado persistido. Depende de inventário, NPCs e obtenção real de materiais. Aceite: fabricar uma receita normal consumindo recursos uma única vez e relogar com o resultado.
-11. **Evolução de equipamento e armazenamento.** Durabilidade/reparo completo, melhoria/enchant/combinação conforme o conteúdo inicial exigir, armazenamento pessoal e expansão de slots. Reutilizar os contratos migrados, com erros/custos originais.
-12. **Conteúdo e progressão seguintes.** Mais NPCs, quests, mapas/fases, dificuldades, chefes, receitas, equipamentos/skills; validar desbloqueios em sequência. Outras classes/criação e aparência entram em incrementos próprios após estabilizar o primeiro ciclo da Fiona.
-13. **Cooperativo PvE.** Party, convite, instância/combate/loot sincronizados, host/servidor, reconexão e saída de membro. Antecipar apenas infraestrutura comprovadamente necessária ao percurso solo.
-14. **Usabilidade e operação essenciais.** Opções/atalhos, erros claros, transições sem bloqueio, contas/sessões fora do perfil mínimo de laboratório, inicialização/restart e diagnóstico. Corrigir imediatamente falhas que bloqueiem incrementos anteriores.
+Gate B1: conversar com os NPCs, comprar, vender, reparar, aprender skill com ouro, aceitar e concluir uma quest de cidade, e relogar mantendo ouro, itens e estado das quests.
 
-## P3 — depois do ciclo principal
+## B2 — fases e combate (grande sessão de testes)
 
-- PvP/arena/ranking competitivo, guildas e seus serviços.
-- Eventos sazonais/UserCare e recompensas promocionais.
-- Pets, títulos/achievements acessórios, sistemas sociais extensos, leilão/mercado, cash shop e cosméticos opcionais.
-- Correio completo e demais serviços periféricos; antecipar somente dependência comprovada do PvE, registrando o motivo.
+Objetivo: o ciclo PvE completo, cidade → quest → fase → combate → recompensa → NPC → relogin.
 
-## Fechamento de cada incremento
+1. **Saída para a fase:** quadro/barco, lobby de missão, seleção de fase/dificuldade, requisitos, criação/admissão da instância e retorno à cidade.
+2. **Transporte de batalha (M19):** ProudNet/relay/host conforme a evidência recuperada. É a maior incerteza técnica do projeto e é investigada no início do bloco.
+3. **Mapas das dungeons:** carregamento, spawn do jogador, setores e portais. *Checkpoint de cliente:* confirmar o primeiro carregamento antes de seguir.
+4. **Monstros e boss:** spawn, AI, aggro, ações e hits.
+5. **Combate:** dano, bloqueio/esquiva, HP/stamina/SP, consumíveis e skills em combate, cooldowns, morte/revive.
+6. **Drops e loot:** coleta, ouro/itens e empilhamento (fecha a pendência do P0-02e).
+7. **Progressão:** XP, level up, AP por nível, objetivos de quest de combate, conclusão/falha da missão e recompensas sem reaplicar em retry.
+8. **Robustez:** logout/reconexão, queda durante a missão ou a recompensa, limites e operações atômicas.
+
+Gate B2: repetir o ciclo completo várias vezes, inclusive morrer e desconectar, sem duplicar nem perder progresso e sem loading infinito.
+
+## B3 — progressão de equipamento: Craft, Enhance e Enchant
+
+Depende de fases, drops e chefes do B2.
+
+1. **Craft:** NPC/ofício, receitas desbloqueadas por chefes e fases conforme a progressão, materiais, custos, fabricação/filas e resultado persistido.
+2. **Enhance (ferreiro):** níveis de melhoria, chances de sucesso e falha, quebra e restauração de itens, itens que aumentam a chance e itens que impedem a quebra.
+3. **Enchant:** scrolls de prefixo e sufixo, chances, falha e destruição conforme o original, e itens de proteção.
+4. **Complementos:** armazenamento pessoal, expansão de slots, reparo completo e SkillEnhance.
+
+Gate B3: fabricar, melhorar e encantar com sucesso e com falha (inclusive quebra e restauração), consumindo recursos uma única vez, e relogar com os resultados.
+
+## B4 — painel de administração e análise de extensões
+
+1. **Painel de administrador** inspirado no projeto `pw-universal-server` do operador (`F:\Python_C_Projects\PWSource1.5.3\pw-universal-server`), sobre o HTTP operacional, com autenticação e auditoria. Funções previstas: criar/gerenciar contas, gerenciar personagens (ouro, itens, nível, skills), recursos do jogo, edição de lojas e mapas/canais, se houver controle necessário. O painel nunca reimplementa o login do jogo.
+2. **Análise de viabilidade das extensões:** novos equipamentos e itens, novas missões, novas fases e novos monstros. O objetivo principal é **novas classes**. Para cada tipo, levantar o que vive no conteúdo SQLite, o que vive nos assets do cliente e o que exige servidor. O resultado é um relatório de viabilidade, que precede qualquer implementação de extensão.
+
+Gate B4: suíte completa e uso real do painel para criar uma conta, ajustar a Fiona e editar uma loja, com o efeito confirmado no cliente.
+
+## B5 — demais recursos e multijogador
+
+- **Multijogador:** party, convites, instância/combate/loot sincronizados, host/servidor, saída e reconexão de membros. Teste com vários clientes reais pela primeira vez neste bloco.
+- **Sistemas restantes:** PvP/arena/ranking, guildas, trade, correio completo, eventos/UserCare, pets, títulos/achievements, leilão/mercado, cash shop e cosméticos.
+- **Paridade e aceite final:** M23/M24 do `MIGRATION.md`.
+
+## Regras de cada etapa
 
 - Usar fonte recuperada e fixtures/oracles para fio/comportamento; primeiro verificar o que já existe no domínio/banco.
 - Entregar uma fatia pequena do cliente ao armazenamento, com recusas/persistência. Não enviar sucesso fictício ou listas vazias para ocultar serviço obrigatório ausente.
-- Testes focados e rápidos durante a alteração; suíte completa apenas ao terminar um bloco de implementação, antes do commit (instrução do operador, 20/10/2026). Logs em `.cache/verification`, arquivos editados em LF; uso de múltiplos núcleos autorizado.
+- Logs em `.cache/verification`, arquivos editados em LF; uso de múltiplos núcleos autorizado.
 - Preservar Fiona/marcador/schema e diretórios originais. Validar no cliente real antes de declarar compatibilidade.
-- Commits locais por incremento verificado, sem push automático. Registrar novas lacunas aqui e no checkpoint, respeitando as dependências do PvE.
+- Commits locais por etapa verificada, sem push automático. Registrar novas lacunas aqui e no checkpoint do `MIGRATION.md`.
 
 ## Compilação e GitHub
 
 O workflow `.github/workflows/verify.yaml`, que executava build/testes em todo push e pull request, foi removido a pedido do operador. A verificação local `scripts/dev/verify.ps1` permanece. A remoção afeta o GitHub quando o commit for enviado ao remoto; um commit local não dispara GitHub Actions. A causa das falhas históricas do workflow não foi diagnosticada neste lote.
 
-Diagnóstico histórico e contrato do incremento de leitura: [minimum-inventory-client.md](minimum-inventory-client.md), com a correção de QueryInventory529/InventoryInfo468 e os 5 equipamentos existentes na bolsa.
+## Histórico do B0
 
-P0-01: sincronização inicial e QueryInventory implementados para os 11 itens preservados; inventário e equipamentos na bolsa aceitos pelo operador em 20/10/2026. Reabertura/relogin não confirmados separadamente. Detalhes/limites em [minimum-inventory-client.md](minimum-inventory-client.md). P0-02 equipar/desequipar ainda não habilitado.
-
-P0-02a: contratos EquipItem457/EquipmentInfo458 e kernel de slots preparados, com oracles Framework e testes diferenciais. A ligação ao cliente depende primeiro do loader de equipamento vestido, requisitos, carga e aparência persistida; ainda não habilitada. Sequência e limites: [minimum-equipment-client.md](minimum-equipment-client.md).
-
-P0-02b/c: equipamento vestido carregado na seleção/inventário/relogin e EquipItem457 (equipar/desequipar com requisitos, ItemFail, sync 617/458/619/447 e Costume.Save) implementados e verificados automaticamente em 20/10/2026; aceite no cliente pendente. Ver [minimum-equipment-client.md](minimum-equipment-client.md).
-
-Roteiro de testes do cliente acumulado: [client-test-checklist.md](client-test-checklist.md).
+- P0-01: contrato do inventário inicial em [minimum-inventory-client.md](minimum-inventory-client.md).
+- P0-02a–c: slots, loader de equipamento vestido e EquipItem457 em [minimum-equipment-client.md](minimum-equipment-client.md).
+- P0-02d–f e P0-03a–d: detalhes e evidências no `MIGRATION.md`.
