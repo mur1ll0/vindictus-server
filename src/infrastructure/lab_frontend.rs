@@ -1064,6 +1064,9 @@ impl Connection {
                 Kind::LearnSkill,
                 Kind::LearnNewSkill,
                 Kind::QueryNpcList,
+                Kind::QueryNpcTalk,
+                Kind::SelectButton,
+                Kind::ExecuteNpcServerCommand,
                 Kind::QueryCharacterCommonInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -1135,6 +1138,39 @@ impl Connection {
                             Err(_) => {
                                 tracing::warn!("minimum skill training rejected; values omitted")
                             }
+                        }
+                    }
+                    Message::QueryNpcTalk(_)
+                    | Message::SelectButton(_)
+                    | Message::ExecuteNpcServerCommand => {
+                        use super::minimum_story::TalkRequest;
+                        let request = match &message {
+                            Message::QueryNpcTalk(q) => TalkRequest::TalkTo {
+                                location: q.location.as_deref(),
+                                npc: q.npc.as_deref().unwrap_or(""),
+                                story_line: q.story_line.as_deref(),
+                                command: q.command.as_deref(),
+                            },
+                            Message::SelectButton(index) => TalkRequest::SelectButton(*index),
+                            _ => TalkRequest::ExecuteServerCommand,
+                        };
+                        let session =
+                            &mut self.selected.as_mut().ok_or(RuntimeError::Operation)?.story;
+                        match super::minimum_story::talk(
+                            pool, &owner, assets, cid, session, request,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    messages = packets.len(),
+                                    "minimum NPC talk processed; values omitted"
+                                );
+                            }
+                            Err(_) => tracing::warn!("minimum NPC talk refused; values omitted"),
                         }
                     }
                     Message::QueryNpcList => {

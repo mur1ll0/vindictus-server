@@ -504,6 +504,61 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
             .as_deref(),
         Some("GuidePlay_1_SkillTrain")
     );
+    // Default and storyline talks of the selected character.
+    let talk = |packets: Vec<vindictus_server::domain::map_partition::OutgoingPacket>| {
+        assert_eq!(packets.len(), 1);
+        let Some(Message::NpcTalk(Some(content))) =
+            inventory::decode(Kind::NpcTalk, &packets[0].body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("npc talk missing")
+        };
+        content
+            .into_iter()
+            .map(|e| {
+                let e = e.unwrap();
+                (e.command.unwrap(), e.arg1.unwrap())
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut session = vindictus_server::domain::npc_talk::Session::default();
+    let greeting = minimum_story::talk(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        minimum_story::TalkRequest::TalkTo {
+            location: Some("t01_bs"),
+            npc: "FERGHUS",
+            story_line: None,
+            command: Some("greeting"),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        talk(greeting)[..2],
+        [
+            ("change_npc".to_owned(), "FERGHUS".to_owned()),
+            ("talk".to_owned(), "hi".to_owned())
+        ]
+    );
+    let story = minimum_story::talk(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        minimum_story::TalkRequest::TalkTo {
+            location: None,
+            npc: "FERGHUS",
+            story_line: Some("GuidePlay_1_SkillTrain"),
+            command: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(talk(story)[1], ("talk".to_owned(), "x".to_owned()));
     minimum_selection::disconnect(&p, 1).await.unwrap();
     minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
         .await

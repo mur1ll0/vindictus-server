@@ -23,6 +23,8 @@ pub struct Selected {
     pub cid: i64,
     pub packets: Vec<OutgoingPacket>,
     pub look: OutgoingPacket,
+    /// StoryEntity query state of the entered character.
+    pub story: crate::domain::npc_talk::Session,
 }
 fn packet(message: Message<'_>) -> Result<OutgoingPacket, MinimumError> {
     Ok(OutgoingPacket {
@@ -112,7 +114,12 @@ pub async fn select(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    Ok(Selected { cid, packets, look })
+    Ok(Selected {
+        cid,
+        packets,
+        look,
+        story: Default::default(),
+    })
 }
 /// Skill runtime cache of the initialized first Fiona: the initializer's skills come
 /// first (in row order), followed by skills learned later (LearnNewSkill).

@@ -26,3 +26,12 @@ Pré-condição: runtime com os assets privados atuais (`npc_scripts` = `.cache/
 - [ ] Observar NPCs com marcador de história (ex.: o NPC da GuidePlay) → marcador visível.
 - [ ] Relogar → as mesmas histórias e marcadores; nada duplicado.
 Limites conhecidos: clicar no NPC ainda não abre diálogo (B1.3c); logs de história (StoryTelling) não migrados; FlexibleMapLoading não muda o mapa para as histórias do nível 1 (não há entrada para elas).
+
+### B1.3c — conversar com NPCs e navegar nos menus
+Pré-condição: a mesma do B1.3b.
+- [ ] Clicar num NPC da cidade (ex.: Ferghus no ferreiro) → abre o diálogo de saudação com o retrato do NPC, as falas e os botões do menu.
+- [ ] Escolher um botão de menu que só conversa (pergunta/assunto) → nova fala no mesmo diálogo, sem travar.
+- [ ] Botão de despedida ("tchau"/endtalk) → fecha o diálogo; clicar de novo no NPC reabre normalmente.
+- [ ] Clicar no NPC marcado pela história inicial (GuidePlay) → fala da história.
+- [ ] Testar 3–4 NPCs diferentes (ferreiro, loja geral, pousada, guilda de aventureiros) e anotar qualquer diálogo que não abra.
+Limites conhecidos: opções que executam ações do servidor (dar/aceitar missão, dar item, título, reparo, armazém, manufatura, vocação) param no aviso de comando do servidor e não executam (B1.4/B1.5); abrir a loja chega ao cliente, mas comprar/vender é o B1.4; StorySave e logs de história não migrados.
