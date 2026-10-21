@@ -66,10 +66,16 @@ pub(super) async fn locked_selection(
         DEFAULT_MAX_BODY,
     )
     .unwrap();
+    // Without a selected character there is no PlayerConn: item queries are ignored
+    // and never answered with the SecondPassword_Locked dialog.
     send(client, tx, 529, &body).await;
-    assert_eq!(read(client, rx).await.category_id, CKind::System.category());
     frontend_send(client, tx, Message::SelectCharacter { index: 0 }).await;
     assert_eq!(read(client, rx).await.category_id, CKind::System.category());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(500), read(client, rx))
+            .await
+            .is_err()
+    );
 }
 pub(super) async fn exercise(
     r: &std::sync::Arc<Runtime>,

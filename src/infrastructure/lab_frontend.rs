@@ -826,7 +826,9 @@ impl Connection {
                     .as_ref()
                     .is_some_and(|p| p.selection_allowed(&self.frontend))
                 {
-                    locked(stream, sender).await?;
+                    // Before selection there is no PlayerConn: the source ignores item
+                    // messages; the Check/Set SecondPassword_Locked dialog does not apply.
+                    self.log_unhandled(category, body);
                     return Ok(());
                 }
                 let Some(Message::QueryInventory) =
@@ -836,7 +838,7 @@ impl Connection {
                     return Err(RuntimeError::Message);
                 };
                 let Some(selected) = self.selected.as_ref() else {
-                    locked(stream, sender).await?;
+                    self.log_unhandled(category, body);
                     return Ok(());
                 };
                 let id = self
@@ -907,7 +909,9 @@ impl Connection {
                     .as_ref()
                     .is_some_and(|p| p.selection_allowed(&self.frontend))
                 {
-                    locked(stream, sender).await?;
+                    // Before selection there is no PlayerConn: the source ignores item
+                    // messages; the Check/Set SecondPassword_Locked dialog does not apply.
+                    self.log_unhandled(category, body);
                     return Ok(());
                 }
                 let Some(Message::EquipItem { item_id, part }) =
@@ -917,7 +921,7 @@ impl Connection {
                     return Err(RuntimeError::Message);
                 };
                 let Some(selected) = self.selected.as_ref() else {
-                    locked(stream, sender).await?;
+                    self.log_unhandled(category, body);
                     return Ok(());
                 };
                 let cid = selected.cid;
