@@ -1,7 +1,7 @@
 use vindictus_server::domain::{
     feature_policy::FeaturePolicy,
-    npc_script::{DefaultScript, Element, NpcScripts},
-    npc_talk::{Facts, Session, TalkError, Talker},
+    npc_script::{DefaultScript, Element, NpcScripts, Progress, StoryLineInfo},
+    npc_talk::{Facts, Output, Session, StoryState, TalkError, Talker},
 };
 
 fn el(name: &str, attributes: &[(&str, &str)], text: &str, children: Vec<Element>) -> Element {
@@ -49,6 +49,9 @@ impl Facts for Fiona {
     }
 }
 fn scripts() -> NpcScripts {
+    scripts_with(vec![])
+}
+fn scripts_with(lines: Vec<(StoryLineInfo, Option<&Element>)>) -> NpcScripts {
     let menu = el(
         "ButtonSet",
         &[("id", "shop_menu")],
@@ -166,7 +169,7 @@ fn scripts() -> NpcScripts {
                 root: &other,
             },
         ],
-        vec![],
+        lines,
     )
     .unwrap()
 }
@@ -189,12 +192,20 @@ fn greeting_runs_conditions_and_shows_the_menu_then_buttons_continue_the_query()
     let mut session = Session::default();
     let mut pick = |_| 0;
     let facts = Fiona { level: 1 };
-    let pushed = Talker::new(&s, &p, &facts, &[], &mut pick, 0, &mut session)
-        .talk_to(Some("t01_bs"), "FERGHUS", None, Some("greeting"))
-        .unwrap();
-    assert_eq!(pushed.messages.len(), 1);
+    let pushed = Talker::new(
+        &s,
+        &p,
+        &facts,
+        &mut StoryState::default(),
+        &mut pick,
+        0,
+        &mut session,
+    )
+    .talk_to(Some("t01_bs"), "FERGHUS", None, Some("greeting"))
+    .unwrap();
+    assert_eq!(pushed.messages().len(), 1);
     assert_eq!(
-        texts(&pushed.messages[0]),
+        texts(pushed.messages()[0]),
         [
             t("change_npc", "FERGHUS", ""),
             t("talk", "ROOKIE", ""),
@@ -207,11 +218,19 @@ fn greeting_runs_conditions_and_shows_the_menu_then_buttons_continue_the_query()
     );
     assert!(session.can_start_query && session.last_button_set.is_some());
     // The action button continues the open query; the default button set closes it.
-    let pushed = Talker::new(&s, &p, &facts, &[], &mut pick, 0, &mut session)
-        .select_button(1)
-        .unwrap();
+    let pushed = Talker::new(
+        &s,
+        &p,
+        &facts,
+        &mut StoryState::default(),
+        &mut pick,
+        0,
+        &mut session,
+    )
+    .select_button(1)
+    .unwrap();
     assert_eq!(
-        texts(&pushed.messages[0]),
+        texts(pushed.messages()[0]),
         [
             t("talk", "ANSWER", ""),
             t("clear_button", "", ""),
@@ -220,10 +239,18 @@ fn greeting_runs_conditions_and_shows_the_menu_then_buttons_continue_the_query()
         ]
     );
     let veteran = Fiona { level: 10 };
-    let pushed = Talker::new(&s, &p, &veteran, &[], &mut pick, 0, &mut Session::default())
-        .talk_to(Some("t01_bs"), "FERGHUS", None, Some("greeting"))
-        .unwrap();
-    assert_eq!(texts(&pushed.messages[0])[1], t("talk", "VETERAN", ""));
+    let pushed = Talker::new(
+        &s,
+        &p,
+        &veteran,
+        &mut StoryState::default(),
+        &mut pick,
+        0,
+        &mut Session::default(),
+    )
+    .talk_to(Some("t01_bs"), "FERGHUS", None, Some("greeting"))
+    .unwrap();
+    assert_eq!(texts(pushed.messages()[0])[1], t("talk", "VETERAN", ""));
 }
 
 #[test]
@@ -233,11 +260,19 @@ fn server_commands_wait_for_execute_and_unmigrated_ones_change_nothing() {
     let facts = Fiona { level: 1 };
     let mut pick = |_| 0;
     let mut session = Session::default();
-    let pushed = Talker::new(&s, &p, &facts, &[], &mut pick, 0, &mut session)
-        .talk_to(Some("t01_bs"), "FERGHUS", None, Some("shop"))
-        .unwrap();
+    let pushed = Talker::new(
+        &s,
+        &p,
+        &facts,
+        &mut StoryState::default(),
+        &mut pick,
+        0,
+        &mut session,
+    )
+    .talk_to(Some("t01_bs"), "FERGHUS", None, Some("shop"))
+    .unwrap();
     assert_eq!(
-        texts(&pushed.messages[0]),
+        texts(pushed.messages()[0]),
         [
             t("change_npc", "FERGHUS", ""),
             t("talk", "BEFORE", ""),
@@ -245,15 +280,234 @@ fn server_commands_wait_for_execute_and_unmigrated_ones_change_nothing() {
         ]
     );
     assert!(session.last_server_command.is_some());
-    let result =
-        Talker::new(&s, &p, &facts, &[], &mut pick, 0, &mut session).execute_server_command();
+    let result = Talker::new(
+        &s,
+        &p,
+        &facts,
+        &mut StoryState::default(),
+        &mut pick,
+        0,
+        &mut session,
+    )
+    .execute_server_command();
     assert_eq!(result, Err(TalkError::Unsupported("give_quest".to_owned())));
     // Unknown commands and NPCs answer with the source error talk and default buttons.
-    let pushed = Talker::new(&s, &p, &facts, &[], &mut pick, 0, &mut Session::default())
-        .talk_to(None, "FERGHUS", None, Some("missing"))
-        .unwrap();
+    let pushed = Talker::new(
+        &s,
+        &p,
+        &facts,
+        &mut StoryState::default(),
+        &mut pick,
+        0,
+        &mut Session::default(),
+    )
+    .talk_to(None, "FERGHUS", None, Some("missing"))
+    .unwrap();
     assert_eq!(
-        texts(&pushed.messages[0])[1],
+        texts(pushed.messages()[0])[1],
         t("Error", "No Talk For FERGHUS/missing", "")
     );
+}
+
+fn story_scripts() -> NpcScripts {
+    let talk = |npc: &str, children: Vec<Element>| {
+        el(
+            "Talk",
+            &[("id", npc)],
+            "",
+            vec![el("Do", &[], "", children)],
+        )
+    };
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![
+            el(
+                "Phase",
+                &[("id", "A")],
+                "",
+                vec![talk(
+                    "AIDAN",
+                    vec![
+                        leaf("talk", "WELCOME"),
+                        leaf("reveal_storyline", ""),
+                        leaf("set_guide", "landmark_inn,GUIDE_A"),
+                        leaf("set_token", "count,2"),
+                        leaf("increase_token", "count,3"),
+                        leaf("give_item", "potion,2"),
+                        leaf("goto_phase", "B"),
+                    ],
+                )],
+            ),
+            el(
+                "Phase",
+                &[("id", "B")],
+                "",
+                vec![talk(
+                    "AIDAN",
+                    vec![
+                        el(
+                            "If",
+                            &[],
+                            "",
+                            vec![
+                                el("Condition", &[], "", vec![leaf("token_is", "count,5")]),
+                                el("Then", &[], "", vec![leaf("talk", "FIVE")]),
+                                el("Else", &[], "", vec![leaf("talk", "OTHER")]),
+                            ],
+                        ),
+                        leaf("take_item", "potion,1"),
+                        leaf("clear_guide", ""),
+                        leaf("set_token", "count,0"),
+                        leaf("complete_storyline", ""),
+                    ],
+                )],
+            ),
+        ],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        reward_gold: 40,
+        ..Default::default()
+    };
+    scripts_with(vec![(info, Some(&story))])
+}
+fn story_policy() -> FeaturePolicy {
+    FeaturePolicy::npc_source([
+        ("CurrentVer".to_owned(), Some("3.09.00".to_owned())),
+        ("GoldRate_Story".to_owned(), Some("150".to_owned())),
+    ])
+    .unwrap()
+}
+/// Runs the query and every server command it stops at, collecting the outputs.
+fn run(
+    s: &NpcScripts,
+    p: &FeaturePolicy,
+    state: &mut StoryState,
+    session: &mut Session,
+    npc: &str,
+) -> Vec<Output> {
+    let facts = Fiona { level: 1 };
+    let mut pick = |_| 0;
+    let mut outputs = Talker::new(s, p, &facts, state, &mut pick, 0, session)
+        .talk_to(None, npc, Some("Guide"), None)
+        .unwrap()
+        .outputs;
+    while session.last_server_command.is_some() {
+        let more = Talker::new(s, p, &facts, state, &mut pick, 0, session)
+            .execute_server_command()
+            .unwrap();
+        outputs.extend(more.outputs);
+    }
+    outputs
+}
+
+#[test]
+fn story_commands_change_phase_tokens_guide_and_items_in_source_order() {
+    let s = story_scripts();
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 255,
+        }],
+        guide: Some((String::new(), String::new())),
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let outputs = run(&s, &p, &mut state, &mut session, "AIDAN");
+    // reveal_storyline makes the storyline Normal; goto_phase moves to B.
+    assert_eq!(
+        state.progress[0],
+        Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("B".to_owned()),
+            status: 0,
+        }
+    );
+    assert_eq!(
+        state.guide,
+        Some(("landmark_inn".to_owned(), "GUIDE_A".to_owned()))
+    );
+    assert_eq!(
+        state.variables,
+        [("Guide".to_owned(), "count".to_owned(), 5)]
+    );
+    assert_eq!(state.item_delta, [("potion".to_owned(), 2)]);
+    assert!(state.saves.is_empty());
+    let guide = Output::Guide("landmark_inn".to_owned(), "GUIDE_A".to_owned());
+    assert_eq!(outputs.iter().filter(|o| **o == guide).count(), 2);
+    assert!(outputs.contains(&Output::Effect(
+        vindictus_server::domain::npc_talk::Effect::GiveItem {
+            class: "potion".to_owned(),
+            count: 2
+        }
+    )));
+    assert!(matches!(outputs.last(), Some(Output::SyncStory(rows)) if rows == &state.progress));
+    let talk: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .map(|e| e.0)
+        .collect();
+    assert!(talk.contains(&"reveal_storyline_successful".to_owned()));
+    assert!(talk.contains(&"give_item_successful".to_owned()));
+    // Phase B reads the token, takes the item, clears the guide and completes.
+    let mut session = Session::default();
+    let outputs = run(&s, &p, &mut state, &mut session, "AIDAN");
+    assert_eq!(state.progress[0].phase, None);
+    assert!(state.variables.is_empty());
+    assert_eq!(state.item_delta, [("potion".to_owned(), 1)]);
+    assert_eq!(state.guide, Some((String::new(), String::new())));
+    let talk: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert!(talk.contains(&t("talk", "FIVE", "")));
+    assert!(talk.contains(&t("take_item_successful", "potion", "1")));
+    // RewardGold 40 at GoldRate_Story 150.
+    assert!(talk.contains(&t("give_item_successful", "gold", "60")));
+    assert!(talk.contains(&t("complete_storyline_successful", "Guide", "")));
+}
+
+#[test]
+fn take_item_without_the_item_answers_the_source_error() {
+    let s = story_scripts();
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("B".to_owned()),
+            status: 0,
+        }],
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let outputs = run(&s, &p, &mut state, &mut session, "AIDAN");
+    let talk: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert!(talk.contains(&t(
+        "Error",
+        "GameUI_Heroes_NPCTalkEntity_Talk_NullError,take_item",
+        ""
+    )));
+    assert!(state.item_delta.is_empty());
+    assert_eq!(state.progress[0].phase.as_deref(), Some("B"));
 }

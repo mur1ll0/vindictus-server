@@ -1159,10 +1159,18 @@ impl Connection {
                             Message::SelectButton(index) => TalkRequest::SelectButton(*index),
                             _ => TalkRequest::ExecuteServerCommand,
                         };
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(super::minimum_story::TALK_ENTITY_IDS)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
                         let session =
                             &mut self.selected.as_mut().ok_or(RuntimeError::Operation)?.story;
                         match super::minimum_story::talk(
-                            pool, &owner, assets, cid, session, request,
+                            pool, &owner, assets, cid, session, request, ids,
                         )
                         .await
                         {

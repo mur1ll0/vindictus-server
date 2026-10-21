@@ -393,22 +393,49 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         "StoryLine",
         [],
         "",
-        [[
-            "Phase",
-            [["id", "p0"]],
-            "",
+        [
             [
-                leaf("Goal", "find_ferghus"),
+                "Phase",
+                [["id", "p0"]],
+                "",
                 [
+                    leaf("Goal", "find_ferghus"),
+                    [
+                        "Talk",
+                        [["id", "FERGHUS"]],
+                        "",
+                        [["Do", [], "", [leaf("talk", "x")], ""]],
+                        ""
+                    ]
+                ],
+                ""
+            ],
+            [
+                "Phase",
+                [["id", "p1"]],
+                "",
+                [[
                     "Talk",
                     [["id", "FERGHUS"]],
                     "",
-                    [["Do", [], "", [leaf("talk", "x")], ""]],
+                    [[
+                        "Do",
+                        [],
+                        "",
+                        [
+                            leaf("set_guide", "landmark_bs,GUIDE_MSG"),
+                            leaf("set_token", "count,3"),
+                            leaf("increase_token", "count,4"),
+                            leaf("give_item", "synthetic_gold,25"),
+                            leaf("goto_phase", "p0")
+                        ],
+                        ""
+                    ]],
                     ""
-                ]
-            ],
-            ""
-        ]],
+                ]],
+                ""
+            ]
+        ],
         ""
     ]);
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":0,"RewardAp":0,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
@@ -555,6 +582,7 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
             story_line: None,
             command: Some("greeting"),
         },
+        vec![],
     )
     .await
     .unwrap();
@@ -577,6 +605,7 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
             story_line: Some("GuidePlay_1_SkillTrain"),
             command: None,
         },
+        vec![],
     )
     .await
     .unwrap();
@@ -966,6 +995,7 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
             story_line: None,
             command: Some("repair"),
         },
+        vec![],
     )
     .await
     .unwrap();
@@ -1010,5 +1040,120 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
     .await
     .unwrap();
     assert_eq!(packets[0].category, 617);
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_story_commands_persist_phase_guide_tokens_and_items_together() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_story},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    sqlx::query("UPDATE game_story_progress SET phase_utf16=$1 WHERE cid=1")
+        .bind(utf16("p1"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let gold = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+        )
+        .bind(utf16("synthetic_gold"))
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let before = gold().await;
+    let mut session = vindictus_server::domain::npc_talk::Session::default();
+    let request = || minimum_story::TalkRequest::TalkTo {
+        location: None,
+        npc: "FERGHUS",
+        story_line: Some("GuidePlay_1_SkillTrain"),
+        command: None,
+    };
+    let ids = || {
+        (1..=32)
+            .map(|i| 920_000_000_000_000_000 + i)
+            .collect::<Vec<i64>>()
+    };
+    let mut packets = minimum_story::talk(&p, &owner, &assets, 1, &mut session, request(), ids())
+        .await
+        .unwrap();
+    while session.last_server_command.is_some() {
+        packets.extend(
+            minimum_story::talk(
+                &p,
+                &owner,
+                &assets,
+                1,
+                &mut session,
+                minimum_story::TalkRequest::ExecuteServerCommand,
+                ids().into_iter().map(|i| i + 100).collect(),
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    let categories: Vec<i32> = packets.iter().map(|p| p.category).collect();
+    for kind in [
+        Kind::UpdateStoryGuide,
+        Kind::StoryVariables,
+        Kind::UpdateInventoryInfo,
+        Kind::NpcTalk,
+        Kind::StoryLines,
+        Kind::NpcList,
+    ] {
+        assert!(
+            categories.contains(&kind.category()),
+            "{} missing",
+            kind.category()
+        );
+    }
+    let phase: Vec<u8> =
+        sqlx::query_scalar("SELECT phase_utf16 FROM game_story_progress WHERE cid=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(phase, utf16("p0"));
+    let guide: (Vec<u8>, Vec<u8>) = sqlx::query_as(
+        "SELECT guide_target_utf16,guide_message_utf16 FROM game_story_guides WHERE cid=1",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(guide, (utf16("landmark_bs"), utf16("GUIDE_MSG")));
+    let token: (Vec<u8>, Vec<u8>, i32) = sqlx::query_as(
+        "SELECT story_line_utf16,key_utf16,value FROM game_story_variables WHERE cid=1",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(token, (utf16("GuidePlay_1_SkillTrain"), utf16("count"), 7));
+    assert_eq!(gold().await, before + 25);
     cleanup_game_pool(a, p, s).await;
 }

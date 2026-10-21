@@ -176,6 +176,9 @@ class ItemSyncWireOracle {
   var repairs=new List<RepairItemMessage>{null,new RepairItemMessage(null),new RepairItemMessage(new List<long>{long.MinValue,0L,long.MaxValue}){AddAllEquippedItems=true,AddAllRepairableItems=true}};
   var nullIds=new RepairItemMessage(new List<long>());nullIds.ItemIDs=null;nullIds.AddAllBrokenItems=true;repairs.Add(nullIds);
   AddCases("repair_item",424,new Guid("b83c8562-c97c-343c-b421-d3cdada26774"),repairs,cases);
+  AddCases("update_story_guide",622,new Guid("4f661234-1161-3db9-8127-877ed7807435"),new[]{null,new UpdateStoryGuideMessage(null,null),new UpdateStoryGuideMessage("",""),new UpdateStoryGuideMessage("colhen.adv_guild","HEROES_STORYLINE_GUIDE")},cases);
+  var vars=new List<StoryVariableInfo>{new StoryVariableInfo("GuidePlay","count",3),null,new StoryVariableInfo(null,null,int.MinValue)};
+  AddCases("story_variables",599,new Guid("de76b127-f09d-369a-8008-26af3e5c8383"),new[]{null,new StoryVariablesMessage(null),new StoryVariablesMessage(new List<StoryVariableInfo>()),new StoryVariablesMessage(vars)},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

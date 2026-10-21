@@ -399,6 +399,29 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 "case {n}"
             );
         }
+        Some(Message::UpdateStoryGuide(g)) => {
+            assert_eq!(
+                g.target.as_deref(),
+                f["TargetLandMark"].as_str(),
+                "case {n}"
+            );
+            assert_eq!(g.message.as_deref(), f["GuideMessage"].as_str(), "case {n}");
+        }
+        Some(Message::StoryVariables(vars)) => {
+            let expected = f["StoryVariables"].as_array();
+            assert_eq!(
+                vars.as_ref().map(Vec::len),
+                expected.map(Vec::len),
+                "case {n}"
+            );
+            for (v, e) in vars.iter().flatten().zip(expected.into_iter().flatten()) {
+                assert_eq!(v.is_none(), e.is_null(), "case {n}");
+                let Some(v) = v else { continue };
+                assert_eq!(v.story_line.as_deref(), e["StoryLine"].as_str(), "case {n}");
+                assert_eq!(v.key.as_deref(), e["Key"].as_str(), "case {n}");
+                assert_eq!(i64::from(v.value), e["Value"].as_i64().unwrap(), "case {n}");
+            }
+        }
         Some(Message::SelectButton(index)) => {
             assert_eq!(
                 i64::from(index),
@@ -515,12 +538,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::QueryBuybackList,
         Kind::BuybackListResult,
         Kind::RepairItem,
+        Kind::UpdateStoryGuide,
+        Kind::StoryVariables,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1137);
+        assert_eq!(cases.len(), 1161);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -552,6 +577,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "query_buyback_list" => check_inventory(Kind::QueryBuybackList, case, n),
                 "buyback_list_result" => check_inventory(Kind::BuybackListResult, case, n),
                 "repair_item" => check_inventory(Kind::RepairItem, case, n),
+                "update_story_guide" => check_inventory(Kind::UpdateStoryGuide, case, n),
+                "story_variables" => check_inventory(Kind::StoryVariables, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

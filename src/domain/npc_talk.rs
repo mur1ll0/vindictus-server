@@ -90,10 +90,51 @@ pub trait Facts {
 
 /// Server command effects decided during the query and applied afterwards in one
 /// transaction (their success was decided from the same Facts).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Effect {
     /// ItemImpl.RepairItem(null, hideNotEnoughGold: false, addAllRepairableItems: true).
     RepairAll,
+    /// ItemImpl.GiveItem(itemClass, num, OperationFail/ForceMail, Story*).
+    GiveItem { class: String, count: i32 },
+    /// ItemImpl.DestroyItem(itemClass, num, Story, includeExpired: false).
+    TakeItem { class: String, count: i32 },
+}
+
+/// StoryEntity state a query reads and changes; the caller persists it when the
+/// query succeeds (StoryProgress, StorySave, StoryVariable, StoryGuide).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct StoryState {
+    pub progress: Vec<Progress>,
+    /// StorySave rows: (NpcID, StoryLineID) and CmdID.
+    pub saves: Vec<(String, String, String)>,
+    /// StoryVariable rows in Entry order: StoryLineID, Key, Value (0 is never kept).
+    pub variables: Vec<(String, String, i32)>,
+    /// StoryGuide (GuideTarget, GuideMessage); None when the row does not exist.
+    pub guide: Option<(String, String)>,
+    /// Item count changes made by give/take_item in this query, by ItemClass.
+    pub item_delta: Vec<(String, i64)>,
+}
+impl StoryState {
+    fn variable(&self, line: &str, key: &str) -> i32 {
+        self.variables
+            .iter()
+            .find(|(l, k, _)| l == line && k == key)
+            .map_or(0, |v| v.2)
+    }
+}
+
+/// What a query sends, in source order: immediate frontend messages, effects whose
+/// Sync precedes the talk, the NpcTalk push and SyncStoryProgress.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Output {
+    Talk(Vec<TalkEntity>),
+    /// SyncStoryProgress (StoryLinesMessage then NpcListMessage) of this progress.
+    SyncStory(Vec<Progress>),
+    /// UpdateStoryGuideMessage (SyncGuideInfo).
+    Guide(String, String),
+    /// StoryVariablesMessage after SetVariable: Entry.StoryVariable in order.
+    Variables(Vec<(String, String, i32)>),
+    Effect(Effect),
 }
 
 /// Why a request produced no NpcTalkMessage.
@@ -138,12 +179,22 @@ impl Default for Session {
     }
 }
 
-/// Messages pushed by one request (PushQueryResult) and whether SyncStoryProgress follows.
+/// Everything one request produced, in order.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Pushed {
-    pub messages: Vec<Vec<TalkEntity>>,
-    pub sync_story: bool,
-    pub effects: Vec<Effect>,
+    pub outputs: Vec<Output>,
+}
+impl Pushed {
+    /// The NpcTalk messages (PushQueryResult) in order.
+    pub fn messages(&self) -> Vec<&Vec<TalkEntity>> {
+        self.outputs
+            .iter()
+            .filter_map(|o| match o {
+                Output::Talk(t) => Some(t),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 enum K {
@@ -158,7 +209,7 @@ pub struct Talker<'a> {
     pub scripts: &'a NpcScripts,
     pub policy: &'a FeaturePolicy,
     pub facts: &'a dyn Facts,
-    pub progress: &'a [Progress],
+    pub state: &'a mut StoryState,
     /// System.Random.Next(n) of a fresh Random.
     pub pick: &'a mut dyn FnMut(usize) -> usize,
     /// DateTime.UtcNow.Minute * 60 + Second.
@@ -175,7 +226,7 @@ impl<'a> Talker<'a> {
         scripts: &'a NpcScripts,
         policy: &'a FeaturePolicy,
         facts: &'a dyn Facts,
-        progress: &'a [Progress],
+        state: &'a mut StoryState,
         pick: &'a mut dyn FnMut(usize) -> usize,
         minute_second: i32,
         session: &'a mut Session,
@@ -184,7 +235,7 @@ impl<'a> Talker<'a> {
             scripts,
             policy,
             facts,
-            progress,
+            state,
             pick,
             minute_second,
             session,
@@ -256,7 +307,23 @@ impl<'a> Talker<'a> {
         if !server {
             self.session.can_process_server_command = false;
             return match self.next(start) {
-                None => self.process(start, k),
+                None => {
+                    let clears = match self.node(start) {
+                        Node::Entity { .. } => true,
+                        Node::Button { set, .. } => !matches!(
+                            self.node(*set),
+                            Node::ButtonSet {
+                                force_select: true,
+                                ..
+                            }
+                        ),
+                        _ => false,
+                    };
+                    if clears {
+                        self.clear_save_point();
+                    }
+                    self.process(start, k)
+                }
                 Some(n) => self.process(start, K::Chain(n, Box::new(k))),
             };
         }
@@ -279,11 +346,13 @@ impl<'a> Talker<'a> {
             }
             K::DefaultPush => self.default_push(),
             K::Chain(n, k) => self.do_chain(n, *k),
-            // StorySave rows only exist after a server command with an ID ran.
-            K::ClearSave(k) => self.resume(*k),
+            K::ClearSave(k) => {
+                self.clear_save_point();
+                self.resume(*k)
+            }
             K::SaveThen(id, n, k) => {
-                if id.is_some() {
-                    return Err(TalkError::Unsupported("StorySave".into()));
+                if let Some(id) = id {
+                    self.set_story_save(&id);
                 }
                 self.do_chain(n, *k)
             }
@@ -299,7 +368,7 @@ impl<'a> Talker<'a> {
                 ..
             } => {
                 if self.is_server(id) {
-                    self.server_command(&command, arg1.as_deref(), k)
+                    self.server_command(&command, arg1.as_deref(), arg2.as_deref(), k)
                 } else {
                     self.client_command(&command, arg1.as_deref(), arg2.as_deref(), k)
                 }
@@ -410,7 +479,13 @@ impl<'a> Talker<'a> {
         }
     }
     /// ProcessCommandFunc.Process_* that are migrated.
-    fn server_command(&mut self, command: &str, arg1: Option<&str>, k: K) -> Result<(), TalkError> {
+    fn server_command(
+        &mut self,
+        command: &str,
+        arg1: Option<&str>,
+        arg2: Option<&str>,
+        k: K,
+    ) -> Result<(), TalkError> {
         match command {
             "ask_repair" => {
                 let price = self.facts.repair_price().to_string();
@@ -419,15 +494,343 @@ impl<'a> Talker<'a> {
             }
             "do_repair" => {
                 if self.facts.repair_price() <= self.facts.gold() {
-                    self.pushed.effects.push(Effect::RepairAll);
+                    self.pushed.outputs.push(Output::Effect(Effect::RepairAll));
                     self.add(entity("do_repair_successful", None, None));
                     self.resume(k)
                 } else {
                     self.on_error("do_repair")
                 }
             }
+            other => self.story_command(other, arg1, arg2, k),
+        }
+    }
+    /// int.Parse (leading/trailing white space allowed).
+    fn parse(value: Option<&str>) -> Option<i32> {
+        value.and_then(|v| v.trim().parse::<i32>().ok())
+    }
+    fn item_count(&self, class: &str) -> i64 {
+        i64::from(self.facts.item_count(class))
+            + self
+                .state
+                .item_delta
+                .iter()
+                .filter(|(c, _)| c == class)
+                .map(|(_, d)| *d)
+                .sum::<i64>()
+    }
+    fn add_delta(&mut self, class: &str, delta: i64) {
+        match self.state.item_delta.iter_mut().find(|(c, _)| c == class) {
+            Some(e) => e.1 += delta,
+            None => self.state.item_delta.push((class.to_owned(), delta)),
+        }
+    }
+    fn querying_line(&self, id: Option<&str>) -> String {
+        match id {
+            Some(v) if !v.is_empty() => v.to_owned(),
+            _ => self.session.story_line.clone(),
+        }
+    }
+    /// StoryEntity.SetVariable followed by SendStoryVariablesMessage.
+    fn set_variable(&mut self, key: &str, value: i32) -> Result<(), TalkError> {
+        let line = self.session.story_line.clone();
+        let index = self
+            .state
+            .variables
+            .iter()
+            .position(|(l, k, _)| *l == line && k == key);
+        match (index, value) {
+            (None, 0) => return Err(TalkError::Halted),
+            (None, v) => self.state.variables.push((line, key.to_owned(), v)),
+            (Some(i), 0) => {
+                self.state.variables.remove(i);
+            }
+            (Some(i), v) => self.state.variables[i].2 = v,
+        }
+        let variables = self.state.variables.clone();
+        self.pushed.outputs.push(Output::Variables(variables));
+        Ok(())
+    }
+    /// Process_* commands of the story service.
+    fn story_command(
+        &mut self,
+        command: &str,
+        arg1: Option<&str>,
+        arg2: Option<&str>,
+        k: K,
+    ) -> Result<(), TalkError> {
+        match command {
+            "set_guide" => {
+                let guide = (arg1.unwrap_or("").to_owned(), arg2.unwrap_or("").to_owned());
+                self.state.guide = Some(guide.clone());
+                // SetGuide → SaveGuide → SyncGuideInfo, then the command syncs again.
+                self.pushed
+                    .outputs
+                    .push(Output::Guide(guide.0.clone(), guide.1.clone()));
+                self.pushed.outputs.push(Output::Guide(guide.0, guide.1));
+                self.resume(k)
+            }
+            "clear_guide" => {
+                // ClearGuide dereferences Entry.StoryGuide.
+                if self.state.guide.is_none() {
+                    return Err(TalkError::Halted);
+                }
+                self.state.guide = Some((String::new(), String::new()));
+                self.pushed
+                    .outputs
+                    .push(Output::Guide(String::new(), String::new()));
+                self.pushed
+                    .outputs
+                    .push(Output::Guide(String::new(), String::new()));
+                self.resume(k)
+            }
+            "reveal_storyline" => {
+                let line = self.querying_line(arg1);
+                let index = self
+                    .state
+                    .progress
+                    .iter()
+                    .position(|p| p.story_line == line);
+                if let Some(i) = index
+                    && self.state.progress[i].status == 255
+                {
+                    // RevealStoryLine: SetStoryLineStatus(Normal).
+                    self.state.progress[i].status = 0;
+                    let enabled = match self.scripts.story_line(&line) {
+                        Some(l) => NpcScripts::is_story_enabled(&l.info, self.policy)
+                            .map_err(|_| TalkError::Unsupported("feature".into()))?,
+                        None => false,
+                    };
+                    if enabled {
+                        self.session.story_line_changed = true;
+                        self.add(entity("reveal_storyline_successful", Some(&line), None));
+                    }
+                }
+                match index {
+                    Some(i) if self.state.progress[i].status != 255 => self.resume(k),
+                    _ => self.on_error("reveal_storyline"),
+                }
+            }
+            "goto_phase" => {
+                let line = self.session.story_line.clone();
+                let target = arg1.unwrap_or("");
+                let Some(phase) = self.scripts.story_line(&line).and_then(|l| l.phase(target))
+                else {
+                    let text =
+                        format!("Error : goto_phase : 페이즈가 존재하지 않습니다.({target})");
+                    self.add(entity("talk", Some(&text), None));
+                    return self.resume(k);
+                };
+                let on_enter = phase.on_enter;
+                let Some(p) = self
+                    .state
+                    .progress
+                    .iter_mut()
+                    .find(|p| p.story_line == line)
+                else {
+                    return self.on_error("goto_phase");
+                };
+                p.phase = Some(target.to_owned());
+                self.session.story_line_changed = true;
+                match on_enter {
+                    Some(enter) => self.process(enter, k),
+                    None => self.resume(k),
+                }
+            }
+            "start_storyline" => {
+                let id = arg1.unwrap_or("").to_owned();
+                let Some(line) = self.scripts.story_line(&id) else {
+                    let text =
+                        format!("Error : start_storyline : 스토리라인이 존재하지 않습니다.({id})");
+                    self.add(entity("talk", Some(&text), None));
+                    return self.resume(k);
+                };
+                if !line.info.is_allowed_to(self.facts.class()) {
+                    return self.on_error("start_storyline");
+                }
+                if self.state.progress.iter().any(|p| p.story_line == id) {
+                    // AlreadyOwned / AlreadyCompleted.
+                    return self.resume(k);
+                }
+                let opened = self
+                    .scripts
+                    .open_story_line(line)
+                    .map_err(|_| TalkError::Halted)?;
+                self.state.progress.push(opened);
+                if NpcScripts::is_story_enabled(&line.info, self.policy)
+                    .map_err(|_| TalkError::Unsupported("feature".into()))?
+                {
+                    self.session.story_line_changed = true;
+                    if line.info.auto_reveal {
+                        self.add(entity("reveal_storyline_successful", Some(&id), None));
+                    }
+                }
+                self.resume(k)
+            }
+            "complete_storyline" => {
+                let line_id = self.querying_line(arg1);
+                let index = self
+                    .state
+                    .progress
+                    .iter()
+                    .position(|p| p.story_line == line_id && p.phase.is_some());
+                if let Some(i) = index {
+                    if self.state.progress[i].status != 255 {
+                        self.add(entity(
+                            "complete_storyline_successful",
+                            Some(&line_id),
+                            None,
+                        ));
+                    }
+                    let info = self
+                        .scripts
+                        .story_line(&line_id)
+                        .ok_or(TalkError::Halted)?
+                        .info
+                        .clone();
+                    // EXP/AP (level up), titles, skills and item rewards are not migrated.
+                    if info.reward_exp != 0
+                        || info.reward_ap != 0
+                        || info.reward_title != 0
+                        || info.reward_skill.is_some()
+                        || info.reward_item.is_some()
+                    {
+                        return Err(TalkError::Unsupported("story reward".into()));
+                    }
+                    self.state.progress[i].phase = None;
+                    self.state.variables.retain(|(l, _, _)| *l != line_id);
+                    if info.reward_gold != 0 {
+                        let rate = self
+                            .policy
+                            .get_integer("GoldRate_Story")
+                            .map_err(|_| TalkError::Unsupported("GoldRate_Story".into()))?;
+                        let gold = info.reward_gold.wrapping_mul(rate) / 100;
+                        self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
+                            class: "gold".to_owned(),
+                            count: gold,
+                        }));
+                        self.add(entity(
+                            "give_item_successful",
+                            Some("gold"),
+                            Some(&gold.to_string()),
+                        ));
+                    }
+                    self.session.story_line_changed = true;
+                }
+                let done = self
+                    .state
+                    .progress
+                    .iter()
+                    .any(|p| p.story_line == line_id && p.phase.is_none());
+                if done {
+                    self.resume(k)
+                } else {
+                    self.on_error("complete_storyline")
+                }
+            }
+            "talk_to" => {
+                let target = arg1.unwrap_or("");
+                let parts: Vec<&str> = target.split(['/', '\\']).collect();
+                let (building, npc) = match parts[..] {
+                    [b, n] => (Some(b.to_owned()), n.to_owned()),
+                    _ => (None, target.to_owned()),
+                };
+                let line = self.querying_line(arg2);
+                if self.session.story_line_changed {
+                    self.session.story_line_changed = false;
+                    self.pushed
+                        .outputs
+                        .push(Output::SyncStory(self.state.progress.clone()));
+                }
+                self.clear_save_point();
+                // TalkTo starts a new query; this command's completion is dropped.
+                let _ = k;
+                self.talk_to_inner(building.as_deref(), &npc, Some(&line), Some(""))
+            }
+            "give_item" => {
+                let class = arg1.unwrap_or("");
+                let Some(count) = Self::parse(arg2) else {
+                    let text = format!(
+                        "Error : give_item에 Arg2가 숫자가 아닙니다.({})",
+                        arg2.unwrap_or("")
+                    );
+                    self.add(entity("talk", Some(&text), None));
+                    return self.resume(k);
+                };
+                if class.contains('[') || class.contains("_lvl") {
+                    return Err(TalkError::Unsupported("give_item ItemClassEx".into()));
+                }
+                self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
+                    class: class.to_owned(),
+                    count,
+                }));
+                self.add_delta(class, i64::from(count));
+                self.add(entity("give_item_successful", Some(class), arg2));
+                self.resume(k)
+            }
+            "take_item" => {
+                let class = arg1.unwrap_or("");
+                let Some(count) = Self::parse(arg2) else {
+                    let text = format!(
+                        "Error : take_item에 Arg2가 숫자가 아닙니다.({})",
+                        arg2.unwrap_or("")
+                    );
+                    self.add(entity("talk", Some(&text), None));
+                    return self.resume(k);
+                };
+                if count >= 0 && self.item_count(class) >= i64::from(count) {
+                    self.pushed.outputs.push(Output::Effect(Effect::TakeItem {
+                        class: class.to_owned(),
+                        count,
+                    }));
+                    self.add_delta(class, -i64::from(count));
+                    self.add(entity("take_item_successful", Some(class), arg2));
+                    self.resume(k)
+                } else {
+                    self.on_error("take_item")
+                }
+            }
+            "set_token" | "increase_token" | "decrease_token" => {
+                let key = arg1.unwrap_or("");
+                let line = self.session.story_line.clone();
+                let amount = match Self::parse(arg2) {
+                    Some(v) => v,
+                    None => self.state.variable(&line, arg2.unwrap_or("")),
+                };
+                let current = self.state.variable(&line, key);
+                let value = match command {
+                    "set_token" => amount,
+                    "increase_token" => current.wrapping_add(amount),
+                    _ => current.wrapping_sub(amount),
+                };
+                self.set_variable(key, value)?;
+                self.resume(k)
+            }
             other => Err(TalkError::Unsupported(other.to_owned())),
         }
+    }
+    /// StoryEntity.SetStorySave(cmdID) for the querying NPC and storyline.
+    fn set_story_save(&mut self, command: &str) {
+        let (npc, line) = (
+            self.session.querying_npc.clone(),
+            self.session.story_line.clone(),
+        );
+        match self
+            .state
+            .saves
+            .iter_mut()
+            .find(|(n, l, _)| *n == npc && *l == line)
+        {
+            Some(save) => save.2 = command.to_owned(),
+            None => self.state.saves.push((npc, line, command.to_owned())),
+        }
+    }
+    /// StoryEntity.ClearSavePoint (skipped while handling an error).
+    fn clear_save_point(&mut self) {
+        if self.session.is_error_handling {
+            return;
+        }
+        let (npc, line) = (&self.session.querying_npc, &self.session.story_line);
+        self.state.saves.retain(|(n, l, _)| n != npc || l != line);
     }
     /// StoryEntity.OnError: the NPC's "<cmd>_fail" talk, or the null-error entity.
     fn on_error(&mut self, command: &str) -> Result<(), TalkError> {
@@ -458,6 +861,7 @@ impl<'a> Talker<'a> {
         match command {
             "telepathy_goal" => {
                 let goal = self
+                    .state
                     .progress
                     .iter()
                     .find(|p| p.story_line == self.session.story_line)
@@ -566,8 +970,10 @@ impl<'a> Talker<'a> {
         let number = |s: Option<&str>| s.and_then(|v| v.trim().parse::<i32>().ok());
         // `int x = -1; int.TryParse(s, out x)`: a failed parse stores 0, only "-1" is null.
         let level = |s: Option<&str>| Some(number(s).unwrap_or(0)).filter(|v| *v != -1);
+        let line = self.session.story_line.clone();
         let progress = |id: Option<&str>| {
-            self.progress
+            self.state
+                .progress
                 .iter()
                 .find(|p| Some(p.story_line.as_str()) == id)
         };
@@ -585,10 +991,10 @@ impl<'a> Talker<'a> {
                 None => return Err(TalkError::Halted),
                 Some(id) => Some(self.facts.title_acquired(id)),
             },
-            "has_item" => level(arg2).map(|c| self.facts.item_count(arg1.unwrap_or("")) >= c),
+            "has_item" => level(arg2).map(|c| self.item_count(arg1.unwrap_or("")) >= i64::from(c)),
             // Items carry no ENHANCE attribute in the migrated inventory: EnhanceLevel 0.
             "has_item_enhanced" => {
-                level(arg2).map(|l| self.facts.item_count(arg1.unwrap_or("")) > 0 && 0 >= l)
+                level(arg2).map(|l| self.item_count(arg1.unwrap_or("")) > 0 && 0 >= l)
             }
             "has_quest" => Some(self.facts.quest_progress(arg1.unwrap_or("")) >= 0),
             "quest_cleared" => Some(self.facts.quest_progress(arg1.unwrap_or("")) > 0),
@@ -615,21 +1021,31 @@ impl<'a> Talker<'a> {
                     .manufacture(arg1.unwrap_or(""))
                     .map(|(_, x)| x >= e),
             },
-            // StoryVariable rows are only written by token commands (not migrated): 0.
-            "token_min" => number(arg2).map(|v| 0 >= v),
-            "token_max" => number(arg2).map(|v| 0 <= v),
-            "token_is" => number(arg2).map(|v| v == 0),
-            "time_passed" => None,
+            "token_min" => {
+                number(arg2).map(|v| self.state.variable(&line, arg1.unwrap_or("")) >= v)
+            }
+            "token_max" => {
+                number(arg2).map(|v| self.state.variable(&line, arg1.unwrap_or("")) <= v)
+            }
+            "token_is" => number(arg2).map(|v| self.state.variable(&line, arg1.unwrap_or("")) == v),
+            // A timer variable is only written by set_timer (not migrated): 0 is null.
+            "time_passed" => match number(arg2) {
+                None => None,
+                Some(_) if self.state.variable(&line, arg1.unwrap_or("")) == 0 => None,
+                Some(_) => return Err(TalkError::Unsupported("time_passed".into())),
+            },
             other => return Err(TalkError::Unsupported(other.to_owned())),
         })
     }
 
     fn push(&mut self) {
         if let Some(r) = self.session.result.take() {
-            self.pushed.messages.push(r);
+            self.pushed.outputs.push(Output::Talk(r));
             if self.session.story_line_changed {
                 self.session.story_line_changed = false;
-                self.pushed.sync_story = true;
+                self.pushed
+                    .outputs
+                    .push(Output::SyncStory(self.state.progress.clone()));
             }
         }
         self.session.can_start_query = true;
@@ -728,7 +1144,7 @@ impl<'a> Talker<'a> {
             .any(|(b, _)| b == building);
         let mut found = None;
         if building_known {
-            for p in self.progress {
+            for p in &self.state.progress {
                 let Some(l) = self.scripts.story_line(&p.story_line) else {
                     continue;
                 };
@@ -765,6 +1181,45 @@ impl<'a> Talker<'a> {
         story_line: Option<&str>,
         command: Option<&str>,
     ) -> Result<Pushed, TalkError> {
+        self.talk_to_inner(building, npc, story_line, command)?;
+        Ok(self.pushed)
+    }
+    /// StoryEntity.TalkTo_SavePoint: resume after the saved server command.
+    fn talk_to_save_point(&mut self, line: &str, command: &str) -> Result<bool, TalkError> {
+        let saved = if line == "default" {
+            self.scripts.base.server_commands.get(command).copied()
+        } else {
+            match self.scripts.story_line(line) {
+                Some(l) => l.server_commands.get(command).copied(),
+                None => {
+                    self.clear_save_point();
+                    return Ok(false);
+                }
+            }
+        };
+        let resume = saved.and_then(|c| self.next(c).map(|n| (c, n)));
+        let Some((saved, next)) = resume else {
+            self.clear_save_point();
+            return Ok(false);
+        };
+        self.session.story_line = line.to_owned();
+        if let Node::Entity {
+            talking_npc: Some(npc),
+            ..
+        } = self.node(saved)
+        {
+            self.session.result = Some(vec![entity("change_npc", Some(npc), None)]);
+        }
+        self.do_chain(next, K::DefaultPush)?;
+        Ok(true)
+    }
+    fn talk_to_inner(
+        &mut self,
+        building: Option<&str>,
+        npc: &str,
+        story_line: Option<&str>,
+        command: Option<&str>,
+    ) -> Result<(), TalkError> {
         let building = match building {
             Some(b) if !b.is_empty() => b.to_owned(),
             _ => self.scripts.base.default_building(npc),
@@ -786,18 +1241,27 @@ impl<'a> Talker<'a> {
                 Some("GameUI_Heroes_NPCTalkEntity_Talk_Feature_Disable"),
                 None,
             ));
-            self.default_push()?;
-            return Ok(self.pushed);
+            return self.default_push();
+        }
+        let save = self
+            .state
+            .saves
+            .iter()
+            .find(|(n, l, _)| n == npc && *l == story_line)
+            .map(|s| s.2.clone());
+        if let Some(command) = save
+            && self.talk_to_save_point(&story_line, &command)?
+        {
+            return Ok(());
         }
         if command == Some("story_sector") {
             return Err(TalkError::Unsupported("story_sector".into()));
         }
         if story_line != "default" {
-            self.talk_to_story_line(&building, npc, &story_line)?;
+            self.talk_to_story_line(&building, npc, &story_line)
         } else {
-            self.talk_to_command(&building, npc, command.unwrap_or(""))?;
+            self.talk_to_command(&building, npc, command.unwrap_or(""))
         }
-        Ok(self.pushed)
     }
     /// StoryEntity.SelectButton.
     pub fn select_button(mut self, index: i32) -> Result<Pushed, TalkError> {

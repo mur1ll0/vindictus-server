@@ -61,3 +61,12 @@ Pré-condição: na cidade os equipamentos da Fiona estão com durabilidade chei
 - [ ] No ferreiro, escolher a opção de reparo → o NPC informa o preço (0 com tudo inteiro) e conclui o reparo sem descontar ouro e sem travar o diálogo.
 - [ ] Usar o botão de reparo da janela de inventário/equipamento (se o cliente oferecer) → nada muda e nenhuma mensagem de erro aparece.
 Limites conhecidos: com itens desgastados (B2) o preço segue Item.RepairPrice (RepairEnhance/Quality/Enchant/EquipClass, RepairPriceRate); bônus de guilda não migrado (sem guilda = 0); efeitos de equipamento quebrado (ApplyBadStatus) não migrados.
+
+### B1.5a — histórias da cidade (guia, fases, tokens, itens de história)
+Pré-condição: Fiona nível 1 após o login com as histórias automáticas abertas (B1.3b); runtime com a migração 0035 aplicada (`migrate`).
+- [ ] Abrir o diário de histórias/guia → aparece a história inicial (GuidePlay) e o marcador de guia aponta para o NPC/landmark indicado.
+- [ ] Falar com o NPC marcado na história e seguir o diálogo até o fim → o diálogo não trava; se a fase avançar, o diário mostra o novo objetivo e o marcador de guia muda de destino/mensagem.
+- [ ] Se o diálogo entregar ou pedir item de história, o inventário muda na mesma hora (entrega/remoção) e o NPC confirma.
+- [ ] Repetir o diálogo do NPC seguinte indicado pelo guia até a história pedir combate ou missão.
+- [ ] Relogar → fase, guia e itens entregues pela história preservados (o NPC continua no ponto em que parou).
+Limites conhecidos: conclusões de história com recompensa de EXP/AP/título/skill/item, `give_quest`/missões (B1.5b), `set_timer`/`time_passed` e itens de história com atributo (`[...]`/`_lvl`) não respondem (o diálogo para sem mudar nada); entrega de item sem espaço é recusada inteira (o original manda por correio); recompensa de ouro de história usa GoldRate_Story.

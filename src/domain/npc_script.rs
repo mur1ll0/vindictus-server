@@ -1135,6 +1135,28 @@ impl NpcScripts {
         }
         Ok(opened)
     }
+    /// OpenStoryLine's new StoryProgress: initial phase and SetStoryLineStatus for
+    /// AutoReveal (Category containing "Main" is Watching, otherwise Normal).
+    pub fn open_story_line(&self, line: &StoryLine) -> Result<Progress, ScriptError> {
+        let phase = line
+            .initial_phase()
+            .ok_or(ScriptError("storyline without phases"))?;
+        let status = if line.info.auto_reveal {
+            u8::from(
+                line.info
+                    .category
+                    .as_deref()
+                    .is_some_and(|c| c.contains("Main")),
+            )
+        } else {
+            255
+        };
+        Ok(Progress {
+            story_line: line.info.id.clone(),
+            phase: Some(phase.id.clone()),
+            status,
+        })
+    }
     /// SyncWatchingStoryLines with NewStoryLineDialog disabled (PhaseText is the Goal).
     pub fn watched_lines(
         &self,

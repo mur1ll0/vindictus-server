@@ -43,6 +43,8 @@ pub enum Kind {
     QueryBuybackList,
     BuybackListResult,
     RepairItem,
+    UpdateStoryGuide,
+    StoryVariables,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -79,6 +81,8 @@ impl Kind {
             Self::QueryBuybackList => 293,
             Self::BuybackListResult => 294,
             Self::RepairItem => 424,
+            Self::UpdateStoryGuide => 622,
+            Self::StoryVariables => 599,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -115,6 +119,8 @@ impl Kind {
             Self::QueryBuybackList => 0x2271100a_effc_3693_b75d_165507d49b79,
             Self::BuybackListResult => 0x88ce410b_fcb7_3794_ab5f_9cb25771ce3d,
             Self::RepairItem => 0xb83c8562_c97c_343c_b421_d3cdada26774,
+            Self::UpdateStoryGuide => 0x4f661234_1161_3db9_8127_877ed7807435,
+            Self::StoryVariables => 0xde76b127_f09d_369a_8008_26af3e5c8383,
         })
     }
 }
@@ -242,6 +248,22 @@ pub enum Message {
     /// BuybackListResultMessage.BuybackList.
     BuybackListResult(Option<Vec<Option<BuybackInfo>>>),
     RepairItem(RepairItem),
+    /// UpdateStoryGuideMessage: TargetLandMark, GuideMessage.
+    UpdateStoryGuide(StoryGuide),
+    /// StoryVariablesMessage.StoryVariables.
+    StoryVariables(Option<Vec<Option<StoryVariable>>>),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoryGuide {
+    pub target: Option<String>,
+    pub message: Option<String>,
+}
+/// StoryVariableInfo: StoryLine, Key, Value.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoryVariable {
+    pub story_line: Option<String>,
+    pub key: Option<String>,
+    pub value: i32,
 }
 /// BuyItemMessage: ShopID, Order, Count.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -435,6 +457,8 @@ impl Message {
             Self::QueryBuybackList => Kind::QueryBuybackList,
             Self::BuybackListResult(_) => Kind::BuybackListResult,
             Self::RepairItem(_) => Kind::RepairItem,
+            Self::UpdateStoryGuide(_) => Kind::UpdateStoryGuide,
+            Self::StoryVariables(_) => Kind::StoryVariables,
         }
     }
 }
@@ -668,6 +692,12 @@ object!(RepairItem {
     all_broken,
     all_repairable
 });
+object!(StoryGuide { target, message });
+object!(StoryVariable {
+    story_line,
+    key,
+    value
+});
 object!(TalkEntity {
     command,
     arg1,
@@ -739,6 +769,8 @@ pub fn encode(
             Message::QueryBuybackList => {}
             Message::BuybackListResult(v) => v.write(&mut w)?,
             Message::RepairItem(v) => v.write(&mut w)?,
+            Message::UpdateStoryGuide(v) => v.write(&mut w)?,
+            Message::StoryVariables(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -797,6 +829,8 @@ pub fn decode(
             Kind::QueryBuybackList => Message::QueryBuybackList,
             Kind::BuybackListResult => Message::BuybackListResult(Wire::read(&mut r)?),
             Kind::RepairItem => Message::RepairItem(RepairItem::read(&mut r)?),
+            Kind::UpdateStoryGuide => Message::UpdateStoryGuide(StoryGuide::read(&mut r)?),
+            Kind::StoryVariables => Message::StoryVariables(Wire::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

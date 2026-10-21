@@ -159,6 +159,35 @@ pub async fn npc_list(
     .map_err(|_| fail())?
 }
 
+/// SendStoryLinesMessage(GetWatchingStoryLines(), HintCategory).
+fn story_lines_packet(
+    npc: &super::npc_scripts::Profile,
+    rows: &[Progress],
+    hint: i16,
+) -> Result<OutgoingPacket, MinimumError> {
+    let lines = npc
+        .scripts
+        .watched_lines(rows, &npc.policy)
+        .map_err(|_| fail())?
+        .into_iter()
+        .map(|l| {
+            Some(BriefStoryLine {
+                story_line: Some(l.story_line),
+                phase: Some(l.phase),
+                status: l.status,
+                phase_text: Some(l.goal.unwrap_or_default()),
+            })
+        })
+        .collect();
+    packet(
+        Kind::StoryLines,
+        Message::StoryLines(StoryLines {
+            status: Some(lines),
+            hint_category: i32::from(hint),
+        }),
+    )
+}
+
 /// Entity IDs the login auto-give needs (one per storyline it opens).
 pub async fn login_openings(
     pool: &PgPool,
@@ -221,27 +250,7 @@ pub async fn login(
         let mut packets = Vec::new();
         if !opened.is_empty() {
             rows.extend(opened);
-            let lines = npc
-                .scripts
-                .watched_lines(&rows, &npc.policy)
-                .map_err(|_| fail())?
-                .into_iter()
-                .map(|l| {
-                    Some(BriefStoryLine {
-                        story_line: Some(l.story_line),
-                        phase: Some(l.phase),
-                        status: l.status,
-                        phase_text: Some(l.goal.unwrap_or_default()),
-                    })
-                })
-                .collect();
-            packets.push(packet(
-                Kind::StoryLines,
-                Message::StoryLines(StoryLines {
-                    status: Some(lines),
-                    hint_category: i32::from(c.hint),
-                }),
-            )?);
+            packets.push(story_lines_packet(npc, &rows, c.hint)?);
             packets.push(npc_list_packet(&npc.scripts, &npc.policy, &rows)?);
         }
         tx.commit().await?;
@@ -310,8 +319,9 @@ pub async fn talk(
     cid: i64,
     session: &mut crate::domain::npc_talk::Session,
     request: TalkRequest<'_>,
+    entity_ids: Vec<i64>,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
-    use crate::domain::npc_talk::Talker;
+    use crate::domain::npc_talk::{StoryState, Talker};
     let npc = assets.npc.as_ref().ok_or_else(fail)?;
     if let TalkRequest::TalkTo { npc: id, .. } = &request
         && (!session.can_start_query || *id == "DEV")
@@ -349,7 +359,14 @@ pub async fn talk(
         .bind(&gold_key)
         .fetch_one(&mut *tx)
         .await?;
-        tx.commit().await?;
+        let mut state = StoryState {
+            progress: rows,
+            saves: saves(&mut tx, cid).await?,
+            variables: variables(&mut tx, cid).await?,
+            guide: guide(&mut tx, cid).await?,
+            item_delta: Vec::new(),
+        };
+        let original = state.clone();
         let facts = Facts {
             repair_price,
             gold: i32::try_from(gold).map_err(|_| fail())?,
@@ -390,7 +407,7 @@ pub async fn talk(
             &npc.scripts,
             &npc.policy,
             &facts,
-            &rows,
+            &mut state,
             &mut pick,
             minute_second,
             session,
@@ -417,49 +434,282 @@ pub async fn talk(
                 return Err(fail());
             }
         };
-        let mut packets = Vec::new();
-        for effect in &pushed.effects {
-            match effect {
-                crate::domain::npc_talk::Effect::RepairAll => {
-                    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
-                    let repaired = super::minimum_repair::repair(
-                        &mut tx,
-                        owner,
-                        assets,
-                        cid,
-                        super::minimum_repair::Selection {
-                            all_repairable: true,
-                            ..Default::default()
-                        },
-                    )
-                    .await?
-                    .ok_or_else(fail)?;
-                    tx.commit().await?;
-                    packets.push(packet(
-                        Kind::UpdateInventoryInfo,
-                        Message::UpdateInventoryInfo(Some(repaired.slots)),
-                    )?);
-                }
+        let mut ids = entity_ids.into_iter();
+        let applied = apply_outputs(&mut tx, owner, assets, cid, c.hint, pushed.outputs, &mut ids).await;
+        let packets = match applied {
+            Ok(p) => p,
+            Err(e) => {
+                *session = backup;
+                tracing::warn!("minimum NPC talk effects not applied; nothing sent");
+                return Err(e);
             }
+        };
+        if let Err(e) = save_state(&mut tx, cid, &original, &state, &mut ids).await {
+            *session = backup;
+            return Err(e);
         }
-        for message in pushed.messages {
-            let content = message
-                .into_iter()
-                .map(|e| {
-                    Some(wire::TalkEntity {
-                        command: Some(e.command),
-                        arg1: Some(e.arg1),
-                        arg2: Some(e.arg2),
-                    })
-                })
-                .collect();
-            packets.push(packet(Kind::NpcTalk, Message::NpcTalk(Some(content)))?);
-        }
-        if pushed.sync_story {
-            return Err(fail());
-        }
+        tx.commit().await?;
         Ok(packets)
     })
     .await
     .map_err(|_| fail())?
+}
+
+/// Entity IDs a talk request reserves for opened storylines and created items.
+pub const TALK_ENTITY_IDS: usize = 32;
+
+/// Packets of the query outputs in source order; item effects run in the caller's
+/// transaction, so a failed give (no mail fallback) refuses the whole request.
+async fn apply_outputs(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    hint: i16,
+    outputs: Vec<crate::domain::npc_talk::Output>,
+    ids: &mut std::vec::IntoIter<i64>,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    use super::minimum_give::Request;
+    use crate::domain::npc_talk::{Effect, Output};
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let mut packets = Vec::new();
+    for output in outputs {
+        match output {
+            Output::Talk(message) => {
+                let content = message
+                    .into_iter()
+                    .map(|e| {
+                        Some(wire::TalkEntity {
+                            command: Some(e.command),
+                            arg1: Some(e.arg1),
+                            arg2: Some(e.arg2),
+                        })
+                    })
+                    .collect();
+                packets.push(packet(Kind::NpcTalk, Message::NpcTalk(Some(content)))?);
+            }
+            Output::SyncStory(rows) => {
+                packets.push(story_lines_packet(npc, &rows, hint)?);
+                packets.push(npc_list_packet(&npc.scripts, &npc.policy, &rows)?);
+            }
+            Output::Guide(target, message) => packets.push(packet(
+                Kind::UpdateStoryGuide,
+                Message::UpdateStoryGuide(wire::StoryGuide {
+                    target: Some(target),
+                    message: Some(message),
+                }),
+            )?),
+            Output::Variables(variables) => packets.push(packet(
+                Kind::StoryVariables,
+                Message::StoryVariables(Some(
+                    variables
+                        .into_iter()
+                        .map(|(line, key, value)| {
+                            Some(wire::StoryVariable {
+                                story_line: Some(line),
+                                key: Some(key),
+                                value,
+                            })
+                        })
+                        .collect(),
+                )),
+            )?),
+            Output::Effect(effect @ (Effect::GiveItem { .. } | Effect::TakeItem { .. })) => {
+                let (class, count, take) = match &effect {
+                    Effect::GiveItem { class, count } => (class, *count, false),
+                    Effect::TakeItem { class, count } => (class, *count, true),
+                    Effect::RepairAll => return Err(fail()),
+                };
+                let key = utf16(class);
+                let request = [Request {
+                    class: &key,
+                    count,
+                    bound: false,
+                    equipment: None,
+                }];
+                let (destroys, gives): (&[Request<'_>], &[Request<'_>]) = if take {
+                    (&request, &[])
+                } else {
+                    (&[], &request)
+                };
+                let applied = super::minimum_give::apply(
+                    tx,
+                    owner,
+                    assets,
+                    cid,
+                    destroys,
+                    gives,
+                    &mut || ids.next().ok_or_else(fail),
+                )
+                .await?
+                .map_err(|reason| {
+                    tracing::warn!(?reason, "minimum story item effect refused; values omitted");
+                    fail()
+                })?;
+                packets.push(packet(
+                    Kind::UpdateInventoryInfo,
+                    Message::UpdateInventoryInfo(Some(applied.slots)),
+                )?);
+            }
+            Output::Effect(Effect::RepairAll) => {
+                let repaired = super::minimum_repair::repair(
+                    tx,
+                    owner,
+                    assets,
+                    cid,
+                    super::minimum_repair::Selection {
+                        all_repairable: true,
+                        ..Default::default()
+                    },
+                )
+                .await?
+                .ok_or_else(fail)?;
+                packets.push(packet(
+                    Kind::UpdateInventoryInfo,
+                    Message::UpdateInventoryInfo(Some(repaired.slots)),
+                )?);
+            }
+        }
+    }
+    Ok(packets)
+}
+
+/// Entry.StorySave rows: (NpcID, StoryLineID, CmdID).
+async fn saves(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<Vec<(String, String, String)>, MinimumError> {
+    let rows: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT npc_utf16,story_line_utf16,cmd_utf16 FROM game_story_saves WHERE cid=$1 ORDER BY row_id LIMIT 4097",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    if rows.len() > 4096 {
+        return Err(fail());
+    }
+    rows.into_iter()
+        .map(|(n, l, c)| Ok((text(&n)?, text(&l)?, text(&c)?)))
+        .collect()
+}
+
+/// Entry.StoryVariable rows: (StoryLineID, Key, Value).
+async fn variables(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<Vec<(String, String, i32)>, MinimumError> {
+    let rows: Vec<(Vec<u8>, Vec<u8>, i32)> = sqlx::query_as(
+        "SELECT story_line_utf16,key_utf16,value FROM game_story_variables WHERE cid=$1 ORDER BY row_id LIMIT 4097",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    if rows.len() > 4096 {
+        return Err(fail());
+    }
+    rows.into_iter()
+        .map(|(l, k, v)| Ok((text(&l)?, text(&k)?, v)))
+        .collect()
+}
+
+/// GuideTarget and GuideMessage columns.
+type GuideRow = (Option<Vec<u8>>, Option<Vec<u8>>);
+
+/// Entry.StoryGuide (NULL columns read as empty strings).
+async fn guide(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<Option<(String, String)>, MinimumError> {
+    let row: Option<GuideRow> = sqlx::query_as(
+        "SELECT guide_target_utf16,guide_message_utf16 FROM game_story_guides WHERE cid=$1",
+    )
+    .bind(cid)
+    .fetch_optional(&mut **tx)
+    .await?;
+    row.map(|(t, m)| {
+        Ok((
+            t.as_deref().map(text).transpose()?.unwrap_or_default(),
+            m.as_deref().map(text).transpose()?.unwrap_or_default(),
+        ))
+    })
+    .transpose()
+}
+
+/// StoryEntity.Save of the changed rows.
+async fn save_state(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+    original: &crate::domain::npc_talk::StoryState,
+    state: &crate::domain::npc_talk::StoryState,
+    ids: &mut std::vec::IntoIter<i64>,
+) -> Result<(), MinimumError> {
+    for p in &state.progress {
+        let before = original
+            .progress
+            .iter()
+            .find(|o| o.story_line == p.story_line);
+        match before {
+            Some(o) if o == p => {}
+            Some(_) => {
+                sqlx::query("UPDATE game_story_progress SET phase_utf16=$3,status=$4,last_update_units300=floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT WHERE cid=$1 AND story_line_utf16=$2")
+                    .bind(cid)
+                    .bind(utf16(&p.story_line))
+                    .bind(p.phase.as_deref().map(utf16))
+                    .bind(i16::from(p.status))
+                    .execute(&mut **tx)
+                    .await?;
+            }
+            None => {
+                sqlx::query("INSERT INTO game_story_progress(row_id,cid,story_line_utf16,phase_utf16,status,last_update_units300) VALUES($1,$2,$3,$4,$5,floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT)")
+                    .bind(ids.next().ok_or_else(fail)?)
+                    .bind(cid)
+                    .bind(utf16(&p.story_line))
+                    .bind(p.phase.as_deref().map(utf16))
+                    .bind(i16::from(p.status))
+                    .execute(&mut **tx)
+                    .await?;
+            }
+        }
+    }
+    if state.saves != original.saves {
+        sqlx::query("DELETE FROM game_story_saves WHERE cid=$1")
+            .bind(cid)
+            .execute(&mut **tx)
+            .await?;
+        for (npc, line, command) in &state.saves {
+            sqlx::query("INSERT INTO game_story_saves(cid,npc_utf16,story_line_utf16,cmd_utf16) VALUES($1,$2,$3,$4)")
+                .bind(cid)
+                .bind(utf16(npc))
+                .bind(utf16(line))
+                .bind(utf16(command))
+                .execute(&mut **tx)
+                .await?;
+        }
+    }
+    if state.variables != original.variables {
+        sqlx::query("DELETE FROM game_story_variables WHERE cid=$1")
+            .bind(cid)
+            .execute(&mut **tx)
+            .await?;
+        for (line, key, value) in &state.variables {
+            sqlx::query("INSERT INTO game_story_variables(cid,story_line_utf16,key_utf16,value) VALUES($1,$2,$3,$4)")
+                .bind(cid)
+                .bind(utf16(line))
+                .bind(utf16(key))
+                .bind(value)
+                .execute(&mut **tx)
+                .await?;
+        }
+    }
+    if state.guide != original.guide
+        && let Some((target, message)) = &state.guide
+    {
+        sqlx::query("INSERT INTO game_story_guides(cid,guide_target_utf16,guide_message_utf16) VALUES($1,$2,$3) ON CONFLICT(cid) DO UPDATE SET guide_target_utf16=EXCLUDED.guide_target_utf16,guide_message_utf16=EXCLUDED.guide_message_utf16")
+            .bind(cid)
+            .bind(utf16(target))
+            .bind(utf16(message))
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
 }
