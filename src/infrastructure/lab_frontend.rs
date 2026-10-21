@@ -784,6 +784,40 @@ impl Connection {
                         tracing::info!(
                             "minimum character selected; optional services deferred; values omitted"
                         );
+                        // StoryEntity construction: login auto-give and SyncStoryProgress.
+                        if assets.npc.is_some() {
+                            let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
+                            let story = async {
+                                let n =
+                                    super::minimum_story::login_openings(pool, &owner, assets, cid)
+                                        .await?;
+                                let ids = runtime
+                                    .minimum
+                                    .as_ref()
+                                    .ok_or(super::minimum_character::MinimumError::Conflict)?
+                                    .creation
+                                    .entity_ids(n)
+                                    .await
+                                    .map_err(|_| {
+                                        super::minimum_character::MinimumError::Conflict
+                                    })?;
+                                super::minimum_story::login(pool, &owner, assets, cid, ids).await
+                            };
+                            match story.await {
+                                Ok(packets) => {
+                                    for packet in &packets {
+                                        send(stream, sender, packet.category, &packet.body).await?;
+                                    }
+                                    tracing::info!(
+                                        synchronized = !packets.is_empty(),
+                                        "minimum story login processed; values omitted"
+                                    );
+                                }
+                                Err(_) => {
+                                    tracing::warn!("minimum story login rejected; values omitted")
+                                }
+                            }
+                        }
                     }
                     Message::EnterChannel {
                         channel_id,
@@ -1029,6 +1063,7 @@ impl Connection {
                 Kind::QuerySkillList,
                 Kind::LearnSkill,
                 Kind::LearnNewSkill,
+                Kind::QueryNpcList,
                 Kind::QueryCharacterCommonInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -1100,6 +1135,15 @@ impl Connection {
                             Err(_) => {
                                 tracing::warn!("minimum skill training rejected; values omitted")
                             }
+                        }
+                    }
+                    Message::QueryNpcList => {
+                        match super::minimum_story::npc_list(pool, &owner, assets, cid).await {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!("minimum NPC list sent; values omitted");
+                            }
+                            Err(_) => tracing::warn!("minimum NPC list rejected; values omitted"),
                         }
                     }
                     Message::LearnNewSkill(skill) => {

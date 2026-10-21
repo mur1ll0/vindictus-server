@@ -19,6 +19,12 @@ struct Manifest {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct Feature {
+    key: String,
+    value: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RawDefault {
     feature: String,
     path: String,
@@ -62,6 +68,7 @@ struct Export {
     format_version: u32,
     source: String,
     manifest: Manifest,
+    features: Vec<Feature>,
     defaults: Vec<RawDefault>,
     storylines: Vec<RawStoryLine>,
 }
@@ -105,6 +112,8 @@ pub struct Profile {
     database_sha256: String,
     config_sha256: String,
     pub scripts: NpcScripts,
+    /// FeatureMatrix subset referenced by the scripts (same region resolution).
+    pub policy: crate::domain::feature_policy::FeaturePolicy,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -172,7 +181,12 @@ impl Profile {
             trees.iter().map(|(i, t)| (i.clone(), t.as_ref())).collect(),
         )
         .map_err(|_| fail())?;
+        let policy = crate::domain::feature_policy::FeaturePolicy::npc_source(
+            export.features.into_iter().map(|f| (f.key, f.value)),
+        )
+        .map_err(|_| fail())?;
         Ok(Self {
+            policy,
             database_sha256: export.manifest.database_sha256,
             config_sha256: export.manifest.config_sha256,
             scripts,
@@ -181,6 +195,15 @@ impl Profile {
     pub fn bind(&self, catalog: &Catalog) -> Result<(), MinimumError> {
         if self.database_sha256 != catalog.manifest.database_sha256
             || self.config_sha256 != catalog.manifest.config_sha256
+        {
+            return Err(fail());
+        }
+        // Keys present in both projections resolve to the same value.
+        let own: std::collections::BTreeMap<_, _> = self.policy.entries().collect();
+        if catalog
+            .policy
+            .entries()
+            .any(|(k, v)| own.get(k).is_some_and(|o| *o != v))
         {
             return Err(fail());
         }

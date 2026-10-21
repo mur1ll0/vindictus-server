@@ -18,3 +18,11 @@ Pré-condição: Fiona com ouro (entrada B1.1; por exemplo `-Count 50000`). Runt
 - [ ] Se a skill for ativa, ela ocupa o primeiro slot SP vazio.
 - [ ] Relogar → a skill continua aprendida e o saldo de ouro preservado.
 Limites conhecidos: skill que exige desbloqueio por história no rank 2 é recusada (serviço de histórias não migrado; nenhuma skill da Fiona está nesse caso); efeitos de atributo da skill nova aparecem após relogar (UpdateStat imediato não é enviado, como no treino do B0); log de personagem (AddSkillLog) não migrado.
+
+### B1.3b — lista de NPCs e histórias abertas no login
+Pré-condição: runtime com os assets privados atuais (`npc_scripts` = `.cache/private-content/npc-scripts.json`). A Fiona ainda sem progresso de histórias (primeiro login após este passo).
+- [ ] Entrar na cidade → sem travar no carregamento; os NPCs aparecem e o cliente recebe a lista de NPCs (o servidor responde à QueryNpcList).
+- [ ] Abrir o diário/lista de histórias (se o cliente mostrar) → a história principal inicial (GuidePlay_1_SkillTrain) aparece como acompanhada.
+- [ ] Observar NPCs com marcador de história (ex.: o NPC da GuidePlay) → marcador visível.
+- [ ] Relogar → as mesmas histórias e marcadores; nada duplicado.
+Limites conhecidos: clicar no NPC ainda não abre diálogo (B1.3c); logs de história (StoryTelling) não migrados; FlexibleMapLoading não muda o mapa para as histórias do nível 1 (não há entrada para elas).

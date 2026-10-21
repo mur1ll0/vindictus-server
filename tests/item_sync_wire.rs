@@ -268,6 +268,36 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 assert_eq!(t.arg2.as_deref(), e["Arg2"].as_str(), "case {n}");
             }
         }
+        Some(Message::StoryLines(lines)) => {
+            assert_eq!(
+                i64::from(lines.hint_category),
+                f["HintCategory"].as_i64().unwrap(),
+                "case {n}"
+            );
+            let expected = f["StoryStatus"].as_array();
+            assert_eq!(
+                lines.status.as_ref().map(Vec::len),
+                expected.map(Vec::len),
+                "case {n}"
+            );
+            for (b, e) in lines
+                .status
+                .iter()
+                .flatten()
+                .zip(expected.into_iter().flatten())
+            {
+                assert_eq!(b.is_none(), e.is_null(), "case {n}");
+                let Some(b) = b else { continue };
+                assert_eq!(b.story_line.as_deref(), e["StoryLine"].as_str(), "case {n}");
+                assert_eq!(b.phase.as_deref(), e["Phase"].as_str(), "case {n}");
+                assert_eq!(
+                    i64::from(b.status),
+                    e["Status"].as_i64().unwrap(),
+                    "case {n}"
+                );
+                assert_eq!(b.phase_text.as_deref(), e["PhaseText"].as_str(), "case {n}");
+            }
+        }
         Some(Message::SelectButton(index)) => {
             assert_eq!(
                 i64::from(index),
@@ -376,12 +406,13 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::NpcTalk,
         Kind::SelectButton,
         Kind::ExecuteNpcServerCommand,
+        Kind::StoryLines,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 909);
+        assert_eq!(cases.len(), 921);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -405,6 +436,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "query_npc_talk" => check_inventory(Kind::QueryNpcTalk, case, n),
                 "npc_talk" => check_inventory(Kind::NpcTalk, case, n),
                 "select_button" => check_inventory(Kind::SelectButton, case, n),
+                "story_lines" => check_inventory(Kind::StoryLines, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

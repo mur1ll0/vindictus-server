@@ -110,5 +110,6 @@ pub mod minimum_item_logs;
 pub mod minimum_move;
 pub mod minimum_quickslot;
 pub mod minimum_skills;
+pub mod minimum_story;
 pub mod minimum_use;
 pub mod skill_profile;

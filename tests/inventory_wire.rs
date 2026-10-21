@@ -116,7 +116,8 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::QueryNpcTalk
                 | Kind::NpcTalk
                 | Kind::SelectButton
-                | Kind::ExecuteNpcServerCommand => {
+                | Kind::ExecuteNpcServerCommand
+                | Kind::StoryLines => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

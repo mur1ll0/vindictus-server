@@ -159,6 +159,8 @@ class ItemSyncWireOracle {
   foreach(int b in new[]{int.MinValue,-1,0,3,int.MaxValue})buttons.Add(new SelectButtonMessage(b));
   AddCases("select_button",564,new Guid("d5dda62d-44c1-3c6a-8906-72164e564921"),buttons,cases);
   AddCases("execute_npc_server_command",459,new Guid("048fdbb2-e452-3c5f-b0b2-cfc80994e365"),new[]{null,new ExecuteNpcServerCommandMessage()},cases);
+  var briefs=new List<BriefStoryLineInfo>{new BriefStoryLineInfo(null,null,255),null,new BriefStoryLineInfo("GuidePlay_1_SkillTrain","p0",1,"goal_text"),new BriefStoryLineInfo("S0NT_99_CutScene","",0,null)};
+  AddCases("story_lines",598,new Guid("5498b052-d119-30e2-8224-1e2b990d4ef8"),new[]{null,new StoryLinesMessage(null,0),new StoryLinesMessage(new List<BriefStoryLineInfo>(),int.MinValue),new StoryLinesMessage(briefs,3)},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

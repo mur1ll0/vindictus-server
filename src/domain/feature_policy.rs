@@ -27,6 +27,13 @@ impl FeaturePolicy {
     ) -> Result<Self, Error> {
         Self::bounded(rows, 256)
     }
+    /// NPC scripts and storylines reference 306 atoms (Default features, StoryLineInfo
+    /// features and <feature> conditions).
+    pub fn npc_source(
+        rows: impl IntoIterator<Item = (String, Option<String>)>,
+    ) -> Result<Self, Error> {
+        Self::bounded(rows, 512)
+    }
     fn bounded(
         rows: impl IntoIterator<Item = (String, Option<String>)>,
         limit: usize,
@@ -59,6 +66,7 @@ impl FeaturePolicy {
             include_str!("feature_frontend_version_pairs.json"),
             include_str!("feature_inventory_version_pairs.json"),
             include_str!("feature_appearance_version_pairs.json"),
+            include_str!("feature_npc_version_pairs.json"),
         ] {
             let extra: Vec<VersionPair> =
                 serde_json::from_str(encoded).map_err(|_| Error::FeatureVersionUnsupported)?;

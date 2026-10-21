@@ -337,3 +337,193 @@ async fn minimum_learn_new_skill_pays_gold_once_and_survives_relogin() {
     assert_eq!((gold().await, learned().await), (Some(300), 1));
     cleanup_game_pool(a, p, s).await;
 }
+/// Minimal NPC script projection: one default NPC and one level-1 auto-give storyline.
+fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
+    let leaf = |name: &str, text: &str| json!([name, [], text, [], ""]);
+    let default = json!([
+        "DefaultPhase",
+        [],
+        "",
+        [
+            [
+                "ButtonSet",
+                [["id", "base_buttonset"]],
+                "",
+                [[
+                    "Button",
+                    [["caption", "bye"], ["command", "endtalk"]],
+                    "",
+                    [],
+                    ""
+                ]],
+                ""
+            ],
+            [
+                "Talk",
+                [
+                    ["id", "FERGHUS"],
+                    ["location", "t01_bs"],
+                    ["command", "greeting"]
+                ],
+                "",
+                [leaf("talk", "hi")],
+                ""
+            ]
+        ],
+        ""
+    ]);
+    let story = json!([
+        "StoryLine",
+        [],
+        "",
+        [[
+            "Phase",
+            [["id", "p0"]],
+            "",
+            [
+                leaf("Goal", "find_ferghus"),
+                [
+                    "Talk",
+                    [["id", "FERGHUS"]],
+                    "",
+                    [["Do", [], "", [leaf("talk", "x")], ""]],
+                    ""
+                ]
+            ],
+            ""
+        ]],
+        ""
+    ]);
+    let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":0,"RewardAp":0,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
+    let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0},
+        "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"}],
+        "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
+        "storylines":[{"info":info,"tree":story}]});
+    vindictus_server::infrastructure::npc_scripts::Profile::read(
+        serde_json::to_vec(&export).unwrap().as_slice(),
+    )
+    .unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_story},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    assert!(
+        minimum_story::npc_list(&p, &owner, &assets, 1)
+            .await
+            .is_err()
+    );
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!(
+        minimum_story::login_openings(&p, &owner, &assets, 1)
+            .await
+            .unwrap(),
+        1
+    );
+    // A wrong number of entity IDs writes nothing.
+    assert!(
+        minimum_story::login(&p, &owner, &assets, 1, vec![])
+            .await
+            .is_err()
+    );
+    let packets = minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [598, 507]
+    );
+    let Some(Message::StoryLines(lines)) =
+        inventory::decode(Kind::StoryLines, &packets[0].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("story lines missing")
+    };
+    let line = lines.status.unwrap().remove(0).unwrap();
+    assert_eq!(
+        (
+            line.story_line.as_deref(),
+            line.phase.as_deref(),
+            line.status,
+            line.phase_text.as_deref()
+        ),
+        (
+            Some("GuidePlay_1_SkillTrain"),
+            Some("p0"),
+            1,
+            Some("find_ferghus")
+        )
+    );
+    let stored: (i64, i16) =
+        sqlx::query_as("SELECT row_id,status FROM game_story_progress WHERE cid=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(stored, (910_000_000_000_000_001, 1));
+    let guide: Vec<u8> =
+        sqlx::query_scalar("SELECT guide_target_utf16 FROM game_story_guides WHERE cid=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(guide, utf16("landmark_adv_guild"));
+    // The NPC list carries the storyline on its NPC; relogin opens nothing again.
+    let list = minimum_story::npc_list(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    assert_eq!(list.body, packets[1].body);
+    let Some(Message::NpcList(Some(buildings))) =
+        inventory::decode(Kind::NpcList, &list.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("npc list missing")
+    };
+    let npc = buildings[0].as_ref().unwrap().npcs.as_ref().unwrap()[0]
+        .clone()
+        .unwrap();
+    assert_eq!(npc.npc.as_deref(), Some("FERGHUS"));
+    assert_eq!(
+        npc.story_lines.unwrap()[0]
+            .as_ref()
+            .unwrap()
+            .story_line
+            .as_deref(),
+        Some("GuidePlay_1_SkillTrain")
+    );
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!(
+        minimum_story::login_openings(&p, &owner, &assets, 1)
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(
+        minimum_story::login(&p, &owner, &assets, 1, vec![])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM game_story_progress")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(count, 1);
+    cleanup_game_pool(a, p, s).await;
+}

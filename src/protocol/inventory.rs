@@ -35,6 +35,7 @@ pub enum Kind {
     NpcTalk,
     SelectButton,
     ExecuteNpcServerCommand,
+    StoryLines,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -63,6 +64,7 @@ impl Kind {
             Self::NpcTalk => 508,
             Self::SelectButton => 564,
             Self::ExecuteNpcServerCommand => 459,
+            Self::StoryLines => 598,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -91,6 +93,7 @@ impl Kind {
             Self::NpcTalk => 0x859ce7b4_cfd1_3695_9a73_b5c094d7085e,
             Self::SelectButton => 0xd5dda62d_44c1_3c6a_8906_72164e564921,
             Self::ExecuteNpcServerCommand => 0x048fdbb2_e452_3c5f_b0b2_cfc80994e365,
+            Self::StoryLines => 0x5498b052_d119_30e2_8224_1e2b990d4ef8,
         })
     }
 }
@@ -207,6 +210,21 @@ pub enum Message {
     SelectButton(i32),
     /// ExecuteNpcServerCommandMessage (fieldless).
     ExecuteNpcServerCommand,
+    StoryLines(StoryLines),
+}
+/// BriefStoryLineInfo: StoryLine, Phase, Status, PhaseText.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BriefStoryLine {
+    pub story_line: Option<String>,
+    pub phase: Option<String>,
+    pub status: u8,
+    pub phase_text: Option<String>,
+}
+/// StoryLinesMessage: StoryStatus, HintCategory.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoryLines {
+    pub status: Option<Vec<Option<BriefStoryLine>>>,
+    pub hint_category: i32,
 }
 /// StoryInfo: StoryLineID, IsRevealing.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -333,6 +351,7 @@ impl Message {
             Self::NpcTalk(_) => Kind::NpcTalk,
             Self::SelectButton(_) => Kind::SelectButton,
             Self::ExecuteNpcServerCommand => Kind::ExecuteNpcServerCommand,
+            Self::StoryLines(_) => Kind::StoryLines,
         }
     }
 }
@@ -524,6 +543,16 @@ object!(NpcQuery {
     story_line,
     command
 });
+object!(BriefStoryLine {
+    story_line,
+    phase,
+    status,
+    phase_text
+});
+object!(StoryLines {
+    status,
+    hint_category
+});
 object!(TalkEntity {
     command,
     arg1,
@@ -587,6 +616,7 @@ pub fn encode(
             Message::QueryNpcTalk(v) => v.write(&mut w)?,
             Message::NpcTalk(v) => v.write(&mut w)?,
             Message::SelectButton(v) => v.write(&mut w)?,
+            Message::StoryLines(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -637,6 +667,7 @@ pub fn decode(
             Kind::NpcTalk => Message::NpcTalk(Wire::read(&mut r)?),
             Kind::SelectButton => Message::SelectButton(Wire::read(&mut r)?),
             Kind::ExecuteNpcServerCommand => Message::ExecuteNpcServerCommand,
+            Kind::StoryLines => Message::StoryLines(StoryLines::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

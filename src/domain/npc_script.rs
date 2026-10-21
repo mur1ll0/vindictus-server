@@ -985,3 +985,179 @@ impl NpcScripts {
             .collect()
     }
 }
+
+/// StoryProgress row of a character, in Entry.StoryProgress order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Progress {
+    pub story_line: String,
+    pub phase: Option<String>,
+    pub status: u8,
+}
+/// NpcInfo/StoryInfo projection of NpcManager.GetBuildingList.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NpcEntry {
+    pub npc: String,
+    pub feature: String,
+    pub story_lines: Vec<(String, bool)>,
+}
+/// StoryLinesMessage row (BriefStoryLineInfo with PhaseText).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WatchedLine {
+    pub story_line: String,
+    pub phase: String,
+    pub status: u8,
+    pub goal: Option<String>,
+}
+
+impl NpcScripts {
+    /// NPCTalkInfo.IsStoryEnable(StoryLineInfo).
+    pub fn is_story_enabled(
+        info: &StoryLineInfo,
+        policy: &crate::domain::feature_policy::FeaturePolicy,
+    ) -> Result<bool, ScriptError> {
+        match info.feature.as_deref() {
+            Some(feature) if !feature.is_empty() => policy
+                .is_enabled(Some(feature))
+                .map_err(|_| ScriptError("feature outside the recorded comparisons")),
+            _ => Ok(true),
+        }
+    }
+    fn progress_phase(&self, p: &Progress) -> Option<(&StoryLine, &Phase)> {
+        let line = self.story_line(&p.story_line)?;
+        let phase = line.phase(p.phase.as_deref()?)?;
+        Some((line, phase))
+    }
+    /// NpcManager.Load then GetBuildingList for the character's progress.
+    pub fn building_list(
+        &self,
+        progress: &[Progress],
+        policy: &crate::domain::feature_policy::FeaturePolicy,
+    ) -> Result<Vec<(String, Vec<NpcEntry>)>, ScriptError> {
+        // Building.StoryLineNpcs: default NPCs first, then NPCs added by phase talks.
+        type StoryNpc<'a> = (String, Vec<(String, &'a Talk)>);
+        let mut buildings: Vec<(String, Vec<StoryNpc<'_>>)> = self
+            .base
+            .default_npcs
+            .iter()
+            .map(|(b, npcs)| {
+                (
+                    b.clone(),
+                    npcs.iter().map(|(n, _)| (n.clone(), Vec::new())).collect(),
+                )
+            })
+            .collect();
+        let mut deleted: Vec<&NpcKey> = Vec::new();
+        for p in progress {
+            let Some((line, phase)) = self.progress_phase(p) else {
+                continue;
+            };
+            for talk in &phase.talks {
+                let Some((_, npcs)) = buildings.iter_mut().find(|(b, _)| *b == talk.key.0) else {
+                    continue;
+                };
+                let npc = match npcs.iter().position(|(n, _)| *n == talk.key.1) {
+                    Some(i) => i,
+                    None => {
+                        npcs.push((talk.key.1.clone(), Vec::new()));
+                        npcs.len() - 1
+                    }
+                };
+                let talks = &mut npcs[npc].1;
+                match talks.iter_mut().find(|(l, _)| *l == line.info.id) {
+                    Some(entry) => entry.1 = talk,
+                    None => talks.push((line.info.id.clone(), talk)),
+                }
+            }
+            deleted.extend(phase.deleted_npcs.iter());
+        }
+        let mut out = Vec::with_capacity(buildings.len());
+        for (building, npcs) in buildings {
+            let mut list = Vec::new();
+            for (npc, talks) in npcs {
+                if deleted.iter().any(|(b, n)| *b == building && *n == npc) {
+                    continue;
+                }
+                let mut story_lines = Vec::new();
+                for (line, talk) in talks {
+                    let info = &self.story_line(&line).ok_or(ScriptError("storyline"))?.info;
+                    if Self::is_story_enabled(info, policy)? {
+                        story_lines.push((line, talk.is_revealing));
+                    }
+                }
+                list.push(NpcEntry {
+                    feature: self.base.feature(&npc).to_owned(),
+                    npc,
+                    story_lines,
+                });
+            }
+            out.push((building, list));
+        }
+        Ok(out)
+    }
+    /// StoryEntity login: storylines OpenStoryLine would add (allowed class, not yet in
+    /// progress), with the initial phase and status. A storyline without phases makes
+    /// the source throw on InitialPhase.PhaseID.
+    pub fn login_openings(
+        &self,
+        progress: &[Progress],
+        level: i32,
+        class: i32,
+    ) -> Result<Vec<Progress>, ScriptError> {
+        let mut opened: Vec<Progress> = Vec::new();
+        for line in self.auto_give_for_login(level) {
+            if !line.info.is_allowed_to(class)
+                || progress
+                    .iter()
+                    .chain(&opened)
+                    .any(|p| p.story_line == line.info.id)
+            {
+                continue;
+            }
+            let phase = line
+                .initial_phase()
+                .ok_or(ScriptError("storyline without phases"))?;
+            // SetStoryLineStatus for AutoReveal: Category containing "Main" is Watching.
+            let status = if line.info.auto_reveal {
+                u8::from(
+                    line.info
+                        .category
+                        .as_deref()
+                        .is_some_and(|c| c.contains("Main")),
+                )
+            } else {
+                255
+            };
+            opened.push(Progress {
+                story_line: line.info.id.clone(),
+                phase: Some(phase.id.clone()),
+                status,
+            });
+        }
+        Ok(opened)
+    }
+    /// SyncWatchingStoryLines with NewStoryLineDialog disabled (PhaseText is the Goal).
+    pub fn watched_lines(
+        &self,
+        progress: &[Progress],
+        policy: &crate::domain::feature_policy::FeaturePolicy,
+    ) -> Result<Vec<WatchedLine>, ScriptError> {
+        let dialog = policy
+            .is_enabled(Some("NewStoryLineDialog"))
+            .map_err(|_| ScriptError("NewStoryLineDialog"))?;
+        let mut out = Vec::new();
+        for p in progress {
+            let Some((line, phase)) = self.progress_phase(p) else {
+                continue;
+            };
+            if Self::is_story_enabled(&line.info, policy)? {
+                out.push(WatchedLine {
+                    story_line: p.story_line.clone(),
+                    phase: phase.id.clone(),
+                    status: p.status,
+                    goal: (!dialog).then(|| phase.goal.clone()),
+                });
+            }
+        }
+        Ok(out)
+    }
+}
