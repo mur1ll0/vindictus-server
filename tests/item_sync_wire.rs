@@ -190,6 +190,12 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             assert_eq!(q.query_id, f["QueryID"].as_i64().unwrap(), "case {n}");
             assert_eq!(q.cid, f["CID"].as_i64().unwrap(), "case {n}");
         }
+        Some(Message::LearnNewSkill(skill)) => {
+            assert_eq!(skill.as_deref(), f["SkillID"].as_str(), "case {n}");
+        }
+        Some(Message::LearnNewSkillResult(result)) => {
+            assert_eq!(i64::from(result), f["result"].as_i64().unwrap(), "case {n}");
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -283,12 +289,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::LearnSkill,
         Kind::SkillCompletion,
         Kind::QueryCharacterCommonInfo,
+        Kind::LearnNewSkill,
+        Kind::LearnNewSkillResult,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 732);
+        assert_eq!(cases.len(), 780);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -305,6 +313,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "learn_skill" => check_inventory(Kind::LearnSkill, case, n),
                 "skill_completion" => check_inventory(Kind::SkillCompletion, case, n),
                 "query_common_info" => check_inventory(Kind::QueryCharacterCommonInfo, case, n),
+                "learn_new_skill" => check_inventory(Kind::LearnNewSkill, case, n),
+                "learn_new_skill_result" => check_inventory(Kind::LearnNewSkillResult, case, n),
                 "costume_update" => check_costume(case, n),
                 _ => panic!("unknown fixture type"),
             }

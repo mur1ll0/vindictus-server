@@ -108,7 +108,9 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::SkillList
                 | Kind::LearnSkill
                 | Kind::SkillCompletion
-                | Kind::QueryCharacterCommonInfo => {
+                | Kind::QueryCharacterCommonInfo
+                | Kind::LearnNewSkill
+                | Kind::LearnNewSkillResult => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

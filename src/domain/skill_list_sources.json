@@ -50,5 +50,9 @@
   "ap_manager": {
     "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore/APManager.cs",
     "sha256": "3594eecafc937bc33da4b7225ee65759435af74419410d0b7f4129174b98defe"
+  },
+  "learn_new_processor": {
+    "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.CharacterServiceCore.Processor/LearnNewSkillProcessor.cs",
+    "sha256": "9db20019ebcd8e2295aae249572962beb1d7fc8d650655c12e5b50213b4dc974"
   }
 }

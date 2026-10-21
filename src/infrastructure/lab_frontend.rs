@@ -1028,6 +1028,7 @@ impl Connection {
                 Kind::UseInventoryItem,
                 Kind::QuerySkillList,
                 Kind::LearnSkill,
+                Kind::LearnNewSkill,
                 Kind::QueryCharacterCommonInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -1098,6 +1099,40 @@ impl Connection {
                             }
                             Err(_) => {
                                 tracing::warn!("minimum skill training rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::LearnNewSkill(skill) => {
+                        // InGame: not in battle; one entity ID for the new Skill row.
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(1)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        match super::minimum_skills::learn_new(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            skill.as_deref().unwrap_or(""),
+                            ids,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    "minimum new skill request processed; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum new skill request rejected; values omitted")
                             }
                         }
                     }

@@ -163,6 +163,10 @@ pub async fn add_marble_journal(pool: &PgPool, disable_logging: bool) -> i64 {
 pub async fn add_use_item_journal(pool: &PgPool, disable_logging: bool) -> i64 {
     add_named_journal(pool, disable_logging, "UseItem").await
 }
+/// ItemImpl.DestroyItem(itemList, source, includeExpired): AddItemJournal("DestroyItem").
+pub async fn add_destroy_item_journal(pool: &PgPool, disable_logging: bool) -> i64 {
+    add_named_journal(pool, disable_logging, "DestroyItem").await
+}
 /// Original ManufactureManager constructor journal;independent allocation and insert.
 pub async fn add_manufacture_journal(pool: &PgPool, disabled: bool) -> i64 {
     add_named_journal(pool, disabled, "ManufactureReport").await

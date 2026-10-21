@@ -17,6 +17,7 @@ struct Skill {
     skill_utf16: PrivateText,
     class_restriction: i32,
     use_type: i32,
+    price: i32,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -103,7 +104,7 @@ impl Profile {
             .iter()
             .map(|(k, v)| (k.clone(), v["sha256"].as_str().unwrap_or("").to_owned()))
             .collect();
-        if p.format_version != 3
+        if p.format_version != 4
             || p.source != "heroesContents.skill-ranks"
             || p.implementations != expected
             || p.skills.is_empty()
@@ -134,6 +135,7 @@ impl Profile {
                 return Err(fail());
             }
             entry.use_type = Some(s.use_type);
+            entry.price = Some(s.price);
         }
         for a in &self.arguments {
             // ToDoubleListDictionary keeps every row in source order.

@@ -152,6 +152,24 @@ impl CreationRuntime {
             capacity,
         })
     }
+    /// Service.MakeEntityID ticks from this runtime's authority, for rows that in-game
+    /// operations create (items, skills). Unused IDs are simply skipped, as in the source.
+    pub async fn entity_ids(&self, count: usize) -> Result<Vec<i64>, CreationRunError> {
+        if count > 4096 {
+            return Err(CreationRunError::Runtime);
+        }
+        let mut state = self.inner.process.lock().await;
+        (0..count)
+            .map(|_| {
+                let now = lab_clock::utc_now().map_err(|_| CreationRunError::Runtime)?;
+                state
+                    .authority
+                    .allocate(now)
+                    .map(|a| a.entity_time.ticks())
+                    .map_err(|_| CreationRunError::Runtime)
+            })
+            .collect()
+    }
     /// Initial stopped=false is the original unassigned bool property, not a feature override.
     pub async fn set_stopped(&self, stopped: bool) {
         self.inner.process.lock().await.stopped = stopped;

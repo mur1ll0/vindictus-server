@@ -114,8 +114,8 @@ pub async fn select(
     tx.commit().await?;
     Ok(Selected { cid, packets, look })
 }
-/// Skill runtime cache of the initialized first Fiona; only the initializer's
-/// skills at their initial ranks are admitted until skill training is migrated.
+/// Skill runtime cache of the initialized first Fiona: the initializer's skills come
+/// first (in row order), followed by skills learned later (LearnNewSkill).
 pub(super) async fn skill_cache(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     assets: &Assets,
@@ -127,23 +127,26 @@ pub(super) async fn skill_cache(
     .bind(cid)
     .fetch_all(&mut **tx)
     .await?;
-    if skills.len() != assets.initializer.skills().len() {
+    let initial = assets.initializer.skills();
+    if skills.len() < initial.len() || skills.len() > 4096 {
         return Err(MinimumError::Conflict);
     }
     let mut cache = Cache::default();
-    for ((key, rank), expected) in skills.iter().zip(assets.initializer.skills()) {
-        if key != expected.key() {
-            return Err(MinimumError::Conflict);
+    for (index, (key, rank)) in skills.iter().enumerate() {
+        if let Some(expected) = initial.get(index) {
+            if key != expected.key() {
+                return Err(MinimumError::Conflict);
+            }
+            if *rank == expected.rank() {
+                cache
+                    .load_base(key, *rank, Some(expected.arguments()))
+                    .map_err(|_| MinimumError::Conflict)?;
+                continue;
+            }
         }
-        if *rank == expected.rank() {
-            cache
-                .load_base(key, *rank, Some(expected.arguments()))
-                .map_err(|_| MinimumError::Conflict)?;
-            continue;
-        }
-        // A trained rank: SkillEffect.UpdateSkillArgument reads SkillArgumentInfo of the
-        // final rank (set-bonus ranks are refused by the Gear loader); no rank info
-        // removes the arguments.
+        // A trained rank or a learned skill: SkillEffect.UpdateSkillArgument reads
+        // SkillArgumentInfo of the final rank (set-bonus ranks are refused by the Gear
+        // loader); no rank info removes the arguments.
         let contents = assets.skills.as_ref().ok_or(MinimumError::Conflict)?;
         let id = String::from_utf16(
             &key.as_chunks::<2>()

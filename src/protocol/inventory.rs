@@ -27,6 +27,8 @@ pub enum Kind {
     LearnSkill,
     SkillCompletion,
     QueryCharacterCommonInfo,
+    LearnNewSkill,
+    LearnNewSkillResult,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -47,6 +49,8 @@ impl Kind {
             Self::LearnSkill => 475,
             Self::SkillCompletion => 582,
             Self::QueryCharacterCommonInfo => 527,
+            Self::LearnNewSkill => 340,
+            Self::LearnNewSkillResult => 341,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -67,6 +71,8 @@ impl Kind {
             Self::LearnSkill => 0x3ec00564_95e3_3507_b9dc_a5a185215b19,
             Self::SkillCompletion => 0x2b5614fc_8830_3aec_a03f_c33c270de9f1,
             Self::QueryCharacterCommonInfo => 0xc9cda3f6_8b67_3c69_ba31_ba2fe827fd7b,
+            Self::LearnNewSkill => 0x7fbd47e1_96a3_3472_9e71_f36d90f7294f,
+            Self::LearnNewSkillResult => 0x0430910f_e20e_3736_850d_b619e836f14f,
         })
     }
 }
@@ -168,6 +174,10 @@ pub enum Message {
     SkillCompletion(SkillAp),
     /// QueryCharacterCommonInfoMessage: QueryID, CID.
     QueryCharacterCommonInfo(CommonQuery),
+    /// LearnNewSkillMessage.SkillID.
+    LearnNewSkill(Option<String>),
+    /// LearnNewSkillResultMessage.result (LearnNewSkillResult as Int32).
+    LearnNewSkillResult(i32),
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct SkillAp {
@@ -252,6 +262,8 @@ impl Message {
             Self::LearnSkill(_) => Kind::LearnSkill,
             Self::SkillCompletion(_) => Kind::SkillCompletion,
             Self::QueryCharacterCommonInfo(_) => Kind::QueryCharacterCommonInfo,
+            Self::LearnNewSkill(_) => Kind::LearnNewSkill,
+            Self::LearnNewSkillResult(_) => Kind::LearnNewSkillResult,
         }
     }
 }
@@ -478,6 +490,8 @@ pub fn encode(
             Message::SkillList(v) => v.write(&mut w)?,
             Message::LearnSkill(v) | Message::SkillCompletion(v) => v.write(&mut w)?,
             Message::QueryCharacterCommonInfo(v) => v.write(&mut w)?,
+            Message::LearnNewSkill(v) => v.write(&mut w)?,
+            Message::LearnNewSkillResult(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -520,6 +534,8 @@ pub fn decode(
             Kind::QueryCharacterCommonInfo => {
                 Message::QueryCharacterCommonInfo(CommonQuery::read(&mut r)?)
             }
+            Kind::LearnNewSkill => Message::LearnNewSkill(Wire::read(&mut r)?),
+            Kind::LearnNewSkillResult => Message::LearnNewSkillResult(Wire::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

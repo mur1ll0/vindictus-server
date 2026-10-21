@@ -12,6 +12,8 @@ pub const EQUIP_BUNDLE: i16 = 32;
 pub const EQUIP_ITEM: i16 = 33;
 pub const MOVE_INVENTORY_ITEM: i16 = 53;
 pub const USE_INVENTORY_ITEM: i16 = 68;
+/// EventType.DestroyItem (DestroyItemProcessor's SetItemOpLog).
+pub const DESTROY_ITEM: i16 = 23;
 /// EventType.Cheat: the laboratory grant mirrors the GM GiveItem cheat.
 pub const LAB_GRANT: i16 = 1;
 /// EventTypeDetail.CreateItem (ItemFactory.MakeItem).
@@ -45,6 +47,10 @@ pub fn flags(assets: &Assets) -> Result<Flags, MinimumError> {
 /// Processor constructor: ItemLog.GetJournalID, allocated even when the run fails.
 pub async fn operation_journal(pool: &PgPool, flags: Flags) -> i64 {
     item_journals::get_item_journal_id(pool, flags.disable_operation).await
+}
+/// ItemImpl.DestroyItem: AddItemJournal("DestroyItem") before the destroy.
+pub async fn destroy_item_journal(pool: &PgPool, flags: Flags) -> i64 {
+    item_journals::add_destroy_item_journal(pool, flags.disable_logging).await
 }
 pub async fn use_item_journal(pool: &PgPool, flags: Flags) -> i64 {
     item_journals::add_use_item_journal(pool, flags.disable_logging).await
@@ -225,4 +231,29 @@ pub async fn write_give(
             "minimum item logs partially written"
         );
     }
+}
+
+/// ItemImpl.DestroyItem after Save: AddItemLedgers(journal, DestroyItem, Unknown,
+/// itemlist.ToLogData) with LogData.From(owner, itemClass, num).
+pub async fn write_destroy_ledger(
+    pool: &PgPool,
+    cid: i64,
+    journal: i64,
+    class: &[u8],
+    count: i32,
+    flags: Flags,
+) {
+    let Ok(d) = Data::requested(class.to_vec(), count) else {
+        return;
+    };
+    let ledger = Ledger {
+        journal,
+        event: LEDGER_DESTROY_ITEM,
+        action: 0,
+        data: d,
+        bundle: bundle_count(pool, cid, class).await,
+    };
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    let _attempt =
+        item_event_logs::write_ledger(pool, cid, &ledger, flags.disable_logging, deadline).await;
 }

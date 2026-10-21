@@ -177,3 +177,163 @@ async fn minimum_give_enforces_the_unique_constraint() {
     );
     cleanup_game_pool(a, p, s).await;
 }
+mod equipment_fixture {
+    include!("../fixtures/equipment_profile_support.rs");
+}
+/// Gold/economy assets plus the equipment profile and a skill profile holding the
+/// stored skills and one buyable active skill.
+async fn skill_assets(p: &sqlx::PgPool, price: i32) -> Assets {
+    use vindictus_server::infrastructure::{equipment_profile, skill_profile};
+    let stored: Vec<(Vec<u8>, i32)> =
+        sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=1 ORDER BY row_id")
+            .fetch_all(p)
+            .await
+            .unwrap();
+    let sources: Value =
+        serde_json::from_str(include_str!("../../src/domain/skill_list_sources.json")).unwrap();
+    let implementations: serde_json::Map<String, Value> = sources
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(k, v)| (k.clone(), v["sha256"].clone()))
+        .collect();
+    let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+    let mut skills = Vec::new();
+    let mut ranks = Vec::new();
+    let mut keys: Vec<(Vec<u8>, i32, i32)> =
+        stored.iter().map(|(k, r)| (k.clone(), *r, 0)).collect();
+    keys.push((utf16("skill_new_synthetic"), 1, price));
+    for (n, (key, rank, cost)) in keys.iter().enumerate() {
+        skills.push(json!({"source_index":n,"skill_utf16":hex(key),"class_restriction":2,"use_type":1,"price":cost}));
+        for (r, ap) in [(*rank, 0), (rank + 1, 30)] {
+            ranks.push(json!({"source_index":ranks.len(),"skill_utf16":hex(key),"rank":r,"level":1,"required_ap":ap,"require_unlock":false,"feature":null}));
+        }
+    }
+    let profile = json!({"format_version":4,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[],"arguments":[]});
+    assets(0)
+        .with_equipment(
+            equipment_profile::Profile::read(
+                serde_json::to_vec(&equipment_fixture::equipment_profile_fixture())
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .with_skills(
+            skill_profile::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
+        )
+        .unwrap()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_learn_new_skill_pays_gold_once_and_survives_relogin() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_skills,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 700).await;
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    let gold = || async {
+        sqlx::query_scalar::<_, Option<i32>>(
+            "SELECT count FROM game_items WHERE owner_id=1 AND collection=101",
+        )
+        .fetch_optional(&p)
+        .await
+        .unwrap()
+        .flatten()
+    };
+    let learned = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM game_skills WHERE cid=1 AND skill_utf16=$1 AND rank=1",
+        )
+        .bind(utf16("skill_new_synthetic"))
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let result = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        assert_eq!(packet.category, 341);
+        let Some(Message::LearnNewSkillResult(code)) =
+            inventory::decode(Kind::LearnNewSkillResult, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("result missing")
+        };
+        code
+    };
+    let learn = |ids: Vec<i64>| {
+        minimum_skills::learn_new(&p, &owner, &assets, 1, "skill_new_synthetic", ids, log)
+    };
+    // Not selected: no InGame character.
+    assert!(learn(vec![900_000_000_000_000_001]).await.is_err());
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    // No gold: Fail_NotEnoughGold and nothing written.
+    let before = items(&p).await;
+    let packets = learn(vec![900_000_000_000_000_002]).await.unwrap();
+    assert_eq!(packets.len(), 1);
+    assert_eq!(result(&packets[0]), 2);
+    assert_eq!((items(&p).await, learned().await), (before, 0));
+    // Grant gold offline, select again and learn: gold sync, skill list, Succeeced.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 1000, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let packets = learn(vec![900_000_000_000_000_003]).await.unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 583, 341]
+    );
+    assert_eq!(result(&packets[2]), 1);
+    let Some(Message::SkillList(list)) =
+        inventory::decode(Kind::SkillList, &packets[1].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("skill list missing")
+    };
+    assert!(
+        list.skills
+            .unwrap()
+            .iter()
+            .flatten()
+            .any(|b| b.id.as_deref() == Some("skill_new_synthetic") && b.base_rank == 1)
+    );
+    assert_eq!((gold().await, learned().await), (Some(300), 1));
+    let row: i64 =
+        sqlx::query_scalar("SELECT row_id FROM game_skills WHERE cid=1 AND skill_utf16=$1")
+            .bind(utf16("skill_new_synthetic"))
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(row, 900_000_000_000_000_003);
+    // Already learnt: refused before any payment.
+    let packets = learn(vec![900_000_000_000_000_004]).await.unwrap();
+    assert_eq!(result(&packets[0]), 7);
+    assert_eq!((gold().await, learned().await), (Some(300), 1));
+    // Relogin keeps the gold and the skill.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!((gold().await, learned().await), (Some(300), 1));
+    cleanup_game_pool(a, p, s).await;
+}

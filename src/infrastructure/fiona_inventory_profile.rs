@@ -320,6 +320,10 @@ impl Profile {
                 .windows(needle.len())
                 .any(|w| w == needle)
     }
+    /// ItemClassConst.Gold as UTF-16LE.
+    pub(super) fn gold_class(&self) -> &[u8] {
+        self.gold.as_bytes()
+    }
     pub(super) fn is_gold(&self, key: &[u8]) -> bool {
         self.gold.as_bytes() == key
     }

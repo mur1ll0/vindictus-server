@@ -27,6 +27,8 @@ pub struct SkillContent {
     pub class_restriction: Option<i32>,
     /// SkillInfo.UseType; IsActiveSkill is UseType != 0.
     pub use_type: Option<i32>,
+    /// SkillInfo.Price: LearnNewSkill cost in gold; negative cannot be bought.
+    pub price: Option<i32>,
     pub ranks: BTreeMap<i32, RankInfo>,
     /// SkillConstraintInfo by rank, in source list order.
     pub constraints: BTreeMap<i32, Vec<(String, i32)>>,
@@ -242,4 +244,81 @@ pub fn vocation_entry(vocation_class: Option<i32>) -> Option<Brief> {
         reset_ap: 0,
         untrain_ap: 0,
     })
+}
+
+/// LearnNewSkillProcessor fail reasons, as LearnNewSkillResultMessage values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LearnNewRefusal {
+    NotEnoughGold = 2,
+    NoSuchSkill = 3,
+    Class = 4,
+    Level = 5,
+    Constraint = 6,
+    AlreadyLearnt = 7,
+    System = 8,
+    CannotBuySkill = 9,
+}
+/// LearnNewSkillResult.Succeeced.
+pub const LEARN_NEW_SUCCEEDED: i32 = 1;
+
+/// The rank-1 skill GiveSkill adds once the gold is paid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NewSkill {
+    /// SkillInfo.Price; 0 destroys no gold.
+    pub price: i32,
+    /// RecalculateRequiredAP: rank 2 RequireUnlock locks the new skill (IsLocked 1).
+    pub locked: u8,
+    /// SkillInfo.IsActiveSkill (UseType != 0): SetSpSkillToEmptySlot.
+    pub active: bool,
+}
+
+/// LearnNewSkillProcessor checks for a non-preset character, in source order
+/// (ConstraintPassed of rank 1, SkillInfo, Price), then GiveSkill's Already_Learnt.
+/// The source destroys the gold before GiveSkill can answer Already_Learnt; this
+/// port answers it before any payment so a refused learn never loses gold.
+pub fn learn_new(
+    skills: &[Skill],
+    contents: &BTreeMap<String, SkillContent>,
+    character: &Character<'_>,
+    skill_id: &str,
+) -> Result<Result<NewSkill, LearnNewRefusal>, SkillListError> {
+    let base_rank = |id: &str| skills.iter().find(|s| s.id == id).map_or(-1, |s| s.rank);
+    let Some(content) = contents.get(skill_id) else {
+        return Ok(Err(LearnNewRefusal::NoSuchSkill));
+    };
+    // ConstraintPassed(GetSkillRankInfo(skillID, 1)).
+    let Some(rank) = content.ranks.get(&1) else {
+        return Ok(Err(LearnNewRefusal::NoSuchSkill));
+    };
+    let (Some(restriction), Some(price)) = (content.class_restriction, content.price) else {
+        return Ok(Err(LearnNewRefusal::NoSuchSkill));
+    };
+    if !rank.feature_enabled {
+        return Ok(Err(LearnNewRefusal::NoSuchSkill));
+    }
+    let bit = 1_i32.wrapping_shl(character.class as u32 & 31);
+    if restriction & bit != bit {
+        return Ok(Err(LearnNewRefusal::Class));
+    }
+    if character.level < rank.level {
+        return Ok(Err(LearnNewRefusal::Level));
+    }
+    if content
+        .constraints
+        .get(&1)
+        .is_some_and(|rows| rows.iter().any(|(id, r)| base_rank(id) < *r))
+    {
+        return Ok(Err(LearnNewRefusal::Constraint));
+    }
+    if price < 0 {
+        return Ok(Err(LearnNewRefusal::CannotBuySkill));
+    }
+    if skills.iter().any(|s| s.id == skill_id) {
+        return Ok(Err(LearnNewRefusal::AlreadyLearnt));
+    }
+    Ok(Ok(NewSkill {
+        price,
+        locked: u8::from(content.ranks.get(&2).is_some_and(|r| r.require_unlock)),
+        active: content.use_type.is_some_and(|u| u != 0),
+    }))
 }

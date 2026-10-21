@@ -260,3 +260,160 @@ pub async fn learn(
     .await
     .map_err(|_| fail())?
 }
+
+fn learn_new_result(code: i32) -> Result<OutgoingPacket, MinimumError> {
+    Ok(OutgoingPacket {
+        category: Kind::LearnNewSkillResult.category(),
+        body: wire::encode(
+            Kind::LearnNewSkillResult,
+            Some(&Message::LearnNewSkillResult(code)),
+            DEFAULT_MAX_BODY,
+        )
+        .map_err(|_| fail())?
+        .to_vec(),
+    })
+}
+
+/// LearnNewSkillProcessor for the selected first Fiona: rank-1 checks, the gold
+/// DestroyItem (ItemService Save and Sync), GiveSkill and the result message. The
+/// gold and the skill are written in one transaction.
+pub async fn learn_new(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    skill_id: &str,
+    entity_ids: Vec<i64>,
+    log: super::minimum_item_logs::Context,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    use crate::domain::skill_list::{LEARN_NEW_SUCCEEDED, LearnNewRefusal};
+    let flags = log.flags;
+    // DestroyItemProcessor constructor: GetJournalID; ItemImpl: AddItemJournal.
+    let operation = super::minimum_item_logs::operation_journal(pool, flags).await;
+    let journal = super::minimum_item_logs::destroy_item_journal(pool, flags).await;
+    let mut ids = entity_ids.into_iter();
+    let (packets, paid) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let (connected, level, class): (bool, i32, i32) = sqlx::query_as(
+            "SELECT is_connected,level,class::integer FROM game_character_info WHERE id=$1",
+        )
+        .bind(cid)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !connected {
+            return Err(fail());
+        }
+        let contents = assets.skills.as_ref().ok_or_else(fail)?;
+        let rows: Vec<(Vec<u8>, i32, i16, i32)> = sqlx::query_as(
+            "SELECT skill_utf16,rank,locked,current_ap FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097 FOR UPDATE",
+        )
+        .bind(cid)
+        .fetch_all(&mut *tx)
+        .await?;
+        if rows.len() > 4096 {
+            return Err(fail());
+        }
+        let skills = rows
+            .into_iter()
+            .map(|(id, rank, locked, current_ap)| {
+                Ok(Skill {
+                    id: text(&id)?,
+                    rank,
+                    locked: u8::try_from(locked).map_err(|_| fail())?,
+                    current_ap,
+                })
+            })
+            .collect::<Result<Vec<_>, MinimumError>>()?;
+        let gear = super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
+        let character = Character {
+            class,
+            level,
+            item_ranks: &gear.bonus.skills,
+        };
+        let new = match skill_list::learn_new(&skills, contents, &character, skill_id)
+            .map_err(|_| fail())?
+        {
+            Ok(new) => new,
+            Err(refusal) => return Ok((vec![learn_new_result(refusal as i32)?], None)),
+        };
+        if new.locked == 1 {
+            // TryUnlockStory needs the story service, which is not migrated.
+            return Err(fail());
+        }
+        let mut packets = Vec::new();
+        let mut paid = None;
+        if new.price != 0 {
+            let gold = assets.inventory.gold_class().to_vec();
+            let applied = super::minimum_give::apply(
+                &mut tx,
+                owner,
+                assets,
+                cid,
+                &[super::minimum_give::Request {
+                    class: &gold,
+                    count: new.price,
+                }],
+                &[],
+                &mut || ids.next().ok_or_else(fail),
+            )
+            .await?;
+            let Ok(applied) = applied else {
+                // DestroyItem false: Not_Enough_Gold, nothing is written.
+                return Ok((
+                    vec![learn_new_result(LearnNewRefusal::NotEnoughGold as i32)?],
+                    None,
+                ));
+            };
+            // ItemOwner.Save → Sync: the gold slot update reaches the client first.
+            packets.push(OutgoingPacket {
+                category: Kind::UpdateInventoryInfo.category(),
+                body: wire::encode(
+                    Kind::UpdateInventoryInfo,
+                    Some(&Message::UpdateInventoryInfo(Some(applied.slots.clone()))),
+                    DEFAULT_MAX_BODY,
+                )
+                .map_err(|_| fail())?
+                .to_vec(),
+            });
+            paid = Some((applied, gold, new.price));
+        }
+        // GiveSkill: Skill row with RowID = MakeEntityID, rank 1, RecalculateRequiredAP.
+        let key: Vec<u8> = skill_id.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,1,$4,0)")
+            .bind(ids.next().ok_or_else(fail)?)
+            .bind(cid)
+            .bind(&key)
+            .bind(i16::from(new.locked))
+            .execute(&mut *tx)
+            .await?;
+        if new.active {
+            // SetSpSkillToEmptySlot: the first SPSkill whose SkillID is null.
+            sqlx::query("UPDATE game_sp_skills SET skill_utf16=$2 WHERE row_id=(SELECT row_id FROM game_sp_skills WHERE cid=$1 AND skill_utf16 IS NULL ORDER BY row_id LIMIT 1)")
+                .bind(cid)
+                .bind(&key)
+                .execute(&mut *tx)
+                .await?;
+        }
+        // SkillRankChanged → OnSkillRankChanged → PushSkillList (before SubmitChanges).
+        packets.push(packet(&mut tx, owner, assets, cid, level, class).await?);
+        packets.push(learn_new_result(LEARN_NEW_SUCCEEDED)?);
+        tx.commit().await?;
+        Ok((packets, paid))
+    })
+    .await
+    .map_err(|_| fail())??;
+    if let Some((applied, gold, price)) = paid {
+        super::minimum_item_logs::write_give(
+            pool,
+            cid,
+            operation,
+            super::minimum_item_logs::DESTROY_ITEM,
+            &applied,
+            log,
+        )
+        .await;
+        super::minimum_item_logs::write_destroy_ledger(pool, cid, journal, &gold, price, flags)
+            .await;
+    }
+    Ok(packets)
+}

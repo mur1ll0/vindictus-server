@@ -239,3 +239,67 @@ fn vocation_entries_follow_the_source() {
         "skill_voc_dk_transform00"
     );
 }
+
+#[test]
+fn learn_new_checks_rank_one_constraints_price_and_ownership_in_source_order() {
+    use vindictus_server::domain::skill_list::{LearnNewRefusal, NewSkill, learn_new};
+    let items = BTreeMap::new();
+    let fiona = |level| Character {
+        class: 1,
+        level,
+        item_ranks: &items,
+    };
+    let mut buyable = content();
+    buyable.price = Some(1200);
+    buyable.use_type = Some(1);
+    buyable.ranks.insert(1, rank(3, 0));
+    buyable
+        .constraints
+        .insert(1, vec![("skill_base".to_owned(), 2)]);
+    let mut contents = BTreeMap::from([("skill_new".to_owned(), buyable)]);
+    let learn = |skills: &[Skill], contents: &BTreeMap<String, SkillContent>, level| {
+        learn_new(skills, contents, &fiona(level), "skill_new").unwrap()
+    };
+    let base = |r| vec![skill("skill_base", r, 0, 0)];
+    assert_eq!(learn(&base(2), &contents, 2), Err(LearnNewRefusal::Level));
+    assert_eq!(
+        learn(&base(1), &contents, 3),
+        Err(LearnNewRefusal::Constraint)
+    );
+    assert_eq!(
+        learn(&base(2), &contents, 3),
+        Ok(NewSkill {
+            price: 1200,
+            locked: 0,
+            active: true
+        })
+    );
+    let mut owned = base(2);
+    owned.push(skill("skill_new", 1, 0, 0));
+    assert_eq!(
+        learn(&owned, &contents, 3),
+        Err(LearnNewRefusal::AlreadyLearnt)
+    );
+    let entry = contents.get_mut("skill_new").unwrap();
+    entry.ranks.get_mut(&2).unwrap().require_unlock = true;
+    assert_eq!(learn(&base(2), &contents, 3).unwrap().locked, 1);
+    let entry = contents.get_mut("skill_new").unwrap();
+    entry.price = Some(-1);
+    assert_eq!(
+        learn(&base(2), &contents, 3),
+        Err(LearnNewRefusal::CannotBuySkill)
+    );
+    let entry = contents.get_mut("skill_new").unwrap();
+    entry.class_restriction = Some(4);
+    assert_eq!(learn(&base(2), &contents, 3), Err(LearnNewRefusal::Class));
+    let entry = contents.get_mut("skill_new").unwrap();
+    entry.ranks.get_mut(&1).unwrap().feature_enabled = false;
+    assert_eq!(
+        learn(&base(2), &contents, 3),
+        Err(LearnNewRefusal::NoSuchSkill)
+    );
+    assert_eq!(
+        learn_new(&[], &contents, &fiona(3), "skill_missing").unwrap(),
+        Err(LearnNewRefusal::NoSuchSkill)
+    );
+}

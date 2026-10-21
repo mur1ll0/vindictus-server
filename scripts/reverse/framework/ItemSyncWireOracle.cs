@@ -139,6 +139,12 @@ class ItemSyncWireOracle {
   var commons=new List<QueryCharacterCommonInfoMessage>{null};
   foreach(long q in new[]{long.MinValue,0L,7L,long.MaxValue})foreach(long c in new[]{-1L,1L,long.MaxValue})commons.Add(Obj<QueryCharacterCommonInfoMessage>("QueryID",q,"CID",c));
   AddCases("query_common_info",527,new Guid("c9cda3f6-8b67-3c69-ba31-ba2fe827fd7b"),commons,cases);
+  var news=new List<LearnNewSkillMessage>{null};
+  foreach(string sk in new[]{null,"","skill_fiona_guard"})news.Add(new LearnNewSkillMessage(sk));
+  AddCases("learn_new_skill",340,new Guid("7fbd47e1-96a3-3472-9e71-f36d90f7294f"),news,cases);
+  var results=new List<LearnNewSkillResultMessage>{null};
+  foreach(LearnNewSkillResultMessage.LearnNewSkillResult r in Enum.GetValues(typeof(LearnNewSkillResultMessage.LearnNewSkillResult)))results.Add(new LearnNewSkillResultMessage(r));
+  AddCases("learn_new_skill_result",341,new Guid("0430910f-e20e-3736-850d-b619e836f14f"),results,cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
