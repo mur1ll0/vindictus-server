@@ -178,6 +178,12 @@ async fn minimum_equipment_refuses_unsupported_states_and_preserves_disabled_equ
     );
     cleanup_game_pool(a, p, s).await;
 }
+fn log(assets: &Assets) -> vindictus_server::infrastructure::minimum_item_logs::Context {
+    vindictus_server::infrastructure::minimum_item_logs::Context {
+        flags: vindictus_server::infrastructure::minimum_item_logs::flags(assets).unwrap(),
+        civil_offset_seconds: 0,
+    }
+}
 fn config() -> QueryConfig {
     QueryConfig {
         max_free: 5,
@@ -211,6 +217,7 @@ async fn equip(
         part,
         config(),
         Arithmetic::FrameworkX64,
+        log(assets),
     )
     .await
 }
@@ -383,7 +390,8 @@ async fn minimum_equip_saves_syncs_refuses_unequips_and_survives_relogin() {
             id,
             1,
             config(),
-            Arithmetic::FrameworkX64
+            Arithmetic::FrameworkX64,
+            log(&assets)
         )
         .await
         .is_err()
@@ -422,7 +430,7 @@ async fn minimum_move_swaps_bag_slots_refuses_source_failures_and_survives_relog
         storage,
         slot,
     };
-    let mv = |r| minimum_move::move_item(&p, &owner, &assets, 1, r);
+    let mv = |r| minimum_move::move_item(&p, &owner, &assets, 1, r, log(&assets));
     assert!(mv(request(id, 0, 5)).await.is_err());
     minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
         .await
@@ -550,6 +558,7 @@ async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing(
                 item_id,
                 target_item_id: -1,
             },
+            log(&assets),
         )
     };
     assert!(use_item(cash).await.is_err());

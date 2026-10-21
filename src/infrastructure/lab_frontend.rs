@@ -265,6 +265,15 @@ impl Runtime {
             FrameworkArchitecture::X64 => Arithmetic::FrameworkX64,
         }
     }
+    fn item_log_context(
+        &self,
+        assets: &super::minimum_assets::Assets,
+    ) -> Result<super::minimum_item_logs::Context, RuntimeError> {
+        Ok(super::minimum_item_logs::Context {
+            flags: super::minimum_item_logs::flags(assets).map_err(|_| RuntimeError::Profile)?,
+            civil_offset_seconds: self.profile.civil_offset_seconds(),
+        })
+    }
     fn civil(&self) -> Result<SqlDateTime2, RuntimeError> {
         lab_clock::civil_now(self.profile.civil_offset_seconds())
             .map_err(|_| RuntimeError::Operation)
@@ -911,7 +920,16 @@ impl Connection {
                     .ok_or(RuntimeError::Profile)?
                     .assets;
                 let started = std::time::Instant::now();
-                match super::minimum_move::move_item(pool, &owner, assets, cid, request).await {
+                match super::minimum_move::move_item(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    request,
+                    runtime.item_log_context(assets)?,
+                )
+                .await
+                {
                     Ok(super::minimum_move::Outcome::Applied(packet)) => {
                         send(stream, sender, packet.category, &packet.body).await?;
                         tracing::info!(
@@ -979,8 +997,15 @@ impl Connection {
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
                     .assets;
-                match super::minimum_quickslot::equip_bundle(pool, &owner, assets, cid, request)
-                    .await
+                match super::minimum_quickslot::equip_bundle(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    request,
+                    runtime.item_log_context(assets)?,
+                )
+                .await
                 {
                     Ok(super::minimum_quickslot::Outcome::Applied(packet)) => {
                         send(stream, sender, packet.category, &packet.body).await?;
@@ -1114,7 +1139,15 @@ impl Connection {
                         }
                     }
                     Message::UseInventoryItem(request) => {
-                        match super::minimum_use::use_item(pool, &owner, assets, cid, request).await
+                        match super::minimum_use::use_item(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            request,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
                         {
                             Ok(super::minimum_use::Outcome::Applied(packets)) => {
                                 for packet in &packets {
@@ -1219,6 +1252,7 @@ impl Connection {
                     part,
                     runtime.minimum_header()?,
                     runtime.stat_arithmetic(),
+                    runtime.item_log_context(assets)?,
                 )
                 .await;
                 match outcome {

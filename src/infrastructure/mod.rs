@@ -103,6 +103,7 @@ pub mod minimum_equipment;
 
 pub mod minimum_ap;
 pub mod minimum_equip;
+pub mod minimum_item_logs;
 pub mod minimum_move;
 pub mod minimum_quickslot;
 pub mod minimum_skills;

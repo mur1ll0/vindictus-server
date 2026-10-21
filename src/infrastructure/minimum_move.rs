@@ -123,8 +123,11 @@ pub async fn move_item(
     assets: &Assets,
     cid: i64,
     request: Move,
+    log: super::minimum_item_logs::Context,
 ) -> Result<Outcome, MinimumError> {
-    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+    // MoveInventoryItemProcessor constructor: GetJournalID (MoveInventoryItem).
+    let journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
+    let (outcome, changes) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
         let connected: bool =
             sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
@@ -149,12 +152,12 @@ pub async fn move_item(
             .flatten()
             .collect();
         let Some(item) = slots.iter().find(|s| s.id == request.item_id).copied() else {
-            return Ok(Outcome::Refused(move_fail()?));
+            return Ok((Outcome::Refused(move_fail()?), Vec::new()));
         };
         let to_collection = i32::from(request.storage);
         let from = storage_type(item.tab);
         if from != storage_type(to_collection) {
-            return Ok(Outcome::Refused(move_fail()?));
+            return Ok((Outcome::Refused(move_fail()?), Vec::new()));
         }
         if from != StorageType::Bag {
             // CashStorage swap rules are not part of this slice.
@@ -163,7 +166,7 @@ pub async fn move_item(
         // StorageSetting.IsValid(Bag): 0 <= slot < 48. The source then loads the moved
         // item into an invalid slot and still saves; refusing avoids persisting that.
         if !(0..48).contains(&request.slot) {
-            return Ok(Outcome::Refused(move_fail()?));
+            return Ok((Outcome::Refused(move_fail()?), Vec::new()));
         }
         let occupant = slots
             .iter()
@@ -174,15 +177,16 @@ pub async fn move_item(
         if !DEFAULT_BAG.contains(&to_collection)
             || (occupant.is_some() && !DEFAULT_BAG.contains(&item.tab))
         {
-            return Ok(Outcome::Refused(move_fail()?));
+            return Ok((Outcome::Refused(move_fail()?), Vec::new()));
         }
         if occupant.is_some_and(|o| o.id == item.id) {
             // Same location: the source would stack an item onto itself.
-            return Ok(Outcome::Unchanged);
+            return Ok((Outcome::Unchanged, Vec::new()));
         }
         // SwapSlot: `occupant.Stack(item)` first; a full or unrelated occupant swaps.
         let mut changed: Vec<i64> = Vec::new();
         let mut deleted = None;
+        let mut log_changes = Vec::new();
         let stack = match occupant {
             Some(o) => stackable(assets, o, item)?
                 .filter(|max| o.count < *max)
@@ -215,6 +219,17 @@ pub async fn move_item(
                 .execute(&mut *tx)
                 .await?;
             changed.push(o.id);
+            // Item.Num setters log the occupant's increase, then the moved decrease.
+            log_changes.push(super::minimum_item_logs::NumChange {
+                item_id: o.id,
+                class_utf16: class.clone(),
+                delta: amount,
+            });
+            log_changes.push(super::minimum_item_logs::NumChange {
+                item_id: item.id,
+                class_utf16: class.clone(),
+                delta: -amount,
+            });
             if moving_count == 0 {
                 // Num = 0: RegisterDelete removes it from storage and destroys the row.
                 sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
@@ -280,8 +295,18 @@ pub async fn move_item(
                 .to_vec(),
         };
         tx.commit().await?;
-        Ok(Outcome::Applied(packet))
+        Ok((Outcome::Applied(packet), log_changes))
     })
     .await
-    .map_err(|_| fail())?
+    .map_err(|_| fail())??;
+    super::minimum_item_logs::write_changes(
+        pool,
+        cid,
+        journal,
+        super::minimum_item_logs::MOVE_INVENTORY_ITEM,
+        &changes,
+        log,
+    )
+    .await;
+    Ok(outcome)
 }

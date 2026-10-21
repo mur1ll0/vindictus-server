@@ -156,7 +156,10 @@ pub async fn equip_bundle(
     assets: &Assets,
     cid: i64,
     request: Bundle,
+    log: super::minimum_item_logs::Context,
 ) -> Result<Outcome, MinimumError> {
+    // EquipBundleProcessor constructor: GetJournalID (EquipBundle); no Num changes.
+    let _journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
     tokio::time::timeout(std::time::Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
         let (connected, level, class): (bool, i32, i32) = sqlx::query_as(

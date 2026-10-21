@@ -37,8 +37,11 @@ pub async fn use_item(
     assets: &Assets,
     cid: i64,
     request: UseItem,
+    log: super::minimum_item_logs::Context,
 ) -> Result<Outcome, MinimumError> {
-    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+    // UseInventoryItemProcessor constructor: GetJournalID (UseInventoryItem).
+    let journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
+    let (outcome, used) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
         let connected: bool =
             sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
@@ -65,7 +68,7 @@ pub async fn use_item(
             .find(|s| s.id == request.item_id)
         else {
             // GetItem == null: FailMessage only.
-            return Ok(Outcome::Unchanged);
+            return Ok((Outcome::Unchanged, None));
         };
         let class = item.class.clone().unwrap_or_default();
         let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
@@ -73,6 +76,8 @@ pub async fn use_item(
         let Some(amount) = capsule_amount(&class).filter(|_| !indexed.equippable) else {
             return Err(fail());
         };
+        // Run: ItemLog.AddItemJournal("UseItem") once the item and BadStatus checks pass.
+        let use_journal = super::minimum_item_logs::use_item_journal(pool, log.flags).await;
         // UseUseableItem: DestroyItem(Useable(item), 1) and Save before onSuccess.
         let deleted = item.count == 1;
         if deleted {
@@ -129,8 +134,28 @@ pub async fn use_item(
                 .to_vec(),
         });
         tx.commit().await?;
-        Ok(Outcome::Applied(packets))
+        let change = super::minimum_item_logs::NumChange {
+            item_id: item.id,
+            class_utf16: key.clone(),
+            delta: -1,
+        };
+        Ok((Outcome::Applied(packets), Some((change, use_journal))))
     })
     .await
-    .map_err(|_| fail())?
+    .map_err(|_| fail())??;
+    if let Some((change, use_journal)) = used {
+        // Save → LogManager.Write (Num −1), then UseUseableItem's ledger.
+        super::minimum_item_logs::write_changes(
+            pool,
+            cid,
+            journal,
+            super::minimum_item_logs::USE_INVENTORY_ITEM,
+            std::slice::from_ref(&change),
+            log,
+        )
+        .await;
+        super::minimum_item_logs::write_use_ledger(pool, cid, use_journal, &change, 1, log.flags)
+            .await;
+    }
+    Ok(outcome)
 }
