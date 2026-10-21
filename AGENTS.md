@@ -31,7 +31,9 @@ Scope: all development under vindictus-server. The requested deliverable is a co
 
 ## Verification
 - User instruction (2026-10-15): minimize terminal/test output collected into context. Redirect complete logs to .cache/verification; inspect only exit status, aggregate counts and bounded failure excerpts. Do not dump successful test output or repeatedly poll unchanged logs. Preserve this rule across sessions/compaction.
-- Run scripts/dev/verify.ps1 before reporting a code step complete.
+- User instruction (2026-10-20): run the full suite (scripts/dev/verify.ps1 -DatabaseIntegration) only when finishing a complete implementation block and integrity with the other game features must be validated, before its commit. Otherwise run simple, fast, focused tests (affected test targets and filtered PostgreSQL tests).
+- User authorization (2026-10-20): builds/tests may use multiple CPU cores; CARGO_BUILD_JOBS=1 is no longer required.
+- The disposable tmpfs PostgreSQL test container (vindictus-map-verification-postgres-1) accumulates WAL; restart it before a full suite run when usage is high.
 - Database integration tests must execute against an isolated schema; skipped tests are not passing evidence.
 - Regenerate protocol fixtures from recovered C# via scripts/reverse/generate-fixtures.ps1 when changing the recovered protocol.
 - Docker verification: build --locked, migrate exit 0, server readiness, create-account and duplicate rejection, restart persistence.

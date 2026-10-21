@@ -43,7 +43,7 @@ Prioridade do operador em 20/10/2026: primeiro o ciclo PvE jogável. PvP, guilda
 
 - Usar fonte recuperada e fixtures/oracles para fio/comportamento; primeiro verificar o que já existe no domínio/banco.
 - Entregar uma fatia pequena do cliente ao armazenamento, com recusas/persistência. Não enviar sucesso fictício ou listas vazias para ocultar serviço obrigatório ausente.
-- Testes focados durante a alteração e um gate completo no fim do lote; logs em `.cache/verification`, jobs=1, incremental=0 e arquivos editados em LF.
+- Testes focados e rápidos durante a alteração; suíte completa apenas ao terminar um bloco de implementação, antes do commit (instrução do operador, 20/10/2026). Logs em `.cache/verification`, arquivos editados em LF; uso de múltiplos núcleos autorizado.
 - Preservar Fiona/marcador/schema e diretórios originais. Validar no cliente real antes de declarar compatibilidade.
 - Commits locais por incremento verificado, sem push automático. Registrar novas lacunas aqui e no checkpoint, respeitando as dependências do PvE.
 
