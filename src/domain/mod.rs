@@ -98,3 +98,5 @@ pub mod equipment_slot;
 pub mod equipped_gear;
 
 pub mod item_constraint;
+
+pub mod item_stack;

@@ -1,7 +1,6 @@
 //! MoveInventoryItemProcessor for the selected first Fiona: BagStorage.SwapSlot
 //! between available bag collections, persisted and synchronized with
-//! UpdateInventoryInfo. Stack merging (which can delete the moved item) is not
-//! in this slice and is rejected without changes.
+//! UpdateInventoryInfo, including Item.Stack merging that can delete the moved item.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::map_partition::OutgoingPacket,
@@ -10,7 +9,7 @@ use crate::{
         frontend_control::{
             self as ctl, HeroesText, Kind as ControlKind, Message as ControlMessage,
         },
-        inventory::{self as wire, Kind, Message, Move, Slot},
+        inventory::{self as wire, Dict, Kind, Message, Move, Slot},
     },
 };
 use sqlx::PgPool;
@@ -89,6 +88,34 @@ fn stackable(assets: &Assets, a: &Slot, b: &Slot) -> Result<Option<i32>, Minimum
     Ok(Some(ca.max_stack))
 }
 
+/// Item.ToSlotInfo for Num == 0: the 13-argument SlotInfo constructor with an empty
+/// class, zero location, no expiration, no attributes and default colors.
+fn deleted_slot(id: i64) -> Slot {
+    Slot {
+        id,
+        class: Some(String::new()),
+        count: 0,
+        tab: 0,
+        slot: 0,
+        expireable: false,
+        expire_diff: -1,
+        expire_ticks: -1,
+        colors: Some(vec![-1; 3]),
+        durability: 0,
+        maximum: 0,
+        bonus: 0,
+        tradable: false,
+        // Same GetExpirationDateExpander value the snapshot uses for these items.
+        expander: Some(String::new()),
+        attributes: Some(Vec::new()),
+        prefix: Dict(Some(Vec::new())),
+        suffix: Dict(Some(Vec::new())),
+        min_price: 0,
+        max_price: 0,
+        avg_price: 0,
+        min_up_diff: 0,
+    }
+}
 /// Admission (selection and second password) belongs to the frontend.
 pub async fn move_item(
     pool: &PgPool,
@@ -153,38 +180,89 @@ pub async fn move_item(
             // Same location: the source would stack an item onto itself.
             return Ok(Outcome::Unchanged);
         }
-        if let Some(o) = occupant
-            && let Some(max_stack) = stackable(assets, o, item)?
-            && o.count < max_stack
-        {
-            // Item.Stack merges counts and deletes an emptied item; not in this slice.
-            return Err(fail());
-        }
-        let mut moved = vec![(item.id, to_collection, request.slot)];
-        if let Some(o) = occupant {
-            moved.push((o.id, item.tab, item.slot));
-        }
-        for (id, collection, slot) in &moved {
-            let n = sqlx::query(
-                "UPDATE game_items SET collection=$2,slot=$3 WHERE id=$1 AND owner_id=$4",
-            )
-            .bind(id)
-            .bind(i16::try_from(*collection).map_err(|_| fail())?)
-            .bind(slot)
-            .bind(cid)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
-            if n != 1 {
+        // SwapSlot: `occupant.Stack(item)` first; a full or unrelated occupant swaps.
+        let mut changed: Vec<i64> = Vec::new();
+        let mut deleted = None;
+        let stack = match occupant {
+            Some(o) => stackable(assets, o, item)?
+                .filter(|max| o.count < *max)
+                .map(|max| (o, max)),
+            None => None,
+        };
+        if let Some((o, max_stack)) = stack {
+            let class: Vec<u8> = item
+                .class
+                .as_deref()
+                .unwrap_or("")
+                .encode_utf16()
+                .flat_map(u16::to_le_bytes)
+                .collect();
+            if assets.inventory.is_gold(&class) {
+                // Gold carries a count-dependent checksum; not in this slice.
                 return Err(fail());
+            }
+            let Some((occupant_count, moving_count)) =
+                crate::domain::item_stack::stack(o.count, item.count, max_stack)
+            else {
+                return Err(fail());
+            };
+            let amount = occupant_count - o.count;
+            // Item.Num setters register the occupant first, then the moved item.
+            sqlx::query("UPDATE game_items SET count=count+$2 WHERE id=$1 AND owner_id=$3")
+                .bind(o.id)
+                .bind(amount)
+                .bind(cid)
+                .execute(&mut *tx)
+                .await?;
+            changed.push(o.id);
+            if moving_count == 0 {
+                // Num = 0: RegisterDelete removes it from storage and destroys the row.
+                sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
+                    .bind(item.id)
+                    .bind(cid)
+                    .execute(&mut *tx)
+                    .await?;
+                deleted = Some(item.id);
+            } else {
+                sqlx::query("UPDATE game_items SET count=count-$2 WHERE id=$1 AND owner_id=$3")
+                    .bind(item.id)
+                    .bind(amount)
+                    .bind(cid)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            changed.push(item.id);
+        } else {
+            let mut moved = vec![(item.id, to_collection, request.slot)];
+            if let Some(o) = occupant {
+                moved.push((o.id, item.tab, item.slot));
+            }
+            for (id, collection, slot) in &moved {
+                let n = sqlx::query(
+                    "UPDATE game_items SET collection=$2,slot=$3 WHERE id=$1 AND owner_id=$4",
+                )
+                .bind(id)
+                .bind(i16::try_from(*collection).map_err(|_| fail())?)
+                .bind(slot)
+                .bind(cid)
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
+                if n != 1 {
+                    return Err(fail());
+                }
+                changed.push(*id);
             }
         }
         let after =
             super::minimum_inventory::snapshot_with_equipment(&mut tx, owner, assets, cid, None)
                 .await?;
-        let updated = moved
+        let updated = changed
             .iter()
-            .map(|(id, _, _)| {
+            .map(|id| {
+                if deleted == Some(*id) {
+                    return Ok(Some(deleted_slot(*id)));
+                }
                 after
                     .slots
                     .as_ref()
