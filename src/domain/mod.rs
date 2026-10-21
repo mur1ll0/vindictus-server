@@ -28,6 +28,8 @@ pub mod item_location;
 pub mod npc_script;
 pub mod npc_talk;
 pub mod queued_item;
+pub mod shop;
+pub mod shop_price;
 
 pub mod user_login_composition;
 

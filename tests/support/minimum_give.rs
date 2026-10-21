@@ -395,10 +395,14 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         ""
     ]);
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":0,"RewardAp":0,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
-    let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0},
-        "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"}],
-        "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
-        "storylines":[{"info":info,"tree":story}]});
+    let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"}],
+    "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
+    "storylines":[{"info":info,"tree":story}],
+    "shops":[
+        {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
+        {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
+    ]});
     vindictus_server::infrastructure::npc_scripts::Profile::read(
         serde_json::to_vec(&export).unwrap().as_slice(),
     )
@@ -580,5 +584,140 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
         .await
         .unwrap();
     assert_eq!(count, 1);
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_shop_buy_pays_once_refuses_without_changes_and_survives_relogin() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_shop,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 500, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let result = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        assert_eq!(packet.category, 235);
+        let Some(Message::BuyItemResult(r)) =
+            inventory::decode(Kind::BuyItemResult, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("result missing")
+        };
+        (
+            r.result,
+            r.item_count,
+            r.price_item_count,
+            r.restriction_order,
+        )
+    };
+    let gold = || async {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT count FROM game_items WHERE owner_id=1 AND collection=101",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let cash = || async {
+        sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT sum(count) FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+        )
+        .bind(utf16("synthetic_cash"))
+        .fetch_one(&p)
+        .await
+        .unwrap()
+        .unwrap_or(0)
+    };
+    let before_cash = cash().await;
+    // Three units of 2 items at 100 gold each (PriceCalc.Ceiling leaves 100 as is).
+    assert_eq!(
+        minimum_shop::entity_ids_needed(&assets, "test_shop", 1, 3),
+        1
+    );
+    let packets = minimum_shop::buy(
+        &p,
+        &owner,
+        &assets,
+        1,
+        "test_shop",
+        1,
+        3,
+        vec![920_000_000_000_000_001],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 235]
+    );
+    assert_eq!(result(&packets[1]), (1, 6, 300, 1));
+    assert_eq!((gold().await, cash().await), (200, before_cash + 6));
+    // Not enough gold: Failed with the unit values, nothing changes.
+    let state = items(&p).await;
+    let packets = minimum_shop::buy(
+        &p,
+        &owner,
+        &assets,
+        1,
+        "TEST_Shop",
+        1,
+        3,
+        vec![920_000_000_000_000_002],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(packets.len(), 1);
+    assert_eq!(result(&packets[0]), (2, 2, 100, -1));
+    assert_eq!(items(&p).await, state);
+    // Silent and unmigrated rows: no message, no change.
+    assert!(
+        minimum_shop::buy(&p, &owner, &assets, 1, "TEST_Shop", 1, 0, vec![], log)
+            .await
+            .is_err()
+    );
+    assert!(
+        minimum_shop::buy(&p, &owner, &assets, 1, "TEST_Shop", 9, 1, vec![], log)
+            .await
+            .is_err()
+    );
+    assert!(
+        minimum_shop::buy(&p, &owner, &assets, 1, "TEST_Shop", 2, 1, vec![], log)
+            .await
+            .is_err()
+    );
+    assert!(minimum_shop::has_restricted_rows(&assets, "test_shop"));
+    assert_eq!(items(&p).await, state);
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!((gold().await, cash().await), (200, before_cash + 6));
     cleanup_game_pool(a, p, s).await;
 }

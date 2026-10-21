@@ -109,6 +109,7 @@ pub mod minimum_give;
 pub mod minimum_item_logs;
 pub mod minimum_move;
 pub mod minimum_quickslot;
+pub mod minimum_shop;
 pub mod minimum_skills;
 pub mod minimum_story;
 pub mod minimum_use;

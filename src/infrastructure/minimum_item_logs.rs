@@ -48,6 +48,10 @@ pub fn flags(assets: &Assets) -> Result<Flags, MinimumError> {
 pub async fn operation_journal(pool: &PgPool, flags: Flags) -> i64 {
     item_journals::get_item_journal_id(pool, flags.disable_operation).await
 }
+/// ItemLog.AddItemJournal(name).
+pub async fn named_journal(pool: &PgPool, flags: Flags, name: &str) -> i64 {
+    item_journals::add_item_journal(pool, flags.disable_logging, name).await
+}
 /// ItemImpl.DestroyItem: AddItemJournal("DestroyItem") before the destroy.
 pub async fn destroy_item_journal(pool: &PgPool, flags: Flags) -> i64 {
     item_journals::add_destroy_item_journal(pool, flags.disable_logging).await
@@ -250,6 +254,33 @@ pub async fn write_destroy_ledger(
         journal,
         event: LEDGER_DESTROY_ITEM,
         action: 0,
+        data: d,
+        bundle: bundle_count(pool, cid, class).await,
+    };
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    let _attempt =
+        item_event_logs::write_ledger(pool, cid, &ledger, flags.disable_logging, deadline).await;
+}
+
+/// AddItemLedger(journal, event, action, LogData.From(owner, itemClass, num)).
+#[allow(clippy::too_many_arguments)]
+pub async fn write_requested_ledger(
+    pool: &PgPool,
+    cid: i64,
+    journal: i64,
+    event: i16,
+    action: i16,
+    class: &[u8],
+    count: i32,
+    flags: Flags,
+) {
+    let Ok(d) = Data::requested(class.to_vec(), count) else {
+        return;
+    };
+    let ledger = Ledger {
+        journal,
+        event,
+        action,
         data: d,
         bundle: bundle_count(pool, cid, class).await,
     };

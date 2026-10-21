@@ -36,6 +36,13 @@ pub enum Kind {
     SelectButton,
     ExecuteNpcServerCommand,
     StoryLines,
+    BuyItem,
+    BuyItemResult,
+    QueryShopItemInfo,
+    SellItem,
+    QueryBuybackList,
+    BuybackListResult,
+    RepairItem,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -65,6 +72,13 @@ impl Kind {
             Self::SelectButton => 564,
             Self::ExecuteNpcServerCommand => 459,
             Self::StoryLines => 598,
+            Self::BuyItem => 234,
+            Self::BuyItemResult => 235,
+            Self::QueryShopItemInfo => 167,
+            Self::SellItem => 566,
+            Self::QueryBuybackList => 293,
+            Self::BuybackListResult => 294,
+            Self::RepairItem => 424,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -94,6 +108,13 @@ impl Kind {
             Self::SelectButton => 0xd5dda62d_44c1_3c6a_8906_72164e564921,
             Self::ExecuteNpcServerCommand => 0x048fdbb2_e452_3c5f_b0b2_cfc80994e365,
             Self::StoryLines => 0x5498b052_d119_30e2_8224_1e2b990d4ef8,
+            Self::BuyItem => 0x2f52e151_33c1_34dc_bd6e_9535c35ab918,
+            Self::BuyItemResult => 0x64a08bdf_6762_3be2_9f6f_c7ff64a2b4a3,
+            Self::QueryShopItemInfo => 0x4088bd54_bc81_3398_8386_61bdaf5917c1,
+            Self::SellItem => 0x62669042_85a8_354c_9cab_ccae3c2becae,
+            Self::QueryBuybackList => 0x2271100a_effc_3693_b75d_165507d49b79,
+            Self::BuybackListResult => 0x88ce410b_fcb7_3794_ab5f_9cb25771ce3d,
+            Self::RepairItem => 0xb83c8562_c97c_343c_b421_d3cdada26774,
         })
     }
 }
@@ -211,6 +232,61 @@ pub enum Message {
     /// ExecuteNpcServerCommandMessage (fieldless).
     ExecuteNpcServerCommand,
     StoryLines(StoryLines),
+    BuyItem(BuyItem),
+    BuyItemResult(BuyItemResult),
+    /// QueryShopItemInfoMessage.ShopID.
+    QueryShopItemInfo(Option<String>),
+    SellItem(SellItem),
+    /// QueryBuybackListMessage (fieldless).
+    QueryBuybackList,
+    /// BuybackListResultMessage.BuybackList.
+    BuybackListResult(Option<Vec<Option<BuybackInfo>>>),
+    RepairItem(RepairItem),
+}
+/// BuyItemMessage: ShopID, Order, Count.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BuyItem {
+    pub shop_id: Option<String>,
+    pub order: i32,
+    pub count: i32,
+}
+/// BuyItemResultMessage in declaration order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BuyItemResult {
+    pub result: i32,
+    pub item_class: Option<String>,
+    pub item_count: i32,
+    pub price_item_class: Option<String>,
+    pub price_item_count: i32,
+    pub restriction_order: i32,
+    pub restriction_count: i32,
+}
+/// SellItemMessage: ItemID, Count.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SellItem {
+    pub item_id: i64,
+    pub count: i32,
+}
+/// BuybackInfo fields in declaration order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BuybackInfo {
+    pub shop_id: Option<String>,
+    pub order: i32,
+    pub item_class: Option<String>,
+    pub item_count: i32,
+    pub color1: i32,
+    pub color2: i32,
+    pub color3: i32,
+    pub price_item_class: Option<String>,
+    pub price_count: i32,
+}
+/// RepairItemMessage: ItemIDs and the three Add* flags.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RepairItem {
+    pub item_ids: Option<Vec<i64>>,
+    pub all_equipped: bool,
+    pub all_broken: bool,
+    pub all_repairable: bool,
 }
 /// BriefStoryLineInfo: StoryLine, Phase, Status, PhaseText.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -352,6 +428,13 @@ impl Message {
             Self::SelectButton(_) => Kind::SelectButton,
             Self::ExecuteNpcServerCommand => Kind::ExecuteNpcServerCommand,
             Self::StoryLines(_) => Kind::StoryLines,
+            Self::BuyItem(_) => Kind::BuyItem,
+            Self::BuyItemResult(_) => Kind::BuyItemResult,
+            Self::QueryShopItemInfo(_) => Kind::QueryShopItemInfo,
+            Self::SellItem(_) => Kind::SellItem,
+            Self::QueryBuybackList => Kind::QueryBuybackList,
+            Self::BuybackListResult(_) => Kind::BuybackListResult,
+            Self::RepairItem(_) => Kind::RepairItem,
         }
     }
 }
@@ -553,6 +636,38 @@ object!(StoryLines {
     status,
     hint_category
 });
+object!(BuyItem {
+    shop_id,
+    order,
+    count
+});
+object!(BuyItemResult {
+    result,
+    item_class,
+    item_count,
+    price_item_class,
+    price_item_count,
+    restriction_order,
+    restriction_count
+});
+object!(SellItem { item_id, count });
+object!(BuybackInfo {
+    shop_id,
+    order,
+    item_class,
+    item_count,
+    color1,
+    color2,
+    color3,
+    price_item_class,
+    price_count
+});
+object!(RepairItem {
+    item_ids,
+    all_equipped,
+    all_broken,
+    all_repairable
+});
 object!(TalkEntity {
     command,
     arg1,
@@ -617,6 +732,13 @@ pub fn encode(
             Message::NpcTalk(v) => v.write(&mut w)?,
             Message::SelectButton(v) => v.write(&mut w)?,
             Message::StoryLines(v) => v.write(&mut w)?,
+            Message::BuyItem(v) => v.write(&mut w)?,
+            Message::BuyItemResult(v) => v.write(&mut w)?,
+            Message::QueryShopItemInfo(v) => v.write(&mut w)?,
+            Message::SellItem(v) => v.write(&mut w)?,
+            Message::QueryBuybackList => {}
+            Message::BuybackListResult(v) => v.write(&mut w)?,
+            Message::RepairItem(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -668,6 +790,13 @@ pub fn decode(
             Kind::SelectButton => Message::SelectButton(Wire::read(&mut r)?),
             Kind::ExecuteNpcServerCommand => Message::ExecuteNpcServerCommand,
             Kind::StoryLines => Message::StoryLines(StoryLines::read(&mut r)?),
+            Kind::BuyItem => Message::BuyItem(BuyItem::read(&mut r)?),
+            Kind::BuyItemResult => Message::BuyItemResult(BuyItemResult::read(&mut r)?),
+            Kind::QueryShopItemInfo => Message::QueryShopItemInfo(Wire::read(&mut r)?),
+            Kind::SellItem => Message::SellItem(SellItem::read(&mut r)?),
+            Kind::QueryBuybackList => Message::QueryBuybackList,
+            Kind::BuybackListResult => Message::BuybackListResult(Wire::read(&mut r)?),
+            Kind::RepairItem => Message::RepairItem(RepairItem::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

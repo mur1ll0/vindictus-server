@@ -298,6 +298,107 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 assert_eq!(b.phase_text.as_deref(), e["PhaseText"].as_str(), "case {n}");
             }
         }
+        Some(Message::BuyItem(b)) => {
+            assert_eq!(b.shop_id.as_deref(), f["ShopID"].as_str(), "case {n}");
+            assert_eq!(i64::from(b.order), f["Order"].as_i64().unwrap(), "case {n}");
+            assert_eq!(i64::from(b.count), f["Count"].as_i64().unwrap(), "case {n}");
+        }
+        Some(Message::BuyItemResult(b)) => {
+            assert_eq!(
+                i64::from(b.result),
+                f["Result"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(b.item_class.as_deref(), f["ItemClass"].as_str(), "case {n}");
+            assert_eq!(
+                i64::from(b.item_count),
+                f["ItemCount"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                b.price_item_class.as_deref(),
+                f["PriceItemClass"].as_str(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(b.price_item_count),
+                f["PriceItemCount"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(b.restriction_order),
+                f["RestrictionItemOrder"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(b.restriction_count),
+                f["RestrictionItemCount"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::QueryShopItemInfo(shop)) => {
+            assert_eq!(shop.as_deref(), f["ShopID"].as_str(), "case {n}");
+        }
+        Some(Message::SellItem(sell)) => {
+            assert_eq!(sell.item_id, f["ItemID"].as_i64().unwrap(), "case {n}");
+            assert_eq!(
+                i64::from(sell.count),
+                f["Count"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::QueryBuybackList) => {}
+        Some(Message::BuybackListResult(list)) => {
+            let expected = f["BuybackList"].as_array();
+            assert_eq!(
+                list.as_ref().map(Vec::len),
+                expected.map(Vec::len),
+                "case {n}"
+            );
+            for (b, e) in list.iter().flatten().zip(expected.into_iter().flatten()) {
+                assert_eq!(b.is_none(), e.is_null(), "case {n}");
+                let Some(b) = b else { continue };
+                assert_eq!(b.shop_id.as_deref(), e["ShopID"].as_str(), "case {n}");
+                assert_eq!(i64::from(b.order), e["Order"].as_i64().unwrap(), "case {n}");
+                assert_eq!(b.item_class.as_deref(), e["ItemClass"].as_str(), "case {n}");
+                assert_eq!(
+                    i64::from(b.item_count),
+                    e["ItemCount"].as_i64().unwrap(),
+                    "case {n}"
+                );
+                assert_eq!(
+                    b.price_item_class.as_deref(),
+                    e["PriceItemClass"].as_str(),
+                    "case {n}"
+                );
+                assert_eq!(
+                    i64::from(b.price_count),
+                    e["PriceCount"].as_i64().unwrap(),
+                    "case {n}"
+                );
+            }
+        }
+        Some(Message::RepairItem(r)) => {
+            let ids = f["ItemIDs"]
+                .as_array()
+                .map(|a| a.iter().map(|v| v.as_i64().unwrap()).collect::<Vec<_>>());
+            assert_eq!(r.item_ids, ids, "case {n}");
+            assert_eq!(
+                Some(r.all_equipped),
+                f["AddAllEquippedItems"].as_bool(),
+                "case {n}"
+            );
+            assert_eq!(
+                Some(r.all_broken),
+                f["AddAllBrokenItems"].as_bool(),
+                "case {n}"
+            );
+            assert_eq!(
+                Some(r.all_repairable),
+                f["AddAllRepairableItems"].as_bool(),
+                "case {n}"
+            );
+        }
         Some(Message::SelectButton(index)) => {
             assert_eq!(
                 i64::from(index),
@@ -407,12 +508,19 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::SelectButton,
         Kind::ExecuteNpcServerCommand,
         Kind::StoryLines,
+        Kind::BuyItem,
+        Kind::BuyItemResult,
+        Kind::QueryShopItemInfo,
+        Kind::SellItem,
+        Kind::QueryBuybackList,
+        Kind::BuybackListResult,
+        Kind::RepairItem,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 921);
+        assert_eq!(cases.len(), 1137);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -437,6 +545,13 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "npc_talk" => check_inventory(Kind::NpcTalk, case, n),
                 "select_button" => check_inventory(Kind::SelectButton, case, n),
                 "story_lines" => check_inventory(Kind::StoryLines, case, n),
+                "buy_item" => check_inventory(Kind::BuyItem, case, n),
+                "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
+                "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
+                "sell_item" => check_inventory(Kind::SellItem, case, n),
+                "query_buyback_list" => check_inventory(Kind::QueryBuybackList, case, n),
+                "buyback_list_result" => check_inventory(Kind::BuybackListResult, case, n),
+                "repair_item" => check_inventory(Kind::RepairItem, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

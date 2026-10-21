@@ -171,6 +171,10 @@ pub async fn add_destroy_item_journal(pool: &PgPool, disable_logging: bool) -> i
 pub async fn add_manufacture_journal(pool: &PgPool, disabled: bool) -> i64 {
     add_named_journal(pool, disabled, "ManufactureReport").await
 }
+/// ItemLog.AddItemJournal(name) of an item processor (independent allocation and insert).
+pub async fn add_item_journal(pool: &PgPool, disable_logging: bool, name: &str) -> i64 {
+    add_named_journal(pool, disable_logging, name).await
+}
 async fn add_named_journal(pool: &PgPool, disable_logging: bool, name: &str) -> i64 {
     if disable_logging {
         return -1;

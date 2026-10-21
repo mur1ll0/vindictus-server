@@ -1067,6 +1067,8 @@ impl Connection {
                 Kind::QueryNpcTalk,
                 Kind::SelectButton,
                 Kind::ExecuteNpcServerCommand,
+                Kind::BuyItem,
+                Kind::QueryShopItemInfo,
                 Kind::QueryCharacterCommonInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -1171,6 +1173,58 @@ impl Connection {
                                 );
                             }
                             Err(_) => tracing::warn!("minimum NPC talk refused; values omitted"),
+                        }
+                    }
+                    Message::BuyItem(request) => {
+                        let shop = request.shop_id.as_deref().unwrap_or("");
+                        let needed = super::minimum_shop::entity_ids_needed(
+                            assets,
+                            shop,
+                            request.order,
+                            request.count,
+                        );
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(needed)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        match super::minimum_shop::buy(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            shop,
+                            request.order,
+                            request.count,
+                            ids,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum shop purchase processed; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum shop purchase refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::QueryShopItemInfo(shop) => {
+                        // ShopItemInfoResult is only sent for buy-restricted rows, which are
+                        // not migrated; shops without them answer nothing, as the source.
+                        if super::minimum_shop::has_restricted_rows(
+                            assets,
+                            shop.as_deref().unwrap_or(""),
+                        ) {
+                            tracing::warn!(
+                                "minimum shop restriction query not migrated; values omitted"
+                            );
                         }
                     }
                     Message::QueryNpcList => {

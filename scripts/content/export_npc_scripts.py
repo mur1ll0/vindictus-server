@@ -95,7 +95,32 @@ def read_package(base, database, config):
                 if not path.resolve().is_relative_to(base.resolve()): raise ValueError('Storyline outside XML root')
                 entry['tree'] = load(path, hasher)
             storylines.append(entry)
-    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading'}
+    def short(v):
+        if type(v) is not int or not -(2**15) <= v < 2**15: raise ValueError('ShopInfo Int16')
+        return v
+    def nullable_text(v):
+        if v is not None and not isinstance(v, str): raise ValueError('ShopInfo text')
+        return v
+    shops = []
+    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        coerced_shop = 0
+        for r in db.execute('Select * From [ShopInfo]'):
+            row = {'ShopID': nullable_text(r['ShopID']), 'Order': short(r['Order']), 'ItemClass': nullable_text(r['ItemClass']),
+                   'PriceItemClass': nullable_text(r['PriceItemClass']), 'AppearQuestID': nullable_text(r['AppearQuestID']),
+                   'CharacterBind': boolean(r['CharacterBind']), 'ID': r['ID'], 'RestrictionResetTime': nullable_text(r['RestrictionResetTime']),
+                   'Feature': nullable_text(r['Feature'])}
+            for k in ('Count', 'PriceCount', 'RestrictionPeriodDay', 'RestrictionCount'):
+                v = r[k]
+                if isinstance(v, str):
+                    coerced_shop += 1; v = db.execute('SELECT CAST(? AS INTEGER)', (v,)).fetchone()[0]
+                if type(v) is not int or not -(2**31) <= v < 2**31: raise ValueError('ShopInfo Int32')
+                row[k] = v
+            if row['ID'] is not None and (type(row['ID']) is not int or not -(2**31) <= row['ID'] < 2**31): raise ValueError('ShopInfo ID')
+            shops.append(row)
+            if len(shops) > 100000: raise ValueError('ShopInfo bound')
+    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'RestoreItem'}
+    for row in shops: wanted |= feature_atoms(row['Feature'] or '')
     for d in defaults:
         wanted |= feature_atoms(d['feature']); condition_atoms(d['tree'], wanted)
     for s in storylines:
@@ -112,8 +137,8 @@ def read_package(base, database, config):
     return {'format_version': 1, 'source': 'heroes.npc-scripts',
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
-                         'coerced_integers': coerced},
-            'features': features, 'defaults': defaults, 'storylines': storylines}
+                         'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

@@ -35,3 +35,12 @@ Pré-condição: a mesma do B1.3b.
 - [ ] Clicar no NPC marcado pela história inicial (GuidePlay) → fala da história.
 - [ ] Testar 3–4 NPCs diferentes (ferreiro, loja geral, pousada, guilda de aventureiros) e anotar qualquer diálogo que não abra.
 Limites conhecidos: opções que executam ações do servidor (dar/aceitar missão, dar item, título, reparo, armazém, manufatura, vocação) param no aviso de comando do servidor e não executam (B1.4/B1.5); abrir a loja chega ao cliente, mas comprar/vender é o B1.4; StorySave e logs de história não migrados.
+
+### B1.4a — comprar na loja do NPC
+Pré-condição: Fiona com ouro (B1.1) e espaço livre na bolsa; runtime com os assets atuais (lojas no perfil `npc_scripts`).
+- [ ] Falar com um NPC lojista (ex.: Ferghus, loja geral) e abrir a loja → lista de itens com preços.
+- [ ] Comprar 1 unidade de um consumível barato → o item entra no inventário (somando à pilha existente, se houver), o ouro diminui exatamente o preço exibido e o cliente mostra a compra concluída.
+- [ ] Comprar uma quantidade maior (ex.: 5) → total cobrado = preço × quantidade.
+- [ ] Tentar comprar algo mais caro que o saldo → recusa de ouro insuficiente; ouro e inventário inalterados.
+- [ ] Relogar → itens comprados e saldo preservados.
+Limites conhecidos: itens com limite de compra (restrição por período), itens pagos com AP, itens com atributo na classe (ex.: `[ENHANCE:3]`) e as abas recompra/Buyback/cupom são recusados sem alterar nada (sem resposta); a consulta de limites (QueryShopItemInfo) não responde.

@@ -59,6 +59,8 @@ pub struct Assets {
     pub(super) economy: Option<super::item_economy::Profile>,
     /// NpcTalkInfo defaults and storylines bound to `catalog`.
     pub(super) npc: Option<super::npc_scripts::Profile>,
+    /// shopInfoDic with PriceCalc prices for the configured arithmetic profile.
+    pub(super) shops: Option<crate::domain::shop::Shops>,
     pub(super) inventory: fiona_inventory_profile::Profile,
     pub(super) appearance: fiona_appearance::Profile,
     pub entity_service_id: i32,
@@ -196,6 +198,7 @@ impl Assets {
             color_index: item_colors::ColorIndex::default(),
             economy: None,
             npc: None,
+            shops: None,
             initializer: parts.initializer,
             catalog: parts.catalog,
             stats: parts.stats,
@@ -230,6 +233,26 @@ impl Assets {
         profile: super::npc_scripts::Profile,
     ) -> Result<Self, MinimumError> {
         profile.bind(&self.catalog)?;
+        // FeatureMatrix.GetFloat("ShopPriceRatio"); without an explicit arithmetic
+        // profile both Framework architectures must agree on every price.
+        use crate::domain::{shop::Shops, shop_price};
+        let ratio = shop_price::ratio(profile.policy.get_string("ShopPriceRatio"))
+            .ok_or(MinimumError::Conflict)?;
+        let rows = profile.shop_rows.clone();
+        let shops = match self.arithmetic {
+            Some(BodyArithmetic::FrameworkX86) => Shops::load(rows, ratio, shop_price::Arch::X86),
+            Some(BodyArithmetic::FrameworkX64) => Shops::load(rows, ratio, shop_price::Arch::X64),
+            None => {
+                let x64 = Shops::load(rows.clone(), ratio, shop_price::Arch::X64);
+                let x86 = Shops::load(rows, ratio, shop_price::Arch::X86);
+                match (x64, x86) {
+                    (Some(a), Some(b)) if a == b => Some(a),
+                    _ => None,
+                }
+            }
+        }
+        .ok_or(MinimumError::Conflict)?;
+        self.shops = Some(shops);
         self.npc = Some(profile);
         Ok(self)
     }

@@ -19,6 +19,8 @@ use sqlx::{Postgres, Transaction};
 pub struct Request<'a> {
     pub class: &'a [u8],
     pub count: i32,
+    /// GiveItemRequest IsCharacterBinded (ignored for destroy requests).
+    pub bound: bool,
 }
 /// Item created by MakeItem, for LogManager CreateItem records.
 pub struct CreatedItem {
@@ -149,7 +151,7 @@ pub(super) async fn apply(
         .map(|(r, class)| Give {
             class,
             count: r.count,
-            bound: false,
+            bound: r.bound,
         })
         .collect();
     let inventory = Inventory {
@@ -395,7 +397,11 @@ pub async fn lab_grant(
         assets,
         cid,
         &[],
-        &[Request { class: &key, count }],
+        &[Request {
+            class: &key,
+            count,
+            bound: false,
+        }],
         &mut ids,
     )
     .await?

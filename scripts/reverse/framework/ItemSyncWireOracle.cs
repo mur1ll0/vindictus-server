@@ -161,6 +161,21 @@ class ItemSyncWireOracle {
   AddCases("execute_npc_server_command",459,new Guid("048fdbb2-e452-3c5f-b0b2-cfc80994e365"),new[]{null,new ExecuteNpcServerCommandMessage()},cases);
   var briefs=new List<BriefStoryLineInfo>{new BriefStoryLineInfo(null,null,255),null,new BriefStoryLineInfo("GuidePlay_1_SkillTrain","p0",1,"goal_text"),new BriefStoryLineInfo("S0NT_99_CutScene","",0,null)};
   AddCases("story_lines",598,new Guid("5498b052-d119-30e2-8224-1e2b990d4ef8"),new[]{null,new StoryLinesMessage(null,0),new StoryLinesMessage(new List<BriefStoryLineInfo>(),int.MinValue),new StoryLinesMessage(briefs,3)},cases);
+  var buys=new List<BuyItemMessage>{null};
+  foreach(string sh in new[]{null,"","FERGHUS_Shop"})foreach(int o in new[]{-1,0,7})foreach(int c in new[]{int.MinValue,0,1,99})buys.Add(Obj<BuyItemMessage>("ShopID",sh,"Order",o,"Count",c));
+  AddCases("buy_item",234,new Guid("2f52e151-33c1-34dc-bd6e-9535c35ab918"),buys,cases);
+  AddCases("buy_item_result",235,new Guid("64a08bdf-6762-3be2-9f6f-c7ff64a2b4a3"),new[]{null,new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Failed,null,0,null,0),new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Succeeded,"potion_hp_lvl1",10,"gold",500,3,-1),new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Failed_UniqueConstraint,"x",int.MaxValue,"",int.MinValue,int.MinValue,int.MaxValue)},cases);
+  AddCases("query_shop_item_info",167,new Guid("4088bd54-bc81-3398-8386-61bdaf5917c1"),new[]{null,Obj<QueryShopItemInfoMessage>("ShopID",null),Obj<QueryShopItemInfoMessage>("ShopID",""),Obj<QueryShopItemInfoMessage>("ShopID","FERGHUS_Shop")},cases);
+  var sells=new List<SellItemMessage>{null};
+  foreach(long id in new[]{long.MinValue,-1L,0L,long.MaxValue})foreach(int c in new[]{int.MinValue,0,1,int.MaxValue})sells.Add(Obj<SellItemMessage>("ItemID",id,"Count",c));
+  AddCases("sell_item",566,new Guid("62669042-85a8-354c-9cab-ccae3c2becae"),sells,cases);
+  AddCases("query_buyback_list",293,new Guid("2271100a-effc-3693-b75d-165507d49b79"),new[]{null,new QueryBuybackListMessage()},cases);
+  var backs=new List<BuybackInfo>{new BuybackInfo(0,"potion",3,-1,-1,-1,40),null,new BuybackInfo(int.MaxValue,null,int.MinValue,1,2,3,int.MaxValue)};
+  backs[2].ShopID=null;backs[2].PriceItemClass=null;
+  AddCases("buyback_list_result",294,new Guid("88ce410b-fcb7-3794-ab5f-9cb25771ce3d"),new[]{null,new BuybackListResultMessage(null),new BuybackListResultMessage(new List<BuybackInfo>()),new BuybackListResultMessage(backs)},cases);
+  var repairs=new List<RepairItemMessage>{null,new RepairItemMessage(null),new RepairItemMessage(new List<long>{long.MinValue,0L,long.MaxValue}){AddAllEquippedItems=true,AddAllRepairableItems=true}};
+  var nullIds=new RepairItemMessage(new List<long>());nullIds.ItemIDs=null;nullIds.AddAllBrokenItems=true;repairs.Add(nullIds);
+  AddCases("repair_item",424,new Guid("b83c8562-c97c-343c-b421-d3cdada26774"),repairs,cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

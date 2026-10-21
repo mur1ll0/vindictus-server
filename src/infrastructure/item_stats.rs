@@ -223,6 +223,7 @@ impl StatsCatalog<'_> {
                         equippable: item.binding.equippable,
                         max_stack: item.max_stack,
                         source_index: item.source_index,
+                        bind: item.binding.bind.map(str::to_owned),
                         stat: self.stats.get(item.binding.item_class).cloned(),
                     },
                 )
@@ -244,6 +245,7 @@ struct IndexedItem {
     equippable: bool,
     max_stack: i32,
     source_index: usize,
+    bind: Option<String>,
     stat: Option<ItemStat>,
 }
 /// Effective class properties used by the inventory projection.
@@ -256,6 +258,10 @@ pub struct IndexedClass {
     pub source_index: usize,
 }
 impl StatsIndex {
+    /// ItemClassInfo.Bind feature expression of the effective class.
+    pub fn bind(&self, key: &[u8]) -> Option<Option<&str>> {
+        self.items.get(key).map(|i| i.bind.as_deref())
+    }
     pub fn get(&self, key: Option<&[u8]>) -> Option<&ItemStat> {
         let item = self.items.get(key?)?;
         Some(item.stat.as_ref().unwrap_or(&self.empty))

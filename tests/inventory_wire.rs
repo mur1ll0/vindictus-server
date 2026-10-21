@@ -117,7 +117,14 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::NpcTalk
                 | Kind::SelectButton
                 | Kind::ExecuteNpcServerCommand
-                | Kind::StoryLines => {
+                | Kind::StoryLines
+                | Kind::BuyItem
+                | Kind::BuyItemResult
+                | Kind::QueryShopItemInfo
+                | Kind::SellItem
+                | Kind::QueryBuybackList
+                | Kind::BuybackListResult
+                | Kind::RepairItem => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

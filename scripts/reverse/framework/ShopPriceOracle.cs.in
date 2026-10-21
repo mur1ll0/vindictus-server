@@ -1,0 +1,23 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Web.Script.Serialization;
+namespace PlayerService.ItemServiceCore {
+__PRICECALC__
+}
+public static class ShopPriceOracle {
+ public static void Main() {
+  CultureInfo.CurrentCulture = new CultureInfo("en-US");
+  var cases = new List<object>();
+  var ratios = new[] { "1", "0", "1.1", "0.9", "1.5", "2" };
+  var prices = new List<int> { int.MinValue, -1000, -1, 0, 1, 7, 9, 10, 11, 15, 99, 100, 101, 999, 1000, 1001, 4999, 16777, 16778, 99999, 100000, 123457, 999999, 1000000, 1234567, 4999999, 9999999, 10000000, 16777216, 16777217, 99999999, 2147483, 2147484, 21474836, 214748364, int.MaxValue };
+  foreach (string text in ratios) {
+   float ratio = float.Parse(text);
+   if (ratio == 0f) ratio = 1f;
+   foreach (int price in prices) {
+    cases.Add(new Dictionary<string, object> { { "ratio", text }, { "price", price }, { "ceiling", PlayerService.ItemServiceCore.PriceCalc.Ceiling(price, ratio) }, { "ceiling10", PlayerService.ItemServiceCore.PriceCalc.Ceiling10(price, ratio) } });
+   }
+  }
+  Console.WriteLine(new JavaScriptSerializer { MaxJsonLength = 1 << 24 }.Serialize(new { architecture = IntPtr.Size == 4 ? "x86" : "x64", cases = cases }));
+ }
+}

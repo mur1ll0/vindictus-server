@@ -352,6 +352,7 @@ pub async fn learn_new(
                 &[super::minimum_give::Request {
                     class: &gold,
                     count: new.price,
+                    bound: false,
                 }],
                 &[],
                 &mut || ids.next().ok_or_else(fail),
