@@ -124,3 +124,13 @@ Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arqu
 - `QueryCharacterCommonInfo` do próprio CID responde `CharacterCommonInfoMessage` com o `QueryID` (WhoIs Costume); outros CIDs ainda sem handler.
 - `LearnNewSkill` (340, cobra ouro pelo preço da skill) fica para a fatia seguinte, com a carteira de ouro.
 - Testes focados: 5 unitários `skill_list`, wire 732, 19 PostgreSQL/TCP (treino parcial, conclusão com troco, relogin no rank treinado, 527).
+
+## Rodada de complementos (21/10/2026)
+
+- **Logs de item:** cada processador aloca o `GetJournalID` (EquipItem 33, EquipBundle 32, MoveInventoryItem 53, UseInventoryItem 68), mesmo quando a execução falha. Mudanças de quantidade (empilhar, usar) geram linhas em `game_item_log` após o Save com `AutoItemLogging`, a última com a contagem do pacote; `UseUseableItem` grava o journal "UseItem" e o ledger DestroyItem/Use. Falhas de log não desfazem a operação.
+- **Logs de personagem (skill/crescimento/estado):** dependem do journal de sessão `AddCharacterJournal("Login")` e de tabelas ainda não migradas (só a sequência `game_character_journal_id` existe). Ficam para uma etapa própria de migração de logs de personagem.
+- **Vocação:** `ToSkillList` acrescenta `skill_voc_pl_transform00` (Paladino) ou `skill_voc_dk_transform00` (Cavaleiro Sombrio) como o original, em vez de recusar. O sistema de vocação em si (escolha, nível, transformação) continua fora deste bloco.
+- **Atalho de artefato:** EquipBundle de classe ARTIFACT exige o mesmo artefato vestido na parte 16 (`ArtifactQuickSlotFail`); vestir um artefato o coloca no atalho de artefato amostrado, no primeiro atalho ARTIFACT vazio ou no maior atalho; desvestir a parte 16 limpa esse atalho; QuickSlotInfo vai depois do sync de equipamento. Sem itens de artefato no perfil atual, o caminho só é exercitado por regras unitárias.
+- Correção: a checagem `UnequipConsumablesByConstraint` ignora atalhos de skill (sem ItemClassInfo), evitando falhar o equipar com skill ativa na barra.
+- **Itens usáveis:** além da cápsula de AP, os demais ramos do `UseInventoryItemProcessor` continuam recusados. A caixa `randomitem_levelup_v2_10` exige nível 10 (o original recusa a Fiona nível 1); abrir caixas exige `RandomItemV2` e um pipeline geral de entrega de itens (`GiveItem`), que será a fundação de loja/loot/recompensas.
+- **Melhorias de skill (SkillEnhance):** não migradas (sem tabelas, pedras de melhoria e sessões); a lista envia enhances vazios. Fica no P2 (evolução de equipamento/skill).
