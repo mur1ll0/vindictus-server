@@ -90,7 +90,7 @@ fn stackable(assets: &Assets, a: &Slot, b: &Slot) -> Result<Option<i32>, Minimum
 
 /// Item.ToSlotInfo for Num == 0: the 13-argument SlotInfo constructor with an empty
 /// class, zero location, no expiration, no attributes and default colors.
-fn deleted_slot(id: i64) -> Slot {
+pub(super) fn deleted_slot(id: i64) -> Slot {
     Slot {
         id,
         class: Some(String::new()),

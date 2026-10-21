@@ -99,7 +99,11 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::ItemFail
                 | Kind::MoveInventoryItem
                 | Kind::EquipBundle
-                | Kind::QuickSlotInfo => {
+                | Kind::QuickSlotInfo
+                | Kind::QueryAp
+                | Kind::Ap
+                | Kind::UseInventoryItem
+                | Kind::UseInventoryItemOk => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

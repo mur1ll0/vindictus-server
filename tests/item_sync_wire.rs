@@ -102,6 +102,36 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
         Some(Message::QuickSlotInfo(info)) => {
             assert_eq!(info.is_none(), f["info"].is_null(), "case {n}");
         }
+        Some(Message::QueryAp) => {}
+        Some(Message::Ap(a)) => {
+            assert_eq!(
+                a.next_bonus_ms,
+                f["NextBonusTimeTicks"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(i64::from(a.ap), f["AP"].as_i64().unwrap(), "case {n}");
+            assert_eq!(
+                i64::from(a.max_ap),
+                f["MaxAP"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(a.bonus_interval),
+                f["APBonusInterval"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::UseInventoryItem(u)) => {
+            assert_eq!(u.item_id, f["ItemID"].as_i64().unwrap(), "case {n}");
+            assert_eq!(
+                u.target_item_id,
+                f["TargetItemID"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::UseInventoryItemOk(class)) => {
+            assert_eq!(class.as_deref(), f["UseItemClass"].as_str(), "case {n}");
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -185,9 +215,17 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         character_list::COSTUME_UPDATE_CATEGORY,
         character_list::COSTUME_UPDATE_TYPE_ID,
     );
+    for kind in [
+        Kind::QueryAp,
+        Kind::Ap,
+        Kind::UseInventoryItem,
+        Kind::UseInventoryItemOk,
+    ] {
+        registered(kind.category(), kind.type_id());
+    }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 465);
+        assert_eq!(cases.len(), 585);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -195,6 +233,10 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "move_inventory_item" => check_inventory(Kind::MoveInventoryItem, case, n),
                 "equip_bundle" => check_inventory(Kind::EquipBundle, case, n),
                 "quick_slot_info" => check_inventory(Kind::QuickSlotInfo, case, n),
+                "query_ap" => check_inventory(Kind::QueryAp, case, n),
+                "ap" => check_inventory(Kind::Ap, case, n),
+                "use_inventory_item" => check_inventory(Kind::UseInventoryItem, case, n),
+                "use_inventory_item_ok" => check_inventory(Kind::UseInventoryItemOk, case, n),
                 "costume_update" => check_costume(case, n),
                 _ => panic!("unknown fixture type"),
             }

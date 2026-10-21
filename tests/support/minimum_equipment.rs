@@ -503,3 +503,60 @@ async fn minimum_move_swaps_bag_slots_refuses_source_failures_and_survives_relog
     assert_eq!(relogin, moved);
     cleanup_game_pool(a, p, s).await;
 }
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing() {
+    use vindictus_server::{
+        infrastructure::{minimum_ap, minimum_use},
+        protocol::inventory::UseItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets();
+    let owner = super::initial_inventory::key();
+    // Not selected: is_connected is false.
+    assert!(minimum_ap::query(&p, &owner, &assets, 1).await.is_err());
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE game_character_info SET ap=37 WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    let before = state(&p).await;
+    let packet = minimum_ap::query(&p, &owner, &assets, 1).await.unwrap();
+    assert_eq!(packet.category, 229);
+    let Some(Message::Ap(ap)) =
+        inventory::decode(Kind::Ap, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("AP message missing")
+    };
+    // Untrained meditation: BonusAPTime 0 reports -1 for both timing fields.
+    assert_eq!((ap.ap, ap.next_bonus_ms, ap.bonus_interval), (37, -1, -1));
+    assert_eq!(state(&p).await, before);
+    // Non-capsule items and unknown IDs change nothing.
+    let cash: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE collection=100")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let use_item = |item_id| {
+        minimum_use::use_item(
+            &p,
+            &owner,
+            &assets,
+            1,
+            UseItem {
+                item_id,
+                target_item_id: -1,
+            },
+        )
+    };
+    assert!(use_item(cash).await.is_err());
+    assert!(matches!(
+        use_item(i64::MAX).await,
+        Ok(minimum_use::Outcome::Unchanged)
+    ));
+    assert_eq!(state(&p).await, before);
+    cleanup_game_pool(a, p, s).await;
+}

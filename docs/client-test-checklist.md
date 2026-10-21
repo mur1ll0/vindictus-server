@@ -33,8 +33,12 @@ Pré-condição: runtime iniciado com `scripts/dev/start-lab-frontend.ps1` (perf
 - [ ] Relogar: atalhos preservados.
 - [ ] Usar o consumível pela barra só será possível dentro de fase (combate ainda não implementado).
 
-### Consumível usável na cidade
-- [ ] (Próxima fatia) Cápsula de AP no inventário Cash: usar e conferir AP.
+### AP e cápsula de AP (P0-03a)
+- [ ] Abrir a janela de skills: o AP exibido corresponde ao salvo (o cliente pede `QueryAP`).
+- [ ] Aba Cash: há uma pilha de **5× cápsula de AP 50** (concedida para teste em 21/10/2026).
+- [ ] Usar uma cápsula: a pilha cai para 4 e o AP sobe 50; reabrir a janela de skills confirma.
+- [ ] Relogar: pilha e AP preservados.
+- [ ] Usar até acabar: a pilha some da aba Cash.
 
 ## Como relatar
 Para cada falha: o que fez, o que apareceu na tela e o horário aproximado. Para lentidão: o horário, para comparar com `elapsed_ms`.

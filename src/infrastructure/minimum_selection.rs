@@ -104,6 +104,33 @@ pub async fn select(
     tx.commit().await?;
     Ok(Selected { cid, packets, look })
 }
+/// Skill runtime cache of the initialized first Fiona; only the initializer's
+/// skills at their initial ranks are admitted until skill training is migrated.
+pub(super) async fn skill_cache(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Cache, MinimumError> {
+    let skills: Vec<(Vec<u8>, i32)> = sqlx::query_as(
+        "SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id FOR SHARE",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    if skills.len() != assets.initializer.skills().len() {
+        return Err(MinimumError::Conflict);
+    }
+    let mut cache = Cache::default();
+    for ((key, rank), expected) in skills.iter().zip(assets.initializer.skills()) {
+        if key != expected.key() || *rank != expected.rank() {
+            return Err(MinimumError::Conflict);
+        }
+        cache
+            .load_base(key, *rank, Some(expected.arguments()))
+            .map_err(|_| MinimumError::Conflict)?;
+    }
+    Ok(cache)
+}
 pub(super) struct View {
     /// CharacterCommonInfo with the summary used by the lobby list.
     pub common: OutgoingPacket,
@@ -157,24 +184,7 @@ pub(super) async fn view(
     if row.try_get::<bool, _>("dirty")? || values != *base.values() {
         return Err(MinimumError::Conflict);
     }
-    let skills: Vec<(Vec<u8>, i32)> = sqlx::query_as(
-        "SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id FOR SHARE",
-    )
-    .bind(cid)
-    .fetch_all(&mut **tx)
-    .await?;
-    if skills.len() != assets.initializer.skills().len() {
-        return Err(MinimumError::Conflict);
-    }
-    let mut cache = Cache::default();
-    for ((key, rank), expected) in skills.iter().zip(assets.initializer.skills()) {
-        if key != expected.key() || *rank != expected.rank() {
-            return Err(MinimumError::Conflict);
-        }
-        cache
-            .load_base(key, *rank, Some(expected.arguments()))
-            .map_err(|_| MinimumError::Conflict)?;
-    }
+    let cache = skill_cache(tx, assets, cid).await?;
     let gear = super::minimum_equipment::load(tx, owner, assets, cid).await?;
     if !gear.bonus.skills.is_empty() {
         return Err(MinimumError::Conflict);

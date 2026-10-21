@@ -112,6 +112,14 @@ class ItemSyncWireOracle {
   AddCases("equip_bundle",456,new Guid("6652c42f-bf01-3da0-9415-f390b085e456"),bundles,cases);
   var quick=new List<QuickSlotInfoMessage>{null,new QuickSlotInfoMessage(null),new QuickSlotInfoMessage(new QuickSlotInfo(null)),new QuickSlotInfoMessage(new QuickSlotInfo(new Dictionary<int,string>())),new QuickSlotInfoMessage(new QuickSlotInfo(new Dictionary<int,string>{{3,""},{100,"life_potion_lvl0"},{101,null},{int.MinValue,"synthetic"}}))};
   AddCases("quick_slot_info",551,new Guid("edc4290e-196c-3f17-903f-d0f3317e47d9"),quick,cases);
+  AddCases("query_ap",526,new Guid("f061ae98-f5c8-333d-82ca-3b217e268120"),new[]{null,new QueryAPMessage()},cases);
+  var aps=new List<APMessage>{null};
+  foreach(int a in new[]{int.MinValue,-1,0,500,int.MaxValue})foreach(long t in new[]{long.MinValue,-1L,0L,long.MaxValue})aps.Add(new APMessage(a,a==0?-1:1000,t,a==500?-1:60));
+  AddCases("ap",229,new Guid("3d59ac68-6b3c-3f92-968e-b569b973f065"),aps,cases);
+  var uses=new List<UseInventoryItemMessage>{null};
+  foreach(long id in new[]{long.MinValue,-1L,0L,long.MaxValue})foreach(long tid in new[]{-1L,0L,long.MaxValue})uses.Add(new UseInventoryItemMessage(id,tid));
+  AddCases("use_inventory_item",629,new Guid("c182cb18-7469-3390-a0e7-8eba31d6e45d"),uses,cases);
+  AddCases("use_inventory_item_ok",627,new Guid("451d459f-bb17-325c-bb10-d608f03f4c3f"),new[]{null,Obj<UseInventoryItemOkMessage>(),Obj<UseInventoryItemOkMessage>("UseItemClass",""),Obj<UseInventoryItemOkMessage>("UseItemClass","capsule_ap50")},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

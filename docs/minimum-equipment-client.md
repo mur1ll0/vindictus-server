@@ -87,3 +87,12 @@ Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arqu
 - `Gear.Unequip` executa `UnequipConsumablesByConstraint`: suportado apenas quando as classes da barra não têm requisito de enhance/enchant nem são poções de despertar.
 - Perfil de conteúdo v3 inclui categoria/requisitos das 5 classes consumíveis da Fiona; exportador aceita classes sem `EquipItemInfo`.
 - Testes focados: unitários `quick_slot`, perfil, wire; 17 PostgreSQL/TCP de regressão. Fixture sintética sem parte consumível; aceite no cliente pelo roteiro [client-test-checklist.md](client-test-checklist.md).
+
+## P0-03a — AP e cápsula de AP
+
+- Codecs `QueryAPMessage` 526, `APMessage` 229 (campos na ordem de declaração: nextBonusTimeTicks, ap, maxap, apBonusInterval), `UseInventoryItemMessage` 629 e `UseInventoryItemOkMessage` 627 verificados no oracle (585 casos/arquitetura, x86=x64).
+- Recuperado: a SkillList e o AP **não** são enviados na seleção original (o SkillManager é construído antes de `InitFrontendConn`; o AP só é enviado se o INT mudar com os itens). O cliente pede `QueryAP`/`QuerySkillList` (InGame).
+- `QueryAPProcessor`: `UpdateAP` + resposta `APMessage(ap, APMax, next, interval)`. Para a Fiona sem meditação treinada `CalculateAPTime` = 0, então não há regeneração e next/interval = −1. Meditação treinada é recusada.
+- `UseInventoryItemProcessor`, ramo `capsule_ap`: `UseUseableItem` destrói 1 unidade do próprio item (apaga se zerar) e salva; envia `UseInventoryItemOk`; quantidade = atributo VALUE (ausente → 0) ou sufixo da classe; 0 → `ItemFail UseItemFail_NotUseableItem` com o item já consumido (como no original); senão `GiveAP(n, allowExceed)` (soma Int32 sem verificação) e `APMessage`. O `Sync` do inventário é enfileirado pelo `Save`, por isso a ordem é 627 → 229/358 → 617. Outros tipos de item usável são recusados sem alteração. Lacunas: ItemLog/journal e growth log.
+- Concessão de laboratório pedida pelo operador (21/10/2026): 5× `capsule_ap50` na aba Cash (100) da Fiona, slot livre seguinte, ID por ticks com checagem de unicidade, `tradable` copiado do item Cash existente (mesma regra `Bind=Disable`).
+- Testes focados: wire (585 casos), PostgreSQL `QueryAP`/uso não suportado e regressão (18).

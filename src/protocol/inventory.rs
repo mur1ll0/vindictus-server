@@ -18,6 +18,10 @@ pub enum Kind {
     MoveInventoryItem,
     EquipBundle,
     QuickSlotInfo,
+    QueryAp,
+    Ap,
+    UseInventoryItem,
+    UseInventoryItemOk,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -29,6 +33,10 @@ impl Kind {
             Self::MoveInventoryItem => 502,
             Self::EquipBundle => 456,
             Self::QuickSlotInfo => 551,
+            Self::QueryAp => 526,
+            Self::Ap => 229,
+            Self::UseInventoryItem => 629,
+            Self::UseInventoryItemOk => 627,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -40,6 +48,10 @@ impl Kind {
             Self::MoveInventoryItem => MOVE_TYPE_ID,
             Self::EquipBundle => 0x6652c42f_bf01_3da0_9415_f390b085e456,
             Self::QuickSlotInfo => 0xedc4290e_196c_3f17_903f_d0f3317e47d9,
+            Self::QueryAp => 0xf061ae98_f5c8_333d_82ca_3b217e268120,
+            Self::Ap => 0x3d59ac68_6b3c_3f92_968e_b569b973f065,
+            Self::UseInventoryItem => 0xc182cb18_7469_3390_a0e7_8eba31d6e45d,
+            Self::UseInventoryItemOk => 0x451d459f_bb17_325c_bb10_d608f03f4c3f,
         })
     }
 }
@@ -125,6 +137,25 @@ pub enum Message {
     EquipBundle(Bundle),
     /// QuickSlotInfoMessage.info.
     QuickSlotInfo(Option<QuickSlots>),
+    /// QueryAPMessage (fieldless).
+    QueryAp,
+    /// APMessage: field declaration order nextBonusTimeTicks, ap, maxap, apBonusInterval.
+    Ap(Ap),
+    UseInventoryItem(UseItem),
+    /// UseInventoryItemOkMessage.UseItemClass.
+    UseInventoryItemOk(Option<String>),
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Ap {
+    pub next_bonus_ms: i64,
+    pub ap: i32,
+    pub max_ap: i32,
+    pub bonus_interval: i32,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct UseItem {
+    pub item_id: i64,
+    pub target_item_id: i64,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct Bundle {
@@ -147,6 +178,10 @@ impl Message {
             Self::MoveInventoryItem(_) => Kind::MoveInventoryItem,
             Self::EquipBundle(_) => Kind::EquipBundle,
             Self::QuickSlotInfo(_) => Kind::QuickSlotInfo,
+            Self::QueryAp => Kind::QueryAp,
+            Self::Ap(_) => Kind::Ap,
+            Self::UseInventoryItem(_) => Kind::UseInventoryItem,
+            Self::UseInventoryItemOk(_) => Kind::UseInventoryItemOk,
         }
     }
 }
@@ -290,6 +325,16 @@ object!(Slot {
 object!(QuickSlots { classes });
 object!(HeroesString { format, parameters });
 object!(Bundle { class, quick_slot });
+object!(Ap {
+    next_bonus_ms,
+    ap,
+    max_ap,
+    bonus_interval
+});
+object!(UseItem {
+    item_id,
+    target_item_id
+});
 object!(Move {
     item_id,
     storage,
@@ -328,6 +373,10 @@ pub fn encode(
             Message::MoveInventoryItem(v) => v.write(&mut w)?,
             Message::EquipBundle(v) => v.write(&mut w)?,
             Message::QuickSlotInfo(v) => v.write(&mut w)?,
+            Message::QueryAp => {}
+            Message::Ap(v) => v.write(&mut w)?,
+            Message::UseInventoryItem(v) => v.write(&mut w)?,
+            Message::UseInventoryItemOk(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -359,6 +408,10 @@ pub fn decode(
             Kind::MoveInventoryItem => Message::MoveInventoryItem(Move::read(&mut r)?),
             Kind::EquipBundle => Message::EquipBundle(Bundle::read(&mut r)?),
             Kind::QuickSlotInfo => Message::QuickSlotInfo(Wire::read(&mut r)?),
+            Kind::QueryAp => Message::QueryAp,
+            Kind::Ap => Message::Ap(Ap::read(&mut r)?),
+            Kind::UseInventoryItem => Message::UseInventoryItem(UseItem::read(&mut r)?),
+            Kind::UseInventoryItemOk => Message::UseInventoryItemOk(Wire::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

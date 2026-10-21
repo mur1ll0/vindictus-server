@@ -996,6 +996,74 @@ impl Connection {
                 return Ok(());
             }
         }
+        {
+            use crate::protocol::inventory::{self as wire, Kind, Message};
+            for kind in [Kind::QueryAp, Kind::UseInventoryItem] {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                    .ok_or(RuntimeError::Message)?;
+                // QueryAP is an InGame message; UseInventoryItem passes UseSecondPassword.
+                let (Some(selected), true) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let assets = &runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .assets;
+                match message {
+                    Message::QueryAp => {
+                        match super::minimum_ap::query(pool, &owner, assets, cid).await {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!("minimum AP sent; values omitted");
+                            }
+                            Err(_) => tracing::warn!("minimum AP query rejected; values omitted"),
+                        }
+                    }
+                    Message::UseInventoryItem(request) => {
+                        match super::minimum_use::use_item(pool, &owner, assets, cid, request).await
+                        {
+                            Ok(super::minimum_use::Outcome::Applied(packets)) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum item use saved and synchronized");
+                            }
+                            Ok(super::minimum_use::Outcome::Unchanged) => {}
+                            Err(_) => {
+                                tracing::warn!("minimum item use rejected; values omitted")
+                            }
+                        }
+                    }
+                    _ => return Err(RuntimeError::Message),
+                }
+                return Ok(());
+            }
+        }
         if matches(category, body, LOG_OUT_CATEGORY, LOG_OUT_TYPE_ID) {
             // LogOutMessage has no fields; a null message is not `is LogOutMessage`.
             let fields = if category == 0 { &body[16..] } else { body };
