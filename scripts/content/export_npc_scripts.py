@@ -119,7 +119,20 @@ def read_package(base, database, config):
             if row['ID'] is not None and (type(row['ID']) is not int or not -(2**31) <= row['ID'] < 2**31): raise ValueError('ShopInfo ID')
             shops.append(row)
             if len(shops) > 100000: raise ValueError('ShopInfo bound')
-    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'BuybackListCount', 'RestoreItem'}
+    def int32(v):
+        if type(v) is not int or not -(2**31) <= v < 2**31: raise ValueError('Repair Int32')
+        return v
+    repair = {}
+    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        repair['enhance'] = [[int32(r['EnhanceLevel']), int32(r['Point'])] for r in db.execute('Select * From [RepairEnhanceInfo]')]
+        repair['quality'] = [[int32(r['Quality']), int32(r['Point'])] for r in db.execute('Select * From [RepairQualityInfo]')]
+        repair['enchant'] = [[int32(r['EnchantLevel']), int32(r['PrefixPoint']), int32(r['SuffixPoint'])] for r in db.execute('Select * From [RepairEnchantInfo]')]
+        repair['equip_class'] = [[nullable_text(r['EquipClass']), int32(r['Point'])] for r in db.execute('Select * From [RepairEquipClassInfo]')]
+        # EquipItemInfo in provider order, aligned with the catalog projection's equips.
+        repair['equip_item_class'] = [nullable_text(r['EquipClass']) for r in db.execute('Select * From [EquipItemInfo]')]
+    if len(repair['equip_item_class']) != len(catalog['equips']): raise ValueError('EquipItemInfo differs from the catalog projection')
+    wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'BuybackListCount', 'RestoreItem', 'RepairPriceRate'}
     for row in shops: wanted |= feature_atoms(row['Feature'] or '')
     for d in defaults:
         wanted |= feature_atoms(d['feature']); condition_atoms(d['tree'], wanted)
@@ -138,7 +151,7 @@ def read_package(base, database, config):
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
                          'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
-            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops}
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

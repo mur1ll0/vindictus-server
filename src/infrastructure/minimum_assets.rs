@@ -61,6 +61,8 @@ pub struct Assets {
     pub(super) npc: Option<super::npc_scripts::Profile>,
     /// shopInfoDic with PriceCalc prices for the configured arithmetic profile.
     pub(super) shops: Option<crate::domain::shop::Shops>,
+    /// GetEquipItemInfo().EquipClass of each effective equipment class.
+    pub(super) equip_class: std::collections::BTreeMap<Vec<u8>, Option<String>>,
     pub(super) inventory: fiona_inventory_profile::Profile,
     pub(super) appearance: fiona_appearance::Profile,
     pub entity_service_id: i32,
@@ -199,6 +201,7 @@ impl Assets {
             economy: None,
             npc: None,
             shops: None,
+            equip_class: Default::default(),
             initializer: parts.initializer,
             catalog: parts.catalog,
             stats: parts.stats,
@@ -253,6 +256,19 @@ impl Assets {
         }
         .ok_or(MinimumError::Conflict)?;
         self.shops = Some(shops);
+        self.equip_class = crate::application::item_catalog_inspection::catalog(&self.catalog)?
+            .equipment()
+            .map(|(key, row)| {
+                Ok((
+                    key.to_vec(),
+                    profile
+                        .equip_item_class
+                        .get(row)
+                        .ok_or(MinimumError::Conflict)?
+                        .clone(),
+                ))
+            })
+            .collect::<Result<_, MinimumError>>()?;
         self.npc = Some(profile);
         Ok(self)
     }

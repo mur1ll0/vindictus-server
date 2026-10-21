@@ -633,3 +633,8 @@ pub async fn buy_back(
         })?,
     ])
 }
+
+/// ItemOwner.SendDialog(message): SystemMessage(Dialog, HeroesString(message)).
+pub(super) fn dialog(message: &str) -> Result<OutgoingPacket, MinimumError> {
+    system_message(DIALOG, message, &[])
+}

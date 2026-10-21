@@ -17,6 +17,9 @@ class NpcScriptExportTests(unittest.TestCase):
             db.execute(f'CREATE TABLE StoryLineInfo({COLUMNS})')
             db.execute('CREATE TABLE ShopInfo(ShopID TEXT,"Order" INT,ItemClass TEXT,Count INT,PriceItemClass TEXT,PriceCount INT,AppearQuestID TEXT,CharacterBind bit,ID INT,RestrictionResetTime TEXT,RestrictionPeriodDay INT,RestrictionCount INT,Feature TEXT)')
             db.execute('INSERT INTO ShopInfo VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)', ('A_Shop', 1, 'potion', 2, 'gold', 95, None, 'False', None, None, 0, 0, 'shop_flag'))
+            db.executescript('CREATE TABLE RepairEnhanceInfo(EnhanceLevel INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairQualityInfo(Quality INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEnchantInfo(EnchantLevel INT,PrefixPoint INT,SuffixPoint INT,PrefixMaxDurabilityRecoveryPoint INT,SuffixMaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEquipClassInfo(EquipClass TEXT,Point INT,MaxDurabilityRecoveryPoint INT);')
+            db.execute('INSERT INTO RepairQualityInfo VALUES(2,5,0)')
+            db.execute('ALTER TABLE EquipItemInfo ADD COLUMN EquipClass TEXT')
             db.execute('INSERT INTO StoryLineInfo VALUES(' + ','.join('?' * 21) + ')', ('GuidePlay', 'n', 'QuestSet01', None, 'MainStream', None, 0, 0, 0, 0, None, '', None, 0, 1, 1023, 'False', 'True', 1, None, None))
             db.commit()
     def test_trees_keep_order_tails_and_source_integer_reads(self):
@@ -33,6 +36,7 @@ class NpcScriptExportTests(unittest.TestCase):
         shop = p['shops'][0]
         self.assertEqual((shop['ShopID'], shop['Order'], shop['PriceCount'], shop['CharacterBind'], p['manifest']['shops']), ('A_Shop', 1, 95, False, 1))
         self.assertIn('shop_flag', [f['key'] for f in p['features']])
+        self.assertEqual((p['repair']['quality'], len(p['repair']['equip_item_class'])), ([[2, 5]], 0))
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
     def test_missing_storyline_xml_is_refused(self):
         (self.xml / 'QuestSet01' / 'GuidePlay.xml').unlink()

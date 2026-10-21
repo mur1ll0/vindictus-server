@@ -80,6 +80,15 @@ struct RawShop {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct RawRepair {
+    enhance: Vec<(i32, i32)>,
+    quality: Vec<(i32, i32)>,
+    enchant: Vec<(i32, i32, i32)>,
+    equip_class: Vec<(Option<String>, i32)>,
+    equip_item_class: Vec<Option<String>>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RawStoryLine {
     info: RawInfo,
     tree: Option<Value>,
@@ -94,6 +103,7 @@ struct Export {
     defaults: Vec<RawDefault>,
     storylines: Vec<RawStoryLine>,
     shops: Vec<RawShop>,
+    repair: RawRepair,
 }
 
 fn fail() -> MinimumError {
@@ -139,6 +149,10 @@ pub struct Profile {
     pub policy: crate::domain::feature_policy::FeaturePolicy,
     /// ShopInfo rows in table order; prices are resolved per arithmetic profile.
     pub shop_rows: Vec<crate::domain::shop::ShopRow>,
+    /// Repair dictionaries (RepairPriceRate applied from `policy`).
+    pub repair: crate::domain::repair::RepairTables,
+    /// EquipItemInfo.EquipClass aligned with the catalog equips rows.
+    pub equip_item_class: Vec<Option<String>>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -237,7 +251,35 @@ impl Profile {
             export.features.into_iter().map(|f| (f.key, f.value)),
         )
         .map_err(|_| fail())?;
+        // ToDictionary keys: a duplicate throws in the source loader.
+        fn unique<K: Ord, V>(
+            rows: impl IntoIterator<Item = (K, V)>,
+        ) -> Result<std::collections::BTreeMap<K, V>, MinimumError> {
+            let mut out = std::collections::BTreeMap::new();
+            for (k, v) in rows {
+                if out.insert(k, v).is_some() {
+                    return Err(fail());
+                }
+            }
+            Ok(out)
+        }
+        let raw = export.repair;
+        let repair = crate::domain::repair::RepairTables {
+            enhance: unique(raw.enhance)?,
+            quality: unique(raw.quality)?,
+            enchant: unique(raw.enchant.into_iter().map(|(l, p, s)| (l, (p, s))))?,
+            equip_class: unique(
+                raw.equip_class
+                    .into_iter()
+                    .map(|(c, p)| Ok((c.ok_or_else(fail)?.to_lowercase(), p)))
+                    .collect::<Result<Vec<_>, MinimumError>>()?,
+            )?,
+            rate: policy.get_integer("RepairPriceRate").unwrap_or(0),
+        };
+        let equip_item_class = raw.equip_item_class;
         Ok(Self {
+            repair,
+            equip_item_class,
             shop_rows,
             policy,
             database_sha256: export.manifest.database_sha256,
@@ -246,6 +288,9 @@ impl Profile {
         })
     }
     pub fn bind(&self, catalog: &Catalog) -> Result<(), MinimumError> {
+        if self.equip_item_class.len() != catalog.equips.len() {
+            return Err(fail());
+        }
         if self.database_sha256 != catalog.manifest.database_sha256
             || self.config_sha256 != catalog.manifest.config_sha256
         {

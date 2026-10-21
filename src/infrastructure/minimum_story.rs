@@ -269,6 +269,8 @@ struct Facts {
     level: i32,
     titles: std::collections::BTreeSet<i32>,
     items: std::collections::BTreeMap<String, i32>,
+    repair_price: i32,
+    gold: i32,
     manufactures: std::collections::BTreeMap<String, (i32, i32)>,
 }
 impl crate::domain::npc_talk::Facts for Facts {
@@ -290,6 +292,12 @@ impl crate::domain::npc_talk::Facts for Facts {
     /// The quest service is not migrated and no quest can be given yet: no state.
     fn quest_progress(&self, _: &str) -> i32 {
         -1
+    }
+    fn repair_price(&self) -> i32 {
+        self.repair_price
+    }
+    fn gold(&self) -> i32 {
+        self.gold
     }
 }
 
@@ -332,8 +340,19 @@ pub async fn talk(
         .bind(cid)
         .fetch_all(&mut *tx)
         .await?;
+        let repair_price = super::minimum_repair::price_of_all(&mut tx, owner, assets, cid).await?;
+        let gold_key = assets.inventory.gold_class().to_vec();
+        let gold: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=$1 AND item_class_utf16=$2",
+        )
+        .bind(cid)
+        .bind(&gold_key)
+        .fetch_one(&mut *tx)
+        .await?;
         tx.commit().await?;
         let facts = Facts {
+            repair_price,
+            gold: i32::try_from(gold).map_err(|_| fail())?,
             class: c.class,
             level: c.level,
             titles: titles.into_iter().collect(),
@@ -399,6 +418,30 @@ pub async fn talk(
             }
         };
         let mut packets = Vec::new();
+        for effect in &pushed.effects {
+            match effect {
+                crate::domain::npc_talk::Effect::RepairAll => {
+                    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+                    let repaired = super::minimum_repair::repair(
+                        &mut tx,
+                        owner,
+                        assets,
+                        cid,
+                        super::minimum_repair::Selection {
+                            all_repairable: true,
+                            ..Default::default()
+                        },
+                    )
+                    .await?
+                    .ok_or_else(fail)?;
+                    tx.commit().await?;
+                    packets.push(packet(
+                        Kind::UpdateInventoryInfo,
+                        Message::UpdateInventoryInfo(Some(repaired.slots)),
+                    )?);
+                }
+            }
+        }
         for message in pushed.messages {
             let content = message
                 .into_iter()

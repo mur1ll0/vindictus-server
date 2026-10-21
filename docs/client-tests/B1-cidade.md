@@ -55,3 +55,9 @@ Pré-condição: Fiona com itens vendáveis na bolsa (ex.: poções compradas no
 - [ ] Recomprar um item → volta ao inventário (equipamento com as mesmas cores) e o ouro diminui no preço de recompra; a lista de recompra é atualizada.
 - [ ] Relogar → a lista de recompra fica vazia (como no original, ela vive só na sessão); itens e ouro preservados.
 Limites conhecidos: venda cujo ouro não caiba é recusada inteira (o original removeria o item mesmo assim); restauração por AP (Buyback_byAP) não migrada.
+
+### B1.4c — reparo pago
+Pré-condição: na cidade os equipamentos da Fiona estão com durabilidade cheia (desgaste só acontece em combate, B2). Este teste confere o caminho sem desgaste; o reparo com custo real fica para depois do primeiro combate.
+- [ ] No ferreiro, escolher a opção de reparo → o NPC informa o preço (0 com tudo inteiro) e conclui o reparo sem descontar ouro e sem travar o diálogo.
+- [ ] Usar o botão de reparo da janela de inventário/equipamento (se o cliente oferecer) → nada muda e nenhuma mensagem de erro aparece.
+Limites conhecidos: com itens desgastados (B2) o preço segue Item.RepairPrice (RepairEnhance/Quality/Enchant/EquipClass, RepairPriceRate); bônus de guilda não migrado (sem guilda = 0); efeitos de equipamento quebrado (ApplyBadStatus) não migrados.

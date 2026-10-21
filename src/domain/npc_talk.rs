@@ -82,6 +82,18 @@ pub trait Facts {
     fn manufacture(&self, id: &str) -> Option<(i32, i32)>;
     /// QueryQuestState(questID).Progress.
     fn quest_progress(&self, id: &str) -> i32;
+    /// ItemImpl.QueryRepairPrice(null, addAllRepairableItems: true).
+    fn repair_price(&self) -> i32;
+    /// Useable gold count (DestroyItem(gold, n) succeeds when n does not exceed it).
+    fn gold(&self) -> i32;
+}
+
+/// Server command effects decided during the query and applied afterwards in one
+/// transaction (their success was decided from the same Facts).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Effect {
+    /// ItemImpl.RepairItem(null, hideNotEnoughGold: false, addAllRepairableItems: true).
+    RepairAll,
 }
 
 /// Why a request produced no NpcTalkMessage.
@@ -131,6 +143,7 @@ impl Default for Session {
 pub struct Pushed {
     pub messages: Vec<Vec<TalkEntity>>,
     pub sync_story: bool,
+    pub effects: Vec<Effect>,
 }
 
 enum K {
@@ -286,7 +299,7 @@ impl<'a> Talker<'a> {
                 ..
             } => {
                 if self.is_server(id) {
-                    Err(TalkError::Unsupported(command))
+                    self.server_command(&command, arg1.as_deref(), k)
                 } else {
                     self.client_command(&command, arg1.as_deref(), arg2.as_deref(), k)
                 }
@@ -393,6 +406,44 @@ impl<'a> Talker<'a> {
                     Some(&left.to_string()),
                 ));
                 self.resume(k)
+            }
+        }
+    }
+    /// ProcessCommandFunc.Process_* that are migrated.
+    fn server_command(&mut self, command: &str, arg1: Option<&str>, k: K) -> Result<(), TalkError> {
+        match command {
+            "ask_repair" => {
+                let price = self.facts.repair_price().to_string();
+                self.add(entity("talk_repair", arg1, Some(&price)));
+                self.resume(k)
+            }
+            "do_repair" => {
+                if self.facts.repair_price() <= self.facts.gold() {
+                    self.pushed.effects.push(Effect::RepairAll);
+                    self.add(entity("do_repair_successful", None, None));
+                    self.resume(k)
+                } else {
+                    self.on_error("do_repair")
+                }
+            }
+            other => Err(TalkError::Unsupported(other.to_owned())),
+        }
+    }
+    /// StoryEntity.OnError: the NPC's "<cmd>_fail" talk, or the null-error entity.
+    fn on_error(&mut self, command: &str) -> Result<(), TalkError> {
+        self.session.is_error_handling = true;
+        let npc = self.session.talking_npc.clone();
+        let building = self.scripts.base.default_building(&npc);
+        let fail = format!("{command}_fail");
+        match self.scripts.base.command_talk(&building, &npc, &fail) {
+            Some(talk) => {
+                let content = talk.content;
+                self.process(content, K::DefaultPush)
+            }
+            None => {
+                let text = format!("GameUI_Heroes_NPCTalkEntity_Talk_NullError,{command}");
+                self.add(entity("Error", Some(&text), None));
+                self.default_push()
             }
         }
     }

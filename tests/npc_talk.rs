@@ -41,6 +41,12 @@ impl Facts for Fiona {
     fn quest_progress(&self, _: &str) -> i32 {
         -1
     }
+    fn repair_price(&self) -> i32 {
+        0
+    }
+    fn gold(&self) -> i32 {
+        500
+    }
 }
 fn scripts() -> NpcScripts {
     let menu = el(

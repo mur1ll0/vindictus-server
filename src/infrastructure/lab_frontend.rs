@@ -1071,6 +1071,7 @@ impl Connection {
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
+                Kind::RepairItem,
                 Kind::QueryCharacterCommonInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
@@ -1252,6 +1253,32 @@ impl Connection {
                                 tracing::info!("minimum sale processed; values omitted");
                             }
                             Err(_) => tracing::warn!("minimum sale refused; values omitted"),
+                        }
+                    }
+                    Message::RepairItem(request) => {
+                        let ids = request.item_ids.clone().unwrap_or_default();
+                        match super::minimum_repair::repair_item(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            super::minimum_repair::Selection {
+                                item_ids: &ids,
+                                all_equipped: request.all_equipped,
+                                all_broken: request.all_broken,
+                                all_repairable: request.all_repairable,
+                            },
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum repair processed; values omitted");
+                            }
+                            Err(_) => tracing::warn!("minimum repair refused; values omitted"),
                         }
                     }
                     Message::QueryBuybackList => {

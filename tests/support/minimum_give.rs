@@ -368,6 +368,23 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                 "",
                 [leaf("talk", "hi")],
                 ""
+            ],
+            [
+                "Talk",
+                [
+                    ["id", "FERGHUS"],
+                    ["location", "t01_bs"],
+                    ["command", "repair"]
+                ],
+                "",
+                [[
+                    "Do",
+                    [],
+                    "",
+                    [leaf("ask_repair", "price_text"), leaf("do_repair", "")],
+                    ""
+                ]],
+                ""
             ]
         ],
         ""
@@ -396,9 +413,10 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     ]);
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":0,"RewardAp":0,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
-    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"}],
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"}],
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
+    "repair":{"enhance":[[0,0]],"quality":[[2,6]],"enchant":[[0,0,0]],"equip_class":[["SWORD",2]],"equip_item_class":["sword"]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -875,5 +893,122 @@ async fn minimum_shop_sell_pays_sell_price_and_buyback_restores_the_sold_items()
             .await
             .is_err()
     );
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
+    use vindictus_server::{
+        domain::{character_stats::Arithmetic, repair},
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_repair, minimum_selection,
+            minimum_story,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    // Damage the fixture weapon (MaxDurability 200): 150 durability lost.
+    let weapon: i64 = sqlx::query_scalar("SELECT min(id) FROM game_equippables")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE game_equippables SET reduced_durability=150 WHERE id=$1")
+        .bind(weapon)
+        .execute(&p)
+        .await
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    // The fixture weapon has Price 0: RepairPrice is 0 and repair needs no gold.
+    let tables = repair::RepairTables {
+        quality: [(2, 6)].into_iter().collect(),
+        rate: 100,
+        ..Default::default()
+    };
+    assert_eq!(repair::repair_price(&tables, 50, 200, 0, None), 0);
+    // 20000 lost × 1,000,000 × ItemValue 50 × 3e-10 × 100 / 100, truncated.
+    assert_eq!(
+        repair::repair_price(&tables, 0, 20000, 1_000_000, None),
+        299
+    );
+    let mut session = vindictus_server::domain::npc_talk::Session::default();
+    let packets = minimum_story::talk(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        minimum_story::TalkRequest::TalkTo {
+            location: Some("t01_bs"),
+            npc: "FERGHUS",
+            story_line: None,
+            command: Some("repair"),
+        },
+    )
+    .await
+    .unwrap();
+    // StartQuery leaves server commands enabled and Talk.Content.Process runs without
+    // DoChain, so a leading server command executes at once: Sync, then the talk.
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 508]
+    );
+    let Some(Message::NpcTalk(Some(content))) =
+        inventory::decode(Kind::NpcTalk, &packets[1].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("talk missing")
+    };
+    let commands: Vec<_> = content
+        .into_iter()
+        .map(|e| e.unwrap().command.unwrap())
+        .collect();
+    assert_eq!(
+        &commands[..3],
+        ["change_npc", "talk_repair", "do_repair_successful"]
+    );
+    let reduced: i32 =
+        sqlx::query_scalar("SELECT reduced_durability FROM game_equippables WHERE id=$1")
+            .bind(weapon)
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(reduced, 0);
+    // RepairItemMessage with nothing to repair still answers with the (empty) Sync.
+    let packets = minimum_repair::repair_item(
+        &p,
+        &owner,
+        &assets,
+        1,
+        minimum_repair::Selection {
+            item_ids: &[weapon],
+            ..Default::default()
+        },
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(packets[0].category, 617);
     cleanup_game_pool(a, p, s).await;
 }
