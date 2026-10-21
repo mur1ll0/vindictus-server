@@ -1,6 +1,26 @@
 # Roteiro de testes no cliente — B1 cidade
 
-Bloco B1 (dinheiro, NPCs, lojas e quests). A preparação, a ordem de gameplay e o formato de relato são completados no gate do bloco.
+Bloco B1 (dinheiro, NPCs, lojas, histórias e quests). Gate fechado em 21/10/2026 (resultado no `MIGRATION.md`).
+
+## Preparação
+1. Banco do laboratório: o smoke Docker do gate já aplicou as migrações até a 0037. Se o banco tiver sido recriado, rodar `docker compose run --rm --no-deps migrate` (idempotente).
+2. Binário nativo: `cargo build --locked`.
+3. Conteúdo privado (já regenerado no gate): `.cache/private-content/npc-scripts.json` (scripts de NPC, lojas, reparo e tabelas de quest) e `.cache/private-content/item-economy.json` (formato 3). O `minimum-creation-assets.json` aponta para os dois. Para regenerar: `py -3.13 scripts/content/export_npc_scripts.py --output .cache/private-content/npc-scripts.json` e `py -3.13 scripts/content/export_item_economy.py --output .cache/private-content/item-economy.json`.
+4. Personagem: a mesma Fiona inicial (nível 1) aceita no B0. Com ela **deslogada**, conceder ouro: `pwsh scripts/dev/lab-give-item.ps1 -ItemClass gold -Count 50000`.
+5. Runtime: `pwsh scripts/dev/start-lab-frontend.ps1 -ProfileFile <o mesmo .cache/private-frontend/runtime-*.json do B0> -MinimumCreationAssetsFile .cache/private-content/minimum-creation-assets.json`. O log do runtime fica em `.cache/verification/lab-frontend-*`.
+
+## Ordem de gameplay (uma sessão)
+1. Antes de entrar: B1.1 (ouro concedido; conferir o saldo ao entrar).
+2. Entrar na cidade: B1.3b (NPCs e histórias abertas) e B1.5b (lista de quests com a do Gnoll Watchman revelada).
+3. Inventário: B1.6 (caixa Level Up recusada por nível; poção/pena/kit recusados na cidade; cápsula de AP, se houver, funcionando).
+4. Conversas: B1.3c (saudações, menus, botões, comando de servidor).
+5. História principal: B1.5a seguindo a GuidePlay (Marrec → Ceara → guia para o distrito de combate) e a entrada B1.5b do ramo "quest não concluída".
+6. Lojas: B1.4a (comprar), B1.4b (vender e recomprar), B1.4c (reparo sem desgaste).
+7. Skills: B1.2 (aprender skill nova pagando ouro).
+8. Relogar uma vez no fim e conferir tudo o que cada entrada lista como preservado (ouro, itens, skill, fase/guia das histórias, quests).
+
+## Como relatar
+Para cada linha marcada: ID da entrada e número da linha (ex.: `B1.4b-3`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `.cache/verification/lab-frontend-*`. Marcar `[x]` no que passou e descrever o que divergiu; uma linha não testada fica `[ ]` com o motivo.
 
 ### B1.1 — carteira de ouro (gold na AccountStorage) e GiveItem geral
 Pré-condição: Fiona deslogada (fora da cidade e da seleção). Com o binário compilado (`cargo build --locked`), conceder ouro pelo comando de laboratório:
@@ -17,7 +37,7 @@ Pré-condição: Fiona com ouro (entrada B1.1; por exemplo `-Count 50000`). Runt
 - [ ] Tentar comprar uma skill com ouro insuficiente (ou com nível insuficiente) → mensagem de falha correspondente (ouro insuficiente / nível) e nenhum ouro descontado.
 - [ ] Se a skill for ativa, ela ocupa o primeiro slot SP vazio.
 - [ ] Relogar → a skill continua aprendida e o saldo de ouro preservado.
-Limites conhecidos: skill que exige desbloqueio por história no rank 2 é recusada (serviço de histórias não migrado; nenhuma skill da Fiona está nesse caso); efeitos de atributo da skill nova aparecem após relogar (UpdateStat imediato não é enviado, como no treino do B0); log de personagem (AddSkillLog) não migrado.
+Limites conhecidos: skill que exige desbloqueio por história no rank 2 é recusada (serviço de histórias não migrado; nenhuma skill da Fiona está nesse caso); efeitos de atributo da skill nova aparecem após relogar (UpdateStat imediato não é enviado, como no treino do B0).
 
 ### B1.3b — lista de NPCs e histórias abertas no login
 Pré-condição: runtime com os assets privados atuais (`npc_scripts` = `.cache/private-content/npc-scripts.json`). A Fiona ainda sem progresso de histórias (primeiro login após este passo).
@@ -34,7 +54,7 @@ Pré-condição: a mesma do B1.3b.
 - [ ] Botão de despedida ("tchau"/endtalk) → fecha o diálogo; clicar de novo no NPC reabre normalmente.
 - [ ] Clicar no NPC marcado pela história inicial (GuidePlay) → fala da história.
 - [ ] Testar 3–4 NPCs diferentes (ferreiro, loja geral, pousada, guilda de aventureiros) e anotar qualquer diálogo que não abra.
-Limites conhecidos: opções que executam ações do servidor (dar/aceitar missão, dar item, título, reparo, armazém, manufatura, vocação) param no aviso de comando do servidor e não executam (B1.4/B1.5); abrir a loja chega ao cliente, mas comprar/vender é o B1.4; StorySave e logs de história não migrados.
+Limites conhecidos (estado no gate): comandos de servidor de história, itens, quests e reparo foram migrados no B1.4/B1.5; título, armazém, manufatura, vocação, skill dada por história e demais comandos de servidor ainda param no aviso de comando sem executar; logs de história não migrados.
 
 ### B1.4a — comprar na loja do NPC
 Pré-condição: Fiona com ouro (B1.1) e espaço livre na bolsa; runtime com os assets atuais (lojas no perfil `npc_scripts`).
@@ -43,7 +63,7 @@ Pré-condição: Fiona com ouro (B1.1) e espaço livre na bolsa; runtime com os 
 - [ ] Comprar uma quantidade maior (ex.: 5) → total cobrado = preço × quantidade.
 - [ ] Tentar comprar algo mais caro que o saldo → recusa de ouro insuficiente; ouro e inventário inalterados.
 - [ ] Relogar → itens comprados e saldo preservados.
-Limites conhecidos: itens com limite de compra (restrição por período), itens pagos com AP, itens com atributo na classe (ex.: `[ENHANCE:3]`) e as abas recompra/Buyback/cupom são recusados sem alterar nada (sem resposta); a consulta de limites (QueryShopItemInfo) não responde.
+Limites conhecidos: itens com limite de compra (restrição por período), itens pagos com AP, itens com atributo na classe (ex.: `[ENHANCE:3]`) e a aba de cupom são recusados (a recompra veio no B1.4b) sem alterar nada (sem resposta); a consulta de limites (QueryShopItemInfo) não responde.
 
 ### B1.4b — vender e recomprar
 Pré-condição: Fiona com itens vendáveis na bolsa (ex.: poções compradas no B1.4a).
@@ -69,7 +89,7 @@ Pré-condição: Fiona nível 1 após o login com as histórias automáticas abe
 - [ ] Se o diálogo entregar ou pedir item de história, o inventário muda na mesma hora (entrega/remoção) e o NPC confirma.
 - [ ] Repetir o diálogo do NPC seguinte indicado pelo guia até a história pedir combate ou missão.
 - [ ] Relogar → fase, guia e itens entregues pela história preservados (o NPC continua no ponto em que parou).
-Limites conhecidos: conclusões de história com recompensa de EXP/AP/título/skill/item, `give_quest`/missões (B1.5b), `set_timer`/`time_passed` e itens de história com atributo (`[...]`/`_lvl`) não respondem (o diálogo para sem mudar nada); entrega de item sem espaço é recusada inteira (o original manda por correio); recompensa de ouro de história usa GoldRate_Story.
+Limites conhecidos: conclusões de história com recompensa de EXP/AP/título/skill/item (ficam com o XP do B2), `set_timer`/`time_passed` e itens de história com atributo (`[...]`/`_lvl`) não respondem (o diálogo para sem mudar nada); entrega de item sem espaço é recusada inteira (o original manda por correio); recompensa de ouro de história usa GoldRate_Story.
 
 ### B1.5b — registro de quests
 Pré-condição: runtime com a migração 0036 aplicada (`migrate`) e o perfil `npc_scripts` reexportado com as tabelas de quest (`scripts/content/export_npc_scripts.py`).
