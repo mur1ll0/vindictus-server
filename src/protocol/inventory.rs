@@ -16,6 +16,8 @@ pub enum Kind {
     UpdateInventoryInfo,
     ItemFail,
     MoveInventoryItem,
+    EquipBundle,
+    QuickSlotInfo,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -25,6 +27,8 @@ impl Kind {
             Self::UpdateInventoryInfo => 617,
             Self::ItemFail => 358,
             Self::MoveInventoryItem => 502,
+            Self::EquipBundle => 456,
+            Self::QuickSlotInfo => 551,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -34,6 +38,8 @@ impl Kind {
             Self::UpdateInventoryInfo => 0xabacd3bc_1a84_3570_a62c_f1b0007675fb,
             Self::ItemFail => 0x2f756b90_8fba_38b8_bcb2_a51f0f132502,
             Self::MoveInventoryItem => MOVE_TYPE_ID,
+            Self::EquipBundle => 0x6652c42f_bf01_3da0_9415_f390b085e456,
+            Self::QuickSlotInfo => 0xedc4290e_196c_3f17_903f_d0f3317e47d9,
         })
     }
 }
@@ -115,6 +121,15 @@ pub enum Message {
     ItemFail(Option<HeroesString>),
     /// MoveInventoryItemMessage: targetItemID, targetStorage, targetSlot.
     MoveInventoryItem(Move),
+    /// EquipBundleMessage: ItemClass ("" clears), QuickSlotID.
+    EquipBundle(Bundle),
+    /// QuickSlotInfoMessage.info.
+    QuickSlotInfo(Option<QuickSlots>),
+}
+#[derive(Clone, PartialEq, Eq)]
+pub struct Bundle {
+    pub class: Option<String>,
+    pub quick_slot: i32,
 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Move {
@@ -130,6 +145,8 @@ impl Message {
             Self::UpdateInventoryInfo(_) => Kind::UpdateInventoryInfo,
             Self::ItemFail(_) => Kind::ItemFail,
             Self::MoveInventoryItem(_) => Kind::MoveInventoryItem,
+            Self::EquipBundle(_) => Kind::EquipBundle,
+            Self::QuickSlotInfo(_) => Kind::QuickSlotInfo,
         }
     }
 }
@@ -272,6 +289,7 @@ object!(Slot {
 });
 object!(QuickSlots { classes });
 object!(HeroesString { format, parameters });
+object!(Bundle { class, quick_slot });
 object!(Move {
     item_id,
     storage,
@@ -308,6 +326,8 @@ pub fn encode(
             Message::UpdateInventoryInfo(v) => v.write(&mut w)?,
             Message::ItemFail(v) => v.write(&mut w)?,
             Message::MoveInventoryItem(v) => v.write(&mut w)?,
+            Message::EquipBundle(v) => v.write(&mut w)?,
+            Message::QuickSlotInfo(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -337,6 +357,8 @@ pub fn decode(
             Kind::UpdateInventoryInfo => Message::UpdateInventoryInfo(Wire::read(&mut r)?),
             Kind::ItemFail => Message::ItemFail(Wire::read(&mut r)?),
             Kind::MoveInventoryItem => Message::MoveInventoryItem(Move::read(&mut r)?),
+            Kind::EquipBundle => Message::EquipBundle(Bundle::read(&mut r)?),
+            Kind::QuickSlotInfo => Message::QuickSlotInfo(Wire::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

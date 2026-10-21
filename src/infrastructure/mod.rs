@@ -103,3 +103,4 @@ pub mod minimum_equipment;
 
 pub mod minimum_equip;
 pub mod minimum_move;
+pub mod minimum_quickslot;

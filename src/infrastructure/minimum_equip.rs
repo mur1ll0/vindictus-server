@@ -36,6 +36,8 @@ pub enum Outcome {
     Refused(OutgoingPacket),
     /// Source paths that save nothing and send no frontend message.
     Unchanged,
+    /// Quick slot cleared through EquipItem(-1, part): QuickSlotInfo only.
+    QuickSlots(OutgoingPacket),
 }
 
 fn fail() -> MinimumError {
@@ -203,7 +205,18 @@ pub async fn equip(
                 if let (Some(old), _) = slot.clear() {
                     touch(old.id, &mut modified);
                 }
-            } else if !gear.quick.contains(&p) {
+            } else if gear.quick.contains(&p) {
+                // StackableSlot.Clear: only QuickSlotInfo is synchronized.
+                let mut quick = super::minimum_quickslot::load(&mut tx, assets, cid).await?;
+                let Some(Some(change)) = quick.clear(part) else {
+                    tx.commit().await?;
+                    return Ok(Outcome::Unchanged);
+                };
+                super::minimum_quickslot::persist(&mut tx, cid, &[change]).await?;
+                let packet = super::minimum_quickslot::packet(&quick)?;
+                tx.commit().await?;
+                return Ok(Outcome::QuickSlots(packet));
+            } else {
                 return Err(fail());
             }
         } else {
@@ -306,6 +319,20 @@ pub async fn equip(
         if modified.is_empty() {
             tx.commit().await?;
             return Ok(Outcome::Unchanged);
+        }
+        // Gear.Unequip(part) runs UnequipConsumablesByConstraint over the quick slot
+        // classes; only classes without enhance/enchant requirements are supported.
+        let quick = super::minimum_quickslot::load(&mut tx, assets, cid).await?;
+        let profile = assets.equipment.as_ref().ok_or_else(fail)?;
+        for class in quick.classes() {
+            let constraint = profile.constraint(&assets.catalog, &utf16(class))?;
+            if constraint.required_enhance > 0
+                || constraint.required_enchant > 0
+                || class.starts_with("awakening_atk_potion")
+                || class.starts_with("awakening_def_potion")
+            {
+                return Err(fail());
+            }
         }
         for id in &modified {
             let part = gear.part_of(*id).map(i16::from);

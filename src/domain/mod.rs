@@ -100,3 +100,5 @@ pub mod equipped_gear;
 pub mod item_constraint;
 
 pub mod item_stack;
+
+pub mod quick_slot;

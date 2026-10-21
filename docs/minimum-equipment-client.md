@@ -77,3 +77,13 @@ Verificação: oracle Framework `ItemSyncWireOracle` (617/358/447, 72 casos/arqu
 - Fora desta fatia (recusado sem alteração): empilhar itens da mesma classe (`Item.Stack`, que pode apagar o item movido) e movimentação no storage Cash.
 - Testes focados: PostgreSQL mover/trocar/recusas/relogin e equipar (6), wire 502; suíte completa pendente para o fim do bloco P0-02.
 - **Empilhar (P0-02e):** soltar um item sobre outro da mesma classe segue `SwapSlot` → `Item.Stack`: só não equipáveis da mesma classe e vinculação (atributos/expiração verificados ausentes); soma até `MaxStack`; ocupante cheio ou classe diferente → troca. Item movido zerado é apagado e enviado como `SlotInfo` vazio (construtor de 13 argumentos); 617 na ordem ocupante → movido. Ouro (checksum dependente da quantidade) recusado nesta fatia. Lacuna: ledger/ItemLog da alteração de quantidade. Testes: unitário do Stack e PostgreSQL de mover (fixture sintética sem empilhável na bolsa; aceite real no cliente com poções/dardos).
+
+## P0-02f — barra de atalhos (quickslots)
+
+- `EquipBundleMessage` 456 (`ItemClass`, `QuickSlotID`) e `QuickSlotInfoMessage` 551 verificados no oracle (465 casos/arquitetura, x86=x64).
+- `EquipBundleProcessor` → `ItemOwner.Equip(part, itemClass)`: atalho já no mesmo slot = sucesso sem mudança; classe inexistente → `ConstraintFail_InvalidClass`; `IsConstraintSatisfied`; ARTIFACT (depende da parte 16) recusado nesta fatia; a classe sai do atalho anterior; `StackableSlot.Set` recusa slot bloqueado/inexistente (`InvalidSlot`) e categoria fora da parte (`InvalidItemCategory`). `ItemClass=""` limpa o slot. Classes `skill_` (atalhos de skill) ficam para o P0-03; `fishing_` é aceito sem operação, como no proxy.
+- `EquipItem(-1, quickslot)` limpa o atalho e envia só a 551.
+- `game_quick_slots` passa a ser carregado (linhas duplicadas/partes desconhecidas recusadas); `InventoryInfo` envia `ToQuickSlotInfo` real: todo atalho desbloqueado em ordem de conteúdo, vazio como `""` (antes era um dicionário vazio). Slots expandidos continuam recusados.
+- `Gear.Unequip` executa `UnequipConsumablesByConstraint`: suportado apenas quando as classes da barra não têm requisito de enhance/enchant nem são poções de despertar.
+- Perfil de conteúdo v3 inclui categoria/requisitos das 5 classes consumíveis da Fiona; exportador aceita classes sem `EquipItemInfo`.
+- Testes focados: unitários `quick_slot`, perfil, wire; 17 PostgreSQL/TCP de regressão. Fixture sintética sem parte consumível; aceite no cliente pelo roteiro [client-test-checklist.md](client-test-checklist.md).

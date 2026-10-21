@@ -291,6 +291,22 @@ pub async fn require_slots_absent(
 ) -> Result<(), LoaderError> {
     require_absent(tx, cid, false).await
 }
+/// Expanded slot rows only; quick slot rows are loaded by the selected-character path.
+pub async fn require_expanded_absent(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<(), LoaderError> {
+    lock_initialized(tx).await?;
+    let present: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_expanded_slots WHERE cid=$1)")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    if present {
+        return Err(LoaderError::Nonempty);
+    }
+    Ok(())
+}
 pub async fn require_manufacture_absent(
     tx: &mut Transaction<'_, Postgres>,
     cid: i64,

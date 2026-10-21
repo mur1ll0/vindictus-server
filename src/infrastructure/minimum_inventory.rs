@@ -5,7 +5,7 @@ use crate::{
     domain::{item_durability::EquipmentDurability, map_partition::OutgoingPacket},
     protocol::{
         DEFAULT_MAX_BODY,
-        inventory::{self as wire, Dict, Inventory, Kind, Message, QuickSlots, Slot, Storage},
+        inventory::{self as wire, Dict, Inventory, Kind, Message, Slot, Storage},
     },
 };
 use sqlx::{PgPool, Postgres, Transaction};
@@ -98,7 +98,7 @@ pub(super) async fn snapshot_with_equipment(
     if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
         return Err(MinimumError::Conflict);
     }
-    super::item_loader_state::require_slots_absent(tx, cid)
+    super::item_loader_state::require_expanded_absent(tx, cid)
         .await
         .map_err(|_| MinimumError::Conflict)?;
     sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;
@@ -223,6 +223,7 @@ pub(super) async fn snapshot_with_equipment(
         return Err(MinimumError::Conflict);
     }
     let locked = assets.appearance.inventory_locked_parts()?;
+    let quick = super::minimum_quickslot::load(tx, assets, cid).await?;
     let equipment_info = match equipment_info {
         Some(e) => e,
         None => {
@@ -249,9 +250,7 @@ pub(super) async fn snapshot_with_equipment(
         ),
         slots: Some(slots),
         equipment: Dict(Some(equipment_info)),
-        quick_slots: Some(QuickSlots {
-            classes: Dict(Some(Vec::new())),
-        }),
+        quick_slots: Some(super::minimum_quickslot::info(&quick)),
         unequippable: Some(locked),
     };
     Ok(inventory)

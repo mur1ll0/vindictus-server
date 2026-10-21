@@ -37,7 +37,8 @@ def read_package(database, config, selected):
         for i, row in enumerate(db.execute('SELECT * FROM EquipItemInfo')):
             if text(row['ItemClass']) in selected:
                 equips.append(dict(source_index=i, item_utf16=text(row['ItemClass']), feature=row['Feature'], equip_utf16=text(row['EquipClass']), serial=integer(row['CostumeType'])))
-        if {c['item_utf16'] for c in classes} != selected or {e['item_utf16'] for e in equips} != selected:
+        # Consumable classes (quick slots) have no EquipItemInfo row; equippables must.
+        if {c['item_utf16'] for c in classes} != selected or not {e['item_utf16'] for e in equips} <= selected or not equips:
             raise ValueError('Selected equipment missing from source tables')
         sets=[]; wanted=set()
         definitions={text(row['SetID']) for row in db.execute('SELECT * FROM SetInfo')}

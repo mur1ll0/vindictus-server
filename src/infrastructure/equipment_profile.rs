@@ -72,7 +72,13 @@ pub struct Profile {
     #[serde(skip)]
     resolved: std::sync::OnceLock<Resolved>,
 }
-type Resolved = BTreeMap<Vec<u8>, (Metadata, crate::domain::item_constraint::Constraint)>;
+type Resolved = BTreeMap<Vec<u8>, Entry>;
+struct Entry {
+    /// Present only for equippable classes with an effective EquipItemInfo row.
+    metadata: Option<Metadata>,
+    category: String,
+    constraint: crate::domain::item_constraint::Constraint,
+}
 #[derive(Clone)]
 pub struct Metadata {
     pub category: String,
@@ -208,21 +214,25 @@ impl Profile {
                 continue;
             }
             // Classes that do not resolve stay absent and keep failing on lookup.
-            if let (Ok(m), Ok(k)) = (
-                self.resolve_metadata(catalog, &key),
+            if let (Ok(category), Ok(constraint)) = (
+                self.resolve_category(catalog, &key),
                 self.resolve_constraint(catalog, &key),
             ) {
-                map.insert(key, (m, k));
+                let metadata = self.resolve_metadata(catalog, &key).ok();
+                map.insert(
+                    key,
+                    Entry {
+                        metadata,
+                        category,
+                        constraint,
+                    },
+                );
             }
         }
         let _ = self.resolved.set(map);
         Ok(())
     }
-    fn cached(
-        &self,
-        catalog: &Catalog,
-        key: &[u8],
-    ) -> Result<Option<&(Metadata, crate::domain::item_constraint::Constraint)>, MinimumError> {
+    fn cached(&self, catalog: &Catalog, key: &[u8]) -> Result<Option<&Entry>, MinimumError> {
         let Some(map) = self.resolved.get() else {
             return Ok(None);
         };
@@ -230,8 +240,8 @@ impl Profile {
         Ok(Some(map.get(key).ok_or_else(fail)?))
     }
     pub fn metadata(&self, catalog: &Catalog, key: &[u8]) -> Result<Metadata, MinimumError> {
-        if let Some((m, _)) = self.cached(catalog, key)? {
-            return Ok(m.clone());
+        if let Some(entry) = self.cached(catalog, key)? {
+            return entry.metadata.clone().ok_or_else(fail);
         }
         self.resolve_metadata(catalog, key)
     }
@@ -271,14 +281,32 @@ impl Profile {
             sets,
         })
     }
-    /// ItemClassInfoConstraintTrait for a bound normal equipment class.
+    /// ItemClassInfo.Category of any profile class (equippable or consumable).
+    pub fn category(&self, catalog: &Catalog, key: &[u8]) -> Result<String, MinimumError> {
+        if let Some(entry) = self.cached(catalog, key)? {
+            return Ok(entry.category.clone());
+        }
+        self.resolve_category(catalog, key)
+    }
+    fn resolve_category(&self, catalog: &Catalog, key: &[u8]) -> Result<String, MinimumError> {
+        self.bind(catalog)?;
+        let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
+        let item = effective.get(Some(key)).ok_or_else(fail)?;
+        let c = self
+            .classes
+            .iter()
+            .find(|c| c.source_index == item.source_index)
+            .ok_or_else(fail)?;
+        text(&c.category_utf16)
+    }
+    /// ItemClassInfoConstraintTrait for a bound profile class.
     pub fn constraint(
         &self,
         catalog: &Catalog,
         key: &[u8],
     ) -> Result<crate::domain::item_constraint::Constraint, MinimumError> {
-        if let Some((_, k)) = self.cached(catalog, key)? {
-            return Ok(k.clone());
+        if let Some(entry) = self.cached(catalog, key)? {
+            return Ok(entry.constraint.clone());
         }
         self.resolve_constraint(catalog, key)
     }

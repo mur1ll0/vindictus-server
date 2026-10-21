@@ -107,6 +107,11 @@ class ItemSyncWireOracle {
   var moves=new List<MoveInventoryItemMessage>{null};
   foreach(long id in new[]{long.MinValue,-1L,0L,long.MaxValue})foreach(byte st in new byte[]{0,6,100,255})foreach(int sl in new[]{int.MinValue,-1,0,47,48,int.MaxValue}){var m=new MoveInventoryItemMessage();m.ItemID=id;m.Storage=st;m.Target=sl;moves.Add(m);}
   AddCases("move_inventory_item",502,new Guid("7c957f24-e8d7-338f-a93c-97bc6903f320"),moves,cases);
+  var bundles=new List<EquipBundleMessage>{null};
+  foreach(string c in new[]{null,"","life_potion_lvl0","skill_synthetic"})foreach(int q in new[]{int.MinValue,-1,0,3,100,119,int.MaxValue})bundles.Add(new EquipBundleMessage(c,q));
+  AddCases("equip_bundle",456,new Guid("6652c42f-bf01-3da0-9415-f390b085e456"),bundles,cases);
+  var quick=new List<QuickSlotInfoMessage>{null,new QuickSlotInfoMessage(null),new QuickSlotInfoMessage(new QuickSlotInfo(null)),new QuickSlotInfoMessage(new QuickSlotInfo(new Dictionary<int,string>())),new QuickSlotInfoMessage(new QuickSlotInfo(new Dictionary<int,string>{{3,""},{100,"life_potion_lvl0"},{101,null},{int.MinValue,"synthetic"}}))};
+  AddCases("quick_slot_info",551,new Guid("edc4290e-196c-3f17-903f-d0f3317e47d9"),quick,cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

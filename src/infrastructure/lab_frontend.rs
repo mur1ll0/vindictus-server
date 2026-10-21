@@ -929,6 +929,73 @@ impl Connection {
                 return Ok(());
             }
         }
+        {
+            use crate::protocol::inventory::{self as wire, Kind, Message};
+            if matches(
+                category,
+                body,
+                Kind::EquipBundle.category(),
+                Kind::EquipBundle.type_id(),
+            ) {
+                let Some(Message::EquipBundle(request)) =
+                    wire::decode_ingress(Kind::EquipBundle, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                let (Some(selected), true) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                // ItemServiceProxy: fishing classes are accepted without an operation.
+                if request
+                    .class
+                    .as_deref()
+                    .is_some_and(|c| c.starts_with("fishing_"))
+                {
+                    return Ok(());
+                }
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let assets = &runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .assets;
+                match super::minimum_quickslot::equip_bundle(pool, &owner, assets, cid, request)
+                    .await
+                {
+                    Ok(super::minimum_quickslot::Outcome::Applied(packet)) => {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                        tracing::info!("minimum quick slot saved and synchronized");
+                    }
+                    Ok(super::minimum_quickslot::Outcome::Refused(packet)) => {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                        tracing::info!("minimum quick slot refused by source rules");
+                    }
+                    Ok(super::minimum_quickslot::Outcome::Unchanged) => {}
+                    Err(_) => tracing::warn!("minimum quick slot rejected; values omitted"),
+                }
+                return Ok(());
+            }
+        }
         if matches(category, body, LOG_OUT_CATEGORY, LOG_OUT_TYPE_ID) {
             // LogOutMessage has no fields; a null message is not `is LogOutMessage`.
             let fields = if category == 0 { &body[16..] } else { body };
@@ -1036,6 +1103,10 @@ impl Connection {
                             elapsed_ms = started.elapsed().as_millis() as u64,
                             "minimum equipment change refused by source rules"
                         );
+                    }
+                    Ok(super::minimum_equip::Outcome::QuickSlots(packet)) => {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                        tracing::info!("minimum quick slot cleared and synchronized");
                     }
                     Ok(super::minimum_equip::Outcome::Unchanged) => {}
                     // Unsupported states and storage failures keep the session; nothing changed.

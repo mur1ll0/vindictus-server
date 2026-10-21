@@ -91,6 +91,17 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             );
             assert_eq!(i64::from(m.slot), f["Target"].as_i64().unwrap(), "case {n}");
         }
+        Some(Message::EquipBundle(b)) => {
+            assert_eq!(b.class.as_deref(), f["ItemClass"].as_str(), "case {n}");
+            assert_eq!(
+                i64::from(b.quick_slot),
+                f["QuickSlotID"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::QuickSlotInfo(info)) => {
+            assert_eq!(info.is_none(), f["info"].is_null(), "case {n}");
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -161,6 +172,11 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::UpdateInventoryInfo.type_id(),
     );
     registered(Kind::ItemFail.category(), Kind::ItemFail.type_id());
+    registered(Kind::EquipBundle.category(), Kind::EquipBundle.type_id());
+    registered(
+        Kind::QuickSlotInfo.category(),
+        Kind::QuickSlotInfo.type_id(),
+    );
     registered(
         Kind::MoveInventoryItem.category(),
         Kind::MoveInventoryItem.type_id(),
@@ -171,12 +187,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     );
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 363);
+        assert_eq!(cases.len(), 465);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
                 "item_fail" => check_inventory(Kind::ItemFail, case, n),
                 "move_inventory_item" => check_inventory(Kind::MoveInventoryItem, case, n),
+                "equip_bundle" => check_inventory(Kind::EquipBundle, case, n),
+                "quick_slot_info" => check_inventory(Kind::QuickSlotInfo, case, n),
                 "costume_update" => check_costume(case, n),
                 _ => panic!("unknown fixture type"),
             }

@@ -70,7 +70,7 @@ pub(super) async fn load(
     if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
         return Err(fail());
     }
-    super::item_loader_state::require_slots_absent(tx, cid)
+    super::item_loader_state::require_expanded_absent(tx, cid)
         .await
         .map_err(|_| fail())?;
     sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;
