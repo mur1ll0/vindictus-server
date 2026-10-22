@@ -704,3 +704,41 @@ B2.1d — entrada em missão ligada ao runtime (cliente: entrada B2.1 em docs/cl
 B2.3 — carregamento da dungeon e troca de setor (cliente: entrada B2.3). Mensagens do host MoveToNextSector532 (TriggerName, TargetGroup, HolyProps) e AllUserJoinComplete47 (namespace ServiceCore.EndPointNetwork.MicroPlay) no oráculo de missão (52 casos por arquitetura, x86=x64; o gerador passa a aceitar esse namespace). Domínio `mission`: SectorSequence guarda o setor atual, o último ponto de spawn, LatestClearedSectorIndex e os setores passados; `move_next` porta SectorSequence.MoveNext (grupo inicial com alvo ou -1; depois a conexão do gatilho ou a conexão "" ao grupo alvo). `minimum_mission::move_sector` porta o MoveSectorProcessor com AntiSectorSkip desligado (feature vazia no perfil): primeira troca inicia a partida (InGame, CurGameTime = InitGameTime), as seguintes somam SectorMoveGameTime módulo 24; nada vai ao cliente e uma troca recusada mantém o estado. AllUserJoinComplete → ConfirmCoinPaid: BlessStone.Consume sem pedras inseridas e sem FatigueSystem não tem efeito visível (journal de item ConsumeBlessStone não migrado). Trackers de objetivo, título e missão, temporizador por minuto e TimeOver ficam para o B2.7. Testes focados: mission_wire (2), mission_content (5, inclui MoveNext), PostgreSQL minimum_mission (2, sequência completa com duas trocas e a recusa no último setor), clippy. Cliente: entrada B2.3. Próximo: B2.4 abates de monstros (MonsterKilled, PlayerKilled/Revived, Tracker de alvo) a partir do MonsterKilledProcessor.
 B2.4 — abates de monstros e morte (cliente: entrada B2.4). Codecs MonsterKilled501 e PlayerKilled522 no oráculo de missão (61 casos por arquitetura, x86=x64). Perfil `mission` com MonsterInfo (Identifier, Class, Variation, Difficulty, Exp, HP1, HP_Normal_Percent; chave duplicada recusada como no ToDoubleDictionary) e features ExpRate_Monster, MDRSystem_V1/V2/ActionFilter, DirectCollectCoin, AntiSectorFail, FatigueSystem (pares de versão inalterados, 32). Domínio: MicroPlayContents.GetMonsterInfo (tipo "classe variação [peso]" sem o peso; linha única ou dificuldade -1 primeiro; senão a dificuldade ou a -1); `kill` porta a busca do MonsterKilledProcessor (sem setor → no navio; sem Monster nem spawner → monstro do cliente; spawner sem Monster vivo → já morto) e o DeadCount; `monster_kill_exp` porta MonsterKillExpCalculator.GiveExp do solo (peso 1, PartyBonusRate 140, produtos em float como no x64) e o ExpRate_Monster do GiveMonsterKillExp. `minimum_mission::monster_killed` acumula MonsterKillExp, registra o evento do Informer "kill <tipo> <ação>" para os trackers e a BossKilledList; `player_killed` porta o PlayerKilledProcessor do host solo (Alive, "player_dead"; top/bottom_eliminated só existem com 4 jogadores). Desvios documentados: o anti-cheat do MDRSystem_V1 (CheaterType por dano insuficiente) depende dos MonsterDamageReport (B2.6); drops, núcleos, mapas, ouro, HugeLucky e pontos fracos ficam para o B2.5; UpdateQuestPlayCount/CollectCoin/AddBossKillCount do chefe vão com a conclusão (B2.7); PlayerRevived (efeitos de MicroPlay) vai com os consumíveis. Testes focados: mission_content (6, inclui GetMonsterInfo, EXP e abates repetidos), mission_wire (2), PostgreSQL minimum_mission (2: abate do chefe com 280 de EXP, evento e lista de chefes; morte única), Python export_npc_scripts (2), clippy. Cliente: entrada B2.4. Próximo: B2.5 drops (Monster.MakeEvilCore/MonsterDropTable, DropGoldCore/PickErg/PutErg, baús).
 
+Parada do B2 a pedido do operador (22/10/2026) — a sessão estava longa demais; a execução foi interrompida.
+
+Concluído no B2, com commits locais e testes focados verdes:
+- B2.0: EXP, level up e títulos por nível.
+- B2.2a: codec ProudNet e relay mínimo.
+- B2.1a: codecs da entrada em missão.
+- B2.1b: sequência de setores e digest da quest a partir do conteúdo.
+- B2.1c: GameJoinMemberInfo do host e inventário de batalha.
+- B2.1d: entrada em missão ligada ao runtime até o GameStartGranted.
+  - O relay sobe em `relay_bind` 127.0.0.1:27005, já configurado no arquivo privado de assets.
+- B2.3: troca de setor.
+- B2.4: abates de monstros, EXP de monstros acumulado e morte da personagem.
+
+Roteiro de cliente: entradas B2.0, B2.1, B2.3 e B2.4 em docs/client-tests/B2-fases.md. Nada disso foi testado no cliente ainda.
+
+Atenção: o runtime do laboratório que estava rodando usa um binário antigo. Antes do teste é preciso reiniciá-lo com `scripts/dev/start-lab-frontend.ps1`, depois de `cargo build`.
+
+Pendente no B2, na ordem do roadmap:
+- B2.5 drops. A análise começou:
+  - Os núcleos são coletados chutando o corpo: RagdollKicked → EvilCore.Loot / SecretMapLoot.
+  - Ouro e ergs vêm por PickErg → PutErg.
+  - Faltam MonsterDropTable/MakeEvilCore, DropGoldCore/DropErg, baús de tesouro e random boxes, ItemDropEntity/WeakPointEntity no GameStartGranted e a entrega de itens.
+- B2.6 relatórios de combate:
+  - MonsterDamageReport para o anti-cheat MDRSystem_V1 (CheaterType).
+  - CombatRecord.
+  - UseConsumable e PlayerRevived (efeitos de MicroPlay).
+- B2.7 conclusão da quest:
+  - Trackers de objetivo (eventos "kill …" já gravados em `Mission.events`), QuestTargetResult, FinishGame/EndGame.
+  - Recompensas de EXP (MonsterKillExp mais as metas, via minimum_growth), ouro e AP; QuestCleared da história; ReturnToTown/ReturnFromQuest.
+  - Contagem de jogadas, CollectCoin e AddBossKillCount.
+- B2.8 robustez: desconexão do relay ou do frontend durante a missão, TimeOver, ledger InvalidSwearRequested, CombatRejoinSystem.
+- Gate do B2:
+  - Reiniciar o PostgreSQL de teste e reaplicar max_wal_size.
+  - Rodar `scripts/dev/verify.ps1 -DatabaseIntegration` e o smoke Docker.
+  - Finalizar o roteiro combinado (B1 primeiro, depois B2), fazer o commit de fechamento e pedir a sessão de cliente.
+
+Próxima ação para retomar: B2.5. Portar Monster.MakeEvilCore/MonsterDropTable e o RagdollKickedProcessor (EvilCore.Loot com entrega por GiveItem). Antes de começar, avaliar com o operador se vale testar no cliente a entrada em missão (B2.1–B2.4), já que o handshake ProudNet ainda não foi verificado no cliente.
+
