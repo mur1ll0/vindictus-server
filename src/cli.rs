@@ -35,6 +35,10 @@ pub enum Command {
         /// Explicit native minimum;optional game services remain deferred.
         #[arg(long)]
         minimum_creation_assets: Option<std::path::PathBuf>,
+        /// Laboratory container: bind all interfaces on the configured loopback ports, which
+        /// Docker publishes only on the host loopback; advertised addresses stay loopback.
+        #[arg(long)]
+        container_listen: bool,
     },
     /// Laboratory GiveItem for an offline first Fiona (gold or any item class); the
     /// client sees the result after selecting the character. Not a game command.

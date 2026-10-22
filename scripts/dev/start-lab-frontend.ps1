@@ -22,6 +22,7 @@ $database=if($settings.ContainsKey('POSTGRES_DB')){$settings.POSTGRES_DB}else{'v
 $port=if($settings.ContainsKey('POSTGRES_HOST_PORT')){[int]$settings.POSTGRES_HOST_PORT}else{5433}
 if($port-lt1-or$port-gt65535){throw 'Local PostgreSQL port is invalid'}
 $url='postgres://'+[Uri]::EscapeDataString($user)+':'+[Uri]::EscapeDataString($settings.APP_DATABASE_PASSWORD)+'@127.0.0.1:'+ $port+'/'+[Uri]::EscapeDataString($database)
+if(@(Get-NetTCPConnection -State Listen -LocalPort 27015 -ErrorAction SilentlyContinue).Count-gt0){throw 'Port 27015 is already in use; the Docker game service may be running (docker compose stop game)'}
 $sourceExe=Join-Path $project 'target/debug/vindictus-server.exe'
 $policy=Join-Path $project '.cache/private-content/reward-policy.json'
 if(-not(Test-Path -LiteralPath $sourceExe)){throw 'Build the verified native binary first'}

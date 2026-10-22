@@ -2539,10 +2539,8 @@ pub async fn connection(
     pool: PgPool,
     mut shutdown: watch::Receiver<bool>,
 ) -> Result<(), RuntimeError> {
-    if !stream.peer_addr()?.ip().is_loopback() {
-        return Err(RuntimeError::Profile);
-    }
-    let peer = stream.peer_addr()?.ip();
+    let peer =
+        super::lab_peer::effective_peer(stream.peer_addr()?.ip()).ok_or(RuntimeError::Profile)?;
     let mut state = Connection::new(&runtime, peer);
     let result=async {
   let b=uuid::Uuid::new_v4().into_bytes();let salt=u32::from_be_bytes([b[0],b[1],b[2],b[3]])&0x7fffffff;
@@ -2600,7 +2598,7 @@ pub async fn run(
     pool: PgPool,
     shutdown: impl Future<Output = ()>,
 ) -> Result<(), RuntimeError> {
-    if !listener.local_addr()?.ip().is_loopback() {
+    if !super::lab_peer::admitted_listener(listener.local_addr()?) {
         return Err(RuntimeError::Profile);
     }
     let (stop, sig) = watch::channel(false);

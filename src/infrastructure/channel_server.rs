@@ -156,7 +156,7 @@ pub async fn connection(
     pool: sqlx::PgPool,
     mut shutdown: watch::Receiver<bool>,
 ) -> Result<(), RuntimeError> {
-    if !stream.peer_addr()?.ip().is_loopback() {
+    if super::lab_peer::effective_peer(stream.peer_addr()?.ip()).is_none() {
         return Err(RuntimeError::Profile);
     }
     let mut cid = None;
@@ -239,7 +239,7 @@ pub async fn run(
     pool: sqlx::PgPool,
     shutdown: impl std::future::Future<Output = ()>,
 ) -> Result<(), RuntimeError> {
-    if !listener.local_addr()?.ip().is_loopback() {
+    if !super::lab_peer::admitted_listener(listener.local_addr()?) {
         return Err(RuntimeError::Profile);
     }
     let (stop, signal) = watch::channel(false);

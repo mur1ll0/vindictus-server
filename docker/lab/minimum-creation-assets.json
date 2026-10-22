@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "catalog": "/content/item-catalog.json",
+  "stats": "/content/item-stats.json",
+  "colors": "/content/item-colors.json",
+  "inventory": "/content/fiona-inventory.json",
+  "appearance": "/content/fiona-appearance-inventory.json",
+  "initializer": "/content/fiona-initializer.json",
+  "initializer_reference": "/content/fiona-initializer-reference-pairs.json",
+  "entity_service_id": 7,
+  "color_seed": 17,
+  "body_arithmetic": "unambiguous-only",
+  "map_partition_dir": "/content/map-partition",
+  "channel_bind": "127.0.0.1:27003",
+  "equipment": "/content/normal-equipment-profile-v3.json",
+  "skills": "/content/skill-profile-v4.json",
+  "economy": "/content/item-economy.json",
+  "npc_scripts": "/content/npc-scripts.json",
+  "relay_bind": "127.0.0.1:27005"
+}

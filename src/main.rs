@@ -260,12 +260,16 @@ async fn run(cli: Cli) -> Result<(), Error> {
         policy_file,
         name_proof_file,
         minimum_creation_assets,
+        container_listen,
         ..
     } = &cli.command
     {
         use vindictus_server::infrastructure::{
-            lab_frontend, lab_runtime_config::LabRuntimeConfig, reward_policy,
+            lab_frontend, lab_peer, lab_runtime_config::LabRuntimeConfig, reward_policy,
         };
+        if *container_listen {
+            lab_peer::enable_container_publication();
+        }
         let content = reward_policy::read_policy(std::fs::File::open(policy_file)?)?;
         let profile = LabRuntimeConfig::read(std::io::stdin().lock(), &content)?;
         let name_proof = name_proof_file
@@ -305,16 +309,20 @@ async fn run(cli: Cli) -> Result<(), Error> {
             )?;
         }
         let runtime = std::sync::Arc::new(runtime);
-        let listener = tokio::net::TcpListener::bind(runtime.bind()).await?;
+        let listener = tokio::net::TcpListener::bind(lab_peer::listen_addr(runtime.bind())).await?;
         let channel_listener = match runtime.channel() {
-            Some((bind, channel)) => Some((tokio::net::TcpListener::bind(bind).await?, channel)),
+            Some((bind, channel)) => Some((
+                tokio::net::TcpListener::bind(lab_peer::listen_addr(bind)).await?,
+                channel,
+            )),
             None => None,
         };
         tracing::info!(address=%listener.local_addr()?,client_acceptance_verified=false,character_creation_available=runtime.minimum_creation_available(),"restricted laboratory frontend listening");
         // RelayServer of mission entry: served until the frontend stops, then aborted.
         let relay_task = match runtime.relay() {
             Some(relay) => {
-                let relay_listener = tokio::net::TcpListener::bind(relay.endpoint()).await?;
+                let relay_listener =
+                    tokio::net::TcpListener::bind(lab_peer::listen_addr(relay.endpoint())).await?;
                 tracing::info!(address=%relay_listener.local_addr()?, "mission relay listening");
                 Some(tokio::spawn(relay.serve(relay_listener)))
             }

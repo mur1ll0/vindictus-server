@@ -67,6 +67,63 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  # Game laboratory: frontend 27015, city channel 27003 and mission relay 27005, published
+  # only on the host loopback. Private content and the protected runtime profile stay on the
+  # host (.cache) and are mounted read-only; nothing private enters the image.
+  game:
+    <<: *app
+    entrypoint: [/bin/sh, -c]
+    command:
+      - exec /app/vindictus-server lab-frontend --input-stdin --container-listen
+        --policy-file /content/reward-policy.json
+        --name-proof-file /content/character-name-proof.json
+        --minimum-creation-assets /lab/minimum-creation-assets.json
+        < /run/secrets/lab_runtime_profile
+    environment:
+      <<: *app-environment
+      DB_MAX_CONNECTIONS: "8"
+    volumes:
+      - ./.cache/private-content:/content:ro
+      - ./docker/lab/minimum-creation-assets.json:/lab/minimum-creation-assets.json:ro
+    secrets: [lab_runtime_profile]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - 127.0.0.1:27015:27015
+      - 127.0.0.1:27003:27003
+      - 127.0.0.1:27005:27005
+    healthcheck:
+      # Port 27015 (0x6987) in LISTEN state; connecting would open a login session.
+      test: [CMD-SHELL, "grep -qi ':6987 00000000:0000 0A' /proc/net/tcp"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  # Client server list: the prepared client reads EndPoint.txt from 127.0.0.1:8081.
+  bootstrap:
+    image: busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    command: [httpd, -f, -p, "8081", -h, /www]
+    user: "65534:65534"
+    volumes:
+      - ./.cache/client-bootstrap:/www:ro
+    ports:
+      - 127.0.0.1:8081:8081
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8081/en-eu-x-gm/EndPoint.txt]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
   legacy-sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     profiles: [legacy]
@@ -95,4 +152,8 @@ volumes:
 
 networks:
   backend:
+
+secrets:
+  lab_runtime_profile:
+    file: ${LAB_RUNTIME_PROFILE:-./.cache/private-frontend/runtime-profile.json}
 
