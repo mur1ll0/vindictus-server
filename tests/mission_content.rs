@@ -102,11 +102,11 @@ fn tables() -> MissionTables {
             (s("quest_a"), 9, 0, s("potion_.*"), s("ItemLimit"), Some(1)),
         ],
         sectors: vec![
-            (s("quest_a"), 1, 10, s("01a"), 30),
-            (s("quest_a"), 1, 11, s("01b"), 70),
-            (s("quest_a"), 2, 12, s("01_boss"), 100),
-            (s("quest_a"), 0, 13, s("story"), 100),
-            (s("quest_tower"), 1, 14, s("t"), 100),
+            (s("quest_a"), 1, 10, s("01a"), 30, 0, 0),
+            (s("quest_a"), 1, 11, s("01b"), 70, 100, 10),
+            (s("quest_a"), 2, 12, s("01_boss"), 100, 0, 0),
+            (s("quest_a"), 0, 13, s("story"), 100, 0, 0),
+            (s("quest_tower"), 1, 14, s("t"), 100, 0, 0),
         ],
         sector_groups: vec![],
         tower_quests: vec!["quest_tower".to_owned()],
@@ -249,6 +249,30 @@ fn tables() -> MissionTables {
             (s("rare_gem"), 6, 2047, None),
             (s("lance_only"), 1, 4, None),
         ],
+        prop_tables: vec![(s("quest_a"), s("ruin"), None)],
+        prop_items: vec![
+            (1, s("ruin"), s("WOOD"), s("INSTANT"), s("hp 65"), 700, None),
+            (
+                2,
+                s("ruin"),
+                s("WOOD"),
+                s("SERVER"),
+                s("life_erg_crystal"),
+                300,
+                None,
+            ),
+            (
+                3,
+                s("ruin"),
+                s("WOOD"),
+                s("SERVER"),
+                s("off_erg"),
+                999,
+                s("Off"),
+            ),
+        ],
+        prop_expectations: vec![(s("ruin"), s("WOOD"), 1)],
+        material_groups: vec![(4, s("WOOD"))],
     }
 }
 
@@ -686,4 +710,110 @@ fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
         contents.loot(&mut sequence, "unknown", 1, false).unwrap(),
         None
     );
+}
+
+#[test]
+fn props_carry_erg_expectations_and_gold_then_break_into_pickable_ergs() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let digest = contents.digest("quest_a", -1).unwrap();
+    let mut sequence = contents
+        .sector_sequence(
+            &digest,
+            1,
+            true,
+            false,
+            &mut Script {
+                next: [50, 0].into(),
+                ..Script::default()
+            },
+        )
+        .unwrap();
+    assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
+    // No shuffle movement (every range draws its minimum): prop 5 (wood) takes the single
+    // WOOD erg expectation; GoldDropTable(100, 10) gives 2·2+1 = 5 amounts 8..=12 for
+    // ⌊100/10⌋/5 = 2 props each, so props 6 and 7 get 8 gold.
+    contents
+        .register_props(
+            "quest_a",
+            &mut sequence,
+            &[(5, 4), (6, 9), (7, 9)],
+            false,
+            &mut Script::default(),
+        )
+        .unwrap();
+    let sector = &sequence.sectors[0];
+    assert_eq!(
+        sector
+            .props
+            .iter()
+            .map(|p| (p.id, p.group.clone(), p.gold))
+            .collect::<Vec<_>>(),
+        [(5, Some("WOOD".to_owned()), 0), (6, None, 8), (7, None, 8)]
+    );
+    // Roll 700 skips the INSTANT hp row (700) and lands on the server erg; the disabled
+    // feature row neither weighs nor drops.
+    let ergs = contents
+        .break_prop(
+            "quest_a",
+            &mut sequence,
+            5,
+            0,
+            false,
+            &mut Script {
+                range: [700].into(),
+                ..Script::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        (
+            ergs[0].class.as_str(),
+            ergs[0].kind.as_str(),
+            ergs[0].id,
+            ergs[0].winner
+        ),
+        ("SERVER", "life_erg_crystal", 0, 0)
+    );
+    let gold = contents
+        .break_prop(
+            "quest_a",
+            &mut sequence,
+            6,
+            0,
+            false,
+            &mut Script::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        (gold[0].class.as_str(), gold[0].amount, gold[0].id),
+        ("GOLD", 8, 1)
+    );
+    assert!(
+        contents
+            .break_prop(
+                "quest_a",
+                &mut sequence,
+                6,
+                0,
+                false,
+                &mut Script::default()
+            )
+            .is_none()
+    );
+    // Only the winner picks, once.
+    assert!(contents.pick_erg(&mut sequence, 1, 3).is_none());
+    assert_eq!(contents.pick_erg(&mut sequence, 1, 0).unwrap().amount, 8);
+    assert!(contents.pick_erg(&mut sequence, 1, 0).is_none());
+    // The second gold prop.
+    let instant = contents
+        .break_prop(
+            "quest_a",
+            &mut sequence,
+            7,
+            0,
+            false,
+            &mut Script::default(),
+        )
+        .unwrap();
+    assert_eq!(instant[0].class, "GOLD");
 }

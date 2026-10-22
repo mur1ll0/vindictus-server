@@ -959,6 +959,83 @@ impl Connection {
                     }
                 }
             }
+            Message::SectorPropList(list) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let props: Vec<(i32, i32)> = list.props.0.unwrap_or_default();
+                mission::sector_props(state, contents, &props, &mut mission::OsMissionRandom)
+                    .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!(
+                    props = props.len(),
+                    "mission sector props registered; values omitted"
+                );
+                Vec::new()
+            }
+            Message::PropBroken(broken) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                mission::prop_broken(
+                    state,
+                    contents,
+                    broken.prop,
+                    broken.attacker,
+                    &mut mission::OsMissionRandom,
+                )
+                .map_err(|_| RuntimeError::Operation)?
+            }
+            Message::PickErg(erg_id) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let Some(erg) = mission::pick_erg(state, contents, erg_id) else {
+                    tracing::info!("mission erg pick refused; values omitted");
+                    return Ok(());
+                };
+                let ids = runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .creation
+                    .entity_ids(1)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                let mut ids = ids.into_iter();
+                let mut packets = match mission::give_reward(
+                    pool,
+                    &owner,
+                    assets,
+                    state,
+                    cid,
+                    &erg.kind,
+                    erg.amount,
+                    0,
+                    &mut || {
+                        ids.next()
+                            .ok_or(super::minimum_character::MinimumError::Conflict)
+                    },
+                )
+                .await
+                {
+                    Ok(packets) => packets,
+                    Err(_) => {
+                        tracing::warn!(
+                            "mission erg give refused by the give planner; values omitted"
+                        );
+                        Vec::new()
+                    }
+                };
+                // PickErg completes once the erg is picked; PutErg tells the host who took it.
+                packets.push(
+                    mission::put_erg(erg_id, erg.winner).map_err(|_| RuntimeError::Operation)?,
+                );
+                tracing::info!("mission erg picked; values omitted");
+                packets
+            }
             Message::PlayerKilled(tag) => {
                 let Some(state) = self.mission.as_mut() else {
                     return Ok(());
@@ -1394,6 +1471,9 @@ impl Connection {
                 Kind::MonsterKilled,
                 Kind::PlayerKilled,
                 Kind::RagdollKicked,
+                Kind::SectorPropList,
+                Kind::PropBroken,
+                Kind::PickErg,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;

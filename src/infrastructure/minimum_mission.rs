@@ -14,9 +14,9 @@ use crate::domain::{
     },
 };
 use crate::protocol::mission::{
-    self as wire, AcceptQuest, BlessStones, ConnectionRequest, DropGoldCore, EvilCoreInfo,
-    GameInfo, GetItem, LaunchShipGranted, Message, PaidCoin, PartyInfo, PartyMember,
-    PayCoinCompleted, Ship, ShipOption, UpdateShip,
+    self as wire, AcceptQuest, BlessStones, ConnectionRequest, DropErg, DropGoldCore, Erg,
+    EvilCoreInfo, GameInfo, GetItem, LaunchShipGranted, Message, PaidCoin, PartyInfo, PartyMember,
+    PayCoinCompleted, PutErg, Ship, ShipOption, UpdateShip,
 };
 use crate::protocol::{
     inventory::Dict,
@@ -1032,4 +1032,88 @@ pub fn player_killed(mission: &mut Mission, tag: i32) -> bool {
     mission.alive = false;
     mission.events.push("player_dead".to_owned());
     true
+}
+
+/// ReportSectorPropsProcessor → SectorInstance.RegisterPropList.
+pub fn sector_props(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    props: &[(i32, i32)],
+    random: &mut dyn MissionRandom,
+) -> Result<(), MinimumError> {
+    let practice = mission.option.is_practice_mode;
+    let Some(sequence) = mission.sequence.as_mut() else {
+        return Ok(());
+    };
+    contents
+        .register_props(&mission.quest, sequence, props, practice, random)
+        .map_err(|_| fail())
+}
+
+/// PropBrokenProcessor → Prop.BreakProp: the "destroyprop <group>" event and the
+/// DropErg announcement to the host.
+pub fn prop_broken(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    prop: i32,
+    attacker: i32,
+    random: &mut dyn MissionRandom,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let practice = mission.option.is_practice_mode;
+    let slot = mission.member.slot;
+    let Some(sequence) = mission.sequence.as_mut() else {
+        return Ok(Vec::new());
+    };
+    // The broken prop's material group, before it is removed.
+    let group = sequence.current.and_then(|g| {
+        sequence
+            .sectors
+            .iter()
+            .find(|s| s.group_id == g)
+            .and_then(|s| s.props.iter().find(|p| p.id == prop))
+            .and_then(|p| p.group.clone())
+    });
+    let Some(ergs) = contents.break_prop(&mission.quest, sequence, prop, slot, practice, random)
+    else {
+        return Ok(Vec::new());
+    };
+    if let Some(group) = group
+        && attacker == slot
+    {
+        mission.events.push(format!("destroyprop {group}"));
+    }
+    Ok(vec![packet(&Message::DropErg(DropErg {
+        broken_prop: prop,
+        monster_entity_name: None,
+        ergs: Some(
+            ergs.into_iter()
+                .map(|e| {
+                    Some(Erg {
+                        erg_id: e.id,
+                        erg_class: Some(e.class),
+                        erg_type: Some(e.kind),
+                        amount: e.amount,
+                        winner: e.winner,
+                    })
+                })
+                .collect(),
+        ),
+    }))?])
+}
+
+/// PickErgProcessor → Erg.PickErg: the picked erg, to give (GiveItemReward with
+/// QuestErg) and answer with PutErg.
+pub fn pick_erg(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    erg_id: i32,
+) -> Option<domain::ErgDrop> {
+    let slot = mission.member.slot;
+    let sequence = mission.sequence.as_mut()?;
+    contents.pick_erg(sequence, erg_id, slot)
+}
+
+/// PutErgMessage of a picked erg.
+pub fn put_erg(erg_id: i32, tag: i32) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::PutErg(PutErg { erg_id, tag }))
 }

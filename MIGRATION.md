@@ -755,3 +755,18 @@ B2.5a — núcleos de monstros e coleta por chute (cliente: entrada B2.5a). Reto
 Desvios documentados: itens com atributos e o envio por correio de inventário cheio são recusados (registrados no log); mapa do tesouro, núcleos de história e evento, pontos fracos e HugeLucky não migrados. `inspect-mission-content` conta à parte as quests sem a dificuldade pedida (o CheckConstraint responde NoSuchDifficulty antes): nas dificuldades 1, 2 e 3 só falham as quests de teste sem QuestInfo.
 
 Testes focados: mission_content (7), mission_wire (2), PostgreSQL minimum_mission (2: chefe com 3 núcleos, chute com entrega real de item, GetItem e evento), Python export_npc_scripts (2), clippy. Cliente: entrada B2.5a. Próximo: B2.5b ouro e ergs dos props (ReportSectorProps, PropBroken, DropErg, PickErg/PutErg).
+
+B2.5b — ouro e ergs dos props (cliente: entrada B2.5b). Codecs SectorPropList563, PropBroken524, DropErg455 (ErgInfo com winner), PickErg520 e PutErg525 no oráculo de missão (94 casos por arquitetura, x86=x64). Perfil `mission`: Sectors com GoldDropTotal/GoldDropPerProp; PropDropTableName por QuestInfo (filtrado por Feature); PropItemWeightInfo (linhas com feature desligada não pesam nem caem); PropItemExpectationInfo ((int) do REAL); MaterialGroupInfo.
+
+Domínio:
+- SectorInstance.RegisterPropList: o primeiro relato embaralha os IDs, distribui as expectativas de erg de cada grupo de material e depois o ouro do GoldDropTable (sem ouro na prática); os relatos seguintes remapeiam por material.
+- Prop.BreakProp: erg do PropDropTable por peso. INSTANT só é anunciado; os demais viram ergs a recolher, fora da prática. Prop de ouro vira erg GOLD do jogador.
+- Erg.PickErg: só o vencedor recolhe, e uma vez.
+
+`minimum_mission`:
+- PropBroken envia DropErg ao host e registra "destroyprop <grupo>".
+- PickErg entrega pelo give_reward (GetItem, evento "get item") e responde PutErg (erg, tag).
+
+Desvios documentados: NamedProp.BreakNamedProp, bônus de habilidade (AbilityList vazia no perfil) e HugeLucky não migrados.
+
+Testes focados: mission_content (8, inclui registro, quebra e recolha), mission_wire (2), PostgreSQL minimum_mission (2: prop de madeira com erg de servidor, DropErg, evento e recolha única), Python export_npc_scripts (2), clippy. Cliente: entrada B2.5b. Próximo: B2.6 relatórios de combate (MonsterDamageReport para o MDRSystem_V1, CombatRecord, UseConsumable, PlayerRevived).

@@ -30,6 +30,11 @@ pub enum Kind {
     RagdollKicked,
     DropGoldCore,
     GetItem,
+    SectorPropList,
+    PropBroken,
+    DropErg,
+    PickErg,
+    PutErg,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -52,6 +57,11 @@ impl Kind {
             Self::RagdollKicked => 552,
             Self::DropGoldCore => 350,
             Self::GetItem => 463,
+            Self::SectorPropList => 563,
+            Self::PropBroken => 524,
+            Self::DropErg => 455,
+            Self::PickErg => 520,
+            Self::PutErg => 525,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -74,6 +84,11 @@ impl Kind {
             Self::RagdollKicked => 0xe7ae9d95_805f_3478_b19e_b03c14234ee7,
             Self::DropGoldCore => 0xd01fb1ee_5a73_3dee_834a_84687c126f14,
             Self::GetItem => 0xcd70d18d_dc3b_3053_b9fe_6efbc76d28bb,
+            Self::SectorPropList => 0x64e27db4_48c9_3507_a366_9bbb6b1b6a79,
+            Self::PropBroken => 0x15af6960_d57a_3be7_820c_d8825a163a0b,
+            Self::DropErg => 0x64b4f44b_be70_3e40_a441_a61ceaf133ea,
+            Self::PickErg => 0x2e9ee02b_6439_3079_9834_932286dfbb4b,
+            Self::PutErg => 0xd7f2e4f9_11e7_369c_a4dd_70d46756e0ad,
         })
     }
 }
@@ -490,6 +505,40 @@ pub struct GetItem {
     pub luck_bonus: i32,
     pub give_item_result: i32,
 }
+/// SectorPropListMessage (host): prop ID → material ID of the current sector.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectorPropList {
+    pub props: Dict<i32>,
+}
+/// PropBrokenMessage (host).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PropBroken {
+    pub prop: i32,
+    pub entity_name: Option<String>,
+    pub attacker: i32,
+}
+/// ErgInfo (all private fields, winner included).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Erg {
+    pub erg_id: i32,
+    pub erg_class: Option<String>,
+    pub erg_type: Option<String>,
+    pub amount: i32,
+    pub winner: i32,
+}
+/// DropErgMessage (to the host): ergs out of a prop or a monster.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DropErg {
+    pub broken_prop: i32,
+    pub monster_entity_name: Option<String>,
+    pub ergs: Option<Vec<Option<Erg>>>,
+}
+/// PutErgMessage: the erg and the tag of the player who picked it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PutErg {
+    pub erg_id: i32,
+    pub tag: i32,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     AcceptQuest(AcceptQuest),
@@ -511,6 +560,12 @@ pub enum Message {
     RagdollKicked(RagdollKicked),
     DropGoldCore(DropGoldCore),
     GetItem(GetItem),
+    SectorPropList(SectorPropList),
+    PropBroken(PropBroken),
+    DropErg(DropErg),
+    /// PickErgMessage (host): the picked erg ID.
+    PickErg(i32),
+    PutErg(PutErg),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -533,6 +588,11 @@ impl Message {
             Self::RagdollKicked(_) => Kind::RagdollKicked,
             Self::DropGoldCore(_) => Kind::DropGoldCore,
             Self::GetItem(_) => Kind::GetItem,
+            Self::SectorPropList(_) => Kind::SectorPropList,
+            Self::PropBroken(_) => Kind::PropBroken,
+            Self::DropErg(_) => Kind::DropErg,
+            Self::PickErg(_) => Kind::PickErg,
+            Self::PutErg(_) => Kind::PutErg,
         }
     }
 }
@@ -791,6 +851,25 @@ object!(GetItem {
     luck_bonus,
     give_item_result
 });
+object!(SectorPropList { props });
+object!(PropBroken {
+    prop,
+    entity_name,
+    attacker
+});
+object!(Erg {
+    erg_id,
+    erg_class,
+    erg_type,
+    amount,
+    winner
+});
+object!(DropErg {
+    broken_prop,
+    monster_entity_name,
+    ergs
+});
+object!(PutErg { erg_id, tag });
 pub fn encode(
     kind: Kind,
     message: Option<&Message>,
@@ -826,6 +905,11 @@ pub fn encode(
                 Message::RagdollKicked(v) => v.write(&mut w)?,
                 Message::DropGoldCore(v) => v.write(&mut w)?,
                 Message::GetItem(v) => v.write(&mut w)?,
+                Message::SectorPropList(v) => v.write(&mut w)?,
+                Message::PropBroken(v) => v.write(&mut w)?,
+                Message::DropErg(v) => v.write(&mut w)?,
+                Message::PickErg(v) => v.write(&mut w)?,
+                Message::PutErg(v) => v.write(&mut w)?,
             }
         }
     }
@@ -866,6 +950,11 @@ pub fn decode(
             Kind::RagdollKicked => Message::RagdollKicked(RagdollKicked::read(&mut r)?),
             Kind::DropGoldCore => Message::DropGoldCore(DropGoldCore::read(&mut r)?),
             Kind::GetItem => Message::GetItem(GetItem::read(&mut r)?),
+            Kind::SectorPropList => Message::SectorPropList(SectorPropList::read(&mut r)?),
+            Kind::PropBroken => Message::PropBroken(PropBroken::read(&mut r)?),
+            Kind::DropErg => Message::DropErg(DropErg::read(&mut r)?),
+            Kind::PickErg => Message::PickErg(i32::read(&mut r)?),
+            Kind::PutErg => Message::PutErg(PutErg::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

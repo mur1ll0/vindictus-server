@@ -40,3 +40,10 @@ Pré-condição: missão iniciada (B2.1) fora do modo prática.
 - [ ] Chutar de novo um núcleo já vazio → nada acontece (log "mission core kick without loot").
 - [ ] Relogar depois da missão → os itens obtidos continuam no inventário.
 Limites conhecidos: itens com atributos (ex.: pergaminhos de encantamento) e inventário cheio (envio por correio) ainda são recusados, com o log "mission core loot refused"; mapas do tesouro, núcleos de evento/história, pontos fracos e HugeLucky não estão migrados.
+
+### B2.5b — Ouro e ergs dos objetos quebráveis
+Pré-condição: dentro de um setor (fora do modo prática).
+- [ ] Quebrar barris/caixas/vasos → alguns soltam ouro e outros cristais/itens (ergs); objetos sem drop só quebram. No log: "mission sector props registered" ao entrar no setor.
+- [ ] Recolher o ouro/erg → mensagem de item obtido e o ouro/item entra no inventário (log "mission erg picked"); o mesmo erg não pode ser recolhido duas vezes.
+- [ ] Ergs de cura instantânea (HP) curam na hora sem entrar no inventário.
+Limites conhecidos: props nomeados (NamedProp), bônus de habilidade em props e HugeLucky não migrados; inventário cheio ainda não manda por correio.

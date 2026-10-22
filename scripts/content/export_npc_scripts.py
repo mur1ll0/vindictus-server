@@ -183,7 +183,8 @@ def read_package(base, database, config):
                              for r in db.execute('Select * From [QuestInfo]')]
         mission['goals'] = [[nullable_text(r['QuestID']), int32(r['ID']), int32(r['Relation']), nullable_text(r['Target']), nullable_text(r['GameSetting']), nullable_int32(r['GameSettingArg'])]
                             for r in db.execute('Select * From [QuestGoalInfo]')]
-        mission['sectors'] = [[nullable_text(r['QuestID']), int32(r['Sequence']), int32(r['SectorID']), nullable_text(r['BSPName']), int32(r['Weight'])]
+        mission['sectors'] = [[nullable_text(r['QuestID']), int32(r['Sequence']), int32(r['SectorID']), nullable_text(r['BSPName']), int32(r['Weight']),
+                               int32(r['GoldDropTotal']), int32(r['GoldDropPerProp'])]
                               for r in db.execute('Select * From [Sectors]')]
         mission['sector_groups'] = [[nullable_text(r['QuestID']), int32(r['FromGroup']), nullable_int32(r['FromSector']), nullable_text(r['FromTrigger']), int32(r['ToGroup']),
                                      nullable_text(r['ToSpawnPoint']), nullable_text(r['Feature'])]
@@ -219,6 +220,14 @@ def read_package(base, database, config):
         mission['monster_drops'] = [[int32(r['MonsterID']), nullable_text(r['QuestID']), int32(r['Difficulty']), nullable_text(r['ItemClassEX']), int32(r['Weight']),
                                      flag(r['IsAbsolute']), flag(r['IsRequiredClass']), flag(r['IsUniqueDrop']), nullable_text(r['Feature'])]
                                     for r in db.execute('Select * From [MonsterDropItemInfo]')]
+        # PropDropTable: QuestInfo.PropDropTableName (feature-filtered), PropItemWeightInfo,
+        # PropItemExpectationInfo ((int) of the REAL expectation) and MaterialGroupInfo.
+        mission['prop_tables'] = [[nullable_text(r['ID']), nullable_text(r['PropDropTableName']), nullable_text(r['Feature'])] for r in db.execute('Select * From [QuestInfo]')]
+        mission['prop_items'] = [[int32(r['ID']), nullable_text(r['DropTableName']), nullable_text(r['MaterialGroup']), nullable_text(r['Type']), nullable_text(r['Item']), int32(r['Weight']), nullable_text(r['Feature'])]
+                                 for r in db.execute('Select * From [PropItemWeightInfo]')]
+        mission['prop_expectations'] = [[nullable_text(r['DropTableName']), nullable_text(r['MaterialGroup']), int(r['DropExpectationPerSector'])]
+                                        for r in db.execute('Select * From [PropItemExpectationInfo]')]
+        mission['material_groups'] = [[int32(r['ID']), nullable_text(r['MaterialGroup'])] for r in db.execute('Select * From [MaterialGroupInfo]')]
         mission['quest_difficulties'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GameMode']), int32(r['EvilCoreCount']), nullable_text(r['Feature'])]
                                          for r in db.execute('Select * From [QuestDifficultyInfo]')]
         dropped = {(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']} | {'javelin_lvl0'}
@@ -245,6 +254,8 @@ def read_package(base, database, config):
     for d in mission['monster_drops']: wanted |= feature_atoms(d[8] or '')
     for d in mission['quest_difficulties']: wanted |= feature_atoms(d[4] or '')
     for d in mission['drop_classes']: wanted |= feature_atoms(d[3] or '')
+    for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
+    for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')
     for g in mission['sector_groups']: wanted |= feature_atoms(g[6] or '')
     for _, attrs in mission['entities']:
         for name, value in attrs:

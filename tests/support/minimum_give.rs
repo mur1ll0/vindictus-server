@@ -527,14 +527,18 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         "titles":[[410017,1,2047,0,null],[410018,2,2047,5,null],[410019,9,2047,0,null]],"title_goals":[[1,410017],[2,410017]]},
     "mission":{"quests":[["quest_gnoll_watchman",1,30,3,6,false,null,5,0,null,null,4,false,false,null],["quest_gnoll_shadowfang",2,30,3,6,false,null,null,0,null,null,4,false,true,null]],
         "goals":[["quest_gnoll_watchman",10010,0,"kill npc_gnoll watchman",null,null]],
-        "sectors":[["quest_gnoll_watchman",1,32,"01j",100],["quest_gnoll_watchman",2,33,"01_boss",100],["quest_gnoll_shadowfang",1,34,"01h",100]],
+        "sectors":[["quest_gnoll_watchman",1,32,"01j",100,0,0],["quest_gnoll_watchman",2,33,"01_boss",100,0,0],["quest_gnoll_shadowfang",1,34,"01h",100,0,0]],
         "sector_groups":[],"tower_quests":[],
         "entities":[[32,[["classname","trigger_once"],["targetname","t1"]]],[33,[["classname","npc_template_maker"],["TemplateName","npc_gnoll watchman"],["MaxNPCCount","1"],["DropItem","1"]]]],
         "named_props":[],"settings":[],"setting_conditions":[],
         "monsters":[[1,"npc_gnoll","watchman",-1,200,1000,100]],
         "monster_drops":[[1,null,2,"synthetic_gold",100,false,false,false,null]],
         "quest_difficulties":[["quest_gnoll_watchman",2,1,2,null]],
-        "drop_classes":[["synthetic_gold",1,2047,null]]},
+        "drop_classes":[["synthetic_gold",1,2047,null]],
+        "prop_tables":[["quest_gnoll_watchman","ruin",null]],
+        "prop_items":[[1,"ruin","WOOD","SERVER","synthetic_gold",100,null]],
+        "prop_expectations":[["ruin","WOOD",1]],
+        "material_groups":[[4,"WOOD"]]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -2046,6 +2050,29 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         mission.events.last().map(String::as_str),
         Some("get item synthetic_gold 1")
     );
+    // A wood prop of the boss sector drops a server erg; picking it gives the item and
+    // answers PutErg.
+    minimum_mission::sector_props(&mut mission, contents, &[(40, 4)], &mut OsMissionRandom)
+        .unwrap();
+    let dropped =
+        minimum_mission::prop_broken(&mut mission, contents, 40, 0, &mut OsMissionRandom).unwrap();
+    let Some(MissionMessage::DropErg(drop)) =
+        mission_wire::decode(MissionKind::DropErg, &dropped[0].body, 1 << 20).unwrap()
+    else {
+        panic!("drop erg")
+    };
+    let erg = drop.ergs.unwrap()[0].clone().unwrap();
+    assert_eq!(
+        (drop.broken_prop, erg.erg_type.as_deref(), erg.winner),
+        (40, Some("synthetic_gold"), 0)
+    );
+    assert_eq!(
+        mission.events.last().map(String::as_str),
+        Some("destroyprop WOOD")
+    );
+    let picked = minimum_mission::pick_erg(&mut mission, contents, erg.erg_id).unwrap();
+    assert!(minimum_mission::pick_erg(&mut mission, contents, erg.erg_id).is_none());
+    assert_eq!((picked.kind.as_str(), picked.amount), ("synthetic_gold", 1));
     assert!(minimum_mission::player_killed(&mut mission, 0));
     assert!(!minimum_mission::player_killed(&mut mission, 0));
     minimum_selection::disconnect(&p, 1).await.unwrap();

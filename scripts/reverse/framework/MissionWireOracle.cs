@@ -135,6 +135,12 @@ class MissionWireOracle {
   AddCases("ragdoll_kicked",552,new Guid("e7ae9d95-805f-3478-b19e-b03c14234ee7"),kicks,cases);
   AddCases("drop_gold_core",350,new Guid("d01fb1ee-5a73-3dee-834a-84687c126f14"),new[]{null,new DropGoldCoreMessage(null,null,0),new DropGoldCoreMessage("257",new List<EvilCoreInfo>{new EvilCoreInfo("257",EvilCoreType.BasicGoldCore,0,true),new EvilCoreInfo("box",EvilCoreType.AdditionalCore,-1)},1),new DropGoldCoreMessage("",new List<EvilCoreInfo>(),int.MinValue)},cases);
   AddCases("get_item",463,new Guid("cd70d18d-dc3b-3053-b9fe-6efbc76d28bb"),new[]{null,new GetItemMessage(null,null,0,0,false,0,GiveItem.ResultEnum.Success),new GetItemMessage("Fiona_é","cloth_lvl1",1,1,false,0,GiveItem.ResultEnum.Success),new GetItemMessage("x","gold",int.MaxValue,10,true,-1,GiveItem.ResultEnum.Failed)},cases);
+  AddCases("sector_prop_list",563,new Guid("64e27db4-48c9-3507-a366-9bbb6b1b6a79"),new[]{null,Obj<SectorPropListMessage>("Props",null),Obj<SectorPropListMessage>("Props",(IDictionary<int,int>)new Dictionary<int,int>()),Obj<SectorPropListMessage>("Props",(IDictionary<int,int>)new Dictionary<int,int>{{12,3},{-1,int.MaxValue},{7,3}})},cases);
+  AddCases("prop_broken",524,new Guid("15af6960-d57a-3be7-820c-d8825a163a0b"),new[]{null,new PropBrokenMessage(0,null,0),new PropBrokenMessage(12,"barrel",-1),new PropBrokenMessage(int.MaxValue,"",3)},cases);
+  var gold=new ErgInfo(3,"gold","gold",40);gold.Winner=0;
+  AddCases("drop_erg",455,new Guid("64b4f44b-be70-3e40-a441-a61ceaf133ea"),new[]{null,new DropErgMessage(0,null),new DropErgMessage(12,new List<ErgInfo>{gold,new ErgInfo("INSTANT","HP",65)}),new DropErgMessage("257",new List<ErgInfo>{new ErgInfo(-1,"server","life_erg_crystal",int.MaxValue)})},cases);
+  AddCases("pick_erg",520,new Guid("2e9ee02b-6439-3079-9834-932286dfbb4b"),new[]{null,new PickErgMessage(0),new PickErgMessage(-1),new PickErgMessage(int.MaxValue)},cases);
+  AddCases("put_erg",525,new Guid("d7f2e4f9-11e7-369c-a4dd-70d46756e0ad"),new[]{null,new PutErgMessage(0,0),new PutErgMessage(3,1),new PutErgMessage(int.MinValue,-1)},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

@@ -61,7 +61,19 @@ pub type SectorGroupRow = (
     Option<String>,
 );
 /// Sectors: QuestID, Sequence, SectorID, BSPName, Weight.
-pub type SectorRow = (Option<String>, i32, i32, Option<String>, i32);
+pub type SectorRow = (Option<String>, i32, i32, Option<String>, i32, i32, i32);
+/// A material group of a PropDropTable: its candidates and DropExpectation.
+pub type PropGroup = (String, (Vec<PropItemRow>, i32));
+/// PropItemWeightInfo: ID, DropTableName, MaterialGroup, Type, Item, Weight, Feature.
+pub type PropItemRow = (
+    i32,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    i32,
+    Option<String>,
+);
 /// An Entity of a quest sector with its EntityAttribute pairs.
 pub type EntityRow = (i32, Vec<(Option<String>, Option<String>)>);
 /// QuestSettingsInfo: RowID, ConditionID, Key, Value.
@@ -92,6 +104,13 @@ pub struct MissionTables {
     pub quest_difficulties: Vec<DifficultyRow>,
     /// ItemClassInfo of dropped classes: ItemClass, Rarity, ClassRestriction, Feature.
     pub drop_classes: Vec<(Option<String>, i32, i32, Option<String>)>,
+    /// QuestInfo: ID, PropDropTableName, Feature.
+    pub prop_tables: Vec<(Option<String>, Option<String>, Option<String>)>,
+    pub prop_items: Vec<PropItemRow>,
+    /// PropItemExpectationInfo: DropTableName, MaterialGroup, (int)DropExpectationPerSector.
+    pub prop_expectations: Vec<(Option<String>, Option<String>, i32)>,
+    /// MaterialGroupInfo: ID, MaterialGroup.
+    pub material_groups: Vec<(i32, Option<String>)>,
 }
 /// QuestDifficultyInfo: QuestID, Difficulty, GameMode, EvilCoreCount, Feature.
 pub type DifficultyRow = (Option<String>, i32, i32, i32, Option<String>);
@@ -449,6 +468,8 @@ pub struct Connection {
 #[derive(Clone, Debug)]
 pub struct SectorBase {
     pub sector_id: i32,
+    pub gold_drop_total: i32,
+    pub gold_drop_per_prop: i32,
     pub bsp: Option<String>,
     pub group_id: i32,
     pub weight: i32,
@@ -533,6 +554,30 @@ pub struct SectorInstance {
     pub base: usize,
     /// SectorObjectDict: type name → (key, object), both in insertion order.
     pub objects: Vec<(&'static str, Vec<KeyedObject>)>,
+    /// Prop sector objects ("prop<ID>") and IsPropRegistered.
+    pub props: Vec<Prop>,
+    pub props_registered: bool,
+    /// Erg sector objects ("erg<ID>") and NextErgID.
+    pub ergs: Vec<ErgDrop>,
+    pub next_erg_id: i32,
+}
+
+/// Prop: ID, MaterialID and either its MaterialGroup (erg drops) or its gold.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Prop {
+    pub id: i32,
+    pub material: i32,
+    pub group: Option<String>,
+    pub gold: i32,
+}
+/// ErgInfo of a dropped erg.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ErgDrop {
+    pub id: i32,
+    pub class: String,
+    pub kind: String,
+    pub amount: i32,
+    pub winner: i32,
 }
 impl SectorInstance {
     /// AddSectorObject: a duplicated key replaces the entry in place.
@@ -635,6 +680,11 @@ pub struct MissionContents {
     difficulties: BTreeMap<(String, i32), (i32, i32)>,
     /// itemClassInfoDic of dropped classes: ItemClass → (Rarity, ClassRestriction).
     drop_classes: BTreeMap<String, (i32, i32)>,
+    /// PropDropTableByQuestID, MaterialGroupDict and the DropTables of PropDropTable:
+    /// table → (MaterialGroup, (rows, DropExpectation)) in first-appearance order.
+    prop_tables: BTreeMap<String, Option<String>>,
+    material_groups: BTreeMap<i32, Option<String>>,
+    prop_drops: BTreeMap<String, Vec<PropGroup>>,
     /// FeatureMatrix: LuckyBonus, RareCoreEffectRarity, bossevilcore_bonus.
     lucky_bonus: bool,
     rare_core_rarity: i32,
@@ -687,7 +737,9 @@ impl MissionContents {
         // SectorBase per Sectors row (Sequence ≤ 0 are story sectors), grouped per quest.
         let mut builders: BTreeMap<String, SectorBuilder> = BTreeMap::new();
         let mut order: Vec<String> = Vec::new();
-        for (quest, sequence, sector_id, bsp, weight) in t.sectors {
+        for (quest, sequence, sector_id, bsp, weight, gold_drop_total, gold_drop_per_prop) in
+            t.sectors
+        {
             let quest = quest.ok_or(MissionError::Content)?;
             if sequence <= 0 || towers.contains(&quest) {
                 continue;
@@ -698,6 +750,8 @@ impl MissionContents {
             });
             let base = SectorBase {
                 sector_id,
+                gold_drop_total,
+                gold_drop_per_prop,
                 bsp,
                 group_id: sequence,
                 weight,
@@ -819,6 +873,48 @@ impl MissionContents {
                 drop_classes.insert(class.ok_or(MissionError::Content)?, (rarity, restriction));
             }
         }
+        let mut prop_tables = BTreeMap::new();
+        for (quest, table, feature) in t.prop_tables {
+            if enabled(feature.as_deref())?
+                && prop_tables
+                    .insert(quest.ok_or(MissionError::Content)?, table)
+                    .is_some()
+            {
+                return Err(MissionError::Content);
+            }
+        }
+        let mut material_groups = BTreeMap::new();
+        for (id, group) in t.material_groups {
+            if material_groups.insert(id, group).is_some() {
+                return Err(MissionError::Content);
+            }
+        }
+        let mut prop_drops: BTreeMap<String, Vec<PropGroup>> = BTreeMap::new();
+        for row in t.prop_items {
+            // Candidates keep every row; only enabled rows weigh and drop.
+            if !enabled(row.6.as_deref())? {
+                continue;
+            }
+            let table = row.1.clone().unwrap_or_default();
+            let group = row.2.clone().unwrap_or_default();
+            let groups = prop_drops.entry(table).or_default();
+            match groups.iter_mut().find(|(g, _)| *g == group) {
+                Some((_, (rows, _))) => rows.push(row),
+                None => groups.push((group, (vec![row], 0))),
+            }
+        }
+        for (table, group, expectation) in t.prop_expectations {
+            if let Some((_, (_, e))) =
+                prop_drops
+                    .get_mut(table.as_deref().unwrap_or(""))
+                    .and_then(|g| {
+                        g.iter_mut()
+                            .find(|(n, _)| Some(n.as_str()) == group.as_deref())
+                    })
+            {
+                *e = expectation;
+            }
+        }
         let lucky_bonus = enabled(Some("LuckyBonus"))?;
         let rare_core_rarity = policy
             .get_integer("RareCoreEffectRarity")
@@ -837,6 +933,9 @@ impl MissionContents {
             drops,
             difficulties,
             drop_classes,
+            prop_tables,
+            material_groups,
+            prop_drops,
             lucky_bonus,
             rare_core_rarity,
             boss_evil_core_bonus,
@@ -1406,6 +1505,191 @@ impl MissionContents {
         Ok(Some(item))
     }
 
+    /// SectorInstance.RegisterPropList for the reported props (ID → MaterialID). The first
+    /// report assigns, over the shuffled IDs, the erg drop expectations of each material
+    /// group of the quest's PropDropTable, then the gold amounts of GoldDropTable (none in
+    /// practice). Later reports re-map the registered props by material.
+    pub fn register_props(
+        &self,
+        quest: &str,
+        sequence: &mut SectorSequence,
+        props: &[(i32, i32)],
+        practice: bool,
+        random: &mut dyn MissionRandom,
+    ) -> Result<(), MissionError> {
+        let Some(group) = sequence.current else {
+            return Ok(());
+        };
+        let builder = self.builders.get(quest).ok_or(MissionError::NoSectorInfo)?;
+        let si = sequence
+            .sectors
+            .iter()
+            .position(|s| s.group_id == group)
+            .ok_or(MissionError::NoSectorInfo)?;
+        let (gold_total, gold_per) = {
+            let base = self.base(builder, &sequence.sectors[si])?;
+            (base.gold_drop_total, base.gold_drop_per_prop)
+        };
+        let sector = &mut sequence.sectors[si];
+        if sector.props_registered {
+            let mut by_material: Vec<(i32, Vec<i32>)> = Vec::new();
+            for (id, material) in props {
+                match by_material.iter_mut().find(|(m, _)| m == material) {
+                    Some((_, ids)) => ids.push(*id),
+                    None => by_material.push((*material, vec![*id])),
+                }
+            }
+            for (_, ids) in &mut by_material {
+                let n = ids.len();
+                shuffle(ids, n, random);
+            }
+            let mut kept = Vec::new();
+            for mut prop in std::mem::take(&mut sector.props) {
+                let Some((_, ids)) = by_material.iter_mut().find(|(m, _)| *m == prop.material)
+                else {
+                    continue;
+                };
+                let Some(id) = ids.pop() else { continue };
+                prop.id = id;
+                kept.push(prop);
+            }
+            sector.props = kept;
+            return Ok(());
+        }
+        let mut expectation: Vec<(String, i32)> = self
+            .prop_tables
+            .get(quest)
+            .and_then(|t| t.as_ref())
+            .and_then(|t| self.prop_drops.get(t))
+            .map(|groups| groups.iter().map(|(g, (_, e))| (g.clone(), *e)).collect())
+            .unwrap_or_default();
+        let mut gold: Vec<(i32, i32)> = if practice {
+            Vec::new()
+        } else {
+            gold_drop(gold_total, gold_per)
+        };
+        let mut ids: Vec<i32> = props.iter().map(|(id, _)| *id).collect();
+        let n = ids.len();
+        shuffle(&mut ids, n, random);
+        for id in ids {
+            let material = props.iter().find(|(p, _)| *p == id).map_or(0, |(_, m)| *m);
+            let group = self.material_groups.get(&material).cloned().flatten();
+            let wanted = group
+                .as_ref()
+                .and_then(|g| expectation.iter().find(|(n, _)| n == g))
+                .map_or(0, |(_, e)| *e);
+            if wanted > 0 {
+                sector.props.push(Prop {
+                    id,
+                    material,
+                    group: group.clone(),
+                    gold: 0,
+                });
+                if let Some(i) = expectation
+                    .iter()
+                    .position(|(n, _)| Some(n) == group.as_ref())
+                {
+                    if wanted == 1 {
+                        expectation.remove(i);
+                    } else {
+                        expectation[i].1 -= 1;
+                    }
+                }
+            } else if let Some(&(amount, count)) = gold.first() {
+                sector.props.push(Prop {
+                    id,
+                    material,
+                    group: None,
+                    gold: amount,
+                });
+                if count == 1 {
+                    gold.remove(0);
+                } else {
+                    gold[0].1 -= 1;
+                }
+            }
+            if expectation.is_empty() && gold.is_empty() {
+                break;
+            }
+        }
+        sector.props_registered = true;
+        Ok(())
+    }
+
+    /// PropBrokenProcessor → Prop.BreakProp for the solo player (slot `slot`): an erg of
+    /// the material group's PropDropTable (INSTANT ergs are only announced; others become
+    /// ergs to pick, not in practice), or the prop's gold. Returns the DropErg contents.
+    pub fn break_prop(
+        &self,
+        quest: &str,
+        sequence: &mut SectorSequence,
+        prop_id: i32,
+        slot: i32,
+        practice: bool,
+        random: &mut dyn MissionRandom,
+    ) -> Option<Vec<ErgDrop>> {
+        let group = sequence.current?;
+        let sector = sequence.sectors.iter_mut().find(|s| s.group_id == group)?;
+        let pi = sector.props.iter().position(|p| p.id == prop_id)?;
+        let prop = sector.props[pi].clone();
+        let mut list = Vec::new();
+        match &prop.group {
+            Some(material_group) => {
+                let rows = self
+                    .prop_tables
+                    .get(quest)
+                    .and_then(|t| t.as_ref())
+                    .and_then(|t| self.prop_drops.get(t))
+                    .and_then(|g| g.iter().find(|(n, _)| n == material_group))
+                    .map(|(_, (rows, _))| rows)?;
+                let total: i32 = rows.iter().map(|r| r.5).sum();
+                let mut roll = random.next_range(0, total);
+                let row = rows.iter().find(|r| {
+                    roll -= r.5;
+                    roll < 0
+                })?;
+                let mut erg = to_erg(row);
+                if erg.class != "INSTANT" && !practice {
+                    erg.winner = slot;
+                    erg.id = sector.next_erg_id;
+                    sector.next_erg_id += 1;
+                    sector.ergs.push(erg.clone());
+                }
+                list.push(erg);
+            }
+            None => {
+                let erg = ErgDrop {
+                    id: sector.next_erg_id,
+                    class: "GOLD".to_owned(),
+                    kind: "gold".to_owned(),
+                    amount: prop.gold,
+                    winner: slot,
+                };
+                sector.next_erg_id += 1;
+                sector.ergs.push(erg.clone());
+                list.push(erg);
+            }
+        }
+        sector.props.remove(pi);
+        Some(list)
+    }
+
+    /// PickErgProcessor → Erg.PickErg: the erg of the winner is removed and returned.
+    pub fn pick_erg(
+        &self,
+        sequence: &mut SectorSequence,
+        erg_id: i32,
+        slot: i32,
+    ) -> Option<ErgDrop> {
+        let group = sequence.current?;
+        let sector = sequence.sectors.iter_mut().find(|s| s.group_id == group)?;
+        let i = sector.ergs.iter().position(|e| e.id == erg_id)?;
+        if sector.ergs[i].winner != slot {
+            return None;
+        }
+        Some(sector.ergs.remove(i))
+    }
+
     fn base<'a>(
         &self,
         builder: &'a SectorBuilder,
@@ -1431,6 +1715,10 @@ impl MissionContents {
             group_id,
             base: index,
             objects: Vec::new(),
+            props: Vec::new(),
+            props_registered: false,
+            ergs: Vec::new(),
+            next_erg_id: 0,
         };
         for object in &base.objects {
             let object = match object {
@@ -2169,4 +2457,56 @@ pub const BASIC_GOLD_CORE: i32 = 2;
 /// ItemClassExBuilder.Parse: the class before ',', '[' or ']'.
 pub fn item_class(class_ex: &str) -> &str {
     class_ex.split([',', '[', ']']).next().unwrap_or("")
+}
+
+/// GoldDropTable.GetGoldDropDict: 2·max(1, per × 0.2) + 1 consecutive amounts around the
+/// per-prop gold, each for ⌊total / per⌋ / count props.
+fn gold_drop(total: i32, per: i32) -> Vec<(i32, i32)> {
+    if per <= 0 || total <= 0 {
+        return Vec::new();
+    }
+    let spread = (f64::from(per) * 0.2).max(1.0) as i32;
+    let count = spread * 2 + 1;
+    let each = (f64::from(total) / f64::from(per)).floor() as i32 / count;
+    (per - spread..per - spread + count)
+        .map(|amount| (amount, each))
+        .collect()
+}
+
+/// List.ShuffleFirstNthElement(random, n).
+fn shuffle(list: &mut [i32], n: usize, random: &mut dyn MissionRandom) {
+    for i in 0..n.min(list.len()) {
+        let j = random.next_range(i as i32, list.len() as i32);
+        if let Ok(j) = usize::try_from(j) {
+            list.swap(i, j.min(list.len() - 1));
+        }
+    }
+}
+
+/// MicroPlayContentsExtension.ToErgInfo(PropItemWeightInfo).
+fn to_erg(row: &PropItemRow) -> ErgDrop {
+    let kind = row.3.as_deref().unwrap_or("").to_uppercase();
+    let item = row.4.clone().unwrap_or_default();
+    if kind == "INSTANT" {
+        let parts: Vec<&str> = item.split([' ', '\t']).collect();
+        if parts.first().is_some_and(|p| p.to_uppercase() == "HP")
+            && parts.len() >= 2
+            && let Ok(amount) = parts[1].parse::<i32>()
+        {
+            return ErgDrop {
+                id: 0,
+                class: "INSTANT".to_owned(),
+                kind: "HP".to_owned(),
+                amount,
+                winner: -1,
+            };
+        }
+    }
+    ErgDrop {
+        id: 0,
+        class: "SERVER".to_owned(),
+        kind: item,
+        amount: 1,
+        winner: -1,
+    }
 }

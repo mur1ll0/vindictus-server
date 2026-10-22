@@ -23,7 +23,7 @@ class NpcScriptExportTests(unittest.TestCase):
             db.executescript("CREATE TABLE QuestInfo(ID TEXT,AutoGiveLevel INT,QuestSet INT,ServiceCoin INT,MaxMemberCount INT,MaxPlayCount INT,EnableTodayQuest TEXT,Season3TodayGroup TEXT,AutoReveal bit,Feature TEXT,IsSeason2 bit,Level INT,TimeLimit INT,DropItemCountMin INT,DropItemCountMax INT,HuntingQuest bit,InitGameTime INT,SectorMoveGameTime INT,GatheringRockMax INT,RequiredStoryLineID TEXT,RequiredPhase TEXT,DisableUserShip bit,RequiredItem TEXT);"
                              "INSERT INTO QuestInfo VALUES('quest_a',1,1,0,4,NULL,'Enable',NULL,'False','EP3','False',2,30,3,6,'False',NULL,5,1,NULL,NULL,'False',NULL);"
                              "CREATE TABLE QuestGoalInfo(ID INT,QuestID TEXT,Relation INT,Weight INT,Target TEXT,GameSetting TEXT,GameSettingArg INT);INSERT INTO QuestGoalInfo VALUES(10,'quest_a',0,100,'kill npc_gnoll boss',NULL,NULL);"
-                             "CREATE TABLE Sectors(QuestID TEXT,Sequence INT,SectorID INT,BSPName TEXT,SubSector TEXT,Weight INT);INSERT INTO Sectors VALUES('quest_a',1,7,'01h',NULL,100);"
+                             "CREATE TABLE Sectors(QuestID TEXT,Sequence INT,SectorID INT,BSPName TEXT,SubSector TEXT,Weight INT,GoldDropTotal INT,GoldDropPerProp INT);INSERT INTO Sectors VALUES('quest_a',1,7,'01h',NULL,100,400,10);"
                              "CREATE TABLE SectorGroupInfo(QuestID TEXT,FromGroup INT,FromSector INT,FromTrigger TEXT,ToGroup INT,ToSpawnPoint TEXT,Feature TEXT);INSERT INTO SectorGroupInfo VALUES('quest_a',1,NULL,'exit',2,NULL,'group_flag');"
                              "CREATE TABLE TowerModuleSectorInfo(QuestID TEXT,SectorID INT);"
                              "CREATE TABLE Entity(ID INT,SectorID INT);INSERT INTO Entity VALUES(300,7),(301,8),(302,7);"
@@ -33,7 +33,7 @@ class NpcScriptExportTests(unittest.TestCase):
                              "CREATE TABLE QuestSettingsConditionInfo(RowID INT,ConditionID INT,Condition TEXT,Value TEXT);"
                              "CREATE TABLE MonsterInfo(Identifier INT,Class TEXT,Variation TEXT,Difficulty INT,Exp INT,HP1 INT,HP_Normal_Percent INT);INSERT INTO MonsterInfo VALUES(7,'npc_gnoll','normal',-1,30,500,100);"
                              "CREATE TABLE MonsterDropItemInfo(MonsterID INT,QuestID TEXT,Difficulty INT,ItemClassEX TEXT,Weight INT,IsAbsolute bit,IsRequiredClass bit,IsUniqueDrop bit,Feature TEXT);INSERT INTO MonsterDropItemInfo VALUES(7,NULL,1,'synthetic[PREFIX:x]',5000,'False','True','False','drop_flag');"
-                             "ALTER TABLE ItemClassInfo ADD COLUMN Rarity INTEGER DEFAULT 3;ALTER TABLE ItemClassInfo ADD COLUMN ClassRestriction INTEGER DEFAULT 2047;"
+                             "ALTER TABLE ItemClassInfo ADD COLUMN Rarity INTEGER DEFAULT 3;ALTER TABLE ItemClassInfo ADD COLUMN ClassRestriction INTEGER DEFAULT 2047;ALTER TABLE QuestInfo ADD COLUMN PropDropTableName TEXT;CREATE TABLE PropItemWeightInfo(ID INT,DropTableName TEXT,MaterialGroup TEXT,Type TEXT,Item TEXT,Weight INT,Feature TEXT);INSERT INTO PropItemWeightInfo VALUES(1,'ruin','WOOD','INSTANT','hp 65',700,NULL);CREATE TABLE PropItemExpectationInfo(ID INT,DropTableName TEXT,MaterialGroup TEXT,DropExpectationPerSector REAL);INSERT INTO PropItemExpectationInfo VALUES(1,'ruin','WOOD',9.7);CREATE TABLE MaterialGroupInfo(ID INT,MaterialGroup TEXT,Material TEXT);INSERT INTO MaterialGroupInfo VALUES(1,'WOOD','wood');"
                              "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
                              "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT,GameMode INT,EvilCoreCount INT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL,1,2);"
                              "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
@@ -66,6 +66,7 @@ class NpcScriptExportTests(unittest.TestCase):
         self.assertEqual((m['named_props'], m['tower_quests'], m['settings']), (['barrel'], [], [[1, None, 'TutorStamp', 'Basic']]))
         self.assertEqual(m['monsters'], [[7, 'npc_gnoll', 'normal', -1, 30, 500, 100]])
         self.assertEqual(m['monster_drops'], [[7, None, 1, 'synthetic[PREFIX:x]', 5000, False, True, False, 'drop_flag']])
+        self.assertEqual((m['sectors'][0][5:], m['prop_expectations'], m['material_groups']), ([400, 10], [['ruin', 'WOOD', 9]], [[1, 'WOOD']]))
         # The dropped class (attributes stripped) carries its rarity and class restriction.
         self.assertEqual([r[:3] for r in m['drop_classes']], [['synthetic', 3, 2047]])
         self.assertIn('drop_flag', [f['key'] for f in p['features']])
