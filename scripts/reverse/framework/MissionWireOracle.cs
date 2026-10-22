@@ -125,6 +125,10 @@ class MissionWireOracle {
   foreach(int g in new[]{-1,1,int.MaxValue})moves.Add(Obj<MoveToNextSectorMessage>("TriggerName",g==1?"":"exit_é","TargetGroup",g,"HolyProps",new List<int>{g,0}));
   AddCases("move_to_next_sector",532,new Guid("67aefac8-659d-385a-a39a-03e3d1dce102"),moves,cases);
   AddCases("all_user_join_complete",47,new Guid("3f79e7b8-49d5-34f2-8970-b8b5b47aa1eb"),new[]{null,new AllUserJoinCompleteMessage()},cases);
+  var kills=new List<MonsterKilledMessage>{null,Obj<MonsterKilledMessage>("Attacker",0,"Target",0,"ActionType",null,"HasEvilCore",false,"Damage",0,"DamagePositionX",0,"DamagePositionY",0,"Distance",0,"ActorIndex",0)};
+  foreach(int seed in new[]{-1,1,int.MaxValue})kills.Add(Obj<MonsterKilledMessage>("Attacker",seed,"Target",seed^256,"ActionType",seed==1?"no_item":"attack_é","HasEvilCore",seed==1,"Damage",seed,"DamagePositionX",-seed,"DamagePositionY",seed,"Distance",int.MinValue,"ActorIndex",seed));
+  AddCases("monster_killed",501,new Guid("8cfddc5b-72e0-3490-bb44-1ecf1a813468"),kills,cases);
+  AddCases("player_killed",522,new Guid("71d3965f-66a2-31f1-aa15-90d54c7c7882"),new[]{null,Priv<PlayerKilledMessage>("tag",0),Priv<PlayerKilledMessage>("tag",int.MinValue),Priv<PlayerKilledMessage>("tag",3)},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

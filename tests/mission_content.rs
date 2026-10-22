@@ -212,6 +212,11 @@ fn tables() -> MissionTables {
         named_props: vec!["barrel".to_owned()],
         settings: vec![(1, Some(1008), s("Tower"), s(""))],
         setting_conditions: vec![(1008, s("QuestPrefix"), s("quest_tower"))],
+        monsters: vec![
+            (11, s("npc_gnoll"), s("normal"), -1, 50, 300, 100),
+            (12, s("npc_gnoll"), s("chief"), 1, 400, 900, 100),
+            (13, s("npc_gnoll"), s("chief"), 2, 800, 1800, 100),
+        ],
     }
 }
 
@@ -501,4 +506,61 @@ fn move_next_follows_the_starting_group_then_trigger_connections() {
             .unwrap()
     );
     assert_eq!(sequence.passed.len(), 2);
+}
+
+#[test]
+fn monster_kills_count_once_and_accumulate_monster_exp() {
+    use vindictus_server::domain::mission::{Kill, monster_kill_exp};
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    // GetMonsterInfo: a single row answers every difficulty; "class variation weight"
+    // drops the weight; a missing difficulty falls back to -1 (absent here).
+    let normal = contents.monster_info("npc_gnoll normal 30", 3).unwrap();
+    assert_eq!(normal.identifier, 11);
+    assert_eq!(
+        contents
+            .monster_info("npc_gnoll chief", 2)
+            .unwrap()
+            .identifier,
+        13
+    );
+    assert_eq!(
+        contents
+            .monster_info("npc_gnoll chief", -1)
+            .unwrap()
+            .identifier,
+        12
+    );
+    assert!(contents.monster_info("npc_gnoll chief", 5).is_none());
+    // 50 × 100/100 × 1.0 × 140 / 100 = 70, then ExpRate_Monster 100.
+    assert_eq!(monster_kill_exp(normal, 1, 100), 70);
+    assert_eq!(monster_kill_exp(normal, 2, 100), 56);
+    assert_eq!(monster_kill_exp(normal, 6, 50), 0);
+    let digest = contents.digest("quest_a", -1).unwrap();
+    let mut sequence = contents
+        .sector_sequence(&digest, true, false, &mut Script::default())
+        .unwrap();
+    assert_eq!(contents.kill(&mut sequence, 1), Kill::NotInSector);
+    assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
+    assert!(contents.move_next("quest_a", &mut sequence, "", 2).unwrap());
+    let boss = contents
+        .entities()
+        .iter()
+        .find(|e| e.get("TemplateName") == Some("npc_gnoll chief"))
+        .unwrap()
+        .id;
+    assert_eq!(contents.kill(&mut sequence, boss + 1000), Kill::Unknown);
+    let Kill::Killed {
+        monster_type,
+        is_boss,
+        all_dead,
+        ..
+    } = contents.kill(&mut sequence, boss)
+    else {
+        panic!("boss kill")
+    };
+    assert_eq!(
+        (monster_type.as_str(), is_boss, all_dead),
+        ("npc_gnoll chief", true, true)
+    );
+    assert_eq!(contents.kill(&mut sequence, boss), Kill::AlreadyDead);
 }

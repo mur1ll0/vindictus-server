@@ -210,6 +210,9 @@ def read_package(base, database, config):
                                for r in db.execute('Select * From [QuestSettingsInfo]')]
         mission['setting_conditions'] = [[int32(r['ConditionID']), nullable_text(r['Condition']), nullable_text(r['Value'])]
                                          for r in db.execute('Select * From [QuestSettingsConditionInfo]')]
+        # MicroPlayContents.Monsters: MonsterInfo by "Class Variation" and Difficulty.
+        mission['monsters'] = [[int32(r['Identifier']), nullable_text(r['Class']), nullable_text(r['Variation']), int32(r['Difficulty']), int32(r['Exp']), int32(r['HP1']), int32(r['HP_Normal_Percent'])]
+                               for r in db.execute('Select * From [MonsterInfo]')]
     if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
     if any(len(v) > 100000 for v in mission.values()): raise ValueError('Mission table bound')
     if any(len(v) > 10000 for v in progression.values()): raise ValueError('Progression table bound')
@@ -226,7 +229,8 @@ def read_package(base, database, config):
     for q in quests['quests']:
         wanted |= feature_atoms(q['Feature'] or ''); wanted |= feature_atoms(q['EnableTodayQuest'] or '')
     for d in quests['difficulties']: wanted |= feature_atoms(d[3] or '')
-    wanted |= {'Gathering', 'GatheringRare', 'AntiSectorSkip', 'bossevilcore_bonus'}
+    wanted |= {'Gathering', 'GatheringRare', 'AntiSectorSkip', 'bossevilcore_bonus', 'ExpRate_Monster', 'MDRSystem_V1', 'MDRSystem_V2',
+               'MDRSystem_ActionFilter', 'DirectCollectCoin', 'AntiSectorFail', 'FatigueSystem'}
     for g in mission['sector_groups']: wanted |= feature_atoms(g[6] or '')
     for _, attrs in mission['entities']:
         for name, value in attrs:

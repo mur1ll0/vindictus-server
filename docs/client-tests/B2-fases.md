@@ -26,3 +26,10 @@ Pré-condição: a entrada B2.1 chegou à primeira área da dungeon.
 - [ ] Hora do dia na dungeon (iluminação) coerente entre os setores; nenhuma desconexão ao trocar de setor.
 Limites conhecidos: sem detecção de pulo de setor (AntiSectorSkip desligado no perfil), sem diálogos de console de setor; o progresso de objetivos e a conclusão vêm no B2.7.
 
+### B2.4 — Abates de monstros e morte da personagem
+Pré-condição: dentro de um setor da missão (B2.3).
+- [ ] Derrotar monstros comuns → morrem normalmente no cliente; no log, "mission monster kill processed" com `killed=true` uma vez por monstro (um segundo relato do mesmo monstro aparece com `killed=false`).
+- [ ] Derrotar o chefe da missão → morte do chefe sem desconexão; o log registra o abate (`killed=true`).
+- [ ] Deixar a Fiona morrer → tela de morte; no log, "mission player death processed" com `dead=true`.
+Limites conhecidos: nenhum item, núcleo ou ouro cai dos monstros (drops no B2.5); o EXP de monstros é acumulado no servidor e só aparece com o resultado da missão (B2.7); reviver com pena/consumível não está migrado.
+

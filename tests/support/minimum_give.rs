@@ -530,7 +530,8 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         "sectors":[["quest_gnoll_watchman",1,32,"01j",100],["quest_gnoll_watchman",2,33,"01_boss",100],["quest_gnoll_shadowfang",1,34,"01h",100]],
         "sector_groups":[],"tower_quests":[],
         "entities":[[32,[["classname","trigger_once"],["targetname","t1"]]],[33,[["classname","npc_template_maker"],["TemplateName","npc_gnoll watchman"],["MaxNPCCount","1"]]]],
-        "named_props":[],"settings":[],"setting_conditions":[]},
+        "named_props":[],"settings":[],"setting_conditions":[],
+        "monsters":[[1,"npc_gnoll","watchman",-1,200,1000,100]]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -1960,6 +1961,31 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     assert!(minimum_mission::move_sector(&mut mission, contents, "exit", 2).unwrap());
     assert_eq!(mission.game_time, 4);
     assert!(!minimum_mission::move_sector(&mut mission, contents, "", -1).unwrap());
+    // The boss (goal target) dies once: monster-kill EXP and the tracker event.
+    let boss = sectors[1]
+        .as_ref()
+        .unwrap()
+        .entities
+        .as_ref()
+        .unwrap()
+        .iter()
+        .flatten()
+        .find_map(|e| {
+            let marker = "\"NPCTargetname\" \"";
+            let rest = &e[e.find(marker)? + marker.len()..];
+            rest[..rest.find('/')?].parse::<i32>().ok()
+        })
+        .unwrap();
+    let kill = minimum_mission::monster_killed(&mut mission, contents, boss, "attack", 100);
+    assert!(matches!(
+        kill,
+        vindictus_server::domain::mission::Kill::Killed { is_boss: true, .. }
+    ));
+    assert_eq!(mission.monster_kill_exp, 280);
+    assert_eq!(mission.events, ["kill npc_gnoll watchman attack"]);
+    assert_eq!(mission.boss_killed, ["npc_gnoll watchman"]);
+    assert!(minimum_mission::player_killed(&mut mission, 0));
+    assert!(!minimum_mission::player_killed(&mut mission, 0));
     minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

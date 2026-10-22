@@ -466,6 +466,14 @@ pub struct Mission {
     pub game_time: i32,
     /// MicroPlay.PlayState.InGame after the first sector move.
     pub in_game: bool,
+    /// MicroPlayer.MonsterKillExp (given with the quest result).
+    pub monster_kill_exp: i32,
+    /// MicroPlayer.Alive.
+    pub alive: bool,
+    /// Informer events for the goal trackers, in order ("kill <type> <action>", ...).
+    pub events: Vec<String>,
+    /// SectorSequence.BossKilledList.
+    pub boss_killed: Vec<String>,
 }
 impl Mission {
     /// ShipOptionInfo.MemberCountLimit.
@@ -671,6 +679,10 @@ pub async fn accept_quest(
         sequence: None,
         game_time: 0,
         in_game: false,
+        monster_kill_exp: 0,
+        alive: true,
+        events: Vec::new(),
+        boss_killed: Vec::new(),
     };
     packets.extend(mission.broadcast()?);
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
@@ -815,4 +827,56 @@ pub fn move_sector(
     contents
         .move_next(&mission.quest, sequence, trigger, target_group)
         .map_err(|_| fail())
+}
+
+/// MonsterKilledProcessor (MDRSystem anti-cheat deferred to the damage reports) and
+/// Monster.MonsterKilled: dead count, MonsterKillExpCalculator, the "kill <type> <action>"
+/// informer event, sector kill count and the boss list. Drops are not migrated.
+pub fn monster_killed(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    target: i32,
+    action: &str,
+    exp_rate_monster: i32,
+) -> domain::Kill {
+    if target < 0 {
+        return domain::Kill::Unknown;
+    }
+    let Some(sequence) = mission.sequence.as_mut() else {
+        return domain::Kill::NotInSector;
+    };
+    let kill = contents.kill(sequence, target);
+    if let domain::Kill::Killed {
+        monster_type,
+        is_boss,
+        spawn_count,
+        ..
+    } = &kill
+    {
+        if let Some(info) = contents.monster_info(monster_type, mission.option.difficulty) {
+            mission.monster_kill_exp =
+                mission
+                    .monster_kill_exp
+                    .saturating_add(domain::monster_kill_exp(
+                        info,
+                        *spawn_count,
+                        exp_rate_monster,
+                    ));
+        }
+        mission.events.push(format!("kill {monster_type} {action}"));
+        if *is_boss {
+            mission.boss_killed.push(monster_type.clone());
+        }
+    }
+    kill
+}
+
+/// PlayerKilledProcessor for the solo host (slot 0): Alive false and "player_dead".
+pub fn player_killed(mission: &mut Mission, tag: i32) -> bool {
+    if tag != mission.member.slot || !mission.alive {
+        return false;
+    }
+    mission.alive = false;
+    mission.events.push("player_dead".to_owned());
+    true
 }

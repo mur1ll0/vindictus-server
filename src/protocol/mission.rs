@@ -25,6 +25,8 @@ pub enum Kind {
     InsertBlessStoneComplete,
     MoveToNextSector,
     AllUserJoinComplete,
+    MonsterKilled,
+    PlayerKilled,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -42,6 +44,8 @@ impl Kind {
             Self::InsertBlessStoneComplete => 48,
             Self::MoveToNextSector => 532,
             Self::AllUserJoinComplete => 47,
+            Self::MonsterKilled => 501,
+            Self::PlayerKilled => 522,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -59,6 +63,8 @@ impl Kind {
             Self::InsertBlessStoneComplete => 0x915f8913_1565_340c_99ca_619e37ffd1f7,
             Self::MoveToNextSector => 0x67aefac8_659d_385a_a39a_03e3d1dce102,
             Self::AllUserJoinComplete => 0x3f79e7b8_49d5_34f2_8970_b8b5b47aa1eb,
+            Self::MonsterKilled => 0x8cfddc5b_72e0_3490_bb44_1ecf1a813468,
+            Self::PlayerKilled => 0x71d3965f_66a2_31f1_aa15_90d54c7c7882,
         })
     }
 }
@@ -428,6 +434,19 @@ pub struct MoveToNextSector {
     pub target_group: i32,
     pub holy_props: Option<Vec<i32>>,
 }
+/// MonsterKilledMessage (host).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MonsterKilled {
+    pub attacker: i32,
+    pub target: i32,
+    pub action_type: Option<String>,
+    pub has_evil_core: bool,
+    pub damage: i32,
+    pub damage_position_x: i32,
+    pub damage_position_y: i32,
+    pub distance: i32,
+    pub actor_index: i32,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     AcceptQuest(AcceptQuest),
@@ -443,6 +462,9 @@ pub enum Message {
     InsertBlessStoneComplete(BlessStones),
     MoveToNextSector(MoveToNextSector),
     AllUserJoinComplete,
+    MonsterKilled(MonsterKilled),
+    /// PlayerKilledMessage: the dead player's tag.
+    PlayerKilled(i32),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -460,6 +482,8 @@ impl Message {
             Self::InsertBlessStoneComplete(_) => Kind::InsertBlessStoneComplete,
             Self::MoveToNextSector(_) => Kind::MoveToNextSector,
             Self::AllUserJoinComplete => Kind::AllUserJoinComplete,
+            Self::MonsterKilled(_) => Kind::MonsterKilled,
+            Self::PlayerKilled(_) => Kind::PlayerKilled,
         }
     }
 }
@@ -671,6 +695,17 @@ object!(PaidCoin {
     platinum_coin_type
 });
 object!(PayCoinCompleted { coins });
+object!(MonsterKilled {
+    attacker,
+    target,
+    action_type,
+    has_evil_core,
+    damage,
+    damage_position_x,
+    damage_position_y,
+    distance,
+    actor_index
+});
 object!(MoveToNextSector {
     trigger_name,
     target_group,
@@ -711,6 +746,8 @@ pub fn encode(
                 Message::InsertBlessStoneComplete(v) => v.write(&mut w)?,
                 Message::MoveToNextSector(v) => v.write(&mut w)?,
                 Message::AllUserJoinComplete => {}
+                Message::MonsterKilled(v) => v.write(&mut w)?,
+                Message::PlayerKilled(v) => v.write(&mut w)?,
             }
         }
     }
@@ -746,6 +783,8 @@ pub fn decode(
             }
             Kind::MoveToNextSector => Message::MoveToNextSector(MoveToNextSector::read(&mut r)?),
             Kind::AllUserJoinComplete => Message::AllUserJoinComplete,
+            Kind::MonsterKilled => Message::MonsterKilled(MonsterKilled::read(&mut r)?),
+            Kind::PlayerKilled => Message::PlayerKilled(i32::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

@@ -881,6 +881,36 @@ impl Connection {
                 tracing::info!("mission all users joined; values omitted");
                 Vec::new()
             }
+            Message::MonsterKilled(k) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let rate = assets
+                    .npc_policy()
+                    .and_then(|p| p.get_integer("ExpRate_Monster").ok())
+                    .unwrap_or(100);
+                let kill = mission::monster_killed(
+                    state,
+                    contents,
+                    k.target,
+                    k.action_type.as_deref().unwrap_or(""),
+                    rate,
+                );
+                tracing::info!(
+                    killed = matches!(kill, crate::domain::mission::Kill::Killed { .. }),
+                    "mission monster kill processed; values omitted"
+                );
+                Vec::new()
+            }
+            Message::PlayerKilled(tag) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let dead = mission::player_killed(state, tag);
+                tracing::info!(dead, "mission player death processed; values omitted");
+                Vec::new()
+            }
             _ => return Ok(()),
         };
         for packet in &packets {
@@ -1305,6 +1335,8 @@ impl Connection {
                 Kind::StartGame,
                 Kind::MoveToNextSector,
                 Kind::AllUserJoinComplete,
+                Kind::MonsterKilled,
+                Kind::PlayerKilled,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;

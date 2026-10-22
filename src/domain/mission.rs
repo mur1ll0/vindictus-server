@@ -83,6 +83,19 @@ pub struct MissionTables {
     pub settings: Vec<SettingRow>,
     /// QuestSettingsConditionInfo: ConditionID, Condition, Value.
     pub setting_conditions: Vec<(i32, Option<String>, Option<String>)>,
+    /// MonsterInfo: Identifier, Class, Variation, Difficulty, Exp, HP1, HP_Normal_Percent.
+    pub monsters: Vec<MonsterRow>,
+}
+/// MonsterInfo: Identifier, Class, Variation, Difficulty, Exp, HP1, HP_Normal_Percent.
+pub type MonsterRow = (i32, Option<String>, Option<String>, i32, i32, i32, i32);
+
+/// MonsterInfo values used by mission play.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MonsterInfo {
+    pub identifier: i32,
+    pub exp: i32,
+    pub hp1: i32,
+    pub hp_normal_percent: i32,
 }
 
 /// The unseeded System.Random instances of the builder; any uniform source is faithful.
@@ -576,6 +589,8 @@ pub struct MissionContents {
     entities: Vec<MapEntity>,
     settings: Vec<SettingRow>,
     setting_conditions: Vec<(i32, Option<String>, Option<String>)>,
+    /// Monsters: MonsterType → (Difficulty, MonsterInfo) in insertion order.
+    monsters: BTreeMap<String, Vec<(i32, MonsterInfo)>>,
 }
 
 const MAX_TARGET_PATTERN: usize = 512;
@@ -710,6 +725,28 @@ impl MissionContents {
                 }
             }
         }
+        // ToDoubleDictionary(MonsterType, Difficulty): a duplicate throws while loading.
+        let mut monsters: BTreeMap<String, Vec<(i32, MonsterInfo)>> = BTreeMap::new();
+        for (identifier, class, variation, difficulty, exp, hp1, hp_normal_percent) in t.monsters {
+            let key = format!(
+                "{} {}",
+                class.as_deref().unwrap_or(""),
+                variation.as_deref().unwrap_or("")
+            );
+            let rows = monsters.entry(key).or_default();
+            if rows.iter().any(|(d, _)| *d == difficulty) {
+                return Err(MissionError::Content);
+            }
+            rows.push((
+                difficulty,
+                MonsterInfo {
+                    identifier,
+                    exp,
+                    hp1,
+                    hp_normal_percent,
+                },
+            ));
+        }
         Ok(Self {
             quests,
             builders,
@@ -717,7 +754,28 @@ impl MissionContents {
             entities,
             settings: t.settings,
             setting_conditions: t.setting_conditions,
+            monsters,
         })
+    }
+
+    /// MicroPlayContents.GetMonsterInfo: "class variation [weight]" without the weight,
+    /// the only row or difficulty -1 first, else the difficulty row or its -1 row.
+    pub fn monster_info(&self, monster_type: &str, difficulty: i32) -> Option<MonsterInfo> {
+        let parts: Vec<&str> = monster_type.split(' ').collect();
+        let key = match parts.len() {
+            0..=2 => monster_type.to_owned(),
+            // GetAvailableMonsterType throws (logged) for these and keeps the type.
+            3 if trim(parts[2]).parse::<i32>().is_ok() => format!("{} {}", parts[0], parts[1]),
+            _ => monster_type.to_owned(),
+        };
+        let rows = self.monsters.get(&key)?;
+        if difficulty == -1 || rows.len() == 1 {
+            return rows.first().map(|(_, i)| *i);
+        }
+        rows.iter()
+            .find(|(d, _)| *d == difficulty)
+            .or_else(|| rows.iter().find(|(d, _)| *d == -1))
+            .map(|(_, i)| *i)
     }
 
     /// Quests with a normal sector sequence builder.
@@ -1137,6 +1195,34 @@ impl MissionContents {
             sequence.passed.push(sector_id);
         }
         Ok(true)
+    }
+
+    /// MonsterKilledProcessor's lookup and Monster.MonsterKilled bookkeeping: the live
+    /// Monster of the current sector (spawned and not all dead) gets one more dead.
+    pub fn kill(&self, sequence: &mut SectorSequence, target: i32) -> Kill {
+        let Some(group) = sequence.current else {
+            return Kill::NotInSector;
+        };
+        let Some(sector) = sequence.sectors.iter_mut().find(|s| s.group_id == group) else {
+            return Kill::NotInSector;
+        };
+        let Some(spawner) = sector.spawners_mut().find(|s| s.entity_id == target) else {
+            return Kill::Unknown;
+        };
+        let Some(dead) = spawner.spawned else {
+            return Kill::Unknown;
+        };
+        if dead >= spawner.spawn_num {
+            return Kill::AlreadyDead;
+        }
+        spawner.spawned = Some(dead + 1);
+        Kill::Killed {
+            monster_type: spawner.monster_type().to_owned(),
+            is_boss: spawner.is_boss,
+            is_named: spawner.is_named,
+            spawn_count: 1,
+            all_dead: dead + 1 >= spawner.spawn_num,
+        }
     }
 
     /// SectorSequence.GetInfo(isElection: false) before any sector starts.
@@ -1629,4 +1715,34 @@ impl NetDictionary {
     fn rows(self) -> Vec<(i32, Consumable)> {
         self.entries.into_iter().flatten().collect()
     }
+}
+
+/// Outcome of a MonsterKilled report.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Kill {
+    /// No current sector (killed on the ship).
+    NotInSector,
+    /// Neither a Monster nor its spawner ("is that client monster?").
+    Unknown,
+    /// The spawner exists but its Monster is gone ("monster already dead").
+    AlreadyDead,
+    Killed {
+        monster_type: String,
+        is_boss: bool,
+        is_named: bool,
+        /// MonsterSpawner.MonsterSpawnCount (Spawn runs once per sequence).
+        spawn_count: i32,
+        all_dead: bool,
+    },
+}
+
+/// MonsterKillExpCalculator.GiveExp for one player of a solo play (weight ratio 1 and
+/// PartyBonusRate.GetExpRatio(1) = 140), then MicroPlayer.GiveMonsterKillExp's
+/// ExpRate_Monster. Single-precision products as the JIT computes them on x64.
+pub fn monster_kill_exp(info: MonsterInfo, spawn_count: i32, exp_rate_monster: i32) -> i32 {
+    let num = 0.max(100 - 20 * (spawn_count - 1));
+    let base = (info.exp.wrapping_mul(num) / 100) as f32;
+    let ratio = 1.0_f32;
+    let exp = (f64::from(base * ratio * 140.0_f32) / 100.0) as i32;
+    exp.wrapping_mul(exp_rate_monster) / 100
 }

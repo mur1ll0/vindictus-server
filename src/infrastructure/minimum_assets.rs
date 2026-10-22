@@ -104,6 +104,10 @@ fn open(p: &Path) -> Result<std::fs::File, MinimumError> {
         .map_err(MinimumError::from)
 }
 impl Assets {
+    /// FeatureMatrix values of the NPC script profile.
+    pub fn npc_policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
+        self.npc.as_ref().map(|n| &n.policy)
+    }
     /// Mission entry contents of the NPC script profile, when exported.
     pub fn mission(&self) -> Option<&crate::domain::mission::MissionContents> {
         self.npc.as_ref().and_then(|n| n.mission.as_ref())

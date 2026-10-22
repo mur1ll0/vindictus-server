@@ -31,6 +31,7 @@ class NpcScriptExportTests(unittest.TestCase):
                              "CREATE TABLE NamedPropItemInfo(EntityName TEXT);INSERT INTO NamedPropItemInfo VALUES('barrel'),('barrel');"
                              "CREATE TABLE QuestSettingsInfo(RowID INT,ConditionID INT,Key TEXT,Value TEXT);INSERT INTO QuestSettingsInfo VALUES(1,NULL,'TutorStamp','Basic');"
                              "CREATE TABLE QuestSettingsConditionInfo(RowID INT,ConditionID INT,Condition TEXT,Value TEXT);"
+                             "CREATE TABLE MonsterInfo(Identifier INT,Class TEXT,Variation TEXT,Difficulty INT,Exp INT,HP1 INT,HP_Normal_Percent INT);INSERT INTO MonsterInfo VALUES(7,'npc_gnoll','normal',-1,30,500,100);"
                              "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
                              "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL);"
                              "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
@@ -61,6 +62,7 @@ class NpcScriptExportTests(unittest.TestCase):
         # Only entities of the quest sectors, in Entity order with attribute order.
         self.assertEqual(m['entities'], [[7, [['classname', 'trigger_once']]], [7, [['classname', 'npc_template_maker'], ['Feature', 'entity_flag']]]])
         self.assertEqual((m['named_props'], m['tower_quests'], m['settings']), (['barrel'], [], [[1, None, 'TutorStamp', 'Basic']]))
+        self.assertEqual(m['monsters'], [[7, 'npc_gnoll', 'normal', -1, 30, 500, 100]])
         keys = [f['key'] for f in p['features']]
         self.assertTrue({'group_flag', 'entity_flag', 'Gathering', 'GatheringRare'} <= set(keys))
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
