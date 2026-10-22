@@ -281,19 +281,8 @@ pub(super) async fn view(
         values[i] = row.try_get(*key)?;
     }
     // StatManager.CalculateBaseStat: class stats of the level (level 1 from the
-    // initializer profile) plus title stats, zero while no title is acquired.
-    let level: i32 = row.try_get("level")?;
-    let base = if level == 1 {
-        assets.initializer.base_stats([0; 7])
-    } else {
-        let stats = assets
-            .npc
-            .as_ref()
-            .and_then(|n| n.progression.as_ref())
-            .and_then(|p| p.class_stats(level))
-            .ok_or(MinimumError::Conflict)?;
-        crate::domain::character_base_stats::BaseStats::compose(stats, [0; 7])
-    };
+    // initializer profile) plus the acquired and account titles' stats.
+    let base = super::minimum_growth::base_stats(tx, assets, cid).await?;
     if row.try_get::<bool, _>("dirty")? || values != *base.values() {
         return Err(MinimumError::Conflict);
     }
@@ -340,6 +329,14 @@ pub(super) async fn view(
         .and_then(|mut c| c.pop())
         .flatten()
         .ok_or(MinimumError::Conflict)?;
+    // CharacterEntity.Summary: titles with TitleState.Acquired, except 999999.
+    let acquired: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM game_titles WHERE cid=$1 AND acquired AND title_id<>999999",
+    )
+    .bind(cid)
+    .fetch_one(&mut **tx)
+    .await?;
+    summary.title_count = i32::try_from(acquired).map_err(|_| MinimumError::Conflict)?;
     let mut costumes = None;
     if project || !gear.projection.equipment.is_empty() {
         let before = super::character_costumes::load_for_constructor(tx, cid)

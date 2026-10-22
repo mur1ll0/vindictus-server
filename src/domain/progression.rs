@@ -25,7 +25,16 @@ pub struct ProgressionTables {
     /// TitleGoalInfo: ID, TitleID.
     #[serde(default)]
     pub title_goals: Vec<(i32, i32)>,
+    /// TitleStatInfo: TitleID, Stat, Amount.
+    #[serde(default)]
+    pub title_stats: Vec<(i32, Option<String>, i32)>,
+    /// TitleInfo: ID, RequiredLevel, AllowShare (account titles of GetTitleStats).
+    #[serde(default)]
+    pub title_sharing: Vec<(i32, i32, bool)>,
 }
+/// Base stat columns in CharacterInfo order (the only TitleStatInfo stats the exported
+/// content uses).
+const STAT_COLUMNS: [&str; 7] = ["STR", "DEX", "INT", "WILL", "LUCK", "HP", "STAMINA"];
 /// TitleInfo: ID, AutoGiveLevel, ClassRestriction, HideUntil, Feature.
 pub type TitleRow = (i32, Option<i32>, i32, i32, Option<String>);
 /// CharacterClassInfo: Level, BaseSTR, BaseDEX, BaseINT, BaseWILL, BaseHP, BaseSTAMINA, Feature.
@@ -41,6 +50,10 @@ struct Title {
     /// FeatureMatrix.IsEnable(Feature) at load.
     enabled: bool,
     goals: Vec<i32>,
+    /// titleStats[ID]: STR, DEX, INT, WILL, LUCK, HP, STAMINA.
+    stats: [i32; 7],
+    required_level: i32,
+    allow_share: bool,
 }
 
 /// A title GiveTitleByLevelUp inserts (Acquired false): its goal IDs (progress 0) and
@@ -79,6 +92,9 @@ pub struct Progression {
     max_level: i32,
     /// titleInfoDict in provider order.
     titles: Vec<Title>,
+    /// FeatureMatrix.GetInteger("AccountTitleStatRatio"); None when the profile has no
+    /// title stats (older exports), so title stats are not computed from it.
+    account_title_ratio: Option<i32>,
 }
 
 /// GiveExp result: the stored Exp/Level and CharacterEntity.LevelUpExp.
@@ -168,6 +184,9 @@ impl Progression {
                 hide_until: *hide_until,
                 enabled: enabled(feature)?,
                 goals: Vec::new(),
+                stats: [0; 7],
+                required_level: 0,
+                allow_share: false,
             });
         }
         let mut goal_ids = std::collections::BTreeSet::new();
@@ -180,12 +199,93 @@ impl Progression {
                 t.goals.push(*goal);
             }
         }
+        // CharacterStats.StatNames (OrdinalIgnoreCase); a row of an unknown title is skipped
+        // (titleStats.TryGetValue), an unknown stat name throws in the source.
+        for (title, stat, amount) in &tables.title_stats {
+            let index = STAT_COLUMNS
+                .iter()
+                .position(|c| stat.as_deref().is_some_and(|s| s.eq_ignore_ascii_case(c)))
+                .ok_or(ProgressionError::Content)?;
+            if let Some(t) = titles.iter_mut().find(|t| t.id == *title) {
+                t.stats[index] = t.stats[index].wrapping_add(*amount);
+            }
+        }
+        for (id, required_level, allow_share) in &tables.title_sharing {
+            let t = titles
+                .iter_mut()
+                .find(|t| t.id == *id)
+                .ok_or(ProgressionError::Content)?;
+            t.required_level = *required_level;
+            t.allow_share = *allow_share;
+        }
+        let account_title_ratio = if tables.title_sharing.is_empty() {
+            None
+        } else {
+            Some(
+                policy
+                    .get_integer("AccountTitleStatRatio")
+                    .map_err(|_| ProgressionError::Feature)?,
+            )
+        };
         Ok(Self {
             class_stats,
             level_exp,
             max_level,
             titles,
+            account_title_ratio,
         })
+    }
+    /// TitleManager.GetTitleStats for the base stat columns: the TitleStatInfo stats of
+    /// every acquired title (`own`), plus the account titles (`account`: titles acquired
+    /// by any character of the account) that allow sharing, fit the class, are not
+    /// acquired here and whose RequiredLevel the character reached, times
+    /// AccountTitleStatRatio / 100 truncated per stat. `None` for a profile without
+    /// title stats when a title is acquired.
+    pub fn title_stats(
+        &self,
+        own: &[i32],
+        account: &[i32],
+        class: i32,
+        level: i32,
+    ) -> Option<[i32; 7]> {
+        let mut total = [0_i32; 7];
+        let mut counted = std::collections::BTreeSet::new();
+        for id in own {
+            if let Some(t) = self.titles.iter().find(|t| t.id == *id) {
+                for (v, s) in total.iter_mut().zip(t.stats) {
+                    *v = v.wrapping_add(s);
+                }
+                counted.insert(*id);
+            }
+        }
+        if !own.is_empty() && self.account_title_ratio.is_none() {
+            return None;
+        }
+        let mut shared = [0_i32; 7];
+        let mut seen = std::collections::BTreeSet::new();
+        for id in account {
+            let Some(t) = self.titles.iter().find(|t| t.id == *id) else {
+                continue;
+            };
+            let available = 1_i32.wrapping_shl(class as u32 & 31) & t.class_restriction != 0;
+            if !t.allow_share || !available || !seen.insert(*id) || counted.contains(id) {
+                continue;
+            }
+            if level >= t.required_level {
+                for (v, s) in shared.iter_mut().zip(t.stats) {
+                    *v = v.wrapping_add(s);
+                }
+            }
+        }
+        if seen.is_empty() {
+            return Some(total);
+        }
+        let ratio = f64::from(self.account_title_ratio?) / 100.0;
+        for (v, s) in total.iter_mut().zip(shared) {
+            // (int)((double)stat * ratio).
+            *v = v.wrapping_add((f64::from(s) * ratio) as i32);
+        }
+        Some(total)
     }
     pub fn max_level(&self) -> i32 {
         self.max_level

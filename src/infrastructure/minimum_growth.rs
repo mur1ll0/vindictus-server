@@ -153,20 +153,10 @@ async fn level_up(
     }
     // StoryProxy.NotifyLevelUp: storylines auto-given at the new levels.
     packets.extend(super::minimum_story::level_up(tx, assets, cid, from, to, class, ids).await?);
-    // Stats.CalculateBaseStat (class stats of the level plus LUCK 100, no title stats)
-    // is written here so the summary below reads a consistent row; UpdateStat keeps
-    // its source position after the titles.
-    let stats = progression.class_stats(to).ok_or_else(fail)?;
-    sqlx::query("UPDATE game_character_info SET dirty=false,str=$2,dex=$3,int=$4,will=$5,luck=100,hp=$6,stamina=$7 WHERE id=$1")
-        .bind(cid)
-        .bind(stats[0])
-        .bind(stats[1])
-        .bind(stats[2])
-        .bind(stats[3])
-        .bind(stats[4])
-        .bind(stats[5])
-        .execute(&mut **tx)
-        .await?;
+    // Stats.CalculateBaseStat (class stats of the level plus title stats) is written
+    // here so the summary below reads a consistent row; UpdateStat keeps its source
+    // position after the titles.
+    calculate_base_stat(tx, assets, cid).await?;
     // Titles.GiveTitleByLevelUp → PushTitleUpdate (UpdateTitle, CharacterCommonInfo).
     let owned: Vec<i32> = sqlx::query_scalar("SELECT title_id FROM game_titles WHERE cid=$1")
         .bind(cid)
@@ -235,9 +225,76 @@ async fn level_up(
     Ok(())
 }
 
-/// CharacterTitleEvent.OpenTitle and GiveTitle.
+/// StatManager.CalculateBaseStat: the class stats of the stored level (level 1 from the
+/// initializer profile, LUCK 100) plus Titles.GetTitleStats of the acquired titles and
+/// the account's shared titles.
+pub(super) async fn base_stats(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<crate::domain::character_base_stats::BaseStats, MinimumError> {
+    let (level, class, uid): (i32, i32, i32) =
+        sqlx::query_as("SELECT level,class::integer,uid FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    let own: Vec<i32> = sqlx::query_scalar(
+        "SELECT title_id FROM game_titles WHERE cid=$1 AND acquired ORDER BY title_id",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    // TitleQueryAcquiredByAccount: acquired titles of every character of the account.
+    let account: Vec<i32> = sqlx::query_scalar("SELECT DISTINCT t.title_id FROM game_titles t JOIN game_character_info c ON c.id=t.cid WHERE c.uid=$1 AND t.acquired ORDER BY t.title_id")
+        .bind(uid)
+        .fetch_all(&mut **tx)
+        .await?;
+    let progression = assets.npc.as_ref().and_then(|n| n.progression.as_ref());
+    let titles = if own.is_empty() && account.is_empty() {
+        [0; 7]
+    } else {
+        progression
+            .and_then(|p| p.title_stats(&own, &account, class, level))
+            .ok_or_else(fail)?
+    };
+    let base = if level == 1 {
+        assets.initializer.base_stats(titles)
+    } else {
+        crate::domain::character_base_stats::BaseStats::compose(
+            progression
+                .and_then(|p| p.class_stats(level))
+                .ok_or_else(fail)?,
+            titles,
+        )
+    };
+    Ok(base)
+}
+
+/// CalculateBaseStat's write: Dirty false and the seven CharacterInfo stat columns.
+pub(super) async fn calculate_base_stat(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<(), MinimumError> {
+    let v = *base_stats(tx, assets, cid).await?.values();
+    sqlx::query("UPDATE game_character_info SET dirty=false,str=$2,dex=$3,int=$4,will=$5,luck=$6,hp=$7,stamina=$8 WHERE id=$1")
+        .bind(cid)
+        .bind(v[0])
+        .bind(v[1])
+        .bind(v[2])
+        .bind(v[3])
+        .bind(v[4])
+        .bind(v[5])
+        .bind(v[6])
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// CharacterTitleEvent.OpenTitle, GiveTitle and AcquireTitle.
 const OPEN_TITLE: i32 = 1;
 const GIVE_TITLE: i32 = 2;
+const ACQUIRE_TITLE: i32 = 7;
 
 /// CharacterEntity.AddTitleLog(event, titleID, 0, 0) in the day's partition.
 async fn title_log(
@@ -343,8 +400,9 @@ pub(super) async fn notice_title(
     title_changed(tx, owner, assets, cid, ctx, slot).await
 }
 
-/// Stats.TitleChanged, PushUpdateStat and PushTitleUpdate (UpdateTitle with the slot,
-/// CharacterCommonInfo) after GiveReward changed one title.
+/// Stats.TitleChanged (CalculateBaseStat, CalculateFinalStat, PushUpdateStat), GiveReward's
+/// own PushUpdateStat and PushTitleUpdate (UpdateTitle with the slot, CharacterCommonInfo)
+/// after GiveReward changed one title.
 async fn title_changed(
     tx: &mut Transaction<'_, Postgres>,
     owner: &UserKey<'_>,
@@ -353,6 +411,7 @@ async fn title_changed(
     ctx: GrowthContext,
     slot: crate::protocol::inventory::TitleSlot,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    calculate_base_stat(tx, assets, cid).await?;
     let mut packets = Vec::new();
     let view = super::minimum_selection::view(
         tx,
@@ -365,6 +424,7 @@ async fn title_changed(
         0,
     )
     .await?;
+    packets.push(view.stat.clone());
     packets.push(view.stat);
     let update = crate::protocol::inventory::Message::UpdateTitle(Some(vec![Some(slot)]));
     packets.push(OutgoingPacket {
@@ -379,4 +439,71 @@ async fn title_changed(
     });
     packets.push(view.common);
     Ok(packets)
+}
+
+/// Story `acquire_title`: CharacterImpl.GiveReward(0, 0, null, {titleID: true}) →
+/// Titles.AcquireTitle (GiveTitle first when not owned; Acquired with AcquiredTime, goal
+/// progress removed, AcquireTitle log), then TitleChanged and the title update packets.
+/// Guild score and rank basis events are not migrated.
+pub(super) async fn acquire_title(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    title: i32,
+    ctx: GrowthContext,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let progression = npc.progression.as_ref().ok_or_else(fail)?;
+    let class: i32 =
+        sqlx::query_scalar("SELECT class::integer FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    let acquired: Option<bool> =
+        sqlx::query_scalar("SELECT acquired FROM game_titles WHERE cid=$1 AND title_id=$2")
+            .bind(cid)
+            .bind(title)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let Some(done) = progression.acquire_title(title, class, acquired) else {
+        return Ok(Vec::new());
+    };
+    if done.new {
+        sqlx::query("INSERT INTO game_titles(cid,title_id,acquired) VALUES($1,$2,false)")
+            .bind(cid)
+            .bind(title)
+            .execute(&mut **tx)
+            .await?;
+        title_log(tx, ctx.journal, GIVE_TITLE, title).await?;
+    }
+    let units: i64 = sqlx::query_scalar(
+        "UPDATE game_titles SET acquired=true,acquired_time_units300=floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT WHERE cid=$1 AND title_id=$2 RETURNING acquired_time_units300",
+    )
+    .bind(cid)
+    .bind(title)
+    .fetch_one(&mut **tx)
+    .await?;
+    // ClearTitleProgress.
+    sqlx::query("DELETE FROM game_title_goal_progress WHERE cid=$1 AND title_goal_id=ANY($2)")
+        .bind(cid)
+        .bind(&done.goals)
+        .execute(&mut **tx)
+        .await?;
+    title_log(tx, ctx.journal, ACQUIRE_TITLE, title).await?;
+    let ticks = crate::domain::legacy_user_data::SqlDateTime::from_units300(units)
+        .and_then(|t| t.framework_date_time())
+        .map_err(|_| fail())?
+        .ticks();
+    let slot = crate::protocol::inventory::TitleSlot {
+        title_id: title,
+        // TitleState.Acquired; every goal reports -1.
+        status: 2,
+        time_stamp: ticks,
+        quest_id: Some(String::new()),
+        goal_progress: Some(done.goals.iter().map(|g| (*g, -1)).collect()),
+        is_expireable: false,
+        expire_date_time: -1,
+    };
+    title_changed(tx, owner, assets, cid, ctx, slot).await
 }

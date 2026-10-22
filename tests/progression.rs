@@ -11,6 +11,7 @@ fn policy(max_level: &str) -> FeaturePolicy {
             ("CurrentVer", "3.09.00"),
             ("MaxLevel", max_level),
             ("EP3", "1"),
+            ("AccountTitleStatRatio", "80"),
         ]
         .map(|(k, v)| (k.to_owned(), Some(v.to_owned()))),
     )
@@ -39,6 +40,22 @@ fn tables() -> ProgressionTables {
             (410022, Some(1), 2047, 0, Some("EP9".to_owned())),
         ],
         title_goals: vec![(1, 410017), (2, 410017), (3, 410018)],
+        title_stats: vec![
+            (410017, Some("STR".to_owned()), 2),
+            (410017, Some("hp".to_owned()), 15),
+            (410019, Some("DEX".to_owned()), 5),
+            (410021, Some("WILL".to_owned()), 7),
+            // A row of an unknown title is skipped, as titleStats.TryGetValue.
+            (999, Some("STR".to_owned()), 50),
+        ],
+        title_sharing: vec![
+            (410017, 1, false),
+            (410018, 1, false),
+            (410019, 5, true),
+            (410020, 1, true),
+            (410021, 1, true),
+            (410022, 1, false),
+        ],
     }
 }
 
@@ -163,4 +180,34 @@ fn acquire_title_gives_then_acquires_like_title_manager() {
     assert_eq!(p.acquire_title(999, 1, None), None);
     assert_eq!(p.acquire_title(410022, 1, None), None);
     assert_eq!(p.acquire_title(410020, 1, None), None);
+}
+
+#[test]
+fn title_stats_add_own_and_shared_account_titles_like_get_title_stats() {
+    let p = Progression::load(tables(), &policy("90")).unwrap();
+    // STR DEX INT WILL LUCK HP STAMINA.
+    assert_eq!(p.title_stats(&[], &[], 1, 1), Some([0; 7]));
+    assert_eq!(
+        p.title_stats(&[410017], &[410017], 1, 1),
+        Some([2, 0, 0, 0, 0, 15, 0])
+    );
+    // Account titles: 410021 (shared, level 1) counts at 80 % truncated (7 → 5);
+    // 410019 needs level 5; 410020 is shared but not for the Fiona's class.
+    assert_eq!(
+        p.title_stats(&[410017], &[410017, 410019, 410020, 410021], 1, 1),
+        Some([2, 0, 0, 5, 0, 15, 0])
+    );
+    assert_eq!(
+        p.title_stats(&[410017], &[410019, 410021, 410021], 1, 5),
+        Some([2, 4, 0, 5, 0, 15, 0])
+    );
+    // A title acquired here is not counted again from the account list.
+    assert_eq!(
+        p.title_stats(&[410021], &[410021], 1, 1),
+        Some([0, 0, 0, 7, 0, 0, 0])
+    );
+    // An unknown stat name throws in the source: the profile is refused.
+    let mut bad = tables();
+    bad.title_stats.push((410017, Some("SPEED".to_owned()), 1));
+    assert!(Progression::load(bad, &policy("90")).is_err());
 }

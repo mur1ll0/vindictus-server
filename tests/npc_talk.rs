@@ -983,6 +983,7 @@ fn story_commands_and_conditions_follow_process_command_func() {
                         cond("is_preset_character", "", "PRESET", "NOT_PRESET"),
                         leaf("set_timer", "t1"),
                         cond("time_passed", "t1,10", "PASSED", "WAIT"),
+                        leaf("acquire_title", "410017"),
                         leaf("give_exp", "100"),
                         leaf("take_item_silent", "token_wolf_claw"),
                         cond("has_item_regex", "token_wolf_claw,1", "CLAW", "NO_CLAW"),
@@ -1067,6 +1068,7 @@ fn story_commands_and_conditions_follow_process_command_func() {
         ]
     );
     for expected in [
+        t("acquire_title_successful", "410017", ""),
         t("give_item_successful", "potion", "2"),
         t("take_item_successful", "token_wolf_tooth", "1"),
         t("delete_storyline_successful", "Side", ""),
@@ -1084,6 +1086,7 @@ fn story_commands_and_conditions_follow_process_command_func() {
     assert_eq!(
         effects,
         [
+            &Effect::AcquireTitle(410017),
             &Effect::Reward { exp: 100, ap: 0 },
             &Effect::TakeItem {
                 class: "token_wolf_claw".to_owned(),

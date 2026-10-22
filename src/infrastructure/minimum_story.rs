@@ -632,6 +632,10 @@ pub async fn talk(
                     super::minimum_growth::notice_title(&mut tx, owner, assets, cid, title, growth)
                         .await
                 }
+                crate::domain::npc_talk::Effect::AcquireTitle(title) => {
+                    super::minimum_growth::acquire_title(&mut tx, owner, assets, cid, title, growth)
+                        .await
+                }
                 crate::domain::npc_talk::Effect::Reward { exp, ap } => {
                     super::minimum_growth::give_reward(
                         &mut tx,
@@ -829,9 +833,9 @@ async fn apply_outputs(
                         .collect(),
                 )),
             )?),
-            Output::Effect(effect @ (Effect::Reward { .. } | Effect::NoticeTitle(_))) => {
-                rewards.push((packets.len(), effect))
-            }
+            Output::Effect(
+                effect @ (Effect::Reward { .. } | Effect::NoticeTitle(_) | Effect::AcquireTitle(_)),
+            ) => rewards.push((packets.len(), effect)),
             Output::Effect(effect @ (Effect::GiveItem { .. } | Effect::TakeItem { .. })) => {
                 let (class, count, take) = match &effect {
                     Effect::GiveItem { class, count } => (class, *count, false),

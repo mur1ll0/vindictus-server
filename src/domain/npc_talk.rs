@@ -114,6 +114,8 @@ pub enum Effect {
     Reward { exp: i32, ap: i32 },
     /// CharacterImpl.GiveReward(0, 0, null, {titleID: false}) → Titles.NoticeTitle.
     NoticeTitle(i32),
+    /// CharacterImpl.GiveReward(0, 0, null, {titleID: true}) → Titles.AcquireTitle.
+    AcquireTitle(i32),
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -903,11 +905,17 @@ impl<'a> Talker<'a> {
                     }
                 }
             }
-            // GiveReward(.., {titleID: true}) → AcquireTitle: an acquired title adds its
-            // TitleStatInfo stats and counts in the character summary, which the selection
-            // and character list do not migrate yet (they refuse acquired titles), so the
-            // branch stays unsupported rather than leaving an unloadable character.
-            "acquire_title" => Err(TalkError::Unsupported("acquire_title".into())),
+            "acquire_title" => {
+                // int.TryParse failure only logs: the completion is never called.
+                let Some(title) = Self::parse(arg1) else {
+                    return Err(TalkError::Halted);
+                };
+                self.pushed
+                    .outputs
+                    .push(Output::Effect(Effect::AcquireTitle(title)));
+                self.add(entity("acquire_title_successful", arg1, None));
+                self.resume(k)
+            }
             "delete_storyline" => {
                 let line_id = self.querying_line(arg1);
                 if let Some(p) = self.state.progress.iter().find(|p| p.story_line == line_id) {

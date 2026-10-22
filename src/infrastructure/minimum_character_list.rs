@@ -104,16 +104,8 @@ pub(super) async fn load(
     super::character_vocation::load_first(tx, cid)
         .await
         .map_err(|_| MinimumError::Conflict)?;
-    // Titles given by level up are not acquired; acquired titles (title count and title
-    // stats) are not migrated.
-    let titles: i64 =
-        sqlx::query_scalar("SELECT count(*)FROM game_titles WHERE cid=$1 AND acquired")
-            .bind(cid)
-            .fetch_one(&mut **tx)
-            .await?;
-    if titles != 0 {
-        return Err(MinimumError::Conflict);
-    }
+    // CharacterDataContext's list summary passes TitleCount 0; the in-game summary
+    // (minimum_selection::view) counts the acquired titles.
     let info=sqlx::query("SELECT name_utf16,character_sn,class,level,exp,selected_title,total_used_ap,quote_utf16,is_premium,free_match_win_count,free_match_lose_count,free_title_name_utf16,delete_time_units300 FROM game_character_info WHERE id=$1 FOR SHARE").bind(cid).fetch_one(&mut **tx).await?;
     let name = text(info.try_get("name_utf16")?)?;
     let quote = text(info.try_get("quote_utf16")?)?;

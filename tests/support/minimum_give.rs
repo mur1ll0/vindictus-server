@@ -505,6 +505,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                         "",
                         [
                             leaf("notice_title", "410019"),
+                            leaf("acquire_title", "410018"),
                             leaf("complete_storyline", ""),
                             leaf("talk", "done")
                         ],
@@ -519,7 +520,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     ]);
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":400,"RewardAp":3,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
-    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"}],
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"AccountTitleStatRatio","value":"80"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"}],
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
     "repair":{"enhance":[[0,0]],"quality":[[2,6]],"enchant":[[0,0,0]],"equip_class":[["SWORD",2]],"equip_item_class":["sword"]},
@@ -528,7 +529,8 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         "difficulties":[["quest_gnoll_watchman",2,1,null],["quest_gnoll_shadowfang",2,1,null]],"periods":[]},
     "progression":{"class_stats":[[1,27,44,14,23,1020,130,null],[2,34,48,20,27,1048,130,null],[3,42,52,26,31,1075,130,null]],
         "level_exp":[[1,350,null],[2,1148,null],[3,1855,null]],
-        "titles":[[410017,1,2047,0,null],[410018,2,2047,5,null],[410019,9,2047,0,null]],"title_goals":[[1,410017],[2,410017]]},
+        "titles":[[410017,1,2047,0,null],[410018,2,2047,5,null],[410019,9,2047,0,null]],"title_goals":[[1,410017],[2,410017]],
+        "title_stats":[[410018,"STR",3],[410018,"HP",10]],"title_sharing":[[410017,1,false],[410018,1,false],[410019,9,false]]},
     "mission":{"quests":[["quest_gnoll_watchman",1,30,3,6,false,null,5,0,null,null,4,false,false,null],["quest_gnoll_shadowfang",2,30,3,6,false,null,null,0,null,null,4,false,true,null]],
         "goals":[["quest_gnoll_watchman",10010,0,"kill npc_gnoll watchman",null,null]],
         "sectors":[["quest_gnoll_watchman",1,32,"01j",100,0,0],["quest_gnoll_watchman",2,33,"01_boss",100,0,0],["quest_gnoll_shadowfang",1,34,"01h",100,0,0]],
@@ -1668,15 +1670,29 @@ async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin
             .fetch_one(&p)
             .await
             .unwrap();
-    assert_eq!((level, exp, str_, luck), (2, 50, 34, 100));
+    // Level 2 class STR 34 plus the acquired 410018's TitleStatInfo STR 3.
+    assert_eq!((level, exp, str_, luck), (2, 50, 37, 100));
+    let hp: i32 = sqlx::query_scalar("SELECT hp FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(hp, 1048 + 10);
     assert!(ap >= ap_before);
     let titles: Vec<(i32, bool)> =
         sqlx::query_as("SELECT title_id,acquired FROM game_titles WHERE cid=1 ORDER BY title_id")
             .fetch_all(&p)
             .await
             .unwrap();
-    // notice_title opened 410019 (AutoGiveLevel 9, not given by the level up).
-    assert_eq!(titles, [(410017, false), (410018, false), (410019, false)]);
+    // notice_title opened 410019 (AutoGiveLevel 9, not given by the level up);
+    // acquire_title gave and acquired 410018 before the level up, which then skips it.
+    assert_eq!(titles, [(410017, false), (410018, true), (410019, false)]);
+    let acquired_time: Option<i64> = sqlx::query_scalar(
+        "SELECT acquired_time_units300 FROM game_titles WHERE cid=1 AND title_id=410018",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert!(acquired_time.is_some());
     let phase: Option<Vec<u8>> =
         sqlx::query_scalar("SELECT phase_utf16 FROM game_story_progress WHERE cid=1")
             .fetch_one(&p)

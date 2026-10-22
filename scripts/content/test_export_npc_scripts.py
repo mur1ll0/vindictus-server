@@ -37,7 +37,8 @@ class NpcScriptExportTests(unittest.TestCase):
                              "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
                              "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT,GameMode INT,EvilCoreCount INT,GoalExpRatio INT,GoalGoldRatio INT,MaxLevel INT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL,1,2,100,50,9);"
                              "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
-                             "CREATE TABLE TitleInfo(ID INT,AutoGiveLevel INT,ClassRestriction INT,HideUntil INT,Feature TEXT);INSERT INTO TitleInfo VALUES(410017,1,2047,0,NULL);"
+                             "CREATE TABLE TitleInfo(ID INT,AutoGiveLevel INT,ClassRestriction INT,HideUntil INT,Feature TEXT,RequiredLevel INT,AllowShare bit);INSERT INTO TitleInfo VALUES(410017,1,2047,0,NULL,3,'False');"
+                             "CREATE TABLE TitleStatInfo(ID INT,TitleID INT,Stat TEXT,Amount INT);INSERT INTO TitleStatInfo VALUES(1,410017,'STR',2),(2,410017,'HP',15);"
                              "CREATE TABLE TitleGoalInfo(ID INT,TitleID INT);INSERT INTO TitleGoalInfo VALUES(1,410017);"
                              "CREATE TABLE LevelUpExpInfo(Level INT,RequiredExp INT,Feature TEXT);INSERT INTO LevelUpExpInfo VALUES(1,350,NULL),(2,1148,'EP3');"
                              "CREATE TABLE QuestPeriodInfo(RowID INT,QuestID TEXT,DateFrom TEXT,Period INT,MaxPlayCount INT,Feature TEXT);INSERT INTO QuestPeriodInfo VALUES(1,'quest_a','2010-07-21 00:00:00.000',24,5,'enEU');")
@@ -77,6 +78,9 @@ class NpcScriptExportTests(unittest.TestCase):
         keys = [f['key'] for f in p['features']]
         self.assertTrue({'group_flag', 'entity_flag', 'Gathering', 'GatheringRare'} <= set(keys))
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
+        g = p['progression']
+        self.assertEqual((g['title_stats'], g['title_sharing']), ([[410017, 'STR', 2], [410017, 'HP', 15]], [[410017, 3, False]]))
+        self.assertIn('AccountTitleStatRatio', keys)
     def test_missing_storyline_xml_is_refused(self):
         (self.xml / 'QuestSet01' / 'GuidePlay.xml').unlink()
         with self.assertRaises(OSError): read_package(self.xml, self.db, self.config)

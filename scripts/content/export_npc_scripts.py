@@ -169,6 +169,12 @@ def read_package(base, database, config):
         progression['titles'] = [[int32(r['ID']), None if r['AutoGiveLevel'] is None else int32(r['AutoGiveLevel']), int32(r['ClassRestriction']), int32(r['HideUntil']), nullable_text(r['Feature'])]
                                  for r in db.execute('Select * From [TitleInfo]')]
         progression['title_goals'] = [[int32(r['ID']), int32(r['TitleID'])] for r in db.execute('Select * From [TitleGoalInfo]')]
+        # TitleStatInfo (TitleID, Stat, Amount) for TitleManager.GetTitleStats, and the
+        # TitleInfo RequiredLevel/AllowShare its account-title part reads.
+        progression['title_stats'] = [[int32(r['TitleID']), nullable_text(r['Stat']), int32(r['Amount'])]
+                                      for r in db.execute('Select * From [TitleStatInfo]')]
+        progression['title_sharing'] = [[int32(r['ID']), int32(r['RequiredLevel']), flag(r['AllowShare'])]
+                                        for r in db.execute('Select * From [TitleInfo]')]
     # MicroPlayContents/QuestContents tables for mission entry: QuestInfo digest fields,
     # QuestGoalInfo targets and game settings, Sectors, SectorGroupInfo, the tower quests
     # (refused), Entity/EntityAttribute of the quest sectors (provider order),
@@ -255,7 +261,7 @@ def read_package(base, database, config):
               'GoldRate_Story', 'ExpRate_Story', 'APRate_Story', 'TodayQuest', 'TodayQuest_S2', 'TodayQuest_S3', 'TodayQuest_InitTimeAdder',
               'CafeBonusQuestPlus', 'Event_PlayCount_Unlimited', 'AddDeparture', 'AddDepartureCount', 'Event_PlayCount_Plus',
               'ChangeBasicBattleGoal', 'E3_Event_2010', 'Event_PAX_2011_enUS', 'DisableInGameCheat', 'zhCN', 'zhTW',
-              'MaxLevel', 'CharacterRank', 'friend_loyalty_system', 'GuildScore'}
+              'MaxLevel', 'CharacterRank', 'friend_loyalty_system', 'GuildScore', 'AccountTitleStatRatio'}
     for r in progression['class_stats']: wanted |= feature_atoms(r[7] or '')
     for r in progression['level_exp']: wanted |= feature_atoms(r[2] or '')
     for r in progression['titles']: wanted |= feature_atoms(r[4] or '')
