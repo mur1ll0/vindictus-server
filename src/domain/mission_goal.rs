@@ -71,7 +71,8 @@ impl GoalInfo {
         if self.ap_regen_time > 0 && cleared > *last_clear {
             let regen_units = i64::from(self.ap_regen_time) * 60 * 300;
             let elapsed = cleared - *last_clear;
-            let regens = ((elapsed as f64 / 18_000.0 / f64::from(self.ap_regen_time)) as i32).max(0);
+            let regens =
+                ((elapsed as f64 / 18_000.0 / f64::from(self.ap_regen_time)) as i32).max(0);
             span = (elapsed - i64::from(regens) * regen_units).max(0);
             if regens.wrapping_add(i32::from(*regened_ap)) > 255 {
                 *regened_ap = u8::MAX;
@@ -199,7 +200,8 @@ impl TargetTracker {
             if g.relation == 2 && g.id != swear_id {
                 continue;
             }
-            if g.relation == 0 && g.info.is_positive == 1 && !tracker.essential_left.contains(&g.id) {
+            if g.relation == 0 && g.info.is_positive == 1 && !tracker.essential_left.contains(&g.id)
+            {
                 tracker.essential_left.push(g.id);
             }
             if g.relation == 3 {
@@ -239,7 +241,8 @@ impl TargetTracker {
             if e.current != e.target {
                 continue;
             }
-            let (goal, relation, is_party, success) = (e.goal, e.relation, e.is_party, e.is_success());
+            let (goal, relation, is_party, success) =
+                (e.goal, e.relation, e.is_party, e.is_success());
             if relation == 0 {
                 self.essential_left.retain(|g| *g != goal);
                 if self.essential_left.is_empty() {
@@ -366,9 +369,11 @@ pub fn goal_reward(
         _ => (None, 0),
     };
     let mut ap = match achieved {
-        Some(a) if !today_quest => {
-            info.ap(a.clear_count, a.regened_ap, (now - a.last_clear) as f64 / 18_000.0)
-        }
+        Some(a) if !today_quest => info.ap(
+            a.clear_count,
+            a.regened_ap,
+            (now - a.last_clear) as f64 / 18_000.0,
+        ),
         _ => info.max_ap,
     };
     if !today_quest {
@@ -480,7 +485,11 @@ impl RewardLists {
             lists.camping_gold_penalty = Some(RewardLine {
                 desc: "CampingPenalty".into(),
                 arg: f.today_play_count,
-                value: 100 - f.today_play_count.saturating_sub(10).saturating_mul(10).min(100),
+                value: 100
+                    - f.today_play_count
+                        .saturating_sub(10)
+                        .saturating_mul(10)
+                        .min(100),
             });
         }
         let reference = if f.is_season2 {
@@ -514,7 +523,12 @@ impl RewardLists {
     /// bless stones, guilds, friends, party and boost events add nothing in the laboratory.
     pub fn add_bonuses(&mut self, f: &RewardFacts) {
         if let Some((exp, _, _)) = f.christmas {
-            add_multiplier(&mut self.battle_exp_multiplier, "ChristmasCounterBonus", 0, exp);
+            add_multiplier(
+                &mut self.battle_exp_multiplier,
+                "ChristmasCounterBonus",
+                0,
+                exp,
+            );
         }
         if f.max_level == f.level {
             if f.level < f.quest_level.wrapping_add(20) {
@@ -538,23 +552,58 @@ impl RewardLists {
                 _ => (0, 0, 0),
             };
             add_multiplier(&mut self.exp_multiplier, "XERankBonus", f.xe_play_rank, exp);
-            add_multiplier(&mut self.gold_multiplier, "XERankBonus", f.xe_play_rank, gold);
+            add_multiplier(
+                &mut self.gold_multiplier,
+                "XERankBonus",
+                f.xe_play_rank,
+                gold,
+            );
             add_reward(&mut self.additional_ap, "XERankBonus", f.xe_play_rank, ap);
         }
         if f.game_mode == 3 {
-            add_reward(&mut self.exp_multiplier, "DifficultyBonus", f.difficulty, 50);
-            add_reward(&mut self.gold_multiplier, "DifficultyBonus", f.difficulty, 100);
+            add_reward(
+                &mut self.exp_multiplier,
+                "DifficultyBonus",
+                f.difficulty,
+                50,
+            );
+            add_reward(
+                &mut self.gold_multiplier,
+                "DifficultyBonus",
+                f.difficulty,
+                100,
+            );
             if f.combat_gold_renewal {
-                add_reward(&mut self.gold_multiplier, "CombatGold_Renewal", f.difficulty, 100);
+                add_reward(
+                    &mut self.gold_multiplier,
+                    "CombatGold_Renewal",
+                    f.difficulty,
+                    100,
+                );
             }
             if f.main_goal_achieved {
                 add_reward(&mut self.additional_ap, "DifficultyBonus", f.difficulty, 5);
             }
         } else if f.difficulty == 2 && !f.is_season2 {
-            add_reward(&mut self.exp_multiplier, "DifficultyBonus", f.difficulty, 30);
-            add_reward(&mut self.gold_multiplier, "DifficultyBonus", f.difficulty, 30);
+            add_reward(
+                &mut self.exp_multiplier,
+                "DifficultyBonus",
+                f.difficulty,
+                30,
+            );
+            add_reward(
+                &mut self.gold_multiplier,
+                "DifficultyBonus",
+                f.difficulty,
+                30,
+            );
             if f.combat_gold_renewal {
-                add_reward(&mut self.gold_multiplier, "CombatGold_Renewal", f.difficulty, 30);
+                add_reward(
+                    &mut self.gold_multiplier,
+                    "CombatGold_Renewal",
+                    f.difficulty,
+                    30,
+                );
             }
         }
         let (mut exp, mut gold, quests, text) = f.target_event.clone();
@@ -756,7 +805,9 @@ pub fn calculate(
         additional = additional.wrapping_add(l.value);
         summary_reward(&mut s.etc_ap, l);
     }
-    let ap_base = goal_ap.wrapping_add(quest_ap_bonus).wrapping_add(additional);
+    let ap_base = goal_ap
+        .wrapping_add(quest_ap_bonus)
+        .wrapping_add(additional);
     let mut ap = ap_base;
     for l in &lists.ap_multiplier {
         let v = ap_base.wrapping_mul(l.value) / 100;

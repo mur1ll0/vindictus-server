@@ -668,7 +668,12 @@ fn give_quest_reveals_the_quest_pushes_progress_and_feeds_quest_conditions() {
 fn quest_finished_events_move_the_phase_and_name_the_story_sector() {
     use vindictus_server::domain::npc_script::QuestFinished;
     let on_event = |conditions: Vec<Element>, commands: Vec<Element>| {
-        el("OnEvent", &[], "", conditions.into_iter().chain(commands).collect())
+        el(
+            "OnEvent",
+            &[],
+            "",
+            conditions.into_iter().chain(commands).collect(),
+        )
     };
     let story = el(
         "StoryLine",
@@ -681,7 +686,10 @@ fn quest_finished_events_move_the_phase_and_name_the_story_sector() {
                 "",
                 vec![
                     on_event(
-                        vec![leaf("QuestCleared_Host", "quest_x"), leaf("MonsterKilled", "boss,2")],
+                        vec![
+                            leaf("QuestCleared_Host", "quest_x"),
+                            leaf("MonsterKilled", "boss,2"),
+                        ],
                         vec![leaf("goto_phase", "C")],
                     ),
                     on_event(
@@ -723,7 +731,10 @@ fn quest_finished_events_move_the_phase_and_name_the_story_sector() {
     // The first handler needs two boss kills: the second handler moves to B.
     let mut rows = progress();
     let out = s.quest_finished(&mut rows, &event("quest_x", true, true));
-    assert_eq!((out.changed, out.story_sector, out.skipped_on_enter), (true, 905, 0));
+    assert_eq!(
+        (out.changed, out.story_sector, out.skipped_on_enter),
+        (true, 905, 0)
+    );
     assert_eq!(rows[0].phase.as_deref(), Some("B"));
     // A failed or other quest moves nothing.
     let mut rows = progress();
@@ -739,5 +750,8 @@ fn quest_finished_events_move_the_phase_and_name_the_story_sector() {
         is_host: true,
     };
     let out = s.quest_finished(&mut rows, &host);
-    assert_eq!((rows[0].phase.as_deref(), out.skipped_on_enter), (Some("C"), 1));
+    assert_eq!(
+        (rows[0].phase.as_deref(), out.skipped_on_enter),
+        (Some("C"), 1)
+    );
 }

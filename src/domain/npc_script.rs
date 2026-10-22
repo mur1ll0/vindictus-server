@@ -968,7 +968,11 @@ impl NpcScripts {
     /// handler of its phase whose conditions all hold runs its commands: goto_phase moves
     /// the progress (OnEnterPhase queries are not migrated and only counted) and
     /// story_sector sets the returned sector (−1 when absent or unparsable).
-    pub fn quest_finished(&self, progress: &mut [Progress], event: &QuestFinished<'_>) -> EventOutcome {
+    pub fn quest_finished(
+        &self,
+        progress: &mut [Progress],
+        event: &QuestFinished<'_>,
+    ) -> EventOutcome {
         let mut outcome = EventOutcome {
             changed: false,
             story_sector: -1,

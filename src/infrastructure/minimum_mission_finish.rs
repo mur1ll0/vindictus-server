@@ -191,7 +191,12 @@ pub(super) async fn load_player(
         raid_coupons: coupons,
     };
     let today = quests
-        .is_today_quest(ctx, quest, super::minimum_quest::now_units()?, clock.arithmetic)
+        .is_today_quest(
+            ctx,
+            quest,
+            super::minimum_quest::now_units()?,
+            clock.arithmetic,
+        )
         .map_err(|_| fail())?;
     let today_play_count = quests.owned(quest).map_or(0, |q| q.today_play_count);
     let achieved = quests
@@ -214,7 +219,11 @@ pub(super) async fn load_player(
 
 /// MoveSectorProcessor in the Wait state: InitializeTracker, StartTimer and the
 /// per-minute job.
-pub fn start(mission: &mut Mission, contents: &MissionContents, now: Instant) -> Result<(), MinimumError> {
+pub fn start(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    now: Instant,
+) -> Result<(), MinimumError> {
     let c = &mut mission.completion;
     let tracker = contents
         .tracker(&mission.quest, mission.swear_id, &[c.cid])
@@ -345,7 +354,11 @@ fn trigger_quest_goal(
 ) -> Result<(), MinimumError> {
     let name = mission.member.character_id.clone().unwrap_or_default();
     if !t.success {
-        let who = if t.cid == mission.completion.cid { name.as_str() } else { "" };
+        let who = if t.cid == mission.completion.cid {
+            name.as_str()
+        } else {
+            ""
+        };
         packets.push(target_result(who, t.goal, false, None)?);
         if matches!(t.relation, 0 | 2 | 3) && mission.in_game && !mission.completion.finished {
             quest_fail(mission, result::SWEAR_VIOLATION, now);
@@ -498,10 +511,9 @@ pub async fn run_jobs(
                 mission.events.push((0, "minute_elapse".to_owned()));
                 packets.extend(drain(mission, ctx, now)?);
                 if mission.in_game && !mission.completion.finished {
-                    let elapsed = mission
-                        .completion
-                        .start
-                        .map_or(0.0, |(s, _)| now.saturating_duration_since(s).as_secs_f64() / 60.0);
+                    let elapsed = mission.completion.start.map_or(0.0, |(s, _)| {
+                        now.saturating_duration_since(s).as_secs_f64() / 60.0
+                    });
                     let limit = mission.digest.time_limit;
                     if limit > 0 && elapsed > f64::from(limit) {
                         mission
@@ -668,7 +680,8 @@ async fn reward(
             .schedule(now + Duration::from_secs(5), Job::Reward(kind));
         return Ok(Vec::new());
     }
-    if c.player_state == PlayerState::Finished && c.give_up || c.player_state != PlayerState::InGame {
+    if c.player_state == PlayerState::Finished && c.give_up || c.player_state != PlayerState::InGame
+    {
         return Ok(Vec::new());
     }
     let mut packets = Vec::new();
@@ -793,7 +806,9 @@ async fn reward(
             tracing::error!("reward op has a negative value; values omitted");
         }
         for (g, _) in &op.quest_goals {
-            mission.events.push((mission.completion.cid, format!("ClearGoal {g}")));
+            mission
+                .events
+                .push((mission.completion.cid, format!("ClearGoal {g}")));
         }
         // CharacterRank (UpdateRankBasis) is not migrated.
         let given = reward_character(mission, ctx, rc, ids, &op).await;
@@ -861,12 +876,16 @@ async fn reward(
         } else {
             mission.option.difficulty.to_string()
         };
-        mission.events.push((cid, format!("ClearDiffi {quest} {difficulty}")));
+        mission
+            .events
+            .push((cid, format!("ClearDiffi {quest} {difficulty}")));
         if mission.digest.party_limit > 4 {
             mission.events.push((cid, format!("ClearRaid {quest}")));
         }
         if mission.completion.today_quest {
-            mission.events.push((cid, format!("ClearTodayQuest {quest}")));
+            mission
+                .events
+                .push((cid, format!("ClearTodayQuest {quest}")));
         }
     }
     Ok(packets)
@@ -925,7 +944,9 @@ async fn give_reserved_items(
         .await
         {
             Ok(more) => packets.extend(more),
-            Err(_) => tracing::warn!("reserved boss item refused by the give planner; values omitted"),
+            Err(_) => {
+                tracing::warn!("reserved boss item refused by the give planner; values omitted")
+            }
         }
     }
     Ok(packets)
@@ -967,7 +988,9 @@ async fn reward_character(
             bound: false,
             equipment: None,
         };
-        match super::minimum_give::apply(&mut tx, rc.owner, rc.assets, cid, &[], &[gold], &mut next).await? {
+        match super::minimum_give::apply(&mut tx, rc.owner, rc.assets, cid, &[], &[gold], &mut next)
+            .await?
+        {
             Ok(applied) => packets.push(inventory_packet(applied.slots)?),
             Err(_) => given_gold = 0,
         }
@@ -993,12 +1016,24 @@ async fn reward_character(
             bound: false,
             equipment: None,
         };
-        match super::minimum_give::apply(&mut tx, rc.owner, rc.assets, cid, &[], &[request], &mut next).await? {
+        match super::minimum_give::apply(
+            &mut tx,
+            rc.owner,
+            rc.assets,
+            cid,
+            &[],
+            &[request],
+            &mut next,
+        )
+        .await?
+        {
             Ok(applied) => {
                 packets.push(inventory_packet(applied.slots)?);
                 given_items.push((key.clone(), count));
             }
-            Err(_) => tracing::warn!("quest item reward refused by the give planner; values omitted"),
+            Err(_) => {
+                tracing::warn!("quest item reward refused by the give planner; values omitted")
+            }
         }
     }
     // QuestOwner.UpdateQuest and UpdateQuestStatus, then Save (or Undo).
@@ -1148,8 +1183,9 @@ pub fn micro_play_event(mission: &mut Mission, slot: i32, text: &str) -> bool {
         "snatch_fish" | "goldenball" | "sector_event" if split.len() >= 2 => {
             tracing::warn!("mission client event effect is not migrated; values omitted")
         }
-        "kill" if split.len() >= 2
-            && matches!(split[1], "gourd_for_player" | "pumpkin_for_player") =>
+        "kill"
+            if split.len() >= 2
+                && matches!(split[1], "gourd_for_player" | "pumpkin_for_player") =>
         {
             tracing::warn!("mission event core drop is not migrated; values omitted")
         }

@@ -90,7 +90,10 @@ fn parse_datetime(text: &str) -> Result<i64, QuestError> {
         }
         s.parse().map_err(|_| QuestError::Content)
     };
-    let (date, time) = text.trim().split_once(' ').unwrap_or((text.trim(), "00:00:00"));
+    let (date, time) = text
+        .trim()
+        .split_once(' ')
+        .unwrap_or((text.trim(), "00:00:00"));
     let mut d = date.split('-');
     let (Some(y), Some(m), Some(day), None) = (d.next(), d.next(), d.next(), d.next()) else {
         return Err(QuestError::Content);
@@ -105,7 +108,9 @@ fn parse_datetime(text: &str) -> Result<i64, QuestError> {
         return Err(QuestError::Content);
     }
     let seconds = number(h)? * 3600 + number(mi)? * 60 + number(s)?;
-    Ok(days_from_civil(number(y)?, m, day) * UNITS_PER_DAY + seconds * 300 + number(millis)? * 3 / 10)
+    Ok(days_from_civil(number(y)?, m, day) * UNITS_PER_DAY
+        + seconds * 300
+        + number(millis)? * 3 / 10)
 }
 
 /// Day number from 1900-01-01 of a proleptic Gregorian date.
@@ -168,6 +173,9 @@ struct Goal {
     weight: i32,
 }
 
+/// QuestPeriodInfo: DateFrom (SQL datetime units), Period, Feature.
+type QuestPeriod = (Option<i64>, i32, Option<String>);
+
 /// QuestContents after Load (ChangeBasicBattleGoal, ChangeMaxPlayCount).
 #[derive(Clone, Debug)]
 pub struct QuestContents {
@@ -183,7 +191,7 @@ pub struct QuestContents {
     /// season3TodayQuestGroupInfos in first-seen order.
     season3: Vec<(String, Vec<String>)>,
     /// QuestPeriodInfo per quest: DateFrom (SQL datetime units), Period, Feature.
-    periods: HashMap<String, Vec<(i64, i32, Option<String>)>>,
+    periods: HashMap<String, Vec<QuestPeriod>>,
 }
 
 fn enabled(policy: &FeaturePolicy, feature: Option<&str>) -> Result<bool, QuestError> {
@@ -274,12 +282,12 @@ impl QuestContents {
         };
         for (quest, from, period, _, feature) in &tables.periods {
             let quest = quest.as_deref().ok_or(QuestError::Content)?;
-            let from = parse_datetime(from.as_deref().unwrap_or(""))?;
-            contents
-                .periods
-                .entry(quest.to_owned())
-                .or_default()
-                .push((from, *period, feature.clone()));
+            let from = from.as_deref().map(parse_datetime).transpose()?;
+            contents.periods.entry(quest.to_owned()).or_default().push((
+                from,
+                *period,
+                feature.clone(),
+            ));
         }
         contents.change_basic_battle_goal(policy, &quests)?;
         // ChangeMaxPlayCount: the last enabled period row with MaxPlayCount wins.
@@ -837,11 +845,13 @@ impl QuestOwner {
         let Some(q) = self.owned(quest) else {
             return Ok(false);
         };
-        Ok(q.last_play.div_euclid(UNITS_PER_DAY) != now.div_euclid(UNITS_PER_DAY)
-            && ctx
-                .contents
-                .today_quests(ctx.policy, now, arithmetic)?
-                .contains(quest))
+        Ok(
+            q.last_play.div_euclid(UNITS_PER_DAY) != now.div_euclid(UNITS_PER_DAY)
+                && ctx
+                    .contents
+                    .today_quests(ctx.policy, now, arithmetic)?
+                    .contains(quest),
+        )
     }
     /// QuestOwner.UpdateQuestPlayCount(questID, startTime, IgnoreTodayCount): the period
     /// and day resets, then PlayCount/TodayPlayCount (or one raid coupon past the maximum,
@@ -863,10 +873,17 @@ impl QuestOwner {
         }
         let q = &mut self.quests[index];
         let mut reset = false;
-        for (from, period, feature) in ctx.contents.periods.get(quest).map_or(&[][..], Vec::as_slice) {
+        for (from, period, feature) in ctx
+            .contents
+            .periods
+            .get(quest)
+            .map_or(&[][..], Vec::as_slice)
+        {
             if feature.is_some() && !enabled(ctx.policy, feature.as_deref())? {
                 continue;
             }
+            // DateFrom is NOT NULL in the original table.
+            let from = from.ok_or(QuestError::Content)?;
             // TimeSpan.Days truncates toward zero; a zero Period divides by zero.
             let days = |t: i64| (t - from) / UNITS_PER_DAY;
             let (last, now) = (days(q.last_play), days(start));
@@ -921,7 +938,8 @@ impl QuestOwner {
             match self.goals.iter_mut().find(|a| a.goal == goal) {
                 Some(a) => {
                     a.status |= bit;
-                    let (mut count, mut regen, mut last) = (a.clear_count, a.regened_ap, a.last_clear);
+                    let (mut count, mut regen, mut last) =
+                        (a.clear_count, a.regened_ap, a.last_clear);
                     if add_clear(goal, cleared, &mut count, &mut regen, &mut last) {
                         (a.clear_count, a.regened_ap, a.last_clear) = (count, regen, last);
                     }

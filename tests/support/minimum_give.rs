@@ -2035,7 +2035,10 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         (goal.goal_id, goal.is_goal_success, goal.gold, goal.ap),
         (10010, true, 100, 3)
     );
-    assert_eq!(scene[1].category, MissionKind::QuestSuccessSceneStart.category());
+    assert_eq!(
+        scene[1].category,
+        MissionKind::QuestSuccessSceneStart.category()
+    );
     let due = minimum_mission_finish::next_job(&mission).unwrap();
     assert_eq!(due.duration_since(now).as_secs(), 30);
     // Kicking the boss core gives the dropped class and announces it.
@@ -2145,7 +2148,9 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
             journal: 0,
         },
     };
-    let mut ids = (960_000_000_000_000_001_i64..960_000_000_000_000_100).collect::<Vec<_>>().into_iter();
+    let mut ids = (960_000_000_000_000_001_i64..960_000_000_000_000_100)
+        .collect::<Vec<_>>()
+        .into_iter();
     let early = minimum_mission_finish::run_jobs(&mut mission, ctx, &rc, &mut ids, now)
         .await
         .unwrap();
@@ -2172,7 +2177,10 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     };
     let summary = result.summary.unwrap();
     // 280 monster EXP + DifficultyBonus 30 % (difficulty 2); goal gold 100 + 30 %.
-    assert_eq!((summary.result, summary.exp, summary.gold, summary.ap), (0, 364, 130, 3));
+    assert_eq!(
+        (summary.result, summary.exp, summary.gold, summary.ap),
+        (0, 364, 130, 3)
+    );
     assert_eq!(summary.cleared_goals.0.as_ref().unwrap()[0].0, 10010);
     assert_eq!((summary.last_progress, summary.current_progress), (0, 100));
     assert!(!result.can_restart && result.can_continue_finished_quest);
@@ -2196,12 +2204,11 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     .await
     .unwrap();
     assert_eq!(goal_status, 1 << 2);
-    let difficulty: i32 = sqlx::query_scalar(
-        "SELECT difficulty FROM game_quest_clear_times WHERE owner_id=1",
-    )
-    .fetch_one(&p)
-    .await
-    .unwrap();
+    let difficulty: i32 =
+        sqlx::query_scalar("SELECT difficulty FROM game_quest_clear_times WHERE owner_id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
     assert_eq!(difficulty, 2);
     let exp: i64 = sqlx::query_scalar("SELECT exp FROM game_character_info WHERE id=1")
         .fetch_one(&p)
@@ -2267,8 +2274,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         quest_clock(),
     )
     .await
-    .unwrap()
-    else {
+    .unwrap() else {
         panic!("accepted expected")
     };
     start(&mut mission);
@@ -2292,8 +2298,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         quest_clock(),
     )
     .await
-    .unwrap()
-    else {
+    .unwrap() else {
         panic!("accepted expected")
     };
     start(&mut mission);

@@ -1,6 +1,26 @@
 # Roteiro de testes no cliente — B2 fases e combate
 
-Bloco B2 (EXP/level up, saída para a fase, transporte de batalha, dungeons, monstros, combate, drops, progressão e robustez). Por decisão do operador, a sessão de cliente acontece só no fim do bloco e começa pelo roteiro do B1 (docs/client-tests/B1-cidade.md). A preparação, a ordem de gameplay e o formato de relato são completados no gate.
+Bloco B2 (EXP/level up, saída para a fase, transporte de batalha, dungeons, monstros, combate, drops, progressão e robustez). Gate fechado em 22/10/2026 (resultado no `MIGRATION.md`). Por decisão do operador, esta sessão cobre o B1 e o B2 juntos: primeiro todo o roteiro do B1 (`docs/client-tests/B1-cidade.md`), depois este.
+
+## Preparação
+1. Banco do laboratório: o smoke Docker do gate aplicou as migrações até a última. Se o banco tiver sido recriado, rodar `docker compose run --rm --no-deps migrate` (idempotente).
+2. Binário nativo: `cargo build --locked` (já feito no fechamento do bloco).
+3. Conteúdo privado (regenerado no B2): `.cache/private-content/npc-scripts.json` (com as seções `progression` e `mission`) e `.cache/private-content/item-economy.json` (formato 4). O `minimum-creation-assets.json` aponta para os dois e tem `"relay_bind":"127.0.0.1:27005"`. Para regenerar: `python scripts/content/export_npc_scripts.py --output .cache/private-content/npc-scripts.json` e `python scripts/content/export_item_economy.py --output .cache/private-content/item-economy.json`.
+4. Personagem: a mesma Fiona inicial do B0/B1. Com ela **deslogada**, conceder ouro para o B1 e para comprar poções: `pwsh scripts/dev/lab-give-item.ps1 -ItemClass gold -Count 50000`.
+5. Runtime (frontend + relay na 27005): `pwsh scripts/dev/start-lab-frontend.ps1 -ProfileFile .cache/private-frontend/runtime-<id>.json -NameProofFile .cache/private-content/character-name-proof.json -MinimumCreationAssetsFile .cache/private-content/minimum-creation-assets.json`. O log fica em `.cache/verification/lab-frontend-*`.
+
+## Ordem de gameplay (uma sessão)
+1. Roteiro completo do B1, na ordem dele (ouro, NPCs, inventário, conversas, história principal, lojas, skills, relog).
+2. Ainda na cidade: comprar algumas poções (B1.4a) e colocá-las na barra de atalhos; concluir uma história com EXP se houver (B2.0).
+3. Primeira missão — `quest_gnoll_watchman` (Gnoll Watchman) solo, dificuldade normal: B2.1 (navio, relay, início), B2.3 (carregamento e troca de setor), B2.4 (abates; deixar a Fiona morrer uma vez se quiser testar a morte), B2.5a (chutar núcleos), B2.5b (quebrar barris e recolher ouro/ergs), B2.6 (usar poção; pena de fênix se tiver).
+4. Derrotar o chefe e esperar o resultado: B2.7 (resultado do objetivo, cena de sucesso, tela de resultado ~30 s depois, voltar à cidade). Conferir EXP/nível, ouro, AP, diário de quests e falas dos NPCs da história.
+5. Segunda missão (qualquer uma disponível): sair da festa no navio antes do primeiro setor (B2.8-1).
+6. Terceira missão: entrar e desistir no meio do dungeon (B2.8-2); voltar à cidade.
+7. Quarta missão: fechar o cliente no meio do dungeon, abrir de novo e entrar (B2.8-4).
+8. Relogar uma vez no fim e conferir tudo o que as entradas listam como preservado (nível/EXP, ouro, itens dos núcleos/ergs, poções gastas, quests concluídas).
+
+## Como relatar
+Para cada linha marcada: ID da entrada e número da linha (ex.: `B2.7-3`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `.cache/verification/lab-frontend-*`. Marcar `[x]` no que passou e descrever o que divergiu; uma linha não testada fica `[ ]` com o motivo. Se o cliente travar ou desconectar, anotar a última ação e o horário — o log do servidor registra a categoria de toda mensagem sem handler ("laboratory frontend message has no implemented handler").
 
 ### B2.0 — EXP, level up e títulos por nível
 Pré-condição: perfil `npc_scripts` reexportado com as tabelas de progressão (CharacterClassInfo, LevelUpExpInfo, TitleInfo/TitleGoalInfo). A Fiona ganha EXP no B1 só concluindo uma história com recompensa de EXP; no B2 o EXP vem principalmente das missões (B2.7).

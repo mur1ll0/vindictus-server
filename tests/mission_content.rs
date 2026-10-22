@@ -373,7 +373,10 @@ fn tables() -> MissionTables {
             },
         ],
         difficulty_rewards: vec![(s("quest_a"), 1, 15000, 5000, 40, None)],
-        quest_rewards: vec![(s("quest_a"), Some(3), true), (s("quest_tower"), Some(0), false)],
+        quest_rewards: vec![
+            (s("quest_a"), Some(3), true),
+            (s("quest_tower"), Some(0), false),
+        ],
     }
 }
 
@@ -985,7 +988,10 @@ fn target_tracker_triggers_like_the_original() {
     assert!(t.process(77, "get item potion").is_empty());
     // OnQuestFinished: the unmet negative goal succeeds, then the party swear.
     let finished = t.on_quest_finished();
-    let ids: Vec<(i64, i32, bool)> = finished.iter().map(|f| (f.cid, f.goal, f.success)).collect();
+    let ids: Vec<(i64, i32, bool)> = finished
+        .iter()
+        .map(|f| (f.cid, f.goal, f.success))
+        .collect();
     assert_eq!(ids, [(-1, 3, true), (-1, 4, true), (-1, 8, true)]);
     // A negative goal reached fails at once.
     let dead = t.process(77, "player_dead");
@@ -1014,11 +1020,25 @@ fn goal_rewards_scale_ratios_and_regenerate_ap() {
         regened_ap: 1,
         last_clear: 0,
     };
-    let r = goal::goal_reward(info, (15000, 5000), (100, 100, 50), Some(achieved), false, minutes(125));
+    let r = goal::goal_reward(
+        info,
+        (15000, 5000),
+        (100, 100, 50),
+        Some(achieved),
+        false,
+        minutes(125),
+    );
     // base 10 − 6 = 4, regen 1 + 2 = 3 → 7, × 50 %.
     assert_eq!(r.ap, 3);
     // A today quest takes MaxAP without the AP rate.
-    let r = goal::goal_reward(info, (15000, 5000), (100, 100, 50), Some(achieved), true, minutes(125));
+    let r = goal::goal_reward(
+        info,
+        (15000, 5000),
+        (100, 100, 50),
+        Some(achieved),
+        true,
+        minutes(125),
+    );
     assert_eq!(r.ap, 10);
     assert_eq!(info.ap(5, 0, 0.0), 2);
     // AddClearCount: the regenerated AP is banked and the remainder kept on the time.
@@ -1031,7 +1051,14 @@ fn goal_rewards_scale_ratios_and_regenerate_ap() {
     // The time stays on the last regeneration boundary.
     assert_eq!((count, regen, last), (3, 2, 0));
     // Empty items and zero counts carry no item.
-    let sub = goal::goal_reward(contents.goal_info(3).unwrap(), (10000, 10000), (100, 100, 100), None, false, 0);
+    let sub = goal::goal_reward(
+        contents.goal_info(3).unwrap(),
+        (10000, 10000),
+        (100, 100, 100),
+        None,
+        false,
+        0,
+    );
     assert_eq!((sub.item, sub.item_num, sub.exp), (None, 0, 30_000));
 }
 
@@ -1039,8 +1066,22 @@ fn goal_rewards_scale_ratios_and_regenerate_ap() {
 fn reward_calculation_sums_goals_multipliers_and_penalties() {
     let contents = MissionContents::load(tables(), &policy()).unwrap();
     let rate = (100, 100, 100);
-    let mut main = vec![goal::goal_reward(contents.goal_info(1).unwrap(), (100, 100), rate, None, false, 7)];
-    let mut sub = vec![goal::goal_reward(contents.goal_info(2).unwrap(), (10000, 10000), rate, None, false, 8)];
+    let mut main = vec![goal::goal_reward(
+        contents.goal_info(1).unwrap(),
+        (100, 100),
+        rate,
+        None,
+        false,
+        7,
+    )];
+    let mut sub = vec![goal::goal_reward(
+        contents.goal_info(2).unwrap(),
+        (10000, 10000),
+        rate,
+        None,
+        false,
+        8,
+    )];
     let mut facts = RewardFacts {
         quest_id: "quest_a".into(),
         level: 30,
@@ -1068,26 +1109,74 @@ fn reward_calculation_sums_goals_multipliers_and_penalties() {
     assert_eq!(c.quest_goals, [(1, 7), (2, 8)]);
     assert_eq!(
         c.items,
-        [("reward_box".to_owned(), 6), ("bonus_box".to_owned(), 6), ("sub_item".to_owned(), 1)]
+        [
+            ("reward_box".to_owned(), 6),
+            ("bonus_box".to_owned(), 6),
+            ("sub_item".to_owned(), 1)
+        ]
     );
-    assert_eq!(c.summary.cleared_goals, [(1, (2000, 100, 10)), (2, (50000, 4000, 4))]);
+    assert_eq!(
+        c.summary.cleared_goals,
+        [(1, (2000, 100, 10)), (2, (50000, 4000, 4))]
+    );
     assert_eq!(c.summary.battle_exp[0].desc, "MonsterKill");
-    let etc_gold: Vec<(&str, i32)> = c.summary.etc_gold.iter().map(|l| (l.desc.as_str(), l.value)).collect();
-    assert_eq!(etc_gold, [("XERankBonus", 41), ("DifficultyBonus", 1230), ("LevelPenalty", -5371)]);
+    let etc_gold: Vec<(&str, i32)> = c
+        .summary
+        .etc_gold
+        .iter()
+        .map(|l| (l.desc.as_str(), l.value))
+        .collect();
+    assert_eq!(
+        etc_gold,
+        [
+            ("XERankBonus", 41),
+            ("DifficultyBonus", 1230),
+            ("LevelPenalty", -5371)
+        ]
+    );
     // Goals already sent are not sent again; without the main goal only monsters count.
-    let again = goal::calculate(true, &mut main, &mut sub, 1, 0, &RewardLists::default(), &enabled).unwrap();
+    let again = goal::calculate(
+        true,
+        &mut main,
+        &mut sub,
+        1,
+        0,
+        &RewardLists::default(),
+        &enabled,
+    )
+    .unwrap();
     assert!(again.quest_goals.is_empty());
-    let failed = goal::calculate(false, &mut main, &mut sub, 1, 70, &RewardLists::default(), &enabled).unwrap();
+    let failed = goal::calculate(
+        false,
+        &mut main,
+        &mut sub,
+        1,
+        70,
+        &RewardLists::default(),
+        &enabled,
+    )
+    .unwrap();
     assert_eq!((failed.exp, failed.gold, failed.ap), (70, 0, 0));
     assert!(failed.summary.cleared_goals.is_empty());
     // Practice of the camping penalty: today play count above 10 on a free quest.
     facts.free_quest = true;
     facts.today_play_count = 13;
-    assert_eq!(RewardLists::new(&facts).camping_gold_penalty.map(|p| p.value), Some(70));
+    assert_eq!(
+        RewardLists::new(&facts)
+            .camping_gold_penalty
+            .map(|p| p.value),
+        Some(70)
+    );
     // Progress: goals of this play count, else stored statuses (season 1: Status > 0).
     let goals = [(1, 50), (2, 20), (3, 10)];
-    assert_eq!(goal::quest_progress(&goals, &[(3, 1)], Some(&[1]), false, 1), 60);
-    assert_eq!(goal::quest_progress(&goals, &[(3, 1), (2, 4)], None, true, 1), 0);
+    assert_eq!(
+        goal::quest_progress(&goals, &[(3, 1)], Some(&[1]), false, 1),
+        60
+    );
+    assert_eq!(
+        goal::quest_progress(&goals, &[(3, 1), (2, 4)], None, true, 1),
+        0
+    );
     assert_eq!(goal::quest_progress(&goals, &[(2, 6)], None, true, 1), 20);
 }
 

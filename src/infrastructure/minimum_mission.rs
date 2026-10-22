@@ -900,7 +900,10 @@ pub fn move_sector(
     mission.in_game = true;
     mission.game_time = game_time;
     // OnMoveSector: a newly passed sector of a season 2 quest is explored.
-    if explored && mission.digest.is_season2 && let Some(id) = sector {
+    if explored
+        && mission.digest.is_season2
+        && let Some(id) = sector
+    {
         mission.events.push((-1, format!("explore_sector {id}")));
     }
     Ok(true)
@@ -978,7 +981,10 @@ pub fn monster_killed(
                 .find(|(m, _)| m == monster_type)
             {
                 Some((_, n)) => *n = n.saturating_add(1),
-                None => mission.completion.boss_kills.push((monster_type.clone(), 1)),
+                None => mission
+                    .completion
+                    .boss_kills
+                    .push((monster_type.clone(), 1)),
             }
         }
         if has_evil_core && !practice {
@@ -1058,7 +1064,9 @@ pub async fn give_reward(
     core_type: i32,
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
-    mission.events.push((cid, format!("get item {class_ex} {count}")));
+    mission
+        .events
+        .push((cid, format!("get item {class_ex} {count}")));
     if domain::item_class(class_ex) != class_ex {
         return Err(fail());
     }
@@ -1315,13 +1323,13 @@ pub fn use_consumable(
     mission.events.push((
         mission.completion.cid,
         format!(
-        "use consumable {} {class} 1",
-        if part >= 100 {
-            "QuickSlot"
-        } else {
-            "SubWeapon"
-        }
-    ),
+            "use consumable {} {class} 1",
+            if part >= 100 {
+                "QuickSlot"
+            } else {
+                "SubWeapon"
+            }
+        ),
     ));
     Ok(Some(((!free).then_some(class), packets)))
 }

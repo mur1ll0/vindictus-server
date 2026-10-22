@@ -1165,7 +1165,11 @@ impl Connection {
         let Some(state) = mission.as_mut() else {
             return Ok(Vec::new());
         };
-        let assets = &runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?.assets;
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets;
         let ctx = super::minimum_mission_finish::FinishContext {
             contents: assets.mission().ok_or(RuntimeError::Profile)?,
             policy: assets.npc_policy().ok_or(RuntimeError::Profile)?,
