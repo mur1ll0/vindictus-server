@@ -7,7 +7,7 @@ use super::{
 use crate::domain::equipped_gear::{self, SetBonus, SetItem};
 use serde::Deserialize;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     io::Read,
 };
 use zeroize::Zeroizing;
@@ -73,6 +73,12 @@ pub struct Profile {
     resolved: std::sync::OnceLock<Resolved>,
 }
 type Resolved = BTreeMap<Vec<u8>, Entry>;
+struct Index<'p, 'c> {
+    effective: crate::domain::item_catalog::ItemCatalog<'c>,
+    classes: HashMap<usize, &'p Class>,
+    equips: HashMap<Vec<u8>, Vec<&'p Equip>>,
+    sets: HashMap<Vec<u8>, Vec<&'p Set>>,
+}
 struct Entry {
     /// Present only for equippable classes with an effective EquipItemInfo row.
     metadata: Option<Metadata>,
@@ -207,6 +213,7 @@ impl Profile {
         if self.resolved.get().is_some() {
             return Ok(());
         }
+        let ix = self.index(catalog)?;
         let mut map = BTreeMap::new();
         for c in &self.classes {
             let key = raw(&c.item_utf16)?;
@@ -214,11 +221,10 @@ impl Profile {
                 continue;
             }
             // Classes that do not resolve stay absent and keep failing on lookup.
-            if let (Ok(category), Ok(constraint)) = (
-                self.resolve_category(catalog, &key),
-                self.resolve_constraint(catalog, &key),
-            ) {
-                let metadata = self.resolve_metadata(catalog, &key).ok();
+            if let (Ok(category), Ok(constraint)) =
+                (Self::category_in(&ix, &key), Self::constraint_in(&ix, &key))
+            {
+                let metadata = Self::metadata_in(catalog, &ix, &key).ok();
                 map.insert(
                     key,
                     Entry {
@@ -232,6 +238,27 @@ impl Profile {
         let _ = self.resolved.set(map);
         Ok(())
     }
+    /// The effective catalog and the profile rows by source index (classes) or by class
+    /// key in profile order (equips, sets), built once so a full profile resolves in
+    /// linear time.
+    fn index<'p, 'c>(&'p self, catalog: &'c Catalog) -> Result<Index<'p, 'c>, MinimumError> {
+        let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
+        let classes = self.classes.iter().map(|c| (c.source_index, c)).collect();
+        let mut equips: HashMap<Vec<u8>, Vec<&Equip>> = HashMap::new();
+        for e in &self.equips {
+            equips.entry(raw(&e.item_utf16)?).or_default().push(e);
+        }
+        let mut sets: HashMap<Vec<u8>, Vec<&Set>> = HashMap::new();
+        for s in &self.sets {
+            sets.entry(raw(&s.item_utf16)?).or_default().push(s);
+        }
+        Ok(Index {
+            effective,
+            classes,
+            equips,
+            sets,
+        })
+    }
     fn cached(&self, catalog: &Catalog, key: &[u8]) -> Result<Option<&Entry>, MinimumError> {
         let Some(map) = self.resolved.get() else {
             return Ok(None);
@@ -243,35 +270,36 @@ impl Profile {
         if let Some(entry) = self.cached(catalog, key)? {
             return entry.metadata.clone().ok_or_else(fail);
         }
-        self.resolve_metadata(catalog, key)
-    }
-    fn resolve_metadata(&self, catalog: &Catalog, key: &[u8]) -> Result<Metadata, MinimumError> {
         self.bind(catalog)?;
-        let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
-        let item = effective.get(Some(key)).ok_or_else(fail)?;
+        Self::metadata_in(catalog, &self.index(catalog)?, key)
+    }
+    fn class_in<'p>(ix: &Index<'p, '_>, key: &[u8]) -> Result<&'p Class, MinimumError> {
+        let item = ix.effective.get(Some(key)).ok_or_else(fail)?;
+        ix.classes.get(&item.source_index).copied().ok_or_else(fail)
+    }
+    fn metadata_in(
+        catalog: &Catalog,
+        ix: &Index<'_, '_>,
+        key: &[u8],
+    ) -> Result<Metadata, MinimumError> {
+        let item = ix.effective.get(Some(key)).ok_or_else(fail)?;
         if !item.binding.equippable {
             return Err(fail());
         }
-        let c = self
-            .classes
-            .iter()
-            .find(|c| c.source_index == item.source_index)
-            .ok_or_else(fail)?;
+        let c = Self::class_in(ix, key)?;
         let mut selected = None;
-        for e in &self.equips {
-            if raw(&e.item_utf16)? == key && catalog.policy.is_enabled(e.feature.as_deref())? {
-                selected = Some(e)
+        for e in ix.equips.get(key).into_iter().flatten() {
+            if catalog.policy.is_enabled(e.feature.as_deref())? {
+                selected = Some(*e)
             }
         }
         let e = selected.ok_or_else(fail)?;
-        let sets = self
+        let sets = ix
             .sets
-            .iter()
-            .filter_map(|s| match raw(&s.item_utf16) {
-                Ok(k) if k == key => Some(text(&s.set_utf16).map(Some)),
-                Ok(_) => None,
-                Err(e) => Some(Err(e)),
-            })
+            .get(key)
+            .into_iter()
+            .flatten()
+            .map(|s| text(&s.set_utf16).map(Some))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Metadata {
             category: text(&c.category_utf16)?,
@@ -286,18 +314,11 @@ impl Profile {
         if let Some(entry) = self.cached(catalog, key)? {
             return Ok(entry.category.clone());
         }
-        self.resolve_category(catalog, key)
-    }
-    fn resolve_category(&self, catalog: &Catalog, key: &[u8]) -> Result<String, MinimumError> {
         self.bind(catalog)?;
-        let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
-        let item = effective.get(Some(key)).ok_or_else(fail)?;
-        let c = self
-            .classes
-            .iter()
-            .find(|c| c.source_index == item.source_index)
-            .ok_or_else(fail)?;
-        text(&c.category_utf16)
+        Self::category_in(&self.index(catalog)?, key)
+    }
+    fn category_in(ix: &Index<'_, '_>, key: &[u8]) -> Result<String, MinimumError> {
+        text(&Self::class_in(ix, key)?.category_utf16)
     }
     /// ItemClassInfoConstraintTrait for a bound profile class.
     pub fn constraint(
@@ -308,21 +329,14 @@ impl Profile {
         if let Some(entry) = self.cached(catalog, key)? {
             return Ok(entry.constraint.clone());
         }
-        self.resolve_constraint(catalog, key)
+        self.bind(catalog)?;
+        Self::constraint_in(&self.index(catalog)?, key)
     }
-    fn resolve_constraint(
-        &self,
-        catalog: &Catalog,
+    fn constraint_in(
+        ix: &Index<'_, '_>,
         key: &[u8],
     ) -> Result<crate::domain::item_constraint::Constraint, MinimumError> {
-        self.bind(catalog)?;
-        let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
-        let item = effective.get(Some(key)).ok_or_else(fail)?;
-        let c = self
-            .classes
-            .iter()
-            .find(|c| c.source_index == item.source_index)
-            .ok_or_else(fail)?;
+        let c = Self::class_in(ix, key)?;
         let class = raw(&c.item_utf16)?;
         Ok(crate::domain::item_constraint::Constraint {
             cafe_only: c.cafe_only,

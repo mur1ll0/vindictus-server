@@ -12,7 +12,7 @@
   "body_arithmetic": "unambiguous-only",
   "map_partition_dir": "/content/map-partition",
   "channel_bind": "127.0.0.1:27003",
-  "equipment": "/content/normal-equipment-profile-v3.json",
+  "equipment": "/content/normal-equipment-profile-v4.json",
   "skills": "/content/skill-profile-v4.json",
   "economy": "/content/item-economy.json",
   "npc_scripts": "/content/npc-scripts.json",

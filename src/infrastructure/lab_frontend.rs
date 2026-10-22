@@ -1364,17 +1364,6 @@ impl Connection {
                         .await
                         .map_err(|_| RuntimeError::Operation)?;
                         self.selected = Some(selected);
-                        for packet in &self
-                            .selected
-                            .as_ref()
-                            .ok_or(RuntimeError::Operation)?
-                            .packets
-                        {
-                            send(stream, sender, packet.category, &packet.body).await?;
-                        }
-                        tracing::info!(
-                            "minimum character selected; optional services deferred; values omitted"
-                        );
                         // SelectCharacterProcessor: OpenLog (AddCharacterJournal "Login").
                         if let Some(selected) = self.selected.as_mut() {
                             selected.log_journal =
@@ -1384,6 +1373,10 @@ impl Connection {
                                 )
                                 .await;
                         }
+                        // The PlayerService pushes of SelectCharacter (StoryEntity
+                        // construction, QuestOwner NotifyLevel) reach the client before
+                        // CharacterSelecting sends LoginOk on the operation's completion.
+                        let mut early = Vec::new();
                         // StoryEntity construction: login auto-give and SyncStoryProgress.
                         if assets.npc.is_some() {
                             let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
@@ -1405,13 +1398,11 @@ impl Connection {
                             };
                             match story.await {
                                 Ok(packets) => {
-                                    for packet in &packets {
-                                        send(stream, sender, packet.category, &packet.body).await?;
-                                    }
                                     tracing::info!(
                                         synchronized = !packets.is_empty(),
                                         "minimum story login processed; values omitted"
                                     );
+                                    early.extend(packets);
                                 }
                                 Err(_) => {
                                     tracing::warn!("minimum story login rejected; values omitted")
@@ -1442,13 +1433,10 @@ impl Connection {
                                 };
                                 match quests.await {
                                     Ok(packets) => {
-                                        for packet in &packets {
-                                            send(stream, sender, packet.category, &packet.body)
-                                                .await?;
-                                        }
                                         tracing::info!(
                                             "minimum quest login processed; values omitted"
                                         );
+                                        early.extend(packets);
                                     }
                                     Err(_) => tracing::warn!(
                                         "minimum quest login rejected; values omitted"
@@ -1456,6 +1444,21 @@ impl Connection {
                                 }
                             }
                         }
+                        for packet in &early {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        for packet in &self
+                            .selected
+                            .as_ref()
+                            .ok_or(RuntimeError::Operation)?
+                            .packets
+                        {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        tracing::info!(
+                            early_messages = early.len(),
+                            "minimum character selected; optional services deferred; values omitted"
+                        );
                     }
                     Message::EnterChannel {
                         channel_id,

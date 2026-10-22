@@ -1,12 +1,22 @@
-"""Readonly, source-bound normal-equipment metadata for an explicit class subset."""
+"""Readonly, source-bound normal-equipment metadata for an explicit class subset or for
+every ItemClassInfo class (items obtained in play, such as mission drops)."""
 import argparse, contextlib, json, pathlib, sqlite3
 from export_item_catalog import read_package as catalog_read, digest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / 'src/domain/equipped_gear_sources.json'
 
-def read_package(database, config, selected):
-    if not 1 <= len(selected) <= 4096 or len(set(selected)) != len(selected):
+def all_classes(database):
+    """Every non-null ItemClassInfo.ItemClass, UTF-16LE hex, first occurrence order."""
+    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+        seen = {}
+        for (value,) in db.execute('SELECT ItemClass FROM ItemClassInfo'):
+            if isinstance(value, str):
+                seen.setdefault(value.encode('utf-16-le', errors='surrogatepass').hex(), None)
+    return list(seen)
+
+def read_package(database, config, selected, limit=4096):
+    if not 1 <= len(selected) <= limit or len(set(selected)) != len(selected):
         raise ValueError('Equipment subset is empty, duplicated or oversized')
     normalized = {bytes.fromhex(s).hex() for s in selected}
     if len(normalized) != len(selected): raise ValueError('Duplicate encoded equipment class')
@@ -53,13 +63,20 @@ def read_package(database, config, selected):
     return dict(format_version=2,source='heroesContents.normal-equipment',database_sha256=package['manifest']['database_sha256'],config_sha256=package['manifest']['config_sha256'],implementations={k:r['sha256'] for k,r in sources.items()},classes=classes,equips=equips,sets=sets,effects=effects)
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--classes-file',required=True);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--output',required=True)
+    group=parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--classes-file');group.add_argument('--all-classes',action='store_true')
+    args=parser.parse_args()
     out=pathlib.Path(args.output).resolve();private=(ROOT/'.cache/private-content').resolve()
-    source=pathlib.Path(args.classes_file).resolve()
-    if out.parent != private or source.parent != private: raise ValueError('Use prepared private content directory')
-    selected=[r['class_hex'] for r in json.loads(source.read_text(encoding='utf-8-sig'))]
+    if out.parent != private: raise ValueError('Use prepared private content directory')
     base=ROOT.parent/'ServidorVindictus/Server/zh-tw-x-gm/Bin'
-    package=read_package(base/'heroesContents.db3',base/'ServiceCore.dll.config',selected)
+    if args.all_classes:
+        selected=all_classes(base/'heroesContents.db3');limit=50000
+    else:
+        source=pathlib.Path(args.classes_file).resolve()
+        if source.parent != private: raise ValueError('Use prepared private content directory')
+        selected=[r['class_hex'] for r in json.loads(source.read_text(encoding='utf-8-sig'))];limit=4096
+    package=read_package(base/'heroesContents.db3',base/'ServiceCore.dll.config',selected,limit)
     with out.open('x',encoding='utf-8',newline='\n') as stream: json.dump(package,stream,separators=(',',':'),ensure_ascii=True);stream.write('\n')
     print('Private readonly equipment profile exported; values omitted.')
 

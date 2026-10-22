@@ -30,6 +30,7 @@ Pré-condição: perfil `npc_scripts` reexportado com as tabelas de progressão 
 - [ ] Quando o EXP passa do necessário → efeito de level up na tela, novo nível na janela de personagem, atributos maiores (STR/DEX/INT/WILL/HP) e a lista de títulos ganha os títulos de nível (em progresso, não adquiridos).
 - [ ] Após o level up → a lista de quests recebe as quests automáticas do novo nível e histórias de nível novas aparecem no diário (quando existirem).
 - [ ] Relogar → nível, EXP, atributos e títulos preservados; a seleção de personagem mostra o novo nível.
+- [ ] Logo ao entrar na cidade (sem falar com NPC), abrir o diário de quests → as quests aparecem (em 22/10 só apareciam depois de falar com o Marrec; as quests e histórias do login passaram a ser enviadas antes do LoginOk, como no original).
 Limites conhecidos: títulos adquiridos (com status de concluído e bônus de atributo), recompensa de título/skill de história, log de crescimento (AddGrowthLog), ranking (CharacterRank) e efeitos de guilda não migrados.
 
 ### B2.1 — Saída para a missão (navio, relay e início da fase)
@@ -71,6 +72,12 @@ Pré-condição: dentro de um setor (fora do modo prática).
 - [ ] Recolher o ouro/erg → mensagem de item obtido e o ouro/item entra no inventário (log "mission erg picked"); o mesmo erg não pode ser recolhido duas vezes.
 - [ ] Ergs de cura instantânea (HP) curam na hora sem entrar no inventário.
 Limites conhecidos: props nomeados (NamedProp), bônus de habilidade em props e HugeLucky não migrados; inventário cheio ainda não manda por correio.
+
+### B2.5c — Equipar itens obtidos em missão
+Pré-condição: um equipamento que caiu em missão (ex.: Crimson Blade Tunic, `swordwind_upper`) na bolsa; perfil de equipamento completo (`normal-equipment-profile-v4.json`).
+- [ ] Equipar o item → aparece na Fiona, os atributos mudam e o item sai da bolsa. No log: "minimum equipment change saved and synchronized" (falhava em 22/10 com "minimum equipment change rejected": o perfil só tinha os 5 itens iniciais).
+- [ ] Um item com nível ou classe acima do permitido → diálogo de falha de equipamento, sem mudar nada.
+- [ ] Relogar → o item continua equipado.
 
 ### B2.6 — Consumíveis, reviver e relatórios de combate
 Pré-condição: Fiona com poções na barra de atalhos (comprar no B1 e equipar na barra) e, se houver, uma pena de fênix.
