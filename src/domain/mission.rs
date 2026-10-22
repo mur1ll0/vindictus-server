@@ -85,7 +85,28 @@ pub struct MissionTables {
     pub setting_conditions: Vec<(i32, Option<String>, Option<String>)>,
     /// MonsterInfo: Identifier, Class, Variation, Difficulty, Exp, HP1, HP_Normal_Percent.
     pub monsters: Vec<MonsterRow>,
+    /// MonsterDropItemInfo: MonsterID, QuestID, Difficulty, ItemClassEX, Weight, IsAbsolute,
+    /// IsRequiredClass, IsUniqueDrop, Feature.
+    pub monster_drops: Vec<DropRow>,
+    /// QuestDifficultyInfo: QuestID, Difficulty, GameMode, EvilCoreCount, Feature.
+    pub quest_difficulties: Vec<DifficultyRow>,
+    /// ItemClassInfo of dropped classes: ItemClass, Rarity, ClassRestriction, Feature.
+    pub drop_classes: Vec<(Option<String>, i32, i32, Option<String>)>,
 }
+/// QuestDifficultyInfo: QuestID, Difficulty, GameMode, EvilCoreCount, Feature.
+pub type DifficultyRow = (Option<String>, i32, i32, i32, Option<String>);
+/// MonsterDropItemInfo row.
+pub type DropRow = (
+    i32,
+    Option<String>,
+    i32,
+    Option<String>,
+    i32,
+    bool,
+    bool,
+    bool,
+    Option<String>,
+);
 /// MonsterInfo: Identifier, Class, Variation, Difficulty, Exp, HP1, HP_Normal_Percent.
 pub type MonsterRow = (i32, Option<String>, Option<String>, i32, i32, i32, i32);
 
@@ -223,6 +244,10 @@ pub struct Spawner {
     pub is_today_quest_candidate: bool,
     /// The spawned Monster's dead count; absent before Spawn.
     pub spawned: Option<i32>,
+    /// Monster.DropItem (cores per kill of an item drop entity).
+    pub drop_item: i32,
+    /// Monster.MonsterInfo at the play's difficulty.
+    pub info: Option<MonsterInfo>,
 }
 impl Spawner {
     pub fn monster_type(&self) -> &str {
@@ -550,6 +575,8 @@ pub struct SectorInfo {
     /// TreasureBoxInfo: GroupID, EntityName (not visible, not opened).
     pub treasure_boxes: Vec<(i32, Option<String>)>,
     pub save_required: bool,
+    /// ItemDropEntity: MonsterEntityName → DropItem of monsters that drop cores.
+    pub item_drop_entity: Vec<(String, i32)>,
 }
 /// QuestSectorInfos of SectorSequence.GetInfo(isElection: false) before the first sector.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -572,6 +599,17 @@ pub struct SectorSequence {
     pub latest_cleared: i32,
     /// PassedSector: SectorIDs already entered (AddPassedSectorInfo).
     pub passed: Vec<i32>,
+    /// EvilCore sector objects of the solo player: (sector group, key, cores).
+    pub cores: Vec<EvilCore>,
+}
+
+/// EvilCore of one player: ItemClassEX lists per EvilCoreType, in insertion order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EvilCore {
+    pub group: i32,
+    pub key: String,
+    pub is_boss: bool,
+    pub items: Vec<(i32, Vec<String>)>,
 }
 
 #[derive(Clone)]
@@ -591,6 +629,16 @@ pub struct MissionContents {
     setting_conditions: Vec<(i32, Option<String>, Option<String>)>,
     /// Monsters: MonsterType → (Difficulty, MonsterInfo) in insertion order.
     monsters: BTreeMap<String, Vec<(i32, MonsterInfo)>>,
+    /// MonsterDropTable.DropTables: (MonsterID, Difficulty) → rows in provider order.
+    drops: BTreeMap<(i32, i32), Vec<DropRow>>,
+    /// QuestDifficultyInfoDic (feature-filtered): (QuestID, Difficulty) → (GameMode, EvilCoreCount).
+    difficulties: BTreeMap<(String, i32), (i32, i32)>,
+    /// itemClassInfoDic of dropped classes: ItemClass → (Rarity, ClassRestriction).
+    drop_classes: BTreeMap<String, (i32, i32)>,
+    /// FeatureMatrix: LuckyBonus, RareCoreEffectRarity, bossevilcore_bonus.
+    lucky_bonus: bool,
+    rare_core_rarity: i32,
+    boss_evil_core_bonus: i32,
 }
 
 const MAX_TARGET_PATTERN: usize = 512;
@@ -747,6 +795,37 @@ impl MissionContents {
                 },
             ));
         }
+        let mut drops: BTreeMap<(i32, i32), Vec<DropRow>> = BTreeMap::new();
+        for row in t.monster_drops {
+            drops.entry((row.0, row.2)).or_default().push(row);
+        }
+        let mut difficulties = BTreeMap::new();
+        for (quest, difficulty, game_mode, evil_core_count, feature) in t.quest_difficulties {
+            if !enabled(feature.as_deref())? {
+                continue;
+            }
+            let key = (quest.ok_or(MissionError::Content)?, difficulty);
+            if difficulties
+                .insert(key, (game_mode, evil_core_count))
+                .is_some()
+            {
+                return Err(MissionError::Content);
+            }
+        }
+        // ToDictionary_OverwriteDuplicated over the feature-enabled rows.
+        let mut drop_classes = BTreeMap::new();
+        for (class, rarity, restriction, feature) in t.drop_classes {
+            if enabled(feature.as_deref())? {
+                drop_classes.insert(class.ok_or(MissionError::Content)?, (rarity, restriction));
+            }
+        }
+        let lucky_bonus = enabled(Some("LuckyBonus"))?;
+        let rare_core_rarity = policy
+            .get_integer("RareCoreEffectRarity")
+            .map_err(|_| MissionError::Feature)?;
+        let boss_evil_core_bonus = policy
+            .get_integer("bossevilcore_bonus")
+            .map_err(|_| MissionError::Feature)?;
         Ok(Self {
             quests,
             builders,
@@ -755,6 +834,12 @@ impl MissionContents {
             settings: t.settings,
             setting_conditions: t.setting_conditions,
             monsters,
+            drops,
+            difficulties,
+            drop_classes,
+            lucky_bonus,
+            rare_core_rarity,
+            boss_evil_core_bonus,
         })
     }
 
@@ -776,6 +861,12 @@ impl MissionContents {
             .find(|(d, _)| *d == difficulty)
             .or_else(|| rows.iter().find(|(d, _)| *d == -1))
             .map(|(_, i)| *i)
+    }
+
+    /// Whether QuestDifficultyInfoDic has the (enabled) difficulty of the quest.
+    pub fn has_difficulty(&self, quest: &str, difficulty: i32) -> bool {
+        self.difficulties
+            .contains_key(&(quest.to_owned(), difficulty))
     }
 
     /// Quests with a normal sector sequence builder.
@@ -949,10 +1040,12 @@ impl MissionContents {
         Ok(())
     }
 
-    /// SectorSequenceBuilder.GetSectorSequence without the drop assignment.
+    /// SectorSequenceBuilder.GetSectorSequence (treasure maps, HugeLucky, story and event
+    /// drops are not migrated).
     pub fn sector_sequence(
         &self,
         digest: &QuestDigest,
+        difficulty: i32,
         practice: bool,
         today_quest_open: bool,
         random: &mut dyn MissionRandom,
@@ -973,6 +1066,7 @@ impl MissionContents {
             last_used_spawn_point: None,
             latest_cleared: -1,
             passed: Vec::new(),
+            cores: Vec::new(),
         };
         for (group_id, sectors) in &builder.groups {
             let seed = random.next();
@@ -996,10 +1090,12 @@ impl MissionContents {
             }
         }
         pick_named_monster(&mut sequence, today_quest_open, random);
-        // MonsterSpawner.Spawn: the Monster starts with no dead count.
+        // MonsterSpawner.Spawn: the Monster starts with no dead count and the MonsterInfo of
+        // the play's difficulty.
         for sector in &mut sequence.sectors {
             for spawner in sector.spawners_mut() {
                 spawner.spawned = Some(0);
+                spawner.info = self.monster_info(spawner.monster_type(), difficulty);
             }
         }
         if !practice {
@@ -1027,8 +1123,287 @@ impl MissionContents {
                     }
                 }
             }
+            self.assign_drops(digest, difficulty, &mut sequence, random)?;
         }
         Ok(sequence)
+    }
+
+    /// GetSectorSequence's drop assignment: TotalItemCountDice picks ItemCountMin..=Max
+    /// drop slots among the non-boss monsters without a base drop whose MonsterDropTable
+    /// exists (partial shuffle); bosses and unique-behavior monsters get their base drop
+    /// plus the difficulty's EvilCoreCount and bossevilcore_bonus (1 + bonus in GameMode 4).
+    fn assign_drops(
+        &self,
+        digest: &QuestDigest,
+        difficulty: i32,
+        sequence: &mut SectorSequence,
+        random: &mut dyn MissionRandom,
+    ) -> Result<(), MissionError> {
+        let mut wanted = random.next_range(digest.item_count_min, digest.item_count_max + 1);
+        let difficulty_info = self
+            .difficulties
+            .get(&(digest.quest_id.clone(), difficulty))
+            .copied();
+        let bonus = self.boss_evil_core_bonus;
+        let mut candidates: Vec<(usize, i32)> = Vec::new();
+        let mut has_table = false;
+        for (si, sector) in sequence.sectors.iter_mut().enumerate() {
+            for s in sector.spawners_mut() {
+                if s.spawned.is_none() {
+                    continue;
+                }
+                if let Some(info) = s.info {
+                    has_table = self.drops.contains_key(&(info.identifier, difficulty));
+                }
+                let boosted = |base: i32| -> Result<i32, MissionError> {
+                    let (mode, evil_cores) = difficulty_info.ok_or(MissionError::NoSectorInfo)?;
+                    Ok(if mode == 4 {
+                        1 + bonus
+                    } else {
+                        base + evil_cores + bonus
+                    })
+                };
+                if s.base_drop_item == 0 && has_table {
+                    candidates.push((si, s.entity_id));
+                } else if s.is_boss {
+                    s.drop_item = if s.base_drop_item == 0 {
+                        0
+                    } else {
+                        boosted(s.base_drop_item)?
+                    };
+                } else if s.has_uniq_behaviors {
+                    s.drop_item = boosted(s.base_drop_item)?;
+                } else {
+                    s.drop_item = s.base_drop_item;
+                }
+            }
+        }
+        if (candidates.len() as i32) < wanted {
+            wanted = candidates.len() as i32;
+        }
+        // ShuffleFirstNthElement(SelectDropMonsterDice, n).
+        for i in 0..usize::try_from(wanted).unwrap_or(0) {
+            let j = random.next_range(i as i32, candidates.len() as i32);
+            candidates.swap(i, usize::try_from(j).map_err(|_| MissionError::Content)?);
+        }
+        for &(si, id) in candidates.iter().take(usize::try_from(wanted).unwrap_or(0)) {
+            if let Some(s) = sequence
+                .sectors
+                .get_mut(si)
+                .and_then(|s| s.spawners_mut().find(|s| s.entity_id == id))
+            {
+                s.drop_item = 1;
+            }
+        }
+        Ok(())
+    }
+
+    /// MonsterDropTableInstance.PickItem for the Fiona (BaseCharacter 1): absolute rows
+    /// roll out of 1,000,000 first, then the relational weights; required-class rows need
+    /// the class restriction bit; unique rows are picked once per table instance.
+    fn pick_drop(
+        &self,
+        rows: &[&DropRow],
+        unique_got: &mut Vec<String>,
+        random: &mut dyn MissionRandom,
+    ) -> Option<String> {
+        let mut absolute: Vec<&DropRow> = Vec::new();
+        let mut relational: Vec<&DropRow> = Vec::new();
+        let mut total: i32 = 0;
+        for row in rows {
+            let class_ex = row.3.as_deref().unwrap_or("");
+            if row.7 && unique_got.iter().any(|u| u == class_ex) {
+                continue;
+            }
+            if row.6 {
+                let Some((_, restriction)) = self.drop_classes.get(item_class(class_ex)) else {
+                    continue;
+                };
+                if (1 << 1) & restriction == 0 {
+                    continue;
+                }
+            }
+            if row.5 {
+                absolute.push(row);
+                continue;
+            }
+            relational.push(row);
+            total = total.wrapping_add(row.4);
+        }
+        let mut chosen = |row: &DropRow| -> Option<String> {
+            let class_ex = row.3.clone()?;
+            if row.7 && !unique_got.contains(&class_ex) {
+                unique_got.push(class_ex.clone());
+            }
+            Some(class_ex)
+        };
+        if !absolute.is_empty() {
+            let mut roll = random.next_range(0, 1_000_000);
+            for row in &absolute {
+                roll -= row.4;
+                if roll < 0 {
+                    return chosen(row);
+                }
+            }
+        }
+        let mut roll = random.next_range(0, total);
+        for row in &relational {
+            roll -= row.4;
+            if roll < 0 {
+                return chosen(row);
+            }
+        }
+        None
+    }
+
+    /// EvilCore.IsRareCore: the ItemClassInfo rarity reaches RareCoreEffectRarity.
+    pub fn is_rare_core(&self, class_ex: &str) -> bool {
+        self.rare_core_rarity > 0
+            && self
+                .drop_classes
+                .get(item_class(class_ex))
+                .is_some_and(|(rarity, _)| *rarity >= self.rare_core_rarity)
+    }
+
+    /// Monster.MakeEvilCore for the solo player of a killed item-drop monster: DropItem
+    /// picks from its MonsterDropTable (javelin_lvl0 without a table) and a LuckyCoreDice
+    /// gold core per pick. Returns the additional cores to announce (DropGoldCore).
+    #[allow(clippy::too_many_arguments)]
+    pub fn make_evil_core(
+        &self,
+        sequence: &mut SectorSequence,
+        key: &str,
+        drop_item: i32,
+        info: Option<MonsterInfo>,
+        is_boss: bool,
+        quest: &str,
+        difficulty: i32,
+        luck: i32,
+        random: &mut dyn MissionRandom,
+    ) -> Result<Vec<(i32, bool)>, MissionError> {
+        let group = sequence.current.ok_or(MissionError::NoSectorInfo)?;
+        let rows: Option<Vec<&DropRow>> = info
+            .and_then(|i| self.drops.get(&(i.identifier, difficulty)))
+            .map(|rows| {
+                rows.iter()
+                    .filter(|r| r.1.as_deref().is_none_or(|q| q == quest))
+                    .collect()
+            });
+        // MonsterDropTableInstance.From returns null for an empty filtered list.
+        let rows = rows.filter(|r| !r.is_empty());
+        let mut unique_got = Vec::new();
+        let mut items: Vec<(i32, Vec<String>)> = Vec::new();
+        let add = |items: &mut Vec<(i32, Vec<String>)>, kind: i32, class: Option<String>| {
+            let Some(class) = class else { return };
+            match items.iter_mut().find(|(k, _)| *k == kind) {
+                Some((_, list)) => list.push(class),
+                None => items.push((kind, vec![class])),
+            }
+        };
+        let mut additional = Vec::new();
+        for order in 0..drop_item.max(0) {
+            let text = match &rows {
+                Some(rows) => self.pick_drop(rows, &mut unique_got, random),
+                None => Some("javelin_lvl0".to_owned()),
+            };
+            add(&mut items, EVIL_CORE, text);
+            if self.lucky_roll(order, is_boss, luck, random) {
+                // The original dereferences the null table here.
+                let rows = rows.as_ref().ok_or(MissionError::Content)?;
+                let gold = self.pick_drop(rows, &mut unique_got, random);
+                let rare = gold.as_deref().is_some_and(|g| self.is_rare_core(g));
+                add(&mut items, BASIC_GOLD_CORE, gold);
+                additional.push((BASIC_GOLD_CORE, rare));
+            }
+        }
+        if !items.is_empty() {
+            match sequence
+                .cores
+                .iter_mut()
+                .find(|c| c.group == group && c.key == key)
+            {
+                Some(core) => {
+                    for (kind, list) in items {
+                        match core.items.iter_mut().find(|(k, _)| *k == kind) {
+                            Some((_, l)) => l.extend(list),
+                            None => core.items.push((kind, list)),
+                        }
+                    }
+                }
+                None => sequence.cores.push(EvilCore {
+                    group,
+                    key: key.to_owned(),
+                    is_boss,
+                    items,
+                }),
+            }
+        }
+        Ok(additional)
+    }
+
+    /// LuckyCoreDice.Roll.
+    fn lucky_roll(
+        &self,
+        order: i32,
+        is_boss: bool,
+        luck: i32,
+        random: &mut dyn MissionRandom,
+    ) -> bool {
+        if !self.lucky_bonus {
+            return false;
+        }
+        if order == 0 && is_boss && luck > 100 {
+            return true;
+        }
+        let luck = luck.clamp(100, 150);
+        random.next_range(0, 100_000) < (luck - 100) * 1500
+    }
+
+    /// EvilCore.Loot for the solo player: the first core of the kicked type matching the
+    /// rare/normal request (else the last one) is removed and returned. `Err` keeps the
+    /// core (a class without ItemClassInfo).
+    pub fn loot(
+        &self,
+        sequence: &mut SectorSequence,
+        key: &str,
+        kind: i32,
+        rare: bool,
+    ) -> Result<Option<String>, MissionError> {
+        let Some(group) = sequence.current else {
+            return Ok(None);
+        };
+        let Some(ci) = sequence
+            .cores
+            .iter()
+            .position(|c| c.group == group && c.key == key)
+        else {
+            return Ok(None);
+        };
+        let core = &mut sequence.cores[ci];
+        let Some(li) = core.items.iter().position(|(k, _)| *k == kind) else {
+            return Ok(None);
+        };
+        let list = &core.items[li].1;
+        let mut index = None;
+        for (i, class_ex) in list.iter().enumerate() {
+            if !self.drop_classes.contains_key(item_class(class_ex)) {
+                return Err(MissionError::Content);
+            }
+            if self.is_rare_core(class_ex) == rare {
+                index = Some(i);
+                break;
+            }
+        }
+        let index = index.unwrap_or(list.len().saturating_sub(1));
+        let list = &mut core.items[li].1;
+        if list.is_empty() {
+            return Ok(None);
+        }
+        let item = list.remove(index);
+        if list.is_empty() {
+            core.items.remove(li);
+        }
+        Ok(Some(item))
     }
 
     fn base<'a>(
@@ -1222,6 +1597,24 @@ impl MissionContents {
             is_named: spawner.is_named,
             spawn_count: 1,
             all_dead: dead + 1 >= spawner.spawn_num,
+            key: spawner.monster_entity_name.clone(),
+            drop_item: spawner.drop_item,
+            info: spawner.info,
+        }
+    }
+
+    /// Monster.MonsterKilled's DropItem reset of an item drop entity that is not all dead.
+    pub fn clear_drop(&self, sequence: &mut SectorSequence, target: i32) {
+        let Some(group) = sequence.current else {
+            return;
+        };
+        if let Some(s) = sequence
+            .sectors
+            .iter_mut()
+            .find(|s| s.group_id == group)
+            .and_then(|s| s.spawners_mut().find(|s| s.entity_id == target))
+        {
+            s.drop_item = 0;
         }
     }
 
@@ -1273,6 +1666,20 @@ impl MissionContents {
                     }
                 }
             }
+            // ItemDropEntity: the live Monsters (spawned, not all dead) with DropItem > 0.
+            let item_drop_entity = sector
+                .objects
+                .iter()
+                .flat_map(|(_, rows)| rows.iter())
+                .filter_map(|(_, o)| match o {
+                    SectorObject::Spawner(s)
+                        if s.drop_item > 0 && s.spawned.is_some_and(|d| d < s.spawn_num) =>
+                    {
+                        Some((s.monster_entity_name.clone(), s.drop_item))
+                    }
+                    _ => None,
+                })
+                .collect();
             sectors.push(SectorInfo {
                 group_id: sector.group_id,
                 bsp: base.bsp.clone(),
@@ -1281,6 +1688,7 @@ impl MissionContents {
                 trial_factors,
                 treasure_boxes,
                 save_required: base.save_required,
+                item_drop_entity,
             });
         }
         Ok(SectorInfos {
@@ -1524,6 +1932,8 @@ fn spawner_from(e: &MapEntity, index: usize, targets: &[Regex]) -> Result<Spawne
         add_named_evil_core: e.get_int("AddNamedEvilCore", 0),
         is_today_quest_candidate: e.get_bool("IsTodayQuestCandidate", false),
         spawned: None,
+        drop_item: 0,
+        info: None,
     };
     'types: for t in &s.monster_types {
         let input = format!("kill {t}");
@@ -1733,6 +2143,11 @@ pub enum Kill {
         /// MonsterSpawner.MonsterSpawnCount (Spawn runs once per sequence).
         spawn_count: i32,
         all_dead: bool,
+        /// Monster.MonsterEntityName (the EvilCore key).
+        key: String,
+        /// Monster.DropItem at the kill.
+        drop_item: i32,
+        info: Option<MonsterInfo>,
     },
 }
 
@@ -1745,4 +2160,13 @@ pub fn monster_kill_exp(info: MonsterInfo, spawn_count: i32, exp_rate_monster: i
     let ratio = 1.0_f32;
     let exp = (f64::from(base * ratio * 140.0_f32) / 100.0) as i32;
     exp.wrapping_mul(exp_rate_monster) / 100
+}
+
+/// EvilCoreType values.
+pub const EVIL_CORE: i32 = 1;
+pub const BASIC_GOLD_CORE: i32 = 2;
+
+/// ItemClassExBuilder.Parse: the class before ',', '[' or ']'.
+pub fn item_class(class_ex: &str) -> &str {
+    class_ex.split([',', '[', ']']).next().unwrap_or("")
 }

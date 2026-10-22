@@ -213,6 +213,17 @@ def read_package(base, database, config):
         # MicroPlayContents.Monsters: MonsterInfo by "Class Variation" and Difficulty.
         mission['monsters'] = [[int32(r['Identifier']), nullable_text(r['Class']), nullable_text(r['Variation']), int32(r['Difficulty']), int32(r['Exp']), int32(r['HP1']), int32(r['HP_Normal_Percent'])]
                                for r in db.execute('Select * From [MonsterInfo]')]
+        # MonsterDropTable (MonsterDropItemInfo), QuestDifficultyInfo's drop columns and the
+        # ItemClassInfo rarity/class restriction of the dropped classes (feature-filtered
+        # itemClassInfoDic, later rows overwrite earlier ones).
+        mission['monster_drops'] = [[int32(r['MonsterID']), nullable_text(r['QuestID']), int32(r['Difficulty']), nullable_text(r['ItemClassEX']), int32(r['Weight']),
+                                     flag(r['IsAbsolute']), flag(r['IsRequiredClass']), flag(r['IsUniqueDrop']), nullable_text(r['Feature'])]
+                                    for r in db.execute('Select * From [MonsterDropItemInfo]')]
+        mission['quest_difficulties'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GameMode']), int32(r['EvilCoreCount']), nullable_text(r['Feature'])]
+                                         for r in db.execute('Select * From [QuestDifficultyInfo]')]
+        dropped = {(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']} | {'javelin_lvl0'}
+        mission['drop_classes'] = [[nullable_text(r['ItemClass']), int32(r['Rarity']), int32(r['ClassRestriction']), nullable_text(r['Feature'])]
+                                   for r in db.execute('Select * From [ItemClassInfo]') if r['ItemClass'] in dropped]
     if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
     if any(len(v) > 100000 for v in mission.values()): raise ValueError('Mission table bound')
     if any(len(v) > 10000 for v in progression.values()): raise ValueError('Progression table bound')
@@ -230,7 +241,10 @@ def read_package(base, database, config):
         wanted |= feature_atoms(q['Feature'] or ''); wanted |= feature_atoms(q['EnableTodayQuest'] or '')
     for d in quests['difficulties']: wanted |= feature_atoms(d[3] or '')
     wanted |= {'Gathering', 'GatheringRare', 'AntiSectorSkip', 'bossevilcore_bonus', 'ExpRate_Monster', 'MDRSystem_V1', 'MDRSystem_V2',
-               'MDRSystem_ActionFilter', 'DirectCollectCoin', 'AntiSectorFail', 'FatigueSystem'}
+               'MDRSystem_ActionFilter', 'DirectCollectCoin', 'AntiSectorFail', 'FatigueSystem', 'LuckyBonus', 'RareCoreEffectRarity'}
+    for d in mission['monster_drops']: wanted |= feature_atoms(d[8] or '')
+    for d in mission['quest_difficulties']: wanted |= feature_atoms(d[4] or '')
+    for d in mission['drop_classes']: wanted |= feature_atoms(d[3] or '')
     for g in mission['sector_groups']: wanted |= feature_atoms(g[6] or '')
     for _, attrs in mission['entities']:
         for name, value in attrs:

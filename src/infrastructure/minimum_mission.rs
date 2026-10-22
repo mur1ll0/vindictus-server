@@ -14,8 +14,9 @@ use crate::domain::{
     },
 };
 use crate::protocol::mission::{
-    self as wire, AcceptQuest, BlessStones, ConnectionRequest, GameInfo, LaunchShipGranted,
-    Message, PaidCoin, PartyInfo, PartyMember, PayCoinCompleted, Ship, ShipOption, UpdateShip,
+    self as wire, AcceptQuest, BlessStones, ConnectionRequest, DropGoldCore, EvilCoreInfo,
+    GameInfo, GetItem, LaunchShipGranted, Message, PaidCoin, PartyInfo, PartyMember,
+    PayCoinCompleted, Ship, ShipOption, UpdateShip,
 };
 use crate::protocol::{
     inventory::Dict,
@@ -86,7 +87,7 @@ pub fn sectors_wire(infos: &SectorInfos) -> QuestSectors {
                                 })
                                 .collect(),
                         ),
-                        item_drop_entity: StrDict(Some(Vec::new())),
+                        item_drop_entity: StrDict(Some(s.item_drop_entity.clone())),
                         weak_point_entity: StrDict(Some(Vec::new())),
                         trial_factors: Some(
                             s.trial_factors
@@ -163,7 +164,8 @@ pub fn preview(
     contents.check_supported(quest, difficulty)?;
     let mut digest = contents.digest(quest, swear_id)?;
     contents.item_limit(&mut digest, swear_id, difficulty);
-    let sequence = contents.sector_sequence(&digest, practice, false, &mut OsMissionRandom)?;
+    let sequence =
+        contents.sector_sequence(&digest, difficulty, practice, false, &mut OsMissionRandom)?;
     let infos = contents.info(quest, &sequence, practice)?;
     Ok(game_start_granted(&digest, &infos, difficulty, true, 1))
 }
@@ -474,6 +476,8 @@ pub struct Mission {
     pub events: Vec<String>,
     /// SectorSequence.BossKilledList.
     pub boss_killed: Vec<String>,
+    /// MicroPlayer.Luck (Stats LUCK; no platinum, bless stone or dormant bonus).
+    pub luck: i32,
 }
 impl Mission {
     /// ShipOptionInfo.MemberCountLimit.
@@ -683,6 +687,7 @@ pub async fn accept_quest(
         alive: true,
         events: Vec::new(),
         boss_killed: Vec::new(),
+        luck: 0,
     };
     packets.extend(mission.broadcast()?);
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
@@ -713,6 +718,14 @@ pub async fn accept_quest(
         arithmetic,
     )
     .await?;
+    let luck = member
+        .join
+        .stats
+        .0
+        .as_ref()
+        .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
+        .map_or(0, |(_, v)| *v);
+    mission.luck = luck;
     let ticket = relay(party_id);
     mission.group = ticket.group;
     // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
@@ -781,7 +794,13 @@ pub fn start_game(
     let mut packets = mission.broadcast()?;
     let practice = mission.option.is_practice_mode;
     let built = contents
-        .sector_sequence(&mission.digest, practice, false, random)
+        .sector_sequence(
+            &mission.digest,
+            mission.option.difficulty,
+            practice,
+            false,
+            random,
+        )
         .and_then(|sequence| {
             Ok((
                 contents.info(&mission.quest, &sequence, practice)?,
@@ -831,44 +850,178 @@ pub fn move_sector(
 
 /// MonsterKilledProcessor (MDRSystem anti-cheat deferred to the damage reports) and
 /// Monster.MonsterKilled: dead count, MonsterKillExpCalculator, the "kill <type> <action>"
-/// informer event, sector kill count and the boss list. Drops are not migrated.
+/// informer event; unless the action is "no_item", the boss list or sector kill count and,
+/// for an item drop entity outside practice, MakeEvilCore with a DropGoldCore announcement
+/// of the lucky cores to the host.
+#[allow(clippy::too_many_arguments)]
 pub fn monster_killed(
     mission: &mut Mission,
     contents: &MissionContents,
     target: i32,
     action: &str,
+    has_evil_core: bool,
     exp_rate_monster: i32,
-) -> domain::Kill {
+    random: &mut dyn MissionRandom,
+) -> Result<(domain::Kill, Vec<OutgoingPacket>), MinimumError> {
     if target < 0 {
-        return domain::Kill::Unknown;
+        return Ok((domain::Kill::Unknown, Vec::new()));
     }
+    let difficulty = mission.option.difficulty;
+    let practice = mission.option.is_practice_mode;
     let Some(sequence) = mission.sequence.as_mut() else {
-        return domain::Kill::NotInSector;
+        return Ok((domain::Kill::NotInSector, Vec::new()));
     };
     let kill = contents.kill(sequence, target);
+    let mut packets = Vec::new();
     if let domain::Kill::Killed {
         monster_type,
         is_boss,
         spawn_count,
+        all_dead,
+        key,
+        drop_item,
+        info,
         ..
     } = &kill
     {
-        if let Some(info) = contents.monster_info(monster_type, mission.option.difficulty) {
+        if let Some(info) = info {
             mission.monster_kill_exp =
                 mission
                     .monster_kill_exp
                     .saturating_add(domain::monster_kill_exp(
-                        info,
+                        *info,
                         *spawn_count,
                         exp_rate_monster,
                     ));
         }
         mission.events.push(format!("kill {monster_type} {action}"));
+        if action.to_lowercase() == "no_item" {
+            return Ok((kill, packets));
+        }
         if *is_boss {
             mission.boss_killed.push(monster_type.clone());
         }
+        if has_evil_core && !practice {
+            let additional = contents
+                .make_evil_core(
+                    sequence,
+                    key,
+                    *drop_item,
+                    *info,
+                    *is_boss,
+                    &mission.quest,
+                    difficulty,
+                    mission.luck,
+                    random,
+                )
+                .map_err(|_| fail())?;
+            if !additional.is_empty() {
+                packets.push(packet(&Message::DropGoldCore(DropGoldCore {
+                    monster_entity_name: Some(key.clone()),
+                    cores: Some(
+                        additional
+                            .iter()
+                            .map(|(kind, rare)| {
+                                Some(EvilCoreInfo {
+                                    entity_name: Some(key.clone()),
+                                    core_type: *kind,
+                                    winner: mission.member.slot,
+                                    rare_core_tags: Some(if *rare {
+                                        vec![mission.member.slot]
+                                    } else {
+                                        Vec::new()
+                                    }),
+                                })
+                            })
+                            .collect(),
+                    ),
+                    drop_immediately: 0,
+                }))?);
+            }
+            if !all_dead {
+                contents.clear_drop(sequence, target);
+            }
+        }
     }
-    kill
+    Ok((kill, packets))
+}
+
+/// RagdollKickedProcessor → EvilCore.Loot for the solo host: the looted ItemClassEX, or
+/// None when there is nothing to loot (KickFail, logged only).
+pub fn ragdoll_kicked(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    tag: i32,
+    key: &str,
+    core_type: i32,
+    rare: bool,
+) -> Option<String> {
+    if tag != mission.member.slot {
+        return None;
+    }
+    let sequence = mission.sequence.as_mut()?;
+    contents.loot(sequence, key, core_type, rare).ok().flatten()
+}
+
+/// MicroPlayer.GiveItemReward: GiveItem (count 1) then the GetItemMessage broadcast and
+/// the "get item <class> <count>" informer event. Attribute classes and full inventories
+/// (ForceMail) are outside the migrated give planner and are refused.
+#[allow(clippy::too_many_arguments)]
+pub async fn give_reward(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    mission: &mut Mission,
+    cid: i64,
+    class_ex: &str,
+    count: i32,
+    core_type: i32,
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    mission.events.push(format!("get item {class_ex} {count}"));
+    if domain::item_class(class_ex) != class_ex {
+        return Err(fail());
+    }
+    let key = utf16(class_ex);
+    let request = [super::minimum_give::Request {
+        class: &key,
+        count,
+        bound: false,
+        equipment: None,
+    }];
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let applied = super::minimum_give::apply(&mut tx, owner, assets, cid, &[], &request, ids)
+        .await?
+        .map_err(|_| fail())?;
+    tx.commit().await?;
+    Ok(vec![
+        inventory_packet(applied.slots)?,
+        packet(&Message::GetItem(GetItem {
+            player_name: mission.member.character_id.clone(),
+            item_class: Some(class_ex.to_owned()),
+            count,
+            core_type,
+            lucky: false,
+            luck_bonus: 0,
+            give_item_result: 0,
+        }))?,
+    ])
+}
+
+fn inventory_packet(
+    slots: Vec<Option<crate::protocol::inventory::Slot>>,
+) -> Result<OutgoingPacket, MinimumError> {
+    use crate::protocol::inventory::{self as inv, Kind as InvKind, Message as InvMessage};
+    Ok(OutgoingPacket {
+        category: InvKind::UpdateInventoryInfo.category(),
+        body: inv::encode(
+            InvKind::UpdateInventoryInfo,
+            Some(&InvMessage::UpdateInventoryInfo(Some(slots))),
+            crate::protocol::DEFAULT_MAX_BODY,
+        )
+        .map_err(|_| fail())?
+        .to_vec(),
+    })
 }
 
 /// PlayerKilledProcessor for the solo host (slot 0): Alive false and "player_dead".

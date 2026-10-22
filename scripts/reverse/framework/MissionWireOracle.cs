@@ -13,6 +13,7 @@ using ServiceCore.EndPointNetwork;
 using ServiceCore.CharacterServiceOperations;
 using ServiceCore.MicroPlayServiceOperations;
 using ServiceCore.EndPointNetwork.MicroPlay;
+using ServiceCore.ItemServiceOperations;
 class MissionWireOracle {
  static int[] Body(Packet p) { return p.Array.Skip(p.Offset+p.BodyOffset).Take(p.Length).Select(b=>(int)b).ToArray(); }
  static T Obj<T>(params object[] fields) where T:class {
@@ -129,6 +130,11 @@ class MissionWireOracle {
   foreach(int seed in new[]{-1,1,int.MaxValue})kills.Add(Obj<MonsterKilledMessage>("Attacker",seed,"Target",seed^256,"ActionType",seed==1?"no_item":"attack_é","HasEvilCore",seed==1,"Damage",seed,"DamagePositionX",-seed,"DamagePositionY",seed,"Distance",int.MinValue,"ActorIndex",seed));
   AddCases("monster_killed",501,new Guid("8cfddc5b-72e0-3490-bb44-1ecf1a813468"),kills,cases);
   AddCases("player_killed",522,new Guid("71d3965f-66a2-31f1-aa15-90d54c7c7882"),new[]{null,Priv<PlayerKilledMessage>("tag",0),Priv<PlayerKilledMessage>("tag",int.MinValue),Priv<PlayerKilledMessage>("tag",3)},cases);
+  var kicks=new List<RagdollKickedMessage>{null,Obj<RagdollKickedMessage>("Tag",0,"TargetEntityName",null,"EvilCoreType",EvilCoreType.None,"IsRareCore",false)};
+  foreach(int seed in new[]{0,3,int.MaxValue})kicks.Add(Obj<RagdollKickedMessage>("Tag",seed,"TargetEntityName",seed==0?"":"257/Target","EvilCoreType",(EvilCoreType)(seed&7),"IsRareCore",seed==3));
+  AddCases("ragdoll_kicked",552,new Guid("e7ae9d95-805f-3478-b19e-b03c14234ee7"),kicks,cases);
+  AddCases("drop_gold_core",350,new Guid("d01fb1ee-5a73-3dee-834a-84687c126f14"),new[]{null,new DropGoldCoreMessage(null,null,0),new DropGoldCoreMessage("257",new List<EvilCoreInfo>{new EvilCoreInfo("257",EvilCoreType.BasicGoldCore,0,true),new EvilCoreInfo("box",EvilCoreType.AdditionalCore,-1)},1),new DropGoldCoreMessage("",new List<EvilCoreInfo>(),int.MinValue)},cases);
+  AddCases("get_item",463,new Guid("cd70d18d-dc3b-3053-b9fe-6efbc76d28bb"),new[]{null,new GetItemMessage(null,null,0,0,false,0,GiveItem.ResultEnum.Success),new GetItemMessage("Fiona_é","cloth_lvl1",1,1,false,0,GiveItem.ResultEnum.Success),new GetItemMessage("x","gold",int.MaxValue,10,true,-1,GiveItem.ResultEnum.Failed)},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }
@@ -142,3 +148,6 @@ namespace Utility {
  }
 }
 namespace Devcat.Core.Memory {public static class ChunkSegment<T>{public static ArraySegment<T> Get(int count){return new ArraySegment<T>(new T[count]);}}}
+// GiveItem.ResultEnum as recovered (GetItemMessage's constructor parameter); the GiveItem
+// operation itself depends on the service framework and is not compiled here.
+namespace ServiceCore.ItemServiceOperations { public class GiveItem { public enum ResultEnum { Success, Mailed_UniqueViolation, Mailed_NoEmptySlot, Mailed_Unknown, Failed } } }

@@ -27,6 +27,9 @@ pub enum Kind {
     AllUserJoinComplete,
     MonsterKilled,
     PlayerKilled,
+    RagdollKicked,
+    DropGoldCore,
+    GetItem,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -46,6 +49,9 @@ impl Kind {
             Self::AllUserJoinComplete => 47,
             Self::MonsterKilled => 501,
             Self::PlayerKilled => 522,
+            Self::RagdollKicked => 552,
+            Self::DropGoldCore => 350,
+            Self::GetItem => 463,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -65,6 +71,9 @@ impl Kind {
             Self::AllUserJoinComplete => 0x3f79e7b8_49d5_34f2_8970_b8b5b47aa1eb,
             Self::MonsterKilled => 0x8cfddc5b_72e0_3490_bb44_1ecf1a813468,
             Self::PlayerKilled => 0x71d3965f_66a2_31f1_aa15_90d54c7c7882,
+            Self::RagdollKicked => 0xe7ae9d95_805f_3478_b19e_b03c14234ee7,
+            Self::DropGoldCore => 0xd01fb1ee_5a73_3dee_834a_84687c126f14,
+            Self::GetItem => 0xcd70d18d_dc3b_3053_b9fe_6efbc76d28bb,
         })
     }
 }
@@ -447,6 +456,40 @@ pub struct MonsterKilled {
     pub distance: i32,
     pub actor_index: i32,
 }
+/// RagdollKickedMessage (host): a player kicked a core; `core_type` is EvilCoreType.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RagdollKicked {
+    pub tag: i32,
+    pub target_entity_name: Option<String>,
+    pub core_type: i32,
+    pub is_rare_core: bool,
+}
+/// EvilCoreInfo; `core_type` is EvilCoreType.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EvilCoreInfo {
+    pub entity_name: Option<String>,
+    pub core_type: i32,
+    pub winner: i32,
+    pub rare_core_tags: Option<Vec<i32>>,
+}
+/// DropGoldCoreMessage (to the host): extra cores of a monster or box.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DropGoldCore {
+    pub monster_entity_name: Option<String>,
+    pub cores: Option<Vec<Option<EvilCoreInfo>>>,
+    pub drop_immediately: i32,
+}
+/// GetItemMessage: who got which item (core type and GiveItem.ResultEnum as int).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GetItem {
+    pub player_name: Option<String>,
+    pub item_class: Option<String>,
+    pub count: i32,
+    pub core_type: i32,
+    pub lucky: bool,
+    pub luck_bonus: i32,
+    pub give_item_result: i32,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     AcceptQuest(AcceptQuest),
@@ -465,6 +508,9 @@ pub enum Message {
     MonsterKilled(MonsterKilled),
     /// PlayerKilledMessage: the dead player's tag.
     PlayerKilled(i32),
+    RagdollKicked(RagdollKicked),
+    DropGoldCore(DropGoldCore),
+    GetItem(GetItem),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -484,6 +530,9 @@ impl Message {
             Self::AllUserJoinComplete => Kind::AllUserJoinComplete,
             Self::MonsterKilled(_) => Kind::MonsterKilled,
             Self::PlayerKilled(_) => Kind::PlayerKilled,
+            Self::RagdollKicked(_) => Kind::RagdollKicked,
+            Self::DropGoldCore(_) => Kind::DropGoldCore,
+            Self::GetItem(_) => Kind::GetItem,
         }
     }
 }
@@ -716,6 +765,32 @@ object!(BlessStones {
     owners,
     types
 });
+object!(RagdollKicked {
+    tag,
+    target_entity_name,
+    core_type,
+    is_rare_core
+});
+object!(EvilCoreInfo {
+    entity_name,
+    core_type,
+    winner,
+    rare_core_tags
+});
+object!(DropGoldCore {
+    monster_entity_name,
+    cores,
+    drop_immediately
+});
+object!(GetItem {
+    player_name,
+    item_class,
+    count,
+    core_type,
+    lucky,
+    luck_bonus,
+    give_item_result
+});
 pub fn encode(
     kind: Kind,
     message: Option<&Message>,
@@ -748,6 +823,9 @@ pub fn encode(
                 Message::AllUserJoinComplete => {}
                 Message::MonsterKilled(v) => v.write(&mut w)?,
                 Message::PlayerKilled(v) => v.write(&mut w)?,
+                Message::RagdollKicked(v) => v.write(&mut w)?,
+                Message::DropGoldCore(v) => v.write(&mut w)?,
+                Message::GetItem(v) => v.write(&mut w)?,
             }
         }
     }
@@ -785,6 +863,9 @@ pub fn decode(
             Kind::AllUserJoinComplete => Message::AllUserJoinComplete,
             Kind::MonsterKilled => Message::MonsterKilled(MonsterKilled::read(&mut r)?),
             Kind::PlayerKilled => Message::PlayerKilled(i32::read(&mut r)?),
+            Kind::RagdollKicked => Message::RagdollKicked(RagdollKicked::read(&mut r)?),
+            Kind::DropGoldCore => Message::DropGoldCore(DropGoldCore::read(&mut r)?),
+            Kind::GetItem => Message::GetItem(GetItem::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

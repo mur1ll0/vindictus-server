@@ -81,8 +81,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
             .mission()
             .ok_or_else(|| Error::Configuration("profile has no mission tables".into()))?;
         let (mut built, mut unsupported, mut failed, mut sectors, mut over) = (0, 0, 0, 0, 0);
+        let mut no_difficulty = 0;
         let mut largest = 0_usize;
         for quest in contents.quest_ids() {
+            // CheckConstraint answers NoSuchDifficulty before any sequence is built.
+            if *difficulty > 0 && !contents.has_difficulty(quest, *difficulty) {
+                no_difficulty += 1;
+                continue;
+            }
             match minimum_mission::preview(contents, quest, -1, *difficulty, false) {
                 Ok(granted) => {
                     built += 1;
@@ -114,7 +120,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         }
         println!(
             "{}",
-            serde_json::json!({"quests_built":built,"unsupported":unsupported,"failed":failed,"sectors":sectors,"largest_body":largest,"over_default_body":over,"database_opened":false,"listener_opened":false})
+            serde_json::json!({"quests_built":built,"unsupported":unsupported,"no_difficulty":no_difficulty,"failed":failed,"sectors":sectors,"largest_body":largest,"over_default_body":over,"database_opened":false,"listener_opened":false})
         );
         return Ok(());
     }

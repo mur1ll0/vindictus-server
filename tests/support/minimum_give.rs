@@ -529,9 +529,12 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         "goals":[["quest_gnoll_watchman",10010,0,"kill npc_gnoll watchman",null,null]],
         "sectors":[["quest_gnoll_watchman",1,32,"01j",100],["quest_gnoll_watchman",2,33,"01_boss",100],["quest_gnoll_shadowfang",1,34,"01h",100]],
         "sector_groups":[],"tower_quests":[],
-        "entities":[[32,[["classname","trigger_once"],["targetname","t1"]]],[33,[["classname","npc_template_maker"],["TemplateName","npc_gnoll watchman"],["MaxNPCCount","1"]]]],
+        "entities":[[32,[["classname","trigger_once"],["targetname","t1"]]],[33,[["classname","npc_template_maker"],["TemplateName","npc_gnoll watchman"],["MaxNPCCount","1"],["DropItem","1"]]]],
         "named_props":[],"settings":[],"setting_conditions":[],
-        "monsters":[[1,"npc_gnoll","watchman",-1,200,1000,100]]},
+        "monsters":[[1,"npc_gnoll","watchman",-1,200,1000,100]],
+        "monster_drops":[[1,null,2,"synthetic_gold",100,false,false,false,null]],
+        "quest_difficulties":[["quest_gnoll_watchman",2,1,2,null]],
+        "drop_classes":[["synthetic_gold",1,2047,null]]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -1976,14 +1979,73 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
             rest[..rest.find('/')?].parse::<i32>().ok()
         })
         .unwrap();
-    let kill = minimum_mission::monster_killed(&mut mission, contents, boss, "attack", 100);
+    // The boss (base drop 1 in the entity) gets DropItem 1 + EvilCoreCount 2 = 3 cores.
+    let (kill, extra) = minimum_mission::monster_killed(
+        &mut mission,
+        contents,
+        boss,
+        "attack",
+        true,
+        100,
+        &mut OsMissionRandom,
+    )
+    .unwrap();
+    assert!(extra.is_empty());
     assert!(matches!(
         kill,
-        vindictus_server::domain::mission::Kill::Killed { is_boss: true, .. }
+        vindictus_server::domain::mission::Kill::Killed {
+            is_boss: true,
+            drop_item: 3,
+            ..
+        }
     ));
     assert_eq!(mission.monster_kill_exp, 280);
     assert_eq!(mission.events, ["kill npc_gnoll watchman attack"]);
     assert_eq!(mission.boss_killed, ["npc_gnoll watchman"]);
+    // Kicking the boss core gives the dropped class and announces it.
+    let key = format!("{boss}/Target");
+    let looted =
+        minimum_mission::ragdoll_kicked(&mut mission, contents, 0, &key, 1, false).unwrap();
+    assert_eq!(looted, "synthetic_gold");
+    let gold_before: i32 = sqlx::query_scalar("SELECT COALESCE(SUM(count),0)::int FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+        .bind(utf16("synthetic_gold"))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let mut next_id = 950_000_000_000_000_001_i64..;
+    let reward = minimum_mission::give_reward(
+        &p,
+        &owner,
+        &assets,
+        &mut mission,
+        1,
+        &looted,
+        1,
+        1,
+        &mut || Ok(next_id.next().unwrap()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(reward.len(), 2);
+    let Some(MissionMessage::GetItem(got)) =
+        mission_wire::decode(MissionKind::GetItem, &reward[1].body, 1 << 20).unwrap()
+    else {
+        panic!("get item")
+    };
+    assert_eq!(
+        (got.item_class.as_deref(), got.count, got.core_type),
+        (Some("synthetic_gold"), 1, 1)
+    );
+    let gold_after: i32 = sqlx::query_scalar("SELECT COALESCE(SUM(count),0)::int FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+        .bind(utf16("synthetic_gold"))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(gold_after, gold_before + 1);
+    assert_eq!(
+        mission.events.last().map(String::as_str),
+        Some("get item synthetic_gold 1")
+    );
     assert!(minimum_mission::player_killed(&mut mission, 0));
     assert!(!minimum_mission::player_killed(&mut mission, 0));
     minimum_selection::disconnect(&p, 1).await.unwrap();

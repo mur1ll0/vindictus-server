@@ -742,3 +742,16 @@ Pendente no B2, na ordem do roadmap:
 
 Próxima ação para retomar: B2.5. Portar Monster.MakeEvilCore/MonsterDropTable e o RagdollKickedProcessor (EvilCore.Loot com entrega por GiveItem). Antes de começar, avaliar com o operador se vale testar no cliente a entrada em missão (B2.1–B2.4), já que o handshake ProudNet ainda não foi verificado no cliente.
 
+B2.5a — núcleos de monstros e coleta por chute (cliente: entrada B2.5a). Retomada da parada de 22/10/2026 a pedido do operador. Codecs RagdollKicked552, DropGoldCore350 (EvilCoreInfo) e GetItem463 no oráculo de missão (74 casos por arquitetura, x86=x64; GiveItem.ResultEnum entra como stub do enum recuperado, porque a operação depende do framework de serviços). Perfil `mission` com MonsterDropItemInfo (22.968 linhas), as colunas de drop do QuestDifficultyInfo (GameMode, EvilCoreCount, filtradas por Feature) e Rarity/ClassRestriction das classes dropadas; features LuckyBonus e RareCoreEffectRarity (pares de versão: 33, x86=x64). Domínio:
+- GetSectorSequence ganha a dificuldade da partida: Monster.MonsterInfo no Spawn e a atribuição de DropItem do original. TotalItemCountDice; candidatos sem drop base com MonsterDropTable; ShuffleFirstNthElement parcial; chefes e comportamentos únicos com drop base + EvilCoreCount + bossevilcore_bonus (1 + bônus no GameMode 4); QuestDifficultyInfo ausente quando necessária → NoSectorInfo, como a exceção do original.
+- GetInfo preenche ItemDropEntity com os monstros vivos com DropItem > 0.
+- MakeEvilCore: MonsterDropTableInstance.PickItem com absolutas em 1.000.000, pesos relacionais, IsRequiredClass pela restrição de classe da Fiona e únicos por instância; javelin_lvl0 sem tabela; LuckyCoreDice com Luck = LUCK.
+- EvilCore.Loot: núcleo raro/normal pela raridade; o último da lista quando não há correspondente; classe sem ItemClassInfo mantém o núcleo.
+
+`minimum_mission`:
+- MonsterKilled com HasEvilCore cria os núcleos (fora da prática; "no_item" não dropa), avisa o host com DropGoldCore para os núcleos de sorte e zera o DropItem de quem não morreu de todo.
+- RagdollKicked → Loot → `give_reward`: GiveItem do item pelo planejador existente, UpdateInventoryInfo e GetItem, mais o evento "get item <classe> <qtd>".
+
+Desvios documentados: itens com atributos e o envio por correio de inventário cheio são recusados (registrados no log); mapa do tesouro, núcleos de história e evento, pontos fracos e HugeLucky não migrados. `inspect-mission-content` conta à parte as quests sem a dificuldade pedida (o CheckConstraint responde NoSuchDifficulty antes): nas dificuldades 1, 2 e 3 só falham as quests de teste sem QuestInfo.
+
+Testes focados: mission_content (7), mission_wire (2), PostgreSQL minimum_mission (2: chefe com 3 núcleos, chute com entrega real de item, GetItem e evento), Python export_npc_scripts (2), clippy. Cliente: entrada B2.5a. Próximo: B2.5b ouro e ergs dos props (ReportSectorProps, PropBroken, DropErg, PickErg/PutErg).

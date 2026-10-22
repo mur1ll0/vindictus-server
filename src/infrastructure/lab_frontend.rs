@@ -890,18 +890,74 @@ impl Connection {
                     .npc_policy()
                     .and_then(|p| p.get_integer("ExpRate_Monster").ok())
                     .unwrap_or(100);
-                let kill = mission::monster_killed(
+                let (kill, packets) = mission::monster_killed(
                     state,
                     contents,
                     k.target,
                     k.action_type.as_deref().unwrap_or(""),
+                    k.has_evil_core,
                     rate,
-                );
+                    &mut mission::OsMissionRandom,
+                )
+                .map_err(|_| RuntimeError::Operation)?;
                 tracing::info!(
                     killed = matches!(kill, crate::domain::mission::Kill::Killed { .. }),
                     "mission monster kill processed; values omitted"
                 );
-                Vec::new()
+                packets
+            }
+            Message::RagdollKicked(kick) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let Some(item) = mission::ragdoll_kicked(
+                    state,
+                    contents,
+                    kick.tag,
+                    kick.target_entity_name.as_deref().unwrap_or(""),
+                    kick.core_type,
+                    kick.is_rare_core,
+                ) else {
+                    tracing::info!("mission core kick without loot; values omitted");
+                    return Ok(());
+                };
+                let ids = runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .creation
+                    .entity_ids(1)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                let mut ids = ids.into_iter();
+                match mission::give_reward(
+                    pool,
+                    &owner,
+                    assets,
+                    state,
+                    cid,
+                    &item,
+                    1,
+                    kick.core_type,
+                    &mut || {
+                        ids.next()
+                            .ok_or(super::minimum_character::MinimumError::Conflict)
+                    },
+                )
+                .await
+                {
+                    Ok(packets) => {
+                        tracing::info!("mission core looted; values omitted");
+                        packets
+                    }
+                    Err(_) => {
+                        tracing::warn!(
+                            "mission core loot refused by the give planner; values omitted"
+                        );
+                        Vec::new()
+                    }
+                }
             }
             Message::PlayerKilled(tag) => {
                 let Some(state) = self.mission.as_mut() else {
@@ -1337,6 +1393,7 @@ impl Connection {
                 Kind::AllUserJoinComplete,
                 Kind::MonsterKilled,
                 Kind::PlayerKilled,
+                Kind::RagdollKicked,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;

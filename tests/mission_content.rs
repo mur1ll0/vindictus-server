@@ -217,6 +217,38 @@ fn tables() -> MissionTables {
             (12, s("npc_gnoll"), s("chief"), 1, 400, 900, 100),
             (13, s("npc_gnoll"), s("chief"), 2, 800, 1800, 100),
         ],
+        monster_drops: vec![
+            (
+                11,
+                None,
+                1,
+                s("cloth_lvl1"),
+                7000,
+                false,
+                false,
+                false,
+                None,
+            ),
+            (
+                11,
+                s("quest_other"),
+                1,
+                s("other_lvl1"),
+                7000,
+                false,
+                false,
+                false,
+                None,
+            ),
+            (11, None, 1, s("rare_gem"), 3000, false, false, false, None),
+            (11, None, 1, s("lance_only"), 9000, false, true, false, None),
+        ],
+        quest_difficulties: vec![(s("quest_a"), 1, 1, 2, None)],
+        drop_classes: vec![
+            (s("cloth_lvl1"), 1, 2047, None),
+            (s("rare_gem"), 6, 2047, None),
+            (s("lance_only"), 1, 4, None),
+        ],
     }
 }
 
@@ -273,7 +305,7 @@ fn sequence_info_carries_entity_strings_connections_and_trials() {
         double: [0.5].into(),
     };
     let sequence = contents
-        .sector_sequence(&digest, false, false, &mut random)
+        .sector_sequence(&digest, 1, false, false, &mut random)
         .unwrap();
     let info = contents.info("quest_a", &sequence, false).unwrap();
     assert_eq!((info.current_group, info.starting_group), (-1, 1));
@@ -335,7 +367,7 @@ fn solo_and_practice_modes_follow_the_original_branches() {
     let solo = contents.digest("quest_a", 7).unwrap();
     let mut random = Script::default();
     let sequence = contents
-        .sector_sequence(&solo, true, false, &mut random)
+        .sector_sequence(&solo, 1, true, false, &mut random)
         .unwrap();
     let info = contents.info("quest_a", &sequence, true).unwrap();
     assert_eq!(info.starting_group, 2);
@@ -348,7 +380,7 @@ fn solo_and_practice_modes_follow_the_original_branches() {
         ..Script::default()
     };
     let sequence = contents
-        .sector_sequence(&digest, true, false, &mut random)
+        .sector_sequence(&digest, 1, true, false, &mut random)
         .unwrap();
     let info = contents.info("quest_a", &sequence, true).unwrap();
     assert!(
@@ -473,7 +505,7 @@ fn move_next_follows_the_starting_group_then_trigger_connections() {
     let contents = MissionContents::load(tables(), &policy()).unwrap();
     let digest = contents.digest("quest_a", -1).unwrap();
     let mut sequence = contents
-        .sector_sequence(&digest, true, false, &mut Script::default())
+        .sector_sequence(&digest, 1, true, false, &mut Script::default())
         .unwrap();
     // The first move must target the starting group (or -1).
     assert!(!contents.move_next("quest_a", &mut sequence, "", 2).unwrap());
@@ -537,7 +569,7 @@ fn monster_kills_count_once_and_accumulate_monster_exp() {
     assert_eq!(monster_kill_exp(normal, 6, 50), 0);
     let digest = contents.digest("quest_a", -1).unwrap();
     let mut sequence = contents
-        .sector_sequence(&digest, true, false, &mut Script::default())
+        .sector_sequence(&digest, 1, true, false, &mut Script::default())
         .unwrap();
     assert_eq!(contents.kill(&mut sequence, 1), Kill::NotInSector);
     assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
@@ -563,4 +595,95 @@ fn monster_kills_count_once_and_accumulate_monster_exp() {
         ("npc_gnoll chief", true, true)
     );
     assert_eq!(contents.kill(&mut sequence, boss), Kill::AlreadyDead);
+}
+
+#[test]
+fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let digest = contents.digest("quest_a", -1).unwrap();
+    // Seeds pick 01b; the 0.7-probability spawner stays (0.5); every range draws its minimum,
+    // so ItemCountMin (4) is capped to the single candidate (the normal gnoll, base drop 0
+    // with a MonsterDropTable at difficulty 1).
+    let mut random = Script {
+        next: [50, 0].into(),
+        ..Script::default()
+    };
+    let mut sequence = contents
+        .sector_sequence(&digest, 1, false, false, &mut random)
+        .unwrap();
+    let info = contents.info("quest_a", &sequence, false).unwrap();
+    let normal = contents
+        .entities()
+        .iter()
+        .find(|e| e.get("TemplateName") == Some("npc_gnoll normal"))
+        .unwrap()
+        .id;
+    assert_eq!(info.sectors[0].item_drop_entity, [(normal.to_string(), 1)]);
+    // The boss has no base drop and no QuestDifficultyInfo boost.
+    assert!(info.sectors[1].item_drop_entity.is_empty());
+    assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
+    // Relational weights skip other quests' rows and the required class the Fiona
+    // cannot use: roll 0 picks cloth_lvl1; without LuckyBonus there is no gold core.
+    let extra = contents
+        .make_evil_core(
+            &mut sequence,
+            &normal.to_string(),
+            1,
+            contents.monster_info("npc_gnoll normal", 1),
+            false,
+            "quest_a",
+            1,
+            150,
+            &mut Script::default(),
+        )
+        .unwrap();
+    assert!(extra.is_empty());
+    let mut rare_roll = Script {
+        range: [7000].into(),
+        ..Script::default()
+    };
+    contents
+        .make_evil_core(
+            &mut sequence,
+            &normal.to_string(),
+            1,
+            contents.monster_info("npc_gnoll normal", 1),
+            false,
+            "quest_a",
+            1,
+            150,
+            &mut rare_roll,
+        )
+        .unwrap();
+    assert_eq!(
+        sequence.cores[0].items,
+        [(1, vec!["cloth_lvl1".to_owned(), "rare_gem".to_owned()])]
+    );
+    // A rare kick takes the rare core; a normal kick the normal one; then nothing is left.
+    // RareCoreEffectRarity is 0 in this policy: no core is rare.
+    assert!(!contents.is_rare_core("rare_gem"));
+    assert_eq!(
+        contents
+            .loot(&mut sequence, &normal.to_string(), 1, false)
+            .unwrap()
+            .as_deref(),
+        Some("cloth_lvl1")
+    );
+    assert_eq!(
+        contents
+            .loot(&mut sequence, &normal.to_string(), 1, false)
+            .unwrap()
+            .as_deref(),
+        Some("rare_gem")
+    );
+    assert_eq!(
+        contents
+            .loot(&mut sequence, &normal.to_string(), 1, false)
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        contents.loot(&mut sequence, "unknown", 1, false).unwrap(),
+        None
+    );
 }

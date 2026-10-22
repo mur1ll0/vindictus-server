@@ -32,8 +32,10 @@ class NpcScriptExportTests(unittest.TestCase):
                              "CREATE TABLE QuestSettingsInfo(RowID INT,ConditionID INT,Key TEXT,Value TEXT);INSERT INTO QuestSettingsInfo VALUES(1,NULL,'TutorStamp','Basic');"
                              "CREATE TABLE QuestSettingsConditionInfo(RowID INT,ConditionID INT,Condition TEXT,Value TEXT);"
                              "CREATE TABLE MonsterInfo(Identifier INT,Class TEXT,Variation TEXT,Difficulty INT,Exp INT,HP1 INT,HP_Normal_Percent INT);INSERT INTO MonsterInfo VALUES(7,'npc_gnoll','normal',-1,30,500,100);"
+                             "CREATE TABLE MonsterDropItemInfo(MonsterID INT,QuestID TEXT,Difficulty INT,ItemClassEX TEXT,Weight INT,IsAbsolute bit,IsRequiredClass bit,IsUniqueDrop bit,Feature TEXT);INSERT INTO MonsterDropItemInfo VALUES(7,NULL,1,'synthetic[PREFIX:x]',5000,'False','True','False','drop_flag');"
+                             "ALTER TABLE ItemClassInfo ADD COLUMN Rarity INTEGER DEFAULT 3;ALTER TABLE ItemClassInfo ADD COLUMN ClassRestriction INTEGER DEFAULT 2047;"
                              "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
-                             "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL);"
+                             "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT,GameMode INT,EvilCoreCount INT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL,1,2);"
                              "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
                              "CREATE TABLE TitleInfo(ID INT,AutoGiveLevel INT,ClassRestriction INT,HideUntil INT,Feature TEXT);INSERT INTO TitleInfo VALUES(410017,1,2047,0,NULL);"
                              "CREATE TABLE TitleGoalInfo(ID INT,TitleID INT);INSERT INTO TitleGoalInfo VALUES(1,410017);"
@@ -63,6 +65,10 @@ class NpcScriptExportTests(unittest.TestCase):
         self.assertEqual(m['entities'], [[7, [['classname', 'trigger_once']]], [7, [['classname', 'npc_template_maker'], ['Feature', 'entity_flag']]]])
         self.assertEqual((m['named_props'], m['tower_quests'], m['settings']), (['barrel'], [], [[1, None, 'TutorStamp', 'Basic']]))
         self.assertEqual(m['monsters'], [[7, 'npc_gnoll', 'normal', -1, 30, 500, 100]])
+        self.assertEqual(m['monster_drops'], [[7, None, 1, 'synthetic[PREFIX:x]', 5000, False, True, False, 'drop_flag']])
+        # The dropped class (attributes stripped) carries its rarity and class restriction.
+        self.assertEqual([r[:3] for r in m['drop_classes']], [['synthetic', 3, 2047]])
+        self.assertIn('drop_flag', [f['key'] for f in p['features']])
         keys = [f['key'] for f in p['features']]
         self.assertTrue({'group_flag', 'entity_flag', 'Gathering', 'GatheringRare'} <= set(keys))
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
