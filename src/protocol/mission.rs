@@ -23,6 +23,8 @@ pub enum Kind {
     MemberInfo,
     PayCoinCompleted,
     InsertBlessStoneComplete,
+    MoveToNextSector,
+    AllUserJoinComplete,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -38,6 +40,8 @@ impl Kind {
             Self::MemberInfo => 498,
             Self::PayCoinCompleted => 432,
             Self::InsertBlessStoneComplete => 48,
+            Self::MoveToNextSector => 532,
+            Self::AllUserJoinComplete => 47,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -53,6 +57,8 @@ impl Kind {
             Self::MemberInfo => 0xb89c49cb_0aa1_308d_a0c5_9fe9bb1f58ed,
             Self::PayCoinCompleted => 0x7f105751_b6a7_3c1d_a7fd_bc7a884133d2,
             Self::InsertBlessStoneComplete => 0x915f8913_1565_340c_99ca_619e37ffd1f7,
+            Self::MoveToNextSector => 0x67aefac8_659d_385a_a39a_03e3d1dce102,
+            Self::AllUserJoinComplete => 0x3f79e7b8_49d5_34f2_8970_b8b5b47aa1eb,
         })
     }
 }
@@ -415,6 +421,13 @@ pub struct BlessStones {
     pub owners: Option<Vec<i32>>,
     pub types: Option<Vec<i32>>,
 }
+/// MoveToNextSectorMessage (host): the trigger used and the target sector group.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MoveToNextSector {
+    pub trigger_name: Option<String>,
+    pub target_group: i32,
+    pub holy_props: Option<Vec<i32>>,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     AcceptQuest(AcceptQuest),
@@ -428,6 +441,8 @@ pub enum Message {
     MemberInfo(Box<MemberInfo>),
     PayCoinCompleted(PayCoinCompleted),
     InsertBlessStoneComplete(BlessStones),
+    MoveToNextSector(MoveToNextSector),
+    AllUserJoinComplete,
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -443,6 +458,8 @@ impl Message {
             Self::MemberInfo(_) => Kind::MemberInfo,
             Self::PayCoinCompleted(_) => Kind::PayCoinCompleted,
             Self::InsertBlessStoneComplete(_) => Kind::InsertBlessStoneComplete,
+            Self::MoveToNextSector(_) => Kind::MoveToNextSector,
+            Self::AllUserJoinComplete => Kind::AllUserJoinComplete,
         }
     }
 }
@@ -654,6 +671,11 @@ object!(PaidCoin {
     platinum_coin_type
 });
 object!(PayCoinCompleted { coins });
+object!(MoveToNextSector {
+    trigger_name,
+    target_group,
+    holy_props
+});
 object!(BlessStones {
     slot,
     owners,
@@ -687,6 +709,8 @@ pub fn encode(
                 Message::MemberInfo(v) => v.write(&mut w)?,
                 Message::PayCoinCompleted(v) => v.write(&mut w)?,
                 Message::InsertBlessStoneComplete(v) => v.write(&mut w)?,
+                Message::MoveToNextSector(v) => v.write(&mut w)?,
+                Message::AllUserJoinComplete => {}
             }
         }
     }
@@ -720,6 +744,8 @@ pub fn decode(
             Kind::InsertBlessStoneComplete => {
                 Message::InsertBlessStoneComplete(BlessStones::read(&mut r)?)
             }
+            Kind::MoveToNextSector => Message::MoveToNextSector(MoveToNextSector::read(&mut r)?),
+            Kind::AllUserJoinComplete => Message::AllUserJoinComplete,
         })
     };
     if !r.remaining.is_empty() {

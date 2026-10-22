@@ -460,6 +460,12 @@ pub struct Mission {
     pub state: u8,
     pub host_info: Option<GameInfo>,
     pub sectors: Option<SectorInfos>,
+    /// SectorSequence of the started MicroPlay.
+    pub sequence: Option<domain::SectorSequence>,
+    /// MicroPlay.CurGameTime (hour of day in the dungeon).
+    pub game_time: i32,
+    /// MicroPlay.PlayState.InGame after the first sector move.
+    pub in_game: bool,
 }
 impl Mission {
     /// ShipOptionInfo.MemberCountLimit.
@@ -662,6 +668,9 @@ pub async fn accept_quest(
         state: party_state::IN_TOWN_WITH_SHIP_INFO,
         host_info: None,
         sectors: None,
+        sequence: None,
+        game_time: 0,
+        in_game: false,
     };
     packets.extend(mission.broadcast()?);
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
@@ -761,16 +770,49 @@ pub fn start_game(
     let practice = mission.option.is_practice_mode;
     let built = contents
         .sector_sequence(&mission.digest, practice, false, random)
-        .and_then(|sequence| contents.info(&mission.quest, &sequence, practice));
-    let Ok(infos) = built else {
+        .and_then(|sequence| {
+            Ok((
+                contents.info(&mission.quest, &sequence, practice)?,
+                sequence,
+            ))
+        });
+    let Ok((infos, sequence)) = built else {
         // QueryMicroPlayInfo failure: LeaveParty and GeneralFail.
         packets.extend(general_fail("StartGame", "QueryMicroPlayInfoFail")?);
         return Ok(packets);
     };
     let granted = game_start_granted(&mission.digest, &infos, mission.option.difficulty, true, 1);
     mission.sectors = Some(infos);
+    mission.sequence = Some(sequence);
     packets.push(packet(&Message::GameStartGranted(granted))?);
     mission.state = party_state::IN_GAME;
     packets.extend(mission.broadcast()?);
     Ok(packets)
+}
+
+/// MicroPlayHost MoveToNextSectorMessage → MoveSectorProcessor (AntiSectorSkip off):
+/// the first move starts the play (InGame, CurGameTime = InitGameTime); later moves
+/// advance the game time by SectorMoveGameTime modulo 24. Nothing reaches the client;
+/// a refused move keeps the state.
+pub fn move_sector(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    trigger: &str,
+    target_group: i32,
+) -> Result<bool, MinimumError> {
+    let Some(sequence) = mission.sequence.as_mut() else {
+        return Ok(false);
+    };
+    let first = sequence.current.is_none();
+    let game_time = if first {
+        mission.digest.init_game_time
+    } else {
+        let t = mission.game_time + mission.digest.sector_move_game_time;
+        if t >= 24 { t - 24 } else { t }
+    };
+    mission.in_game = true;
+    mission.game_time = game_time;
+    contents
+        .move_next(&mission.quest, sequence, trigger, target_group)
+        .map_err(|_| fail())
 }

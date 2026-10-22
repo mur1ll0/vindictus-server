@@ -860,6 +860,27 @@ impl Connection {
                 );
                 packets
             }
+            Message::MoveToNextSector(m) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let moved = mission::move_sector(
+                    state,
+                    contents,
+                    m.trigger_name.as_deref().unwrap_or(""),
+                    m.target_group,
+                )
+                .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!(moved, "mission sector move processed; values omitted");
+                Vec::new()
+            }
+            // AllUserJoinComplete → ConfirmCoinPaid: BlessStone.Consume with no stone
+            // inserted and no fatigue system has no client-visible effect.
+            Message::AllUserJoinComplete => {
+                tracing::info!("mission all users joined; values omitted");
+                Vec::new()
+            }
             _ => return Ok(()),
         };
         for packet in &packets {
@@ -1278,7 +1299,13 @@ impl Connection {
         }
         {
             use crate::protocol::mission::Kind;
-            for kind in [Kind::AcceptQuest, Kind::RegisterServer, Kind::StartGame] {
+            for kind in [
+                Kind::AcceptQuest,
+                Kind::RegisterServer,
+                Kind::StartGame,
+                Kind::MoveToNextSector,
+                Kind::AllUserJoinComplete,
+            ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
                 }

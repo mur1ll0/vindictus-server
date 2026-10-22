@@ -19,3 +19,10 @@ Pré-condições: perfis privados reexportados (`npc_scripts` com a seção `mis
 - [ ] Sair do jogo dentro da missão e relogar → personagem volta à cidade; nada do inventário foi perdido.
 Limites conhecidos: só solo (host local); sem drops (monstros não deixam itens/núcleos), baú do tesouro e mapa; missões de pesca, caça, torre, com item obrigatório ou com limite de equipamento são recusadas; moedas/pedras de bênção aparecem vazias; combate, conclusão e recompensas vêm nos passos seguintes (B2.3+).
 
+### B2.3 — Carregamento da dungeon e troca de setor
+Pré-condição: a entrada B2.1 chegou à primeira área da dungeon.
+- [ ] Ao terminar o carregamento, a Fiona aparece na área inicial com os monstros do setor (são criados pelo host local a partir das entidades enviadas). No log: "mission all users joined" e "mission sector move processed" com `moved=true`.
+- [ ] Atravessar a saída da área (portal/porta de fim do setor) → carrega o setor seguinte (ex.: a sala do chefe); no log, outro "mission sector move processed" com `moved=true`.
+- [ ] Hora do dia na dungeon (iluminação) coerente entre os setores; nenhuma desconexão ao trocar de setor.
+Limites conhecidos: sem detecção de pulo de setor (AntiSectorSkip desligado no perfil), sem diálogos de console de setor; o progresso de objetivos e a conclusão vêm no B2.7.
+

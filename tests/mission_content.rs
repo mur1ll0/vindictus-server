@@ -462,3 +462,43 @@ fn battle_inventory_caps_shares_counts_and_empties_like_add_player() {
         Err(MissionError::Content)
     );
 }
+
+#[test]
+fn move_next_follows_the_starting_group_then_trigger_connections() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let digest = contents.digest("quest_a", -1).unwrap();
+    let mut sequence = contents
+        .sector_sequence(&digest, true, false, &mut Script::default())
+        .unwrap();
+    // The first move must target the starting group (or -1).
+    assert!(!contents.move_next("quest_a", &mut sequence, "", 2).unwrap());
+    assert_eq!(sequence.current, None);
+    assert!(
+        contents
+            .move_next("quest_a", &mut sequence, "", -1)
+            .unwrap()
+    );
+    assert_eq!(
+        (sequence.current, sequence.last_used_spawn_point.as_deref()),
+        (Some(1), Some(""))
+    );
+    // An unknown trigger falls back to the "" connection of AddBaseConnection.
+    assert!(
+        !contents
+            .move_next("quest_a", &mut sequence, "exit_x", 3)
+            .unwrap()
+    );
+    assert!(
+        contents
+            .move_next("quest_a", &mut sequence, "exit_x", 2)
+            .unwrap()
+    );
+    assert_eq!((sequence.current, sequence.latest_cleared), (Some(2), 0));
+    // The last sector has no connection.
+    assert!(
+        !contents
+            .move_next("quest_a", &mut sequence, "", -1)
+            .unwrap()
+    );
+    assert_eq!(sequence.passed.len(), 2);
+}

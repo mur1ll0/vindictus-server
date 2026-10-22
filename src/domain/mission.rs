@@ -551,6 +551,14 @@ pub struct SectorInfos {
 pub struct SectorSequence {
     pub starting_group: i32,
     pub sectors: Vec<SectorInstance>,
+    /// CurrentSector (its group), absent before the first MoveToNextSector.
+    pub current: Option<i32>,
+    /// CurrentSector.LastUsedSpawnPoint of the current sector.
+    pub last_used_spawn_point: Option<String>,
+    /// LatestClearedSectorIndex.
+    pub latest_cleared: i32,
+    /// PassedSector: SectorIDs already entered (AddPassedSectorInfo).
+    pub passed: Vec<i32>,
 }
 
 #[derive(Clone)]
@@ -903,6 +911,10 @@ impl MissionContents {
         let mut sequence = SectorSequence {
             starting_group,
             sectors: Vec::new(),
+            current: None,
+            last_used_spawn_point: None,
+            latest_cleared: -1,
+            passed: Vec::new(),
         };
         for (group_id, sectors) in &builder.groups {
             let seed = random.next();
@@ -1078,6 +1090,53 @@ impl MissionContents {
                 }
             }
         }
+    }
+
+    /// SectorSequence.MoveNext: the starting group first, then the connection of the
+    /// trigger (or the "" connection) to the target group (-1 accepts any). Entering a
+    /// sector records it as passed (MicroPlay.OnMoveSector → AddPassedSectorInfo).
+    pub fn move_next(
+        &self,
+        quest: &str,
+        sequence: &mut SectorSequence,
+        trigger: &str,
+        target_group: i32,
+    ) -> Result<bool, MissionError> {
+        let builder = self.builders.get(quest).ok_or(MissionError::NoSectorInfo)?;
+        let (to, spawn) = match sequence.current {
+            None => (sequence.starting_group, String::new()),
+            Some(group) => {
+                sequence.latest_cleared = group - 1;
+                let current = sequence
+                    .sectors
+                    .iter()
+                    .find(|s| s.group_id == group)
+                    .ok_or(MissionError::NoSectorInfo)?;
+                let base = self.base(builder, current)?;
+                let connection = base
+                    .connections
+                    .iter()
+                    .find(|(t, _)| t == trigger)
+                    .or_else(|| base.connections.iter().find(|(t, _)| t.is_empty()));
+                let Some((_, c)) = connection else {
+                    return Ok(false);
+                };
+                (c.to, c.to_spawn.clone())
+            }
+        };
+        let Some(next) = sequence.sectors.iter().find(|s| s.group_id == to) else {
+            return Ok(false);
+        };
+        if next.group_id != target_group && target_group != -1 {
+            return Ok(false);
+        }
+        let sector_id = self.base(builder, next)?.sector_id;
+        sequence.current = Some(to);
+        sequence.last_used_spawn_point = Some(spawn);
+        if !sequence.passed.contains(&sector_id) {
+            sequence.passed.push(sector_id);
+        }
+        Ok(true)
     }
 
     /// SectorSequence.GetInfo(isElection: false) before any sector starts.

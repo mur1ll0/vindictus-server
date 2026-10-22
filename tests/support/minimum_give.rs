@@ -1952,6 +1952,14 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         panic!()
     };
     assert_eq!(in_game.state, 5);
+    // MoveToNextSector: the starting sector at InitGameTime (-1), then the boss sector
+    // by the base connection, advancing the dungeon hour by SectorMoveGameTime.
+    let contents = assets.mission().unwrap();
+    assert!(minimum_mission::move_sector(&mut mission, contents, "", 1).unwrap());
+    assert_eq!((mission.game_time, mission.in_game), (-1, true));
+    assert!(minimum_mission::move_sector(&mut mission, contents, "exit", 2).unwrap());
+    assert_eq!(mission.game_time, 4);
+    assert!(!minimum_mission::move_sector(&mut mission, contents, "", -1).unwrap());
     minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

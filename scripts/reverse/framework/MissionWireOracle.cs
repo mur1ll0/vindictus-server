@@ -12,6 +12,7 @@ using Devcat.Core.Net.Message;
 using ServiceCore.EndPointNetwork;
 using ServiceCore.CharacterServiceOperations;
 using ServiceCore.MicroPlayServiceOperations;
+using ServiceCore.EndPointNetwork.MicroPlay;
 class MissionWireOracle {
  static int[] Body(Packet p) { return p.Array.Skip(p.Offset+p.BodyOffset).Take(p.Length).Select(b=>(int)b).ToArray(); }
  static T Obj<T>(params object[] fields) where T:class {
@@ -120,6 +121,10 @@ class MissionWireOracle {
   var stone=new InsertBlessStoneCompleteMessage{Slot=0};foreach(var t in new[]{BlessStoneType.ALL,BlessStoneType.AP,BlessStoneType.EXP,BlessStoneType.LUCK})stone.AddInfo(t,-1);stones.Add(stone);
   var mixed=new InsertBlessStoneCompleteMessage{Slot=int.MaxValue};mixed.AddInfo(BlessStoneType.NONE,3);stones.Add(mixed);
   AddCases("insert_bless_stone_complete",48,new Guid("915f8913-1565-340c-99ca-619e37ffd1f7"),stones,cases);
+  var moves=new List<MoveToNextSectorMessage>{null,Obj<MoveToNextSectorMessage>("TriggerName",null,"TargetGroup",0,"HolyProps",null)};
+  foreach(int g in new[]{-1,1,int.MaxValue})moves.Add(Obj<MoveToNextSectorMessage>("TriggerName",g==1?"":"exit_é","TargetGroup",g,"HolyProps",new List<int>{g,0}));
+  AddCases("move_to_next_sector",532,new Guid("67aefac8-659d-385a-a39a-03e3d1dce102"),moves,cases);
+  AddCases("all_user_join_complete",47,new Guid("3f79e7b8-49d5-34f2-8970-b8b5b47aa1eb"),new[]{null,new AllUserJoinCompleteMessage()},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }
