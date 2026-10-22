@@ -183,6 +183,6 @@ fn proudnet_guid_string_is_the_registry_form() {
     use vindictus_server::protocol::proudnet::{PROTOCOL_VERSION, guid_string};
     assert_eq!(
         guid_string(&PROTOCOL_VERSION),
-        "0afa470c-77d7-4b74-9ddb-1cb3d25e1e63"
+        "0afa3c0c-77d7-4b74-9ddb-1cb3d25e1e63"
     );
 }

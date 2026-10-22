@@ -36,9 +36,11 @@ pub mod rmi {
     pub const NM_INFOS_RESULT: u16 = 0x3e9;
 }
 
-/// Heroes relay protocol version (Heroes.Managed Rmi.Start).
+/// Heroes relay protocol version of the 1.69 EN client, measured from its type-7 request on
+/// 22/10/2026 (internal version 196713). The recovered zh-tw server (Heroes.Managed
+/// Rmi.Start) uses 0AFA470C-77D7-4B74-9DDB-1CB3D25E1E63, which differs only in Data1.
 pub const PROTOCOL_VERSION: [u8; 16] = guid(
-    0x0afa_470c,
+    0x0afa_3c0c,
     0x77d7,
     0x4b74,
     [0x9d, 0xdb, 0x1c, 0xb3, 0xd2, 0x5e, 0x1e, 0x63],

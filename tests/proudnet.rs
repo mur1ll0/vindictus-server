@@ -76,8 +76,8 @@ fn framing_compact_widths_and_messages_follow_the_recovered_layout() {
             event_id: 3
         }
     );
-    // {0AFA470C-77D7-4B74-9DDB-1CB3D25E1E63} in native layout.
-    assert_eq!(&wire::PROTOCOL_VERSION[..4], &[0x0c, 0x47, 0xfa, 0x0a]);
+    // {0AFA3C0C-77D7-4B74-9DDB-1CB3D25E1E63} (1.69 EN client) in native layout.
+    assert_eq!(&wire::PROTOCOL_VERSION[..4], &[0x0c, 0x3c, 0xfa, 0x0a]);
 }
 
 #[test]
