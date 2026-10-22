@@ -1466,6 +1466,56 @@ async fn minimum_use_answers_town_and_constraint_dialogs_without_changes() {
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_storyline_status_is_saved_and_resyncs_the_watching_lines() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_story},
+        protocol::inventory::Kind,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    let packets =
+        minimum_story::set_story_line_status(&p, &owner, &assets, 1, "GuidePlay_1_SkillTrain", 1)
+            .await
+            .unwrap();
+    // SyncWatchingStoryLines: one StoryLinesMessage.
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [Kind::StoryLines.category()]
+    );
+    let status: i16 = sqlx::query_scalar("SELECT status FROM game_story_progress WHERE cid=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(status, 1);
+    // A storyline the character does not own answers nothing and changes nothing.
+    assert!(
+        minimum_story::set_story_line_status(&p, &owner, &assets, 1, "missing", 0)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,

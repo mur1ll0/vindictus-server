@@ -30,7 +30,7 @@ Pré-condição: perfil `npc_scripts` reexportado com as tabelas de progressão 
 - [ ] Quando o EXP passa do necessário → efeito de level up na tela, novo nível na janela de personagem, atributos maiores (STR/DEX/INT/WILL/HP) e a lista de títulos ganha os títulos de nível (em progresso, não adquiridos).
 - [ ] Após o level up → a lista de quests recebe as quests automáticas do novo nível e histórias de nível novas aparecem no diário (quando existirem).
 - [ ] Relogar → nível, EXP, atributos e títulos preservados; a seleção de personagem mostra o novo nível.
-- [ ] Logo ao entrar na cidade (sem falar com NPC), abrir o diário de quests → as quests aparecem (em 22/10 só apareciam depois de falar com o Marrec; as quests e histórias do login passaram a ser enviadas antes do LoginOk, como no original).
+- [ ] Logo ao entrar na cidade (sem falar com NPC), abrir o diário de quests → as quests aparecem (em 22/10 só apareciam depois de falar com o Marrec, mesmo com as quests enviadas antes do LoginOk; causa em investigação). Se a lista estiver vazia: anotar o horário, falar com o Marrec ou marcar/desmarcar uma história no diário e anotar quando a lista aparece; o log registra as categorias enviadas no login (`early_categories`) e em cada conversa (`categories`).
 Limites conhecidos: títulos adquiridos (com status de concluído e bônus de atributo), recompensa de título/skill de história, log de crescimento (AddGrowthLog), ranking (CharacterRank) e efeitos de guilda não migrados.
 
 ### B2.1 — Saída para a missão (navio, relay e início da fase)

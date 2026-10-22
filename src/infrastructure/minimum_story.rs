@@ -159,6 +159,43 @@ pub async fn npc_list(
     .map_err(|_| fail())?
 }
 
+/// SetStoryLineStatusProcessor: for an owned storyline, StoryEntity.SetStoryLineStatus
+/// (Progress.Status = status; the watching list follows it), Save and
+/// SyncWatchingStoryLines. An unknown storyline answers nothing.
+pub async fn set_story_line_status(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    story_line: &str,
+    status: u8,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let c = character(&mut tx, cid).await?;
+        let mut rows = progress(&mut tx, cid).await?;
+        let Some(row) = rows.iter_mut().find(|p| p.story_line == story_line) else {
+            tx.commit().await?;
+            return Ok(Vec::new());
+        };
+        row.status = status;
+        sqlx::query(
+            "UPDATE game_story_progress SET status=$3 WHERE cid=$1 AND story_line_utf16=$2",
+        )
+        .bind(cid)
+        .bind(utf16(story_line))
+        .bind(i16::from(status))
+        .execute(&mut *tx)
+        .await?;
+        let out = story_lines_packet(npc, &rows, c.hint)?;
+        tx.commit().await?;
+        Ok(vec![out])
+    })
+    .await
+    .map_err(|_| fail())?
+}
+
 /// SendStoryLinesMessage(GetWatchingStoryLines(), HintCategory).
 fn story_lines_packet(
     npc: &super::npc_scripts::Profile,

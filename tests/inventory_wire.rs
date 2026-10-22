@@ -117,6 +117,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::NpcTalk
                 | Kind::SelectButton
                 | Kind::ExecuteNpcServerCommand
+                | Kind::SetStoryLineStatus
                 | Kind::StoryLines
                 | Kind::BuyItem
                 | Kind::BuyItemResult

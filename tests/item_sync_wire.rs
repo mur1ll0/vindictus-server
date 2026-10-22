@@ -509,6 +509,18 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 "case {n}"
             );
         }
+        Some(Message::SetStoryLineStatus(v)) => {
+            assert_eq!(
+                v.story_line.as_deref(),
+                f["StoryLineID"].as_str(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(v.status),
+                f["Status"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
         Some(_) => panic!("unexpected kind"),
     }
     for cut in 0..typed.len() {
@@ -628,7 +640,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1203);
+        assert_eq!(cases.len(), 1215);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -665,6 +677,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "query_quest_progress" => check_inventory(Kind::QueryQuestProgress, case, n),
                 "quest_progress" => check_inventory(Kind::QuestProgress, case, n),
                 "update_title" => check_inventory(Kind::UpdateTitle, case, n),
+                "set_story_line_status" => check_inventory(Kind::SetStoryLineStatus, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

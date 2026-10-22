@@ -1457,6 +1457,7 @@ impl Connection {
                         }
                         tracing::info!(
                             early_messages = early.len(),
+                            early_categories = ?early.iter().map(|p| p.category).collect::<Vec<_>>(),
                             "minimum character selected; optional services deferred; values omitted"
                         );
                     }
@@ -1745,6 +1746,7 @@ impl Connection {
                 Kind::QueryNpcTalk,
                 Kind::SelectButton,
                 Kind::ExecuteNpcServerCommand,
+                Kind::SetStoryLineStatus,
                 Kind::BuyItem,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
@@ -1865,6 +1867,7 @@ impl Connection {
                                 }
                                 tracing::info!(
                                     messages = packets.len(),
+                                    categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),
                                     "minimum NPC talk processed; values omitted"
                                 );
                             }
@@ -2060,6 +2063,31 @@ impl Connection {
                             tracing::warn!(
                                 "minimum shop restriction query not migrated; values omitted"
                             );
+                        }
+                    }
+                    Message::SetStoryLineStatus(request) => {
+                        match super::minimum_story::set_story_line_status(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            request.story_line.as_deref().unwrap_or(""),
+                            request.status,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    synchronized = !packets.is_empty(),
+                                    "minimum storyline status processed; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum storyline status refused; values omitted")
+                            }
                         }
                     }
                     Message::QueryNpcList => {

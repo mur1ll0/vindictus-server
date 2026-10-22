@@ -35,6 +35,7 @@ pub enum Kind {
     NpcTalk,
     SelectButton,
     ExecuteNpcServerCommand,
+    SetStoryLineStatus,
     StoryLines,
     BuyItem,
     BuyItemResult,
@@ -76,6 +77,7 @@ impl Kind {
             Self::NpcTalk => 508,
             Self::SelectButton => 564,
             Self::ExecuteNpcServerCommand => 459,
+            Self::SetStoryLineStatus => 574,
             Self::StoryLines => 598,
             Self::BuyItem => 234,
             Self::BuyItemResult => 235,
@@ -117,6 +119,7 @@ impl Kind {
             Self::NpcTalk => 0x859ce7b4_cfd1_3695_9a73_b5c094d7085e,
             Self::SelectButton => 0xd5dda62d_44c1_3c6a_8906_72164e564921,
             Self::ExecuteNpcServerCommand => 0x048fdbb2_e452_3c5f_b0b2_cfc80994e365,
+            Self::SetStoryLineStatus => 0x92e441fa_adce_304e_aeb2_a77fb76d2900,
             Self::StoryLines => 0x5498b052_d119_30e2_8224_1e2b990d4ef8,
             Self::BuyItem => 0x2f52e151_33c1_34dc_bd6e_9535c35ab918,
             Self::BuyItemResult => 0x64a08bdf_6762_3be2_9f6f_c7ff64a2b4a3,
@@ -246,6 +249,7 @@ pub enum Message {
     SelectButton(i32),
     /// ExecuteNpcServerCommandMessage (fieldless).
     ExecuteNpcServerCommand,
+    SetStoryLineStatus(StoryLineStatus),
     StoryLines(StoryLines),
     BuyItem(BuyItem),
     BuyItemResult(BuyItemResult),
@@ -406,6 +410,12 @@ pub struct Building {
     pub building: Option<String>,
     pub npcs: Option<Vec<Option<NpcInfo>>>,
 }
+/// SetStoryLineStatusMessage: StoryLineID, Status (StoryLineStatus byte).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoryLineStatus {
+    pub story_line: Option<String>,
+    pub status: u8,
+}
 /// QueryNpcTalkMessage: Location, NpcID, StoryLine, Command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NpcQuery {
@@ -512,6 +522,7 @@ impl Message {
             Self::NpcTalk(_) => Kind::NpcTalk,
             Self::SelectButton(_) => Kind::SelectButton,
             Self::ExecuteNpcServerCommand => Kind::ExecuteNpcServerCommand,
+            Self::SetStoryLineStatus(_) => Kind::SetStoryLineStatus,
             Self::StoryLines(_) => Kind::StoryLines,
             Self::BuyItem(_) => Kind::BuyItem,
             Self::BuyItemResult(_) => Kind::BuyItemResult,
@@ -760,6 +771,7 @@ object!(RepairItem {
     all_repairable
 });
 object!(StoryGuide { target, message });
+object!(StoryLineStatus { story_line, status });
 object!(TitleSlot {
     title_id,
     status,
@@ -864,6 +876,7 @@ pub fn encode(
             Message::LearnNewSkill(v) => v.write(&mut w)?,
             Message::LearnNewSkillResult(v) => v.write(&mut w)?,
             Message::QueryNpcList | Message::ExecuteNpcServerCommand => {}
+            Message::SetStoryLineStatus(v) => v.write(&mut w)?,
             Message::NpcList(v) => v.write(&mut w)?,
             Message::QueryNpcTalk(v) => v.write(&mut w)?,
             Message::NpcTalk(v) => v.write(&mut w)?,
@@ -942,6 +955,7 @@ fn decode_body(
             Kind::NpcTalk => Message::NpcTalk(Wire::read(&mut r)?),
             Kind::SelectButton => Message::SelectButton(Wire::read(&mut r)?),
             Kind::ExecuteNpcServerCommand => Message::ExecuteNpcServerCommand,
+            Kind::SetStoryLineStatus => Message::SetStoryLineStatus(StoryLineStatus::read(&mut r)?),
             Kind::StoryLines => Message::StoryLines(StoryLines::read(&mut r)?),
             Kind::BuyItem => Message::BuyItem(BuyItem::read(&mut r)?),
             Kind::BuyItemResult => Message::BuyItemResult(BuyItemResult::read(&mut r)?),
