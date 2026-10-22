@@ -249,3 +249,63 @@ fn progress_reports_constraints_play_counts_features_and_goal_weights() {
     let today = c.today_quests(&p, now, Arithmetic::FrameworkX64).unwrap();
     assert_eq!(today.len(), 2);
 }
+
+#[test]
+fn daily_process_resets_day_and_hour_period_counts_like_the_source() {
+    let p = policy();
+    let c = QuestContents::load(
+        QuestTables {
+            quests: vec![
+                info(FIRST_QUEST, 1, 1, None),
+                info("quest_period", 1, 2, None),
+            ],
+            periods: vec![(
+                Some("quest_period".to_owned()),
+                Some("2026-10-01 00:00:00".to_owned()),
+                24,
+                Some(5),
+                None,
+            )],
+            ..Default::default()
+        },
+        &p,
+    )
+    .unwrap();
+    let hour = 300 * 3600;
+    let day = |y, m, d| days_from_civil(y, m, d) * UNITS_PER_DAY;
+    let mut owner = QuestOwner::load(vec![], vec![], vec![], &c).unwrap();
+    owner.login(&c, 1);
+    owner.quests.retain(|q| q.quest == FIRST_QUEST);
+    let mut owner = QuestOwner::load(owner.quests, vec![], vec![], &c).unwrap();
+    owner.give_quest(&c, "quest_period", true);
+    let now = day(2026, 10, 22) + 9 * hour;
+    // Both quests already played today, in the current 24 h period: nothing changes.
+    for q in &mut owner.quests {
+        q.last_play = day(2026, 10, 22) + hour;
+        q.today_play_count = 2;
+        q.play_count = 4;
+    }
+    assert!(!owner.daily_process(&c, &p, now).unwrap());
+    assert!(
+        owner
+            .quests
+            .iter()
+            .all(|q| q.today_play_count == 2 && q.play_count == 4)
+    );
+    // Played yesterday 10:00: TodayPlayCount resets; the period (hours since DateFrom
+    // / 24) changed from 20 to 21, so the period quest's PlayCount resets too.
+    for q in &mut owner.quests {
+        q.last_play = day(2026, 10, 21) + 10 * hour;
+    }
+    assert!(owner.daily_process(&c, &p, now).unwrap());
+    let counts: Vec<(&str, i32, i32)> = owner
+        .quests
+        .iter()
+        .map(|q| (q.quest.as_str(), q.today_play_count, q.play_count))
+        .collect();
+    assert_eq!(counts, [(FIRST_QUEST, 0, 4), ("quest_period", 0, 0)]);
+    // A never-played quest (1990) also reports a change, so the source pushes on login.
+    let mut fresh = QuestOwner::load(vec![], vec![], vec![], &c).unwrap();
+    fresh.login(&c, 1);
+    assert!(fresh.daily_process(&c, &p, now).unwrap());
+}

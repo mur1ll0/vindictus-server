@@ -418,6 +418,46 @@ pub async fn query_progress(
     Ok(vec![progress_packet(&quests, ctx, clock, now_units()?)?])
 }
 
+/// InGame.OnEnter TriggerDailyQuest → QuestOwner.DailyQuestProcess: resets the day and
+/// period play counts; when anything changed, Save and PushQuestProgressMessage.
+pub async fn daily_process(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    clock: QuestClock,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let contents = npc.quests.as_ref().ok_or_else(fail)?;
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let level = level(&mut tx, cid).await?;
+    let original = load(&mut tx, cid, contents).await?;
+    let mut quests = original.clone();
+    quests.level = level;
+    let now = now_units()?;
+    if !quests
+        .daily_process(contents, &npc.policy, now)
+        .map_err(|_| fail())?
+    {
+        tx.commit().await?;
+        return Ok(Vec::new());
+    }
+    save(&mut tx, cid, &original, &quests, &mut std::iter::empty()).await?;
+    let coupons = raid_coupons(&mut tx, cid).await?;
+    tx.commit().await?;
+    // PushQuestProgressMessage needs CharacterLevel > 0.
+    if level <= 0 {
+        return Ok(Vec::new());
+    }
+    let ctx = Context {
+        contents,
+        policy: &npc.policy,
+        cafe: false,
+        raid_coupons: coupons,
+    };
+    Ok(vec![progress_packet(&quests, ctx, clock, now)?])
+}
+
 /// QueryQuestDigestProcessor's checks before the digest: QuestOwner.CheckConstraint
 /// (play count ignored in practice mode), then RequiredStoryLineID/RequiredPhase
 /// against the character's story progress. `Ok(None)` passes; `Ok(Some(name))` is the

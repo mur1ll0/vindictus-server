@@ -853,6 +853,55 @@ impl QuestOwner {
                     .contains(quest),
         )
     }
+    /// QuestOwner.DailyQuestProcess at `now` (InGame.OnEnter TriggerDailyQuest): every
+    /// owned quest last played on another day gets TodayPlayCount 0, and one whose
+    /// QuestPeriodInfo period (in hours since DateFrom) changed gets PlayCount 0. True
+    /// means Save and PushQuestProgressMessage; a quest missing from the contents is
+    /// skipped, as the source only warns.
+    pub fn daily_process(
+        &mut self,
+        contents: &QuestContents,
+        policy: &FeaturePolicy,
+        now: i64,
+    ) -> Result<bool, QuestError> {
+        const UNITS_PER_HOUR: i64 = 300 * 3600;
+        let mut changed = false;
+        for q in &mut self.quests {
+            if contents.info(&q.quest).is_none() {
+                continue;
+            }
+            if q.last_play.div_euclid(UNITS_PER_DAY) != now.div_euclid(UNITS_PER_DAY) {
+                q.today_play_count = 0;
+                changed = true;
+            }
+            let mut reset = false;
+            for (from, period, feature) in contents
+                .periods
+                .get(&q.quest)
+                .map_or(&[][..], Vec::as_slice)
+            {
+                if feature.is_some() && !enabled(policy, feature.as_deref())? {
+                    continue;
+                }
+                // DateFrom is NOT NULL in the original table; a zero Period divides by zero.
+                let from = from.ok_or(QuestError::Content)?;
+                let period = i64::from(*period);
+                if period == 0 {
+                    return Err(QuestError::Content);
+                }
+                // (int)Math.Floor(TimeSpan.TotalHours) / Period, truncating division.
+                let hours = |t: i64| (t - from).div_euclid(UNITS_PER_HOUR);
+                if now > from && hours(q.last_play) / period != hours(now) / period {
+                    reset = true;
+                }
+            }
+            if reset {
+                q.play_count = 0;
+                changed = true;
+            }
+        }
+        Ok(changed)
+    }
     /// QuestOwner.UpdateQuestPlayCount(questID, startTime, IgnoreTodayCount): the period
     /// and day resets, then PlayCount/TodayPlayCount (or one raid coupon past the maximum,
     /// returned as `Ok(Some(true))`). `Ok(None)` is the original false (no quest or a

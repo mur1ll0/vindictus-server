@@ -1455,7 +1455,42 @@ impl Connection {
                         {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
+                        // InGame.OnEnter, after the observers: TriggerDailyQuest
+                        // (DailyQuestProcess), TriggerDailyStory (StoryLinePeriodInfo is not
+                        // in the profile), QueryStoryProgress and QueryStoryGuide.
+                        let mut entered = Vec::new();
+                        if assets.npc.is_some() {
+                            let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
+                            if assets.npc.as_ref().is_some_and(|n| n.quests.is_some()) {
+                                match super::minimum_quest::daily_process(
+                                    pool,
+                                    &owner,
+                                    assets,
+                                    cid,
+                                    runtime.quest_clock(),
+                                )
+                                .await
+                                {
+                                    Ok(packets) => entered.extend(packets),
+                                    Err(_) => tracing::warn!(
+                                        "minimum daily quest process rejected; values omitted"
+                                    ),
+                                }
+                            }
+                            match super::minimum_story::in_game_sync(pool, &owner, assets, cid)
+                                .await
+                            {
+                                Ok(packets) => entered.extend(packets),
+                                Err(_) => tracing::warn!(
+                                    "minimum in-game story sync rejected; values omitted"
+                                ),
+                            }
+                        }
+                        for packet in &entered {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
                         tracing::info!(
+                            entered_categories = ?entered.iter().map(|p| p.category).collect::<Vec<_>>(),
                             early_messages = early.len(),
                             early_categories = ?early.iter().map(|p| p.category).collect::<Vec<_>>(),
                             "minimum character selected; optional services deferred; values omitted"

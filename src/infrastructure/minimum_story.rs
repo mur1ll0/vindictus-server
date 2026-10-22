@@ -159,6 +159,61 @@ pub async fn npc_list(
     .map_err(|_| fail())?
 }
 
+/// InGame.OnEnter QueryStoryProgress and QueryStoryGuide: SyncStoryProgress
+/// (StoryLinesMessage, NpcListMessage, StoryVariablesMessage when NewStoryLineDialog is
+/// on) and SyncGuideInfo (UpdateStoryGuideMessage, empty strings without a guide).
+pub async fn in_game_sync(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let c = character(&mut tx, cid).await?;
+        let rows = progress(&mut tx, cid).await?;
+        let mut out = vec![
+            story_lines_packet(npc, &rows, c.hint)?,
+            npc_list_packet(&npc.scripts, &npc.policy, &rows)?,
+        ];
+        if npc
+            .policy
+            .is_enabled(Some("NewStoryLineDialog"))
+            .map_err(|_| fail())?
+        {
+            let variables = variables(&mut tx, cid).await?;
+            out.push(packet(
+                Kind::StoryVariables,
+                Message::StoryVariables(Some(
+                    variables
+                        .into_iter()
+                        .map(|(line, key, value)| {
+                            Some(wire::StoryVariable {
+                                story_line: Some(line),
+                                key: Some(key),
+                                value,
+                            })
+                        })
+                        .collect(),
+                )),
+            )?);
+        }
+        let (target, message) = guide(&mut tx, cid).await?.unwrap_or_default();
+        out.push(packet(
+            Kind::UpdateStoryGuide,
+            Message::UpdateStoryGuide(wire::StoryGuide {
+                target: Some(target),
+                message: Some(message),
+            }),
+        )?);
+        tx.commit().await?;
+        Ok(out)
+    })
+    .await
+    .map_err(|_| fail())?
+}
+
 /// SetStoryLineStatusProcessor: for an owned storyline, StoryEntity.SetStoryLineStatus
 /// (Progress.Status = status; the watching list follows it), Save and
 /// SyncWatchingStoryLines. An unknown storyline answers nothing.

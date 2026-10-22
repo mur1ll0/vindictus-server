@@ -1466,6 +1466,61 @@ async fn minimum_use_answers_town_and_constraint_dialogs_without_changes() {
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_in_game_enter_pushes_daily_quest_progress_story_lines_and_guide() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_quest, minimum_selection, minimum_story,
+        },
+        protocol::inventory::Kind,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    let ids = vec![930_000_000_000_000_001, 930_000_000_000_000_002];
+    minimum_quest::login(&p, &owner, &assets, 1, ids, quest_clock())
+        .await
+        .unwrap();
+    // Never-played quests (1990) differ from today: DailyQuestProcess saves and pushes.
+    let daily = minimum_quest::daily_process(&p, &owner, &assets, 1, quest_clock())
+        .await
+        .unwrap();
+    assert_eq!(
+        daily.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [Kind::QuestProgress.category()]
+    );
+    // SyncStoryProgress (NewStoryLineDialog off) and SyncGuideInfo.
+    let story = minimum_story::in_game_sync(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    assert_eq!(
+        story.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [
+            Kind::StoryLines.category(),
+            Kind::NpcList.category(),
+            Kind::UpdateStoryGuide.category()
+        ]
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_storyline_status_is_saved_and_resyncs_the_watching_lines() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,
