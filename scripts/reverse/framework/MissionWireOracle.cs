@@ -147,6 +147,18 @@ class MissionWireOracle {
   AddCases("use_consumable",624,new Guid("8cf9f82f-0433-31a7-b88d-d61b71ee61ee"),new[]{null,new UseConsumableMessage(0,100,0),new UseConsumableMessage(-1,int.MaxValue,int.MinValue)},cases);
   AddCases("player_revived",555,new Guid("0441624d-0d61-3f4d-8194-090df4655d18"),new[]{null,Obj<PlayerRevivedMessage>("CasterTag",0,"ReviverTag",0,"Method",null),Obj<PlayerRevivedMessage>("CasterTag",1,"ReviverTag",0,"Method","phoenix_feather")},cases);
   AddCases("apply_micro_play_effects",403,new Guid("10c709a9-28c3-328e-8dfa-6bb6f5ecc0c8"),new[]{null,Obj<ApplyMicroPlayEffectsMessage>("Caster",0,"EffectName",null,"EffectList",null),Obj<ApplyMicroPlayEffectsMessage>("Caster",1,"EffectName","phoenix_feather","EffectList",new List<MicroPlayEffect>{Obj<MicroPlayEffect>("PlayerSlotNo",0,"Effect",MicroPlayEffectType.ReviveByClient,"Amount",50,"Argument",null),Obj<MicroPlayEffect>("PlayerSlotNo",0,"Effect",MicroPlayEffectType.GetStatusByClient,"Amount",1,"Argument","revive_invincible_normal")})},cases);
+  AddCases("micro_play_event",362,new Guid("52a3dbeb-8337-3288-9005-5557bfa8e7e0"),new[]{null,new MicroPlayEventMessage(0,null),new MicroPlayEventMessage(-1,"kill boss_é attack")},cases);
+  AddCases("quest_target_result",295,new Guid("bfed3fca-9934-374f-b39d-cebb0729e57f"),new[]{null,new QuestTargetResultMessage("",101,true,true,120,30,2),Obj<QuestTargetResultMessage>("CharacterName",null,"GoalID",-1,"IsGoalSuccess",false,"IsQuestSuccess",true,"Exp",int.MaxValue,"Gold",int.MinValue,"Ap",0)},cases);
+  AddCases("quest_success_scene_start",550,new Guid("62db5582-deb3-34e7-98e2-3fd6692deca6"),new[]{null,new QuestSuccessSceneStartMessage()},cases);
+  var summary=new QuestSummaryInfo("quest_gnoll_scout",-1,MicroPlayResult.Success){IsTodayQuest=true,LastProgress=1,CurrentProgress=2,Exp=150,Gold=40,Ap=3};
+  summary.ClearedGoals.Add(101,new SummaryGoalInfo(101,100,30,2));summary.ClearedGoals.Add(-7,new SummaryGoalInfo(-7,0,0,0));
+  summary.BattleExp.Add(new SummaryRewardInfo("MonsterKill",0,0,50));summary.EtcExp.Add(new SummaryRewardInfo(null,-1,int.MaxValue,int.MinValue));summary.MainGold.Add(new SummaryRewardInfo("Goal_é",1,2,3));
+  summary.RewardItem.Add("javelin_lvl0",1);summary.RewardItem.Add("",-5);
+  var bare=new QuestSummaryInfo(null,0,MicroPlayResult.Exception){BattleExp=null,EtcExp=null,MainGold=null,EtcGold=null,QuestAp=null,EtcAp=null,RewardItem=null,ClearedGoals=null};
+  AddCases("finish_game",460,new Guid("4bc1c4f0-07af-3449-9246-f7a5e68f76a2"),new[]{null,new FinishGameMessage(null,false,false,false),new FinishGameMessage(summary,false,true,true),new FinishGameMessage(bare,true,false,true)},cases);
+  AddCases("return_to_town",445,new Guid("702a1018-f1b5-3c8e-ad51-e46ef0846aed"),new[]{null,new ReturnToTownMessage()},cases);
+  AddCases("return_from_quest",402,new Guid("6764d890-113e-3d4d-9d96-24c0087489c3"),new[]{null,new ReturnFromQuestMessage(ReturnFromQuestType.ToTown),Obj<ReturnFromQuestMessage>("Order",2,"StorySectorBSP",null,"StorySectorEntity","story_é")},cases);
+  AddCases("kicked",471,new Guid("4df74867-68cb-3431-8177-ce7549890ddd"),new[]{null,new KickedMessage()},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

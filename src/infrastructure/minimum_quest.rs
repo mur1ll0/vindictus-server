@@ -177,6 +177,52 @@ pub(super) async fn save(
             }
         }
     }
+    // GoalAchievement rows (one per owner and goal) and QuestClearTime per quest and difficulty.
+    for g in &owner.goals {
+        if original.goals.iter().any(|o| o == g) {
+            continue;
+        }
+        let row = (
+            g.status,
+            i16::from(g.clear_count),
+            i16::from(g.regened_ap),
+            g.last_clear,
+        );
+        sqlx::query("INSERT INTO game_quest_goal_achievements(owner_id,goal_id,status,clear_count,regened_ap,last_clear_units300) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(owner_id,goal_id) DO UPDATE SET status=EXCLUDED.status,clear_count=EXCLUDED.clear_count,regened_ap=EXCLUDED.regened_ap,last_clear_units300=EXCLUDED.last_clear_units300")
+            .bind(cid)
+            .bind(g.goal)
+            .bind(row.0)
+            .bind(row.1)
+            .bind(row.2)
+            .bind(row.3)
+            .execute(&mut **tx)
+            .await?;
+    }
+    for c in &owner.clear_times {
+        if original.clear_times.iter().any(|o| o == c) {
+            continue;
+        }
+        let existing = original
+            .clear_times
+            .iter()
+            .any(|o| o.quest == c.quest && o.difficulty == c.difficulty);
+        let query = if existing {
+            "UPDATE game_quest_clear_times SET player_count=$4,clear_time=$5,play_rank=$6,clear_info=$7,is_old=$8 WHERE owner_id=$1 AND quest_utf16=$2 AND difficulty=$3"
+        } else {
+            "INSERT INTO game_quest_clear_times(owner_id,quest_utf16,difficulty,player_count,clear_time,play_rank,clear_info,is_old) VALUES($1,$2,$3,$4,$5,$6,$7,$8)"
+        };
+        sqlx::query(query)
+            .bind(cid)
+            .bind(utf16(&c.quest))
+            .bind(c.difficulty)
+            .bind(c.player_count)
+            .bind(c.clear_time)
+            .bind(c.play_rank)
+            .bind(c.clear_info)
+            .bind(i16::from(c.is_old))
+            .execute(&mut **tx)
+            .await?;
+    }
     Ok(())
 }
 

@@ -515,7 +515,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     ]);
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":400,"RewardAp":3,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
-    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"}],
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"}],
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
     "repair":{"enhance":[[0,0]],"quality":[[2,6]],"enchant":[[0,0,0]],"equip_class":[["SWORD",2]],"equip_item_class":["sword"]},
@@ -539,7 +539,10 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         "prop_items":[[1,"ruin","WOOD","SERVER","synthetic_gold",100,null]],
         "prop_expectations":[["ruin","WOOD",1]],
         "material_groups":[[4,"WOOD"]],
-        "effects":[["phoenix_feather","PlayerRevived","TargetDead",1,["ReviveByClient 50",null,null,"GetStatusByClient 1 revive_invincible_normal",null]]]},
+        "effects":[["phoenix_feather","PlayerRevived","TargetDead",1,["ReviveByClient 50",null,null,"GetStatusByClient 1 revive_invincible_normal",null]]],
+        "goal_infos":[[10010,1,1,1,100,0,3,1,1,0,0,"",0,"",1,100]],
+        "difficulty_rewards":[["quest_gnoll_watchman",2,10000,100,1,null]],
+        "quest_rewards":[["quest_gnoll_watchman",0,true],["quest_gnoll_shadowfang",0,false]]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -1704,8 +1707,9 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         domain::character_stats::Arithmetic,
         infrastructure::{
             character_lobby::QueryConfig,
+            minimum_growth,
             minimum_mission::{self, Accept, OsMissionRandom, RelayTicket},
-            minimum_quest, minimum_selection,
+            minimum_mission_finish, minimum_quest, minimum_selection,
         },
         protocol::mission::{
             self as mission_wire, AcceptQuest, GameInfo, Kind as MissionKind,
@@ -1785,7 +1789,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         &accept("quest_gnoll_watchman", 9),
         |_| panic!("relay must not be reached"),
         config(),
-        Arithmetic::FrameworkX64,
+        quest_clock(),
     )
     .await
     .unwrap();
@@ -1807,7 +1811,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         &accept("quest_gnoll_shadowfang", 2),
         |_| panic!("relay must not be reached"),
         config(),
-        Arithmetic::FrameworkX64,
+        quest_clock(),
     )
     .await
     .unwrap();
@@ -1829,7 +1833,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
             }
         },
         config(),
-        Arithmetic::FrameworkX64,
+        quest_clock(),
     )
     .await
     .unwrap();
@@ -1988,6 +1992,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     let (kill, extra) = minimum_mission::monster_killed(
         &mut mission,
         contents,
+        0,
         boss,
         "attack",
         true,
@@ -2005,8 +2010,34 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         }
     ));
     assert_eq!(mission.monster_kill_exp, 280);
-    assert_eq!(mission.events, ["kill npc_gnoll watchman attack"]);
+    assert_eq!(
+        mission.events,
+        [(1, "kill npc_gnoll watchman attack".to_owned())]
+    );
     assert_eq!(mission.boss_killed, ["npc_gnoll watchman"]);
+    // The kill meets the essential goal: QuestTargetResult with the goal reward and the
+    // success scene; the reward waits MicroPlayFinishTime (30 s).
+    let policy = assets.npc_policy().unwrap();
+    let ctx = minimum_mission_finish::FinishContext {
+        contents,
+        policy,
+        clock: quest_clock(),
+    };
+    let now = std::time::Instant::now();
+    let scene = minimum_mission_finish::drain(&mut mission, ctx, now).unwrap();
+    assert!(mission.events.is_empty());
+    let Some(MissionMessage::QuestTargetResult(goal)) =
+        mission_wire::decode(MissionKind::QuestTargetResult, &scene[0].body, 1 << 20).unwrap()
+    else {
+        panic!("target result")
+    };
+    assert_eq!(
+        (goal.goal_id, goal.is_goal_success, goal.gold, goal.ap),
+        (10010, true, 100, 3)
+    );
+    assert_eq!(scene[1].category, MissionKind::QuestSuccessSceneStart.category());
+    let due = minimum_mission_finish::next_job(&mission).unwrap();
+    assert_eq!(due.duration_since(now).as_secs(), 30);
     // Kicking the boss core gives the dropped class and announces it.
     let key = format!("{boss}/Target");
     let looted =
@@ -2048,7 +2079,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         .unwrap();
     assert_eq!(gold_after, gold_before + 1);
     assert_eq!(
-        mission.events.last().map(String::as_str),
+        mission.events.last().map(|(_, e)| e.as_str()),
         Some("get item synthetic_gold 1")
     );
     // A wood prop of the boss sector drops a server erg; picking it gives the item and
@@ -2068,7 +2099,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         (40, Some("synthetic_gold"), 0)
     );
     assert_eq!(
-        mission.events.last().map(String::as_str),
+        mission.events.last().map(|(_, e)| e.as_str()),
         Some("destroyprop WOOD")
     );
     let picked = minimum_mission::pick_erg(&mut mission, contents, erg.erg_id).unwrap();
@@ -2098,6 +2129,110 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
             .unwrap()
             .is_none()
     );
+    // Before the success scene ends nothing is due; ReturnToTown is ignored.
+    assert!(matches!(
+        minimum_mission_finish::return_to_town(&mut mission).unwrap(),
+        minimum_mission_finish::Return::Ignored
+    ));
+    let rc = minimum_mission_finish::RewardContext {
+        pool: &p,
+        owner: &owner,
+        assets: &assets,
+        growth: minimum_growth::GrowthContext {
+            clock: quest_clock(),
+            arithmetic: Arithmetic::FrameworkX64,
+            config: config(),
+            journal: 0,
+        },
+    };
+    let mut ids = (960_000_000_000_000_001_i64..960_000_000_000_000_100).collect::<Vec<_>>().into_iter();
+    let early = minimum_mission_finish::run_jobs(&mut mission, ctx, &rc, &mut ids, now)
+        .await
+        .unwrap();
+    assert!(early.is_empty());
+    // GiveReward_EssentialCleared → Season1Success: the reserved boss cores, then
+    // RewardCharacter and the result screen.
+    let finished = minimum_mission_finish::run_jobs(
+        &mut mission,
+        ctx,
+        &rc,
+        &mut ids,
+        now + std::time::Duration::from_secs(31),
+    )
+    .await
+    .unwrap();
+    let finish = finished
+        .iter()
+        .find(|p| p.category == MissionKind::FinishGame.category())
+        .unwrap();
+    let Some(MissionMessage::FinishGame(result)) =
+        mission_wire::decode(MissionKind::FinishGame, &finish.body, 1 << 20).unwrap()
+    else {
+        panic!("finish game")
+    };
+    let summary = result.summary.unwrap();
+    // 280 monster EXP + DifficultyBonus 30 % (difficulty 2); goal gold 100 + 30 %.
+    assert_eq!((summary.result, summary.exp, summary.gold, summary.ap), (0, 364, 130, 3));
+    assert_eq!(summary.cleared_goals.0.as_ref().unwrap()[0].0, 10010);
+    assert_eq!((summary.last_progress, summary.current_progress), (0, 100));
+    assert!(!result.can_restart && result.can_continue_finished_quest);
+    let got_items = finished
+        .iter()
+        .filter(|p| p.category == MissionKind::GetItem.category())
+        .count();
+    assert_eq!(got_items, 2);
+    let (status, clears): (i32, i32) = sqlx::query_as(
+        "SELECT status,clear_count FROM game_quests WHERE owner_id=1 AND quest_utf16=$1",
+    )
+    .bind(utf16("quest_gnoll_watchman"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!((status, clears), (100, 1));
+    let goal_status: i32 = sqlx::query_scalar(
+        "SELECT status FROM game_quest_goal_achievements WHERE owner_id=1 AND goal_id=10010",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(goal_status, 1 << 2);
+    let difficulty: i32 = sqlx::query_scalar(
+        "SELECT difficulty FROM game_quest_clear_times WHERE owner_id=1",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(difficulty, 2);
+    let exp: i64 = sqlx::query_scalar("SELECT exp FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert!(exp > 0);
+    // The per-minute job still runs once and, with the play finished, stops itself.
+    let minute = minimum_mission_finish::run_jobs(
+        &mut mission,
+        ctx,
+        &rc,
+        &mut ids,
+        now + std::time::Duration::from_secs(61),
+    )
+    .await
+    .unwrap();
+    assert!(minute.is_empty());
+    assert!(minimum_mission_finish::next_job(&mission).is_none());
+    // ReturnToTown leaves the party.
+    let minimum_mission_finish::Return::Town(back) =
+        minimum_mission_finish::return_to_town(&mut mission).unwrap()
+    else {
+        panic!("town expected")
+    };
+    assert_eq!(back[0].category, MissionKind::Kicked.category());
+    let Some(MissionMessage::ReturnFromQuest(order)) =
+        mission_wire::decode(MissionKind::ReturnFromQuest, &back[1].body, 1 << 20).unwrap()
+    else {
+        panic!("return from quest")
+    };
+    assert_eq!(order.order, 0);
     minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

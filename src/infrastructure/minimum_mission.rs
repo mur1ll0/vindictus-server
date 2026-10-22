@@ -409,7 +409,7 @@ pub mod party_state {
 /// ReadyState.Host.
 const HOST: u8 = 3;
 
-fn packet(message: &Message) -> Result<OutgoingPacket, MinimumError> {
+pub(super) fn packet(message: &Message) -> Result<OutgoingPacket, MinimumError> {
     let kind = message.kind();
     Ok(OutgoingPacket {
         category: kind.category(),
@@ -472,8 +472,9 @@ pub struct Mission {
     pub monster_kill_exp: i32,
     /// MicroPlayer.Alive.
     pub alive: bool,
-    /// Informer events for the goal trackers, in order ("kill <type> <action>", ...).
-    pub events: Vec<String>,
+    /// Informer events for the goal trackers, in order: actor CID (−1 none, 0 the
+    /// play) and event ("kill <type> <action>", ...).
+    pub events: Vec<(i64, String)>,
     /// SectorSequence.BossKilledList.
     pub boss_killed: Vec<String>,
     /// MicroPlayer.Luck (Stats LUCK; no platinum, bless stone or dormant bonus).
@@ -484,6 +485,8 @@ pub struct Mission {
     pub combat_record: Option<wire::CombatRecord>,
     /// ReduceMinClearTime amounts applied by server-only effects.
     pub min_clear_time_reduced: i32,
+    /// Goal tracking, rewards and the EndGame of the quest.
+    pub completion: super::minimum_mission_finish::Completion,
 }
 impl Mission {
     /// ShipOptionInfo.MemberCountLimit.
@@ -594,8 +597,9 @@ pub async fn accept_quest(
     message: &AcceptQuest,
     relay: impl FnOnce(i64) -> RelayTicket,
     config: QueryConfig,
-    arithmetic: Arithmetic,
+    clock: super::minimum_quest::QuestClock,
 ) -> Result<Accept, MinimumError> {
+    let arithmetic = clock.arithmetic;
     let contents = assets.mission().ok_or_else(fail)?;
     let fail_with = |sent: Vec<OutgoingPacket>, error: &str| -> Result<Accept, MinimumError> {
         let mut sent = sent;
@@ -697,7 +701,14 @@ pub async fn accept_quest(
         consumables: Vec::new(),
         combat_record: None,
         min_clear_time_reduced: 0,
+        completion: super::minimum_mission_finish::Completion::new(cid),
     };
+    // AddPlayer: QueryQuestState and the achieved goals of QueryPlayerInfo.
+    let (achieved, today_play_count, today) =
+        super::minimum_mission_finish::load_player(pool, owner, assets, cid, &quest, clock).await?;
+    mission.completion.achieved_info = achieved;
+    mission.completion.today_play_count = today_play_count;
+    mission.completion.today_quest = today;
     packets.extend(mission.broadcast()?);
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
     mission.state = party_state::ENTERING_SHIP;
@@ -864,17 +875,35 @@ pub fn move_sector(
         return Ok(false);
     };
     let first = sequence.current.is_none();
+    let passed = sequence.passed.len();
     let game_time = if first {
         mission.digest.init_game_time
     } else {
         let t = mission.game_time + mission.digest.sector_move_game_time;
         if t >= 24 { t - 24 } else { t }
     };
+    let moved = contents
+        .move_next(&mission.quest, sequence, trigger, target_group)
+        .map_err(|_| fail())?;
+    let explored = sequence.passed.len() > passed;
+    let sector = sequence.passed.last().copied();
+    if !moved {
+        return Ok(false);
+    }
+    if mission.in_game {
+        // Not the Wait state: SectorCleared, Alive and PlayState.InGame again.
+        mission.alive = true;
+        mission.completion.finished = false;
+    } else {
+        super::minimum_mission_finish::start(mission, contents, std::time::Instant::now())?;
+    }
     mission.in_game = true;
     mission.game_time = game_time;
-    contents
-        .move_next(&mission.quest, sequence, trigger, target_group)
-        .map_err(|_| fail())
+    // OnMoveSector: a newly passed sector of a season 2 quest is explored.
+    if explored && mission.digest.is_season2 && let Some(id) = sector {
+        mission.events.push((-1, format!("explore_sector {id}")));
+    }
+    Ok(true)
 }
 
 /// MonsterKilledProcessor (MDRSystem anti-cheat deferred to the damage reports) and
@@ -886,12 +915,18 @@ pub fn move_sector(
 pub fn monster_killed(
     mission: &mut Mission,
     contents: &MissionContents,
+    attacker: i32,
     target: i32,
     action: &str,
     has_evil_core: bool,
     exp_rate_monster: i32,
     random: &mut dyn MissionRandom,
 ) -> Result<(domain::Kill, Vec<OutgoingPacket>), MinimumError> {
+    let killer = if attacker == mission.member.slot {
+        mission.completion.cid
+    } else {
+        -1
+    };
     if target < 0 {
         return Ok((domain::Kill::Unknown, Vec::new()));
     }
@@ -923,12 +958,28 @@ pub fn monster_killed(
                         exp_rate_monster,
                     ));
         }
-        mission.events.push(format!("kill {monster_type} {action}"));
+        mission
+            .events
+            .push((killer, format!("kill {monster_type} {action}")));
         if action.to_lowercase() == "no_item" {
             return Ok((kill, packets));
         }
         if *is_boss {
+            // UpdateQuestPlayCount (no DirectCollectCoin) outside practice, then the
+            // boss lists.
+            if !practice {
+                mission.completion.play_count_due = true;
+            }
             mission.boss_killed.push(monster_type.clone());
+            match mission
+                .completion
+                .boss_kills
+                .iter_mut()
+                .find(|(m, _)| m == monster_type)
+            {
+                Some((_, n)) => *n = n.saturating_add(1),
+                None => mission.completion.boss_kills.push((monster_type.clone(), 1)),
+            }
         }
         if has_evil_core && !practice {
             let additional = contents
@@ -1007,7 +1058,7 @@ pub async fn give_reward(
     core_type: i32,
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
-    mission.events.push(format!("get item {class_ex} {count}"));
+    mission.events.push((cid, format!("get item {class_ex} {count}")));
     if domain::item_class(class_ex) != class_ex {
         return Err(fail());
     }
@@ -1037,7 +1088,7 @@ pub async fn give_reward(
     ])
 }
 
-fn inventory_packet(
+pub(super) fn inventory_packet(
     slots: Vec<Option<crate::protocol::inventory::Slot>>,
 ) -> Result<OutgoingPacket, MinimumError> {
     use crate::protocol::inventory::{self as inv, Kind as InvKind, Message as InvMessage};
@@ -1059,7 +1110,9 @@ pub fn player_killed(mission: &mut Mission, tag: i32) -> bool {
         return false;
     }
     mission.alive = false;
-    mission.events.push("player_dead".to_owned());
+    mission
+        .events
+        .push((mission.completion.cid, "player_dead".to_owned()));
     true
 }
 
@@ -1109,7 +1162,9 @@ pub fn prop_broken(
     if let Some(group) = group
         && attacker == slot
     {
-        mission.events.push(format!("destroyprop {group}"));
+        mission
+            .events
+            .push((mission.completion.cid, format!("destroyprop {group}")));
     }
     Ok(vec![packet(&Message::DropErg(DropErg {
         broken_prop: prop,
@@ -1195,8 +1250,9 @@ pub fn apply_effect(
     }
     for (who, (effect, _, _)) in &list {
         if matches!(effect, 1 | 2) && *who == slot {
-            mission.events.push("reviving".to_owned());
-            mission.events.push("revived".to_owned());
+            let cid = mission.completion.cid;
+            mission.events.push((cid, "reviving".to_owned()));
+            mission.events.push((cid, "revived".to_owned()));
             mission.alive = true;
         }
     }
@@ -1256,13 +1312,16 @@ pub fn use_consumable(
     let (class, draft) = (row.1.clone(), row.4);
     let packets = apply_effect(mission, contents, tag, 0, &class, 1)?;
     let free = mission.settings.iter().any(|(k, _)| k == "ConsumableFree") || draft == 0;
-    mission.events.push(format!(
+    mission.events.push((
+        mission.completion.cid,
+        format!(
         "use consumable {} {class} 1",
         if part >= 100 {
             "QuickSlot"
         } else {
             "SubWeapon"
         }
+    ),
     ));
     Ok(Some(((!free).then_some(class), packets)))
 }

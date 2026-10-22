@@ -4,6 +4,7 @@
 //! GameStartGranted. Drops (evil cores, weak points, treasure maps, gold) are not ported:
 //! ItemDropEntity and WeakPointEntity stay empty and TreasureBoxMaxCount is 0.
 use super::feature_policy::FeaturePolicy;
+use super::mission_goal::{GoalError, GoalInfo, QuestGoal, TargetTracker};
 use regex::{Regex, RegexBuilder};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
@@ -113,6 +114,12 @@ pub struct MissionTables {
     pub material_groups: Vec<(i32, Option<String>)>,
     /// MicroPlayEffectInfo: EffectSource, EffectOperation, EffectTarget, EffectTargetAmount, Effect1..5.
     pub effects: Vec<EffectRow>,
+    /// QuestGoalInfo tracking, reward, AP and weight columns.
+    pub goal_infos: Vec<GoalInfo>,
+    /// QuestDifficultyInfo: QuestID, Difficulty, GoalExpRatio, GoalGoldRatio, MaxLevel, Feature.
+    pub difficulty_rewards: Vec<DifficultyRewardRow>,
+    /// QuestInfo: ID, MinClearTime, FreeQuest.
+    pub quest_rewards: Vec<(Option<String>, Option<i32>, bool)>,
 }
 /// MicroPlayEffectInfo row.
 pub type EffectRow = (
@@ -122,6 +129,8 @@ pub type EffectRow = (
     i32,
     Vec<Option<String>>,
 );
+/// QuestDifficultyInfo: QuestID, Difficulty, GoalExpRatio, GoalGoldRatio, MaxLevel, Feature.
+pub type DifficultyRewardRow = (Option<String>, i32, i32, i32, i32, Option<String>);
 /// QuestDifficultyInfo: QuestID, Difficulty, GameMode, EvilCoreCount, Feature.
 pub type DifficultyRow = (Option<String>, i32, i32, i32, Option<String>);
 /// MonsterDropItemInfo row.
@@ -180,6 +189,9 @@ pub struct QuestDigest {
     pub required_phase: Option<String>,
     pub disable_user_ship: bool,
     pub required_item: Option<String>,
+    /// MinClearTime.Value (minutes).
+    pub min_clear_time: i32,
+    pub is_free_quest: bool,
 }
 impl QuestDigest {
     pub fn solo_mode(&self) -> bool {
@@ -701,6 +713,14 @@ pub struct MissionContents {
     lucky_bonus: bool,
     rare_core_rarity: i32,
     boss_evil_core_bonus: i32,
+    /// QuestGoalInfo by goal ID.
+    goal_infos: BTreeMap<i32, GoalInfo>,
+    /// Feature-enabled QuestDifficultyInfo: (QuestID, Difficulty) → (GoalExpRatio, GoalGoldRatio, MaxLevel).
+    difficulty_rewards: BTreeMap<(String, i32), (i32, i32, i32)>,
+    /// QuestInfo: MinClearTime and FreeQuest.
+    quest_rewards: BTreeMap<String, (Option<i32>, bool)>,
+    /// MicroPlayContents.StorySectors (Sectors rows with Sequence ≤ 0) by SectorID.
+    story_sectors: BTreeMap<i32, SectorBase>,
 }
 
 const MAX_TARGET_PATTERN: usize = 512;
@@ -749,11 +769,36 @@ impl MissionContents {
         // SectorBase per Sectors row (Sequence ≤ 0 are story sectors), grouped per quest.
         let mut builders: BTreeMap<String, SectorBuilder> = BTreeMap::new();
         let mut order: Vec<String> = Vec::new();
+        let mut story: Vec<(String, SectorBase)> = Vec::new();
         for (quest, sequence, sector_id, bsp, weight, gold_drop_total, gold_drop_per_prop) in
             t.sectors
         {
             let quest = quest.ok_or(MissionError::Content)?;
-            if sequence <= 0 || towers.contains(&quest) {
+            if sequence <= 0 {
+                // StorySectors.Add throws on a repeated SectorID.
+                if story.iter().any(|(_, s)| s.sector_id == sector_id) {
+                    return Err(MissionError::Content);
+                }
+                story.push((
+                    quest,
+                    SectorBase {
+                        sector_id,
+                        gold_drop_total,
+                        gold_drop_per_prop,
+                        bsp,
+                        group_id: sequence,
+                        weight,
+                        entity_string: String::new(),
+                        objects: Vec::new(),
+                        random_spawn: Vec::new(),
+                        random_boxes: Vec::new(),
+                        connections: Vec::new(),
+                        save_required: false,
+                    },
+                ));
+                continue;
+            }
+            if towers.contains(&quest) {
                 continue;
             }
             let builder = builders.entry(quest.clone()).or_insert_with(|| {
@@ -838,6 +883,31 @@ impl MissionContents {
                     }
                 }
             }
+        }
+        // StorySectors after the sequence builders, with the targets of their QuestID.
+        let mut story_sectors = BTreeMap::new();
+        for (quest, mut sector) in story {
+            let targets = quests
+                .get(&quest)
+                .map(|q| q.targets.clone())
+                .unwrap_or_default();
+            for attributes in by_sector.get(&sector.sector_id).into_iter().flatten() {
+                serial = serial.checked_add(1).ok_or(MissionError::Content)?;
+                entities.push(MapEntity {
+                    id: serial,
+                    attributes: attributes.clone(),
+                });
+                initialize_entity(
+                    &mut sector,
+                    entities.len() - 1,
+                    &entities,
+                    &targets,
+                    &named_props,
+                    (gathering, gathering_rare),
+                    &enabled,
+                )?;
+            }
+            story_sectors.insert(sector.sector_id, sector);
         }
         // ToDoubleDictionary(MonsterType, Difficulty): a duplicate throws while loading.
         let mut monsters: BTreeMap<String, Vec<(i32, MonsterInfo)>> = BTreeMap::new();
@@ -958,6 +1028,25 @@ impl MissionContents {
                 .or_default()
                 .push(element);
         }
+        let mut goal_infos = BTreeMap::new();
+        for info in t.goal_infos {
+            if goal_infos.insert(info.id, info).is_some() {
+                return Err(MissionError::Content);
+            }
+        }
+        let mut difficulty_rewards = BTreeMap::new();
+        for (quest, difficulty, exp, gold, max_level, feature) in t.difficulty_rewards {
+            if enabled(feature.as_deref())? {
+                difficulty_rewards.insert(
+                    (quest.ok_or(MissionError::Content)?, difficulty),
+                    (exp, gold, max_level),
+                );
+            }
+        }
+        let mut quest_rewards = BTreeMap::new();
+        for (quest, min_clear_time, free) in t.quest_rewards {
+            quest_rewards.insert(quest.ok_or(MissionError::Content)?, (min_clear_time, free));
+        }
         let lucky_bonus = enabled(Some("LuckyBonus"))?;
         let rare_core_rarity = policy
             .get_integer("RareCoreEffectRarity")
@@ -983,7 +1072,69 @@ impl MissionContents {
             lucky_bonus,
             rare_core_rarity,
             boss_evil_core_bonus,
+            goal_infos,
+            difficulty_rewards,
+            quest_rewards,
+            story_sectors,
         })
+    }
+
+    /// GetQuestGoalInfos order: the QuestGoalInfo rows of the quest with their columns.
+    pub fn quest_goals(&self, quest: &str) -> Result<Vec<QuestGoal<'_>>, MissionError> {
+        let Some(entry) = self.quests.get(quest) else {
+            return Ok(Vec::new());
+        };
+        entry
+            .goals
+            .iter()
+            .map(|g| {
+                Ok(QuestGoal {
+                    id: g.1,
+                    relation: g.2,
+                    target: g.3.as_deref(),
+                    game_setting: g.4.as_deref(),
+                    info: self.goal_infos.get(&g.1).ok_or(MissionError::Content)?,
+                })
+            })
+            .collect()
+    }
+
+    /// MicroPlay.InitializeTracker: TargetTracker over GetQuestGoalInfos(QuestID, SwearID).
+    pub fn tracker(
+        &self,
+        quest: &str,
+        swear_id: i32,
+        cids: &[i64],
+    ) -> Result<TargetTracker, MissionError> {
+        let goals = self.quest_goals(quest)?;
+        TargetTracker::new(&goals, swear_id, cids).map_err(|e| match e {
+            GoalError::Content | GoalError::Duplicate => MissionError::Content,
+        })
+    }
+
+    pub fn goal_info(&self, goal: i32) -> Option<&GoalInfo> {
+        self.goal_infos.get(&goal)
+    }
+
+    /// QuestDifficultyInfo GoalExpRatio, GoalGoldRatio and MaxLevel.
+    pub fn difficulty_reward(&self, quest: &str, difficulty: i32) -> Option<(i32, i32, i32)> {
+        self.difficulty_rewards
+            .get(&(quest.to_owned(), difficulty))
+            .copied()
+    }
+
+    /// QuestDifficultyInfo GameMode and EvilCoreCount.
+    pub fn difficulty_info(&self, quest: &str, difficulty: i32) -> Option<(i32, i32)> {
+        self.difficulties
+            .get(&(quest.to_owned(), difficulty))
+            .copied()
+    }
+
+    /// MicroPlayContents.GetStorySector: BSP and EntityString.
+    pub fn story_sector(&self, sector: i32) -> Option<(&str, &str)> {
+        self.story_sectors
+            .get(&sector)
+            .map(|s| (s.bsp.as_deref().unwrap_or(""), s.entity_string.as_str()))
     }
 
     /// MicroPlayContents.GetMonsterInfo: "class variation [weight]" without the weight,
@@ -1054,7 +1205,17 @@ impl MissionContents {
             required_phase: r.10.clone(),
             disable_user_ship: r.13,
             required_item: r.14.clone(),
+            // QuestContentsExtension: MinClearTime.Value throws when null.
+            min_clear_time: 0,
+            is_free_quest: false,
         };
+        match self.quest_rewards.get(quest) {
+            Some((Some(min), free)) => {
+                d.min_clear_time = *min;
+                d.is_free_quest = *free;
+            }
+            _ => return Err(MissionError::Content),
+        }
         for g in &entry.goals {
             if g.2 != 2 || g.1 != swear_id {
                 continue;

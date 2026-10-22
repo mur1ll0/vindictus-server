@@ -964,6 +964,64 @@ impl NpcScripts {
     pub fn story_line(&self, id: &str) -> Option<&StoryLine> {
         self.story_lines.iter().find(|l| l.info.id == id)
     }
+    /// StoryEntity.NotifyEvent(Event_QuestFinished): for each progress, the first OnEvent
+    /// handler of its phase whose conditions all hold runs its commands: goto_phase moves
+    /// the progress (OnEnterPhase queries are not migrated and only counted) and
+    /// story_sector sets the returned sector (−1 when absent or unparsable).
+    pub fn quest_finished(&self, progress: &mut [Progress], event: &QuestFinished<'_>) -> EventOutcome {
+        let mut outcome = EventOutcome {
+            changed: false,
+            story_sector: -1,
+            skipped_on_enter: 0,
+        };
+        for p in progress.iter_mut() {
+            let Some(line) = self.story_line(&p.story_line) else {
+                continue;
+            };
+            let Some(phase) = p.phase.as_deref().and_then(|id| line.phase(id)) else {
+                continue;
+            };
+            let Some(handler) = phase.events.iter().find(|h| {
+                h.children
+                    .iter()
+                    .filter(|c| !matches!(c.name.as_str(), "goto_phase" | "story_sector"))
+                    .all(|c| event.satisfies(c))
+            }) else {
+                continue;
+            };
+            let mut target = None;
+            for c in &handler.children {
+                let arg1 = c
+                    .attribute("arg1")
+                    .map(|a| a.trim().replace("\\n", "\n"))
+                    .unwrap_or_else(|| {
+                        c.text
+                            .split(',')
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .replace("\\n", "\n")
+                    });
+                match c.name.as_str() {
+                    "goto_phase" => {
+                        if let Some(next) = line.phase(&arg1) {
+                            target = Some(next);
+                        }
+                    }
+                    "story_sector" => outcome.story_sector = arg1.parse().unwrap_or(-1),
+                    _ => {}
+                }
+                if let Some(next) = target.take() {
+                    p.phase = Some(next.id.clone());
+                    outcome.changed = true;
+                    if next.on_enter.is_some() {
+                        outcome.skipped_on_enter += 1;
+                    }
+                }
+            }
+        }
+        outcome
+    }
     /// GetAutoGiveStoryLines_ForLogin: AutoGiveStoryLines keys (first-seen level order)
     /// with level <= the character level, each list in table order.
     pub fn auto_give_for_login(&self, level: i32) -> Vec<&StoryLine> {
@@ -992,6 +1050,52 @@ pub struct Progress {
     pub story_line: String,
     pub phase: Option<String>,
     pub status: u8,
+}
+
+/// Event_QuestFinished of RewardCharacter.
+#[derive(Clone, Copy, Debug)]
+pub struct QuestFinished<'a> {
+    pub quest: &'a str,
+    pub success: bool,
+    /// MicroPlayer.BossKilled: monster type → kills.
+    pub boss_killed: &'a [(String, i32)],
+    pub is_host: bool,
+}
+impl QuestFinished<'_> {
+    /// IEventCondition.IsSatisfiedBy for the conditions an OnEvent element can hold.
+    fn satisfies(&self, condition: &Element) -> bool {
+        let value = condition.text.trim();
+        match condition.name.as_str() {
+            "QuestCleared_Host" => self.is_host && self.quest == value && self.success,
+            "QuestCleared" => self.quest == value && self.success,
+            "QuestFailed" => self.quest == value && !self.success,
+            "MonsterKilled" => {
+                let mut parts = condition.text.split(',');
+                let (Some(monster), Some(count)) = (parts.next(), parts.next()) else {
+                    return false;
+                };
+                let Ok(count) = count.trim().parse::<i32>() else {
+                    return false;
+                };
+                self.boss_killed
+                    .iter()
+                    .find(|(m, _)| m == monster)
+                    .map_or(0, |(_, n)| *n)
+                    >= count
+            }
+            // PvpCleared/PvpFailed and Level hold only for their own events.
+            _ => false,
+        }
+    }
+}
+
+/// NotifyEvent result: a progress moved, the story sector command and the OnEnterPhase
+/// queries left unprocessed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EventOutcome {
+    pub changed: bool,
+    pub story_sector: i32,
+    pub skipped_on_enter: usize,
 }
 /// NpcInfo/StoryInfo projection of NpcManager.GetBuildingList.
 #[derive(Clone, Debug, PartialEq, Eq)]

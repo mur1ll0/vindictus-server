@@ -40,6 +40,13 @@ pub enum Kind {
     UseConsumable,
     PlayerRevived,
     ApplyMicroPlayEffects,
+    MicroPlayEvent,
+    QuestTargetResult,
+    QuestSuccessSceneStart,
+    FinishGame,
+    ReturnToTown,
+    ReturnFromQuest,
+    Kicked,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -72,6 +79,13 @@ impl Kind {
             Self::UseConsumable => 624,
             Self::PlayerRevived => 555,
             Self::ApplyMicroPlayEffects => 403,
+            Self::MicroPlayEvent => 362,
+            Self::QuestTargetResult => 295,
+            Self::QuestSuccessSceneStart => 550,
+            Self::FinishGame => 460,
+            Self::ReturnToTown => 445,
+            Self::ReturnFromQuest => 402,
+            Self::Kicked => 471,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -104,6 +118,13 @@ impl Kind {
             Self::UseConsumable => 0x8cf9f82f_0433_31a7_b88d_d61b71ee61ee,
             Self::PlayerRevived => 0x0441624d_0d61_3f4d_8194_090df4655d18,
             Self::ApplyMicroPlayEffects => 0x10c709a9_28c3_328e_8dfa_6bb6f5ecc0c8,
+            Self::MicroPlayEvent => 0x52a3dbeb_8337_3288_9005_5557bfa8e7e0,
+            Self::QuestTargetResult => 0xbfed3fca_9934_374f_b39d_cebb0729e57f,
+            Self::QuestSuccessSceneStart => 0x62db5582_deb3_34e7_98e2_3fd6692deca6,
+            Self::FinishGame => 0x4bc1c4f0_07af_3449_9246_f7a5e68f76a2,
+            Self::ReturnToTown => 0x702a1018_f1b5_3c8e_ad51_e46ef0846aed,
+            Self::ReturnFromQuest => 0x6764d890_113e_3d4d_9d96_24c0087489c3,
+            Self::Kicked => 0x4df74867_68cb_3431_8177_ce7549890ddd,
         })
     }
 }
@@ -621,6 +642,75 @@ pub struct ApplyMicroPlayEffects {
     pub effect_name: Option<String>,
     pub effects: Option<Vec<Option<MicroPlayEffect>>>,
 }
+/// MicroPlayEventMessage (host): a client quest event string for the goal trackers.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MicroPlayEvent {
+    pub slot: i32,
+    pub event: Option<String>,
+}
+/// QuestTargetResultMessage. The original constructor never sets IsQuestSuccess.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuestTargetResult {
+    pub character_name: Option<String>,
+    pub goal_id: i32,
+    pub is_goal_success: bool,
+    pub is_quest_success: bool,
+    pub exp: i32,
+    pub gold: i32,
+    pub ap: i32,
+}
+/// SummaryGoalInfo.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SummaryGoal {
+    pub goal_id: i32,
+    pub exp: i32,
+    pub gold: i32,
+    pub ap: i32,
+}
+/// SummaryRewardInfo: a described reward line of the result screen.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SummaryReward {
+    pub desc: Option<String>,
+    pub arg1: i32,
+    pub arg2: i32,
+    pub value: i32,
+}
+/// QuestSummaryInfo; `result` is MicroPlayResult (byte enum).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuestSummary {
+    pub quest_id: Option<String>,
+    pub swear_id: i32,
+    pub is_today_quest: bool,
+    pub result: u8,
+    pub last_progress: i32,
+    pub current_progress: i32,
+    pub cleared_goals: Dict<Option<SummaryGoal>>,
+    pub battle_exp: Option<Vec<Option<SummaryReward>>>,
+    pub etc_exp: Option<Vec<Option<SummaryReward>>>,
+    pub main_gold: Option<Vec<Option<SummaryReward>>>,
+    pub etc_gold: Option<Vec<Option<SummaryReward>>>,
+    pub quest_ap: Option<Vec<Option<SummaryReward>>>,
+    pub etc_ap: Option<Vec<Option<SummaryReward>>>,
+    pub exp: i32,
+    pub gold: i32,
+    pub ap: i32,
+    pub reward_item: StrDict<i32>,
+}
+/// FinishGameMessage: the quest result screen.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FinishGame {
+    pub summary: Option<QuestSummary>,
+    pub has_story_sector: bool,
+    pub can_restart: bool,
+    pub can_continue_finished_quest: bool,
+}
+/// ReturnFromQuestMessage; `order` is ReturnFromQuestType (ToTown 0, ToShip 1, ToStorySector 2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReturnFromQuest {
+    pub order: i32,
+    pub story_sector_bsp: Option<String>,
+    pub story_sector_entity: Option<String>,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     AcceptQuest(AcceptQuest),
@@ -653,6 +743,13 @@ pub enum Message {
     UseConsumable(UseConsumable),
     PlayerRevived(PlayerRevived),
     ApplyMicroPlayEffects(ApplyMicroPlayEffects),
+    MicroPlayEvent(MicroPlayEvent),
+    QuestTargetResult(QuestTargetResult),
+    QuestSuccessSceneStart,
+    FinishGame(FinishGame),
+    ReturnToTown,
+    ReturnFromQuest(ReturnFromQuest),
+    Kicked,
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -685,6 +782,13 @@ impl Message {
             Self::UseConsumable(_) => Kind::UseConsumable,
             Self::PlayerRevived(_) => Kind::PlayerRevived,
             Self::ApplyMicroPlayEffects(_) => Kind::ApplyMicroPlayEffects,
+            Self::MicroPlayEvent(_) => Kind::MicroPlayEvent,
+            Self::QuestTargetResult(_) => Kind::QuestTargetResult,
+            Self::QuestSuccessSceneStart => Kind::QuestSuccessSceneStart,
+            Self::FinishGame(_) => Kind::FinishGame,
+            Self::ReturnToTown => Kind::ReturnToTown,
+            Self::ReturnFromQuest(_) => Kind::ReturnFromQuest,
+            Self::Kicked => Kind::Kicked,
         }
     }
 }
@@ -1000,6 +1104,58 @@ object!(ApplyMicroPlayEffects {
     effect_name,
     effects
 });
+object!(MicroPlayEvent { slot, event });
+object!(QuestTargetResult {
+    character_name,
+    goal_id,
+    is_goal_success,
+    is_quest_success,
+    exp,
+    gold,
+    ap
+});
+object!(SummaryGoal {
+    goal_id,
+    exp,
+    gold,
+    ap
+});
+object!(SummaryReward {
+    desc,
+    arg1,
+    arg2,
+    value
+});
+object!(QuestSummary {
+    quest_id,
+    swear_id,
+    is_today_quest,
+    result,
+    last_progress,
+    current_progress,
+    cleared_goals,
+    battle_exp,
+    etc_exp,
+    main_gold,
+    etc_gold,
+    quest_ap,
+    etc_ap,
+    exp,
+    gold,
+    ap,
+    reward_item
+});
+object!(FinishGame {
+    summary,
+    has_story_sector,
+    can_restart,
+    can_continue_finished_quest
+});
+object!(ReturnFromQuest {
+    order,
+    story_sector_bsp,
+    story_sector_entity
+});
 pub fn encode(
     kind: Kind,
     message: Option<&Message>,
@@ -1045,6 +1201,13 @@ pub fn encode(
                 Message::UseConsumable(v) => v.write(&mut w)?,
                 Message::PlayerRevived(v) => v.write(&mut w)?,
                 Message::ApplyMicroPlayEffects(v) => v.write(&mut w)?,
+                Message::MicroPlayEvent(v) => v.write(&mut w)?,
+                Message::QuestTargetResult(v) => v.write(&mut w)?,
+                Message::QuestSuccessSceneStart => {}
+                Message::FinishGame(v) => v.write(&mut w)?,
+                Message::ReturnToTown => {}
+                Message::ReturnFromQuest(v) => v.write(&mut w)?,
+                Message::Kicked => {}
             }
         }
     }
@@ -1099,6 +1262,13 @@ pub fn decode(
             Kind::ApplyMicroPlayEffects => {
                 Message::ApplyMicroPlayEffects(ApplyMicroPlayEffects::read(&mut r)?)
             }
+            Kind::MicroPlayEvent => Message::MicroPlayEvent(MicroPlayEvent::read(&mut r)?),
+            Kind::QuestTargetResult => Message::QuestTargetResult(QuestTargetResult::read(&mut r)?),
+            Kind::QuestSuccessSceneStart => Message::QuestSuccessSceneStart,
+            Kind::FinishGame => Message::FinishGame(FinishGame::read(&mut r)?),
+            Kind::ReturnToTown => Message::ReturnToTown,
+            Kind::ReturnFromQuest => Message::ReturnFromQuest(ReturnFromQuest::read(&mut r)?),
+            Kind::Kicked => Message::Kicked,
         })
     };
     if !r.remaining.is_empty() {

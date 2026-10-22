@@ -570,6 +570,50 @@ pub(super) async fn level_up(
     ])
 }
 
+/// RewardCharacter's StoryEntity.NotifyEvent(Event_QuestFinished) in the caller's
+/// transaction: the moved progress rows, then SyncStoryProgress when one moved. Returns
+/// the story sector ID (−1 without one).
+pub(super) async fn quest_finished(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    event: &crate::domain::npc_script::QuestFinished<'_>,
+) -> Result<(i32, Vec<OutgoingPacket>), MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let mut rows = progress(tx, cid).await?;
+    let original = rows.clone();
+    let outcome = npc.scripts.quest_finished(&mut rows, event);
+    if outcome.skipped_on_enter > 0 {
+        tracing::warn!(
+            phases = outcome.skipped_on_enter,
+            "story OnEnterPhase after a quest event is not migrated; values omitted"
+        );
+    }
+    if !outcome.changed {
+        return Ok((outcome.story_sector, Vec::new()));
+    }
+    for (p, o) in rows.iter().zip(&original) {
+        if p == o {
+            continue;
+        }
+        sqlx::query("UPDATE game_story_progress SET phase_utf16=$3,status=$4,last_update_units300=floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT WHERE cid=$1 AND story_line_utf16=$2")
+            .bind(cid)
+            .bind(utf16(&p.story_line))
+            .bind(p.phase.as_deref().map(utf16))
+            .bind(i16::from(p.status))
+            .execute(&mut **tx)
+            .await?;
+    }
+    let c = character(tx, cid).await?;
+    Ok((
+        outcome.story_sector,
+        vec![
+            story_lines_packet(npc, &rows, c.hint)?,
+            npc_list_packet(&npc.scripts, &npc.policy, &rows)?,
+        ],
+    ))
+}
+
 /// Packets of the query outputs in source order; item effects run in the caller's
 /// transaction, so a failed give (no mail fallback) refuses the whole request.
 #[allow(clippy::too_many_arguments)]

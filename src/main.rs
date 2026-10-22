@@ -82,6 +82,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
             .ok_or_else(|| Error::Configuration("profile has no mission tables".into()))?;
         let (mut built, mut unsupported, mut failed, mut sectors, mut over) = (0, 0, 0, 0, 0);
         let mut no_difficulty = 0;
+        let (mut trackers_failed, mut uncompiled) = (0, 0);
         let mut largest = 0_usize;
         for quest in contents.quest_ids() {
             // CheckConstraint answers NoSuchDifficulty before any sequence is built.
@@ -92,6 +93,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
             match minimum_mission::preview(contents, quest, -1, *difficulty, false) {
                 Ok(granted) => {
                     built += 1;
+                    // InitializeTracker of the quest without a swear.
+                    match contents.tracker(quest, -1, &[1]) {
+                        Ok(t) => uncompiled += t.uncompiled,
+                        Err(e) => {
+                            trackers_failed += 1;
+                            eprintln!("{quest}: tracker {e}");
+                        }
+                    }
                     sectors += granted
                         .sectors
                         .as_ref()
@@ -120,7 +129,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         }
         println!(
             "{}",
-            serde_json::json!({"quests_built":built,"unsupported":unsupported,"no_difficulty":no_difficulty,"failed":failed,"sectors":sectors,"largest_body":largest,"over_default_body":over,"database_opened":false,"listener_opened":false})
+            serde_json::json!({"quests_built":built,"trackers_failed":trackers_failed,"uncompiled_targets":uncompiled,"unsupported":unsupported,"no_difficulty":no_difficulty,"failed":failed,"sectors":sectors,"largest_body":largest,"over_default_body":over,"database_opened":false,"listener_opened":false})
         );
         return Ok(());
     }

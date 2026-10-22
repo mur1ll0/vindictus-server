@@ -233,6 +233,16 @@ def read_package(base, database, config):
                                [nullable_text(r['Effect' + str(i)]) for i in range(1, 6)]] for r in db.execute('Select * From [MicroPlayEffectInfo]')]
         mission['quest_difficulties'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GameMode']), int32(r['EvilCoreCount']), nullable_text(r['Feature'])]
                                          for r in db.execute('Select * From [QuestDifficultyInfo]')]
+        # QuestGoalInfo tracking, reward and AP columns (TrackingElement, AddQuestGoalReward,
+        # GetAP/AddClearCount, CalculateQuestStatus), QuestDifficultyInfo goal ratios and
+        # MaxLevel, and QuestInfo MinClearTime/FreeQuest of the digest.
+        mission['goal_infos'] = [[int32(r['ID']), nullable_int32(r['TargetCount']), int32(r['IsPositive']), int32(r['IsParty']), int32(r['Gold']), int32(r['XP']),
+                                  int32(r['MaxAP']), int32(r['MinAP']), int32(r['StepAP']), int32(r['APRegenTime']), int32(r['APRegenMax']), nullable_text(r['Item']),
+                                  int32(r['ItemNum']), nullable_text(r['ItemMultiplierFeature']), int32(r['ItemMultiplier']), int32(r['Weight'])]
+                                 for r in db.execute('Select * From [QuestGoalInfo]')]
+        mission['difficulty_rewards'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GoalExpRatio']), int32(r['GoalGoldRatio']), int32(r['MaxLevel']), nullable_text(r['Feature'])]
+                                         for r in db.execute('Select * From [QuestDifficultyInfo]')]
+        mission['quest_rewards'] = [[nullable_text(r['ID']), nullable_int32(r['MinClearTime']), flag(r['FreeQuest'])] for r in db.execute('Select * From [QuestInfo]')]
         dropped = {(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']} | {'javelin_lvl0'}
         mission['drop_classes'] = [[nullable_text(r['ItemClass']), int32(r['Rarity']), int32(r['ClassRestriction']), nullable_text(r['Feature'])]
                                    for r in db.execute('Select * From [ItemClassInfo]') if r['ItemClass'] in dropped]
@@ -253,9 +263,15 @@ def read_package(base, database, config):
         wanted |= feature_atoms(q['Feature'] or ''); wanted |= feature_atoms(q['EnableTodayQuest'] or '')
     for d in quests['difficulties']: wanted |= feature_atoms(d[3] or '')
     wanted |= {'Gathering', 'GatheringRare', 'AntiSectorSkip', 'bossevilcore_bonus', 'ExpRate_Monster', 'MDRSystem_V1', 'MDRSystem_V2',
-               'MDRSystem_ActionFilter', 'DirectCollectCoin', 'AntiSectorFail', 'FatigueSystem', 'LuckyBonus', 'RareCoreEffectRarity'}
+               'MDRSystem_ActionFilter', 'DirectCollectCoin', 'AntiSectorFail', 'FatigueSystem', 'LuckyBonus', 'RareCoreEffectRarity',
+               'ExpRate_Combat', 'GoldRate_Combat', 'APRate_Combat', 'MicroPlayFinishTime', 'CheckMinClearTime', 'FreeRepeatPenalty',
+               'Event_RewardItemRate', 'ChristmasCounterEvent', 'ChristmasCounterEvent_EXP_Rate', 'ChristmasCounterEvent_Gold_Rate',
+               'ChristmasCounterEvent_AP_Rate', 'SubCharacter_totd', 'RandomItemBundle', 'ExtremeMode', 'Event_Worldcup2010', 'CharacterRank',
+               'Event_Jumpingbuff', 'DormantAccount_ver2', 'FriendshipSystem', 'AllUserGoalEvent'}
     for d in mission['monster_drops']: wanted |= feature_atoms(d[8] or '')
     for d in mission['quest_difficulties']: wanted |= feature_atoms(d[4] or '')
+    for d in mission['difficulty_rewards']: wanted |= feature_atoms(d[5] or '')
+    for g in mission['goal_infos']: wanted |= feature_atoms(g[13] or '')
     for d in mission['drop_classes']: wanted |= feature_atoms(d[3] or '')
     for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')

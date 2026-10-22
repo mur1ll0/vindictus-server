@@ -5,6 +5,9 @@ use vindictus_server::domain::{
         Consumable, ItemSlotInfo, MissionContents, MissionError, MissionRandom, MissionTables,
         SlotSource, battle_inventory, multiplier,
     },
+    mission_goal::{
+        self as goal, Achieved, GoalInfo, GoalTrigger, RewardFacts, RewardLists, TargetTracker,
+    },
 };
 
 /// Scripted System.Random: queued values, then the given fallbacks.
@@ -100,6 +103,9 @@ fn tables() -> MissionTables {
             (s("quest_a"), 8, 2, None, s("TimeLimit"), Some(12)),
             (s("quest_a"), 8, 2, None, s("HardMode"), None),
             (s("quest_a"), 9, 0, s("potion_.*"), s("ItemLimit"), Some(1)),
+            (s("quest_a"), 2, 1, s("get item potion"), None, None),
+            (s("quest_a"), 3, 1, s("player_dead"), None, None),
+            (s("quest_a"), 4, 1, s("kill (?(?=x)y|z)"), None, None),
         ],
         sectors: vec![
             (s("quest_a"), 1, 10, s("01a"), 30, 0, 0),
@@ -208,6 +214,10 @@ fn tables() -> MissionTables {
                     ("max", "2"),
                 ]),
             ),
+            (
+                13,
+                attrs(&[("classname", "info_player_start"), ("origin", "1 2 3")]),
+            ),
         ],
         named_props: vec!["barrel".to_owned()],
         settings: vec![(1, Some(1008), s("Tower"), s(""))],
@@ -302,6 +312,68 @@ fn tables() -> MissionTables {
                 vec![s("ReduceMinClearTime 5")],
             ),
         ],
+        goal_infos: vec![
+            GoalInfo {
+                id: 1,
+                target_count: Some(1),
+                is_positive: 1,
+                is_party: 1,
+                gold: 100,
+                xp: 2000,
+                max_ap: 10,
+                min_ap: 2,
+                step_ap: 3,
+                ap_regen_time: 60,
+                ap_regen_max: 8,
+                item: s("reward_box;bonus_box"),
+                item_num: 2,
+                item_multiplier_feature: s("Gathering"),
+                item_multiplier: 3,
+                weight: 50,
+            },
+            GoalInfo {
+                id: 2,
+                target_count: Some(2),
+                is_positive: 1,
+                xp: 500,
+                gold: 40,
+                max_ap: 4,
+                min_ap: 4,
+                item: s("sub_item"),
+                item_num: 1,
+                weight: 20,
+                ..GoalInfo::default()
+            },
+            GoalInfo {
+                id: 3,
+                target_count: Some(1),
+                is_party: 1,
+                xp: 300,
+                weight: 10,
+                ..GoalInfo::default()
+            },
+            GoalInfo {
+                id: 4,
+                target_count: Some(1),
+                is_party: 1,
+                ..GoalInfo::default()
+            },
+            GoalInfo {
+                id: 7,
+                ..GoalInfo::default()
+            },
+            GoalInfo {
+                id: 8,
+                is_party: 1,
+                ..GoalInfo::default()
+            },
+            GoalInfo {
+                id: 9,
+                ..GoalInfo::default()
+            },
+        ],
+        difficulty_rewards: vec![(s("quest_a"), 1, 15000, 5000, 40, None)],
+        quest_rewards: vec![(s("quest_a"), Some(3), true), (s("quest_tower"), Some(0), false)],
     }
 }
 
@@ -873,4 +945,160 @@ fn micro_play_effects_parse_like_the_element_loader() {
         vec![s("Revive many")],
     ));
     assert!(MissionContents::load(bad, &policy()).is_err());
+}
+
+#[test]
+fn target_tracker_triggers_like_the_original() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let d = contents.digest("quest_a", -1).unwrap();
+    assert_eq!((d.min_clear_time, d.is_free_quest), (3, true));
+    let mut missing = tables();
+    missing.quest_rewards[0].1 = None;
+    let missing = MissionContents::load(missing, &policy()).unwrap();
+    assert!(missing.digest("quest_a", -1).is_err());
+    // Swear 8 has game settings: it becomes the setting swear, not a tracked target.
+    let mut t: TargetTracker = contents.tracker("quest_a", 8, &[77]).unwrap();
+    assert_eq!(t.essential_left, [1]);
+    assert_eq!(t.setting_swear, Some((8, 2, true)));
+    assert!(!t.is_single_boss);
+    // The conditional pattern is rejected by the engine and never matches.
+    assert_eq!(t.uncompiled, 1);
+    // Patterns are case-sensitive.
+    assert!(t.process(77, "kill npc_gnoll CHIEF").is_empty());
+    let boss = t.process(5, "kill npc_gnoll chief");
+    assert_eq!(
+        boss,
+        [GoalTrigger {
+            cid: -1,
+            goal: 1,
+            relation: 0,
+            is_party: true,
+            success: true,
+            main_goal_achieved: true
+        }]
+    );
+    // Individual goals count only for their player and trigger once at the target.
+    assert!(t.process(5, "get item potion").is_empty());
+    assert!(t.process(77, "get item potion").is_empty());
+    let sub = t.process(77, "get item potion_big");
+    assert_eq!((sub[0].cid, sub[0].goal, sub[0].success), (77, 2, true));
+    assert!(t.process(77, "get item potion").is_empty());
+    // OnQuestFinished: the unmet negative goal succeeds, then the party swear.
+    let finished = t.on_quest_finished();
+    let ids: Vec<(i64, i32, bool)> = finished.iter().map(|f| (f.cid, f.goal, f.success)).collect();
+    assert_eq!(ids, [(-1, 3, true), (-1, 4, true), (-1, 8, true)]);
+    // A negative goal reached fails at once.
+    let dead = t.process(77, "player_dead");
+    assert_eq!((dead[0].goal, dead[0].success), (3, false));
+    assert!(t.on_quest_finished().iter().all(|f| f.goal != 3));
+    // A tracked target without TargetCount throws in the original constructor.
+    let mut bad = tables();
+    bad.goal_infos[1].target_count = None;
+    let bad = MissionContents::load(bad, &policy()).unwrap();
+    assert!(bad.tracker("quest_a", -1, &[77]).is_err());
+}
+
+#[test]
+fn goal_rewards_scale_ratios_and_regenerate_ap() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let info = contents.goal_info(1).unwrap();
+    // XP × GoalExpRatio / 10000 × 100 × ExpRate_Combat / 100 (integer steps).
+    let r = goal::goal_reward(info, (15000, 5000), (100, 50, 100), None, false, 1_000);
+    assert_eq!((r.exp, r.gold, r.ap), (300_000, 2_500, 10));
+    assert_eq!(r.item.as_deref(), Some("reward_box;bonus_box"));
+    // Achieved before: MaxAP − StepAP × ClearCount floored at MinAP plus the regeneration
+    // capped by APRegenMax, then APRate_Combat.
+    let minutes = |m: i64| m * 60 * 300;
+    let achieved = Achieved {
+        clear_count: 2,
+        regened_ap: 1,
+        last_clear: 0,
+    };
+    let r = goal::goal_reward(info, (15000, 5000), (100, 100, 50), Some(achieved), false, minutes(125));
+    // base 10 − 6 = 4, regen 1 + 2 = 3 → 7, × 50 %.
+    assert_eq!(r.ap, 3);
+    // A today quest takes MaxAP without the AP rate.
+    let r = goal::goal_reward(info, (15000, 5000), (100, 100, 50), Some(achieved), true, minutes(125));
+    assert_eq!(r.ap, 10);
+    assert_eq!(info.ap(5, 0, 0.0), 2);
+    // AddClearCount: the regenerated AP is banked and the remainder kept on the time.
+    let (mut count, mut regen, mut last) = (1_u8, 0_u8, 0_i64);
+    info.add_clear_count(minutes(150), &mut count, &mut regen, &mut last);
+    assert_eq!((count, regen, last), (2, 1, minutes(120)));
+    // At MinAP the clear count stays and the banked AP pays the step.
+    let (mut count, mut regen, mut last) = (3_u8, 5_u8, 0_i64);
+    info.add_clear_count(minutes(10), &mut count, &mut regen, &mut last);
+    // The time stays on the last regeneration boundary.
+    assert_eq!((count, regen, last), (3, 2, 0));
+    // Empty items and zero counts carry no item.
+    let sub = goal::goal_reward(contents.goal_info(3).unwrap(), (10000, 10000), (100, 100, 100), None, false, 0);
+    assert_eq!((sub.item, sub.item_num, sub.exp), (None, 0, 30_000));
+}
+
+#[test]
+fn reward_calculation_sums_goals_multipliers_and_penalties() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let rate = (100, 100, 100);
+    let mut main = vec![goal::goal_reward(contents.goal_info(1).unwrap(), (100, 100), rate, None, false, 7)];
+    let mut sub = vec![goal::goal_reward(contents.goal_info(2).unwrap(), (10000, 10000), rate, None, false, 8)];
+    let mut facts = RewardFacts {
+        quest_id: "quest_a".into(),
+        level: 30,
+        max_level: 90,
+        quest_level: 3,
+        difficulty: 2,
+        game_mode: 1,
+        main_goal_achieved: true,
+        extreme_mode: true,
+        xe_play_rank: 2,
+        ..RewardFacts::default()
+    };
+    let mut lists = RewardLists::new(&facts);
+    // Quest level 3 < 30 × 0.87 at level 30: the 0 % level penalty.
+    assert_eq!(lists.level_gold_penalty.as_ref().map(|p| p.value), Some(0));
+    lists.add_bonuses(&facts);
+    let enabled = |f: &str| f == "Gathering";
+    let c = goal::calculate(true, &mut main, &mut sub, 1, 1000, &lists, &enabled).unwrap();
+    // Goals: exp 2000 + 50000, main gold 100, sub gold 4000, ap 10 + 4.
+    // EXP: (1000 + 52000) + XERank 50 % + DifficultyBonus 30 %.
+    assert_eq!(c.exp, 53000 + 26500 + 15900);
+    // Gold: 4100 + XERank 1 % + Difficulty 30 %, then the 0 % level penalty.
+    assert_eq!(c.gold, 0);
+    assert_eq!(c.ap, 14);
+    assert_eq!(c.quest_goals, [(1, 7), (2, 8)]);
+    assert_eq!(
+        c.items,
+        [("reward_box".to_owned(), 6), ("bonus_box".to_owned(), 6), ("sub_item".to_owned(), 1)]
+    );
+    assert_eq!(c.summary.cleared_goals, [(1, (2000, 100, 10)), (2, (50000, 4000, 4))]);
+    assert_eq!(c.summary.battle_exp[0].desc, "MonsterKill");
+    let etc_gold: Vec<(&str, i32)> = c.summary.etc_gold.iter().map(|l| (l.desc.as_str(), l.value)).collect();
+    assert_eq!(etc_gold, [("XERankBonus", 41), ("DifficultyBonus", 1230), ("LevelPenalty", -5371)]);
+    // Goals already sent are not sent again; without the main goal only monsters count.
+    let again = goal::calculate(true, &mut main, &mut sub, 1, 0, &RewardLists::default(), &enabled).unwrap();
+    assert!(again.quest_goals.is_empty());
+    let failed = goal::calculate(false, &mut main, &mut sub, 1, 70, &RewardLists::default(), &enabled).unwrap();
+    assert_eq!((failed.exp, failed.gold, failed.ap), (70, 0, 0));
+    assert!(failed.summary.cleared_goals.is_empty());
+    // Practice of the camping penalty: today play count above 10 on a free quest.
+    facts.free_quest = true;
+    facts.today_play_count = 13;
+    assert_eq!(RewardLists::new(&facts).camping_gold_penalty.map(|p| p.value), Some(70));
+    // Progress: goals of this play count, else stored statuses (season 1: Status > 0).
+    let goals = [(1, 50), (2, 20), (3, 10)];
+    assert_eq!(goal::quest_progress(&goals, &[(3, 1)], Some(&[1]), false, 1), 60);
+    assert_eq!(goal::quest_progress(&goals, &[(3, 1), (2, 4)], None, true, 1), 0);
+    assert_eq!(goal::quest_progress(&goals, &[(2, 6)], None, true, 1), 20);
+}
+
+#[test]
+fn story_sectors_keep_their_entity_strings() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let (bsp, entity) = contents.story_sector(13).unwrap();
+    assert_eq!(bsp, "story");
+    assert!(entity.contains("info_player_start"));
+    assert!(contents.story_sector(10).is_none());
+    // Story entities follow the sequence builders' entities.
+    let last = contents.entities().last().unwrap();
+    assert_eq!(last.get("origin"), Some("1 2 3"));
 }

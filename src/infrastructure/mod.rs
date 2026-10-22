@@ -109,6 +109,7 @@ pub mod minimum_give;
 pub mod minimum_growth;
 pub mod minimum_item_logs;
 pub mod minimum_mission;
+pub mod minimum_mission_finish;
 pub mod minimum_move;
 pub mod minimum_quest;
 pub mod minimum_quickslot;

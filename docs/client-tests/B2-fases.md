@@ -55,3 +55,16 @@ Pré-condição: Fiona com poções na barra de atalhos (comprar no B1 e equipar
 - [ ] Morrer e reviver com pena de fênix (se disponível) → a Fiona revive com invencibilidade breve; log "mission revive processed" com `alive=true`.
 - [ ] Ao fim do combate o cliente envia o registro de combate (sem efeito visível agora; aparece no resultado no B2.7).
 Limites conhecidos: a anti-trapaça de dano (MDRSystem) só marca rankings, que não estão migrados; caixas alquímicas na barra continuam recusadas.
+
+### B2.7 — Conclusão da quest, recompensas e volta à cidade
+Pré-condição: quest "quest_gnoll_watchman" (primeira quest), dificuldade normal; anotar EXP, ouro e AP da Fiona antes de entrar.
+- [ ] Ao derrotar o alvo principal (o chefe) → aparece o resultado do objetivo no canto (QuestTargetResult) e a cena de sucesso começa (QuestSuccessSceneStart). Log "mission client event processed" para os eventos do cliente.
+- [ ] Cerca de 30 s depois (MicroPlayFinishTime) → a tela de resultado abre com EXP de monstros, bônus de dificuldade, ouro e AP do objetivo; os núcleos do chefe ainda não chutados entram no inventário antes (mensagens de item obtido). Log "mission jobs processed".
+- [ ] Se o chefe morrer cedo demais para o tempo mínimo da quest → mensagem "muito rápido" e a tela de resultado espera o tempo restante.
+- [ ] Na tela de resultado: o botão de reiniciar não aparece (reinício pelo navio não migrado); "continuar" mantém a Fiona no mapa.
+- [ ] Clicar em voltar à cidade → a Fiona volta para a cidade (KickedMessage + ReturnFromQuest). Log "mission left; returning to town".
+- [ ] Na cidade: EXP/nível, ouro e AP aumentaram conforme a tela de resultado; a quest aparece concluída no diário (progresso 100, clear count 1) e o tempo de conclusão aparece.
+- [ ] Se a conclusão avançar uma história (ex.: diálogo seguinte da Ellis/guia) → o NPC muda de fala depois da volta (eventos QuestCleared das histórias).
+- [ ] Morrer de propósito numa quest com juramento "não morrer" (se escolher um) → falha por violação, tela de resultado com falha e só a EXP de monstros.
+- [ ] Ficar além do tempo limite → falha por tempo (TimeOver) 5 s depois da checagem por minuto.
+Limites conhecidos: reinício pelo navio, núcleos/drops de evento, AddMicroPlayTime/contagem diária de quests grátis, rankings, bônus de status/cafe/guilda/moedas/pedras de bênção e o OnEnterPhase das histórias após a quest não estão migrados; histórias com setor de história mandam ao setor de história e de lá para a cidade.

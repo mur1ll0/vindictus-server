@@ -82,6 +82,32 @@ pub fn year_and_day(days: i64) -> (i64, i64) {
     (year, days - days_from_civil(year, 1, 1) + 1)
 }
 
+/// SQL datetime text ("yyyy-MM-dd HH:mm:ss[.fff]") in 1/300 s units from 1900-01-01.
+fn parse_datetime(text: &str) -> Result<i64, QuestError> {
+    let number = |s: &str| -> Result<i64, QuestError> {
+        if s.is_empty() || s.len() > 4 || !s.bytes().all(|b| b.is_ascii_digit()) {
+            return Err(QuestError::Content);
+        }
+        s.parse().map_err(|_| QuestError::Content)
+    };
+    let (date, time) = text.trim().split_once(' ').unwrap_or((text.trim(), "00:00:00"));
+    let mut d = date.split('-');
+    let (Some(y), Some(m), Some(day), None) = (d.next(), d.next(), d.next(), d.next()) else {
+        return Err(QuestError::Content);
+    };
+    let (clock, millis) = time.split_once('.').unwrap_or((time, "0"));
+    let mut t = clock.split(':');
+    let (Some(h), Some(mi), Some(s), None) = (t.next(), t.next(), t.next(), t.next()) else {
+        return Err(QuestError::Content);
+    };
+    let (m, day) = (number(m)?, number(day)?);
+    if !(1..=12).contains(&m) || !(1..=31).contains(&day) {
+        return Err(QuestError::Content);
+    }
+    let seconds = number(h)? * 3600 + number(mi)? * 60 + number(s)?;
+    Ok(days_from_civil(number(y)?, m, day) * UNITS_PER_DAY + seconds * 300 + number(millis)? * 3 / 10)
+}
+
 /// Day number from 1900-01-01 of a proleptic Gregorian date.
 pub fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     let y = if month <= 2 { year - 1 } else { year };
@@ -156,6 +182,8 @@ pub struct QuestContents {
     auto_give: BTreeMap<i32, Vec<usize>>,
     /// season3TodayQuestGroupInfos in first-seen order.
     season3: Vec<(String, Vec<String>)>,
+    /// QuestPeriodInfo per quest: DateFrom (SQL datetime units), Period, Feature.
+    periods: HashMap<String, Vec<(i64, i32, Option<String>)>>,
 }
 
 fn enabled(policy: &FeaturePolicy, feature: Option<&str>) -> Result<bool, QuestError> {
@@ -242,7 +270,17 @@ impl QuestContents {
             difficulties,
             auto_give,
             season3: Vec::new(),
+            periods: HashMap::new(),
         };
+        for (quest, from, period, _, feature) in &tables.periods {
+            let quest = quest.as_deref().ok_or(QuestError::Content)?;
+            let from = parse_datetime(from.as_deref().unwrap_or(""))?;
+            contents
+                .periods
+                .entry(quest.to_owned())
+                .or_default()
+                .push((from, *period, feature.clone()));
+        }
         contents.change_basic_battle_goal(policy, &quests)?;
         // ChangeMaxPlayCount: the last enabled period row with MaxPlayCount wins.
         for (quest, _, _, max, feature) in &tables.periods {
@@ -787,6 +825,157 @@ impl QuestOwner {
             });
         }
         Ok(out)
+    }
+    /// QuestOwner.IsTodayQuest(questID) at `now` (SQL datetime units, UTC).
+    pub fn is_today_quest(
+        &self,
+        ctx: Context<'_>,
+        quest: &str,
+        now: i64,
+        arithmetic: Arithmetic,
+    ) -> Result<bool, QuestError> {
+        let Some(q) = self.owned(quest) else {
+            return Ok(false);
+        };
+        Ok(q.last_play.div_euclid(UNITS_PER_DAY) != now.div_euclid(UNITS_PER_DAY)
+            && ctx
+                .contents
+                .today_quests(ctx.policy, now, arithmetic)?
+                .contains(quest))
+    }
+    /// QuestOwner.UpdateQuestPlayCount(questID, startTime, IgnoreTodayCount): the period
+    /// and day resets, then PlayCount/TodayPlayCount (or one raid coupon past the maximum,
+    /// returned as `Ok(Some(true))`). `Ok(None)` is the original false (no quest or a
+    /// failed constraint).
+    pub fn update_play_count(
+        &mut self,
+        ctx: Context<'_>,
+        quest: &str,
+        start: i64,
+        ignore_today_count: bool,
+    ) -> Result<Option<bool>, QuestError> {
+        let Some(index) = self.quests.iter().position(|q| q.quest == quest) else {
+            return Ok(None);
+        };
+        let info = ctx.contents.info(quest).ok_or(QuestError::Content)?;
+        if self.check_constraint(ctx, quest, 0, true)? != Constraint::Success {
+            return Ok(None);
+        }
+        let q = &mut self.quests[index];
+        let mut reset = false;
+        for (from, period, feature) in ctx.contents.periods.get(quest).map_or(&[][..], Vec::as_slice) {
+            if feature.is_some() && !enabled(ctx.policy, feature.as_deref())? {
+                continue;
+            }
+            // TimeSpan.Days truncates toward zero; a zero Period divides by zero.
+            let days = |t: i64| (t - from) / UNITS_PER_DAY;
+            let (last, now) = (days(q.last_play), days(start));
+            let period = i64::from(*period);
+            if period == 0 {
+                return Err(QuestError::Content);
+            }
+            if last / period != now / period {
+                reset = true;
+            }
+        }
+        if reset {
+            q.play_count = 0;
+        }
+        if q.last_play.div_euclid(UNITS_PER_DAY) != start.div_euclid(UNITS_PER_DAY) {
+            q.today_play_count = 0;
+        }
+        let mut coupon = false;
+        if !ignore_today_count {
+            match ctx.contents.max_play_count(info, ctx.policy, ctx.cafe)? {
+                Some(max) if q.play_count >= max && ctx.raid_coupons > 0 => coupon = true,
+                _ => {
+                    q.play_count = q.play_count.wrapping_add(1);
+                    q.today_play_count = q.today_play_count.wrapping_add(1);
+                }
+            }
+        }
+        q.last_play = start;
+        Ok(Some(coupon))
+    }
+    /// QuestOwner.UpdateQuest: each goal of `quest` gets the difficulty bit and
+    /// QuestGoalInfo.AddClearCount (`add_clear`), or a new achievement cleared once at
+    /// `now`; then the (quest, difficulty) clear time unless `clear_time` is Int32.MaxValue.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_quest(
+        &mut self,
+        contents: &QuestContents,
+        quest: &str,
+        goals: &[(i32, i64)],
+        (difficulty, members, clear_time, play_rank, clear_info): (i32, i32, i32, i32, i32),
+        now: i64,
+        add_clear: &dyn Fn(i32, i64, &mut u8, &mut u8, &mut i64) -> bool,
+    ) -> bool {
+        if self.owned(quest).is_none() {
+            return false;
+        }
+        let bit = 1_i32.wrapping_shl(difficulty as u32 & 31);
+        for &(goal, cleared) in goals {
+            if !contents.goals_of(quest).iter().any(|g| g.id == goal) {
+                continue;
+            }
+            match self.goals.iter_mut().find(|a| a.goal == goal) {
+                Some(a) => {
+                    a.status |= bit;
+                    let (mut count, mut regen, mut last) = (a.clear_count, a.regened_ap, a.last_clear);
+                    if add_clear(goal, cleared, &mut count, &mut regen, &mut last) {
+                        (a.clear_count, a.regened_ap, a.last_clear) = (count, regen, last);
+                    }
+                }
+                None => self.goals.push(GoalAchievement {
+                    goal,
+                    status: bit,
+                    clear_count: 1,
+                    regened_ap: 0,
+                    last_clear: now,
+                }),
+            }
+        }
+        if clear_time != i32::MAX {
+            match self
+                .clear_times
+                .iter_mut()
+                .find(|c| c.quest == quest && c.difficulty == difficulty)
+            {
+                // QuestClearTime.Apply.
+                Some(c) => {
+                    if c.clear_info < clear_info {
+                        c.clear_info = clear_info;
+                        c.clear_time = clear_time;
+                    } else if c.clear_info == clear_info && c.clear_time > clear_time {
+                        c.clear_time = clear_time;
+                    }
+                    if c.play_rank < play_rank {
+                        c.play_rank = play_rank;
+                    }
+                }
+                None => self.clear_times.push(QuestClearTime {
+                    quest: quest.to_owned(),
+                    difficulty,
+                    player_count: members,
+                    clear_time,
+                    play_rank,
+                    clear_info,
+                    is_old: false,
+                }),
+            }
+        }
+        true
+    }
+    /// QuestOwner.UpdateQuestStatus: ClearCount++ and CalculateQuestStatus.
+    pub fn update_quest_status(&mut self, contents: &QuestContents, quest: &str) -> bool {
+        let Some(index) = self.quests.iter().position(|q| q.quest == quest) else {
+            return false;
+        };
+        let status = self.weight_of(contents, quest, None);
+        let q = &mut self.quests[index];
+        q.clear_count = q.clear_count.wrapping_add(1);
+        q.status = status;
+        true
     }
 }
 

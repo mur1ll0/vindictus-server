@@ -822,7 +822,7 @@ impl Connection {
                         }
                     },
                     runtime.minimum_header()?,
-                    runtime.stat_arithmetic(),
+                    runtime.quest_clock(),
                 )
                 .await;
                 match outcome {
@@ -893,6 +893,7 @@ impl Connection {
                 let (kill, packets) = mission::monster_killed(
                     state,
                     contents,
+                    k.attacker,
                     k.target,
                     k.action_type.as_deref().unwrap_or(""),
                     k.has_evil_core,
@@ -1099,10 +1100,148 @@ impl Connection {
                 tracing::info!(dead, "mission player death processed; values omitted");
                 Vec::new()
             }
+            Message::MicroPlayEvent(event) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let accepted = super::minimum_mission_finish::micro_play_event(
+                    state,
+                    event.slot,
+                    event.event.as_deref().unwrap_or(""),
+                );
+                tracing::info!(accepted, "mission client event processed; values omitted");
+                Vec::new()
+            }
+            Message::ReturnToTown => {
+                use super::minimum_mission_finish::{Return, return_to_town};
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                match return_to_town(state).map_err(|_| RuntimeError::Operation)? {
+                    Return::Ignored => return Ok(()),
+                    Return::StorySector(packets) => {
+                        tracing::info!("mission returned to its story sector; values omitted");
+                        packets
+                    }
+                    Return::Town(packets) => {
+                        if let Some(m) = self.mission.take() {
+                            relay.close_group(m.group);
+                        }
+                        tracing::info!("mission left; returning to town; values omitted");
+                        packets
+                    }
+                }
+            }
             _ => return Ok(()),
         };
+        let mut packets = packets;
+        packets.extend(Self::mission_after(&mut self.mission, runtime, pool, &owner).await?);
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
+        }
+        Ok(())
+    }
+    /// After each mission message: the informer events through the goal tracker and a
+    /// requested quest play count update.
+    async fn mission_after(
+        mission: &mut Option<Box<super::minimum_mission::Mission>>,
+        runtime: &Runtime,
+        pool: &PgPool,
+        owner: &super::character_lobby::UserKey<'_>,
+    ) -> Result<Vec<crate::domain::map_partition::OutgoingPacket>, RuntimeError> {
+        let Some(state) = mission.as_mut() else {
+            return Ok(Vec::new());
+        };
+        let assets = &runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?.assets;
+        let ctx = super::minimum_mission_finish::FinishContext {
+            contents: assets.mission().ok_or(RuntimeError::Profile)?,
+            policy: assets.npc_policy().ok_or(RuntimeError::Profile)?,
+            clock: runtime.quest_clock(),
+        };
+        let packets = super::minimum_mission_finish::drain(state, ctx, std::time::Instant::now())
+            .map_err(|_| RuntimeError::Operation)?;
+        if super::minimum_mission_finish::update_play_count(state, pool, owner, assets)
+            .await
+            .is_err()
+        {
+            tracing::warn!("mission quest play count update failed; values omitted");
+        }
+        Ok(packets)
+    }
+    /// When the earliest MicroPlay job of the mission is due.
+    fn mission_timer(&self) -> Option<tokio::time::Instant> {
+        let at = super::minimum_mission_finish::next_job(self.mission.as_deref()?)?;
+        Some(tokio::time::Instant::from_std(at))
+    }
+    /// Runs the due MicroPlay jobs (success scene end, rewards, per-minute job).
+    async fn mission_jobs(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        let (Some(selected), Some(_)) = (self.selected.as_ref(), self.mission.as_ref()) else {
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let journal = selected.log_journal;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets;
+        let ctx = super::minimum_mission_finish::FinishContext {
+            contents: assets.mission().ok_or(RuntimeError::Profile)?,
+            policy: assets.npc_policy().ok_or(RuntimeError::Profile)?,
+            clock: runtime.quest_clock(),
+        };
+        let rc = super::minimum_mission_finish::RewardContext {
+            pool,
+            owner: &owner,
+            assets,
+            growth: super::minimum_growth::GrowthContext {
+                clock: runtime.quest_clock(),
+                arithmetic: runtime.stat_arithmetic(),
+                config: runtime.minimum_header()?,
+                journal,
+            },
+        };
+        let ids = minimum
+            .creation
+            .entity_ids(super::minimum_mission_finish::REWARD_ENTITY_IDS)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        let mut ids = ids.into_iter();
+        let state = self.mission.as_mut().ok_or(RuntimeError::Operation)?;
+        let _ = cid;
+        let packets = super::minimum_mission_finish::run_jobs(
+            state,
+            ctx,
+            &rc,
+            &mut ids,
+            std::time::Instant::now(),
+        )
+        .await
+        .map_err(|_| RuntimeError::Operation)?;
+        for packet in &packets {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
+        if !packets.is_empty() {
+            tracing::info!(
+                messages = packets.len(),
+                "mission jobs processed; values omitted"
+            );
         }
         Ok(())
     }
@@ -1533,6 +1672,8 @@ impl Connection {
                 Kind::CombatRecord,
                 Kind::UseConsumable,
                 Kind::PlayerRevived,
+                Kind::MicroPlayEvent,
+                Kind::ReturnToTown,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
@@ -2371,9 +2512,11 @@ pub async fn connection(
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);
   loop {
    let deadline=state.close_at.unwrap_or(state.login_deadline);let waiting=state.close_at.is_some()||state.frontend.phase()!=SessionPhase::PoliciesAccepted;
+   let timer=state.mission_timer();
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
     _=tokio::time::sleep_until(deadline),if waiting=>return if state.close_at.is_some(){Ok(())}else{Err(RuntimeError::Timeout)},
+    _=tokio::time::sleep_until(timer.unwrap_or(deadline)),if timer.is_some()&&state.close_at.is_none()=>{state.mission_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     value=stream.read(&mut buffer[..])=>value?,
    };
    if count==0{return if receiver.buffered_len()==0{Ok(())}else{Err(RuntimeError::Message)}}

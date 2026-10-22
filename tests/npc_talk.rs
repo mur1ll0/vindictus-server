@@ -663,3 +663,81 @@ fn give_quest_reveals_the_quest_pushes_progress_and_feeds_quest_conditions() {
         Some(Output::QuestProgress(q)) if q.owned("quest_x").is_some()
     ));
 }
+
+#[test]
+fn quest_finished_events_move_the_phase_and_name_the_story_sector() {
+    use vindictus_server::domain::npc_script::QuestFinished;
+    let on_event = |conditions: Vec<Element>, commands: Vec<Element>| {
+        el("OnEvent", &[], "", conditions.into_iter().chain(commands).collect())
+    };
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![
+            el(
+                "Phase",
+                &[("id", "A")],
+                "",
+                vec![
+                    on_event(
+                        vec![leaf("QuestCleared_Host", "quest_x"), leaf("MonsterKilled", "boss,2")],
+                        vec![leaf("goto_phase", "C")],
+                    ),
+                    on_event(
+                        vec![leaf("QuestCleared", " quest_x ")],
+                        vec![leaf("goto_phase", "B"), leaf("story_sector", "905")],
+                    ),
+                ],
+            ),
+            el("Phase", &[("id", "B")], "", vec![]),
+            el(
+                "Phase",
+                &[("id", "C")],
+                "",
+                vec![el("OnEnterPhase", &[], "", vec![leaf("talk", "x")])],
+            ),
+        ],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let progress = || {
+        vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 0,
+        }]
+    };
+    let kills = [("boss".to_owned(), 1)];
+    let event = |quest, success, is_host| QuestFinished {
+        quest,
+        success,
+        boss_killed: &kills,
+        is_host,
+    };
+    // The first handler needs two boss kills: the second handler moves to B.
+    let mut rows = progress();
+    let out = s.quest_finished(&mut rows, &event("quest_x", true, true));
+    assert_eq!((out.changed, out.story_sector, out.skipped_on_enter), (true, 905, 0));
+    assert_eq!(rows[0].phase.as_deref(), Some("B"));
+    // A failed or other quest moves nothing.
+    let mut rows = progress();
+    let out = s.quest_finished(&mut rows, &event("quest_x", false, true));
+    assert_eq!((out.changed, out.story_sector), (false, -1));
+    // With enough boss kills the host handler goes to C (its OnEnterPhase is counted).
+    let kills = [("boss".to_owned(), 2)];
+    let mut rows = progress();
+    let host = QuestFinished {
+        quest: "quest_x",
+        success: true,
+        boss_killed: &kills,
+        is_host: true,
+    };
+    let out = s.quest_finished(&mut rows, &host);
+    assert_eq!((rows[0].phase.as_deref(), out.skipped_on_enter), (Some("C"), 1));
+}
