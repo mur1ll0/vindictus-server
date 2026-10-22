@@ -371,6 +371,7 @@ struct Facts<'a> {
     class: i32,
     level: i32,
     titles: std::collections::BTreeSet<i32>,
+    skills: std::collections::BTreeMap<String, i32>,
     items: std::collections::BTreeMap<String, i32>,
     repair_price: i32,
     gold: i32,
@@ -385,6 +386,9 @@ impl crate::domain::npc_talk::Facts for Facts<'_> {
     }
     fn title_acquired(&self, id: i32) -> bool {
         self.titles.contains(&id)
+    }
+    fn base_skill_rank(&self, skill: &str) -> i32 {
+        self.skills.get(skill).copied().unwrap_or(-1)
     }
     fn item_count(&self, class: &str) -> i32 {
         self.items.get(class).copied().unwrap_or(0)
@@ -479,7 +483,20 @@ pub async fn talk(
             quests,
         };
         let original = state.clone();
+        let skills: Vec<(Vec<u8>, i32)> = sqlx::query_as(
+            "SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097",
+        )
+        .bind(cid)
+        .fetch_all(&mut *tx)
+        .await?;
+        if skills.len() > 4096 {
+            return Err(fail());
+        }
         let facts = Facts {
+            skills: skills
+                .into_iter()
+                .map(|(k, r)| Ok((text(&k)?, r)))
+                .collect::<Result<_, MinimumError>>()?,
             quests: contents,
             raid_coupons,
             repair_price,

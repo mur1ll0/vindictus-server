@@ -32,6 +32,9 @@ impl Facts for Fiona {
     fn title_acquired(&self, id: i32) -> bool {
         id == 7
     }
+    fn base_skill_rank(&self, skill: &str) -> i32 {
+        if skill == "skill_fiona_guard" { 2 } else { -1 }
+    }
     fn item_count(&self, class: &str) -> i32 {
         if class == "gold" { 500 } else { 0 }
     }
@@ -523,6 +526,9 @@ impl Facts for QuestFiona {
     fn title_acquired(&self, _: i32) -> bool {
         false
     }
+    fn base_skill_rank(&self, _: &str) -> i32 {
+        -1
+    }
     fn item_count(&self, _: &str) -> i32 {
         0
     }
@@ -820,4 +826,89 @@ fn notice_title_answers_successful_and_defers_the_title_effect() {
     assert_eq!(noticed.len(), 1, "{talk:?}");
     assert_eq!(noticed[0].1.trim(), "410018");
     assert!(outputs.contains(&Output::Effect(Effect::NoticeTitle(410018))));
+}
+
+#[test]
+fn skill_conditions_read_the_base_rank_like_data_cache() {
+    let cond = |name: &str, arg: &str, yes: &str, no: &str| {
+        el(
+            "If",
+            &[],
+            "",
+            vec![
+                el("Condition", &[], "", vec![leaf(name, arg)]),
+                el("Then", &[], "", vec![leaf("talk", yes)]),
+                el("Else", &[], "", vec![leaf("talk", no)]),
+            ],
+        )
+    };
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "CEARA")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![
+                        cond("has_skill", "skill_fiona_guard", "HAS", "NOT"),
+                        cond("has_skill", "skill_missing", "HAS", "NOT"),
+                        cond("skill_rank_min", "skill_fiona_guard,2", "MIN_OK", "MIN_LOW"),
+                        cond("skill_rank_min", "skill_fiona_guard,3", "MIN_OK", "MIN_LOW"),
+                        cond(
+                            "skill_rank_max",
+                            "skill_fiona_guard,1",
+                            "MAX_OK",
+                            "MAX_HIGH",
+                        ),
+                        // A missing skill is rank -1: below any minimum, within any maximum.
+                        cond("skill_rank_min", "skill_missing,0", "MIN_OK", "MIN_LOW"),
+                        cond("skill_rank_max", "skill_missing,0", "MAX_OK", "MAX_HIGH"),
+                    ],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 0,
+        }],
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let outputs = run(&s, &p, &mut state, &mut session, "CEARA");
+    let said: Vec<String> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .filter(|e| e.0 == "talk")
+        .map(|e| e.1)
+        .collect();
+    assert_eq!(
+        said,
+        [
+            "HAS", "NOT", "MIN_OK", "MIN_LOW", "MAX_HIGH", "MIN_LOW", "MAX_OK"
+        ]
+    );
 }

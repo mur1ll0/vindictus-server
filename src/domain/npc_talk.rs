@@ -76,6 +76,8 @@ pub trait Facts {
     fn level(&self) -> i32;
     /// Titles.GetTitle(id).Status == Acquired.
     fn title_acquired(&self, id: i32) -> bool;
+    /// SkillManager.GetBaseSkillRank: the learned rank, -1 when not learned.
+    fn base_skill_rank(&self, skill: &str) -> i32;
     /// Unexpired item count of an ItemClass.
     fn item_count(&self, class: &str) -> i32;
     /// QueryManufactureStatus: (grade, exp) when the manufacture is known.
@@ -1067,6 +1069,14 @@ impl<'a> Talker<'a> {
                 None => return Err(TalkError::Halted),
                 Some(id) => Some(self.facts.title_acquired(id)),
             },
+            // DataCache.QuerySkill_BaseRank.
+            "has_skill" => Some(self.facts.base_skill_rank(arg1.unwrap_or("")) >= 0),
+            "skill_rank_min" => {
+                level(arg2).map(|r| self.facts.base_skill_rank(arg1.unwrap_or("")) >= r)
+            }
+            "skill_rank_max" => {
+                level(arg2).map(|r| self.facts.base_skill_rank(arg1.unwrap_or("")) <= r)
+            }
             "has_item" => level(arg2).map(|c| self.item_count(arg1.unwrap_or("")) >= i64::from(c)),
             // Items carry no ENHANCE attribute in the migrated inventory: EnhanceLevel 0.
             "has_item_enhanced" => {
