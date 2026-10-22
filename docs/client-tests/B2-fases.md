@@ -33,6 +33,7 @@ Limites conhecidos: títulos adquiridos (com status de concluído e bônus de at
 
 ### B2.1 — Saída para a missão (navio, relay e início da fase)
 Pré-condições: perfis privados reexportados (`npc_scripts` com a seção `mission`, economia formato 4) e `relay_bind` = `127.0.0.1:27005` no arquivo de assets do laboratório (porta do relay original); servidor iniciado pelo `start-lab-frontend.ps1`, que agora também abre o relay. Fiona selecionada que já recebeu a quest pelo login (ex.: `quest_gnoll_scout`/`quest_gnoll_watchman` da Colhen).
+- [ ] No barco, clicar numa área (ex.: Perilous Ruins) → "Loading Battle List" termina em poucos segundos com a lista de navios vazia (não há outros grupos no laboratório) e o botão "Create Party" fica disponível. No log: "mission ship list sent". (Falhava em 22/10: sem resposta, "Response from server Delayed".)
 - [ ] No quadro de missões/barco de Colhen, escolher uma missão inicial em modo solo e confirmar (AcceptQuest) → a interface de grupo/navio aparece com a Fiona como líder (slot 1) e o nome da missão no navio.
 - [ ] Em seguida o cliente conecta ao relay (porta 27005) sem erro de rede e mostra a tela do navio/preparação (LaunchShipGranted). No log do servidor: "mission accepted; relay waiting" e depois "mission relay join finished" com `joined=true`.
 - [ ] Iniciar a missão (StartGame) → tela de carregamento da dungeon e entrada no primeiro setor (GameStartGranted). No log: "mission start processed" com `granted=true`.

@@ -4,7 +4,7 @@ use vindictus_server::protocol::{
     mission::{self as wire, Kind, Message},
     server_profile::REGISTERED_CLASSES,
 };
-const KINDS: [(&str, Kind); 36] = [
+const KINDS: [(&str, Kind); 38] = [
     ("accept_quest", Kind::AcceptQuest),
     ("party_info", Kind::PartyInfo),
     ("update_ship", Kind::UpdateShip),
@@ -44,6 +44,8 @@ const KINDS: [(&str, Kind); 36] = [
     ("return_from_quest", Kind::ReturnFromQuest),
     ("kicked", Kind::Kicked),
     ("leave_party", Kind::LeaveParty),
+    ("query_recommend_ship", Kind::QueryRecommendShip),
+    ("ship_list", Kind::ShipList),
 ];
 fn bytes(v: &Value) -> Vec<u8> {
     v.as_array()
@@ -82,7 +84,7 @@ fn mission_messages_roundtrip_the_recovered_serializer_bytes() {
             seen += 1;
         }
     }
-    assert_eq!(seen, 262);
+    assert_eq!(seen, 278);
 }
 #[test]
 fn accept_quest_and_connection_request_fields_follow_declaration_order() {
@@ -122,4 +124,57 @@ fn accept_quest_and_connection_request_fields_follow_declaration_order() {
         c.category.as_deref(),
         Some("MicroPlayServiceCore.MicroPlayService")
     );
+}
+#[test]
+fn boat_ship_list_is_empty_and_ignores_a_repeated_target_within_two_seconds() {
+    use std::time::{Duration, Instant};
+    use vindictus_server::infrastructure::minimum_mission::recommend_ships;
+    use vindictus_server::protocol::mission::{QueryRecommendShip, RecommendShipRestriction};
+    let query = |set: i32, target: Option<&str>| QueryRecommendShip {
+        restriction: Some(RecommendShipRestriction {
+            quest_set: set,
+            target_quest_id: target.map(str::to_owned),
+            difficulty: 0,
+            is_season2: false,
+            selected_boss_quest_ids: None,
+        }),
+    };
+    let decode = |packets: Vec<vindictus_server::domain::map_partition::OutgoingPacket>| {
+        assert_eq!(packets.len(), 1);
+        assert_eq!(packets[0].category, Kind::ShipList.category());
+        match wire::decode(Kind::ShipList, &packets[0].body, DEFAULT_MAX_BODY).unwrap() {
+            Some(Message::ShipList(list)) => (list.ignored, list.ships),
+            _ => panic!("ship list"),
+        }
+    };
+    let start = Instant::now();
+    let mut last = None;
+    // The whole board (empty target) is answered and starts the cooldown.
+    assert_eq!(
+        decode(recommend_ships(&query(1, Some("")), &mut last, start).unwrap()),
+        (false, Some(Vec::new()))
+    );
+    assert_eq!(last, Some(start));
+    // A targeted query (null counts as targeted, as `!= ""` in the source) within 2 s is Ignored.
+    let soon = start + Duration::from_millis(2000);
+    assert_eq!(
+        decode(recommend_ships(&query(1, None), &mut last, soon).unwrap()),
+        (true, Some(Vec::new()))
+    );
+    assert_eq!(last, Some(start));
+    let later = start + Duration::from_millis(2001);
+    assert_eq!(
+        decode(recommend_ships(&query(1, Some("quest_gnoll_watchman")), &mut last, later).unwrap()),
+        (false, Some(Vec::new()))
+    );
+    assert_eq!(last, Some(later));
+    // Quest set 2000 (DS raids) answers an empty list without touching the cooldown.
+    let mut untouched = None;
+    assert_eq!(
+        decode(recommend_ships(&query(2000, Some("")), &mut untouched, later).unwrap()),
+        (false, Some(Vec::new()))
+    );
+    assert_eq!(untouched, None);
+    let missing = QueryRecommendShip { restriction: None };
+    assert!(recommend_ships(&missing, &mut last, later).is_err());
 }

@@ -48,6 +48,8 @@ pub enum Kind {
     ReturnFromQuest,
     Kicked,
     LeaveParty,
+    QueryRecommendShip,
+    ShipList,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -88,6 +90,8 @@ impl Kind {
             Self::ReturnFromQuest => 402,
             Self::Kicked => 471,
             Self::LeaveParty => 518,
+            Self::QueryRecommendShip => 441,
+            Self::ShipList => 579,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -128,6 +132,8 @@ impl Kind {
             Self::ReturnFromQuest => 0x6764d890_113e_3d4d_9d96_24c0087489c3,
             Self::Kicked => 0x4df74867_68cb_3431_8177_ce7549890ddd,
             Self::LeaveParty => 0x4aad8f98_e265_3b91_b7fc_f25caed054b9,
+            Self::QueryRecommendShip => 0xb5a323d7_7776_3d49_b069_1e93090d766f,
+            Self::ShipList => 0x15bc8a0f_3d0a_322f_b79f_d9162d170371,
         })
     }
 }
@@ -304,6 +310,26 @@ pub struct Ship {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UpdateShip {
     pub info: Option<Ship>,
+}
+/// RecommendShipRestriction: the boat filter (quest set, target quest, difficulty).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecommendShipRestriction {
+    pub quest_set: i32,
+    pub target_quest_id: Option<String>,
+    pub difficulty: i32,
+    pub is_season2: bool,
+    pub selected_boss_quest_ids: Option<Vec<i32>>,
+}
+/// QueryRecommendShipMessage: the boat asks for the open ships ("Loading Battle List").
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QueryRecommendShip {
+    pub restriction: Option<RecommendShipRestriction>,
+}
+/// ShipListMessage; `ignored` marks a query dropped by the 2 s cooldown.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShipList {
+    pub ignored: bool,
+    pub ships: Option<Vec<Option<Ship>>>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectionRequest {
@@ -754,6 +780,8 @@ pub enum Message {
     ReturnFromQuest(ReturnFromQuest),
     Kicked,
     LeaveParty,
+    QueryRecommendShip(QueryRecommendShip),
+    ShipList(ShipList),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -794,6 +822,8 @@ impl Message {
             Self::ReturnFromQuest(_) => Kind::ReturnFromQuest,
             Self::Kicked => Kind::Kicked,
             Self::LeaveParty => Kind::LeaveParty,
+            Self::QueryRecommendShip(_) => Kind::QueryRecommendShip,
+            Self::ShipList(_) => Kind::ShipList,
         }
     }
 }
@@ -865,6 +895,15 @@ object!(Ship {
     user_ds_mode
 });
 object!(UpdateShip { info });
+object!(RecommendShipRestriction {
+    quest_set,
+    target_quest_id,
+    difficulty,
+    is_season2,
+    selected_boss_quest_ids
+});
+object!(QueryRecommendShip { restriction });
+object!(ShipList { ignored, ships });
 object!(ConnectionRequest {
     address,
     port,
@@ -1214,6 +1253,8 @@ pub fn encode(
                 Message::ReturnFromQuest(v) => v.write(&mut w)?,
                 Message::Kicked => {}
                 Message::LeaveParty => {}
+                Message::QueryRecommendShip(v) => v.write(&mut w)?,
+                Message::ShipList(v) => v.write(&mut w)?,
             }
         }
     }
@@ -1276,6 +1317,10 @@ pub fn decode(
             Kind::ReturnFromQuest => Message::ReturnFromQuest(ReturnFromQuest::read(&mut r)?),
             Kind::Kicked => Message::Kicked,
             Kind::LeaveParty => Message::LeaveParty,
+            Kind::QueryRecommendShip => {
+                Message::QueryRecommendShip(QueryRecommendShip::read(&mut r)?)
+            }
+            Kind::ShipList => Message::ShipList(ShipList::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

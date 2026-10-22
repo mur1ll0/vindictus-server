@@ -369,6 +369,8 @@ struct Connection {
     selected: Option<super::minimum_selection::Selected>,
     /// BattleServiceProxy party/MicroPlay of the selected character (solo host).
     mission: Option<Box<super::minimum_mission::Mission>>,
+    /// InGame.LastQueryRecommendShip (2 s cooldown of the boat ship list).
+    last_recommend_ship: Option<std::time::Instant>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -382,6 +384,7 @@ impl Connection {
             ignored_messages: 0,
             selected: None,
             mission: None,
+            last_recommend_ship: None,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
@@ -1097,6 +1100,16 @@ impl Connection {
                 );
                 packets
             }
+            Message::QueryRecommendShip(query) => {
+                let packets = mission::recommend_ships(
+                    &query,
+                    &mut self.last_recommend_ship,
+                    std::time::Instant::now(),
+                )
+                .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!("mission ship list sent; values omitted");
+                packets
+            }
             Message::PlayerKilled(tag) => {
                 let Some(state) = self.mission.as_mut() else {
                     return Ok(());
@@ -1684,6 +1697,7 @@ impl Connection {
             use crate::protocol::mission::Kind;
             for kind in [
                 Kind::AcceptQuest,
+                Kind::QueryRecommendShip,
                 Kind::RegisterServer,
                 Kind::StartGame,
                 Kind::MoveToNextSector,
@@ -2547,15 +2561,26 @@ pub async fn connection(
     value=stream.read(&mut buffer[..])=>value?,
    };
    if count==0{return if receiver.buffered_len()==0{Ok(())}else{Err(RuntimeError::Message)}}
-   let frames=receiver.push(&buffer[..count]).map_err(|_|RuntimeError::Message)?;
+   let frames=receiver.push(&buffer[..count]).map_err(|_|{tracing::warn!("laboratory frontend frame rejected by the packet layer");RuntimeError::Message})?;
    for mut frame in frames{
     let body=Zeroizing::new(std::mem::take(&mut frame.body));
     let initial=state.frontend.phase()==SessionPhase::Initial;
     let deadline=state.login_deadline;
-    let future=state.dispatch(&runtime,&pool,&mut stream,&mut sender,frame.category_id,&body);
+    // Diagnostics for an in-game message the decoders reject: category and size only.
+    let category=frame.category_id;
+    let registered=super::channel_server::registered_category(category,&body);
+    let in_game=state.selected.is_some();
+    let length=body.len();
+    let future=state.dispatch(&runtime,&pool,&mut stream,&mut sender,category,&body);
     if initial {
      tokio::time::timeout_at(deadline,future).await.map_err(|_|RuntimeError::Timeout)??;
-    }else{future.await?;}
+    }else{
+     match future.await{
+      // One undecodable in-game message must not drop the character; no response is sent.
+      Err(RuntimeError::Message) if in_game=>tracing::warn!(category,registered_category=registered,length,"laboratory frontend in-game message rejected; ignored"),
+      other=>other?,
+     }
+    }
    }
   }
  }.await;

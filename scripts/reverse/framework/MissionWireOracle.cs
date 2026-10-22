@@ -160,6 +160,10 @@ class MissionWireOracle {
   AddCases("return_from_quest",402,new Guid("6764d890-113e-3d4d-9d96-24c0087489c3"),new[]{null,new ReturnFromQuestMessage(ReturnFromQuestType.ToTown),Obj<ReturnFromQuestMessage>("Order",2,"StorySectorBSP",null,"StorySectorEntity","story_é")},cases);
   AddCases("kicked",471,new Guid("4df74867-68cb-3431-8177-ce7549890ddd"),new[]{null,new KickedMessage()},cases);
   AddCases("leave_party",518,new Guid("4aad8f98-e265-3b91-b7fc-f25caed054b9"),new[]{null,new LeavePartyMessage()},cases);
+  var restrictions=new List<QueryRecommendShipMessage>{null};
+  foreach(int seed in new[]{0,1,2000}){var o=new RecommendShipRestriction();o.QuestSet=seed;o.TargetQuestID=seed==0?null:seed==1?"":"quest_gnoll_watchman";o.Difficulty=seed&3;o.IsSeason2=seed==1;o.SelectedBossQuestIDInfos=seed==0?null:(ICollection<int>)new List<int>{seed,-1};restrictions.Add(new QueryRecommendShipMessage(o));}
+  AddCases("query_recommend_ship",441,new Guid("b5a323d7-7776-3d49-b069-1e93090d766f"),restrictions,cases);
+  AddCases("ship_list",579,new Guid("15bc8a0f-3d0a-322f-b79f-d9162d170371"),new[]{null,Obj<ShipListMessage>("Ignored",false,"ShipList",null),Obj<ShipListMessage>("Ignored",false,"ShipList",(ICollection<ShipInfo>)new List<ShipInfo>()),Obj<ShipListMessage>("Ignored",true,"ShipList",(ICollection<ShipInfo>)new List<ShipInfo>{Ship(1),Ship(2)})},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }
