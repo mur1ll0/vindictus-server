@@ -25,6 +25,9 @@ pub enum PayloadError {
     /// String dictionary keys must be unique.
     #[error("duplicate dictionary key")]
     DuplicateKey,
+    /// A recovered nullable field whose non-null form is not migrated.
+    #[error("unsupported non-null field")]
+    Unsupported,
     /// Invalid variable integer.
     #[error(transparent)]
     Integer(#[from] ProtocolError),

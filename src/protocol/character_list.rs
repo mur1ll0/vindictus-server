@@ -192,7 +192,7 @@ fn read_dictionary<T: Scalar>(r: &mut Reader<'_>) -> Result<Dictionary<T>, Chara
     }
     Ok(Some(rows))
 }
-fn write_costume(w: &mut Writer, c: Option<&Costume>) -> Result<(), CharacterListError> {
+pub(super) fn write_costume(w: &mut Writer, c: Option<&Costume>) -> Result<(), CharacterListError> {
     let Some(c) = c else {
         w.append(&[0])?;
         return Ok(());
@@ -228,7 +228,7 @@ fn write_costume(w: &mut Writer, c: Option<&Costume>) -> Result<(), CharacterLis
     c.town_effect.write(w)?;
     Ok(())
 }
-fn read_costume(r: &mut Reader<'_>) -> Result<Option<Costume>, CharacterListError> {
+pub(super) fn read_costume(r: &mut Reader<'_>) -> Result<Option<Costume>, CharacterListError> {
     if r.byte()? == 0 {
         return Ok(None);
     }

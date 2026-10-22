@@ -142,7 +142,7 @@ pub enum InventoryWireError {
     #[error(transparent)]
     Payload(#[from] PayloadError),
 }
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Dict<T>(pub Option<Vec<(i32, T)>>);
 #[derive(Clone, PartialEq, Eq)]
 pub struct Storage {
@@ -629,6 +629,7 @@ macro_rules! object {($t:ident {$($f:ident),*$(,)?})=>{
  impl Wire for $t{fn write(&self,w:&mut Writer)->Result<(),PayloadError>{$ (self.$f.write(w)?;)*Ok(())}fn read(r:&mut Reader<'_>)->Result<Self,PayloadError>{Ok(Self{$($f:Wire::read(r)?),*})}}
  impl Wire for Option<$t>{fn write(&self,w:&mut Writer)->Result<(),PayloadError>{match self{None=>w.append(&[0]),Some(v)=>{w.append(&[1])?;v.write(w)}}}fn read(r:&mut Reader<'_>)->Result<Self,PayloadError>{if r.byte()?==0{Ok(None)}else{Ok(Some($t::read(r)?))}}}
 };}
+pub(super) use object;
 object!(Storage {
     id,
     available,
