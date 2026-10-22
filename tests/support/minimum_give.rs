@@ -503,7 +503,11 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                         "Do",
                         [],
                         "",
-                        [leaf("complete_storyline", ""), leaf("talk", "done")],
+                        [
+                            leaf("notice_title", "410019"),
+                            leaf("complete_storyline", ""),
+                            leaf("talk", "done")
+                        ],
                         ""
                     ]],
                     ""
@@ -1566,7 +1570,8 @@ async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin
             .fetch_all(&p)
             .await
             .unwrap();
-    assert_eq!(titles, [(410017, false), (410018, false)]);
+    // notice_title opened 410019 (AutoGiveLevel 9, not given by the level up).
+    assert_eq!(titles, [(410017, false), (410018, false), (410019, false)]);
     let phase: Option<Vec<u8>> =
         sqlx::query_scalar("SELECT phase_utf16 FROM game_story_progress WHERE cid=1")
             .fetch_one(&p)

@@ -52,6 +52,15 @@ pub struct GivenTitle {
     pub listed: bool,
 }
 
+/// A title NoticeTitle opened or made visible: `new` when GiveTitle inserted it, and
+/// its goals with the progress to store (the first one is HideUntil). Its slot is Known.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NoticedTitle {
+    pub id: i32,
+    pub new: bool,
+    pub goals: Vec<(i32, i32)>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Progression {
     /// characterClassInfo (Identifier 1): STR, DEX, INT, WILL, HP, STAMINA per level.
@@ -240,6 +249,66 @@ impl Progression {
                 listed: t.hide_until == 0,
             })
             .collect()
+    }
+    /// TitleManager.NoticeTitle(titleID) for a title the character owns (`Some`: Acquired
+    /// and the stored progress of its goals) or not. `None` when nothing changes; an owned,
+    /// hidden title whose visibility needs a completed goal (progress -1, which counts the
+    /// goal's TargetCount) is refused because TargetCount is not in the profile.
+    pub fn notice_title(
+        &self,
+        id: i32,
+        class: i32,
+        owned: Option<(bool, &[(i32, i32)])>,
+    ) -> Result<Option<NoticedTitle>, ProgressionError> {
+        // GetTitleInfo null, or FeatureMatrix.IsEnable(Feature) false.
+        let Some(t) = self.titles.iter().find(|t| t.id == id && t.enabled) else {
+            return Ok(None);
+        };
+        // The first TitleGoalProgress gets Progress = HideUntil; the others keep theirs.
+        let revealed = |stored: &dyn Fn(i32) -> i32| -> Vec<(i32, i32)> {
+            t.goals
+                .iter()
+                .enumerate()
+                .map(|(i, g)| (*g, if i == 0 { t.hide_until } else { stored(*g) }))
+                .collect()
+        };
+        let Some((acquired, progress)) = owned else {
+            // GiveTitle: IsAvailableFor(BaseCharacter); AddNewTitle (Acquired false).
+            if 1_i32.wrapping_shl(class as u32 & 31) & t.class_restriction == 0 {
+                return Ok(None);
+            }
+            return Ok(Some(NoticedTitle {
+                id,
+                new: true,
+                goals: revealed(&|_| 0),
+            }));
+        };
+        let stored = |g: i32| progress.iter().find(|(id, _)| *id == g).map_or(0, |p| p.1);
+        // Title.IsVisible.
+        let visible = acquired || t.goals.is_empty() || {
+            let mut num = 0_i32;
+            let mut seen = false;
+            for g in &t.goals {
+                if t.hide_until <= num {
+                    seen = true;
+                    break;
+                }
+                let p = stored(*g);
+                if p == -1 {
+                    return Err(ProgressionError::Content);
+                }
+                num = num.wrapping_add(p);
+            }
+            seen || t.hide_until <= num
+        };
+        if visible {
+            return Ok(None);
+        }
+        Ok(Some(NoticedTitle {
+            id,
+            new: false,
+            goals: revealed(&stored),
+        }))
     }
     /// LevelUpMessage.StatIncreased: GetCharacterStats(new) − GetCharacterStats(old) over
     /// every CharacterStats key (LUCK is 100 on both sides).

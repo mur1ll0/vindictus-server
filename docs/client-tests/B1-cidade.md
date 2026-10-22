@@ -89,6 +89,7 @@ Pré-condição: Fiona nível 1 após o login com as histórias automáticas abe
 - [ ] Se o diálogo entregar ou pedir item de história, o inventário muda na mesma hora (entrega/remoção) e o NPC confirma.
 - [ ] Repetir o diálogo do NPC seguinte indicado pelo guia até a história pedir combate ou missão.
 - [ ] Relogar → fase, guia e itens entregues pela história preservados (o NPC continua no ponto em que parou).
+- [ ] Pegar a missão secundária do Marrec: o diálogo passa da fala "Then I'll tell you a story related to it." (comando `notice_title`), o título aparece na lista de títulos como conhecido e a quest é entregue. No log: "minimum NPC talk processed" (falhava em 22/10 com `Unsupported("notice_title")`).
 Limites conhecidos: conclusões de história com recompensa de EXP/AP/título/skill/item (ficam com o XP do B2), `set_timer`/`time_passed` e itens de história com atributo (`[...]`/`_lvl`) não respondem (o diálogo para sem mudar nada); entrega de item sem espaço é recusada inteira (o original manda por correio); recompensa de ouro de história usa GoldRate_Story.
 
 ### B1.5b — registro de quests

@@ -496,19 +496,28 @@ pub async fn talk(
         }
         // GiveReward runs on the saved story and quest state; its packets keep their
         // position among the query outputs.
-        for (at, exp, ap) in rewards.into_iter().rev() {
-            match super::minimum_growth::give_reward(
-                &mut tx,
-                owner,
-                assets,
-                cid,
-                i64::from(exp),
-                ap,
-                growth,
-                &mut ids,
-            )
-            .await
-            {
+        for (at, effect) in rewards.into_iter().rev() {
+            let applied = match effect {
+                crate::domain::npc_talk::Effect::NoticeTitle(title) => {
+                    super::minimum_growth::notice_title(&mut tx, owner, assets, cid, title, growth)
+                        .await
+                }
+                crate::domain::npc_talk::Effect::Reward { exp, ap } => {
+                    super::minimum_growth::give_reward(
+                        &mut tx,
+                        owner,
+                        assets,
+                        cid,
+                        i64::from(exp),
+                        ap,
+                        growth,
+                        &mut ids,
+                    )
+                    .await
+                }
+                _ => Err(fail()),
+            };
+            match applied {
                 Ok(reward) => {
                     let tail = packets.split_off(at);
                     packets.extend(reward);
@@ -629,7 +638,7 @@ async fn apply_outputs(
         Option<crate::domain::quest::Context<'_>>,
         super::minimum_quest::QuestClock,
     ),
-    rewards: &mut Vec<(usize, i32, i32)>,
+    rewards: &mut Vec<(usize, crate::domain::npc_talk::Effect)>,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     use super::minimum_give::Request;
     use crate::domain::npc_talk::{Effect, Output};
@@ -689,7 +698,9 @@ async fn apply_outputs(
                         .collect(),
                 )),
             )?),
-            Output::Effect(Effect::Reward { exp, ap }) => rewards.push((packets.len(), exp, ap)),
+            Output::Effect(effect @ (Effect::Reward { .. } | Effect::NoticeTitle(_))) => {
+                rewards.push((packets.len(), effect))
+            }
             Output::Effect(effect @ (Effect::GiveItem { .. } | Effect::TakeItem { .. })) => {
                 let (class, count, take) = match &effect {
                     Effect::GiveItem { class, count } => (class, *count, false),

@@ -755,3 +755,69 @@ fn quest_finished_events_move_the_phase_and_name_the_story_sector() {
         (Some("C"), 1)
     );
 }
+
+#[test]
+fn notice_title_answers_successful_and_defers_the_title_effect() {
+    use vindictus_server::domain::npc_talk::Effect;
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "MARREC")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![
+                        leaf("talk", "BEFORE"),
+                        leaf("notice_title", " 410018 "),
+                        leaf("talk", "AFTER"),
+                    ],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 0,
+        }],
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let outputs = run(&s, &p, &mut state, &mut session, "MARREC");
+    let talk: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    // The dialog continues after the command (it used to stop as unsupported).
+    assert!(talk.contains(&t("talk", "AFTER", "")));
+    // titleID.ToString() of the script argument, as written.
+    let noticed: Vec<_> = talk
+        .iter()
+        .filter(|e| e.0 == "notice_title_successful")
+        .collect();
+    assert_eq!(noticed.len(), 1, "{talk:?}");
+    assert_eq!(noticed[0].1.trim(), "410018");
+    assert!(outputs.contains(&Output::Effect(Effect::NoticeTitle(410018))));
+}

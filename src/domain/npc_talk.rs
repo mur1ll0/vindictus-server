@@ -104,6 +104,8 @@ pub enum Effect {
     TakeItem { class: String, count: i32 },
     /// CharacterImpl.GiveReward(exp, ap, null, null) after the rates are applied.
     Reward { exp: i32, ap: i32 },
+    /// CharacterImpl.GiveReward(0, 0, null, {titleID: false}) → Titles.NoticeTitle.
+    NoticeTitle(i32),
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -851,6 +853,17 @@ impl<'a> Talker<'a> {
                         self.resume(k)
                     }
                 }
+            }
+            "notice_title" => {
+                // int.TryParse failure only logs: the completion is never called.
+                let Some(title) = Self::parse(arg1) else {
+                    return Err(TalkError::Halted);
+                };
+                self.pushed
+                    .outputs
+                    .push(Output::Effect(Effect::NoticeTitle(title)));
+                self.add(entity("notice_title_successful", arg1, None));
+                self.resume(k)
             }
             "set_token" | "increase_token" | "decrease_token" => {
                 let key = arg1.unwrap_or("");

@@ -1,6 +1,6 @@
 use vindictus_server::domain::{
     feature_policy::FeaturePolicy,
-    progression::{GivenTitle, Growth, Progression, ProgressionTables, STAT_NAMES},
+    progression::{GivenTitle, Growth, NoticedTitle, Progression, ProgressionTables, STAT_NAMES},
 };
 
 fn policy(max_level: &str) -> FeaturePolicy {
@@ -97,4 +97,47 @@ fn level_up_stat_increase_and_titles_follow_the_source_order() {
         .map(|t| t.id)
         .collect();
     assert_eq!(ids, [410017, 410018, 410019]);
+}
+
+#[test]
+fn notice_title_opens_or_reveals_a_title_like_title_manager() {
+    let p = Progression::load(tables(), &policy("90")).unwrap();
+    // Not owned: GiveTitle, the first goal gets HideUntil (5) and the slot is Known.
+    assert_eq!(
+        p.notice_title(410018, 1, None).unwrap(),
+        Some(NoticedTitle {
+            id: 410018,
+            new: true,
+            goals: vec![(3, 5)]
+        })
+    );
+    // Goals of a HideUntil 0 title stay at 0.
+    assert_eq!(
+        p.notice_title(410017, 1, None).unwrap().unwrap().goals,
+        [(1, 0), (2, 0)]
+    );
+    // Unknown, feature-disabled and class-restricted titles change nothing.
+    assert_eq!(p.notice_title(999, 1, None).unwrap(), None);
+    assert_eq!(p.notice_title(410022, 1, None).unwrap(), None);
+    assert_eq!(p.notice_title(410020, 1, None).unwrap(), None);
+    // Owned and hidden (progress 2 < HideUntil 5): revealed, not inserted again.
+    assert_eq!(
+        p.notice_title(410018, 1, Some((false, &[(3, 2)]))).unwrap(),
+        Some(NoticedTitle {
+            id: 410018,
+            new: false,
+            goals: vec![(3, 5)]
+        })
+    );
+    // Owned and already visible, or acquired: "already known", nothing changes.
+    assert_eq!(
+        p.notice_title(410018, 1, Some((false, &[(3, 5)]))).unwrap(),
+        None
+    );
+    assert_eq!(p.notice_title(410018, 1, Some((true, &[]))).unwrap(), None);
+    // A completed goal (-1) counts TargetCount, which the profile does not carry.
+    assert!(
+        p.notice_title(410018, 1, Some((false, &[(3, -1)])))
+            .is_err()
+    );
 }

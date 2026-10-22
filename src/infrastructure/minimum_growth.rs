@@ -182,7 +182,7 @@ async fn level_up(
             .bind(t.id)
             .execute(&mut **tx)
             .await?;
-        title_log(tx, ctx.journal, t.id).await?;
+        title_log(tx, ctx.journal, GIVE_TITLE, t.id).await?;
         if t.listed {
             slots.push(Some(crate::protocol::inventory::TitleSlot {
                 title_id: t.id,
@@ -235,10 +235,15 @@ async fn level_up(
     Ok(())
 }
 
-/// CharacterEntity.AddTitleLog(GiveTitle, titleID, 0, 0) in the day's partition.
+/// CharacterTitleEvent.OpenTitle and GiveTitle.
+const OPEN_TITLE: i32 = 1;
+const GIVE_TITLE: i32 = 2;
+
+/// CharacterEntity.AddTitleLog(event, titleID, 0, 0) in the day's partition.
 async fn title_log(
     tx: &mut Transaction<'_, Postgres>,
     journal: i64,
+    event: i32,
     title: i32,
 ) -> Result<(), MinimumError> {
     use crate::domain::character_ledger::{LedgerPartition, partition};
@@ -251,16 +256,114 @@ async fn title_log(
         crate::domain::legacy_user_data::SqlDateTime::from_units300(units).map_err(|_| fail())?;
     let q = match partition(now) {
         LedgerPartition::One => {
-            "INSERT INTO game_character_title_log01(journal_id,event,title_id,goal_id,value) VALUES($1,2,$2,0,0)"
+            "INSERT INTO game_character_title_log01(journal_id,event,title_id,goal_id,value) VALUES($1,$3,$2,0,0)"
         }
         LedgerPartition::Two => {
-            "INSERT INTO game_character_title_log02(journal_id,event,title_id,goal_id,value) VALUES($1,2,$2,0,0)"
+            "INSERT INTO game_character_title_log02(journal_id,event,title_id,goal_id,value) VALUES($1,$3,$2,0,0)"
         }
     };
     sqlx::query(q)
         .bind(journal)
         .bind(title)
+        .bind(event)
         .execute(&mut **tx)
         .await?;
     Ok(())
+}
+
+/// Story `notice_title`: CharacterImpl.GiveReward(0, 0, null, {titleID: false}) →
+/// Titles.NoticeTitle, then Stats.TitleChanged, PushUpdateStat and PushTitleUpdate
+/// (UpdateTitle, CharacterCommonInfo) when the title was opened or revealed.
+pub(super) async fn notice_title(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    title: i32,
+    ctx: GrowthContext,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let progression = npc.progression.as_ref().ok_or_else(fail)?;
+    let class: i32 =
+        sqlx::query_scalar("SELECT class::integer FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    let acquired: Option<bool> =
+        sqlx::query_scalar("SELECT acquired FROM game_titles WHERE cid=$1 AND title_id=$2")
+            .bind(cid)
+            .bind(title)
+            .fetch_optional(&mut **tx)
+            .await?;
+    let stored: Vec<(i32, i32)> = sqlx::query_as(
+        "SELECT title_goal_id,progress FROM game_title_goal_progress WHERE cid=$1 LIMIT 4097",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    if stored.len() > 4096 {
+        return Err(fail());
+    }
+    let noticed = progression
+        .notice_title(title, class, acquired.map(|a| (a, stored.as_slice())))
+        .map_err(|_| fail())?;
+    let Some(noticed) = noticed else {
+        return Ok(Vec::new());
+    };
+    if noticed.new {
+        sqlx::query("INSERT INTO game_titles(cid,title_id,acquired) VALUES($1,$2,false)")
+            .bind(cid)
+            .bind(title)
+            .execute(&mut **tx)
+            .await?;
+        title_log(tx, ctx.journal, GIVE_TITLE, title).await?;
+    }
+    // TitleGoalProgress of the first goal: inserted when it was 0 (not stored), else updated.
+    if let Some((goal, progress)) = noticed.goals.first().copied()
+        && (progress != 0 || stored.iter().any(|(g, _)| *g == goal))
+    {
+        sqlx::query("INSERT INTO game_title_goal_progress(cid,title_goal_id,progress) VALUES($1,$2,$3) ON CONFLICT(cid,title_goal_id) DO UPDATE SET progress=EXCLUDED.progress")
+            .bind(cid)
+            .bind(goal)
+            .bind(progress)
+            .execute(&mut **tx)
+            .await?;
+    }
+    title_log(tx, ctx.journal, OPEN_TITLE, title).await?;
+    let mut packets = Vec::new();
+    let view = super::minimum_selection::view(
+        tx,
+        owner,
+        assets,
+        cid,
+        ctx.config,
+        ctx.arithmetic,
+        false,
+        0,
+    )
+    .await?;
+    packets.push(view.stat);
+    let slot = crate::protocol::inventory::TitleSlot {
+        title_id: title,
+        // TitleState.Known: visible and not acquired.
+        status: 1,
+        time_stamp: 0,
+        quest_id: Some(String::new()),
+        goal_progress: Some(noticed.goals.clone()),
+        is_expireable: false,
+        expire_date_time: -1,
+    };
+    let update = crate::protocol::inventory::Message::UpdateTitle(Some(vec![Some(slot)]));
+    packets.push(OutgoingPacket {
+        category: crate::protocol::inventory::Kind::UpdateTitle.category(),
+        body: crate::protocol::inventory::encode(
+            crate::protocol::inventory::Kind::UpdateTitle,
+            Some(&update),
+            DEFAULT_MAX_BODY,
+        )
+        .map_err(|_| fail())?
+        .to_vec(),
+    });
+    packets.push(view.common);
+    Ok(packets)
 }
