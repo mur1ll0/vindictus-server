@@ -47,3 +47,11 @@ Pré-condição: dentro de um setor (fora do modo prática).
 - [ ] Recolher o ouro/erg → mensagem de item obtido e o ouro/item entra no inventário (log "mission erg picked"); o mesmo erg não pode ser recolhido duas vezes.
 - [ ] Ergs de cura instantânea (HP) curam na hora sem entrar no inventário.
 Limites conhecidos: props nomeados (NamedProp), bônus de habilidade em props e HugeLucky não migrados; inventário cheio ainda não manda por correio.
+
+### B2.6 — Consumíveis, reviver e relatórios de combate
+Pré-condição: Fiona com poções na barra de atalhos (comprar no B1 e equipar na barra) e, se houver, uma pena de fênix.
+- [ ] Usar uma poção na missão → efeito no jogo e a quantidade no inventário diminui em 1 (UpdateInventoryInfo); log "mission consumable used".
+- [ ] Usar mais vezes do que o levado para a missão → a barra para de aceitar (log "mission consumable use refused").
+- [ ] Morrer e reviver com pena de fênix (se disponível) → a Fiona revive com invencibilidade breve; log "mission revive processed" com `alive=true`.
+- [ ] Ao fim do combate o cliente envia o registro de combate (sem efeito visível agora; aparece no resultado no B2.7).
+Limites conhecidos: a anti-trapaça de dano (MDRSystem) só marca rankings, que não estão migrados; caixas alquímicas na barra continuam recusadas.

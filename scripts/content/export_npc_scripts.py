@@ -228,6 +228,9 @@ def read_package(base, database, config):
         mission['prop_expectations'] = [[nullable_text(r['DropTableName']), nullable_text(r['MaterialGroup']), int(r['DropExpectationPerSector'])]
                                         for r in db.execute('Select * From [PropItemExpectationInfo]')]
         mission['material_groups'] = [[int32(r['ID']), nullable_text(r['MaterialGroup'])] for r in db.execute('Select * From [MaterialGroupInfo]')]
+        # MicroPlayContents.effectInfoDic (every row, no feature filter).
+        mission['effects'] = [[nullable_text(r['EffectSource']), nullable_text(r['EffectOperation']), nullable_text(r['EffectTarget']), int32(r['EffectTargetAmount']),
+                               [nullable_text(r['Effect' + str(i)]) for i in range(1, 6)]] for r in db.execute('Select * From [MicroPlayEffectInfo]')]
         mission['quest_difficulties'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GameMode']), int32(r['EvilCoreCount']), nullable_text(r['Feature'])]
                                          for r in db.execute('Select * From [QuestDifficultyInfo]')]
         dropped = {(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']} | {'javelin_lvl0'}

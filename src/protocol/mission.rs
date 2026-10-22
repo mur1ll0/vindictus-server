@@ -35,6 +35,11 @@ pub enum Kind {
     DropErg,
     PickErg,
     PutErg,
+    MonsterDamageReport,
+    CombatRecord,
+    UseConsumable,
+    PlayerRevived,
+    ApplyMicroPlayEffects,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -62,6 +67,11 @@ impl Kind {
             Self::DropErg => 455,
             Self::PickErg => 520,
             Self::PutErg => 525,
+            Self::MonsterDamageReport => 290,
+            Self::CombatRecord => 263,
+            Self::UseConsumable => 624,
+            Self::PlayerRevived => 555,
+            Self::ApplyMicroPlayEffects => 403,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -89,6 +99,11 @@ impl Kind {
             Self::DropErg => 0x64b4f44b_be70_3e40_a441_a61ceaf133ea,
             Self::PickErg => 0x2e9ee02b_6439_3079_9834_932286dfbb4b,
             Self::PutErg => 0xd7f2e4f9_11e7_369c_a4dd_70d46756e0ad,
+            Self::MonsterDamageReport => 0x62bd766f_9899_36d4_a6fc_0e4e448471c2,
+            Self::CombatRecord => 0x1c979684_101a_325c_bf59_caca716604fb,
+            Self::UseConsumable => 0x8cf9f82f_0433_31a7_b88d_d61b71ee61ee,
+            Self::PlayerRevived => 0x0441624d_0d61_3f4d_8194_090df4655d18,
+            Self::ApplyMicroPlayEffects => 0x10c709a9_28c3_328e_8dfa_6bb6f5ecc0c8,
         })
     }
 }
@@ -146,6 +161,14 @@ impl Wire for u16 {
     }
     fn read(r: &mut Reader<'_>) -> Result<Self, PayloadError> {
         Ok(u16::from_be_bytes(r.fixed::<2>()?))
+    }
+}
+impl Wire for u32 {
+    fn write(&self, w: &mut Writer) -> Result<(), PayloadError> {
+        w.append(&self.to_be_bytes())
+    }
+    fn read(r: &mut Reader<'_>) -> Result<Self, PayloadError> {
+        Ok(u32::from_be_bytes(r.fixed::<4>()?))
     }
 }
 /// CostumeInfo, shared with the character list codec.
@@ -539,6 +562,65 @@ pub struct PutErg {
     pub erg_id: i32,
     pub tag: i32,
 }
+/// MonsterTakeDamageInfo; `attack_time` keeps the IEEE single bits.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TakeDamage {
+    pub attacker: i32,
+    pub attack_time: u32,
+    pub action_name: Option<String>,
+    pub damage: i32,
+}
+/// MonsterDamageReportMessage (host).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MonsterDamageReport {
+    pub target: i32,
+    pub damages: Option<Vec<Option<TakeDamage>>>,
+}
+/// CombatRecordMessage (host): a player's battle record for the result screen.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CombatRecord {
+    pub player_number: i32,
+    pub combo_max: i32,
+    pub hit_max: i32,
+    pub style_max: i32,
+    pub death: i32,
+    pub kill: i32,
+    pub battle_achieve: i32,
+    pub hit_take: i32,
+    pub style_count: i32,
+    pub rank_style: i32,
+    pub rank_battle: i32,
+    pub rank_total: i32,
+}
+/// UseConsumableMessage (host): tag, quick slot part and inner slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseConsumable {
+    pub tag: i32,
+    pub part: i32,
+    pub slot: i32,
+}
+/// PlayerRevivedMessage (host).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PlayerRevived {
+    pub caster_tag: i32,
+    pub reviver_tag: i32,
+    pub method: Option<String>,
+}
+/// MicroPlayEffect; `effect` is MicroPlayEffectType (int enum).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MicroPlayEffect {
+    pub player_slot_no: i32,
+    pub effect: i32,
+    pub amount: i32,
+    pub argument: Option<String>,
+}
+/// ApplyMicroPlayEffectsMessage (to the host).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ApplyMicroPlayEffects {
+    pub caster: i32,
+    pub effect_name: Option<String>,
+    pub effects: Option<Vec<Option<MicroPlayEffect>>>,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     AcceptQuest(AcceptQuest),
@@ -566,6 +648,11 @@ pub enum Message {
     /// PickErgMessage (host): the picked erg ID.
     PickErg(i32),
     PutErg(PutErg),
+    MonsterDamageReport(MonsterDamageReport),
+    CombatRecord(CombatRecord),
+    UseConsumable(UseConsumable),
+    PlayerRevived(PlayerRevived),
+    ApplyMicroPlayEffects(ApplyMicroPlayEffects),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -593,6 +680,11 @@ impl Message {
             Self::DropErg(_) => Kind::DropErg,
             Self::PickErg(_) => Kind::PickErg,
             Self::PutErg(_) => Kind::PutErg,
+            Self::MonsterDamageReport(_) => Kind::MonsterDamageReport,
+            Self::CombatRecord(_) => Kind::CombatRecord,
+            Self::UseConsumable(_) => Kind::UseConsumable,
+            Self::PlayerRevived(_) => Kind::PlayerRevived,
+            Self::ApplyMicroPlayEffects(_) => Kind::ApplyMicroPlayEffects,
         }
     }
 }
@@ -870,6 +962,44 @@ object!(DropErg {
     ergs
 });
 object!(PutErg { erg_id, tag });
+object!(TakeDamage {
+    attacker,
+    attack_time,
+    action_name,
+    damage
+});
+object!(MonsterDamageReport { target, damages });
+object!(CombatRecord {
+    player_number,
+    combo_max,
+    hit_max,
+    style_max,
+    death,
+    kill,
+    battle_achieve,
+    hit_take,
+    style_count,
+    rank_style,
+    rank_battle,
+    rank_total
+});
+object!(UseConsumable { tag, part, slot });
+object!(PlayerRevived {
+    caster_tag,
+    reviver_tag,
+    method
+});
+object!(MicroPlayEffect {
+    player_slot_no,
+    effect,
+    amount,
+    argument
+});
+object!(ApplyMicroPlayEffects {
+    caster,
+    effect_name,
+    effects
+});
 pub fn encode(
     kind: Kind,
     message: Option<&Message>,
@@ -910,6 +1040,11 @@ pub fn encode(
                 Message::DropErg(v) => v.write(&mut w)?,
                 Message::PickErg(v) => v.write(&mut w)?,
                 Message::PutErg(v) => v.write(&mut w)?,
+                Message::MonsterDamageReport(v) => v.write(&mut w)?,
+                Message::CombatRecord(v) => v.write(&mut w)?,
+                Message::UseConsumable(v) => v.write(&mut w)?,
+                Message::PlayerRevived(v) => v.write(&mut w)?,
+                Message::ApplyMicroPlayEffects(v) => v.write(&mut w)?,
             }
         }
     }
@@ -955,6 +1090,15 @@ pub fn decode(
             Kind::DropErg => Message::DropErg(DropErg::read(&mut r)?),
             Kind::PickErg => Message::PickErg(i32::read(&mut r)?),
             Kind::PutErg => Message::PutErg(PutErg::read(&mut r)?),
+            Kind::MonsterDamageReport => {
+                Message::MonsterDamageReport(MonsterDamageReport::read(&mut r)?)
+            }
+            Kind::CombatRecord => Message::CombatRecord(CombatRecord::read(&mut r)?),
+            Kind::UseConsumable => Message::UseConsumable(UseConsumable::read(&mut r)?),
+            Kind::PlayerRevived => Message::PlayerRevived(PlayerRevived::read(&mut r)?),
+            Kind::ApplyMicroPlayEffects => {
+                Message::ApplyMicroPlayEffects(ApplyMicroPlayEffects::read(&mut r)?)
+            }
         })
     };
     if !r.remaining.is_empty() {

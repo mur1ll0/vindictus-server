@@ -538,7 +538,8 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         "prop_tables":[["quest_gnoll_watchman","ruin",null]],
         "prop_items":[[1,"ruin","WOOD","SERVER","synthetic_gold",100,null]],
         "prop_expectations":[["ruin","WOOD",1]],
-        "material_groups":[[4,"WOOD"]]},
+        "material_groups":[[4,"WOOD"]],
+        "effects":[["phoenix_feather","PlayerRevived","TargetDead",1,["ReviveByClient 50",null,null,"GetStatusByClient 1 revive_invincible_normal",null]]]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -2075,6 +2076,28 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     assert_eq!((picked.kind.as_str(), picked.amount), ("synthetic_gold", 1));
     assert!(minimum_mission::player_killed(&mut mission, 0));
     assert!(!minimum_mission::player_killed(&mut mission, 0));
+    // A phoenix feather revives the dead host: ApplyMicroPlayEffects reaches the host.
+    let revive =
+        minimum_mission::apply_effect(&mut mission, contents, 0, 0, "phoenix_feather", 2).unwrap();
+    let Some(MissionMessage::ApplyMicroPlayEffects(effects)) =
+        mission_wire::decode(MissionKind::ApplyMicroPlayEffects, &revive[0].body, 1 << 20).unwrap()
+    else {
+        panic!("effects")
+    };
+    assert_eq!((effects.caster, effects.effects.unwrap().len()), (0, 2));
+    assert!(mission.alive);
+    // Alive again: the TargetDead effect no longer applies.
+    assert!(
+        minimum_mission::apply_effect(&mut mission, contents, 0, 0, "phoenix_feather", 2)
+            .unwrap()
+            .is_empty()
+    );
+    // No quick-slot consumable is equipped: the use is refused.
+    assert!(
+        minimum_mission::use_consumable(&mut mission, contents, 0, 100, 0)
+            .unwrap()
+            .is_none()
+    );
     minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

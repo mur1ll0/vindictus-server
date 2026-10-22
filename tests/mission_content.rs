@@ -273,6 +273,35 @@ fn tables() -> MissionTables {
         ],
         prop_expectations: vec![(s("ruin"), s("WOOD"), 1)],
         material_groups: vec![(4, s("WOOD"))],
+        effects: vec![
+            (
+                s("phoenix_feather"),
+                s("PlayerRevived"),
+                s("TargetDead"),
+                1,
+                vec![
+                    s("ReviveByClient 50"),
+                    None,
+                    None,
+                    s("GetStatusByClient 1 revive_invincible_normal"),
+                    None,
+                ],
+            ),
+            (
+                s("elixir"),
+                s("useconsumable"),
+                s("Self"),
+                1,
+                vec![s("GainHealth 30"), s("Bogus 1")],
+            ),
+            (
+                s("elixir"),
+                s("UseConsumable"),
+                s("None"),
+                0,
+                vec![s("ReduceMinClearTime 5")],
+            ),
+        ],
     }
 }
 
@@ -816,4 +845,32 @@ fn props_carry_erg_expectations_and_gold_then_break_into_pickable_ergs() {
         )
         .unwrap();
     assert_eq!(instant[0].class, "GOLD");
+}
+
+#[test]
+fn micro_play_effects_parse_like_the_element_loader() {
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let feather = contents.effects("phoenix_feather");
+    assert_eq!((feather[0].operation, feather[0].target), (2, 2));
+    assert_eq!(
+        feather[0].effects,
+        [
+            (2, 50, None),
+            (8, 1, Some("revive_invincible_normal".to_owned()))
+        ]
+    );
+    // Case-insensitive enums; an unknown effect type is None (0).
+    let elixir = contents.effects("elixir");
+    assert_eq!((elixir[0].operation, elixir[0].effects[1].0), (1, 0));
+    assert_eq!(elixir[1].effects, [(16, 5, None)]);
+    assert!(contents.effects("missing").is_empty());
+    let mut bad = tables();
+    bad.effects.push((
+        s("x"),
+        s("UseConsumable"),
+        s("Self"),
+        1,
+        vec![s("Revive many")],
+    ));
+    assert!(MissionContents::load(bad, &policy()).is_err());
 }

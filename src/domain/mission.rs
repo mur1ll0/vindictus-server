@@ -111,7 +111,17 @@ pub struct MissionTables {
     pub prop_expectations: Vec<(Option<String>, Option<String>, i32)>,
     /// MaterialGroupInfo: ID, MaterialGroup.
     pub material_groups: Vec<(i32, Option<String>)>,
+    /// MicroPlayEffectInfo: EffectSource, EffectOperation, EffectTarget, EffectTargetAmount, Effect1..5.
+    pub effects: Vec<EffectRow>,
 }
+/// MicroPlayEffectInfo row.
+pub type EffectRow = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    i32,
+    Vec<Option<String>>,
+);
 /// QuestDifficultyInfo: QuestID, Difficulty, GameMode, EvilCoreCount, Feature.
 pub type DifficultyRow = (Option<String>, i32, i32, i32, Option<String>);
 /// MonsterDropItemInfo row.
@@ -685,6 +695,8 @@ pub struct MissionContents {
     prop_tables: BTreeMap<String, Option<String>>,
     material_groups: BTreeMap<i32, Option<String>>,
     prop_drops: BTreeMap<String, Vec<PropGroup>>,
+    /// effectInfoDic: EffectSource → MicroPlayEffectElements in provider order.
+    effects: BTreeMap<String, Vec<EffectElement>>,
     /// FeatureMatrix: LuckyBonus, RareCoreEffectRarity, bossevilcore_bonus.
     lucky_bonus: bool,
     rare_core_rarity: i32,
@@ -915,6 +927,37 @@ impl MissionContents {
                 *e = expectation;
             }
         }
+        let mut effects: BTreeMap<String, Vec<EffectElement>> = BTreeMap::new();
+        for (source, operation, target, amount, list) in t.effects {
+            let element = EffectElement {
+                operation: enum_index(
+                    operation.as_deref(),
+                    &["None", "UseConsumable", "PlayerRevived"],
+                ),
+                target: enum_index(
+                    target.as_deref(),
+                    &[
+                        "None",
+                        "Self",
+                        "TargetDead",
+                        "TargetAlive",
+                        "PartyDead",
+                        "PartyAlive",
+                    ],
+                ),
+                target_amount: amount,
+                effects: list
+                    .iter()
+                    .flatten()
+                    .filter(|e| !e.is_empty())
+                    .map(|e| parse_effect(e))
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            effects
+                .entry(source.unwrap_or_default())
+                .or_default()
+                .push(element);
+        }
         let lucky_bonus = enabled(Some("LuckyBonus"))?;
         let rare_core_rarity = policy
             .get_integer("RareCoreEffectRarity")
@@ -936,6 +979,7 @@ impl MissionContents {
             prop_tables,
             material_groups,
             prop_drops,
+            effects,
             lucky_bonus,
             rare_core_rarity,
             boss_evil_core_bonus,
@@ -960,6 +1004,11 @@ impl MissionContents {
             .find(|(d, _)| *d == difficulty)
             .or_else(|| rows.iter().find(|(d, _)| *d == -1))
             .map(|(_, i)| *i)
+    }
+
+    /// MicroPlayContents.GetMicroPlayEffectInfoList.
+    pub fn effects(&self, source: &str) -> &[EffectElement] {
+        self.effects.get(source).map_or(&[], Vec::as_slice)
     }
 
     /// Whether QuestDifficultyInfoDic has the (enabled) difficulty of the quest.
@@ -2509,4 +2558,51 @@ fn to_erg(row: &PropItemRow) -> ErgDrop {
         amount: 1,
         winner: -1,
     }
+}
+
+/// MicroPlayEffectElement: operation and target as enum indices, parsed effects.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EffectElement {
+    /// MicroPlayEffectOperation: 0 None, 1 UseConsumable, 2 PlayerRevived.
+    pub operation: i32,
+    /// MicroPlayEffectTarget: 0 None, 1 Self, 2 TargetDead, 3 TargetAlive, 4 PartyDead, 5 PartyAlive.
+    pub target: i32,
+    pub target_amount: i32,
+    /// (MicroPlayEffectType, Amount, Argument).
+    pub effects: Vec<(i32, i32, Option<String>)>,
+}
+pub const EFFECT_TYPES: [&str; 17] = [
+    "None",
+    "Revive",
+    "ReviveByClient",
+    "Repair",
+    "RepairByClient",
+    "GainHealth",
+    "GainHelathByClient",
+    "GetStatus",
+    "GetStatusByClient",
+    "RemoveHitRecord",
+    "Hurt",
+    "HurtByClient",
+    "SetHealth",
+    "SetHealthByClient",
+    "Kill",
+    "KillByClient",
+    "ReduceMinClearTime",
+];
+/// Enum.Parse(ignoreCase) or None (0) when the name is unknown (logged by the original).
+fn enum_index(name: Option<&str>, names: &[&str]) -> i32 {
+    name.and_then(|n| names.iter().position(|v| v.eq_ignore_ascii_case(n.trim())))
+        .map_or(0, |i| i as i32)
+}
+/// MicroPlayEffectElement.ParseEffectString: "Type [Amount [Argument]]"; int.Parse of the
+/// amount throws while loading.
+fn parse_effect(text: &str) -> Result<(i32, i32, Option<String>), MissionError> {
+    let parts: Vec<&str> = text.split(' ').collect();
+    let effect = enum_index(parts.first().copied(), &EFFECT_TYPES);
+    let amount = match parts.get(1) {
+        Some(a) => trim(a).parse::<i32>().map_err(|_| MissionError::Content)?,
+        None => 0,
+    };
+    Ok((effect, amount, parts.get(2).map(|a| (*a).to_owned())))
 }

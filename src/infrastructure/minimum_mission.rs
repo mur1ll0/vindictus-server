@@ -478,6 +478,12 @@ pub struct Mission {
     pub boss_killed: Vec<String>,
     /// MicroPlayer.Luck (Stats LUCK; no platinum, bless stone or dormant bonus).
     pub luck: i32,
+    /// BattleInventory: part → (ItemClass, BringNum, UsedNum, DraftNum).
+    pub consumables: Vec<(i32, String, i32, i32, i32)>,
+    /// MicroPlayer.actionRecord of the latest CombatRecord.
+    pub combat_record: Option<wire::CombatRecord>,
+    /// ReduceMinClearTime amounts applied by server-only effects.
+    pub min_clear_time_reduced: i32,
 }
 impl Mission {
     /// ShipOptionInfo.MemberCountLimit.
@@ -688,6 +694,9 @@ pub async fn accept_quest(
         events: Vec::new(),
         boss_killed: Vec::new(),
         luck: 0,
+        consumables: Vec::new(),
+        combat_record: None,
+        min_clear_time_reduced: 0,
     };
     packets.extend(mission.broadcast()?);
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
@@ -726,6 +735,26 @@ pub async fn accept_quest(
         .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
         .map_or(0, |(_, v)| *v);
     mission.luck = luck;
+    mission.consumables = member
+        .join
+        .battle_inventory
+        .as_ref()
+        .and_then(|b| b.consumables.0.as_ref())
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|(part, c)| {
+                    let c = c.as_ref()?;
+                    Some((
+                        *part,
+                        c.item_class.clone().unwrap_or_default(),
+                        c.bring,
+                        c.used,
+                        c.draft,
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let ticket = relay(party_id);
     mission.group = ticket.group;
     // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
@@ -1116,4 +1145,150 @@ pub fn pick_erg(
 /// PutErgMessage of a picked erg.
 pub fn put_erg(erg_id: i32, tag: i32) -> Result<OutgoingPacket, MinimumError> {
     packet(&Message::PutErg(PutErg { erg_id, tag }))
+}
+
+/// An effect for a player slot: (slot, (MicroPlayEffectType, Amount, Argument)).
+type TargetedEffect = (i32, (i32, i32, Option<String>));
+/// The class to destroy (unless free) and the effect packets of a consumable use.
+pub type ConsumableUse = (Option<String>, Vec<OutgoingPacket>);
+
+/// MicroPlay.ApplyMicroPlayEffect for the solo player: Self effects go to the caster,
+/// TargetDead/TargetAlive to the target by its Alive state (party targets select other
+/// players, none here), None effects run on the server (ReduceMinClearTime). Revives set
+/// Alive and inform "reviving"/"revived"; the list reaches the host as
+/// ApplyMicroPlayEffects.
+pub fn apply_effect(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    caster: i32,
+    target: i32,
+    source: &str,
+    operation: i32,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let slot = mission.member.slot;
+    let mut list: Vec<TargetedEffect> = Vec::new();
+    for element in contents.effects(source) {
+        if element.operation != operation {
+            continue;
+        }
+        let add = |list: &mut Vec<TargetedEffect>, who: i32| {
+            for e in &element.effects {
+                list.push((who, e.clone()));
+            }
+        };
+        match element.target {
+            0 => {
+                for (effect, amount, _) in &element.effects {
+                    if *effect == 16 {
+                        mission.min_clear_time_reduced += amount;
+                    }
+                }
+            }
+            1 if caster == slot => add(&mut list, caster),
+            2 if target == slot && !mission.alive => add(&mut list, target),
+            3 if target == slot && mission.alive => add(&mut list, target),
+            _ => {}
+        }
+    }
+    if list.is_empty() {
+        return Ok(Vec::new());
+    }
+    for (who, (effect, _, _)) in &list {
+        if matches!(effect, 1 | 2) && *who == slot {
+            mission.events.push("reviving".to_owned());
+            mission.events.push("revived".to_owned());
+            mission.alive = true;
+        }
+    }
+    let mut packets = vec![packet(&Message::ApplyMicroPlayEffects(
+        wire::ApplyMicroPlayEffects {
+            caster,
+            effect_name: Some(source.to_owned()),
+            effects: Some(
+                list.into_iter()
+                    .map(|(who, (effect, amount, argument))| {
+                        Some(wire::MicroPlayEffect {
+                            player_slot_no: who,
+                            effect,
+                            amount,
+                            argument,
+                        })
+                    })
+                    .collect(),
+            ),
+        },
+    ))?];
+    if matches!(source, "cash_revive_party" | "cash_revive_party_exchange") {
+        let name = mission.member.character_id.clone().unwrap_or_default();
+        packets.push(super::minimum_shop::system_message(
+            2,
+            "GameUI_Heroes_PartyProtection_Done",
+            &[name],
+        )?);
+    }
+    Ok(packets)
+}
+
+/// UseConsumableProcessor for the solo host: BattleInventory.UseConsumable (no inner
+/// slots), the UseConsumable effects, then the item to destroy unless the quest is
+/// ConsumableFree or the consumable is of infinite use (DraftNum 0). Returns the class to
+/// destroy and the effect packets; `None` when the use is refused.
+pub fn use_consumable(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    tag: i32,
+    part: i32,
+    slot: i32,
+) -> Result<Option<ConsumableUse>, MinimumError> {
+    if tag != mission.member.slot || slot != 0 {
+        return Ok(None);
+    }
+    let Some(row) = mission.consumables.iter_mut().find(|r| r.0 == part) else {
+        return Ok(None);
+    };
+    // ConsumablesInfo.Used(1).
+    let (bring, used) = (row.2, row.3);
+    if bring < 1 || bring - 1 < used {
+        row.3 = bring;
+        return Ok(None);
+    }
+    row.3 += 1;
+    let (class, draft) = (row.1.clone(), row.4);
+    let packets = apply_effect(mission, contents, tag, 0, &class, 1)?;
+    let free = mission.settings.iter().any(|(k, _)| k == "ConsumableFree") || draft == 0;
+    mission.events.push(format!(
+        "use consumable {} {class} 1",
+        if part >= 100 {
+            "QuickSlot"
+        } else {
+            "SubWeapon"
+        }
+    ));
+    Ok(Some(((!free).then_some(class), packets)))
+}
+
+/// DestroyItem of a used consumable (one item), with its inventory update.
+pub async fn destroy_consumable(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    class: &str,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let key = utf16(class);
+    let request = [super::minimum_give::Request {
+        class: &key,
+        count: 1,
+        bound: false,
+        equipment: None,
+    }];
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let applied =
+        super::minimum_give::apply(&mut tx, owner, assets, cid, &request, &[], &mut || {
+            Err(fail())
+        })
+        .await?
+        .map_err(|_| fail())?;
+    tx.commit().await?;
+    Ok(vec![inventory_packet(applied.slots)?])
 }

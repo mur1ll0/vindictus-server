@@ -1036,6 +1036,61 @@ impl Connection {
                 tracing::info!("mission erg picked; values omitted");
                 packets
             }
+            // MDRSystem_V1 anti-cheat only marks CheaterType for rankings, which are not
+            // migrated (MDRSystem_V2 and the action filter are off).
+            Message::MonsterDamageReport(_) => Vec::new(),
+            Message::CombatRecord(record) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                if record.player_number == state.member.slot {
+                    state.combat_record = Some(record);
+                }
+                Vec::new()
+            }
+            Message::UseConsumable(used) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let Some((destroy, mut packets)) =
+                    mission::use_consumable(state, contents, used.tag, used.part, used.slot)
+                        .map_err(|_| RuntimeError::Operation)?
+                else {
+                    tracing::info!("mission consumable use refused; values omitted");
+                    return Ok(());
+                };
+                if let Some(class) = destroy {
+                    match mission::destroy_consumable(pool, &owner, assets, cid, &class).await {
+                        Ok(more) => packets.extend(more),
+                        Err(_) => {
+                            tracing::warn!("mission consumable destroy failed; values omitted")
+                        }
+                    }
+                }
+                tracing::info!("mission consumable used; values omitted");
+                packets
+            }
+            Message::PlayerRevived(revived) => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let packets = mission::apply_effect(
+                    state,
+                    contents,
+                    revived.caster_tag,
+                    revived.reviver_tag,
+                    revived.method.as_deref().unwrap_or(""),
+                    2,
+                )
+                .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!(
+                    alive = state.alive,
+                    "mission revive processed; values omitted"
+                );
+                packets
+            }
             Message::PlayerKilled(tag) => {
                 let Some(state) = self.mission.as_mut() else {
                     return Ok(());
@@ -1474,6 +1529,10 @@ impl Connection {
                 Kind::SectorPropList,
                 Kind::PropBroken,
                 Kind::PickErg,
+                Kind::MonsterDamageReport,
+                Kind::CombatRecord,
+                Kind::UseConsumable,
+                Kind::PlayerRevived,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;

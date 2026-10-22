@@ -770,3 +770,17 @@ Domínio:
 Desvios documentados: NamedProp.BreakNamedProp, bônus de habilidade (AbilityList vazia no perfil) e HugeLucky não migrados.
 
 Testes focados: mission_content (8, inclui registro, quebra e recolha), mission_wire (2), PostgreSQL minimum_mission (2: prop de madeira com erg de servidor, DropErg, evento e recolha única), Python export_npc_scripts (2), clippy. Cliente: entrada B2.5b. Próximo: B2.6 relatórios de combate (MonsterDamageReport para o MDRSystem_V1, CombatRecord, UseConsumable, PlayerRevived).
+
+B2.6 — relatórios de combate, consumíveis e reviver (cliente: entrada B2.6). Codecs MonsterDamageReport290 (MonsterTakeDamageInfo com o float AttackTime em bits), CombatRecord263, UseConsumable624, PlayerRevived555 e ApplyMicroPlayEffects403 (MicroPlayEffect) no oráculo de missão (110 casos por arquitetura, x86=x64). Perfil `mission` com MicroPlayEffectInfo (todas as linhas, sem filtro de Feature, como o effectInfoDic).
+
+Domínio: MicroPlayEffectElement (operação e alvo por Enum.Parse sem diferenciar maiúsculas; tipo desconhecido = None; o int.Parse da quantidade aborta a carga).
+
+`minimum_mission`:
+- `apply_effect` porta MicroPlay.ApplyMicroPlayEffect para o solo: Self no lançador; TargetDead/TargetAlive pelo Alive do alvo; alvos de grupo sem outros jogadores; None no servidor (ReduceMinClearTime acumulado para o B2.7). Revive marca Alive e os eventos "reviving"/"revived". A lista vai ao host em ApplyMicroPlayEffects, com o aviso de PartyProtection nas penas de grupo.
+- `use_consumable` porta o UseConsumableProcessor: BattleInventory.UseConsumable/ConsumablesInfo.Used sobre o inventário de batalha guardado do AddPlayer; efeitos UseConsumable; evento "use consumable QuickSlot|SubWeapon <classe> 1". DestroyItem de 1 item com UpdateInventoryInfo, exceto ConsumableFree ou DraftNum 0.
+- PlayerRevived aplica os efeitos PlayerRevived do método.
+- CombatRecord guarda o actionRecord do jogador para o resumo do B2.7.
+
+Desvio documentado: MonsterDamageReport é aceito sem efeito, porque o anti-cheat do MDRSystem_V1 só marca CheaterType, que alimenta rankings não migrados (V2 e o filtro de ação estão desligados). Também não estão migrados: o ActionReward de reviver outros e o uso livre de evento E3/PAX (features desligadas).
+
+Testes focados: mission_content (9, inclui o parser de efeitos), mission_wire (2), PostgreSQL minimum_mission (2: pena de fênix revive o host morto e não se aplica a vivo; consumível ausente recusado), Python export_npc_scripts (2), clippy. Cliente: entrada B2.6. Próximo: B2.7 conclusão da quest (trackers de objetivo, QuestTargetResult, FinishGame, recompensas e retorno à cidade).
