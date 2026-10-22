@@ -35,8 +35,24 @@ impl Facts for Fiona {
     fn base_skill_rank(&self, skill: &str) -> i32 {
         if skill == "skill_fiona_guard" { 2 } else { -1 }
     }
+    fn items(&self) -> Vec<(String, i32)> {
+        vec![
+            ("gold".to_owned(), 500),
+            ("token_wolf_tooth".to_owned(), 3),
+            ("token_wolf_claw".to_owned(), 2),
+        ]
+    }
+    fn use_preset(&self) -> bool {
+        true
+    }
+    fn utc_seconds(&self) -> i32 {
+        1_000_000
+    }
     fn item_count(&self, class: &str) -> i32 {
-        if class == "gold" { 500 } else { 0 }
+        self.items()
+            .into_iter()
+            .find(|(c, _)| c == class)
+            .map_or(0, |(_, n)| n)
     }
     fn manufacture(&self, _: &str) -> Option<(i32, i32)> {
         None
@@ -529,6 +545,15 @@ impl Facts for QuestFiona {
     fn base_skill_rank(&self, _: &str) -> i32 {
         -1
     }
+    fn items(&self) -> Vec<(String, i32)> {
+        Vec::new()
+    }
+    fn use_preset(&self) -> bool {
+        false
+    }
+    fn utc_seconds(&self) -> i32 {
+        0
+    }
     fn item_count(&self, _: &str) -> i32 {
         0
     }
@@ -911,4 +936,228 @@ fn skill_conditions_read_the_base_rank_like_data_cache() {
             "HAS", "NOT", "MIN_OK", "MIN_LOW", "MAX_HIGH", "MIN_LOW", "MAX_OK"
         ]
     );
+}
+
+#[test]
+fn story_commands_and_conditions_follow_process_command_func() {
+    use vindictus_server::domain::npc_talk::Effect;
+    let cond = |name: &str, arg: &str, yes: &str, no: &str| {
+        el(
+            "If",
+            &[],
+            "",
+            vec![
+                el("Condition", &[], "", vec![leaf(name, arg)]),
+                el("Then", &[], "", vec![leaf("talk", yes)]),
+                el("Else", &[], "", vec![leaf("talk", no)]),
+            ],
+        )
+    };
+    let guide = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "MARREC")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![
+                        cond("has_item_regex", "token_wolf_.*,5", "REGEX5", "REGEX_LOW"),
+                        cond(
+                            "has_item_regex",
+                            "token_wolf_tooth,4",
+                            "REGEX4",
+                            "REGEX_LOW",
+                        ),
+                        cond("has_guild", "", "GUILD", "NO_GUILD"),
+                        cond("is_cafe", "", "CAFE", "NO_CAFE"),
+                        cond("is_account_secured", "", "OTP", "NO_OTP"),
+                        cond("is_preset_character", "", "PRESET", "NOT_PRESET"),
+                        leaf("set_timer", "t1"),
+                        cond("time_passed", "t1,10", "PASSED", "WAIT"),
+                        leaf("give_exp", "100"),
+                        leaf("take_item_silent", "token_wolf_claw"),
+                        cond("has_item_regex", "token_wolf_claw,1", "CLAW", "NO_CLAW"),
+                        leaf("give_item_failmail", "potion,2"),
+                        leaf("take_item_enhanced", "token_wolf_tooth,1"),
+                        leaf("save_point", ""),
+                        leaf("change_phase", "Side,Y"),
+                        cond("storyline_is", "Side,Y", "SIDE_Y", "SIDE_X"),
+                        leaf("delete_storyline", "Side"),
+                        cond("has_storyline", "Side", "SIDE", "NO_SIDE"),
+                        leaf("complete_storyline_and_delete", ""),
+                        cond("has_storyline", "Guide", "GUIDE", "NO_GUIDE"),
+                    ],
+                )],
+            )],
+        )],
+    );
+    let side = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![
+            el("Phase", &[("id", "X")], "", vec![]),
+            el("Phase", &[("id", "Y")], "", vec![]),
+        ],
+    );
+    let line = |id: &str| StoryLineInfo {
+        id: id.to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![
+        (line("Guide"), Some(&guide)),
+        (line("Side"), Some(&side)),
+    ]);
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![
+            Progress {
+                story_line: "Guide".to_owned(),
+                phase: Some("A".to_owned()),
+                status: 0,
+            },
+            Progress {
+                story_line: "Side".to_owned(),
+                phase: Some("X".to_owned()),
+                status: 0,
+            },
+        ],
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let outputs = run(&s, &p, &mut state, &mut session, "MARREC");
+    let talk: Vec<(String, String, String)> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    let said: Vec<&str> = talk
+        .iter()
+        .filter(|e| e.0 == "talk")
+        .map(|e| e.1.as_str())
+        .collect();
+    assert_eq!(
+        said,
+        [
+            "REGEX5",
+            "REGEX_LOW",
+            "NO_GUILD",
+            "NO_CAFE",
+            "NO_OTP",
+            "PRESET",
+            "WAIT",
+            "NO_CLAW",
+            "SIDE_Y",
+            "NO_SIDE",
+            "NO_GUIDE"
+        ]
+    );
+    for expected in [
+        t("give_item_successful", "potion", "2"),
+        t("take_item_successful", "token_wolf_tooth", "1"),
+        t("delete_storyline_successful", "Side", ""),
+        t("complete_storyline_successful", "Guide", ""),
+    ] {
+        assert!(talk.contains(&expected), "{expected:?} in {talk:?}");
+    }
+    let effects: Vec<&Effect> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Effect(e) => Some(e),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        effects,
+        [
+            &Effect::Reward { exp: 100, ap: 0 },
+            &Effect::TakeItem {
+                class: "token_wolf_claw".to_owned(),
+                count: 2
+            },
+            &Effect::GiveItem {
+                class: "potion".to_owned(),
+                count: 2
+            },
+            &Effect::TakeItem {
+                class: "token_wolf_tooth".to_owned(),
+                count: 1
+            },
+        ]
+    );
+    // Both storylines are gone (deleted, and completed then deleted).
+    assert!(state.progress.is_empty());
+}
+
+#[test]
+fn take_item_enhanced_with_an_enhance_attribute_is_refused() {
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "FERGHUS")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![leaf("take_item_enhanced", "longsword[ENHANCE:3],1")],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 0,
+        }],
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let facts = Fiona { level: 1 };
+    let mut pick = |_| 0;
+    let first = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session).talk_to(
+        None,
+        "FERGHUS",
+        Some("Guide"),
+        None,
+    );
+    let result = match first {
+        Ok(_) if session.last_server_command.is_some() => {
+            Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+                .execute_server_command()
+                .map(|_| ())
+        }
+        other => other.map(|_| ()),
+    };
+    assert!(matches!(result, Err(TalkError::Unsupported(_))));
 }

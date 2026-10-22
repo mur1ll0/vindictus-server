@@ -78,6 +78,12 @@ pub trait Facts {
     fn title_acquired(&self, id: i32) -> bool;
     /// SkillManager.GetBaseSkillRank: the learned rank, -1 when not learned.
     fn base_skill_rank(&self, skill: &str) -> i32;
+    /// Unexpired item counts by ItemClass (QueryItemCountRegex scans them).
+    fn items(&self) -> Vec<(String, i32)>;
+    /// CharacterInfo.UsePreset (DataCache.QueryIsPreset).
+    fn use_preset(&self) -> bool;
+    /// DateTime.UtcNow.ToInt32(): Unix seconds.
+    fn utc_seconds(&self) -> i32;
     /// Unexpired item count of an ItemClass.
     fn item_count(&self, class: &str) -> i32;
     /// QueryManufactureStatus: (grade, exp) when the manufacture is known.
@@ -532,6 +538,24 @@ impl<'a> Talker<'a> {
                 .map(|(_, d)| *d)
                 .sum::<i64>()
     }
+    /// QueryItemCountRegex: unexpired items whose ItemClass the pattern matches, with
+    /// this query's give/take changes.
+    fn item_count_matching(&self, regex: &regex::Regex) -> i64 {
+        let mut counts: std::collections::BTreeMap<String, i64> = self
+            .facts
+            .items()
+            .into_iter()
+            .map(|(c, n)| (c, i64::from(n)))
+            .collect();
+        for (class, delta) in &self.state.item_delta {
+            *counts.entry(class.clone()).or_default() += delta;
+        }
+        counts
+            .iter()
+            .filter(|(c, _)| regex.is_match(c))
+            .map(|(_, n)| (*n).max(0))
+            .sum()
+    }
     fn delta_of(&self, class: &str) -> i64 {
         self.state
             .item_delta
@@ -688,8 +712,11 @@ impl<'a> Talker<'a> {
                 }
                 self.resume(k)
             }
-            "complete_storyline" => {
+            "complete_storyline" | "complete_storyline_and_delete" => {
                 let line_id = self.querying_line(arg1);
+                // GetStoryProgress before completion: an owned storyline completes (and the
+                // _and_delete variant deletes it) and the command succeeds; none fails.
+                let existed = self.state.progress.iter().any(|p| p.story_line == line_id);
                 let index = self
                     .state
                     .progress
@@ -758,12 +785,19 @@ impl<'a> Talker<'a> {
                             .push(Output::Effect(Effect::Reward { exp, ap }));
                     }
                     self.session.story_line_changed = true;
+                    if command == "complete_storyline_and_delete" {
+                        // DeleteStoryLine; the completed object still has PhaseID null.
+                        self.state.progress.retain(|p| p.story_line != line_id);
+                    }
                 }
-                let done = self
-                    .state
-                    .progress
-                    .iter()
-                    .any(|p| p.story_line == line_id && p.phase.is_none());
+                let done = if command == "complete_storyline_and_delete" {
+                    existed
+                } else {
+                    self.state
+                        .progress
+                        .iter()
+                        .any(|p| p.story_line == line_id && p.phase.is_none())
+                };
                 if done {
                     self.resume(k)
                 } else {
@@ -789,7 +823,9 @@ impl<'a> Talker<'a> {
                 let _ = k;
                 self.talk_to_inner(building.as_deref(), &npc, Some(&line), Some(""))
             }
-            "give_item" => {
+            // give_item_failmail differs only by ForceMail, and mailing is not migrated:
+            // a give that does not fit refuses the whole request in both.
+            "give_item" | "give_item_failmail" => {
                 let class = arg1.unwrap_or("");
                 let Some(count) = Self::parse(arg2) else {
                     let text = format!(
@@ -810,8 +846,19 @@ impl<'a> Talker<'a> {
                 self.add(entity("give_item_successful", Some(class), arg2));
                 self.resume(k)
             }
-            "take_item" => {
-                let class = arg1.unwrap_or("");
+            "take_item" | "take_item_enhanced" => {
+                let raw = arg1.unwrap_or("");
+                // take_item_enhanced: ItemClassExBuilder.Parse reassigns the class; an
+                // ENHANCE attribute selects by EnhanceLevel, which items do not carry yet.
+                let class = if command == "take_item_enhanced" {
+                    let (base, attributes) = raw.split_once('[').unwrap_or((raw, ""));
+                    if attributes.contains("ENHANCE") {
+                        return Err(TalkError::Unsupported("take_item_enhanced ENHANCE".into()));
+                    }
+                    base
+                } else {
+                    raw
+                };
                 let Some(count) = Self::parse(arg2) else {
                     let text = format!(
                         "Error : take_item에 Arg2가 숫자가 아닙니다.({})",
@@ -855,6 +902,79 @@ impl<'a> Talker<'a> {
                         self.resume(k)
                     }
                 }
+            }
+            // GiveReward(.., {titleID: true}) → AcquireTitle: an acquired title adds its
+            // TitleStatInfo stats and counts in the character summary, which the selection
+            // and character list do not migrate yet (they refuse acquired titles), so the
+            // branch stays unsupported rather than leaving an unloadable character.
+            "acquire_title" => Err(TalkError::Unsupported("acquire_title".into())),
+            "delete_storyline" => {
+                let line_id = self.querying_line(arg1);
+                if let Some(p) = self.state.progress.iter().find(|p| p.story_line == line_id) {
+                    if p.status != 255 {
+                        self.add(entity("delete_storyline_successful", Some(&line_id), None));
+                    }
+                    self.state.progress.retain(|p| p.story_line != line_id);
+                    self.session.story_line_changed = true;
+                }
+                self.resume(k)
+            }
+            "change_phase" => {
+                let line = arg1.unwrap_or("").to_owned();
+                let target = arg2.unwrap_or("");
+                let Some(phase) = self.scripts.story_line(&line).and_then(|l| l.phase(target))
+                else {
+                    let text =
+                        format!("Error : change_phase : 페이즈가 존재하지 않습니다.({target})");
+                    self.add(entity("talk", Some(&text), None));
+                    return self.resume(k);
+                };
+                let on_enter = phase.on_enter;
+                // GotoPhase needs the storyline's progress.
+                let Some(p) = self
+                    .state
+                    .progress
+                    .iter_mut()
+                    .find(|p| p.story_line == line)
+                else {
+                    return self.on_error("change_phase");
+                };
+                p.phase = Some(target.to_owned());
+                self.session.story_line_changed = true;
+                match on_enter {
+                    Some(enter) => self.process(enter, k),
+                    None => self.resume(k),
+                }
+            }
+            // Process_save_point only completes (the save point is the DoChain split).
+            "save_point" => self.resume(k),
+            "set_timer" => {
+                let now = self.facts.utc_seconds();
+                self.set_variable(arg1.unwrap_or(""), now)?;
+                self.resume(k)
+            }
+            "give_exp" => match arg1.and_then(|v| v.trim().parse::<i32>().ok()) {
+                // GiveReward(exp, 0, null, null) without the story rates.
+                Some(exp) => {
+                    self.pushed
+                        .outputs
+                        .push(Output::Effect(Effect::Reward { exp, ap: 0 }));
+                    self.resume(k)
+                }
+                None => self.on_error("give_exp"),
+            },
+            "take_item_silent" => {
+                let class = arg1.unwrap_or("");
+                let count = self.item_count(class);
+                if count > 0 {
+                    let count = i32::try_from(count).map_err(|_| TalkError::Halted)?;
+                    self.pushed.outputs.push(Output::Effect(Effect::TakeItem {
+                        class: class.to_owned(),
+                        count,
+                    }));
+                    self.add_delta(class, -i64::from(count));
+                }
+                self.resume(k)
             }
             "notice_title" => {
                 // int.TryParse failure only logs: the completion is never called.
@@ -1078,6 +1198,24 @@ impl<'a> Talker<'a> {
                 level(arg2).map(|r| self.facts.base_skill_rank(arg1.unwrap_or("")) <= r)
             }
             "has_item" => level(arg2).map(|c| self.item_count(arg1.unwrap_or("")) >= i64::from(c)),
+            "has_item_regex" => match level(arg2) {
+                None => None,
+                Some(c) => {
+                    // new Regex(pattern): an invalid pattern throws in the source.
+                    let regex = regex::RegexBuilder::new(arg1.unwrap_or(""))
+                        .size_limit(1 << 20)
+                        .build()
+                        .map_err(|_| TalkError::Unsupported("has_item_regex pattern".into()))?;
+                    Some(self.item_count_matching(&regex) >= i64::from(c))
+                }
+            },
+            // QueryGuildID: the laboratory has no guild service or membership (GuildID 0).
+            "has_guild" => Some(false),
+            // QueryIsCafe: the laboratory announces CafeType 0.
+            "is_cafe" => Some(self.facts.quest_context().0),
+            // QueryIsOTPEnabled: the laboratory announces IsOTP false.
+            "is_account_secured" => Some(false),
+            "is_preset_character" => Some(self.facts.use_preset()),
             // Items carry no ENHANCE attribute in the migrated inventory: EnhanceLevel 0.
             "has_item_enhanced" => {
                 level(arg2).map(|l| self.item_count(arg1.unwrap_or("")) > 0 && 0 >= l)
@@ -1163,8 +1301,11 @@ impl<'a> Talker<'a> {
             // A timer variable is only written by set_timer (not migrated): 0 is null.
             "time_passed" => match number(arg2) {
                 None => None,
-                Some(_) if self.state.variable(&line, arg1.unwrap_or("")) == 0 => None,
-                Some(_) => return Err(TalkError::Unsupported("time_passed".into())),
+                Some(seconds) => match self.state.variable(&line, arg1.unwrap_or("")) {
+                    0 => None,
+                    // variableValue + result < DateTime.UtcNow.ToInt32() (Int32 arithmetic).
+                    set => Some(set.wrapping_add(seconds) < self.facts.utc_seconds()),
+                },
             },
             other => return Err(TalkError::Unsupported(other.to_owned())),
         })

@@ -61,6 +61,14 @@ pub struct NoticedTitle {
     pub goals: Vec<(i32, i32)>,
 }
 
+/// A title AcquireTitle marked acquired: `new` when GiveTitle inserted it first.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AcquiredTitle {
+    pub id: i32,
+    pub new: bool,
+    pub goals: Vec<i32>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Progression {
     /// characterClassInfo (Identifier 1): STR, DEX, INT, WILL, HP, STAMINA per level.
@@ -309,6 +317,26 @@ impl Progression {
             new: false,
             goals: revealed(&stored),
         }))
+    }
+    /// TitleManager.AcquireTitle(titleID) for an owned title (`Some(acquired)`) or not:
+    /// `None` when nothing changes (unknown, feature-disabled, class-restricted or
+    /// already acquired). The goals are listed for the slot (-1 each, acquired).
+    pub fn acquire_title(&self, id: i32, class: i32, owned: Option<bool>) -> Option<AcquiredTitle> {
+        let t = self.titles.iter().find(|t| t.id == id && t.enabled)?;
+        let new = match owned {
+            Some(true) => return None,
+            Some(false) => false,
+            // GiveTitle: IsAvailableFor(BaseCharacter).
+            None if 1_i32.wrapping_shl(class as u32 & 31) & t.class_restriction == 0 => {
+                return None;
+            }
+            None => true,
+        };
+        Some(AcquiredTitle {
+            id,
+            new,
+            goals: t.goals.clone(),
+        })
     }
     /// LevelUpMessage.StatIncreased: GetCharacterStats(new) − GetCharacterStats(old) over
     /// every CharacterStats key (LUCK is 100 on both sides).

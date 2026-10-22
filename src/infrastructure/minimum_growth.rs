@@ -330,6 +330,29 @@ pub(super) async fn notice_title(
             .await?;
     }
     title_log(tx, ctx.journal, OPEN_TITLE, title).await?;
+    let slot = crate::protocol::inventory::TitleSlot {
+        title_id: title,
+        // TitleState.Known: visible and not acquired.
+        status: 1,
+        time_stamp: 0,
+        quest_id: Some(String::new()),
+        goal_progress: Some(noticed.goals.clone()),
+        is_expireable: false,
+        expire_date_time: -1,
+    };
+    title_changed(tx, owner, assets, cid, ctx, slot).await
+}
+
+/// Stats.TitleChanged, PushUpdateStat and PushTitleUpdate (UpdateTitle with the slot,
+/// CharacterCommonInfo) after GiveReward changed one title.
+async fn title_changed(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    ctx: GrowthContext,
+    slot: crate::protocol::inventory::TitleSlot,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let mut packets = Vec::new();
     let view = super::minimum_selection::view(
         tx,
@@ -343,16 +366,6 @@ pub(super) async fn notice_title(
     )
     .await?;
     packets.push(view.stat);
-    let slot = crate::protocol::inventory::TitleSlot {
-        title_id: title,
-        // TitleState.Known: visible and not acquired.
-        status: 1,
-        time_stamp: 0,
-        quest_id: Some(String::new()),
-        goal_progress: Some(noticed.goals.clone()),
-        is_expireable: false,
-        expire_date_time: -1,
-    };
     let update = crate::protocol::inventory::Message::UpdateTitle(Some(vec![Some(slot)]));
     packets.push(OutgoingPacket {
         category: crate::protocol::inventory::Kind::UpdateTitle.category(),

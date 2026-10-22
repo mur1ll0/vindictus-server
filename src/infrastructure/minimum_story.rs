@@ -373,6 +373,7 @@ struct Facts<'a> {
     titles: std::collections::BTreeSet<i32>,
     skills: std::collections::BTreeMap<String, i32>,
     items: std::collections::BTreeMap<String, i32>,
+    use_preset: bool,
     repair_price: i32,
     gold: i32,
     manufactures: std::collections::BTreeMap<String, (i32, i32)>,
@@ -389,6 +390,17 @@ impl crate::domain::npc_talk::Facts for Facts<'_> {
     }
     fn base_skill_rank(&self, skill: &str) -> i32 {
         self.skills.get(skill).copied().unwrap_or(-1)
+    }
+    fn items(&self) -> Vec<(String, i32)> {
+        self.items.iter().map(|(k, v)| (k.clone(), *v)).collect()
+    }
+    fn use_preset(&self) -> bool {
+        self.use_preset
+    }
+    fn utc_seconds(&self) -> i32 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() as i32)
     }
     fn item_count(&self, class: &str) -> i32 {
         self.items.get(class).copied().unwrap_or(0)
@@ -492,7 +504,13 @@ pub async fn talk(
         if skills.len() > 4096 {
             return Err(fail());
         }
+        let use_preset: bool =
+            sqlx::query_scalar("SELECT use_preset FROM game_character_info WHERE id=$1")
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
         let facts = Facts {
+            use_preset,
             skills: skills
                 .into_iter()
                 .map(|(k, r)| Ok((text(&k)?, r)))
@@ -605,7 +623,10 @@ pub async fn talk(
         }
         // GiveReward runs on the saved story and quest state; its packets keep their
         // position among the query outputs.
-        for (at, effect) in rewards.into_iter().rev() {
+        // Source order; each effect's packets go where its command ran, shifted by the
+        // packets earlier effects inserted.
+        let mut shift = 0;
+        for (at, effect) in rewards {
             let applied = match effect {
                 crate::domain::npc_talk::Effect::NoticeTitle(title) => {
                     super::minimum_growth::notice_title(&mut tx, owner, assets, cid, title, growth)
@@ -628,13 +649,14 @@ pub async fn talk(
             };
             match applied {
                 Ok(reward) => {
-                    let tail = packets.split_off(at);
+                    let tail = packets.split_off(at + shift);
+                    shift += reward.len();
                     packets.extend(reward);
                     packets.extend(tail);
                 }
                 Err(e) => {
                     *session = backup;
-                    tracing::warn!("minimum story reward not applied; nothing sent");
+                    tracing::warn!(error = ?e, "minimum story reward not applied; nothing sent");
                     return Err(e);
                 }
             }
@@ -965,6 +987,16 @@ async fn save_state(
                     .execute(&mut **tx)
                     .await?;
             }
+        }
+    }
+    // DeleteStoryLine: progress rows removed by the query.
+    for o in &original.progress {
+        if !state.progress.iter().any(|p| p.story_line == o.story_line) {
+            sqlx::query("DELETE FROM game_story_progress WHERE cid=$1 AND story_line_utf16=$2")
+                .bind(cid)
+                .bind(utf16(&o.story_line))
+                .execute(&mut **tx)
+                .await?;
         }
     }
     if state.saves != original.saves {

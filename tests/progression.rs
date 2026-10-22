@@ -1,6 +1,8 @@
 use vindictus_server::domain::{
     feature_policy::FeaturePolicy,
-    progression::{GivenTitle, Growth, NoticedTitle, Progression, ProgressionTables, STAT_NAMES},
+    progression::{
+        AcquiredTitle, GivenTitle, Growth, NoticedTitle, Progression, ProgressionTables, STAT_NAMES,
+    },
 };
 
 fn policy(max_level: &str) -> FeaturePolicy {
@@ -140,4 +142,25 @@ fn notice_title_opens_or_reveals_a_title_like_title_manager() {
         p.notice_title(410018, 1, Some((false, &[(3, -1)])))
             .is_err()
     );
+}
+
+#[test]
+fn acquire_title_gives_then_acquires_like_title_manager() {
+    let p = Progression::load(tables(), &policy("90")).unwrap();
+    // Not owned: GiveTitle then acquire; every goal is listed for the -1 slot.
+    assert_eq!(
+        p.acquire_title(410017, 1, None),
+        Some(AcquiredTitle {
+            id: 410017,
+            new: true,
+            goals: vec![1, 2]
+        })
+    );
+    // Owned and not acquired: only acquired.
+    assert!(!p.acquire_title(410018, 1, Some(false)).unwrap().new);
+    // Already acquired, unknown, feature-disabled or class-restricted: nothing.
+    assert_eq!(p.acquire_title(410018, 1, Some(true)), None);
+    assert_eq!(p.acquire_title(999, 1, None), None);
+    assert_eq!(p.acquire_title(410022, 1, None), None);
+    assert_eq!(p.acquire_title(410020, 1, None), None);
 }
