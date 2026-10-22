@@ -39,9 +39,66 @@ Notes:
 - With a connection-request handler installed, as in `RelayServer`, the server answers type 7 with type 10. Without that handler it answers with a type-9 reply instead.
 - The server only needs the public-key operation (RSA PKCS#1 v1.5 encryption of the session key). It never needs a private key.
 
-### Internal RMIs
+### Field encodings
 
-An RMI message is type 1. The client-side `S2CStub` handles the internal server-to-client RMIs `0xfbf5`–`0xfc07`. Each one calls one virtual handler, starting at vtable slot 7. The argument formats and the P2P-group join RMI are being recovered next.
+All little-endian.
+
+| Field | Encoding |
+|-------|----------|
+| bool, byte | 1 byte |
+| u16 | 2 bytes |
+| int, HostID, event ID, frame number | 4 bytes |
+| int64 | 8 bytes |
+| GUID | 16 raw bytes |
+| byte array | compact length, then the bytes |
+| AddrPort | u32 IPv4, then u16 port |
+
+The compact length uses the smallest width that holds the value as a signed number (1, 2, 4 or 8 bytes).
+
+The "test splitter" (a 0xFE byte appended after every field) is disabled: its global default in the client is the constant 0.
+
+### RMIs
+
+An RMI is message type 1, followed by a u16 RMI ID and the arguments in declaration order.
+
+ProudNet server→client RMIs (`ProudS2C`, IDs `0xfbf5`–`0xfc07`):
+
+| ID | Name | Arguments |
+|----|------|-----------|
+| `0xfbf5` | P2PGroup_MemberJoin | group HostID, member HostID, custom field (byte array), event ID, P2P session key (byte array), first frame number, connection magic GUID, bool, u16 |
+| `0xfbf6` | Unencrypted variant | Same arguments without the session key |
+| `0xfbfc` | ReliablePong | none (the server's answer to ReliablePing) |
+
+The client accepts members that are itself or the server (HostID 1).
+
+ProudNet client→server RMIs (`ProudC2S`, IDs `0xfa01`–`0xfa13`), in PIDL order:
+
+| ID | Name | Arguments |
+|----|------|-----------|
+| `0xfa01` | ReliablePing | float frame rate |
+| `0xfa04` | P2PGroup_MemberJoin_Ack | group HostID, member HostID, event ID, bool |
+| `0xfa07` | ShutdownTcpHandshake | — |
+| `0xfa08` | Log | — |
+| `0xfa09` | Log | — |
+
+Heroes game RMIs (PIDL `S2C`/`C2S`):
+
+| ID | Direction | Name | Arguments |
+|----|-----------|------|-----------|
+| `0x7d1` | S2C | NMInfos | — |
+| `0x7d2` | S2C | S2CSendData | int host ID, byte array |
+| `0x7d3` | S2C | BroadcastChat | — |
+| `0x3e9` | C2S | NMInfosResult | int64 CID |
+
+### Relay semantics (managed `RelayServer`)
+
+- **Registration:** `AddClientWaiting` issues a serial number and a random key.
+- **Connection request (type 7):** the user data must be exactly 8 bytes, `int SN` then `int Key`, matching a waiting client. The reply is the CID (int64) followed by the NexonSN (int32).
+- **NMInfosResult:** the client sends its CID, which moves the relay client to Connected.
+- **Joining the group:** `P2PGroup.Join` calls `JoinP2PGroup(member, group, customField)`, where the custom field is ParentID (int64) then ParentCategory (BinaryWriter string), and then sends NMInfos. The member's `P2PGroup_MemberJoin_Ack` completes the join; this is the event that admits the player into the MicroPlay.
+- **Group custom field:** ParentCategory, ParentID, then the int 0.
+
+Message types 20, 21 and 22 relay reliable, unreliable and linger frames to the other group members, answered as types 23, 24 and 25. A one-member group has nobody to relay to.
 
 ## Next steps
 
