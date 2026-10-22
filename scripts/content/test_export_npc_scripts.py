@@ -20,9 +20,17 @@ class NpcScriptExportTests(unittest.TestCase):
             db.executescript('CREATE TABLE RepairEnhanceInfo(EnhanceLevel INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairQualityInfo(Quality INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEnchantInfo(EnchantLevel INT,PrefixPoint INT,SuffixPoint INT,PrefixMaxDurabilityRecoveryPoint INT,SuffixMaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEquipClassInfo(EquipClass TEXT,Point INT,MaxDurabilityRecoveryPoint INT);')
             db.execute('INSERT INTO RepairQualityInfo VALUES(2,5,0)')
             db.execute('ALTER TABLE EquipItemInfo ADD COLUMN EquipClass TEXT')
-            db.executescript("CREATE TABLE QuestInfo(ID TEXT,AutoGiveLevel INT,QuestSet INT,ServiceCoin INT,MaxMemberCount INT,MaxPlayCount INT,EnableTodayQuest TEXT,Season3TodayGroup TEXT,AutoReveal bit,Feature TEXT,IsSeason2 bit);"
-                             "INSERT INTO QuestInfo VALUES('quest_a',1,1,0,4,NULL,'Enable',NULL,'False','EP3','False');"
-                             "CREATE TABLE QuestGoalInfo(ID INT,QuestID TEXT,Relation INT,Weight INT);INSERT INTO QuestGoalInfo VALUES(10,'quest_a',0,100);"
+            db.executescript("CREATE TABLE QuestInfo(ID TEXT,AutoGiveLevel INT,QuestSet INT,ServiceCoin INT,MaxMemberCount INT,MaxPlayCount INT,EnableTodayQuest TEXT,Season3TodayGroup TEXT,AutoReveal bit,Feature TEXT,IsSeason2 bit,Level INT,TimeLimit INT,DropItemCountMin INT,DropItemCountMax INT,HuntingQuest bit,InitGameTime INT,SectorMoveGameTime INT,GatheringRockMax INT,RequiredStoryLineID TEXT,RequiredPhase TEXT);"
+                             "INSERT INTO QuestInfo VALUES('quest_a',1,1,0,4,NULL,'Enable',NULL,'False','EP3','False',2,30,3,6,'False',NULL,5,1,NULL,NULL);"
+                             "CREATE TABLE QuestGoalInfo(ID INT,QuestID TEXT,Relation INT,Weight INT,Target TEXT,GameSetting TEXT,GameSettingArg INT);INSERT INTO QuestGoalInfo VALUES(10,'quest_a',0,100,'kill npc_gnoll boss',NULL,NULL);"
+                             "CREATE TABLE Sectors(QuestID TEXT,Sequence INT,SectorID INT,BSPName TEXT,SubSector TEXT,Weight INT);INSERT INTO Sectors VALUES('quest_a',1,7,'01h',NULL,100);"
+                             "CREATE TABLE SectorGroupInfo(QuestID TEXT,FromGroup INT,FromSector INT,FromTrigger TEXT,ToGroup INT,ToSpawnPoint TEXT,Feature TEXT);INSERT INTO SectorGroupInfo VALUES('quest_a',1,NULL,'exit',2,NULL,'group_flag');"
+                             "CREATE TABLE TowerModuleSectorInfo(QuestID TEXT,SectorID INT);"
+                             "CREATE TABLE Entity(ID INT,SectorID INT);INSERT INTO Entity VALUES(300,7),(301,8),(302,7);"
+                             "CREATE TABLE EntityAttribute(EntityID INT,Name TEXT,Value TEXT);INSERT INTO EntityAttribute VALUES(302,'classname','npc_template_maker'),(300,'classname','trigger_once'),(302,'Feature','entity_flag'),(301,'classname','x');"
+                             "CREATE TABLE NamedPropItemInfo(EntityName TEXT);INSERT INTO NamedPropItemInfo VALUES('barrel'),('barrel');"
+                             "CREATE TABLE QuestSettingsInfo(RowID INT,ConditionID INT,Key TEXT,Value TEXT);INSERT INTO QuestSettingsInfo VALUES(1,NULL,'TutorStamp','Basic');"
+                             "CREATE TABLE QuestSettingsConditionInfo(RowID INT,ConditionID INT,Condition TEXT,Value TEXT);"
                              "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
                              "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL);"
                              "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
@@ -47,6 +55,14 @@ class NpcScriptExportTests(unittest.TestCase):
         self.assertEqual((shop['ShopID'], shop['Order'], shop['PriceCount'], shop['CharacterBind'], p['manifest']['shops']), ('A_Shop', 1, 95, False, 1))
         self.assertIn('shop_flag', [f['key'] for f in p['features']])
         self.assertEqual((p['repair']['quality'], len(p['repair']['equip_item_class'])), ([[2, 5]], 0))
+        m = p['mission']
+        self.assertEqual(m['quests'], [['quest_a', 2, 30, 3, 6, False, None, 5, 1, None, None, 4, False]])
+        self.assertEqual(m['goals'], [['quest_a', 10, 0, 'kill npc_gnoll boss', None, None]])
+        # Only entities of the quest sectors, in Entity order with attribute order.
+        self.assertEqual(m['entities'], [[7, [['classname', 'trigger_once']]], [7, [['classname', 'npc_template_maker'], ['Feature', 'entity_flag']]]])
+        self.assertEqual((m['named_props'], m['tower_quests'], m['settings']), (['barrel'], [], [[1, None, 'TutorStamp', 'Basic']]))
+        keys = [f['key'] for f in p['features']]
+        self.assertTrue({'group_flag', 'entity_flag', 'Gathering', 'GatheringRare'} <= set(keys))
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
     def test_missing_storyline_xml_is_refused(self):
         (self.xml / 'QuestSet01' / 'GuidePlay.xml').unlink()

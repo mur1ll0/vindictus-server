@@ -108,6 +108,8 @@ struct Export {
     quests: Option<crate::domain::quest::QuestTables>,
     #[serde(default)]
     progression: Option<crate::domain::progression::ProgressionTables>,
+    #[serde(default)]
+    mission: Option<crate::domain::mission::MissionTables>,
 }
 
 fn fail() -> MinimumError {
@@ -161,6 +163,8 @@ pub struct Profile {
     pub quests: Option<crate::domain::quest::QuestContents>,
     /// CharacterClassInfo/LevelUpExpInfo of the Fiona class and MaxLevel.
     pub progression: Option<crate::domain::progression::Progression>,
+    /// Quest digests and sector bases of mission entry.
+    pub mission: Option<crate::domain::mission::MissionContents>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -295,7 +299,13 @@ impl Profile {
             .map(|t| crate::domain::progression::Progression::load(t, &policy))
             .transpose()
             .map_err(|_| fail())?;
+        let mission = export
+            .mission
+            .map(|t| crate::domain::mission::MissionContents::load(t, &policy))
+            .transpose()
+            .map_err(|_| fail())?;
         Ok(Self {
+            mission,
             progression,
             quests,
             repair,

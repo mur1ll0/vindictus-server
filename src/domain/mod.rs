@@ -25,6 +25,7 @@ pub mod item_binding;
 pub mod item_catalog;
 pub mod item_class_ex;
 pub mod item_location;
+pub mod mission;
 pub mod npc_script;
 pub mod npc_talk;
 pub mod queued_item;

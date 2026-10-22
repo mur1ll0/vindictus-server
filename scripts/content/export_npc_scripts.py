@@ -169,6 +169,48 @@ def read_package(base, database, config):
         progression['titles'] = [[int32(r['ID']), None if r['AutoGiveLevel'] is None else int32(r['AutoGiveLevel']), int32(r['ClassRestriction']), int32(r['HideUntil']), nullable_text(r['Feature'])]
                                  for r in db.execute('Select * From [TitleInfo]')]
         progression['title_goals'] = [[int32(r['ID']), int32(r['TitleID'])] for r in db.execute('Select * From [TitleGoalInfo]')]
+    # MicroPlayContents/QuestContents tables for mission entry: QuestInfo digest fields,
+    # QuestGoalInfo targets and game settings, Sectors, SectorGroupInfo, the tower quests
+    # (refused), Entity/EntityAttribute of the quest sectors (provider order),
+    # NamedPropItemInfo entity names and QuestSettingsInfo/QuestSettingsConditionInfo.
+    mission = {}
+    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        mission['quests'] = [[nullable_text(r['ID']), int32(r['Level']), int32(r['TimeLimit']), int32(r['DropItemCountMin']), int32(r['DropItemCountMax']),
+                              flag(r['HuntingQuest']), nullable_int32(r['InitGameTime']), nullable_int32(r['SectorMoveGameTime']), int32(r['GatheringRockMax']),
+                              nullable_text(r['RequiredStoryLineID']), nullable_text(r['RequiredPhase']), int32(r['MaxMemberCount']), flag(r['IsSeason2'])]
+                             for r in db.execute('Select * From [QuestInfo]')]
+        mission['goals'] = [[nullable_text(r['QuestID']), int32(r['ID']), int32(r['Relation']), nullable_text(r['Target']), nullable_text(r['GameSetting']), nullable_int32(r['GameSettingArg'])]
+                            for r in db.execute('Select * From [QuestGoalInfo]')]
+        mission['sectors'] = [[nullable_text(r['QuestID']), int32(r['Sequence']), int32(r['SectorID']), nullable_text(r['BSPName']), int32(r['Weight'])]
+                              for r in db.execute('Select * From [Sectors]')]
+        mission['sector_groups'] = [[nullable_text(r['QuestID']), int32(r['FromGroup']), nullable_int32(r['FromSector']), nullable_text(r['FromTrigger']), int32(r['ToGroup']),
+                                     nullable_text(r['ToSpawnPoint']), nullable_text(r['Feature'])]
+                                    for r in db.execute('Select * From [SectorGroupInfo]')]
+        mission['tower_quests'] = sorted({nullable_text(r['QuestID']) or '' for r in db.execute('Select * From [TowerModuleSectorInfo]')})
+        wanted_sectors = {r[2] for r in mission['sectors']}
+        ids = {}; order = []
+        for r in db.execute('Select * From [Entity]'):
+            sector = int32(r['SectorID'])
+            if sector in wanted_sectors:
+                ids[int32(r['ID'])] = sector; order.append(int32(r['ID']))
+        attributes = {}
+        for r in db.execute('Select * From [EntityAttribute]'):
+            entity = int32(r['EntityID'])
+            if entity in ids: attributes.setdefault(entity, []).append([nullable_text(r['Name']), nullable_text(r['Value'])])
+        # Entity.ID is the HashSet member of its sector: a repeated ID keeps its first position.
+        seen = set(); mission['entities'] = []
+        for e in order:
+            if (ids[e], e) in seen: continue
+            seen.add((ids[e], e))
+            if e in attributes: mission['entities'].append([ids[e], attributes[e]])
+        mission['named_props'] = sorted({nullable_text(r['EntityName']) or '' for r in db.execute('Select * From [NamedPropItemInfo]')})
+        mission['settings'] = [[int32(r['RowID']), nullable_int32(r['ConditionID']), nullable_text(r['Key']), nullable_text(r['Value'])]
+                               for r in db.execute('Select * From [QuestSettingsInfo]')]
+        mission['setting_conditions'] = [[int32(r['ConditionID']), nullable_text(r['Condition']), nullable_text(r['Value'])]
+                                         for r in db.execute('Select * From [QuestSettingsConditionInfo]')]
+    if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
+    if any(len(v) > 100000 for v in mission.values()): raise ValueError('Mission table bound')
     if any(len(v) > 10000 for v in progression.values()): raise ValueError('Progression table bound')
     if any(len(v) > 100000 for v in quests.values()): raise ValueError('Quest table bound')
     if any(q['ID'] is None for q in quests['quests']): raise ValueError('QuestInfo ID')
@@ -183,6 +225,11 @@ def read_package(base, database, config):
     for q in quests['quests']:
         wanted |= feature_atoms(q['Feature'] or ''); wanted |= feature_atoms(q['EnableTodayQuest'] or '')
     for d in quests['difficulties']: wanted |= feature_atoms(d[3] or '')
+    wanted |= {'Gathering', 'GatheringRare', 'AntiSectorSkip', 'bossevilcore_bonus'}
+    for g in mission['sector_groups']: wanted |= feature_atoms(g[6] or '')
+    for _, attrs in mission['entities']:
+        for name, value in attrs:
+            if (name or '').lower() == 'feature': wanted |= feature_atoms(value or '')
     for d in quests['periods']: wanted |= feature_atoms(d[4] or '')
     for row in shops: wanted |= feature_atoms(row['Feature'] or '')
     for d in defaults:
@@ -202,7 +249,7 @@ def read_package(base, database, config):
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
                          'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
-            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression}
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression, 'mission': mission}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

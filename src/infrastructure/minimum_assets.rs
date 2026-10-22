@@ -99,6 +99,10 @@ fn open(p: &Path) -> Result<std::fs::File, MinimumError> {
         .map_err(MinimumError::from)
 }
 impl Assets {
+    /// Mission entry contents of the NPC script profile, when exported.
+    pub fn mission(&self) -> Option<&crate::domain::mission::MissionContents> {
+        self.npc.as_ref().and_then(|n| n.mission.as_ref())
+    }
     pub fn read(path: &Path) -> Result<Self, MinimumError> {
         let mut bytes = Zeroizing::new(Vec::new());
         open(path)?

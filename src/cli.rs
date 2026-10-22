@@ -75,6 +75,14 @@ pub enum Command {
         #[arg(long)]
         assets_file: std::path::PathBuf,
     },
+    /// Generate a solo sector sequence for every quest of the private profile and report
+    /// aggregate counts and GameStartGranted sizes; no database or listener.
+    InspectMissionContent {
+        #[arg(long)]
+        assets_file: std::path::PathBuf,
+        #[arg(long, default_value_t = 1)]
+        difficulty: i32,
+    },
     /// Compose the private normal-Fiona profile without opening a database or listener.
     InspectFionaInventory {
         #[arg(long, required = true)]

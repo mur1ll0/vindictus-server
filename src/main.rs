@@ -66,6 +66,58 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::InspectMissionContent {
+        assets_file,
+        difficulty,
+    } = &cli.command
+    {
+        use vindictus_server::{
+            infrastructure::{minimum_assets::Assets, minimum_mission},
+            protocol::{DEFAULT_MAX_BODY, mission},
+        };
+        let assets = Assets::read(assets_file)
+            .map_err(|_| Error::Configuration("minimum creation assets invalid".into()))?;
+        let contents = assets
+            .mission()
+            .ok_or_else(|| Error::Configuration("profile has no mission tables".into()))?;
+        let (mut built, mut unsupported, mut failed, mut sectors, mut over) = (0, 0, 0, 0, 0);
+        let mut largest = 0_usize;
+        for quest in contents.quest_ids() {
+            match minimum_mission::preview(contents, quest, -1, *difficulty, false) {
+                Ok(granted) => {
+                    built += 1;
+                    sectors += granted
+                        .sectors
+                        .as_ref()
+                        .and_then(|s| s.sectors.as_ref())
+                        .map_or(0, Vec::len);
+                    let message = mission::Message::GameStartGranted(granted);
+                    match mission::encode(mission::Kind::GameStartGranted, Some(&message), 16 << 20)
+                    {
+                        Ok(body) => {
+                            largest = largest.max(body.len());
+                            if body.len() > DEFAULT_MAX_BODY {
+                                over += 1;
+                            }
+                        }
+                        Err(_) => failed += 1,
+                    }
+                }
+                Err(vindictus_server::domain::mission::MissionError::Unsupported) => {
+                    unsupported += 1
+                }
+                Err(e) => {
+                    failed += 1;
+                    eprintln!("{quest}: {e}");
+                }
+            }
+        }
+        println!(
+            "{}",
+            serde_json::json!({"quests_built":built,"unsupported":unsupported,"failed":failed,"sectors":sectors,"largest_body":largest,"over_default_body":over,"database_opened":false,"listener_opened":false})
+        );
+        return Ok(());
+    }
     if let Command::InspectLabFrontendProfile { policy_file, .. } = &cli.command {
         let content = vindictus_server::infrastructure::reward_policy::read_policy(
             std::fs::File::open(policy_file)?,
@@ -430,6 +482,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         | Command::InspectItemCatalog { .. }
         | Command::InspectLabFrontendProfile { .. }
         | Command::InspectMinimumCreationAssets { .. }
+        | Command::InspectMissionContent { .. }
         | Command::LabFrontend { .. } => {}
         Command::Migrate => {
             postgres::migrate(&pool).await?;
