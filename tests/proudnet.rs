@@ -83,7 +83,7 @@ fn framing_compact_widths_and_messages_follow_the_recovered_layout() {
 #[test]
 fn session_key_simpleblob_decrypts_with_the_client_private_key() {
     let private = RsaPrivateKey::new(&mut rand_core::OsRng, 1024).unwrap();
-    let blob = encrypt_session_key(&public_key_blob(&private)).unwrap();
+    let (blob, key) = encrypt_session_key(&public_key_blob(&private)).unwrap();
     // BLOBHEADER(SIMPLEBLOB, 2, 0, CALG_RC4) + CALG_RSA_KEYX + little-endian ciphertext.
     assert_eq!(&blob[..4], &[1, 2, 0, 0]);
     assert_eq!(&blob[4..8], &0x6801_u32.to_le_bytes());
@@ -91,7 +91,7 @@ fn session_key_simpleblob_decrypts_with_the_client_private_key() {
     let ciphertext: Vec<u8> = blob[12..].iter().rev().copied().collect();
     assert_eq!(ciphertext.len(), 128);
     let session = private.decrypt(Pkcs1v15Encrypt, &ciphertext).unwrap();
-    assert_eq!(session.len(), 16);
+    assert_eq!(session.as_slice(), &key[..]);
     assert!(encrypt_session_key(&[6, 2, 0, 0]).is_none());
 }
 
@@ -213,5 +213,74 @@ async fn relay_admits_a_waiting_client_and_joins_it_to_a_one_member_group() {
     assert_eq!(
         events.recv().await.unwrap(),
         RelayEvent::Closed { cid: 1_234_567 }
+    );
+}
+
+#[test]
+fn rc4_matches_the_published_test_vector() {
+    // RFC 6229-style classic vector: key "Key", plaintext "Plaintext".
+    let mut data = *b"Plaintext";
+    wire::rc4(b"Key", &mut data);
+    assert_eq!(data, [0xbb, 0xf3, 0x16, 0xe8, 0xd9, 0x40, 0xaf, 0x0a, 0xd3]);
+    // Final=TRUE resets the state: the same call decrypts.
+    wire::rc4(b"Key", &mut data);
+    assert_eq!(&data, b"Plaintext");
+}
+
+#[tokio::test]
+async fn relay_decrypts_an_encrypted_nm_infos_result() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let relay = Relay::new(addr);
+    let mut events = relay.subscribe();
+    tokio::spawn(relay.clone().serve(listener));
+    let waiting = relay.add_client_waiting(7_000_001, 9);
+    let mut s = TcpStream::connect(addr).await.unwrap();
+    let mut buf = Vec::new();
+    assert_eq!(read_message(&mut s, &mut buf).await[0], 4);
+    let private = RsaPrivateKey::new(&mut rand_core::OsRng, 1024).unwrap();
+    let mut w = Writer::new(message_type::ENCRYPTED_SESSION_KEY);
+    w.bytes(&public_key_blob(&private));
+    send(&mut s, &w.finish()).await;
+    let six = read_message(&mut s, &mut buf).await;
+    let mut r = Reader::new(&six);
+    assert_eq!(r.u8().unwrap(), 6);
+    let blob = r.bytes(4096).unwrap();
+    let ciphertext: Vec<u8> = blob[12..].iter().rev().copied().collect();
+    let session = private.decrypt(Pkcs1v15Encrypt, &ciphertext).unwrap();
+    let mut data = Vec::new();
+    data.extend_from_slice(&waiting.sn.to_le_bytes());
+    data.extend_from_slice(&waiting.key.to_le_bytes());
+    let mut w = Writer::new(message_type::REQUEST_SERVER_CONNECTION);
+    w.bytes(&data).guid(&wire::PROTOCOL_VERSION).i32(196_713);
+    send(&mut s, &w.finish()).await;
+    let ten = read_message(&mut s, &mut buf).await;
+    let mut r = Reader::new(&ten);
+    assert_eq!(r.u8().unwrap(), 10);
+    let host = r.i32().unwrap();
+    // FUN_425e85d0: [0x24][mode][byte array of RC4(u16 encrypt count + inner message)].
+    let mut inner = Writer::rmi(rmi::NM_INFOS_RESULT);
+    inner.i64(7_000_001);
+    let mut plain = 0_u16.to_le_bytes().to_vec();
+    plain.extend_from_slice(&inner.finish());
+    wire::rc4(&session, &mut plain);
+    let mut w = Writer::new(message_type::ENCRYPTED_RELIABLE);
+    w.u8(1).bytes(&plain);
+    let encrypted = w.finish();
+    assert!(matches!(
+        wire::parse_client(&encrypted).unwrap(),
+        ClientMessage::Encrypted {
+            reliable: true,
+            mode: 1,
+            ..
+        }
+    ));
+    send(&mut s, &encrypted).await;
+    assert_eq!(
+        events.recv().await.unwrap(),
+        RelayEvent::Connected {
+            cid: 7_000_001,
+            host_id: host
+        }
     );
 }

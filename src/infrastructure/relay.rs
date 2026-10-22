@@ -16,6 +16,7 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::{broadcast, mpsc},
 };
+use zeroize::Zeroizing;
 
 /// RelayServer timeouts: waiting for the TCP connection and for NMInfosResult.
 const WAIT_CONNECTION: Duration = Duration::from_secs(60);
@@ -229,6 +230,8 @@ impl Relay {
         let mut buf: Vec<u8> = Vec::new();
         let mut chunk = [0_u8; 8192];
         let mut host: Option<i32> = None;
+        let mut session_key: Option<Zeroizing<[u8; 16]>> = None;
+        let mut noted = 0_u32;
         let result = loop {
             let read = tokio::time::timeout(WAIT_CONNECTION, rd.read(&mut chunk)).await;
             let n = match read {
@@ -245,7 +248,10 @@ impl Relay {
                 match wire::extract(&buf) {
                     Ok(Some((payload, used))) => {
                         buf.drain(..used);
-                        if !self.handle(&payload, &tx, peer, &mut host).await {
+                        if !self
+                            .handle(&payload, &tx, peer, &mut host, &mut session_key, &mut noted)
+                            .await
+                        {
                             stop = true;
                             break;
                         }
@@ -286,6 +292,8 @@ impl Relay {
         tx: &mpsc::Sender<Vec<u8>>,
         peer: SocketAddr,
         host: &mut Option<i32>,
+        session_key: &mut Option<Zeroizing<[u8; 16]>>,
+        noted: &mut u32,
     ) -> bool {
         let Ok(message) = wire::parse_client(payload) else {
             tracing::info!(
@@ -295,12 +303,58 @@ impl Relay {
             );
             return false;
         };
+        let decrypted: Vec<u8>;
+        let message = match message {
+            ClientMessage::Encrypted {
+                reliable,
+                mode,
+                data,
+            } => {
+                let Some(key) = session_key.as_ref() else {
+                    tracing::info!("relay encrypted message before the session key; closing");
+                    return false;
+                };
+                let Ok((count, inner)) = wire::decrypt_message(&key[..], reliable, data) else {
+                    tracing::info!("relay encrypted message too short; closing");
+                    return false;
+                };
+                decrypted = inner;
+                let rmi = (decrypted.first() == Some(&wire::message_type::RMI)
+                    && decrypted.len() >= 3)
+                    .then(|| u16::from_le_bytes([decrypted[1], decrypted[2]]));
+                *noted += 1;
+                if *noted <= 16 {
+                    tracing::info!(
+                        reliable,
+                        mode,
+                        count,
+                        inner = decrypted.first().copied(),
+                        rmi,
+                        "relay encrypted message decrypted"
+                    );
+                }
+                match wire::parse_client(&decrypted) {
+                    Ok(
+                        ClientMessage::Encrypted { .. }
+                        | ClientMessage::PublicKey(_)
+                        | ClientMessage::RequestConnection { .. },
+                    )
+                    | Err(_) => {
+                        tracing::info!("relay encrypted inner message invalid; closing");
+                        return false;
+                    }
+                    Ok(inner) => inner,
+                }
+            }
+            other => other,
+        };
         match message {
             ClientMessage::PublicKey(blob) => {
-                let Some(encrypted) = encrypt_session_key(blob) else {
+                let Some((encrypted, key)) = encrypt_session_key(blob) else {
                     tracing::info!("relay public key rejected; closing");
                     return false;
                 };
+                *session_key = Some(key);
                 tracing::info!("relay session key sent");
                 tx.send(wire::session_key_success(&encrypted)).await.is_ok()
             }
@@ -423,8 +477,36 @@ impl Relay {
                 .await
                 .is_ok(),
             ClientMessage::ShutdownTcpHandshake => false,
-            ClientMessage::Ignored | ClientMessage::Unknown(_) => true,
+            ClientMessage::Ignored => {
+                let rmi = (payload.first() == Some(&wire::message_type::RMI) && payload.len() >= 3)
+                    .then(|| u16::from_le_bytes([payload[1], payload[2]]));
+                note(
+                    noted,
+                    "relay message ignored",
+                    payload.first().copied(),
+                    rmi,
+                );
+                true
+            }
+            ClientMessage::Unknown(kind) => {
+                note(
+                    noted,
+                    "relay message type unknown; ignored",
+                    Some(kind),
+                    None,
+                );
+                true
+            }
+            ClientMessage::Encrypted { .. } => false,
         }
+    }
+}
+
+/// Diagnostics for the first messages of a connection that the relay does not act on.
+fn note(noted: &mut u32, what: &'static str, kind: Option<u8>, rmi: Option<u16>) {
+    *noted += 1;
+    if *noted <= 16 {
+        tracing::info!(kind, rmi, "{what}");
     }
 }
 
@@ -449,12 +531,15 @@ fn write_dotnet_string(out: &mut Vec<u8>, s: &str) {
 
 /// CCrypto: a 128-bit RC4 session key encrypted with the client's exchange public key
 /// (PKCS#1 v1.5), as a SIMPLEBLOB the client imports with its private key.
-pub fn encrypt_session_key(public_key_blob: &[u8]) -> Option<Vec<u8>> {
+/// Returns the SIMPLEBLOB and the session key the relay keeps to decrypt types 0x24/0x25.
+pub fn encrypt_session_key(public_key_blob: &[u8]) -> Option<(Vec<u8>, Zeroizing<[u8; 16]>)> {
     let (modulus_le, exponent) = wire::parse_public_key_blob(public_key_blob).ok()?;
     let key =
         RsaPublicKey::new(BigUint::from_bytes_le(modulus_le), BigUint::from(exponent)).ok()?;
-    let mut session = [0_u8; 16];
-    OsRng.fill_bytes(&mut session);
-    let ciphertext = key.encrypt(&mut OsRng, Pkcs1v15Encrypt, &session).ok()?;
-    Some(wire::simple_blob(&ciphertext))
+    let mut session = Zeroizing::new([0_u8; 16]);
+    OsRng.fill_bytes(&mut session[..]);
+    let ciphertext = key
+        .encrypt(&mut OsRng, Pkcs1v15Encrypt, &session[..])
+        .ok()?;
+    Some((wire::simple_blob(&ciphertext), session))
 }

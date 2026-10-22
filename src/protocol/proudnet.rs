@@ -21,6 +21,9 @@ pub mod message_type {
     pub const RELIABLE_RELAY: u8 = 0x14;
     pub const UNRELIABLE_RELAY: u8 = 0x15;
     pub const LINGER_DATA_FRAME: u8 = 0x16;
+    /// RC4-encrypted reliable / unreliable messages (CNetServerImpl dispatch 0x24/0x25).
+    pub const ENCRYPTED_RELIABLE: u8 = 0x24;
+    pub const ENCRYPTED_UNRELIABLE: u8 = 0x25;
 }
 
 /// RMI IDs: ProudNet internal (S2C/C2S) and the Heroes PIDL.
@@ -400,6 +403,13 @@ pub enum ClientMessage<'a> {
     },
     NmInfosResult(i64),
     ShutdownTcpHandshake,
+    /// Types 0x24/0x25 (engine.dll FUN_425e85d0): the encryption mode byte, then the
+    /// RC4 ciphertext as a byte array; `decrypt_message` yields the inner message.
+    Encrypted {
+        reliable: bool,
+        mode: u8,
+        data: &'a [u8],
+    },
     /// Relay frames (types 20–22) and other RMIs: nothing to answer for one member.
     Ignored,
     Unknown(u8),
@@ -425,12 +435,62 @@ pub fn parse_client(payload: &[u8]) -> Result<ClientMessage<'_>, WireError> {
             rmi::SHUTDOWN_TCP_HANDSHAKE => ClientMessage::ShutdownTcpHandshake,
             _ => ClientMessage::Ignored,
         },
+        t @ (message_type::ENCRYPTED_RELIABLE | message_type::ENCRYPTED_UNRELIABLE) => {
+            ClientMessage::Encrypted {
+                reliable: t == message_type::ENCRYPTED_RELIABLE,
+                mode: r.u8()?,
+                data: r.bytes(MAX_MESSAGE)?,
+            }
+        }
         message_type::RELIABLE_RELAY
         | message_type::UNRELIABLE_RELAY
         | message_type::LINGER_DATA_FRAME
         | message_type::USER_MESSAGE => ClientMessage::Ignored,
         other => ClientMessage::Unknown(other),
     })
+}
+
+/// RC4 over `data` in place from a fresh key schedule: CryptEncrypt/CryptDecrypt with
+/// Final=TRUE resets the stream cipher state for every message.
+pub fn rc4(key: &[u8], data: &mut [u8]) {
+    if key.is_empty() {
+        return;
+    }
+    let mut st: [u8; 256] = std::array::from_fn(|i| i as u8);
+    let mut j: u8 = 0;
+    for i in 0..256 {
+        j = j.wrapping_add(st[i]).wrapping_add(key[i % key.len()]);
+        st.swap(i, usize::from(j));
+    }
+    let (mut i, mut j) = (0_u8, 0_u8);
+    for b in data.iter_mut() {
+        i = i.wrapping_add(1);
+        j = j.wrapping_add(st[usize::from(i)]);
+        st.swap(usize::from(i), usize::from(j));
+        *b ^= st[usize::from(st[usize::from(i)].wrapping_add(st[usize::from(j)]))];
+    }
+}
+
+/// Plaintext of an encrypted message: a reliable one starts with the u16 encrypt count
+/// (NextEncryptCount), which is returned beside the inner message.
+pub fn decrypt_message(
+    key: &[u8],
+    reliable: bool,
+    data: &[u8],
+) -> Result<(Option<u16>, Vec<u8>), WireError> {
+    if key.is_empty() {
+        return Err(WireError::Length);
+    }
+    let mut plain = data.to_vec();
+    rc4(key, &mut plain);
+    if !reliable {
+        return Ok((None, plain));
+    }
+    if plain.len() < 2 {
+        return Err(WireError::Length);
+    }
+    let count = u16::from_le_bytes([plain[0], plain[1]]);
+    Ok((Some(count), plain.split_off(2)))
 }
 
 /// CryptoAPI blob constants (Microsoft Enhanced Cryptographic Provider v1.0).
