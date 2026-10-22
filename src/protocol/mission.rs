@@ -21,6 +21,8 @@ pub enum Kind {
     StartGame,
     GameStartGranted,
     MemberInfo,
+    PayCoinCompleted,
+    InsertBlessStoneComplete,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -34,6 +36,8 @@ impl Kind {
             Self::StartGame => 591,
             Self::GameStartGranted => 462,
             Self::MemberInfo => 498,
+            Self::PayCoinCompleted => 432,
+            Self::InsertBlessStoneComplete => 48,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -47,6 +51,8 @@ impl Kind {
             Self::StartGame => 0x7c04c215_b83c_3053_b80c_966064258660,
             Self::GameStartGranted => 0xdc3acd0b_6946_3b6c_bcaf_29057e0dfc59,
             Self::MemberInfo => 0xb89c49cb_0aa1_308d_a0c5_9fe9bb1f58ed,
+            Self::PayCoinCompleted => 0x7f105751_b6a7_3c1d_a7fd_bc7a884133d2,
+            Self::InsertBlessStoneComplete => 0x915f8913_1565_340c_99ca_619e37ffd1f7,
         })
     }
 }
@@ -390,6 +396,25 @@ pub struct MemberInfo {
     pub uid: i32,
     pub info: Option<JoinMember>,
 }
+/// PaidCoinInfo; `platinum_coin_type` is CoinType (int enum).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PaidCoin {
+    pub slot: i32,
+    pub silver_coin: Option<Vec<i32>>,
+    pub platinum_coin_owner: i32,
+    pub platinum_coin_type: i32,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayCoinCompleted {
+    pub coins: Option<Vec<Option<PaidCoin>>>,
+}
+/// InsertBlessStoneCompleteMessage; `types` are BlessStoneType values (int enum).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlessStones {
+    pub slot: i32,
+    pub owners: Option<Vec<i32>>,
+    pub types: Option<Vec<i32>>,
+}
 #[derive(Clone, PartialEq, Eq)]
 pub enum Message {
     AcceptQuest(AcceptQuest),
@@ -401,6 +426,8 @@ pub enum Message {
     StartGame,
     GameStartGranted(GameStartGranted),
     MemberInfo(Box<MemberInfo>),
+    PayCoinCompleted(PayCoinCompleted),
+    InsertBlessStoneComplete(BlessStones),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -414,6 +441,8 @@ impl Message {
             Self::StartGame => Kind::StartGame,
             Self::GameStartGranted(_) => Kind::GameStartGranted,
             Self::MemberInfo(_) => Kind::MemberInfo,
+            Self::PayCoinCompleted(_) => Kind::PayCoinCompleted,
+            Self::InsertBlessStoneComplete(_) => Kind::InsertBlessStoneComplete,
         }
     }
 }
@@ -618,6 +647,18 @@ object!(GameStartGranted {
     is_user_dedicated
 });
 object!(MemberInfo { uid, info });
+object!(PaidCoin {
+    slot,
+    silver_coin,
+    platinum_coin_owner,
+    platinum_coin_type
+});
+object!(PayCoinCompleted { coins });
+object!(BlessStones {
+    slot,
+    owners,
+    types
+});
 pub fn encode(
     kind: Kind,
     message: Option<&Message>,
@@ -644,6 +685,8 @@ pub fn encode(
                 Message::StartGame => {}
                 Message::GameStartGranted(v) => v.write(&mut w)?,
                 Message::MemberInfo(v) => v.write(&mut w)?,
+                Message::PayCoinCompleted(v) => v.write(&mut w)?,
+                Message::InsertBlessStoneComplete(v) => v.write(&mut w)?,
             }
         }
     }
@@ -673,6 +716,10 @@ pub fn decode(
             Kind::StartGame => Message::StartGame,
             Kind::GameStartGranted => Message::GameStartGranted(GameStartGranted::read(&mut r)?),
             Kind::MemberInfo => Message::MemberInfo(Box::new(MemberInfo::read(&mut r)?)),
+            Kind::PayCoinCompleted => Message::PayCoinCompleted(PayCoinCompleted::read(&mut r)?),
+            Kind::InsertBlessStoneComplete => {
+                Message::InsertBlessStoneComplete(BlessStones::read(&mut r)?)
+            }
         })
     };
     if !r.remaining.is_empty() {

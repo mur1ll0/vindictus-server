@@ -9,3 +9,13 @@ Pré-condição: perfil `npc_scripts` reexportado com as tabelas de progressão 
 - [ ] Após o level up → a lista de quests recebe as quests automáticas do novo nível e histórias de nível novas aparecem no diário (quando existirem).
 - [ ] Relogar → nível, EXP, atributos e títulos preservados; a seleção de personagem mostra o novo nível.
 Limites conhecidos: títulos adquiridos (com status de concluído e bônus de atributo), recompensa de título/skill de história, log de crescimento (AddGrowthLog), ranking (CharacterRank) e efeitos de guilda não migrados.
+
+### B2.1 — Saída para a missão (navio, relay e início da fase)
+Pré-condições: perfis privados reexportados (`npc_scripts` com a seção `mission`, economia formato 4) e `relay_bind` = `127.0.0.1:27005` no arquivo de assets do laboratório (porta do relay original); servidor iniciado pelo `start-lab-frontend.ps1`, que agora também abre o relay. Fiona selecionada que já recebeu a quest pelo login (ex.: `quest_gnoll_scout`/`quest_gnoll_watchman` da Colhen).
+- [ ] No quadro de missões/barco de Colhen, escolher uma missão inicial em modo solo e confirmar (AcceptQuest) → a interface de grupo/navio aparece com a Fiona como líder (slot 1) e o nome da missão no navio.
+- [ ] Em seguida o cliente conecta ao relay (porta 27005) sem erro de rede e mostra a tela do navio/preparação (LaunchShipGranted). No log do servidor: "mission accepted; relay waiting" e depois "mission relay join finished" com `joined=true`.
+- [ ] Iniciar a missão (StartGame) → tela de carregamento da dungeon e entrada no primeiro setor (GameStartGranted). No log: "mission start processed" com `granted=true`.
+- [ ] Missão com dificuldade/condição inválida (ex.: nível insuficiente para a dificuldade) → diálogo de erro "PartyInMicroPlay_AcceptQuest_…", sem navio.
+- [ ] Sair do jogo dentro da missão e relogar → personagem volta à cidade; nada do inventário foi perdido.
+Limites conhecidos: só solo (host local); sem drops (monstros não deixam itens/núcleos), baú do tesouro e mapa; missões de pesca, caça, torre, com item obrigatório ou com limite de equipamento são recusadas; moedas/pedras de bênção aparecem vazias; combate, conclusão e recompensas vêm nos passos seguintes (B2.3+).
+

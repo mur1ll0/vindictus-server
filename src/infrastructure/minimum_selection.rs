@@ -218,10 +218,27 @@ pub(super) struct MemberBase {
     pub level_up_exp: i32,
     pub title: i32,
     pub title_count: i32,
+    pub is_return: bool,
+    pub is_event_jumping: bool,
     pub stats: Vec<(String, i32)>,
     pub def_map: std::collections::BTreeMap<i32, i32>,
     pub armor_hp: std::collections::BTreeMap<i32, i32>,
     pub destroyed_def: i32,
+}
+/// The selected character's member values (CharacterSummary and stats) in their own
+/// read transaction.
+pub(super) async fn view_member(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<MemberBase, MinimumError> {
+    let mut tx = pool.begin().await?;
+    let v = view(&mut tx, owner, assets, cid, config, arithmetic, false, 0).await?;
+    tx.commit().await?;
+    Ok(v.member)
 }
 /// Character state derived from persisted base stats, skills, Gear and costumes.
 /// `project` applies LoadItemCostumes even for an empty Gear (UpdateItemStat path).
@@ -348,6 +365,8 @@ pub(super) async fn view(
         level_up_exp: summary.level_up_exp,
         title: summary.title,
         title_count: summary.title_count,
+        is_return: summary.is_return,
+        is_event_jumping: summary.is_event_jumping,
         stats: dictionary
             .iter()
             .map(|(k, v)| ((*k).to_owned(), *v))

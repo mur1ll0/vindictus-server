@@ -211,7 +211,7 @@ pub struct BuybackEntry {
     pub equipment: Option<super::minimum_give::Equipment>,
 }
 
-fn system_message(
+pub(super) fn system_message(
     category: u8,
     format: &str,
     parameters: &[String],

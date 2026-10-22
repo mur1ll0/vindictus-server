@@ -371,3 +371,88 @@ pub async fn query_progress(
     };
     Ok(vec![progress_packet(&quests, ctx, clock, now_units()?)?])
 }
+
+/// QueryQuestDigestProcessor's checks before the digest: QuestOwner.CheckConstraint
+/// (play count ignored in practice mode), then RequiredStoryLineID/RequiredPhase
+/// against the character's story progress. `Ok(None)` passes; `Ok(Some(name))` is the
+/// QuestConstraintResult the original answers with.
+#[allow(clippy::too_many_arguments)]
+pub async fn digest_constraint(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    quest: &str,
+    difficulty: i32,
+    practice: bool,
+    story: Option<(&str, &str)>,
+) -> Result<Option<&'static str>, MinimumError> {
+    use crate::domain::quest::Constraint;
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let contents = npc.quests.as_ref().ok_or_else(fail)?;
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let level = level(&mut tx, cid).await?;
+    let mut quests = load(&mut tx, cid, contents).await?;
+    quests.init_status(contents);
+    quests.level = level;
+    let coupons = raid_coupons(&mut tx, cid).await?;
+    let phase: Option<Option<Vec<u8>>> =
+        match story {
+            None => None,
+            Some((line, _)) => sqlx::query_scalar(
+                "SELECT phase_utf16 FROM game_story_progress WHERE cid=$1 AND story_line_utf16=$2",
+            )
+            .bind(cid)
+            .bind(
+                line.encode_utf16()
+                    .flat_map(u16::to_le_bytes)
+                    .collect::<Vec<u8>>(),
+            )
+            .fetch_optional(&mut *tx)
+            .await?,
+        };
+    tx.commit().await?;
+    let ctx = Context {
+        contents,
+        policy: &npc.policy,
+        cafe: false,
+        raid_coupons: coupons,
+    };
+    let result = quests
+        .check_constraint(ctx, quest, difficulty, practice)
+        .map_err(|_| fail())?;
+    let name = match result {
+        Constraint::Success => None,
+        Constraint::InvalidQuest => Some("InvalidQuest"),
+        Constraint::NoSuchDifficulty => Some("NoSuchDifficulty"),
+        Constraint::LevelConstraintFail => Some("LevelConstraintFail"),
+        Constraint::RequiredStatusFail => Some("RequiredStatusFail"),
+        Constraint::MaxPlayCountFail => Some("MaxPlayCountFail"),
+    };
+    if name.is_some() {
+        return Ok(name);
+    }
+    if let Some((_, phases)) = story {
+        let phase = phase
+            .flatten()
+            .map(|p| {
+                let (pairs, rest) = p.as_chunks::<2>();
+                if !rest.is_empty() {
+                    return Err(fail());
+                }
+                String::from_utf16(
+                    &pairs
+                        .iter()
+                        .map(|c| u16::from_le_bytes(*c))
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|_| fail())
+            })
+            .transpose()?;
+        // progress == null || !phaseList.Contains(progress.PhaseID).
+        if !phase.is_some_and(|p| phases.split(';').any(|x| x == p)) {
+            return Ok(Some("InvalidStoryPhase"));
+        }
+    }
+    Ok(None)
+}

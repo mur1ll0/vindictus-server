@@ -525,6 +525,12 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     "progression":{"class_stats":[[1,27,44,14,23,1020,130,null],[2,34,48,20,27,1048,130,null],[3,42,52,26,31,1075,130,null]],
         "level_exp":[[1,350,null],[2,1148,null],[3,1855,null]],
         "titles":[[410017,1,2047,0,null],[410018,2,2047,5,null],[410019,9,2047,0,null]],"title_goals":[[1,410017],[2,410017]]},
+    "mission":{"quests":[["quest_gnoll_watchman",1,30,3,6,false,null,5,0,null,null,4,false,false,null],["quest_gnoll_shadowfang",2,30,3,6,false,null,null,0,null,null,4,false,true,null]],
+        "goals":[["quest_gnoll_watchman",10010,0,"kill npc_gnoll watchman",null,null]],
+        "sectors":[["quest_gnoll_watchman",1,32,"01j",100],["quest_gnoll_watchman",2,33,"01_boss",100],["quest_gnoll_shadowfang",1,34,"01h",100]],
+        "sector_groups":[],"tower_quests":[],
+        "entities":[[32,[["classname","trigger_once"],["targetname","t1"]]],[33,[["classname","npc_template_maker"],["TemplateName","npc_gnoll watchman"],["MaxNPCCount","1"]]]],
+        "named_props":[],"settings":[],"setting_conditions":[]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -1603,7 +1609,8 @@ async fn minimum_mission_member_info_matches_the_selected_character_and_refuses_
         Arithmetic::FrameworkX64,
     )
     .await
-    .unwrap();
+    .unwrap()
+    .join;
     assert_eq!((member.order, member.tag, member.key), (0, 0, 12345));
     assert_eq!(
         (member.base_class, member.level, member.transform_cool_down),
@@ -1677,6 +1684,274 @@ async fn minimum_mission_member_info_matches_the_selected_character_and_refuses_
         .is_err()
     );
     assert_eq!(items(&p).await, before);
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig,
+            minimum_mission::{self, Accept, OsMissionRandom, RelayTicket},
+            minimum_quest, minimum_selection,
+        },
+        protocol::mission::{
+            self as mission_wire, AcceptQuest, GameInfo, Kind as MissionKind,
+            Message as MissionMessage, ShipOption,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let option = |difficulty| ShipOption {
+        max_member_count: 4,
+        swear_member_limit: -1,
+        until_force_start: -1,
+        min_level: 1,
+        max_level: 90,
+        is_party_only: 0,
+        over18_only: 0,
+        difficulty,
+        is_season2: false,
+        selected_boss_quest_ids: None,
+        is_practice_mode: false,
+        user_ds_mode: false,
+    };
+    let accept = |quest: &str, difficulty| AcceptQuest {
+        quest_id: Some(quest.to_owned()),
+        title: Some(String::new()),
+        swear_id: -1,
+        option: Some(option(difficulty)),
+    };
+    let decode = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        let kind = [
+            MissionKind::PartyInfo,
+            MissionKind::UpdateShip,
+            MissionKind::PayCoinCompleted,
+            MissionKind::InsertBlessStoneComplete,
+            MissionKind::ConnectionRequest,
+            MissionKind::LaunchShipGranted,
+            MissionKind::GameStartGranted,
+        ]
+        .into_iter()
+        .find(|k| k.category() == packet.category);
+        kind.map(|k| {
+            mission_wire::decode(k, &packet.body, 1 << 22)
+                .unwrap()
+                .unwrap()
+        })
+    };
+    // QuestOwner.CheckConstraint needs the quest owned: the quest login gives it.
+    minimum_quest::login(
+        &p,
+        &owner,
+        &assets,
+        1,
+        vec![940_000_000_000_000_001, 940_000_000_000_000_002],
+        quest_clock(),
+    )
+    .await
+    .unwrap();
+    // A difficulty without QuestDifficultyInfo is refused before the ship exists.
+    let refused = minimum_mission::accept_quest(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &accept("quest_gnoll_watchman", 9),
+        |_| panic!("relay must not be reached"),
+        config(),
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let Accept::Failed(packets) = refused else {
+        panic!("refusal expected")
+    };
+    assert_eq!(packets.len(), 2);
+    assert!(matches!(
+        decode(&packets[0]),
+        Some(MissionMessage::PartyInfo(_))
+    ));
+    assert_eq!(packets[1].category, 602);
+    // DisableUserShip is refused by QueryQuestDigest's CheckDisableUserShip.
+    let refused = minimum_mission::accept_quest(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &accept("quest_gnoll_shadowfang", 2),
+        |_| panic!("relay must not be reached"),
+        config(),
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(refused, Accept::Failed(_)));
+    let mut seen_party = 0;
+    let outcome = minimum_mission::accept_quest(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &accept("quest_gnoll_watchman", 2),
+        |party| {
+            seen_party = party;
+            RelayTicket {
+                address: "127.0.0.1:27016".parse().unwrap(),
+                group: 7,
+                sn: 3,
+                key: 99,
+            }
+        },
+        config(),
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let Accept::Started {
+        mut mission,
+        packets,
+    } = outcome
+    else {
+        panic!("accepted expected")
+    };
+    let messages: Vec<_> = packets.iter().map(|p| decode(p).unwrap()).collect();
+    // JoinParty, RegisterShipInfo (+UpdateShip), AddPlayer broadcasts, then the frontend's
+    // ConnectionRequest and LaunchShipGranted.
+    assert_eq!(messages.len(), 7);
+    let MissionMessage::PartyInfo(town) = &messages[0] else {
+        panic!()
+    };
+    assert_eq!(
+        (town.party_id, town.party_size, town.state),
+        (seen_party, 4, 0)
+    );
+    let member = town.members.as_ref().unwrap()[0].clone().unwrap();
+    assert_eq!((member.slot, member.state, member.level), (0, 3, 1));
+    let MissionMessage::PartyInfo(ship) = &messages[1] else {
+        panic!()
+    };
+    assert_eq!((ship.party_size, ship.state), (4, 1));
+    let MissionMessage::UpdateShip(update) = &messages[2] else {
+        panic!()
+    };
+    let info = update.info.as_ref().unwrap();
+    assert_eq!(
+        (
+            info.quest_id.as_deref(),
+            info.difficulty,
+            info.swear_id,
+            info.state
+        ),
+        (Some("quest_gnoll_watchman"), 2, -1, 1)
+    );
+    assert!(matches!(messages[3], MissionMessage::PayCoinCompleted(_)));
+    let MissionMessage::InsertBlessStoneComplete(stones) = &messages[4] else {
+        panic!()
+    };
+    assert_eq!(stones.types, Some(vec![0, 2, 1, 3]));
+    let MissionMessage::ConnectionRequest(request) = &messages[5] else {
+        panic!()
+    };
+    assert_eq!(
+        (
+            request.address.as_deref(),
+            request.port,
+            request.posix_time,
+            request.key,
+            request.category.as_deref()
+        ),
+        (
+            Some("127.0.0.1"),
+            27016,
+            3,
+            99,
+            Some("MicroPlayServiceCore.MicroPlayService")
+        )
+    );
+    let MissionMessage::LaunchShipGranted(launch) = &messages[6] else {
+        panic!()
+    };
+    assert_eq!(launch.quest_id.as_deref(), Some("quest_gnoll_watchman"));
+    assert_eq!(launch.host_info.as_ref().unwrap().order, 0);
+    assert_eq!(mission.group, 7);
+    // StartGame before RegisterServer is refused (GameStarting needs InShip).
+    let early = minimum_mission::start_game(
+        &mut mission,
+        assets.mission().unwrap(),
+        &mut OsMissionRandom,
+    )
+    .unwrap();
+    assert_eq!(early.len(), 1);
+    assert_eq!(early[0].category, 602);
+    let launched = minimum_mission::register_server(
+        &mut mission,
+        Some(GameInfo {
+            name: Some("host".to_owned()),
+            map: Some("01j".to_owned()),
+            game_dir: None,
+            description: None,
+            host_id: 1,
+            ds_ip: None,
+            ds_port: 0,
+        }),
+    )
+    .unwrap();
+    let MissionMessage::PartyInfo(in_ship) = decode(&launched[0]).unwrap() else {
+        panic!()
+    };
+    assert_eq!(in_ship.state, 3);
+    let started = minimum_mission::start_game(
+        &mut mission,
+        assets.mission().unwrap(),
+        &mut OsMissionRandom,
+    )
+    .unwrap();
+    let started: Vec<_> = started.iter().map(|p| decode(p).unwrap()).collect();
+    // Starting broadcast, GameStartGranted, InGame broadcast.
+    assert_eq!(started.len(), 5);
+    let MissionMessage::GameStartGranted(granted) = &started[2] else {
+        panic!()
+    };
+    assert_eq!(
+        (
+            granted.quest_level,
+            granted.quest_time,
+            granted.difficulty,
+            granted.sector_move_game_time
+        ),
+        (1, 30, 2, 5)
+    );
+    let sectors = granted.sectors.as_ref().unwrap().sectors.as_ref().unwrap();
+    assert_eq!(sectors.len(), 2);
+    let boss = sectors[1].as_ref().unwrap();
+    assert!(
+        boss.entities
+            .as_ref()
+            .unwrap()
+            .iter()
+            .any(|e| e.as_deref().is_some_and(|e| e.contains("/Target")))
+    );
+    let MissionMessage::PartyInfo(in_game) = &started[3] else {
+        panic!()
+    };
+    assert_eq!(in_game.state, 5);
     minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

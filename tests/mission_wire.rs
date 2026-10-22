@@ -4,7 +4,7 @@ use vindictus_server::protocol::{
     mission::{self as wire, Kind, Message},
     server_profile::REGISTERED_CLASSES,
 };
-const KINDS: [(&str, Kind); 9] = [
+const KINDS: [(&str, Kind); 11] = [
     ("accept_quest", Kind::AcceptQuest),
     ("party_info", Kind::PartyInfo),
     ("update_ship", Kind::UpdateShip),
@@ -14,6 +14,11 @@ const KINDS: [(&str, Kind); 9] = [
     ("start_game", Kind::StartGame),
     ("game_start_granted", Kind::GameStartGranted),
     ("member_info", Kind::MemberInfo),
+    ("pay_coin_completed", Kind::PayCoinCompleted),
+    (
+        "insert_bless_stone_complete",
+        Kind::InsertBlessStoneComplete,
+    ),
 ];
 fn bytes(v: &Value) -> Vec<u8> {
     v.as_array()
@@ -52,7 +57,7 @@ fn mission_messages_roundtrip_the_recovered_serializer_bytes() {
             seen += 1;
         }
     }
-    assert_eq!(seen, 74);
+    assert_eq!(seen, 90);
 }
 #[test]
 fn accept_quest_and_connection_request_fields_follow_declaration_order() {

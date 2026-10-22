@@ -1,6 +1,6 @@
 # Battle transport (M19): ProudNet relay
 
-Status: investigation in progress (block B2). Nothing of this transport is implemented yet.
+Status: implemented for a solo host (block B2.1); client verification pending. The codec is `src/protocol/proudnet.rs`, the relay `src/infrastructure/relay.rs`, and mission entry `src/infrastructure/minimum_mission.rs`.
 
 ## Why it is needed
 
@@ -100,8 +100,18 @@ Heroes game RMIs (PIDL `S2C`/`C2S`):
 
 Message types 20, 21 and 22 relay reliable, unreliable and linger frames to the other group members, answered as types 23, 24 and 25. A one-member group has nobody to relay to.
 
-## Next steps
+## Mission entry wiring
 
-1. Recover the RMI header, the argument encodings, the P2P-group RMIs (member join and its acknowledgment), the keepalive and server-time messages, and whether encrypted messages (types 36 and 37) are required.
-2. Implement a minimal relay that admits one client per mission group, and verify it with tests that replay the recovered byte layouts.
-3. Wire it into B2.1: AcceptQuest, MicroPlay, AddPlayer, then ConnectionRequestMessage.
+The laboratory starts the relay on `relay_bind` from the assets file (the original `relay tcpPort` is 27005). For AcceptQuest the frontend:
+
+1. Sends PartyInfo for JoinParty (InTown, party size 4).
+2. Runs the QueryQuestDigest checks and sends PartyInfo plus UpdateShip for RegisterShipInfo (InTownWithShipInfo).
+3. Opens the P2P group (StartMicroPlay2, EnteringShip, no broadcast).
+4. Registers the host with AddClientWaiting, then sends PayCoinCompleted and InsertBlessStoneComplete.
+5. Sends ConnectionRequest (relay address and port, PosixTime = SN, Key, category `MicroPlayServiceCore.MicroPlayService`) and LaunchShipGranted with the host's GameJoinMemberInfo.
+
+The relay's Connected event triggers `join` (P2PGroup.Join with the party as parent); the member's acknowledgement completes it.
+
+The host's later messages:
+- RegisterServer → PartyInfo/UpdateShip (InShip).
+- StartGame → Starting broadcast, GameStartGranted (QuestSectorInfos), then the InGame broadcast.

@@ -5,12 +5,17 @@ use super::{
     minimum_assets::Assets,
     minimum_character::MinimumError,
 };
+use crate::domain::map_partition::OutgoingPacket;
 use crate::domain::{
     character_stats::Arithmetic,
     mission::{
         self as domain, ItemSlotInfo, MissionContents, MissionError, MissionRandom, QuestDigest,
         SectorInfos, SlotSource,
     },
+};
+use crate::protocol::mission::{
+    self as wire, AcceptQuest, BlessStones, ConnectionRequest, GameInfo, LaunchShipGranted,
+    Message, PaidCoin, PartyInfo, PartyMember, PayCoinCompleted, Ship, ShipOption, UpdateShip,
 };
 use crate::protocol::{
     inventory::Dict,
@@ -20,8 +25,9 @@ use crate::protocol::{
     },
 };
 use rand_core::{OsRng, RngCore};
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use sqlx::PgPool;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 /// Uniform operating-system randomness for the unseeded System.Random of the builder.
 pub struct OsMissionRandom;
@@ -198,7 +204,7 @@ pub async fn member_info(
     settings: &[(String, String)],
     config: QueryConfig,
     arithmetic: Arithmetic,
-) -> Result<JoinMember, MinimumError> {
+) -> Result<HostMember, MinimumError> {
     let mut tx = pool.begin().await?;
     let view =
         super::minimum_selection::view(&mut tx, owner, assets, cid, config, arithmetic, false, 0)
@@ -317,7 +323,8 @@ pub async fn member_info(
     )
     .map_err(|_| fail())?;
     let m = view.member;
-    Ok(JoinMember {
+    let (is_return, is_event_jumping) = (m.is_return, m.is_event_jumping);
+    let join = JoinMember {
         order: slot,
         tag: slot,
         key,
@@ -367,5 +374,403 @@ pub async fn member_info(
         is_assist: false,
         guild_level_bonus: StrDict(Some(Vec::new())),
         is_alive: true,
+    };
+    Ok(HostMember {
+        join,
+        is_return,
+        is_event_jumping,
     })
+}
+
+/// A host's member info plus the CharacterSummary flags of its party entry.
+pub struct HostMember {
+    pub join: JoinMember,
+    pub is_return: bool,
+    pub is_event_jumping: bool,
+}
+
+/// RemoteCategory of the MicroPlay connection (ConnectionRequest.Category, P2P parent).
+pub const MICRO_PLAY_CATEGORY: &str = "MicroPlayServiceCore.MicroPlayService";
+/// GameStartGranted bodies reach ~240 KB; 102,400 is only MessageAnalyzer's log threshold.
+pub const MAX_MISSION_BODY: usize = 4 * 1024 * 1024;
+/// SystemMessageCategory.Dialog.
+const DIALOG: u8 = 4;
+/// PartyInfoState.
+pub mod party_state {
+    pub const IN_TOWN: u8 = 0;
+    pub const IN_TOWN_WITH_SHIP_INFO: u8 = 1;
+    pub const ENTERING_SHIP: u8 = 2;
+    pub const IN_SHIP: u8 = 3;
+    pub const STARTING: u8 = 4;
+    pub const IN_GAME: u8 = 5;
+}
+/// ReadyState.Host.
+const HOST: u8 = 3;
+
+fn packet(message: &Message) -> Result<OutgoingPacket, MinimumError> {
+    let kind = message.kind();
+    Ok(OutgoingPacket {
+        category: kind.category(),
+        body: wire::encode(kind, Some(message), MAX_MISSION_BODY)
+            .map_err(|_| fail())?
+            .to_vec(),
+    })
+}
+/// BattleServiceProxy.SendErrorMessage(Dialog, key, error).
+fn general_fail(key: &str, error: &str) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    Ok(vec![super::minimum_shop::system_message(
+        DIALOG,
+        &format!("GameUI_Heroes_PartyInMicroPlay_{key}_{error}"),
+        &[],
+    )?])
+}
+
+/// MicroPlayService.MakeEntityID: DateTime ticks, strictly increasing in this process.
+fn entity_id() -> Result<i64, MinimumError> {
+    static LAST: AtomicI64 = AtomicI64::new(0);
+    let since = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| fail())?;
+    let ticks = 621_355_968_000_000_000_i64
+        .checked_add(i64::try_from(since.as_nanos() / 100).map_err(|_| fail())?)
+        .ok_or_else(fail)?;
+    let mut last = LAST.load(Ordering::Relaxed);
+    loop {
+        let next = ticks.max(last + 1);
+        match LAST.compare_exchange(last, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return Ok(next),
+            Err(seen) => last = seen,
+        }
+    }
+}
+
+/// The party and MicroPlay of one solo host, as the MicroPlay service keeps them.
+pub struct Mission {
+    pub party_id: i64,
+    pub group: i32,
+    pub quest: String,
+    pub title: Option<String>,
+    pub option: ShipOption,
+    pub digest: QuestDigest,
+    /// QuestDigest.SwearID: the requested swear when the quest has it, else -1.
+    pub swear_id: i32,
+    pub settings: Vec<(String, String)>,
+    pub member: PartyMember,
+    /// PartyInfoState; ShipInfo exists from RegisterShipInfo on.
+    pub state: u8,
+    pub host_info: Option<GameInfo>,
+    pub sectors: Option<SectorInfos>,
+}
+impl Mission {
+    /// ShipOptionInfo.MemberCountLimit.
+    fn member_count_limit(&self) -> i32 {
+        if self.option.swear_member_limit != -1 {
+            self.option
+                .swear_member_limit
+                .min(self.option.max_member_count)
+        } else {
+            self.option.max_member_count
+        }
+    }
+    fn max_ship_member_count(&self) -> i32 {
+        self.digest.party_limit.min(self.member_count_limit())
+    }
+    fn has_ship_info(&self) -> bool {
+        self.state != party_state::IN_TOWN
+    }
+    /// Party.SetShipInfo (refreshed on every broadcast once the MicroPlay exists).
+    fn ship(&self) -> Ship {
+        Ship {
+            party_id: self.party_id,
+            ship_name: self.title.clone(),
+            password: Some(String::new()),
+            min_level: self.option.min_level,
+            max_level: self.option.max_level,
+            member_count: 1,
+            max_ship_member_count: self.max_ship_member_count(),
+            quest_id: Some(self.quest.clone()),
+            is_hunting_quest: self.digest.is_hunting_quest,
+            is_giant_raid: false,
+            swear_id: self.swear_id,
+            rest_time: -1,
+            reinforce_allowed: false,
+            adult_rule: self.option.over18_only != 0,
+            members: Some(vec![Some(self.member.clone())]),
+            state: self.state,
+            party_bonus_count: 0,
+            party_bonus_ratio: 0,
+            is_party_only: self.option.is_party_only != 0,
+            host_ping: self.member.latest_ping,
+            host_frame_rate: self.member.latest_frame_rate,
+            difficulty: self.option.difficulty,
+            is_return: self.member.is_return,
+            is_season2: self.digest.is_season2,
+            selected_boss_quest_ids: self.option.selected_boss_quest_ids.clone(),
+            is_practice_mode: self.option.is_practice_mode,
+            user_ds_mode: self.option.user_ds_mode,
+        }
+    }
+    /// Party.BroadCastPartyInfo → UpdatePartyProcessor: PartyInfo, then UpdateShip when the
+    /// ship exists. The single authority point for party-visible state; skipped while
+    /// EnteringShip (IsLoadingState).
+    pub fn broadcast(&self) -> Result<Vec<OutgoingPacket>, MinimumError> {
+        if self.state == party_state::ENTERING_SHIP {
+            return Ok(Vec::new());
+        }
+        let size = if self.has_ship_info() {
+            self.max_ship_member_count()
+        } else {
+            4
+        };
+        let mut out = vec![packet(&Message::PartyInfo(PartyInfo {
+            party_id: self.party_id,
+            party_size: size,
+            state: self.state,
+            members: Some(vec![Some(self.member.clone())]),
+        }))?];
+        if self.has_ship_info() {
+            out.push(packet(&Message::UpdateShip(UpdateShip {
+                info: Some(self.ship()),
+            }))?);
+        }
+        Ok(out)
+    }
+}
+
+/// AcceptQuest of a player in the Initial state.
+pub enum Accept {
+    /// The party, the relay registration to send and the packets in order.
+    Started {
+        mission: Box<Mission>,
+        packets: Vec<OutgoingPacket>,
+    },
+    /// GeneralFail("AcceptQuest") after LeaveParty, with any packets already sent.
+    Failed(Vec<OutgoingPacket>),
+}
+
+/// Relay registration of AddPlayer: RelayServer endpoint and AddClientWaiting.
+pub struct RelayTicket {
+    pub address: std::net::SocketAddr,
+    pub group: i32,
+    pub sn: i32,
+    pub key: i32,
+}
+
+/// BattleServiceProxy Initial/AcceptQuest: OpenNewParty → JoinParty → RegisterShipInfo
+/// (QueryQuestDigest) → StartMicroPlay (StartMicroPlay2) → JoinMicroPlay (AddPlayer,
+/// QueryMicroPlayInfo) → ConnectionRequest + LaunchShipGranted. `relay` registers the
+/// waiting client and opens the P2P group of the party; it is called once the digest
+/// and member info are admitted.
+#[allow(clippy::too_many_arguments)]
+pub async fn accept_quest(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    message: &AcceptQuest,
+    relay: impl FnOnce(i64) -> RelayTicket,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<Accept, MinimumError> {
+    let contents = assets.mission().ok_or_else(fail)?;
+    let fail_with = |sent: Vec<OutgoingPacket>, error: &str| -> Result<Accept, MinimumError> {
+        let mut sent = sent;
+        sent.extend(general_fail("AcceptQuest", error)?);
+        Ok(Accept::Failed(sent))
+    };
+    let (Some(quest), Some(option)) = (message.quest_id.clone(), message.option.clone()) else {
+        return fail_with(Vec::new(), "InvalidQuest");
+    };
+    // OpenParty + JoinParty: the host enters slot 0 of a 4-slot party in town.
+    let base =
+        super::minimum_selection::view_member(pool, owner, assets, cid, config, arithmetic).await?;
+    let party_id = entity_id()?;
+    let member = PartyMember {
+        nexon_sn: owner.uid,
+        character: base.base_class,
+        character_id: base.name.clone(),
+        slot: 0,
+        level: base.level,
+        state: HOST,
+        latest_ping: 0,
+        latest_frame_rate: 0,
+        is_return: base.is_return,
+        is_event_jumping: base.is_event_jumping,
+    };
+    let mut packets = vec![packet(&Message::PartyInfo(PartyInfo {
+        party_id,
+        party_size: 4,
+        state: party_state::IN_TOWN,
+        members: Some(vec![Some(member.clone())]),
+    }))?];
+    // RegisterShipInfo → QueryQuestDigest(CheckDifficulty, CheckDisableUserShip, practice).
+    let difficulty = option.difficulty;
+    let practice = option.is_practice_mode;
+    let story = contents
+        .digest(&quest, -1)
+        .ok()
+        .and_then(|d| d.required_story_line.zip(d.required_phase));
+    if let Some(error) = super::minimum_quest::digest_constraint(
+        pool,
+        owner,
+        assets,
+        cid,
+        &quest,
+        difficulty,
+        practice,
+        story.as_ref().map(|(l, p)| (l.as_str(), p.as_str())),
+    )
+    .await?
+    {
+        return fail_with(packets, error);
+    }
+    let Ok(mut digest) = contents.digest(&quest, message.swear_id) else {
+        return fail_with(packets, "InvalidQuest");
+    };
+    contents.item_limit(&mut digest, message.swear_id, difficulty);
+    if digest.disable_user_ship {
+        return fail_with(packets, "DisableUserShip");
+    }
+    if digest.party_limit < 1 {
+        return fail_with(packets, "TooManyPartyMembers");
+    }
+    // Forms this server does not migrate: fishing/hunting/tower modules, gear limits
+    // (UnequipClassifiedParts) and required items (CheckCoinPaid/ConsumeRequiredItem).
+    if contents.check_supported(&quest, difficulty).is_err()
+        || !digest.gear_limit.is_empty()
+        || digest
+            .required_item
+            .as_deref()
+            .is_some_and(|i| !i.is_empty())
+    {
+        return fail_with(packets, "InvalidQuest");
+    }
+    let mut mission = Mission {
+        party_id,
+        group: 0,
+        quest: quest.clone(),
+        title: message.title.clone(),
+        option,
+        digest,
+        swear_id: if message.swear_id >= 0 && contents.has_swear(&quest, message.swear_id) {
+            message.swear_id
+        } else {
+            -1
+        },
+        settings: contents.settings(&quest, difficulty).map_err(|_| fail())?,
+        member,
+        state: party_state::IN_TOWN_WITH_SHIP_INFO,
+        host_info: None,
+        sectors: None,
+    };
+    packets.extend(mission.broadcast()?);
+    // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
+    mission.state = party_state::ENTERING_SHIP;
+    // AddPlayer: the item limit regex, member info, relay registration.
+    let item_limit = if mission.digest.item_limit.is_empty() {
+        None
+    } else {
+        Some(
+            RegexBuilder::new(&mission.digest.item_limit)
+                .case_insensitive(true)
+                .size_limit(1 << 20)
+                .build()
+                .map_err(|_| fail())?,
+        )
+    };
+    let key = OsMissionRandom.next();
+    let member = member_info(
+        pool,
+        owner,
+        assets,
+        cid,
+        0,
+        key,
+        item_limit.as_ref(),
+        &mission.settings,
+        config,
+        arithmetic,
+    )
+    .await?;
+    let ticket = relay(party_id);
+    mission.group = ticket.group;
+    // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
+    packets.push(packet(&Message::PayCoinCompleted(PayCoinCompleted {
+        coins: Some(vec![Some(PaidCoin {
+            slot: 0,
+            silver_coin: Some(Vec::new()),
+            platinum_coin_owner: -1,
+            platinum_coin_type: 0,
+        })]),
+    }))?);
+    packets.push(packet(&Message::InsertBlessStoneComplete(BlessStones {
+        slot: 0,
+        owners: Some(vec![-1; 4]),
+        // SlotDic order: ALL, AP, EXP, LUCK.
+        types: Some(vec![0, 2, 1, 3]),
+    }))?);
+    packets.push(packet(&Message::ConnectionRequest(ConnectionRequest {
+        address: Some(ticket.address.ip().to_string()),
+        port: ticket.address.port(),
+        posix_time: ticket.sn,
+        key: ticket.key,
+        category: Some(MICRO_PLAY_CATEGORY.to_owned()),
+        ping_host_cid: -1,
+        group_id: 0,
+    }))?);
+    packets.push(packet(&Message::LaunchShipGranted(Box::new(
+        LaunchShipGranted {
+            quest_id: Some(quest),
+            adult_rule: u8::try_from(mission.option.over18_only).unwrap_or(0),
+            is_practice_mode: u8::from(practice),
+            host_info: Some(member.join),
+        },
+    )))?);
+    Ok(Accept::Started {
+        mission: Box::new(mission),
+        packets,
+    })
+}
+
+/// ShipHost RegisterServerMessage: HostStarted (host info) and ShipLaunched (InShip).
+pub fn register_server(
+    mission: &mut Mission,
+    info: Option<GameInfo>,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    if mission.state != party_state::ENTERING_SHIP {
+        // ShipLaunched refuses a party that is not launching; nothing reaches the client.
+        return Ok(Vec::new());
+    }
+    mission.host_info = info;
+    mission.state = party_state::IN_SHIP;
+    mission.broadcast()
+}
+
+/// ShipHost StartGameMessage: GameStarting (Starting) → CheckCoinPaid →
+/// QueryMicroPlayInfo(InitItemDropEntities) → GameStartGranted → GameStarted (InGame).
+pub fn start_game(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    random: &mut dyn MissionRandom,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    if mission.state != party_state::IN_SHIP {
+        return general_fail("StartGame", "GameStartingFail");
+    }
+    mission.state = party_state::STARTING;
+    let mut packets = mission.broadcast()?;
+    let practice = mission.option.is_practice_mode;
+    let built = contents
+        .sector_sequence(&mission.digest, practice, false, random)
+        .and_then(|sequence| contents.info(&mission.quest, &sequence, practice));
+    let Ok(infos) = built else {
+        // QueryMicroPlayInfo failure: LeaveParty and GeneralFail.
+        packets.extend(general_fail("StartGame", "QueryMicroPlayInfoFail")?);
+        return Ok(packets);
+    };
+    let granted = game_start_granted(&mission.digest, &infos, mission.option.difficulty, true, 1);
+    mission.sectors = Some(infos);
+    packets.push(packet(&Message::GameStartGranted(granted))?);
+    mission.state = party_state::IN_GAME;
+    packets.extend(mission.broadcast()?);
+    Ok(packets)
 }

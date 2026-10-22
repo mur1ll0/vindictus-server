@@ -66,6 +66,8 @@ fn tables() -> MissionTables {
                 None,
                 4,
                 false,
+                false,
+                None,
             ),
             (
                 s("quest_tower"),
@@ -81,6 +83,8 @@ fn tables() -> MissionTables {
                 None,
                 4,
                 true,
+                false,
+                None,
             ),
         ],
         goals: vec![

@@ -95,6 +95,7 @@ pub struct Runtime {
     name_proof: Option<super::character_name_proof::NameProof>,
     minimum: Option<MinimumRuntime>,
     channel: Option<(std::net::SocketAddr, Arc<super::channel_server::Runtime>)>,
+    relay: Option<super::relay::Relay>,
 }
 impl Runtime {
     pub fn new(
@@ -131,6 +132,7 @@ impl Runtime {
             name_proof: None,
             minimum: None,
             channel: None,
+            relay: None,
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
@@ -162,11 +164,16 @@ impl Runtime {
                 Arc::new(super::channel_server::Runtime::new(topology.clone())),
             )
         });
+        self.relay = assets.relay.map(super::relay::Relay::new);
         self.minimum = Some(MinimumRuntime {
             assets: Arc::new(assets),
             creation,
         });
         Ok(self)
+    }
+    /// The RelayServer of mission entry, when the assets configure one.
+    pub fn relay(&self) -> Option<super::relay::Relay> {
+        self.relay.clone()
     }
     pub fn channel(&self) -> Option<(std::net::SocketAddr, Arc<super::channel_server::Runtime>)> {
         self.channel.as_ref().map(|(a, r)| (*a, r.clone()))
@@ -360,6 +367,8 @@ struct Connection {
     login_deadline: tokio::time::Instant,
     ignored_messages: u32,
     selected: Option<super::minimum_selection::Selected>,
+    /// BattleServiceProxy party/MicroPlay of the selected character (solo host).
+    mission: Option<Box<super::minimum_mission::Mission>>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -372,10 +381,13 @@ impl Connection {
             login_deadline: tokio::time::Instant::now() + ADMISSION_TIMEOUT,
             ignored_messages: 0,
             selected: None,
+            mission: None,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
     async fn release_selected(&mut self, runtime: &Runtime, pool: &PgPool) {
+        // LeaveParty: the party and MicroPlay of this connection end with it.
+        self.mission = None;
         if let Some(selected) = self.selected.take() {
             if let Some((_, channel)) = &runtime.channel
                 && channel.remove(selected.cid, pool).await.is_err()
@@ -698,6 +710,161 @@ impl Connection {
             operation,
             "laboratory second-password operation completed; values omitted"
         );
+        Ok(())
+    }
+    /// BattleServiceProxy for a solo host: AcceptQuest in the Initial state, then
+    /// RegisterServer and StartGame in ShipHost. The relay join of the host follows the
+    /// relay's Connected event in a task of its own.
+    async fn mission(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        message: crate::protocol::mission::Message,
+    ) -> Result<(), RuntimeError> {
+        use super::minimum_mission::{self as mission, Accept, RelayTicket};
+        use crate::protocol::mission::Message;
+        let (Some(selected), true, Some(relay)) = (
+            self.selected.as_ref(),
+            self.password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend)),
+            runtime.relay(),
+        ) else {
+            tracing::warn!("mission message outside an entered character or relay; ignored");
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets;
+        let packets = match message {
+            Message::AcceptQuest(accept) => {
+                if self.mission.is_some() {
+                    tracing::warn!("AcceptQuest while already in a party; ignored");
+                    return Ok(());
+                }
+                let nexon_sn = id.nexon_sn;
+                let outcome = mission::accept_quest(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    &accept,
+                    |party_id| {
+                        let group = relay.make_group();
+                        // Subscribe before registering, so Connected cannot be missed.
+                        let mut events = relay.subscribe();
+                        let joiner = relay.clone();
+                        tokio::spawn(async move {
+                            let joined = tokio::time::timeout(Duration::from_secs(120), async {
+                                loop {
+                                    match events.recv().await {
+                                        Ok(super::relay::RelayEvent::Connected {
+                                            cid: c, ..
+                                        }) if c == cid => {
+                                            // MicroPlayer.RelayClient_StateChanged → P2PGroup.Join.
+                                            if !joiner.join(
+                                                group,
+                                                cid,
+                                                party_id,
+                                                mission::MICRO_PLAY_CATEGORY,
+                                            ) {
+                                                return false;
+                                            }
+                                        }
+                                        Ok(super::relay::RelayEvent::Joined { cid: c, .. })
+                                            if c == cid =>
+                                        {
+                                            return true;
+                                        }
+                                        Ok(super::relay::RelayEvent::Closed { cid: c })
+                                            if c == cid =>
+                                        {
+                                            return false;
+                                        }
+                                        Ok(_)
+                                        | Err(tokio::sync::broadcast::error::RecvError::Lagged(
+                                            _,
+                                        )) => {}
+                                        Err(_) => return false,
+                                    }
+                                }
+                            })
+                            .await;
+                            tracing::info!(
+                                joined = matches!(joined, Ok(true)),
+                                "mission relay join finished; values omitted"
+                            );
+                        });
+                        let waiting = relay.add_client_waiting(cid, nexon_sn);
+                        RelayTicket {
+                            address: relay.endpoint(),
+                            group,
+                            sn: waiting.sn,
+                            key: waiting.key,
+                        }
+                    },
+                    runtime.minimum_header()?,
+                    runtime.stat_arithmetic(),
+                )
+                .await;
+                match outcome {
+                    Ok(Accept::Started { mission, packets }) => {
+                        self.mission = Some(mission);
+                        tracing::info!("mission accepted; relay waiting; values omitted");
+                        packets
+                    }
+                    Ok(Accept::Failed(packets)) => {
+                        tracing::info!("mission refused by its digest checks; values omitted");
+                        packets
+                    }
+                    Err(_) => {
+                        tracing::warn!("mission accept rejected; values omitted");
+                        return Ok(());
+                    }
+                }
+            }
+            Message::RegisterServer(register) => {
+                let Some(m) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                mission::register_server(m, register.info).map_err(|_| RuntimeError::Operation)?
+            }
+            Message::StartGame => {
+                let Some(m) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                let contents = assets.mission().ok_or(RuntimeError::Profile)?;
+                let packets = mission::start_game(m, contents, &mut mission::OsMissionRandom)
+                    .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!(
+                    granted = m.sectors.is_some(),
+                    "mission start processed; values omitted"
+                );
+                packets
+            }
+            _ => return Ok(()),
+        };
+        for packet in &packets {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
         Ok(())
     }
     async fn dispatch(
@@ -1107,6 +1274,23 @@ impl Connection {
                     Err(_) => tracing::warn!("minimum quick slot rejected; values omitted"),
                 }
                 return Ok(());
+            }
+        }
+        {
+            use crate::protocol::mission::Kind;
+            for kind in [Kind::AcceptQuest, Kind::RegisterServer, Kind::StartGame] {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = crate::protocol::mission::decode_ingress(
+                    kind,
+                    category,
+                    body,
+                    DEFAULT_MAX_BODY,
+                )
+                .map_err(|_| RuntimeError::Message)?
+                .ok_or(RuntimeError::Message)?;
+                return self.mission(runtime, pool, stream, sender, message).await;
             }
         }
         {

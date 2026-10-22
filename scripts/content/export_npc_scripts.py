@@ -178,7 +178,8 @@ def read_package(base, database, config):
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         mission['quests'] = [[nullable_text(r['ID']), int32(r['Level']), int32(r['TimeLimit']), int32(r['DropItemCountMin']), int32(r['DropItemCountMax']),
                               flag(r['HuntingQuest']), nullable_int32(r['InitGameTime']), nullable_int32(r['SectorMoveGameTime']), int32(r['GatheringRockMax']),
-                              nullable_text(r['RequiredStoryLineID']), nullable_text(r['RequiredPhase']), int32(r['MaxMemberCount']), flag(r['IsSeason2'])]
+                              nullable_text(r['RequiredStoryLineID']), nullable_text(r['RequiredPhase']), int32(r['MaxMemberCount']), flag(r['IsSeason2']),
+                              flag(r['DisableUserShip']), nullable_text(r['RequiredItem'])]
                              for r in db.execute('Select * From [QuestInfo]')]
         mission['goals'] = [[nullable_text(r['QuestID']), int32(r['ID']), int32(r['Relation']), nullable_text(r['Target']), nullable_text(r['GameSetting']), nullable_int32(r['GameSettingArg'])]
                             for r in db.execute('Select * From [QuestGoalInfo]')]

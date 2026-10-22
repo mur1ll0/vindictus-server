@@ -296,6 +296,15 @@ async fn run(cli: Cli) -> Result<(), Error> {
             None => None,
         };
         tracing::info!(address=%listener.local_addr()?,client_acceptance_verified=false,character_creation_available=runtime.minimum_creation_available(),"restricted laboratory frontend listening");
+        // RelayServer of mission entry: served until the frontend stops, then aborted.
+        let relay_task = match runtime.relay() {
+            Some(relay) => {
+                let relay_listener = tokio::net::TcpListener::bind(relay.endpoint()).await?;
+                tracing::info!(address=%relay_listener.local_addr()?, "mission relay listening");
+                Some(tokio::spawn(relay.serve(relay_listener)))
+            }
+            None => None,
+        };
         let result = if let Some((channel_listener, channel)) = channel_listener {
             tracing::info!(address=%channel_listener.local_addr()?, "minimum channel listening without cipher");
             let (stop, signal) = tokio::sync::watch::channel(false);
@@ -321,6 +330,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
         } else {
             lab_frontend::run(listener, runtime.clone(), pool.clone(), shutdown()).await
         };
+        if let Some(task) = relay_task {
+            task.abort();
+        }
         let minimum_cleanup = runtime.shutdown_minimum().await;
         pool.close().await;
         result?;

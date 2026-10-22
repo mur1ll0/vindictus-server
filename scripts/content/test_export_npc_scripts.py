@@ -20,8 +20,8 @@ class NpcScriptExportTests(unittest.TestCase):
             db.executescript('CREATE TABLE RepairEnhanceInfo(EnhanceLevel INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairQualityInfo(Quality INT,Point INT,MaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEnchantInfo(EnchantLevel INT,PrefixPoint INT,SuffixPoint INT,PrefixMaxDurabilityRecoveryPoint INT,SuffixMaxDurabilityRecoveryPoint INT);CREATE TABLE RepairEquipClassInfo(EquipClass TEXT,Point INT,MaxDurabilityRecoveryPoint INT);')
             db.execute('INSERT INTO RepairQualityInfo VALUES(2,5,0)')
             db.execute('ALTER TABLE EquipItemInfo ADD COLUMN EquipClass TEXT')
-            db.executescript("CREATE TABLE QuestInfo(ID TEXT,AutoGiveLevel INT,QuestSet INT,ServiceCoin INT,MaxMemberCount INT,MaxPlayCount INT,EnableTodayQuest TEXT,Season3TodayGroup TEXT,AutoReveal bit,Feature TEXT,IsSeason2 bit,Level INT,TimeLimit INT,DropItemCountMin INT,DropItemCountMax INT,HuntingQuest bit,InitGameTime INT,SectorMoveGameTime INT,GatheringRockMax INT,RequiredStoryLineID TEXT,RequiredPhase TEXT);"
-                             "INSERT INTO QuestInfo VALUES('quest_a',1,1,0,4,NULL,'Enable',NULL,'False','EP3','False',2,30,3,6,'False',NULL,5,1,NULL,NULL);"
+            db.executescript("CREATE TABLE QuestInfo(ID TEXT,AutoGiveLevel INT,QuestSet INT,ServiceCoin INT,MaxMemberCount INT,MaxPlayCount INT,EnableTodayQuest TEXT,Season3TodayGroup TEXT,AutoReveal bit,Feature TEXT,IsSeason2 bit,Level INT,TimeLimit INT,DropItemCountMin INT,DropItemCountMax INT,HuntingQuest bit,InitGameTime INT,SectorMoveGameTime INT,GatheringRockMax INT,RequiredStoryLineID TEXT,RequiredPhase TEXT,DisableUserShip bit,RequiredItem TEXT);"
+                             "INSERT INTO QuestInfo VALUES('quest_a',1,1,0,4,NULL,'Enable',NULL,'False','EP3','False',2,30,3,6,'False',NULL,5,1,NULL,NULL,'False',NULL);"
                              "CREATE TABLE QuestGoalInfo(ID INT,QuestID TEXT,Relation INT,Weight INT,Target TEXT,GameSetting TEXT,GameSettingArg INT);INSERT INTO QuestGoalInfo VALUES(10,'quest_a',0,100,'kill npc_gnoll boss',NULL,NULL);"
                              "CREATE TABLE Sectors(QuestID TEXT,Sequence INT,SectorID INT,BSPName TEXT,SubSector TEXT,Weight INT);INSERT INTO Sectors VALUES('quest_a',1,7,'01h',NULL,100);"
                              "CREATE TABLE SectorGroupInfo(QuestID TEXT,FromGroup INT,FromSector INT,FromTrigger TEXT,ToGroup INT,ToSpawnPoint TEXT,Feature TEXT);INSERT INTO SectorGroupInfo VALUES('quest_a',1,NULL,'exit',2,NULL,'group_flag');"
@@ -56,7 +56,7 @@ class NpcScriptExportTests(unittest.TestCase):
         self.assertIn('shop_flag', [f['key'] for f in p['features']])
         self.assertEqual((p['repair']['quality'], len(p['repair']['equip_item_class'])), ([[2, 5]], 0))
         m = p['mission']
-        self.assertEqual(m['quests'], [['quest_a', 2, 30, 3, 6, False, None, 5, 1, None, None, 4, False]])
+        self.assertEqual(m['quests'], [['quest_a', 2, 30, 3, 6, False, None, 5, 1, None, None, 4, False, False, None]])
         self.assertEqual(m['goals'], [['quest_a', 10, 0, 'kill npc_gnoll boss', None, None]])
         # Only entities of the quest sectors, in Entity order with attribute order.
         self.assertEqual(m['entities'], [[7, [['classname', 'trigger_once']]], [7, [['classname', 'npc_template_maker'], ['Feature', 'entity_flag']]]])

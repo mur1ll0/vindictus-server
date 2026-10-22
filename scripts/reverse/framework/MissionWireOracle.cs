@@ -113,6 +113,13 @@ class MissionWireOracle {
   foreach(int seed in new[]{0,1,-1})grants.Add(Obj<GameStartGrantedMessage>("QuestLevel",seed,"QuestTime",seed*600,"HardMode",seed&1,"SoloSector",-1,"QuestSectorInfos",seed==-1?null:Sectors(seed),"IsHuntingQuest",seed==1,"InitGameTime",0,"SectorMoveGameTime",int.MaxValue,"Difficulty",2,"IsTimerDecreasing",true,"QuestStartedPlayerCount",1,"NewSlot",-1,"NewKey",-1,"IsUserDedicated",false));
   AddCases("game_start_granted",462,new Guid("dc3acd0b-6946-3b6c-bcaf-29057e0dfc59"),grants,cases);
   AddCases("member_info",498,new Guid("b89c49cb-0aa1-308d-a0c5-9fe9bb1f58ed"),new[]{null,new MemberInfoMessage(0,null),new MemberInfoMessage(3,Join(1))},cases);
+  var coins=new List<PayCoinCompletedMessage>{null,new PayCoinCompletedMessage(null),new PayCoinCompletedMessage(new List<PaidCoinInfo>())};
+  coins.Add(new PayCoinCompletedMessage(new List<PaidCoinInfo>{Obj<PaidCoinInfo>("Slot",0,"SilverCoin",(ICollection<int>)new List<int>(),"PlatinumCoinOwner",-1,"PlatinumCoinType",CoinType.First),Obj<PaidCoinInfo>("Slot",3,"SilverCoin",null,"PlatinumCoinOwner",2,"PlatinumCoinType",CoinType.FatiguePoint)}));
+  AddCases("pay_coin_completed",432,new Guid("7f105751-b6a7-3c1d-a7fd-bc7a884133d2"),coins,cases);
+  var stones=new List<InsertBlessStoneCompleteMessage>{null,Obj<InsertBlessStoneCompleteMessage>("Slot",0,"OwnerList",null,"TypeList",null)};
+  var stone=new InsertBlessStoneCompleteMessage{Slot=0};foreach(var t in new[]{BlessStoneType.ALL,BlessStoneType.AP,BlessStoneType.EXP,BlessStoneType.LUCK})stone.AddInfo(t,-1);stones.Add(stone);
+  var mixed=new InsertBlessStoneCompleteMessage{Slot=int.MaxValue};mixed.AddInfo(BlessStoneType.NONE,3);stones.Add(mixed);
+  AddCases("insert_bless_stone_complete",48,new Guid("915f8913-1565-340c-99ca-619e37ffd1f7"),stones,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

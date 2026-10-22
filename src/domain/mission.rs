@@ -23,7 +23,7 @@ pub enum MissionError {
 
 /// QuestInfo: ID, Level, TimeLimit, DropItemCountMin, DropItemCountMax, HuntingQuest,
 /// InitGameTime, SectorMoveGameTime, GatheringRockMax, RequiredStoryLineID,
-/// RequiredPhase, MaxMemberCount, IsSeason2.
+/// RequiredPhase, MaxMemberCount, IsSeason2, DisableUserShip, RequiredItem.
 pub type QuestRow = (
     Option<String>,
     i32,
@@ -38,6 +38,8 @@ pub type QuestRow = (
     Option<String>,
     i32,
     bool,
+    bool,
+    Option<String>,
 );
 /// QuestGoalInfo: QuestID, ID, Relation, Target, GameSetting, GameSettingArg.
 pub type GoalRow = (
@@ -113,6 +115,8 @@ pub struct QuestDigest {
     pub is_season2: bool,
     pub required_story_line: Option<String>,
     pub required_phase: Option<String>,
+    pub disable_user_ship: bool,
+    pub required_item: Option<String>,
 }
 impl QuestDigest {
     pub fn solo_mode(&self) -> bool {
@@ -743,6 +747,8 @@ impl MissionContents {
             is_season2: r.12,
             required_story_line: r.9.clone(),
             required_phase: r.10.clone(),
+            disable_user_ship: r.13,
+            required_item: r.14.clone(),
         };
         for g in &entry.goals {
             if g.2 != 2 || g.1 != swear_id {
@@ -766,6 +772,13 @@ impl MissionContents {
             }
         }
         Ok(d)
+    }
+
+    /// Whether the quest has the swear goal (Relation 2) of this ID.
+    pub fn has_swear(&self, quest: &str, swear_id: i32) -> bool {
+        self.quests
+            .get(quest)
+            .is_some_and(|q| q.goals.iter().any(|g| g.2 == 2 && g.1 == swear_id))
     }
 
     /// QueryQuestDigestProcessor's ItemLimit rewrite for the selected difficulty.
