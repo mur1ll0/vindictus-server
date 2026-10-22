@@ -40,6 +40,8 @@ fn policy() -> FeaturePolicy {
         ("Gathering".to_owned(), Some("2.02".to_owned())),
         ("GatheringRare".to_owned(), Some("2.02.01".to_owned())),
         ("Off".to_owned(), None),
+        // As in the exported policy: a test-only feature with an empty value (disabled).
+        ("DropRequiredTest".to_owned(), Some(String::new())),
     ])
     .unwrap()
 }
@@ -228,6 +230,19 @@ fn tables() -> MissionTables {
             (13, s("npc_gnoll"), s("chief"), 2, 800, 1800, 100),
         ],
         monster_drops: vec![
+            // The exported npc_gnoll table carries Regina's Sealed Power as a 90 %
+            // absolute row behind DropRequiredTest; GetTable must leave it out.
+            (
+                11,
+                None,
+                1,
+                s("combine_wpart1_lv90_regina_5_1"),
+                900_000,
+                true,
+                false,
+                false,
+                s("DropRequiredTest"),
+            ),
             (
                 11,
                 None,

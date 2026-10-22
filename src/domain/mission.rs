@@ -696,8 +696,10 @@ pub struct MissionContents {
     setting_conditions: Vec<(i32, Option<String>, Option<String>)>,
     /// Monsters: MonsterType → (Difficulty, MonsterInfo) in insertion order.
     monsters: BTreeMap<String, Vec<(i32, MonsterInfo)>>,
-    /// MonsterDropTable.DropTables: (MonsterID, Difficulty) → rows in provider order.
-    drops: BTreeMap<(i32, i32), Vec<DropRow>>,
+    /// MonsterDropTable.DropTables: (MonsterID, Difficulty) → rows in provider order,
+    /// each with FeatureMatrix.IsEnable(Feature). HasItem sees every row; GetTable keeps
+    /// only the enabled ones.
+    drops: BTreeMap<(i32, i32), Vec<(DropRow, bool)>>,
     /// QuestDifficultyInfoDic (feature-filtered): (QuestID, Difficulty) → (GameMode, EvilCoreCount).
     difficulties: BTreeMap<(String, i32), (i32, i32)>,
     /// itemClassInfoDic of dropped classes: ItemClass → (Rarity, ClassRestriction).
@@ -931,9 +933,10 @@ impl MissionContents {
                 },
             ));
         }
-        let mut drops: BTreeMap<(i32, i32), Vec<DropRow>> = BTreeMap::new();
+        let mut drops: BTreeMap<(i32, i32), Vec<(DropRow, bool)>> = BTreeMap::new();
         for row in t.monster_drops {
-            drops.entry((row.0, row.2)).or_default().push(row);
+            let on = enabled(row.8.as_deref())?;
+            drops.entry((row.0, row.2)).or_default().push((row, on));
         }
         let mut difficulties = BTreeMap::new();
         for (quest, difficulty, game_mode, evil_core_count, feature) in t.quest_difficulties {
@@ -1594,8 +1597,10 @@ impl MissionContents {
         let rows: Option<Vec<&DropRow>> = info
             .and_then(|i| self.drops.get(&(i.identifier, difficulty)))
             .map(|rows| {
+                // MonsterDropTable.GetTable: (QuestID == questID || null) && IsEnable(Feature).
                 rows.iter()
-                    .filter(|r| r.1.as_deref().is_none_or(|q| q == quest))
+                    .filter(|(r, on)| *on && r.1.as_deref().is_none_or(|q| q == quest))
+                    .map(|(r, _)| r)
                     .collect()
             });
         // MonsterDropTableInstance.From returns null for an empty filtered list.

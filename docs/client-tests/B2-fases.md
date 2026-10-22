@@ -63,6 +63,7 @@ Pré-condição: missão iniciada (B2.1) fora do modo prática.
 - [ ] Ao derrotar monstros, alguns deixam um núcleo brilhante (os escolhidos pela tabela de drop da quest); o chefe deixa vários.
 - [ ] Chutar o núcleo → mensagem de item obtido com o nome da Fiona e o item aparece no inventário (ex.: materiais como couro/tecido). No log: "mission core looted".
 - [ ] Chutar de novo um núcleo já vazio → nada acontece (log "mission core kick without loot").
+- [ ] Em várias missões com gnolls, os núcleos dão materiais comuns; itens de chefe de nível alto (ex.: Regina's Sealed Power) não caem de monstros comuns (em 22/10 caíam em ~90 % dos núcleos dos gnolls por uma linha de teste com feature desligada).
 - [ ] Relogar depois da missão → os itens obtidos continuam no inventário.
 Limites conhecidos: itens com atributos (ex.: pergaminhos de encantamento) e inventário cheio (envio por correio) ainda são recusados, com o log "mission core loot refused"; mapas do tesouro, núcleos de evento/história, pontos fracos e HugeLucky não estão migrados.
 
