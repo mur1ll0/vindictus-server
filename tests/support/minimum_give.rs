@@ -2233,6 +2233,102 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         panic!("return from quest")
     };
     assert_eq!(order.order, 0);
+    // A new mission: giving up before the first sector leaves without a reward.
+    let ticket = |_| RelayTicket {
+        address: "127.0.0.1:27016".parse().unwrap(),
+        group: 8,
+        sn: 4,
+        key: 98,
+    };
+    let start = |mission: &mut minimum_mission::Mission| {
+        minimum_mission::register_server(
+            mission,
+            Some(GameInfo {
+                name: Some("host".to_owned()),
+                map: Some("01j".to_owned()),
+                game_dir: None,
+                description: None,
+                host_id: 1,
+                ds_ip: None,
+                ds_port: 0,
+            }),
+        )
+        .unwrap();
+        minimum_mission::start_game(mission, contents, &mut OsMissionRandom).unwrap();
+    };
+    let Accept::Started { mut mission, .. } = minimum_mission::accept_quest(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &accept("quest_gnoll_watchman", 2),
+        ticket,
+        config(),
+        quest_clock(),
+    )
+    .await
+    .unwrap()
+    else {
+        panic!("accepted expected")
+    };
+    start(&mut mission);
+    let now = std::time::Instant::now();
+    minimum_mission_finish::give_up(&mut mission, now);
+    let left = minimum_mission_finish::run_jobs(&mut mission, ctx, &rc, &mut ids, now)
+        .await
+        .unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].category, MissionKind::Kicked.category());
+    assert!(mission.completion.left);
+    // Giving up inside the dungeon: the personal GiveUpQuest failure with its result.
+    let Accept::Started { mut mission, .. } = minimum_mission::accept_quest(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &accept("quest_gnoll_watchman", 2),
+        ticket,
+        config(),
+        quest_clock(),
+    )
+    .await
+    .unwrap()
+    else {
+        panic!("accepted expected")
+    };
+    start(&mut mission);
+    assert!(minimum_mission::move_sector(&mut mission, contents, "", 1).unwrap());
+    let now = std::time::Instant::now();
+    minimum_mission_finish::give_up(&mut mission, now);
+    let failed = minimum_mission_finish::run_jobs(&mut mission, ctx, &rc, &mut ids, now)
+        .await
+        .unwrap();
+    let finish = failed
+        .iter()
+        .find(|p| p.category == MissionKind::FinishGame.category())
+        .unwrap();
+    let Some(MissionMessage::FinishGame(result)) =
+        mission_wire::decode(MissionKind::FinishGame, &finish.body, 1 << 20).unwrap()
+    else {
+        panic!("finish game")
+    };
+    let summary = result.summary.unwrap();
+    assert_eq!((summary.result, summary.exp, summary.gold), (3, 0, 0));
+    assert!(!result.can_continue_finished_quest);
+    assert!(mission.completion.give_up);
+    // UpdateQuestStatus counts the failed play as well.
+    let clears: i32 = sqlx::query_scalar(
+        "SELECT clear_count FROM game_quests WHERE owner_id=1 AND quest_utf16=$1",
+    )
+    .bind(utf16("quest_gnoll_watchman"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(clears, 2);
+    assert!(matches!(
+        minimum_mission_finish::return_to_town(&mut mission).unwrap(),
+        minimum_mission_finish::Return::Town(_)
+    ));
     minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

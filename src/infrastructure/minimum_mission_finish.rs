@@ -56,6 +56,7 @@ pub enum RewardKind {
     MainGoal,
     /// GiveReward_QuestFail(result, isPersonalFail).
     QuestFail(u8, bool),
+    MinClearTimeViolation,
     Null,
 }
 
@@ -109,6 +110,8 @@ pub struct Completion {
     pub end_game: Option<EndGame>,
     /// The frontend is in the StorySector state after ReturnFromQuest(ToStorySector).
     pub in_story_sector: bool,
+    /// The player left the play (GiveReward_Null → Leave): the proxy left the party.
+    pub left: bool,
 }
 
 impl Completion {
@@ -136,6 +139,7 @@ impl Completion {
             play_count_updated: false,
             end_game: None,
             in_story_sector: false,
+            left: false,
         }
     }
     fn schedule(&mut self, at: Instant, job: Job) {
@@ -671,6 +675,7 @@ async fn reward(
     if kind == RewardKind::Null {
         // GiveReward_Null → Leave → SendNullEndGameOp: the proxy leaves the party.
         mission.completion.player_state = PlayerState::Finished;
+        mission.completion.left = true;
         packets.push(packet(&Message::Kicked)?);
         return Ok(packets);
     }
@@ -678,12 +683,13 @@ async fn reward(
     let practice = mission.option.is_practice_mode;
     let (success, result) = match kind {
         RewardKind::QuestFail(reason, _) => (false, reason),
+        RewardKind::MinClearTimeViolation => (false, result::GIVE_UP_QUEST),
         _ => (true, result::SUCCESS),
     };
     if matches!(kind, RewardKind::Season1Success) {
         packets.extend(give_reserved_items(mission, rc, ids).await?);
     }
-    if let RewardKind::QuestFail(..) = kind {
+    if let RewardKind::QuestFail(..) | RewardKind::MinClearTimeViolation = kind {
         let c = &mut mission.completion;
         c.achieved_main.clear();
         c.achieved_sub.clear();
@@ -696,16 +702,21 @@ async fn reward(
     }
     let game_mode = facts.game_mode;
     let c = &mut mission.completion;
-    let calculation = goal::calculate(
-        facts.main_goal_achieved,
-        &mut c.achieved_main,
-        &mut c.achieved_sub,
-        game_mode,
-        mission.monster_kill_exp,
-        &lists,
-        &|f| ctx.enabled(f),
-    )
-    .map_err(|_| fail())?;
+    // Reward_CalculateReward_Null gives nothing for a minimum clear time violation.
+    let calculation = if kind == RewardKind::MinClearTimeViolation {
+        goal::Calculation::default()
+    } else {
+        goal::calculate(
+            facts.main_goal_achieved,
+            &mut c.achieved_main,
+            &mut c.achieved_sub,
+            game_mode,
+            mission.monster_kill_exp,
+            &lists,
+            &|f| ctx.enabled(f),
+        )
+        .map_err(|_| fail())?
+    };
     let mut summary = QuestSummary {
         quest_id: Some(mission.quest.clone()),
         swear_id: mission.swear_id,
@@ -812,7 +823,7 @@ async fn reward(
             c.player_state = PlayerState::InGame;
             return Ok(packets);
         }
-        RewardKind::QuestFail(..) => {
+        RewardKind::QuestFail(..) | RewardKind::MinClearTimeViolation => {
             story = (String::new(), String::new());
         }
         _ => {}
@@ -1085,6 +1096,27 @@ pub async fn update_play_count(
     super::minimum_quest::save(&mut tx, c.cid, &original, &quests, &mut std::iter::empty()).await?;
     tx.commit().await?;
     Ok(())
+}
+
+/// FinishMicroPlay(GiveUpQuest) of LeavePartyMessage for the solo host: GiveReward_Null
+/// before the play starts (or for hunting quests), else MicroPlay.GiveReward_GiveUpQuest:
+/// the minimum clear time result, the success when the main goal was met, or the
+/// personal give-up failure; GiveReward_Null once the play finished.
+pub fn give_up(mission: &mut Mission, now: Instant) {
+    let in_game = mission.in_game && !mission.completion.finished;
+    let c = &mut mission.completion;
+    // Wait state, hunting quests and finished plays: GiveReward_Null.
+    let kind = if mission.digest.is_hunting_quest || !in_game {
+        RewardKind::Null
+    } else if c.clear_time_violations > 0 {
+        RewardKind::MinClearTimeViolation
+    } else if c.tracker.as_ref().is_some_and(|t| t.main_goal_achieved) {
+        // Season 2 quests take GiveReward_Season2Success, migrated as the season 1 reward.
+        RewardKind::Season1Success
+    } else {
+        RewardKind::QuestFail(result::GIVE_UP_QUEST, true)
+    };
+    c.schedule(now, Job::Reward(kind));
 }
 
 /// Entity IDs reserved for one round of rewarding jobs (item rows, quest rows).

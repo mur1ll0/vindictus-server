@@ -47,6 +47,7 @@ pub enum Kind {
     ReturnToTown,
     ReturnFromQuest,
     Kicked,
+    LeaveParty,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -86,6 +87,7 @@ impl Kind {
             Self::ReturnToTown => 445,
             Self::ReturnFromQuest => 402,
             Self::Kicked => 471,
+            Self::LeaveParty => 518,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -125,6 +127,7 @@ impl Kind {
             Self::ReturnToTown => 0x702a1018_f1b5_3c8e_ad51_e46ef0846aed,
             Self::ReturnFromQuest => 0x6764d890_113e_3d4d_9d96_24c0087489c3,
             Self::Kicked => 0x4df74867_68cb_3431_8177_ce7549890ddd,
+            Self::LeaveParty => 0x4aad8f98_e265_3b91_b7fc_f25caed054b9,
         })
     }
 }
@@ -750,6 +753,7 @@ pub enum Message {
     ReturnToTown,
     ReturnFromQuest(ReturnFromQuest),
     Kicked,
+    LeaveParty,
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -789,6 +793,7 @@ impl Message {
             Self::ReturnToTown => Kind::ReturnToTown,
             Self::ReturnFromQuest(_) => Kind::ReturnFromQuest,
             Self::Kicked => Kind::Kicked,
+            Self::LeaveParty => Kind::LeaveParty,
         }
     }
 }
@@ -1208,6 +1213,7 @@ pub fn encode(
                 Message::ReturnToTown => {}
                 Message::ReturnFromQuest(v) => v.write(&mut w)?,
                 Message::Kicked => {}
+                Message::LeaveParty => {}
             }
         }
     }
@@ -1269,6 +1275,7 @@ pub fn decode(
             Kind::ReturnToTown => Message::ReturnToTown,
             Kind::ReturnFromQuest => Message::ReturnFromQuest(ReturnFromQuest::read(&mut r)?),
             Kind::Kicked => Message::Kicked,
+            Kind::LeaveParty => Message::LeaveParty,
         })
     };
     if !r.remaining.is_empty() {

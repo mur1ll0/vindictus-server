@@ -159,6 +159,7 @@ class MissionWireOracle {
   AddCases("return_to_town",445,new Guid("702a1018-f1b5-3c8e-ad51-e46ef0846aed"),new[]{null,new ReturnToTownMessage()},cases);
   AddCases("return_from_quest",402,new Guid("6764d890-113e-3d4d-9d96-24c0087489c3"),new[]{null,new ReturnFromQuestMessage(ReturnFromQuestType.ToTown),Obj<ReturnFromQuestMessage>("Order",2,"StorySectorBSP",null,"StorySectorEntity","story_é")},cases);
   AddCases("kicked",471,new Guid("4df74867-68cb-3431-8177-ce7549890ddd"),new[]{null,new KickedMessage()},cases);
+  AddCases("leave_party",518,new Guid("4aad8f98-e265-3b91-b7fc-f25caed054b9"),new[]{null,new LeavePartyMessage()},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

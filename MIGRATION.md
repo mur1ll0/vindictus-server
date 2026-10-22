@@ -804,3 +804,14 @@ Domínio:
 Desvios documentados: reinício pelo navio (ReturnToShip) não migrado, por isso CanRestart vai falso; trocas de item "a>b" (CraftItem) e itens com atributos nas recompensas são recusados; AddMicroPlayTime, AddMicroPlayCount/DailyFreePlayCount, rankings (CharacterRank) e bônus de status, cafe, guilda, moedas, pedras de bênção, amizade, festa e BoostType não migrados (somam zero no laboratório); OnEnterPhase das fases alcançadas por evento só é contado; destruição do cupom de raid não migrada.
 
 Testes focados: mission_content (13: tracker, recompensa/AP, cálculo com multiplicadores e penalidades, setor de história), npc_talk (evento de quest concluída), mission_wire (2), PostgreSQL minimum_mission (2: cena de sucesso, recompensa com núcleos reservados, quest/objetivo/tempo persistidos, FinishGame e volta à cidade), Python export_npc_scripts (2), comparações de feature NPC (35, x86=x64), clippy. `inspect-mission-content` com o conteúdo privado: 220 quests montadas com tracker, 0 trackers falhos, 1 alvo não compilável. Cliente: entrada B2.7. Próximo: B2.8 robustez (desconexão no meio da missão, desistência, relay).
+
+B2.8 — desistência, saída e desconexão (cliente: entrada B2.8). Codec LeaveParty518 no oráculo de missão (131 casos por arquitetura, x86=x64).
+
+`minimum_mission_finish`:
+- LeavePartyMessage → FinishMicroPlay(GiveUpQuest): no estado Wait (antes do primeiro setor), em quest de caça ou com a partida terminada, GiveReward_Null (KickedMessage; a missão e o grupo do relay são encerrados); dentro do jogo, MicroPlay.GiveReward_GiveUpQuest: GiveReward_MinClearTimeViolation (resultado GiveUpQuest com Reward_CalculateReward_Null) sob violação de tempo mínimo, sucesso se o objetivo principal foi cumprido (temporada 2 migrada como a recompensa da temporada 1) ou GiveReward_QuestFail(GiveUpQuest, pessoal) com FinishGame SoloEnd.
+- Desconexão do frontend: a missão termina sem recompensa e o grupo do relay fecha (sem CombatRejoinSystem, que não é exportado como ligado).
+- TimeOver e violação de juramento seguem o B2.7 (job por minuto e Trigger_QuestGoal).
+
+Desvios documentados: reentrada em combate, StoreToQueuedItem dos itens reservados de quem saiu e decisões de saída com o host em festa (LeaveWithHost) não migrados; o ledger de InvalidSwearRequested não é gravado.
+
+Testes focados: PostgreSQL minimum_mission (2: desistência no estado Wait sai com Kicked; desistência no dungeon com FinishGame de resultado 3 e ClearCount incrementado), mission_wire (2), mission_content (13), clippy. Cliente: entrada B2.8. Próximo: gate do B2 (verify -DatabaseIntegration e smoke Docker) e roteiro combinado B1+B2.

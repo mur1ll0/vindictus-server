@@ -68,3 +68,11 @@ Pré-condição: quest "quest_gnoll_watchman" (primeira quest), dificuldade norm
 - [ ] Morrer de propósito numa quest com juramento "não morrer" (se escolher um) → falha por violação, tela de resultado com falha e só a EXP de monstros.
 - [ ] Ficar além do tempo limite → falha por tempo (TimeOver) 5 s depois da checagem por minuto.
 Limites conhecidos: reinício pelo navio, núcleos/drops de evento, AddMicroPlayTime/contagem diária de quests grátis, rankings, bônus de status/cafe/guilda/moedas/pedras de bênção e o OnEnterPhase das histórias após a quest não estão migrados; histórias com setor de história mandam ao setor de história e de lá para a cidade.
+
+### B2.8 — Desistência, saída e desconexão
+Pré-condição: dentro do navio ou do dungeon com a quest aceita.
+- [ ] Sair da festa/desistir no navio, antes de entrar no primeiro setor → a Fiona sai sem recompensa (KickedMessage) e volta ao estado de cidade; log "mission left without reward".
+- [ ] Desistir dentro do dungeon antes de concluir → tela de resultado com falha por desistência (EXP de monstros, sem objetivos) e depois voltar à cidade; a quest conta mais uma jogada no diário.
+- [ ] Desistir depois de derrotar o chefe, durante a cena de sucesso → recompensa de sucesso normal.
+- [ ] Fechar o cliente no meio do dungeon e entrar de novo → personagem na cidade, sem recompensa da missão interrompida e sem erro no servidor (log "laboratory frontend connection closed").
+Limites conhecidos: reentrar na missão (CombatRejoinSystem) e o envio por correio de itens reservados de quem saiu não estão migrados.

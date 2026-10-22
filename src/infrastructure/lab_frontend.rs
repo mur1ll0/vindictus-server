@@ -386,8 +386,13 @@ impl Connection {
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
     async fn release_selected(&mut self, runtime: &Runtime, pool: &PgPool) {
-        // LeaveParty: the party and MicroPlay of this connection end with it.
-        self.mission = None;
+        // LeaveParty: the party and MicroPlay of this connection end with it; its relay
+        // group closes (the disconnected player gets no reward, as without CombatRejoinSystem).
+        if let Some(m) = self.mission.take()
+            && let Some(relay) = runtime.relay()
+        {
+            relay.close_group(m.group);
+        }
         if let Some(selected) = self.selected.take() {
             if let Some((_, channel)) = &runtime.channel
                 && channel.remove(selected.cid, pool).await.is_err()
@@ -1112,6 +1117,14 @@ impl Connection {
                 tracing::info!(accepted, "mission client event processed; values omitted");
                 Vec::new()
             }
+            Message::LeaveParty => {
+                let Some(state) = self.mission.as_mut() else {
+                    return Ok(());
+                };
+                super::minimum_mission_finish::give_up(state, std::time::Instant::now());
+                tracing::info!("mission give-up requested; values omitted");
+                Vec::new()
+            }
             Message::ReturnToTown => {
                 use super::minimum_mission_finish::{Return, return_to_town};
                 let Some(state) = self.mission.as_mut() else {
@@ -1234,6 +1247,15 @@ impl Connection {
         )
         .await
         .map_err(|_| RuntimeError::Operation)?;
+        // GiveReward_Null → Leave: the proxy left the party with the MicroPlay.
+        if state.completion.left
+            && let Some(m) = self.mission.take()
+        {
+            if let Some(relay) = runtime.relay() {
+                relay.close_group(m.group);
+            }
+            tracing::info!("mission left without reward; values omitted");
+        }
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
         }
@@ -1674,6 +1696,7 @@ impl Connection {
                 Kind::PlayerRevived,
                 Kind::MicroPlayEvent,
                 Kind::ReturnToTown,
+                Kind::LeaveParty,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
