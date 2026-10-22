@@ -209,6 +209,7 @@ impl Runtime {
                     revision,
                 },
                 &m.assets.initializer,
+                m.assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
                 config,
                 m.assets
                     .initializer
@@ -1221,11 +1222,16 @@ impl Connection {
                             .entity_ids(super::minimum_story::TALK_ENTITY_IDS)
                             .await
                             .map_err(|_| RuntimeError::Operation)?;
+                        let growth = super::minimum_growth::GrowthContext {
+                            clock: runtime.quest_clock(),
+                            arithmetic: runtime.stat_arithmetic(),
+                            config: runtime.minimum_header()?,
+                            journal: self.selected.as_ref().map_or(0, |s| s.log_journal),
+                        };
                         let session =
                             &mut self.selected.as_mut().ok_or(RuntimeError::Operation)?.story;
-                        let clock = runtime.quest_clock();
                         match super::minimum_story::talk(
-                            pool, &owner, assets, cid, session, request, ids, clock,
+                            pool, &owner, assets, cid, session, request, ids, growth,
                         )
                         .await
                         {

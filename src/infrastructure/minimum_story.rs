@@ -325,8 +325,9 @@ pub async fn talk(
     session: &mut crate::domain::npc_talk::Session,
     request: TalkRequest<'_>,
     entity_ids: Vec<i64>,
-    clock: super::minimum_quest::QuestClock,
+    growth: super::minimum_growth::GrowthContext,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let clock = growth.clock;
     use crate::domain::npc_talk::{StoryState, Talker};
     let npc = assets.npc.as_ref().ok_or_else(fail)?;
     if let TalkRequest::TalkTo { npc: id, .. } = &request
@@ -462,6 +463,7 @@ pub async fn talk(
             cafe: false,
             raid_coupons,
         });
+        let mut rewards = Vec::new();
         let applied = apply_outputs(
             &mut tx,
             owner,
@@ -471,9 +473,10 @@ pub async fn talk(
             pushed.outputs,
             &mut ids,
             (quest_ctx, clock),
+            &mut rewards,
         )
         .await;
-        let packets = match applied {
+        let mut packets = match applied {
             Ok(p) => p,
             Err(e) => {
                 *session = backup;
@@ -491,6 +494,33 @@ pub async fn talk(
             *session = backup;
             return Err(e);
         }
+        // GiveReward runs on the saved story and quest state; its packets keep their
+        // position among the query outputs.
+        for (at, exp, ap) in rewards.into_iter().rev() {
+            match super::minimum_growth::give_reward(
+                &mut tx,
+                owner,
+                assets,
+                cid,
+                i64::from(exp),
+                ap,
+                growth,
+                &mut ids,
+            )
+            .await
+            {
+                Ok(reward) => {
+                    let tail = packets.split_off(at);
+                    packets.extend(reward);
+                    packets.extend(tail);
+                }
+                Err(e) => {
+                    *session = backup;
+                    tracing::warn!("minimum story reward not applied; nothing sent");
+                    return Err(e);
+                }
+            }
+        }
         tx.commit().await?;
         Ok(packets)
     })
@@ -498,8 +528,47 @@ pub async fn talk(
     .map_err(|_| fail())?
 }
 
-/// Entity IDs a talk request reserves for opened storylines and created items.
-pub const TALK_ENTITY_IDS: usize = 32;
+/// Entity IDs a talk request reserves for opened storylines, quests and created items
+/// (a level-up reward can open storylines and give quests).
+pub const TALK_ENTITY_IDS: usize = 512;
+
+/// StoryImpl.NotifyLevelUp: open the storylines auto-given at levels (last, cur]; when
+/// any opened, SyncStoryProgress (StoryLines, NpcList).
+pub(super) async fn level_up(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    last: i32,
+    cur: i32,
+    class: i32,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let c = character(tx, cid).await?;
+    let mut rows = progress(tx, cid).await?;
+    let opened = npc
+        .scripts
+        .level_up_openings(&rows, last, cur, class)
+        .map_err(|_| fail())?;
+    if opened.is_empty() {
+        return Ok(Vec::new());
+    }
+    for p in &opened {
+        sqlx::query("INSERT INTO game_story_progress(row_id,cid,story_line_utf16,phase_utf16,status,last_update_units300) VALUES($1,$2,$3,$4,$5,floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT)")
+            .bind(ids.next().ok_or_else(fail)?)
+            .bind(cid)
+            .bind(utf16(&p.story_line))
+            .bind(p.phase.as_deref().map(utf16))
+            .bind(i16::from(p.status))
+            .execute(&mut **tx)
+            .await?;
+    }
+    rows.extend(opened);
+    Ok(vec![
+        story_lines_packet(npc, &rows, c.hint)?,
+        npc_list_packet(&npc.scripts, &npc.policy, &rows)?,
+    ])
+}
 
 /// Packets of the query outputs in source order; item effects run in the caller's
 /// transaction, so a failed give (no mail fallback) refuses the whole request.
@@ -516,6 +585,7 @@ async fn apply_outputs(
         Option<crate::domain::quest::Context<'_>>,
         super::minimum_quest::QuestClock,
     ),
+    rewards: &mut Vec<(usize, i32, i32)>,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     use super::minimum_give::Request;
     use crate::domain::npc_talk::{Effect, Output};
@@ -575,11 +645,12 @@ async fn apply_outputs(
                         .collect(),
                 )),
             )?),
+            Output::Effect(Effect::Reward { exp, ap }) => rewards.push((packets.len(), exp, ap)),
             Output::Effect(effect @ (Effect::GiveItem { .. } | Effect::TakeItem { .. })) => {
                 let (class, count, take) = match &effect {
                     Effect::GiveItem { class, count } => (class, *count, false),
                     Effect::TakeItem { class, count } => (class, *count, true),
-                    Effect::RepairAll => return Err(fail()),
+                    _ => return Err(fail()),
                 };
                 let key = utf16(class);
                 let request = [Request {

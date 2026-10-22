@@ -224,6 +224,7 @@ pub(super) async fn view(
         tx,
         owner,
         &assets.initializer,
+        assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
         config,
         assets
             .initializer
@@ -234,7 +235,7 @@ pub(super) async fn view(
     )
     .await?;
     let row = sqlx::query(
-        "SELECT dirty,str,dex,int,will,luck,hp,stamina FROM game_character_info WHERE id=$1",
+        "SELECT dirty,level,str,dex,int,will,luck,hp,stamina FROM game_character_info WHERE id=$1",
     )
     .bind(cid)
     .fetch_one(&mut **tx)
@@ -246,7 +247,20 @@ pub(super) async fn view(
     {
         values[i] = row.try_get(*key)?;
     }
-    let base = assets.initializer.base_stats([0; 7]);
+    // StatManager.CalculateBaseStat: class stats of the level (level 1 from the
+    // initializer profile) plus title stats, zero while no title is acquired.
+    let level: i32 = row.try_get("level")?;
+    let base = if level == 1 {
+        assets.initializer.base_stats([0; 7])
+    } else {
+        let stats = assets
+            .npc
+            .as_ref()
+            .and_then(|n| n.progression.as_ref())
+            .and_then(|p| p.class_stats(level))
+            .ok_or(MinimumError::Conflict)?;
+        crate::domain::character_base_stats::BaseStats::compose(stats, [0; 7])
+    };
     if row.try_get::<bool, _>("dirty")? || values != *base.values() {
         return Err(MinimumError::Conflict);
     }

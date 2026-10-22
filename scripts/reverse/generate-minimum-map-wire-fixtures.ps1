@@ -19,6 +19,7 @@ try {
         ,@('LoginOkMessage', 483, 'e301ee14-10c2-3886-8533-fbba9ef1cbe1')
         ,@('CharacterCommonInfoMessage', 609, '9756914f-6753-3228-b0b8-38b30dc1a612')
         ,@('UpdateStatMessage', 619, 'a1407a79-5353-3455-9a2c-859f8825c200')
+        ,@('LevelUpMessage', 476, '23314733-9565-36b4-a382-8042ea30debe')
     )
 
     $taskSources = @('scripts/reverse/framework/MinimumMapWireOracle.cs')

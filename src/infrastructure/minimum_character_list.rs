@@ -55,6 +55,7 @@ pub async fn query(
     pool: &PgPool,
     owner: &UserKey<'_>,
     profile: &Profile,
+    progression: Option<&crate::domain::progression::Progression>,
     config: QueryConfig,
     delete_delay: i32,
     mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
@@ -70,15 +71,27 @@ pub async fn query(
     }
     let cid = ids[0];
     let mut tx = state::owned_first_fiona(pool, owner, cid).await?;
-    let bytes = load(&mut tx, owner, profile, config, delete_delay, &mut utc, cid).await?;
+    let bytes = load(
+        &mut tx,
+        owner,
+        profile,
+        progression,
+        config,
+        delete_delay,
+        &mut utc,
+        cid,
+    )
+    .await?;
     tx.commit().await?;
     Ok(bytes)
 }
 /// Builds the summary while the caller retains ownership and character locks.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn load(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     owner: &UserKey<'_>,
     profile: &Profile,
+    progression: Option<&crate::domain::progression::Progression>,
     config: QueryConfig,
     delete_delay: i32,
     mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
@@ -91,10 +104,13 @@ pub(super) async fn load(
     super::character_vocation::load_first(tx, cid)
         .await
         .map_err(|_| MinimumError::Conflict)?;
-    let titles: i64 = sqlx::query_scalar("SELECT count(*)FROM game_titles WHERE cid=$1")
-        .bind(cid)
-        .fetch_one(&mut **tx)
-        .await?;
+    // Titles given by level up are not acquired; acquired titles (title count and title
+    // stats) are not migrated.
+    let titles: i64 =
+        sqlx::query_scalar("SELECT count(*)FROM game_titles WHERE cid=$1 AND acquired")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
     if titles != 0 {
         return Err(MinimumError::Conflict);
     }
@@ -136,7 +152,13 @@ pub(super) async fn load(
             .map_err(|_| MinimumError::Conflict)?,
         level: info.try_get("level")?,
         exp: info.try_get::<i64, _>("exp")? as i32,
-        level_up_exp: profile.level_up_exp(),
+        // CharacterEntity.LevelUpExp: levelUpExpDic of the stored level.
+        level_up_exp: match info.try_get::<i32, _>("level")? {
+            1 => profile.level_up_exp(),
+            level => progression
+                .and_then(|p| p.level_exp(level))
+                .ok_or(MinimumError::Conflict)?,
+        },
         title: info
             .try_get::<Option<i32>, _>("selected_title")?
             .ok_or(MinimumError::Conflict)?,

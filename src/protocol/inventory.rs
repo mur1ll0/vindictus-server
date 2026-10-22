@@ -47,6 +47,7 @@ pub enum Kind {
     StoryVariables,
     QueryQuestProgress,
     QuestProgress,
+    UpdateTitle,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -87,6 +88,7 @@ impl Kind {
             Self::StoryVariables => 599,
             Self::QueryQuestProgress => 535,
             Self::QuestProgress => 546,
+            Self::UpdateTitle => 191,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -127,6 +129,7 @@ impl Kind {
             Self::StoryVariables => 0xde76b127_f09d_369a_8008_26af3e5c8383,
             Self::QueryQuestProgress => 0x5b634b00_c047_339e_a4fe_b0ef8e3b9a2e,
             Self::QuestProgress => 0xc229a0f5_4eda_3bbc_a4be_61f3aad3f82b,
+            Self::UpdateTitle => 0xbb01bf3c_8194_3f94_9480_4bf20654b7b3,
         })
     }
 }
@@ -261,6 +264,20 @@ pub enum Message {
     QueryQuestProgress,
     /// QuestProgressMessage: QuestProgress, AchievedGoals.
     QuestProgress(QuestProgress),
+    /// UpdateTitleMessage.Titles.
+    UpdateTitle(Option<Vec<Option<TitleSlot>>>),
+}
+/// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
+/// IsExpireable, ExpireDateTime.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TitleSlot {
+    pub title_id: i32,
+    pub status: i32,
+    pub time_stamp: i64,
+    pub quest_id: Option<String>,
+    pub goal_progress: Option<Vec<(i32, i32)>>,
+    pub is_expireable: bool,
+    pub expire_date_time: i64,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QuestProgress {
@@ -507,6 +524,7 @@ impl Message {
             Self::StoryVariables(_) => Kind::StoryVariables,
             Self::QueryQuestProgress => Kind::QueryQuestProgress,
             Self::QuestProgress(_) => Kind::QuestProgress,
+            Self::UpdateTitle(_) => Kind::UpdateTitle,
         }
     }
 }
@@ -741,6 +759,15 @@ object!(RepairItem {
     all_repairable
 });
 object!(StoryGuide { target, message });
+object!(TitleSlot {
+    title_id,
+    status,
+    time_stamp,
+    quest_id,
+    goal_progress,
+    is_expireable,
+    expire_date_time
+});
 object!(QuestProgress {
     progress,
     achieved_goals
@@ -852,6 +879,7 @@ pub fn encode(
             Message::StoryVariables(v) => v.write(&mut w)?,
             Message::QueryQuestProgress => {}
             Message::QuestProgress(v) => v.write(&mut w)?,
+            Message::UpdateTitle(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -914,6 +942,7 @@ pub fn decode(
             Kind::StoryVariables => Message::StoryVariables(Wire::read(&mut r)?),
             Kind::QueryQuestProgress => Message::QueryQuestProgress,
             Kind::QuestProgress => Message::QuestProgress(QuestProgress::read(&mut r)?),
+            Kind::UpdateTitle => Message::UpdateTitle(Wire::read(&mut r)?),
         })
     };
     if !r.remaining.is_empty() {

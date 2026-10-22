@@ -376,6 +376,17 @@ async fn minimum_learn_new_skill_pays_gold_once_and_survives_relogin() {
     cleanup_game_pool(a, p, s).await;
 }
 /// Minimal NPC script projection: one default NPC and one level-1 auto-give storyline.
+fn growth() -> vindictus_server::infrastructure::minimum_growth::GrowthContext {
+    vindictus_server::infrastructure::minimum_growth::GrowthContext {
+        clock: quest_clock(),
+        arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+        config: vindictus_server::infrastructure::character_lobby::QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        journal: 0,
+    }
+}
 fn quest_clock() -> vindictus_server::infrastructure::minimum_quest::QuestClock {
     vindictus_server::infrastructure::minimum_quest::QuestClock {
         arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
@@ -479,19 +490,41 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                     ""
                 ]],
                 ""
+            ],
+            [
+                "Phase",
+                [["id", "p2"]],
+                "",
+                [[
+                    "Talk",
+                    [["id", "FERGHUS"]],
+                    "",
+                    [[
+                        "Do",
+                        [],
+                        "",
+                        [leaf("complete_storyline", ""), leaf("talk", "done")],
+                        ""
+                    ]],
+                    ""
+                ]],
+                ""
             ]
         ],
         ""
     ]);
-    let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":0,"RewardAp":0,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
+    let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":400,"RewardAp":3,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
-    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"}],
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"}],
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
     "repair":{"enhance":[[0,0]],"quality":[[2,6]],"enchant":[[0,0,0]],"equip_class":[["SWORD",2]],"equip_item_class":["sword"]},
     "quests":{"quests":[{"ID":"quest_gnoll_watchman","AutoGiveLevel":1,"QuestSet":1,"ServiceCoin":0,"MaxMemberCount":4,"MaxPlayCount":null,"EnableTodayQuest":"Enable","Season3TodayGroup":null,"AutoReveal":false,"Feature":null,"IsSeason2":false},{"ID":"quest_gnoll_shadowfang","AutoGiveLevel":1,"QuestSet":1,"ServiceCoin":0,"MaxMemberCount":4,"MaxPlayCount":null,"EnableTodayQuest":"Enable","Season3TodayGroup":null,"AutoReveal":false,"Feature":null,"IsSeason2":false},{"ID":"quest_story","AutoGiveLevel":0,"QuestSet":1,"ServiceCoin":0,"MaxMemberCount":4,"MaxPlayCount":null,"EnableTodayQuest":"Enable","Season3TodayGroup":null,"AutoReveal":false,"Feature":null,"IsSeason2":false}],
         "goals":[[10010,"quest_gnoll_watchman",0,100]],"constraints":[["quest_gnoll_shadowfang","quest_gnoll_watchman",100]],
         "difficulties":[["quest_gnoll_watchman",2,1,null],["quest_gnoll_shadowfang",2,1,null]],"periods":[]},
+    "progression":{"class_stats":[[1,27,44,14,23,1020,130,null],[2,34,48,20,27,1048,130,null],[3,42,52,26,31,1075,130,null]],
+        "level_exp":[[1,350,null],[2,1148,null],[3,1855,null]],
+        "titles":[[410017,1,2047,0,null],[410018,2,2047,5,null],[410019,9,2047,0,null]],"title_goals":[[1,410017],[2,410017]]},
     "shops":[
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
@@ -631,7 +664,7 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
             command: Some("greeting"),
         },
         vec![],
-        quest_clock(),
+        growth(),
     )
     .await
     .unwrap();
@@ -655,7 +688,7 @@ async fn minimum_story_login_opens_auto_storylines_once_and_lists_npcs() {
             command: None,
         },
         vec![],
-        quest_clock(),
+        growth(),
     )
     .await
     .unwrap();
@@ -1046,7 +1079,7 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
             command: Some("repair"),
         },
         vec![],
-        quest_clock(),
+        growth(),
     )
     .await
     .unwrap();
@@ -1160,7 +1193,7 @@ async fn minimum_story_commands_persist_phase_guide_tokens_and_items_together() 
         &mut session,
         request(),
         ids(),
-        quest_clock(),
+        growth(),
     )
     .await
     .unwrap();
@@ -1174,7 +1207,7 @@ async fn minimum_story_commands_persist_phase_guide_tokens_and_items_together() 
                 &mut session,
                 minimum_story::TalkRequest::ExecuteServerCommand,
                 ids().into_iter().map(|i| i + 100).collect(),
-                quest_clock(),
+                growth(),
             )
             .await
             .unwrap(),
@@ -1406,5 +1439,128 @@ async fn minimum_use_answers_town_and_constraint_dialogs_without_changes() {
         assert_eq!(items(&p).await, before);
         minimum_selection::disconnect(&p, 1).await.unwrap();
     }
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_story},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    sqlx::query("UPDATE game_story_progress SET phase_utf16=$1 WHERE cid=1")
+        .bind(utf16("p2"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let ap_before: i32 = sqlx::query_scalar("SELECT ap FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let ids = || {
+        (1..=512)
+            .map(|i| 940_000_000_000_000_000 + i)
+            .collect::<Vec<i64>>()
+    };
+    let mut session = vindictus_server::domain::npc_talk::Session::default();
+    let mut packets = minimum_story::talk(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        minimum_story::TalkRequest::TalkTo {
+            location: None,
+            npc: "FERGHUS",
+            story_line: Some("GuidePlay_1_SkillTrain"),
+            command: None,
+        },
+        ids(),
+        growth(),
+    )
+    .await
+    .unwrap();
+    while session.last_server_command.is_some() {
+        packets.extend(
+            minimum_story::talk(
+                &p,
+                &owner,
+                &assets,
+                1,
+                &mut session,
+                minimum_story::TalkRequest::ExecuteServerCommand,
+                ids().into_iter().map(|i| i + 1000).collect(),
+                growth(),
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    let categories: Vec<i32> = packets.iter().map(|p| p.category).collect();
+    // LevelUp, SkillList, QuestProgress, UpdateTitle, CharacterCommonInfo, UpdateStat,
+    // then GiveReward's CharacterCommonInfo and the AP message.
+    for c in [476, 583, 546, 191, 609, 619, 229] {
+        assert!(categories.contains(&c), "{c} missing in {categories:?}");
+    }
+    let level_up = packets.iter().find(|p| p.category == 476).unwrap();
+    let Some(vindictus_server::protocol::minimum_map::Message::LevelUp {
+        level,
+        stat_increased,
+    }) = vindictus_server::protocol::minimum_map::decode(
+        vindictus_server::protocol::minimum_map::Kind::LevelUp,
+        &level_up.body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap()
+    else {
+        panic!("level up missing")
+    };
+    assert_eq!(level, 2);
+    assert!(stat_increased.unwrap().contains(&("STR", 7)));
+    let (level, exp, str_, luck, ap): (i32, i64, i32, i32, i32) =
+        sqlx::query_as("SELECT level,exp,str,luck,ap FROM game_character_info WHERE id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!((level, exp, str_, luck), (2, 50, 34, 100));
+    assert!(ap >= ap_before);
+    let titles: Vec<(i32, bool)> =
+        sqlx::query_as("SELECT title_id,acquired FROM game_titles WHERE cid=1 ORDER BY title_id")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(titles, [(410017, false), (410018, false)]);
+    let phase: Option<Vec<u8>> =
+        sqlx::query_scalar("SELECT phase_utf16 FROM game_story_progress WHERE cid=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(phase, None);
+    // Relogin at level 2: the lobby and selection accept the leveled character.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    let selected =
+        minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    assert_eq!(selected.cid, 1);
     cleanup_game_pool(a, p, s).await;
 }

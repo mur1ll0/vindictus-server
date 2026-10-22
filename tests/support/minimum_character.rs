@@ -111,6 +111,7 @@ async fn minimum_create_persists_inventory_appearance_skills_and_filled_list() {
         &p,
         &initial_inventory::key(),
         &fixture::profile(false),
+        None,
         config(),
         1440,
         || Ok(now()),
@@ -156,6 +157,7 @@ async fn minimum_list_refuses_partial_unmarked_and_stale_owner() {
             &p,
             &initial_inventory::key(),
             &fixture::profile(false),
+            None,
             config(),
             0,
             || Ok(now())
@@ -173,6 +175,7 @@ async fn minimum_list_refuses_partial_unmarked_and_stale_owner() {
             &p,
             &initial_inventory::key(),
             &fixture::profile(false),
+            None,
             config(),
             0,
             || Ok(now())
@@ -186,6 +189,7 @@ async fn minimum_list_refuses_partial_unmarked_and_stale_owner() {
             &p,
             &initial_inventory::key(),
             &fixture::profile(false),
+            None,
             config(),
             0,
             || Ok(now())
@@ -215,6 +219,7 @@ async fn minimum_late_failure_keeps_marker_partial_and_requires_compensation() {
             &p,
             &initial_inventory::key(),
             &fixture::profile(false),
+            None,
             config(),
             0,
             || Ok(now())
@@ -385,7 +390,7 @@ async fn minimum_selection_rejects_partial_stats_skills_titles_and_stale_owner()
             "UPDATE game_skills SET rank=rank-1",
         ),
         (
-            "INSERT INTO game_titles(cid,title_id,acquired) VALUES(1,999,false)",
+            "INSERT INTO game_titles(cid,title_id,acquired) VALUES(1,999,true)",
             "DELETE FROM game_titles WHERE cid=1",
         ),
     ] {

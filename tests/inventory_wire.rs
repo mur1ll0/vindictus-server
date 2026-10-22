@@ -128,7 +128,8 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::UpdateStoryGuide
                 | Kind::StoryVariables
                 | Kind::QueryQuestProgress
-                | Kind::QuestProgress => {
+                | Kind::QuestProgress
+                | Kind::UpdateTitle => {
                     unreachable!("covered by item_sync_wire")
                 }
             });

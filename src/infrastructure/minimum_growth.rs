@@ -1,0 +1,266 @@
+//! CharacterImpl.GiveReward(exp, ap) for the selected first Fiona: GiveExp with the
+//! level-up chain (LevelUpMessage, SkillList, quest NotifyLevel, story NotifyLevelUp,
+//! CalculateBaseStat/UpdateStat), PushCharacterInfo, then GiveAP and PushAPMessage.
+use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
+use crate::{
+    domain::{character_stats::Arithmetic, map_partition::OutgoingPacket},
+    protocol::{DEFAULT_MAX_BODY, minimum_map},
+};
+use sqlx::{Postgres, Transaction};
+
+fn fail() -> MinimumError {
+    MinimumError::Conflict
+}
+
+/// Runtime values the level-up chain needs.
+#[derive(Clone, Copy)]
+pub struct GrowthContext {
+    pub clock: super::minimum_quest::QuestClock,
+    pub arithmetic: Arithmetic,
+    pub config: super::character_lobby::QueryConfig,
+    /// CharacterEntity.LogJournalID for the title log.
+    pub journal: i64,
+}
+
+fn map_packet(message: &minimum_map::Message<'_>) -> Result<OutgoingPacket, MinimumError> {
+    Ok(OutgoingPacket {
+        category: message.kind().category(),
+        body: minimum_map::encode(message.kind(), Some(message), DEFAULT_MAX_BODY)
+            .map_err(|_| fail())?
+            .to_vec(),
+    })
+}
+
+/// GiveReward in the caller's transaction (the original SubmitChanges boundary). EXP
+/// beyond MaxLevel is ignored, as GiveExp returns early; AP uses allowExceed false.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn give_reward(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    exp: i64,
+    ap: i32,
+    ctx: GrowthContext,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let progression = npc.progression.as_ref().ok_or_else(fail)?;
+    let mut packets = Vec::new();
+    if exp > 0 {
+        let (stored_exp, level, class): (i64, i32, i32) = sqlx::query_as(
+            "SELECT exp,level,class::integer FROM game_character_info WHERE id=$1 FOR UPDATE",
+        )
+        .bind(cid)
+        .fetch_one(&mut **tx)
+        .await?;
+        if let Some(growth) = progression.give_exp(stored_exp, level, exp) {
+            sqlx::query("UPDATE game_character_info SET exp=$2,level=$3 WHERE id=$1")
+                .bind(cid)
+                .bind(i64::from(growth.exp))
+                .bind(growth.level)
+                .execute(&mut **tx)
+                .await?;
+            if growth.leveled() {
+                level_up(
+                    tx,
+                    owner,
+                    assets,
+                    cid,
+                    class,
+                    growth,
+                    ctx,
+                    ids,
+                    &mut packets,
+                )
+                .await?;
+            }
+            // GiveReward: PushCharacterInfo (CharacterCommonInfoMessage, QueryID 0).
+            let view = super::minimum_selection::view(
+                tx,
+                owner,
+                assets,
+                cid,
+                ctx.config,
+                ctx.arithmetic,
+                false,
+                0,
+            )
+            .await?;
+            packets.push(view.common);
+        }
+    }
+    if ap > 0 {
+        let given = super::minimum_ap::give_capped(tx, assets, cid, ap).await?;
+        packets.push(super::minimum_ap::packet(given)?);
+    }
+    Ok(packets)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn level_up(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    class: i32,
+    growth: crate::domain::progression::Growth,
+    ctx: GrowthContext,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+    packets: &mut Vec<OutgoingPacket>,
+) -> Result<(), MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let progression = npc.progression.as_ref().ok_or_else(fail)?;
+    let (from, to) = (growth.previous_level, growth.level);
+    // LevelUpMessage(Level, GetCharacterStats(new) − GetCharacterStats(old)).
+    let increase = progression.stat_increase(from, to).ok_or_else(fail)?;
+    let rows: Vec<(&str, i32)> = increase.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+    packets.push(map_packet(&minimum_map::Message::LevelUp {
+        level: to,
+        stat_increased: Some(rows),
+    })?);
+    // Skills.OnLevelChanged: TryUnlockStory for locked skills, then PushSkillList.
+    let locked: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM game_skills WHERE cid=$1 AND locked<>0")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    if locked != 0 {
+        return Err(fail());
+    }
+    packets.push(super::minimum_skills::packet(tx, owner, assets, cid, to, class).await?);
+    // QuestProxy.NotifyLevel: auto-give from the previous CharacterLevel, Save, push.
+    if let Some(contents) = npc.quests.as_ref() {
+        let original = super::minimum_quest::load(tx, cid, contents).await?;
+        let mut quests = original.clone();
+        quests.init_status(contents);
+        quests.level = from;
+        quests.login(contents, to);
+        super::minimum_quest::save(tx, cid, &original, &quests, ids).await?;
+        let coupons = super::minimum_quest::raid_coupons(tx, cid).await?;
+        let quest_ctx = crate::domain::quest::Context {
+            contents,
+            policy: &npc.policy,
+            cafe: false,
+            raid_coupons: coupons,
+        };
+        packets.push(super::minimum_quest::progress_packet(
+            &quests,
+            quest_ctx,
+            ctx.clock,
+            super::minimum_quest::now_units()?,
+        )?);
+    }
+    // StoryProxy.NotifyLevelUp: storylines auto-given at the new levels.
+    packets.extend(super::minimum_story::level_up(tx, assets, cid, from, to, class, ids).await?);
+    // Stats.CalculateBaseStat (class stats of the level plus LUCK 100, no title stats)
+    // is written here so the summary below reads a consistent row; UpdateStat keeps
+    // its source position after the titles.
+    let stats = progression.class_stats(to).ok_or_else(fail)?;
+    sqlx::query("UPDATE game_character_info SET dirty=false,str=$2,dex=$3,int=$4,will=$5,luck=100,hp=$6,stamina=$7 WHERE id=$1")
+        .bind(cid)
+        .bind(stats[0])
+        .bind(stats[1])
+        .bind(stats[2])
+        .bind(stats[3])
+        .bind(stats[4])
+        .bind(stats[5])
+        .execute(&mut **tx)
+        .await?;
+    // Titles.GiveTitleByLevelUp → PushTitleUpdate (UpdateTitle, CharacterCommonInfo).
+    let owned: Vec<i32> = sqlx::query_scalar("SELECT title_id FROM game_titles WHERE cid=$1")
+        .bind(cid)
+        .fetch_all(&mut **tx)
+        .await?;
+    let given = progression.titles_by_level(to, class, &owned);
+    let mut slots = Vec::new();
+    for t in &given {
+        // AddNewTitle: TitleInsert(CID, TitleID, false, null, null, null); goal progress
+        // stays in memory (0 per goal), as the source does not insert it here.
+        sqlx::query("INSERT INTO game_titles(cid,title_id,acquired) VALUES($1,$2,false)")
+            .bind(cid)
+            .bind(t.id)
+            .execute(&mut **tx)
+            .await?;
+        title_log(tx, ctx.journal, t.id).await?;
+        if t.listed {
+            slots.push(Some(crate::protocol::inventory::TitleSlot {
+                title_id: t.id,
+                // Known: visible with zero progress (HideUntil 0).
+                status: 1,
+                time_stamp: 0,
+                quest_id: Some(String::new()),
+                goal_progress: Some(t.goals.iter().map(|g| (*g, 0)).collect()),
+                is_expireable: false,
+                expire_date_time: -1,
+            }));
+        }
+    }
+    let update = crate::protocol::inventory::Message::UpdateTitle(Some(slots));
+    packets.push(OutgoingPacket {
+        category: crate::protocol::inventory::Kind::UpdateTitle.category(),
+        body: crate::protocol::inventory::encode(
+            crate::protocol::inventory::Kind::UpdateTitle,
+            Some(&update),
+            DEFAULT_MAX_BODY,
+        )
+        .map_err(|_| fail())?
+        .to_vec(),
+    });
+    let summary = super::minimum_selection::view(
+        tx,
+        owner,
+        assets,
+        cid,
+        ctx.config,
+        ctx.arithmetic,
+        false,
+        0,
+    )
+    .await?;
+    packets.push(summary.common);
+    // CalculateFinalStat → PushUpdateStat.
+    let view = super::minimum_selection::view(
+        tx,
+        owner,
+        assets,
+        cid,
+        ctx.config,
+        ctx.arithmetic,
+        false,
+        0,
+    )
+    .await?;
+    packets.push(view.stat);
+    Ok(())
+}
+
+/// CharacterEntity.AddTitleLog(GiveTitle, titleID, 0, 0) in the day's partition.
+async fn title_log(
+    tx: &mut Transaction<'_, Postgres>,
+    journal: i64,
+    title: i32,
+) -> Result<(), MinimumError> {
+    use crate::domain::character_ledger::{LedgerPartition, partition};
+    let units: i64 = sqlx::query_scalar(
+        "SELECT floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT",
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+    let now =
+        crate::domain::legacy_user_data::SqlDateTime::from_units300(units).map_err(|_| fail())?;
+    let q = match partition(now) {
+        LedgerPartition::One => {
+            "INSERT INTO game_character_title_log01(journal_id,event,title_id,goal_id,value) VALUES($1,2,$2,0,0)"
+        }
+        LedgerPartition::Two => {
+            "INSERT INTO game_character_title_log02(journal_id,event,title_id,goal_id,value) VALUES($1,2,$2,0,0)"
+        }
+    };
+    sqlx::query(q)
+        .bind(journal)
+        .bind(title)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}

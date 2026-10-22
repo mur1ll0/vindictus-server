@@ -83,6 +83,29 @@ pub(super) async fn give_exceeding(
     Ok(Ap { ap, ..before })
 }
 
+/// APManager.GiveAP(ap, allowExceed: false): at most MaxAP − AP (never negative), the
+/// source's Int32 overflow guard never fires, so the addition wraps.
+pub(super) async fn give_capped(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    amount: i32,
+) -> Result<Ap, MinimumError> {
+    let before = current(tx, assets, cid).await?;
+    let given = if before.max_ap >= 0 {
+        amount.min(before.max_ap.wrapping_sub(before.ap)).max(0)
+    } else {
+        amount
+    };
+    let ap = before.ap.wrapping_add(given);
+    sqlx::query("UPDATE game_character_info SET ap=$2 WHERE id=$1")
+        .bind(cid)
+        .bind(ap)
+        .execute(&mut **tx)
+        .await?;
+    Ok(Ap { ap, ..before })
+}
+
 /// QueryAPMessage → QueryAP → APMessage. Admission belongs to the frontend.
 pub async fn query(
     pool: &PgPool,

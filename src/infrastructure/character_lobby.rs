@@ -121,6 +121,7 @@ pub struct UserKey<'a> {
     pub name: &'a str,
     pub revision: i64,
 }
+#[derive(Clone, Copy)]
 pub struct QueryConfig {
     pub max_free: i32,
     pub care_clock: Option<SqlDateTime>,

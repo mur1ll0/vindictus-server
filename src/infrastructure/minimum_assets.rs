@@ -346,6 +346,7 @@ impl Assets {
             pool,
             owner,
             &self.initializer,
+            self.npc.as_ref().and_then(|n| n.progression.as_ref()),
             config,
             delay,
             || super::lab_clock::utc_now().map_err(|_| MinimumError::Conflict),

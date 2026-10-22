@@ -423,6 +423,21 @@ class MinimumMapWireOracle {
             wireCases
         );
 
+        var increase = new List<KeyValuePair<string, int>>();
+        foreach (string name in statNames) { increase.Add(new KeyValuePair<string, int>(name, name == "HP" ? 28 : name == "STR" ? 7 : 0)); }
+        AddCases(
+            "level_up",
+            476,
+            new Guid("23314733-9565-36b4-a382-8042ea30debe"),
+            new LevelUpMessage[] {
+                null,
+                new LevelUpMessage(2, increase),
+                new LevelUpMessage(int.MaxValue, new List<KeyValuePair<string, int>>()),
+                new LevelUpMessage(-1, new List<KeyValuePair<string, int>> { new KeyValuePair<string, int>("STR", int.MinValue) })
+            },
+            wireCases
+        );
+
         long[] testTicks = {
             621355968000000000L, // 1970-01-01T00:00:00Z
             621355967990000000L, // -1s

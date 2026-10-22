@@ -408,6 +408,28 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             assert_eq!(g.message.as_deref(), f["GuideMessage"].as_str(), "case {n}");
         }
         Some(Message::QueryQuestProgress) => {}
+        Some(Message::UpdateTitle(titles)) => {
+            let expected = f["Titles"].as_array();
+            assert_eq!(
+                titles.as_ref().map(Vec::len),
+                expected.map(Vec::len),
+                "case {n}"
+            );
+            for (v, e) in titles.iter().flatten().zip(expected.into_iter().flatten()) {
+                assert_eq!(v.is_none(), e.is_null(), "case {n}");
+                let Some(v) = v else { continue };
+                assert_eq!(
+                    i64::from(v.title_id),
+                    e["TitleID"].as_i64().unwrap(),
+                    "case {n}"
+                );
+                assert_eq!(
+                    v.expire_date_time,
+                    e["ExpireDateTime"].as_i64().unwrap(),
+                    "case {n}"
+                );
+            }
+        }
         Some(Message::QuestProgress(q)) => {
             let expected = f["QuestProgress"].as_array();
             assert_eq!(
@@ -600,12 +622,13 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::StoryVariables,
         Kind::QueryQuestProgress,
         Kind::QuestProgress,
+        Kind::UpdateTitle,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1191);
+        assert_eq!(cases.len(), 1203);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -641,6 +664,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "story_variables" => check_inventory(Kind::StoryVariables, case, n),
                 "query_quest_progress" => check_inventory(Kind::QueryQuestProgress, case, n),
                 "quest_progress" => check_inventory(Kind::QuestProgress, case, n),
+                "update_title" => check_inventory(Kind::UpdateTitle, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

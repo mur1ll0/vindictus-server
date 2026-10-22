@@ -25,6 +25,7 @@ pub enum Kind {
     LoginOk,
     CharacterCommonInfo,
     UpdateStat,
+    LevelUp,
 }
 
 impl Kind {
@@ -44,6 +45,7 @@ impl Kind {
             Self::LoginOk => 483,
             Self::CharacterCommonInfo => 609,
             Self::UpdateStat => 619,
+            Self::LevelUp => 476,
         }
     }
 
@@ -63,6 +65,7 @@ impl Kind {
             Self::LoginOk => 0xe301ee14_10c2_3886_8533_fbba9ef1cbe1,
             Self::CharacterCommonInfo => 0x9756914f_6753_3228_b0b8_38b30dc1a612,
             Self::UpdateStat => 0xa1407a79_5353_3455_9a2c_859f8825c200,
+            Self::LevelUp => 0x23314733_9565_36b4_a382_8042ea30debe,
         })
     }
 }
@@ -146,6 +149,11 @@ pub enum Message<'a> {
     UpdateStat {
         stat: Option<Vec<(&'a str, i32)>>,
     },
+    /// LevelUpMessage: Level, StatIncreased.
+    LevelUp {
+        level: i32,
+        stat_increased: Option<Vec<(&'a str, i32)>>,
+    },
 }
 
 impl Message<'_> {
@@ -165,6 +173,7 @@ impl Message<'_> {
             Self::LoginOk { .. } => Kind::LoginOk,
             Self::CharacterCommonInfo { .. } => Kind::CharacterCommonInfo,
             Self::UpdateStat { .. } => Kind::UpdateStat,
+            Self::LevelUp { .. } => Kind::LevelUp,
         }
     }
 }
@@ -316,6 +325,13 @@ pub fn encode(
                 w.append(&query_id.to_be_bytes())?;
                 write_summary(&mut w, info.as_ref())?;
             }
+            Message::LevelUp {
+                level,
+                stat_increased,
+            } => {
+                w.append(&level.to_be_bytes())?;
+                write_dictionary(&mut w, stat_increased.as_deref())?;
+            }
             Message::UpdateStat { stat } => match stat {
                 None => w.append(&[0])?,
                 Some(entries) => {
@@ -408,6 +424,14 @@ pub fn decode<'a>(
                 query_id: i64::from_be_bytes(r.fixed()?),
                 info: read_summary(&mut r)?,
             },
+            Kind::LevelUp => {
+                let level = i32::from_be_bytes(r.fixed()?);
+                let stat_increased = read_dictionary(&mut r)?;
+                Message::LevelUp {
+                    level,
+                    stat_increased,
+                }
+            }
             Kind::UpdateStat => {
                 let n = r.count()?;
                 if n.is_some_and(|n| n > MAX_DICTIONARY) {
@@ -435,6 +459,48 @@ pub fn decode<'a>(
         return Err(PayloadError::TrailingBytes.into());
     }
     Ok(out)
+}
+
+fn write_dictionary(
+    w: &mut Writer,
+    entries: Option<&[(&str, i32)]>,
+) -> Result<(), MinimumMapWireError> {
+    match entries {
+        None => w.append(&[0])?,
+        Some(entries) => {
+            if entries.len() > MAX_DICTIONARY {
+                return Err(PayloadError::TooLarge.into());
+            }
+            w.append(&encode_integer((entries.len() + 1) as i32))?;
+            for (idx, (key, val)) in entries.iter().enumerate() {
+                if entries[..idx].iter().any(|(other, _)| other == key) {
+                    return Err(MinimumMapWireError::DuplicateKey);
+                }
+                w.nullable(Some(key.as_bytes()))?;
+                w.append(&val.to_be_bytes())?;
+            }
+        }
+    }
+    Ok(())
+}
+fn read_dictionary<'a>(
+    r: &mut Reader<'a>,
+) -> Result<Option<Vec<(&'a str, i32)>>, MinimumMapWireError> {
+    let n = r.count()?;
+    if n.is_some_and(|n| n > MAX_DICTIONARY) {
+        return Err(PayloadError::TooLarge.into());
+    }
+    let Some(n) = n else { return Ok(None) };
+    let mut rows = Vec::with_capacity(n);
+    for _ in 0..n {
+        let key = r.string()?.ok_or(PayloadError::NullKey)?;
+        let val = i32::from_be_bytes(r.fixed()?);
+        if rows.iter().any(|(other, _)| *other == key) {
+            return Err(MinimumMapWireError::DuplicateKey);
+        }
+        rows.push((key, val));
+    }
+    Ok(Some(rows))
 }
 
 pub fn decode_ingress<'a>(

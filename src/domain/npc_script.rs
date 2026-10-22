@@ -1135,6 +1135,35 @@ impl NpcScripts {
         }
         Ok(opened)
     }
+    /// StoryImpl.NotifyLevelUp: GetAutoGiveStoryLines_ForLevelUp(i) for i in (last, cur],
+    /// opened when allowed to the class and not owned (OpenStoryLine success).
+    pub fn level_up_openings(
+        &self,
+        progress: &[Progress],
+        last: i32,
+        cur: i32,
+        class: i32,
+    ) -> Result<Vec<Progress>, ScriptError> {
+        let mut opened: Vec<Progress> = Vec::new();
+        for level in last.saturating_add(1)..=cur {
+            for line in self
+                .story_lines
+                .iter()
+                .filter(|l| l.info.auto_give_level == level)
+            {
+                if !line.info.is_allowed_to(class)
+                    || progress
+                        .iter()
+                        .chain(&opened)
+                        .any(|p| p.story_line == line.info.id)
+                {
+                    continue;
+                }
+                opened.push(self.open_story_line(line)?);
+            }
+        }
+        Ok(opened)
+    }
     /// OpenStoryLine's new StoryProgress: initial phase and SetStoryLineStatus for
     /// AutoReveal (Category containing "Main" is Watching, otherwise Normal).
     pub fn open_story_line(&self, line: &StoryLine) -> Result<Progress, ScriptError> {

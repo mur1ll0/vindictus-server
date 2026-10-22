@@ -184,6 +184,9 @@ class ItemSyncWireOracle {
   var goal=new AchieveGoalInfo(10010,2,3,255,new DateTime(2020,1,1));goal.LastClearTimeDiff=int.MinValue;
   var progress=new List<QuestProgressInfo>{new QuestProgressInfo("quest_gnoll_watchman",0,0,true,true,false,true,-1,0,new List<ClearTimeElement>()),null,new QuestProgressInfo(null,int.MinValue,int.MaxValue,false,false,true,false,5,4,null),new QuestProgressInfo("quest_x",100,2,false,true,true,true,int.MaxValue,1,times)};
   AddCases("quest_progress",546,new Guid("c229a0f5-4eda-3bbc-a4be-61f3aad3f82b"),new[]{null,new QuestProgressMessage(null,null),new QuestProgressMessage(new List<QuestProgressInfo>(),new List<AchieveGoalInfo>()),new QuestProgressMessage(new List<QuestProgressInfo>{progress[0],null},null),new QuestProgressMessage(new List<QuestProgressInfo>{progress[2]},null),new QuestProgressMessage(new List<QuestProgressInfo>{progress[3]},null),new QuestProgressMessage(null,new List<AchieveGoalInfo>{goal}),new QuestProgressMessage(null,new List<AchieveGoalInfo>{null})},cases);
+  var slot=new TitleSlotInfo(410017,TitleState.Known,0,"",new List<KeyValuePair<int,int>>{new KeyValuePair<int,int>(1,0),new KeyValuePair<int,int>(2,int.MinValue)},null);
+  var acquired=new TitleSlotInfo(7,TitleState.Acquired,long.MaxValue,"quest_x",new List<KeyValuePair<int,int>>(),new DateTime(2030,1,2));
+  AddCases("update_title",191,new Guid("bb01bf3c-8194-3f94-9480-4bf20654b7b3"),new[]{null,new UpdateTitleMessage(null),new UpdateTitleMessage(new List<TitleSlotInfo>()),new UpdateTitleMessage(new List<TitleSlotInfo>{slot,null,acquired})},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

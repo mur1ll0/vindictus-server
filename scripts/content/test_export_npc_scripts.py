@@ -25,6 +25,10 @@ class NpcScriptExportTests(unittest.TestCase):
                              "CREATE TABLE QuestGoalInfo(ID INT,QuestID TEXT,Relation INT,Weight INT);INSERT INTO QuestGoalInfo VALUES(10,'quest_a',0,100);"
                              "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
                              "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL);"
+                             "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
+                             "CREATE TABLE TitleInfo(ID INT,AutoGiveLevel INT,ClassRestriction INT,HideUntil INT,Feature TEXT);INSERT INTO TitleInfo VALUES(410017,1,2047,0,NULL);"
+                             "CREATE TABLE TitleGoalInfo(ID INT,TitleID INT);INSERT INTO TitleGoalInfo VALUES(1,410017);"
+                             "CREATE TABLE LevelUpExpInfo(Level INT,RequiredExp INT,Feature TEXT);INSERT INTO LevelUpExpInfo VALUES(1,350,NULL),(2,1148,'EP3');"
                              "CREATE TABLE QuestPeriodInfo(RowID INT,QuestID TEXT,DateFrom TEXT,Period INT,MaxPlayCount INT,Feature TEXT);INSERT INTO QuestPeriodInfo VALUES(1,'quest_a','2010-07-21 00:00:00.000',24,5,'enEU');")
             db.execute('INSERT INTO StoryLineInfo VALUES(' + ','.join('?' * 21) + ')', ('GuidePlay', 'n', 'QuestSet01', None, 'MainStream', None, 0, 0, 0, 0, None, '', None, 0, 1, 1023, 'False', 'True', 1, None, None))
             db.commit()

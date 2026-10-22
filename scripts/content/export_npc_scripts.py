@@ -156,12 +156,30 @@ def read_package(base, database, config):
                                   for r in db.execute('Select * From [QuestDifficultyInfo]')]
         quests['periods'] = [[nullable_text(r['QuestID']), nullable_text(r['DateFrom']), int32(r['Period']), nullable_int32(r['MaxPlayCount']), nullable_text(r['Feature'])]
                              for r in db.execute('Select * From [QuestPeriodInfo]')]
+    # CharacterContents.Load: CharacterClassInfo (BaseCharacter 1 = Fiona) and LevelUpExpInfo,
+    # both filtered by Feature at load; provider order.
+    progression = {}
+    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        progression['class_stats'] = [[int32(r['Level']), int32(r['BaseSTR']), int32(r['BaseDEX']), int32(r['BaseINT']), int32(r['BaseWILL']), int32(r['BaseHP']), int32(r['BaseSTAMINA']), nullable_text(r['Feature'])]
+                                      for r in db.execute('Select * From [CharacterClassInfo]') if r['Identifier'] == 1]
+        progression['level_exp'] = [[int32(r['Level']), int32(r['RequiredExp']), nullable_text(r['Feature'])] for r in db.execute('Select * From [LevelUpExpInfo]')]
+        # TitleInfo (ID, AutoGiveLevel, ClassRestriction, HideUntil, Feature) and the
+        # TitleGoalInfo IDs per title, for TitleManager.GiveTitleByLevelUp.
+        progression['titles'] = [[int32(r['ID']), None if r['AutoGiveLevel'] is None else int32(r['AutoGiveLevel']), int32(r['ClassRestriction']), int32(r['HideUntil']), nullable_text(r['Feature'])]
+                                 for r in db.execute('Select * From [TitleInfo]')]
+        progression['title_goals'] = [[int32(r['ID']), int32(r['TitleID'])] for r in db.execute('Select * From [TitleGoalInfo]')]
+    if any(len(v) > 10000 for v in progression.values()): raise ValueError('Progression table bound')
     if any(len(v) > 100000 for v in quests.values()): raise ValueError('Quest table bound')
     if any(q['ID'] is None for q in quests['quests']): raise ValueError('QuestInfo ID')
     wanted = {'CurrentVer', 'NewStoryLineDialog', 'FlexibleMapLoading', 'ShopPriceRatio', 'Buyback', 'BuybackPriceRatio', 'BuybackListCount', 'RestoreItem', 'RepairPriceRate',
               'GoldRate_Story', 'ExpRate_Story', 'APRate_Story', 'TodayQuest', 'TodayQuest_S2', 'TodayQuest_S3', 'TodayQuest_InitTimeAdder',
               'CafeBonusQuestPlus', 'Event_PlayCount_Unlimited', 'AddDeparture', 'AddDepartureCount', 'Event_PlayCount_Plus',
-              'ChangeBasicBattleGoal', 'E3_Event_2010', 'Event_PAX_2011_enUS', 'DisableInGameCheat', 'zhCN', 'zhTW'}
+              'ChangeBasicBattleGoal', 'E3_Event_2010', 'Event_PAX_2011_enUS', 'DisableInGameCheat', 'zhCN', 'zhTW',
+              'MaxLevel', 'CharacterRank', 'friend_loyalty_system', 'GuildScore'}
+    for r in progression['class_stats']: wanted |= feature_atoms(r[7] or '')
+    for r in progression['level_exp']: wanted |= feature_atoms(r[2] or '')
+    for r in progression['titles']: wanted |= feature_atoms(r[4] or '')
     for q in quests['quests']:
         wanted |= feature_atoms(q['Feature'] or ''); wanted |= feature_atoms(q['EnableTodayQuest'] or '')
     for d in quests['difficulties']: wanted |= feature_atoms(d[3] or '')
@@ -184,7 +202,7 @@ def read_package(base, database, config):
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
                          'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
-            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests}
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

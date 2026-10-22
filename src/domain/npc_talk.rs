@@ -102,6 +102,8 @@ pub enum Effect {
     GiveItem { class: String, count: i32 },
     /// ItemImpl.DestroyItem(itemClass, num, Story, includeExpired: false).
     TakeItem { class: String, count: i32 },
+    /// CharacterImpl.GiveReward(exp, ap, null, null) after the rates are applied.
+    Reward { exp: i32, ap: i32 },
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -703,12 +705,13 @@ impl<'a> Talker<'a> {
                         .ok_or(TalkError::Halted)?
                         .info
                         .clone();
-                    // EXP/AP (level up), titles, skills and item rewards are not migrated.
-                    if info.reward_exp != 0
-                        || info.reward_ap != 0
-                        || info.reward_title != 0
+                    // Title (AcquireTitle) and skill rewards are not migrated.
+                    if info.reward_title != 0
                         || info.reward_skill.is_some()
-                        || info.reward_item.is_some()
+                        || info
+                            .reward_item
+                            .as_deref()
+                            .is_some_and(|c| c.contains('[') || c.contains("_lvl"))
                     {
                         return Err(TalkError::Unsupported("story reward".into()));
                     }
@@ -729,6 +732,26 @@ impl<'a> Talker<'a> {
                             Some("gold"),
                             Some(&gold.to_string()),
                         ));
+                    }
+                    if let Some(item) = &info.reward_item {
+                        let count = info.reward_item_count.to_string();
+                        self.add(entity("give_item_successful", Some(item), Some(&count)));
+                        self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
+                            class: item.clone(),
+                            count: info.reward_item_count,
+                        }));
+                    }
+                    if info.reward_exp != 0 || info.reward_ap != 0 {
+                        let rate = |key: &str| {
+                            self.policy
+                                .get_integer(key)
+                                .map_err(|_| TalkError::Unsupported(key.into()))
+                        };
+                        let exp = info.reward_exp.wrapping_mul(rate("ExpRate_Story")?) / 100;
+                        let ap = info.reward_ap.wrapping_mul(rate("APRate_Story")?) / 100;
+                        self.pushed
+                            .outputs
+                            .push(Output::Effect(Effect::Reward { exp, ap }));
                     }
                     self.session.story_line_changed = true;
                 }

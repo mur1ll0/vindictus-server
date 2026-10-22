@@ -106,6 +106,7 @@ pub mod minimum_equipment;
 pub mod minimum_ap;
 pub mod minimum_equip;
 pub mod minimum_give;
+pub mod minimum_growth;
 pub mod minimum_item_logs;
 pub mod minimum_move;
 pub mod minimum_quest;

@@ -236,6 +236,7 @@ fn kind_from_name(name: &str) -> Kind {
         "login_ok" => Kind::LoginOk,
         "character_common_info" => Kind::CharacterCommonInfo,
         "update_stat" => Kind::UpdateStat,
+        "level_up" => Kind::LevelUp,
         other => panic!("unexpected kind {other}"),
     }
 }
@@ -298,6 +299,22 @@ fn model<'a>(kind: Kind, v: &'a Value) -> Option<Message<'a>> {
             query_id: v["QueryID"].as_i64().unwrap(),
             info: (!v["Info"].is_null()).then(|| summary(&v["Info"])),
         },
+        Kind::LevelUp => Message::LevelUp {
+            level: v["Level"].as_i64().unwrap() as i32,
+            stat_increased: (!v["StatIncreased"].is_null()).then(|| {
+                v["StatIncreased"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|r| {
+                        (
+                            r["key"].as_str().unwrap(),
+                            r["value"].as_i64().unwrap() as i32,
+                        )
+                    })
+                    .collect()
+            }),
+        },
         Kind::UpdateStat => Message::UpdateStat {
             stat: (!v["Stat"].is_null()).then(|| {
                 v["Stat"]
@@ -352,7 +369,7 @@ fn minimum_map_wire_and_plain_transport_match_framework_oracle() {
 
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 189);
+        assert_eq!(cases.len(), 201);
         let mut concat_stream = Vec::new();
         let mut expected_frames = Vec::new();
 

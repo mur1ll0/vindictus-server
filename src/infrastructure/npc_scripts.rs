@@ -106,6 +106,8 @@ struct Export {
     repair: RawRepair,
     #[serde(default)]
     quests: Option<crate::domain::quest::QuestTables>,
+    #[serde(default)]
+    progression: Option<crate::domain::progression::ProgressionTables>,
 }
 
 fn fail() -> MinimumError {
@@ -157,6 +159,8 @@ pub struct Profile {
     pub equip_item_class: Vec<Option<String>>,
     /// QuestContents after Load (absent from profiles exported before the quest tables).
     pub quests: Option<crate::domain::quest::QuestContents>,
+    /// CharacterClassInfo/LevelUpExpInfo of the Fiona class and MaxLevel.
+    pub progression: Option<crate::domain::progression::Progression>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -286,7 +290,13 @@ impl Profile {
             .map(|t| crate::domain::quest::QuestContents::load(t, &policy))
             .transpose()
             .map_err(|_| fail())?;
+        let progression = export
+            .progression
+            .map(|t| crate::domain::progression::Progression::load(t, &policy))
+            .transpose()
+            .map_err(|_| fail())?;
         Ok(Self {
+            progression,
             quests,
             repair,
             equip_item_class,
