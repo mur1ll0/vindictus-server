@@ -2026,6 +2026,8 @@ dependencies = [
  "axum",
  "clap",
  "http-body-util",
+ "rand_core",
+ "rsa",
  "serde",
  "serde_json",
  "sha2",

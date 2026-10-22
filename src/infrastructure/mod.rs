@@ -116,4 +116,5 @@ pub mod minimum_shop;
 pub mod minimum_skills;
 pub mod minimum_story;
 pub mod minimum_use;
+pub mod relay;
 pub mod skill_profile;
