@@ -32,9 +32,9 @@ fn assets_with(cash_unique: i32, cash_use_in_town: i32, cash_level: i32) -> Asse
         .unwrap()
         .iter()
         .enumerate()
-        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":if n == 1 { cash_level } else { 0 },"class_restriction":if n == 1 { 2047 } else { 0 },"use_in_town":if n == 1 { cash_use_in_town } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0}))
+        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":if n == 1 { cash_level } else { 0 },"class_restriction":if n == 1 { 2047 } else { 0 },"use_in_town":if n == 1 { cash_use_in_town } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0,"quick_slot_max_stack":0,"draft":0}))
         .collect();
-    let economy = json!({"format_version":3,"source":"heroesContents.item-economy","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":3},"classes":rows});
+    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":3},"classes":rows});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -1562,5 +1562,121 @@ async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin
             .await
             .unwrap();
     assert_eq!(selected.cid, 1);
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_mission_member_info_matches_the_selected_character_and_refuses_effects() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_mission, minimum_selection},
+        protocol::mission::{self as mission_wire, LaunchShipGranted},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0).await;
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let skills: Vec<(Vec<u8>, i32)> =
+        sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=1 ORDER BY row_id")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    let member = minimum_mission::member_info(
+        &p,
+        &owner,
+        &assets,
+        1,
+        0,
+        12345,
+        None,
+        &[("SubWeaponMultiplier".to_owned(), "2".to_owned())],
+        config(),
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    assert_eq!((member.order, member.tag, member.key), (0, 0, 12345));
+    assert_eq!(
+        (member.base_class, member.level, member.transform_cool_down),
+        (1, 1, -1)
+    );
+    assert!(member.name.is_some() && member.is_alive && !member.is_assist);
+    // Stats.GetDictionary: FinalStat order with the load entries overwritten in place.
+    let stats = member.stats.0.clone().unwrap();
+    for key in [
+        "TOTAL_LOAD",
+        "MEDIUM_LOAD",
+        "HEAVY_LOAD",
+        "LOAD_PENALTY",
+        "SKILL_RANK_SUM",
+    ] {
+        assert_eq!(stats.iter().filter(|(k, _)| k == key).count(), 1, "{key}");
+    }
+    // SkillManager.ToDictionary in stored order with the stored ranks.
+    let listed = member.skill_list.0.clone().unwrap();
+    assert_eq!(listed.len(), skills.len());
+    for ((id, rank), (raw, stored)) in listed.iter().zip(&skills) {
+        assert_eq!((utf16(id), *rank), (raw.clone(), *stored));
+    }
+    assert_eq!(
+        member.battle_inventory.as_ref().unwrap().consumables.0,
+        Some(Vec::new())
+    );
+    // The host's GameJoinMemberInfo encodes inside LaunchShipGranted.
+    let message = mission_wire::Message::LaunchShipGranted(Box::new(LaunchShipGranted {
+        quest_id: Some("quest_gnoll_scout".to_owned()),
+        adult_rule: 0,
+        is_practice_mode: 0,
+        host_info: Some(member),
+    }));
+    let body = mission_wire::encode(
+        mission_wire::Kind::LaunchShipGranted,
+        Some(&message),
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap();
+    assert!(
+        mission_wire::decode(
+            mission_wire::Kind::LaunchShipGranted,
+            &body,
+            DEFAULT_MAX_BODY
+        )
+        .unwrap()
+        .is_some()
+    );
+    // A stored status effect is outside the migrated profile: refused, nothing written.
+    sqlx::query("INSERT INTO game_status_effects(row_id,cid,type_utf16,level,remain_time) VALUES(1,1,$1,1,60)")
+        .bind(utf16("buff_synthetic"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let before = items(&p).await;
+    assert!(
+        minimum_mission::member_info(
+            &p,
+            &owner,
+            &assets,
+            1,
+            0,
+            1,
+            None,
+            &[],
+            config(),
+            Arithmetic::FrameworkX64,
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(items(&p).await, before);
+    minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

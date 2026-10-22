@@ -31,12 +31,16 @@ def read_package(database, config):
                              # ItemClassInfoConstraintTrait columns (IsConstraintSatisfied).
                              level_upper_bound=integer(r['LevelUpperBound']), cafe_only=integer(r['IsCafeOnly']),
                              required_skill_utf16=text(r['RequiredSkill']), required_skill_rank=integer(r['RequiredSkillRank']),
-                             required_enhance=integer(r['RequiredEnhanceLevel']), required_enchant=integer(r['RequiredEnchantLevel'])))
+                             required_enhance=integer(r['RequiredEnhanceLevel']), required_enchant=integer(r['RequiredEnchantLevel']),
+                             # ItemOwner.MakeConsumablesInfo (battle inventory of mission entry).
+                             quick_slot_max_stack=integer(r['QuickSlotMaxStack']), draft=integer(r['Draft'])))
             if len(rows) > 50000: raise ValueError('Economy row bound')
+        # AlchemistBoxInfo box classes: their inner consumables are not migrated (refused).
+        boxes = sorted({text(r['BoxItemClass']) or '' for r in db.execute('Select * From [AlchemistBoxInfo]')})
     if [r['item_utf16'] for r in rows] != [c['item_utf16'] for c in catalog['classes']]:
         raise ValueError('Economy rows differ from the catalog projection')
     m = catalog['manifest']
-    return {'format_version': 3, 'source': 'heroesContents.item-economy',
+    return {'format_version': 4, 'source': 'heroesContents.item-economy', 'alchemist_boxes': boxes,
             'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
             'classes': rows}
 

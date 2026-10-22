@@ -1,7 +1,10 @@
 use std::collections::VecDeque;
 use vindictus_server::domain::{
     feature_policy::FeaturePolicy,
-    mission::{MissionContents, MissionError, MissionRandom, MissionTables},
+    mission::{
+        Consumable, ItemSlotInfo, MissionContents, MissionError, MissionRandom, MissionTables,
+        SlotSource, battle_inventory, multiplier,
+    },
 };
 
 /// Scripted System.Random: queued values, then the given fallbacks.
@@ -344,5 +347,114 @@ fn solo_and_practice_modes_follow_the_original_branches() {
             .entities
             .iter()
             .any(|e| e.contains("entityname"))
+    );
+}
+
+fn item(class: &str, stack: i32, sub: bool, usable: i32) -> SlotSource {
+    SlotSource::Item {
+        info: Some(ItemSlotInfo {
+            class: class.to_owned(),
+            sub_weapon: sub,
+            quick_slot_max_stack: stack,
+            draft: 2,
+            alchemist_box: false,
+        }),
+        usable,
+    }
+}
+
+#[test]
+fn battle_inventory_caps_shares_counts_and_empties_like_add_player() {
+    let settings = vec![
+        ("SubWeaponMultiplier".to_owned(), "2".to_owned()),
+        ("TutorStamp".to_owned(), "Basic".to_owned()),
+    ];
+    assert_eq!(
+        multiplier(&settings, "SubWeaponMultiplier", "SetSubWeaponLimit"),
+        Ok(2.0)
+    );
+    assert_eq!(
+        multiplier(&settings, "QuickSlotMultiplier", "SetQuickSlotLimit"),
+        Ok(1.0)
+    );
+    let limited = vec![("SetQuickSlotLimit".to_owned(), "3".to_owned())];
+    assert_eq!(
+        multiplier(&limited, "QuickSlotMultiplier", "SetQuickSlotLimit"),
+        Ok(0.0)
+    );
+    let limit = regex::RegexBuilder::new("elixir")
+        .case_insensitive(true)
+        .build()
+        .unwrap();
+    let rows = battle_inventory(
+        vec![
+            (100, "potion".to_owned(), item("potion", 5, false, 7)),
+            // The same class shares the loaded count: only 2 of 7 remain.
+            (101, "potion".to_owned(), item("potion", 5, false, 7)),
+            (102, "javelin".to_owned(), item("javelin", 3, true, 10)),
+            (103, "ELIXIR".to_owned(), item("ELIXIR", 5, false, 4)),
+            (
+                104,
+                "unknown".to_owned(),
+                SlotSource::Item {
+                    info: None,
+                    usable: 0,
+                },
+            ),
+            (
+                105,
+                "skill_guard".to_owned(),
+                SlotSource::Skill {
+                    info: Some(true),
+                    rank: Some(3),
+                },
+            ),
+            (
+                106,
+                "skill_passive".to_owned(),
+                SlotSource::Skill {
+                    info: Some(false),
+                    rank: Some(1),
+                },
+            ),
+            (107, "none".to_owned(), item("none", 5, false, 0)),
+        ],
+        1.0,
+        2.0,
+        Some(&limit),
+    )
+    .unwrap();
+    let c = |class: &str, bring, draft| Consumable {
+        class: class.to_owned(),
+        bring,
+        draft,
+    };
+    // SetConsumable on a .NET Dictionary: the second potion slot evicts part 100 (same
+    // class) and reuses its entry; the limited ELIXIR becomes an empty consumable that the
+    // later empty slot 107 evicts and replaces in the same entry, after skill_guard.
+    assert_eq!(
+        rows,
+        [
+            (101, c("potion", 2, 2)),
+            (102, c("javelin", 6, 2)),
+            (107, c("", 0, 0)),
+            (105, c("skill_guard", 3, 0)),
+        ]
+    );
+    assert_eq!(
+        battle_inventory(
+            vec![(
+                1,
+                "skill_x".to_owned(),
+                SlotSource::Skill {
+                    info: None,
+                    rank: Some(1)
+                }
+            )],
+            1.0,
+            1.0,
+            None,
+        ),
+        Err(MissionError::Content)
     );
 }

@@ -206,6 +206,22 @@ pub(super) struct View {
     /// Stored rows and rows after LoadItemCostumes, when projected.
     pub costumes: Option<(CostumeSet, CostumeSet)>,
     pub equipment: Vec<(i32, i64)>,
+    /// WhoIs(Stat|Equipment) values for GameJoinMemberInfo.
+    pub member: MemberBase,
+}
+/// CharacterSummary, Stats.GetDictionary, ArmorDefMap, ArmorHPMap and DestroyedDef.
+pub(super) struct MemberBase {
+    pub name: Option<String>,
+    pub base_class: u8,
+    pub level: i32,
+    pub exp: i32,
+    pub level_up_exp: i32,
+    pub title: i32,
+    pub title_count: i32,
+    pub stats: Vec<(String, i32)>,
+    pub def_map: std::collections::BTreeMap<i32, i32>,
+    pub armor_hp: std::collections::BTreeMap<i32, i32>,
+    pub destroyed_def: i32,
 }
 /// Character state derived from persisted base stats, skills, Gear and costumes.
 /// `project` applies LoadItemCostumes even for an empty Gear (UpdateItemStat path).
@@ -274,6 +290,7 @@ pub(super) async fn view(
         .item_stats(&gear.bonus.stats, &cache)
         .map_err(|_| MinimumError::Conflict)?;
     let total = Stats::from_base(&base).add(&items.stats);
+    let armor_hp = items.armor_hp.clone();
     let armor_def = items.armor_def.clone();
     let weight = items.weight;
     let l = if gear.projection.equipment.is_empty() {
@@ -323,6 +340,22 @@ pub(super) async fn view(
     }
     let look =
         Channel::encode_look_summary(cid, Some(&summary)).map_err(|_| MinimumError::Conflict)?;
+    let member = MemberBase {
+        name: summary.character_id.map(str::to_owned),
+        base_class: summary.base_character,
+        level: summary.level,
+        exp: summary.exp,
+        level_up_exp: summary.level_up_exp,
+        title: summary.title,
+        title_count: summary.title_count,
+        stats: dictionary
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), *v))
+            .collect(),
+        def_map: stats.armor_def.clone(),
+        armor_hp,
+        destroyed_def: stats.destroyed_def,
+    };
     Ok(View {
         common: packet(Message::CharacterCommonInfo {
             query_id,
@@ -335,6 +368,7 @@ pub(super) async fn view(
         costume: summary.costume,
         costumes,
         equipment: gear.projection.equipment,
+        member,
     })
 }
 /// InGame QueryCharacterCommonInfoMessage for the selected character's own CID:

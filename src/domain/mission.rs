@@ -799,13 +799,18 @@ impl MissionContents {
         digest.item_limit = limit;
     }
 
-    /// QuestSettings keys of a quest and difficulty (QuestContents.GetQuestSettings).
-    pub fn setting_keys(&self, quest: &str, difficulty: i32) -> Result<Vec<String>, MissionError> {
+    /// QuestSettings of a quest and difficulty (QuestContents.GetQuestSettings): the
+    /// (Key, Value) rows whose condition holds, in RowID dictionary order.
+    pub fn settings(
+        &self,
+        quest: &str,
+        difficulty: i32,
+    ) -> Result<Vec<(String, String)>, MissionError> {
         let entry = self.quests.get(quest).ok_or(MissionError::Content)?;
         let (is_season2, max_member) = (entry.row.12, entry.row.11);
         let mut decided: BTreeMap<i32, bool> = BTreeMap::new();
-        let mut keys = Vec::new();
-        for (_, condition, key, _) in &self.settings {
+        let mut rows = Vec::new();
+        for (_, condition, key, value) in &self.settings {
             let pass = match condition {
                 None => true,
                 Some(c) => match decided.get(c) {
@@ -838,22 +843,28 @@ impl MissionContents {
                 },
             };
             if pass {
-                keys.push(key.clone().unwrap_or_default());
+                rows.push((
+                    key.clone().unwrap_or_default(),
+                    value.clone().unwrap_or_default(),
+                ));
             }
         }
-        Ok(keys)
+        Ok(rows)
     }
 
-    /// Fishing, hunting and tower quests use modules that are not migrated.
+    /// Fishing, hunting and tower quests (and the selected sub-weapon of fishing) use
+    /// modules that are not migrated.
     pub fn check_supported(&self, quest: &str, difficulty: i32) -> Result<(), MissionError> {
         if self.towers.contains(quest) {
             return Err(MissionError::Unsupported);
         }
-        let keys = self.setting_keys(quest, difficulty)?;
-        if keys
-            .iter()
-            .any(|k| matches!(k.as_str(), "Fishing" | "Hunting" | "Tower"))
-        {
+        let settings = self.settings(quest, difficulty)?;
+        if settings.iter().any(|(k, _)| {
+            matches!(
+                k.as_str(),
+                "Fishing" | "Hunting" | "Tower" | "SelectedSubWeapon"
+            )
+        }) {
             return Err(MissionError::Unsupported);
         }
         Ok(())
@@ -1367,4 +1378,183 @@ fn spawner_from(e: &MapEntity, index: usize, targets: &[Regex]) -> Result<Spawne
         }
     }
     Ok(s)
+}
+
+/// QuestSettings.QuickSlotMultiplier / SubWeaponMultiplier: 0 with the Set*Limit key,
+/// otherwise the product of float.Parse of every matching value.
+pub fn multiplier(
+    settings: &[(String, String)],
+    key: &str,
+    limit: &str,
+) -> Result<f32, MissionError> {
+    if settings.iter().any(|(k, _)| k == limit) {
+        return Ok(0.0);
+    }
+    let mut product = 1.0_f32;
+    for (k, v) in settings {
+        if k == key {
+            let v = trim(v);
+            if v.is_empty()
+                || !v
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'-' | b'+'))
+            {
+                return Err(MissionError::Content);
+            }
+            product *= v.parse::<f32>().map_err(|_| MissionError::Content)?;
+        }
+    }
+    Ok(product)
+}
+
+/// What a quick slot resolves to for ItemOwner.OnMakeConsumablesInfo.
+#[derive(Clone, Debug)]
+pub enum SlotSource {
+    /// A "skill_" slot: SkillInfo presence and IsActiveSkill, and the character's rank.
+    Skill {
+        info: Option<bool>,
+        rank: Option<i32>,
+    },
+    /// An item slot: ItemClassInfo (absent → skipped) and the usable item count.
+    Item {
+        info: Option<ItemSlotInfo>,
+        usable: i32,
+    },
+}
+#[derive(Clone, Debug)]
+pub struct ItemSlotInfo {
+    pub class: String,
+    pub sub_weapon: bool,
+    pub quick_slot_max_stack: i32,
+    pub draft: i32,
+    pub alchemist_box: bool,
+}
+/// ConsumablesInfo of the battle inventory (UsedNum 0, no inner consumables).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Consumable {
+    pub class: String,
+    pub bring: i32,
+    pub draft: i32,
+}
+
+/// OnMakeConsumablesInfo for the equipped quick slots, then AddPlayer's BattleInventory
+/// (ItemLimit or BringNum 0 → empty consumable) with SetConsumable on a .NET Dictionary.
+pub fn battle_inventory(
+    slots: Vec<(i32, String, SlotSource)>,
+    quick_multiplier: f32,
+    sub_weapon_multiplier: f32,
+    item_limit: Option<&Regex>,
+) -> Result<Vec<(i32, Consumable)>, MissionError> {
+    let mut made: Vec<(i32, Consumable)> = Vec::new();
+    let mut loaded: Vec<(String, i32)> = Vec::new();
+    for (part, value, source) in slots {
+        let consumable = match source {
+            SlotSource::Skill { info, rank } => {
+                // GetSkillInfoById(value).SkillID dereferences a missing SkillInfo.
+                let active = info.ok_or(MissionError::Content)?;
+                match rank {
+                    Some(rank) if active => Consumable {
+                        class: value,
+                        bring: rank,
+                        draft: 0,
+                    },
+                    _ => continue,
+                }
+            }
+            SlotSource::Item { info: None, .. } => continue,
+            SlotSource::Item {
+                info: Some(info),
+                usable,
+            } => {
+                if info.alchemist_box {
+                    return Err(MissionError::Unsupported);
+                }
+                let multiplier = if info.sub_weapon {
+                    sub_weapon_multiplier
+                } else {
+                    quick_multiplier
+                };
+                let cap = f64::from(info.quick_slot_max_stack as f32 * multiplier).ceil() as i32;
+                let entry = match loaded.iter().position(|(c, _)| *c == info.class) {
+                    Some(i) => i,
+                    None => {
+                        loaded.push((info.class.clone(), 0));
+                        loaded.len() - 1
+                    }
+                };
+                let already = loaded[entry].1;
+                let bring = if usable > already {
+                    (usable - already).min(cap)
+                } else {
+                    0
+                };
+                loaded[entry].1 += bring;
+                Consumable {
+                    class: info.class,
+                    bring,
+                    draft: info.draft,
+                }
+            }
+        };
+        match made.iter_mut().find(|(k, _)| *k == part) {
+            Some(row) => row.1 = consumable,
+            None => made.push((part, consumable)),
+        }
+    }
+    let mut inventory = NetDictionary::default();
+    for (part, c) in made {
+        let limited = item_limit.is_some_and(|r| r.is_match(&c.class));
+        let c = if limited || c.bring == 0 {
+            Consumable {
+                class: String::new(),
+                bring: 0,
+                draft: 0,
+            }
+        } else {
+            c
+        };
+        // SetConsumable: remove the entry of the same class, then the part.
+        if let Some(key) = inventory.key_of(&c.class) {
+            inventory.remove(key);
+        }
+        inventory.remove(part);
+        inventory.insert(part, c);
+    }
+    Ok(inventory.rows())
+}
+
+/// Dictionary<int, ConsumablesInfo> enumeration order: removed entries go to a LIFO
+/// free list that the next insertion reuses.
+#[derive(Default)]
+struct NetDictionary {
+    entries: Vec<Option<(i32, Consumable)>>,
+    free: Vec<usize>,
+}
+impl NetDictionary {
+    fn key_of(&self, class: &str) -> Option<i32> {
+        self.entries
+            .iter()
+            .flatten()
+            .find(|(_, c)| c.class == class)
+            .map(|(k, _)| *k)
+    }
+    fn remove(&mut self, key: i32) {
+        if let Some(i) = self
+            .entries
+            .iter()
+            .position(|e| e.as_ref().is_some_and(|(k, _)| *k == key))
+        {
+            self.entries[i] = None;
+            self.free.push(i);
+        }
+    }
+    fn insert(&mut self, key: i32, value: Consumable) {
+        match self.free.pop() {
+            Some(i) => self.entries[i] = Some((key, value)),
+            None => self.entries.push(Some((key, value))),
+        }
+    }
+    fn rows(self) -> Vec<(i32, Consumable)> {
+        self.entries.into_iter().flatten().collect()
+    }
 }

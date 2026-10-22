@@ -40,6 +40,8 @@ struct RawClass {
     required_skill_rank: i32,
     required_enhance: i32,
     required_enchant: i32,
+    quick_slot_max_stack: i32,
+    draft: i32,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,6 +50,7 @@ struct Export {
     source: String,
     manifest: Manifest,
     classes: Vec<RawClass>,
+    alchemist_boxes: Vec<PrivateText>,
 }
 /// One ItemClassInfo row; the effective row is chosen by the catalog's source_index.
 pub struct EconomyClass {
@@ -64,10 +67,15 @@ pub struct EconomyClass {
     pub indestructible: i32,
     /// ItemClassInfoConstraintTrait (EntityCommunicator.IsConstraintSatisfied).
     pub constraint: crate::domain::item_constraint::Constraint,
+    /// ItemClassInfo.QuickSlotMaxStack and Draft (MakeConsumablesInfo).
+    pub quick_slot_max_stack: i32,
+    pub draft: i32,
 }
 pub struct Profile {
     manifest: Manifest,
     classes: Vec<EconomyClass>,
+    /// AlchemistBoxInfo.BoxItemClass (UTF-16LE).
+    alchemist_boxes: Vec<Vec<u8>>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -80,7 +88,7 @@ impl Profile {
             return Err(MinimumError::Conflict);
         }
         let export: Export = serde_json::from_slice(&bytes).map_err(|_| MinimumError::Conflict)?;
-        if export.format_version != 3
+        if export.format_version != 4
             || export.source != "heroesContents.item-economy"
             || export.classes.len() != export.manifest.class_rows
             || export.classes.len() > 50_000
@@ -144,12 +152,23 @@ impl Profile {
                     class_restriction: r.class_restriction,
                     use_in_town: r.use_in_town != 0,
                     indestructible: r.indestructible,
+                    quick_slot_max_stack: r.quick_slot_max_stack,
+                    draft: r.draft,
                 })
+            })
+            .collect::<Result<Vec<_>, crate::error::Error>>()?;
+        let alchemist_boxes = export
+            .alchemist_boxes
+            .into_iter()
+            .map(|b| {
+                item_catalog::opaque(Some(b))
+                    .map(|b| b.map(|b| b.as_bytes().to_vec()).unwrap_or_default())
             })
             .collect::<Result<Vec<_>, crate::error::Error>>()?;
         Ok(Self {
             manifest: export.manifest,
             classes,
+            alchemist_boxes,
         })
     }
     /// Same source files and the same row sequence as the bound catalog.
@@ -166,6 +185,10 @@ impl Profile {
             return Err(MinimumError::Conflict);
         }
         Ok(())
+    }
+    /// Whether the UTF-16LE item class is an AlchemistBoxInfo box.
+    pub fn is_alchemist_box(&self, class_utf16: &[u8]) -> bool {
+        self.alchemist_boxes.iter().any(|b| b == class_utf16)
     }
     pub fn get(&self, source_index: usize) -> Option<&EconomyClass> {
         self.classes.get(source_index)
