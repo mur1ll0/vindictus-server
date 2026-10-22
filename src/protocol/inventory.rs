@@ -892,10 +892,21 @@ pub fn encode(
         }
     }
 }
+/// Strict decode: the whole body must be consumed (encoder round trips and fixtures).
 pub fn decode(
     kind: Kind,
     body: &[u8],
     max_body: usize,
+) -> Result<Option<Message>, InventoryWireError> {
+    decode_body(kind, body, max_body, true)
+}
+/// SerializeReader.FromBinary reads the type's fields and ignores the rest of the packet
+/// body, so client ingress tolerates trailing bytes (the 1.69 EN client sends some).
+fn decode_body(
+    kind: Kind,
+    body: &[u8],
+    max_body: usize,
+    strict: bool,
 ) -> Result<Option<Message>, InventoryWireError> {
     if body.len() > max_body {
         return Err(PayloadError::TooLarge.into());
@@ -946,7 +957,7 @@ pub fn decode(
             Kind::UpdateTitle => Message::UpdateTitle(Wire::read(&mut r)?),
         })
     };
-    if !r.remaining.is_empty() {
+    if strict && !r.remaining.is_empty() {
         return Err(PayloadError::TrailingBytes.into());
     }
     Ok(result)
@@ -958,11 +969,11 @@ pub fn decode_ingress(
     max_body: usize,
 ) -> Result<Option<Message>, InventoryWireError> {
     if category == kind.category() {
-        return decode(kind, body, max_body);
+        return decode_body(kind, body, max_body, false);
     }
     if category == 0 && body.len() <= max_body && body.get(..16) == Some(kind.type_id().as_bytes())
     {
-        return decode(kind, &body[16..], max_body.saturating_sub(16));
+        return decode_body(kind, &body[16..], max_body.saturating_sub(16), false);
     }
     if category == 0
         && body.len() <= max_body

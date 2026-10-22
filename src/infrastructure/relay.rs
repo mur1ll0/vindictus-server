@@ -202,8 +202,10 @@ impl Relay {
             };
             let relay = self.clone();
             tokio::spawn(async move {
-                if let Err(e) = relay.connection(stream, peer).await {
-                    tracing::debug!(error = %e, "relay connection closed");
+                tracing::info!("relay connection opened");
+                match relay.connection(stream, peer).await {
+                    Ok(()) => tracing::info!("relay connection closed"),
+                    Err(e) => tracing::info!(error = %e, "relay connection closed by an I/O error"),
                 }
             });
         }
@@ -286,13 +288,20 @@ impl Relay {
         host: &mut Option<i32>,
     ) -> bool {
         let Ok(message) = wire::parse_client(payload) else {
+            tracing::info!(
+                length = payload.len(),
+                first = payload.first().copied(),
+                "relay message unparsed; closing"
+            );
             return false;
         };
         match message {
             ClientMessage::PublicKey(blob) => {
                 let Some(encrypted) = encrypt_session_key(blob) else {
+                    tracing::info!("relay public key rejected; closing");
                     return false;
                 };
+                tracing::info!("relay session key sent");
                 tx.send(wire::session_key_success(&encrypted)).await.is_ok()
             }
             ClientMessage::RequestConnection {
@@ -334,9 +343,15 @@ impl Relay {
                     })
                     .flatten();
                 let Some((h, cid, nexon_sn)) = admitted else {
+                    tracing::info!(
+                        protocol_matches = protocol == wire::PROTOCOL_VERSION,
+                        user_data_length = user_data.len(),
+                        "relay connection request denied"
+                    );
                     let _ = tx.send(wire::denied()).await;
                     return false;
                 };
+                tracing::info!("relay connection request admitted");
                 *host = Some(h);
                 let state = self.state.clone();
                 tokio::spawn(async move {
@@ -379,6 +394,7 @@ impl Relay {
                         _ => false,
                     }
                 };
+                tracing::info!(accepted = ok, "relay NM infos result");
                 if ok {
                     let _ = self.events.send(RelayEvent::Connected { cid, host_id: h });
                 }

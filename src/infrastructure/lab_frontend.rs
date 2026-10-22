@@ -2569,13 +2569,16 @@ pub async fn connection(
     let registered=super::channel_server::registered_category(category,&body);
     let in_game=state.selected.is_some();
     let length=body.len();
+    // Bounded hex of a small rejected body; second-password messages never.
+    let secret=[PasswordKind::Check,PasswordKind::Set].iter().any(|k|matches(category,&body,k.category(),k.type_id()));
+    let prefix=if secret||length>64{String::new()}else{body.iter().map(|b|format!("{b:02x}")).collect()};
     let future=state.dispatch(&runtime,&pool,&mut stream,&mut sender,category,&body);
     if initial {
      tokio::time::timeout_at(deadline,future).await.map_err(|_|RuntimeError::Timeout)??;
     }else{
      match future.await{
       // One undecodable in-game message must not drop the character; no response is sent.
-      Err(RuntimeError::Message) if in_game=>tracing::warn!(category,registered_category=registered,length,"laboratory frontend in-game message rejected; ignored"),
+      Err(RuntimeError::Message) if in_game=>tracing::warn!(category,registered_category=registered,length,body_hex=%prefix,"laboratory frontend in-game message rejected; ignored"),
       other=>other?,
      }
     }

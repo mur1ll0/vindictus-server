@@ -683,3 +683,18 @@ fn item_fail_message_matches_source_dialog_shape() {
     let body = wire::encode(Kind::ItemFail, Some(&message), DEFAULT_MAX_BODY).unwrap();
     assert!(wire::decode(Kind::ItemFail, &body, DEFAULT_MAX_BODY).unwrap() == Some(message));
 }
+#[test]
+fn client_ingress_ignores_trailing_bytes_like_serialize_reader() {
+    use vindictus_server::protocol::inventory::{self as wire, Kind, Message};
+    // GUID prefix + non-null marker + one byte the 1.69 EN client appends (18 bytes).
+    let mut body = Kind::QueryNpcList.type_id().as_bytes().to_vec();
+    body.extend_from_slice(&[1, 0]);
+    assert!(matches!(
+        wire::decode_ingress(Kind::QueryNpcList, 0, &body, DEFAULT_MAX_BODY),
+        Ok(Some(Message::QueryNpcList))
+    ));
+    // The strict decode used by fixtures and round trips still rejects it.
+    assert!(wire::decode(Kind::QueryNpcList, &[1, 0], DEFAULT_MAX_BODY).is_err());
+    // A truncated body is still refused.
+    assert!(wire::decode_ingress(Kind::QueryNpcTalk, 0, &body[..16], DEFAULT_MAX_BODY).is_err());
+}

@@ -41,7 +41,7 @@ Limites conhecidos: skill que exige desbloqueio por história no rank 2 é recus
 
 ### B1.3b — lista de NPCs e histórias abertas no login
 Pré-condição: runtime com os assets privados atuais (`npc_scripts` = `.cache/private-content/npc-scripts.json`). A Fiona ainda sem progresso de histórias (primeiro login após este passo).
-- [ ] Entrar na cidade → sem travar no carregamento; os NPCs aparecem e o cliente recebe a lista de NPCs (o servidor responde à QueryNpcList).
+- [ ] Entrar na cidade → sem travar no carregamento; os NPCs aparecem e o cliente recebe a lista de NPCs (o servidor responde à QueryNpcList; log "minimum NPC list sent"). Repetir num segundo login: os NPCs também devem aparecer (falhava em 22/10 com "in-game message rejected", categoria 533).
 - [ ] Abrir o diário/lista de histórias (se o cliente mostrar) → a história principal inicial (GuidePlay_1_SkillTrain) aparece como acompanhada.
 - [ ] Observar NPCs com marcador de história (ex.: o NPC da GuidePlay) → marcador visível.
 - [ ] Relogar → as mesmas histórias e marcadores; nada duplicado.
