@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$ProfileFile,[string]$NameProofFile,[string]$MinimumCreationAssetsFile)
+param([Parameter(Mandatory)][string]$ProfileFile,[string]$NameProofFile,[string]$MinimumCreationAssetsFile,[ValidateRange(1,65535)][int]$BootstrapPort=8081,[switch]$SkipBootstrapHttp)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $private=[IO.Path]::GetFullPath((Join-Path $project '.cache/private-frontend'))
@@ -86,5 +86,21 @@ while([DateTime]::UtcNow-lt$deadline-and-not$process.HasExited){
  if($ready){break};Start-Sleep -Milliseconds 250
 }
 if(-not$ready){if(-not$process.HasExited){$process.Kill();$process.WaitForExit()};throw 'Laboratory frontend did not start; complete logs retained locally'}
+# The client reads its server list (EndPoint.txt) over HTTP before connecting; without it the list is empty.
+$bootstrapRoot=Join-Path $project '.cache/client-bootstrap'
+$bootstrapPid=$null
+if(-not$SkipBootstrapHttp){
+ if(-not(Test-Path -LiteralPath (Join-Path $bootstrapRoot 'en-eu-x-gm/EndPoint.txt'))){throw 'Prepare the client bootstrap first (scripts/client/prepare_lab_client.py --apply)'}
+ $listening=@(Get-NetTCPConnection -State Listen -LocalPort $BootstrapPort -ErrorAction SilentlyContinue)
+ if($listening.Count-eq0){
+  $bootstrap=Start-Process -FilePath 'py' -ArgumentList @('-3.13','-m','http.server',[string]$BootstrapPort,'--bind','127.0.0.1','--directory',('"'+$bootstrapRoot+'"')) -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $project '.cache/verification/lab-bootstrap-http.stdout.log') -RedirectStandardError (Join-Path $project '.cache/verification/lab-bootstrap-http.stderr.log') -PassThru
+  $bootstrapPid=$bootstrap.Id
+ }else{$bootstrapPid=$listening[0].OwningProcess}
+ $bootstrapDeadline=[DateTime]::UtcNow.AddSeconds(10);$bootstrapReady=$false
+ while([DateTime]::UtcNow-lt$bootstrapDeadline-and-not$bootstrapReady){
+  try{$bootstrapReady=(Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri ('http://127.0.0.1:'+$BootstrapPort+'/en-eu-x-gm/EndPoint.txt')).StatusCode-eq200}catch{Start-Sleep -Milliseconds 250}
+ }
+ if(-not$bootstrapReady){throw 'Client bootstrap HTTP did not answer; the client would show no servers'}
+}
 [ordered]@{process_id=$process.Id;executable=$exe;binary_sha256=$binaryHash;stdout_log=$out;stderr_log=$err;profile_path=$profile;stdin_copy_path=$stdinCopy;started_at_utc=[DateTimeOffset]::UtcNow.ToString('o');loopback=$true;client_acceptance_verified=$false;character_creation_available=[bool]$MinimumCreationAssetsFile}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $private 'runtime-process.json') -Encoding utf8NoBOM
-[ordered]@{process_id=$process.Id;loopback=$true;profile_redirected_from_private_file=$true;logs_retained_locally=$true;client_acceptance_verified=$false;character_creation_available=[bool]$MinimumCreationAssetsFile}|ConvertTo-Json -Compress
+[ordered]@{process_id=$process.Id;bootstrap_http_process_id=$bootstrapPid;loopback=$true;profile_redirected_from_private_file=$true;logs_retained_locally=$true;client_acceptance_verified=$false;character_creation_available=[bool]$MinimumCreationAssetsFile}|ConvertTo-Json -Compress

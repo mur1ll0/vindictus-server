@@ -7,7 +7,7 @@ Bloco B1 (dinheiro, NPCs, lojas, histórias e quests). Gate fechado em 21/10/202
 2. Binário nativo: `cargo build --locked`.
 3. Conteúdo privado (já regenerado no gate): `.cache/private-content/npc-scripts.json` (scripts de NPC, lojas, reparo e tabelas de quest) e `.cache/private-content/item-economy.json` (formato 3). O `minimum-creation-assets.json` aponta para os dois. Para regenerar: `py -3.13 scripts/content/export_npc_scripts.py --output .cache/private-content/npc-scripts.json` e `py -3.13 scripts/content/export_item_economy.py --output .cache/private-content/item-economy.json`.
 4. Personagem: a mesma Fiona inicial (nível 1) aceita no B0. Com ela **deslogada**, conceder ouro: `pwsh scripts/dev/lab-give-item.ps1 -ItemClass gold -Count 50000`.
-5. Runtime: `pwsh scripts/dev/start-lab-frontend.ps1 -ProfileFile <o mesmo .cache/private-frontend/runtime-*.json do B0> -MinimumCreationAssetsFile .cache/private-content/minimum-creation-assets.json`. O log do runtime fica em `.cache/verification/lab-frontend-*`.
+5. Runtime: `pwsh scripts/dev/start-lab-frontend.ps1 -ProfileFile <o mesmo .cache/private-frontend/runtime-*.json do B0> -MinimumCreationAssetsFile .cache/private-content/minimum-creation-assets.json`. O log do runtime fica em `.cache/verification/lab-frontend-*`. O script também sobe o HTTP de bootstrap (8081) que entrega a lista de servidores ao cliente; abrir o cliente só depois dele.
 
 ## Ordem de gameplay (uma sessão)
 1. Antes de entrar: B1.1 (ouro concedido; conferir o saldo ao entrar).

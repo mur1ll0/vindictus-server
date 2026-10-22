@@ -41,6 +41,20 @@ Plano revisado pelo operador em 21/10/2026. A ordem prioriza o ciclo PvE jogáve
 - **B0 fechado.** Suíte completa em 2026-10-21T17:13:11Z com 406 Rust, 245 PostgreSQL (0 ignorados), 50 Python e zero falhas.
 - **B0 aceito no cliente (21/10/2026):** criação/relogin da Fiona, seleção, cidade, movimento, inventário, equipar/desequipar, mover itens, quickslots de consumíveis, lista de skills/AP, cápsula de AP e treino de skill com AP.
 - **Testes adiados:** aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 via loja ou B2.6 via loot), usar consumível pela barra (B2.5) e o "Depot" da loja Cash (B5).
+- **B1 e B2 fechados no código, sem aceite de cliente.** B1 em 21/10 e B2 em 22/10/2026 (suíte completa verde). Nenhuma entrada dos dois roteiros foi testada no cliente ainda; a sessão combinada segue `docs/client-tests/B2-fases.md`. O transporte ProudNet (relay 27005) e toda a missão foram construídos sem checkpoint de cliente, por decisão do operador.
+
+## Pendências conhecidas do B2 (não implementadas)
+
+Levantadas na auditoria de 22/10/2026 a partir do código e dos limites de cada entrada do roteiro. O servidor recusa ou ignora esses casos sem enviar sucesso falso.
+
+- **Entrada e grupo:** só missão solo (host local). Recusadas: pesca, caça, torre, missões com item obrigatório ou limite de equipamento. Moedas e pedras de bênção vêm vazias. Reinício pelo navio (ReturnToShip) não existe; o botão de reiniciar fica oculto. Reentrar numa missão em andamento (CombatRejoinSystem) não existe.
+- **Setores:** sem AntiSectorSkip e sem diálogos de console de setor.
+- **Drops:** baú do tesouro, mapas do tesouro, núcleos de evento/história, pontos fracos (WeakPoint), NamedProp, bônus de habilidade em props e HugeLucky. Itens com atributo (ex.: pergaminhos de encantamento) e inventário cheio são recusados; o envio por correio da sobra não existe.
+- **Combate:** o anti-trapaça de dano (MDRSystem) só marca rankings, que não existem. Caixas alquímicas na barra continuam recusadas.
+- **Conclusão e recompensas:** recompensas de troca de item (ex.: `slayer_stamp_limit>slayer_stamp`); rankings (CharacterRank); bônus de status, cafe, guilda, moedas e pedras de bênção; AddMicroPlayTime e contagem diária de quests grátis; OnEnterPhase das histórias após a quest. Um objetivo de quest (do sapo) usa uma regex que o motor não compila e nunca conclui.
+- **Progressão:** títulos adquiridos (status concluído e bônus de atributo), recompensa de título/skill de história, AddGrowthLog e efeitos de guilda.
+- **Robustez:** envio por correio dos itens reservados de quem sai da missão.
+- **Gate:** o smoke Docker não completou no fechamento (carga externa); repetido na auditoria de 22/10 com exit 0, o que completa o gate do B2.
 
 ## B0 — personagem na cidade (fechado em 21/10/2026)
 
