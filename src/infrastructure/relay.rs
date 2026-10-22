@@ -307,8 +307,14 @@ impl Relay {
             ClientMessage::RequestConnection {
                 user_data,
                 protocol,
-                ..
+                internal_version,
             } => {
+                // Protocol constants only (no key material): evidence for the client build.
+                tracing::info!(
+                    protocol_guid = %wire::guid_string(&protocol),
+                    internal_version,
+                    "relay connection request received"
+                );
                 let admitted = (protocol == wire::PROTOCOL_VERSION && user_data.len() == 8)
                     .then(|| {
                         let sn = i32::from_le_bytes([

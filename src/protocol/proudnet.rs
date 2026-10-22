@@ -55,6 +55,24 @@ pub const fn guid(a: u32, b: u16, c: u16, d: [u8; 8]) -> [u8; 16] {
     ]
 }
 
+/// Registry form of a native-layout GUID (`guid` inverse), for diagnostics.
+pub fn guid_string(g: &[u8; 16]) -> String {
+    format!(
+        "{:08x}-{:04x}-{:04x}-{}-{}",
+        u32::from_le_bytes([g[0], g[1], g[2], g[3]]),
+        u16::from_le_bytes([g[4], g[5]]),
+        u16::from_le_bytes([g[6], g[7]]),
+        g[8..10]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>(),
+        g[10..]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    )
+}
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum WireError {
     #[error("ProudNet splitter mismatch")]
