@@ -976,3 +976,12 @@ AbilityBonus adiado para o Combine Craft (23/10/2026, decisão do operador).
 - `PropDropTable.AbilityBonus` e `NamedPropDropTable.AbilityBonus` dependem de `MicroPlayer.AbilityList`, que o original monta com os atributos `PS_<n>` de equipamento de Combine Craft (`Gear.ToAbilityInfo`). O inventário migrado recusa itens com atributos, então nenhum personagem tem habilidade e o bônus seria sempre vazio. A `SystemMessage` do anúncio também não está migrada. Conteúdo: `AbilityClassInfo` com 282 linhas (81 de Event 2/NamedProp, nenhuma de Event 1/Prop).
 - Registrado como item 5 do B3 em `docs/playable-game-roadmap.md`, para portar junto com o Combine Craft e os atributos de item. Cliente: não necessário.
 
+Entrega do Sapphire Ring ao Gallagher (23/10/2026).
+- Relato: na história do Gallagher, o Give do Sapphire Ring travou. Log às 20:06:20: "minimum NPC talk effects not applied". História `grayman_know` (GERENS1), fase C: `has_item sapphire_ring,1` → `take_item sapphire_ring 1`. O anel é equipável e `minimum_give::write` recusava destruir qualquer equipável ("clears Gear/quick slot references").
+- Fonte: `StorageHelper.GetClassHelper` usa `Parent.GetItems(itemClass)`, todos os itens da classe, inclusive equipados; `ItemClassHelper.DestroyItem` segue `DestroyComparer` (valor do item, validade, vínculo, Num, Slot maior primeiro). Sem atributos, os equipáveis empatam no valor, então a ordem já portada vale.
+- Correção: destruir um equipável que está na bolsa (`game_equippables.part` nulo) apaga a linha de `game_equippables` e o item, como a venda na loja. Se o escolhido pela ordem estiver equipado, a operação continua recusada inteira, porque tirar a peça do Gear (desequipar, recalcular atributos e sincronizar equipamento) não está migrado.
+- Restante da história verificado: só comandos migrados (`start_storyline`, `complete_storyline` com título 410015, 1000 de ouro e 3000 de EXP).
+- Testes: novo PostgreSQL `minimum_story_take_item_destroys_a_bag_equippable_in_destroy_order` (duas cópias na bolsa; sai a do slot 47 com a linha de Equippable); PostgreSQL story/shop (7); clippy `-D warnings`. Containers recompilados. O caso equipado não tem teste PostgreSQL, porque o personagem de teste não começa com nada equipado.
+- Cliente: entrada nova no B1.5a.
+- Próxima ação: confirmar no cliente; destruir item equipado quando o desequipar por item_service for migrado.
+

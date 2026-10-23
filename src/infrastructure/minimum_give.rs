@@ -218,8 +218,21 @@ async fn write(
             .find(|i| i.class == *class)
             .ok_or(MinimumError::Conflict)?;
         if info.equippable {
-            // Destroying equipment also clears Gear/quick slot references; not in this slice.
-            return Err(MinimumError::Conflict);
+            // An equipped item would also leave the Gear (unequip, stats and equipment
+            // sync), which this slice does not migrate; a bag item is deleted with its
+            // Equippable row. MaxStack 1 makes every destroy reach 0.
+            let part: Option<Option<i16>> =
+                sqlx::query_scalar("SELECT part FROM game_equippables WHERE id=$1 FOR UPDATE")
+                    .bind(id)
+                    .fetch_optional(&mut **tx)
+                    .await?;
+            if count != 0 || part.flatten().is_some() {
+                return Err(MinimumError::Conflict);
+            }
+            sqlx::query("DELETE FROM game_equippables WHERE id=$1")
+                .bind(id)
+                .execute(&mut **tx)
+                .await?;
         }
         if count == 0 {
             sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")

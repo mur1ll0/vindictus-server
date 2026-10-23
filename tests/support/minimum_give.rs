@@ -411,6 +411,12 @@ fn quest_clock() -> vindictus_server::infrastructure::minimum_quest::QuestClock 
     }
 }
 fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
+    npc_profile_taking(None)
+}
+/// The test scripts; `take` adds a phase "p3" where FERGHUS takes one item of a class.
+fn npc_profile_taking(
+    take: Option<&str>,
+) -> vindictus_server::infrastructure::npc_scripts::Profile {
     let leaf = |name: &str, text: &str| json!([name, [], text, [], ""]);
     let default = json!([
         "DefaultPhase",
@@ -538,6 +544,31 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
         ],
         ""
     ]);
+    let mut story = story;
+    if let Some(class) = take {
+        story[3].as_array_mut().unwrap().push(json!([
+            "Phase",
+            [["id", "p3"]],
+            "",
+            [[
+                "Talk",
+                [["id", "FERGHUS"]],
+                "",
+                [[
+                    "Do",
+                    [],
+                    "",
+                    [
+                        leaf("take_item", &format!("{class},1")),
+                        leaf("talk", "taken")
+                    ],
+                    ""
+                ]],
+                ""
+            ]],
+            ""
+        ]));
+    }
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":400,"RewardAp":3,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
     "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"AccountTitleStatRatio","value":"80"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"},{"key":"StatRatio","value":"1"}],
@@ -2620,5 +2651,114 @@ async fn minimum_trained_meditation_regenerates_ap_from_last_ap_update() {
     assert!((stored.1 - start - 2 * i64::from(interval) * 300).abs() <= 1);
     // A second query inside the same interval changes nothing.
     assert_eq!(query().await.ap, first.ap + 2);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_story_take_item_destroys_a_bag_equippable_in_destroy_order() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_story},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    // An unequipped equippable of the initial inventory and its class.
+    let (equipped, class): (i64, Vec<u8>) = sqlx::query_as(
+        "SELECT i.id,i.item_class_utf16 FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE e.part IS NULL AND i.collection IN (0,1,6) ORDER BY i.id LIMIT 1",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let units: Vec<u16> = class
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
+        .collect();
+    let class_text = String::from_utf16(&units).unwrap();
+    // A bag copy of the same class (Equippable part NULL) in the last bag slot, unless
+    // that slot is the original's.
+    let copy = equipped + 1_000_000;
+    sqlx::query("INSERT INTO game_items(id,item_class_utf16,owner_id,count,collection,slot,expire_ticks,tradable,checksum) SELECT $2,item_class_utf16,owner_id,count,0,47,expire_ticks,tradable,checksum FROM game_items WHERE id=$1").bind(equipped).bind(copy).execute(&p).await.unwrap();
+    sqlx::query("INSERT INTO game_equippables SELECT $2,NULL,color1,color2,color3,reduced_durability,max_durability_bonus FROM game_equippables WHERE id=$1").bind(equipped).bind(copy).execute(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile_taking(Some(&class_text)))
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    let talk = || async {
+        sqlx::query("UPDATE game_story_progress SET phase_utf16=$1 WHERE cid=1")
+            .bind(utf16("p3"))
+            .execute(&p)
+            .await
+            .unwrap();
+        let ids = || {
+            (1..=512)
+                .map(|i| 960_000_000_000_000_000 + i)
+                .collect::<Vec<i64>>()
+        };
+        let mut session = vindictus_server::domain::npc_talk::Session::default();
+        let mut result = minimum_story::talk(
+            &p,
+            &owner,
+            &assets,
+            1,
+            &mut session,
+            minimum_story::TalkRequest::TalkTo {
+                location: None,
+                npc: "FERGHUS",
+                story_line: Some("GuidePlay_1_SkillTrain"),
+                command: None,
+            },
+            ids(),
+            growth(),
+        )
+        .await
+        .map(|_| ());
+        while result.is_ok() && session.last_server_command.is_some() {
+            result = minimum_story::talk(
+                &p,
+                &owner,
+                &assets,
+                1,
+                &mut session,
+                minimum_story::TalkRequest::ExecuteServerCommand,
+                ids().into_iter().map(|i| i + 1000).collect(),
+                growth(),
+            )
+            .await
+            .map(|_| ());
+        }
+        result
+    };
+    let exists = |id: i64| {
+        let p = p.clone();
+        async move {
+            let rows: (i64, i64) = sqlx::query_as(
+                "SELECT (SELECT count(*) FROM game_items WHERE id=$1),(SELECT count(*) FROM game_equippables WHERE id=$1)",
+            )
+            .bind(id)
+            .fetch_one(&p)
+            .await
+            .unwrap();
+            rows
+        }
+    };
+    // DestroyComparer: equal value, binding and Num, then the higher slot first — the
+    // copy in slot 47 goes, with its Equippable row; the other stays.
+    talk().await.unwrap();
+    assert_eq!(exists(copy).await, (0, 0));
+    assert_eq!(exists(equipped).await, (1, 1));
     cleanup_game_pool(a, p, s).await;
 }
