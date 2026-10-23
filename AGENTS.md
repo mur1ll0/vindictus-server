@@ -36,7 +36,7 @@ Scope: all development under vindictus-server. The requested deliverable is a co
 - No unsafe Rust, production unwrap/expect, secret logging, plaintext password arguments, or real credentials in source.
 
 ## Preservation
-- Original Client/, Vindictus1.69EN/, ServidorVindictus/ and backups are read-only evidence.
+- Original Client/, Vindictus1.69EN/, ServidorVindictus/, the Windictus 2023 reference client at `C:\Windictus 2023` (see docs/client-compatibility.md, "Clientes de referência") and backups are read-only evidence.
 - Decompilation output is local ignored reference, not production code. Retain source hashes.
 - Do not overwrite restored databases, remove Docker volumes, run global Docker cleanup, or alter unrelated containers.
 - Never execute unreviewed legacy services merely to inspect metadata.

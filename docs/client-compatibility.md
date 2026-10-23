@@ -24,6 +24,31 @@ py -3.13 scripts/client/inventory_client.py
 
 O script abre os bancos SQLite com `mode=ro` e `PRAGMA query_only=ON`, compara hashes e registra strings com offsets; não executa nem modifica binários legados.
 
+## Clientes de referência
+
+Três instalações são usadas para comparar comportamento e arquivos. Todas são evidência somente leitura; nada é executado nem alterado nelas por scripts deste projeto.
+
+| Caminho | O que é | Uso |
+|---|---|---|
+| `../Vindictus1.69EN/Vindictus EU/en-EU` | cliente 1.69 EN original (`CurrentInfo.txt` de 2016-07-11) | origem da cópia de laboratório |
+| `.cache/play-client` | cópia completa do 1.69 EN preparada por `scripts/client/prepare_lab_client.py` (uma célula do banco SQLite do cliente alterada) | cliente usado nos testes contra este servidor |
+| `C:\Windictus 2023` | cliente do servidor privado Windictus que o operador jogava (versão mais nova, `Windictus.exe` como launcher) | referência de comportamento e de arquivos do jogo funcionando; comparação de binários e recursos |
+
+Comparação de 23/10/2026 (tamanho e SHA-256 truncado):
+
+| Arquivo | 1.69 EN e play-client | Windictus 2023 |
+|---|---|---|
+| `bin/engine.dll` | 11.237.760, `a3add9742f7fa03c` | 11.191.568, `a65917279827a00f` |
+| `bin/client.dll` | 14.719.200, `b284ba719047556b` | 15.057.680, `747f89a7c5f8bac8` |
+| `bin/server.dll` | 16.311.216, `d7727e182f6cdec1` | 16.334.608, `89d0e00a4f3e322d` |
+| `bin/shaderapidx9.dll` | 4.527.616, `f13869d1ed1078db` | igual |
+| `bin/materialsystem.dll` | 787.968, `fcf4de9a13cd1eba` | igual |
+| pacotes `.hfs` | 2.683 | 3.598 (2.580 com o mesmo nome; 103 só no 1.69 EN; 1.018 só no Windictus) |
+
+A cópia de laboratório é idêntica ao 1.69 EN nesses arquivos. O Windictus 2023 é outra versão do jogo; arquivos dele não devem ser copiados para o cliente de teste sem uma decisão explícita, porque o protocolo recuperado é o do 1.69 EN.
+
+O `start.bat` do 1.69 EN e da cópia inicia com `-stage -dev` (modo desenvolvedor da engine Source). Isso é hipótese, ainda não testada, para o wireframe visto em props do Inn: o servidor não envia nada de renderização.
+
 ## Endereço IP do servidor: bootstrap recuperado
 
 A inspeção estática recuperou dois endereços distintos. Em `sql/heroes.db3`, a linha `FeatureMatrix.EndPoints` da coluna `EN-EU-X-GM` aponta para `http://192.168.0.200/en-EU-x-GM/EndPoint.txt`. Esse é o servidor HTTP que publica a lista. No disco VMDK do pacote, o arquivo `xampp/htdocs/en-eu-x-gm/EndPoint.txt` contém o endereço de jogo `192.168.50.227:27015` dentro da árvore KeyValues `Address / Vindictus Test / IP`. São valores antigos e inconsistentes entre si; ambos precisam ser ajustados para o laboratório.
