@@ -2,7 +2,7 @@ use vindictus_server::domain::{
     feature_policy::FeaturePolicy,
     progression::{
         AcquiredTitle, GivenTitle, Growth, NoticedTitle, Proceeded, Progression, ProgressionTables,
-        STAT_NAMES,
+        STAT_NAMES, StoredTitle, TitleSlotValue,
     },
 };
 
@@ -286,4 +286,62 @@ fn title_goals_track_match_and_proceed_like_the_title_manager() {
     assert_eq!(p.proceed(1, &[(410017, true)], &[], 1, true), None);
     assert_eq!(p.proceed(1, &[], &[], 1, true), None);
     assert_eq!(p.proceed(99, &owned, &[], 1, true), None);
+}
+
+#[test]
+fn title_list_reports_visible_titles_and_shared_account_titles() {
+    let mut t = tables();
+    t.title_goal_targets = vec![
+        (1, Some("a".to_owned()), 1, false),
+        (2, Some("b".to_owned()), 2, false),
+        (3, Some("c".to_owned()), 10, false),
+    ];
+    let p = Progression::load(t, &policy("90")).unwrap();
+    let row = |id, acquired, ticks: Option<i64>, quest: Option<&str>| StoredTitle {
+        id,
+        acquired,
+        acquired_ticks: ticks,
+        quest: quest.map(str::to_owned),
+        expire_ticks: None,
+    };
+    // 410017 Known (HideUntil 0), 410018 Counting (HideUntil 5, progress 3: left out),
+    // 410019 acquired, 410022 feature-disabled and unacquired: left out.
+    let own = [
+        row(410017, false, None, None),
+        row(410018, false, None, None),
+        row(410019, true, Some(77), Some("quest_a")),
+        row(410022, false, None, None),
+    ];
+    // Account: 410019 (AllowShare) from another character and this one (own wins),
+    // 410017 (no AllowShare) left out, 410020 (Lethita only) left out for Fiona.
+    let account = [
+        (2, row(410019, true, Some(1), Some("other"))),
+        (1, row(410019, true, Some(77), Some("quest_a"))),
+        (2, row(410017, true, Some(5), None)),
+        (2, row(410020, true, Some(6), None)),
+    ];
+    let (shared, titles) = p.title_list(1, 1, &own, &[(1, 1), (3, 3)], &account);
+    let acquired = TitleSlotValue {
+        id: 410019,
+        status: 2,
+        time_stamp: 77,
+        quest: "quest_a".to_owned(),
+        goals: Vec::new(),
+        expire: None,
+    };
+    assert_eq!(shared, std::slice::from_ref(&acquired));
+    assert_eq!(
+        titles,
+        [
+            TitleSlotValue {
+                id: 410017,
+                status: 1,
+                time_stamp: 0,
+                quest: String::new(),
+                goals: vec![(1, 1), (2, 0)],
+                expire: None,
+            },
+            acquired,
+        ]
+    );
 }

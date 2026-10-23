@@ -191,6 +191,7 @@ class ItemSyncWireOracle {
   var slot=new TitleSlotInfo(410017,TitleState.Known,0,"",new List<KeyValuePair<int,int>>{new KeyValuePair<int,int>(1,0),new KeyValuePair<int,int>(2,int.MinValue)},null);
   var acquired=new TitleSlotInfo(7,TitleState.Acquired,long.MaxValue,"quest_x",new List<KeyValuePair<int,int>>(),new DateTime(2030,1,2));
   AddCases("update_title",191,new Guid("bb01bf3c-8194-3f94-9480-4bf20654b7b3"),new[]{null,new UpdateTitleMessage(null),new UpdateTitleMessage(new List<TitleSlotInfo>()),new UpdateTitleMessage(new List<TitleSlotInfo>{slot,null,acquired})},cases);
+  AddCases("title_list",610,new Guid("e537b12b-c3c8-3ae2-816e-df0465b4883b"),new[]{null,new TitleListMessage(null,null),new TitleListMessage(new List<TitleSlotInfo>(),new List<TitleSlotInfo>()),new TitleListMessage(new List<TitleSlotInfo>{acquired},new List<TitleSlotInfo>{slot,null,acquired})},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

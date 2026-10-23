@@ -50,6 +50,7 @@ pub enum Kind {
     QuestProgress,
     UpdateTitle,
     HideCostume,
+    TitleList,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -93,6 +94,7 @@ impl Kind {
             Self::QuestProgress => 546,
             Self::UpdateTitle => 191,
             Self::HideCostume => 414,
+            Self::TitleList => 610,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -136,6 +138,7 @@ impl Kind {
             Self::QuestProgress => 0xc229a0f5_4eda_3bbc_a4be_61f3aad3f82b,
             Self::UpdateTitle => 0xbb01bf3c_8194_3f94_9480_4bf20654b7b3,
             Self::HideCostume => 0x80e685d2_1ace_3cf5_90aa_7fda984d169d,
+            Self::TitleList => 0xe537b12b_c3c8_3ae2_816e_df0465b4883b,
         })
     }
 }
@@ -274,6 +277,8 @@ pub enum Message {
     /// UpdateTitleMessage.Titles.
     UpdateTitle(Option<Vec<Option<TitleSlot>>>),
     HideCostume(HideCostume),
+    /// TitleListMessage: AccountTitles, Titles.
+    TitleList(TitleList),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -372,6 +377,12 @@ pub struct BuybackInfo {
     pub color3: i32,
     pub price_item_class: Option<String>,
     pub price_count: i32,
+}
+/// TitleListMessage: the account's shared titles and the character's titles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TitleList {
+    pub account: Option<Vec<Option<TitleSlot>>>,
+    pub titles: Option<Vec<Option<TitleSlot>>>,
 }
 /// HideCostumeMessage: HideHead, AvatarPart, AvatarState (the constructor sets -1/-1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -548,6 +559,7 @@ impl Message {
             Self::QuestProgress(_) => Kind::QuestProgress,
             Self::UpdateTitle(_) => Kind::UpdateTitle,
             Self::HideCostume(_) => Kind::HideCostume,
+            Self::TitleList(_) => Kind::TitleList,
         }
     }
 }
@@ -783,6 +795,7 @@ object!(RepairItem {
     all_repairable
 });
 object!(StoryGuide { target, message });
+object!(TitleList { account, titles });
 object!(HideCostume {
     hide_head,
     avatar_part,
@@ -912,6 +925,7 @@ pub fn encode(
             Message::QuestProgress(v) => v.write(&mut w)?,
             Message::UpdateTitle(v) => v.write(&mut w)?,
             Message::HideCostume(v) => v.write(&mut w)?,
+            Message::TitleList(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -988,6 +1002,7 @@ fn decode_body(
             Kind::QuestProgress => Message::QuestProgress(QuestProgress::read(&mut r)?),
             Kind::UpdateTitle => Message::UpdateTitle(Wire::read(&mut r)?),
             Kind::HideCostume => Message::HideCostume(HideCostume::read(&mut r)?),
+            Kind::TitleList => Message::TitleList(TitleList::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

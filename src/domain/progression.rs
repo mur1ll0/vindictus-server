@@ -95,6 +95,28 @@ struct GoalTarget {
     party: bool,
 }
 
+/// A stored Title row: TitleID, Acquired, AcquiredTime ticks, AcquiredQuest, ExpireDateTime ticks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredTitle {
+    pub id: i32,
+    pub acquired: bool,
+    pub acquired_ticks: Option<i64>,
+    pub quest: Option<String>,
+    pub expire_ticks: Option<i64>,
+}
+
+/// TitleSlotInfo (Title.GetSlotInfo): TitleID, Status (0 Counting, 1 Known, 2 Acquired),
+/// TimeStamp, QuestID, GoalProgress, IsExpireable, ExpireDateTime.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TitleSlotValue {
+    pub id: i32,
+    pub status: i32,
+    pub time_stamp: i64,
+    pub quest: String,
+    pub goals: Vec<(i32, i32)>,
+    pub expire: Option<i64>,
+}
+
 /// TitleManager.Proceed of one goal: the goal's new progress (-1 when completed), whether
 /// the title became acquired, and the TitleSlotInfo to push (None: nothing to push).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -469,6 +491,93 @@ impl Progression {
             new: false,
             goals: revealed(&stored),
         }))
+    }
+    /// Title.GetSlotInfo for a stored title with TitleInfo: acquired titles list every
+    /// TitleInfo goal as -1 with their quest and time; others list their goal progress.
+    fn slot_of(&self, t: &Title, row: &StoredTitle, progress: &[(i32, i32)]) -> TitleSlotValue {
+        let stored = |g: i32| progress.iter().find(|(id, _)| *id == g).map_or(0, |p| p.1);
+        let target_count = |g: i32| self.goal_targets.get(&g).map_or(0, |t| t.count);
+        let status = if row.acquired {
+            2
+        } else if t.goals.is_empty() || {
+            // Title.IsVisible.
+            let mut num = 0_i32;
+            let mut seen = false;
+            for g in &t.goals {
+                if t.hide_until <= num {
+                    seen = true;
+                    break;
+                }
+                let p = stored(*g);
+                num = num.wrapping_add(if p == -1 { target_count(*g) } else { p });
+            }
+            seen || t.hide_until <= num
+        } {
+            1
+        } else {
+            0
+        };
+        TitleSlotValue {
+            id: t.id,
+            status,
+            time_stamp: if row.acquired {
+                row.acquired_ticks.unwrap_or(0)
+            } else {
+                0
+            },
+            quest: if row.acquired {
+                row.quest.clone().unwrap_or_default()
+            } else {
+                String::new()
+            },
+            goals: t
+                .goals
+                .iter()
+                .map(|g| (*g, if row.acquired { -1 } else { stored(*g) }))
+                .collect(),
+            expire: row.expire_ticks,
+        }
+    }
+    /// QueryTitleProgress for TitleListMessage: GetAccountTitleSlotInfos (titles acquired by
+    /// any character of the account, `account` as (CID, row), that AllowShare and fit the
+    /// class; the character's own row wins over another's) and GetTitleSlotInfos (the
+    /// character's visible titles whose feature is enabled or that are acquired). Rank
+    /// titles are not migrated.
+    pub fn title_list(
+        &self,
+        cid: i64,
+        class: i32,
+        own: &[StoredTitle],
+        progress: &[(i32, i32)],
+        account: &[(i64, StoredTitle)],
+    ) -> (Vec<TitleSlotValue>, Vec<TitleSlotValue>) {
+        let bit = 1_i32.wrapping_shl(class as u32 & 31);
+        let mut shared: Vec<(i32, TitleSlotValue)> = Vec::new();
+        for (owner, row) in account {
+            let Some(t) = self.titles.iter().find(|t| t.id == row.id) else {
+                continue;
+            };
+            if !t.allow_share || t.class_restriction & bit == 0 {
+                continue;
+            }
+            let slot = self.slot_of(t, row, &[]);
+            match shared.iter_mut().find(|(id, _)| *id == row.id) {
+                Some(entry) if *owner == cid => entry.1 = slot,
+                Some(_) => {}
+                None => shared.push((row.id, slot)),
+            }
+        }
+        let mut titles = Vec::new();
+        for row in own {
+            let Some(t) = self.titles.iter().find(|t| t.id == row.id) else {
+                continue;
+            };
+            let slot = self.slot_of(t, row, progress);
+            if slot.status != 0 && (t.enabled || slot.status == 2) {
+                titles.push(slot);
+            }
+        }
+        (shared.into_iter().map(|(_, s)| s).collect(), titles)
     }
     /// TitleManager.GetTrackingGoalID: the goals of the owned, unacquired titles whose
     /// feature is enabled and whose progress is not -1 (a goal without a row is 0), in

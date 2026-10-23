@@ -701,3 +701,108 @@ pub async fn proceed_titles(
     tx.commit().await?;
     Ok(packets)
 }
+
+/// InGame TitleObserver.ForceSync → TitleListMessage(AccountTitles, Titles) from
+/// QueryTitleProgress. None without the progression profile (the observer is not wired).
+pub(super) async fn title_list_packet(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Option<OutgoingPacket>, MinimumError> {
+    use crate::domain::progression::{StoredTitle, TitleSlotValue};
+    let Some(progression) = assets.npc.as_ref().and_then(|n| n.progression.as_ref()) else {
+        return Ok(None);
+    };
+    let (uid, class): (i32, i32) =
+        sqlx::query_as("SELECT uid,class::integer FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    type Row = (i64, i32, bool, Option<i64>, Option<Vec<u8>>, Option<i64>);
+    let convert = |r: Row| -> Result<(i64, StoredTitle), MinimumError> {
+        let ticks =
+            r.3.map(|u| {
+                crate::domain::legacy_user_data::SqlDateTime::from_units300(u)
+                    .and_then(|t| t.framework_date_time())
+                    .map(|t| t.ticks())
+            })
+            .transpose()
+            .map_err(|_| fail())?;
+        let quest =
+            r.4.map(|b| {
+                let units: Vec<u16> = b
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|c| u16::from_le_bytes(*c))
+                    .collect();
+                String::from_utf16(&units).map_err(|_| fail())
+            })
+            .transpose()?;
+        Ok((
+            r.0,
+            StoredTitle {
+                id: r.1,
+                acquired: r.2,
+                acquired_ticks: ticks,
+                quest,
+                expire_ticks: r.5,
+            },
+        ))
+    };
+    let own: Vec<Row> = sqlx::query_as(
+        "SELECT cid,title_id,acquired,acquired_time_units300,acquired_quest_utf16,expire_ticks FROM game_titles WHERE cid=$1 ORDER BY title_id LIMIT 65537",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    // TitleQueryAcquiredByAccount: acquired titles of every character of the account.
+    let account: Vec<Row> = sqlx::query_as(
+        "SELECT t.cid,t.title_id,t.acquired,t.acquired_time_units300,t.acquired_quest_utf16,t.expire_ticks FROM game_titles t JOIN game_character_info c ON c.id=t.cid WHERE c.uid=$1 AND t.acquired ORDER BY t.cid,t.title_id LIMIT 65537",
+    )
+    .bind(uid)
+    .fetch_all(&mut **tx)
+    .await?;
+    let progress: Vec<(i32, i32)> = sqlx::query_as(
+        "SELECT title_goal_id,progress FROM game_title_goal_progress WHERE cid=$1 LIMIT 4097",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    if own.len() > 65536 || account.len() > 65536 || progress.len() > 4096 {
+        return Err(fail());
+    }
+    let own: Vec<StoredTitle> = own
+        .into_iter()
+        .map(|r| convert(r).map(|(_, t)| t))
+        .collect::<Result<_, _>>()?;
+    let account: Vec<(i64, StoredTitle)> =
+        account.into_iter().map(convert).collect::<Result<_, _>>()?;
+    let (shared, titles) = progression.title_list(cid, class, &own, &progress, &account);
+    let slot = |v: TitleSlotValue| {
+        Some(crate::protocol::inventory::TitleSlot {
+            title_id: v.id,
+            status: v.status,
+            time_stamp: v.time_stamp,
+            quest_id: Some(v.quest),
+            goal_progress: Some(v.goals),
+            is_expireable: v.expire.is_some(),
+            expire_date_time: v.expire.unwrap_or(-1),
+        })
+    };
+    let message =
+        crate::protocol::inventory::Message::TitleList(crate::protocol::inventory::TitleList {
+            account: Some(shared.into_iter().map(slot).collect()),
+            titles: Some(titles.into_iter().map(slot).collect()),
+        });
+    Ok(Some(OutgoingPacket {
+        category: crate::protocol::inventory::Kind::TitleList.category(),
+        body: crate::protocol::inventory::encode(
+            crate::protocol::inventory::Kind::TitleList,
+            Some(&message),
+            DEFAULT_MAX_BODY,
+        )
+        .map_err(|_| fail())?
+        .to_vec(),
+    }))
+}

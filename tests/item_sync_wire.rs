@@ -378,6 +378,31 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 );
             }
         }
+        Some(Message::TitleList(list)) => {
+            for (got, key) in [(&list.account, "AccountTitles"), (&list.titles, "Titles")] {
+                let expected = f[key].as_array();
+                assert_eq!(
+                    got.as_ref().map(Vec::len),
+                    expected.map(Vec::len),
+                    "case {n}"
+                );
+                for (v, e) in got.iter().flatten().zip(expected.into_iter().flatten()) {
+                    assert_eq!(v.is_none(), e.is_null(), "case {n}");
+                    if let Some(v) = v {
+                        assert_eq!(
+                            i64::from(v.title_id),
+                            e["TitleID"].as_i64().unwrap(),
+                            "case {n}"
+                        );
+                        assert_eq!(
+                            i64::from(v.status),
+                            e["Status"]["value__"].as_i64().unwrap(),
+                            "case {n}"
+                        );
+                    }
+                }
+            }
+        }
         Some(Message::HideCostume(h)) => {
             assert_eq!(Some(h.hide_head), f["HideHead"].as_bool(), "case {n}");
             assert_eq!(
@@ -649,12 +674,13 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::QuestProgress,
         Kind::UpdateTitle,
         Kind::HideCostume,
+        Kind::TitleList,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1404);
+        assert_eq!(cases.len(), 1416);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -693,6 +719,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "update_title" => check_inventory(Kind::UpdateTitle, case, n),
                 "set_story_line_status" => check_inventory(Kind::SetStoryLineStatus, case, n),
                 "hide_costume" => check_inventory(Kind::HideCostume, case, n),
+                "title_list" => check_inventory(Kind::TitleList, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

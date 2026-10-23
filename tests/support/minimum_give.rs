@@ -2856,5 +2856,32 @@ async fn minimum_combat_events_proceed_title_goals_and_acquire_the_title() {
             .unwrap()
             .is_empty()
     );
+    // Relogin: InGame's TitleListMessage (after UpdateStat) carries the acquired title.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    let selected =
+        minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    let categories: Vec<i32> = selected.packets.iter().map(|p| p.category).collect();
+    let at = categories.iter().position(|c| *c == 610).unwrap();
+    assert_eq!(categories[at - 1], 619);
+    let Some(vindictus_server::protocol::inventory::Message::TitleList(list)) =
+        vindictus_server::protocol::inventory::decode(
+            vindictus_server::protocol::inventory::Kind::TitleList,
+            &selected.packets[at].body,
+            DEFAULT_MAX_BODY,
+        )
+        .unwrap()
+    else {
+        panic!("title list missing")
+    };
+    let titles: Vec<(i32, i32)> = list
+        .titles
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .map(|t| (t.title_id, t.status))
+        .collect();
+    assert!(titles.contains(&(410017, 2)), "{titles:?}");
     cleanup_game_pool(a, p, s).await;
 }

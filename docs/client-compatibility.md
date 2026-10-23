@@ -49,6 +49,23 @@ A cópia de laboratório é idêntica ao 1.69 EN nesses arquivos. O Windictus 20
 
 O `start.bat` do 1.69 EN e da cópia inicia com `-stage -dev` (modo desenvolvedor da engine Source). Isso é hipótese, ainda não testada, para o wireframe visto em props do Inn: o servidor não envia nada de renderização.
 
+## Bancos de conteúdo de referência
+
+Caminhos informados pelo operador em 23/10/2026 (todos somente leitura, relativos a `D:\PROJETOS\VindictusPrivate`). SHA-256 truncado em 12 dígitos.
+
+| Nome | Caminho | Conteúdo | TitleGoalInfo |
+|---|---|---|---|
+| Client1 | `Client` | cliente (mesmos binários do 1.69 EN) | — |
+| DB1 | `Client\sql\heroes.db3` | banco do cliente, `205ebffb85bd` | 482 metas, todas TargetCount 1 |
+| DB2 | `ServidorVindictus\database\*.bak` | backups SQL Server (heroes, HeroesExcept, heroesLog, heroesMarketPlace, heroesRank, heroesShare), restaurados como `study_*` | — (dados de jogo; não têm tabelas de conteúdo) |
+| Client2 | `Vindictus1.69EN\Vindictus EU\en-EU` | cliente 1.69 EN, origem de `.cache/play-client` | `sql\heroes.db3` igual ao DB1 |
+| DB3 | `Vindictus1.69EN\mod db` | `heroes.db3` (`205ebffb85bd`, igual ao DB1) e `heroesContents.db3` (`fe0cf8bcef27`, igual ao do servidor) | todas TargetCount 1 |
+| DB4 | `TutorialRagezone\TannakaBins + Server & Client DB\Server and Client DB (Unused)` | `client\sql\heroes.db3` (`c22ec7fe22f9`), `server\heroesContents.db3` (`f371faf5e7b7`) e `hfs\286FE9924483F382029EF68BA6C260B3C2563BF9.hfs` (banco dentro de HFS) | 440 de 482 com TargetCount > 1 |
+| DB5 | `TutorialRagezone\DB` | `client\sql\heroes.db3` (`c22ec7fe22f9`, igual ao DB4), `server\heroesContents.db3` (`5d367666fd00`), `server\Free Beauty Shop for EU\heroesContents.db3` (`7d85486d6b50`) e `DB in hfs\286FE9924483F382029EF68BA6C260B3C2563BF9.hfs` | 440 de 482 com TargetCount > 1 |
+| servidor | `ServidorVindictus\Server\zh-tw-x-gm\Bin\heroesContents.db3` | conteúdo usado pelos exportadores deste projeto, `fe0cf8bcef27` | todas TargetCount 1 |
+
+Achado de 23/10/2026: o conteúdo do servidor, o banco do cliente 1.69 EN e o `mod db` têm as 482 metas de título com TargetCount 1 (conteúdo modificado). Os bancos do TutorialRagezone (DB4 e DB5) têm as contagens originais: aranha com chute 50, chute 25, agarrão 10/100/300/1000. A única diferença em `TitleGoalInfo` entre o servidor e o DB5 são 440 valores de TargetCount; IDs, títulos, Target, IsPositive, IsParty e todo o `TitleInfo` são iguais. Os dados de jogo herdados (`study_heroes`) batem com as contagens originais: progresso 51 sem aquisição nas metas de 100/300/1000, e progresso até 8 na meta de 50 com só 2 de 49 personagens com o título.
+
 ## Endereço IP do servidor: bootstrap recuperado
 
 A inspeção estática recuperou dois endereços distintos. Em `sql/heroes.db3`, a linha `FeatureMatrix.EndPoints` da coluna `EN-EU-X-GM` aponta para `http://192.168.0.200/en-EU-x-GM/EndPoint.txt`. Esse é o servidor HTTP que publica a lista. No disco VMDK do pacote, o arquivo `xampp/htdocs/en-eu-x-gm/EndPoint.txt` contém o endereço de jogo `192.168.50.227:27015` dentro da árvore KeyValues `Address / Vindictus Test / IP`. São valores antigos e inconsistentes entre si; ambos precisam ser ajustados para o laboratório.

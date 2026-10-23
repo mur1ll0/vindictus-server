@@ -97,6 +97,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 Kind::InventoryInfo => Message::InventoryInfo(inventory(v)),
                 Kind::UpdateInventoryInfo
                 | Kind::HideCostume
+                | Kind::TitleList
                 | Kind::ItemFail
                 | Kind::MoveInventoryItem
                 | Kind::EquipBundle
