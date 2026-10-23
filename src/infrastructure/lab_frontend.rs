@@ -58,6 +58,11 @@ use zeroize::Zeroizing;
 
 pub const MAX_CONNECTIONS: usize = 8;
 pub const ADMISSION_TIMEOUT: Duration = Duration::from_secs(30);
+/// Bound on a connection that has not finished login and the second password. The
+/// original Initial state has no timeout, and the client connects as soon as its login
+/// screen opens (it needs the NGM_disable feature sync), so the player's typing time
+/// counts here; 30 s disconnected slow logins. The laboratory keeps a finite bound.
+pub const LOGIN_WAIT: Duration = Duration::from_secs(600);
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const FAILURE_DISCONNECT: Duration = Duration::from_secs(5);
 #[derive(Debug, Error)]
@@ -380,7 +385,7 @@ impl Connection {
             revision: None,
             peer,
             close_at: None,
-            login_deadline: tokio::time::Instant::now() + ADMISSION_TIMEOUT,
+            login_deadline: tokio::time::Instant::now() + LOGIN_WAIT,
             ignored_messages: 0,
             selected: None,
             mission: None,
