@@ -971,3 +971,8 @@ Wireframe no Inn, Ergs de pote nomeado e skill SP Sprinkle (23/10/2026).
 - Testes: `--test mission_content` (14, novo `named_props_break_into_named_drop_table_ergs`), `--test skill_features` (novo), `inventory_features`, `skill_list`, `mission_wire`; Python dos exportadores de NPC (com as tabelas de prop nomeado), skills e catálogo; PostgreSQL de missão e skill (31 aprovados); clippy `-D warnings`, fmt. Containers recompilados (game/server healthy; o primeiro rebuild sem os pares medidos falhou com "invalid private minimum creation assets" e foi revertido antes da correção).
 - Cliente: entradas novas no B1.5a (Sprinkle) e no B2 (pote nomeado).
 - Próxima ação: confirmar no cliente o skill SP e os Ergs do pote; `AbilityBonus` de props quando houver habilidades de drop.
+
+AbilityBonus adiado para o Combine Craft (23/10/2026, decisão do operador).
+- `PropDropTable.AbilityBonus` e `NamedPropDropTable.AbilityBonus` dependem de `MicroPlayer.AbilityList`, que o original monta com os atributos `PS_<n>` de equipamento de Combine Craft (`Gear.ToAbilityInfo`). O inventário migrado recusa itens com atributos, então nenhum personagem tem habilidade e o bônus seria sempre vazio. A `SystemMessage` do anúncio também não está migrada. Conteúdo: `AbilityClassInfo` com 282 linhas (81 de Event 2/NamedProp, nenhuma de Event 1/Prop).
+- Registrado como item 5 do B3 em `docs/playable-game-roadmap.md`, para portar junto com o Combine Craft e os atributos de item. Cliente: não necessário.
+

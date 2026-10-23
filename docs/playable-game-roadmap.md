@@ -96,6 +96,7 @@ Depende de fases, drops e chefes do B2.
 2. **Enhance (ferreiro):** níveis de melhoria, chances de sucesso e falha, quebra e restauração de itens, itens que aumentam a chance e itens que impedem a quebra.
 3. **Enchant:** scrolls de prefixo e sufixo, chances, falha e destruição conforme o original, e itens de proteção.
 4. **Complementos:** armazenamento pessoal, expansão de slots, reparo completo e SkillEnhance.
+5. **Combine Craft e habilidades de item:** atributos `PS_<n>` das peças de Combine Craft (`Gear.ToAbilityInfo` → `MicroPlayer.AbilityList`) e, junto com eles, o `AbilityBonus` dos drops de prop (`PropDropTable.AbilityBonus`) e de prop nomeado (`NamedPropDropTable.AbilityBonus`, 81 habilidades `AbilityClassInfo` com Event 2): chance `Arg2`%, título `Arg3`, `TargetQuestGroupID`, regra de fadiga/desistência e o anúncio `SystemMessage` "GameUI_Heroes_ItemAbility_Enable_Announce". Pendente desde 23/10/2026, porque o inventário ainda recusa itens com atributos e nenhum personagem tem habilidade.
 
 Gate B3: fabricar, melhorar e encantar com sucesso e com falha (inclusive quebra e restauração), consumindo recursos uma única vez, e relogar com os resultados.
 
