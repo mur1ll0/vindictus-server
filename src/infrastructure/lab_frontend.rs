@@ -1167,11 +1167,75 @@ impl Connection {
             _ => return Ok(()),
         };
         let mut packets = packets;
-        packets.extend(Self::mission_after(&mut self.mission, runtime, pool, &owner).await?);
+        let journal = self.selected.as_ref().map_or(0, |s| s.log_journal);
+        packets
+            .extend(Self::mission_after(&mut self.mission, runtime, pool, &owner, journal).await?);
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
         }
         Ok(())
+    }
+    /// TitleGoalTracker → InformMicroplayEvent → Titles.Proceed for the queued informer
+    /// events of a non-practice game, event by event.
+    async fn mission_titles(
+        state: &mut super::minimum_mission::Mission,
+        runtime: &Runtime,
+        pool: &PgPool,
+        owner: &super::character_lobby::UserKey<'_>,
+        journal: i64,
+    ) -> Result<Vec<crate::domain::map_partition::OutgoingPacket>, RuntimeError> {
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets;
+        // TitleGoalTracker → InformMicroplayEvent → Titles.Proceed, event by event.
+        if state.title_events.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut packets = Vec::new();
+        {
+            let cid = state.completion.cid;
+            if state.title_goals.is_none() {
+                match super::minimum_growth::tracking_goals(pool, assets, cid).await {
+                    Ok(goals) => state.title_goals = Some(goals),
+                    Err(_) => tracing::warn!("mission title tracker not loaded; values omitted"),
+                }
+            }
+            let events = std::mem::take(&mut state.title_events);
+            if let Some(goals) = state.title_goals.as_ref() {
+                let growth = super::minimum_growth::GrowthContext {
+                    clock: runtime.quest_clock(),
+                    arithmetic: runtime.stat_arithmetic(),
+                    config: runtime.minimum_header()?,
+                    journal,
+                };
+                for (actor, event) in &events {
+                    match super::minimum_growth::proceed_titles(
+                        pool,
+                        owner,
+                        assets,
+                        cid,
+                        goals,
+                        event,
+                        *actor == cid,
+                        &state.quest,
+                        growth,
+                    )
+                    .await
+                    {
+                        Ok(more) => {
+                            if !more.is_empty() {
+                                tracing::info!("mission title goals proceeded; values omitted");
+                            }
+                            packets.extend(more);
+                        }
+                        Err(_) => tracing::warn!("mission title goal not applied; values omitted"),
+                    }
+                }
+            }
+        }
+        Ok(packets)
     }
     /// After each mission message: the informer events through the goal tracker and a
     /// requested quest play count update.
@@ -1180,6 +1244,7 @@ impl Connection {
         runtime: &Runtime,
         pool: &PgPool,
         owner: &super::character_lobby::UserKey<'_>,
+        journal: i64,
     ) -> Result<Vec<crate::domain::map_partition::OutgoingPacket>, RuntimeError> {
         let Some(state) = mission.as_mut() else {
             return Ok(Vec::new());
@@ -1194,8 +1259,10 @@ impl Connection {
             policy: assets.npc_policy().ok_or(RuntimeError::Profile)?,
             clock: runtime.quest_clock(),
         };
-        let packets = super::minimum_mission_finish::drain(state, ctx, std::time::Instant::now())
-            .map_err(|_| RuntimeError::Operation)?;
+        let mut packets =
+            super::minimum_mission_finish::drain(state, ctx, std::time::Instant::now())
+                .map_err(|_| RuntimeError::Operation)?;
+        packets.extend(Self::mission_titles(state, runtime, pool, owner, journal).await?);
         if super::minimum_mission_finish::update_play_count(state, pool, owner, assets)
             .await
             .is_err()
@@ -1270,6 +1337,8 @@ impl Connection {
         )
         .await
         .map_err(|_| RuntimeError::Operation)?;
+        let mut packets = packets;
+        packets.extend(Self::mission_titles(state, runtime, pool, &owner, journal).await?);
         // GiveReward_Null → Leave: the proxy left the party with the MicroPlay.
         if state.completion.left
             && let Some(m) = self.mission.take()

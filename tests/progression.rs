@@ -1,7 +1,8 @@
 use vindictus_server::domain::{
     feature_policy::FeaturePolicy,
     progression::{
-        AcquiredTitle, GivenTitle, Growth, NoticedTitle, Progression, ProgressionTables, STAT_NAMES,
+        AcquiredTitle, GivenTitle, Growth, NoticedTitle, Proceeded, Progression, ProgressionTables,
+        STAT_NAMES,
     },
 };
 
@@ -56,6 +57,7 @@ fn tables() -> ProgressionTables {
             (410021, 1, true),
             (410022, 1, false),
         ],
+        title_goal_targets: Vec::new(),
     }
 }
 
@@ -210,4 +212,78 @@ fn title_stats_add_own_and_shared_account_titles_like_get_title_stats() {
     let mut bad = tables();
     bad.title_stats.push((410017, Some("SPEED".to_owned()), 1));
     assert!(Progression::load(bad, &policy("90")).is_err());
+}
+
+#[test]
+fn title_goals_track_match_and_proceed_like_the_title_manager() {
+    let mut t = tables();
+    // 410017: goals 1 (kick a spider, 1) and 2 (any gnoll, 2, party); 410018 (HideUntil
+    // 5): goal 3 (kick anything, 10).
+    t.title_goal_targets = vec![
+        (
+            1,
+            Some("kill npc_spider [a-z_]* [a-z0-9_]*kick[a-z0-9_]*".to_owned()),
+            1,
+            false,
+        ),
+        (2, Some("KILL NPC_GNOLL".to_owned()), 2, true),
+        (3, Some("kill.+kick".to_owned()), 10, false),
+    ];
+    let p = Progression::load(t, &policy("90")).unwrap();
+    let owned = [(410017, false), (410018, false), (410019, true)];
+    // GetTrackingGoalID: unacquired owned titles, progress not -1 (no row is 0).
+    assert_eq!(p.tracking_goals(&owned, &[(2, -1)]), [1, 3]);
+    let tracked = p.tracking_goals(&owned, &[]);
+    assert_eq!(tracked, [1, 2, 3]);
+    // IgnoreCase regex; a non-party goal needs the event's own actor.
+    let kick = "kill npc_spider normal player_kick_01";
+    assert_eq!(p.matching_goals(&tracked, kick, true), [1, 3]);
+    assert_eq!(p.matching_goals(&tracked, kick, false), Vec::<i32>::new());
+    assert_eq!(
+        p.matching_goals(&tracked, "kill npc_gnoll chief x", false),
+        [2]
+    );
+    // Hidden 410018 (HideUntil 5) counts without a slot until the progress reveals it;
+    // UpdateTitleCount off.
+    assert_eq!(
+        p.proceed(3, &owned, &[(3, 3)], 1, false),
+        Some(Proceeded {
+            title: 410018,
+            goal: 3,
+            progress: 4,
+            completed: false,
+            acquired: false,
+            slot: None
+        })
+    );
+    // Reaching HideUntil discovers it (Known).
+    assert_eq!(
+        p.proceed(3, &owned, &[(3, 4)], 1, false).unwrap().slot,
+        Some((1, vec![(3, 5)]))
+    );
+    // A visible title reports every count only with UpdateTitleCount.
+    assert_eq!(
+        p.proceed(3, &owned, &[(3, 5)], 1, false).unwrap().slot,
+        None
+    );
+    assert_eq!(
+        p.proceed(3, &owned, &[(3, 5)], 1, true).unwrap().slot,
+        Some((1, vec![(3, 6)]))
+    );
+    // Completing goal 1 with goal 2 open: completed (-1), not yet acquirable.
+    let first = p.proceed(1, &owned, &[], 1, true).unwrap();
+    assert_eq!(
+        (first.progress, first.completed, first.acquired),
+        (-1, true, false)
+    );
+    assert_eq!(first.slot, Some((1, vec![(1, -1), (2, 0)])));
+    // The last goal acquires the title: every goal reports -1.
+    let last = p.proceed(2, &owned, &[(1, -1), (2, 1)], 1, false).unwrap();
+    assert!(last.acquired);
+    assert_eq!(last.slot, Some((2, vec![(1, -1), (2, -1)])));
+    // Completed goals, acquired, unowned or unknown titles change nothing.
+    assert_eq!(p.proceed(1, &owned, &[(1, -1)], 1, true), None);
+    assert_eq!(p.proceed(1, &[(410017, true)], &[], 1, true), None);
+    assert_eq!(p.proceed(1, &[], &[], 1, true), None);
+    assert_eq!(p.proceed(99, &owned, &[], 1, true), None);
 }

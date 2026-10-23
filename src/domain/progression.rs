@@ -31,6 +31,9 @@ pub struct ProgressionTables {
     /// TitleInfo: ID, RequiredLevel, AllowShare (account titles of GetTitleStats).
     #[serde(default)]
     pub title_sharing: Vec<(i32, i32, bool)>,
+    /// TitleGoalInfo: ID, Target, TargetCount, IsParty (TitleGoalTracker and Proceed).
+    #[serde(default)]
+    pub title_goal_targets: Vec<(i32, Option<String>, i32, bool)>,
 }
 /// Base stat columns in CharacterInfo order (the only TitleStatInfo stats the exported
 /// content uses).
@@ -82,6 +85,29 @@ pub struct AcquiredTitle {
     pub goals: Vec<i32>,
 }
 
+/// TitleGoalInfo read by TitleGoalTracker and TitleManager.Proceed.
+#[derive(Clone, Debug)]
+struct GoalTarget {
+    title: i32,
+    /// new Regex(Target, IgnoreCase); None when the pattern does not compile here.
+    regex: Option<regex::Regex>,
+    count: i32,
+    party: bool,
+}
+
+/// TitleManager.Proceed of one goal: the goal's new progress (-1 when completed), whether
+/// the title became acquired, and the TitleSlotInfo to push (None: nothing to push).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Proceeded {
+    pub title: i32,
+    pub goal: i32,
+    pub progress: i32,
+    pub completed: bool,
+    pub acquired: bool,
+    /// TitleState (1 Known, 2 Acquired) and the goal progress list of the slot.
+    pub slot: Option<(i32, Vec<(i32, i32)>)>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Progression {
     /// characterClassInfo (Identifier 1): STR, DEX, INT, WILL, HP, STAMINA per level.
@@ -95,6 +121,8 @@ pub struct Progression {
     /// FeatureMatrix.GetInteger("AccountTitleStatRatio"); None when the profile has no
     /// title stats (older exports), so title stats are not computed from it.
     account_title_ratio: Option<i32>,
+    /// titleGoalInfo by goal ID (empty for exports without targets).
+    goal_targets: BTreeMap<i32, GoalTarget>,
 }
 
 /// GiveExp result: the stored Exp/Level and CharacterEntity.LevelUpExp.
@@ -227,12 +255,36 @@ impl Progression {
                     .map_err(|_| ProgressionError::Feature)?,
             )
         };
+        let mut goal_targets = BTreeMap::new();
+        for (goal, target, count, party) in &tables.title_goal_targets {
+            let title = tables
+                .title_goals
+                .iter()
+                .find(|(g, _)| g == goal)
+                .map(|(_, t)| *t)
+                .ok_or(ProgressionError::Content)?;
+            let regex = regex::RegexBuilder::new(target.as_deref().unwrap_or(""))
+                .case_insensitive(true)
+                .size_limit(1 << 20)
+                .build()
+                .ok();
+            goal_targets.insert(
+                *goal,
+                GoalTarget {
+                    title,
+                    regex,
+                    count: *count,
+                    party: *party,
+                },
+            );
+        }
         Ok(Self {
             class_stats,
             level_exp,
             max_level,
             titles,
             account_title_ratio,
+            goal_targets,
         })
     }
     /// TitleManager.GetTitleStats for the base stat columns: the TitleStatInfo stats of
@@ -417,6 +469,104 @@ impl Progression {
             new: false,
             goals: revealed(&stored),
         }))
+    }
+    /// TitleManager.GetTrackingGoalID: the goals of the owned, unacquired titles whose
+    /// feature is enabled and whose progress is not -1 (a goal without a row is 0), in
+    /// owned-title then TitleInfo goal order.
+    pub fn tracking_goals(&self, owned: &[(i32, bool)], progress: &[(i32, i32)]) -> Vec<i32> {
+        let stored = |g: i32| progress.iter().find(|(id, _)| *id == g).map_or(0, |p| p.1);
+        let mut goals = Vec::new();
+        for (id, acquired) in owned {
+            if *acquired {
+                continue;
+            }
+            if let Some(t) = self.titles.iter().find(|t| t.id == *id && t.enabled) {
+                goals.extend(t.goals.iter().copied().filter(|g| stored(*g) != -1));
+            }
+        }
+        goals
+    }
+    /// TitleGoalTracker.Match then the IsParty filter of InformToOtherService: the
+    /// tracked goals whose Target matches the event, for the event's actor (`own`) or,
+    /// for party goals, any actor.
+    pub fn matching_goals(&self, tracked: &[i32], event: &str, own: bool) -> Vec<i32> {
+        tracked
+            .iter()
+            .copied()
+            .filter(|g| {
+                self.goal_targets.get(g).is_some_and(|t| {
+                    (t.party || own) && t.regex.as_ref().is_some_and(|r| r.is_match(event))
+                })
+            })
+            .collect()
+    }
+    /// TitleManager.Proceed(goalID, where, count) against the character's titles and
+    /// goal progress (rows; a missing row is 0). `update_count` is
+    /// FeatureMatrix.IsEnable("UpdateTitleCount"). None when the source returns before
+    /// changing anything.
+    pub fn proceed(
+        &self,
+        goal: i32,
+        owned: &[(i32, bool)],
+        progress: &[(i32, i32)],
+        count: i32,
+        update_count: bool,
+    ) -> Option<Proceeded> {
+        let target = self.goal_targets.get(&goal)?;
+        // GetTitle(TitleID): a title the character owns; its TitleInfo feature enabled.
+        let (_, acquired) = owned.iter().find(|(id, _)| *id == target.title)?;
+        let t = self.titles.iter().find(|t| t.id == target.title)?;
+        if !t.enabled || *acquired {
+            return None;
+        }
+        let stored = |g: i32| progress.iter().find(|(id, _)| *id == g).map_or(0, |p| p.1);
+        let before = stored(goal);
+        if before == -1 {
+            return None;
+        }
+        let target_count = |g: i32| self.goal_targets.get(&g).map_or(0, |t| t.count);
+        // Title.IsVisible over the title's goal progress list.
+        let visible = |value: &dyn Fn(i32) -> i32| {
+            if t.goals.is_empty() {
+                return true;
+            }
+            let mut num = 0_i32;
+            for g in &t.goals {
+                if t.hide_until <= num {
+                    return true;
+                }
+                let p = value(*g);
+                num = num.wrapping_add(if p == -1 { target_count(*g) } else { p });
+            }
+            t.hide_until <= num
+        };
+        let was_visible = visible(&stored);
+        let mut progress_now = before.wrapping_add(count);
+        let completed = progress_now >= target.count;
+        if completed {
+            progress_now = -1;
+        }
+        let after = |g: i32| if g == goal { progress_now } else { stored(g) };
+        let list: Vec<(i32, i32)> = t.goals.iter().map(|g| (*g, after(*g))).collect();
+        let mut out = Proceeded {
+            title: t.id,
+            goal,
+            progress: progress_now,
+            completed,
+            acquired: false,
+            slot: None,
+        };
+        // Title.IsAcquirable: every goal of the title completed.
+        if t.goals.iter().all(|g| after(*g) == -1) {
+            out.acquired = true;
+            out.slot = Some((2, t.goals.iter().map(|g| (*g, -1)).collect()));
+            return Some(out);
+        }
+        let is_visible = visible(&after);
+        if (!was_visible && is_visible) || (is_visible && update_count) {
+            out.slot = Some((1, list));
+        }
+        Some(out)
     }
     /// TitleManager.AcquireTitle(titleID) for an owned title (`Some(acquired)`) or not:
     /// `None` when nothing changes (unknown, feature-disabled, class-restricted or

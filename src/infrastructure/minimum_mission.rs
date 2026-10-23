@@ -498,6 +498,11 @@ pub struct Mission {
     /// Informer events for the goal trackers, in order: actor CID (−1 none, 0 the
     /// play) and event ("kill <type> <action>", ...).
     pub events: Vec<(i64, String)>,
+    /// MicroPlay.TitleTracker goals of the player (QueryPlayerInfo.TitleGoalIDs), taken
+    /// before the first informer event; None until then.
+    pub title_goals: Option<Vec<i32>>,
+    /// Informer events of a non-practice game waiting for the title tracker.
+    pub title_events: Vec<(i64, String)>,
     /// SectorSequence.BossKilledList.
     pub boss_killed: Vec<String>,
     /// MicroPlayer.Luck (Stats LUCK; no platinum, bless stone or dormant bonus).
@@ -719,6 +724,8 @@ pub async fn accept_quest(
         monster_kill_exp: 0,
         alive: true,
         events: Vec::new(),
+        title_goals: None,
+        title_events: Vec::new(),
         boss_killed: Vec::new(),
         luck: 0,
         consumables: Vec::new(),

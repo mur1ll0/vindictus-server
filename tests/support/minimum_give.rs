@@ -571,7 +571,7 @@ fn npc_profile_taking(
     }
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":400,"RewardAp":3,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
-    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"AccountTitleStatRatio","value":"80"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"},{"key":"StatRatio","value":"1"}],
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"AccountTitleStatRatio","value":"80"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"},{"key":"StatRatio","value":"1"},{"key":"UpdateTitleCount","value":"1"}],
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
     "repair":{"enhance":[[0,0]],"quality":[[2,6]],"enchant":[[0,0,0]],"equip_class":[["SWORD",2]],"equip_item_class":["sword"]},
@@ -580,7 +580,7 @@ fn npc_profile_taking(
         "difficulties":[["quest_gnoll_watchman",2,1,null],["quest_gnoll_shadowfang",2,1,null]],"periods":[]},
     "progression":{"class_stats":[[1,27,44,14,23,1020,130,null],[2,34,48,20,27,1048,130,null],[3,42,52,26,31,1075,130,null]],
         "level_exp":[[1,350,null],[2,1148,null],[3,1855,null]],
-        "titles":[[410017,1,2047,0,null],[410018,2,2047,5,null],[410019,9,2047,0,null]],"title_goals":[[1,410017],[2,410017]],
+        "titles":[[410017,1,2047,0,null],[410018,2,2047,5,null],[410019,9,2047,0,null]],"title_goals":[[1,410017],[2,410017]],"title_goal_targets":[[1,"kill npc_spider [a-z_]* [a-z0-9_]*kick[a-z0-9_]*",1,false],[2,"kill npc_gnoll",1,true]],
         "title_stats":[[410018,"STR",3],[410018,"HP",10]],"title_sharing":[[410017,1,false],[410018,1,false],[410019,9,false]]},
     "mission":{"quests":[["quest_gnoll_watchman",1,30,3,6,false,null,5,0,null,null,4,false,false,null],["quest_gnoll_shadowfang",2,30,3,6,false,null,null,0,null,null,4,false,true,null]],
         "goals":[["quest_gnoll_watchman",10010,0,"kill npc_gnoll watchman",null,null]],
@@ -2760,5 +2760,101 @@ async fn minimum_story_take_item_destroys_a_bag_equippable_in_destroy_order() {
     talk().await.unwrap();
     assert_eq!(exists(copy).await, (0, 0));
     assert_eq!(exists(equipped).await, (1, 1));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_combat_events_proceed_title_goals_and_acquire_the_title() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_growth, minimum_selection},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    // 410017 owned and unacquired (as GiveTitleByLevelUp inserts it): goals tracked.
+    sqlx::query("INSERT INTO game_titles(cid,title_id,acquired) VALUES(1,410017,false)")
+        .execute(&p)
+        .await
+        .unwrap();
+    let tracked = minimum_growth::tracking_goals(&p, &assets, 1)
+        .await
+        .unwrap();
+    assert_eq!(tracked, [1, 2]);
+    let proceed = |event: &'static str, own: bool| {
+        minimum_growth::proceed_titles(
+            &p,
+            &owner,
+            &assets,
+            1,
+            &tracked,
+            event,
+            own,
+            "quest_gnoll_watchman",
+            growth(),
+        )
+    };
+    let progress = || async {
+        sqlx::query_as::<_, (i32, i32)>(
+            "SELECT title_goal_id,progress FROM game_title_goal_progress WHERE cid=1 ORDER BY 1",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    // Another actor's kick does not count for the non-party goal.
+    assert!(
+        proceed("kill npc_spider normal player_kick_01", false)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(progress().await.is_empty());
+    // The player's kick completes goal 1 (-1); UpdateTitleCount pushes the Known slot.
+    let packets = proceed("kill npc_spider normal player_kick_01", true)
+        .await
+        .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [191, 609]
+    );
+    assert_eq!(progress().await, [(1, -1)]);
+    // The party goal accepts any actor: the title is acquired, its progress cleared,
+    // with TitleChanged's UpdateStat first.
+    let packets = proceed("kill npc_gnoll chief player_attack", false)
+        .await
+        .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [619, 191, 609]
+    );
+    assert!(progress().await.is_empty());
+    let (acquired, quest): (bool, Option<Vec<u8>>) = sqlx::query_as(
+        "SELECT acquired,acquired_quest_utf16 FROM game_titles WHERE cid=1 AND title_id=410017",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert!(acquired);
+    assert_eq!(quest, Some(utf16("quest_gnoll_watchman")));
+    // An acquired title proceeds no more.
+    assert!(
+        proceed("kill npc_spider normal player_kick_01", true)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     cleanup_game_pool(a, p, s).await;
 }

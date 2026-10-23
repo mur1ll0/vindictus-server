@@ -109,4 +109,5 @@ Pré-condição: dentro do navio ou do dungeon com a quest aceita.
 - [ ] Fechar o cliente no meio do dungeon e entrar de novo → personagem na cidade, sem recompensa da missão interrompida e sem erro no servidor (log "laboratory frontend connection closed").
 Limites conhecidos: reentrar na missão (CombatRejoinSystem) e o envio por correio de itens reservados de quem saiu não estão migrados.
 - [ ] (23/10) Numa fase com pote grande guardado por whisps (prop nomeado `stage*_common/rare/ultra_rare`), quebrar o pote → caem Ergs/itens da tabela do prop (2 a N conforme `NamedPropDropAmountInfo`; cura INSTANT aplicada na hora), que podem ser pegos e entram no inventário. No log: "mission erg picked".
+- [ ] (23/10) Títulos por ação: numa fase com aranhas, matar uma aranha com chute → aparece o aviso de título descoberto/progresso (ex.: título de chutar aranhas) na janela de títulos; agarrar monstros com E (Neck Grabber) e repetir até a meta → o título é adquirido, o status recebe o bônus dele e, ao relogar, continua adquirido. No log: "mission title goals proceeded". No modo prática nada conta.
 

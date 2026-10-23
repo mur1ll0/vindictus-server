@@ -263,6 +263,11 @@ pub fn drain(
     while !mission.events.is_empty() {
         let events = std::mem::take(&mut mission.events);
         for (actor, event) in events {
+            // InformToOtherService: the title tracker after the target tracker, except
+            // in practice mode.
+            if !mission.option.is_practice_mode {
+                mission.title_events.push((actor, event.clone()));
+            }
             let Some(tracker) = mission.completion.tracker.as_mut() else {
                 continue;
             };

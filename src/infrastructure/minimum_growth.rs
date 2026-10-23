@@ -295,6 +295,8 @@ pub(super) async fn calculate_base_stat(
 /// CharacterTitleEvent.OpenTitle, GiveTitle and AcquireTitle.
 const OPEN_TITLE: i32 = 1;
 const GIVE_TITLE: i32 = 2;
+const UPDATE_TITLE: i32 = 5;
+const COMPLETE_GOAL: i32 = 6;
 const ACQUIRE_TITLE: i32 = 7;
 
 /// CharacterEntity.AddTitleLog(event, titleID, 0, 0) in the day's partition.
@@ -303,6 +305,17 @@ async fn title_log(
     journal: i64,
     event: i32,
     title: i32,
+) -> Result<(), MinimumError> {
+    title_log_value(tx, journal, event, title, 0, 0).await
+}
+/// CharacterEntity.AddTitleLog(event, titleID, goalID, value) in the day's partition.
+async fn title_log_value(
+    tx: &mut Transaction<'_, Postgres>,
+    journal: i64,
+    event: i32,
+    title: i32,
+    goal: i32,
+    value: i32,
 ) -> Result<(), MinimumError> {
     use crate::domain::character_ledger::{LedgerPartition, partition};
     let units: i64 = sqlx::query_scalar(
@@ -314,16 +327,18 @@ async fn title_log(
         crate::domain::legacy_user_data::SqlDateTime::from_units300(units).map_err(|_| fail())?;
     let q = match partition(now) {
         LedgerPartition::One => {
-            "INSERT INTO game_character_title_log01(journal_id,event,title_id,goal_id,value) VALUES($1,$3,$2,0,0)"
+            "INSERT INTO game_character_title_log01(journal_id,event,title_id,goal_id,value) VALUES($1,$3,$2,$4,$5)"
         }
         LedgerPartition::Two => {
-            "INSERT INTO game_character_title_log02(journal_id,event,title_id,goal_id,value) VALUES($1,$3,$2,0,0)"
+            "INSERT INTO game_character_title_log02(journal_id,event,title_id,goal_id,value) VALUES($1,$3,$2,$4,$5)"
         }
     };
     sqlx::query(q)
         .bind(journal)
         .bind(title)
         .bind(event)
+        .bind(goal)
+        .bind(value)
         .execute(&mut **tx)
         .await?;
     Ok(())
@@ -507,4 +522,182 @@ pub(super) async fn acquire_title(
         expire_date_time: -1,
     };
     title_changed(tx, owner, assets, cid, ctx, slot).await
+}
+
+/// QueryPlayerInfo.TitleGoalIDs (Titles.GetTrackingGoalID) for MicroPlay.RegisterTitleTracker.
+pub async fn tracking_goals(
+    pool: &sqlx::PgPool,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Vec<i32>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let progression = npc.progression.as_ref().ok_or_else(fail)?;
+    let mut tx = pool.begin().await?;
+    let (owned, progress) = title_state(&mut tx, cid).await?;
+    tx.commit().await?;
+    Ok(progression.tracking_goals(&owned, &progress))
+}
+
+/// The character's titles (TitleID, Acquired) and goal progress rows.
+async fn title_state(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<(Vec<(i32, bool)>, Vec<(i32, i32)>), MinimumError> {
+    let owned: Vec<(i32, bool)> = sqlx::query_as(
+        "SELECT title_id,acquired FROM game_titles WHERE cid=$1 ORDER BY title_id LIMIT 65537 FOR UPDATE",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    let progress: Vec<(i32, i32)> = sqlx::query_as(
+        "SELECT title_goal_id,progress FROM game_title_goal_progress WHERE cid=$1 LIMIT 4097 FOR UPDATE",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    if owned.len() > 65536 || progress.len() > 4096 {
+        return Err(fail());
+    }
+    Ok((owned, progress))
+}
+
+/// InformMicroplayEventProcessor for one informer event: Titles.Proceed for each tracked
+/// goal it matches (in tracker order, with the source's per-goal SubmitChanges), then
+/// Stats.TitleChanged when a title was acquired and PushTitleUpdate (UpdateTitle,
+/// CharacterCommonInfo) when any slot is reported. Rank basis is not migrated.
+#[allow(clippy::too_many_arguments)]
+pub async fn proceed_titles(
+    pool: &sqlx::PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    tracked: &[i32],
+    event: &str,
+    own: bool,
+    quest: &str,
+    ctx: GrowthContext,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let progression = npc.progression.as_ref().ok_or_else(fail)?;
+    let goals = progression.matching_goals(tracked, event, own);
+    if goals.is_empty() {
+        return Ok(Vec::new());
+    }
+    // MicroPlayInformer passes the item count for "get item <class> <count>", else 1.
+    let count = event
+        .strip_prefix("get item ")
+        .and_then(|rest| rest.rsplit(' ').next())
+        .and_then(|n| n.parse::<i32>().ok())
+        .unwrap_or(1);
+    let update_count = npc
+        .policy
+        .is_enabled(Some("UpdateTitleCount"))
+        .map_err(|_| fail())?;
+    let quest_key: Vec<u8> = quest.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let mut tx = pool.begin().await?;
+    let (mut owned, mut progress) = title_state(&mut tx, cid).await?;
+    let mut slots = Vec::new();
+    let mut acquired_any = false;
+    for goal in goals {
+        let Some(p) = progression.proceed(goal, &owned, &progress, count, update_count) else {
+            continue;
+        };
+        title_log_value(&mut tx, ctx.journal, UPDATE_TITLE, p.title, goal, count).await?;
+        if p.completed {
+            title_log_value(&mut tx, ctx.journal, COMPLETE_GOAL, p.title, goal, -1).await?;
+        }
+        // TitleGoalProgress.InsertIntoDatabase (from 0) or UpdateToDatabase.
+        sqlx::query("INSERT INTO game_title_goal_progress(cid,title_goal_id,progress) VALUES($1,$2,$3) ON CONFLICT(cid,title_goal_id) DO UPDATE SET progress=EXCLUDED.progress")
+            .bind(cid)
+            .bind(goal)
+            .bind(p.progress)
+            .execute(&mut *tx)
+            .await?;
+        match progress.iter_mut().find(|(g, _)| *g == goal) {
+            Some(row) => row.1 = p.progress,
+            None => progress.push((goal, p.progress)),
+        }
+        let mut time_stamp = 0;
+        let mut quest_id = String::new();
+        if p.acquired {
+            // Acquired, AcquiredQuest = where, AcquiredTime = UtcNow; ClearTitleProgress.
+            let units: i64 = sqlx::query_scalar(
+                "UPDATE game_titles SET acquired=true,acquired_quest_utf16=$3,acquired_time_units300=floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT WHERE cid=$1 AND title_id=$2 RETURNING acquired_time_units300",
+            )
+            .bind(cid)
+            .bind(p.title)
+            .bind(&quest_key)
+            .fetch_one(&mut *tx)
+            .await?;
+            let title_goals: Vec<i32> = p
+                .slot
+                .as_ref()
+                .map(|(_, list)| list.iter().map(|(g, _)| *g).collect())
+                .unwrap_or_default();
+            sqlx::query(
+                "DELETE FROM game_title_goal_progress WHERE cid=$1 AND title_goal_id=ANY($2)",
+            )
+            .bind(cid)
+            .bind(&title_goals)
+            .execute(&mut *tx)
+            .await?;
+            progress.retain(|(g, _)| !title_goals.contains(g));
+            if let Some(t) = owned.iter_mut().find(|(id, _)| *id == p.title) {
+                t.1 = true;
+            }
+            title_log_value(&mut tx, ctx.journal, ACQUIRE_TITLE, p.title, goal, -1).await?;
+            time_stamp = crate::domain::legacy_user_data::SqlDateTime::from_units300(units)
+                .and_then(|t| t.framework_date_time())
+                .map_err(|_| fail())?
+                .ticks();
+            quest_id = quest.to_owned();
+            acquired_any = true;
+        }
+        if let Some((status, list)) = p.slot {
+            slots.push(Some(crate::protocol::inventory::TitleSlot {
+                title_id: p.title,
+                status,
+                time_stamp,
+                quest_id: Some(quest_id),
+                goal_progress: Some(list),
+                is_expireable: false,
+                expire_date_time: -1,
+            }));
+        }
+    }
+    let mut packets = Vec::new();
+    if !slots.is_empty() {
+        if acquired_any {
+            // Stats.TitleChanged: CalculateBaseStat, CalculateFinalStat, PushUpdateStat.
+            calculate_base_stat(&mut tx, assets, cid).await?;
+        }
+        let view = super::minimum_selection::view(
+            &mut tx,
+            owner,
+            assets,
+            cid,
+            ctx.config,
+            ctx.arithmetic,
+            false,
+            0,
+        )
+        .await?;
+        if acquired_any {
+            packets.push(view.stat);
+        }
+        let update = crate::protocol::inventory::Message::UpdateTitle(Some(slots));
+        packets.push(OutgoingPacket {
+            category: crate::protocol::inventory::Kind::UpdateTitle.category(),
+            body: crate::protocol::inventory::encode(
+                crate::protocol::inventory::Kind::UpdateTitle,
+                Some(&update),
+                DEFAULT_MAX_BODY,
+            )
+            .map_err(|_| fail())?
+            .to_vec(),
+        });
+        packets.push(view.common);
+    }
+    tx.commit().await?;
+    Ok(packets)
 }
