@@ -996,6 +996,7 @@ impl Connection {
                     state,
                     contents,
                     broken.prop,
+                    broken.entity_name.as_deref(),
                     broken.attacker,
                     &mut mission::OsMissionRandom,
                 )

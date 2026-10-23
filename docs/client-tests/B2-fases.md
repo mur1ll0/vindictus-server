@@ -108,3 +108,5 @@ Pré-condição: dentro do navio ou do dungeon com a quest aceita.
 - [ ] Desistir depois de derrotar o chefe, durante a cena de sucesso → recompensa de sucesso normal.
 - [ ] Fechar o cliente no meio do dungeon e entrar de novo → personagem na cidade, sem recompensa da missão interrompida e sem erro no servidor (log "laboratory frontend connection closed").
 Limites conhecidos: reentrar na missão (CombatRejoinSystem) e o envio por correio de itens reservados de quem saiu não estão migrados.
+- [ ] (23/10) Numa fase com pote grande guardado por whisps (prop nomeado `stage*_common/rare/ultra_rare`), quebrar o pote → caem Ergs/itens da tabela do prop (2 a N conforme `NamedPropDropAmountInfo`; cura INSTANT aplicada na hora), que podem ser pegos e entram no inventário. No log: "mission erg picked".
+

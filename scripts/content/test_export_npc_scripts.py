@@ -28,7 +28,8 @@ class NpcScriptExportTests(unittest.TestCase):
                              "CREATE TABLE TowerModuleSectorInfo(QuestID TEXT,SectorID INT);"
                              "CREATE TABLE Entity(ID INT,SectorID INT);INSERT INTO Entity VALUES(300,7),(301,8),(302,7);"
                              "CREATE TABLE EntityAttribute(EntityID INT,Name TEXT,Value TEXT);INSERT INTO EntityAttribute VALUES(302,'classname','npc_template_maker'),(300,'classname','trigger_once'),(302,'Feature','entity_flag'),(301,'classname','x');"
-                             "CREATE TABLE NamedPropItemInfo(EntityName TEXT);INSERT INTO NamedPropItemInfo VALUES('barrel'),('barrel');"
+                             "CREATE TABLE NamedPropItemInfo(EntityName TEXT,Difficulty INTEGER,Class TEXT,Type TEXT,Probability INTEGER,Feature TEXT);INSERT INTO NamedPropItemInfo VALUES('barrel',1,'server','erg',300,NULL),('barrel',1,'instant','hp 50',100,'np_feature');"
+                             "CREATE TABLE NamedPropDropAmountInfo(EntityName TEXT,minDrop INTEGER,maxDrop INTEGER);INSERT INTO NamedPropDropAmountInfo VALUES('barrel',2,3);"
                              "CREATE TABLE QuestSettingsInfo(RowID INT,ConditionID INT,Key TEXT,Value TEXT);INSERT INTO QuestSettingsInfo VALUES(1,NULL,'TutorStamp','Basic');"
                              "CREATE TABLE QuestSettingsConditionInfo(RowID INT,ConditionID INT,Condition TEXT,Value TEXT);"
                              "CREATE TABLE MonsterInfo(Identifier INT,Class TEXT,Variation TEXT,Difficulty INT,Exp INT,HP1 INT,HP_Normal_Percent INT);INSERT INTO MonsterInfo VALUES(7,'npc_gnoll','normal',-1,30,500,100);"
@@ -68,6 +69,10 @@ class NpcScriptExportTests(unittest.TestCase):
         # Only entities of the quest sectors, in Entity order with attribute order.
         self.assertEqual(m['entities'], [[7, [['classname', 'trigger_once']]], [7, [['classname', 'npc_template_maker'], ['Feature', 'entity_flag']]]])
         self.assertEqual((m['named_props'], m['tower_quests'], m['settings']), (['barrel'], [], [[1, None, 'TutorStamp', 'Basic']]))
+        # NamedPropDropTable rows in provider order; candidate features join the subset.
+        self.assertEqual(m['named_prop_items'], [['barrel', 1, 'server', 'erg', 300, None], ['barrel', 1, 'instant', 'hp 50', 100, 'np_feature']])
+        self.assertEqual(m['named_prop_amounts'], [['barrel', 2, 3]])
+        self.assertIn('np_feature', {f['key'] for f in p['features']})
         self.assertEqual(m['monsters'], [[7, 'npc_gnoll', 'normal', -1, 30, 500, 100]])
         self.assertEqual(m['monster_drops'], [[7, None, 1, 'synthetic[PREFIX:x]', 5000, False, True, False, 'drop_flag']])
         self.assertEqual(m['effects'], [['phoenix_feather', 'PlayerRevived', 'TargetDead', 1, ['ReviveByClient 50', None, None, 'GetStatusByClient 1 x', None]]])

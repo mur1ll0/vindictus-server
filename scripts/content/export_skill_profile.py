@@ -1,6 +1,8 @@
 """Readonly, source-bound skill rank/constraint metadata for an explicit skill subset."""
 import argparse, contextlib, json, pathlib, sqlite3
 from export_item_catalog import read_package as catalog_read, digest
+from export_npc_scripts import region_features
+from export_reward_policy import feature_atoms
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / 'src/domain/skill_list_sources.json'
@@ -51,11 +53,20 @@ def read_package(database, config, selected):
         raise ValueError('Selected skill missing from source tables')
     if any(r['feature'] is not None and not isinstance(r['feature'], str) for r in ranks):
         raise ValueError('Skill feature type')
+    # The catalog's feature subset omits skill features: export their region values.
+    atoms = set()
+    for r in ranks: atoms |= feature_atoms(r['feature'] or '')
+    if len(atoms) > 256 or any(not k.isascii() or not k or len(k) > 256 for k in atoms): raise ValueError('Skill feature subset bound')
+    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+        values = region_features(db, config)
+    features = [dict(key=k, value=values.get(k)) for k in sorted(atoms)]
+    if any(f['value'] is not None and (not isinstance(f['value'], str) or len(f['value']) > 256) for f in features):
+        raise ValueError('Skill feature value bound')
     if digest(database) != package['manifest']['database_sha256'] or digest(config) != package['manifest']['config_sha256']:
         raise ValueError('Skill source changed during export')
     return dict(format_version=4, source='heroesContents.skill-ranks', database_sha256=package['manifest']['database_sha256'],
                 config_sha256=package['manifest']['config_sha256'], implementations={k:r['sha256'] for k,r in sources.items()},
-                skills=skills, ranks=ranks, constraints=constraints, arguments=arguments)
+                skills=skills, ranks=ranks, constraints=constraints, arguments=arguments, features=features)
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--skills-file',required=True);args=parser.parse_args()

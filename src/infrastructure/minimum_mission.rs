@@ -1163,16 +1163,19 @@ pub fn sector_props(
         .map_err(|_| fail())
 }
 
-/// PropBrokenProcessor → Prop.BreakProp: the "destroyprop <group>" event and the
-/// DropErg announcement to the host.
+/// PropBrokenProcessor: Prop.BreakProp ("prop<BrokenProp>") then NamedProp.BreakNamedProp
+/// (EntityName), each with its "destroyprop"/"destroynamedprop" event and its DropErg
+/// announcement to the host.
 pub fn prop_broken(
     mission: &mut Mission,
     contents: &MissionContents,
     prop: i32,
+    entity_name: Option<&str>,
     attacker: i32,
     random: &mut dyn MissionRandom,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let practice = mission.option.is_practice_mode;
+    let difficulty = mission.option.difficulty;
     let slot = mission.member.slot;
     let Some(sequence) = mission.sequence.as_mut() else {
         return Ok(Vec::new());
@@ -1186,18 +1189,53 @@ pub fn prop_broken(
             .and_then(|s| s.props.iter().find(|p| p.id == prop))
             .and_then(|p| p.group.clone())
     });
-    let Some(ergs) = contents.break_prop(&mission.quest, sequence, prop, slot, practice, random)
-    else {
-        return Ok(Vec::new());
-    };
-    if let Some(group) = group
-        && attacker == slot
+    let mut packets = Vec::new();
+    if let Some(ergs) = contents.break_prop(&mission.quest, sequence, prop, slot, practice, random)
     {
-        mission
-            .events
-            .push((mission.completion.cid, format!("destroyprop {group}")));
+        if let Some(group) = group
+            && attacker == slot
+        {
+            mission
+                .events
+                .push((mission.completion.cid, format!("destroyprop {group}")));
+        }
+        packets.push(drop_erg(prop, ergs)?);
     }
-    Ok(vec![packet(&Message::DropErg(DropErg {
+    let Some(name) = entity_name else {
+        return Ok(packets);
+    };
+    let Some(sequence) = mission.sequence.as_mut() else {
+        return Ok(packets);
+    };
+    // The DropTable of the named prop (its map name before the uniqueness suffix).
+    let drop_table = sequence.current.and_then(|g| {
+        sequence
+            .sectors
+            .iter()
+            .find(|s| s.group_id == g)
+            .and_then(|s| s.objects.iter().find(|(t, _)| *t == "NamedProp"))
+            .and_then(|(_, list)| list.iter().find(|(k, _)| k.as_deref() == Some(name)))
+            .and_then(|(_, o)| match o {
+                domain::SectorObject::NamedProp { drop_table, .. } => Some(drop_table.clone()),
+                _ => None,
+            })
+    });
+    if let Some(ergs) = contents.break_named_prop(sequence, name, slot, difficulty, random) {
+        if let Some(table) = drop_table
+            && attacker == slot
+        {
+            mission
+                .events
+                .push((mission.completion.cid, format!("destroynamedprop {table}")));
+        }
+        packets.push(drop_erg(prop, ergs)?);
+    }
+    Ok(packets)
+}
+
+/// DropErgMessage(BrokenProp, ergs) for the host.
+fn drop_erg(prop: i32, ergs: Vec<domain::ErgDrop>) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::DropErg(DropErg {
         broken_prop: prop,
         monster_entity_name: None,
         ergs: Some(
@@ -1213,7 +1251,7 @@ pub fn prop_broken(
                 })
                 .collect(),
         ),
-    }))?])
+    }))
 }
 
 /// PickErgProcessor → Erg.PickErg: the picked erg, to give (GiveItemReward with

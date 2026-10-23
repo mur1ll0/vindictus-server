@@ -222,6 +222,8 @@ fn tables() -> MissionTables {
             ),
         ],
         named_props: vec!["barrel".to_owned()],
+        named_prop_items: Vec::new(),
+        named_prop_amounts: Vec::new(),
         settings: vec![(1, Some(1008), s("Tower"), s(""))],
         setting_conditions: vec![(1008, s("QuestPrefix"), s("quest_tower"))],
         monsters: vec![
@@ -1205,4 +1207,67 @@ fn story_sectors_keep_their_entity_strings() {
     // Story entities follow the sequence builders' entities.
     let last = contents.entities().last().unwrap();
     assert_eq!(last.get("origin"), Some("1 2 3"));
+}
+
+#[test]
+fn named_props_break_into_named_drop_table_ergs() {
+    let mut t = tables();
+    // NamedPropItemInfo of "barrel" difficulty 1: an INSTANT heal, a server erg and a
+    // disabled-feature row that neither weighs nor drops; 2..=3 ergs per break.
+    t.named_prop_items = vec![
+        (s("barrel"), 1, s("instant"), s("hp 50"), 100, None),
+        (s("barrel"), 1, s("server"), s("erg_crystal"), 300, None),
+        (s("barrel"), 1, s("server"), s("off_item"), 500, s("Off")),
+    ];
+    t.named_prop_amounts = vec![(s("barrel"), 2, 3)];
+    let contents = MissionContents::load(t, &policy()).unwrap();
+    let digest = contents.digest("quest_a", -1).unwrap();
+    let mut sequence = contents
+        .sector_sequence(
+            &digest,
+            1,
+            false,
+            false,
+            &mut Script {
+                next: [50, 0].into(),
+                ..Script::default()
+            },
+        )
+        .unwrap();
+    assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
+    // Count 3 (Random.Next(2, 4)); rolls 50 (heal), 150 and 399 (server erg, total 400).
+    let mut random = Script {
+        range: [3, 50, 150, 399].into(),
+        ..Script::default()
+    };
+    // Difficulty 99 uses the difficulty 1 table; the unique "barrel_" keeps "barrel".
+    let ergs = contents
+        .break_named_prop(&mut sequence, "barrel_", 0, 99, &mut random)
+        .unwrap();
+    assert_eq!(
+        ergs.iter()
+            .map(|e| (e.class.as_str(), e.kind.as_str(), e.amount, e.winner))
+            .collect::<Vec<_>>(),
+        [
+            ("INSTANT", "HP", 50, -1),
+            ("SERVER", "erg_crystal", 1, 0),
+            ("SERVER", "erg_crystal", 1, 0)
+        ]
+    );
+    // Only the server ergs become pickable sector ergs, with consecutive IDs.
+    let picked: Vec<i32> = sequence.sectors[0].ergs.iter().map(|e| e.id).collect();
+    assert_eq!(picked.len(), 2);
+    assert_eq!(picked[1], picked[0] + 1);
+    assert_eq!(ergs[1].id, picked[0]);
+    // The prop left the sector; an unknown name is not a named prop.
+    assert!(
+        contents
+            .break_named_prop(&mut sequence, "barrel_", 0, 1, &mut Script::default())
+            .is_none()
+    );
+    assert!(
+        contents
+            .break_named_prop(&mut sequence, "crate", 0, 1, &mut Script::default())
+            .is_none()
+    );
 }

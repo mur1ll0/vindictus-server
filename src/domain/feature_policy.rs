@@ -67,6 +67,7 @@ impl FeaturePolicy {
             include_str!("feature_inventory_version_pairs.json"),
             include_str!("feature_appearance_version_pairs.json"),
             include_str!("feature_npc_version_pairs.json"),
+            include_str!("feature_skill_version_pairs.json"),
         ] {
             let extra: Vec<VersionPair> =
                 serde_json::from_str(encoded).map_err(|_| Error::FeatureVersionUnsupported)?;

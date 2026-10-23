@@ -75,6 +75,24 @@ pub type PropItemRow = (
     i32,
     Option<String>,
 );
+/// NamedPropItemInfo: EntityName, Difficulty, Class, Type, Probability, Feature.
+pub type NamedPropItemRow = (
+    Option<String>,
+    i32,
+    Option<String>,
+    Option<String>,
+    i64,
+    Option<String>,
+);
+/// NamedPropDropTableElement of one (EntityName, Difficulty): the feature-enabled
+/// candidates (Class, Type, (int)Probability), their TotalWeight and the drop amounts.
+#[derive(Clone, Debug, Default)]
+struct NamedPropTable {
+    candidates: Vec<(String, String, i32)>,
+    total: i32,
+    min: i32,
+    max: i32,
+}
 /// An Entity of a quest sector with its EntityAttribute pairs.
 pub type EntityRow = (i32, Vec<(Option<String>, Option<String>)>);
 /// QuestSettingsInfo: RowID, ConditionID, Key, Value.
@@ -92,6 +110,12 @@ pub struct MissionTables {
     pub entities: Vec<EntityRow>,
     /// NamedPropItemInfo entity names (NamedPropDropTable keys).
     pub named_props: Vec<String>,
+    /// NamedPropItemInfo: EntityName, Difficulty, Class, Type, Probability, Feature.
+    #[serde(default)]
+    pub named_prop_items: Vec<NamedPropItemRow>,
+    /// NamedPropDropAmountInfo: EntityName, minDrop, maxDrop.
+    #[serde(default)]
+    pub named_prop_amounts: Vec<(Option<String>, i64, i64)>,
     /// QuestSettingsInfo: RowID, ConditionID, Key, Value.
     pub settings: Vec<SettingRow>,
     /// QuestSettingsConditionInfo: ConditionID, Condition, Value.
@@ -346,6 +370,8 @@ pub enum SectorObject {
     NamedProp {
         entity: usize,
         name: String,
+        /// The map entity name (NamedPropDropTable key) before "_" made it unique.
+        drop_table: String,
     },
     Gathering {
         entity: usize,
@@ -458,7 +484,7 @@ impl SectorObject {
                     named(*entity, name.as_deref())
                 }
             }
-            Self::NamedProp { entity, name } => {
+            Self::NamedProp { entity, name, .. } => {
                 if practice {
                     None
                 } else {
@@ -709,6 +735,8 @@ pub struct MissionContents {
     prop_tables: BTreeMap<String, Option<String>>,
     material_groups: BTreeMap<i32, Option<String>>,
     prop_drops: BTreeMap<String, Vec<PropGroup>>,
+    /// NamedPropDropTable.DropTables: (EntityName, Difficulty) -> element.
+    named_drops: BTreeMap<(String, i32), NamedPropTable>,
     /// effectInfoDic: EffectSource → MicroPlayEffectElements in provider order.
     effects: BTreeMap<String, Vec<EffectElement>>,
     /// FeatureMatrix: LuckyBonus, RareCoreEffectRarity, bossevilcore_bonus.
@@ -988,6 +1016,31 @@ impl MissionContents {
                 None => groups.push((group, (vec![row], 0))),
             }
         }
+        let mut named_drops: BTreeMap<(String, i32), NamedPropTable> = BTreeMap::new();
+        for (entity, difficulty, class, kind, probability, feature) in t.named_prop_items {
+            let table = named_drops
+                .entry((entity.unwrap_or_default(), difficulty))
+                .or_default();
+            // CalculateTotalWeight and PickErg only see enabled candidates.
+            if enabled(feature.as_deref())? {
+                let weight = probability as i32;
+                table.total = table.total.wrapping_add(weight);
+                table.candidates.push((
+                    class.unwrap_or_default(),
+                    kind.unwrap_or_default(),
+                    weight,
+                ));
+            }
+        }
+        for (entity, min, max) in t.named_prop_amounts {
+            let entity = entity.unwrap_or_default();
+            for ((name, _), table) in named_drops.iter_mut() {
+                if *name == entity {
+                    table.min = min as i32;
+                    table.max = max as i32;
+                }
+            }
+        }
         for (table, group, expectation) in t.prop_expectations {
             if let Some((_, (_, e))) =
                 prop_drops
@@ -1071,6 +1124,7 @@ impl MissionContents {
             prop_tables,
             material_groups,
             prop_drops,
+            named_drops,
             effects,
             lucky_bonus,
             rare_core_rarity,
@@ -1889,6 +1943,62 @@ impl MissionContents {
         Some(list)
     }
 
+    /// PropBrokenProcessor → NamedProp.BreakNamedProp for the solo player: the named
+    /// prop leaves the sector and NamedPropDropTable.PickErg(DropTable, difficulty) rolls
+    /// Random.Next(min, max + 1) ergs; non-INSTANT ones become ergs to pick. Returns the
+    /// DropErg contents, or None when the sector has no such named prop.
+    pub fn break_named_prop(
+        &self,
+        sequence: &mut SectorSequence,
+        entity_name: &str,
+        slot: i32,
+        difficulty: i32,
+        random: &mut dyn MissionRandom,
+    ) -> Option<Vec<ErgDrop>> {
+        let group = sequence.current?;
+        let sector = sequence.sectors.iter_mut().find(|s| s.group_id == group)?;
+        let (_, list) = sector.objects.iter_mut().find(|(t, _)| *t == "NamedProp")?;
+        let index = list
+            .iter()
+            .position(|(key, _)| key.as_deref() == Some(entity_name))?;
+        let (_, object) = list.remove(index);
+        let SectorObject::NamedProp { drop_table, .. } = object else {
+            return None;
+        };
+        let difficulty = if difficulty == 99 { 1 } else { difficulty };
+        let mut ergs = Vec::new();
+        if let Some(table) = self.named_drops.get(&(drop_table, difficulty)) {
+            let count = random.next_range(table.min, table.max.wrapping_add(1));
+            // The source keeps the last picked erg across iterations: a roll that matches
+            // no candidate yields the previous erg again.
+            let mut erg: Option<ErgDrop> = None;
+            for _ in 0..count {
+                let mut dice = random.next_range(0, table.total);
+                for (class, kind, weight) in &table.candidates {
+                    dice = dice.wrapping_sub(*weight);
+                    if dice < 0 {
+                        erg = Some(named_erg(class, kind));
+                        break;
+                    }
+                }
+                if let Some(e) = &erg {
+                    ergs.push(e.clone());
+                }
+            }
+        }
+        for erg in &mut ergs {
+            if erg.class == "INSTANT" {
+                continue;
+            }
+            // Winner -1: PickRandomRewardingPlayer (the solo player).
+            erg.winner = slot;
+            erg.id = sector.next_erg_id;
+            sector.next_erg_id += 1;
+            sector.ergs.push(erg.clone());
+        }
+        Some(ergs)
+    }
+
     /// PickErgProcessor → Erg.PickErg: the erg of the winner is removed and returned.
     pub fn pick_erg(
         &self,
@@ -2391,6 +2501,7 @@ fn initialize_entity(
         sector.objects.push(SectorObject::NamedProp {
             entity: index,
             name: unique_name,
+            drop_table: n.clone(),
         });
     } else {
         sector.entity_string.push_str(&e.entity_string());
@@ -2699,6 +2810,33 @@ fn shuffle(list: &mut [i32], n: usize, random: &mut dyn MissionRandom) {
 }
 
 /// MicroPlayContentsExtension.ToErgInfo(PropItemWeightInfo).
+/// MicroPlayContentsExtension.ToErgInfo(NamedPropItemInfo): "INSTANT" with "HP <n>"
+/// heals; anything else is a SERVER erg of the Type.
+fn named_erg(class: &str, kind: &str) -> ErgDrop {
+    if class.to_uppercase() == "INSTANT" {
+        let parts: Vec<&str> = kind.split([' ', '\t']).collect();
+        if parts.first().is_some_and(|p| p.to_uppercase() == "HP")
+            && parts.len() >= 2
+            && let Ok(amount) = parts[1].parse::<i32>()
+        {
+            return ErgDrop {
+                id: 0,
+                class: "INSTANT".to_owned(),
+                kind: "HP".to_owned(),
+                amount,
+                winner: -1,
+            };
+        }
+    }
+    ErgDrop {
+        id: 0,
+        class: "SERVER".to_owned(),
+        kind: kind.to_owned(),
+        amount: 1,
+        winner: -1,
+    }
+}
+
 fn to_erg(row: &PropItemRow) -> ErgDrop {
     let kind = row.3.as_deref().unwrap_or("").to_uppercase();
     let item = row.4.clone().unwrap_or_default();

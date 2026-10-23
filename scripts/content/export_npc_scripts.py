@@ -213,6 +213,11 @@ def read_package(base, database, config):
             seen.add((ids[e], e))
             if e in attributes: mission['entities'].append([ids[e], attributes[e]])
         mission['named_props'] = sorted({nullable_text(r['EntityName']) or '' for r in db.execute('Select * From [NamedPropItemInfo]')})
+        # NamedPropDropTable: NamedPropItemInfo candidates and NamedPropDropAmountInfo, provider order.
+        mission['named_prop_items'] = [[nullable_text(r['EntityName']), int32(r['Difficulty']), nullable_text(r['Class']), nullable_text(r['Type']), int(r['Probability']), nullable_text(r['Feature'])]
+                                       for r in db.execute('Select * From [NamedPropItemInfo]')]
+        mission['named_prop_amounts'] = [[nullable_text(r['EntityName']), int(r['minDrop']), int(r['maxDrop'])]
+                                         for r in db.execute('Select * From [NamedPropDropAmountInfo]')]
         mission['settings'] = [[int32(r['RowID']), nullable_int32(r['ConditionID']), nullable_text(r['Key']), nullable_text(r['Value'])]
                                for r in db.execute('Select * From [QuestSettingsInfo]')]
         mission['setting_conditions'] = [[int32(r['ConditionID']), nullable_text(r['Condition']), nullable_text(r['Value'])]
@@ -281,6 +286,7 @@ def read_package(base, database, config):
     for d in mission['drop_classes']: wanted |= feature_atoms(d[3] or '')
     for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')
+    for d in mission['named_prop_items']: wanted |= feature_atoms(d[5] or '')
     for g in mission['sector_groups']: wanted |= feature_atoms(g[6] or '')
     for _, attrs in mission['entities']:
         for name, value in attrs:

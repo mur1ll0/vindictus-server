@@ -2300,7 +2300,8 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     minimum_mission::sector_props(&mut mission, contents, &[(40, 4)], &mut OsMissionRandom)
         .unwrap();
     let dropped =
-        minimum_mission::prop_broken(&mut mission, contents, 40, 0, &mut OsMissionRandom).unwrap();
+        minimum_mission::prop_broken(&mut mission, contents, 40, None, 0, &mut OsMissionRandom)
+            .unwrap();
     let Some(MissionMessage::DropErg(drop)) =
         mission_wire::decode(MissionKind::DropErg, &dropped[0].body, 1 << 20).unwrap()
     else {

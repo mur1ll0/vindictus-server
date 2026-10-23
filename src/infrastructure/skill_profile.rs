@@ -62,6 +62,16 @@ pub struct Profile {
     ranks: Vec<Rank>,
     constraints: Vec<Constraint>,
     arguments: Vec<Argument>,
+    /// FeatureMatrix values of the atoms in SkillRankInfo.Feature, from the same region
+    /// column as the catalog; the catalog subset does not carry skill features.
+    #[serde(default)]
+    features: Vec<Feature>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Feature {
+    key: String,
+    value: Option<String>,
 }
 
 fn fail() -> MinimumError {
@@ -170,9 +180,31 @@ impl Profile {
         {
             return Err(fail());
         }
+        // The catalog policy plus the skill features; a key both carry must agree.
+        let mut rows: BTreeMap<String, Option<String>> = catalog
+            .policy
+            .entries()
+            .map(|(k, v)| (k.to_owned(), Some(v.to_owned())))
+            .collect();
+        for f in &self.features {
+            let value = f.value.clone().unwrap_or_default();
+            match rows.get(&f.key) {
+                Some(existing) if existing.as_deref().unwrap_or("") != value => {
+                    return Err(fail());
+                }
+                Some(_) => {}
+                None => {
+                    rows.insert(f.key.clone(), Some(value));
+                }
+            }
+        }
+        let policy =
+            crate::domain::feature_policy::FeaturePolicy::npc_source(rows).map_err(|_| fail())?;
         let mut out = self.contents_unbound()?;
         for r in &self.ranks {
-            let feature_enabled = catalog.policy.is_enabled(r.feature.as_deref())?;
+            let feature_enabled = policy
+                .is_enabled(r.feature.as_deref())
+                .map_err(|_| fail())?;
             // ToDoubleDictionary keeps the last duplicate (SkillID, Rank).
             out.entry(text(&r.skill_utf16)?).or_default().ranks.insert(
                 r.rank,
