@@ -213,6 +213,11 @@ pub async fn learn(
             return Err(fail());
         }
         let meditation = learned.completed && skills[index].id == MEDITATION;
+        let stats = if learned.completed {
+            stat_before(&mut tx, owner, assets, cid, skill_id, arithmetic).await?
+        } else {
+            None
+        };
         sqlx::query("UPDATE game_skills SET rank=$2,locked=$3,current_ap=$4 WHERE row_id=$1")
             .bind(row_ids[index])
             .bind(learned.rank)
@@ -227,6 +232,7 @@ pub async fn learn(
             .execute(&mut *tx)
             .await?;
         let list = packet(&mut tx, owner, assets, cid, level, class).await?;
+        let stat_packets = stat_after(&mut tx, owner, assets, cid, stats, arithmetic).await?;
         let ap_packet = super::minimum_ap::packet(super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await?)?;
         let mut packets = Vec::new();
         if learned.completed {
@@ -243,6 +249,8 @@ pub async fn learn(
                 category: list.category,
                 body: list.body.clone(),
             });
+            // Stat.OnSkillRankChanged runs after SkillManager's handler.
+            packets.extend(stat_packets);
         }
         // LearnSkillProcessor after SubmitChanges: PushAPMessage, PushSkillList and,
         // for a completed rank, SkillCompletionMessage.
@@ -293,6 +301,7 @@ pub async fn learn_new(
     entity_ids: Vec<i64>,
     log: super::minimum_item_logs::Context,
     character_journal: i64,
+    arithmetic: crate::domain::character_stats::Arithmetic,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     use crate::domain::skill_list::{LEARN_NEW_SUCCEEDED, LearnNewRefusal};
     let flags = log.flags;
@@ -388,6 +397,7 @@ pub async fn learn_new(
             });
             paid = Some((applied, gold, new.price));
         }
+        let stats = stat_before(&mut tx, owner, assets, cid, skill_id, arithmetic).await?;
         // GiveSkill: Skill row with RowID = MakeEntityID, rank 1, RecalculateRequiredAP.
         let key: Vec<u8> = skill_id.encode_utf16().flat_map(u16::to_le_bytes).collect();
         sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,1,$4,0)")
@@ -407,6 +417,8 @@ pub async fn learn_new(
         }
         // SkillRankChanged → OnSkillRankChanged → PushSkillList (before SubmitChanges).
         packets.push(packet(&mut tx, owner, assets, cid, level, class).await?);
+        // Stat.OnSkillRankChanged (item/stat skills) after SkillManager's handler.
+        packets.extend(stat_after(&mut tx, owner, assets, cid, stats, arithmetic).await?);
         packets.push(learn_new_result(LEARN_NEW_SUCCEEDED)?);
         tx.commit().await?;
         Ok((packets, paid, true))
@@ -436,7 +448,7 @@ pub async fn learn_new(
 }
 
 /// SkillEffect.itemSkills and statSkills: their rank change recalculates item/final
-/// stats (StatManager.OnSkillRankChanged), which this profile does not migrate.
+/// stats (StatManager.OnSkillRankChanged → PushUpdateStat).
 const STAT_CHANGING_SKILLS: [&str; 31] = [
     "skill_cloth_mastery",
     "skill_light_armor_mastery",
@@ -471,6 +483,60 @@ const STAT_CHANGING_SKILLS: [&str; 31] = [
     "skill_evy_magic_critical",
 ];
 
+/// FinalStat[INT] and BonusAPTime before an item/stat skill's rank changes; UpdateAP
+/// with the old interval runs here (CalculateBonusAPTime's first step).
+pub(super) struct StatBefore {
+    interval: i32,
+    int: i32,
+}
+pub(super) async fn stat_before(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    skill_id: &str,
+    arithmetic: crate::domain::character_stats::Arithmetic,
+) -> Result<Option<StatBefore>, MinimumError> {
+    if !STAT_CHANGING_SKILLS.contains(&skill_id) {
+        return Ok(None);
+    }
+    let ap = super::minimum_ap::current(tx, owner, assets, cid, arithmetic).await?;
+    let (_, int) =
+        super::minimum_selection::update_stat(tx, owner, assets, cid, arithmetic).await?;
+    Ok(Some(StatBefore {
+        interval: ap.bonus_interval,
+        int,
+    }))
+}
+/// Stat.OnSkillRankChanged after the change: CalculateItemStat/CalculateFinalStat; a
+/// changed INT runs OnIntStatChanged (CalculateBonusAPTime, PushAPMessage) before
+/// PushUpdateStat.
+pub(super) async fn stat_after(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    before: Option<StatBefore>,
+    arithmetic: crate::domain::character_stats::Arithmetic,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let Some(before) = before else {
+        return Ok(Vec::new());
+    };
+    let (stat, int) =
+        super::minimum_selection::update_stat(tx, owner, assets, cid, arithmetic).await?;
+    let mut packets = Vec::new();
+    if int != before.int {
+        if before.interval <= 0 {
+            // BonusAPTime 0: LastAPUpdate restarts at UtcNow.
+            super::minimum_ap::restart_bonus(tx, cid).await?;
+        }
+        let ap = super::minimum_ap::current(tx, owner, assets, cid, arithmetic).await?;
+        packets.push(super::minimum_ap::packet(ap)?);
+    }
+    packets.push(stat);
+    Ok(packets)
+}
+
 /// SkillEffect.IsMeditation (case-sensitive equality).
 const MEDITATION: &str = "skill_meditation";
 
@@ -495,8 +561,8 @@ pub(super) async fn give_story(
     arithmetic: crate::domain::character_stats::Arithmetic,
     ids: &mut (dyn Iterator<Item = i64> + Send),
 ) -> Result<StorySkill, MinimumError> {
-    if STAT_CHANGING_SKILLS.contains(&skill_id) || new.locked == 1 {
-        // Stat recalculation and TryUnlockStory are not migrated.
+    if new.locked == 1 {
+        // TryUnlockStory is not migrated.
         tracing::warn!(
             skill = skill_id,
             "story skill grant outside the migrated profile"
@@ -508,6 +574,7 @@ pub(super) async fn give_story(
             .bind(cid)
             .fetch_one(&mut **tx)
             .await?;
+    let stats = stat_before(tx, owner, assets, cid, skill_id, arithmetic).await?;
     // GiveSkill: Skill row with RowID = MakeEntityID, rank 1, RecalculateRequiredAP.
     let key: Vec<u8> = skill_id.encode_utf16().flat_map(u16::to_le_bytes).collect();
     sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,1,$4,0)")
@@ -535,6 +602,7 @@ pub(super) async fn give_story(
         now.push(super::minimum_ap::packet(ap)?);
     }
     now.push(packet(tx, owner, assets, cid, level, class).await?);
+    now.extend(stat_after(tx, owner, assets, cid, stats, arithmetic).await?);
     if result {
         now.push(learn_new_result(skill_list::LEARN_NEW_SUCCEEDED)?);
     }

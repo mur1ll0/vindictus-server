@@ -222,6 +222,13 @@ async fn skill_assets(p: &sqlx::PgPool, price: i32) -> Assets {
         ranks.push(json!({"source_index":ranks.len(),"skill_utf16":meditation,"rank":r,"level":1,"required_ap":if r < 2 { 0 } else { 120 },"require_unlock":false,"feature":null}));
         arguments.push(json!({"source_index":r,"skill_utf16":meditation,"rank":r,"key_utf16":hex(&utf16("meditation_interval_reduction")),"value":90 * r}));
     }
+    // skill_str_mastery (SkillEffect.statSkills): str_max_bonus 5 per rank.
+    let mastery = hex(&utf16("skill_str_mastery"));
+    skills.push(json!({"source_index":skills.len(),"skill_utf16":mastery,"class_restriction":2047,"use_type":0,"price":-1}));
+    for r in 0..=2 {
+        ranks.push(json!({"source_index":ranks.len(),"skill_utf16":mastery,"rank":r,"level":1,"required_ap":if r < 2 { 0 } else { 30 },"require_unlock":false,"feature":null}));
+        arguments.push(json!({"source_index":arguments.len(),"skill_utf16":mastery,"rank":r,"key_utf16":hex(&utf16("str_max_bonus")),"value":5 * r}));
+    }
     let profile = json!({"format_version":4,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[],"arguments":arguments});
     assets(0)
         .with_equipment(
@@ -312,6 +319,7 @@ async fn minimum_learn_new_skill_pays_gold_once_and_survives_relogin() {
             ids,
             log,
             journal,
+            Arithmetic::FrameworkX64,
         )
     };
     // Not selected: no InGame character.
@@ -517,6 +525,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                             leaf("acquire_title", "410018"),
                             leaf("give_skill", "skill_new_synthetic"),
                             leaf("give_skill", "skill_meditation"),
+                            leaf("give_skill", "skill_str_mastery"),
                             leaf("complete_storyline", ""),
                             leaf("talk", "done")
                         ],
@@ -1728,6 +1737,33 @@ async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin
         .filter(|ap| ap.bonus_interval > 0)
         .collect();
     assert!(!timed.is_empty());
+    // give_skill skill_str_mastery: Stat.OnSkillRankChanged pushes UpdateStat with the
+    // final STR raised by the rank-1 str_max_bonus 5, right after the SkillList.
+    let strengths: Vec<(usize, i32)> = packets
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.category == 619)
+        .filter_map(|(i, p)| {
+            match vindictus_server::protocol::minimum_map::decode(
+                vindictus_server::protocol::minimum_map::Kind::UpdateStat,
+                &p.body,
+                DEFAULT_MAX_BODY,
+            )
+            .unwrap()
+            {
+                Some(vindictus_server::protocol::minimum_map::Message::UpdateStat {
+                    stat: Some(stat),
+                }) => stat.iter().find(|(k, _)| *k == "STR").map(|(_, v)| (i, *v)),
+                _ => None,
+            }
+        })
+        .collect();
+    assert!(
+        strengths
+            .windows(2)
+            .any(|w| w[1].1 - w[0].1 == 5 && packets[w[1].0 - 1].category == 583),
+        "{strengths:?}"
+    );
     assert!(
         timed
             .iter()

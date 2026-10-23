@@ -2167,6 +2167,7 @@ impl Connection {
                             ids,
                             runtime.item_log_context(assets)?,
                             self.selected.as_ref().map_or(0, |s| s.log_journal),
+                            runtime.stat_arithmetic(),
                         )
                         .await
                         {

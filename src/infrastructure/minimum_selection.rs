@@ -264,33 +264,21 @@ pub(super) async fn view_member(
     tx.commit().await?;
     Ok(v.member)
 }
-/// Character state derived from persisted base stats, skills, Gear and costumes.
-/// `project` applies LoadItemCostumes even for an empty Gear (UpdateItemStat path).
-#[allow(clippy::too_many_arguments)]
-pub(super) async fn view(
+/// StatManager after CalculateBaseStat/CalculateItemStat/CalculateFinalStat for the
+/// stored state (skill masteries enter through the skill cache).
+struct Computed {
+    gear: super::minimum_equipment::Loaded,
+    stats: character_stats::FinalResult,
+    dictionary: Vec<(&'static str, i32)>,
+    armor_hp: std::collections::BTreeMap<i32, i32>,
+}
+async fn compute_stats(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     owner: &UserKey<'_>,
     assets: &Assets,
     cid: i64,
-    config: QueryConfig,
     arithmetic: Arithmetic,
-    project: bool,
-    query_id: i64,
-) -> Result<View, MinimumError> {
-    let bytes = super::minimum_character_list::load(
-        tx,
-        owner,
-        &assets.initializer,
-        assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
-        config,
-        assets
-            .initializer
-            .policy()
-            .get_integer("DeleteCharacterDelay")?,
-        || super::lab_clock::utc_now().map_err(|_| MinimumError::Conflict),
-        cid,
-    )
-    .await?;
+) -> Result<Computed, MinimumError> {
     let row = sqlx::query(
         "SELECT dirty,level,str,dex,int,will,luck,hp,stamina FROM game_character_info WHERE id=$1",
     )
@@ -347,6 +335,64 @@ pub(super) async fn view(
         .map_err(|_| MinimumError::Conflict)?;
     let dictionary =
         character_stats::stat_dictionary(&stats.stats, weight, l.medium, l.heavy, l.penalty);
+    Ok(Computed {
+        gear,
+        stats,
+        dictionary,
+        armor_hp,
+    })
+}
+/// StatManager.OnSkillRankChanged/TitleChanged → CalculateFinalStat → PushUpdateStat:
+/// the UpdateStat packet of the stored state and its FinalStat[INT].
+pub(super) async fn update_stat(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    arithmetic: Arithmetic,
+) -> Result<(OutgoingPacket, i32), MinimumError> {
+    let c = compute_stats(tx, owner, assets, cid, arithmetic).await?;
+    let int = c.stats.stats.get(character_stats::Field::Int);
+    Ok((
+        packet(Message::UpdateStat {
+            stat: Some(c.dictionary),
+        })?,
+        int,
+    ))
+}
+/// Character state derived from persisted base stats, skills, Gear and costumes.
+/// `project` applies LoadItemCostumes even for an empty Gear (UpdateItemStat path).
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn view(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+    project: bool,
+    query_id: i64,
+) -> Result<View, MinimumError> {
+    let bytes = super::minimum_character_list::load(
+        tx,
+        owner,
+        &assets.initializer,
+        assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
+        config,
+        assets
+            .initializer
+            .policy()
+            .get_integer("DeleteCharacterDelay")?,
+        || super::lab_clock::utc_now().map_err(|_| MinimumError::Conflict),
+        cid,
+    )
+    .await?;
+    let Computed {
+        gear,
+        stats,
+        dictionary,
+        armor_hp,
+    } = compute_stats(tx, owner, assets, cid, arithmetic).await?;
     let mut summary = character_list::decode(&bytes, DEFAULT_MAX_BODY)
         .map_err(|_| MinimumError::Conflict)?
         .and_then(|m| m.characters)
