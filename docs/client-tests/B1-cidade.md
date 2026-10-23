@@ -90,6 +90,7 @@ Pré-condição: Fiona nível 1 após o login com as histórias automáticas abe
 - [ ] Repetir o diálogo do NPC seguinte indicado pelo guia até a história pedir combate ou missão.
 - [ ] Relogar → fase, guia e itens entregues pela história preservados (o NPC continua no ponto em que parou).
 - [ ] Pegar a missão secundária do Marrec: o diálogo passa da fala "Then I'll tell you a story related to it." (comando `notice_title`), o título aparece na lista de títulos como conhecido e a quest é entregue. No log: "minimum NPC talk processed" (falhava em 22/10 com `Unsupported("notice_title")`).
+- [ ] Seguir a GuidePlay até o Marrec pedir "show this necklace to Kirstie" → o diálogo continua, o colar/`break_lower` aparece na aba História do inventário (não na bolsa) e a fala seguinte do Marrec é exibida; relogar → o item continua na aba História (falhava em 22/10 com `Unsupported("give_item")` para item de Storage 5).
 Limites conhecidos: conclusões de história com recompensa de EXP/AP/título/skill/item (ficam com o XP do B2), `set_timer`/`time_passed` e itens de história com atributo (`[...]`/`_lvl`) não respondem (o diálogo para sem mudar nada); entrega de item sem espaço é recusada inteira (o original manda por correio); recompensa de ouro de história usa GoldRate_Story.
 
 ### B1.5b — registro de quests

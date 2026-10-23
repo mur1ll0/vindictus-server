@@ -195,3 +195,44 @@ fn unique_bundle_and_unsupported_branches_refuse_without_a_plan() {
         Err(GiveError::InvalidRequest)
     );
 }
+
+#[test]
+fn story_items_take_the_first_free_story_slot_like_story_storage() {
+    let necklace = class("break_lower", 5, 1000, 0, false);
+    let other = class("story_letter", 5, 1, 0, false);
+    let items = [
+        held(&other, 7, 1, at(103, 0)),
+        held(&other, 8, 1, at(103, 2)),
+    ];
+    let mut inv = inventory(&items);
+    // Without StoryTabInInventory the storage is Invalid: nothing can hold it.
+    assert_eq!(
+        plan(&inv, &[], &[give(&necklace, 1)]).err(),
+        Some(GiveError::NoEmptySlot)
+    );
+    inv.story_tab = true;
+    let p = plan(&inv, &[], &[give(&necklace, 1)]).unwrap();
+    assert_eq!(p.created[0].location, at(103, 1));
+    // A story item destroyed in the same request still holds its slot (EmptySlots
+    // ignores the destroyed set).
+    let p = plan(
+        &inv,
+        &[Destroy {
+            class: &other,
+            count: 1,
+        }],
+        &[give(&necklace, 1)],
+    )
+    .unwrap();
+    assert_eq!(p.created[0].location, at(103, 1));
+    // A full story tab has no empty slot.
+    let full: Vec<_> = (0..48)
+        .map(|s| held(&other, 100 + i64::from(s), 1, at(103, s)))
+        .collect();
+    let mut inv = inventory(&full);
+    inv.story_tab = true;
+    assert_eq!(
+        plan(&inv, &[], &[give(&necklace, 1)]).err(),
+        Some(GiveError::NoEmptySlot)
+    );
+}

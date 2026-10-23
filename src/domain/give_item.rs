@@ -94,6 +94,9 @@ const ACCOUNT: ItemLocation = ItemLocation {
     slot: -1,
 };
 const BAG_SIZE: i32 = 48;
+/// StoryStorage: ItemLocation.StoryLocation(slot) in collection 103, StoryStorageSize 48.
+pub const STORY_COLLECTION: u8 = 103;
+const STORY_SIZE: i32 = 48;
 const VALID_BAGS: [u8; 9] = [0, 1, 6, 2, 3, 4, 5, 7, 8];
 const MAX_VIRTUAL: usize = 4096;
 
@@ -360,8 +363,7 @@ pub fn plan(
                     }
                     ACCOUNT
                 }
-                Storage::Story => return Err(GiveError::Unsupported),
-                Storage::Cash | Storage::Bag => match free.next() {
+                Storage::Story | Storage::Cash | Storage::Bag => match free.next() {
                     Some(l) => l,
                     None => {
                         left.push((info, count, bound, request));
@@ -424,6 +426,14 @@ fn free_slots(storage: Storage, inventory: &Inventory<'_>, destroyed: &[i64]) ->
             .take(MAX_VIRTUAL)
             .map(|slot| ItemLocation {
                 collection: 100,
+                slot,
+            })
+            .collect(),
+        // StoryStorage.EmptySlots ignores the destroyed items (they still hold the slot).
+        Storage::Story => (0..STORY_SIZE)
+            .filter(|&slot| !occupied(STORY_COLLECTION, slot, true))
+            .map(|slot| ItemLocation {
+                collection: STORY_COLLECTION,
                 slot,
             })
             .collect(),

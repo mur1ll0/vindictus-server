@@ -130,16 +130,23 @@ pub(super) async fn snapshot_with_equipment(
     let stats = &assets.stats_index;
     let mut slots = Vec::with_capacity(rows.len());
     let mut positions = BTreeSet::new();
+    // StorageSetting: collection 103 is the StoryStorage only with StoryTabInInventory.
+    let story_tab = assets
+        .catalog
+        .policy
+        .is_enabled(Some("StoryTabInInventory"))?;
     for row in rows {
         let bag = matches!(row.collection, 0 | 1 | 6);
         // AccountStorage: one item per class at AccountLocation (101, -1).
         let account = row.collection == 101;
+        let story =
+            story_tab && row.collection == i16::from(crate::domain::give_item::STORY_COLLECTION);
         if row.count <= 0
             || row.expire_ticks.is_some()
-            || !(bag || account || row.collection == 100)
+            || !(bag || account || story || row.collection == 100)
             || (account != (row.slot == -1))
             || (!account && row.slot < 0)
-            || (bag && row.slot >= 48)
+            || ((bag || story) && row.slot >= 48)
             || !positions.insert((row.collection, row.slot))
         {
             return Err(MinimumError::Conflict);
@@ -152,6 +159,8 @@ pub(super) async fn snapshot_with_equipment(
                 1
             } else if account {
                 3
+            } else if story {
+                5
             } else {
                 2
             }
