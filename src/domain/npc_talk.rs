@@ -738,13 +738,9 @@ impl<'a> Talker<'a> {
                         .ok_or(TalkError::Halted)?
                         .info
                         .clone();
-                    // Title (AcquireTitle) and skill rewards are not migrated.
-                    if info.reward_title != 0
-                        || info.reward_skill.is_some()
-                        || info
-                            .reward_item
-                            .as_deref()
-                            .is_some_and(|c| c.contains('[') || c.contains("_lvl"))
+                    // Skill rewards (GiveSkill/UnlockSkill) are not migrated.
+                    if info.reward_skill.is_some()
+                        || info.reward_item.as_deref().is_some_and(|c| c.contains('['))
                     {
                         return Err(TalkError::Unsupported("story reward".into()));
                     }
@@ -773,6 +769,14 @@ impl<'a> Talker<'a> {
                             class: item.clone(),
                             count: info.reward_item_count,
                         }));
+                    }
+                    // GiveReward(0, 0, null, {RewardTitle: true}) → AcquireTitle.
+                    if info.reward_title != 0 {
+                        let title = info.reward_title.to_string();
+                        self.add(entity("acquire_title_successful", Some(&title), None));
+                        self.pushed
+                            .outputs
+                            .push(Output::Effect(Effect::AcquireTitle(info.reward_title)));
                     }
                     if info.reward_exp != 0 || info.reward_ap != 0 {
                         let rate = |key: &str| {
@@ -837,7 +841,8 @@ impl<'a> Talker<'a> {
                     self.add(entity("talk", Some(&text), None));
                     return self.resume(k);
                 };
-                if class.contains('[') || class.contains("_lvl") {
+                // An equippable "_lvl" class is refused by the item planner instead.
+                if class.contains('[') {
                     return Err(TalkError::Unsupported("give_item ItemClassEx".into()));
                 }
                 self.pushed.outputs.push(Output::Effect(Effect::GiveItem {

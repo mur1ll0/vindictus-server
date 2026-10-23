@@ -390,6 +390,7 @@ fn story_scripts() -> NpcScripts {
         xml_path: Some("QuestSet01".to_owned()),
         class_restriction: 1023,
         reward_gold: 40,
+        reward_title: 410017,
         ..Default::default()
     };
     scripts_with(vec![(info, Some(&story))])
@@ -498,6 +499,11 @@ fn story_commands_change_phase_tokens_guide_and_items_in_source_order() {
     // RewardGold 40 at GoldRate_Story 150.
     assert!(talk.contains(&t("give_item_successful", "gold", "60")));
     assert!(talk.contains(&t("complete_storyline_successful", "Guide", "")));
+    // RewardTitle: GiveReward(0, 0, null, {410017: true}) acquires the title.
+    assert!(talk.contains(&t("acquire_title_successful", "410017", "")));
+    assert!(outputs.contains(&Output::Effect(
+        vindictus_server::domain::npc_talk::Effect::AcquireTitle(410017)
+    )));
 }
 
 #[test]

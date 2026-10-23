@@ -305,6 +305,22 @@ pub fn plan(
         if g.count < 0 {
             return Err(GiveError::InvalidRequest);
         }
+        // ItemImpl.GiveItem turns an equippable "<class>_lvlN" into <class> with ENHANCE
+        // N*2, an item attribute this storage profile does not carry.
+        if g.class.equippable && {
+            let units: Vec<u16> = g
+                .class
+                .class
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_le_bytes(*c))
+                .collect();
+            let name = String::from_utf16_lossy(&units);
+            name.contains("_lvl") && name.ends_with(|c: char| c.is_ascii_digit())
+        } {
+            return Err(GiveError::Unsupported);
+        }
         index(&mut helpers, g.class, inventory)
             .gives
             .push((g.count, g.bound, request));

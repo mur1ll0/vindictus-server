@@ -236,3 +236,19 @@ fn story_items_take_the_first_free_story_slot_like_story_storage() {
         Some(GiveError::NoEmptySlot)
     );
 }
+
+#[test]
+fn only_equippable_lvl_classes_need_the_enhance_attribute() {
+    // ItemImpl.GiveItem: an equippable "<class>_lvlN" becomes <class> with ENHANCE N*2.
+    let sword = class("long_sword_lvl1", 1, 1, 0, true);
+    let items = [];
+    assert_eq!(
+        plan(&inventory(&items), &[], &[give(&sword, 1)]),
+        Err(GiveError::Unsupported)
+    );
+    // A non-equippable class keeps its name (GuidePlay_5 gives enhance_stone_lvl1).
+    let stone = class("enhance_stone_lvl1", 1, 99, 0, false);
+    let out = plan(&inventory(&items), &[], &[give(&stone, 1)]).unwrap();
+    assert_eq!(out.created.len(), 1);
+    assert_eq!(out.created[0].location, at(0, 0));
+}
