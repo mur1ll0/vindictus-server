@@ -213,7 +213,16 @@ async fn skill_assets(p: &sqlx::PgPool, price: i32) -> Assets {
             ranks.push(json!({"source_index":ranks.len(),"skill_utf16":hex(key),"rank":r,"level":1,"required_ap":ap,"require_unlock":false,"feature":null}));
         }
     }
-    let profile = json!({"format_version":4,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[],"arguments":[]});
+    // skill_meditation as in the content (level 1 here): Price -1, no rank-2 unlock, reduction
+    // 90 per rank (story grants only).
+    let meditation = hex(&utf16("skill_meditation"));
+    skills.push(json!({"source_index":skills.len(),"skill_utf16":meditation,"class_restriction":2047,"use_type":0,"price":-1}));
+    let mut arguments = Vec::new();
+    for r in 0..=2 {
+        ranks.push(json!({"source_index":ranks.len(),"skill_utf16":meditation,"rank":r,"level":1,"required_ap":if r < 2 { 0 } else { 120 },"require_unlock":false,"feature":null}));
+        arguments.push(json!({"source_index":r,"skill_utf16":meditation,"rank":r,"key_utf16":hex(&utf16("meditation_interval_reduction")),"value":90 * r}));
+    }
+    let profile = json!({"format_version":4,"source":"heroesContents.skill-ranks","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"implementations":implementations,"skills":skills,"ranks":ranks,"constraints":[],"arguments":arguments});
     assets(0)
         .with_equipment(
             equipment_profile::Profile::read(
@@ -507,6 +516,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                             leaf("notice_title", "410019"),
                             leaf("acquire_title", "410018"),
                             leaf("give_skill", "skill_new_synthetic"),
+                            leaf("give_skill", "skill_meditation"),
                             leaf("complete_storyline", ""),
                             leaf("talk", "done")
                         ],
@@ -521,7 +531,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
     ]);
     let info = json!({"StoryLineID":"GuidePlay_1_SkillTrain","StoryLineName":null,"XmlPath":"QuestSet01","Npc":null,"Category":"MainStream","Stage":null,"RewardGold":0,"RewardExp":400,"RewardAp":3,"RewardTitle":0,"RewardItem":null,"RewardItemCount":0,"RewardSkill":null,"RewardSkillRank":0,"AutoGiveLevel":1,"ClassRestriction":1023,"AutoProcess":false,"AutoReveal":true,"Season":0,"Episode":null,"Feature":null});
     let export = json!({"format_version":1,"source":"heroes.npc-scripts","manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"scripts_sha256":"c".repeat(64),"defaults":1,"storylines":1,"coerced_integers":0,"shops":2,"coerced_shop_integers":0},
-    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"AccountTitleStatRatio","value":"80"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"}],
+    "features":[{"key":"CurrentVer","value":"3.09.00"},{"key":"NewStoryLineDialog","value":null},{"key":"FlexibleMapLoading","value":"1"},{"key":"Buyback","value":"1"},{"key":"BuybackPriceRatio","value":"2"},{"key":"BuybackListCount","value":"10"},{"key":"RepairPriceRate","value":"100"},{"key":"MaxLevel","value":"90"},{"key":"AccountTitleStatRatio","value":"80"},{"key":"ExpRate_Story","value":"100"},{"key":"APRate_Story","value":"100"},{"key":"GoldRate_Story","value":"100"},{"key":"ExpRate_Combat","value":"100"},{"key":"GoldRate_Combat","value":"100"},{"key":"APRate_Combat","value":"100"},{"key":"MicroPlayFinishTime","value":"30000"},{"key":"StatRatio","value":"1"}],
     "defaults":[{"feature":"","path":"Default/Default_A","tree":default}],
     "storylines":[{"info":info,"tree":story}],
     "repair":{"enhance":[[0,0]],"quality":[[2,6]],"enchant":[[0,0,0]],"equip_class":[["SWORD",2]],"equip_item_class":["sword"]},
@@ -1451,6 +1461,7 @@ async fn minimum_use_answers_town_and_constraint_dialogs_without_changes() {
                 target_item_id: -1,
             },
             log,
+            vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
         )
         .await
         .unwrap();
@@ -1697,6 +1708,32 @@ async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin
             .unwrap();
     assert_eq!(given, [(1, 0)]);
     assert_eq!(categories.last(), Some(&582));
+    // give_skill skill_meditation: CalculateBonusAPTime from 0 restarts LastAPUpdate and
+    // the APMessage reports the trained interval (3600 − 90 − INT bonus).
+    let timed: Vec<_> = packets
+        .iter()
+        .filter(|p| p.category == 229)
+        .filter_map(|p| {
+            match vindictus_server::protocol::inventory::decode(
+                vindictus_server::protocol::inventory::Kind::Ap,
+                &p.body,
+                DEFAULT_MAX_BODY,
+            )
+            .unwrap()
+            {
+                Some(vindictus_server::protocol::inventory::Message::Ap(ap)) => Some(ap),
+                _ => None,
+            }
+        })
+        .filter(|ap| ap.bonus_interval > 0)
+        .collect();
+    assert!(!timed.is_empty());
+    assert!(
+        timed
+            .iter()
+            .all(|ap| (3210..=3510).contains(&ap.bonus_interval)
+                && ap.next_bonus_ms > i64::from(ap.bonus_interval - 30) * 1000)
+    );
     let acquired_time: Option<i64> = sqlx::query_scalar(
         "SELECT acquired_time_units300 FROM game_titles WHERE cid=1 AND title_id=410018",
     )
@@ -2472,5 +2509,79 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         minimum_mission_finish::Return::Town(_)
     ));
     minimum_selection::disconnect(&p, 1).await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_trained_meditation_regenerates_ap_from_last_ap_update() {
+    use vindictus_server::{
+        domain::{character_stats::Arithmetic, legacy_user_data::SqlDateTime2},
+        infrastructure::{character_lobby::QueryConfig, minimum_ap, minimum_selection},
+        protocol::inventory::{self, Kind, Message},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES(950000000000000001,1,$1,1,0,0)")
+        .bind(utf16("skill_meditation"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let query = || async {
+        let packet = minimum_ap::query(&p, &owner, &assets, 1, Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+        let Some(Message::Ap(ap)) =
+            inventory::decode(Kind::Ap, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("AP message missing")
+        };
+        ap
+    };
+    // Rank 1 reduction 90 and StatRatio 1: 3600 − 90 − min(300, INT × 300 / 2000).
+    let first = query().await;
+    let interval = first.bonus_interval;
+    assert!((3210..=3510).contains(&interval), "{interval}");
+    let now = || {
+        let d = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap();
+        SqlDateTime2::from_ticks(621_355_968_000_000_000 + d.as_nanos() as i64 / 100).unwrap()
+    };
+    let units = |t: SqlDateTime2| t.sql_parameter().unwrap().units300();
+    // LastAPUpdate two intervals and ten seconds ago: UpdateAP adds 2 AP and advances
+    // LastAPUpdate by exactly 2 × BonusAPTime.
+    let back = now().ticks() - (2 * i64::from(interval) + 10) * 10_000_000;
+    let start = units(SqlDateTime2::from_ticks(back).unwrap());
+    sqlx::query("UPDATE game_character_info SET last_ap_update_units300=$1 WHERE id=1")
+        .bind(start)
+        .execute(&p)
+        .await
+        .unwrap();
+    let regen = query().await;
+    assert_eq!(regen.ap, first.ap + 2);
+    assert_eq!(regen.bonus_interval, interval);
+    assert!((9_000..=11_000).contains(&(i64::from(interval) * 1000 - regen.next_bonus_ms)));
+    let stored: (i32, i64) =
+        sqlx::query_as("SELECT ap,last_ap_update_units300 FROM game_character_info WHERE id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(stored.0, first.ap + 2);
+    assert!((stored.1 - start - 2 * i64::from(interval) * 300).abs() <= 1);
+    // A second query inside the same interval changes nothing.
+    assert_eq!(query().await.ap, first.ap + 2);
     cleanup_game_pool(a, p, s).await;
 }

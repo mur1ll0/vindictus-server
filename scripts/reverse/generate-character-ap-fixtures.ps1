@@ -17,6 +17,6 @@ $x=Get-Content .cache/verification/character-ap-x86.json -Raw|ConvertFrom-Json -
 $y=Get-Content .cache/verification/character-ap-x64.json -Raw|ConvertFrom-Json -DateKind String
 $sources=@($manager;$effect;$template;'scripts/reverse/generate-character-ap-fixtures.ps1')
 $hashes=@($sources|ForEach-Object{[ordered]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}})
-$result=[ordered]@{source_sha256=$hashes;scope='original AP Update/Recalculate/Use/Give;UTC,maximum policy,interval calculator instrumented;not AP-time formula,stats,persistence,network or guild';x86=$x.cases;x64=$y.cases;prefix_x86=$x.prefixes;prefix_x64=$y.prefixes}|ConvertTo-Json -Depth 10 -Compress
+$result=[ordered]@{source_sha256=$hashes;scope='original AP Update/Recalculate/Use/Give;UTC,maximum policy,interval calculator instrumented;CalculateAPTime with float.Parse StatRatio (intervals);not stats,persistence,network or guild';x86=$x.cases;x64=$y.cases;prefix_x86=$x.prefixes;prefix_x64=$y.prefixes;intervals_x86=$x.intervals;intervals_x64=$y.intervals}|ConvertTo-Json -Depth 10 -Compress
 [IO.File]::WriteAllText((Join-Path $root 'tests/fixtures/framework-character-ap.json'),$result,[Text.UTF8Encoding]::new($false))
 Write-Output 'Character AP:448 cases per architecture;separate results retained.'

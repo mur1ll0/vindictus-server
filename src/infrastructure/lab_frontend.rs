@@ -1832,7 +1832,15 @@ impl Connection {
                     .assets;
                 match message {
                     Message::QueryAp => {
-                        match super::minimum_ap::query(pool, &owner, assets, cid).await {
+                        match super::minimum_ap::query(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            runtime.stat_arithmetic(),
+                        )
+                        .await
+                        {
                             Ok(packet) => {
                                 send(stream, sender, packet.category, &packet.body).await?;
                                 tracing::info!("minimum AP sent; values omitted");
@@ -1849,6 +1857,7 @@ impl Connection {
                             cid,
                             skill,
                             request.value,
+                            runtime.stat_arithmetic(),
                         )
                         .await
                         {
@@ -2219,6 +2228,7 @@ impl Connection {
                             cid,
                             request,
                             runtime.item_log_context(assets)?,
+                            runtime.stat_arithmetic(),
                         )
                         .await
                         {

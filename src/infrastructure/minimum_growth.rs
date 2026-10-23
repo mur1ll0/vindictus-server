@@ -91,7 +91,8 @@ pub(super) async fn give_reward(
         }
     }
     if ap > 0 {
-        let given = super::minimum_ap::give_capped(tx, assets, cid, ap).await?;
+        let given =
+            super::minimum_ap::give_capped(tx, owner, assets, cid, ctx.arithmetic, ap).await?;
         packets.push(super::minimum_ap::packet(given)?);
     }
     Ok(packets)

@@ -261,7 +261,7 @@ def read_package(base, database, config):
               'GoldRate_Story', 'ExpRate_Story', 'APRate_Story', 'TodayQuest', 'TodayQuest_S2', 'TodayQuest_S3', 'TodayQuest_InitTimeAdder',
               'CafeBonusQuestPlus', 'Event_PlayCount_Unlimited', 'AddDeparture', 'AddDepartureCount', 'Event_PlayCount_Plus',
               'ChangeBasicBattleGoal', 'E3_Event_2010', 'Event_PAX_2011_enUS', 'DisableInGameCheat', 'zhCN', 'zhTW',
-              'MaxLevel', 'CharacterRank', 'friend_loyalty_system', 'GuildScore', 'AccountTitleStatRatio'}
+              'MaxLevel', 'CharacterRank', 'friend_loyalty_system', 'GuildScore', 'AccountTitleStatRatio', 'StatRatio'}
     for r in progression['class_stats']: wanted |= feature_atoms(r[7] or '')
     for r in progression['level_exp']: wanted |= feature_atoms(r[2] or '')
     for r in progression['titles']: wanted |= feature_atoms(r[4] or '')

@@ -103,7 +103,7 @@ pub async fn select(
         packets
             .push(super::minimum_skills::packet(&mut tx, owner, assets, cid, level, class).await?);
         packets.push(super::minimum_ap::packet(
-            super::minimum_ap::current(&mut tx, assets, cid).await?,
+            super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await?,
         )?);
     }
     packets
@@ -126,6 +126,30 @@ pub async fn select(
         buyback: Vec::new(),
         log_journal: 0,
     })
+}
+/// StatManager FinalStat[INT] (CalculateItemStat, then ApplyStatSkills) for
+/// SkillEffect.CalculateAPTime; town status effects are not migrated.
+pub(super) async fn final_int(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    cache: &Cache,
+    arithmetic: Arithmetic,
+) -> Result<i32, MinimumError> {
+    let base = super::minimum_growth::base_stats(tx, assets, cid).await?;
+    let gear = super::minimum_equipment::load(tx, owner, assets, cid).await?;
+    if !gear.bonus.skills.is_empty() {
+        return Err(MinimumError::Conflict);
+    }
+    let items = gear
+        .projection
+        .item_stats(&gear.bonus.stats, cache)
+        .map_err(|_| MinimumError::Conflict)?;
+    let total = Stats::from_base(&base).add(&items.stats);
+    let stats = character_stats::apply_skills(&total, &items.armor_def, cache, false, arithmetic)
+        .map_err(|_| MinimumError::Conflict)?;
+    Ok(stats.stats.get(character_stats::Field::Int))
 }
 /// Skill runtime cache of the initialized first Fiona: the initializer's skills come
 /// first (in row order), followed by skills learned later (LearnNewSkill).

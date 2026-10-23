@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use vindictus_server::domain::{
-    character_ap::{ApError, Inputs, Snapshot, State, untrained_interval},
+    character_ap::{
+        ApError, Inputs, Snapshot, State, ap_interval, feature_float, meditation_reduction, timing,
+    },
     legacy_user_data::SqlDateTime2,
     skill_runtime::{Argument, Cache},
 };
@@ -150,46 +152,62 @@ fn constructor_recalculation_without_meditation_preserves_source_clock_and_polic
     assert_eq!(state.snapshot().ap, 6);
 }
 #[test]
-fn no_meditation_interval_follows_original_early_return_and_refuses_unported_float_branch() {
+fn meditation_reduction_reads_the_argument_or_minus_one() {
     let text = |s: &str| {
         s.encode_utf16()
             .flat_map(u16::to_le_bytes)
             .collect::<Vec<_>>()
     };
-    let fixture: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/framework-character-ap.json")).unwrap();
-    for arch in ["prefix_x86", "prefix_x64"] {
-        for case in fixture[arch].as_array().unwrap() {
-            let mut cache = Cache::default();
-            let reduction = case["reduction"].as_i64().unwrap() as i32;
-            cache
-                .update_arguments(
-                    &text("skill_meditation"),
-                    Some(&[Argument::new(
-                        Some(text("meditation_interval_reduction")),
-                        Some(reduction),
-                    )
-                    .unwrap()]),
-                )
-                .unwrap();
-            let result = untrained_interval(&cache);
-            assert_eq!(result.is_err(), case["error"].as_bool().unwrap());
-            if let Ok(n) = result {
-                assert_eq!(n, case["result"].as_i64().unwrap() as i32);
-                assert_eq!(case["float_reads"], 0);
-            }
-        }
-    }
     let mut cache = Cache::default();
-    assert_eq!(untrained_interval(&cache), Ok(0));
+    assert_eq!(meditation_reduction(&cache), -1);
     let skill = text("skill_meditation");
+    // A present dictionary without the key reads 0 (TryGetValue default).
     cache.update_arguments(&skill, Some(&[])).unwrap();
-    assert_eq!(untrained_interval(&cache), Err(ApError::Meditation));
+    assert_eq!(meditation_reduction(&cache), 0);
     cache
         .update_arguments(
             &skill,
-            Some(&[Argument::new(Some(text("meditation_interval_reduction")), Some(-1)).unwrap()]),
+            Some(&[Argument::new(Some(text("meditation_interval_reduction")), Some(90)).unwrap()]),
         )
         .unwrap();
-    assert_eq!(untrained_interval(&cache), Ok(0));
+    assert_eq!(meditation_reduction(&cache), 90);
+}
+#[test]
+fn ap_interval_matches_the_framework_oracle_per_architecture() {
+    use vindictus_server::domain::character_stats::Arithmetic;
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/framework-character-ap.json")).unwrap();
+    // The untrained prefix returns 0 before reading StatRatio.
+    for case in fixture["prefix_x64"].as_array().unwrap() {
+        if case["reduction"] == -1 {
+            assert_eq!(ap_interval(-1, 0, 0.0, Arithmetic::FrameworkX64), 0);
+            assert_eq!(case["result"], 0);
+        }
+    }
+    for (key, arithmetic) in [
+        ("intervals_x86", Arithmetic::FrameworkX86),
+        ("intervals_x64", Arithmetic::FrameworkX64),
+    ] {
+        let cases = fixture[key].as_array().unwrap();
+        assert_eq!(cases.len(), 455);
+        for case in cases {
+            let ratio = feature_float(case["ratio"].as_str().unwrap());
+            let got = ap_interval(
+                case["reduction"].as_i64().unwrap() as i32,
+                case["stat"].as_i64().unwrap() as i32,
+                ratio,
+                arithmetic,
+            );
+            assert_eq!(got, case["result"].as_i64().unwrap() as i32, "{key} {case}");
+        }
+    }
+}
+#[test]
+fn ap_timing_reports_milliseconds_until_the_next_bonus() {
+    let at = |s: i64| SqlDateTime2::from_ticks(630_000_000_000_000_000 + s).unwrap();
+    assert_eq!(timing(at(0), 0, at(0)), (-1, -1));
+    // 3510 s interval, 10.5 s elapsed: 3499500 ms remain.
+    assert_eq!(timing(at(0), 3510, at(105_000_000)), (3_499_500, 3510));
+    // Overdue: negative milliseconds truncate toward zero.
+    assert_eq!(timing(at(0), 5, at(50_000_001)), (0, 5));
 }

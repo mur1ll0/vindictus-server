@@ -645,7 +645,15 @@ pub async fn talk(
             let applied = match effect {
                 crate::domain::npc_talk::Effect::GiveSkill { skill: id, new, result } => {
                     super::minimum_skills::give_story(
-                        &mut tx, owner, assets, cid, &id, new, result, &mut ids,
+                        &mut tx,
+                        owner,
+                        assets,
+                        cid,
+                        &id,
+                        new,
+                        result,
+                        growth.arithmetic,
+                        &mut ids,
                     )
                     .await
                     .map(&mut skill)

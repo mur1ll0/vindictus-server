@@ -524,7 +524,11 @@ async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing(
     let assets = assets();
     let owner = super::initial_inventory::key();
     // Not selected: is_connected is false.
-    assert!(minimum_ap::query(&p, &owner, &assets, 1).await.is_err());
+    assert!(
+        minimum_ap::query(&p, &owner, &assets, 1, Arithmetic::FrameworkX64)
+            .await
+            .is_err()
+    );
     minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
         .await
         .unwrap();
@@ -533,7 +537,9 @@ async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing(
         .await
         .unwrap();
     let before = state(&p).await;
-    let packet = minimum_ap::query(&p, &owner, &assets, 1).await.unwrap();
+    let packet = minimum_ap::query(&p, &owner, &assets, 1, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
     assert_eq!(packet.category, 229);
     let Some(Message::Ap(ap)) =
         inventory::decode(Kind::Ap, &packet.body, DEFAULT_MAX_BODY).unwrap()
@@ -559,6 +565,7 @@ async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing(
                 target_item_id: -1,
             },
             log(&assets),
+            Arithmetic::FrameworkX64,
         )
     };
     assert!(use_item(cash).await.is_err());
@@ -683,19 +690,20 @@ async fn minimum_skill_list_projects_stored_skills_without_writes() {
         .await
         .unwrap();
     assert!(
-        minimum_skills::learn(&p, &owner, &assets, 1, &first, 41)
+        minimum_skills::learn(&p, &owner, &assets, 1, &first, 41, Arithmetic::FrameworkX64)
             .await
             .unwrap()
             .is_empty()
     );
-    let partial = minimum_skills::learn(&p, &owner, &assets, 1, &first, 20)
-        .await
-        .unwrap();
+    let partial =
+        minimum_skills::learn(&p, &owner, &assets, 1, &first, 20, Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
     assert_eq!(
         partial.iter().map(|p| p.category).collect::<Vec<_>>(),
         [229, 583]
     );
-    let done = minimum_skills::learn(&p, &owner, &assets, 1, &first, 20)
+    let done = minimum_skills::learn(&p, &owner, &assets, 1, &first, 20, Arithmetic::FrameworkX64)
         .await
         .unwrap();
     assert_eq!(

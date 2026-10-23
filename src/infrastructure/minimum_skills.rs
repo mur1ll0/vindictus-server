@@ -153,6 +153,7 @@ pub async fn learn(
     cid: i64,
     skill_id: &str,
     ap: i32,
+    arithmetic: crate::domain::character_stats::Arithmetic,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     tokio::time::timeout(std::time::Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
@@ -195,7 +196,7 @@ pub async fn learn(
         }
         let gear = super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
         // Validates the AP manager profile (BonusAPTime 0) and reads the stored AP.
-        let before = super::minimum_ap::current(&mut tx, assets, cid).await?;
+        let before = super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await?;
         let character = Character {
             class,
             level,
@@ -207,14 +208,11 @@ pub async fn learn(
         else {
             return Ok(Vec::new());
         };
-        if learned.completed
-            && (learned.locked == 1
-                || crate::domain::skill_multicast::is_meditation(&skills[index].id.encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>()))
-        {
-            // TryUnlockStory (story service) and meditation's BonusAPTime change are
-            // not migrated; nothing is written.
+        if learned.completed && learned.locked == 1 {
+            // TryUnlockStory (story service) is not migrated; nothing is written.
             return Err(fail());
         }
+        let meditation = learned.completed && skills[index].id == MEDITATION;
         sqlx::query("UPDATE game_skills SET rank=$2,locked=$3,current_ap=$4 WHERE row_id=$1")
             .bind(row_ids[index])
             .bind(learned.rank)
@@ -229,10 +227,18 @@ pub async fn learn(
             .execute(&mut *tx)
             .await?;
         let list = packet(&mut tx, owner, assets, cid, level, class).await?;
-        let ap_packet = super::minimum_ap::packet(super::minimum_ap::current(&mut tx, assets, cid).await?)?;
+        let ap_packet = super::minimum_ap::packet(super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await?)?;
         let mut packets = Vec::new();
         if learned.completed {
-            // CompleteSkill → OnSkillRankChanged pushes the list before SubmitChanges.
+            // CompleteSkill → OnSkillRankChanged pushes the list before SubmitChanges;
+            // a meditation rank first recalculates BonusAPTime (UpdateAP already ran in
+            // UseAP) and pushes the APMessage.
+            if meditation {
+                packets.push(OutgoingPacket {
+                    category: ap_packet.category,
+                    body: ap_packet.body.clone(),
+                });
+            }
             packets.push(OutgoingPacket {
                 category: list.category,
                 body: list.body.clone(),
@@ -431,7 +437,7 @@ pub async fn learn_new(
 
 /// SkillEffect.itemSkills and statSkills: their rank change recalculates item/final
 /// stats (StatManager.OnSkillRankChanged), which this profile does not migrate.
-const STAT_CHANGING_SKILLS: [&str; 32] = [
+const STAT_CHANGING_SKILLS: [&str; 31] = [
     "skill_cloth_mastery",
     "skill_light_armor_mastery",
     "skill_heavy_armor_mastery",
@@ -463,9 +469,10 @@ const STAT_CHANGING_SKILLS: [&str; 32] = [
     "skill_stone_skin",
     "skill_critical_hit",
     "skill_evy_magic_critical",
-    // SkillEffect.IsMeditation: CalculateBonusAPTime needs the trained AP interval.
-    "skill_meditation",
 ];
+
+/// SkillEffect.IsMeditation (case-sensitive equality).
+const MEDITATION: &str = "skill_meditation";
 
 /// Packets of a story skill change: `now` at the command's position, `later` after
 /// the query (ReportToClient is scheduled), and the skill log written after commit.
@@ -485,10 +492,11 @@ pub(super) async fn give_story(
     skill_id: &str,
     new: skill_list::NewSkill,
     result: bool,
+    arithmetic: crate::domain::character_stats::Arithmetic,
     ids: &mut (dyn Iterator<Item = i64> + Send),
 ) -> Result<StorySkill, MinimumError> {
     if STAT_CHANGING_SKILLS.contains(&skill_id) || new.locked == 1 {
-        // Stat recalculation, trained meditation or TryUnlockStory are not migrated.
+        // Stat recalculation and TryUnlockStory are not migrated.
         tracing::warn!(
             skill = skill_id,
             "story skill grant outside the migrated profile"
@@ -517,9 +525,16 @@ pub(super) async fn give_story(
             .execute(&mut **tx)
             .await?;
     }
-    // SkillRankChanged → OnSkillRankChanged → PushSkillList; a story reward then
-    // sends LearnNewSkillResultMessage(Succeeced).
-    let mut now = vec![packet(tx, owner, assets, cid, level, class).await?];
+    // SkillRankChanged → OnSkillRankChanged: meditation recalculates BonusAPTime (from
+    // 0, so LastAPUpdate restarts) and pushes the APMessage, then PushSkillList; a story
+    // reward then sends LearnNewSkillResultMessage(Succeeced).
+    let mut now = Vec::new();
+    if skill_id == MEDITATION {
+        super::minimum_ap::restart_bonus(tx, cid).await?;
+        let ap = super::minimum_ap::current(tx, owner, assets, cid, arithmetic).await?;
+        now.push(super::minimum_ap::packet(ap)?);
+    }
+    now.push(packet(tx, owner, assets, cid, level, class).await?);
     if result {
         now.push(learn_new_result(skill_list::LEARN_NEW_SUCCEEDED)?);
     }

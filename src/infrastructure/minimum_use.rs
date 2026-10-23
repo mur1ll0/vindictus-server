@@ -102,6 +102,7 @@ pub async fn use_item(
     cid: i64,
     request: UseItem,
     log: super::minimum_item_logs::Context,
+    arithmetic: crate::domain::character_stats::Arithmetic,
 ) -> Result<Outcome, MinimumError> {
     // UseInventoryItemProcessor constructor: GetJournalID (UseInventoryItem).
     let journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
@@ -203,7 +204,9 @@ pub async fn use_item(
                 "UseItemFail_NotUseableItem",
             )?);
         } else {
-            let ap = super::minimum_ap::give_exceeding(&mut tx, assets, cid, amount).await?;
+            let ap =
+                super::minimum_ap::give_exceeding(&mut tx, owner, assets, cid, arithmetic, amount)
+                    .await?;
             packets.push(super::minimum_ap::packet(ap)?);
         }
         let slot = if deleted {
