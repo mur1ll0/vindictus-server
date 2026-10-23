@@ -719,3 +719,75 @@ async fn minimum_skill_list_projects_stored_skills_without_writes() {
         .unwrap();
     cleanup_game_pool(a, p, s).await;
 }
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_hide_head_costume_persists_and_pushes_costume_update() {
+    use vindictus_server::{
+        infrastructure::minimum_costume,
+        protocol::{character_list, inventory::HideCostume},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets();
+    let owner = super::initial_inventory::key();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let hide = |hide_head, avatar_part| {
+        minimum_costume::hide_costume(
+            &p,
+            &owner,
+            &assets,
+            1,
+            HideCostume {
+                hide_head,
+                avatar_part,
+                avatar_state: -1,
+            },
+            config(),
+            Arithmetic::FrameworkX64,
+        )
+    };
+    let rows = || async {
+        sqlx::query_as::<_, (bool, i16, i16, Option<i32>)>(
+            "SELECT is_base,costume_type,costume_key,costume_sn FROM game_costumes WHERE cid=1 AND costume_type=2 AND costume_key=7",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    let flag = |applied: &minimum_costume::Applied| {
+        let packet = &applied.packets[0];
+        assert_eq!(packet.category, character_list::COSTUME_UPDATE_CATEGORY);
+        character_list::decode_costume_update(&packet.body, DEFAULT_MAX_BODY)
+            .unwrap()
+            .flatten()
+            .unwrap()
+            .hide_head_costume
+    };
+    // Showing an already shown helmet changes nothing and sends nothing.
+    assert!(hide(false, -1).await.unwrap().is_none());
+    assert!(rows().await.is_empty());
+    // LoadExtraData(HideHeadCostume, 1): a base Type 2 / Key 7 row, CostumeUpdate.
+    let hidden = hide(true, -1).await.unwrap().unwrap();
+    assert!(flag(&hidden));
+    assert_eq!(rows().await, [(true, 2, 7, Some(1))]);
+    assert!(hide(true, -1).await.unwrap().is_none());
+    // This catalog has no AvatarHide feature: the source skips the avatar part branch,
+    // so only HideHead counts (already hidden: nothing changes).
+    assert!(hide(true, 54).await.unwrap().is_none());
+    assert_eq!(rows().await, [(true, 2, 7, Some(1))]);
+    let shown = hide(false, -1).await.unwrap().unwrap();
+    assert!(!flag(&shown));
+    assert_eq!(rows().await, [(true, 2, 7, Some(0))]);
+    hide(true, -1).await.unwrap().unwrap();
+    // Relogin keeps the stored flag, and the next toggle starts from it.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!(rows().await, [(true, 2, 7, Some(1))]);
+    assert!(hide(true, -1).await.unwrap().is_none());
+    cleanup_game_pool(a, p, s).await;
+}

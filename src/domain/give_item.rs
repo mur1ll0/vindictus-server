@@ -20,7 +20,7 @@ pub enum GiveError {
     UniqueConstraint,
     #[error("GiveItemFail_NoEmptySlot")]
     NoEmptySlot,
-    /// A source branch outside this slice (TirCoin, Story tab, expiring classes,
+    /// A source branch outside this slice (TirCoin, destroying expiring items,
     /// source arithmetic that would loop or store negative counts).
     #[error("item request outside the migrated storage profile")]
     Unsupported,
@@ -45,6 +45,8 @@ pub struct Held {
     pub count: i32,
     pub location: ItemLocation,
     pub bound: bool,
+    /// Item.ExpireDateTime is set (class ExpireIn or an EXPIRE attribute).
+    pub expires: bool,
 }
 pub struct Give<'a> {
     pub class: &'a ClassInfo,
@@ -156,9 +158,10 @@ impl<'a> Helper<'a> {
             .find(|(h, _)| h.id == item.id)
             .map_or(item.count, |m| m.1)
     }
-    /// ItemTraitExtension.IsStackableWith(Item, GiveItemRequest) without attributes or expiry.
+    /// ItemTraitExtension.IsStackableWith(Item, GiveItemRequest) without attributes: a
+    /// request carries no ExpireDateTime, so an item with one never takes it.
     fn stackable(&self, item: &Held, bound: bool) -> bool {
-        !self.info.equippable && (self.info.storage == 3 || item.bound == bound)
+        !self.info.equippable && (self.info.storage == 3 || item.bound == bound) && !item.expires
     }
     fn destroy_item(&mut self, item: Held, num: i32) -> i32 {
         if let Some(modified) = self.modified_mut(item.id) {
@@ -326,7 +329,9 @@ pub fn plan(
             .push((g.count, g.bound, request));
     }
     for h in &helpers {
-        if h.info.tircoin || h.info.expire_in.is_some() && !h.gives.is_empty() {
+        // DestroyComparer orders expiring items by ExpireDateTime, which this profile
+        // does not compare; new items of an ExpireIn class get their expiry on creation.
+        if h.info.tircoin || !h.destroys.is_empty() && h.items.iter().any(|i| i.expires) {
             return Err(GiveError::Unsupported);
         }
     }

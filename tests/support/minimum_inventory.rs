@@ -92,10 +92,6 @@ async fn minimum_inventory_refuses_partial_unsupported_and_corrupt_state_without
             "UPDATE game_minimum_character_initialization SET initialized=true",
         ),
         (
-            "UPDATE game_items SET expire_ticks=1",
-            "UPDATE game_items SET expire_ticks=NULL",
-        ),
-        (
             "UPDATE game_equippables SET part=1",
             "UPDATE game_equippables SET part=NULL",
         ),
@@ -136,5 +132,51 @@ async fn minimum_inventory_refuses_partial_unsupported_and_corrupt_state_without
         sqlx::query(undo).execute(&p).await.unwrap();
     }
     assert!(minimum_inventory::query(&p, &key, &assets, 1).await.is_ok());
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_inventory_projects_item_expiry_like_slot_info() {
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = minimum_character::assets();
+    let key = super::initial_inventory::key();
+    // Any stored item with ExpireDateTime one hour ahead (SlotInfo projects it for
+    // equippable and stackable items alike).
+    let id: i64 = sqlx::query_scalar("SELECT min(id) FROM game_items")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let now = 621_355_968_000_000_000
+        + std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as i64
+            / 100;
+    let expiry = now + 36_000_000_000;
+    sqlx::query("UPDATE game_items SET expire_ticks=$2 WHERE id=$1")
+        .bind(id)
+        .bind(expiry)
+        .execute(&p)
+        .await
+        .unwrap();
+    let packet = minimum_inventory::query(&p, &key, &assets, 1)
+        .await
+        .unwrap();
+    let Some(Message::InventoryInfo(snapshot)) =
+        wire::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("inventory missing")
+    };
+    let slots = snapshot.slots.unwrap();
+    let slot = slots.iter().flatten().find(|s| s.id == id).unwrap();
+    // SlotInfo: IsExpireable, ExpireDateTime.Ticks and Ticks − UtcNow.Ticks.
+    assert!(slot.expireable);
+    assert_eq!(slot.expire_ticks, expiry);
+    assert!((35_000_000_000..=36_000_000_000).contains(&slot.expire_diff));
+    for other in slots.iter().flatten().filter(|s| s.id != id) {
+        assert!(!other.expireable);
+    }
     cleanup_game_pool(a, p, s).await;
 }

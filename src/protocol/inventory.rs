@@ -49,6 +49,7 @@ pub enum Kind {
     QueryQuestProgress,
     QuestProgress,
     UpdateTitle,
+    HideCostume,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -91,6 +92,7 @@ impl Kind {
             Self::QueryQuestProgress => 535,
             Self::QuestProgress => 546,
             Self::UpdateTitle => 191,
+            Self::HideCostume => 414,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -133,6 +135,7 @@ impl Kind {
             Self::QueryQuestProgress => 0x5b634b00_c047_339e_a4fe_b0ef8e3b9a2e,
             Self::QuestProgress => 0xc229a0f5_4eda_3bbc_a4be_61f3aad3f82b,
             Self::UpdateTitle => 0xbb01bf3c_8194_3f94_9480_4bf20654b7b3,
+            Self::HideCostume => 0x80e685d2_1ace_3cf5_90aa_7fda984d169d,
         })
     }
 }
@@ -270,6 +273,7 @@ pub enum Message {
     QuestProgress(QuestProgress),
     /// UpdateTitleMessage.Titles.
     UpdateTitle(Option<Vec<Option<TitleSlot>>>),
+    HideCostume(HideCostume),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -368,6 +372,13 @@ pub struct BuybackInfo {
     pub color3: i32,
     pub price_item_class: Option<String>,
     pub price_count: i32,
+}
+/// HideCostumeMessage: HideHead, AvatarPart, AvatarState (the constructor sets -1/-1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HideCostume {
+    pub hide_head: bool,
+    pub avatar_part: i32,
+    pub avatar_state: i32,
 }
 /// RepairItemMessage: ItemIDs and the three Add* flags.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -536,6 +547,7 @@ impl Message {
             Self::QueryQuestProgress => Kind::QueryQuestProgress,
             Self::QuestProgress(_) => Kind::QuestProgress,
             Self::UpdateTitle(_) => Kind::UpdateTitle,
+            Self::HideCostume(_) => Kind::HideCostume,
         }
     }
 }
@@ -771,6 +783,11 @@ object!(RepairItem {
     all_repairable
 });
 object!(StoryGuide { target, message });
+object!(HideCostume {
+    hide_head,
+    avatar_part,
+    avatar_state
+});
 object!(StoryLineStatus { story_line, status });
 object!(TitleSlot {
     title_id,
@@ -894,6 +911,7 @@ pub fn encode(
             Message::QueryQuestProgress => {}
             Message::QuestProgress(v) => v.write(&mut w)?,
             Message::UpdateTitle(v) => v.write(&mut w)?,
+            Message::HideCostume(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -969,6 +987,7 @@ fn decode_body(
             Kind::QueryQuestProgress => Message::QueryQuestProgress,
             Kind::QuestProgress => Message::QuestProgress(QuestProgress::read(&mut r)?),
             Kind::UpdateTitle => Message::UpdateTitle(Wire::read(&mut r)?),
+            Kind::HideCostume => Message::HideCostume(HideCostume::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

@@ -158,6 +158,9 @@ class ItemSyncWireOracle {
   var buttons=new List<SelectButtonMessage>{null};
   foreach(int b in new[]{int.MinValue,-1,0,3,int.MaxValue})buttons.Add(new SelectButtonMessage(b));
   AddCases("select_button",564,new Guid("d5dda62d-44c1-3c6a-8906-72164e564921"),buttons,cases);
+  var hides=new List<HideCostumeMessage>{null,new HideCostumeMessage(false),new HideCostumeMessage(true)};
+  foreach(bool h in new[]{false,true})foreach(int part in new[]{int.MinValue,-1,0,54,58,int.MaxValue})foreach(int st in new[]{int.MinValue,-1,0,1,int.MaxValue})hides.Add(Obj<HideCostumeMessage>("HideHead",h,"AvatarPart",part,"AvatarState",st));
+  AddCases("hide_costume",414,new Guid("80e685d2-1ace-3cf5-90aa-7fda984d169d"),hides,cases);
   AddCases("set_story_line_status",574,new Guid("92e441fa-adce-304e-aeb2-a77fb76d2900"),new[]{null,new SetStoryLineStatusMessage(null,0),new SetStoryLineStatusMessage("GuidePlay_1_SkillTrain",1),new SetStoryLineStatusMessage("",255)},cases);
   AddCases("execute_npc_server_command",459,new Guid("048fdbb2-e452-3c5f-b0b2-cfc80994e365"),new[]{null,new ExecuteNpcServerCommandMessage()},cases);
   var briefs=new List<BriefStoryLineInfo>{new BriefStoryLineInfo(null,null,255),null,new BriefStoryLineInfo("GuidePlay_1_SkillTrain","p0",1,"goal_text"),new BriefStoryLineInfo("S0NT_99_CutScene","",0,null)};

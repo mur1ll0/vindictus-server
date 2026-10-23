@@ -461,9 +461,15 @@ pub async fn talk(
         .fetch_all(&mut *tx)
         .await?;
         let items: Vec<(Vec<u8>, i64)> = sqlx::query_as(
-            "SELECT item_class_utf16,sum(count)::BIGINT FROM game_items WHERE owner_id=$1 AND expire_ticks IS NULL GROUP BY item_class_utf16 LIMIT 4097",
+            "SELECT item_class_utf16,sum(count)::BIGINT FROM game_items WHERE owner_id=$1 AND (expire_ticks IS NULL OR expire_ticks>=$2) GROUP BY item_class_utf16 LIMIT 4097",
         )
         .bind(cid)
+        // Unexpired items only (ExpireDateTime not before UtcNow).
+        .bind(
+            super::lab_clock::utc_now()
+                .map_err(|_| fail())?
+                .ticks(),
+        )
         .fetch_all(&mut *tx)
         .await?;
         let manufactures: Vec<(Vec<u8>, i32, i32)> = sqlx::query_as(

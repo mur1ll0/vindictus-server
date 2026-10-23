@@ -378,6 +378,19 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 );
             }
         }
+        Some(Message::HideCostume(h)) => {
+            assert_eq!(Some(h.hide_head), f["HideHead"].as_bool(), "case {n}");
+            assert_eq!(
+                i64::from(h.avatar_part),
+                f["AvatarPart"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(h.avatar_state),
+                f["AvatarState"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
         Some(Message::RepairItem(r)) => {
             let ids = f["ItemIDs"]
                 .as_array()
@@ -635,12 +648,13 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::QueryQuestProgress,
         Kind::QuestProgress,
         Kind::UpdateTitle,
+        Kind::HideCostume,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1215);
+        assert_eq!(cases.len(), 1404);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -678,6 +692,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "quest_progress" => check_inventory(Kind::QuestProgress, case, n),
                 "update_title" => check_inventory(Kind::UpdateTitle, case, n),
                 "set_story_line_status" => check_inventory(Kind::SetStoryLineStatus, case, n),
+                "hide_costume" => check_inventory(Kind::HideCostume, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

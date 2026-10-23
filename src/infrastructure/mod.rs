@@ -105,6 +105,7 @@ pub mod equipment_profile;
 pub mod minimum_equipment;
 
 pub mod minimum_ap;
+pub mod minimum_costume;
 pub mod minimum_equip;
 pub mod minimum_give;
 pub mod minimum_growth;

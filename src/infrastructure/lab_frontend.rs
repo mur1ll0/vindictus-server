@@ -2370,6 +2370,82 @@ impl Connection {
                 return Ok(());
             }
         }
+        {
+            use crate::protocol::inventory::{self as wire, Kind, Message};
+            if matches(
+                category,
+                body,
+                Kind::HideCostume.category(),
+                Kind::HideCostume.type_id(),
+            ) {
+                let Some(Message::HideCostume(request)) =
+                    wire::decode_ingress(Kind::HideCostume, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                // InGame forwards it only outside a battle; the dungeon SystemMessage
+                // is not migrated, so a request there changes nothing.
+                let (Some(selected), true, false) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                    self.mission.is_some(),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let assets = &runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .assets;
+                match super::minimum_costume::hide_costume(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    request,
+                    runtime.minimum_header()?,
+                    runtime.stat_arithmetic(),
+                )
+                .await
+                {
+                    Ok(Some(applied)) => {
+                        for packet in &applied.packets {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        if let Some(selected) = self.selected.as_mut() {
+                            selected.look = applied.look;
+                        }
+                        tracing::info!(
+                            hide_head = request.hide_head,
+                            "minimum costume visibility saved and synchronized"
+                        );
+                    }
+                    Ok(None) => tracing::info!("minimum costume visibility unchanged"),
+                    Err(_) => {
+                        tracing::warn!("minimum costume visibility rejected; nothing written")
+                    }
+                }
+                return Ok(());
+            }
+        }
         if self.selected.is_some() {
             self.log_unhandled(category, body);
             return Ok(());

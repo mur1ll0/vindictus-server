@@ -55,6 +55,7 @@ struct Row {
     collection: i16,
     slot: i32,
     tradable: bool,
+    expire_ticks: Option<i64>,
 }
 
 fn units(class: &[u8]) -> Vec<u16> {
@@ -111,7 +112,7 @@ pub(super) async fn apply(
         .await?;
     super::minimum_inventory::snapshot_with_equipment(tx, owner, assets, cid, None).await?;
     let rows: Vec<Row> = sqlx::query_as(
-        "SELECT id,item_class_utf16,count,collection,slot,tradable FROM game_items WHERE owner_id=$1 ORDER BY id LIMIT 4097",
+        "SELECT id,item_class_utf16,count,collection,slot,tradable,expire_ticks FROM game_items WHERE owner_id=$1 ORDER BY id LIMIT 4097",
     )
     .bind(cid)
     .fetch_all(&mut **tx)
@@ -130,6 +131,7 @@ pub(super) async fn apply(
                         slot: r.slot,
                     },
                     bound: !r.tradable,
+                    expires: r.expire_ticks.is_some(),
                 },
             ))
         })
@@ -256,7 +258,27 @@ async fn write(
             let id = ids()?;
             let gold = assets.inventory.is_gold(&c.class);
             let checksum = gold.then(|| gold_checksum(id, Some(cid), &units(&c.class), c.count));
-            sqlx::query("INSERT INTO game_items(id,item_class_utf16,owner_id,count,collection,slot,expire_ticks,tradable,checksum) VALUES($1,$2,$3,$4,$5,$6,NULL,$7,$8)")
+            // Item.Initialize: ExpireIn sets ExpireDateTime = UtcNow + ExpireIn (sampled per
+            // item); SubmitChanges stores it as SQL datetime, read back millisecond-rounded.
+            let expire = crate::domain::item_time::initialize_expiry(
+                None,
+                false,
+                info.expire_in,
+                &mut || {
+                    super::lab_clock::utc_now()
+                        .map_err(|_| crate::domain::item_time::ItemTimeError::Clock)
+                },
+            )
+            .map_err(|_| MinimumError::Conflict)?
+            .expiry
+            .map(|t| {
+                t.sql_parameter()
+                    .and_then(crate::domain::legacy_user_data::SqlDateTime::framework_date_time)
+                    .map(|t| t.ticks())
+            })
+            .transpose()
+            .map_err(|_| MinimumError::Conflict)?;
+            sqlx::query("INSERT INTO game_items(id,item_class_utf16,owner_id,count,collection,slot,expire_ticks,tradable,checksum) VALUES($1,$2,$3,$4,$5,$6,$9,$7,$8)")
                 .bind(id)
                 .bind(&c.class)
                 .bind(cid)
@@ -265,6 +287,7 @@ async fn write(
                 .bind(c.location.slot)
                 .bind(!c.bound)
                 .bind(checksum)
+                .bind(expire)
                 .execute(&mut **tx)
                 .await?;
             let given = properties.get(c.request).copied().flatten();

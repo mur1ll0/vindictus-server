@@ -135,6 +135,9 @@ pub(super) async fn snapshot_with_equipment(
         .catalog
         .policy
         .is_enabled(Some("StoryTabInInventory"))?;
+    let now = super::lab_clock::utc_now()
+        .map_err(|_| MinimumError::Conflict)?
+        .ticks();
     for row in rows {
         let bag = matches!(row.collection, 0 | 1 | 6);
         // AccountStorage: one item per class at AccountLocation (101, -1).
@@ -142,7 +145,6 @@ pub(super) async fn snapshot_with_equipment(
         let story =
             story_tab && row.collection == i16::from(crate::domain::give_item::STORY_COLLECTION);
         if row.count <= 0
-            || row.expire_ticks.is_some()
             || !(bag || account || story || row.collection == 100)
             || (account != (row.slot == -1))
             || (!account && row.slot < 0)
@@ -219,9 +221,10 @@ pub(super) async fn snapshot_with_equipment(
             count: if equippable { 1 } else { row.count },
             tab: i32::from(row.collection),
             slot: row.slot,
-            expireable: false,
-            expire_diff: -1,
-            expire_ticks: -1,
+            // SlotInfo: ExpireDateTime ticks and their difference from UtcNow.
+            expireable: row.expire_ticks.is_some(),
+            expire_diff: row.expire_ticks.map_or(-1, |t| t.wrapping_sub(now)),
+            expire_ticks: row.expire_ticks.unwrap_or(-1),
             colors: Some(colors),
             durability,
             maximum,

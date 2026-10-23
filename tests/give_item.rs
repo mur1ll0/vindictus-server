@@ -25,6 +25,7 @@ fn held(info: &ClassInfo, id: i64, count: i32, location: ItemLocation) -> (Vec<u
             count,
             location,
             bound: false,
+            expires: false,
         },
     )
 }
@@ -179,11 +180,15 @@ fn unique_bundle_and_unsupported_branches_refuse_without_a_plan() {
         Err(GiveError::ExceedBundleCount)
     );
     assert!(plan(&bundled, &[], &[give(&stone, 29)]).is_ok());
+    // An ExpireIn class is planned like any other; the expiry is set on creation.
     let mut expiring = class("timed", 1, 1, 0, false);
     expiring.expire_in = Some(60);
     assert_eq!(
-        plan(&inventory(&[]), &[], &[give(&expiring, 1)]),
-        Err(GiveError::Unsupported)
+        plan(&inventory(&[]), &[], &[give(&expiring, 1)])
+            .unwrap()
+            .created
+            .len(),
+        1
     );
     let restore = class("restore", 4, 1, 0, false);
     assert_eq!(
@@ -251,4 +256,30 @@ fn only_equippable_lvl_classes_need_the_enhance_attribute() {
     let out = plan(&inventory(&items), &[], &[give(&stone, 1)]).unwrap();
     assert_eq!(out.created.len(), 1);
     assert_eq!(out.created[0].location, at(0, 0));
+}
+
+#[test]
+fn expiring_classes_never_stack_onto_items_with_an_expiry() {
+    // ItemTraitExtension.IsStackableWith compares ExpireDateTime: a request has none,
+    // and every item of an ExpireIn class got its own on creation.
+    let mut pass = class("cash_freepass_7_hair_Expire", 1, 10, 0, false);
+    pass.expire_in = Some(604_800);
+    let mut items = [held(&pass, 5, 1, at(0, 0))];
+    items[0].1.expires = true;
+    let out = plan(&inventory(&items), &[], &[give(&pass, 1)]).unwrap();
+    assert!(out.modified.is_empty());
+    assert_eq!(out.created.len(), 1);
+    assert_eq!(out.created[0].location, at(0, 1));
+    // DestroyComparer orders by ExpireDateTime, which is not compared here.
+    assert_eq!(
+        plan(
+            &inventory(&items),
+            &[Destroy {
+                class: &pass,
+                count: 1
+            }],
+            &[]
+        ),
+        Err(GiveError::Unsupported)
+    );
 }
