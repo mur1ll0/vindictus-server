@@ -102,7 +102,7 @@ Gate B3: fabricar, melhorar e encantar com sucesso e com falha (inclusive quebra
 
 ## B4 — painel de administração e análise de extensões
 
-1. **Painel de administrador** inspirado no projeto `pw-universal-server` do operador (`F:\Python_C_Projects\PWSource1.5.3\pw-universal-server`), sobre o HTTP operacional, com autenticação e auditoria. Funções previstas: criar/gerenciar contas, gerenciar personagens (ouro, itens, nível, skills), recursos do jogo, edição de lojas e mapas/canais, se houver controle necessário. O painel nunca reimplementa o login do jogo.
+1. **Painel de administrador** inspirado no projeto `pw-universal-server` do operador (`F:\Python_C_Projects\PWSource1.5.3\pw-universal-server`), sobre o HTTP operacional, com autenticação e auditoria. Funções previstas: criar/gerenciar contas, gerenciar personagens (ouro, itens, nível, skills), recursos do jogo, edição de lojas e mapas/canais, se houver controle necessário. O painel nunca reimplementa o login do jogo. Os valores de jogo ajustáveis (drops por fase, contagens de título, nível mínimo, EXP de história, pilha máxima, taxas do FeatureMatrix) estão mapeados por tabela/coluna em `docs/content-tuning.md`; o painel deve editar esses pontos.
 2. **Análise de viabilidade das extensões:** novos equipamentos e itens, novas missões, novas fases e novos monstros. O objetivo principal é **novas classes**. Para cada tipo, levantar o que vive no conteúdo SQLite, o que vive nos assets do cliente e o que exige servidor. O resultado é um relatório de viabilidade, que precede qualquer implementação de extensão.
 
 Gate B4: suíte completa e uso real do painel para criar uma conta, ajustar a Fiona e editar uma loja, com o efeito confirmado no cliente.

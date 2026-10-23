@@ -1,6 +1,7 @@
 """Readonly ItemClassInfo economy columns bound by row position to the item catalog projection."""
 import argparse, contextlib, json, pathlib, sqlite3
 from export_item_catalog import read_package as catalog_read, digest
+import content_overrides as overrides
 
 COLUMNS = ('Unique', 'ExpireIn', 'Price', 'SellPrice', 'RequiredLevel', 'ClassRestriction', 'UseInTown')
 
@@ -21,7 +22,7 @@ def read_package(database, config):
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         # Same SELECT * provider order as the catalog projection; rows bind by position.
         rows = []
-        for r in db.execute('Select * From [ItemClassInfo]'):
+        for r in overrides.select(db, 'ItemClassInfo'):
             rows.append(dict(item_utf16=text(r['ItemClass']), category_utf16=text(r['Category']),
                              unique=integer(r['Unique']), expire_in=integer(r['ExpireIn'], True),
                              price=integer(r['Price']), sell_price=integer(r['SellPrice']),

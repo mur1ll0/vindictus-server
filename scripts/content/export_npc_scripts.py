@@ -2,6 +2,7 @@
 its row, as compact element trees with XElement.Load(LoadOptions.None) text semantics."""
 import argparse, contextlib, hashlib, json, pathlib, re, sqlite3, xml.etree.ElementTree as ET
 import xml.etree.ElementTree
+import content_overrides as overrides
 from export_item_catalog import read_package as catalog_read, digest
 from export_reward_policy import feature_atoms
 
@@ -84,7 +85,7 @@ def read_package(base, database, config):
     storylines = []
     with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
-        for r in db.execute('Select * From [StoryLineInfo]'):
+        for r in overrides.select(db, 'StoryLineInfo'):
             info = {k: text(r[k]) for k in ('StoryLineID', 'StoryLineName', 'XmlPath', 'Npc', 'Category', 'Stage', 'RewardItem', 'RewardSkill', 'Episode', 'Feature')}
             info.update({k: integer(r[k]) for k in ('RewardGold', 'RewardExp', 'RewardAp', 'RewardTitle', 'RewardItemCount', 'RewardSkillRank', 'AutoGiveLevel', 'ClassRestriction', 'Season')})
             info.update({k: boolean(r[k]) for k in ('AutoProcess', 'AutoReveal')})
@@ -147,13 +148,13 @@ def read_package(base, database, config):
                              'MaxPlayCount': nullable_int32(r['MaxPlayCount']), 'EnableTodayQuest': nullable_text(r['EnableTodayQuest']),
                              'Season3TodayGroup': nullable_text(r['Season3TodayGroup']), 'AutoReveal': flag(r['AutoReveal']),
                              'Feature': nullable_text(r['Feature']), 'IsSeason2': flag(r['IsSeason2'])}
-                            for r in db.execute('Select * From [QuestInfo]')]
+                            for r in overrides.select(db, 'QuestInfo')]
         quests['goals'] = [[int32(r['ID']), nullable_text(r['QuestID']), int32(r['Relation']), int32(r['Weight'])]
                            for r in db.execute('Select * From [QuestGoalInfo]')]
         quests['constraints'] = [[nullable_text(r['QuestID']), nullable_text(r['RequiredQuestID']), int32(r['RequiredStatus'])]
                                  for r in db.execute('Select * From [QuestConstraintInfo]')]
         quests['difficulties'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['MinLevel']), nullable_text(r['Feature'])]
-                                  for r in db.execute('Select * From [QuestDifficultyInfo]')]
+                                  for r in overrides.select(db, 'QuestDifficultyInfo')]
         quests['periods'] = [[nullable_text(r['QuestID']), nullable_text(r['DateFrom']), int32(r['Period']), nullable_int32(r['MaxPlayCount']), nullable_text(r['Feature'])]
                              for r in db.execute('Select * From [QuestPeriodInfo]')]
     # CharacterContents.Load: CharacterClassInfo (BaseCharacter 1 = Fiona) and LevelUpExpInfo,
@@ -168,9 +169,9 @@ def read_package(base, database, config):
         # TitleGoalInfo IDs per title, for TitleManager.GiveTitleByLevelUp.
         progression['titles'] = [[int32(r['ID']), None if r['AutoGiveLevel'] is None else int32(r['AutoGiveLevel']), int32(r['ClassRestriction']), int32(r['HideUntil']), nullable_text(r['Feature'])]
                                  for r in db.execute('Select * From [TitleInfo]')]
-        progression['title_goals'] = [[int32(r['ID']), int32(r['TitleID'])] for r in db.execute('Select * From [TitleGoalInfo]')]
+        progression['title_goals'] = [[int32(r['ID']), int32(r['TitleID'])] for r in overrides.select(db, 'TitleGoalInfo')]
         # TitleGoalInfo Target (IgnoreCase regex), TargetCount and IsParty for TitleGoalTracker/Proceed.
-        progression['title_goal_targets'] = [[int32(r['ID']), nullable_text(r['Target']), int32(r['TargetCount']), flag(r['IsParty'])] for r in db.execute('Select * From [TitleGoalInfo]')]
+        progression['title_goal_targets'] = [[int32(r['ID']), nullable_text(r['Target']), int32(r['TargetCount']), flag(r['IsParty'])] for r in overrides.select(db, 'TitleGoalInfo')]
         # TitleStatInfo (TitleID, Stat, Amount) for TitleManager.GetTitleStats, and the
         # TitleInfo RequiredLevel/AllowShare its account-title part reads.
         progression['title_stats'] = [[int32(r['TitleID']), nullable_text(r['Stat']), int32(r['Amount'])]
@@ -188,7 +189,7 @@ def read_package(base, database, config):
                               flag(r['HuntingQuest']), nullable_int32(r['InitGameTime']), nullable_int32(r['SectorMoveGameTime']), int32(r['GatheringRockMax']),
                               nullable_text(r['RequiredStoryLineID']), nullable_text(r['RequiredPhase']), int32(r['MaxMemberCount']), flag(r['IsSeason2']),
                               flag(r['DisableUserShip']), nullable_text(r['RequiredItem'])]
-                             for r in db.execute('Select * From [QuestInfo]')]
+                             for r in overrides.select(db, 'QuestInfo')]
         mission['goals'] = [[nullable_text(r['QuestID']), int32(r['ID']), int32(r['Relation']), nullable_text(r['Target']), nullable_text(r['GameSetting']), nullable_int32(r['GameSettingArg'])]
                             for r in db.execute('Select * From [QuestGoalInfo]')]
         mission['sectors'] = [[nullable_text(r['QuestID']), int32(r['Sequence']), int32(r['SectorID']), nullable_text(r['BSPName']), int32(r['Weight']),
@@ -235,7 +236,7 @@ def read_package(base, database, config):
                                     for r in db.execute('Select * From [MonsterDropItemInfo]')]
         # PropDropTable: QuestInfo.PropDropTableName (feature-filtered), PropItemWeightInfo,
         # PropItemExpectationInfo ((int) of the REAL expectation) and MaterialGroupInfo.
-        mission['prop_tables'] = [[nullable_text(r['ID']), nullable_text(r['PropDropTableName']), nullable_text(r['Feature'])] for r in db.execute('Select * From [QuestInfo]')]
+        mission['prop_tables'] = [[nullable_text(r['ID']), nullable_text(r['PropDropTableName']), nullable_text(r['Feature'])] for r in overrides.select(db, 'QuestInfo')]
         mission['prop_items'] = [[int32(r['ID']), nullable_text(r['DropTableName']), nullable_text(r['MaterialGroup']), nullable_text(r['Type']), nullable_text(r['Item']), int32(r['Weight']), nullable_text(r['Feature'])]
                                  for r in db.execute('Select * From [PropItemWeightInfo]')]
         mission['prop_expectations'] = [[nullable_text(r['DropTableName']), nullable_text(r['MaterialGroup']), int(r['DropExpectationPerSector'])]
@@ -245,7 +246,7 @@ def read_package(base, database, config):
         mission['effects'] = [[nullable_text(r['EffectSource']), nullable_text(r['EffectOperation']), nullable_text(r['EffectTarget']), int32(r['EffectTargetAmount']),
                                [nullable_text(r['Effect' + str(i)]) for i in range(1, 6)]] for r in db.execute('Select * From [MicroPlayEffectInfo]')]
         mission['quest_difficulties'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GameMode']), int32(r['EvilCoreCount']), nullable_text(r['Feature'])]
-                                         for r in db.execute('Select * From [QuestDifficultyInfo]')]
+                                         for r in overrides.select(db, 'QuestDifficultyInfo')]
         # QuestGoalInfo tracking, reward and AP columns (TrackingElement, AddQuestGoalReward,
         # GetAP/AddClearCount, CalculateQuestStatus), QuestDifficultyInfo goal ratios and
         # MaxLevel, and QuestInfo MinClearTime/FreeQuest of the digest.
@@ -254,8 +255,8 @@ def read_package(base, database, config):
                                   int32(r['ItemNum']), nullable_text(r['ItemMultiplierFeature']), int32(r['ItemMultiplier']), int32(r['Weight'])]
                                  for r in db.execute('Select * From [QuestGoalInfo]')]
         mission['difficulty_rewards'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GoalExpRatio']), int32(r['GoalGoldRatio']), int32(r['MaxLevel']), nullable_text(r['Feature'])]
-                                         for r in db.execute('Select * From [QuestDifficultyInfo]')]
-        mission['quest_rewards'] = [[nullable_text(r['ID']), nullable_int32(r['MinClearTime']), flag(r['FreeQuest'])] for r in db.execute('Select * From [QuestInfo]')]
+                                         for r in overrides.select(db, 'QuestDifficultyInfo')]
+        mission['quest_rewards'] = [[nullable_text(r['ID']), nullable_int32(r['MinClearTime']), flag(r['FreeQuest'])] for r in overrides.select(db, 'QuestInfo')]
         dropped = {(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']} | {'javelin_lvl0'}
         mission['drop_classes'] = [[nullable_text(r['ItemClass']), int32(r['Rarity']), int32(r['ClassRestriction']), nullable_text(r['Feature'])]
                                    for r in db.execute('Select * From [ItemClassInfo]') if r['ItemClass'] in dropped]

@@ -1,6 +1,7 @@
 """Read-only SELECT-* catalog projection; raw content stays in an ACL-protected cache."""
 import argparse,contextlib,hashlib,json,pathlib,re,sqlite3,xml.etree.ElementTree as ET
 from export_reward_policy import feature_atoms
+import content_overrides as overrides
 
 def digest(path):
  with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
@@ -33,9 +34,13 @@ def read_package(database,config):
    wanted.update(feature_atoms(value));return value
   def rows(table,classes=False):
    # Same SELECT * as HeroesContentsLoader, with no invented ORDER BY or deduplication.
-   cursor=db.execute('Select * From ['+table+']');cs=[c[0] for c in cursor.description];result=[]
-   for row in cursor:
-    raw=dict(zip(cs,row));entry={'item_utf16':text(raw['ItemClass']),'feature':expression(raw['Feature'])}
+   # ItemClassInfo MaxStack comes from the original database (content_overrides).
+   if table in overrides.COLUMNS:source=overrides.select(db,table)
+   else:
+    cursor=db.execute('Select * From ['+table+']');cs=[c[0] for c in cursor.description];source=(dict(zip(cs,row)) for row in cursor)
+   result=[]
+   for raw in source:
+    entry={'item_utf16':text(raw['ItemClass']),'feature':expression(raw['Feature'])}
     if classes:
      maximum=raw['MaxStack'];storage=raw['Storage']
      if type(maximum) is not int or not -(2**31)<=maximum<2**31 or type(storage) is not int or not 0<=storage<=255:raise ValueError('Projected integer type/range')
