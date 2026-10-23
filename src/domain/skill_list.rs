@@ -272,6 +272,51 @@ pub struct NewSkill {
     pub active: bool,
 }
 
+/// SkillManager.GiveSkill(skillID, 1) for story grants: ConstraintPassed (rank 1
+/// feature, class, level, constraints) or, for a preset character,
+/// ForceConstraintPassed (feature and class only), then Already_Learnt. No price.
+pub fn give(
+    base_rank: &dyn Fn(&str) -> i32,
+    contents: &BTreeMap<String, SkillContent>,
+    class: i32,
+    level: i32,
+    use_preset: bool,
+    skill_id: &str,
+) -> Result<NewSkill, LearnNewRefusal> {
+    let content = contents.get(skill_id).ok_or(LearnNewRefusal::NoSuchSkill)?;
+    let rank = content.ranks.get(&1).ok_or(LearnNewRefusal::NoSuchSkill)?;
+    let restriction = content
+        .class_restriction
+        .ok_or(LearnNewRefusal::NoSuchSkill)?;
+    if !rank.feature_enabled {
+        return Err(LearnNewRefusal::NoSuchSkill);
+    }
+    let bit = 1_i32.wrapping_shl(class as u32 & 31);
+    if restriction & bit != bit {
+        return Err(LearnNewRefusal::Class);
+    }
+    if !use_preset {
+        if level < rank.level {
+            return Err(LearnNewRefusal::Level);
+        }
+        if content
+            .constraints
+            .get(&1)
+            .is_some_and(|rows| rows.iter().any(|(id, r)| base_rank(id) < *r))
+        {
+            return Err(LearnNewRefusal::Constraint);
+        }
+    }
+    if base_rank(skill_id) >= 0 {
+        return Err(LearnNewRefusal::AlreadyLearnt);
+    }
+    Ok(NewSkill {
+        price: 0,
+        locked: u8::from(content.ranks.get(&2).is_some_and(|r| r.require_unlock)),
+        active: content.use_type.is_some_and(|u| u != 0),
+    })
+}
+
 /// LearnNewSkillProcessor checks for a non-preset character, in source order
 /// (ConstraintPassed of rank 1, SkillInfo, Price), then GiveSkill's Already_Learnt.
 /// The source destroys the gold before GiveSkill can answer Already_Learnt; this

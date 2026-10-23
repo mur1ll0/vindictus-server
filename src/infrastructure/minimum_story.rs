@@ -377,6 +377,8 @@ struct Facts<'a> {
     repair_price: i32,
     gold: i32,
     manufactures: std::collections::BTreeMap<String, (i32, i32)>,
+    skill_contents:
+        Option<&'a std::collections::BTreeMap<String, crate::domain::skill_list::SkillContent>>,
 }
 impl crate::domain::npc_talk::Facts for Facts<'_> {
     fn class(&self) -> i32 {
@@ -419,6 +421,11 @@ impl crate::domain::npc_talk::Facts for Facts<'_> {
     }
     fn gold(&self) -> i32 {
         self.gold
+    }
+    fn skill_contents(
+        &self,
+    ) -> Option<&std::collections::BTreeMap<String, crate::domain::skill_list::SkillContent>> {
+        self.skill_contents
     }
 }
 
@@ -510,6 +517,7 @@ pub async fn talk(
                 .fetch_one(&mut *tx)
                 .await?;
         let facts = Facts {
+            skill_contents: assets.skills.as_ref(),
             use_preset,
             skills: skills
                 .into_iter()
@@ -626,8 +634,30 @@ pub async fn talk(
         // Source order; each effect's packets go where its command ran, shifted by the
         // packets earlier effects inserted.
         let mut shift = 0;
+        let mut later = Vec::new();
+        let mut skill_logs = Vec::new();
         for (at, effect) in rewards {
+            let mut skill = |s: super::minimum_skills::StorySkill| {
+                later.extend(s.later);
+                skill_logs.extend(s.log);
+                s.now
+            };
             let applied = match effect {
+                crate::domain::npc_talk::Effect::GiveSkill { skill: id, new, result } => {
+                    super::minimum_skills::give_story(
+                        &mut tx, owner, assets, cid, &id, new, result, &mut ids,
+                    )
+                    .await
+                    .map(&mut skill)
+                }
+                crate::domain::npc_talk::Effect::LearnNewSkillResult(code) => {
+                    super::minimum_skills::story_refusal(code).map(&mut skill)
+                }
+                crate::domain::npc_talk::Effect::UnlockSkill { skill: id, rank } => {
+                    super::minimum_skills::unlock_story(&mut tx, owner, assets, cid, &id, rank)
+                        .await
+                        .map(&mut skill)
+                }
                 crate::domain::npc_talk::Effect::NoticeTitle(title) => {
                     super::minimum_growth::notice_title(&mut tx, owner, assets, cid, title, growth)
                         .await
@@ -666,6 +696,19 @@ pub async fn talk(
             }
         }
         tx.commit().await?;
+        // ReportToClient runs after the query: SkillCompletionMessage goes last.
+        packets.extend(later);
+        for (event, key, rank, ap) in skill_logs {
+            super::character_initialization_logs::skill_log(
+                pool,
+                growth.journal,
+                event,
+                &key,
+                rank,
+                ap,
+            )
+            .await;
+        }
         Ok(packets)
     })
     .await
@@ -834,7 +877,12 @@ async fn apply_outputs(
                 )),
             )?),
             Output::Effect(
-                effect @ (Effect::Reward { .. } | Effect::NoticeTitle(_) | Effect::AcquireTitle(_)),
+                effect @ (Effect::Reward { .. }
+                | Effect::NoticeTitle(_)
+                | Effect::AcquireTitle(_)
+                | Effect::GiveSkill { .. }
+                | Effect::LearnNewSkillResult(_)
+                | Effect::UnlockSkill { .. }),
             ) => rewards.push((packets.len(), effect)),
             Output::Effect(effect @ (Effect::GiveItem { .. } | Effect::TakeItem { .. })) => {
                 let (class, count, take) = match &effect {

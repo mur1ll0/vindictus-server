@@ -1170,3 +1170,200 @@ fn take_item_enhanced_with_an_enhance_attribute_is_refused() {
     };
     assert!(matches!(result, Err(TalkError::Unsupported(_))));
 }
+
+struct SkillFiona(
+    std::collections::BTreeMap<String, vindictus_server::domain::skill_list::SkillContent>,
+);
+impl Facts for SkillFiona {
+    fn class(&self) -> i32 {
+        1
+    }
+    fn level(&self) -> i32 {
+        1
+    }
+    fn title_acquired(&self, _: i32) -> bool {
+        false
+    }
+    fn base_skill_rank(&self, skill: &str) -> i32 {
+        if skill == "skill_fiona_guard" { 2 } else { -1 }
+    }
+    fn items(&self) -> Vec<(String, i32)> {
+        Vec::new()
+    }
+    fn use_preset(&self) -> bool {
+        false
+    }
+    fn utc_seconds(&self) -> i32 {
+        0
+    }
+    fn item_count(&self, _: &str) -> i32 {
+        0
+    }
+    fn manufacture(&self, _: &str) -> Option<(i32, i32)> {
+        None
+    }
+    fn quests(&self) -> Option<&vindictus_server::domain::quest::QuestContents> {
+        None
+    }
+    fn repair_price(&self) -> i32 {
+        0
+    }
+    fn gold(&self) -> i32 {
+        0
+    }
+    fn skill_contents(
+        &self,
+    ) -> Option<
+        &std::collections::BTreeMap<String, vindictus_server::domain::skill_list::SkillContent>,
+    > {
+        Some(&self.0)
+    }
+}
+
+#[test]
+fn give_skill_grants_once_and_story_rewards_report_the_learn_result() {
+    use vindictus_server::domain::{
+        npc_talk::Effect,
+        skill_list::{NewSkill, RankInfo, SkillContent},
+    };
+    let skill = |restriction: i32| {
+        let mut c = SkillContent {
+            class_restriction: Some(restriction),
+            price: Some(-1),
+            ..Default::default()
+        };
+        c.ranks.insert(
+            1,
+            RankInfo {
+                level: 1,
+                required_ap: 0,
+                require_unlock: false,
+                feature_enabled: true,
+            },
+        );
+        c
+    };
+    let facts = SkillFiona(std::collections::BTreeMap::from([
+        ("skill_fiona_smash3".to_owned(), skill(2)),
+        ("skill_fiona_guard".to_owned(), skill(2)),
+        ("skill_fiona_reward".to_owned(), skill(2)),
+        ("skill_lethita_smash4".to_owned(), skill(1)),
+    ]));
+    let talk = |children| {
+        el(
+            "Talk",
+            &[("id", "AIDAN")],
+            "",
+            vec![el("Do", &[], "", children)],
+        )
+    };
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![
+            el(
+                "Phase",
+                &[("id", "A")],
+                "",
+                vec![talk(vec![
+                    leaf("give_skill", "skill_fiona_smash3"),
+                    leaf("give_skill", "skill_fiona_smash3"),
+                    leaf("give_skill", "skill_fiona_guard"),
+                    leaf("complete_storyline", ""),
+                ])],
+            ),
+            el(
+                "Phase",
+                &[("id", "B")],
+                "",
+                vec![talk(vec![leaf("give_skill", "skill_lethita_smash4")])],
+            ),
+        ],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        reward_skill: Some("skill_fiona_reward".to_owned()),
+        reward_skill_rank: 1,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let run = |phase: &str| {
+        let mut state = StoryState {
+            progress: vec![Progress {
+                story_line: "Guide".to_owned(),
+                phase: Some(phase.to_owned()),
+                status: 0,
+            }],
+            ..Default::default()
+        };
+        let mut session = Session::default();
+        let mut pick = |_| 0;
+        let mut outputs = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+            .talk_to(None, "AIDAN", Some("Guide"), None)
+            .unwrap()
+            .outputs;
+        while session.last_server_command.is_some() {
+            let more = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+                .execute_server_command()
+                .unwrap();
+            outputs.extend(more.outputs);
+        }
+        let talk: Vec<_> = outputs
+            .iter()
+            .filter_map(|o| match o {
+                Output::Talk(t) => Some(texts(t)),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        let effects: Vec<_> = outputs
+            .into_iter()
+            .filter_map(|o| match o {
+                Output::Effect(e) => Some(e),
+                _ => None,
+            })
+            .collect();
+        (talk, effects, state)
+    };
+    let new = NewSkill {
+        price: 0,
+        locked: 0,
+        active: false,
+    };
+    // The second grant and an owned skill answer Already_Learnt: success, no effect.
+    let (talk, effects, state) = run("A");
+    assert_eq!(
+        effects,
+        [
+            Effect::GiveSkill {
+                skill: "skill_fiona_smash3".to_owned(),
+                new,
+                result: false
+            },
+            Effect::GiveSkill {
+                skill: "skill_fiona_reward".to_owned(),
+                new,
+                result: true
+            },
+        ]
+    );
+    let successes = talk
+        .iter()
+        .filter(|e| e.0 == "give_skill_successful")
+        .count();
+    assert_eq!(successes, 3);
+    assert_eq!(state.progress[0].phase, None);
+    // A class the skill does not allow: OnError("give_skill"), the phase stays.
+    let (talk, effects, state) = run("B");
+    assert!(effects.is_empty());
+    assert!(talk.contains(&t(
+        "Error",
+        "GameUI_Heroes_NPCTalkEntity_Talk_NullError,give_skill",
+        ""
+    )));
+    assert_eq!(state.progress[0].phase.as_deref(), Some("B"));
+}

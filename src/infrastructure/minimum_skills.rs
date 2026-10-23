@@ -428,3 +428,167 @@ pub async fn learn_new(
     }
     Ok(packets)
 }
+
+/// SkillEffect.itemSkills and statSkills: their rank change recalculates item/final
+/// stats (StatManager.OnSkillRankChanged), which this profile does not migrate.
+const STAT_CHANGING_SKILLS: [&str; 32] = [
+    "skill_cloth_mastery",
+    "skill_light_armor_mastery",
+    "skill_heavy_armor_mastery",
+    "skill_plate_armor_mastery",
+    "skill_weight_mastery",
+    "skill_fiona_longsword_mastery",
+    "skill_fiona_shield_mastery",
+    "skill_fiona_largeshield_mastery",
+    "skill_fiona_longhammer_mastery",
+    "skill_lethita_dualsword_mastery",
+    "skill_lethita_dualspear_mastery",
+    "skill_evy_staff_mastery",
+    "skill_evy_scythe_mastery",
+    "skill_kalok_battlepillar_mastery",
+    "skill_kalok_blaster_mastery",
+    "skill_kay_bow_mastery",
+    "skill_kay_crossgun_mastery",
+    "skill_vella_dualblade_mastery",
+    "skill_hurk_greatsword_mastery",
+    "skill_lynn_battleglaive_mastery",
+    "skill_defence_mastery",
+    "skill_stamina_mastery",
+    "skill_hp_mastery",
+    "skill_str_mastery",
+    "skill_dex_mastery",
+    "skill_int_mastery",
+    "skill_will_mastery",
+    "skill_evy_magic_mastery",
+    "skill_stone_skin",
+    "skill_critical_hit",
+    "skill_evy_magic_critical",
+    // SkillEffect.IsMeditation: CalculateBonusAPTime needs the trained AP interval.
+    "skill_meditation",
+];
+
+/// Packets of a story skill change: `now` at the command's position, `later` after
+/// the query (ReportToClient is scheduled), and the skill log written after commit.
+pub(super) struct StorySkill {
+    pub now: Vec<OutgoingPacket>,
+    pub later: Vec<OutgoingPacket>,
+    pub log: Option<(i32, Vec<u8>, i32, i32)>,
+}
+
+/// CharacterImpl.GiveSkill(skillID) for a grant `skill_list::give` accepted.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn give_story(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    skill_id: &str,
+    new: skill_list::NewSkill,
+    result: bool,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+) -> Result<StorySkill, MinimumError> {
+    if STAT_CHANGING_SKILLS.contains(&skill_id) || new.locked == 1 {
+        // Stat recalculation, trained meditation or TryUnlockStory are not migrated.
+        tracing::warn!(
+            skill = skill_id,
+            "story skill grant outside the migrated profile"
+        );
+        return Err(fail());
+    }
+    let (level, class): (i32, i32) =
+        sqlx::query_as("SELECT level,class::integer FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    // GiveSkill: Skill row with RowID = MakeEntityID, rank 1, RecalculateRequiredAP.
+    let key: Vec<u8> = skill_id.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,1,$4,0)")
+        .bind(ids.next().ok_or_else(fail)?)
+        .bind(cid)
+        .bind(&key)
+        .bind(i16::from(new.locked))
+        .execute(&mut **tx)
+        .await?;
+    if new.active {
+        // SetSpSkillToEmptySlot: the first SPSkill whose SkillID is null.
+        sqlx::query("UPDATE game_sp_skills SET skill_utf16=$2 WHERE row_id=(SELECT row_id FROM game_sp_skills WHERE cid=$1 AND skill_utf16 IS NULL ORDER BY row_id LIMIT 1)")
+            .bind(cid)
+            .bind(&key)
+            .execute(&mut **tx)
+            .await?;
+    }
+    // SkillRankChanged → OnSkillRankChanged → PushSkillList; a story reward then
+    // sends LearnNewSkillResultMessage(Succeeced).
+    let mut now = vec![packet(tx, owner, assets, cid, level, class).await?];
+    if result {
+        now.push(learn_new_result(skill_list::LEARN_NEW_SUCCEEDED)?);
+    }
+    let completion = Message::SkillCompletion(wire::SkillAp {
+        skill: Some(skill_id.to_owned()),
+        value: 1,
+    });
+    let later = vec![OutgoingPacket {
+        category: Kind::SkillCompletion.category(),
+        body: wire::encode(Kind::SkillCompletion, Some(&completion), DEFAULT_MAX_BODY)
+            .map_err(|_| fail())?
+            .to_vec(),
+    }];
+    // AddSkillLog(CharacterSkillEvent.GiveSkill, skillID, rank, 0).
+    Ok(StorySkill {
+        now,
+        later,
+        log: Some((1, key, 1, 0)),
+    })
+}
+
+/// A refused story reward GiveSkill: LearnNewSkillResultMessage(failReason).
+pub(super) fn story_refusal(code: i32) -> Result<StorySkill, MinimumError> {
+    Ok(StorySkill {
+        now: vec![learn_new_result(code)?],
+        later: Vec::new(),
+        log: None,
+    })
+}
+
+/// CharacterImpl.UnlockSkill(skillID, rank): only a locked skill at rank-1 unlocks;
+/// otherwise it returns false and the story only logs UnlockSkillFail.
+pub(super) async fn unlock_story(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    skill_id: &str,
+    rank: i32,
+) -> Result<StorySkill, MinimumError> {
+    let key: Vec<u8> = skill_id.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let row: Option<(i32, i16, i32)> = sqlx::query_as(
+        "SELECT rank,locked,current_ap FROM game_skills WHERE cid=$1 AND skill_utf16=$2 FOR UPDATE",
+    )
+    .bind(cid)
+    .bind(&key)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some((current, _, ap)) = row.filter(|r| r.1 != 0 && r.0 == rank.wrapping_sub(1)) else {
+        return Ok(StorySkill {
+            now: Vec::new(),
+            later: Vec::new(),
+            log: None,
+        });
+    };
+    sqlx::query("UPDATE game_skills SET locked=0 WHERE cid=$1 AND skill_utf16=$2")
+        .bind(cid)
+        .bind(&key)
+        .execute(&mut **tx)
+        .await?;
+    let (level, class): (i32, i32) =
+        sqlx::query_as("SELECT level,class::integer FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    // SkillObservable.Updated(); PushSkillList; AddSkillLog(UnlockSkill, id, rank, AP).
+    Ok(StorySkill {
+        now: vec![packet(tx, owner, assets, cid, level, class).await?],
+        later: Vec::new(),
+        log: Some((5, key, current, ap)),
+    })
+}

@@ -506,6 +506,7 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
                         [
                             leaf("notice_title", "410019"),
                             leaf("acquire_title", "410018"),
+                            leaf("give_skill", "skill_new_synthetic"),
                             leaf("complete_storyline", ""),
                             leaf("talk", "done")
                         ],
@@ -1686,6 +1687,16 @@ async fn minimum_story_exp_reward_levels_up_with_titles_quests_stats_and_relogin
     // notice_title opened 410019 (AutoGiveLevel 9, not given by the level up);
     // acquire_title gave and acquired 410018 before the level up, which then skips it.
     assert_eq!(titles, [(410017, false), (410018, true), (410019, false)]);
+    // give_skill: GiveSkill rank 1 without paying the price; ReportToClient's
+    // SkillCompletionMessage goes after the query.
+    let given: Vec<(i32, i16)> =
+        sqlx::query_as("SELECT rank,locked FROM game_skills WHERE cid=1 AND skill_utf16=$1")
+            .bind(utf16("skill_new_synthetic"))
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(given, [(1, 0)]);
+    assert_eq!(categories.last(), Some(&582));
     let acquired_time: Option<i64> = sqlx::query_scalar(
         "SELECT acquired_time_units300 FROM game_titles WHERE cid=1 AND title_id=410018",
     )

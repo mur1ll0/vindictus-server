@@ -303,3 +303,58 @@ fn learn_new_checks_rank_one_constraints_price_and_ownership_in_source_order() {
         Err(LearnNewRefusal::NoSuchSkill)
     );
 }
+
+#[test]
+fn story_give_checks_constraints_unless_preset_and_ignores_price() {
+    use vindictus_server::domain::skill_list::{LearnNewRefusal, NewSkill, give};
+    // GuidePlay skills cannot be bought (Price -1) but GiveSkill has no price check.
+    let mut granted = content();
+    granted.price = Some(-1);
+    granted.ranks.insert(1, rank(5, 0));
+    granted
+        .constraints
+        .insert(1, vec![("skill_base".to_owned(), 2)]);
+    let contents = BTreeMap::from([("skill_story".to_owned(), granted)]);
+    let ranks = |base: i32, story: i32| {
+        move |id: &str| match id {
+            "skill_base" => base,
+            "skill_story" => story,
+            _ => -1,
+        }
+    };
+    let new = NewSkill {
+        price: 0,
+        locked: 0,
+        active: false,
+    };
+    // ConstraintPassed: feature, class, level, constraints; then Already_Learnt.
+    assert_eq!(
+        give(&ranks(2, -1), &contents, 0, 5, false, "skill_story"),
+        Err(LearnNewRefusal::Class)
+    );
+    assert_eq!(
+        give(&ranks(2, -1), &contents, 1, 4, false, "skill_story"),
+        Err(LearnNewRefusal::Level)
+    );
+    assert_eq!(
+        give(&ranks(1, -1), &contents, 1, 5, false, "skill_story"),
+        Err(LearnNewRefusal::Constraint)
+    );
+    assert_eq!(
+        give(&ranks(2, -1), &contents, 1, 5, false, "skill_story"),
+        Ok(new)
+    );
+    assert_eq!(
+        give(&ranks(2, 0), &contents, 1, 5, false, "skill_story"),
+        Err(LearnNewRefusal::AlreadyLearnt)
+    );
+    // ForceConstraintPassed for a preset character skips level and constraints.
+    assert_eq!(
+        give(&ranks(-1, -1), &contents, 1, 1, true, "skill_story"),
+        Ok(new)
+    );
+    assert_eq!(
+        give(&ranks(2, -1), &contents, 1, 5, false, "skill_missing"),
+        Err(LearnNewRefusal::NoSuchSkill)
+    );
+}

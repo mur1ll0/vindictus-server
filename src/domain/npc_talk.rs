@@ -98,6 +98,12 @@ pub trait Facts {
     fn repair_price(&self) -> i32;
     /// Useable gold count (DestroyItem(gold, n) succeeds when n does not exceed it).
     fn gold(&self) -> i32;
+    /// Skill contents when loaded (None: give_skill and skill rewards unsupported).
+    fn skill_contents(
+        &self,
+    ) -> Option<&std::collections::BTreeMap<String, crate::domain::skill_list::SkillContent>> {
+        None
+    }
 }
 
 /// Server command effects decided during the query and applied afterwards in one
@@ -116,6 +122,17 @@ pub enum Effect {
     NoticeTitle(i32),
     /// CharacterImpl.GiveReward(0, 0, null, {titleID: true}) → Titles.AcquireTitle.
     AcquireTitle(i32),
+    /// CharacterImpl.GiveSkill(skillID): rank 1, decided by `skill_list::give`.
+    /// `result`: a story reward sends LearnNewSkillResultMessage after it.
+    GiveSkill {
+        skill: String,
+        new: crate::domain::skill_list::NewSkill,
+        result: bool,
+    },
+    /// Story reward GiveSkill refused: LearnNewSkillResultMessage(failReason).
+    LearnNewSkillResult(i32),
+    /// CharacterImpl.UnlockSkill(skillID, rank): unlocks a locked skill at rank-1.
+    UnlockSkill { skill: String, rank: i32 },
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -738,12 +755,28 @@ impl<'a> Talker<'a> {
                         .ok_or(TalkError::Halted)?
                         .info
                         .clone();
-                    // Skill rewards (GiveSkill/UnlockSkill) are not migrated.
-                    if info.reward_skill.is_some()
-                        || info.reward_item.as_deref().is_some_and(|c| c.contains('['))
-                    {
+                    if info.reward_item.as_deref().is_some_and(|c| c.contains('[')) {
                         return Err(TalkError::Unsupported("story reward".into()));
                     }
+                    // RewardSkillRank 1: GiveSkill then LearnNewSkillResultMessage; any
+                    // other rank: UnlockSkill. Decided before the completion changes state.
+                    let skill_reward = match &info.reward_skill {
+                        Some(skill) if info.reward_skill_rank == 1 => {
+                            Some(match self.give_skill(skill)? {
+                                Ok(new) => Effect::GiveSkill {
+                                    skill: skill.clone(),
+                                    new,
+                                    result: true,
+                                },
+                                Err(refusal) => Effect::LearnNewSkillResult(refusal as i32),
+                            })
+                        }
+                        Some(skill) => Some(Effect::UnlockSkill {
+                            skill: skill.clone(),
+                            rank: info.reward_skill_rank,
+                        }),
+                        None => None,
+                    };
                     self.state.progress[i].phase = None;
                     self.state.variables.retain(|(l, _, _)| *l != line_id);
                     if info.reward_gold != 0 {
@@ -789,6 +822,9 @@ impl<'a> Talker<'a> {
                         self.pushed
                             .outputs
                             .push(Output::Effect(Effect::Reward { exp, ap }));
+                    }
+                    if let Some(effect) = skill_reward {
+                        self.pushed.outputs.push(Output::Effect(effect));
                     }
                     self.session.story_line_changed = true;
                     if command == "complete_storyline_and_delete" {
@@ -908,6 +944,25 @@ impl<'a> Talker<'a> {
                         self.add(entity("give_quest_successful", Some(quest), None));
                         self.resume(k)
                     }
+                }
+            }
+            "give_skill" => {
+                let skill = arg1.unwrap_or("");
+                match self.give_skill(skill)? {
+                    Ok(new) => {
+                        self.pushed.outputs.push(Output::Effect(Effect::GiveSkill {
+                            skill: skill.to_owned(),
+                            new,
+                            result: false,
+                        }));
+                        self.add(entity("give_skill_successful", Some(skill), None));
+                        self.resume(k)
+                    }
+                    Err(crate::domain::skill_list::LearnNewRefusal::AlreadyLearnt) => {
+                        self.add(entity("give_skill_successful", Some(skill), None));
+                        self.resume(k)
+                    }
+                    Err(_) => self.on_error("give_skill"),
                 }
             }
             "acquire_title" => {
@@ -1044,6 +1099,41 @@ impl<'a> Talker<'a> {
         self.state.saves.retain(|(n, l, _)| n != npc || l != line);
     }
     /// StoryEntity.OnError: the NPC's "<cmd>_fail" talk, or the null-error entity.
+    /// SkillManager.GiveSkill(skill, 1) against the Facts plus the skills this query
+    /// already granted (a second grant answers Already_Learnt).
+    #[allow(clippy::type_complexity)]
+    fn give_skill(
+        &self,
+        skill: &str,
+    ) -> Result<
+        Result<crate::domain::skill_list::NewSkill, crate::domain::skill_list::LearnNewRefusal>,
+        TalkError,
+    > {
+        let contents = self
+            .facts
+            .skill_contents()
+            .ok_or_else(|| TalkError::Unsupported("give_skill".into()))?;
+        let granted = |id: &str| {
+            self.pushed.outputs.iter().any(
+                |o| matches!(o, Output::Effect(Effect::GiveSkill { skill, .. }) if skill == id),
+            )
+        };
+        let base_rank = |id: &str| {
+            if granted(id) {
+                1
+            } else {
+                self.facts.base_skill_rank(id)
+            }
+        };
+        Ok(crate::domain::skill_list::give(
+            &base_rank,
+            contents,
+            self.facts.class(),
+            self.facts.level(),
+            self.facts.use_preset(),
+            skill,
+        ))
+    }
     fn on_error(&mut self, command: &str) -> Result<(), TalkError> {
         self.session.is_error_handling = true;
         let npc = self.session.talking_npc.clone();
