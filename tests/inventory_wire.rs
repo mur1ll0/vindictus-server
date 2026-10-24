@@ -128,6 +128,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::WishListInsertResponse
                 | Kind::WishListDelete
                 | Kind::WishListDeleteResponse
+                | Kind::BeautyShopCustomize
                 | Kind::SkillEnhanceSessionStart
                 | Kind::SkillEnhanceSessionEnd
                 | Kind::SkillEnhanceUseErg

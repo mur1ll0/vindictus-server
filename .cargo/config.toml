@@ -1,0 +1,6 @@
+# User instruction (2026-10-24): keep builds from saturating the operator machine.
+[build]
+jobs = 4
+
+[env]
+RUST_TEST_THREADS = "4"

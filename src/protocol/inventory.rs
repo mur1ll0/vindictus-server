@@ -90,6 +90,7 @@ pub enum Kind {
     WishListInsertResponse,
     WishListDelete,
     WishListDeleteResponse,
+    BeautyShopCustomize,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -173,6 +174,7 @@ impl Kind {
             Self::WishListInsertResponse => 211,
             Self::WishListDelete => 209,
             Self::WishListDeleteResponse => 210,
+            Self::BeautyShopCustomize => 233,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -256,6 +258,7 @@ impl Kind {
             Self::WishListInsertResponse => 0xa48093ce_a0b9_3bcd_a52b_6738c45cf30d,
             Self::WishListDelete => 0xc4587129_aa0e_3a5d_a47d_6e17ce2550a7,
             Self::WishListDeleteResponse => 0xa72f021b_568b_3ff6_8400_3c6a64c3c2bc,
+            Self::BeautyShopCustomize => 0x31e4e1d4_592f_3f80_b094_27cc6a284f97,
         })
     }
 }
@@ -442,6 +445,7 @@ pub enum Message {
     WishListInsertResponse(WishListResponse),
     WishListDelete(WishListChange),
     WishListDeleteResponse(WishListResponse),
+    BeautyShopCustomize(BeautyShopCustomize),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -742,6 +746,48 @@ pub struct WishListResponse {
     pub result: i32,
     pub cid: i64,
 }
+/// CustomizeItemRequestInfo: ItemClass, Category, Color1-3, Duration, Price (a price or a
+/// coupon ItemClass), CouponItemID.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CustomizeItemRequest {
+    pub item_class: Option<String>,
+    pub category: Option<String>,
+    pub color1: i32,
+    pub color2: i32,
+    pub color3: i32,
+    pub duration: i32,
+    pub price: Option<String>,
+    pub coupon_item_id: i64,
+}
+/// BeautyShopCustomizeMessage in declaration order; BodyShapeInfo values are the IEEE bits
+/// of the Single values.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BeautyShopCustomize {
+    pub customize_items: Option<Vec<Option<CustomizeItemRequest>>>,
+    pub painting_pos_x: i32,
+    pub painting_pos_y: i32,
+    pub painting_size: i32,
+    pub painting_rotation: i32,
+    pub payment: i32,
+    pub body_painting_pos_x: i32,
+    pub body_painting_pos_y: i32,
+    pub body_painting_size: i32,
+    pub body_painting_rotation: i32,
+    pub body_painting_side: i32,
+    pub body_painting_clip: i32,
+    pub body_painting_mode: i32,
+    pub height_value: i32,
+    pub bust_value: i32,
+    pub shineness_value: i32,
+    pub skin_color: i32,
+    pub eye_color: i32,
+    pub eyebrow_item_class: Option<String>,
+    pub eyebrow_color: i32,
+    pub look_change_item_class: Option<String>,
+    pub look_change_duration: i32,
+    pub look_change_price: Option<String>,
+    pub body_shape_info: Dict<i32>,
+}
 /// RandomItemRewardListMessage in declaration order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RandomItemRewardList {
@@ -985,6 +1031,7 @@ impl Message {
             Self::WishListInsertResponse(_) => Kind::WishListInsertResponse,
             Self::WishListDelete(_) => Kind::WishListDelete,
             Self::WishListDeleteResponse(_) => Kind::WishListDeleteResponse,
+            Self::BeautyShopCustomize(_) => Kind::BeautyShopCustomize,
         }
     }
 }
@@ -1308,6 +1355,42 @@ object!(WishListSelectResponse {
 });
 object!(WishListChange { cid, products });
 object!(WishListResponse { result, cid });
+object!(CustomizeItemRequest {
+    item_class,
+    category,
+    color1,
+    color2,
+    color3,
+    duration,
+    price,
+    coupon_item_id
+});
+object!(BeautyShopCustomize {
+    customize_items,
+    painting_pos_x,
+    painting_pos_y,
+    painting_size,
+    painting_rotation,
+    payment,
+    body_painting_pos_x,
+    body_painting_pos_y,
+    body_painting_size,
+    body_painting_rotation,
+    body_painting_side,
+    body_painting_clip,
+    body_painting_mode,
+    height_value,
+    bust_value,
+    shineness_value,
+    skin_color,
+    eye_color,
+    eyebrow_item_class,
+    eyebrow_color,
+    look_change_item_class,
+    look_change_duration,
+    look_change_price,
+    body_shape_info
+});
 object!(RandomItemRewardList {
     item_classes,
     item_quantities,
@@ -1546,6 +1629,7 @@ pub fn encode(
             Message::WishListInsertResponse(v) => v.write(&mut w)?,
             Message::WishListDelete(v) => v.write(&mut w)?,
             Message::WishListDeleteResponse(v) => v.write(&mut w)?,
+            Message::BeautyShopCustomize(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1683,6 +1767,9 @@ fn decode_body(
             Kind::WishListDelete => Message::WishListDelete(WishListChange::read(&mut r)?),
             Kind::WishListDeleteResponse => {
                 Message::WishListDeleteResponse(WishListResponse::read(&mut r)?)
+            }
+            Kind::BeautyShopCustomize => {
+                Message::BeautyShopCustomize(BeautyShopCustomize::read(&mut r)?)
             }
         })
     };

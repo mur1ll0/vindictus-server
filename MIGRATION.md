@@ -1256,3 +1256,13 @@ CS2 — catálogo, saldo, depósito, compra, retirada e lista de desejos do cash
 - Cliente: entrada CS2 em `docs/client-tests/B3-equipamento.md`.
 - Próxima ação: recompilar o Docker, creditar 1.000.000 e o operador testar o cash shop no cliente.
 
+CS3 — cash shop no lobby e loja de visual (24/10/2026, teste de cliente: botão Depot inativo; na loja de visual a compra de cabelo e inner armor ficou em "Purchasing" até "Response from server delayed").
+- Diagnóstico: `QueryCashShopProductList` (242) e `QueryCashShopBalance` (238) chegam logo depois do login, antes da seleção (`selected: false`), e o servidor só atendia com personagem selecionado; a compra na loja de visual é a `BeautyShopCustomizeMessage` (233), sem handler.
+- Fonte: `CashShopPeer.QueryProductList`/`BeginCheckBalance` (só NexonID), `InGame` (BeautyShopCustomize → `ItemFailMessage` "GameUI_Heroes_Success"/"GameUI_Heroes_BeautyShopFail", segunda senha com itens), `BeautyShopCustomizeProcessor` (CustomizeItemInfo; CustomizePriceInfo da Duration com o Price pedido; cupons; FreeItems; `DirectPickUp` com payment ≤ 1; `Unequip(GetEquippablePart(Category))`; `GiveItemRequest(customizeItem)` com ExpireDateTime = UtcNow + Duration dias), `ItemContents.LoadCustomizedItem` (Feature e `CashShopType ?? LanguageTag`).
+- Conteúdo: `export_cash_shop.py` formato 2 com `customize_items`, `customize_prices`, `customize_coupons` e as features (LanguageTag en-EU).
+- Protocolo: `BeautyShopCustomizeMessage` (233) e `CustomizeItemRequestInfo`; `BodyShapeInfo` como bits IEEE; oráculo 2.310 casos (x86 = x64); o serializador original não aceita elemento nulo na lista de itens.
+- Infraestrutura: `lab_frontend` atende catálogo e saldo antes da seleção; `minimum_beauty_shop::customize` (débito do saldo, desequipar a parte, entrega com cores e validade, `refresh_gear`, `CashShopBalance`, "GameUI_Heroes_Success"); `.cargo/config.toml` limita o cargo a 4 jobs e 4 threads de teste (pedido do operador: máquina a 100%).
+- Testes: PostgreSQL `minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up` (inclui a loja de visual: preço errado, cupom e Tir recusados; permanente + 30 dias); `item_sync_wire`, `inventory_wire`, Python `test_export_cash_shop`; clippy `-D warnings`.
+- Diferenças: cupons (inclusive free pass e unlimited pass), pinturas grátis, look change (rosto/corpo), pacotes de avatar, posições de pintura e pagamento com Tir respondem "BeautyShopFail".
+- Cliente: entrada CS3 em `docs/client-tests/B3-equipamento.md`.
+

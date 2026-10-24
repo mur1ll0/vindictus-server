@@ -830,6 +830,49 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 "case {n}"
             );
         }
+        Some(Message::BeautyShopCustomize(b)) => {
+            let ours = b.customize_items.as_ref().map(|l| {
+                l.iter()
+                    .map(|c| {
+                        c.as_ref()
+                            .map(|c| (c.item_class.clone(), c.duration, c.price.clone()))
+                    })
+                    .collect::<Vec<_>>()
+            });
+            let theirs = f["CustomizeItems"].as_array().map(|l| {
+                l.iter()
+                    .map(|c| {
+                        (!c.is_null()).then(|| {
+                            (
+                                c["ItemClass"].as_str().map(str::to_owned),
+                                i32::try_from(c["Duration"].as_i64().unwrap()).unwrap(),
+                                c["Price"].as_str().map(str::to_owned),
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(ours, theirs, "case {n}");
+            assert_eq!(
+                (i64::from(b.payment), b.eyebrow_item_class.as_deref()),
+                (
+                    f["payment"].as_i64().unwrap(),
+                    f["EyebrowItemClass"].as_str()
+                ),
+                "case {n}"
+            );
+            let shapes = f["BodyShapeInfo"].as_array().map(|l| {
+                l.iter()
+                    .map(|e| {
+                        (
+                            i32::try_from(e["key"].as_i64().unwrap()).unwrap(),
+                            (e["value"].as_f64().unwrap() as f32).to_bits() as i32,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(b.body_shape_info.0, shapes, "case {n}");
+        }
         Some(Message::RandomItemRewardList(m)) => {
             let classes = f["ItemClasses"].as_array().map(|o| {
                 o.iter()
@@ -1193,6 +1236,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::WishListInsertResponse,
         Kind::WishListDelete,
         Kind::WishListDeleteResponse,
+        Kind::BeautyShopCustomize,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
         Kind::QueryBuybackList,
@@ -1216,7 +1260,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 2292);
+        assert_eq!(cases.len(), 2310);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1273,6 +1317,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "wish_list_delete_response" => {
                     check_inventory(Kind::WishListDeleteResponse, case, n)
                 }
+                "beauty_shop_customize" => check_inventory(Kind::BeautyShopCustomize, case, n),
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),

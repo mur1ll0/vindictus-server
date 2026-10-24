@@ -24,6 +24,38 @@ struct Price {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CustomizeRow {
+    item: Option<String>,
+    category: Option<String>,
+    shop: Option<String>,
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PriceRow {
+    item: Option<String>,
+    duration: i32,
+    price: i32,
+    shop: Option<String>,
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CouponRow {
+    item: Option<String>,
+    category: Option<String>,
+    price: i32,
+    shop: Option<String>,
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Feature {
+    key: String,
+    value: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Profile {
     format_version: u32,
     source: String,
@@ -33,6 +65,28 @@ pub struct Profile {
     categories: Vec<Option<String>>,
     default_price: i32,
     prices: Vec<Price>,
+    customize_items: Vec<CustomizeRow>,
+    customize_prices: Vec<PriceRow>,
+    customize_coupons: Vec<CouponRow>,
+    features: Vec<Feature>,
+}
+
+/// CustomizePriceInfo: Duration (days, 0 or less permanent) and Price.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CustomizePrice {
+    pub duration: i32,
+    pub price: i32,
+}
+
+/// ItemContents.LoadCustomizedItem dictionaries (Feature and CashShopType filtered).
+pub struct Customize {
+    /// customizeItemInfoDic: ItemClass -> Category.
+    pub items: BTreeMap<String, Option<String>>,
+    /// customizePriceInfoDic (ToListDictionary, provider order).
+    pub prices: BTreeMap<String, Vec<CustomizePrice>>,
+    /// customizeCouponInfoDic: ItemClass -> (Category, Price).
+    pub coupons: BTreeMap<String, (Option<String>, i32)>,
+    pub policy: crate::domain::feature_policy::FeaturePolicy,
 }
 
 /// One product: its catalog class and the listing element.
@@ -47,6 +101,7 @@ pub struct Contents {
     categories: Vec<CashShopCategory>,
     products: Vec<Product>,
     by_no: BTreeMap<i32, usize>,
+    customize: Customize,
 }
 
 fn fail() -> MinimumError {
@@ -64,7 +119,10 @@ impl Profile {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
-        if p.format_version != 1
+        if p.format_version != 2
+            || p.customize_items.len() + p.customize_prices.len() + p.customize_coupons.len()
+                > 262_144
+            || p.features.len() > 512
             || p.source != "heroesContents.cash-shop"
             || p.categories.len() > 262_144
             || p.prices.len() > 1024
@@ -163,6 +221,7 @@ impl Profile {
                 },
             });
         }
+        let customize = self.customize(catalog)?;
         let by_no = products
             .iter()
             .enumerate()
@@ -172,6 +231,75 @@ impl Profile {
             categories,
             products,
             by_no,
+            customize,
+        })
+    }
+
+    fn customize(&self, catalog: &Catalog) -> Result<Customize, MinimumError> {
+        let mut rows: BTreeMap<String, Option<String>> = catalog
+            .policy
+            .entries()
+            .map(|(k, v)| (k.to_owned(), Some(v.to_owned())))
+            .collect();
+        for f in &self.features {
+            let value = f.value.clone().unwrap_or_default();
+            match rows.get(&f.key) {
+                Some(existing) if existing.as_deref().unwrap_or("") != value => {
+                    return Err(fail());
+                }
+                Some(_) => {}
+                None => {
+                    rows.insert(f.key.clone(), Some(value));
+                }
+            }
+        }
+        let policy =
+            crate::domain::feature_policy::FeaturePolicy::npc_source(rows).map_err(|_| fail())?;
+        let language = policy.get_string("LanguageTag").to_owned();
+        let keep =
+            |shop: &Option<String>, feature: &Option<String>| -> Result<bool, MinimumError> {
+                Ok(policy.is_enabled(feature.as_deref()).map_err(|_| fail())?
+                    && shop.as_deref().unwrap_or(&language) == language)
+            };
+        let mut items = BTreeMap::new();
+        for r in &self.customize_items {
+            if keep(&r.shop, &r.feature)? {
+                // ToDictionary refuses a null or duplicate key.
+                let item = r.item.clone().ok_or_else(fail)?;
+                if items.insert(item, r.category.clone()).is_some() {
+                    return Err(fail());
+                }
+            }
+        }
+        let mut prices: BTreeMap<String, Vec<CustomizePrice>> = BTreeMap::new();
+        for r in &self.customize_prices {
+            if keep(&r.shop, &r.feature)? {
+                prices
+                    .entry(r.item.clone().ok_or_else(fail)?)
+                    .or_default()
+                    .push(CustomizePrice {
+                        duration: r.duration,
+                        price: r.price,
+                    });
+            }
+        }
+        let mut coupons = BTreeMap::new();
+        for r in &self.customize_coupons {
+            if keep(&r.shop, &r.feature)? {
+                let item = r.item.clone().ok_or_else(fail)?;
+                if coupons
+                    .insert(item, (r.category.clone(), r.price))
+                    .is_some()
+                {
+                    return Err(fail());
+                }
+            }
+        }
+        Ok(Customize {
+            items,
+            prices,
+            coupons,
+            policy,
         })
     }
 }
@@ -182,6 +310,9 @@ impl Contents {
     }
     pub fn products(&self) -> &[Product] {
         &self.products
+    }
+    pub fn customize(&self) -> &Customize {
+        &self.customize
     }
     /// Service.ProductByProductID.
     pub fn product(&self, product_no: i32) -> Option<&Product> {

@@ -5348,9 +5348,22 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     // synthetic_cash (row 1) is the only cash-tab class of the fixture catalog.
-    let profile = json!({"format_version":1,"source":"heroesContents.cash-shop","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
-        "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[{"category":"CASHITEM","price":300}]});
+    let profile = json!({"format_version":2,"source":"heroesContents.cash-shop","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+        "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[{"category":"CASHITEM","price":300}],
+        "customize_items":[{"item":"synthetic_bag","category":"HAIR","shop":"en-EU","feature":null},{"item":"synthetic_cash","category":"HAIR","shop":"ko-KR","feature":null}],
+        "customize_prices":[{"item":"synthetic_bag","duration":-1,"price":139,"shop":"en-EU","feature":null},{"item":"synthetic_bag","duration":30,"price":69,"shop":null,"feature":""}],
+        "customize_coupons":[{"item":"coupon_hair","category":"HAIR","price":1000,"shop":"en-EU","feature":null}],
+        "features":[{"key":"LanguageTag","value":"en-EU"},{"key":"AvatarBeauty","value":null},{"key":"CashShop","value":null}]});
     let assets = assets_with(0, 1, 0)
+        .with_equipment(
+            vindictus_server::infrastructure::equipment_profile::Profile::read(
+                serde_json::to_vec(&equipment_fixture::equipment_profile_fixture())
+                    .unwrap()
+                    .as_slice(),
+            )
+            .unwrap(),
+        )
+        .unwrap()
         .with_cash_shop(
             cash_shop::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
         )
@@ -5415,7 +5428,7 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
         b.balance
     };
     assert_eq!(
-        balance(&minimum_cash_shop::balance(&p, &owner).await.unwrap()),
+        balance(&minimum_cash_shop::balance(&p, owner.uid).await.unwrap()),
         0
     );
     assert_eq!(
@@ -5530,5 +5543,113 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
         panic!("wish list")
     };
     assert_eq!(list.result, 2);
+    // BeautyShopCustomize: a permanent and a 30-day synthetic_bag (139 + 69 from 400).
+    let item = |duration: i32, price: &str| {
+        Some(
+            vindictus_server::protocol::inventory::CustomizeItemRequest {
+                item_class: Some("synthetic_bag".into()),
+                category: Some("HAIR".into()),
+                color1: -1,
+                color2: -1,
+                color3: -1,
+                duration,
+                price: Some(price.into()),
+                coupon_item_id: -1,
+            },
+        )
+    };
+    let beauty =
+        |items: Vec<Option<vindictus_server::protocol::inventory::CustomizeItemRequest>>| {
+            vindictus_server::protocol::inventory::BeautyShopCustomize {
+                customize_items: Some(items),
+                painting_pos_x: 0,
+                painting_pos_y: 0,
+                painting_size: 0,
+                painting_rotation: 0,
+                payment: 0,
+                body_painting_pos_x: 0,
+                body_painting_pos_y: 0,
+                body_painting_size: 0,
+                body_painting_rotation: 0,
+                body_painting_side: 0,
+                body_painting_clip: 0,
+                body_painting_mode: 0,
+                height_value: 0,
+                bust_value: 0,
+                shineness_value: 0,
+                skin_color: 0,
+                eye_color: 0,
+                eyebrow_item_class: None,
+                eyebrow_color: 0,
+                look_change_item_class: None,
+                look_change_duration: 0,
+                look_change_price: None,
+                body_shape_info: vindictus_server::protocol::inventory::Dict(None),
+            }
+        };
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    let bags = || async {
+        sqlx::query_as::<_, (i64, i64)>("SELECT count(*), count(expire_ticks) FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+            .bind(utf16("synthetic_bag"))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+    };
+    let fail_name = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        let Message::ItemFail(Some(m)) = decode(packet, Kind::ItemFail) else {
+            panic!("dialog missing")
+        };
+        m.format.unwrap()
+    };
+    let (held, expiring) = bags().await;
+    // A wrong price, a coupon and a Tir payment fail without a change.
+    for request in [
+        beauty(vec![item(-1, "140")]),
+        beauty(vec![item(-1, "coupon_hair")]),
+        {
+            let mut r = beauty(vec![item(-1, "139")]);
+            r.payment = 2;
+            r
+        },
+    ] {
+        let out = vindictus_server::infrastructure::minimum_beauty_shop::customize(
+            &p,
+            &owner,
+            &assets,
+            1,
+            &request,
+            vec![961, 962],
+            log,
+            config,
+            Arithmetic::FrameworkX64,
+        )
+        .await
+        .unwrap();
+        assert_eq!(fail_name(&out.packets[0]), "GameUI_Heroes_BeautyShopFail");
+    }
+    let out = vindictus_server::infrastructure::minimum_beauty_shop::customize(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &beauty(vec![item(-1, "139"), item(30, "69")]),
+        vec![963, 964],
+        log,
+        config,
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let last = out.packets.last().unwrap();
+    assert_eq!(fail_name(last), "GameUI_Heroes_Success");
+    assert!(out.look.is_some());
+    assert_eq!(bags().await, (held + 2, expiring + 1));
+    assert_eq!(
+        balance(&minimum_cash_shop::balance(&p, owner.uid).await.unwrap()),
+        400 - 139 - 69
+    );
     cleanup_game_pool(a, p, s).await;
 }

@@ -174,3 +174,10 @@ Pré-condição: `pwsh scripts/dev/lab-give-cash.ps1` creditou cash na conta (pa
 - [ ] Relogar → saldo, depósito e itens retirados continuam.
 Limites conhecidos: presentes, reembolso, inventário compartilhado, moedas Tir, milhagem e produtos com validade não funcionam; os preços são da tabela de laboratório.
 
+### CS3 — Botão do cash shop e loja de visual
+Pré-condição: saldo creditado (`pwsh scripts/dev/lab-give-cash.ps1`).
+- [ ] Depois do login, o botão do cash shop/Depot fica ativo e abre o catálogo com o saldo.
+- [ ] Loja de visual: comprar um cabelo e uma inner armor (permanente ou 30 dias) com cash → mensagem de sucesso, o saldo cai pelo preço da tabela e os itens aparecem na aba cash do inventário (a parte correspondente fica desequipada, como no original); os de 30 dias mostram a validade.
+- [ ] Preço com cupom → mensagem de falha da loja de visual, nada muda.
+Limites conhecidos: cupons, pinturas grátis, mudança de rosto/corpo e pacotes de avatar respondem falha.
+

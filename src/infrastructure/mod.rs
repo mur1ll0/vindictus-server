@@ -97,6 +97,7 @@ pub mod mail_reference;
 
 pub mod channel_server;
 pub mod minimum_assets;
+pub mod minimum_beauty_shop;
 pub mod minimum_cash_shop;
 pub mod minimum_character;
 pub mod minimum_character_list;

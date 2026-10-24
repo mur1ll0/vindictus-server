@@ -1868,6 +1868,7 @@ impl Connection {
                 Kind::WishListSelect,
                 Kind::WishListInsert,
                 Kind::WishListDelete,
+                Kind::BeautyShopCustomize,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
@@ -1883,6 +1884,45 @@ impl Connection {
                 let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
                     .map_err(|_| RuntimeError::Message)?
                     .ok_or(RuntimeError::Message)?;
+                // CashShopServiceProxy answers the catalog and the balance from login on
+                // (CashShopPeer needs only the NexonID); the client asks both in the lobby.
+                if matches!(
+                    message,
+                    Message::QueryCashShopProductList | Message::QueryCashShopBalance
+                ) {
+                    let Ok(uid) = self.frontend.accepted_identity().map(|id| id.nexon_sn) else {
+                        self.log_unhandled(category, body);
+                        return Ok(());
+                    };
+                    let assets = &runtime
+                        .minimum
+                        .as_ref()
+                        .ok_or(RuntimeError::Profile)?
+                        .assets;
+                    let packets = match message {
+                        Message::QueryCashShopProductList => {
+                            super::minimum_cash_shop::product_list(assets)
+                        }
+                        _ => super::minimum_cash_shop::balance(pool, uid)
+                            .await
+                            .map(|p| vec![p]),
+                    };
+                    match packets {
+                        Ok(packets) => {
+                            for packet in &packets {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                            }
+                            tracing::info!(
+                                categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+                                "minimum cash shop account query answered; values omitted"
+                            );
+                        }
+                        Err(_) => tracing::warn!(
+                            "minimum cash shop account query refused; values omitted"
+                        ),
+                    }
+                    return Ok(());
+                }
                 // QueryAP is an InGame message; UseInventoryItem passes UseSecondPassword.
                 let (Some(selected), true) = (
                     self.selected.as_ref(),
@@ -2267,28 +2307,50 @@ impl Connection {
                             }
                         }
                     }
-                    Message::QueryCashShopProductList => {
-                        match super::minimum_cash_shop::product_list(assets) {
-                            Ok(packets) => {
-                                for packet in &packets {
-                                    send(stream, sender, packet.category, &packet.body).await?;
+                    Message::BeautyShopCustomize(request) => {
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(16)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        let outcome = super::minimum_beauty_shop::customize(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            &request,
+                            ids,
+                            runtime.item_log_context(assets)?,
+                            runtime.minimum_header()?,
+                            runtime.stat_arithmetic(),
+                        )
+                        .await;
+                        // OnFail of the operation: ItemFailMessage "GameUI_Heroes_BeautyShopFail".
+                        let customized = match outcome {
+                            Ok(c) => c,
+                            Err(_) => {
+                                tracing::warn!("minimum beauty shop refused; values omitted");
+                                super::minimum_beauty_shop::Customized {
+                                    packets: vec![
+                                        super::minimum_equip::item_fail("BeautyShopFail")
+                                            .map_err(|_| RuntimeError::Message)?,
+                                    ],
+                                    look: None,
                                 }
-                                tracing::info!("minimum cash shop catalog sent; values omitted");
                             }
-                            Err(_) => {
-                                tracing::warn!("minimum cash shop catalog refused; values omitted")
-                            }
+                        };
+                        for packet in &customized.packets {
+                            send(stream, sender, packet.category, &packet.body).await?;
                         }
-                    }
-                    Message::QueryCashShopBalance => {
-                        match super::minimum_cash_shop::balance(pool, &owner).await {
-                            Ok(packet) => {
-                                send(stream, sender, packet.category, &packet.body).await?
-                            }
-                            Err(_) => {
-                                tracing::warn!("minimum cash shop balance refused; values omitted")
-                            }
+                        if let (Some(look), Some(selected)) =
+                            (customized.look, self.selected.as_mut())
+                        {
+                            selected.look = look;
                         }
+                        tracing::info!(categories = ?customized.packets.iter().map(|p| p.category).collect::<Vec<_>>(), "minimum beauty shop processed; values omitted");
                     }
                     Message::QueryCashShopInventory => {
                         match super::minimum_cash_shop::inventory(pool, &owner, cid).await {

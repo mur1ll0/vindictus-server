@@ -115,8 +115,8 @@ fn balance_packet(balance: i32) -> Result<OutgoingPacket, MinimumError> {
 }
 
 /// BeginCheckBalance → CashShopBalanceMessage.
-pub async fn balance(pool: &PgPool, owner: &UserKey<'_>) -> Result<OutgoingPacket, MinimumError> {
-    balance_packet(balance_of(pool, owner.uid).await?)
+pub async fn balance(pool: &PgPool, uid: i32) -> Result<OutgoingPacket, MinimumError> {
+    balance_packet(balance_of(pool, uid).await?)
 }
 
 /// Laboratory credit for the account of the given (or the only) initialized first Fiona.
