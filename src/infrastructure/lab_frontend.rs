@@ -2516,6 +2516,95 @@ impl Connection {
                 }
                 return Ok(());
             }
+            if matches(
+                category,
+                body,
+                Kind::EnhanceItem.category(),
+                Kind::EnhanceItem.type_id(),
+            ) {
+                let Some(Message::EnhanceItem(request)) =
+                    wire::decode_ingress(Kind::EnhanceItem, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                let (Some(selected), true) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                // ItemServiceProxy: only in town (hunting quests are not migrated).
+                if self.mission.is_some() {
+                    let packet = super::minimum_shop::system_message(
+                        0,
+                        "Heroes_System_Item_Error_Cannot_Craft_In_Dungeon",
+                        &[],
+                    )
+                    .map_err(|_| RuntimeError::Operation)?;
+                    send(stream, sender, packet.category, &packet.body).await?;
+                    return Ok(());
+                }
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let assets = &minimum.assets;
+                // Enhance_Ferghus_v2 selects EnhanceItemByData; EnhanceItem is not migrated.
+                let by_data = assets
+                    .enhance
+                    .as_ref()
+                    .and_then(|c| c.policy())
+                    .map(|p| p.is_enabled(Some("Enhance_Ferghus_v2")))
+                    .transpose()
+                    .map_err(|_| RuntimeError::Operation)?;
+                if by_data != Some(true) {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                }
+                let ids = minimum
+                    .creation
+                    .entity_ids(4)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                match super::minimum_enhance::enhance(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    &request,
+                    ids,
+                    runtime.item_log_context(assets)?,
+                )
+                .await
+                {
+                    Ok(packets) => {
+                        for packet in &packets {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        tracing::info!(
+                            categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+                            "minimum enhance processed; values omitted"
+                        );
+                    }
+                    Err(_) => tracing::warn!("minimum enhance refused; nothing written"),
+                }
+                return Ok(());
+            }
         }
         if self.selected.is_some() {
             self.log_unhandled(category, body);

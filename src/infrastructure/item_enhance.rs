@@ -210,6 +210,8 @@ pub struct Contents {
     anti_bind: Vec<AntiBind>,
     /// FeatureMatrix CraftPriceRatio text.
     craft_price_ratio: String,
+    /// The catalog policy plus the exported enhance/restore features.
+    policy: Option<crate::domain::feature_policy::FeaturePolicy>,
 }
 
 /// RecipeID, Target rows (AddItem sums) and Material rows (priced when used).
@@ -542,6 +544,7 @@ impl Profile {
                 r.max,
             ));
         }
+        out.policy = Some(policy);
         Ok(out)
     }
 }
@@ -606,6 +609,10 @@ impl Contents {
     }
     pub fn anti_bind(&self) -> &[AntiBind] {
         &self.anti_bind
+    }
+    /// FeatureMatrix of the enhance processor (catalog features plus the exported ones).
+    pub fn policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
+        self.policy.as_ref()
     }
     /// GetFloat("CraftPriceRatio") with ItemContents replacing 0 by 1.
     pub fn craft_price_ratio(&self) -> Option<f32> {

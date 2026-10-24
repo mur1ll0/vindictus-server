@@ -136,7 +136,9 @@ def read_package(database, config):
     featured = enhance + server + runes + recipes + anti_bind
     if any(r['feature'] is not None and not isinstance(r['feature'], str) for r in featured):
         raise ValueError('Enhance feature type')
-    atoms = {'CraftPriceRatio'}
+    # Values read by EnhanceItemByDataProcessor, ItemServiceProxy and RestoreStorage.
+    atoms = {'CraftPriceRatio', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Event_enhance_a_shot',
+             'Event_enhance_change_ratio', 'Enhance_Ferghus_v2', 'RestoreItem', 'RestoreItemCount'}
     for r in featured:
         atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 256 or any(not k.isascii() or not k or len(k) > 256 for k in atoms):

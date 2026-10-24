@@ -1,7 +1,8 @@
 //! Item.Stat of an equipment item: ItemClassInfo.GetStat() plus the Stat of its
-//! attribute entities, as Item.UpdateItemStat(null) builds it. Only ENHANCE is migrated;
-//! other equipment attributes (ENHANCEOTHER feeds Gear.GetEnhanceOtherValue) are refused,
-//! so the applied EnhanceOther value is always 0.
+//! attribute entities, as Item.UpdateItemStat(null) builds it. ENHANCE carries a Stat;
+//! ANTIBIND and RESTORED (set by MoveToBuybackStorage) have none. Other equipment
+//! attributes (ENHANCEOTHER feeds Gear.GetEnhanceOtherValue) are refused, so the applied
+//! EnhanceOther value is always 0.
 use super::{minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::{
@@ -11,6 +12,8 @@ use crate::{
 };
 
 pub(super) const ENHANCE: &str = "ENHANCE";
+pub(super) const ANTIBIND: &str = "ANTIBIND";
+pub(super) const RESTORED: &str = "RESTORED";
 
 pub(super) struct EquipmentStat {
     pub stat: ItemStat,
@@ -39,10 +42,20 @@ pub(super) fn equipment(
             effect: None,
         });
     }
-    if attributes.as_slice().iter().any(|a| a.name != ENHANCE) {
+    if attributes
+        .as_slice()
+        .iter()
+        .any(|a| ![ENHANCE, ANTIBIND, RESTORED].contains(&a.name.as_str()))
+    {
         return Err(fail());
     }
-    let value = attributes.get(ENHANCE).ok_or_else(fail)?.value.as_str();
+    let Some(value) = attributes.get(ENHANCE).map(|a| a.value.as_str()) else {
+        return Ok(EquipmentStat {
+            stat: base.clone(),
+            enhance_level: 0,
+            effect: None,
+        });
+    };
     let contents = assets.enhance.as_ref().ok_or_else(fail)?;
     let run = |arithmetic| {
         enhance::load(

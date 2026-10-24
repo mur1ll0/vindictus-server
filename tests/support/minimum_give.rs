@@ -3173,3 +3173,264 @@ async fn minimum_give_creates_enhanced_equipment_with_its_item_stat_durability()
     assert_eq!((slot.maximum, slot.bonus), (100, created.2));
     cleanup_game_pool(a, p, s).await;
 }
+
+/// A synthetic enhance profile for the processor, aligned with `catalog`: BAG levels 1
+/// (NoPenalty, ratio 1), 2 (RankDown, ratio 0) and 3 (Destroy with one material back,
+/// ratio 0); materials are the cash class and gold; restore and anti-bind features on.
+fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_enhance::Profile {
+    let key = appearance_fixture::key;
+    let single = |v: f32| format!("{:08x}", v.to_bits());
+    let rows = |section: &str| -> Vec<Value> {
+        catalog[section]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .map(|(i, e)| {
+                let mut row =
+                    json!({"source_index":i,"item_utf16":e["item_utf16"],"feature":e["feature"]});
+                if section == "equips" {
+                    row["enhance_type"] = json!(key("BAG"));
+                } else {
+                    row["max_anti_bind"] = json!(2);
+                }
+                row
+            })
+            .collect()
+    };
+    let info = |i: usize, level: i32, on_fail: &str, back: i32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"material1":key("synthetic_cash"),"num1":1,"material2":key("enhance_elixir"),"num2":0,"gold":100,"success_ratio":single(1.0),"on_fail":key(on_fail),"on_fail_recipe_ratio":single(0.0),"on_fail_material_num1":back,"effect":level,"feature":null});
+    let stat = |i: usize, level: i32, v: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key("MaxDurability"),"value_type":key("Add"),"value":single(v),"base":key("MaxDurability")});
+    let server = |i: usize, level: i32, ratio: f32| json!({"source_index":i,"enhance_type":key(&level.to_string()),"level":level,"success_ratio":single(ratio),"feature":null});
+    let feature = |k: &str, v: &str| json!({"key":k,"value":v});
+    let profile = json!({"format_version":2,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+        "equips":rows("equips"),"classes":rows("classes"),
+        "enhance":[info(0,1,"NoPenalty",0),info(1,2,"RankDown",0),info(2,3,"Destroy",1)],
+        "stats":[stat(0,1,100.0),stat(1,2,200.0),stat(2,3,300.0)],
+        "server":[server(0,1,1.0),server(1,2,0.0),server(2,3,0.0)],
+        "bonus":[],"instead":[],"runes":[],"rune_extra":[],"recipes":[],
+        "anti_bind":[{"source_index":0,"target":key("Base"),"from_value":null,"to_value":null,"count":2,"ap":0,"feature":null},{"source_index":1,"target":key("Enhance"),"from_value":key("0"),"to_value":key("15"),"count":0,"ap":100,"feature":null}],
+        "features":[feature("CraftPriceRatio","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5")]});
+    vindictus_server::infrastructure::item_enhance::Profile::read(
+        serde_json::to_vec(&profile).unwrap().as_slice(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_restore() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_enhance, minimum_item_logs, minimum_selection,
+        },
+        protocol::inventory::EnhanceItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_enhance(processor_profile(&catalog))
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64)
+        .with_enhance_seed(7);
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 1000, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let bag: i64 = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE owner_id=1 AND item_class_utf16=$1 ORDER BY id LIMIT 1",
+    )
+    .bind(utf16("synthetic_bag"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let request = |item_id: i64, m1: &str, add: &str| EnhanceItem {
+        item_id,
+        material1: Some(m1.to_owned()),
+        material2: Some(String::new()),
+        additional_material: Some(add.to_owned()),
+        is_event_enhance_a_shot: false,
+    };
+    let run = |r: EnhanceItem| {
+        let (p, owner, assets) = (&p, &owner, &assets);
+        async move {
+            minimum_enhance::enhance(p, owner, assets, 1, &r, vec![931, 932, 933, 934], log)
+                .await
+                .unwrap()
+        }
+    };
+    let result = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        let last = packets.iter().find(|p| p.category == 355).unwrap();
+        let Some(Message::EnhanceItemResult(r)) =
+            inventory::decode(Kind::EnhanceItemResult, &last.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("result missing")
+        };
+        r
+    };
+    let gold = || async {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT count FROM game_items WHERE owner_id=1 AND collection=101",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let cash = || async {
+        sqlx::query_scalar::<_, i64>("SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+            .bind(utf16("synthetic_cash"))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+    };
+    let enhance_value = || async {
+        sqlx::query_scalar::<_, Vec<u8>>(
+            "SELECT value_bytes FROM game_item_attributes WHERE item_id=$1 AND attribute_bytes=$2",
+        )
+        .bind(bag)
+        .bind(b"ENHANCE".to_vec())
+        .fetch_optional(&p)
+        .await
+        .unwrap()
+    };
+    let (gold0, cash0) = (gold().await, cash().await);
+    // Refusals answer the ItemFail dialog and change nothing.
+    let before = items(&p).await;
+    let fail_name = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        let Some(Message::ItemFail(Some(m))) =
+            inventory::decode(Kind::ItemFail, &packets[0].body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("dialog missing")
+        };
+        m.format.unwrap()
+    };
+    assert_eq!(
+        fail_name(&run(request(i64::MAX, "synthetic_cash", "")).await),
+        "GameUI_Heroes_EnhanceItemFail_NoEnhanceInfo"
+    );
+    assert_eq!(
+        fail_name(&run(request(bag, "unknown", "")).await),
+        "GameUI_Heroes_EnhanceItemFail_NoEnhanceInfo"
+    );
+    assert_eq!(
+        fail_name(&run(request(bag, "synthetic_cash", "unknown_rune")).await),
+        "GameUI_Heroes_EnhanceItemFail_NotEnoughMaterial"
+    );
+    assert_eq!(items(&p).await, before);
+    // +1 at ratio 1: gold 100 and one material consumed, ENHANCE 1 written.
+    let packets = run(request(bag, "synthetic_cash", "")).await;
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 355]
+    );
+    let r = result(&packets);
+    assert_eq!(
+        (
+            r.result.as_deref(),
+            r.prev_item_class.as_deref(),
+            r.enhanced_item_class.as_deref()
+        ),
+        (
+            Some("Success"),
+            Some("synthetic_bag"),
+            Some("synthetic_bag[ENHANCE:1]")
+        )
+    );
+    assert_eq!((gold().await, cash().await), (gold0 - 100, cash0 - 1));
+    assert_eq!(enhance_value().await.as_deref(), Some(&b"1"[..]));
+    // +2 at ratio 0 fails RankDown: back to 0 (the attribute row is removed).
+    let r = result(&run(request(bag, "synthetic_cash", "")).await);
+    assert_eq!(
+        (r.result.as_deref(), r.enhanced_item_class.as_deref()),
+        (Some("RankDown"), Some("synthetic_bag"))
+    );
+    assert_eq!(enhance_value().await, None);
+    assert_eq!((gold().await, cash().await), (gold0 - 200, cash0 - 2));
+    // From +2, +3 fails Destroy: one material back, and the restorable item moves to the
+    // RestoreStorage bound, restored and with its AntiBindCount.
+    sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,$2,$3,0,0)")
+        .bind(bag)
+        .bind(b"ENHANCE".to_vec())
+        .bind(b"2".to_vec())
+        .execute(&p)
+        .await
+        .unwrap();
+    let packets = run(request(bag, "synthetic_cash", "")).await;
+    let r = result(&packets);
+    assert_eq!(
+        (r.result.as_deref(), r.enhanced_item_class.as_deref()),
+        (Some("Destroy"), Some(""))
+    );
+    assert_eq!(
+        r.fail_reward.0,
+        Some(vec![("synthetic_cash".to_owned(), 1)])
+    );
+    assert_eq!(cash().await, cash0 - 2);
+    let moved: (i16, i32, bool) =
+        sqlx::query_as("SELECT collection,slot,tradable FROM game_items WHERE id=$1")
+            .bind(bag)
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(moved, (102, 0, false));
+    let attributes: Vec<(Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT attribute_bytes,value_bytes FROM game_item_attributes WHERE item_id=$1 ORDER BY id",
+    )
+    .bind(bag)
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(
+        attributes,
+        [
+            (b"ENHANCE".to_vec(), b"2".to_vec()),
+            (b"ANTIBIND".to_vec(), b"2".to_vec()),
+            (b"RESTORED".to_vec(), b"1".to_vec())
+        ]
+    );
+    // The inventory still loads: the restore item is an empty SlotInfo.
+    let packet = minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let Some(Message::InventoryInfo(info)) =
+        inventory::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("inventory missing")
+    };
+    let slot = info
+        .slots
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .find(|s| s.id == bag)
+        .unwrap();
+    assert_eq!(
+        (slot.class.as_deref(), slot.count, slot.tab),
+        (Some(""), 0, 0)
+    );
+    cleanup_game_pool(a, p, s).await;
+}

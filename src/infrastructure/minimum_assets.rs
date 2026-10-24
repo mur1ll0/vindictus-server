@@ -69,6 +69,8 @@ pub struct Assets {
     /// Framework arithmetic of item stats (the runtime's identity profile); `None`
     /// evaluates both measured profiles and refuses a disagreement.
     pub(super) item_arithmetic: Option<crate::domain::character_stats::Arithmetic>,
+    /// The processor's static EnhanceRandom/random (new Random(): time-seeded).
+    pub(super) enhance_random: Mutex<super::minimum_enhance::EnhanceRandom>,
     /// shopInfoDic with PriceCalc prices for the configured arithmetic profile.
     pub(super) shops: Option<crate::domain::shop::Shops>,
     /// GetEquipItemInfo().EquipClass of each effective equipment class.
@@ -104,6 +106,18 @@ pub struct Attempt<'a> {
     pub offset: i32,
     pub config: QueryConfig,
     pub delay: i32,
+}
+/// Environment.TickCount-like seed of `new Random()`.
+fn time_seed() -> i32 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i32)
+}
+fn enhance_random(seed: i32) -> super::minimum_enhance::EnhanceRandom {
+    super::minimum_enhance::EnhanceRandom {
+        roll: ColorRandom::from_seed(seed),
+        other: ColorRandom::from_seed(seed.wrapping_add(1)),
+    }
 }
 fn open(p: &Path) -> Result<std::fs::File, MinimumError> {
     std::fs::File::open(p)
@@ -230,6 +244,7 @@ impl Assets {
             npc: None,
             enhance: None,
             item_arithmetic: None,
+            enhance_random: Mutex::new(enhance_random(time_seed())),
             shops: None,
             equip_class: Default::default(),
             initializer: parts.initializer,
@@ -310,6 +325,11 @@ impl Assets {
         profile.bind(&self.catalog)?;
         self.economy = Some(profile);
         Ok(self)
+    }
+    /// Deterministic enhance rolls (tests and laboratory reproduction).
+    pub fn with_enhance_seed(mut self, seed: i32) -> Self {
+        self.enhance_random = Mutex::new(enhance_random(seed));
+        self
     }
     pub fn with_item_arithmetic(
         mut self,

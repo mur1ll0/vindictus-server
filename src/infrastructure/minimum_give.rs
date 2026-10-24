@@ -115,7 +115,8 @@ pub(super) async fn apply(
         .await?;
     super::minimum_inventory::snapshot_with_equipment(tx, owner, assets, cid, None).await?;
     let rows: Vec<Row> = sqlx::query_as(
-        "SELECT id,item_class_utf16,count,collection,slot,tradable,expire_ticks FROM game_items WHERE owner_id=$1 ORDER BY id LIMIT 4097",
+        // ItemStorage.ItemClassDict leaves out the RestoreStorage.
+        "SELECT id,item_class_utf16,count,collection,slot,tradable,expire_ticks FROM game_items WHERE owner_id=$1 AND collection<>102 ORDER BY id LIMIT 4097",
     )
     .bind(cid)
     .fetch_all(&mut **tx)

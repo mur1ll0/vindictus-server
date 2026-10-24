@@ -105,7 +105,8 @@ impl ColorRandom {
             nextp: 21,
         }
     }
-    fn next_unchecked(&mut self, maximum: i32) -> i32 {
+    /// InternalSample.
+    fn sample(&mut self) -> i32 {
         self.next += 1;
         if self.next >= 56 {
             self.next = 1;
@@ -122,7 +123,14 @@ impl ColorRandom {
             sample = sample.wrapping_add(i32::MAX);
         }
         self.seed[self.next] = sample;
-        ((f64::from(sample) * 4.656612875245797E-10) * f64::from(maximum)) as i32
+        sample
+    }
+    fn next_unchecked(&mut self, maximum: i32) -> i32 {
+        ((f64::from(self.sample()) * 4.656612875245797E-10) * f64::from(maximum)) as i32
+    }
+    /// Random.NextDouble (Sample()).
+    pub fn next_double(&mut self) -> f64 {
+        f64::from(self.sample()) * 4.656612875245797E-10
     }
     /// Next(0) consumes one sample, as the Framework does. Negative maxima do not.
     pub fn next(&mut self, maximum: i32) -> Result<i32, ColorError> {

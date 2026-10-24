@@ -75,6 +75,8 @@ pub(super) fn slot_attributes(slot: &Slot) -> Vec<(&str, &str, i32)> {
         })
         .collect()
 }
+/// ItemLocation.RestoreLocation collection.
+pub(super) const RESTORE_COLLECTION: i16 = 102;
 /// item_id, attribute_bytes, value_bytes, arg, arg2.
 type AttributeRow = (i64, Vec<u8>, Vec<u8>, i32, i32);
 /// Item.LoadAttribute: the ItemAttribute rows of the items, in ID (insertion) order;
@@ -197,8 +199,10 @@ pub(super) async fn snapshot_with_equipment(
         let account = row.collection == 101;
         let story =
             story_tab && row.collection == i16::from(crate::domain::give_item::STORY_COLLECTION);
+        // RestoreStorage (102): bag items moved there by MoveToBuybackStorage.
+        let restore = row.collection == RESTORE_COLLECTION;
         if row.count <= 0
-            || !(bag || account || story || row.collection == 100)
+            || !(bag || account || story || restore || row.collection == 100)
             || (account != (row.slot == -1))
             || (!account && row.slot < 0)
             || ((bag || story) && row.slot >= 48)
@@ -210,7 +214,7 @@ pub(super) async fn snapshot_with_equipment(
             .class(Some(&row.item_class_utf16))
             .ok_or(MinimumError::Conflict)?;
         if class.storage
-            != if bag {
+            != if bag || restore {
                 1
             } else if account {
                 3
@@ -279,6 +283,11 @@ pub(super) async fn snapshot_with_equipment(
             }
             _ => return Err(MinimumError::Conflict),
         };
+        if restore {
+            // ToSlotInfo(ignoreRestoreStorage: true): the empty 13-argument SlotInfo.
+            slots.push(Some(super::minimum_move::deleted_slot(row.id)));
+            continue;
+        }
         slots.push(Some(Slot {
             id: row.id,
             class: Some(text(&row.item_class_utf16)?),

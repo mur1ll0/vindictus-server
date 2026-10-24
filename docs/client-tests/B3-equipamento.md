@@ -17,3 +17,14 @@ Pré-condição: Fiona **deslogada**; `pwsh scripts/dev/lab-give-item.ps1 -ItemC
 - [ ] Trocar pela espada comum e de volta → os atributos sobem e descem conforme a peça; reparar a +6 num ferreiro custa mais que a comum com o mesmo desgaste (o valor do item soma os pontos de `RepairEnhanceInfo`).
 - [ ] Relogar → a espada continua +6, equipada, com os mesmos atributos.
 Limites conhecidos: melhorar no ferreiro ainda não existe (B3.2c); QUALITY, PREFIX/SUFFIX e os outros atributos de equipamento seguem recusados; classes `_lvlN` equipáveis (que o original converte em ENHANCE) seguem recusadas.
+
+### B3.2c — Melhorar no ferreiro (Enhance)
+Pré-condição: Fiona **deslogada**; ouro e materiais: `pwsh scripts/dev/lab-give-item.ps1 -ItemClass gold -Count 200000`, `-ItemClass enhance_stone_lvl1 -Count 60`, `-ItemClass enhance_elixir -Count 5` e uma arma `-ItemClass longsword_swordwind -Count 2`. Chances originais (`EnhanceServerInfo`): +1 a +3 sempre; +4/+5 75%; +6 a +8 50%; +9 a +12 40%; +13 a +15 33%.
+- [ ] Ferghus → Enhance: escolher a espada **na bolsa**, colocar a pedra pedida e confirmar → +1 com sucesso; ouro e pedras descontados pelo valor da janela; o nome passa a "+1".
+- [ ] Repetir até falhar em +4/+5 → mensagem de falha "RankDown" e a espada volta um nível; a durabilidade máxima pode cair (chance pelo nível).
+- [ ] Em +6 a +8 uma falha volta a +0 ("RankReset").
+- [ ] Ao chegar a +9 com sucesso, a espada fica vinculada ao personagem (não negociável).
+- [ ] Uma falha a partir de +9 destrói a espada ("Destroy"): ela some da bolsa, uma parte dos materiais volta e o ferreiro avisa a destruição.
+- [ ] Tentar melhorar dentro de uma fase → mensagem "não é possível fabricar na dungeon".
+- [ ] Relogar → nível de melhoria, ouro e materiais preservados; a espada destruída não volta à bolsa.
+Limites conhecidos: melhorar uma peça **vestida** ainda é recusado (sem resposta); a lista de restauração (`QueryRestoreItemList`) e o restaurar com AP vêm na próxima etapa — a peça destruída fica guardada no depósito de restauração (até 5) mas ainda não aparece na janela; o evento "enhance a shot", runas sem extra e a sobra que iria por correio são recusados; a chance não mostra a mensagem de depuração de GM.

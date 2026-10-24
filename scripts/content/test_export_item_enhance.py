@@ -74,7 +74,7 @@ class ItemEnhanceExportTests(unittest.TestCase):
         self.assertEqual(p['stats'][1]['value'], single(-0.1))
         self.assertEqual([e['enhance_type'] for e in p['equips']], ['SWORD'.encode('utf-16-le').hex(), None])
         self.assertEqual(p['bonus'][0]['bonus'], struct.pack('>d', 3.3).hex())
-        self.assertEqual(sorted(f['key'] for f in p['features']), ['CraftPriceRatio', 'enEU', 'zhCN'])
+        self.assertEqual(sorted(f['key'] for f in p['features']), ['CraftPriceRatio', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Enhance_Ferghus_v2', 'Event_enhance_a_shot', 'Event_enhance_change_ratio', 'RestoreItem', 'RestoreItemCount', 'enEU', 'zhCN'])
         self.assertEqual([c['max_anti_bind'] for c in p['classes']], [3, 0])
         self.assertEqual(p['rune_extra'][0]['success_ratio'], struct.pack('>d', 0.4).hex())
         self.assertEqual((p['rune_extra'][0]['destroy_on_success'], p['rune_extra'][0]['reset_rank_on_fail']), (True, False))
