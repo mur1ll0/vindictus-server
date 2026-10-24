@@ -26,6 +26,8 @@ COLUMNS = {
     # The server content sets every enhance success ratio to 1.0.
     'EnhanceInfo': (('EnhanceType', 'EnhanceLevel', 'Feature'), ('SuccessRatio',)),
     'EnhanceServerInfo': (('EnhanceType', 'EnhanceLevel', 'Feature'), ('SuccessRatio',)),
+    # The server content sets enchant success ratios to 100.
+    'EnchantInfo': (('EnchantClass',), ('MinSuccessRatio', 'MaxSuccessRatio')),
 }
 
 _cache = {}

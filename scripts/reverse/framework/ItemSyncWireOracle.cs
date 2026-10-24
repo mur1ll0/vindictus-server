@@ -201,6 +201,10 @@ class ItemSyncWireOracle {
   var restoreSlot=new SlotInfo(77L,"longsword_swordwind",1,102,0,null,null,new int[]{1,2,3},180,200,-100,false,"",new Dictionary<string,ItemAttributeElement>{{"ENHANCE",new ItemAttributeElement("ENHANCE","9",0,0)},{"ANTIBIND",new ItemAttributeElement("ANTIBIND","2",0,0)},{"RESTORED",new ItemAttributeElement("RESTORED","1",0,0)}},new Dictionary<int,bool>(),new Dictionary<int,bool>(),0,0,0);
   var restores=new List<RestoreItemInfo>{new RestoreItemInfo(restoreSlot,"AP",300),null,new RestoreItemInfo(null,null,int.MinValue)};
   AddCases("restore_item_list",154,new Guid("b80b34de-ba17-3cef-9ae3-577cfd045708"),new[]{null,new RestoreItemListMessage(null),new RestoreItemListMessage(new List<RestoreItemInfo>()),new RestoreItemListMessage(restores)},cases);
+  var enchants=new List<EnchantItemMessage>{null};
+  foreach(bool o in new[]{false,true})foreach(long id in new[]{long.MinValue,0L,long.MaxValue})foreach(string d in new[]{null,"","DoEnchant","CancelEnchant","enchant_elixir_lvl1"})enchants.Add(Obj<EnchantItemMessage>("OpenNewSession",o,"TargetItemID",id,"EnchantScrollItemID",id==0L?7L:-id,"IndestructibleScrollItemID",0L,"DiceItemClass",d));
+  AddCases("enchant_item",352,new Guid("ddc9fc48-e5dc-304e-bfd2-8c5fed04f83e"),enchants,cases);
+  AddCases("enchant_item_result",353,new Guid("0a5b1d79-7e63-32d7-9520-ab7d8bfaa7ed"),new[]{null,new EnchantItemResultMessage(EnchantItemResult.EnchantSuccess,-1,-1,"",0f),new EnchantItemResultMessage(EnchantItemResult.RollSuccess,37,100,"enchant_elixir_lvl1",0.6110000014305115f),new EnchantItemResultMessage(EnchantItemResult.RuneExpired,int.MinValue,int.MaxValue,null,-1f),new EnchantItemResultMessage(EnchantItemResult.ItemDestroyed,0,0,"x",1.5f)},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

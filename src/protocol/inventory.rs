@@ -55,6 +55,8 @@ pub enum Kind {
     EnhanceItemResult,
     QueryRestoreItemList,
     RestoreItemList,
+    EnchantItem,
+    EnchantItemResult,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -103,6 +105,8 @@ impl Kind {
             Self::EnhanceItemResult => 355,
             Self::QueryRestoreItemList => 152,
             Self::RestoreItemList => 154,
+            Self::EnchantItem => 352,
+            Self::EnchantItemResult => 353,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -151,6 +155,8 @@ impl Kind {
             Self::EnhanceItemResult => 0x1726cb88_3409_3a2b_8923_56e0250aab6a,
             Self::QueryRestoreItemList => 0xa91b7337_2cad_3eae_8175_e1763f2413ee,
             Self::RestoreItemList => 0xb80b34de_ba17_3cef_9ae3_577cfd045708,
+            Self::EnchantItem => 0xddc9fc48_e5dc_304e_bfd2_8c5fed04f83e,
+            Self::EnchantItemResult => 0x0a5b1d79_7e63_32d7_9520_ab7d8bfaa7ed,
         })
     }
 }
@@ -296,6 +302,8 @@ pub enum Message {
     QueryRestoreItemList,
     /// RestoreItemListMessage.RestoreItemList.
     RestoreItemList(Option<Vec<Option<RestoreItemInfo>>>),
+    EnchantItem(EnchantItem),
+    EnchantItemResult(EnchantItemResult),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -420,6 +428,26 @@ pub struct EnhanceItemResult {
     pub prev_item_class: Option<String>,
     pub enhanced_item_class: Option<String>,
     pub fail_reward: super::mission::StrDict<i32>,
+}
+/// EnchantItemMessage: OpenNewSession, TargetItemID, EnchantScrollItemID,
+/// IndestructibleScrollItemID, DiceItemClass ("DoEnchant", "CancelEnchant" or a dice).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnchantItem {
+    pub open_new_session: bool,
+    pub target_item_id: i64,
+    pub enchant_scroll_item_id: i64,
+    pub indestructible_scroll_item_id: i64,
+    pub dice_item_class: Option<String>,
+}
+/// EnchantItemResultMessage: CurrentValue, GoalValue, Result (EnchantItemResult),
+/// RolledDice, CurrentSuccessRatio ((int)(ratio × 100f)).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnchantItemResult {
+    pub current_value: i32,
+    pub goal_value: i32,
+    pub result: i32,
+    pub rolled_dice: Option<String>,
+    pub current_success_ratio: i32,
 }
 /// RestoreItemInfo: the restore-storage SlotInfo, PriceType ("AP") and PriceValue.
 #[derive(Clone, PartialEq, Eq)]
@@ -608,6 +636,8 @@ impl Message {
             Self::EnhanceItemResult(_) => Kind::EnhanceItemResult,
             Self::QueryRestoreItemList => Kind::QueryRestoreItemList,
             Self::RestoreItemList(_) => Kind::RestoreItemList,
+            Self::EnchantItem(_) => Kind::EnchantItem,
+            Self::EnchantItemResult(_) => Kind::EnchantItemResult,
         }
     }
 }
@@ -851,6 +881,20 @@ object!(EnhanceItem {
     additional_material,
     is_event_enhance_a_shot
 });
+object!(EnchantItem {
+    open_new_session,
+    target_item_id,
+    enchant_scroll_item_id,
+    indestructible_scroll_item_id,
+    dice_item_class
+});
+object!(EnchantItemResult {
+    current_value,
+    goal_value,
+    result,
+    rolled_dice,
+    current_success_ratio
+});
 object!(RestoreItemInfo {
     slot,
     price_type,
@@ -997,6 +1041,8 @@ pub fn encode(
             Message::EnhanceItemResult(v) => v.write(&mut w)?,
             Message::QueryRestoreItemList => {}
             Message::RestoreItemList(v) => v.write(&mut w)?,
+            Message::EnchantItem(v) => v.write(&mut w)?,
+            Message::EnchantItemResult(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1078,6 +1124,8 @@ fn decode_body(
             Kind::EnhanceItemResult => Message::EnhanceItemResult(EnhanceItemResult::read(&mut r)?),
             Kind::QueryRestoreItemList => Message::QueryRestoreItemList,
             Kind::RestoreItemList => Message::RestoreItemList(Wire::read(&mut r)?),
+            Kind::EnchantItem => Message::EnchantItem(EnchantItem::read(&mut r)?),
+            Kind::EnchantItemResult => Message::EnchantItemResult(EnchantItemResult::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

@@ -27,6 +27,8 @@ pub struct Selected {
     pub story: crate::domain::npc_talk::Session,
     /// ItemOwner.BuybackList (in memory for the entered character).
     pub buyback: Vec<super::minimum_shop::BuybackEntry>,
+    /// ItemOwner.EnchantSession (in memory).
+    pub enchant: Option<super::minimum_enchant::Session>,
     /// CharacterEntity.LogJournalID (OpenLog; 0 until opened or when it failed).
     pub log_journal: i64,
 }
@@ -128,6 +130,7 @@ pub async fn select(
         look,
         story: Default::default(),
         buyback: Vec::new(),
+        enchant: None,
         log_journal: 0,
     })
 }

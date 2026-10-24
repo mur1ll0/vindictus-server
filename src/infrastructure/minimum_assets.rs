@@ -71,6 +71,8 @@ pub struct Assets {
     pub(super) item_arithmetic: Option<crate::domain::character_stats::Arithmetic>,
     /// The processor's static EnhanceRandom/random (new Random(): time-seeded).
     pub(super) enhance_random: Mutex<super::minimum_enhance::EnhanceRandom>,
+    /// The enchant session/dice/arg static Random instances.
+    pub(super) enchant_random: Mutex<super::minimum_enchant::EnchantRandom>,
     /// shopInfoDic with PriceCalc prices for the configured arithmetic profile.
     pub(super) shops: Option<crate::domain::shop::Shops>,
     /// GetEquipItemInfo().EquipClass of each effective equipment class.
@@ -117,6 +119,13 @@ fn enhance_random(seed: i32) -> super::minimum_enhance::EnhanceRandom {
     super::minimum_enhance::EnhanceRandom {
         roll: ColorRandom::from_seed(seed),
         other: ColorRandom::from_seed(seed.wrapping_add(1)),
+    }
+}
+fn enchant_random(seed: i32) -> super::minimum_enchant::EnchantRandom {
+    super::minimum_enchant::EnchantRandom {
+        session: ColorRandom::from_seed(seed.wrapping_add(2)),
+        dice: ColorRandom::from_seed(seed.wrapping_add(3)),
+        arg: ColorRandom::from_seed(seed.wrapping_add(4)),
     }
 }
 fn open(p: &Path) -> Result<std::fs::File, MinimumError> {
@@ -245,6 +254,7 @@ impl Assets {
             enhance: None,
             item_arithmetic: None,
             enhance_random: Mutex::new(enhance_random(time_seed())),
+            enchant_random: Mutex::new(enchant_random(time_seed())),
             shops: None,
             equip_class: Default::default(),
             initializer: parts.initializer,
@@ -329,6 +339,7 @@ impl Assets {
     /// Deterministic enhance rolls (tests and laboratory reproduction).
     pub fn with_enhance_seed(mut self, seed: i32) -> Self {
         self.enhance_random = Mutex::new(enhance_random(seed));
+        self.enchant_random = Mutex::new(enchant_random(seed));
         self
     }
     pub fn with_item_arithmetic(

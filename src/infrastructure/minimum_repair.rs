@@ -85,7 +85,14 @@ async fn repairable(
             slot.maximum,
             price,
             equip_class.as_deref(),
-            super::minimum_item_stat::slot_enhance_level(&slot),
+            {
+                let (prefix, suffix) = super::minimum_item_stat::slot_enchant_levels(assets, &slot);
+                (
+                    super::minimum_item_stat::slot_enhance_level(&slot),
+                    prefix,
+                    suffix,
+                )
+            },
         );
         out.push((slot, cost));
     }

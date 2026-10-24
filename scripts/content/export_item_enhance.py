@@ -2,8 +2,9 @@
 equipment rows and ItemClassInfo.MaxAntiBind with its class rows, EnhanceInfo/
 EnhanceStatInfo/EnhanceServerInfo/EnhanceBonusServerInfo/EnhanceInsteadMaterialInfo,
 EnhanceRuneInfo/EnhanceRuneExtraInfo, RecipeMaterialInfo (GetMakeItemRecipe) and
-AntiBindInfo (CalcRequiredBuybackAP) in provider order, and the region values of
-their features plus CraftPriceRatio.
+AntiBindInfo (CalcRequiredBuybackAP), EnchantInfo/EnchantStatInfo/EnchantDiceInfo in
+provider order, and the region values of their features plus CraftPriceRatio.
+EnchantInfo.MinSuccessRatio/MaxSuccessRatio come from the original content.
 SuccessRatio comes from the original content (content_overrides). REAL columns are
 exported as the Single the server's System.Data.SQLite reads (REAL -> DbType.Single;
 text cells are converted by SQLite itself)."""
@@ -16,13 +17,13 @@ from export_reward_policy import feature_atoms
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
-def text(v):
+def text(v, limit=1024):
     if v is None:
         return None
     if not isinstance(v, str):
         raise ValueError('Enhance text type')
     b = v.encode('utf-16-le', errors='surrogatepass')
-    if len(b) > 1024:
+    if len(b) > limit:
         raise ValueError('Enhance text bound')
     return b.hex()
 
@@ -78,7 +79,8 @@ def read_package(database, config):
             if key != package['equips'][index]['item_utf16'] or r['Feature'] != package['equips'][index]['feature']:
                 raise ValueError('Catalog order changed')
             equips.append(dict(source_index=index, item_utf16=key, feature=r['Feature'],
-                               enhance_type=text(r['EnhanceType'])))
+                               enhance_type=text(r['EnhanceType']),
+                               enchantable=integer(r['Enchantable'], 0, 256)))
         if len(equips) != len(package['equips']):
             raise ValueError('Catalog alignment changed')
         classes = []
@@ -110,6 +112,21 @@ def read_package(database, config):
                           to_value=text(r['To']), count=integer(r['Count']), ap=integer(r['AP']),
                           feature=r['Feature'])
                      for i, r in enumerate(db.execute('Select * From [AntiBindInfo]'))]
+        enchant = [dict(source_index=i, id=integer(r['ID']), enchant_utf16=text(r['EnchantClass']),
+                        is_prefix=boolean(r['IsPrefix']), enchant_type=text(r['EnchantType']),
+                        level=integer(r['EnchantLevel']), min_arg=integer(r['MinArgValue']),
+                        max_arg=integer(r['MaxArgValue']), constraint=text(r['ItemConstraint'], 16384),
+                        min_ratio=integer(r['MinSuccessRatio']), max_ratio=integer(r['MaxSuccessRatio']),
+                        destruction=integer(r['DestructionRatio']), mini_game=integer(r['MiniGameSize']),
+                        duration=integer(r['Duration']), ignore_max_armor=boolean(r['IgnoreMaxArmor']),
+                        feature=r['Feature'])
+                   for i, r in enumerate(overrides.select(db, 'EnchantInfo'))]
+        enchant_stats = [dict(source_index=i, enchant_utf16=text(r['EnchantClass']), order=integer(r['Order']),
+                              condition=text(r['Condition']), stat=text(r['Stat']))
+                         for i, r in enumerate(db.execute('Select * From [EnchantStatInfo]'))]
+        enchant_dice = [dict(source_index=i, item_utf16=text(r['ItemClass']), min=integer(r['MinValue']),
+                             max=integer(r['MaxValue']), skill_rank=integer(r['SkillRank']), feature=r['Feature'])
+                        for i, r in enumerate(db.execute('Select * From [EnchantDiceInfo]'))]
         enhance = [dict(source_index=i, enhance_type=text(r['EnhanceType']), level=integer(r['EnhanceLevel']),
                         material1=text(r['MaterialClass1']), num1=integer(r['MaterialNum1']),
                         material2=text(r['MaterialClass2']), num2=integer(r['MaterialNum2']),
@@ -138,7 +155,8 @@ def read_package(database, config):
         raise ValueError('Enhance feature type')
     # Values read by EnhanceItemByDataProcessor, ItemServiceProxy and RestoreStorage.
     atoms = {'CraftPriceRatio', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Event_enhance_a_shot',
-             'Event_enhance_change_ratio', 'Enhance_Ferghus_v2', 'RestoreItem', 'RestoreItemCount'}
+             'Event_enhance_change_ratio', 'Enhance_Ferghus_v2', 'RestoreItem', 'RestoreItemCount',
+             'EnchantSuccessBonus', 'Enchant_DestructibleItems'}
     for r in featured:
         atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 256 or any(not k.isascii() or not k or len(k) > 256 for k in atoms):
@@ -148,10 +166,11 @@ def read_package(database, config):
         raise ValueError('Enhance feature value bound')
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Enhance source changed during export')
-    return dict(format_version=2, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
+    return dict(format_version=3, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], equips=equips, classes=classes, enhance=enhance,
                 stats=stats, server=server, bonus=bonus, instead=instead, runes=runes, rune_extra=rune_extra,
-                recipes=recipes, anti_bind=anti_bind, features=features)
+                recipes=recipes, anti_bind=anti_bind, enchant=enchant, enchant_stats=enchant_stats,
+                enchant_dice=enchant_dice, features=features)
 
 
 def main():

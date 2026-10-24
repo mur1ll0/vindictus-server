@@ -219,6 +219,7 @@ async fn project(
     let now = super::lab_clock::utc_now()
         .map_err(|_| MinimumError::Conflict)?
         .ticks();
+    let owner_context = super::minimum_item_stat::context(tx, cid).await?;
     for row in rows {
         let bag = matches!(row.collection, 0 | 1 | 6);
         // AccountStorage: one item per class at AccountLocation (101, -1).
@@ -280,6 +281,8 @@ async fn project(
         if !equippable && attributes.get(item_attribute::MIN_UPTIME).is_some() {
             return Err(MinimumError::Conflict);
         }
+        // SlotInfo Prefix/SuffixEnchantStatus (StatBonusStatus of the entities).
+        let mut status = (Vec::new(), Vec::new());
         let (colors, durability, maximum, bonus) = match (equippable, equipment.remove(&row.id)) {
             (false, None) => (vec![-1; 3], 0, 0, 0),
             (true, Some(e)) => {
@@ -289,10 +292,11 @@ async fn project(
                 let base = stats
                     .get(Some(&row.item_class_utf16))
                     .ok_or(MinimumError::Conflict)?;
-                let item = super::minimum_item_stat::equipment(
+                let item = super::minimum_item_stat::equipment_with(
                     assets,
                     &row.item_class_utf16,
                     &attributes,
+                    Some(&owner_context),
                 )?;
                 let d = EquipmentDurability::load(
                     base,
@@ -300,6 +304,7 @@ async fn project(
                     e.reduced_durability,
                     e.max_durability_bonus,
                 );
+                status = (item.prefix_status, item.suffix_status);
                 (
                     vec![e.color1, e.color2, e.color3],
                     d.current(),
@@ -332,8 +337,8 @@ async fn project(
             expander: Some(String::new()),
             // SlotInfo.Attributes = Item.Attribute.Values (insertion order).
             attributes: Some(attributes.as_slice().iter().map(wire_attribute).collect()),
-            prefix: Dict(Some(Vec::new())),
-            suffix: Dict(Some(Vec::new())),
+            prefix: Dict(Some(status.0)),
+            suffix: Dict(Some(status.1)),
             // TradeManager.UpdatePrice initializes an empty cache before its query. Missing
             // market entries retain the SlotInfo default zeros; trading remains deferred.
             min_price: 0,

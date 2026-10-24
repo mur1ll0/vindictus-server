@@ -102,6 +102,8 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::EnhanceItemResult
                 | Kind::QueryRestoreItemList
                 | Kind::RestoreItemList
+                | Kind::EnchantItem
+                | Kind::EnchantItemResult
                 | Kind::ItemFail
                 | Kind::MoveInventoryItem
                 | Kind::EquipBundle

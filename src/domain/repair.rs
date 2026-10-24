@@ -14,12 +14,12 @@ pub struct RepairTables {
     pub rate: i32,
 }
 impl RepairTables {
-    /// GetItemValue for an item without QUALITY/PREFIX/SUFFIX.
-    pub fn item_value(&self, enhance_level: i32) -> i32 {
+    /// GetItemValue for an item without QUALITY (QualityLevel 2).
+    pub fn item_value(&self, enhance_level: i32, prefix_level: i32, suffix_level: i32) -> i32 {
         let enhance = self.enhance.get(&enhance_level).copied().unwrap_or(0);
         let quality = self.quality.get(&2).copied().unwrap_or(0);
-        let (prefix, _) = self.enchant.get(&0).copied().unwrap_or((0, 0));
-        let (_, suffix) = self.enchant.get(&0).copied().unwrap_or((0, 0));
+        let (prefix, _) = self.enchant.get(&prefix_level).copied().unwrap_or((0, 0));
+        let (_, suffix) = self.enchant.get(&suffix_level).copied().unwrap_or((0, 0));
         enhance
             .wrapping_add(quality)
             .wrapping_add(prefix)
@@ -44,7 +44,7 @@ pub fn repair_price(
     maximum: i32,
     price: i32,
     equip_class: Option<&str>,
-    enhance_level: i32,
+    levels: (i32, i32, i32),
 ) -> i32 {
     if maximum.wrapping_sub(durability) <= 0 {
         return 0;
@@ -62,7 +62,7 @@ pub fn repair_price(
         .and_then(|c| tables.equip_class.get(&c.to_lowercase()).copied())
         .unwrap_or(1);
     let value = base
-        * f64::from(tables.item_value(enhance_level))
+        * f64::from(tables.item_value(levels.0, levels.1, levels.2))
         * f64::from(point)
         * 2.999999970665357E-10;
     let rated = to_int(value * f64::from(tables.rate) / 100.0);

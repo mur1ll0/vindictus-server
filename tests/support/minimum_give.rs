@@ -26,7 +26,11 @@ fn assets_with(cash_unique: i32, cash_use_in_town: i32, cash_level: i32) -> Asse
     let gold = appearance_fixture::key("synthetic_gold");
     profile["classes"].as_array_mut().unwrap().push(json!({"source_index":2,"item_utf16":gold,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
     catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":gold,"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
-    catalog["manifest"]["class_rows"] = json!(3);
+    // Enchant scrolls carry PREFIX/SUFFIX attributes (bag storage, one per stack).
+    let scroll = appearance_fixture::key("enchant_scroll");
+    profile["classes"].as_array_mut().unwrap().push(json!({"source_index":3,"item_utf16":scroll,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":scroll,"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    catalog["manifest"]["class_rows"] = json!(4);
     let rows: Vec<Value> = catalog["classes"]
         .as_array()
         .unwrap()
@@ -34,7 +38,7 @@ fn assets_with(cash_unique: i32, cash_use_in_town: i32, cash_level: i32) -> Asse
         .enumerate()
         .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":if n == 1 { cash_level } else { 0 },"class_restriction":if n == 1 { 2047 } else { 0 },"use_in_town":if n == 1 { cash_use_in_town } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0,"quick_slot_max_stack":0,"draft":0}))
         .collect();
-    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":3},"classes":rows});
+    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -1134,10 +1138,13 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
         rate: 100,
         ..Default::default()
     };
-    assert_eq!(repair::repair_price(&tables, 50, 200, 0, None, 0), 0);
+    assert_eq!(
+        repair::repair_price(&tables, 50, 200, 0, None, (0, 0, 0)),
+        0
+    );
     // 20000 lost × 1,000,000 × ItemValue 50 × 3e-10 × 100 / 100, truncated.
     assert_eq!(
-        repair::repair_price(&tables, 0, 20000, 1_000_000, None, 0),
+        repair::repair_price(&tables, 0, 20000, 1_000_000, None, (0, 0, 0)),
         299
     );
     let mut session = vindictus_server::domain::npc_talk::Session::default();
@@ -3109,6 +3116,7 @@ async fn minimum_give_creates_enhanced_equipment_with_its_item_stat_durability()
     // skill_assets' catalog: the fixture plus the Account gold class.
     let (mut catalog, _, _, _) = appearance_fixture::fixtures();
     catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
     let assets = skill_assets(&p, 0)
         .await
         .with_enhance(super::minimum_equipment::enhance_profile_for(&catalog))
@@ -3191,6 +3199,7 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
                     json!({"source_index":i,"item_utf16":e["item_utf16"],"feature":e["feature"]});
                 if section == "equips" {
                     row["enhance_type"] = json!(key("BAG"));
+                    row["enchantable"] = json!(1);
                 } else {
                     row["max_anti_bind"] = json!(2);
                 }
@@ -3202,14 +3211,22 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
     let stat = |i: usize, level: i32, v: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key("MaxDurability"),"value_type":key("Add"),"value":single(v),"base":key("MaxDurability")});
     let server = |i: usize, level: i32, ratio: f32| json!({"source_index":i,"enhance_type":key(&level.to_string()),"level":level,"success_ratio":single(ratio),"feature":null});
     let feature = |k: &str, v: &str| json!({"key":k,"value":v});
-    let profile = json!({"format_version":2,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":3,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":rows("equips"),"classes":rows("classes"),
         "enhance":[info(0,1,"NoPenalty",0),info(1,2,"RankDown",0),info(2,3,"Destroy",1)],
         "stats":[stat(0,1,100.0),stat(1,2,200.0),stat(2,3,300.0)],
         "server":[server(0,1,1.0),server(1,2,0.0),server(2,3,0.0)],
         "bonus":[],"instead":[],"runes":[],"rune_extra":[],"recipes":[],
         "anti_bind":[{"source_index":0,"target":key("Base"),"from_value":null,"to_value":null,"count":2,"ap":0,"feature":null},{"source_index":1,"target":key("Enhance"),"from_value":key("0"),"to_value":key("15"),"count":0,"ap":100,"feature":null}],
-        "features":[feature("CraftPriceRatio","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5")]});
+        "enchant":[
+            {"source_index":0,"id":1,"enchant_utf16":key("keen"),"is_prefix":true,"enchant_type":key("TEMP"),"level":1,"min_arg":0,"max_arg":0,"constraint":key("synthetic_bag"),"min_ratio":100,"max_ratio":100,"destruction":0,"mini_game":10,"duration":0,"ignore_max_armor":false,"feature":null},
+            {"source_index":1,"id":2,"enchant_utf16":key("doom"),"is_prefix":false,"enchant_type":key("TEMP"),"level":7,"min_arg":0,"max_arg":0,"constraint":key("synthetic_bag"),"min_ratio":0,"max_ratio":0,"destruction":100,"mini_game":10,"duration":0,"ignore_max_armor":false,"feature":null}],
+        "enchant_stats":[
+            {"source_index":0,"enchant_utf16":key("keen"),"order":1,"condition":null,"stat":key("ATK+5")},
+            {"source_index":1,"enchant_utf16":key("keen"),"order":2,"condition":key("level>=(99)"),"stat":key("DEF+3")},
+            {"source_index":2,"enchant_utf16":key("doom"),"order":1,"condition":null,"stat":key("STR+1")}],
+        "enchant_dice":[],
+        "features":[feature("CraftPriceRatio","1"),feature("EnchantSuccessBonus","0"),feature("Enchant_DestructibleItems","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5")]});
     vindictus_server::infrastructure::item_enhance::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
     )
@@ -3231,6 +3248,7 @@ async fn minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_resto
     minimum_character::initialize(&p).await.unwrap();
     let (mut catalog, _, _, _) = appearance_fixture::fixtures();
     catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
     let assets = skill_assets(&p, 0)
         .await
         .with_enhance(processor_profile(&catalog))
@@ -3537,5 +3555,214 @@ async fn minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_resto
             .await
             .unwrap();
     assert_eq!(gone, 0);
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_enchant_session_applies_a_prefix_and_destroys_into_restore() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_enchant, minimum_item_logs, minimum_selection,
+        },
+        protocol::inventory::EnchantItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_enhance(processor_profile(&catalog))
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64)
+        .with_enhance_seed(11);
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    for class in ["enchant_scroll[PREFIX:keen]", "enchant_scroll[SUFFIX:doom]"] {
+        assert_eq!(
+            minimum_give::lab_grant(&p, &assets, Some(1), class, 1, 9)
+                .await
+                .unwrap(),
+            Ok(1)
+        );
+    }
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let id_of = |class: &'static str, value: &'static [u8]| {
+        let p = &p;
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT i.id FROM game_items i JOIN game_item_attributes a ON a.item_id=i.id WHERE i.owner_id=1 AND i.item_class_utf16=$1 AND a.value_bytes=$2",
+            )
+            .bind(utf16(class))
+            .bind(value)
+            .fetch_one(p)
+            .await
+            .unwrap()
+        }
+    };
+    let keen = id_of("enchant_scroll", b"keen").await;
+    let doom = id_of("enchant_scroll", b"doom").await;
+    let bag: i64 = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE owner_id=1 AND item_class_utf16=$1 ORDER BY id LIMIT 1",
+    )
+    .bind(utf16("synthetic_bag"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let mut session = None;
+    let request = |open: bool, scroll: i64, dice: &str| EnchantItem {
+        open_new_session: open,
+        target_item_id: bag,
+        enchant_scroll_item_id: scroll,
+        indestructible_scroll_item_id: 0,
+        dice_item_class: Some(dice.to_owned()),
+    };
+    let result = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        let last = packets.iter().rev().find(|p| p.category == 353).unwrap();
+        let Some(Message::EnchantItemResult(r)) =
+            inventory::decode(Kind::EnchantItemResult, &last.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("result missing")
+        };
+        (
+            r.result,
+            r.current_value,
+            r.goal_value,
+            r.current_success_ratio,
+        )
+    };
+    // No session yet: OpenSessionFail.
+    let packets = minimum_enchant::enchant(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        &request(false, keen, "DoEnchant"),
+        vec![],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result(&packets), (4, -1, -1, 0));
+    // Opening with an unknown dice answers InvalidDiceClass with the goal and the ratio.
+    let packets = minimum_enchant::enchant(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        &request(true, keen, ""),
+        vec![],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result(&packets), (5, 0, 10, 100));
+    // DoEnchant at ratio 1: the scroll is consumed and PREFIX keen is written; the slot
+    // reports the bonus status (order 1 met, order 2 needs level 99).
+    let packets = minimum_enchant::enchant(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        &request(false, keen, "DoEnchant"),
+        vec![],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 353]
+    );
+    assert_eq!(result(&packets).0, 0);
+    let prefix: (Vec<u8>, i32, i32) = sqlx::query_as(
+        "SELECT value_bytes,arg,arg2 FROM game_item_attributes WHERE item_id=$1 AND attribute_bytes=$2",
+    )
+    .bind(bag)
+    .bind(b"PREFIX".to_vec())
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(prefix, (b"keen".to_vec(), 0, 0));
+    let scroll_left: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items WHERE id=$1")
+        .bind(keen)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(scroll_left, 0);
+    let packet = minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let Some(Message::InventoryInfo(info)) =
+        inventory::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("inventory missing")
+    };
+    let slot = info
+        .slots
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .find(|s| s.id == bag)
+        .unwrap();
+    assert_eq!(slot.prefix.0, Some(vec![(1, true), (2, false)]));
+    // A SUFFIX doom session at ratio 0 with DestructionRatio 100: the item goes to the
+    // RestoreStorage (Enhance 0..15 anti-bind AP 100).
+    let packets = minimum_enchant::enchant(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        &request(true, doom, "DoEnchant"),
+        vec![],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result(&packets).0, 12);
+    let moved: i16 = sqlx::query_scalar("SELECT collection FROM game_items WHERE id=$1")
+        .bind(bag)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(moved, 102);
+    // Cancel closes the session.
+    let packets = minimum_enchant::enchant(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut session,
+        &request(false, doom, "CancelEnchant"),
+        vec![],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(result(&packets).0, 3);
+    assert!(session.is_none());
     cleanup_game_pool(a, p, s).await;
 }

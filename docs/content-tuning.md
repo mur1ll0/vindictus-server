@@ -28,6 +28,7 @@ Os caminhos são relativos a `D:\PROJETOS\VindictusPrivate`. As três bases são
 | `ItemClassInfo` | `RequiredLevel` | `ItemClass`, `Feature` | nível para usar/equipar | 1 → 8 (`test_luck_150`) | `item-economy.json` `classes[].required_level` | — |
 | `EnhanceServerInfo` | `SuccessRatio` | `EnhanceType` (o nível como texto), `EnhanceLevel`, `Feature` | chance de sucesso da melhoria por nível; é a que o `EnhanceItemProcessor` usa (sobrescreve a do `EnhanceInfo`) | 1.0 → 1.0 nos níveis 1–3, 0,75 (4–5), 0,5 (6–8), 0,4 (9–12), 0,33 (13–15) nas linhas `!zhCN` (12 linhas; o original guarda o valor como texto `'.33'` e o SQLite.NET do servidor lê `REAL` como `Single`) | `item-enhance.json` `server[].success_ratio` → `item_enhance::Contents::server_ratio` | o banco do cliente não tem a tabela |
 | `EnhanceInfo` | `SuccessRatio` | `EnhanceType`, `EnhanceLevel`, `Feature` | chance exibida/da tabela por tipo de equipamento; no servidor o valor é trocado pelo do `EnhanceServerInfo` | 1.0 → ex.: 0,75/0,33 (2.210 linhas) | `item-enhance.json` `enhance[].success_ratio` (lido, não decide o sorteio) | `scripts/client/apply_original_content.py` aplica as 2.210 células na cópia |
+| `EnchantInfo` | `MinSuccessRatio`, `MaxSuccessRatio` | `EnchantClass` | chance de sucesso do encantamento no início e no fim do minijogo (em %; `EnchantSuccessBonus` soma) | 100/100 → os valores originais, ex.: 25/60, 25/40, 35/74 (163 linhas) | `item-enhance.json` `enchant[].min_ratio`/`max_ratio` → `enchant::success_ratio` | `scripts/client/apply_original_content.py` aplica as células na cópia |
 
 Notas:
 - `EnhanceInfo` e `EnhanceServerInfo`: as mesmas chaves (`EnhanceType`, `EnhanceLevel`, `Feature`) nas duas bases; só `SuccessRatio` difere. `EnhanceStatInfo`, `EnhanceBonusServerInfo`, `EnhanceInsteadMaterialInfo` e `RepairEnhanceInfo` são iguais.
@@ -46,7 +47,7 @@ Esses também são candidatos a ajuste no painel (por exemplo, as taxas do `Feat
 
 ## Diferenças ainda não usadas pelo servidor
 
-Tabelas alteradas no conteúdo do servidor que pertencem a sistemas do B3 ou de cosméticos, sem consumidor no Rust: `EnchantInfo` (163), `ManufactureRecipeInfo` (1.695), `CustomizeItemInfo`/`CustomizePriceInfo` (salão de beleza), `PetInfo` (36), `EquipItemInfo` (4), `EntityAttribute` (5). Quando esses sistemas forem migrados, decidir a fonte de cada uma e acrescentar aqui.
+Tabelas alteradas no conteúdo do servidor que pertencem a sistemas do B3 ou de cosméticos, sem consumidor no Rust: `ManufactureRecipeInfo` (1.695), `CustomizeItemInfo`/`CustomizePriceInfo` (salão de beleza), `PetInfo` (36), `EquipItemInfo` (4), `EntityAttribute` (5). Quando esses sistemas forem migrados, decidir a fonte de cada uma e acrescentar aqui.
 
 ## Como reaplicar
 

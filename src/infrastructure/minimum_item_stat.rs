@@ -1,19 +1,28 @@
 //! Item.Stat of an equipment item: ItemClassInfo.GetStat() plus the Stat of its
-//! attribute entities, as Item.UpdateItemStat(null) builds it. ENHANCE carries a Stat;
-//! ANTIBIND and RESTORED (set by MoveToBuybackStorage) have none. Other equipment
-//! attributes (ENHANCEOTHER feeds Gear.GetEnhanceOtherValue) are refused, so the applied
-//! EnhanceOther value is always 0.
+//! attribute entities, as Item.UpdateItemStat(null) builds it. ENHANCE and PREFIX/SUFFIX
+//! carry a Stat (the enchant conditions read the owner's level, class, skill ranks and
+//! titles); ANTIBIND and RESTORED (set by MoveToBuybackStorage) have none. Other
+//! equipment attributes (ENHANCEOTHER feeds Gear.GetEnhanceOtherValue) are refused, so
+//! the applied EnhanceOther value is always 0.
 use super::{minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::{
-        character_stats::Arithmetic, enhance, item_attribute::Attributes, item_stats::ItemStat,
+        character_stats::Arithmetic,
+        enchant::{self, Context},
+        enhance,
+        item_attribute::Attributes,
+        item_stats::ItemStat,
     },
     protocol::inventory::Slot,
 };
+use sqlx::{Postgres, Transaction};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) const ENHANCE: &str = "ENHANCE";
 pub(super) const ANTIBIND: &str = "ANTIBIND";
 pub(super) const RESTORED: &str = "RESTORED";
+pub(super) const PREFIX: &str = "PREFIX";
+pub(super) const SUFFIX: &str = "SUFFIX";
 
 pub(super) struct EquipmentStat {
     pub stat: ItemStat,
@@ -21,72 +30,183 @@ pub(super) struct EquipmentStat {
     pub enhance_level: i32,
     /// EquippedItemInfo.Effect: Enhance.Effect when the entity exists.
     pub effect: Option<i32>,
+    /// Prefix/Suffix StatBonusStatus (empty without the entity).
+    pub prefix_status: Vec<(i32, bool)>,
+    pub suffix_status: Vec<(i32, bool)>,
+    /// PrefixEnchantLevel / SuffixEnchantLevel.
+    pub prefix_level: i32,
+    pub suffix_level: i32,
+}
+
+/// ItemOwner.Comm values the enchant conditions read.
+#[derive(Default)]
+pub(super) struct ItemContext {
+    level: i32,
+    class: i32,
+    selected_title: Option<i32>,
+    skills: BTreeMap<String, i32>,
+    titles: BTreeSet<i32>,
+}
+impl Context for ItemContext {
+    fn level(&self) -> i32 {
+        self.level
+    }
+    fn class(&self) -> i32 {
+        self.class
+    }
+    fn skill_rank(&self, skill: Option<&str>) -> i32 {
+        skill.and_then(|s| self.skills.get(s)).copied().unwrap_or(0)
+    }
+    fn title_acquired(&self, title: i32) -> bool {
+        self.titles.contains(&title)
+    }
+    fn selected_title(&self) -> Option<i32> {
+        self.selected_title
+    }
 }
 
 fn fail() -> MinimumError {
     MinimumError::Conflict
 }
 
-/// Item.Stat for the equipment class and attributes. Without a configured arithmetic
-/// both measured profiles are evaluated and must agree.
+/// The owner's level, class, selected title, skill ranks and acquired titles.
+pub(super) async fn context(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<ItemContext, MinimumError> {
+    let (level, class, selected_title): (i32, i32, Option<i32>) = sqlx::query_as(
+        "SELECT level,class::integer,selected_title FROM game_character_info WHERE id=$1",
+    )
+    .bind(cid)
+    .fetch_one(&mut **tx)
+    .await?;
+    let skills: Vec<(Vec<u8>, i32)> =
+        sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 LIMIT 4097")
+            .bind(cid)
+            .fetch_all(&mut **tx)
+            .await?;
+    let titles: Vec<i32> =
+        sqlx::query_scalar("SELECT title_id FROM game_titles WHERE cid=$1 AND acquired LIMIT 4097")
+            .bind(cid)
+            .fetch_all(&mut **tx)
+            .await?;
+    let mut map = BTreeMap::new();
+    for (skill, rank) in skills {
+        let units: Vec<u16> = skill
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| u16::from_le_bytes(*b))
+            .collect();
+        map.insert(String::from_utf16(&units).map_err(|_| fail())?, rank);
+    }
+    Ok(ItemContext {
+        level,
+        class,
+        selected_title,
+        skills: map,
+        titles: titles.into_iter().collect(),
+    })
+}
+
+/// Item.Stat without an owner context: an enchanted item is refused.
 pub(super) fn equipment(
     assets: &Assets,
     class: &[u8],
     attributes: &Attributes,
 ) -> Result<EquipmentStat, MinimumError> {
+    equipment_with(assets, class, attributes, None)
+}
+
+/// Item.Stat for the equipment class and attributes. Without a configured arithmetic
+/// both measured profiles are evaluated and must agree.
+pub(super) fn equipment_with(
+    assets: &Assets,
+    class: &[u8],
+    attributes: &Attributes,
+    owner: Option<&ItemContext>,
+) -> Result<EquipmentStat, MinimumError> {
     let base = assets.stats_index.get(Some(class)).ok_or_else(fail)?;
+    let mut out = EquipmentStat {
+        stat: base.clone(),
+        enhance_level: 0,
+        effect: None,
+        prefix_status: Vec::new(),
+        suffix_status: Vec::new(),
+        prefix_level: 0,
+        suffix_level: 0,
+    };
     if attributes.is_empty() {
-        return Ok(EquipmentStat {
-            stat: base.clone(),
-            enhance_level: 0,
-            effect: None,
-        });
+        return Ok(out);
     }
     if attributes
         .as_slice()
         .iter()
-        .any(|a| ![ENHANCE, ANTIBIND, RESTORED].contains(&a.name.as_str()))
+        .any(|a| ![ENHANCE, ANTIBIND, RESTORED, PREFIX, SUFFIX].contains(&a.name.as_str()))
     {
         return Err(fail());
     }
-    let Some(value) = attributes.get(ENHANCE).map(|a| a.value.as_str()) else {
-        return Ok(EquipmentStat {
-            stat: base.clone(),
-            enhance_level: 0,
-            effect: None,
-        });
-    };
     let contents = assets.enhance.as_ref().ok_or_else(fail)?;
-    let run = |arithmetic| {
-        enhance::load(
-            Some(value),
-            0,
-            |level| contents.stat_rows(class, level),
-            base,
-            arithmetic,
-        )
-        .map_err(|_| fail())
-    };
-    let (_, loaded) = match assets.item_arithmetic {
-        Some(arithmetic) => run(arithmetic)?,
-        None => {
-            let x86 = run(Arithmetic::FrameworkX86)?;
-            if run(Arithmetic::FrameworkX64)? != x86 {
-                return Err(fail());
+    if let Some(value) = attributes.get(ENHANCE).map(|a| a.value.as_str()) {
+        let run = |arithmetic| {
+            enhance::load(
+                Some(value),
+                0,
+                |level| contents.stat_rows(class, level),
+                base,
+                arithmetic,
+            )
+            .map_err(|_| fail())
+        };
+        let (_, loaded) = match assets.item_arithmetic {
+            Some(arithmetic) => run(arithmetic)?,
+            None => {
+                let x86 = run(Arithmetic::FrameworkX86)?;
+                if run(Arithmetic::FrameworkX64)? != x86 {
+                    return Err(fail());
+                }
+                x86
             }
-            x86
+        };
+        out.stat.add(Some(&loaded.stat)).map_err(|_| fail())?;
+        out.enhance_level = loaded.level;
+        out.effect = enhance::current_level(loaded.level, 0, |l| contents.info(class, l).is_some())
+            .and_then(|l| contents.info(class, l))
+            .map(|i| i.effect);
+    }
+    for name in [PREFIX, SUFFIX] {
+        let Some(attribute) = attributes.get(name) else {
+            continue;
+        };
+        let owner = owner.ok_or_else(fail)?;
+        let now = super::lab_clock::utc_now().map_err(|_| fail())?.ticks();
+        // (UtcNow - epoch) in seconds for Arg2.ToDateTime().
+        let now_unix = (now - 621_355_968_000_000_000) / 10_000_000;
+        let equip_class = assets.equip_class.get(class).cloned().flatten();
+        let loaded = enchant::load(
+            contents.enchant(&attribute.value),
+            contents.enchant_stats(&attribute.value),
+            attribute.arg,
+            attribute.arg2,
+            now_unix,
+            equip_class.as_deref(),
+            owner,
+        )
+        .map_err(|_| fail())?;
+        // LoadAttributeEntity removes an expired enchant; none is created by this port.
+        if loaded.expired {
+            return Err(fail());
         }
-    };
-    let mut stat = base.clone();
-    stat.add(Some(&loaded.stat)).map_err(|_| fail())?;
-    let effect = enhance::current_level(loaded.level, 0, |l| contents.info(class, l).is_some())
-        .and_then(|l| contents.info(class, l))
-        .map(|i| i.effect);
-    Ok(EquipmentStat {
-        stat,
-        enhance_level: loaded.level,
-        effect,
-    })
+        out.stat.add(loaded.stat.as_ref()).map_err(|_| fail())?;
+        if name == PREFIX {
+            out.prefix_status = loaded.status;
+            out.prefix_level = loaded.level;
+        } else {
+            out.suffix_status = loaded.status;
+            out.suffix_level = loaded.level;
+        }
+    }
+    Ok(out)
 }
 
 /// Item.EnhanceLevel of a projected slot (its ENHANCE attribute, 0 without it).
@@ -97,4 +217,19 @@ pub(super) fn slot_enhance_level(slot: &Slot) -> i32 {
         .flatten()
         .find(|a| a.name.as_deref() == Some(ENHANCE))
         .map_or(0, |a| enhance::level(a.value.as_deref()))
+}
+
+/// Prefix/SuffixEnchantLevel of a projected slot (unknown classes are 0).
+pub(super) fn slot_enchant_levels(assets: &Assets, slot: &Slot) -> (i32, i32) {
+    let level = |name: &str| {
+        slot.attributes
+            .iter()
+            .flatten()
+            .flatten()
+            .find(|a| a.name.as_deref() == Some(name))
+            .and_then(|a| a.value.as_deref())
+            .and_then(|v| assets.enhance.as_ref()?.enchant(v))
+            .map_or(0, |i| i.level)
+    };
+    (level(PREFIX), level(SUFFIX))
 }

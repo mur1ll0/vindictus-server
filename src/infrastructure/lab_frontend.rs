@@ -2577,6 +2577,83 @@ impl Connection {
             if matches(
                 category,
                 body,
+                Kind::EnchantItem.category(),
+                Kind::EnchantItem.type_id(),
+            ) {
+                let Some(Message::EnchantItem(request)) =
+                    wire::decode_ingress(Kind::EnchantItem, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                let (Some(selected), true) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                // ItemServiceProxy: only in town (hunting quests are not migrated).
+                if self.mission.is_some() {
+                    let packet = super::minimum_shop::system_message(
+                        0,
+                        "Heroes_System_Item_Error_Cannot_Craft_In_Dungeon",
+                        &[],
+                    )
+                    .map_err(|_| RuntimeError::Operation)?;
+                    send(stream, sender, packet.category, &packet.body).await?;
+                    return Ok(());
+                }
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let assets = &minimum.assets;
+                let ids = minimum
+                    .creation
+                    .entity_ids(2)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                let log = runtime.item_log_context(assets)?;
+                let session = &mut self
+                    .selected
+                    .as_mut()
+                    .ok_or(RuntimeError::Operation)?
+                    .enchant;
+                match super::minimum_enchant::enchant(
+                    pool, &owner, assets, cid, session, &request, ids, log,
+                )
+                .await
+                {
+                    Ok(packets) => {
+                        for packet in &packets {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        tracing::info!(
+                            categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+                            "minimum enchant processed; values omitted"
+                        );
+                    }
+                    Err(_) => tracing::warn!("minimum enchant refused; nothing written"),
+                }
+                return Ok(());
+            }
+            if matches(
+                category,
+                body,
                 Kind::EnhanceItem.category(),
                 Kind::EnhanceItem.type_id(),
             ) {

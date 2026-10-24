@@ -1092,3 +1092,15 @@ B3.2d — lista e restauração do depósito (24/10/2026).
 - Próxima ação: fechar o grupo Enhance (recompilar o Docker uma vez) e seguir para melhorar peça vestida (reenvio de EquipmentInfo/UpdateStat) ou para o Enchant (B3.3).
 
 Fechamento do grupo Enhance (24/10/2026): `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait` exit 0 (postgres/server/game healthy) com os commits B3.0a–B3.2d. Parada para decisão do operador (AGENTS.md, item 3): a máquina está no limite de recursos e cada etapa custa ~40 min de compilação do crate de testes; escolher entre testar no cliente as entradas B3.0a–B3.2d de `docs/client-tests/B3-equipamento.md` antes de seguir, ou continuar direto para o Enchant (B3.3). Pendente no Enhance: melhorar peça vestida. Próxima ação ao retomar: a opção escolhida.
+
+Pedido do operador (24/10/2026): ao terminar todo o B3 (gate completo, roteiro de cliente e commit de fechamento), desligar o computador com `shutdown /s /t 120` (cancelável com `shutdown /a`).
+
+B3.3 — encantamento (Enchant) no NPC (24/10/2026).
+- Fonte: `EnchantItemProcessor` (sessão por personagem: abrir com alvo/pergaminho/proteção, rolar dados `EnchantDiceInfo`, `DoEnchant`, `CancelEnchant`), `Enchant` (entidade PREFIX/SUFFIX: `EnchantStatInfo` com condições `level`, `skillrank`, `title_acquired`, `title_set`, `class`, `equip_class`; `@efeito+N` vai ao status; `{0}` = Arg; validade por Arg2), `EnchantInfo.IsAvailableTo` (grupos `&`, tokens por substring), `SuccessRatio` ((Min + (Max−Min)·atual/meta)/100 + bônus, teto 1), pergaminhos de proteção, destruição (feature `Enchant_DestructibleItems`) e perda de durabilidade máxima.
+- Conteúdo: `item-enhance.json` formato 3 (`enchant`, `enchant_stats`, `enchant_dice`, `enchantable`, features); `EnchantInfo` Min/MaxSuccessRatio voltam aos valores originais por `content_overrides.py` (163 linhas, registrado em `docs/content-tuning.md`).
+- Protocolo: `EnchantItemMessage` (352, ddc9fc48-…) e `EnchantItemResultMessage` (353, 0a5b1d79-…); oráculo `ItemSyncWireOracle.cs` com 1.722 casos (x86 = x64).
+- Infraestrutura: `domain::enchant`, `minimum_enchant` (sessão em `Selected.enchant`, sorteio `System.Random` portado e semeado por tempo), `minimum_item_stat` com contexto do dono (nível, classe, título, perícias, títulos) e status de prefixo/sufixo no SlotInfo; destruição reaproveita `minimum_enhance::destroy_or_restore`.
+- Testes: `cargo test --test enchant` (3), `item_enhance`, `item_sync_wire`, `inventory_wire`, `give_item`; PostgreSQL `minimum_enchant_session_applies_a_prefix_and_destroys_into_restore` e filtros `minimum_ inventory give shop story enhance restore` (64 aprovados); clippy `-D warnings`.
+- Diferenças: peça vestida recusada; encantamento com validade (Duration) e `enchant_elixir_br` recusados; atributo PREFIX/SUFFIX expirado recusa a carga em vez de removê-lo.
+- Cliente: entrada B3.3 em `docs/client-tests/B3-equipamento.md`.
+- Próxima ação: fechar o grupo Enchant (recompilar o Docker uma vez) e seguir para o Craft (B3.1: `ManufactureRecipeInfo`, `levelup_manufacture`/`acquire_manufacture`).

@@ -404,6 +404,45 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             }
         }
         Some(Message::QueryRestoreItemList) => {}
+        Some(Message::EnchantItem(e)) => {
+            assert_eq!(
+                Some(e.open_new_session),
+                f["OpenNewSession"].as_bool(),
+                "case {n}"
+            );
+            assert_eq!(
+                e.target_item_id,
+                f["TargetItemID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                e.enchant_scroll_item_id,
+                f["EnchantScrollItemID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                e.dice_item_class.as_deref(),
+                f["DiceItemClass"].as_str(),
+                "case {n}"
+            );
+        }
+        Some(Message::EnchantItemResult(e)) => {
+            assert_eq!(
+                i64::from(e.result),
+                f["Result"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(e.current_success_ratio),
+                f["CurrentSuccessRatio"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                e.rolled_dice.as_deref(),
+                f["RolledDice"].as_str(),
+                "case {n}"
+            );
+        }
         Some(Message::RestoreItemList(list)) => {
             let source = &f["RestoreItemList"];
             assert_eq!(list.is_none(), source.is_null(), "case {n}");
@@ -756,12 +795,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::EnhanceItemResult,
         Kind::QueryRestoreItemList,
         Kind::RestoreItemList,
+        Kind::EnchantItem,
+        Kind::EnchantItemResult,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1614);
+        assert_eq!(cases.len(), 1722);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -805,6 +846,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "enhance_item_result" => check_inventory(Kind::EnhanceItemResult, case, n),
                 "query_restore_item_list" => check_inventory(Kind::QueryRestoreItemList, case, n),
                 "restore_item_list" => check_inventory(Kind::RestoreItemList, case, n),
+                "enchant_item" => check_inventory(Kind::EnchantItem, case, n),
+                "enchant_item_result" => check_inventory(Kind::EnchantItemResult, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

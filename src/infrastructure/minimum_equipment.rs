@@ -126,6 +126,7 @@ pub(super) async fn load(
     let stats = &assets.stats_index;
     let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
     let mut attributes = super::minimum_inventory::load_attributes(tx, &ids).await?;
+    let owner_context = super::minimum_item_stat::context(tx, cid).await?;
     let names: Vec<_> = Stats::default()
         .entries()
         .map(|(s, _)| s.encode_utf16().collect::<Vec<_>>())
@@ -147,10 +148,11 @@ pub(super) async fn load(
         let m = profile.metadata(&assets.catalog, &row.item_class_utf16)?;
         let base = stats.get(Some(&row.item_class_utf16)).ok_or_else(fail)?;
         // EquippableSlot.ToEquippedItemInfo: Data.Stat, MaxDurability and Enhance.Effect.
-        let item = super::minimum_item_stat::equipment(
+        let item = super::minimum_item_stat::equipment_with(
             assets,
             &row.item_class_utf16,
             &attributes.remove(&row.id).unwrap_or_default(),
+            Some(&owner_context),
         )?;
         let d = EquipmentDurability::load(
             base,

@@ -140,14 +140,16 @@ fn slot_item(
     reduced: i32,
     bonus: i32,
     attributes: Option<&crate::domain::item_attribute::Attributes>,
-) -> Result<(equipment_slot::Item, i32), MinimumError> {
+    owner: &super::minimum_item_stat::ItemContext,
+) -> Result<(equipment_slot::Item, (i32, i32, i32)), MinimumError> {
     let profile = assets.equipment.as_ref().ok_or_else(fail)?;
     let metadata = profile.metadata(&assets.catalog, class)?;
     let base = stats.get(Some(class)).ok_or_else(fail)?;
-    let item = super::minimum_item_stat::equipment(
+    let item = super::minimum_item_stat::equipment_with(
         assets,
         class,
         attributes.unwrap_or(&crate::domain::item_attribute::EMPTY),
+        Some(owner),
     )?;
     let d =
         crate::domain::item_durability::EquipmentDurability::load(base, &item.stat, reduced, bonus);
@@ -161,7 +163,10 @@ fn slot_item(
         bad_status: d.has_durability() && d.maximum() >= 0 && d.current() == 0,
         enhance_other: false,
     };
-    Ok((slot, item.enhance_level))
+    Ok((
+        slot,
+        (item.enhance_level, item.prefix_level, item.suffix_level),
+    ))
 }
 
 /// Admission (selected character, city state and second password) belongs to the frontend.
@@ -203,8 +208,9 @@ pub async fn equip(
         let mut attribute_ids: Vec<i64> = equipped.iter().map(|e| e.0).collect();
         attribute_ids.push(item_id);
         let attributes = super::minimum_inventory::load_attributes(&mut tx, &attribute_ids).await?;
-        // Item.EnhanceLevel of the equipped items, for RequiredEnhanceLevel.
-        let mut enhance_levels: BTreeMap<i64, i32> = BTreeMap::new();
+        let owner_context = super::minimum_item_stat::context(&mut tx, cid).await?;
+        // Enhance/prefix/suffix levels of the equipped items, for the item constraints.
+        let mut enhance_levels: BTreeMap<i64, (i32, i32, i32)> = BTreeMap::new();
         for (id, class, p, reduced, bonus) in equipped {
             let p = u8::try_from(p).map_err(|_| fail())?;
             let (item, level) = slot_item(
@@ -216,6 +222,7 @@ pub async fn equip(
                 reduced,
                 bonus,
                 attributes.get(&id),
+                &owner_context,
             )?;
             enhance_levels.insert(id, level);
             let slot = gear.equipment.get_mut(&p).ok_or_else(fail)?;
@@ -311,6 +318,7 @@ pub async fn equip(
                 target.reduced_durability.ok_or_else(fail)?,
                 target.max_durability_bonus.ok_or_else(fail)?,
                 attributes.get(&item_id),
+                &owner_context,
             )?;
             let skills: Vec<(Vec<u8>, i32)> =
                 sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097")
@@ -324,15 +332,19 @@ pub async fn equip(
                     String::from_utf16(&units).map(|k| (k, r)).map_err(|_| fail())
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()?;
-            // EnhanceLevel of each equipped item; enchant attributes are refused.
+            // Enhance and enchant levels of each equipped item.
             let levels: Vec<Equipped> = gear
                 .equipment
                 .values()
                 .filter_map(|s| s.value())
-                .map(|i| Equipped {
-                    enhance: enhance_levels.get(&i.id).copied().unwrap_or(0),
-                    prefix: 0,
-                    suffix: 0,
+                .map(|i| {
+                    let (enhance, prefix, suffix) =
+                        enhance_levels.get(&i.id).copied().unwrap_or((0, 0, 0));
+                    Equipped {
+                        enhance,
+                        prefix,
+                        suffix,
+                    }
                 })
                 .collect();
             let constraint = assets

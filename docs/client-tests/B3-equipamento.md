@@ -37,3 +37,13 @@ Pré-condição: uma peça destruída numa falha de melhoria a partir de +9 (B3.
 - [ ] Sem AP suficiente → falha da compra, a peça continua na lista.
 - [ ] Relogar → a lista e a peça restaurada se mantêm.
 Limites conhecidos: com a bolsa cheia a restauração é recusada (o original mandaria por correio); peças com validade não são restauradas.
+
+### B3.3 — Encantar no NPC (Enchant)
+Pré-condição: uma peça de equipamento na bolsa (não vestida), um pergaminho de encantamento compatível com ela (lab: `scripts/dev/lab-give-item.ps1` com `enchant_scroll_...[PREFIX:<classe>]`) e ouro para o preço da janela.
+- [ ] Abrir a janela de encantamento com a peça e o pergaminho → aparecem a chance atual e a meta do minijogo.
+- [ ] Jogar os dados (dado comum do NPC) → o valor atual sobe e a chance acompanha; o dado é consumido.
+- [ ] Encantar com sucesso → o pergaminho some, a peça mostra o prefixo/sufixo e os bônus; as condições não cumpridas aparecem apagadas.
+- [ ] Falhar → o pergaminho some; a peça perde durabilidade máxima (ou é destruída e vai para o depósito de restauração nos encantamentos que destroem).
+- [ ] Cancelar → a janela fecha sem consumir nada.
+- [ ] Relogar → o encantamento e os bônus se mantêm.
+Limites conhecidos: peça vestida é recusada; encantamentos com validade e o `enchant_elixir_br` são recusados; numa missão aparece "não é possível no calabouço".

@@ -11,7 +11,7 @@ use super::{
     minimum_character::MinimumError,
     minimum_give::Request,
     minimum_inventory::RESTORE_COLLECTION,
-    minimum_item_stat::{ANTIBIND, ENHANCE, RESTORED},
+    minimum_item_stat::{ANTIBIND, ENHANCE, PREFIX, RESTORED, SUFFIX},
 };
 use crate::{
     domain::{
@@ -127,13 +127,25 @@ fn result_packet(result: EnhanceItemResult) -> Result<OutgoingPacket, MinimumErr
     })
 }
 
-/// SetItemAttribute(name, value, arg, arg2): `None` removes the row.
+/// SetItemAttribute(name, value, 0, 0): `None` removes the row.
 async fn set_attribute(
     tx: &mut Transaction<'_, Postgres>,
     item: i64,
     current: &Attributes,
     name: &str,
     value: Option<&str>,
+) -> Result<(), MinimumError> {
+    set_attribute_args(tx, item, current, name, value, 0, 0).await
+}
+/// SetItemAttribute(name, value, arg, arg2): `None` removes the row.
+pub(super) async fn set_attribute_args(
+    tx: &mut Transaction<'_, Postgres>,
+    item: i64,
+    current: &Attributes,
+    name: &str,
+    value: Option<&str>,
+    arg: i32,
+    arg2: i32,
 ) -> Result<(), MinimumError> {
     match (current.get(name), value) {
         (None, None) => Ok(()),
@@ -145,21 +157,23 @@ async fn set_attribute(
                 .await?;
             Ok(())
         }
-        (Some(old), Some(v)) if old.value == v && old.arg == 0 && old.arg2 == 0 => Ok(()),
+        (Some(old), Some(v)) if old.value == v && old.arg == arg && old.arg2 == arg2 => Ok(()),
         (Some(_), Some(v)) => {
-            item_attribute::Attribute::from_stored(name.as_bytes(), v.as_bytes(), 0, 0)
+            item_attribute::Attribute::from_stored(name.as_bytes(), v.as_bytes(), arg, arg2)
                 .map_err(|_| fail())?;
-            sqlx::query("UPDATE game_item_attributes SET value_bytes=$3,arg=0,arg2=0 WHERE item_id=$1 AND attribute_bytes=$2")
+            sqlx::query("UPDATE game_item_attributes SET value_bytes=$3,arg=$4,arg2=$5 WHERE item_id=$1 AND attribute_bytes=$2")
                 .bind(item)
                 .bind(name.as_bytes())
                 .bind(v.as_bytes())
+                .bind(arg)
+                .bind(arg2)
                 .execute(&mut **tx)
                 .await?;
             Ok(())
         }
         (None, Some(v)) => {
             let row = Attributes::new(vec![
-                item_attribute::Attribute::from_stored(name.as_bytes(), v.as_bytes(), 0, 0)
+                item_attribute::Attribute::from_stored(name.as_bytes(), v.as_bytes(), arg, arg2)
                     .map_err(|_| fail())?,
             ])
             .map_err(|_| fail())?;
@@ -172,7 +186,7 @@ async fn set_attribute(
 fn buyback_ap(
     contents: &Contents,
     class: &str,
-    level: i32,
+    levels: (i32, i32, i32),
     required_level: i32,
     category: &str,
 ) -> Result<i32, MinimumError> {
@@ -181,8 +195,9 @@ fn buyback_ap(
         let value = match row.target.as_deref() {
             Some("Quality") => "2".to_owned(),
             Some("ItemLevel") => required_level.to_string(),
-            Some("Prefix" | "Suffix") => "0".to_owned(),
-            Some("Enhance") => level.to_string(),
+            Some("Prefix") => levels.1.to_string(),
+            Some("Suffix") => levels.2.to_string(),
+            Some("Enhance") => levels.0.to_string(),
             Some("IsWeapon") if category.eq_ignore_ascii_case("WEAPON") => String::new(),
             Some("IsArtifact") if category.eq_ignore_ascii_case("ARTIFACT") => String::new(),
             Some("ItemClass") => class.to_owned(),
@@ -194,6 +209,112 @@ fn buyback_ap(
         }
     }
     Ok(ap)
+}
+
+/// Destroy on failure: MoveToBuybackStorage when RestoreItem is on, the item was not
+/// restored before and CalcBuybackAP > 0 (AntiBindCount = MaxAntiBind, bound, restored,
+/// the latest RestoreStorage slot, then RemoveOverflowedItems and ArrangeSlot);
+/// otherwise Num = 0. Returns (send GameUI_Heroes_RestoreItem_System_Notify, overflowed
+/// restore items removed). `levels` are the item's enhance, prefix and suffix levels.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn destroy_or_restore(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    item: i64,
+    class: &[u8],
+    current: &Attributes,
+    levels: (i32, i32, i32),
+) -> Result<(bool, Vec<i64>), MinimumError> {
+    let contents = assets.enhance.as_ref().ok_or_else(fail)?;
+    let policy = contents.policy().ok_or_else(fail)?;
+    let economy = assets.economy.as_ref().ok_or_else(fail)?;
+    let indexed = assets.stats_index.class(Some(class)).ok_or_else(fail)?;
+    let restore = policy.is_enabled(Some("RestoreItem"))?;
+    let did_restored = current
+        .get(RESTORED)
+        .is_some_and(|a| enhance::level(Some(&a.value)) != 0);
+    let economy_row = economy.get(indexed.source_index).ok_or_else(fail)?;
+    let category = assets
+        .equipment
+        .as_ref()
+        .ok_or_else(fail)?
+        .category(&assets.catalog, class)?;
+    let ap = buyback_ap(
+        contents,
+        &text(class)?,
+        levels,
+        economy_row.required_level,
+        &category,
+    )?;
+    let mut overflow = Vec::new();
+    if restore && !did_restored && ap > 0 {
+        let max_anti_bind = contents.max_anti_bind(class).ok_or_else(fail)?;
+        let anti = (max_anti_bind != 0).then(|| max_anti_bind.to_string());
+        set_attribute(tx, item, current, ANTIBIND, anti.as_deref()).await?;
+        set_attribute(tx, item, current, RESTORED, Some("1")).await?;
+        let latest: Option<i32> = sqlx::query_scalar(
+            "SELECT max(slot) FROM game_items WHERE owner_id=$1 AND collection=$2",
+        )
+        .bind(cid)
+        .bind(RESTORE_COLLECTION)
+        .fetch_one(&mut **tx)
+        .await?;
+        sqlx::query("UPDATE game_items SET collection=$3,slot=$4,tradable=false WHERE id=$1 AND owner_id=$2")
+            .bind(item)
+            .bind(cid)
+            .bind(RESTORE_COLLECTION)
+            .bind(latest.map_or(0, |s| s.wrapping_add(1)))
+            .execute(&mut **tx)
+            .await?;
+        let count = policy.get_integer("RestoreItemCount")?;
+        let held: Vec<i64> = sqlx::query_scalar(
+            "SELECT id FROM game_items WHERE owner_id=$1 AND collection=$2 ORDER BY slot,id",
+        )
+        .bind(cid)
+        .bind(RESTORE_COLLECTION)
+        .fetch_all(&mut **tx)
+        .await?;
+        let excess = held
+            .len()
+            .saturating_sub(usize::try_from(count).unwrap_or(0));
+        if excess > 0 {
+            for id in &held[..excess] {
+                delete_item(tx, cid, *id).await?;
+                overflow.push(*id);
+            }
+            // ArrangeSlot(null): the remaining items take slots 0..n in order.
+            for (n, id) in held[excess..].iter().enumerate() {
+                sqlx::query("UPDATE game_items SET slot=$2 WHERE id=$1")
+                    .bind(id)
+                    .bind(i32::try_from(n).map_err(|_| fail())?)
+                    .execute(&mut **tx)
+                    .await?;
+            }
+        }
+        return Ok((false, overflow));
+    }
+    delete_item(tx, cid, item).await?;
+    Ok((restore, overflow))
+}
+
+/// Num = 0 of one item with its attribute and equippable rows.
+pub(super) async fn delete_item(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+    item: i64,
+) -> Result<(), MinimumError> {
+    super::minimum_give::delete_attributes(tx, item).await?;
+    sqlx::query("DELETE FROM game_equippables WHERE id=$1")
+        .bind(item)
+        .execute(&mut **tx)
+        .await?;
+    sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
+        .bind(item)
+        .bind(cid)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
 }
 
 /// CalcRequiredBuybackAP of an item of `class` with `attributes` (its EnhanceLevel).
@@ -221,7 +342,19 @@ pub(super) fn buyback_ap_of(
     let level = attributes
         .get(ENHANCE)
         .map_or(0, |a| enhance::level(Some(&a.value)));
-    buyback_ap(contents, &text(class)?, level, required_level, &category)
+    let enchant = |name: &str| {
+        attributes
+            .get(name)
+            .and_then(|a| contents.enchant(&a.value))
+            .map_or(0, |i| i.level)
+    };
+    buyback_ap(
+        contents,
+        &text(class)?,
+        (level, enchant(PREFIX), enchant(SUFFIX)),
+        required_level,
+        &category,
+    )
 }
 
 fn requests<'a>(rows: &'a [(Vec<u8>, i32)], empty: &'a Attributes) -> Vec<Request<'a>> {
@@ -297,7 +430,6 @@ async fn enhance_with(
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let contents = assets.enhance.as_ref().ok_or_else(fail)?;
     let policy = contents.policy().ok_or_else(fail)?;
-    let economy = assets.economy.as_ref().ok_or_else(fail)?;
     let arithmetic = assets.item_arithmetic.ok_or_else(fail)?;
     let arch = match arithmetic {
         Arithmetic::FrameworkX86 => Arch::X86,
@@ -356,7 +488,13 @@ async fn enhance_with(
         .await?
         .remove(&request.item_id)
         .unwrap_or_default();
-    let before = super::minimum_item_stat::equipment(assets, &class, &attributes)?;
+    let owner_context = super::minimum_item_stat::context(&mut tx, cid).await?;
+    let before = super::minimum_item_stat::equipment_with(
+        assets,
+        &class,
+        &attributes,
+        Some(&owner_context),
+    )?;
     let base = assets.stats_index.get(Some(&class)).ok_or_else(fail)?;
     let durability = EquipmentDurability::load(base, &before.stat, equipment.1, equipment.2);
     let target = Target {
@@ -474,7 +612,8 @@ async fn enhance_with(
         .await?
         .remove(&request.item_id)
         .unwrap_or_default();
-    let after = super::minimum_item_stat::equipment(assets, &class, &current)?;
+    let after =
+        super::minimum_item_stat::equipment_with(assets, &class, &current, Some(&owner_context))?;
     let mut state = EquipmentDurability::load(base, &after.stat, equipment.1, equipment.2);
     let (limit, _) = assets.inventory.limits()?;
     if outcome.max_durability_loss != 0 {
@@ -502,98 +641,18 @@ async fn enhance_with(
             .await?;
     }
     if outcome.destroyed {
-        let restore = policy.is_enabled(Some("RestoreItem"))?;
-        let did_restored = current
-            .get(RESTORED)
-            .is_some_and(|a| enhance::level(Some(&a.value)) != 0);
-        let economy_row = economy.get(indexed.source_index).ok_or_else(fail)?;
-        let category = assets
-            .equipment
-            .as_ref()
-            .ok_or_else(fail)?
-            .category(&assets.catalog, &class)?;
-        let ap = buyback_ap(
-            contents,
-            &class_text,
-            outcome.level,
-            economy_row.required_level,
-            &category,
-        )?;
-        if restore && !did_restored && ap > 0 {
-            // MoveToBuybackStorage: AntiBindCount = MaxAntiBind, bound, restored, then the
-            // latest RestoreStorage slot and RemoveOverflowedItems.
-            let max_anti_bind = contents.max_anti_bind(&class).ok_or_else(fail)?;
-            let anti = (max_anti_bind != 0).then(|| max_anti_bind.to_string());
-            set_attribute(
-                &mut tx,
-                request.item_id,
-                &current,
-                ANTIBIND,
-                anti.as_deref(),
-            )
-            .await?;
-            set_attribute(&mut tx, request.item_id, &current, RESTORED, Some("1")).await?;
-            let latest: Option<i32> = sqlx::query_scalar(
-                "SELECT max(slot) FROM game_items WHERE owner_id=$1 AND collection=$2",
-            )
-            .bind(cid)
-            .bind(RESTORE_COLLECTION)
-            .fetch_one(&mut *tx)
-            .await?;
-            sqlx::query("UPDATE game_items SET collection=$3,slot=$4,tradable=false WHERE id=$1 AND owner_id=$2")
-                .bind(request.item_id)
-                .bind(cid)
-                .bind(RESTORE_COLLECTION)
-                .bind(latest.map_or(0, |s| s.wrapping_add(1)))
-                .execute(&mut *tx)
-                .await?;
-            let count = policy.get_integer("RestoreItemCount")?;
-            let held: Vec<i64> = sqlx::query_scalar(
-                "SELECT id FROM game_items WHERE owner_id=$1 AND collection=$2 ORDER BY slot,id",
-            )
-            .bind(cid)
-            .bind(RESTORE_COLLECTION)
-            .fetch_all(&mut *tx)
-            .await?;
-            let excess = held
-                .len()
-                .saturating_sub(usize::try_from(count).unwrap_or(0));
-            if excess > 0 {
-                for id in &held[..excess] {
-                    super::minimum_give::delete_attributes(&mut tx, *id).await?;
-                    sqlx::query("DELETE FROM game_equippables WHERE id=$1")
-                        .bind(id)
-                        .execute(&mut *tx)
-                        .await?;
-                    sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
-                        .bind(id)
-                        .bind(cid)
-                        .execute(&mut *tx)
-                        .await?;
-                    overflow.push(*id);
-                }
-                // ArrangeSlot(null): the remaining items take slots 0..n in order.
-                for (n, id) in held[excess..].iter().enumerate() {
-                    sqlx::query("UPDATE game_items SET slot=$2 WHERE id=$1")
-                        .bind(id)
-                        .bind(i32::try_from(n).map_err(|_| fail())?)
-                        .execute(&mut *tx)
-                        .await?;
-                }
-            }
-        } else {
-            restore_notice = restore;
-            super::minimum_give::delete_attributes(&mut tx, request.item_id).await?;
-            sqlx::query("DELETE FROM game_equippables WHERE id=$1")
-                .bind(request.item_id)
-                .execute(&mut *tx)
-                .await?;
-            sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
-                .bind(request.item_id)
-                .bind(cid)
-                .execute(&mut *tx)
-                .await?;
-        }
+        let (notice, removed) = destroy_or_restore(
+            &mut tx,
+            assets,
+            cid,
+            request.item_id,
+            &class,
+            &current,
+            (outcome.level, after.prefix_level, after.suffix_level),
+        )
+        .await?;
+        restore_notice = notice;
+        overflow = removed;
         current = Attributes::default();
     }
     slots.push(Some(

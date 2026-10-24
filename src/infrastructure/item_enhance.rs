@@ -24,6 +24,7 @@ struct Equip {
     feature: Option<String>,
     #[serde(deserialize_with = "nullable")]
     enhance_type: Option<PrivateText>,
+    enchantable: u8,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -159,6 +160,58 @@ struct AntiBindRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct EnchantRow {
+    source_index: usize,
+    // ID, EnchantType and Feature are exported but not read by the item service.
+    #[serde(rename = "id")]
+    _id: i32,
+    #[serde(deserialize_with = "nullable")]
+    enchant_utf16: Option<PrivateText>,
+    is_prefix: bool,
+    #[serde(rename = "enchant_type", deserialize_with = "nullable")]
+    _enchant_type: Option<PrivateText>,
+    level: i32,
+    min_arg: i32,
+    max_arg: i32,
+    #[serde(deserialize_with = "nullable")]
+    constraint: Option<PrivateText>,
+    min_ratio: i32,
+    max_ratio: i32,
+    destruction: i32,
+    mini_game: i32,
+    duration: i32,
+    ignore_max_armor: bool,
+    #[serde(rename = "feature", deserialize_with = "nullable")]
+    _feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EnchantStatRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    enchant_utf16: Option<PrivateText>,
+    order: i32,
+    #[serde(deserialize_with = "nullable")]
+    condition: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    stat: Option<PrivateText>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EnchantDiceRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    item_utf16: Option<PrivateText>,
+    min: i32,
+    max: i32,
+    // enchantDiceInfoDic keeps every row; SkillRank and Feature are not read.
+    #[serde(rename = "skill_rank")]
+    _skill_rank: i32,
+    #[serde(rename = "feature", deserialize_with = "nullable")]
+    _feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Feature {
     key: String,
     value: Option<String>,
@@ -181,6 +234,9 @@ pub struct Profile {
     rune_extra: Vec<RuneExtraRow>,
     recipes: Vec<RecipeRow>,
     anti_bind: Vec<AntiBindRow>,
+    enchant: Vec<EnchantRow>,
+    enchant_stats: Vec<EnchantStatRow>,
+    enchant_dice: Vec<EnchantDiceRow>,
     features: Vec<Feature>,
 }
 
@@ -212,6 +268,14 @@ pub struct Contents {
     craft_price_ratio: String,
     /// The catalog policy plus the exported enhance/restore features.
     policy: Option<crate::domain::feature_policy::FeaturePolicy>,
+    /// enchantInfoDic (every row; ToDictionary refuses a duplicate EnchantClass).
+    enchant: BTreeMap<String, crate::domain::enchant::EnchantInfo>,
+    /// enchantStatInfoDic: rows ordered by Order (stable) per EnchantClass.
+    enchant_stats: BTreeMap<String, Vec<crate::domain::enchant::StatRow>>,
+    /// enchantDiceInfoDic: (MinValue, MaxValue) by ItemClass.
+    enchant_dice: BTreeMap<String, (i32, i32)>,
+    /// GetEquipItemInfo().Enchantable of each effective equipment class.
+    enchantable: BTreeMap<Vec<u8>, u8>,
 }
 
 /// RecipeID, Target rows (AddItem sums) and Material rows (priced when used).
@@ -281,7 +345,7 @@ impl Profile {
             p.recipes.len(),
             p.anti_bind.len(),
         ];
-        if p.format_version != 2
+        if p.format_version != 3
             || p.source != "heroesContents.item-enhance"
             || sizes.iter().any(|n| *n > 65536)
             || p.features.len() > 256
@@ -296,6 +360,10 @@ impl Profile {
             || !ordered(&p.rune_extra, |r| r.source_index)
             || !ordered(&p.recipes, |r| r.source_index)
             || !ordered(&p.anti_bind, |r| r.source_index)
+            || !ordered(&p.enchant, |r| r.source_index)
+            || !ordered(&p.enchant_stats, |r| r.source_index)
+            || !ordered(&p.enchant_dice, |r| r.source_index)
+            || p.enchant.len() + p.enchant_stats.len() + p.enchant_dice.len() > 65536
             || p.rune_extra.iter().any(|r| r.success_ratio.len() != 16)
             || [&p.success_hex(), &p.value_hex()]
                 .iter()
@@ -378,6 +446,7 @@ impl Profile {
             let row = self.equips.get(index).ok_or_else(fail)?;
             out.types
                 .insert(class.to_vec(), text(row.enhance_type.as_ref())?);
+            out.enchantable.insert(class.to_vec(), row.enchantable);
         }
         for (class, item) in effective.items() {
             let row = self.classes.get(item.source_index).ok_or_else(fail)?;
@@ -544,6 +613,47 @@ impl Profile {
                 r.max,
             ));
         }
+        for r in &self.enchant {
+            let info = crate::domain::enchant::EnchantInfo {
+                class: key(r.enchant_utf16.as_ref())?,
+                is_prefix: r.is_prefix,
+                level: r.level,
+                min_arg: r.min_arg,
+                max_arg: r.max_arg,
+                constraint: text(r.constraint.as_ref())?,
+                min_ratio: r.min_ratio,
+                max_ratio: r.max_ratio,
+                destruction: r.destruction,
+                mini_game: r.mini_game,
+                duration: r.duration,
+                ignore_max_armor: r.ignore_max_armor,
+            };
+            if out.enchant.insert(info.class.clone(), info).is_some() {
+                return Err(fail());
+            }
+        }
+        for r in &self.enchant_stats {
+            out.enchant_stats
+                .entry(key(r.enchant_utf16.as_ref())?)
+                .or_default()
+                .push(crate::domain::enchant::StatRow {
+                    order: r.order,
+                    condition: text(r.condition.as_ref())?,
+                    stat: text(r.stat.as_ref())?,
+                });
+        }
+        for rows in out.enchant_stats.values_mut() {
+            rows.sort_by_key(|r| r.order);
+        }
+        for r in &self.enchant_dice {
+            if out
+                .enchant_dice
+                .insert(key(r.item_utf16.as_ref())?, (r.min, r.max))
+                .is_some()
+            {
+                return Err(fail());
+            }
+        }
         out.policy = Some(policy);
         Ok(out)
     }
@@ -613,6 +723,20 @@ impl Contents {
     /// FeatureMatrix of the enhance processor (catalog features plus the exported ones).
     pub fn policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
         self.policy.as_ref()
+    }
+    /// GetEquipItemInfo().Enchantable (`None` for non-equipment).
+    pub fn enchantable(&self, class: &[u8]) -> Option<u8> {
+        self.enchantable.get(class).copied()
+    }
+    /// GetEnchantInfo, GetEnchantStatInfo and GetEnchantDiceInfo.
+    pub fn enchant(&self, class: &str) -> Option<&crate::domain::enchant::EnchantInfo> {
+        self.enchant.get(class)
+    }
+    pub fn enchant_stats(&self, class: &str) -> Option<&[crate::domain::enchant::StatRow]> {
+        self.enchant_stats.get(class).map(Vec::as_slice)
+    }
+    pub fn enchant_dice(&self, class: &str) -> Option<(i32, i32)> {
+        self.enchant_dice.get(class).copied()
     }
     /// GetFloat("CraftPriceRatio") with ItemContents replacing 0 by 1.
     pub fn craft_price_ratio(&self) -> Option<f32> {
