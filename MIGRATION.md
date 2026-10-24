@@ -1137,3 +1137,12 @@ B3.4a — expansão de slot de equipamento (`open_equipment_slot`) (24/10/2026).
 - Diferenças: `UpdateEquipmentObservable` após a mensagem não é emitido (o observador de equipamento não foi migrado).
 - Cliente: entrada B3.4a em `docs/client-tests/B3-equipamento.md`.
 - Próxima ação: B3.4b — reparo completo (`MaxDurabilityRepairItemMessage`), depois armazenamento pessoal (`give_storage`/`OpenStorage`, abas expiráveis) e SkillEnhance.
+
+B3.4b — reparo completo (`MaxDurabilityRepairItemMessage`) (24/10/2026).
+- Fonte: `ItemServiceProxy` (segunda senha; `MaxDurabilityRepairItem(Target, Source)`), `MaxDurabilityRepairItemProcessor` (alvo nulo lança antes das checagens; fonte nula → InvalidItem; ambos equipáveis e `EquipItemInfo.MaxDurability - MaxDurability > 0` senão RepairedFailed; `Num <= 0` → NotEnoughSourceItem; classes diferentes → NotEqualSourceItem; `DestroyItem(gold, MaxDurabilityRepairPrice)` senão NotEnoughGold; `sourceItem.Num--`; `MaxDurabilityRepair(1000)` pelo setter limitado por `MaxDurabilityLimit`; `SendDialog(Success, ItemClass, recuperado / 100)`; ledger `ActionType.RepairMaxDurability`), `Item.MaxDurabilityRepairPrice` ((int)(ItemValue × RepairEquipClassInfo.Point × Price × 1,5e-5), 0 sem durabilidade).
+- Protocolo: `MaxDurabilityRepairItemMessage` (342); oráculo `ItemSyncWireOracle.cs` com 1.827 casos (x86 = x64).
+- Infraestrutura: `repair::max_durability_repair_price`, `minimum_repair::max_durability_repair` (transação, ouro pelo planejador de entrega, fonte apagada, bônus de durabilidade máxima, mensagens [617, diálogo]) e o handler 342 junto do `RepairItem`.
+- Testes: PostgreSQL `minimum_max_durability_repair_consumes_the_same_class_source` (InvalidItem, alvo ausente sem resposta, fonte não equipável, sucesso limitado a `MaxDurabilityLimit`, fonte apagada), preço no teste de reparo existente e filtros `minimum_ inventory give shop story enhance restore enchant equip quick` (68 aprovados); `item_sync_wire`, `inventory_wire`; clippy `-D warnings`.
+- Diferenças: alvo ou fonte vestidos e alvo igual à fonte são recusados sem resposta (o original sincronizaria EquipmentInfo/stats ou apagaria o próprio alvo); `Gear.ApplyBadStatus` não tem efeito (só vale para peças vestidas).
+- Cliente: entrada B3.4b em `docs/client-tests/B3-equipamento.md`.
+- Próxima ação: B3.4c — armazenamento pessoal (`give_storage`/`OpenStorage`, abas expiráveis 2–5, 7 e 8, `UpdateStorageInfoMessage`), depois SkillEnhance.

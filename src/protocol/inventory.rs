@@ -61,6 +61,7 @@ pub enum Kind {
     ManufactureCraft,
     ManufactureLevelUp,
     UnequippablePartsInfo,
+    MaxDurabilityRepairItem,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -115,6 +116,7 @@ impl Kind {
             Self::ManufactureCraft => 360,
             Self::ManufactureLevelUp => 361,
             Self::UnequippablePartsInfo => 614,
+            Self::MaxDurabilityRepairItem => 342,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -169,6 +171,7 @@ impl Kind {
             Self::ManufactureCraft => 0x42f64ed3_c84b_3cfb_853b_0dec85cfac07,
             Self::ManufactureLevelUp => 0x4b8c26ec_6412_3016_b31e_157b18638117,
             Self::UnequippablePartsInfo => 0xd0ac3a73_85f7_38bb_ba07_68bec5d8ae21,
+            Self::MaxDurabilityRepairItem => 0x66ecfcca_c35b_3005_a79c_ad9fc04da573,
         })
     }
 }
@@ -321,6 +324,7 @@ pub enum Message {
     ManufactureLevelUp(ManufactureLevelUp),
     /// UnequippablePartsInfoMessage.Parts (Gear.ToUnequippableParts).
     UnequippablePartsInfo(Option<Vec<i32>>),
+    MaxDurabilityRepairItem(MaxDurabilityRepairItem),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -479,6 +483,12 @@ pub struct ManufactureInfo {
 pub struct ManufactureCraft {
     pub recipe_id: Option<String>,
     pub parts_id_list: Option<Vec<i64>>,
+}
+/// MaxDurabilityRepairItemMessage: TargetItemID, SourceItemID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MaxDurabilityRepairItem {
+    pub target_item_id: i64,
+    pub source_item_id: i64,
 }
 /// ManufactureLevelUpMessage: MID, Grade.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -679,6 +689,7 @@ impl Message {
             Self::ManufactureCraft(_) => Kind::ManufactureCraft,
             Self::ManufactureLevelUp(_) => Kind::ManufactureLevelUp,
             Self::UnequippablePartsInfo(_) => Kind::UnequippablePartsInfo,
+            Self::MaxDurabilityRepairItem(_) => Kind::MaxDurabilityRepairItem,
         }
     }
 }
@@ -932,6 +943,10 @@ object!(ManufactureCraft {
     parts_id_list
 });
 object!(ManufactureLevelUp { mid, grade });
+object!(MaxDurabilityRepairItem {
+    target_item_id,
+    source_item_id
+});
 object!(EnchantItem {
     open_new_session,
     target_item_id,
@@ -1098,6 +1113,7 @@ pub fn encode(
             Message::ManufactureCraft(v) => v.write(&mut w)?,
             Message::ManufactureLevelUp(v) => v.write(&mut w)?,
             Message::UnequippablePartsInfo(v) => v.write(&mut w)?,
+            Message::MaxDurabilityRepairItem(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1187,6 +1203,9 @@ fn decode_body(
                 Message::ManufactureLevelUp(ManufactureLevelUp::read(&mut r)?)
             }
             Kind::UnequippablePartsInfo => Message::UnequippablePartsInfo(Wire::read(&mut r)?),
+            Kind::MaxDurabilityRepairItem => {
+                Message::MaxDurabilityRepairItem(MaxDurabilityRepairItem::read(&mut r)?)
+            }
         })
     };
     if strict && !r.remaining.is_empty() {

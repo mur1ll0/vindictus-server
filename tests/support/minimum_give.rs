@@ -1165,6 +1165,11 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
         repair::repair_price(&tables, 0, 20000, 1_000_000, None, (0, 2, 0, 0)),
         299
     );
+    // MaxDurabilityRepairPrice: ItemValue 50 x Point 1 x 1,000,000 x 1.5e-5, truncated.
+    assert_eq!(
+        repair::max_durability_repair_price(&tables, 1_000_000, None, (0, 2, 0, 0)),
+        749
+    );
     // GetItemValue: an unknown QualityLevel uses the quality 2 row.
     assert_eq!(tables.item_value(0, 9, 0, 0), tables.item_value(0, 2, 0, 0));
     let tables = repair::RepairTables {
@@ -4311,5 +4316,152 @@ async fn minimum_story_open_equipment_slot_unlocks_an_expanded_part_once() {
     assert_eq!(rows, [1]);
     // The loaded expansion keeps the part unlocked after a relogin.
     assert_eq!(info().await, Some(Vec::new()));
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_max_durability_repair_consumes_the_same_class_source() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_repair, minimum_selection,
+        },
+        protocol::inventory::MaxDurabilityRepairItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_bag", 2, 9)
+            .await
+            .unwrap(),
+        Ok(2)
+    );
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 5, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let bags: Vec<i64> = sqlx::query_scalar(
+        "SELECT i.id FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=1 AND i.item_class_utf16=$1 AND e.part IS NULL ORDER BY i.id",
+    )
+    .bind(utf16("synthetic_bag"))
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    let (target, source) = (bags[bags.len() - 2], bags[bags.len() - 1]);
+    let repair = |target: i64, source: i64| {
+        let (p, owner, assets) = (&p, &owner, &assets);
+        async move {
+            minimum_repair::max_durability_repair(
+                p,
+                owner,
+                assets,
+                1,
+                &MaxDurabilityRepairItem {
+                    target_item_id: target,
+                    source_item_id: source,
+                },
+                log,
+            )
+            .await
+        }
+    };
+    let dialog = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        use vindictus_server::protocol::frontend_control::{self as ctl, Message as Ctl};
+        let last = packets.last().unwrap();
+        let Some(Ctl::System { text, .. }) =
+            ctl::decode(ctl::Kind::System, &last.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("dialog missing")
+        };
+        let text = text.unwrap();
+        (
+            text.format.unwrap().to_owned(),
+            text.parameters
+                .unwrap()
+                .into_iter()
+                .map(|p| p.unwrap_or_default().to_owned())
+                .collect::<Vec<_>>(),
+        )
+    };
+    let packets = repair(target, 999_999).await.unwrap();
+    assert_eq!(
+        dialog(&packets).0,
+        "GameUI_Heroes_MaxDurabilityRepairFail_InvalidItem"
+    );
+    // A missing target throws in the source: nothing is sent.
+    assert!(repair(999_999, source).await.is_err());
+    // A non-equippable source (the gold) fails the repair condition.
+    let gold: i64 = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE owner_id=1 AND item_class_utf16=$1 LIMIT 1",
+    )
+    .bind(utf16("synthetic_gold"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let packets = repair(target, gold).await.unwrap();
+    assert_eq!(
+        dialog(&packets).0,
+        "GameUI_Heroes_MaxDurabilityRepairFail_RepairedFailed"
+    );
+    // MaxDurabilityLimit 100 caps the fixture equipment below its class maximum: from 50
+    // the +1000 repair stops at 100 ((100 - 50) / 100 = 0 reported).
+    let bonus = || async {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT max_durability_bonus FROM game_equippables WHERE id=$1",
+        )
+        .bind(target)
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let full = bonus().await;
+    sqlx::query("UPDATE game_equippables SET max_durability_bonus=$2 WHERE id=$1")
+        .bind(target)
+        .bind(full - 50)
+        .execute(&p)
+        .await
+        .unwrap();
+    let packets = repair(target, source).await.unwrap();
+    assert_eq!(packets[0].category, Kind::UpdateInventoryInfo.category());
+    assert_eq!(
+        dialog(&packets),
+        (
+            "GameUI_Heroes_MaxDurabilityRepairFail_Success".to_owned(),
+            vec!["synthetic_bag".to_owned(), "0".to_owned()]
+        )
+    );
+    assert_eq!(bonus().await, full);
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items WHERE id=$1")
+        .bind(source)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
     cleanup_game_pool(a, p, s).await;
 }

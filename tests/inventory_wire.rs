@@ -108,6 +108,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::ManufactureCraft
                 | Kind::ManufactureLevelUp
                 | Kind::UnequippablePartsInfo
+                | Kind::MaxDurabilityRepairItem
                 | Kind::ItemFail
                 | Kind::MoveInventoryItem
                 | Kind::EquipBundle

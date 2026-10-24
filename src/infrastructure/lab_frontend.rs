@@ -1863,6 +1863,7 @@ impl Connection {
                 Kind::SellItem,
                 Kind::QueryBuybackList,
                 Kind::RepairItem,
+                Kind::MaxDurabilityRepairItem,
                 Kind::QueryQuestProgress,
                 Kind::QueryCharacterCommonInfo,
                 Kind::QueryRestoreItemList,
@@ -2153,6 +2154,32 @@ impl Connection {
                                 tracing::info!("minimum repair processed; values omitted");
                             }
                             Err(_) => tracing::warn!("minimum repair refused; values omitted"),
+                        }
+                    }
+                    Message::MaxDurabilityRepairItem(request) => {
+                        match super::minimum_repair::max_durability_repair(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            &request,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    "minimum max durability repair processed; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!(
+                                    "minimum max durability repair refused; values omitted"
+                                )
+                            }
                         }
                     }
                     Message::QueryQuestProgress => {

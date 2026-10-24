@@ -259,3 +259,212 @@ pub async fn repair_item(
         .to_vec(),
     }])
 }
+
+/// EventType.MaxDurabilityRepairItem and ActionType.RepairMaxDurability.
+const EVENT_MAX_DURABILITY_REPAIR_ITEM: i16 = 52;
+const ACTION_REPAIR_MAX_DURABILITY: i16 = 16;
+/// Item.MaxDurabilityRepair(repairAmount) of the processor.
+const MAX_DURABILITY_REPAIR_AMOUNT: i32 = 1000;
+
+/// MaxDurabilityRepairItemProcessor: the source item of the same class is consumed and
+/// MaxDurabilityRepairPrice gold paid to raise the target's MaxDurability by 1000.
+/// Refusals answer SendDialog; equipped items (EquipmentInfo/stat sync) are refused.
+pub async fn max_durability_repair(
+    pool: &sqlx::PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    request: &crate::protocol::inventory::MaxDurabilityRepairItem,
+    log: super::minimum_item_logs::Context,
+) -> Result<Vec<crate::domain::map_partition::OutgoingPacket>, MinimumError> {
+    use crate::{
+        domain::item_durability::EquipmentDurability,
+        protocol::{
+            DEFAULT_MAX_BODY,
+            inventory::{self as wire, Kind, Message},
+        },
+    };
+    let dialog = |name: &str| super::minimum_shop::dialog(name).map(|p| vec![p]);
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let economy = assets.economy.as_ref().ok_or_else(fail)?;
+    let flags = log.flags;
+    let operation = super::minimum_item_logs::operation_journal(pool, flags).await;
+    let journal =
+        super::minimum_item_logs::named_journal(pool, flags, "MaxDurabilityRepairItem").await;
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let connected: bool =
+            sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !connected || request.target_item_id == request.source_item_id {
+            return Err(fail());
+        }
+        sqlx::query("LOCK TABLE game_items,game_equippables IN SHARE ROW EXCLUSIVE MODE")
+            .execute(&mut *tx)
+            .await?;
+        let slots =
+            super::minimum_inventory::snapshot_with_equipment(&mut tx, owner, assets, cid, None)
+                .await?
+                .slots
+                .ok_or_else(fail)?;
+        let find = |id: i64| slots.iter().flatten().find(|s| s.id == id).cloned();
+        // targetItem.ItemClassInfo is read before the null checks: a missing target throws.
+        let target = find(request.target_item_id).ok_or_else(fail)?;
+        let target_key = utf16(target.class.as_deref().unwrap_or_default());
+        let target_info = assets
+            .stats_index
+            .class(Some(&target_key))
+            .ok_or_else(fail)?;
+        if !target_info.equippable {
+            return Err(fail());
+        }
+        let Some(source) = find(request.source_item_id) else {
+            return dialog("GameUI_Heroes_MaxDurabilityRepairFail_InvalidItem");
+        };
+        let source_key = utf16(source.class.as_deref().unwrap_or_default());
+        let source_equippable = assets
+            .stats_index
+            .class(Some(&source_key))
+            .is_some_and(|c| c.equippable);
+        let equipped: Vec<i64> = sqlx::query_scalar(
+            "SELECT id FROM game_equippables WHERE id=ANY($1) AND part IS NOT NULL",
+        )
+        .bind(vec![target.id, source.id])
+        .fetch_all(&mut *tx)
+        .await?;
+        if !equipped.is_empty() {
+            return Err(fail());
+        }
+        let (reduced, bonus): (i32, i32) = sqlx::query_as(
+            "SELECT reduced_durability,max_durability_bonus FROM game_equippables WHERE id=$1",
+        )
+        .bind(target.id)
+        .fetch_one(&mut *tx)
+        .await?;
+        let base = assets.stats_index.get(Some(&target_key)).ok_or_else(fail)?;
+        let attributes = super::minimum_inventory::load_attributes(&mut tx, &[target.id])
+            .await?
+            .remove(&target.id)
+            .unwrap_or_default();
+        let owner_context = super::minimum_item_stat::context(&mut tx, cid).await?;
+        let item = super::minimum_item_stat::equipment_with(
+            assets,
+            &target_key,
+            &attributes,
+            Some(&owner_context),
+        )?;
+        let mut durability = EquipmentDurability::load(base, &item.stat, reduced, bonus);
+        // EquipItemInfo.MaxDurability - Item.MaxDurability.
+        let missing = base.fields()[0].wrapping_sub(durability.maximum());
+        if !(source_equippable && missing > 0) {
+            return dialog("GameUI_Heroes_MaxDurabilityRepairFail_RepairedFailed");
+        }
+        if source.count <= 0 {
+            return dialog("GameUI_Heroes_MaxDurabilityRepairFail_NotEnoughSourceItem");
+        }
+        if source.class != target.class {
+            return dialog("GameUI_Heroes_MaxDurabilityRepairFail_NotEqualSourceItem");
+        }
+        let price = if durability.maximum() <= 0 {
+            0
+        } else {
+            let row = economy.get(target_info.source_index).ok_or_else(fail)?;
+            let equip_class = assets.equip_class.get(&target_key).cloned().flatten();
+            let (prefix, suffix) = super::minimum_item_stat::slot_enchant_levels(assets, &target);
+            repair::max_durability_repair_price(
+                &npc.repair,
+                row.price,
+                equip_class.as_deref(),
+                (item.enhance_level, item.quality_level, prefix, suffix),
+            )
+        };
+        let gold = assets.inventory.gold_class().to_vec();
+        let paid = super::minimum_give::apply(
+            &mut tx,
+            owner,
+            assets,
+            cid,
+            &[Request {
+                class: &gold,
+                count: price,
+                bound: false,
+                equipment: None,
+                attributes: &crate::domain::item_attribute::EMPTY,
+            }],
+            &[],
+            &mut || Err(fail()),
+        )
+        .await?;
+        let Ok(paid) = paid else {
+            return dialog("GameUI_Heroes_MaxDurabilityRepairFail_NotEnoughGold");
+        };
+        // sourceItem.Num-- leaves the equipment with Num 0: Save deletes it.
+        super::minimum_enhance::delete_item(&mut tx, cid, source.id).await?;
+        let before = durability.maximum();
+        let (limit, _) = assets.inventory.limits()?;
+        durability.set_maximum(before.wrapping_add(MAX_DURABILITY_REPAIR_AMOUNT), limit);
+        let repaired = durability.maximum().wrapping_sub(before) / 100;
+        sqlx::query("UPDATE game_equippables SET max_durability_bonus=$2 WHERE id=$1")
+            .bind(target.id)
+            .bind(durability.bonus())
+            .execute(&mut *tx)
+            .await?;
+        let after =
+            super::minimum_inventory::snapshot_with_equipment(&mut tx, owner, assets, cid, None)
+                .await?
+                .slots
+                .ok_or_else(fail)?;
+        let mut changed = paid.slots.clone();
+        changed.push(Some(super::minimum_move::deleted_slot(source.id)));
+        changed.push(after.iter().flatten().find(|s| s.id == target.id).cloned());
+        tx.commit().await?;
+        super::minimum_item_logs::write_give(
+            pool,
+            cid,
+            operation,
+            EVENT_MAX_DURABILITY_REPAIR_ITEM,
+            &paid,
+            log,
+        )
+        .await;
+        super::minimum_item_logs::write_requested_ledger(
+            pool,
+            cid,
+            journal,
+            3,
+            ACTION_REPAIR_MAX_DURABILITY,
+            &source_key,
+            1,
+            flags,
+        )
+        .await;
+        Ok(vec![
+            crate::domain::map_partition::OutgoingPacket {
+                category: Kind::UpdateInventoryInfo.category(),
+                body: wire::encode(
+                    Kind::UpdateInventoryInfo,
+                    Some(&Message::UpdateInventoryInfo(Some(changed))),
+                    DEFAULT_MAX_BODY,
+                )
+                .map_err(|_| fail())?
+                .to_vec(),
+            },
+            super::minimum_shop::system_message(
+                4,
+                "GameUI_Heroes_MaxDurabilityRepairFail_Success",
+                &[
+                    target.class.clone().unwrap_or_default(),
+                    repaired.to_string(),
+                ],
+            )?,
+        ])
+    })
+    .await
+    .map_err(|_| fail())?
+}
+
+fn utf16(s: &str) -> Vec<u8> {
+    s.encode_utf16().flat_map(u16::to_le_bytes).collect()
+}

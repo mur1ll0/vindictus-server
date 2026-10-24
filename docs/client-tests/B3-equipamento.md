@@ -73,3 +73,12 @@ Pré-condição: uma história ou NPC que execute `open_equipment_slot` para uma
 - [ ] Executar de novo → nada muda e o diálogo continua.
 - [ ] Equipar um item nessa parte → funciona.
 - [ ] Relogar → a parte continua desbloqueada.
+
+### B3.4b — Reparo completo (durabilidade máxima)
+Pré-condição: duas peças da mesma classe na bolsa (não vestidas), uma com durabilidade máxima reduzida (por exemplo por falhas de melhoria/encantamento), e ouro para o preço mostrado.
+- [ ] No NPC de reparo, escolher o reparo de durabilidade máxima com a peça danificada como alvo e a outra como material → o ouro desce pelo preço, a peça material some e a durabilidade máxima do alvo sobe (até o limite); aparece a mensagem de sucesso com a quantidade recuperada.
+- [ ] Usar uma peça de outra classe como material → diálogo de material diferente, nada muda.
+- [ ] Usar como alvo uma peça já com durabilidade máxima cheia → diálogo de reparo impossível.
+- [ ] Sem ouro suficiente → diálogo de ouro insuficiente, nada muda.
+- [ ] Relogar → a durabilidade máxima reparada se mantém.
+Limites conhecidos: peças vestidas (alvo ou material) não respondem.

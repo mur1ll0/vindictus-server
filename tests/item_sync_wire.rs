@@ -546,6 +546,18 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 .map(|o| o.iter().map(|v| v.as_i64().unwrap()).collect());
             assert_eq!(c.parts_id_list, parts, "case {n}");
         }
+        Some(Message::MaxDurabilityRepairItem(m)) => {
+            assert_eq!(
+                m.target_item_id,
+                f["TargetItemID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                m.source_item_id,
+                f["SourceItemID"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
         Some(Message::UnequippablePartsInfo(parts)) => {
             let source = f["Parts"].as_array().map(|o| {
                 o.iter()
@@ -841,7 +853,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1815);
+        assert_eq!(cases.len(), 1827);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -891,6 +903,9 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "manufacture_craft" => check_inventory(Kind::ManufactureCraft, case, n),
                 "manufacture_level_up" => check_inventory(Kind::ManufactureLevelUp, case, n),
                 "unequippable_parts_info" => check_inventory(Kind::UnequippablePartsInfo, case, n),
+                "max_durability_repair_item" => {
+                    check_inventory(Kind::MaxDurabilityRepairItem, case, n)
+                }
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

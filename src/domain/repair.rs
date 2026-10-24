@@ -48,6 +48,25 @@ fn to_int(value: f64) -> i32 {
     }
 }
 
+/// Item.MaxDurabilityRepairPrice of an equippable item with MaxDurability > 0:
+/// (int)(ItemValue × RepairEquipClassInfo.Point × Price × 1.5e-5).
+pub fn max_durability_repair_price(
+    tables: &RepairTables,
+    price: i32,
+    equip_class: Option<&str>,
+    levels: (i32, i32, i32, i32),
+) -> i32 {
+    let point = equip_class
+        .and_then(|c| tables.equip_class.get(&c.to_lowercase()).copied())
+        .unwrap_or(1);
+    to_int(
+        f64::from(tables.item_value(levels.0, levels.1, levels.2, levels.3))
+            * f64::from(point)
+            * f64::from(price)
+            * 1.4999999621068127E-05,
+    )
+}
+
 /// Item.RepairPrice for a character without a guild repair bonus.
 pub fn repair_price(
     tables: &RepairTables,
