@@ -24,6 +24,9 @@ SCHEMA = (
     'CREATE TABLE ManufactureMaterialInfo(RecipeID nvarchar,ItemClass nvarchar,Num INT,Type tinyint);'
     'CREATE TABLE ManufactureDependencyInfo(ManufactureID nvarchar,RequiredManufactureID nvarchar,RequiredExperience INT);'
     'CREATE TABLE QualityDiceInfo(ItemType nvarchar,Quality INT,Dice INT);'
+    'CREATE TABLE SkillEnhanceInfo(SkillEnhanceGroup INT,SkillEnhanceKey INT,ItemClass nvarchar,MaxSuccessRatio INT,EffectType INT,EffectValue float,EffectValueFailFeature nvarchar,EffectValueFail float,MaxDurability INT,RepairValue INT,SubTitleDesc nvarchar,EffectDesc nvarchar,EffectDescFail nvarchar);'
+    'CREATE TABLE SkillEnhanceMaterialInfo(MaterialItemClass nvarchar,Type tinyint,MinIncreaseRatio INT,MaxIncreaseRatio INT);'
+    'CREATE TABLE SkillInfo(SkillID nvarchar,SkillEnhanceGroup nvarchar);'
     'CREATE TABLE QualityStatInfo(ItemType varchar,Quality int,Stat varchar,ValueType varchar,Value real,Base varchar);'
     'CREATE TABLE EnhanceInsteadMaterialInfo(ItemClass varchar,UseCount INT,Slot tinyint,EnhanceMin smallint,EnhanceMax smallint);'
 )
@@ -41,6 +44,9 @@ def fill(db, ratio):
     db.executemany('INSERT INTO ManufactureMaterialInfo VALUES (?,?,?,?)', [('recipe_sword', 'sword', 1, 0), ('recipe_sword', 'stone', 4, 1)])
     db.execute('INSERT INTO ManufactureDependencyInfo VALUES (?,?,?)', ('metal_weapon_dc', 'metal_weapon', 350))
     db.executemany('INSERT INTO QualityDiceInfo VALUES (?,?,?)', [('WEAPON_LVL_1', 1, 50), ('WEAPON_LVL_1', 2, 650)])
+    db.execute('INSERT INTO SkillEnhanceInfo VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', (0, 1, 'stone_lv1', 60, 0, 1.0, 'Disable', -1.0, 100, 30, None, None, None))
+    db.execute('INSERT INTO SkillEnhanceMaterialInfo VALUES (?,?,?,?)', ('life_erg_crystal', 0, 1, 3))
+    db.executemany('INSERT INTO SkillInfo VALUES (?,?)', [('skill_a', '0;2'), ('skill_b', None)])
     db.execute('INSERT INTO QualityStatInfo VALUES (?,?,?,?,?,?)', ('WEAPON_LVL_1', 1, 'ATK', 'Multiply', -0.01, 'ATK'))
     db.executemany('INSERT INTO EnhanceInfo VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
         ('SWORD', 1, 'stone', 2, None, 0, 500, ratio, 'NoPenalty', 0.0, 0, 1, 'enEU'),
@@ -92,7 +98,7 @@ class ItemEnhanceExportTests(unittest.TestCase):
         self.assertEqual(p['stats'][1]['value'], single(-0.1))
         self.assertEqual([e['enhance_type'] for e in p['equips']], ['SWORD'.encode('utf-16-le').hex(), None])
         self.assertEqual(p['bonus'][0]['bonus'], struct.pack('>d', 3.3).hex())
-        self.assertEqual(sorted(f['key'] for f in p['features']), ['CraftPriceRatio', 'Delia', 'EnchantSuccessBonus', 'Enchant_DestructibleItems', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Enhance_Ferghus_v2', 'Event_enhance_a_shot', 'Event_enhance_change_ratio', 'RestoreItem', 'RestoreItemCount', 'S3_CraftRenewal', 'enEU', 'manufacture_event_exp', 'zhCN'])
+        self.assertEqual(sorted(f['key'] for f in p['features']), ['CraftPriceRatio', 'Delia', 'EnchantSuccessBonus', 'Enchant_DestructibleItems', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Enhance_Ferghus_v2', 'Event_enhance_a_shot', 'Event_enhance_change_ratio', 'RestoreItem', 'RestoreItemCount', 'S3_CraftRenewal', 'SkillEnhance', 'enEU', 'manufacture_event_exp', 'zhCN'])
         self.assertEqual([c['max_anti_bind'] for c in p['classes']], [3, 0])
         self.assertEqual((p['enchant'][0]['min_ratio'], p['enchant'][0]['max_ratio'], p['enchant'][0]['is_prefix']), (50, 80, True))
         self.assertEqual(p['enchant_stats'][0]['order'], 1)
@@ -104,6 +110,9 @@ class ItemEnhanceExportTests(unittest.TestCase):
         self.assertEqual(p['manufacture_dependencies'][0]['required_experience'], 350)
         self.assertEqual([d['dice'] for d in p['quality_dice']], [50, 650])
         self.assertEqual(p['quality_stats'][0]['value'], single(-0.01))
+        self.assertEqual((p['skill_enhance'][0]['max_success_ratio'], p['skill_enhance'][0]['max_durability']), (60, 100))
+        self.assertEqual(p['skill_enhance_materials'][0]['max'], 3)
+        self.assertEqual([g['groups'] for g in p['skill_enhance_groups']], ['0;2'.encode('utf-16-le').hex()])
         self.assertEqual(p['equips'][0]['quality_type'], 'WEAPON_LVL_1'.encode('utf-16-le').hex())
         self.assertEqual(p['rune_extra'][0]['success_ratio'], struct.pack('>d', 0.4).hex())
         self.assertEqual((p['rune_extra'][0]['destroy_on_success'], p['rune_extra'][0]['reset_rank_on_fail']), (True, False))

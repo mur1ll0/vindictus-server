@@ -38,6 +38,7 @@ pub mod queued_item;
 pub mod repair;
 pub mod shop;
 pub mod shop_price;
+pub mod skill_enhance;
 
 pub mod user_login_composition;
 

@@ -291,6 +291,38 @@ struct QualityStatRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SkillEnhanceRow {
+    source_index: usize,
+    group: i32,
+    key: i32,
+    #[serde(deserialize_with = "nullable")]
+    item_utf16: Option<PrivateText>,
+    max_success_ratio: i32,
+    max_durability: i32,
+    repair_value: i32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SkillEnhanceMaterialRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    item_utf16: Option<PrivateText>,
+    #[serde(rename = "type")]
+    kind: u8,
+    min: i32,
+    max: i32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SkillEnhanceGroupRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    skill_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    groups: Option<PrivateText>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Feature {
     key: String,
     value: Option<String>,
@@ -322,6 +354,9 @@ pub struct Profile {
     manufacture_dependencies: Vec<ManufactureDependencyRow>,
     quality_dice: Vec<QualityDiceRow>,
     quality_stats: Vec<QualityStatRow>,
+    skill_enhance: Vec<SkillEnhanceRow>,
+    skill_enhance_materials: Vec<SkillEnhanceMaterialRow>,
+    skill_enhance_groups: Vec<SkillEnhanceGroupRow>,
     features: Vec<Feature>,
 }
 
@@ -369,6 +404,12 @@ pub struct Contents {
     quality_dice: BTreeMap<String, Vec<(i32, i32)>>,
     /// qualityStatInfoDic: ToDoubleListDictionary (ItemType -> Quality -> rows).
     quality_stats: BTreeMap<String, BTreeMap<i32, Vec<EnhanceStat>>>,
+    /// CharacterContents.skillEnhanceInfo in provider order.
+    skill_enhance: Vec<crate::domain::skill_enhance::Info>,
+    /// skillEnhanceMaterialInfo: ToDictionary by MaterialItemClass.
+    skill_enhance_materials: BTreeMap<String, crate::domain::skill_enhance::Material>,
+    /// SkillInfo.GetAvailableSkillEnhanceGroup of the skills with a group text.
+    skill_enhance_groups: BTreeMap<String, Vec<i32>>,
 }
 
 /// RecipeID, Target rows (AddItem sums) and Material rows (priced when used).
@@ -470,8 +511,11 @@ impl Profile {
             + p.manufacture_materials.len()
             + p.manufacture_dependencies.len()
             + p.quality_dice.len()
-            + p.quality_stats.len();
-        if p.format_version != 5
+            + p.quality_stats.len()
+            + p.skill_enhance.len()
+            + p.skill_enhance_materials.len()
+            + p.skill_enhance_groups.len();
+        if p.format_version != 6
             || manufacture_rows > 65536
             || !ordered(&p.manufacture, |r| r.source_index)
             || !ordered(&p.manufacture_recipes, |r| r.source_index)
@@ -479,6 +523,9 @@ impl Profile {
             || !ordered(&p.manufacture_dependencies, |r| r.source_index)
             || !ordered(&p.quality_dice, |r| r.source_index)
             || !ordered(&p.quality_stats, |r| r.source_index)
+            || !ordered(&p.skill_enhance, |r| r.source_index)
+            || !ordered(&p.skill_enhance_materials, |r| r.source_index)
+            || !ordered(&p.skill_enhance_groups, |r| r.source_index)
             || p.quality_stats.iter().any(|r| r.value.len() != 8)
             || p.source != "heroesContents.item-enhance"
             || sizes.iter().any(|n| *n > 65536)
@@ -877,12 +924,86 @@ impl Profile {
                     base: r.base.as_ref().map(units).transpose()?,
                 });
         }
+        for r in &self.skill_enhance {
+            out.skill_enhance.push(crate::domain::skill_enhance::Info {
+                group: r.group,
+                key: r.key,
+                item_class: text(r.item_utf16.as_ref())?,
+                max_success_ratio: r.max_success_ratio,
+                max_durability: r.max_durability,
+                repair_value: r.repair_value,
+            });
+        }
+        for r in &self.skill_enhance_materials {
+            let class = key(r.item_utf16.as_ref())?;
+            let material = crate::domain::skill_enhance::Material {
+                item_class: class.clone(),
+                kind: r.kind,
+                min: r.min,
+                max: r.max,
+            };
+            if out
+                .skill_enhance_materials
+                .insert(class, material)
+                .is_some()
+            {
+                return Err(fail());
+            }
+        }
+        for r in &self.skill_enhance_groups {
+            let groups =
+                crate::domain::skill_enhance::parse_groups(text(r.groups.as_ref())?.as_deref());
+            // skillInfoDic is a ToDictionary by SkillID.
+            if out
+                .skill_enhance_groups
+                .insert(key(r.skill_utf16.as_ref())?, groups)
+                .is_some()
+            {
+                return Err(fail());
+            }
+        }
         out.policy = Some(policy);
         Ok(out)
     }
 }
 
 impl Contents {
+    /// GetSkillEnhanceInfo(groupKey, indexKey): the last matching row.
+    pub fn skill_enhance(
+        &self,
+        group: i32,
+        key: i32,
+    ) -> Option<&crate::domain::skill_enhance::Info> {
+        self.skill_enhance
+            .iter()
+            .rev()
+            .find(|i| i.group == group && i.key == key)
+    }
+    /// GetSkillEnhanceInfo(itemClass): the last row with that ItemClass (ignore case).
+    pub fn skill_enhance_of_item(
+        &self,
+        class: &str,
+    ) -> Option<&crate::domain::skill_enhance::Info> {
+        self.skill_enhance.iter().rev().find(|i| {
+            i.item_class
+                .as_deref()
+                .is_some_and(|c| c.to_lowercase() == class.to_lowercase())
+        })
+    }
+    /// GetSkillEnhanceMaterialInfo.
+    pub fn skill_enhance_material(
+        &self,
+        class: &str,
+    ) -> Option<&crate::domain::skill_enhance::Material> {
+        self.skill_enhance_materials.get(class)
+    }
+    /// The enhance groups a skill accepts (empty without SkillEnhanceGroup).
+    pub fn skill_enhance_groups(&self, skill: &str) -> Vec<i32> {
+        self.skill_enhance_groups
+            .get(skill)
+            .cloned()
+            .unwrap_or_default()
+    }
     /// ManufactureDataContainer.
     pub fn manufacture(&self) -> &crate::domain::manufacture::Contents {
         &self.manufacture

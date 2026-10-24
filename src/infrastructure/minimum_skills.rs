@@ -112,12 +112,19 @@ pub(super) async fn packet(
     .map_err(|_| fail())?;
     let mut list = list;
     list.extend(skill_list::vocation_entry(vocation));
+    // ToBriefSkillInfo: Skill.Enhances (the SkillEnhanceQueryAll row of the skill).
+    let enhances = super::minimum_skill_enhance::load(tx, cid).await?;
     let message = Message::SkillList(SkillList {
         learning: Some(String::new()),
         current_ap: 0,
         skills: Some(
             list.into_iter()
                 .map(|b| {
+                    let own: Vec<_> = enhances
+                        .iter()
+                        .filter(|(s, _)| *s == b.id)
+                        .map(|(_, e)| Some(super::minimum_skill_enhance::brief(e)))
+                        .collect();
                     Some(BriefSkill {
                         id: Some(b.id),
                         base_rank: b.base_rank,
@@ -128,8 +135,7 @@ pub(super) async fn packet(
                         current_ap: b.current_ap,
                         reset_ap: b.reset_ap,
                         untrain_ap: b.untrain_ap,
-                        // Skill enhances are not migrated: no stored rows exist.
-                        enhances: Some(Vec::new()),
+                        enhances: Some(own),
                     })
                 })
                 .collect(),

@@ -3231,6 +3231,13 @@ async fn minimum_give_creates_enhanced_equipment_with_its_item_stat_durability()
 /// (NoPenalty, ratio 1), 2 (RankDown, ratio 0) and 3 (Destroy with one material back,
 /// ratio 0); materials are the cash class and gold; restore and anti-bind features on.
 fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_enhance::Profile {
+    processor_profile_with(catalog, |_| {})
+}
+/// `processor_profile` with the JSON adjusted before it is read.
+fn processor_profile_with(
+    catalog: &Value,
+    extra: impl FnOnce(&mut Value),
+) -> vindictus_server::infrastructure::item_enhance::Profile {
     let key = appearance_fixture::key;
     let single = |v: f32| format!("{:08x}", v.to_bits());
     let rows = |section: &str| -> Vec<Value> {
@@ -3257,7 +3264,7 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
     let stat = |i: usize, level: i32, v: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key("MaxDurability"),"value_type":key("Add"),"value":single(v),"base":key("MaxDurability")});
     let server = |i: usize, level: i32, ratio: f32| json!({"source_index":i,"enhance_type":key(&level.to_string()),"level":level,"success_ratio":single(ratio),"feature":null});
     let feature = |k: &str, v: &str| json!({"key":k,"value":v});
-    let profile = json!({"format_version":5,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let mut profile = json!({"format_version":6,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":rows("equips"),"classes":rows("classes"),
         "enhance":[info(0,1,"NoPenalty",0),info(1,2,"RankDown",0),info(2,3,"Destroy",1)],
         "stats":[stat(0,1,100.0),stat(1,2,200.0),stat(2,3,300.0)],
@@ -3284,7 +3291,9 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
         "manufacture_dependencies":[],
         "quality_dice":[{"source_index":0,"item_type_utf16":key("BAG_Q"),"quality":3,"dice":100}],
         "quality_stats":[{"source_index":0,"item_type_utf16":key("BAG_Q"),"quality":3,"stat":key("ATK"),"value_type":key("Add"),"value":format!("{:08x}",7.0f32.to_bits()),"base":key("ATK")}],
-        "features":[feature("CraftPriceRatio","1"),feature("manufacture_event_exp","1"),feature("EnchantSuccessBonus","0"),feature("Enchant_DestructibleItems","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5")]});
+        "skill_enhance":[],"skill_enhance_materials":[],"skill_enhance_groups":[],
+        "features":[feature("CraftPriceRatio","1"),feature("manufacture_event_exp","1"),feature("EnchantSuccessBonus","0"),feature("Enchant_DestructibleItems","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5"),feature("SkillEnhance","1")]});
+    extra(&mut profile);
     vindictus_server::infrastructure::item_enhance::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
     )
@@ -4595,5 +4604,209 @@ async fn minimum_story_give_storage_opens_a_bag_tab_for_items() {
             .iter()
             .any(|p| p.category == Kind::UpdateStorageInfo.category())
     );
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_skill_enhance_session_rolls_success_then_penalty() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection,
+            minimum_skill_enhance as se,
+        },
+        protocol::inventory::{SkillEnhanceSessionStart, SkillEnhanceUseErg},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let skill: String = {
+        let raw: Vec<u8> = sqlx::query_scalar(
+            "SELECT skill_utf16 FROM game_skills WHERE cid=1 ORDER BY row_id LIMIT 1",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap();
+        String::from_utf16(
+            &raw.chunks(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap()
+    };
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    let key = appearance_fixture::key;
+    let skill_key = key(&skill);
+    // The enchant_scroll class serves as the enhance stone and the bag as a ratio material.
+    let profile = processor_profile_with(&catalog, |v| {
+        v["skill_enhance"] = json!([{"source_index":0,"group":2,"key":1,"item_utf16":key("enchant_scroll"),"max_success_ratio":100,"max_durability":100,"repair_value":30}]);
+        v["skill_enhance_materials"] = json!([{"source_index":0,"item_utf16":key("synthetic_bag"),"type":0,"min":100,"max":100}]);
+        v["skill_enhance_groups"] =
+            json!([{"source_index":0,"skill_utf16":skill_key,"groups":key("2")}]);
+    });
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_enhance(profile)
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64)
+        .with_enhance_seed(5);
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    for (class, count) in [("enchant_scroll", 2), ("synthetic_bag", 1)] {
+        assert!(
+            minimum_give::lab_grant(&p, &assets, Some(1), class, count, 9)
+                .await
+                .unwrap()
+                .is_ok()
+        );
+    }
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let ids = |class: &str| {
+        let p = &p;
+        let class = utf16(class);
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM game_items WHERE owner_id=1 AND item_class_utf16=$1 ORDER BY id",
+            )
+            .bind(class)
+            .fetch_all(p)
+            .await
+            .unwrap()
+        }
+    };
+    let stones = ids("enchant_scroll").await;
+    let erg = *ids("synthetic_bag").await.last().unwrap();
+    let mut state = se::State::default();
+    let format = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        use vindictus_server::protocol::frontend_control::{self as ctl, Message as Ctl};
+        let Some(Ctl::System { text, .. }) =
+            ctl::decode(ctl::Kind::System, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("system message missing")
+        };
+        let text = text.unwrap();
+        text.parameters.unwrap()[0].unwrap_or_default().to_owned()
+    };
+    let start = |stone: i64| SkillEnhanceSessionStart {
+        skill_name: Some(skill.clone()),
+        stone_item_id: stone,
+    };
+    // An unknown stone answers the refusal and leaves no session.
+    let packets = se::start(&p, &owner, &assets, 1, &mut state, &start(999_999))
+        .await
+        .unwrap();
+    assert_eq!(
+        format(&packets[0]),
+        "MakeSessionFail_CannotFindEnhanceStone"
+    );
+    assert!(state.session.is_none());
+    assert!(
+        se::start(&p, &owner, &assets, 1, &mut state, &start(stones[0]))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    // The bag raises the ratio to the stone's 100 maximum.
+    let packets = se::use_erg(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut state,
+        &SkillEnhanceUseErg {
+            erg_item_id: erg,
+            use_count: 1,
+        },
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [
+            Kind::UpdateInventoryInfo.category(),
+            Kind::SkillEnhanceUseErgResult.category()
+        ]
+    );
+    macro_rules! roll {
+        () => {
+            se::roll(
+                &p,
+                &owner,
+                &assets,
+                1,
+                &mut state,
+                None,
+                (1..=2).map(|i| 950_000_000_000_000_000 + i).collect(),
+                log,
+            )
+            .await
+            .unwrap()
+        };
+    }
+    let packets = roll!();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [
+            Kind::UpdateInventoryInfo.category(),
+            Kind::SkillEnhanceChanged.category(),
+            Kind::SkillEnhanceResult.category()
+        ]
+    );
+    assert!(state.session.is_none());
+    let row = || async {
+        sqlx::query_as::<_, (i32, i32, i16)>(
+            "SELECT e.group_key,e.index_key,e.type FROM game_skill_enhances e JOIN game_skills s ON s.row_id=e.skill_row_id WHERE s.cid=1",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    assert_eq!(row().await, [(2, 1, 1)]);
+    assert_eq!(ids("enchant_scroll").await, [stones[1]]);
+    // Without materials the ratio stays 0: the roll fails into a penalty first sending
+    // the result, then the changed enhances.
+    se::start(&p, &owner, &assets, 1, &mut state, &start(stones[1]))
+        .await
+        .unwrap();
+    let packets = roll!();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [
+            Kind::UpdateInventoryInfo.category(),
+            Kind::SkillEnhanceResult.category(),
+            Kind::SkillEnhanceChanged.category()
+        ]
+    );
+    let Some(Message::SkillEnhanceResult(result)) =
+        inventory::decode(Kind::SkillEnhanceResult, &packets[1].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("result missing")
+    };
+    assert!(!result.result);
+    assert_eq!(result.enhances.unwrap().len(), 1);
+    assert_eq!(row().await, [(2, 1, 2)]);
+    assert!(ids("enchant_scroll").await.is_empty());
+    // No session: General_CannotFindSession.
+    let packets = roll!();
+    assert_eq!(format(&packets[0]), "General_CannotFindSession");
     cleanup_game_pool(a, p, s).await;
 }

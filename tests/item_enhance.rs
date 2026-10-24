@@ -23,7 +23,7 @@ fn profile() -> Value {
     let a = key("synthetic");
     let b = key("other");
     let info = |i: usize, kind: &str, level: i32, gold: i32, feature: Option<&str>| json!({"source_index":i,"enhance_type":key(kind),"level":level,"material1":key("stone"),"num1":2,"material2":null,"num2":0,"gold":gold,"success_ratio":single(1.0),"on_fail":key("RankDown"),"on_fail_recipe_ratio":single(0.5),"on_fail_material_num1":3,"effect":1,"feature":feature});
-    json!({"format_version":5,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    json!({"format_version":6,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":[{"source_index":0,"item_utf16":a,"feature":"on","enhance_type":key("T1"),"enchantable":1,"quality_type":null},{"source_index":1,"item_utf16":a,"feature":"off","enhance_type":key("T2"),"enchantable":1,"quality_type":null},{"source_index":2,"item_utf16":a,"feature":"on","enhance_type":key("T3"),"enchantable":1,"quality_type":null},{"source_index":3,"item_utf16":b,"feature":null,"enhance_type":null,"enchantable":0,"quality_type":null}],
         "enhance":[info(0,"T3",1,100,Some("on")),info(1,"T3",1,200,Some("on")),info(2,"T3",2,300,Some("off")),info(3,"T3",4,400,None),info(4,"T1",1,1,None)],
         "stats":[{"source_index":0,"enhance_type":key("T3"),"level":1,"stat":key("ATK"),"value_type":key("Add"),"value":single(50.0),"base":key("ATK")},{"source_index":1,"enhance_type":key("T3"),"level":1,"stat":key("Weight"),"value_type":key("Multiply"),"value":single(-0.1),"base":key("Weight")}],
@@ -35,7 +35,7 @@ fn profile() -> Value {
         "rune_extra":[{"source_index":0,"relation":0,"success_ratio":format!("{:016x}",0.4f64.to_bits()),"use_item_success_ratio":false,"destroy_on_success":true,"reset_rank_on_fail":false,"force_rank_down_on_fail":0}],
         "recipes":[{"source_index":0,"recipe_utf16":key("r1"),"item_utf16":a,"num":1,"type":0,"feature":null},{"source_index":1,"recipe_utf16":key("r1"),"item_utf16":b,"num":4,"type":1,"feature":null},{"source_index":2,"recipe_utf16":key("r1"),"item_utf16":key("gold"),"num":900,"type":1,"feature":null},{"source_index":3,"recipe_utf16":key("r1"),"item_utf16":b,"num":2,"type":1,"feature":null},{"source_index":4,"recipe_utf16":key("r2"),"item_utf16":b,"num":1,"type":0,"feature":null},{"source_index":5,"recipe_utf16":key("r3"),"item_utf16":a,"num":2,"type":0,"feature":null}],
         "anti_bind":[{"source_index":0,"target":key("Base"),"from_value":null,"to_value":null,"count":2,"ap":0,"feature":null},{"source_index":1,"target":key("Enhance"),"from_value":key("9"),"to_value":key("15"),"count":0,"ap":500,"feature":"off"}],
-        "enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"quality_stats":[],"features":[{"key":"on","value":"1.1"},{"key":"CraftPriceRatio","value":"1"}]})
+        "enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"quality_stats":[],"skill_enhance":[],"skill_enhance_materials":[],"skill_enhance_groups":[],"features":[{"key":"on","value":"1.1"},{"key":"CraftPriceRatio","value":"1"}]})
 }
 fn read(
     v: &Value,
@@ -204,7 +204,7 @@ fn enhance_profiles_refuse_other_snapshots_and_unsound_rows() {
     unordered["enhance"][1]["source_index"] = json!(0);
     assert!(read(&unordered).is_err());
     let mut version = profile();
-    version["format_version"] = json!(3);
+    version["format_version"] = json!(5);
     assert!(read(&version).is_err());
 }
 
@@ -273,4 +273,36 @@ fn manufacture_contents_follow_the_data_container() {
             .quality_stat_rows(&bytes("synthetic"), 2)
             .is_empty()
     );
+}
+
+#[test]
+fn skill_enhance_contents_follow_character_contents() {
+    let mut p = profile();
+    let row = |i: usize, key: i32, item: &str, ratio: i32| json!({"source_index":i,"group":2,"key":key,"item_utf16":self::key(item),"max_success_ratio":ratio,"max_durability":100,"repair_value":30});
+    p["skill_enhance"] = json!([row(0, 1, "Stone_Lv1", 60), row(1, 1, "stone_lv1", 55)]);
+    p["skill_enhance_materials"] =
+        json!([{"source_index":0,"item_utf16":key("erg"),"type":0,"min":1,"max":3}]);
+    p["skill_enhance_groups"] =
+        json!([{"source_index":0,"skill_utf16":key("skill_a"),"groups":key("0; 2")}]);
+    let contents = read(&p).unwrap().bind(&catalog()).unwrap();
+    // GetSkillEnhanceInfo keeps the last match (the item class ignores case).
+    assert_eq!(contents.skill_enhance(2, 1).unwrap().max_success_ratio, 55);
+    assert_eq!(
+        contents
+            .skill_enhance_of_item("STONE_LV1")
+            .unwrap()
+            .max_success_ratio,
+        55
+    );
+    assert_eq!(contents.skill_enhance_material("erg").unwrap().max, 3);
+    assert_eq!(contents.skill_enhance_groups("skill_a"), [0, 2]);
+    assert!(contents.skill_enhance_groups("skill_b").is_empty());
+    // skillEnhanceMaterialInfo is a ToDictionary: a repeated class refuses the load.
+    let mut twice = p["skill_enhance_materials"][0].clone();
+    twice["source_index"] = json!(1);
+    p["skill_enhance_materials"]
+        .as_array_mut()
+        .unwrap()
+        .push(twice);
+    assert!(read(&p).unwrap().bind(&catalog()).is_err());
 }

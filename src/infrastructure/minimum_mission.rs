@@ -223,6 +223,8 @@ pub async fn member_info(
     if vocation.is_some() || effects != 0 {
         return Err(fail());
     }
+    // MakeMemberInfo: SkillManager.GetBriefSkillEnhanceData.
+    let skill_enhances = super::minimum_skill_enhance::brief_data(&mut tx, cid).await?;
     // SkillManager.ToDictionary: base ranks without item skill ranks (refused by view).
     let skills: Vec<(Vec<u8>, i32)> = sqlx::query_as(
         "SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097",
@@ -364,7 +366,7 @@ pub async fn member_info(
         vocation_skills: StrDict(Some(Vec::new())),
         // MakeMemberInfo: TransformCoolDown is null without a vocation.
         transform_cool_down: -1,
-        skill_enhances: StrDict(Some(Vec::new())),
+        skill_enhances: StrDict(Some(skill_enhances)),
         def_map: Dict(Some(m.def_map.into_iter().collect())),
         armor_hp_map: Dict(Some(m.armor_hp.into_iter().collect())),
         equipped_items: Dict(Some(equipped)),

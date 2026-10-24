@@ -54,7 +54,7 @@ impl Random for SessionRandom<'_> {
     }
 }
 /// Random.Next(minValue, maxValue) for a range that fits Int32.
-fn next_range(
+pub(super) fn next_range(
     random: &mut crate::domain::item_colors::ColorRandom,
     min: i32,
     max: i32,

@@ -91,3 +91,14 @@ Pré-condição: uma história ou NPC que execute `give_storage` para uma aba ex
 - [ ] Receber itens com as abas padrão cheias → os itens vão para a aba nova.
 - [ ] Relogar → a aba continua aberta com os itens.
 Limites conhecidos: abas com validade (itens de aba extra), renomear/marcar abas (`UpdateStorageStatus`) e o depósito compartilhado não foram migrados; um personagem com uma aba nesses estados não carrega o inventário.
+
+### B3.4d-1 — Aprimorar habilidade (SkillEnhance)
+Pré-condição: uma habilidade aprendida que aceite o grupo da pedra (`SkillInfo.SkillEnhanceGroup`), uma pedra de aprimoramento (`skillenhance_*`) e cristais de Erg (`*_erg_crystal`) na bolsa; opcionalmente uma runa `skill_enhance_rune_*`.
+- [ ] Abrir o aprimoramento da habilidade com a pedra → a janela abre com chance 0 e o máximo da pedra.
+- [ ] Usar cristais de Erg → os cristais somem e a chance sobe (sem passar do máximo); usar mais quando já está no máximo → mensagem de chance máxima.
+- [ ] Confirmar com sucesso → a pedra some, a habilidade mostra o aprimoramento (lista de habilidades e janela).
+- [ ] Confirmar com falha sem runa → a pedra some e a habilidade fica com a penalidade.
+- [ ] Confirmar com falha usando runa → a runa some, a habilidade perde o aprimoramento e chega uma pedra protegida (runa comum em pedra não protegida); com runa premium e pedra protegida a pedra é mantida.
+- [ ] Fechar a janela sem confirmar → nada é consumido além dos cristais já usados.
+- [ ] Relogar → o aprimoramento continua na lista de habilidades e entra na batalha (MicroPlay).
+Limites conhecidos: durabilidade do aprimoramento (gasto em batalha e restauração) é a B3.4d-2; bolsa cheia para a pedra protegida recusa a confirmação (o original mandaria por correio).

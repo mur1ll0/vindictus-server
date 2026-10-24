@@ -2601,6 +2601,101 @@ impl Connection {
                 }
                 return Ok(());
             }
+            for kind in [
+                Kind::SkillEnhanceSessionStart,
+                Kind::SkillEnhanceSessionEnd,
+                Kind::SkillEnhanceUseErg,
+                Kind::SkillEnhance,
+            ] {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                    .ok_or(RuntimeError::Message)?;
+                // InGame forwards the SkillEnhance operations without a second password.
+                let (Some(selected), true) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let assets = &minimum.assets;
+                let log = runtime.item_log_context(assets)?;
+                let ids = minimum
+                    .creation
+                    .entity_ids(2)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                let state = &mut self
+                    .selected
+                    .as_mut()
+                    .ok_or(RuntimeError::Operation)?
+                    .skill_enhance;
+                let done = match message {
+                    Message::SkillEnhanceSessionStart(request) => {
+                        super::minimum_skill_enhance::start(
+                            pool, &owner, assets, cid, state, &request,
+                        )
+                        .await
+                    }
+                    Message::SkillEnhanceSessionEnd(_) => {
+                        super::minimum_skill_enhance::end(state);
+                        Ok(Vec::new())
+                    }
+                    Message::SkillEnhanceUseErg(request) => {
+                        super::minimum_skill_enhance::use_erg(
+                            pool, &owner, assets, cid, state, &request, log,
+                        )
+                        .await
+                    }
+                    Message::SkillEnhance(additional) => {
+                        super::minimum_skill_enhance::roll(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            state,
+                            additional.as_deref(),
+                            ids,
+                            log,
+                        )
+                        .await
+                    }
+                    _ => return Err(RuntimeError::Message),
+                };
+                match done {
+                    Ok(packets) => {
+                        for packet in &packets {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        tracing::info!(
+                            categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+                            "minimum skill enhance processed; values omitted"
+                        );
+                    }
+                    Err(_) => tracing::warn!("minimum skill enhance refused; nothing written"),
+                }
+                return Ok(());
+            }
             if matches(
                 category,
                 body,

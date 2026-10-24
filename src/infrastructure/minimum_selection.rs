@@ -29,6 +29,8 @@ pub struct Selected {
     pub buyback: Vec<super::minimum_shop::BuybackEntry>,
     /// ItemOwner.EnchantSession (in memory).
     pub enchant: Option<super::minimum_enchant::Session>,
+    /// SkillEnhanceSession and SkillManager.UpdatedEnhances.
+    pub skill_enhance: super::minimum_skill_enhance::State,
     /// CharacterEntity.LogJournalID (OpenLog; 0 until opened or when it failed).
     pub log_journal: i64,
 }
@@ -136,6 +138,7 @@ pub async fn select(
         story: Default::default(),
         buyback: Vec::new(),
         enchant: None,
+        skill_enhance: Default::default(),
         log_journal: 0,
     })
 }

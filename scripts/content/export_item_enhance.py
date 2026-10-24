@@ -4,7 +4,8 @@ EnhanceStatInfo/EnhanceServerInfo/EnhanceBonusServerInfo/EnhanceInsteadMaterialI
 EnhanceRuneInfo/EnhanceRuneExtraInfo, RecipeMaterialInfo (GetMakeItemRecipe) and
 AntiBindInfo (CalcRequiredBuybackAP), EnchantInfo/EnchantStatInfo/EnchantDiceInfo,
 ManufactureInfo/ManufactureRecipeInfo/ManufactureMaterialInfo/ManufactureDependencyInfo
-(ManufactureDataContainer), QualityDiceInfo and QualityStatInfo in provider order, and the region values
+(ManufactureDataContainer), QualityDiceInfo, QualityStatInfo, SkillEnhanceInfo,
+SkillEnhanceMaterialInfo and the SkillInfo.SkillEnhanceGroup texts in provider order, and the region values
 of their features plus CraftPriceRatio. EnchantInfo.MinSuccessRatio/MaxSuccessRatio and
 ManufactureRecipeInfo.ExperienceRequired/GradeRequired come from the original content.
 SuccessRatio comes from the original content (content_overrides). REAL columns are
@@ -178,6 +179,16 @@ def read_package(database, config):
                               stat=text(r['Stat']), value_type=text(r['ValueType']), value=single(r['Value']),
                               base=text(r['Base']))
                          for i, r in enumerate(db.execute('Select * From [QualityStatInfo]'))]
+        skill_enhance = [dict(source_index=i, group=integer(r['SkillEnhanceGroup']), key=integer(r['SkillEnhanceKey']),
+                              item_utf16=text(r['ItemClass']), max_success_ratio=integer(r['MaxSuccessRatio']),
+                              max_durability=integer(r['MaxDurability']), repair_value=integer(r['RepairValue']))
+                         for i, r in enumerate(db.execute('Select * From [SkillEnhanceInfo]'))]
+        skill_enhance_materials = [dict(source_index=i, item_utf16=text(r['MaterialItemClass']), type=integer(r['Type'], 0, 256),
+                                        min=integer(r['MinIncreaseRatio']), max=integer(r['MaxIncreaseRatio']))
+                                   for i, r in enumerate(db.execute('Select * From [SkillEnhanceMaterialInfo]'))]
+        skill_enhance_groups = [dict(source_index=i, skill_utf16=text(r['SkillID']), groups=text(r['SkillEnhanceGroup']))
+                                for i, r in enumerate(db.execute('Select * From [SkillInfo]'))
+                                if r['SkillEnhanceGroup']]
         values = region_features(db, config)
     featured = enhance + server + runes + recipes + anti_bind + manufacture_recipes
     if any(r['feature'] is not None and not isinstance(r['feature'], str) for r in featured):
@@ -185,7 +196,7 @@ def read_package(database, config):
     # Values read by EnhanceItemByDataProcessor, ItemServiceProxy and RestoreStorage.
     atoms = {'CraftPriceRatio', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Event_enhance_a_shot',
              'Event_enhance_change_ratio', 'Enhance_Ferghus_v2', 'RestoreItem', 'RestoreItemCount',
-             'EnchantSuccessBonus', 'Enchant_DestructibleItems', 'manufacture_event_exp'}
+             'EnchantSuccessBonus', 'Enchant_DestructibleItems', 'manufacture_event_exp', 'SkillEnhance'}
     for r in featured:
         atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 256 or any(not k.isascii() or not k or len(k) > 256 for k in atoms):
@@ -195,13 +206,15 @@ def read_package(database, config):
         raise ValueError('Enhance feature value bound')
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Enhance source changed during export')
-    return dict(format_version=5, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
+    return dict(format_version=6, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], equips=equips, classes=classes, enhance=enhance,
                 stats=stats, server=server, bonus=bonus, instead=instead, runes=runes, rune_extra=rune_extra,
                 recipes=recipes, anti_bind=anti_bind, enchant=enchant, enchant_stats=enchant_stats,
                 enchant_dice=enchant_dice, manufacture=manufacture, manufacture_recipes=manufacture_recipes,
                 manufacture_materials=manufacture_materials, manufacture_dependencies=manufacture_dependencies,
-                quality_dice=quality_dice, quality_stats=quality_stats, features=features)
+                quality_dice=quality_dice, quality_stats=quality_stats, skill_enhance=skill_enhance,
+                skill_enhance_materials=skill_enhance_materials, skill_enhance_groups=skill_enhance_groups,
+                features=features)
 
 
 def main():
