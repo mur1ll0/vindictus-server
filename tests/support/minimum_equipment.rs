@@ -797,6 +797,13 @@ fn plain_assets() -> Assets {
 }
 
 pub(super) fn enhance_profile() -> vindictus_server::infrastructure::item_enhance::Profile {
+    enhance_profile_for(&super::fiona_inventory_delivery::appearance_fixture::fixtures().0)
+}
+
+/// The synthetic enhance profile aligned with `catalog`'s equipment and class rows.
+pub(super) fn enhance_profile_for(
+    catalog: &serde_json::Value,
+) -> vindictus_server::infrastructure::item_enhance::Profile {
     use serde_json::json;
     let key = |s: &str| -> String {
         s.encode_utf16()
@@ -805,7 +812,6 @@ pub(super) fn enhance_profile() -> vindictus_server::infrastructure::item_enhanc
             .collect()
     };
     let single = |v: f32| format!("{:08x}", v.to_bits());
-    let (catalog, _, _, _) = super::fiona_inventory_delivery::appearance_fixture::fixtures();
     let equips: Vec<serde_json::Value> = catalog["equips"]
         .as_array()
         .unwrap()
@@ -815,11 +821,18 @@ pub(super) fn enhance_profile() -> vindictus_server::infrastructure::item_enhanc
         .collect();
     let info = |i: usize, level: i32, effect: i32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"material1":key("stone"),"num1":1,"material2":null,"num2":0,"gold":100,"success_ratio":single(0.5),"on_fail":key("NoPenalty"),"on_fail_recipe_ratio":single(0.0),"on_fail_material_num1":0,"effect":effect,"feature":null});
     let stat = |i: usize, level: i32, stat: &str, kind: &str, value: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key(stat),"value_type":key(kind),"value":single(value),"base":key("MaxDurability")});
-    let profile = json!({"format_version":1,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"equips":equips,
+    let classes: Vec<serde_json::Value> = catalog["classes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+        .map(|(i, c)| json!({"source_index":i,"item_utf16":c["item_utf16"],"feature":c["feature"],"max_anti_bind":2}))
+        .collect();
+    let profile = json!({"format_version":2,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"equips":equips,
         "enhance":[info(0,3,7),info(1,4,8),info(2,5,9)],
         // Every base stat of the fixture equipment is 0 except MaxDurability (200).
         "stats":[stat(0,3,"MaxDurability","Add",300.0),stat(1,3,"ATK","Add",50.0),stat(2,4,"DEF_Destroyed","Multiply",0.35)],
-        "server":[],"bonus":[],"instead":[],"features":[]});
+        "server":[],"bonus":[],"instead":[],"classes":classes,"runes":[],"rune_extra":[],"recipes":[],"anti_bind":[],"features":[]});
     vindictus_server::infrastructure::item_enhance::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
     )

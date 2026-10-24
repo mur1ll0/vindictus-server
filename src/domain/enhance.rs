@@ -147,3 +147,118 @@ pub fn load<'a>(
     };
     Ok((true, Loaded { level, stat }))
 }
+
+/// EnhanceRuneInfo of an enabled rune class.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rune {
+    pub relation: i32,
+    pub min_level: i32,
+    pub max_level: i32,
+}
+
+/// EnhanceRuneExtraInfo by ReleationNum.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RuneExtra {
+    pub success_ratio: f64,
+    pub use_item_success_ratio: bool,
+    pub destroy_on_success: bool,
+    pub reset_rank_on_fail: bool,
+    pub force_rank_down_on_fail: i32,
+}
+
+/// One enabled AntiBindInfo row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AntiBind {
+    pub target: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub count: i32,
+    pub ap: i32,
+}
+
+/// AntiBindInfo.Contains: an integer value is range-checked (int.Parse of From/To, which
+/// throws on a non-integer bound), any other value prefix/suffix-matched. `None` is the
+/// source FormatException.
+pub fn anti_bind_contains(info: &AntiBind, value: &str) -> Option<bool> {
+    let parse = |s: &str| try_integer_argument(&s.encode_utf16().collect::<Vec<_>>());
+    if let Some(n) = parse(value) {
+        if let Some(from) = &info.from
+            && n < parse(from)?
+        {
+            return Some(false);
+        }
+        if let Some(to) = &info.to
+            && parse(to)? < n
+        {
+            return Some(false);
+        }
+    } else {
+        if info
+            .from
+            .as_ref()
+            .is_some_and(|f| !value.starts_with(&f.to_lowercase()))
+        {
+            return Some(false);
+        }
+        if info
+            .to
+            .as_ref()
+            .is_some_and(|t| !value.ends_with(&t.to_lowercase()))
+        {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
+/// A MakeItemRecipe (single equippable target) as RecipeMaterialInfo rows: material
+/// class, Num and whether it is gold (Ceiling10); priced when used.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Recipe {
+    pub materials: Vec<(String, i32)>,
+}
+
+/// EnhanceInfo.GetFailRewardDict in insertion order: OnFailMaterialNum1 of MaterialClass1,
+/// then (int)((float)Num × OnFailRecipeRatio) of each non-gold recipe material
+/// (AddOrIncrease). `price` turns a material row into its PriceCalc value.
+pub fn fail_rewards(
+    info: &EnhanceInfo,
+    recipe: Option<&Recipe>,
+    mut price: impl FnMut(&str, i32) -> Option<i32>,
+    arithmetic: Arithmetic,
+) -> Option<Vec<(String, i32)>> {
+    let mut out: Vec<(String, i32)> = Vec::new();
+    let add = |key: &str, n: i32, out: &mut Vec<(String, i32)>| match out
+        .iter_mut()
+        .find(|(k, _)| k == key)
+    {
+        Some(e) => e.1 = e.1.wrapping_add(n),
+        None => out.push((key.to_owned(), n)),
+    };
+    if info.on_fail_material_num1 > 0 {
+        // Dictionary.Add of a null key throws.
+        let key = info.material1.as_deref()?;
+        out.push((key.to_owned(), info.on_fail_material_num1));
+    }
+    if info.on_fail_recipe_ratio > 0.0
+        && let Some(recipe) = recipe
+    {
+        // Materials is a Dictionary: rows of the same class are summed after pricing.
+        let mut priced: Vec<(String, i32)> = Vec::new();
+        for (class, num) in &recipe.materials {
+            let value = price(class, *num)?;
+            add(class, value, &mut priced);
+        }
+        for (class, value) in priced {
+            if class == "gold" {
+                continue;
+            }
+            // Same (int)((float)n × Single) shape as the measured Multiply.
+            let n = multiply(value, info.on_fail_recipe_ratio, arithmetic);
+            if n > 0 {
+                add(&class, n, &mut out);
+            }
+        }
+    }
+    Some(out)
+}

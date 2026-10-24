@@ -23,14 +23,19 @@ fn profile() -> Value {
     let a = key("synthetic");
     let b = key("other");
     let info = |i: usize, kind: &str, level: i32, gold: i32, feature: Option<&str>| json!({"source_index":i,"enhance_type":key(kind),"level":level,"material1":key("stone"),"num1":2,"material2":null,"num2":0,"gold":gold,"success_ratio":single(1.0),"on_fail":key("RankDown"),"on_fail_recipe_ratio":single(0.5),"on_fail_material_num1":3,"effect":1,"feature":feature});
-    json!({"format_version":1,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    json!({"format_version":2,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":[{"source_index":0,"item_utf16":a,"feature":"on","enhance_type":key("T1")},{"source_index":1,"item_utf16":a,"feature":"off","enhance_type":key("T2")},{"source_index":2,"item_utf16":a,"feature":"on","enhance_type":key("T3")},{"source_index":3,"item_utf16":b,"feature":null,"enhance_type":null}],
         "enhance":[info(0,"T3",1,100,Some("on")),info(1,"T3",1,200,Some("on")),info(2,"T3",2,300,Some("off")),info(3,"T3",4,400,None),info(4,"T1",1,1,None)],
         "stats":[{"source_index":0,"enhance_type":key("T3"),"level":1,"stat":key("ATK"),"value_type":key("Add"),"value":single(50.0),"base":key("ATK")},{"source_index":1,"enhance_type":key("T3"),"level":1,"stat":key("Weight"),"value_type":key("Multiply"),"value":single(-0.1),"base":key("Weight")}],
         "server":[{"source_index":0,"enhance_type":key("1"),"level":1,"success_ratio":single(1.0),"feature":"!off"},{"source_index":1,"enhance_type":key("1"),"level":1,"success_ratio":single(0.75),"feature":"on"},{"source_index":2,"enhance_type":key("2"),"level":2,"success_ratio":single(0.5),"feature":"off"}],
         "bonus":[{"source_index":0,"item_utf16":key("gevne"),"bonus":format!("{:016x}",3.0f64.to_bits()),"min":1,"max":15}],
         "instead":[{"source_index":0,"item_utf16":key("gevne"),"use_count":1,"slot":1,"min":1,"max":15}],
-        "features":[{"key":"on","value":"1.1"}]})
+        "classes":[{"source_index":0,"item_utf16":a,"feature":null,"max_anti_bind":3},{"source_index":1,"item_utf16":b,"feature":null,"max_anti_bind":0}],
+        "runes":[{"source_index":0,"item_utf16":key("rune"),"relation":0,"min":4,"max":15,"feature":"on"},{"source_index":1,"item_utf16":key("rune"),"relation":1,"min":1,"max":3,"feature":"off"},{"source_index":2,"item_utf16":key("rune2"),"relation":1,"min":1,"max":3,"feature":null}],
+        "rune_extra":[{"source_index":0,"relation":0,"success_ratio":format!("{:016x}",0.4f64.to_bits()),"use_item_success_ratio":false,"destroy_on_success":true,"reset_rank_on_fail":false,"force_rank_down_on_fail":0}],
+        "recipes":[{"source_index":0,"recipe_utf16":key("r1"),"item_utf16":a,"num":1,"type":0,"feature":null},{"source_index":1,"recipe_utf16":key("r1"),"item_utf16":b,"num":4,"type":1,"feature":null},{"source_index":2,"recipe_utf16":key("r1"),"item_utf16":key("gold"),"num":900,"type":1,"feature":null},{"source_index":3,"recipe_utf16":key("r1"),"item_utf16":b,"num":2,"type":1,"feature":null},{"source_index":4,"recipe_utf16":key("r2"),"item_utf16":b,"num":1,"type":0,"feature":null},{"source_index":5,"recipe_utf16":key("r3"),"item_utf16":a,"num":2,"type":0,"feature":null}],
+        "anti_bind":[{"source_index":0,"target":key("Base"),"from_value":null,"to_value":null,"count":2,"ap":0,"feature":null},{"source_index":1,"target":key("Enhance"),"from_value":key("9"),"to_value":key("15"),"count":0,"ap":500,"feature":"off"}],
+        "features":[{"key":"on","value":"1.1"},{"key":"CraftPriceRatio","value":"1"}]})
 }
 fn read(
     v: &Value,
@@ -70,6 +75,96 @@ fn enhance_contents_follow_the_effective_equipment_and_item_contents_dictionarie
     assert_eq!(contents.bonus("gevne", 15), Some(3.0));
     assert_eq!(contents.bonus("gevne", 16), None);
     assert_eq!(contents.instead("gevne", 1), Some(("gevne", 1)));
+    assert_eq!(contents.max_anti_bind(&a), Some(3));
+    // Runes: enabled rows, the last duplicate overwrites; extras by ReleationNum.
+    assert_eq!(contents.rune("rune").unwrap().relation, 0);
+    assert_eq!(contents.rune("rune2").unwrap().max_level, 3);
+    assert!(contents.rune_extra(0).unwrap().destroy_on_success);
+    assert_eq!(contents.rune_extra(0).unwrap().success_ratio, 0.4);
+    // MakeItemRecipe: one equippable target with count 1; r3 targets 2 of a class that r1
+    // already maps (so r1 stays); rows of classes the catalog lacks (gold) are skipped.
+    assert_eq!(
+        contents.make_item_recipe("synthetic").unwrap().materials,
+        [("other".to_owned(), 4), ("other".to_owned(), 2)]
+    );
+    assert!(
+        contents
+            .make_item_recipe("other")
+            .unwrap()
+            .materials
+            .is_empty()
+    );
+    assert_eq!(contents.anti_bind().len(), 1);
+    assert_eq!(contents.craft_price_ratio(), Some(1.0));
+}
+
+#[test]
+fn fail_rewards_and_anti_bind_ranges_follow_item_contents_extension() {
+    use vindictus_server::domain::{
+        character_stats::Arithmetic,
+        enhance::{AntiBind, EnhanceInfo, Recipe, anti_bind_contains, fail_rewards},
+    };
+    let info = EnhanceInfo {
+        level: 9,
+        material1: Some("stone".into()),
+        num1: 4,
+        material2: None,
+        num2: 0,
+        gold: 10000,
+        success_ratio: 0.4,
+        on_fail: Some("Destroy".into()),
+        on_fail_recipe_ratio: 0.5,
+        on_fail_material_num1: 21,
+        effect: 9,
+    };
+    let recipe = Recipe {
+        materials: vec![
+            ("ingot".into(), 3),
+            ("gold".into(), 9000),
+            ("stone".into(), 4),
+            ("ingot".into(), 2),
+            ("dust".into(), 1),
+        ],
+    };
+    let price = |_: &str, n: i32| Some(n);
+    // MaterialClass1 first, then (int)(n × 0.5) of the summed non-gold materials (AddOrIncrease).
+    assert_eq!(
+        fail_rewards(&info, Some(&recipe), price, Arithmetic::FrameworkX64),
+        Some(vec![("stone".into(), 23), ("ingot".into(), 2)])
+    );
+    assert_eq!(
+        fail_rewards(&info, None, price, Arithmetic::FrameworkX64),
+        Some(vec![("stone".into(), 21)])
+    );
+    let range = AntiBind {
+        target: Some("Enhance".into()),
+        from: Some("9".into()),
+        to: Some("15".into()),
+        count: 0,
+        ap: 500,
+    };
+    assert_eq!(anti_bind_contains(&range, "9"), Some(true));
+    assert_eq!(anti_bind_contains(&range, "16"), Some(false));
+    assert_eq!(anti_bind_contains(&range, "8"), Some(false));
+    let text = AntiBind {
+        target: Some("ItemClass".into()),
+        from: Some("Longsword".into()),
+        to: Some("_x".into()),
+        count: 0,
+        ap: 1,
+    };
+    assert_eq!(anti_bind_contains(&text, "longsword_x"), Some(true));
+    assert_eq!(anti_bind_contains(&text, "longsword_y"), Some(false));
+    // An integer value against a non-integer bound is the source FormatException.
+    assert_eq!(anti_bind_contains(&text, "3"), None);
+    let base = AntiBind {
+        target: Some("Base".into()),
+        from: None,
+        to: None,
+        count: 2,
+        ap: 0,
+    };
+    assert_eq!(anti_bind_contains(&base, ""), Some(true));
 }
 
 #[test]
@@ -94,6 +189,6 @@ fn enhance_profiles_refuse_other_snapshots_and_unsound_rows() {
     unordered["enhance"][1]["source_index"] = json!(0);
     assert!(read(&unordered).is_err());
     let mut version = profile();
-    version["format_version"] = json!(2);
+    version["format_version"] = json!(1);
     assert!(read(&version).is_err());
 }

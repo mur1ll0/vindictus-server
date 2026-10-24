@@ -3106,9 +3106,12 @@ async fn minimum_give_creates_enhanced_equipment_with_its_item_stat_durability()
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     let plain = skill_assets(&p, 0).await;
+    // skill_assets' catalog: the fixture plus the Account gold class.
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
     let assets = skill_assets(&p, 0)
         .await
-        .with_enhance(super::minimum_equipment::enhance_profile())
+        .with_enhance(super::minimum_equipment::enhance_profile_for(&catalog))
         .unwrap();
     let bags = || async {
         sqlx::query_as::<_, (i64, i32, i32)>(

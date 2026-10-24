@@ -1,12 +1,15 @@
 //! Source-bound enhance contents exported by scripts/content/export_item_enhance.py: the
-//! effective EquipItemInfo.EnhanceType of each equipment class and the ItemContents
-//! enhance dictionaries, with features evaluated against the catalog policy.
+//! effective EquipItemInfo.EnhanceType and ItemClassInfo.MaxAntiBind of each class and
+//! the ItemContents enhance, rune, MakeItemRecipe and AntiBindInfo data, with features
+//! evaluated against the catalog policy.
 use super::{
     item_catalog::Package as Catalog,
     minimum_character::MinimumError,
     user_export::{PrivateText, nullable},
 };
-use crate::domain::enhance::{EnhanceInfo, EnhanceStat, StatRows};
+use crate::domain::enhance::{
+    AntiBind, EnhanceInfo, EnhanceStat, Recipe, Rune, RuneExtra, StatRows,
+};
 use serde::Deserialize;
 use std::{collections::BTreeMap, io::Read};
 use zeroize::Zeroizing;
@@ -94,6 +97,68 @@ struct Instead {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct Class {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    item_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    feature: Option<String>,
+    max_anti_bind: i32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RuneRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    item_utf16: Option<PrivateText>,
+    relation: i32,
+    min: i32,
+    max: i32,
+    #[serde(deserialize_with = "nullable")]
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RuneExtraRow {
+    source_index: usize,
+    relation: i32,
+    success_ratio: String,
+    use_item_success_ratio: bool,
+    destroy_on_success: bool,
+    reset_rank_on_fail: bool,
+    force_rank_down_on_fail: i32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RecipeRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    recipe_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    item_utf16: Option<PrivateText>,
+    num: i32,
+    #[serde(rename = "type")]
+    kind: u8,
+    #[serde(deserialize_with = "nullable")]
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AntiBindRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    target: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    from_value: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    to_value: Option<PrivateText>,
+    count: i32,
+    ap: i32,
+    #[serde(deserialize_with = "nullable")]
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Feature {
     key: String,
     value: Option<String>,
@@ -106,11 +171,16 @@ pub struct Profile {
     database_sha256: String,
     config_sha256: String,
     equips: Vec<Equip>,
+    classes: Vec<Class>,
     enhance: Vec<Info>,
     stats: Vec<Stat>,
     server: Vec<Server>,
     bonus: Vec<Bonus>,
     instead: Vec<Instead>,
+    runes: Vec<RuneRow>,
+    rune_extra: Vec<RuneExtraRow>,
+    recipes: Vec<RecipeRow>,
+    anti_bind: Vec<AntiBindRow>,
     features: Vec<Feature>,
 }
 
@@ -128,7 +198,22 @@ pub struct Contents {
     /// enhanceBonusServerInfoDic / enhanceInsteadMaterialInfoDic in insertion order.
     bonus: Vec<(String, f64, i16, i16)>,
     instead: Vec<(String, i32, u8, i16, i16)>,
+    /// ItemClassInfo.MaxAntiBind of each effective class.
+    max_anti_bind: BTreeMap<Vec<u8>, i32>,
+    /// enhanceRuneInfoDic: enabled rows, ToDictionary_OverwriteDuplicated.
+    runes: BTreeMap<String, Rune>,
+    /// enhanceRuneExtraInfoDic (ToDictionary: a duplicate refuses the load).
+    rune_extra: BTreeMap<i32, RuneExtra>,
+    /// makeItemRecipe: single equippable target recipes, last recipe wins.
+    make_item_recipe: BTreeMap<String, Recipe>,
+    /// antiBindInfo: enabled rows in provider order.
+    anti_bind: Vec<AntiBind>,
+    /// FeatureMatrix CraftPriceRatio text.
+    craft_price_ratio: String,
 }
+
+/// RecipeID, Target rows (AddItem sums) and Material rows (priced when used).
+type RecipeRows = (String, Vec<(String, i32)>, Vec<(String, i32)>);
 
 fn fail() -> MinimumError {
     MinimumError::Conflict
@@ -183,13 +268,18 @@ impl Profile {
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
         let sizes = [
             p.equips.len(),
+            p.classes.len(),
             p.enhance.len(),
             p.stats.len(),
             p.server.len(),
             p.bonus.len(),
             p.instead.len(),
+            p.runes.len(),
+            p.rune_extra.len(),
+            p.recipes.len(),
+            p.anti_bind.len(),
         ];
-        if p.format_version != 1
+        if p.format_version != 2
             || p.source != "heroesContents.item-enhance"
             || sizes.iter().any(|n| *n > 65536)
             || p.features.len() > 256
@@ -199,6 +289,12 @@ impl Profile {
             || !ordered(&p.server, |r| r.source_index)
             || !ordered(&p.bonus, |r| r.source_index)
             || !ordered(&p.instead, |r| r.source_index)
+            || !ordered(&p.classes, |r| r.source_index)
+            || !ordered(&p.runes, |r| r.source_index)
+            || !ordered(&p.rune_extra, |r| r.source_index)
+            || !ordered(&p.recipes, |r| r.source_index)
+            || !ordered(&p.anti_bind, |r| r.source_index)
+            || p.rune_extra.iter().any(|r| r.success_ratio.len() != 16)
             || [&p.success_hex(), &p.value_hex()]
                 .iter()
                 .any(|v| v.iter().any(|h| h.len() != 8))
@@ -222,8 +318,23 @@ impl Profile {
         if self.database_sha256 != catalog.manifest.database_sha256
             || self.config_sha256 != catalog.manifest.config_sha256
             || self.equips.len() != catalog.equips.len()
+            || self.classes.len() != catalog.classes.len()
         {
             return Err(fail());
+        }
+        for (a, b) in self.classes.iter().zip(&catalog.classes) {
+            let key = a.item_utf16.as_ref().map(units).transpose()?;
+            let expected = b.item_class.as_ref().map(|k| {
+                k.as_bytes()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|u| u16::from_le_bytes(*u))
+                    .collect::<Vec<_>>()
+            });
+            if key != expected || a.feature != b.feature {
+                return Err(fail());
+            }
         }
         for (a, b) in self.equips.iter().zip(&catalog.equips) {
             let key = a.item_utf16.as_ref().map(units).transpose()?;
@@ -266,6 +377,106 @@ impl Profile {
             out.types
                 .insert(class.to_vec(), text(row.enhance_type.as_ref())?);
         }
+        for (class, item) in effective.items() {
+            let row = self.classes.get(item.source_index).ok_or_else(fail)?;
+            out.max_anti_bind.insert(class.to_vec(), row.max_anti_bind);
+        }
+        for r in &self.runes {
+            if policy
+                .is_enabled(r.feature.as_deref())
+                .map_err(|_| fail())?
+            {
+                out.runes.insert(
+                    key(r.item_utf16.as_ref())?,
+                    Rune {
+                        relation: r.relation,
+                        min_level: r.min,
+                        max_level: r.max,
+                    },
+                );
+            }
+        }
+        for r in &self.rune_extra {
+            let extra = RuneExtra {
+                success_ratio: double(&r.success_ratio)?,
+                use_item_success_ratio: r.use_item_success_ratio,
+                destroy_on_success: r.destroy_on_success,
+                reset_rank_on_fail: r.reset_rank_on_fail,
+                force_rank_down_on_fail: r.force_rank_down_on_fail,
+            };
+            if out.rune_extra.insert(r.relation, extra).is_some() {
+                return Err(fail());
+            }
+        }
+        // ItemContents recipes: enabled RecipeMaterialInfo rows of known classes, by
+        // RecipeID in first-seen order; Target (0) and Material (1) rows.
+        let mut recipes: Vec<RecipeRows> = Vec::new();
+        for r in &self.recipes {
+            if !policy
+                .is_enabled(r.feature.as_deref())
+                .map_err(|_| fail())?
+            {
+                continue;
+            }
+            let id = key(r.recipe_utf16.as_ref())?;
+            let position = match recipes.iter().position(|(k, _, _)| *k == id) {
+                Some(p) => p,
+                None => {
+                    recipes.push((id, Vec::new(), Vec::new()));
+                    recipes.len() - 1
+                }
+            };
+            let item_bytes = super::item_catalog::opaque(
+                r.item_utf16.as_ref().map(|t| PrivateText(t.0.clone())),
+            )?;
+            if effective
+                .get(item_bytes.as_ref().map(|b| b.as_bytes()))
+                .is_none()
+            {
+                continue;
+            }
+            let item = key(r.item_utf16.as_ref())?;
+            match r.kind {
+                0 => {
+                    let targets = &mut recipes[position].1;
+                    match targets.iter_mut().find(|(k, _)| *k == item) {
+                        Some(t) => t.1 = t.1.wrapping_add(r.num),
+                        None => targets.push((item, r.num)),
+                    }
+                }
+                1 => recipes[position].2.push((item, r.num)),
+                _ => {}
+            }
+        }
+        for (_, targets, materials) in recipes {
+            if let [(target, 1)] = targets.as_slice() {
+                let bytes: Vec<u8> = target.encode_utf16().flat_map(u16::to_le_bytes).collect();
+                if out.types.contains_key(&bytes) {
+                    out.make_item_recipe
+                        .insert(target.clone(), Recipe { materials });
+                }
+            }
+        }
+        for r in &self.anti_bind {
+            if policy
+                .is_enabled(r.feature.as_deref())
+                .map_err(|_| fail())?
+            {
+                out.anti_bind.push(AntiBind {
+                    target: text(r.target.as_ref())?,
+                    from: text(r.from_value.as_ref())?,
+                    to: text(r.to_value.as_ref())?,
+                    count: r.count,
+                    ap: r.ap,
+                });
+            }
+        }
+        out.craft_price_ratio = self
+            .features
+            .iter()
+            .find(|f| f.key == "CraftPriceRatio")
+            .and_then(|f| f.value.clone())
+            .unwrap_or_default();
         for r in &self.enhance {
             if !policy
                 .is_enabled(r.feature.as_deref())
@@ -377,6 +588,28 @@ impl Contents {
                 c == material && i32::from(*min) <= level && i32::from(*max) >= level
             })
             .map(|b| b.1)
+    }
+    /// ItemClassInfo.MaxAntiBind (0 for unknown classes is never used: callers own items).
+    pub fn max_anti_bind(&self, class: &[u8]) -> Option<i32> {
+        self.max_anti_bind.get(class).copied()
+    }
+    /// GetEnhanceRuneInfo and GetEnhanceRuneExtraInfo.
+    pub fn rune(&self, class: &str) -> Option<&Rune> {
+        self.runes.get(class)
+    }
+    pub fn rune_extra(&self, relation: i32) -> Option<&RuneExtra> {
+        self.rune_extra.get(&relation)
+    }
+    /// GetMakeItemRecipe(itemClass).
+    pub fn make_item_recipe(&self, class: &str) -> Option<&Recipe> {
+        self.make_item_recipe.get(class)
+    }
+    pub fn anti_bind(&self) -> &[AntiBind] {
+        &self.anti_bind
+    }
+    /// GetFloat("CraftPriceRatio") with ItemContents replacing 0 by 1.
+    pub fn craft_price_ratio(&self) -> Option<f32> {
+        crate::domain::shop_price::ratio(&self.craft_price_ratio)
     }
     /// GetEnhanceInsteadMaterial(material, level): (ItemClass, UseCount).
     pub fn instead(&self, material: &str, level: i32) -> Option<(&str, i32)> {
