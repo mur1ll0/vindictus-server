@@ -1,6 +1,31 @@
 # Roteiro de testes no cliente — B3 progressão de equipamento
 
-Bloco B3 (atributos de item, Craft, Enhance, Enchant e complementos). Roteiro em construção: a preparação, a ordem de gameplay e as instruções de relato completas entram no gate do bloco.
+Bloco B3 (atributos de item, Craft, Enhance, Enchant e complementos: slots, reparo completo, armazenamento pessoal e SkillEnhance). O item 5 (Combine Craft e habilidades de item) foi adiado pelo operador. Gate fechado em 24/10/2026 (resultado no `MIGRATION.md`). Nenhuma entrada foi testada no cliente ainda; as do B1 e do B2 também continuam pendentes (`docs/client-tests/B2-fases.md`).
+
+## Preparação
+1. Conteúdo privado regenerado no B3: `.cache/private-content/item-enhance.json` (formato 6; melhoria, encantamento, manufatura, qualidade e SkillEnhance). A cópia do cliente (`.cache/play-client`) já recebeu os valores originais de `EnhanceInfo`, `EnchantInfo` e `ManufactureRecipeInfo` (`py -3.13 scripts/client/apply_original_content.py --client-copy .cache/play-client` deve listar 0 pendências).
+2. Runtime no Docker: `docker compose up -d --build --wait` (recompila a imagem, aplica as migrações até a 0038 e sobe `bootstrap`, `server` e `game`). Conferir `http://127.0.0.1:8081/en-eu-x-gm/EndPoint.txt` (SERVER1) antes de abrir o cliente.
+3. Personagem: a mesma Fiona inicial do B0–B2. Com ela **deslogada** (o `lab-give-item.ps1` recusa personagem conectado), conceder:
+   - ouro: `pwsh scripts/dev/lab-give-item.ps1 -ItemClass gold -Count 200000`;
+   - pergaminhos de encantamento: `-ItemClass "enchant_scroll[PREFIX:bitter]" -Count 1` e `-ItemClass "enchant_scroll[SUFFIX:kobold]" -Count 1`;
+   - melhoria: a pedra da arma inicial (para espada longa nível 1, `-ItemClass enhance_stone_lvl1 -Count 20`; a janela do ferreiro mostra a pedra exigida para outra arma);
+   - manufatura (receita `iron_ore_lvl2`, ofício `metal_weapon`): `-ItemClass iron_ore_lvl1 -Count 10` e `-ItemClass metal_solvent_lvl1 -Count 5`;
+   - reparo completo: uma segunda peça igual a uma peça da bolsa (mesma classe);
+   - SkillEnhance: `-ItemClass skillenhance_use_stamina_decrease_lv1 -Count 3`, `-ItemClass life_erg_crystal -Count 10` e, para o caso com runa, `-ItemClass skill_enhance_rune_gift_lv1 -Count 1`.
+4. Alternativa nativa (depuração): `docker compose stop game bootstrap` e `scripts/dev/start-lab-frontend.ps1` com o perfil e os assets de sempre; logs em `.cache/verification`.
+
+## Ordem de gameplay (uma sessão)
+1. Entrar na cidade e abrir o inventário: B3.0a (pergaminhos com atributo) e as abas atuais (B3.4c, antes do comando).
+2. Ferreiro: melhorar a arma até falhar e restaurar pelo depósito: B3.2c, B3.2b (atributos e EquipmentInfo da peça melhorada), B3.2d; depois o reparo completo da peça que perdeu durabilidade máxima: B3.4b.
+3. Encantamento: B3.3 com os dois pergaminhos.
+4. Ofício: aprender e fabricar no NPC de ofício: B3.1a e B3.1b (conferir a qualidade e o nome de fabricante).
+5. Histórias que abram slot de equipamento e aba de armazenamento, se a progressão chegar nelas (ou um NPC de teste): B3.4a e B3.4c.
+6. Habilidades: abrir o aprimoramento numa habilidade da Fiona que aceite o grupo 2 (ex.: `skill_fiona_smash*`), usar Erg, confirmar com sucesso e com falha: B3.4d-1.
+7. Uma missão curta usando a habilidade aprimorada e, na volta, restaurar a durabilidade: B3.4d-2.
+8. Relogar no fim e conferir tudo o que as entradas listam como preservado (níveis de melhoria/encantamento, itens restaurados, ofício e receitas, itens fabricados, slot/aba abertos, aprimoramento e durabilidade).
+
+## Como relatar
+Para cada linha marcada: ID da entrada e número da linha (ex.: `B3.2c-3`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` (ou os logs nativos em `.cache/verification`). Linhas não testadas ficam desmarcadas com o motivo (ex.: "história não alcançada").
 
 ### B3.0a — Itens com atributos no inventário (pergaminhos de encantamento)
 Pré-condição: Fiona **deslogada**; conceder pergaminhos com atributo e ouro: `pwsh scripts/dev/lab-give-item.ps1 -ItemClass "enchant_scroll[PREFIX:bitter]" -Count 1`, de novo com `-ItemClass "enchant_scroll[SUFFIX:kobold]"` e `-ItemClass gold -Count 10000`. Containers recompilados (`docker compose up -d --build --wait`).

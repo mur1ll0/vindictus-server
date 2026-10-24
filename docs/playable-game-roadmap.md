@@ -42,6 +42,7 @@ Plano revisado pelo operador em 21/10/2026. A ordem prioriza o ciclo PvE jogáve
 - **B0 aceito no cliente (21/10/2026):** criação/relogin da Fiona, seleção, cidade, movimento, inventário, equipar/desequipar, mover itens, quickslots de consumíveis, lista de skills/AP, cápsula de AP e treino de skill com AP.
 - **Testes adiados:** aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 via loja ou B2.6 via loot), usar consumível pela barra (B2.5) e o "Depot" da loja Cash (B5).
 - **B1 e B2 fechados no código, sem aceite de cliente.** B1 em 21/10 e B2 em 22/10/2026 (suíte completa verde). Nenhuma entrada dos dois roteiros foi testada no cliente ainda; a sessão combinada segue `docs/client-tests/B2-fases.md`. O transporte ProudNet (relay 27005) e toda a missão foram construídos sem checkpoint de cliente, por decisão do operador.
+- **B3 fechado no código (24/10/2026), sem aceite de cliente.** Itens 0–4 implementados (atributos, Craft, Enhance, Enchant, slots, reparo completo, armazenamento pessoal e SkillEnhance); o item 5 foi adiado pelo operador. Gate verde (PostgreSQL em lotes por causa do tmpfs); roteiro em `docs/client-tests/B3-equipamento.md`.
 
 ## Pendências conhecidas do B2 (não implementadas)
 
