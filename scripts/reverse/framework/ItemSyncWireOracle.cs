@@ -205,6 +205,15 @@ class ItemSyncWireOracle {
   foreach(bool o in new[]{false,true})foreach(long id in new[]{long.MinValue,0L,long.MaxValue})foreach(string d in new[]{null,"","DoEnchant","CancelEnchant","enchant_elixir_lvl1"})enchants.Add(Obj<EnchantItemMessage>("OpenNewSession",o,"TargetItemID",id,"EnchantScrollItemID",id==0L?7L:-id,"IndestructibleScrollItemID",0L,"DiceItemClass",d));
   AddCases("enchant_item",352,new Guid("ddc9fc48-e5dc-304e-bfd2-8c5fed04f83e"),enchants,cases);
   AddCases("enchant_item_result",353,new Guid("0a5b1d79-7e63-32d7-9520-ab7d8bfaa7ed"),new[]{null,new EnchantItemResultMessage(EnchantItemResult.EnchantSuccess,-1,-1,"",0f),new EnchantItemResultMessage(EnchantItemResult.RollSuccess,37,100,"enchant_elixir_lvl1",0.6110000014305115f),new EnchantItemResultMessage(EnchantItemResult.RuneExpired,int.MinValue,int.MaxValue,null,-1f),new EnchantItemResultMessage(EnchantItemResult.ItemDestroyed,0,0,"x",1.5f)},cases);
+  var exp=new Dictionary<string,int>{{"heavy_armor",350},{"cooking",int.MinValue},{"",int.MaxValue}};
+  var grade=new Dictionary<string,int>{{"heavy_armor",2},{"cooking",0},{"",-1}};
+  AddCases("manufacture_info",359,new Guid("9848342d-cc2f-326e-9b4e-d30c6decd5b5"),new[]{null,new ManufactureInfoMessage(null,null,null),new ManufactureInfoMessage(new Dictionary<string,int>(),new Dictionary<string,int>(),new List<string>()),new ManufactureInfoMessage(exp,grade,new List<string>{"heavy_armor_plate_1",null,"","料理"})},cases);
+  var crafts=new List<ManufactureCraftMessage>{null};
+  foreach(string rid in new[]{null,"","heavy_armor_plate_1"})foreach(var parts in new[]{null,new List<long>(),new List<long>{long.MinValue,0L,long.MaxValue}})crafts.Add(Obj<ManufactureCraftMessage>("RecipeID",rid,"PartsIDList",parts));
+  AddCases("manufacture_craft",360,new Guid("42f64ed3-c84b-3cfb-853b-0dec85cfac07"),crafts,cases);
+  var levelups=new List<ManufactureLevelUpMessage>{null};
+  foreach(string mid in new[]{null,"","heavy_armor"})foreach(int g in new[]{int.MinValue,0,3,int.MaxValue})levelups.Add(Obj<ManufactureLevelUpMessage>("MID",mid,"Grade",g));
+  AddCases("manufacture_level_up",361,new Guid("4b8c26ec-6412-3016-b31e-157b18638117"),levelups,cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

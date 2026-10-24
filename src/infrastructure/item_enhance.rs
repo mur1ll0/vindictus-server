@@ -25,6 +25,8 @@ struct Equip {
     #[serde(deserialize_with = "nullable")]
     enhance_type: Option<PrivateText>,
     enchantable: u8,
+    #[serde(deserialize_with = "nullable")]
+    quality_type: Option<PrivateText>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -212,6 +214,68 @@ struct EnchantDiceRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct ManufactureRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    manufacture_utf16: Option<PrivateText>,
+    grade: i32,
+    min: i32,
+    max: i32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManufactureRecipeRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    manufacture_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    recipe_utf16: Option<PrivateText>,
+    experience_required: i32,
+    grade_required: i32,
+    base_reward_exp: i32,
+    // RecipeItemClass (recipe items) and AutoGiveQuest (GiveManufactureRecipesByQuestID)
+    // are not consumed yet.
+    #[serde(rename = "recipe_item_utf16", deserialize_with = "nullable")]
+    _recipe_item: Option<PrivateText>,
+    #[serde(rename = "auto_give_quest", deserialize_with = "nullable")]
+    _auto_give_quest: Option<PrivateText>,
+    always_listed: u8,
+    #[serde(deserialize_with = "nullable")]
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManufactureMaterialRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    recipe_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    item_utf16: Option<PrivateText>,
+    num: i32,
+    #[serde(rename = "type")]
+    kind: u8,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ManufactureDependencyRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    manufacture_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    required_utf16: Option<PrivateText>,
+    required_experience: i32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct QualityDiceRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    item_type_utf16: Option<PrivateText>,
+    quality: i32,
+    dice: i32,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Feature {
     key: String,
     value: Option<String>,
@@ -237,6 +301,11 @@ pub struct Profile {
     enchant: Vec<EnchantRow>,
     enchant_stats: Vec<EnchantStatRow>,
     enchant_dice: Vec<EnchantDiceRow>,
+    manufacture: Vec<ManufactureRow>,
+    manufacture_recipes: Vec<ManufactureRecipeRow>,
+    manufacture_materials: Vec<ManufactureMaterialRow>,
+    manufacture_dependencies: Vec<ManufactureDependencyRow>,
+    quality_dice: Vec<QualityDiceRow>,
     features: Vec<Feature>,
 }
 
@@ -276,6 +345,12 @@ pub struct Contents {
     enchant_dice: BTreeMap<String, (i32, i32)>,
     /// GetEquipItemInfo().Enchantable of each effective equipment class.
     enchantable: BTreeMap<Vec<u8>, u8>,
+    /// GetEquipItemInfo().QualityType of each effective equipment class.
+    quality_types: BTreeMap<Vec<u8>, Option<String>>,
+    /// ManufactureDataContainer.
+    manufacture: crate::domain::manufacture::Contents,
+    /// qualityDiceDic: ToDoubleDictionary (ItemType -> Quality -> Dice) in insertion order.
+    quality_dice: BTreeMap<String, Vec<(i32, i32)>>,
 }
 
 /// RecipeID, Target rows (AddItem sums) and Material rows (priced when used).
@@ -372,7 +447,18 @@ impl Profile {
             p.recipes.len(),
             p.anti_bind.len(),
         ];
-        if p.format_version != 3
+        let manufacture_rows = p.manufacture.len()
+            + p.manufacture_recipes.len()
+            + p.manufacture_materials.len()
+            + p.manufacture_dependencies.len()
+            + p.quality_dice.len();
+        if p.format_version != 4
+            || manufacture_rows > 65536
+            || !ordered(&p.manufacture, |r| r.source_index)
+            || !ordered(&p.manufacture_recipes, |r| r.source_index)
+            || !ordered(&p.manufacture_materials, |r| r.source_index)
+            || !ordered(&p.manufacture_dependencies, |r| r.source_index)
+            || !ordered(&p.quality_dice, |r| r.source_index)
             || p.source != "heroesContents.item-enhance"
             || sizes.iter().any(|n| *n > 65536)
             || p.features.len() > 256
@@ -474,6 +560,8 @@ impl Profile {
             out.types
                 .insert(class.to_vec(), text(row.enhance_type.as_ref())?);
             out.enchantable.insert(class.to_vec(), row.enchantable);
+            out.quality_types
+                .insert(class.to_vec(), text(row.quality_type.as_ref())?);
         }
         for (class, item) in effective.items() {
             let row = self.classes.get(item.source_index).ok_or_else(fail)?;
@@ -681,12 +769,98 @@ impl Profile {
                 return Err(fail());
             }
         }
+        let known: std::collections::BTreeSet<Vec<u8>> =
+            effective.items().map(|(class, _)| class.to_vec()).collect();
+        let utf16 = |s: &str| -> Vec<u8> { s.encode_utf16().flat_map(u16::to_le_bytes).collect() };
+        let recipes = self
+            .manufacture_recipes
+            .iter()
+            .map(|r| {
+                Ok(crate::domain::manufacture::RecipeRow {
+                    manufacture_id: key(r.manufacture_utf16.as_ref())?,
+                    recipe_id: key(r.recipe_utf16.as_ref())?,
+                    experience_required: r.experience_required,
+                    grade_required: r.grade_required,
+                    base_reward_exp: r.base_reward_exp,
+                    always_listed: r.always_listed,
+                    feature: r.feature.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, MinimumError>>()?;
+        let materials = self
+            .manufacture_materials
+            .iter()
+            .map(|r| {
+                Ok((
+                    key(r.recipe_utf16.as_ref())?,
+                    key(r.item_utf16.as_ref())?,
+                    r.num,
+                    r.kind,
+                ))
+            })
+            .collect::<Result<Vec<_>, MinimumError>>()?;
+        let infos = self
+            .manufacture
+            .iter()
+            .map(|r| {
+                Ok((
+                    key(r.manufacture_utf16.as_ref())?,
+                    crate::domain::manufacture::Interval {
+                        grade: r.grade,
+                        min: r.min,
+                        max: r.max,
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>, MinimumError>>()?;
+        let dependencies = self
+            .manufacture_dependencies
+            .iter()
+            .map(|r| {
+                Ok((
+                    key(r.manufacture_utf16.as_ref())?,
+                    key(r.required_utf16.as_ref())?,
+                    r.required_experience,
+                ))
+            })
+            .collect::<Result<Vec<_>, MinimumError>>()?;
+        out.manufacture = crate::domain::manufacture::Contents::build(
+            recipes,
+            materials,
+            infos,
+            dependencies,
+            |class| known.contains(&utf16(class)),
+        )
+        .map_err(|_| fail())?;
+        for r in &self.quality_dice {
+            let dice = out
+                .quality_dice
+                .entry(key(r.item_type_utf16.as_ref())?)
+                .or_default();
+            // ToDoubleDictionary: Dictionary.Add throws on a repeated Quality.
+            if dice.iter().any(|(q, _)| *q == r.quality) {
+                return Err(fail());
+            }
+            dice.push((r.quality, r.dice));
+        }
         out.policy = Some(policy);
         Ok(out)
     }
 }
 
 impl Contents {
+    /// ManufactureDataContainer.
+    pub fn manufacture(&self) -> &crate::domain::manufacture::Contents {
+        &self.manufacture
+    }
+    /// GetEquipItemInfo().QualityType; `None` for unknown classes and null types.
+    pub fn quality_type(&self, class: &[u8]) -> Option<&str> {
+        self.quality_types.get(class)?.as_deref()
+    }
+    /// GetQualityDiceInfo: (Quality, Dice) in insertion order (empty when unknown).
+    pub fn quality_dice(&self, item_type: &str) -> &[(i32, i32)] {
+        self.quality_dice.get(item_type).map_or(&[], Vec::as_slice)
+    }
     /// GetEquipItemInfo().EnhanceType; `None` for unknown classes and null types.
     pub fn enhance_type(&self, class: &[u8]) -> Option<&str> {
         self.types.get(class)?.as_deref()

@@ -57,6 +57,9 @@ pub enum Kind {
     RestoreItemList,
     EnchantItem,
     EnchantItemResult,
+    ManufactureInfo,
+    ManufactureCraft,
+    ManufactureLevelUp,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -107,6 +110,9 @@ impl Kind {
             Self::RestoreItemList => 154,
             Self::EnchantItem => 352,
             Self::EnchantItemResult => 353,
+            Self::ManufactureInfo => 359,
+            Self::ManufactureCraft => 360,
+            Self::ManufactureLevelUp => 361,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -157,6 +163,9 @@ impl Kind {
             Self::RestoreItemList => 0xb80b34de_ba17_3cef_9ae3_577cfd045708,
             Self::EnchantItem => 0xddc9fc48_e5dc_304e_bfd2_8c5fed04f83e,
             Self::EnchantItemResult => 0x0a5b1d79_7e63_32d7_9520_ab7d8bfaa7ed,
+            Self::ManufactureInfo => 0x9848342d_cc2f_326e_9b4e_d30c6decd5b5,
+            Self::ManufactureCraft => 0x42f64ed3_c84b_3cfb_853b_0dec85cfac07,
+            Self::ManufactureLevelUp => 0x4b8c26ec_6412_3016_b31e_157b18638117,
         })
     }
 }
@@ -304,6 +313,9 @@ pub enum Message {
     RestoreItemList(Option<Vec<Option<RestoreItemInfo>>>),
     EnchantItem(EnchantItem),
     EnchantItemResult(EnchantItemResult),
+    ManufactureInfo(ManufactureInfo),
+    ManufactureCraft(ManufactureCraft),
+    ManufactureLevelUp(ManufactureLevelUp),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -448,6 +460,26 @@ pub struct EnchantItemResult {
     pub result: i32,
     pub rolled_dice: Option<String>,
     pub current_success_ratio: i32,
+}
+/// ManufactureInfoMessage: ExpDictionary, GradeDictionary (ManufactureManager.EXP order)
+/// and Recipes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ManufactureInfo {
+    pub exp: super::mission::StrDict<i32>,
+    pub grade: super::mission::StrDict<i32>,
+    pub recipes: Option<Vec<Option<String>>>,
+}
+/// ManufactureCraftMessage: RecipeID, PartsIDList (Combine Craft parts).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ManufactureCraft {
+    pub recipe_id: Option<String>,
+    pub parts_id_list: Option<Vec<i64>>,
+}
+/// ManufactureLevelUpMessage: MID, Grade.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ManufactureLevelUp {
+    pub mid: Option<String>,
+    pub grade: i32,
 }
 /// RestoreItemInfo: the restore-storage SlotInfo, PriceType ("AP") and PriceValue.
 #[derive(Clone, PartialEq, Eq)]
@@ -638,6 +670,9 @@ impl Message {
             Self::RestoreItemList(_) => Kind::RestoreItemList,
             Self::EnchantItem(_) => Kind::EnchantItem,
             Self::EnchantItemResult(_) => Kind::EnchantItemResult,
+            Self::ManufactureInfo(_) => Kind::ManufactureInfo,
+            Self::ManufactureCraft(_) => Kind::ManufactureCraft,
+            Self::ManufactureLevelUp(_) => Kind::ManufactureLevelUp,
         }
     }
 }
@@ -881,6 +916,16 @@ object!(EnhanceItem {
     additional_material,
     is_event_enhance_a_shot
 });
+object!(ManufactureInfo {
+    exp,
+    grade,
+    recipes
+});
+object!(ManufactureCraft {
+    recipe_id,
+    parts_id_list
+});
+object!(ManufactureLevelUp { mid, grade });
 object!(EnchantItem {
     open_new_session,
     target_item_id,
@@ -1043,6 +1088,9 @@ pub fn encode(
             Message::RestoreItemList(v) => v.write(&mut w)?,
             Message::EnchantItem(v) => v.write(&mut w)?,
             Message::EnchantItemResult(v) => v.write(&mut w)?,
+            Message::ManufactureInfo(v) => v.write(&mut w)?,
+            Message::ManufactureCraft(v) => v.write(&mut w)?,
+            Message::ManufactureLevelUp(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1126,6 +1174,11 @@ fn decode_body(
             Kind::RestoreItemList => Message::RestoreItemList(Wire::read(&mut r)?),
             Kind::EnchantItem => Message::EnchantItem(EnchantItem::read(&mut r)?),
             Kind::EnchantItemResult => Message::EnchantItemResult(EnchantItemResult::read(&mut r)?),
+            Kind::ManufactureInfo => Message::ManufactureInfo(ManufactureInfo::read(&mut r)?),
+            Kind::ManufactureCraft => Message::ManufactureCraft(ManufactureCraft::read(&mut r)?),
+            Kind::ManufactureLevelUp => {
+                Message::ManufactureLevelUp(ManufactureLevelUp::read(&mut r)?)
+            }
         })
     };
     if strict && !r.remaining.is_empty() {

@@ -519,6 +519,37 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             });
             assert_eq!(e.fail_reward.0, rewards, "case {n}");
         }
+        Some(Message::ManufactureInfo(m)) => {
+            let dict = |v: &Value| {
+                v.as_array().map(|o| {
+                    o.iter()
+                        .map(|p| {
+                            (
+                                p["key"].as_str().unwrap().to_owned(),
+                                i32::try_from(p["value"].as_i64().unwrap()).unwrap(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+            };
+            assert_eq!(m.exp.0, dict(&f["ExpDictionary"]), "case {n}");
+            assert_eq!(m.grade.0, dict(&f["GradeDictionary"]), "case {n}");
+            let recipes = f["Recipes"]
+                .as_array()
+                .map(|o| o.iter().map(|r| r.as_str().map(str::to_owned)).collect());
+            assert_eq!(m.recipes, recipes, "case {n}");
+        }
+        Some(Message::ManufactureCraft(c)) => {
+            assert_eq!(c.recipe_id.as_deref(), f["RecipeID"].as_str(), "case {n}");
+            let parts = f["PartsIDList"]
+                .as_array()
+                .map(|o| o.iter().map(|v| v.as_i64().unwrap()).collect());
+            assert_eq!(c.parts_id_list, parts, "case {n}");
+        }
+        Some(Message::ManufactureLevelUp(l)) => {
+            assert_eq!(l.mid.as_deref(), f["MID"].as_str(), "case {n}");
+            assert_eq!(i64::from(l.grade), f["Grade"].as_i64().unwrap(), "case {n}");
+        }
         Some(Message::HideCostume(h)) => {
             assert_eq!(Some(h.hide_head), f["HideHead"].as_bool(), "case {n}");
             assert_eq!(
@@ -802,7 +833,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1722);
+        assert_eq!(cases.len(), 1803);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -848,6 +879,9 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "restore_item_list" => check_inventory(Kind::RestoreItemList, case, n),
                 "enchant_item" => check_inventory(Kind::EnchantItem, case, n),
                 "enchant_item_result" => check_inventory(Kind::EnchantItemResult, case, n),
+                "manufacture_info" => check_inventory(Kind::ManufactureInfo, case, n),
+                "manufacture_craft" => check_inventory(Kind::ManufactureCraft, case, n),
+                "manufacture_level_up" => check_inventory(Kind::ManufactureLevelUp, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

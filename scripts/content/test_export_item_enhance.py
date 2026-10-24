@@ -5,7 +5,7 @@ from export_item_enhance import read_package, digest
 
 SCHEMA = (
     'CREATE TABLE FeatureMatrix(Feature TEXT,"STUDY-A" TEXT);'
-    'CREATE TABLE EquipItemInfo(ItemClass TEXT,Feature TEXT,EnhanceType TEXT,Enchantable tinyint);'
+    'CREATE TABLE EquipItemInfo(ItemClass TEXT,Feature TEXT,EnhanceType TEXT,Enchantable tinyint,QualityType nvarchar);'
     'CREATE TABLE ItemClassInfo(ItemClass TEXT,Feature TEXT,MaxStack INTEGER,Storage INTEGER,Bind TEXT,TradeOnBind TEXT,MaxAntiBind INT,RequiredLevel INT,ExpireIn INT);'
     'CREATE TABLE EnhanceRuneInfo(ItemClass nvarchar,ReleationNum INT,MinEnhanceLevel INT,MaxEnhanceLevel INT,Feature nvarchar,ConfirmationDesc nvarchar);'
     'CREATE TABLE EnhanceRuneExtraInfo(ReleationNum INT,SuccessRatio float,IsUseItemSuccessRatio bit,IsDestoryOnSuccess bit,IsResetRankOnFail bit,ForceRankDownOnFail INT);'
@@ -19,6 +19,11 @@ SCHEMA = (
     'CREATE TABLE EnhanceStatInfo(EnhanceType varchar,EnhanceLevel INT,Stat varchar,ValueType varchar,Value REAL,Base varchar);'
     'CREATE TABLE EnhanceServerInfo(EnhanceType nvarchar,EnhanceLevel INT,SuccessRatio REAL,Feature nvarchar);'
     'CREATE TABLE EnhanceBonusServerInfo(ItemClass varchar,Bonus float,EnhanceMin smallint,EnhanceMax smallint);'
+    'CREATE TABLE ManufactureInfo(ManufactureID nvarchar,Grade INT,ExperienceMin INT,ExperienceMax INT);'
+    'CREATE TABLE ManufactureRecipeInfo(ManufactureID nvarchar,RecipeID nvarchar,ExperienceRequired INT,GradeRequired INT,BaseRewardEXP INT,RecipeItemClass nvarchar,AutoGiveQuest nvarchar,AlwaysListed tinyint,Feature nvarchar);'
+    'CREATE TABLE ManufactureMaterialInfo(RecipeID nvarchar,ItemClass nvarchar,Num INT,Type tinyint);'
+    'CREATE TABLE ManufactureDependencyInfo(ManufactureID nvarchar,RequiredManufactureID nvarchar,RequiredExperience INT);'
+    'CREATE TABLE QualityDiceInfo(ItemType nvarchar,Quality INT,Dice INT);'
     'CREATE TABLE EnhanceInsteadMaterialInfo(ItemClass varchar,UseCount INT,Slot tinyint,EnhanceMin smallint,EnhanceMax smallint);'
 )
 
@@ -29,7 +34,12 @@ def fill(db, ratio):
     db.execute('INSERT INTO EnchantStatInfo VALUES (?,?,?,?,?,?)', ('hard', 1, 'skillrank>=(skill_str_mastery,3)', None, 'DEF+2', None))
     db.execute('INSERT INTO EnchantDiceInfo VALUES (?,?,?,?,?)', ('enchant_elixir_lvl1', 1, 10, 0, 'enEU'))
     db.executemany('INSERT INTO FeatureMatrix VALUES (?,?)', [('GameCode', '42'), ('CurrentVer', '3.09.00'), ('OverrideSetting', ''), ('StoryTabInInventory', ''), ('enEU', '1'), ('zhCN', '')])
-    db.executemany('INSERT INTO EquipItemInfo VALUES (?,?,?,?)', [('sword', None, 'SWORD', 1), ('cloak', None, None, 0)])
+    db.executemany('INSERT INTO EquipItemInfo VALUES (?,?,?,?,?)', [('sword', None, 'SWORD', 1, 'WEAPON_LVL_1'), ('cloak', None, None, 0, None)])
+    db.executemany('INSERT INTO ManufactureInfo VALUES (?,?,?,?)', [('metal_weapon', 0, 0, 99), ('metal_weapon', 1, 100, 199)])
+    db.execute('INSERT INTO ManufactureRecipeInfo VALUES (?,?,?,?,?,?,?,?,?)', ('metal_weapon', 'recipe_sword', 0 if ratio == 1.0 else 150, 0 if ratio == 1.0 else 1, 3, 'recipe_book', 'quest_x', 0, 'Delia&&S3_CraftRenewal'))
+    db.executemany('INSERT INTO ManufactureMaterialInfo VALUES (?,?,?,?)', [('recipe_sword', 'sword', 1, 0), ('recipe_sword', 'stone', 4, 1)])
+    db.execute('INSERT INTO ManufactureDependencyInfo VALUES (?,?,?)', ('metal_weapon_dc', 'metal_weapon', 350))
+    db.executemany('INSERT INTO QualityDiceInfo VALUES (?,?,?)', [('WEAPON_LVL_1', 1, 50), ('WEAPON_LVL_1', 2, 650)])
     db.executemany('INSERT INTO EnhanceInfo VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
         ('SWORD', 1, 'stone', 2, None, 0, 500, ratio, 'NoPenalty', 0.0, 0, 1, 'enEU'),
         ('SWORD', 9, 'stone', 4, 'elixir', 1, 9000, ratio, 'Destroy', 0.5, 21, 3, 'enEU'),
@@ -80,11 +90,18 @@ class ItemEnhanceExportTests(unittest.TestCase):
         self.assertEqual(p['stats'][1]['value'], single(-0.1))
         self.assertEqual([e['enhance_type'] for e in p['equips']], ['SWORD'.encode('utf-16-le').hex(), None])
         self.assertEqual(p['bonus'][0]['bonus'], struct.pack('>d', 3.3).hex())
-        self.assertEqual(sorted(f['key'] for f in p['features']), ['CraftPriceRatio', 'EnchantSuccessBonus', 'Enchant_DestructibleItems', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Enhance_Ferghus_v2', 'Event_enhance_a_shot', 'Event_enhance_change_ratio', 'RestoreItem', 'RestoreItemCount', 'enEU', 'zhCN'])
+        self.assertEqual(sorted(f['key'] for f in p['features']), ['CraftPriceRatio', 'Delia', 'EnchantSuccessBonus', 'Enchant_DestructibleItems', 'EnhanceSuccessBonus', 'EnhanceSuccessBonus_Limit', 'Enhance_Ferghus_v2', 'Event_enhance_a_shot', 'Event_enhance_change_ratio', 'RestoreItem', 'RestoreItemCount', 'S3_CraftRenewal', 'enEU', 'manufacture_event_exp', 'zhCN'])
         self.assertEqual([c['max_anti_bind'] for c in p['classes']], [3, 0])
         self.assertEqual((p['enchant'][0]['min_ratio'], p['enchant'][0]['max_ratio'], p['enchant'][0]['is_prefix']), (50, 80, True))
         self.assertEqual(p['enchant_stats'][0]['order'], 1)
         self.assertEqual(p['enchant_dice'][0]['max'], 10)
+        recipe = p['manufacture_recipes'][0]
+        self.assertEqual((recipe['experience_required'], recipe['grade_required'], recipe['base_reward_exp']), (150, 1, 3))
+        self.assertEqual([m['max'] for m in p['manufacture']], [99, 199])
+        self.assertEqual([m['type'] for m in p['manufacture_materials']], [0, 1])
+        self.assertEqual(p['manufacture_dependencies'][0]['required_experience'], 350)
+        self.assertEqual([d['dice'] for d in p['quality_dice']], [50, 650])
+        self.assertEqual(p['equips'][0]['quality_type'], 'WEAPON_LVL_1'.encode('utf-16-le').hex())
         self.assertEqual(p['rune_extra'][0]['success_ratio'], struct.pack('>d', 0.4).hex())
         self.assertEqual((p['rune_extra'][0]['destroy_on_success'], p['rune_extra'][0]['reset_rank_on_fail']), (True, False))
         self.assertEqual([r['type'] for r in p['recipes']], [0, 1])

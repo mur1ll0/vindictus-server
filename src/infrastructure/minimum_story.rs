@@ -376,7 +376,8 @@ struct Facts<'a> {
     use_preset: bool,
     repair_price: i32,
     gold: i32,
-    manufactures: std::collections::BTreeMap<String, (i32, i32)>,
+    manufacture: crate::domain::manufacture::State,
+    manufacture_contents: Option<&'a crate::domain::manufacture::Contents>,
     skill_contents:
         Option<&'a std::collections::BTreeMap<String, crate::domain::skill_list::SkillContent>>,
 }
@@ -408,7 +409,13 @@ impl crate::domain::npc_talk::Facts for Facts<'_> {
         self.items.get(class).copied().unwrap_or(0)
     }
     fn manufacture(&self, id: &str) -> Option<(i32, i32)> {
-        self.manufactures.get(id).copied()
+        self.manufacture.skill(id).map(|s| (s.grade, s.experience))
+    }
+    fn manufacture_contents(&self) -> Option<&crate::domain::manufacture::Contents> {
+        self.manufacture_contents
+    }
+    fn manufacture_state(&self) -> crate::domain::manufacture::State {
+        self.manufacture.clone()
     }
     fn quests(&self) -> Option<&crate::domain::quest::QuestContents> {
         self.quests
@@ -472,12 +479,7 @@ pub async fn talk(
         )
         .fetch_all(&mut *tx)
         .await?;
-        let manufactures: Vec<(Vec<u8>, i32, i32)> = sqlx::query_as(
-            "SELECT manufacture_utf16,grade,experience_point FROM game_manufacture WHERE cid=$1 ORDER BY row_id LIMIT 4097",
-        )
-        .bind(cid)
-        .fetch_all(&mut *tx)
-        .await?;
+        let manufacture = super::minimum_manufacture::load(&mut tx, cid).await?;
         let repair_price = super::minimum_repair::price_of_all(&mut tx, owner, assets, cid).await?;
         let gold_key = assets.inventory.gold_class().to_vec();
         let gold: i64 = sqlx::query_scalar(
@@ -540,10 +542,8 @@ pub async fn talk(
                 .into_iter()
                 .map(|(k, n)| Ok((text(&k)?, i32::try_from(n).map_err(|_| fail())?)))
                 .collect::<Result<_, MinimumError>>()?,
-            manufactures: manufactures
-                .into_iter()
-                .map(|(k, g, e)| Ok((text(&k)?, (g, e))))
-                .collect::<Result<_, MinimumError>>()?,
+            manufacture,
+            manufacture_contents: assets.enhance.as_ref().map(|e| e.manufacture()),
         };
         // DoRandom: a fresh System.Random (Environment.TickCount seed).
         let mut random = crate::domain::item_colors::ColorRandom::from_seed(
@@ -947,6 +947,9 @@ async fn apply_outputs(
                     Kind::UpdateInventoryInfo,
                     Message::UpdateInventoryInfo(Some(applied.slots)),
                 )?);
+            }
+            Output::Effect(Effect::Manufacture(change)) => {
+                packets.extend(super::minimum_manufacture::apply(tx, cid, &change).await?);
             }
             Output::Effect(Effect::RepairAll) => {
                 let repaired = super::minimum_repair::repair(

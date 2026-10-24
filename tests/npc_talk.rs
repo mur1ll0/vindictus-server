@@ -1367,3 +1367,227 @@ fn give_skill_grants_once_and_story_rewards_report_the_learn_result() {
     )));
     assert_eq!(state.progress[0].phase.as_deref(), Some("B"));
 }
+
+struct CraftFiona(
+    vindictus_server::domain::manufacture::Contents,
+    std::cell::RefCell<vindictus_server::domain::manufacture::State>,
+);
+impl Facts for CraftFiona {
+    fn class(&self) -> i32 {
+        1
+    }
+    fn level(&self) -> i32 {
+        1
+    }
+    fn title_acquired(&self, _: i32) -> bool {
+        false
+    }
+    fn base_skill_rank(&self, _: &str) -> i32 {
+        -1
+    }
+    fn items(&self) -> Vec<(String, i32)> {
+        Vec::new()
+    }
+    fn use_preset(&self) -> bool {
+        false
+    }
+    fn utc_seconds(&self) -> i32 {
+        0
+    }
+    fn item_count(&self, _: &str) -> i32 {
+        0
+    }
+    fn manufacture(&self, id: &str) -> Option<(i32, i32)> {
+        self.1.borrow().skill(id).map(|s| (s.grade, s.experience))
+    }
+    fn quests(&self) -> Option<&vindictus_server::domain::quest::QuestContents> {
+        None
+    }
+    fn repair_price(&self) -> i32 {
+        0
+    }
+    fn gold(&self) -> i32 {
+        0
+    }
+    fn manufacture_contents(&self) -> Option<&vindictus_server::domain::manufacture::Contents> {
+        Some(&self.0)
+    }
+    fn manufacture_state(&self) -> vindictus_server::domain::manufacture::State {
+        self.1.borrow().clone()
+    }
+}
+
+#[test]
+fn manufacture_commands_change_the_manager_and_feed_its_conditions() {
+    use vindictus_server::domain::{
+        manufacture::{Contents, Interval, RecipeRow},
+        npc_talk::{Effect, ManufactureChange},
+    };
+    let contents = Contents::build(
+        [RecipeRow {
+            manufacture_id: "metal".into(),
+            recipe_id: "sword".into(),
+            experience_required: 50,
+            grade_required: 0,
+            base_reward_exp: 1,
+            always_listed: 0,
+            feature: None,
+        }],
+        [],
+        [(
+            "metal".to_owned(),
+            Interval {
+                grade: 0,
+                min: 0,
+                max: 99,
+            },
+        )],
+        [],
+        |_| true,
+    )
+    .unwrap();
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "FERGHUS")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![
+                        leaf("acquire_manufacture", "metal"),
+                        el(
+                            "If",
+                            &[],
+                            "",
+                            vec![
+                                el(
+                                    "Condition",
+                                    &[],
+                                    "",
+                                    vec![leaf("is_manufacture_level", "metal,0")],
+                                ),
+                                el("Then", &[], "", vec![leaf("talk", "LEARNT")]),
+                                el("Else", &[], "", vec![leaf("talk", "UNKNOWN")]),
+                            ],
+                        ),
+                        leaf("acquire_manufacture_recipe", "sword"),
+                        leaf("levelup_manufacture", "metal"),
+                        leaf("talk", "AFTER"),
+                    ],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("QuestSet01".to_owned()),
+        class_restriction: 1023,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let mut state = StoryState {
+        progress: vec![Progress {
+            story_line: "Guide".to_owned(),
+            phase: Some("A".to_owned()),
+            status: 0,
+        }],
+        ..Default::default()
+    };
+    let mut session = Session::default();
+    let facts = CraftFiona(contents, Default::default());
+    // Each server command is its own request; the item service saved the previous one.
+    let save = |outputs: &[Output]| {
+        let mut m = facts.1.borrow_mut();
+        for o in outputs {
+            match o {
+                Output::Effect(Effect::Manufacture(ManufactureChange::Acquired(id))) => {
+                    m.skills.push(vindictus_server::domain::manufacture::Skill {
+                        id: id.clone(),
+                        grade: 0,
+                        experience: 0,
+                    })
+                }
+                Output::Effect(Effect::Manufacture(ManufactureChange::Recipe { id, .. })) => {
+                    m.recipes.push(id.clone())
+                }
+                _ => {}
+            }
+        }
+    };
+    let mut pick = |_| 0;
+    let mut outputs = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+        .talk_to(None, "FERGHUS", Some("Guide"), None)
+        .unwrap()
+        .outputs;
+    save(&outputs);
+    while session.last_server_command.is_some() {
+        let more = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+            .execute_server_command()
+            .unwrap();
+        save(&more.outputs);
+        outputs.extend(more.outputs);
+    }
+    let effects: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Effect(Effect::Manufacture(c)) => Some(c.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        effects,
+        [
+            ManufactureChange::Acquired("metal".into()),
+            ManufactureChange::Recipe {
+                id: "sword".into(),
+                new: true
+            }
+        ]
+    );
+    let talk: Vec<_> = outputs
+        .iter()
+        .filter_map(|o| match o {
+            Output::Talk(t) => Some(texts(t)),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    // The condition reads the acquired skill; the level-up below 99 experience fails.
+    assert!(talk.contains(&t("talk", "LEARNT", "")), "{talk:?}");
+    assert!(
+        talk.iter()
+            .any(|e| e.0 == "Error" && e.1.ends_with("levelup_manufacture")),
+        "{talk:?}"
+    );
+    // Without manufacture contents the command is not migrated.
+    let mut session = Session::default();
+    let mut state2 = StoryState {
+        progress: state.progress.clone(),
+        ..Default::default()
+    };
+    let plain = Fiona { level: 1 };
+    let mut result = Talker::new(&s, &p, &plain, &mut state2, &mut pick, 0, &mut session).talk_to(
+        None,
+        "FERGHUS",
+        Some("Guide"),
+        None,
+    );
+    while result.is_ok() {
+        if session.last_server_command.is_none() {
+            break;
+        }
+        result = Talker::new(&s, &p, &plain, &mut state2, &mut pick, 0, &mut session)
+            .execute_server_command();
+    }
+    assert!(matches!(result, Err(TalkError::Unsupported(_))));
+}

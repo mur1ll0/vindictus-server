@@ -104,6 +104,9 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::RestoreItemList
                 | Kind::EnchantItem
                 | Kind::EnchantItemResult
+                | Kind::ManufactureInfo
+                | Kind::ManufactureCraft
+                | Kind::ManufactureLevelUp
                 | Kind::ItemFail
                 | Kind::MoveInventoryItem
                 | Kind::EquipBundle

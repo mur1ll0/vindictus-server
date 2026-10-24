@@ -817,7 +817,7 @@ pub(super) fn enhance_profile_for(
         .unwrap()
         .iter()
         .enumerate()
-        .map(|(i, e)| json!({"source_index":i,"item_utf16":e["item_utf16"],"feature":e["feature"],"enhance_type":key("BAG"),"enchantable":1}))
+        .map(|(i, e)| json!({"source_index":i,"item_utf16":e["item_utf16"],"feature":e["feature"],"enhance_type":key("BAG"),"enchantable":1,"quality_type":null}))
         .collect();
     let info = |i: usize, level: i32, effect: i32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"material1":key("stone"),"num1":1,"material2":null,"num2":0,"gold":100,"success_ratio":single(0.5),"on_fail":key("NoPenalty"),"on_fail_recipe_ratio":single(0.0),"on_fail_material_num1":0,"effect":effect,"feature":null});
     let stat = |i: usize, level: i32, stat: &str, kind: &str, value: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key(stat),"value_type":key(kind),"value":single(value),"base":key("MaxDurability")});
@@ -828,11 +828,11 @@ pub(super) fn enhance_profile_for(
         .enumerate()
         .map(|(i, c)| json!({"source_index":i,"item_utf16":c["item_utf16"],"feature":c["feature"],"max_anti_bind":2}))
         .collect();
-    let profile = json!({"format_version":3,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"equips":equips,
+    let profile = json!({"format_version":4,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"equips":equips,
         "enhance":[info(0,3,7),info(1,4,8),info(2,5,9)],
         // Every base stat of the fixture equipment is 0 except MaxDurability (200).
         "stats":[stat(0,3,"MaxDurability","Add",300.0),stat(1,3,"ATK","Add",50.0),stat(2,4,"DEF_Destroyed","Multiply",0.35)],
-        "server":[],"bonus":[],"instead":[],"classes":classes,"runes":[],"rune_extra":[],"recipes":[],"anti_bind":[],"enchant":[],"enchant_stats":[],"enchant_dice":[],"features":[]});
+        "server":[],"bonus":[],"instead":[],"classes":classes,"runes":[],"rune_extra":[],"recipes":[],"anti_bind":[],"enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"features":[]});
     vindictus_server::infrastructure::item_enhance::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
     )

@@ -104,6 +104,29 @@ pub trait Facts {
     ) -> Option<&std::collections::BTreeMap<String, crate::domain::skill_list::SkillContent>> {
         None
     }
+    /// ManufactureDataContainer when loaded (None: manufacture commands unsupported).
+    fn manufacture_contents(&self) -> Option<&crate::domain::manufacture::Contents> {
+        None
+    }
+    /// ManufactureManager state (EXP in load order and ManufactureRecipes).
+    fn manufacture_state(&self) -> crate::domain::manufacture::State {
+        crate::domain::manufacture::State::default()
+    }
+}
+
+/// ManufactureManager changes of the item-service story commands.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ManufactureChange {
+    /// AcquireManufactureSkill: grade 0, experience 0.
+    Acquired(String),
+    /// LevelUpManufacture: the new grade starting at its minimum experience.
+    LevelUp {
+        id: String,
+        grade: i32,
+        experience: i32,
+    },
+    /// AcquireManufactureRecipe (an already known recipe still saves and pushes).
+    Recipe { id: String, new: bool },
 }
 
 /// Server command effects decided during the query and applied afterwards in one
@@ -133,6 +156,8 @@ pub enum Effect {
     LearnNewSkillResult(i32),
     /// CharacterImpl.UnlockSkill(skillID, rank): unlocks a locked skill at rank-1.
     UnlockSkill { skill: String, rank: i32 },
+    /// ItemImpl.AcquireManufacture / LevelupManufacture / AcquireManufactureRecipe.
+    Manufacture(ManufactureChange),
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -256,6 +281,8 @@ pub struct Talker<'a> {
     pub session: &'a mut Session,
     pushed: Pushed,
     depth: usize,
+    /// ManufactureManager after the commands this query ran (None: unchanged Facts).
+    manufacture: Option<crate::domain::manufacture::State>,
 }
 
 const MAX_DEPTH: usize = 20_000;
@@ -280,6 +307,7 @@ impl<'a> Talker<'a> {
             session,
             pushed: Pushed::default(),
             depth: 0,
+            manufacture: None,
         }
     }
     fn add(&mut self, e: TalkEntity) {
@@ -1066,7 +1094,55 @@ impl<'a> Talker<'a> {
                 self.set_variable(key, value)?;
                 self.resume(k)
             }
+            "acquire_manufacture" | "levelup_manufacture" | "acquire_manufacture_recipe" => {
+                let id = arg1.unwrap_or("");
+                let contents = self
+                    .facts
+                    .manufacture_contents()
+                    .ok_or_else(|| TalkError::Unsupported(command.to_owned()))?;
+                let mut state = self
+                    .manufacture
+                    .take()
+                    .unwrap_or_else(|| self.facts.manufacture_state());
+                let change = match command {
+                    "acquire_manufacture" => state
+                        .acquire(contents, id)
+                        .then(|| ManufactureChange::Acquired(id.to_owned())),
+                    "levelup_manufacture" => {
+                        state
+                            .level_up(contents, id)
+                            .map(|grade| ManufactureChange::LevelUp {
+                                id: id.to_owned(),
+                                grade,
+                                experience: state.skill(id).map_or(0, |s| s.experience),
+                            })
+                    }
+                    _ => state
+                        .acquire_recipe(contents, id)
+                        .map(|new| ManufactureChange::Recipe {
+                            id: id.to_owned(),
+                            new,
+                        }),
+                };
+                self.manufacture = Some(state);
+                match change {
+                    Some(change) => {
+                        self.pushed
+                            .outputs
+                            .push(Output::Effect(Effect::Manufacture(change)));
+                        self.resume(k)
+                    }
+                    None => self.on_error(command),
+                }
+            }
             other => Err(TalkError::Unsupported(other.to_owned())),
+        }
+    }
+    /// QueryManufactureStatus: (grade, exp) of the current ManufactureManager.
+    fn manufacture_of(&self, id: &str) -> Option<(i32, i32)> {
+        match &self.manufacture {
+            Some(state) => state.skill(id).map(|s| (s.grade, s.experience)),
+            None => self.facts.manufacture(id),
         }
     }
     /// StoryEntity.SetStorySave(cmdID) for the querying NPC and storyline.
@@ -1374,20 +1450,14 @@ impl<'a> Talker<'a> {
                     .is_enabled(arg1)
                     .map_err(|_| TalkError::Unsupported("feature".into()))?,
             ),
-            "has_manufacture" => Some(self.facts.manufacture(arg1.unwrap_or("")).is_some()),
+            "has_manufacture" => Some(self.manufacture_of(arg1.unwrap_or("")).is_some()),
             "is_manufacture_level" => match number(arg2) {
                 None => None,
-                Some(l) => self
-                    .facts
-                    .manufacture(arg1.unwrap_or(""))
-                    .map(|(g, _)| g == l),
+                Some(l) => self.manufacture_of(arg1.unwrap_or("")).map(|(g, _)| g == l),
             },
             "is_manufacture_reachexp" => match number(arg2) {
                 None => None,
-                Some(e) => self
-                    .facts
-                    .manufacture(arg1.unwrap_or(""))
-                    .map(|(_, x)| x >= e),
+                Some(e) => self.manufacture_of(arg1.unwrap_or("")).map(|(_, x)| x >= e),
             },
             "token_min" => {
                 number(arg2).map(|v| self.state.variable(&line, arg1.unwrap_or("")) >= v)

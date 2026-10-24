@@ -28,6 +28,8 @@ COLUMNS = {
     'EnhanceServerInfo': (('EnhanceType', 'EnhanceLevel', 'Feature'), ('SuccessRatio',)),
     # The server content sets enchant success ratios to 100.
     'EnchantInfo': (('EnchantClass',), ('MinSuccessRatio', 'MaxSuccessRatio')),
+    # The server content opens every recipe at experience 0 and grade 0.
+    'ManufactureRecipeInfo': (('RecipeID',), ('ExperienceRequired', 'GradeRequired')),
 }
 
 _cache = {}

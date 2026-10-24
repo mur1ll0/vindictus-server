@@ -29,6 +29,7 @@ pub mod item_binding;
 pub mod item_catalog;
 pub mod item_class_ex;
 pub mod item_location;
+pub mod manufacture;
 pub mod mission;
 pub mod mission_goal;
 pub mod npc_script;

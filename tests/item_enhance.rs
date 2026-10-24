@@ -23,8 +23,8 @@ fn profile() -> Value {
     let a = key("synthetic");
     let b = key("other");
     let info = |i: usize, kind: &str, level: i32, gold: i32, feature: Option<&str>| json!({"source_index":i,"enhance_type":key(kind),"level":level,"material1":key("stone"),"num1":2,"material2":null,"num2":0,"gold":gold,"success_ratio":single(1.0),"on_fail":key("RankDown"),"on_fail_recipe_ratio":single(0.5),"on_fail_material_num1":3,"effect":1,"feature":feature});
-    json!({"format_version":3,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
-        "equips":[{"source_index":0,"item_utf16":a,"feature":"on","enhance_type":key("T1"),"enchantable":1},{"source_index":1,"item_utf16":a,"feature":"off","enhance_type":key("T2"),"enchantable":1},{"source_index":2,"item_utf16":a,"feature":"on","enhance_type":key("T3"),"enchantable":1},{"source_index":3,"item_utf16":b,"feature":null,"enhance_type":null,"enchantable":0}],
+    json!({"format_version":4,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+        "equips":[{"source_index":0,"item_utf16":a,"feature":"on","enhance_type":key("T1"),"enchantable":1,"quality_type":null},{"source_index":1,"item_utf16":a,"feature":"off","enhance_type":key("T2"),"enchantable":1,"quality_type":null},{"source_index":2,"item_utf16":a,"feature":"on","enhance_type":key("T3"),"enchantable":1,"quality_type":null},{"source_index":3,"item_utf16":b,"feature":null,"enhance_type":null,"enchantable":0,"quality_type":null}],
         "enhance":[info(0,"T3",1,100,Some("on")),info(1,"T3",1,200,Some("on")),info(2,"T3",2,300,Some("off")),info(3,"T3",4,400,None),info(4,"T1",1,1,None)],
         "stats":[{"source_index":0,"enhance_type":key("T3"),"level":1,"stat":key("ATK"),"value_type":key("Add"),"value":single(50.0),"base":key("ATK")},{"source_index":1,"enhance_type":key("T3"),"level":1,"stat":key("Weight"),"value_type":key("Multiply"),"value":single(-0.1),"base":key("Weight")}],
         "server":[{"source_index":0,"enhance_type":key("1"),"level":1,"success_ratio":single(1.0),"feature":"!off"},{"source_index":1,"enhance_type":key("1"),"level":1,"success_ratio":single(0.75),"feature":"on"},{"source_index":2,"enhance_type":key("2"),"level":2,"success_ratio":single(0.5),"feature":"off"}],
@@ -35,7 +35,7 @@ fn profile() -> Value {
         "rune_extra":[{"source_index":0,"relation":0,"success_ratio":format!("{:016x}",0.4f64.to_bits()),"use_item_success_ratio":false,"destroy_on_success":true,"reset_rank_on_fail":false,"force_rank_down_on_fail":0}],
         "recipes":[{"source_index":0,"recipe_utf16":key("r1"),"item_utf16":a,"num":1,"type":0,"feature":null},{"source_index":1,"recipe_utf16":key("r1"),"item_utf16":b,"num":4,"type":1,"feature":null},{"source_index":2,"recipe_utf16":key("r1"),"item_utf16":key("gold"),"num":900,"type":1,"feature":null},{"source_index":3,"recipe_utf16":key("r1"),"item_utf16":b,"num":2,"type":1,"feature":null},{"source_index":4,"recipe_utf16":key("r2"),"item_utf16":b,"num":1,"type":0,"feature":null},{"source_index":5,"recipe_utf16":key("r3"),"item_utf16":a,"num":2,"type":0,"feature":null}],
         "anti_bind":[{"source_index":0,"target":key("Base"),"from_value":null,"to_value":null,"count":2,"ap":0,"feature":null},{"source_index":1,"target":key("Enhance"),"from_value":key("9"),"to_value":key("15"),"count":0,"ap":500,"feature":"off"}],
-        "enchant":[],"enchant_stats":[],"enchant_dice":[],"features":[{"key":"on","value":"1.1"},{"key":"CraftPriceRatio","value":"1"}]})
+        "enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"features":[{"key":"on","value":"1.1"},{"key":"CraftPriceRatio","value":"1"}]})
 }
 fn read(
     v: &Value,
@@ -204,6 +204,56 @@ fn enhance_profiles_refuse_other_snapshots_and_unsound_rows() {
     unordered["enhance"][1]["source_index"] = json!(0);
     assert!(read(&unordered).is_err());
     let mut version = profile();
-    version["format_version"] = json!(2);
+    version["format_version"] = json!(3);
     assert!(read(&version).is_err());
+}
+
+#[test]
+fn manufacture_contents_follow_the_data_container() {
+    let mut p = profile();
+    let (a, b) = (key("synthetic"), key("other"));
+    p["manufacture"] = json!([{"source_index":0,"manufacture_utf16":key("cooking"),"grade":0,"min":0,"max":99},{"source_index":1,"manufacture_utf16":key("cooking"),"grade":1,"min":100,"max":199}]);
+    p["manufacture_recipes"] = json!([
+        {"source_index":0,"manufacture_utf16":key("cooking"),"recipe_utf16":key("stew"),"experience_required":50,"grade_required":0,"base_reward_exp":2,"recipe_item_utf16":null,"auto_give_quest":null,"always_listed":1,"feature":"on"},
+        {"source_index":1,"manufacture_utf16":key("cooking"),"recipe_utf16":key("stew"),"experience_required":9,"grade_required":9,"base_reward_exp":9,"recipe_item_utf16":null,"auto_give_quest":null,"always_listed":0,"feature":null}]);
+    p["manufacture_materials"] = json!([
+        {"source_index":0,"recipe_utf16":key("stew"),"item_utf16":a,"num":1,"type":0},
+        {"source_index":1,"recipe_utf16":key("stew"),"item_utf16":b,"num":2,"type":1},
+        {"source_index":2,"recipe_utf16":key("stew"),"item_utf16":b,"num":3,"type":2},
+        {"source_index":3,"recipe_utf16":key("stew"),"item_utf16":key("unknown"),"num":3,"type":1},
+        {"source_index":4,"recipe_utf16":key("stew"),"item_utf16":b,"num":3,"type":7},
+        {"source_index":5,"recipe_utf16":key("none"),"item_utf16":b,"num":3,"type":1}]);
+    p["manufacture_dependencies"] = json!([{"source_index":0,"manufacture_utf16":key("cooking_dc"),"required_utf16":key("cooking"),"required_experience":150}]);
+    p["quality_dice"] = json!([{"source_index":0,"item_type_utf16":key("WEAPON_LVL_1"),"quality":1,"dice":50},{"source_index":1,"item_type_utf16":key("WEAPON_LVL_1"),"quality":2,"dice":650}]);
+    for i in 0..3 {
+        p["equips"][i]["quality_type"] = json!(key("WEAPON_LVL_1"));
+    }
+    let contents = read(&p).unwrap().bind(&catalog()).unwrap();
+    let m = contents.manufacture();
+    // The first duplicated recipe stays; Target/Material/KeyMaterial rows of known classes.
+    let stew = m.recipe("stew").unwrap();
+    assert_eq!((stew.experience_required, stew.always_listed), (50, 1));
+    assert_eq!(stew.targets, [("synthetic".to_owned(), 1)]);
+    assert_eq!(stew.materials, [("other".to_owned(), 5)]);
+    assert_eq!(m.recipes_by_mid("cooking").unwrap().len(), 2);
+    assert_eq!(
+        (m.max_exp("cooking", 1), m.min_exp("cooking", 1)),
+        (199, 100)
+    );
+    assert_eq!(
+        (m.max_exp("cooking", 2), m.max_manufacture_exp("cooking")),
+        (-1, 199)
+    );
+    assert_eq!(contents.quality_dice("WEAPON_LVL_1"), [(1, 50), (2, 650)]);
+    assert_eq!(
+        contents.quality_type(&bytes("synthetic")),
+        Some("WEAPON_LVL_1")
+    );
+    // A repeated grade or dice quality refuses the load like Dictionary.Add.
+    let mut twice = p.clone();
+    twice["manufacture"][1]["grade"] = json!(0);
+    assert!(read(&twice).unwrap().bind(&catalog()).is_err());
+    let mut twice = p.clone();
+    twice["quality_dice"][1]["quality"] = json!(1);
+    assert!(read(&twice).unwrap().bind(&catalog()).is_err());
 }

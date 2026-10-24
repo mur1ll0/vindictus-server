@@ -421,6 +421,17 @@ fn npc_profile() -> vindictus_server::infrastructure::npc_scripts::Profile {
 fn npc_profile_taking(
     take: Option<&str>,
 ) -> vindictus_server::infrastructure::npc_scripts::Profile {
+    npc_profile_p3(take.map(|class| {
+        vec![
+            ("take_item", format!("{class},1")),
+            ("talk", "taken".to_owned()),
+        ]
+    }))
+}
+/// The test scripts with an optional phase "p3" running the given FERGHUS commands.
+fn npc_profile_p3(
+    p3: Option<Vec<(&str, String)>>,
+) -> vindictus_server::infrastructure::npc_scripts::Profile {
     let leaf = |name: &str, text: &str| json!([name, [], text, [], ""]);
     let default = json!([
         "DefaultPhase",
@@ -549,7 +560,8 @@ fn npc_profile_taking(
         ""
     ]);
     let mut story = story;
-    if let Some(class) = take {
+    if let Some(commands) = p3 {
+        let leaves: Vec<Value> = commands.iter().map(|(c, t)| leaf(c, t)).collect();
         story[3].as_array_mut().unwrap().push(json!([
             "Phase",
             [["id", "p3"]],
@@ -558,16 +570,7 @@ fn npc_profile_taking(
                 "Talk",
                 [["id", "FERGHUS"]],
                 "",
-                [[
-                    "Do",
-                    [],
-                    "",
-                    [
-                        leaf("take_item", &format!("{class},1")),
-                        leaf("talk", "taken")
-                    ],
-                    ""
-                ]],
+                [["Do", [], "", leaves, ""]],
                 ""
             ]],
             ""
@@ -3200,6 +3203,7 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
                 if section == "equips" {
                     row["enhance_type"] = json!(key("BAG"));
                     row["enchantable"] = json!(1);
+                    row["quality_type"] = Value::Null;
                 } else {
                     row["max_anti_bind"] = json!(2);
                 }
@@ -3211,7 +3215,7 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
     let stat = |i: usize, level: i32, v: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key("MaxDurability"),"value_type":key("Add"),"value":single(v),"base":key("MaxDurability")});
     let server = |i: usize, level: i32, ratio: f32| json!({"source_index":i,"enhance_type":key(&level.to_string()),"level":level,"success_ratio":single(ratio),"feature":null});
     let feature = |k: &str, v: &str| json!({"key":k,"value":v});
-    let profile = json!({"format_version":3,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":4,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":rows("equips"),"classes":rows("classes"),
         "enhance":[info(0,1,"NoPenalty",0),info(1,2,"RankDown",0),info(2,3,"Destroy",1)],
         "stats":[stat(0,1,100.0),stat(1,2,200.0),stat(2,3,300.0)],
@@ -3226,6 +3230,16 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
             {"source_index":1,"enchant_utf16":key("keen"),"order":2,"condition":key("level>=(99)"),"stat":key("DEF+3")},
             {"source_index":2,"enchant_utf16":key("doom"),"order":1,"condition":null,"stat":key("STR+1")}],
         "enchant_dice":[],
+        "manufacture":[
+            {"source_index":0,"manufacture_utf16":key("metal_weapon"),"grade":0,"min":0,"max":99},
+            {"source_index":1,"manufacture_utf16":key("metal_weapon"),"grade":1,"min":100,"max":199}],
+        "manufacture_recipes":[
+            {"source_index":0,"manufacture_utf16":key("metal_weapon"),"recipe_utf16":key("synthetic_bag_recipe"),"experience_required":50,"grade_required":0,"base_reward_exp":2,"recipe_item_utf16":null,"auto_give_quest":null,"always_listed":0,"feature":null},
+            {"source_index":1,"manufacture_utf16":key("metal_weapon"),"recipe_utf16":key("synthetic_bag_recipe2"),"experience_required":150,"grade_required":1,"base_reward_exp":2,"recipe_item_utf16":null,"auto_give_quest":null,"always_listed":0,"feature":null}],
+        "manufacture_materials":[
+            {"source_index":0,"recipe_utf16":key("synthetic_bag_recipe"),"item_utf16":key("synthetic_bag"),"num":1,"type":0},
+            {"source_index":1,"recipe_utf16":key("synthetic_bag_recipe"),"item_utf16":key("synthetic_gold"),"num":10,"type":1}],
+        "manufacture_dependencies":[],"quality_dice":[],
         "features":[feature("CraftPriceRatio","1"),feature("EnchantSuccessBonus","0"),feature("Enchant_DestructibleItems","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5")]});
     vindictus_server::infrastructure::item_enhance::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
@@ -3764,5 +3778,209 @@ async fn minimum_enchant_session_applies_a_prefix_and_destroys_into_restore() {
     .unwrap();
     assert_eq!(result(&packets).0, 3);
     assert!(session.is_none());
+    cleanup_game_pool(a, p, s).await;
+}
+
+/// Talks to FERGHUS in phase p3 and runs every server command it stops at.
+async fn talk_p3(
+    p: &sqlx::PgPool,
+    owner: &vindictus_server::infrastructure::character_lobby::UserKey<'_>,
+    assets: &Assets,
+) -> Vec<vindictus_server::domain::map_partition::OutgoingPacket> {
+    use vindictus_server::infrastructure::minimum_story;
+    sqlx::query("UPDATE game_story_progress SET phase_utf16=$1 WHERE cid=1")
+        .bind(utf16("p3"))
+        .execute(p)
+        .await
+        .unwrap();
+    let mut session = vindictus_server::domain::npc_talk::Session::default();
+    let ids = || {
+        (1..=32)
+            .map(|i| 930_000_000_000_000_000 + i)
+            .collect::<Vec<i64>>()
+    };
+    let mut packets = minimum_story::talk(
+        p,
+        owner,
+        assets,
+        1,
+        &mut session,
+        minimum_story::TalkRequest::TalkTo {
+            location: None,
+            npc: "FERGHUS",
+            story_line: Some("GuidePlay_1_SkillTrain"),
+            command: None,
+        },
+        ids(),
+        growth(),
+    )
+    .await
+    .unwrap();
+    while session.last_server_command.is_some() {
+        packets.extend(
+            minimum_story::talk(
+                p,
+                owner,
+                assets,
+                1,
+                &mut session,
+                minimum_story::TalkRequest::ExecuteServerCommand,
+                ids(),
+                growth(),
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    packets
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_story_manufacture_commands_persist_and_push_the_manager() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_story},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile_p3(Some(vec![
+            ("acquire_manufacture", "metal_weapon".to_owned()),
+            (
+                "acquire_manufacture_recipe",
+                "synthetic_bag_recipe".to_owned(),
+            ),
+            (
+                "acquire_manufacture_recipe",
+                "synthetic_bag_recipe".to_owned(),
+            ),
+            ("levelup_manufacture", "metal_weapon".to_owned()),
+            ("talk", "after".to_owned()),
+        ])))
+        .unwrap()
+        .with_enhance(processor_profile(&catalog))
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let selected = minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    // ItemServiceProxy.Open pushes the (empty) manager before the inventory.
+    let at = selected
+        .packets
+        .iter()
+        .position(|p| p.category == Kind::ManufactureInfo.category())
+        .unwrap();
+    assert_eq!(
+        selected.packets[at + 1].category,
+        Kind::InventoryInfo.category()
+    );
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    let packets = talk_p3(&p, &owner, &assets).await;
+    let shown: Vec<String> = packets
+        .iter()
+        .filter_map(|p| {
+            if p.category == Kind::ManufactureLevelUp.category() {
+                match inventory::decode(Kind::ManufactureLevelUp, &p.body, DEFAULT_MAX_BODY)
+                    .unwrap()
+                {
+                    Some(Message::ManufactureLevelUp(l)) => {
+                        Some(format!("levelup {} {}", l.mid.unwrap(), l.grade))
+                    }
+                    _ => None,
+                }
+            } else if p.category == Kind::ManufactureInfo.category() {
+                match inventory::decode(Kind::ManufactureInfo, &p.body, DEFAULT_MAX_BODY).unwrap() {
+                    Some(Message::ManufactureInfo(m)) => Some(format!(
+                        "info {:?} {:?} {:?}",
+                        m.exp.0.unwrap(),
+                        m.grade.0.unwrap(),
+                        m.recipes.unwrap()
+                    )),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+    // Acquire: LevelUp (grade 0) then the manager; each recipe call saves and pushes (the
+    // second finds it known); the level-up below 99 experience fails without a message.
+    let empty = "info [(\"metal_weapon\", 0)] [(\"metal_weapon\", 0)] []".to_owned();
+    let known =
+        "info [(\"metal_weapon\", 0)] [(\"metal_weapon\", 0)] [Some(\"synthetic_bag_recipe\")]"
+            .to_owned();
+    assert_eq!(
+        shown,
+        [
+            "levelup metal_weapon 0".to_owned(),
+            empty,
+            known.clone(),
+            known
+        ]
+    );
+    let grade = || async {
+        sqlx::query_as::<_, (i32, i32)>(
+            "SELECT grade,experience_point FROM game_manufacture WHERE cid=1",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    assert_eq!(grade().await, [(0, 0)]);
+    let recipes: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM game_manufacture_recipes WHERE cid=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(recipes, 1);
+    // At the grade's maximum the level-up moves to grade 1 at its minimum experience;
+    // acquire_manufacture now fails (already acquired).
+    sqlx::query("UPDATE game_manufacture SET experience_point=99 WHERE cid=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    let packets = talk_p3(&p, &owner, &assets).await;
+    assert!(
+        !packets
+            .iter()
+            .any(|p| p.category == Kind::ManufactureLevelUp.category())
+    );
+    // The failed acquire stops at its error entity; the level-up runs once it is first.
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile_p3(Some(vec![(
+            "levelup_manufacture",
+            "metal_weapon".to_owned(),
+        )])))
+        .unwrap()
+        .with_enhance(processor_profile(&catalog))
+        .unwrap();
+    let packets = talk_p3(&p, &owner, &assets).await;
+    assert_eq!(grade().await, [(1, 100)]);
+    assert_eq!(
+        packets
+            .iter()
+            .filter(|p| p.category == Kind::ManufactureLevelUp.category())
+            .count(),
+        1
+    );
     cleanup_game_pool(a, p, s).await;
 }

@@ -47,3 +47,12 @@ Pré-condição: uma peça de equipamento na bolsa (não vestida), um pergaminho
 - [ ] Cancelar → a janela fecha sem consumir nada.
 - [ ] Relogar → o encantamento e os bônus se mantêm.
 Limites conhecidos: peça vestida é recusada; encantamentos com validade e o `enchant_elixir_br` são recusados; numa missão aparece "não é possível no calabouço".
+
+### B3.1a — Aprender e subir o ofício (manufatura) com um NPC
+Pré-condição: personagem sem ofício; um NPC de ofício (NIEVE, BARAX, ARTHYEN, JARLATH ou CARYL, conforme a cidade) com as opções de aprender ofício e de subir grau.
+- [ ] Entrar no jogo → a janela de ofício abre sem erro (lista vazia).
+- [ ] No NPC, escolher aprender o ofício → o ofício aparece no grau 0 com 0 de experiência; o diálogo continua.
+- [ ] Escolher aprender de novo → o NPC responde com a falha do comando (já aprendido) e nada muda.
+- [ ] Escolher subir de grau sem a experiência máxima do grau → resposta de falha, o grau não muda.
+- [ ] Relogar → o ofício e as receitas aprendidas continuam na janela.
+Limites conhecidos: `remove_manufacture` e a entrega de receitas por quest (`AutoGiveQuest`) ainda não existem; fabricar é a B3.1b.

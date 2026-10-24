@@ -112,6 +112,11 @@ pub async fn select(
             super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await?,
         )?);
     }
+    // ItemServiceProxy.Open: QueryManufactureInfo before the item observer syncs (sent
+    // when the manufacture contents are loaded).
+    if assets.enhance.is_some() {
+        packets.push(super::minimum_manufacture::query(&mut tx, cid).await?);
+    }
     packets
         .push(super::minimum_inventory::load(&mut tx, owner, assets, cid, Some(equipment)).await?);
     sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=EXCLUDED.last_login_cid").bind(owner.uid).bind(cid).execute(&mut *tx).await?;

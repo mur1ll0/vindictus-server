@@ -106,6 +106,7 @@ pub mod equipment_profile;
 pub mod minimum_enchant;
 pub mod minimum_enhance;
 pub mod minimum_equipment;
+pub mod minimum_manufacture;
 
 pub mod minimum_ap;
 pub mod minimum_costume;

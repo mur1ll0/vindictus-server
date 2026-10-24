@@ -53,7 +53,7 @@ Levantadas na auditoria de 22/10/2026 a partir do código e dos limites de cada 
 - **Combate:** o anti-trapaça de dano (MDRSystem) só marca rankings, que não existem. Caixas alquímicas na barra continuam recusadas.
 - **Conclusão e recompensas:** recompensas de troca de item (ex.: `slayer_stamp_limit>slayer_stamp`); rankings (CharacterRank); bônus de status, cafe, guilda, moedas e pedras de bênção; AddMicroPlayTime e contagem diária de quests grátis; OnEnterPhase das histórias após a quest. Um objetivo de quest (do sapo) usa uma regex que o motor não compila e nunca conclui.
 - **Progressão:** AddGrowthLog, efeitos de guilda e títulos de rank. Destruir item equipado por história (`take_item` de peça vestida) continua recusado até o desequipar pelo ItemService.
-- **Histórias:** ainda param o diálogo, sem gravar nada, a fabricação (`levelup_manufacture`, `acquire_manufacture`; B3.1), a vocação (`select_vocation`), recompensas `enchant_scroll[...]` com atributo (B3) e `complete_episode`/`give_title_by_episode`.
+- **Histórias:** ainda param o diálogo, sem gravar nada, a vocação (`select_vocation`), recompensas `enchant_scroll[...]` com atributo (B3) e `complete_episode`/`give_title_by_episode`.
 - **Robustez:** envio por correio dos itens reservados de quem sai da missão.
 - **Feitos depois da auditoria (22–23/10):** títulos adquiridos (status concluído, bônus de atributo, TitleListMessage na entrada, títulos por ação de combate), recompensa de título e de skill de história, props nomeados (`NamedPropDropTable`), itens com validade e valores originais de conteúdo (`docs/content-tuning.md`).
 - **Gate:** o smoke Docker não completou no fechamento (carga externa); repetido na auditoria de 22/10 com exit 0, o que completa o gate do B2.
