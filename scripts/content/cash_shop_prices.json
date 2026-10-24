@@ -1,0 +1,21 @@
+{
+  "_comment": "Laboratory cash shop prices by ItemClassInfo.Category (operator decision 2026-10-24: the original prices lived in the Nexon NISMS billing server). Categories not listed use default.",
+  "default": 500,
+  "categories": {
+    "AVATAR_PACKAGE": 4900,
+    "PACKAGE": 2900,
+    "AVATAR_TUNIC": 1500,
+    "AVATAR_PANTS": 1200,
+    "AVATAR_HELM": 1200,
+    "AVATAR_GLOVES": 900,
+    "AVATAR_BOOTS": 900,
+    "INNERARMOR": 1500,
+    "HAIR": 800,
+    "EYEBROW": 400,
+    "FACEPAINTING": 600,
+    "NECKLACE": 2500,
+    "RAREITEM": 3000,
+    "CASHITEM": 300,
+    "GARBAGE": 100
+  }
+}

@@ -554,6 +554,21 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 ),
             }
         }
+        Command::LabGiveCash { cid, amount } => {
+            use vindictus_server::infrastructure::minimum_cash_shop;
+            postgres::check_ready(&pool).await?;
+            let balance = minimum_cash_shop::lab_credit(&pool, cid, amount)
+                .await
+                .map_err(|_| {
+                    Error::Configuration(
+                        "credit refused: one initialized first Fiona and a positive amount".into(),
+                    )
+                })?;
+            println!(
+                "{}",
+                serde_json::json!({"credited":amount,"balance":balance,"client_visible_after":"opening the cash shop"})
+            );
+        }
         Command::CreateAccount { .. } => {
             let (username, password) = credentials.ok_or(Error::PasswordInput)?;
             let id =

@@ -48,6 +48,8 @@ struct Files {
     enhance: Option<PathBuf>,
     #[serde(default)]
     random_item: Option<PathBuf>,
+    #[serde(default)]
+    cash_shop: Option<PathBuf>,
 }
 pub struct Assets {
     pub(super) equipment: Option<super::equipment_profile::Profile>,
@@ -72,6 +74,8 @@ pub struct Assets {
     pub(super) random_item: Option<super::random_item::Contents>,
     /// RandomItemManager's static Random.
     pub(super) random_item_random: Mutex<ColorRandom>,
+    /// Laboratory cash shop catalog bound to `catalog`.
+    pub(super) cash_shop: Option<super::cash_shop::Contents>,
     /// Framework arithmetic of item stats (the runtime's identity profile); `None`
     /// evaluates both measured profiles and refuses a disagreement.
     pub(super) item_arithmetic: Option<crate::domain::character_stats::Arithmetic>,
@@ -245,6 +249,9 @@ impl Assets {
         if let Some(path) = f.random_item {
             assets = assets.with_random_item(super::random_item::Profile::read(open(&path)?)?)?;
         }
+        if let Some(path) = f.cash_shop {
+            assets = assets.with_cash_shop(super::cash_shop::Profile::read(open(&path)?)?)?;
+        }
         Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
@@ -267,6 +274,7 @@ impl Assets {
             enhance: None,
             random_item: None,
             random_item_random: Mutex::new(ColorRandom::from_seed(time_seed())),
+            cash_shop: None,
             item_arithmetic: None,
             enhance_random: Mutex::new(enhance_random(time_seed())),
             enchant_random: Mutex::new(enchant_random(time_seed())),
@@ -385,6 +393,13 @@ impl Assets {
         profile: super::random_item::Profile,
     ) -> Result<Self, MinimumError> {
         self.random_item = Some(profile.bind(&self.catalog)?);
+        Ok(self)
+    }
+    pub fn with_cash_shop(
+        mut self,
+        profile: super::cash_shop::Profile,
+    ) -> Result<Self, MinimumError> {
+        self.cash_shop = Some(profile.bind(&self.catalog)?);
         Ok(self)
     }
     pub fn with_skills(

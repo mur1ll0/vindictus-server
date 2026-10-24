@@ -58,6 +58,15 @@ pub enum Command {
         #[arg(long, default_value_t = 65534)]
         service_id: i32,
     },
+    /// Laboratory cash credit for the account of an initialized first Fiona (the NISMS
+    /// charge the cash shop reads). Not a game command.
+    LabGiveCash {
+        /// Omit to use the only initialized first Fiona.
+        #[arg(long)]
+        cid: Option<i64>,
+        #[arg(long)]
+        amount: i32,
+    },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
     /// Read-only reward diagnostic. Reads private policy from stdin and prints counts/digest only.

@@ -1860,6 +1860,14 @@ impl Connection {
                 Kind::SetStoryLineStatus,
                 Kind::BuyItem,
                 Kind::RequestCraft,
+                Kind::QueryCashShopProductList,
+                Kind::QueryCashShopBalance,
+                Kind::QueryCashShopInventory,
+                Kind::QueryCashShopItemPickUp,
+                Kind::QueryCashShopPurchaseItem,
+                Kind::WishListSelect,
+                Kind::WishListInsert,
+                Kind::WishListDelete,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
@@ -2256,6 +2264,123 @@ impl Connection {
                             }
                             Err(_) => {
                                 tracing::warn!("minimum shop purchase refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::QueryCashShopProductList => {
+                        match super::minimum_cash_shop::product_list(assets) {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum cash shop catalog sent; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum cash shop catalog refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::QueryCashShopBalance => {
+                        match super::minimum_cash_shop::balance(pool, &owner).await {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum cash shop balance refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::QueryCashShopInventory => {
+                        match super::minimum_cash_shop::inventory(pool, &owner, cid).await {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?
+                            }
+                            Err(_) => tracing::warn!(
+                                "minimum cash shop inventory refused; values omitted"
+                            ),
+                        }
+                    }
+                    Message::QueryCashShopPurchaseItem(request) => {
+                        match super::minimum_cash_shop::purchase(
+                            pool, &owner, assets, cid, &request,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(), "minimum cash shop purchase processed; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum cash shop purchase refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::QueryCashShopItemPickUp(request) => {
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(super::minimum_cash_shop::entity_ids_needed(&request))
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        match super::minimum_cash_shop::pick_up(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            &request,
+                            ids,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(), "minimum cash shop pick-up processed; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum cash shop pick-up refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::WishListSelect(request_cid) => {
+                        match super::minimum_cash_shop::wish_list(pool, &owner, cid, request_cid)
+                            .await
+                        {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?
+                            }
+                            Err(_) => tracing::warn!("minimum wish list refused; values omitted"),
+                        }
+                    }
+                    Message::WishListInsert(request) => {
+                        match super::minimum_cash_shop::wish_insert(
+                            pool, &owner, assets, cid, &request,
+                        )
+                        .await
+                        {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum wish list insert refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::WishListDelete(request) => {
+                        match super::minimum_cash_shop::wish_delete(pool, &owner, cid, &request)
+                            .await
+                        {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum wish list delete refused; values omitted")
                             }
                         }
                     }
@@ -3262,7 +3387,7 @@ pub async fn connection(
   let b=uuid::Uuid::new_v4().into_bytes();let salt=u32::from_be_bytes([b[0],b[1],b[2],b[3]])&0x7fffffff;
   // The pinned original config sets NGM_Disable=1; the bootstrap sync contains only that override.
   let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")}])};
-  let (mut sender,packets)=encode_initial_packets(salt,Some(&features),DEFAULT_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
+  let (mut sender,packets)=encode_initial_packets(salt,Some(&features),super::minimum_cash_shop::CATALOG_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);
   loop {

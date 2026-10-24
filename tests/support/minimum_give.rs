@@ -5332,3 +5332,203 @@ async fn minimum_craft_turns_shop_recipe_materials_into_targets() {
     assert_eq!(total("synthetic_cash").await, cash - 2);
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            cash_shop, character_lobby::QueryConfig, minimum_cash_shop, minimum_item_logs,
+            minimum_selection,
+        },
+        protocol::inventory::{CashShopPickUp, CashShopPurchase, WishListChange},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    // synthetic_cash (row 1) is the only cash-tab class of the fixture catalog.
+    let profile = json!({"format_version":1,"source":"heroesContents.cash-shop","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+        "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[{"category":"CASHITEM","price":300}]});
+    let assets = assets_with(0, 1, 0)
+        .with_cash_shop(
+            cash_shop::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
+        )
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64);
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let decode = |packet: &vindictus_server::domain::map_partition::OutgoingPacket, kind: Kind| {
+        inventory::decode(kind, &packet.body, minimum_cash_shop::CATALOG_MAX_BODY)
+            .unwrap()
+            .unwrap()
+    };
+    // QueryProductList: the root and one category, one product.
+    let list = minimum_cash_shop::product_list(&assets).unwrap();
+    let Message::CashShopCategoryList(Some(categories)) =
+        decode(&list[0], Kind::CashShopCategoryList)
+    else {
+        panic!("categories")
+    };
+    assert_eq!(
+        categories
+            .iter()
+            .flatten()
+            .map(|c| (c.category_no, c.parent_category_no))
+            .collect::<Vec<_>>(),
+        [(105, 0), (1000, 105)]
+    );
+    let Message::CashShopProductList(Some(products)) = decode(&list[1], Kind::CashShopProductList)
+    else {
+        panic!("products")
+    };
+    let product = products[0].clone().unwrap();
+    assert_eq!(
+        (
+            product.product_no,
+            product.product_id.as_deref(),
+            product.sale_price,
+            product.category_no
+        ),
+        (2, Some("synthetic_cash"), 300, 1000)
+    );
+    let balance = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        let Message::CashShopBalance(b) = decode(packet, Kind::CashShopBalance) else {
+            panic!("balance")
+        };
+        b.balance
+    };
+    assert_eq!(
+        balance(&minimum_cash_shop::balance(&p, &owner).await.unwrap()),
+        0
+    );
+    assert_eq!(
+        minimum_cash_shop::lab_credit(&p, None, 1000).await.unwrap(),
+        1000
+    );
+    let buy = |quantity: i16| CashShopPurchase {
+        product_no: 2,
+        quantity,
+        attribute0: None,
+        attribute1: None,
+        attribute2: None,
+        attribute3: None,
+        attribute4: None,
+        is_for_common_inven: false,
+    };
+    // 3 × 300 > 1000 − 2 × 300: NotEnoughCash (12040) and nothing ordered.
+    let bought = minimum_cash_shop::purchase(&p, &owner, &assets, 1, &buy(2))
+        .await
+        .unwrap();
+    assert_eq!(balance(&bought[0]), 400);
+    let refused = minimum_cash_shop::purchase(&p, &owner, &assets, 1, &buy(3))
+        .await
+        .unwrap();
+    assert!(matches!(
+        decode(&refused[0], Kind::CashShopFail),
+        Message::CashShopFail(12040)
+    ));
+    let Message::CashShopInventory(Some(orders)) = decode(
+        &minimum_cash_shop::inventory(&p, &owner, 1).await.unwrap(),
+        Kind::CashShopInventory,
+    ) else {
+        panic!("inventory")
+    };
+    let order = orders[0].clone().unwrap();
+    assert_eq!(
+        (orders.len(), order.remain_quantity, order.count),
+        (1, 2, 1)
+    );
+    let count = || async {
+        sqlx::query_scalar::<_, i64>("SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+            .bind(utf16("synthetic_cash"))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+    };
+    let before = count().await;
+    let picked = minimum_cash_shop::pick_up(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &CashShopPickUp {
+            order_no: order.order_no,
+            product_no: 2,
+            quantity: 1,
+        },
+        vec![951],
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        picked.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [
+            Kind::UpdateInventoryInfo.category(),
+            Kind::CashShopInventory.category()
+        ]
+    );
+    assert_eq!(count().await, before + 1);
+    let Message::CashShopInventory(Some(orders)) = decode(&picked[1], Kind::CashShopInventory)
+    else {
+        panic!("inventory")
+    };
+    assert_eq!(orders[0].clone().unwrap().remain_quantity, 1);
+    // The wish list: an unknown product stops with NOITEM; select lists the inserted one.
+    let change = |products: Vec<i32>| WishListChange {
+        cid: 1,
+        products: Some(products),
+    };
+    let insert = minimum_cash_shop::wish_insert(&p, &owner, &assets, 1, &change(vec![2, 99]))
+        .await
+        .unwrap();
+    assert!(matches!(
+        decode(&insert, Kind::WishListInsertResponse),
+        Message::WishListInsertResponse(vindictus_server::protocol::inventory::WishListResponse {
+            result: 2,
+            cid: 1
+        })
+    ));
+    let Message::WishListSelectResponse(list) = decode(
+        &minimum_cash_shop::wish_list(&p, &owner, 1, 1)
+            .await
+            .unwrap(),
+        Kind::WishListSelectResponse,
+    ) else {
+        panic!("wish list")
+    };
+    assert_eq!(
+        (list.result, list.product_info.map(|l| l.len())),
+        (1, Some(1))
+    );
+    minimum_cash_shop::wish_delete(&p, &owner, 1, &change(vec![2]))
+        .await
+        .unwrap();
+    let Message::WishListSelectResponse(list) = decode(
+        &minimum_cash_shop::wish_list(&p, &owner, 1, 1)
+            .await
+            .unwrap(),
+        Kind::WishListSelectResponse,
+    ) else {
+        panic!("wish list")
+    };
+    assert_eq!(list.result, 2);
+    cleanup_game_pool(a, p, s).await;
+}

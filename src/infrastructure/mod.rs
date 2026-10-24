@@ -25,6 +25,7 @@ pub mod user_login;
 
 pub mod second_password;
 
+pub mod cash_shop;
 pub mod character_lobby;
 
 pub mod lobby_export;
@@ -96,6 +97,7 @@ pub mod mail_reference;
 
 pub mod channel_server;
 pub mod minimum_assets;
+pub mod minimum_cash_shop;
 pub mod minimum_character;
 pub mod minimum_character_list;
 pub mod minimum_selection;

@@ -1247,3 +1247,12 @@ CS1 — protocolo do cash shop (24/10/2026).
 - Testes: `item_sync_wire`, `inventory_wire`; clippy `-D warnings`. Cliente: não necessário nesta etapa.
 - Próxima ação: CS2 — catálogo exportado (categorias com raiz 105, produtos da aba cash, preço por categoria).
 
+CS2 — catálogo, saldo, depósito, compra, retirada e lista de desejos do cash shop (24/10/2026).
+- Conteúdo: `scripts/content/export_cash_shop.py` → `.cache/private-content/cash-shop.json` (formato 1: `ItemClassInfo.Category` alinhada ao catálogo, raiz 105 e a tabela de preços versionada `scripts/content/cash_shop_prices.json`); `infrastructure::cash_shop` monta os produtos das classes efetivas com `Storage = 2` (ProductNo = linha do catálogo + 1, uma categoria por `Category` sob 105, `PaymentType` 13001, `ProductStatus.OnSale`, sem validade, 1 peça); assets `cash_shop` (Docker e nativo).
+- Banco: `migrations/0039_cash_shop.sql` — `game_cash_balances` (saldo por conta), `game_cash_orders` (pedidos do depósito por personagem, com atributos de compra) e `game_cash_wishlist` (`dbo.WishList`: PK CID/ProductNo; `WishListInsert` recusa a partir de 30, lido no SQL Server restaurado).
+- Serviço: `minimum_cash_shop` — `product_list` (`CashShopCategoryList` + `CashShopProductList`, limite de saída do frontend 4 MiB), `balance`, `inventory` (64 pedidos abertos), `purchase` (débito atômico, `NotEnoughCash` 12040, depois `CashShopBalance`), `pick_up` (`ToGiveItem`: ItemClassEx do atributo 3, cores dos atributos 0–2, `GiveItem` OperationFail sem resposta na falha; depois o depósito), lista de desejos (`NOITEM`, `OVERCOUNT`, ProductNo 0 ignorado), `lab_credit`; `lab_frontend` com as oito mensagens; CLI `lab-give-cash` e `scripts/dev/lab-give-cash.ps1`.
+- Testes: Python `test_export_cash_shop` (2); PostgreSQL `minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up` e filtros de migração e réplica (`migrat`, `captcha login_reward account_effect character_import characters`: 35); clippy `-D warnings`.
+- Diferenças: presentes, reembolso, inventário compartilhado (`IsForCommonInven`), compra direta em missão, moedas Tir, milhagem, validade de produto e pacotes (`SubProduct`/`BonusProduct`) não migrados; o `QueryTirBalance` que acompanha o saldo não responde.
+- Cliente: entrada CS2 em `docs/client-tests/B3-equipamento.md`.
+- Próxima ação: recompilar o Docker, creditar 1.000.000 e o operador testar o cash shop no cliente.
+

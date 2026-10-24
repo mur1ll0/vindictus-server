@@ -165,3 +165,12 @@ Pré-condição: uma arma equipada num nível de Enhance em que a falha destrói
 - [ ] Falha com destruição → a arma sai do personagem (slot vazio, visual e atributos atualizados) e, quando restaurável, aparece na lista de restauração.
 - [ ] Relogar → o slot continua vazio e a arma continua na restauração.
 
+### CS2 — Cash shop (catálogo de laboratório)
+Pré-condição: `pwsh scripts/dev/lab-give-cash.ps1` creditou cash na conta (padrão 1.000.000); servidor com `cash-shop.json`.
+- [ ] Abrir o cash shop → aparecem as categorias (uma por tipo de item: avatares, cabelos, pacotes, itens de cash…) e os produtos com preço; o saldo mostra o cash creditado.
+- [ ] Comprar um produto → o saldo diminui pelo preço × quantidade; com saldo insuficiente aparece a mensagem de cash insuficiente.
+- [ ] Abrir o depósito (Depot) do cash shop → a compra aparece; retirar → o item vai para a aba cash do inventário e sai do depósito.
+- [ ] Favoritar e desfavoritar um produto → a lista de desejos acompanha (até 30).
+- [ ] Relogar → saldo, depósito e itens retirados continuam.
+Limites conhecidos: presentes, reembolso, inventário compartilhado, moedas Tir, milhagem e produtos com validade não funcionam; os preços são da tabela de laboratório.
+
