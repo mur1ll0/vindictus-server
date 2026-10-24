@@ -21,7 +21,8 @@ target/
 .DS_Store
 Thumbs.db
 # Original game/server assets, backups, captures and private exports
-Client/
+# Anchored: an unanchored "Client/" also matched scripts/client on case-insensitive Windows.
+/Client/
 Vindictus1.69EN/
 ServidorVindictus/
 Tools/
@@ -66,3 +67,8 @@ data/
 *.tar.gz
 *.tgz
 *.backup
+# Vendored third-party disassembler used by local client inspection.
+scripts/client/.deps/
+# Client evidence (endpoint disassembly, inventories) was hidden by the old unanchored
+# pattern; it stays local until reviewed for proprietary content.
+docs/evidence/client/

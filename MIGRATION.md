@@ -1020,3 +1020,8 @@ Valores de jogo originais no lugar do conteúdo modificado (23/10/2026, decisão
 - Cliente: refazer uma fase e conferir os drops (1 a 2 monstros com item); na janela de títulos, Pop Goes the Spider em 0/50 para outro personagem ou para títulos ainda não ganhos (o Murael já ganhou alguns com a contagem 1).
 - Próxima ação: confirmar no cliente.
 - Observação: `scripts/client/` (com `prepare_lab_client.py` e o novo `apply_original_content.py`) fica fora do git porque o padrão `Client/` do `.gitignore`, que protege a pasta original do cliente, também casa com esse diretório no Windows. Versionar exige ancorar o padrão (`/Client/`); fica para decisão do operador.
+
+Versionamento de scripts/client (23/10/2026, decisão do operador).
+- `.gitignore`: `Client/` virou `/Client/`. Sem âncora, o padrão também casava com `scripts/client` (o Windows não diferencia maiúsculas) e escondia os scripts de cliente. Versionados: `prepare_lab_client.py`, `test_prepare_lab_client.py` (7 testes aprovados, os mesmos que o `verify.ps1` roda como `client-python`), `apply_original_content.py`, `inventory_client.py` e `inspect_endpoint.py`, revisados sem credenciais.
+- Mantidos locais e agora ignorados explicitamente: `scripts/client/.deps/` (Capstone embutido, 9,6 MB de terceiros) e `docs/evidence/client/`, que o padrão antigo também escondia e que inclui desassembly do `engine.dll` proprietário (`engine-endpoint.asm.txt`); fica fora até uma revisão de conteúdo proprietário.
+
