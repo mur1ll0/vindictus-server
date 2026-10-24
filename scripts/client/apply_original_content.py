@@ -64,6 +64,10 @@ def plan(copy_db: Path) -> dict:
                 seen.add(key)
                 for c in columns:
                     new = original.get(key, {}).get(c, r[c])
+                    # A text number in the original ('.33') is stored by the copy's REAL
+                    # column as a real; compare the value SQLite would keep.
+                    if isinstance(new, str) and isinstance(r[c], float):
+                        new = db.execute('SELECT CAST(? AS REAL)', (new,)).fetchone()[0]
                     if new != r[c]:
                         rows.append((r['rid'], c, r[c], new))
             changes[table] = rows

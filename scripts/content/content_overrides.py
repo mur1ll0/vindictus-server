@@ -23,6 +23,9 @@ COLUMNS = {
     'StoryLineInfo': (('StoryLineID',), ('RewardExp',)),
     'TitleGoalInfo': (('ID',), ('TargetCount',)),
     'ItemClassInfo': (('ItemClass', 'Feature'), ('MaxStack', 'RequiredLevel', 'ExpireIn')),
+    # The server content sets every enhance success ratio to 1.0.
+    'EnhanceInfo': (('EnhanceType', 'EnhanceLevel', 'Feature'), ('SuccessRatio',)),
+    'EnhanceServerInfo': (('EnhanceType', 'EnhanceLevel', 'Feature'), ('SuccessRatio',)),
 }
 
 _cache = {}

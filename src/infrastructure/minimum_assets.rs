@@ -44,6 +44,8 @@ struct Files {
     skills: Option<PathBuf>,
     economy: Option<PathBuf>,
     npc_scripts: Option<PathBuf>,
+    #[serde(default)]
+    enhance: Option<PathBuf>,
 }
 pub struct Assets {
     pub(super) equipment: Option<super::equipment_profile::Profile>,
@@ -62,6 +64,8 @@ pub struct Assets {
     pub(super) economy: Option<super::item_economy::Profile>,
     /// NpcTalkInfo defaults and storylines bound to `catalog`.
     pub(super) npc: Option<super::npc_scripts::Profile>,
+    /// Enhance dictionaries and EnhanceType bound to `catalog`.
+    pub(super) enhance: Option<super::item_enhance::Contents>,
     /// shopInfoDic with PriceCalc prices for the configured arithmetic profile.
     pub(super) shops: Option<crate::domain::shop::Shops>,
     /// GetEquipItemInfo().EquipClass of each effective equipment class.
@@ -199,6 +203,9 @@ impl Assets {
         if let Some(path) = f.npc_scripts {
             assets = assets.with_npc_scripts(super::npc_scripts::Profile::read(open(&path)?)?)?;
         }
+        if let Some(path) = f.enhance {
+            assets = assets.with_enhance(super::item_enhance::Profile::read(open(&path)?)?)?;
+        }
         Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
@@ -218,6 +225,7 @@ impl Assets {
             color_index: item_colors::ColorIndex::default(),
             economy: None,
             npc: None,
+            enhance: None,
             shops: None,
             equip_class: Default::default(),
             initializer: parts.initializer,
@@ -297,6 +305,13 @@ impl Assets {
     ) -> Result<Self, MinimumError> {
         profile.bind(&self.catalog)?;
         self.economy = Some(profile);
+        Ok(self)
+    }
+    pub fn with_enhance(
+        mut self,
+        profile: super::item_enhance::Profile,
+    ) -> Result<Self, MinimumError> {
+        self.enhance = Some(profile.bind(&self.catalog)?);
         Ok(self)
     }
     pub fn with_skills(

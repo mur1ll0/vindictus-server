@@ -1,0 +1,107 @@
+// Own synthetic boundary harness. Original ItemStat and Enhance are inserted only under
+// ignored .cache; ItemContents, Item and the gear are minimal shims fed by synthetic rows.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web.Script.Serialization;
+public class CharacterStats { public CharacterStats(Dictionary<string,int> d) {} }
+public static class UtilityExtensions { __UTILITY__ }
+__STAT__
+public enum UpdateItemStatEvent { EnhanceOtherChanged, Other }
+public class Log<T> {
+ public static readonly Log<T> Logger = new Log<T>();
+ public void ErrorFormat(string format, params object[] args) { Oracle.Logged++; }
+}
+public class EnhanceInfo { public string EnhanceType; public int EnhanceLevel; public int Effect; }
+public class EnhanceStatInfo { public string Stat; public string ValueType; public float Value; public string Base; }
+public class ItemClassInfo { public ItemStat Base; public ItemStat GetStat() { return Base; } }
+public class Gear { public int Other; public int GetEnhanceOtherValue(byte? part) { return part.HasValue ? Other : 0; } }
+public class ItemOwner { public Gear Gear = new Gear(); }
+public class Item {
+ public string ItemClass = "synthetic";
+ public ItemClassInfo ItemClassInfo;
+ public ItemOwner Parent = new ItemOwner();
+ public byte? EquippedPart;
+ public bool IsCombinedItem { get { return false; } }
+ public IEnumerable<Dictionary<string,int>> PartsStats { get { return new Dictionary<string,int>[0]; } }
+}
+public static class ItemContents {
+ public static Dictionary<int, EnhanceInfo> Infos = new Dictionary<int, EnhanceInfo>();
+ public static Dictionary<int, List<EnhanceStatInfo>> Stats = new Dictionary<int, List<EnhanceStatInfo>>();
+ public static EnhanceInfo GetEnhanceInfo(Item item, int level) { EnhanceInfo v; return Infos.TryGetValue(level, out v) ? v : null; }
+ public static object GetCombineCraftInfo(string itemClass) { return null; }
+}
+public static class EnhanceInfoExtension {
+ public static List<EnhanceStatInfo> GetEnhanceStatInfo(this EnhanceInfo info) { List<EnhanceStatInfo> v; return ItemContents.Stats.TryGetValue(info.EnhanceLevel, out v) ? v : null; }
+}
+public interface IAttributeEntity { ItemStat Stat { get; } bool TryLoad(string value, int arg, int arg2); bool UpdateBonusStat(UpdateItemStatEvent? eventEnum); }
+__ENHANCE__
+public class Row { public string stat; public string value_type; public uint value_bits; public string @base; }
+public static class Oracle {
+ public static int Logged;
+ static int[] Key(string s) { return s.Select(c => (int)c).ToArray(); }
+ static float Single(uint bits) { return BitConverter.ToSingle(BitConverter.GetBytes(bits), 0); }
+ static uint Bits(float v) { return BitConverter.ToUInt32(BitConverter.GetBytes(v), 0); }
+ static ItemStat Base(int atk, int matk, int def, int durability, int weight) {
+  var s = new ItemStat();
+  s.CharacterStats.Add("ATK", atk); s.CharacterStats.Add("MATK", matk); s.CharacterStats.Add("DEF", def);
+  s.MaxDurability = durability; s.Weight = weight; return s;
+ }
+ static object Snapshot(ItemStat s) {
+  return new { character = s.CharacterStats.Select(p => new object[] { Key(p.Key), p.Value }).ToArray(), fields = new[] { s.MaxDurability, s.Weight, s.DEF_Destroyed, s.ArmorHP } };
+ }
+ static object Run(int[] stats, string level, Row[] rows, bool missing, int other, byte? part) {
+  ItemContents.Infos.Clear(); ItemContents.Stats.Clear(); Logged = 0;
+  if (!missing) {
+   ItemContents.Infos[3] = new EnhanceInfo { EnhanceType = "T", EnhanceLevel = 3 };
+   ItemContents.Infos[5] = new EnhanceInfo { EnhanceType = "T", EnhanceLevel = 5 };
+   if (rows != null) ItemContents.Stats[3] = rows.Select(r => new EnhanceStatInfo { Stat = r.stat, ValueType = r.value_type, Value = Single(r.value_bits), Base = r.@base }).ToList();
+   ItemContents.Stats[5] = new List<EnhanceStatInfo> { new EnhanceStatInfo { Stat = "ATK", ValueType = "Add", Value = 7f, Base = "ATK" } };
+  }
+  var item = new Item { ItemClassInfo = new ItemClassInfo { Base = Base(stats[0], stats[1], stats[2], stats[3], stats[4]) }, EquippedPart = part };
+  item.Parent.Gear.Other = other;
+  var e = new Enhance(item, "ENHANCE");
+  try {
+   bool changed = e.TryLoad(level, 0, 0);
+   return new { changed = changed, level = e.Level, stat = Snapshot(e.Stat), logged = Logged, error = (string)null };
+  } catch (Exception ex) { return new { changed = false, level = e.Level, stat = Snapshot(e.Stat), logged = Logged, error = ex.GetType().Name }; }
+ }
+ public static void Main() {
+  var cases = new List<object>();
+  var bases = new[] { new[] { 0, 0, 0, 0, 0 }, new[] { 120, 0, 35, 3000, 4500 }, new[] { 0, 90, 0, 2500, 0 }, new[] { 1, 1, 1, 1, 1 }, new[] { 4100, 4100, 585, 6600, 21000 }, new[] { -5, 0, -1, -100, -2000 } };
+  var rowSets = new Row[][] {
+   new Row[0],
+   new[] { new Row { stat = "ATK", value_type = "Add", value_bits = Bits(50f), @base = "ATK" }, new Row { stat = "MaxDurability", value_type = "Add", value_bits = Bits(200f), @base = "MaxDurability" }, new Row { stat = "Weight", value_type = "Multiply", value_bits = Bits(-0.1f), @base = "Weight" } },
+   new[] { new Row { stat = "ATK_Absolute", value_type = "Add", value_bits = Bits(40f), @base = "ATK" }, new Row { stat = "ATK_Speed", value_type = "Add", value_bits = Bits(3f), @base = "ATK" }, new Row { stat = "MATK", value_type = "Add", value_bits = Bits(50f), @base = "MATK" } },
+   new[] { new Row { stat = "DEF", value_type = "Add", value_bits = Bits(5f), @base = "DEF" }, new Row { stat = "DEF_Destroyed", value_type = "Multiply", value_bits = Bits(0.35f), @base = "DEF" }, new Row { stat = "DEF_Destroyed", value_type = "Multiply", value_bits = Bits(0.05f), @base = "DEF" } },
+   new[] { new Row { stat = "ATK", value_type = "Add", value_bits = Bits(1.9f), @base = "ATK" }, new Row { stat = "ATK", value_type = "Add", value_bits = Bits(-2.5f), @base = "ATK" }, new Row { stat = "X", value_type = "Other", value_bits = Bits(9f), @base = "ATK" }, new Row { stat = "ArmorHP", value_type = "Add", value_bits = Bits(10f), @base = "missing" } },
+   new[] { new Row { stat = null, value_type = "Add", value_bits = Bits(1f), @base = "ATK" } },
+   new[] { new Row { stat = "ATK", value_type = "Add", value_bits = Bits(1f), @base = null } },
+  };
+  var levels = new[] { "3", " 3 ", "+3", "03", "5", "0", "-1", "abc", "", null, "3.0", "99" };
+  foreach (var b in bases) foreach (var rows in rowSets) foreach (var level in levels)
+   cases.Add(new { stats = b, level = level, rows = rows, missing = false, other = 0, part = (int?)null, result = Run(b, level, rows, false, 0, null) });
+  // EnhanceOther above the level selects its info; null stat rows throw in UpdateBonusStat.
+  foreach (var other in new[] { 0, 3, 5, 9 }) foreach (var part in new byte?[] { null, 1 })
+   cases.Add(new { stats = bases[1], level = "3", rows = rowSets[1], missing = false, other = other, part = part.HasValue ? (int?)part.Value : null, result = Run(bases[1], "3", rowSets[1], false, other, part) });
+  cases.Add(new { stats = bases[1], level = "3", rows = (Row[])null, missing = false, other = 0, part = (int?)null, result = Run(bases[1], "3", null, false, 0, null) });
+  cases.Add(new { stats = bases[1], level = "3", rows = rowSets[1], missing = true, other = 0, part = (int?)null, result = Run(bases[1], "3", rowSets[1], true, 0, null) });
+  // (int)((float)(num + value) * Value) over a grid.
+  var multipliers = Enumerable.Range(-10, 21).Where(k => k != 0).Select(k => k * 0.05f).Concat(new[] { 0.35f, 0.45f, -0.35f, -0.45f, 0.15f, 0.1f, 0.3f }).ToArray();
+  var grid = new List<object>();
+  foreach (var m in multipliers) {
+   var results = new List<int>();
+   for (int n = 0; n <= 30000; n += 7) {
+    var s = new ItemStat(); s.CharacterStats.Add("DEF", n);
+    var item = new Item { ItemClassInfo = new ItemClassInfo { Base = s } };
+    ItemContents.Infos.Clear(); ItemContents.Stats.Clear();
+    ItemContents.Infos[1] = new EnhanceInfo { EnhanceType = "T", EnhanceLevel = 1 };
+    ItemContents.Stats[1] = new List<EnhanceStatInfo> { new EnhanceStatInfo { Stat = "DEF_Destroyed", ValueType = "Multiply", Value = m, Base = "DEF" } };
+    var e = new Enhance(item, "ENHANCE"); e.TryLoad("1", 0, 0); results.Add(e.Stat.DEF_Destroyed);
+   }
+   grid.Add(new { multiplier_bits = Bits(m), results = results });
+  }
+  var json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+  Console.Write(json.Serialize(new { cases = cases, grid_step = 7, grid_max = 30000, grid = grid }));
+ }
+}

@@ -26,8 +26,11 @@ Os caminhos são relativos a `D:\PROJETOS\VindictusPrivate`. As três bases são
 | `ItemClassInfo` | `MaxStack` | `ItemClass`, `Feature` | pilha máxima | 1000 → 100 (5.148 classes no servidor, 10 no cliente) | `item-catalog.json` `classes[].max_stack` → planejador de entrega e mover/empilhar | empilhar no inventário |
 | `ItemClassInfo` | `ExpireIn` | `ItemClass`, `Feature` | validade em segundos ao criar o item | ex.: sem validade → 43200 (2 classes) | `item-economy.json` `classes[].expire_in` → `Item.Initialize` (validade) | tooltip |
 | `ItemClassInfo` | `RequiredLevel` | `ItemClass`, `Feature` | nível para usar/equipar | 1 → 8 (`test_luck_150`) | `item-economy.json` `classes[].required_level` | — |
+| `EnhanceServerInfo` | `SuccessRatio` | `EnhanceType` (o nível como texto), `EnhanceLevel`, `Feature` | chance de sucesso da melhoria por nível; é a que o `EnhanceItemProcessor` usa (sobrescreve a do `EnhanceInfo`) | 1.0 → 1.0 nos níveis 1–3, 0,75 (4–5), 0,5 (6–8), 0,4 (9–12), 0,33 (13–15) nas linhas `!zhCN` (12 linhas; o original guarda o valor como texto `'.33'` e o SQLite.NET do servidor lê `REAL` como `Single`) | `item-enhance.json` `server[].success_ratio` → `item_enhance::Contents::server_ratio` | o banco do cliente não tem a tabela |
+| `EnhanceInfo` | `SuccessRatio` | `EnhanceType`, `EnhanceLevel`, `Feature` | chance exibida/da tabela por tipo de equipamento; no servidor o valor é trocado pelo do `EnhanceServerInfo` | 1.0 → ex.: 0,75/0,33 (2.210 linhas) | `item-enhance.json` `enhance[].success_ratio` (lido, não decide o sorteio) | `scripts/client/apply_original_content.py` aplica as 2.210 células na cópia |
 
 Notas:
+- `EnhanceInfo` e `EnhanceServerInfo`: as mesmas chaves (`EnhanceType`, `EnhanceLevel`, `Feature`) nas duas bases; só `SuccessRatio` difere. `EnhanceStatInfo`, `EnhanceBonusServerInfo`, `EnhanceInsteadMaterialInfo` e `RepairEnhanceInfo` são iguais.
 - `QuestInfo`, `QuestDifficultyInfo`, `StoryLineInfo` e `TitleGoalInfo` têm as mesmas chaves, na mesma ordem, nas duas bases. Em `ItemClassInfo` a chave é o par (`ItemClass`, `Feature`), porque `ItemClass` se repete; uma linha sem par (`hagie_noluck_inner_free`/`hagie_noluck_inner_armor`) mantém o valor do servidor.
 - Os perfis `fiona-inventory` (entrega inicial) e `normal-equipment-profile` ainda leem `ExpireIn`/`RequiredLevel` do conteúdo do servidor: as únicas diferenças que veriam são dois `ExpireIn` e o `RequiredLevel` de um item de teste, e esses perfis estão amarrados à criação de personagem.
 
@@ -43,7 +46,7 @@ Esses também são candidatos a ajuste no painel (por exemplo, as taxas do `Feat
 
 ## Diferenças ainda não usadas pelo servidor
 
-Tabelas alteradas no conteúdo do servidor que pertencem a sistemas do B3 ou de cosméticos, sem consumidor no Rust: `EnhanceInfo` (2.210 linhas), `EnhanceServerInfo` (12), `EnchantInfo` (163), `ManufactureRecipeInfo` (1.695), `CustomizeItemInfo`/`CustomizePriceInfo` (salão de beleza), `PetInfo` (36), `EquipItemInfo` (4), `EntityAttribute` (5). Quando esses sistemas forem migrados, decidir a fonte de cada uma e acrescentar aqui.
+Tabelas alteradas no conteúdo do servidor que pertencem a sistemas do B3 ou de cosméticos, sem consumidor no Rust: `EnchantInfo` (163), `ManufactureRecipeInfo` (1.695), `CustomizeItemInfo`/`CustomizePriceInfo` (salão de beleza), `PetInfo` (36), `EquipItemInfo` (4), `EntityAttribute` (5). Quando esses sistemas forem migrados, decidir a fonte de cada uma e acrescentar aqui.
 
 ## Como reaplicar
 
@@ -51,6 +54,7 @@ Tabelas alteradas no conteúdo do servidor que pertencem a sistemas do B3 ou de 
 py -3.13 scripts/content/export_item_catalog.py --output .cache/private-content/item-catalog.json
 py -3.13 scripts/content/export_item_economy.py --output .cache/private-content/item-economy.json
 py -3.13 scripts/content/export_npc_scripts.py --output .cache/private-content/npc-scripts.json
+py -3.13 scripts/content/export_item_enhance.py --output .cache/private-content/item-enhance.json
 py -3.13 scripts/client/apply_original_content.py --client-copy .cache/play-client --apply
 docker compose up -d --build --wait
 ```

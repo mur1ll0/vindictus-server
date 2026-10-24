@@ -18,6 +18,7 @@ pub mod dormant_item;
 pub mod feature_policy;
 
 pub mod dormant_rewards;
+pub mod enhance;
 pub mod give_item;
 pub mod item_argument;
 pub mod item_argument_profile;
