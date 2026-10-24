@@ -60,6 +60,7 @@ pub enum Kind {
     ManufactureInfo,
     ManufactureCraft,
     ManufactureLevelUp,
+    UnequippablePartsInfo,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -113,6 +114,7 @@ impl Kind {
             Self::ManufactureInfo => 359,
             Self::ManufactureCraft => 360,
             Self::ManufactureLevelUp => 361,
+            Self::UnequippablePartsInfo => 614,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -166,6 +168,7 @@ impl Kind {
             Self::ManufactureInfo => 0x9848342d_cc2f_326e_9b4e_d30c6decd5b5,
             Self::ManufactureCraft => 0x42f64ed3_c84b_3cfb_853b_0dec85cfac07,
             Self::ManufactureLevelUp => 0x4b8c26ec_6412_3016_b31e_157b18638117,
+            Self::UnequippablePartsInfo => 0xd0ac3a73_85f7_38bb_ba07_68bec5d8ae21,
         })
     }
 }
@@ -316,6 +319,8 @@ pub enum Message {
     ManufactureInfo(ManufactureInfo),
     ManufactureCraft(ManufactureCraft),
     ManufactureLevelUp(ManufactureLevelUp),
+    /// UnequippablePartsInfoMessage.Parts (Gear.ToUnequippableParts).
+    UnequippablePartsInfo(Option<Vec<i32>>),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -673,6 +678,7 @@ impl Message {
             Self::ManufactureInfo(_) => Kind::ManufactureInfo,
             Self::ManufactureCraft(_) => Kind::ManufactureCraft,
             Self::ManufactureLevelUp(_) => Kind::ManufactureLevelUp,
+            Self::UnequippablePartsInfo(_) => Kind::UnequippablePartsInfo,
         }
     }
 }
@@ -1091,6 +1097,7 @@ pub fn encode(
             Message::ManufactureInfo(v) => v.write(&mut w)?,
             Message::ManufactureCraft(v) => v.write(&mut w)?,
             Message::ManufactureLevelUp(v) => v.write(&mut w)?,
+            Message::UnequippablePartsInfo(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1179,6 +1186,7 @@ fn decode_body(
             Kind::ManufactureLevelUp => {
                 Message::ManufactureLevelUp(ManufactureLevelUp::read(&mut r)?)
             }
+            Kind::UnequippablePartsInfo => Message::UnequippablePartsInfo(Wire::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

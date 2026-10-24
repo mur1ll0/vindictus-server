@@ -187,9 +187,6 @@ async fn project(
     if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
         return Err(MinimumError::Conflict);
     }
-    super::item_loader_state::require_expanded_absent(tx, cid)
-        .await
-        .map_err(|_| MinimumError::Conflict)?;
     sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;
     let storage: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM game_item_storage_status WHERE owner_id=$1)",
@@ -350,7 +347,7 @@ async fn project(
     if !equipment.is_empty() {
         return Err(MinimumError::Conflict);
     }
-    let locked = assets.appearance.inventory_locked_parts()?;
+    let locked = locked_parts(tx, assets, cid).await?;
     let quick = super::minimum_quickslot::load(tx, assets, cid).await?;
     let equipment_info = match equipment_info {
         Some(e) => e,
@@ -382,4 +379,37 @@ async fn project(
         unequippable: Some(locked),
     };
     Ok(inventory)
+}
+
+/// DBLoader.GetExpandedSlots (ExpandSlotInfo.Slot in row order).
+pub(super) async fn expanded_slots(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<Vec<i32>, MinimumError> {
+    let rows: Vec<i32> = sqlx::query_scalar(
+        "SELECT slot FROM game_expanded_slots WHERE cid=$1 ORDER BY row_id LIMIT 257",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    if rows.len() > 256 {
+        return Err(MinimumError::Conflict);
+    }
+    Ok(rows)
+}
+
+/// Gear.ToUnequippableParts after the Gear constructor: the parts locked by
+/// IsExpandedSlot that no ExpandSlotInfo row unlocked (gearSlot.Load).
+pub(super) async fn locked_parts(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Vec<i32>, MinimumError> {
+    let expanded = expanded_slots(tx, cid).await?;
+    Ok(assets
+        .appearance
+        .inventory_locked_parts()?
+        .into_iter()
+        .filter(|p| !expanded.contains(p))
+        .collect())
 }

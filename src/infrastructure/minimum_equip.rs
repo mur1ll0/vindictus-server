@@ -81,13 +81,10 @@ struct Gear {
     quick: BTreeSet<u8>,
 }
 impl Gear {
-    fn new(assets: &Assets) -> Result<Self, MinimumError> {
+    /// `locked`: Gear.ToUnequippableParts after the expansions were loaded.
+    fn new(assets: &Assets, locked: &[i32]) -> Result<Self, MinimumError> {
         let parts = assets.appearance.normal_parts(&assets.catalog)?;
-        let locked: BTreeSet<i32> = assets
-            .appearance
-            .inventory_locked_parts()?
-            .into_iter()
-            .collect();
+        let locked: BTreeSet<i32> = locked.iter().copied().collect();
         let mut groups: Vec<(u8, bool, Vec<Vec<u8>>)> = Vec::new();
         for p in &parts {
             if let Some((_, _, rows)) = groups.iter_mut().find(|(slot, _, _)| *slot == p.slot) {
@@ -202,7 +199,8 @@ pub async fn equip(
             .await?;
         // Validates marker/profile/ownership and refuses unsupported item states.
         super::minimum_equipment::load(&mut tx, owner, assets, cid).await?;
-        let mut gear = Gear::new(assets)?;
+        let locked = super::minimum_inventory::locked_parts(&mut tx, assets, cid).await?;
+        let mut gear = Gear::new(assets, &locked)?;
         let stats = &assets.stats_index;
         let equipped:Vec<(i64,Vec<u8>,i16,i32,i32)>=sqlx::query_as("SELECT i.id,i.item_class_utf16,e.part,e.reduced_durability,e.max_durability_bonus FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY i.id LIMIT 4097").bind(cid).fetch_all(&mut *tx).await?;
         let mut attribute_ids: Vec<i64> = equipped.iter().map(|e| e.0).collect();

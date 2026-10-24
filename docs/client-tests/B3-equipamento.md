@@ -65,3 +65,11 @@ Pré-condição: ofício aprendido (B3.1a), uma receita aprendida (ou listada se
 - [ ] Fabricar uma receita acima do grau → diálogo de receita indisponível.
 - [ ] Relogar → o item fabricado, a qualidade e a experiência do ofício se mantêm.
 Limites conhecidos: Combine Craft (peças, item 5 do B3) não responde; bolsa cheia recusa a fabricação (o original mandaria a sobra por correio); nomes de personagem fora do ASCII imprimível recusam o equipamento fabricado.
+
+### B3.4a — Expandir slot de equipamento pela história
+Pré-condição: uma história ou NPC que execute `open_equipment_slot` para uma parte travada (parte com `IsExpandedSlot`, mostrada como bloqueada na janela de equipamento).
+- [ ] Antes do comando → a parte aparece bloqueada e não aceita equipamento.
+- [ ] Executar o comando → a parte desbloqueia na hora (janela de equipamento atualizada) e o diálogo continua.
+- [ ] Executar de novo → nada muda e o diálogo continua.
+- [ ] Equipar um item nessa parte → funciona.
+- [ ] Relogar → a parte continua desbloqueada.

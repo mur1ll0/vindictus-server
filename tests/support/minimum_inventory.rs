@@ -96,10 +96,6 @@ async fn minimum_inventory_refuses_partial_unsupported_and_corrupt_state_without
             "UPDATE game_equippables SET part=NULL",
         ),
         (
-            "INSERT INTO game_expanded_slots(row_id,cid,slot) VALUES(123,1,1)",
-            "DELETE FROM game_expanded_slots WHERE row_id=123",
-        ),
-        (
             "INSERT INTO game_quick_slots(row_id,owner_id,item_class_utf16,slot) VALUES(123,1,decode('4100','hex'),1)",
             "DELETE FROM game_quick_slots WHERE row_id=123",
         ),

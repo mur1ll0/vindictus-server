@@ -948,6 +948,24 @@ async fn apply_outputs(
                     Message::UpdateInventoryInfo(Some(applied.slots)),
                 )?);
             }
+            Output::Effect(Effect::OpenEquipmentSlot(slot)) => {
+                // Gear.UnlockSlot: a locked gear slot adds its ExpandSlotInfo row and Sync
+                // pushes UnequippablePartsInfoMessage; any other slot changes nothing.
+                let locked = super::minimum_inventory::locked_parts(tx, assets, cid).await?;
+                if locked.contains(&slot) {
+                    sqlx::query("INSERT INTO game_expanded_slots(cid,slot) VALUES($1,$2)")
+                        .bind(cid)
+                        .bind(slot)
+                        .execute(&mut **tx)
+                        .await?;
+                    packets.push(packet(
+                        Kind::UnequippablePartsInfo,
+                        Message::UnequippablePartsInfo(Some(
+                            locked.into_iter().filter(|p| *p != slot).collect(),
+                        )),
+                    )?);
+                }
+            }
             Output::Effect(Effect::Manufacture(change)) => {
                 packets.extend(super::minimum_manufacture::apply(tx, cid, &change).await?);
             }

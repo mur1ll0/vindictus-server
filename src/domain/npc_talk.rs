@@ -158,6 +158,8 @@ pub enum Effect {
     UnlockSkill { skill: String, rank: i32 },
     /// ItemImpl.AcquireManufacture / LevelupManufacture / AcquireManufactureRecipe.
     Manufacture(ManufactureChange),
+    /// ItemImpl.AddExpandedEquipmentSlot(slot): Gear.UnlockSlot, Save always succeeds.
+    OpenEquipmentSlot(i32),
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -1092,6 +1094,16 @@ impl<'a> Talker<'a> {
                     _ => current.wrapping_sub(amount),
                 };
                 self.set_variable(key, value)?;
+                self.resume(k)
+            }
+            "open_equipment_slot" => {
+                // int.Parse throws on a malformed slot: the completion is never called.
+                let Some(slot) = Self::parse(arg1) else {
+                    return Err(TalkError::Halted);
+                };
+                self.pushed
+                    .outputs
+                    .push(Output::Effect(Effect::OpenEquipmentSlot(slot)));
                 self.resume(k)
             }
             "acquire_manufacture" | "levelup_manufacture" | "acquire_manufacture_recipe" => {

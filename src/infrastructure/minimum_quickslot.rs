@@ -46,16 +46,15 @@ fn text(raw: &[u8]) -> Result<String, MinimumError> {
 }
 
 /// Gear constructor: consumable parts in content order with their StackableSlot
-/// lock, then GetQuickSlots rows. Expanded-slot rows are verified absent.
+/// lock (after the ExpandSlotInfo rows), then GetQuickSlots rows.
 pub(super) async fn load(
     tx: &mut Transaction<'_, Postgres>,
     assets: &Assets,
     cid: i64,
 ) -> Result<QuickSlots, MinimumError> {
     let parts = assets.appearance.normal_parts(&assets.catalog)?;
-    let locked: BTreeSet<i32> = assets
-        .appearance
-        .inventory_locked_parts()?
+    let locked: BTreeSet<i32> = super::minimum_inventory::locked_parts(tx, assets, cid)
+        .await?
         .into_iter()
         .collect();
     let mut groups: Vec<(u8, bool, Vec<String>)> = Vec::new();

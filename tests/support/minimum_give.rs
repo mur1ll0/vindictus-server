@@ -21,7 +21,22 @@ fn assets(cash_unique: i32) -> Assets {
 }
 /// `assets` with UseInTown and RequiredLevel of the cash class.
 fn assets_with(cash_unique: i32, cash_use_in_town: i32, cash_level: i32) -> Assets {
-    let i = super::fiona_inventory_delivery::AppearanceInputs::new();
+    assets_with_appearance(cash_unique, cash_use_in_town, cash_level, None)
+}
+/// `assets_with` over another appearance profile (None: the fixture's).
+fn assets_with_appearance(
+    cash_unique: i32,
+    cash_use_in_town: i32,
+    cash_level: i32,
+    appearance: Option<Value>,
+) -> Assets {
+    let mut i = super::fiona_inventory_delivery::AppearanceInputs::new();
+    if let Some(v) = appearance {
+        i.profile = vindictus_server::infrastructure::fiona_appearance::Profile::read(
+            serde_json::to_vec(&v).unwrap().as_slice(),
+        )
+        .unwrap();
+    }
     let (mut catalog, _, _, mut profile) = appearance_fixture::fixtures();
     let gold = appearance_fixture::key("synthetic_gold");
     profile["classes"].as_array_mut().unwrap().push(json!({"source_index":2,"item_utf16":gold,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
@@ -4222,5 +4237,79 @@ async fn minimum_manufacture_craft_consumes_materials_and_gives_quality_equipmen
         .await
         .is_err()
     );
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_story_open_equipment_slot_unlocks_an_expanded_part_once() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_story},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    // The WEAPON part (1) is an IsExpandedSlot part here.
+    let mut appearance = appearance_fixture::fixture();
+    appearance["parts"][0]["expanded_slot"] = json!(true);
+    let assets = assets_with_appearance(0, 0, 0, Some(appearance))
+        .with_npc_scripts(npc_profile_p3(Some(vec![
+            ("open_equipment_slot", " 1 ".to_owned()),
+            ("open_equipment_slot", "1".to_owned()),
+            ("open_equipment_slot", "77".to_owned()),
+            ("talk", "after".to_owned()),
+        ])))
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let info = || async {
+        let packet = minimum_inventory::query(&p, &owner, &assets, 1)
+            .await
+            .unwrap();
+        let Some(Message::InventoryInfo(info)) =
+            inventory::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("inventory missing")
+        };
+        info.unequippable
+    };
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    assert_eq!(info().await, Some(vec![1]));
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    let packets = talk_p3(&p, &owner, &assets).await;
+    // Only the first unlock changes the gear: one ExpandSlotInfo row, one message.
+    let parts: Vec<_> = packets
+        .iter()
+        .filter(|p| p.category == Kind::UnequippablePartsInfo.category())
+        .map(|p| {
+            match inventory::decode(Kind::UnequippablePartsInfo, &p.body, DEFAULT_MAX_BODY).unwrap()
+            {
+                Some(Message::UnequippablePartsInfo(parts)) => parts,
+                _ => panic!("parts missing"),
+            }
+        })
+        .collect();
+    assert_eq!(parts, [Some(Vec::new())]);
+    let rows: Vec<i32> = sqlx::query_scalar("SELECT slot FROM game_expanded_slots WHERE cid=1")
+        .fetch_all(&p)
+        .await
+        .unwrap();
+    assert_eq!(rows, [1]);
+    // The loaded expansion keeps the part unlocked after a relogin.
+    assert_eq!(info().await, Some(Vec::new()));
     cleanup_game_pool(a, p, s).await;
 }

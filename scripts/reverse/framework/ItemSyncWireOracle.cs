@@ -214,6 +214,7 @@ class ItemSyncWireOracle {
   var levelups=new List<ManufactureLevelUpMessage>{null};
   foreach(string mid in new[]{null,"","heavy_armor"})foreach(int g in new[]{int.MinValue,0,3,int.MaxValue})levelups.Add(Obj<ManufactureLevelUpMessage>("MID",mid,"Grade",g));
   AddCases("manufacture_level_up",361,new Guid("4b8c26ec-6412-3016-b31e-157b18638117"),levelups,cases);
+  AddCases("unequippable_parts_info",614,new Guid("d0ac3a73-85f7-38bb-ba07-68bec5d8ae21"),new[]{null,new UnequippablePartsInfoMessage(null),new UnequippablePartsInfoMessage(new List<int>()),new UnequippablePartsInfoMessage(new List<int>{17,18,int.MinValue,int.MaxValue})},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

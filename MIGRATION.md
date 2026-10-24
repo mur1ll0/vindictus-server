@@ -1126,3 +1126,14 @@ B3.1b — fabricar (`ManufactureCraftMessage` → `ProcessProduct`) (24/10/2026)
 - Diferenças: Combine Craft (`PartsIDList` com um alvo) não responde; sobra para o correio recusa a fabricação; `UpdateRankBasis` e `TodayMission` não migrados; logs simples (`RecoveryData`) não gravados; a ordem [GetExperience, 617, 359] supõe a sincronização do inventário no `Save`.
 - Cliente: entrada B3.1b em `docs/client-tests/B3-equipamento.md`.
 - Próxima ação: fechar o grupo Craft (recompilar o Docker) e seguir para os complementos B3.4 (armazenamento pessoal, expansão de slots, reparo completo, SkillEnhance) e depois o gate do B3.
+
+Fechamento do grupo Craft (24/10/2026): `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait` exit 0 com bootstrap/game/postgres/server healthy (perfil `item-enhance` formato 5 de 17,9 MB carregado).
+
+B3.4a — expansão de slot de equipamento (`open_equipment_slot`) (24/10/2026).
+- Fonte: `ProcessCommandFunc.Process_open_equipment_slot` (`int.Parse`; sucesso sempre que `Save` passa), `ItemImpl.AddExpandedEquipmentSlot` → `Gear.UnlockSlot` (slot inexistente não faz nada) → `EquippableSlot.Unlock` (só quando travado: `AddExpandedSlot` e `InvenUpdateType.UnequippableSlots`), `ItemOwner.Sync` → `PushUnequippablePartsInfoMessage`, construtor de `Gear` (`GetExpandedSlots` → `gearSlot.Load`, parte desconhecida só registra aviso).
+- Protocolo: `UnequippablePartsInfoMessage` (614); oráculo `ItemSyncWireOracle.cs` com 1.815 casos (x86 = x64).
+- Infraestrutura: `minimum_inventory::{expanded_slots, locked_parts}` (partes `IsExpandedSlot` menos as linhas de `game_expanded_slots`) usadas pelo inventário, pelo `Gear` do equipar e pelos atalhos; removida a recusa de personagens com linhas de expansão (`require_expanded_absent` no inventário e no equipamento); `npc_talk` `Effect::OpenEquipmentSlot` e aplicação em `minimum_story` (insere a linha e envia 614 só quando a parte estava travada).
+- Testes: PostgreSQL `minimum_story_open_equipment_slot_unlocks_an_expanded_part_once` (WEAPON travada na fixture: uma linha, uma mensagem, relogin desbloqueado), `minimum_inventory_refuses_partial_unsupported_and_corrupt_state_without_repair` sem o caso de expansão e filtros `minimum_ inventory give shop story enhance restore enchant equip quick`; `npc_talk`, `item_sync_wire`, `inventory_wire`, `fiona_appearance`, `equipment_slot`; clippy `-D warnings`.
+- Diferenças: `UpdateEquipmentObservable` após a mensagem não é emitido (o observador de equipamento não foi migrado).
+- Cliente: entrada B3.4a em `docs/client-tests/B3-equipamento.md`.
+- Próxima ação: B3.4b — reparo completo (`MaxDurabilityRepairItemMessage`), depois armazenamento pessoal (`give_storage`/`OpenStorage`, abas expiráveis) e SkillEnhance.
