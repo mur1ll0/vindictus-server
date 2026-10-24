@@ -53,6 +53,8 @@ pub enum Kind {
     TitleList,
     EnhanceItem,
     EnhanceItemResult,
+    QueryRestoreItemList,
+    RestoreItemList,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -99,6 +101,8 @@ impl Kind {
             Self::TitleList => 610,
             Self::EnhanceItem => 354,
             Self::EnhanceItemResult => 355,
+            Self::QueryRestoreItemList => 152,
+            Self::RestoreItemList => 154,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -145,6 +149,8 @@ impl Kind {
             Self::TitleList => 0xe537b12b_c3c8_3ae2_816e_df0465b4883b,
             Self::EnhanceItem => 0x04804f38_5cec_31f6_885a_cc0fc33628eb,
             Self::EnhanceItemResult => 0x1726cb88_3409_3a2b_8923_56e0250aab6a,
+            Self::QueryRestoreItemList => 0xa91b7337_2cad_3eae_8175_e1763f2413ee,
+            Self::RestoreItemList => 0xb80b34de_ba17_3cef_9ae3_577cfd045708,
         })
     }
 }
@@ -287,6 +293,9 @@ pub enum Message {
     TitleList(TitleList),
     EnhanceItem(EnhanceItem),
     EnhanceItemResult(EnhanceItemResult),
+    QueryRestoreItemList,
+    /// RestoreItemListMessage.RestoreItemList.
+    RestoreItemList(Option<Vec<Option<RestoreItemInfo>>>),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -411,6 +420,13 @@ pub struct EnhanceItemResult {
     pub prev_item_class: Option<String>,
     pub enhanced_item_class: Option<String>,
     pub fail_reward: super::mission::StrDict<i32>,
+}
+/// RestoreItemInfo: the restore-storage SlotInfo, PriceType ("AP") and PriceValue.
+#[derive(Clone, PartialEq, Eq)]
+pub struct RestoreItemInfo {
+    pub slot: Option<Slot>,
+    pub price_type: Option<String>,
+    pub price_value: i32,
 }
 /// HideCostumeMessage: HideHead, AvatarPart, AvatarState (the constructor sets -1/-1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -590,6 +606,8 @@ impl Message {
             Self::TitleList(_) => Kind::TitleList,
             Self::EnhanceItem(_) => Kind::EnhanceItem,
             Self::EnhanceItemResult(_) => Kind::EnhanceItemResult,
+            Self::QueryRestoreItemList => Kind::QueryRestoreItemList,
+            Self::RestoreItemList(_) => Kind::RestoreItemList,
         }
     }
 }
@@ -833,6 +851,11 @@ object!(EnhanceItem {
     additional_material,
     is_event_enhance_a_shot
 });
+object!(RestoreItemInfo {
+    slot,
+    price_type,
+    price_value
+});
 object!(EnhanceItemResult {
     result,
     item_id,
@@ -972,6 +995,8 @@ pub fn encode(
             Message::TitleList(v) => v.write(&mut w)?,
             Message::EnhanceItem(v) => v.write(&mut w)?,
             Message::EnhanceItemResult(v) => v.write(&mut w)?,
+            Message::QueryRestoreItemList => {}
+            Message::RestoreItemList(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1051,6 +1076,8 @@ fn decode_body(
             Kind::TitleList => Message::TitleList(TitleList::read(&mut r)?),
             Kind::EnhanceItem => Message::EnhanceItem(EnhanceItem::read(&mut r)?),
             Kind::EnhanceItemResult => Message::EnhanceItemResult(EnhanceItemResult::read(&mut r)?),
+            Kind::QueryRestoreItemList => Message::QueryRestoreItemList,
+            Kind::RestoreItemList => Message::RestoreItemList(Wire::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

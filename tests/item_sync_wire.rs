@@ -403,6 +403,43 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 }
             }
         }
+        Some(Message::QueryRestoreItemList) => {}
+        Some(Message::RestoreItemList(list)) => {
+            let source = &f["RestoreItemList"];
+            assert_eq!(list.is_none(), source.is_null(), "case {n}");
+            if let Some(list) = list {
+                let rows = source.as_array().unwrap();
+                assert_eq!(list.len(), rows.len(), "case {n}");
+                for (info, row) in list.iter().zip(rows) {
+                    assert_eq!(info.is_none(), row.is_null(), "case {n}");
+                    if let Some(info) = info {
+                        assert_eq!(
+                            info.price_type.as_deref(),
+                            row["PriceType"].as_str(),
+                            "case {n}"
+                        );
+                        assert_eq!(
+                            i64::from(info.price_value),
+                            row["PriceValue"].as_i64().unwrap(),
+                            "case {n}"
+                        );
+                        assert_eq!(
+                            info.slot.as_ref().map(|s| (
+                                s.id,
+                                s.tab,
+                                s.attributes.as_ref().map(Vec::len)
+                            )),
+                            row["Slot"].as_object().map(|s| (
+                                s["ItemID"].as_i64().unwrap(),
+                                i32::try_from(s["Tab"].as_i64().unwrap()).unwrap(),
+                                s["Attributes"].as_array().map(Vec::len)
+                            )),
+                            "case {n}"
+                        );
+                    }
+                }
+            }
+        }
         Some(Message::EnhanceItem(e)) => {
             assert_eq!(e.item_id, f["ItemID"].as_i64().unwrap(), "case {n}");
             assert_eq!(e.material1.as_deref(), f["Material1"].as_str(), "case {n}");
@@ -717,12 +754,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::TitleList,
         Kind::EnhanceItem,
         Kind::EnhanceItemResult,
+        Kind::QueryRestoreItemList,
+        Kind::RestoreItemList,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1596);
+        assert_eq!(cases.len(), 1614);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -764,6 +803,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "title_list" => check_inventory(Kind::TitleList, case, n),
                 "enhance_item" => check_inventory(Kind::EnhanceItem, case, n),
                 "enhance_item_result" => check_inventory(Kind::EnhanceItemResult, case, n),
+                "query_restore_item_list" => check_inventory(Kind::QueryRestoreItemList, case, n),
+                "restore_item_list" => check_inventory(Kind::RestoreItemList, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }

@@ -3432,5 +3432,110 @@ async fn minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_resto
         (slot.class.as_deref(), slot.count, slot.tab),
         (Some(""), 0, 0)
     );
+    // RestoreItemListMessage: the full SlotInfo (tab 102) priced in AP by AntiBindInfo
+    // (Enhance 0..15 → 100, Base 0).
+    use vindictus_server::infrastructure::minimum_restore;
+    let packet = minimum_restore::list(&p, &owner, &assets, 1).await.unwrap();
+    let Some(Message::RestoreItemList(Some(list))) =
+        inventory::decode(Kind::RestoreItemList, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("restore list missing")
+    };
+    let entry = list[0].clone().unwrap();
+    let restore_slot = entry.slot.clone().unwrap();
+    assert_eq!(
+        (
+            list.len(),
+            restore_slot.id,
+            restore_slot.tab,
+            entry.price_type.as_deref(),
+            entry.price_value
+        ),
+        (1, bag, 102, Some("AP"), 100)
+    );
+    // Not enough AP: BuyItemResult Failed, the item stays.
+    sqlx::query("UPDATE game_character_info SET ap=50 WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    let packets = minimum_restore::restore(
+        &p,
+        &owner,
+        &assets,
+        1,
+        0,
+        1,
+        vec![941],
+        Arithmetic::FrameworkX64,
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [235]
+    );
+    assert!(
+        minimum_restore::restore(
+            &p,
+            &owner,
+            &assets,
+            1,
+            5,
+            1,
+            vec![942],
+            Arithmetic::FrameworkX64,
+            log
+        )
+        .await
+        .is_err()
+    );
+    // With 500 AP: APMessage, the new bag item with the same attributes, the result and
+    // the emptied list.
+    sqlx::query("UPDATE game_character_info SET ap=500 WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    let packets = minimum_restore::restore(
+        &p,
+        &owner,
+        &assets,
+        1,
+        0,
+        1,
+        vec![943],
+        Arithmetic::FrameworkX64,
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [229, 617, 235, 154]
+    );
+    let ap: i32 = sqlx::query_scalar("SELECT ap FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(ap, 400);
+    let restored: (i16, bool) =
+        sqlx::query_as("SELECT collection,tradable FROM game_items WHERE id=943")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(restored, (0, false));
+    let attributes: Vec<(Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT attribute_bytes,value_bytes FROM game_item_attributes WHERE item_id=943 ORDER BY id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(attributes.len(), 3);
+    let gone: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM game_items WHERE owner_id=1 AND collection=102")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(gone, 0);
     cleanup_game_pool(a, p, s).await;
 }

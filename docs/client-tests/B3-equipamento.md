@@ -28,3 +28,12 @@ Pré-condição: Fiona **deslogada**; ouro e materiais: `pwsh scripts/dev/lab-gi
 - [ ] Tentar melhorar dentro de uma fase → mensagem "não é possível fabricar na dungeon".
 - [ ] Relogar → nível de melhoria, ouro e materiais preservados; a espada destruída não volta à bolsa.
 Limites conhecidos: melhorar uma peça **vestida** ainda é recusado (sem resposta); a lista de restauração (`QueryRestoreItemList`) e o restaurar com AP vêm na próxima etapa — a peça destruída fica guardada no depósito de restauração (até 5) mas ainda não aparece na janela; o evento "enhance a shot", runas sem extra e a sobra que iria por correio são recusados; a chance não mostra a mensagem de depuração de GM.
+
+### B3.2d — Restaurar item destruído (depósito de restauração)
+Pré-condição: uma peça destruída numa falha de melhoria a partir de +9 (B3.2c) e AP suficiente (o preço em AP aparece na janela).
+- [ ] Abrir a janela de restauração no NPC → a peça destruída aparece com o nível de melhoria e o preço em AP.
+- [ ] Restaurar → o AP desce pelo preço, a peça volta à bolsa com o mesmo nível de melhoria, vinculada e marcada como já restaurada; a lista fica vazia.
+- [ ] Destruir de novo a mesma peça → como já foi restaurada, ela some de vez e aparece o aviso de restauração.
+- [ ] Sem AP suficiente → falha da compra, a peça continua na lista.
+- [ ] Relogar → a lista e a peça restaurada se mantêm.
+Limites conhecidos: com a bolsa cheia a restauração é recusada (o original mandaria por correio); peças com validade não são restauradas.

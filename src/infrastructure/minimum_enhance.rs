@@ -196,6 +196,34 @@ fn buyback_ap(
     Ok(ap)
 }
 
+/// CalcRequiredBuybackAP of an item of `class` with `attributes` (its EnhanceLevel).
+pub(super) fn buyback_ap_of(
+    assets: &Assets,
+    class: &[u8],
+    attributes: &Attributes,
+) -> Result<i32, MinimumError> {
+    let contents = assets.enhance.as_ref().ok_or_else(fail)?;
+    let economy = assets.economy.as_ref().ok_or_else(fail)?;
+    let indexed = assets.stats_index.class(Some(class)).ok_or_else(fail)?;
+    let required_level = economy
+        .get(indexed.source_index)
+        .ok_or_else(fail)?
+        .required_level;
+    let category = if indexed.equippable {
+        assets
+            .equipment
+            .as_ref()
+            .ok_or_else(fail)?
+            .category(&assets.catalog, class)?
+    } else {
+        String::new()
+    };
+    let level = attributes
+        .get(ENHANCE)
+        .map_or(0, |a| enhance::level(Some(&a.value)));
+    buyback_ap(contents, &text(class)?, level, required_level, &category)
+}
+
 fn requests<'a>(rows: &'a [(Vec<u8>, i32)], empty: &'a Attributes) -> Vec<Request<'a>> {
     rows.iter()
         .map(|(class, count)| Request {

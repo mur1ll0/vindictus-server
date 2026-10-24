@@ -100,6 +100,8 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::TitleList
                 | Kind::EnhanceItem
                 | Kind::EnhanceItemResult
+                | Kind::QueryRestoreItemList
+                | Kind::RestoreItemList
                 | Kind::ItemFail
                 | Kind::MoveInventoryItem
                 | Kind::EquipBundle

@@ -157,6 +157,32 @@ pub(super) async fn snapshot_with_equipment(
     cid: i64,
     equipment_info: Option<Vec<(i32, i64)>>,
 ) -> Result<Inventory, MinimumError> {
+    project(tx, owner, assets, cid, equipment_info, true).await
+}
+/// ToSlotInfo(ignoreRestoreStorage: false) of the RestoreStorage items.
+pub(super) async fn restore_slots(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Vec<Slot>, MinimumError> {
+    Ok(project(tx, owner, assets, cid, None, false)
+        .await?
+        .slots
+        .ok_or(MinimumError::Conflict)?
+        .into_iter()
+        .flatten()
+        .filter(|s| s.tab == i32::from(RESTORE_COLLECTION))
+        .collect())
+}
+async fn project(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    equipment_info: Option<Vec<(i32, i64)>>,
+    ignore_restore: bool,
+) -> Result<Inventory, MinimumError> {
     let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
     if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
         return Err(MinimumError::Conflict);
@@ -283,7 +309,7 @@ pub(super) async fn snapshot_with_equipment(
             }
             _ => return Err(MinimumError::Conflict),
         };
-        if restore {
+        if restore && ignore_restore {
             // ToSlotInfo(ignoreRestoreStorage: true): the empty 13-argument SlotInfo.
             slots.push(Some(super::minimum_move::deleted_slot(row.id)));
             continue;

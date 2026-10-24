@@ -119,6 +119,7 @@ pub mod minimum_move;
 pub mod minimum_quest;
 pub mod minimum_quickslot;
 pub mod minimum_repair;
+pub mod minimum_restore;
 pub mod minimum_shop;
 pub mod minimum_skills;
 pub mod minimum_story;

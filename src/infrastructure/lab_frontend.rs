@@ -1865,6 +1865,7 @@ impl Connection {
                 Kind::RepairItem,
                 Kind::QueryQuestProgress,
                 Kind::QueryCharacterCommonInfo,
+                Kind::QueryRestoreItemList,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
@@ -1992,6 +1993,63 @@ impl Connection {
                                 );
                             }
                             Err(_) => tracing::warn!("minimum NPC talk refused; values omitted"),
+                        }
+                    }
+                    // BuyItemProcessor: Count <= 0 fails first; "Buyback_byAP" with
+                    // RestoreItem restores from the RestoreStorage.
+                    Message::BuyItem(request)
+                        if request.count > 0
+                            && request
+                                .shop_id
+                                .as_deref()
+                                .is_some_and(|s| s.eq_ignore_ascii_case("buyback_byap"))
+                            && assets
+                                .enhance
+                                .as_ref()
+                                .and_then(|c| c.policy())
+                                .is_some_and(|p| {
+                                    p.is_enabled(Some("RestoreItem")).unwrap_or(false)
+                                }) =>
+                    {
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(1)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        match super::minimum_restore::restore(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            request.order,
+                            request.count,
+                            ids,
+                            runtime.stat_arithmetic(),
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum restore processed; values omitted");
+                            }
+                            Err(_) => tracing::warn!("minimum restore refused; values omitted"),
+                        }
+                    }
+                    Message::QueryRestoreItemList => {
+                        match super::minimum_restore::list(pool, &owner, assets, cid).await {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!("minimum restore list sent; values omitted");
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum restore list refused; values omitted")
+                            }
                         }
                     }
                     Message::BuyItem(request)

@@ -122,6 +122,28 @@ async fn set(
     Ok(())
 }
 
+/// APManager.UseAP: UpdateAP, then `None` when AP is short, else AP - value written.
+pub(super) async fn use_ap(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    arithmetic: Arithmetic,
+    value: i32,
+) -> Result<Option<Ap>, MinimumError> {
+    let before = current(tx, owner, assets, cid, arithmetic).await?;
+    if value > before.ap {
+        return Ok(None);
+    }
+    let ap = before.ap.wrapping_sub(value);
+    sqlx::query("UPDATE game_character_info SET ap=$2 WHERE id=$1")
+        .bind(cid)
+        .bind(ap)
+        .execute(&mut **tx)
+        .await?;
+    Ok(Some(Ap { ap, ..before }))
+}
+
 /// CalculateBonusAPTime when meditation is first learned: the old BonusAPTime is 0, so
 /// LastAPUpdate restarts at UtcNow before the new interval applies.
 pub(super) async fn restart_bonus(

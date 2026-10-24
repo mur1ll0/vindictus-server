@@ -197,6 +197,10 @@ class ItemSyncWireOracle {
   AddCases("enhance_item",354,new Guid("04804f38-5cec-31f6-885a-cc0fc33628eb"),enhances,cases);
   var rewards=new Dictionary<string,int>{{"enhance_stone_lvl1",21},{"iron_ingot",int.MinValue},{"",int.MaxValue}};
   AddCases("enhance_item_result",355,new Guid("1726cb88-3409-3a2b-8923-56e0250aab6a"),new[]{null,new EnhanceItemResultMessage(null,0,null,null,null),new EnhanceItemResultMessage("Success",long.MaxValue,"longsword_swordwind","longsword_swordwind[ENHANCE:1]",new Dictionary<string,int>()),new EnhanceItemResultMessage("Destroy",long.MinValue,"longsword_swordwind[ENHANCE:9]","",rewards),new EnhanceItemResultMessage("NoPenalty_RankDown",-1,"",null,new Dictionary<string,int>{{"x",0}})},cases);
+  AddCases("query_restore_item_list",152,new Guid("a91b7337-2cad-3eae-8175-e1763f2413ee"),new[]{null,new QueryRestoreItemListMessage()},cases);
+  var restoreSlot=new SlotInfo(77L,"longsword_swordwind",1,102,0,null,null,new int[]{1,2,3},180,200,-100,false,"",new Dictionary<string,ItemAttributeElement>{{"ENHANCE",new ItemAttributeElement("ENHANCE","9",0,0)},{"ANTIBIND",new ItemAttributeElement("ANTIBIND","2",0,0)},{"RESTORED",new ItemAttributeElement("RESTORED","1",0,0)}},new Dictionary<int,bool>(),new Dictionary<int,bool>(),0,0,0);
+  var restores=new List<RestoreItemInfo>{new RestoreItemInfo(restoreSlot,"AP",300),null,new RestoreItemInfo(null,null,int.MinValue)};
+  AddCases("restore_item_list",154,new Guid("b80b34de-ba17-3cef-9ae3-577cfd045708"),new[]{null,new RestoreItemListMessage(null),new RestoreItemListMessage(new List<RestoreItemInfo>()),new RestoreItemListMessage(restores)},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
