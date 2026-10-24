@@ -99,6 +99,21 @@ fn enhance_contents_follow_the_effective_equipment_and_item_contents_dictionarie
 }
 
 #[test]
+fn enchant_constraints_may_exceed_the_catalog_text_bound() {
+    // Original ItemConstraint cells reach several KiB of class names.
+    let constraint = "longsword_".repeat(120);
+    let mut p = profile();
+    p["enchant"] = json!([{"source_index":0,"id":1,"enchant_utf16":key("keen"),"is_prefix":true,"enchant_type":key("TEMP"),"level":1,"min_arg":0,"max_arg":0,"constraint":key(&constraint),"min_ratio":25,"max_ratio":60,"destruction":0,"mini_game":10,"duration":0,"ignore_max_armor":false,"feature":null}]);
+    let contents = read(&p).unwrap().bind(&catalog()).unwrap();
+    assert_eq!(
+        contents.enchant("keen").unwrap().constraint.as_deref(),
+        Some(constraint.as_str())
+    );
+    p["enchant"][0]["constraint"] = json!(key(&"x".repeat(8193)));
+    assert!(read(&p).unwrap().bind(&catalog()).is_err());
+}
+
+#[test]
 fn fail_rewards_and_anti_bind_ranges_follow_item_contents_extension() {
     use vindictus_server::domain::{
         character_stats::Arithmetic,

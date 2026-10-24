@@ -299,6 +299,33 @@ fn text(value: Option<&PrivateText>) -> Result<Option<String>, MinimumError> {
         .map(|v| String::from_utf16(&units(v)?).map_err(|_| fail()))
         .transpose()
 }
+/// EnchantInfo.ItemConstraint: UTF-16LE hex up to 16384 bytes (catalog texts stop at 1024).
+fn long_text(value: Option<&PrivateText>) -> Result<Option<String>, MinimumError> {
+    value
+        .map(|v| {
+            let hex = v.0.as_bytes();
+            if hex.len() > 32768 || !hex.len().is_multiple_of(4) {
+                return Err(fail());
+            }
+            let units = hex
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|c| {
+                    if !c.iter().all(u8::is_ascii_hexdigit) {
+                        return Err(fail());
+                    }
+                    let digits = std::str::from_utf8(c).map_err(|_| fail())?;
+                    let [lo, hi] = u16::from_str_radix(digits, 16)
+                        .map_err(|_| fail())?
+                        .to_be_bytes();
+                    Ok(u16::from_le_bytes([lo, hi]))
+                })
+                .collect::<Result<Vec<_>, MinimumError>>()?;
+            String::from_utf16(&units).map_err(|_| fail())
+        })
+        .transpose()
+}
 /// Dictionary keys: a null key throws in Dictionary.Add/TryGetValue.
 fn key(value: Option<&PrivateText>) -> Result<String, MinimumError> {
     text(value)?.ok_or_else(fail)
@@ -620,7 +647,7 @@ impl Profile {
                 level: r.level,
                 min_arg: r.min_arg,
                 max_arg: r.max_arg,
-                constraint: text(r.constraint.as_ref())?,
+                constraint: long_text(r.constraint.as_ref())?,
                 min_ratio: r.min_ratio,
                 max_ratio: r.max_ratio,
                 destruction: r.destruction,
