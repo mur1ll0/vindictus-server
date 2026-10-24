@@ -165,11 +165,19 @@ pub(super) async fn apply(
         .policy
         .is_enabled(Some("StoryTabInInventory"))?;
     let (destroy_infos, give_infos) = infos.split_at(destroys.len());
-    // Equipment attributes must have a migrated Item.Stat (only ENHANCE).
+    // Equipment attributes must have a migrated Item.Stat; enchant conditions read the
+    // owner (enchant scrolls are EquipItemInfo classes too).
+    let owner_context = super::minimum_item_stat::context(tx, cid).await?;
     for (g, info) in gives.iter().zip(give_infos) {
         if info.equippable
             && !g.attributes.is_empty()
-            && super::minimum_item_stat::equipment(assets, g.class, g.attributes).is_err()
+            && super::minimum_item_stat::equipment_with(
+                assets,
+                g.class,
+                g.attributes,
+                Some(&owner_context),
+            )
+            .is_err()
         {
             return Ok(Err(GiveError::Unsupported));
         }
@@ -238,6 +246,7 @@ async fn write(
     maximum_durability: i32,
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Applied, MinimumError> {
+    let owner_context = super::minimum_item_stat::context(tx, cid).await?;
     let mut changes = Vec::new();
     let mut deleted = Vec::new();
     for &(id, count) in &plan.modified {
@@ -361,7 +370,13 @@ async fn write(
                     .color_index
                     .get(&c.class)
                     .ok_or(MinimumError::Conflict)?;
-                let stat = super::minimum_item_stat::equipment(assets, &c.class, attributes)?.stat;
+                let stat = super::minimum_item_stat::equipment_with(
+                    assets,
+                    &c.class,
+                    attributes,
+                    Some(&owner_context),
+                )?
+                .stat;
                 let e = initial_inventory::new_equipment_with_stat(
                     base,
                     &stat,

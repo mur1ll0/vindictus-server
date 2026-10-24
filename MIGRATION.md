@@ -1187,3 +1187,10 @@ Fechamento do bloco B3 (atributos, Craft, Enhance, Enchant e complementos; item 
 - Parada (AGENTS.md, item 1): bloco completo; aguardando a sessão de gameplay do operador (B1, B2 e B3 continuam sem aceite de cliente). Pedido do operador cumprido a seguir: desligar o computador com `shutdown /s /t 120` (cancelável com `shutdown /a`).
 - Próxima ação retomável: corrigir o que o relato dos roteiros B1/B2/B3 apontar; com o aceite, registrar aqui, remover os roteiros e iniciar o B4 (painel de administração). Divergências do B3 em aberto: melhorar/encantar peça vestida, Combine Craft (item 5), abas expiráveis/tagueadas, poção de durabilidade máxima do SkillEnhance, envio por correio das sobras.
 
+Correção pós-gate do B3 (24/10/2026), na preparação da sessão de cliente.
+- Sintoma: `lab-give-item.ps1 -ItemClass "enchant_scroll[PREFIX:bitter]"` recusado com "item request outside the migrated storage profile".
+- Causa: no conteúdo real `enchant_scroll` tem linha em `EquipItemInfo` (equipável); a entrega validava e criava o `Item.Stat` do equipável com atributo sem o contexto do dono, e PREFIX/SUFFIX sem contexto é recusado. As fixtures usam um `enchant_scroll` sintético não equipável.
+- Correção: `minimum_give` usa `minimum_item_stat::equipment_with` com `minimum_item_stat::context` (removida a variante sem contexto).
+- Verificação: PostgreSQL `minimum_give minimum_enchant minimum_enhance minimum_inventory minimum_equipment` (40 aprovados), clippy `-D warnings`; os dois pergaminhos concedidos à Fiona; imagem Docker recompilada.
+- Pendente: teste PostgreSQL com uma classe equipável carregando PREFIX (fixture de catálogo sem esse caso).
+

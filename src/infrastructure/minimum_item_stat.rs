@@ -112,15 +112,6 @@ pub(super) async fn context(
     })
 }
 
-/// Item.Stat without an owner context: an enchanted item is refused.
-pub(super) fn equipment(
-    assets: &Assets,
-    class: &[u8],
-    attributes: &Attributes,
-) -> Result<EquipmentStat, MinimumError> {
-    equipment_with(assets, class, attributes, None)
-}
-
 /// Item.Stat for the equipment class and attributes. Without a configured arithmetic
 /// both measured profiles are evaluated and must agree.
 pub(super) fn equipment_with(
