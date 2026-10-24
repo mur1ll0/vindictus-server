@@ -1,12 +1,13 @@
 #requires -Version 7.4
-# Laboratory GiveItem for the offline first Fiona (gold or any ItemClass). The database
+# Laboratory GiveItem for the offline first Fiona (gold or any ItemClass/ItemClassEx). The database
 # URL is composed from .env for the child process only and is never printed.
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$ItemClass,[Parameter(Mandatory)][int]$Count,[long]$Cid=0,[string]$AssetsFile)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if(-not$AssetsFile){$AssetsFile=Join-Path $project '.cache/private-content/minimum-creation-assets.json'}
-if($ItemClass-notmatch'^[A-Za-z0-9_]{1,50}$'-or$Count-lt1){throw 'ItemClass must be ASCII [A-Za-z0-9_] and Count positive'}
+# ItemClass may be an ItemClassEx with attributes, e.g. enchant_scroll[PREFIX:bitter].
+if($ItemClass-notmatch'^[A-Za-z0-9_]{1,50}(\[[A-Za-z0-9_:,()<> /.-]{1,400}\])?$'-or$Count-lt1){throw 'ItemClass must be ASCII [A-Za-z0-9_] (optionally [NAME:value,...]) and Count positive'}
 $exe=Join-Path $project 'target/debug/vindictus-server.exe'
 if(-not(Test-Path -LiteralPath $exe)){throw 'Build the native binary first (cargo build --locked)'}
 $settings=@{}

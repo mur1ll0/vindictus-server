@@ -124,12 +124,14 @@ pub async fn buy(
                 count: price,
                 bound: false,
                 equipment: None,
+                attributes: &crate::domain::item_attribute::EMPTY,
             }],
             &[Request {
                 class: &item_key,
                 count: give_count,
                 bound,
                 equipment: None,
+                attributes: &crate::domain::item_attribute::EMPTY,
             }],
             &mut || ids.next().ok_or_else(fail),
         )
@@ -209,6 +211,15 @@ pub struct BuybackEntry {
     pub sell_price: i32,
     pub bound: bool,
     pub equipment: Option<super::minimum_give::Equipment>,
+    /// Item.Attribute of the clone (ToRequestInfo keeps it).
+    pub attributes: crate::domain::item_attribute::Attributes,
+}
+impl BuybackEntry {
+    /// ItemClassExBuilder.Build(ItemClass, Attribute).
+    fn class_ex(&self) -> Result<String, MinimumError> {
+        crate::domain::item_attribute::build_class_ex(&self.class, &self.attributes)
+            .map_err(|_| fail())
+    }
 }
 
 pub(super) fn system_message(
@@ -257,19 +268,19 @@ pub fn buyback_list(
         .rev()
         .map(|(i, e)| {
             let colors = e.equipment.map_or([-1; 3], |q| q.colors);
-            Some(wire::BuybackInfo {
+            Ok(Some(wire::BuybackInfo {
                 shop_id: Some("Buyback".to_owned()),
                 order: i as i32,
-                item_class: Some(e.class.clone()),
+                item_class: Some(e.class_ex()?),
                 item_count: e.count,
                 color1: colors[0],
                 color2: colors[1],
                 color3: colors[2],
                 price_item_class: Some("gold".to_owned()),
                 price_count: e.sell_price.wrapping_mul(ratio),
-            })
+            }))
         })
-        .collect();
+        .collect::<Result<_, MinimumError>>()?;
     packet(
         Kind::BuybackListResult,
         Message::BuybackListResult(Some(infos)),
@@ -377,7 +388,12 @@ pub async fn sell(
         } else {
             None
         };
+        let attributes = super::minimum_inventory::load_attributes(&mut tx, &[item_id])
+            .await?
+            .remove(&item_id)
+            .unwrap_or_default();
         if remaining == 0 {
+            super::minimum_give::delete_attributes(&mut tx, item_id).await?;
             sqlx::query("DELETE FROM game_equippables WHERE id=$1").bind(item_id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2").bind(item_id).bind(cid).execute(&mut *tx).await?;
         } else {
@@ -395,6 +411,7 @@ pub async fn sell(
                 count: price,
                 bound: false,
                 equipment: None,
+                attributes: &crate::domain::item_attribute::EMPTY,
             }],
             &mut || ids.next().ok_or_else(fail),
         )
@@ -415,11 +432,11 @@ pub async fn sell(
                 .ok_or_else(fail)?
         };
         tx.commit().await?;
-        Ok(Ok((applied, sold, row, class_text, price, equipment, info.sell_price)))
+        Ok(Ok((applied, sold, row, class_text, price, equipment, info.sell_price, attributes)))
     })
     .await
     .map_err(|_| fail())??;
-    let (applied, sold, row, class_text, price, equipment, sell_price) = match outcome {
+    let (applied, sold, row, class_text, price, equipment, sell_price, attributes) = match outcome {
         Ok(v) => v,
         Err(None) => return Err(fail()),
         Err(Some(dialog)) => return Ok(vec![system_message(DIALOG, dialog, &[])?]),
@@ -454,6 +471,7 @@ pub async fn sell(
             sell_price,
             bound: !row.tradable,
             equipment,
+            attributes,
         });
         packets.push(buyback_list(assets, buyback)?);
     }
@@ -557,12 +575,14 @@ pub async fn buy_back(
                 count: price,
                 bound: false,
                 equipment: None,
+                attributes: &crate::domain::item_attribute::EMPTY,
             }],
             &[Request {
                 class: &entry.class_utf16,
                 count: entry.count,
                 bound: entry.bound,
                 equipment: entry.equipment,
+                attributes: &entry.attributes,
             }],
             &mut || ids.next().ok_or_else(fail),
         )
@@ -624,7 +644,7 @@ pub async fn buy_back(
         buyback_list(assets, buyback)?,
         result_packet(BuyResult {
             result: shop::BUY_SUCCEEDED,
-            item_class: entry.class.clone(),
+            item_class: entry.class_ex()?,
             item_count: count.wrapping_mul(entry.count),
             price_item_class: "gold".to_owned(),
             price_count: price,

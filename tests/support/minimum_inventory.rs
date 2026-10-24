@@ -107,8 +107,17 @@ async fn minimum_inventory_refuses_partial_unsupported_and_corrupt_state_without
             "UPDATE game_items SET checksum=1 WHERE checksum IS NULL",
             "UPDATE game_items SET checksum=NULL",
         ),
+        // Equipment attributes feed ItemStat; MIN_UPTIME needs ToFormatableDateTime.
         (
-            "INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) SELECT 123,min(id),decode('41','hex'),decode('42','hex'),0,0 FROM game_items",
+            "INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) SELECT 123,min(i.id),decode('41','hex'),decode('42','hex'),0,0 FROM game_items i JOIN game_equippables e ON e.id=i.id",
+            "DELETE FROM game_item_attributes WHERE id=123",
+        ),
+        (
+            "INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) SELECT 123,min(i.id),'MIN_UPTIME','',0,0 FROM game_items i WHERE NOT EXISTS(SELECT 1 FROM game_equippables e WHERE e.id=i.id)",
+            "DELETE FROM game_item_attributes WHERE id=123",
+        ),
+        (
+            "INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) SELECT 123,min(i.id),decode('41','hex'),decode('e9','hex'),0,0 FROM game_items i WHERE NOT EXISTS(SELECT 1 FROM game_equippables e WHERE e.id=i.id)",
             "DELETE FROM game_item_attributes WHERE id=123",
         ),
     ] {

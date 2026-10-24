@@ -9,6 +9,7 @@ use crate::{
     domain::{
         give_item::{self, ClassInfo, Destroy, Give, GiveError, Held, Inventory, Plan},
         initial_inventory::{self, gold_checksum},
+        item_attribute::{self, Attributes, StackKeys},
         item_location::ItemLocation,
     },
     protocol::inventory::Slot,
@@ -24,6 +25,8 @@ pub struct Request<'a> {
     /// ItemRequestProperty colors and durability of an existing equipment (buyback);
     /// None draws material colors with full durability.
     pub equipment: Option<Equipment>,
+    /// ItemRequestProperty.Attribute (ItemClassEx attributes or a sold item's clone).
+    pub attributes: &'a Attributes,
 }
 /// Equippable fields kept by Item.ToRequestInfo.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,6 +120,17 @@ pub(super) async fn apply(
     .bind(cid)
     .fetch_all(&mut **tx)
     .await?;
+    let held_ids: Vec<i64> = rows.iter().map(|r| r.id).collect();
+    let attributes = super::minimum_inventory::load_attributes(tx, &held_ids).await?;
+    let mut keys = StackKeys::default();
+    // ItemRequestProperty.Build_Attribute_Expire/MinUpTime turn these into
+    // ExpireDateTime and a formatted UtcNow, which this profile does not port.
+    if gives.iter().any(|g| {
+        g.attributes.get(item_attribute::EXPIRE).is_some()
+            || g.attributes.get(item_attribute::MIN_UPTIME).is_some()
+    }) {
+        return Ok(Err(GiveError::Unsupported));
+    }
     let held = rows
         .iter()
         .map(|r| {
@@ -132,6 +146,7 @@ pub(super) async fn apply(
                     },
                     bound: !r.tradable,
                     expires: r.expire_ticks.is_some(),
+                    attributes: attributes.get(&r.id).map_or(0, |a| keys.intern(a)),
                 },
             ))
         })
@@ -164,6 +179,7 @@ pub(super) async fn apply(
             class,
             count: r.count,
             bound: r.bound,
+            attributes: keys.intern(r.attributes),
         })
         .collect();
     let inventory = Inventory {
@@ -176,7 +192,8 @@ pub(super) async fn apply(
         Ok(plan) => plan,
         Err(e) => return Ok(Err(e)),
     };
-    let properties: Vec<Option<Equipment>> = gives.iter().map(|g| g.equipment).collect();
+    let properties: Vec<(Option<Equipment>, &Attributes)> =
+        gives.iter().map(|g| (g.equipment, g.attributes)).collect();
     let applied = write(
         tx,
         owner,
@@ -202,7 +219,7 @@ async fn write(
     held: &[(Vec<u8>, Held)],
     infos: &[ClassInfo],
     plan: Plan,
-    properties: &[Option<Equipment>],
+    properties: &[(Option<Equipment>, &Attributes)],
     maximum_durability: i32,
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Applied, MinimumError> {
@@ -235,6 +252,7 @@ async fn write(
                 .await?;
         }
         if count == 0 {
+            delete_attributes(tx, id).await?;
             sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
                 .bind(id)
                 .bind(cid)
@@ -303,7 +321,11 @@ async fn write(
                 .bind(expire)
                 .execute(&mut **tx)
                 .await?;
-            let given = properties.get(c.request).copied().flatten();
+            let (given, attributes) = properties
+                .get(c.request)
+                .copied()
+                .ok_or(MinimumError::Conflict)?;
+            insert_attributes(tx, id, attributes).await?;
             let (colors, reduced, bonus) = if let (true, Some(e)) = (info.equippable, given) {
                 sqlx::query("INSERT INTO game_equippables(id,part,color1,color2,color3,reduced_durability,max_durability_bonus) VALUES($1,NULL,$2,$3,$4,$5,$6)")
                     .bind(id)
@@ -391,6 +413,47 @@ async fn write(
     })
 }
 
+/// Item.InitAttribute rows, inserted in Attribute.Values order so their identity
+/// order is the load order.
+pub(super) async fn insert_attributes(
+    tx: &mut Transaction<'_, Postgres>,
+    item: i64,
+    attributes: &Attributes,
+) -> Result<(), MinimumError> {
+    if attributes.is_empty() {
+        return Ok(());
+    }
+    let ready: bool =
+        sqlx::query_scalar("SELECT initialized FROM game_item_identity WHERE singleton FOR SHARE")
+            .fetch_one(&mut **tx)
+            .await?;
+    if !ready {
+        return Err(MinimumError::Conflict);
+    }
+    for a in attributes.as_slice() {
+        sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,$2,$3,$4,$5)")
+            .bind(item)
+            .bind(a.name.as_bytes())
+            .bind(a.value.as_bytes())
+            .bind(a.arg)
+            .bind(a.arg2)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
+}
+/// ItemAttribute rows go with their item (no FK in the source schema).
+pub(super) async fn delete_attributes(
+    tx: &mut Transaction<'_, Postgres>,
+    item: i64,
+) -> Result<(), MinimumError> {
+    sqlx::query("DELETE FROM game_item_attributes WHERE item_id=$1")
+        .bind(item)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
 /// Laboratory grant (no source counterpart): GiveItem(itemClass, num) for an
 /// offline first Fiona, so the client receives the change through InventoryInfo
 /// on the next selection. IDs come from a separate entity Service.ID.
@@ -416,8 +479,17 @@ pub async fn lab_grant(
             }
         }
     };
-    if class.is_empty() || class.len() > 50 || !class.is_ascii() || !(1..=i32::MAX).contains(&count)
+    if class.is_empty()
+        || class.len() > 512
+        || !class.is_ascii()
+        || !(1..=i32::MAX).contains(&count)
     {
+        return Err(MinimumError::Conflict);
+    }
+    // An ItemClassEx ("class[NAME:value(arg)<arg2>,...]"), as GiveItem(string, int) parses.
+    let (class, attributes) =
+        item_attribute::parse_class_ex(class).map_err(|_| MinimumError::Conflict)?;
+    if class.is_empty() || class.len() > 50 {
         return Err(MinimumError::Conflict);
     }
     let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
@@ -463,6 +535,7 @@ pub async fn lab_grant(
             count,
             bound: false,
             equipment: None,
+            attributes: &attributes,
         }],
         &mut ids,
     )

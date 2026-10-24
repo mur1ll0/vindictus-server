@@ -143,6 +143,7 @@ pub(super) async fn repair(
             count: price,
             bound: false,
             equipment: None,
+            attributes: &crate::domain::item_attribute::EMPTY,
         }],
         &[],
         &mut || Err(fail()),

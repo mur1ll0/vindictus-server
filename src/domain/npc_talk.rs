@@ -755,9 +755,6 @@ impl<'a> Talker<'a> {
                         .ok_or(TalkError::Halted)?
                         .info
                         .clone();
-                    if info.reward_item.as_deref().is_some_and(|c| c.contains('[')) {
-                        return Err(TalkError::Unsupported("story reward".into()));
-                    }
                     // RewardSkillRank 1: GiveSkill then LearnNewSkillResultMessage; any
                     // other rank: UnlockSkill. Decided before the completion changes state.
                     let skill_reward = match &info.reward_skill {
@@ -877,15 +874,13 @@ impl<'a> Talker<'a> {
                     self.add(entity("talk", Some(&text), None));
                     return self.resume(k);
                 };
-                // An equippable "_lvl" class is refused by the item planner instead.
-                if class.contains('[') {
-                    return Err(TalkError::Unsupported("give_item ItemClassEx".into()));
-                }
+                // ItemImpl.GiveItem parses the ItemClassEx; the item planner refuses the
+                // attributes and "_lvl" classes it does not carry. Counts go to the class.
                 self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
                     class: class.to_owned(),
                     count,
                 }));
-                self.add_delta(class, i64::from(count));
+                self.add_delta(super::mission::item_class(class), i64::from(count));
                 self.add(entity("give_item_successful", Some(class), arg2));
                 self.resume(k)
             }

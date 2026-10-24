@@ -26,6 +26,7 @@ fn held(info: &ClassInfo, id: i64, count: i32, location: ItemLocation) -> (Vec<u
             location,
             bound: false,
             expires: false,
+            attributes: 0,
         },
     )
 }
@@ -42,6 +43,7 @@ fn give(class: &ClassInfo, count: i32) -> Give<'_> {
         class,
         count,
         bound: false,
+        attributes: 0,
     }
 }
 
@@ -282,4 +284,148 @@ fn expiring_classes_never_stack_onto_items_with_an_expiry() {
         ),
         Err(GiveError::Unsupported)
     );
+}
+
+#[test]
+fn attributes_split_stacks_and_merges_like_is_stackable_with() {
+    use vindictus_server::domain::item_attribute::{StackKeys, parse_class_ex};
+    let scroll = class("enchant_scroll", 1, 10, 0, false);
+    let mut keys = StackKeys::default();
+    let (name, bitter) = parse_class_ex("enchant_scroll[PREFIX:bitter]").unwrap();
+    assert_eq!(name, "enchant_scroll");
+    let bitter = keys.intern(&bitter);
+    let hard = keys.intern(&parse_class_ex("enchant_scroll[PREFIX:hard]").unwrap().1);
+    // Arg2 is not compared by IsStackableWith; Arg is.
+    let bitter2 = keys.intern(
+        &parse_class_ex("enchant_scroll[PREFIX:bitter<7>]")
+            .unwrap()
+            .1,
+    );
+    let bitter_arg = keys.intern(
+        &parse_class_ex("enchant_scroll[PREFIX:bitter(1)]")
+            .unwrap()
+            .1,
+    );
+    assert_eq!(bitter, bitter2);
+    assert!(bitter != hard && bitter != bitter_arg && bitter != 0);
+    let mut items = [held(&scroll, 1, 3, at(0, 0)), held(&scroll, 2, 4, at(0, 1))];
+    items[0].1.attributes = bitter;
+    // A plain request never stacks on the attributed item.
+    let plain = plan(&inventory(&items), &[], &[give(&scroll, 2)]).unwrap();
+    assert_eq!(plain.modified, [(2, 6)]);
+    let attributed = |n, attributes| Give {
+        class: &scroll,
+        count: n,
+        bound: false,
+        attributes,
+    };
+    let same = plan(&inventory(&items), &[], &[attributed(2, bitter2)]).unwrap();
+    assert_eq!(same.modified, [(1, 5)]);
+    assert!(same.created.is_empty());
+    // MergeDuplicatedRequest sums only stackable requests; each keeps its request index.
+    let merged = plan(
+        &inventory(&[]),
+        &[],
+        &[
+            attributed(1, hard),
+            attributed(1, bitter),
+            attributed(2, hard),
+        ],
+    )
+    .unwrap();
+    assert_eq!(
+        merged
+            .created
+            .iter()
+            .map(|c| (c.count, c.request, c.location))
+            .collect::<Vec<_>>(),
+        [(3, 0, at(0, 0)), (1, 1, at(0, 1))]
+    );
+    // DestroyComparer would weigh GetItemValue; destroying an attributed class is refused.
+    assert_eq!(
+        plan(
+            &inventory(&items),
+            &[Destroy {
+                class: &scroll,
+                count: 1
+            }],
+            &[]
+        ),
+        Err(GiveError::Unsupported)
+    );
+    // Attributed equipment needs ItemStat entities.
+    let sword = class("longsword", 1, 1, 0, true);
+    let enhanced = keys.intern(&parse_class_ex("longsword[ENHANCE:3]").unwrap().1);
+    assert_eq!(
+        plan(
+            &inventory(&[]),
+            &[],
+            &[Give {
+                class: &sword,
+                count: 1,
+                bound: false,
+                attributes: enhanced
+            }]
+        ),
+        Err(GiveError::Unsupported)
+    );
+}
+
+#[test]
+fn class_ex_parsing_builds_back_and_rejects_the_unstored_profile() {
+    use vindictus_server::domain::item_attribute::{
+        Attribute, AttributeError, Attributes, build_class_ex, parse_class_ex, stackable,
+    };
+    let (class, attributes) = parse_class_ex("frostheart_foot[QUALITY:(5)]").unwrap();
+    assert_eq!(class, "frostheart_foot");
+    assert_eq!(
+        attributes.as_slice(),
+        [Attribute {
+            name: "QUALITY".into(),
+            value: String::new(),
+            arg: 5,
+            arg2: 0
+        }]
+    );
+    assert_eq!(
+        build_class_ex(&class, &attributes).unwrap(),
+        "frostheart_foot[QUALITY:(5)]"
+    );
+    let (_, two) = parse_class_ex(" scroll [ PREFIX : a (2)<3>, SUFFIX:b]").unwrap();
+    assert_eq!(
+        build_class_ex("scroll", &two).unwrap(),
+        "scroll[PREFIX:a(2)<3>,SUFFIX:b]"
+    );
+    assert_eq!(
+        parse_class_ex("x[A:1,A:2]").unwrap_err(),
+        AttributeError::ClassEx(
+            vindictus_server::domain::item_class_ex::ItemClassExError::DuplicateAttribute
+        )
+    );
+    // Dates in an argument need the legacy resolver.
+    assert!(parse_class_ex("x[A:v(2014/1/1)]").is_err());
+    assert_eq!(
+        parse_class_ex(&format!("x[A:{}]", "v".repeat(51))).unwrap_err(),
+        AttributeError::Bound
+    );
+    assert!(Attribute::from_stored(b"PREFIX", b"bitter", 0, 0).is_ok());
+    assert_eq!(
+        Attribute::from_stored(b"", b"x", 0, 0).unwrap_err(),
+        AttributeError::Bound
+    );
+    assert_eq!(
+        Attribute::from_stored(b"P", &[0xe9], 0, 0).unwrap_err(),
+        AttributeError::Bound
+    );
+    // Dictionary keys are ordinal: case differs, so both are kept and never stack.
+    let mixed = Attributes::new(vec![
+        Attribute::from_stored(b"prefix", b"a", 0, 0).unwrap(),
+        Attribute::from_stored(b"PREFIX", b"a", 0, 0).unwrap(),
+    ])
+    .unwrap();
+    assert_eq!(mixed.as_slice().len(), 2);
+    assert!(stackable([("A", "x", 1)], [("A", "x", 1)]));
+    assert!(!stackable([("A", "x", 1)], [("a", "x", 1)]));
+    assert!(!stackable([("A", "x", 1)], [("A", "x", 2)]));
+    assert!(!stackable([("A", "x", 1)], []));
 }

@@ -64,8 +64,8 @@ pub fn move_fail() -> Result<OutgoingPacket, MinimumError> {
     })
 }
 
-/// ItemTraitExtension.IsStackableWith for items whose attributes and expiration
-/// are verified absent by the snapshot loader.
+/// ItemTraitExtension.IsStackableWith: class, binding (outside account storage),
+/// ExpireDateTime and the Attribute dictionary (Value and Arg).
 fn stackable(assets: &Assets, a: &Slot, b: &Slot) -> Result<Option<i32>, MinimumError> {
     let key = |s: &Slot| -> Vec<u8> {
         s.class
@@ -83,6 +83,14 @@ fn stackable(assets: &Assets, a: &Slot, b: &Slot) -> Result<Option<i32>, Minimum
     }
     // Account storage (3) ignores character binding.
     if ca.storage != 3 && cb.storage != 3 && a.tradable != b.tradable {
+        return Ok(None);
+    }
+    if (a.expireable, a.expire_ticks) != (b.expireable, b.expire_ticks)
+        || !crate::domain::item_attribute::stackable(
+            super::minimum_inventory::slot_attributes(a),
+            super::minimum_inventory::slot_attributes(b),
+        )
+    {
         return Ok(None);
     }
     Ok(Some(ca.max_stack))
@@ -232,6 +240,7 @@ pub async fn move_item(
             });
             if moving_count == 0 {
                 // Num = 0: RegisterDelete removes it from storage and destroys the row.
+                super::minimum_give::delete_attributes(&mut tx, item.id).await?;
                 sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
                     .bind(item.id)
                     .bind(cid)

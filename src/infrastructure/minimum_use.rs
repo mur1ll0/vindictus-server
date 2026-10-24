@@ -119,8 +119,9 @@ pub async fn use_item(
         sqlx::query("LOCK TABLE game_items,game_equippables IN SHARE ROW EXCLUSIVE MODE")
             .execute(&mut *tx)
             .await?;
-        // Validates ownership/profile; attributes and expiration are verified absent,
-        // so IsUsable (uptime passed, not expired, not broken) holds for non-equipment.
+        // Validates ownership/profile; MIN_UPTIME is refused by the loader and attributed
+        // items below, so IsUsable's uptime and broken checks hold for non-equipment
+        // (its Expired check is not evaluated here).
         let before =
             super::minimum_inventory::snapshot_with_equipment(&mut tx, owner, assets, cid, None)
                 .await?;
@@ -135,6 +136,11 @@ pub async fn use_item(
             // GetItem == null: FailMessage only.
             return Ok((Outcome::Unchanged, None));
         };
+        // Item attributes change what some usables do (VALUE amounts, enchant scrolls);
+        // no attributed use is migrated.
+        if item.attributes.as_ref().is_some_and(|a| !a.is_empty()) {
+            return Err(fail());
+        }
         let class = item.class.clone().unwrap_or_default();
         let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
         let indexed = assets.stats_index.class(Some(&key)).ok_or_else(fail)?;

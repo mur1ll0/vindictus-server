@@ -904,12 +904,25 @@ async fn apply_outputs(
                     Effect::TakeItem { class, count } => (class, *count, true),
                     _ => return Err(fail()),
                 };
-                let key = utf16(class);
+                // GiveItem(ItemClassEx): ItemClassExBuilder.Parse; take_item uses the class.
+                let (name, attributes) = if take {
+                    (
+                        class.clone(),
+                        crate::domain::item_attribute::Attributes::default(),
+                    )
+                } else {
+                    crate::domain::item_attribute::parse_class_ex(class).map_err(|_| {
+                        tracing::warn!("minimum story ItemClassEx refused; values omitted");
+                        fail()
+                    })?
+                };
+                let key = utf16(&name);
                 let request = [Request {
                     class: &key,
                     count,
                     bound: false,
                     equipment: None,
+                    attributes: &attributes,
                 }];
                 let (destroys, gives): (&[Request<'_>], &[Request<'_>]) = if take {
                     (&request, &[])

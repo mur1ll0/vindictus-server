@@ -371,6 +371,7 @@ pub async fn learn_new(
                     count: new.price,
                     bound: false,
                     equipment: None,
+                    attributes: &crate::domain::item_attribute::EMPTY,
                 }],
                 &[],
                 &mut || ids.next().ok_or_else(fail),

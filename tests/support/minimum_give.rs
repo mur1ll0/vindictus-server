@@ -2885,3 +2885,216 @@ async fn minimum_combat_events_proceed_title_goals_and_acquire_the_title() {
     assert!(titles.contains(&(410017, 2)), "{titles:?}");
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_attributed_items_stack_load_sell_and_buy_back_with_their_attributes() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_shop,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    let grant =
+        |class: &'static str, count| minimum_give::lab_grant(&p, &assets, Some(1), class, count, 9);
+    let attributes = || async {
+        sqlx::query_as::<_, (i64, Vec<u8>, Vec<u8>, i32, i32)>(
+            "SELECT a.item_id,a.attribute_bytes,a.value_bytes,a.arg,a.arg2 FROM game_item_attributes a JOIN game_items i ON i.id=a.item_id WHERE i.owner_id=1 ORDER BY a.id",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    let count_of = |id: i64| {
+        let p = &p;
+        async move {
+            sqlx::query_scalar::<_, i32>("SELECT count FROM game_items WHERE id=$1")
+                .bind(id)
+                .fetch_one(p)
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(grant("synthetic_gold", 100).await.unwrap(), Ok(1));
+    let plain_before: i64 = sqlx::query_scalar(
+        "SELECT sum(count) FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+    )
+    .bind(utf16("synthetic_cash"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    // A plain stack never takes an attributed request: a new cash item with one
+    // ItemAttribute row (varchar bytes, Arg/Arg2).
+    assert_eq!(
+        grant("synthetic_cash[PREFIX:bitter]", 2).await.unwrap(),
+        Ok(1)
+    );
+    let rows = attributes().await;
+    assert_eq!(rows.len(), 1);
+    let bitter = rows[0].0;
+    assert_eq!(
+        (
+            rows[0].1.as_slice(),
+            rows[0].2.as_slice(),
+            rows[0].3,
+            rows[0].4
+        ),
+        (&b"PREFIX"[..], &b"bitter"[..], 0, 0)
+    );
+    assert_eq!(count_of(bitter).await, 2);
+    // IsStackableWith ignores Arg2: the request stacks and the stored row is kept.
+    assert_eq!(
+        grant("synthetic_cash[PREFIX:bitter<5>]", 1).await.unwrap(),
+        Ok(1)
+    );
+    assert_eq!(count_of(bitter).await, 3);
+    assert_eq!(attributes().await, rows);
+    // Another value, and a plain request, keep their own stacks.
+    assert_eq!(
+        grant("synthetic_cash[ PREFIX : hard ]", 1).await.unwrap(),
+        Ok(1)
+    );
+    assert_eq!(grant("synthetic_cash", 1).await.unwrap(), Ok(1));
+    let rows = attributes().await;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1].2, b"hard");
+    assert_eq!(count_of(bitter).await, 3);
+    let plain: i64 = sqlx::query_scalar(
+        "SELECT sum(count) FROM game_items i WHERE owner_id=1 AND item_class_utf16=$1 AND NOT EXISTS(SELECT 1 FROM game_item_attributes a WHERE a.item_id=i.id)",
+    )
+    .bind(utf16("synthetic_cash"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(plain, plain_before + 1);
+    // Refused without writes: attributed equipment, EXPIRE, a repeated name.
+    let before = (items(&p).await, attributes().await);
+    assert_eq!(
+        grant("synthetic_bag[ENHANCE:3]", 1).await.unwrap(),
+        Err(GiveError::Unsupported)
+    );
+    assert_eq!(
+        grant("synthetic_cash[EXPIRE:2030/1/1/0/0/0]", 1)
+            .await
+            .unwrap(),
+        Err(GiveError::Unsupported)
+    );
+    assert!(grant("synthetic_cash[A:1,A:2]", 1).await.is_err());
+    assert_eq!((items(&p).await, attributes().await), before);
+    // InventoryInfo: SlotInfo.Attributes in load order; plain slots stay empty.
+    let packet = minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let Some(Message::InventoryInfo(info)) =
+        inventory::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("inventory missing")
+    };
+    let slots: Vec<_> = info.slots.unwrap().into_iter().flatten().collect();
+    let slot = slots.iter().find(|s| s.id == bitter).unwrap();
+    let projected: Vec<_> = slot
+        .attributes
+        .clone()
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .map(|a| (a.name.unwrap(), a.value.unwrap(), a.arg, a.arg2))
+        .collect();
+    assert_eq!(
+        projected,
+        [("PREFIX".to_owned(), "bitter".to_owned(), 0, 0)]
+    );
+    assert_eq!((slot.count, slot.tab), (3, 100));
+    assert_eq!(
+        slots
+            .iter()
+            .filter(|s| s.attributes.as_ref().is_some_and(|a| !a.is_empty()))
+            .count(),
+        2
+    );
+    // Equipment attributes change ItemStat, which is not migrated: the loader refuses.
+    let bag: i64 = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE owner_id=1 AND item_class_utf16=$1 ORDER BY id LIMIT 1",
+    )
+    .bind(utf16("synthetic_bag"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,'ENHANCE','3',0,0)")
+        .bind(bag)
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(
+        minimum_inventory::query(&p, &owner, &assets, 1)
+            .await
+            .is_err()
+    );
+    sqlx::query("DELETE FROM game_item_attributes WHERE item_id=$1")
+        .bind(bag)
+        .execute(&p)
+        .await
+        .unwrap();
+    // Selling the whole attributed stack removes its rows; the buyback clone keeps the
+    // attributes and shows ItemClassExBuilder.Build.
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let mut buyback = Vec::new();
+    let packets = minimum_shop::sell(&p, &owner, &assets, 1, bitter, 3, &mut buyback, vec![], log)
+        .await
+        .unwrap();
+    let rows = attributes().await;
+    assert!(rows.iter().all(|r| r.0 != bitter));
+    assert_eq!(rows.len(), 1);
+    let Some(Message::BuybackListResult(Some(list))) =
+        inventory::decode(Kind::BuybackListResult, &packets[1].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("buyback list missing")
+    };
+    assert_eq!(
+        list[0].clone().unwrap().item_class.as_deref(),
+        Some("synthetic_cash[PREFIX:bitter]")
+    );
+    minimum_shop::buy_back(
+        &p,
+        &owner,
+        &assets,
+        1,
+        0,
+        1,
+        &mut buyback,
+        vec![930_000_000_000_000_002],
+        log,
+    )
+    .await
+    .unwrap();
+    let rows = attributes().await;
+    assert_eq!(rows.len(), 2);
+    let restored = rows.iter().find(|r| r.2 == b"bitter").unwrap();
+    assert_eq!(restored.0, 930_000_000_000_000_002);
+    assert_eq!(count_of(restored.0).await, 3);
+    cleanup_game_pool(a, p, s).await;
+}

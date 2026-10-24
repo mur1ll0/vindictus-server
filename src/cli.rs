@@ -48,7 +48,8 @@ pub enum Command {
         /// Omit to use the only initialized first Fiona.
         #[arg(long)]
         cid: Option<i64>,
-        /// Source ItemClass, ASCII (for example `gold`).
+        /// Source ItemClass or ItemClassEx, ASCII (for example `gold` or
+        /// `enchant_scroll[PREFIX:bitter]`).
         #[arg(long)]
         item_class: String,
         #[arg(long)]

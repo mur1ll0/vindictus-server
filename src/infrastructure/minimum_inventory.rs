@@ -1,8 +1,13 @@
 //! Read-only initial inventory snapshot for the initialized, unequipped Fiona scope.
-//! Expanded/shared/expiring/attribute-bearing states are refused until their loaders exist.
+//! Expanded/shared states are refused until their loaders exist. Item attributes load
+//! for non-equippable items (equipment attributes change ItemStat, not migrated yet).
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
-    domain::{item_durability::EquipmentDurability, map_partition::OutgoingPacket},
+    domain::{
+        item_attribute::{self, Attribute, Attributes},
+        item_durability::EquipmentDurability,
+        map_partition::OutgoingPacket,
+    },
     protocol::{
         DEFAULT_MAX_BODY,
         inventory::{self as wire, Dict, Inventory, Kind, Message, Slot, Storage},
@@ -46,6 +51,62 @@ fn text(b: &[u8]) -> Result<String, MinimumError> {
             .collect::<Vec<_>>(),
     )
     .map_err(|_| MinimumError::Conflict)
+}
+fn wire_attribute(a: &Attribute) -> Option<wire::Attribute> {
+    Some(wire::Attribute {
+        name: Some(a.name.clone()),
+        value: Some(a.value.clone()),
+        arg: a.arg,
+        arg2: a.arg2,
+    })
+}
+/// Item.Attribute of a SlotInfo, as the attribute view IsStackableWith compares.
+pub(super) fn slot_attributes(slot: &Slot) -> Vec<(&str, &str, i32)> {
+    slot.attributes
+        .iter()
+        .flatten()
+        .flatten()
+        .map(|a| {
+            (
+                a.name.as_deref().unwrap_or(""),
+                a.value.as_deref().unwrap_or(""),
+                a.arg,
+            )
+        })
+        .collect()
+}
+/// item_id, attribute_bytes, value_bytes, arg, arg2.
+type AttributeRow = (i64, Vec<u8>, Vec<u8>, i32, i32);
+/// Item.LoadAttribute: the ItemAttribute rows of the items, in ID (insertion) order;
+/// a repeated AttributeName fails like Dictionary.Add.
+pub(super) async fn load_attributes(
+    tx: &mut Transaction<'_, Postgres>,
+    ids: &[i64],
+) -> Result<BTreeMap<i64, Attributes>, MinimumError> {
+    let rows: Vec<AttributeRow> = sqlx::query_as(
+        "SELECT item_id,attribute_bytes,value_bytes,arg,arg2 FROM game_item_attributes WHERE item_id=ANY($1) ORDER BY id LIMIT 65537",
+    )
+    .bind(ids)
+    .fetch_all(&mut **tx)
+    .await?;
+    if rows.len() > 65536 {
+        return Err(MinimumError::Conflict);
+    }
+    let mut grouped: BTreeMap<i64, Vec<Attribute>> = BTreeMap::new();
+    for (item, name, value, arg, arg2) in rows {
+        grouped.entry(item).or_default().push(
+            Attribute::from_stored(&name, &value, arg, arg2).map_err(|_| MinimumError::Conflict)?,
+        );
+    }
+    grouped
+        .into_iter()
+        .map(|(id, list)| {
+            Ok((
+                id,
+                Attributes::new(list).map_err(|_| MinimumError::Conflict)?,
+            ))
+        })
+        .collect()
 }
 /// Handler admission uses the current selected CID; storage independently rechecks ownership.
 pub async fn query(
@@ -116,15 +177,7 @@ pub(super) async fn snapshot_with_equipment(
         return Err(MinimumError::Conflict);
     }
     let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
-    let attributes: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM game_item_attributes WHERE item_id=ANY($1))",
-    )
-    .bind(&ids)
-    .fetch_one(&mut **tx)
-    .await?;
-    if attributes {
-        return Err(MinimumError::Conflict);
-    }
+    let mut attributes = load_attributes(tx, &ids).await?;
     let equipment:Vec<Equipment>=sqlx::query_as("SELECT id,part,color1,color2,color3,reduced_durability,max_durability_bonus FROM game_equippables WHERE id=ANY($1)").bind(&ids).fetch_all(&mut **tx).await?;
     let mut equipment: BTreeMap<_, _> = equipment.into_iter().map(|e| (e.id, e)).collect();
     let stats = &assets.stats_index;
@@ -191,6 +244,14 @@ pub(super) async fn snapshot_with_equipment(
             return Err(MinimumError::Conflict);
         }
         let equippable = class.equippable;
+        let attributes = attributes.remove(&row.id).unwrap_or_default();
+        // Equipment attributes feed ItemStat (Enhance/Enchant/Quality...); MIN_UPTIME
+        // needs ToFormatableDateTime for MinUpTimeDateTimeDiff.
+        if !attributes.is_empty()
+            && (equippable || attributes.get(item_attribute::MIN_UPTIME).is_some())
+        {
+            return Err(MinimumError::Conflict);
+        }
         let (colors, durability, maximum, bonus) = match (equippable, equipment.remove(&row.id)) {
             (false, None) => (vec![-1; 3], 0, 0, 0),
             (true, Some(e)) => {
@@ -231,7 +292,8 @@ pub(super) async fn snapshot_with_equipment(
             bonus,
             tradable: row.tradable,
             expander: Some(String::new()),
-            attributes: Some(Vec::new()),
+            // SlotInfo.Attributes = Item.Attribute.Values (insertion order).
+            attributes: Some(attributes.as_slice().iter().map(wire_attribute).collect()),
             prefix: Dict(Some(Vec::new())),
             suffix: Dict(Some(Vec::new())),
             // TradeManager.UpdatePrice initializes an empty cache before its query. Missing

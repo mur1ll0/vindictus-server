@@ -992,6 +992,7 @@ async fn reward_character(
             count: op.gold,
             bound: false,
             equipment: None,
+            attributes: &crate::domain::item_attribute::EMPTY,
         };
         match super::minimum_give::apply(&mut tx, rc.owner, rc.assets, cid, &[], &[gold], &mut next)
             .await?
@@ -1011,15 +1012,21 @@ async fn reward_character(
             tracing::warn!("quest item change reward is not migrated; values omitted");
             continue;
         }
-        if crate::domain::mission::item_class(key) != key || count <= 0 {
+        if count <= 0 {
             continue;
         }
-        let class = utf16(key);
+        // GiveItem(ItemRequestInfo(dictionary)): each key is an ItemClassEx.
+        let Ok((name, attributes)) = crate::domain::item_attribute::parse_class_ex(key) else {
+            tracing::warn!("quest item reward ItemClassEx refused; values omitted");
+            continue;
+        };
+        let class = utf16(&name);
         let request = super::minimum_give::Request {
             class: &class,
             count,
             bound: false,
             equipment: None,
+            attributes: &attributes,
         };
         match super::minimum_give::apply(
             &mut tx,

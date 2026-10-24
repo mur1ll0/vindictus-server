@@ -21,6 +21,7 @@ pub mod dormant_rewards;
 pub mod give_item;
 pub mod item_argument;
 pub mod item_argument_profile;
+pub mod item_attribute;
 pub mod item_binding;
 pub mod item_catalog;
 pub mod item_class_ex;

@@ -1,5 +1,6 @@
 //! ItemStorage.GiveVirtualItem planning (StorageHelper, ItemClassHelper and the
-//! storages' BindVirtualItem) for attribute-less, non-expiring items of one owner.
+//! storages' BindVirtualItem) for the items of one owner. Item attributes enter only as
+//! the IsStackableWith key; requests never carry an ExpireDateTime (EXPIRE is refused).
 //! Only the all-or-nothing overload is modelled: any failure applies nothing, and
 //! leftovers are never converted into system items (the mail fallback is not migrated).
 use super::item_location::ItemLocation;
@@ -47,11 +48,15 @@ pub struct Held {
     pub bound: bool,
     /// Item.ExpireDateTime is set (class ExpireIn or an EXPIRE attribute).
     pub expires: bool,
+    /// item_attribute::StackKeys key of Item.Attribute (0 = none).
+    pub attributes: u32,
 }
 pub struct Give<'a> {
     pub class: &'a ClassInfo,
     pub count: i32,
     pub bound: bool,
+    /// StackKeys key of the request attributes (0 = none).
+    pub attributes: u32,
 }
 pub struct Destroy<'a> {
     pub class: &'a ClassInfo,
@@ -125,7 +130,7 @@ struct Helper<'a> {
     info: &'a ClassInfo,
     items: Vec<Held>,
     destroys: Vec<i32>,
-    gives: Vec<(i32, bool, usize)>,
+    gives: Vec<(i32, bool, u32, usize)>,
     modified: Vec<(Held, i32)>,
     created: Vec<(i32, bool, usize)>,
     unique_fail: bool,
@@ -158,10 +163,13 @@ impl<'a> Helper<'a> {
             .find(|(h, _)| h.id == item.id)
             .map_or(item.count, |m| m.1)
     }
-    /// ItemTraitExtension.IsStackableWith(Item, GiveItemRequest) without attributes: a
-    /// request carries no ExpireDateTime, so an item with one never takes it.
-    fn stackable(&self, item: &Held, bound: bool) -> bool {
-        !self.info.equippable && (self.info.storage == 3 || item.bound == bound) && !item.expires
+    /// ItemTraitExtension.IsStackableWith(Item, GiveItemRequest): a request carries no
+    /// ExpireDateTime, so an item with one never takes it; attributes must match.
+    fn stackable(&self, item: &Held, bound: bool, attributes: u32) -> bool {
+        !self.info.equippable
+            && (self.info.storage == 3 || item.bound == bound)
+            && !item.expires
+            && item.attributes == attributes
     }
     fn destroy_item(&mut self, item: Held, num: i32) -> i32 {
         if let Some(modified) = self.modified_mut(item.id) {
@@ -231,14 +239,15 @@ impl<'a> Helper<'a> {
             return Err(GiveError::ExceedBundleCount);
         }
         // ItemFactory.MergeDuplicatedRequest: stackable requests of the class are summed.
-        let mut merged: Vec<(i32, bool, usize)> = Vec::new();
-        for &(num, bound, request) in &self.gives {
-            match merged
-                .iter_mut()
-                .find(|m| !self.info.equippable && (self.info.storage == 3 || m.1 == bound))
-            {
+        let mut merged: Vec<(i32, bool, u32, usize)> = Vec::new();
+        for &(num, bound, attributes, request) in &self.gives {
+            match merged.iter_mut().find(|m| {
+                !self.info.equippable
+                    && (self.info.storage == 3 || m.1 == bound)
+                    && m.2 == attributes
+            }) {
                 Some(m) => m.0 = m.0.checked_add(num).ok_or(GiveError::Unsupported)?,
-                None => merged.push((num, bound, request)),
+                None => merged.push((num, bound, attributes, request)),
             }
         }
         let count = self
@@ -251,11 +260,11 @@ impl<'a> Helper<'a> {
         } else {
             self.info.unique - count
         };
-        for (num, bound, request) in merged {
+        for (num, bound, attributes, request) in merged {
             let mut num = num;
             if unique_left > 0 {
                 for item in self.stack_order() {
-                    if self.stackable(&item, bound) {
+                    if self.stackable(&item, bound, attributes) {
                         num -= self.add_item(item, num, &mut unique_left);
                         if unique_left == 0 {
                             break;
@@ -308,8 +317,12 @@ pub fn plan(
         if g.count < 0 {
             return Err(GiveError::InvalidRequest);
         }
-        // ItemImpl.GiveItem turns an equippable "<class>_lvlN" into <class> with ENHANCE
-        // N*2, an item attribute this storage profile does not carry.
+        // Equipment attributes change ItemStat (Enhance/Enchant/Quality entities), which
+        // this storage profile does not compute. ItemImpl.GiveItem also turns an
+        // equippable "<class>_lvlN" into <class> with ENHANCE N*2.
+        if g.class.equippable && g.attributes != 0 {
+            return Err(GiveError::Unsupported);
+        }
         if g.class.equippable && {
             let units: Vec<u16> = g
                 .class
@@ -324,14 +337,20 @@ pub fn plan(
         } {
             return Err(GiveError::Unsupported);
         }
-        index(&mut helpers, g.class, inventory)
-            .gives
-            .push((g.count, g.bound, request));
+        index(&mut helpers, g.class, inventory).gives.push((
+            g.count,
+            g.bound,
+            g.attributes,
+            request,
+        ));
     }
     for h in &helpers {
-        // DestroyComparer orders expiring items by ExpireDateTime, which this profile
-        // does not compare; new items of an ExpireIn class get their expiry on creation.
-        if h.info.tircoin || !h.destroys.is_empty() && h.items.iter().any(|i| i.expires) {
+        // DestroyComparer orders expiring items by ExpireDateTime and attributed items by
+        // GetItemValue (enhance/quality/enchant points), which this profile does not
+        // compare; new items of an ExpireIn class get their expiry on creation.
+        if h.info.tircoin
+            || !h.destroys.is_empty() && h.items.iter().any(|i| i.expires || i.attributes != 0)
+        {
             return Err(GiveError::Unsupported);
         }
     }

@@ -45,15 +45,17 @@ Plano revisado pelo operador em 21/10/2026. A ordem prioriza o ciclo PvE jogáve
 
 ## Pendências conhecidas do B2 (não implementadas)
 
-Levantadas na auditoria de 22/10/2026 a partir do código e dos limites de cada entrada do roteiro. O servidor recusa ou ignora esses casos sem enviar sucesso falso.
+Levantadas na auditoria de 22/10/2026 a partir do código e dos limites de cada entrada do roteiro; revisadas em 23/10/2026. O servidor recusa ou ignora esses casos sem enviar sucesso falso.
 
 - **Entrada e grupo:** só missão solo (host local). Recusadas: pesca, caça, torre, missões com item obrigatório ou limite de equipamento. Moedas e pedras de bênção vêm vazias. Reinício pelo navio (ReturnToShip) não existe; o botão de reiniciar fica oculto. Reentrar numa missão em andamento (CombatRejoinSystem) não existe.
 - **Setores:** sem AntiSectorSkip e sem diálogos de console de setor.
-- **Drops:** baú do tesouro, mapas do tesouro, núcleos de evento/história, pontos fracos (WeakPoint), NamedProp, bônus de habilidade em props e HugeLucky. Itens com atributo (ex.: pergaminhos de encantamento) e inventário cheio são recusados; o envio por correio da sobra não existe.
+- **Drops:** baú do tesouro, mapas do tesouro, núcleos de evento/história, pontos fracos (WeakPoint) e HugeLucky. O `AbilityBonus` de props e props nomeados foi para o item 5 do B3. Itens com atributo (ex.: pergaminhos de encantamento) dependem do inventário com atributos (B3); inventário cheio é recusado e o envio por correio da sobra não existe.
 - **Combate:** o anti-trapaça de dano (MDRSystem) só marca rankings, que não existem. Caixas alquímicas na barra continuam recusadas.
 - **Conclusão e recompensas:** recompensas de troca de item (ex.: `slayer_stamp_limit>slayer_stamp`); rankings (CharacterRank); bônus de status, cafe, guilda, moedas e pedras de bênção; AddMicroPlayTime e contagem diária de quests grátis; OnEnterPhase das histórias após a quest. Um objetivo de quest (do sapo) usa uma regex que o motor não compila e nunca conclui.
-- **Progressão:** títulos adquiridos (status concluído e bônus de atributo), recompensa de título/skill de história, AddGrowthLog e efeitos de guilda.
+- **Progressão:** AddGrowthLog, efeitos de guilda e títulos de rank. Destruir item equipado por história (`take_item` de peça vestida) continua recusado até o desequipar pelo ItemService.
+- **Histórias:** ainda param o diálogo, sem gravar nada, a fabricação (`levelup_manufacture`, `acquire_manufacture`; B3.1), a vocação (`select_vocation`), recompensas `enchant_scroll[...]` com atributo (B3) e `complete_episode`/`give_title_by_episode`.
 - **Robustez:** envio por correio dos itens reservados de quem sai da missão.
+- **Feitos depois da auditoria (22–23/10):** títulos adquiridos (status concluído, bônus de atributo, TitleListMessage na entrada, títulos por ação de combate), recompensa de título e de skill de história, props nomeados (`NamedPropDropTable`), itens com validade e valores originais de conteúdo (`docs/content-tuning.md`).
 - **Gate:** o smoke Docker não completou no fechamento (carga externa); repetido na auditoria de 22/10 com exit 0, o que completa o gate do B2.
 
 ## B0 — personagem na cidade (fechado em 21/10/2026)
@@ -92,6 +94,7 @@ Gate B2: repetir o ciclo completo várias vezes, inclusive morrer e desconectar,
 
 Depende de fases, drops e chefes do B2.
 
+0. **Atributos de item (base dos itens 1–5):** carga, projeção no SlotInfo, empilhamento, entrega e gravação de `game_item_attributes`. B3.0a (23/10/2026): itens não equipáveis (pergaminhos `enchant_scroll[PREFIX/SUFFIX:…]`) em entrega, loja/recompra, história, missão e quest. Pendente: equipamento com atributos (ItemStat de Enhance/Enchant/Quality), junto com os itens 2 e 3.
 1. **Craft:** NPC/ofício, receitas desbloqueadas por chefes e fases conforme a progressão, materiais, custos, fabricação/filas e resultado persistido.
 2. **Enhance (ferreiro):** níveis de melhoria, chances de sucesso e falha, quebra e restauração de itens, itens que aumentam a chance e itens que impedem a quebra.
 3. **Enchant:** scrolls de prefixo e sufixo, chances, falha e destruição conforme o original, e itens de proteção.

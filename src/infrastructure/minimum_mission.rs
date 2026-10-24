@@ -1080,8 +1080,8 @@ pub fn ragdoll_kicked(
 }
 
 /// MicroPlayer.GiveItemReward: GiveItem (count 1) then the GetItemMessage broadcast and
-/// the "get item <class> <count>" informer event. Attribute classes and full inventories
-/// (ForceMail) are outside the migrated give planner and are refused.
+/// the "get item <class> <count>" informer event. Attributes the give planner does not
+/// carry and full inventories (ForceMail) are refused.
 #[allow(clippy::too_many_arguments)]
 pub async fn give_reward(
     pool: &PgPool,
@@ -1097,15 +1097,16 @@ pub async fn give_reward(
     mission
         .events
         .push((cid, format!("get item {class_ex} {count}")));
-    if domain::item_class(class_ex) != class_ex {
-        return Err(fail());
-    }
-    let key = utf16(class_ex);
+    // GiveItem(Dictionary<ItemClassEx, int>): ItemClassExBuilder.Parse per key.
+    let (class, attributes) =
+        crate::domain::item_attribute::parse_class_ex(class_ex).map_err(|_| fail())?;
+    let key = utf16(&class);
     let request = [super::minimum_give::Request {
         class: &key,
         count,
         bound: false,
         equipment: None,
+        attributes: &attributes,
     }];
     let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
     let applied = super::minimum_give::apply(&mut tx, owner, assets, cid, &[], &request, ids)
@@ -1416,6 +1417,7 @@ pub async fn destroy_consumable(
         count: 1,
         bound: false,
         equipment: None,
+        attributes: &crate::domain::item_attribute::EMPTY,
     }];
     let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
     let applied =
