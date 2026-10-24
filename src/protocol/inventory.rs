@@ -51,6 +51,8 @@ pub enum Kind {
     UpdateTitle,
     HideCostume,
     TitleList,
+    EnhanceItem,
+    EnhanceItemResult,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -95,6 +97,8 @@ impl Kind {
             Self::UpdateTitle => 191,
             Self::HideCostume => 414,
             Self::TitleList => 610,
+            Self::EnhanceItem => 354,
+            Self::EnhanceItemResult => 355,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -139,6 +143,8 @@ impl Kind {
             Self::UpdateTitle => 0xbb01bf3c_8194_3f94_9480_4bf20654b7b3,
             Self::HideCostume => 0x80e685d2_1ace_3cf5_90aa_7fda984d169d,
             Self::TitleList => 0xe537b12b_c3c8_3ae2_816e_df0465b4883b,
+            Self::EnhanceItem => 0x04804f38_5cec_31f6_885a_cc0fc33628eb,
+            Self::EnhanceItemResult => 0x1726cb88_3409_3a2b_8923_56e0250aab6a,
         })
     }
 }
@@ -279,6 +285,8 @@ pub enum Message {
     HideCostume(HideCostume),
     /// TitleListMessage: AccountTitles, Titles.
     TitleList(TitleList),
+    EnhanceItem(EnhanceItem),
+    EnhanceItemResult(EnhanceItemResult),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -383,6 +391,26 @@ pub struct BuybackInfo {
 pub struct TitleList {
     pub account: Option<Vec<Option<TitleSlot>>>,
     pub titles: Option<Vec<Option<TitleSlot>>>,
+}
+/// EnhanceItemMessage: ItemID, Material1, Material2, AdditionalMaterial,
+/// IsEventEnhanceAShot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnhanceItem {
+    pub item_id: i64,
+    pub material1: Option<String>,
+    pub material2: Option<String>,
+    pub additional_material: Option<String>,
+    pub is_event_enhance_a_shot: bool,
+}
+/// EnhanceItemResultMessage: Result, ItemID, PrevItemClass, EnhancedItemClass and the
+/// FailReward dictionary.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnhanceItemResult {
+    pub result: Option<String>,
+    pub item_id: i64,
+    pub prev_item_class: Option<String>,
+    pub enhanced_item_class: Option<String>,
+    pub fail_reward: super::mission::StrDict<i32>,
 }
 /// HideCostumeMessage: HideHead, AvatarPart, AvatarState (the constructor sets -1/-1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -560,6 +588,8 @@ impl Message {
             Self::UpdateTitle(_) => Kind::UpdateTitle,
             Self::HideCostume(_) => Kind::HideCostume,
             Self::TitleList(_) => Kind::TitleList,
+            Self::EnhanceItem(_) => Kind::EnhanceItem,
+            Self::EnhanceItemResult(_) => Kind::EnhanceItemResult,
         }
     }
 }
@@ -796,6 +826,20 @@ object!(RepairItem {
 });
 object!(StoryGuide { target, message });
 object!(TitleList { account, titles });
+object!(EnhanceItem {
+    item_id,
+    material1,
+    material2,
+    additional_material,
+    is_event_enhance_a_shot
+});
+object!(EnhanceItemResult {
+    result,
+    item_id,
+    prev_item_class,
+    enhanced_item_class,
+    fail_reward
+});
 object!(HideCostume {
     hide_head,
     avatar_part,
@@ -926,6 +970,8 @@ pub fn encode(
             Message::UpdateTitle(v) => v.write(&mut w)?,
             Message::HideCostume(v) => v.write(&mut w)?,
             Message::TitleList(v) => v.write(&mut w)?,
+            Message::EnhanceItem(v) => v.write(&mut w)?,
+            Message::EnhanceItemResult(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1003,6 +1049,8 @@ fn decode_body(
             Kind::UpdateTitle => Message::UpdateTitle(Wire::read(&mut r)?),
             Kind::HideCostume => Message::HideCostume(HideCostume::read(&mut r)?),
             Kind::TitleList => Message::TitleList(TitleList::read(&mut r)?),
+            Kind::EnhanceItem => Message::EnhanceItem(EnhanceItem::read(&mut r)?),
+            Kind::EnhanceItemResult => Message::EnhanceItemResult(EnhanceItemResult::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

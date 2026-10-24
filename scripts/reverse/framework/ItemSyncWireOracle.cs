@@ -192,9 +192,17 @@ class ItemSyncWireOracle {
   var acquired=new TitleSlotInfo(7,TitleState.Acquired,long.MaxValue,"quest_x",new List<KeyValuePair<int,int>>(),new DateTime(2030,1,2));
   AddCases("update_title",191,new Guid("bb01bf3c-8194-3f94-9480-4bf20654b7b3"),new[]{null,new UpdateTitleMessage(null),new UpdateTitleMessage(new List<TitleSlotInfo>()),new UpdateTitleMessage(new List<TitleSlotInfo>{slot,null,acquired})},cases);
   AddCases("title_list",610,new Guid("e537b12b-c3c8-3ae2-816e-df0465b4883b"),new[]{null,new TitleListMessage(null,null),new TitleListMessage(new List<TitleSlotInfo>(),new List<TitleSlotInfo>()),new TitleListMessage(new List<TitleSlotInfo>{acquired},new List<TitleSlotInfo>{slot,null,acquired})},cases);
+  var enhances=new List<EnhanceItemMessage>{null};
+  foreach(long id in new[]{long.MinValue,0L,long.MaxValue})foreach(string m in new[]{null,"","enhance_stone_lvl1"})foreach(string add in new[]{null,"","Enhance_Destroy_ProtectRune"})foreach(bool e in new[]{false,true})enhances.Add(Obj<EnhanceItemMessage>("ItemID",id,"Material1",m,"Material2",m==null?"enhance_elixir":null,"AdditionalMaterial",add,"IsEventEnhanceAShot",e));
+  AddCases("enhance_item",354,new Guid("04804f38-5cec-31f6-885a-cc0fc33628eb"),enhances,cases);
+  var rewards=new Dictionary<string,int>{{"enhance_stone_lvl1",21},{"iron_ingot",int.MinValue},{"",int.MaxValue}};
+  AddCases("enhance_item_result",355,new Guid("1726cb88-3409-3a2b-8923-56e0250aab6a"),new[]{null,new EnhanceItemResultMessage(null,0,null,null,null),new EnhanceItemResultMessage("Success",long.MaxValue,"longsword_swordwind","longsword_swordwind[ENHANCE:1]",new Dictionary<string,int>()),new EnhanceItemResultMessage("Destroy",long.MinValue,"longsword_swordwind[ENHANCE:9]","",rewards),new EnhanceItemResultMessage("NoPenalty_RankDown",-1,"",null,new Dictionary<string,int>{{"x",0}})},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }
 namespace Utility { public static class Log<T> { public static readonly DummyLogger Logger=new DummyLogger(); } public class DummyLogger {public void DebugFormat(string f,params object[] a){} } }
+// EnhanceItemResultMessage's private ItemClassEx helper references the builder; the
+// constructor and the serializer never call it.
+namespace ServiceCore.ItemServiceOperations { public static class ItemClassExBuilder { public static string Build(string itemClass,int enhanceLevel){throw new NotSupportedException();} } }
 namespace Devcat.Core.Memory {public static class ChunkSegment<T>{public static ArraySegment<T> Get(int count){return new ArraySegment<T>(new T[count]);}}}

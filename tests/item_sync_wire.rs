@@ -403,6 +403,46 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 }
             }
         }
+        Some(Message::EnhanceItem(e)) => {
+            assert_eq!(e.item_id, f["ItemID"].as_i64().unwrap(), "case {n}");
+            assert_eq!(e.material1.as_deref(), f["Material1"].as_str(), "case {n}");
+            assert_eq!(e.material2.as_deref(), f["Material2"].as_str(), "case {n}");
+            assert_eq!(
+                e.additional_material.as_deref(),
+                f["AdditionalMaterial"].as_str(),
+                "case {n}"
+            );
+            assert_eq!(
+                Some(e.is_event_enhance_a_shot),
+                f["IsEventEnhanceAShot"].as_bool(),
+                "case {n}"
+            );
+        }
+        Some(Message::EnhanceItemResult(e)) => {
+            assert_eq!(e.result.as_deref(), f["Result"].as_str(), "case {n}");
+            assert_eq!(e.item_id, f["ItemID"].as_i64().unwrap(), "case {n}");
+            assert_eq!(
+                e.prev_item_class.as_deref(),
+                f["PrevItemClass"].as_str(),
+                "case {n}"
+            );
+            assert_eq!(
+                e.enhanced_item_class.as_deref(),
+                f["EnhancedItemClass"].as_str(),
+                "case {n}"
+            );
+            let rewards = f["FailReward"].as_array().map(|o| {
+                o.iter()
+                    .map(|p| {
+                        (
+                            p["key"].as_str().unwrap().to_owned(),
+                            i32::try_from(p["value"].as_i64().unwrap()).unwrap(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(e.fail_reward.0, rewards, "case {n}");
+        }
         Some(Message::HideCostume(h)) => {
             assert_eq!(Some(h.hide_head), f["HideHead"].as_bool(), "case {n}");
             assert_eq!(
@@ -675,12 +715,14 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::UpdateTitle,
         Kind::HideCostume,
         Kind::TitleList,
+        Kind::EnhanceItem,
+        Kind::EnhanceItemResult,
     ] {
         registered(kind.category(), kind.type_id());
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1416);
+        assert_eq!(cases.len(), 1596);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -720,6 +762,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "set_story_line_status" => check_inventory(Kind::SetStoryLineStatus, case, n),
                 "hide_costume" => check_inventory(Kind::HideCostume, case, n),
                 "title_list" => check_inventory(Kind::TitleList, case, n),
+                "enhance_item" => check_inventory(Kind::EnhanceItem, case, n),
+                "enhance_item_result" => check_inventory(Kind::EnhanceItemResult, case, n),
                 "execute_npc_server_command" => {
                     check_inventory(Kind::ExecuteNpcServerCommand, case, n)
                 }
