@@ -63,6 +63,15 @@ pub enum Kind {
     UnequippablePartsInfo,
     MaxDurabilityRepairItem,
     UpdateStorageInfo,
+    SkillEnhanceSessionStart,
+    SkillEnhanceSessionEnd,
+    SkillEnhanceUseErg,
+    SkillEnhanceUseErgResult,
+    SkillEnhance,
+    SkillEnhanceResult,
+    SkillEnhanceChanged,
+    SkillEnhanceUseDurability,
+    SkillEnhanceRestoreDurability,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -119,6 +128,15 @@ impl Kind {
             Self::UnequippablePartsInfo => 614,
             Self::MaxDurabilityRepairItem => 342,
             Self::UpdateStorageInfo => 620,
+            Self::SkillEnhanceSessionStart => 173,
+            Self::SkillEnhanceSessionEnd => 174,
+            Self::SkillEnhanceUseErg => 175,
+            Self::SkillEnhanceUseErgResult => 176,
+            Self::SkillEnhance => 177,
+            Self::SkillEnhanceResult => 178,
+            Self::SkillEnhanceChanged => 172,
+            Self::SkillEnhanceUseDurability => 179,
+            Self::SkillEnhanceRestoreDurability => 180,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -175,6 +193,15 @@ impl Kind {
             Self::UnequippablePartsInfo => 0xd0ac3a73_85f7_38bb_ba07_68bec5d8ae21,
             Self::MaxDurabilityRepairItem => 0x66ecfcca_c35b_3005_a79c_ad9fc04da573,
             Self::UpdateStorageInfo => 0x8eeec067_48d4_3852_9e5e_6a463040bf0c,
+            Self::SkillEnhanceSessionStart => 0xc48535b3_8e5e_3483_899d_0fa1c34cf886,
+            Self::SkillEnhanceSessionEnd => 0x7b5daeb1_f892_36a4_92f8_f7f5ab24babe,
+            Self::SkillEnhanceUseErg => 0x8a2ad99d_4c45_3e7a_8c27_38c56dc45cda,
+            Self::SkillEnhanceUseErgResult => 0x5a41f49f_bf50_3f92_806c_c16778a0d731,
+            Self::SkillEnhance => 0x852e561d_1231_3b4e_b53b_d8bec2c34d7e,
+            Self::SkillEnhanceResult => 0x8c9bc99c_7e1f_394a_b74e_a12e4b9f4779,
+            Self::SkillEnhanceChanged => 0xedfa9396_8cdf_3ccf_811f_7b68c28731a6,
+            Self::SkillEnhanceUseDurability => 0x8d429b16_9c2a_37d5_9fef_1b97a60a1980,
+            Self::SkillEnhanceRestoreDurability => 0x05ccc728_0129_3695_b7ca_d5978545b1b3,
         })
     }
 }
@@ -330,6 +357,18 @@ pub enum Message {
     MaxDurabilityRepairItem(MaxDurabilityRepairItem),
     /// UpdateStorageInfoMessage.StorageInfos (ItemStorage.ToStorageInfo).
     UpdateStorageInfo(Option<Vec<Option<Storage>>>),
+    SkillEnhanceSessionStart(SkillEnhanceSessionStart),
+    /// SkillEnhanceSessionEndMessage.SkillName.
+    SkillEnhanceSessionEnd(Option<String>),
+    SkillEnhanceUseErg(SkillEnhanceUseErg),
+    SkillEnhanceUseErgResult(SkillEnhanceUseErgResult),
+    /// SkillEnhanceMessage.AdditionalItemIDs.
+    SkillEnhance(Option<Vec<i64>>),
+    SkillEnhanceResult(SkillEnhanceResult),
+    /// SkillEnhanceChangedMessage.SkillEnhanceChanged.
+    SkillEnhanceChanged(super::mission::StrDict<Option<SkillEnhance>>),
+    SkillEnhanceUseDurability(SkillEnhanceUseDurability),
+    SkillEnhanceRestoreDurability(SkillEnhanceRestoreDurability),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -488,6 +527,50 @@ pub struct ManufactureInfo {
 pub struct ManufactureCraft {
     pub recipe_id: Option<String>,
     pub parts_id_list: Option<Vec<i64>>,
+}
+/// SkillEnhanceSessionStartMessage: SkillName, SkillEnhanceStoneItemID.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SkillEnhanceSessionStart {
+    pub skill_name: Option<String>,
+    pub stone_item_id: i64,
+}
+/// SkillEnhanceUseErgMessage: ErgItemID, UseCount.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillEnhanceUseErg {
+    pub erg_item_id: i64,
+    pub use_count: i32,
+}
+/// SkillEnhanceUseErgResultMessage: Result, CurrentPercentage, MaxPercentage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkillEnhanceUseErgResult {
+    pub result: bool,
+    pub current: i32,
+    pub max: i32,
+}
+/// SkillEnhanceResultMessage in declaration order.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SkillEnhanceResult {
+    pub skill_name: Option<String>,
+    pub stone_item: Option<String>,
+    pub success_ratio: i32,
+    pub additional_item_classes: Option<Vec<Option<String>>>,
+    pub result: bool,
+    pub additional_item_destroyed: bool,
+    pub stone_protected: bool,
+    pub enhances: Option<Vec<Option<SkillEnhance>>>,
+}
+/// SkillEnhanceUseDurabilityMessage: Slot, UseDurability.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SkillEnhanceUseDurability {
+    pub slot: i32,
+    pub use_durability: super::mission::StrDict<i32>,
+}
+/// SkillEnhanceRestoreDurabilityMessage: EnhanceStoneItemID, UseCount, SkillName.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SkillEnhanceRestoreDurability {
+    pub stone_item_id: i64,
+    pub use_count: i32,
+    pub skill_name: Option<String>,
 }
 /// MaxDurabilityRepairItemMessage: TargetItemID, SourceItemID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -696,6 +779,15 @@ impl Message {
             Self::UnequippablePartsInfo(_) => Kind::UnequippablePartsInfo,
             Self::MaxDurabilityRepairItem(_) => Kind::MaxDurabilityRepairItem,
             Self::UpdateStorageInfo(_) => Kind::UpdateStorageInfo,
+            Self::SkillEnhanceSessionStart(_) => Kind::SkillEnhanceSessionStart,
+            Self::SkillEnhanceSessionEnd(_) => Kind::SkillEnhanceSessionEnd,
+            Self::SkillEnhanceUseErg(_) => Kind::SkillEnhanceUseErg,
+            Self::SkillEnhanceUseErgResult(_) => Kind::SkillEnhanceUseErgResult,
+            Self::SkillEnhance(_) => Kind::SkillEnhance,
+            Self::SkillEnhanceResult(_) => Kind::SkillEnhanceResult,
+            Self::SkillEnhanceChanged(_) => Kind::SkillEnhanceChanged,
+            Self::SkillEnhanceUseDurability(_) => Kind::SkillEnhanceUseDurability,
+            Self::SkillEnhanceRestoreDurability(_) => Kind::SkillEnhanceRestoreDurability,
         }
     }
 }
@@ -949,6 +1041,38 @@ object!(ManufactureCraft {
     parts_id_list
 });
 object!(ManufactureLevelUp { mid, grade });
+object!(SkillEnhanceSessionStart {
+    skill_name,
+    stone_item_id
+});
+object!(SkillEnhanceUseErg {
+    erg_item_id,
+    use_count
+});
+object!(SkillEnhanceUseErgResult {
+    result,
+    current,
+    max
+});
+object!(SkillEnhanceResult {
+    skill_name,
+    stone_item,
+    success_ratio,
+    additional_item_classes,
+    result,
+    additional_item_destroyed,
+    stone_protected,
+    enhances
+});
+object!(SkillEnhanceUseDurability {
+    slot,
+    use_durability
+});
+object!(SkillEnhanceRestoreDurability {
+    stone_item_id,
+    use_count,
+    skill_name
+});
 object!(MaxDurabilityRepairItem {
     target_item_id,
     source_item_id
@@ -1121,6 +1245,15 @@ pub fn encode(
             Message::UnequippablePartsInfo(v) => v.write(&mut w)?,
             Message::MaxDurabilityRepairItem(v) => v.write(&mut w)?,
             Message::UpdateStorageInfo(v) => v.write(&mut w)?,
+            Message::SkillEnhanceSessionStart(v) => v.write(&mut w)?,
+            Message::SkillEnhanceSessionEnd(v) => v.write(&mut w)?,
+            Message::SkillEnhanceUseErg(v) => v.write(&mut w)?,
+            Message::SkillEnhanceUseErgResult(v) => v.write(&mut w)?,
+            Message::SkillEnhance(v) => v.write(&mut w)?,
+            Message::SkillEnhanceResult(v) => v.write(&mut w)?,
+            Message::SkillEnhanceChanged(v) => v.write(&mut w)?,
+            Message::SkillEnhanceUseDurability(v) => v.write(&mut w)?,
+            Message::SkillEnhanceRestoreDurability(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1214,6 +1347,23 @@ fn decode_body(
                 Message::MaxDurabilityRepairItem(MaxDurabilityRepairItem::read(&mut r)?)
             }
             Kind::UpdateStorageInfo => Message::UpdateStorageInfo(Wire::read(&mut r)?),
+            Kind::SkillEnhanceSessionStart => {
+                Message::SkillEnhanceSessionStart(Wire::read(&mut r)?)
+            }
+            Kind::SkillEnhanceSessionEnd => Message::SkillEnhanceSessionEnd(Wire::read(&mut r)?),
+            Kind::SkillEnhanceUseErg => Message::SkillEnhanceUseErg(Wire::read(&mut r)?),
+            Kind::SkillEnhanceUseErgResult => {
+                Message::SkillEnhanceUseErgResult(Wire::read(&mut r)?)
+            }
+            Kind::SkillEnhance => Message::SkillEnhance(Wire::read(&mut r)?),
+            Kind::SkillEnhanceResult => Message::SkillEnhanceResult(Wire::read(&mut r)?),
+            Kind::SkillEnhanceChanged => Message::SkillEnhanceChanged(Wire::read(&mut r)?),
+            Kind::SkillEnhanceUseDurability => {
+                Message::SkillEnhanceUseDurability(Wire::read(&mut r)?)
+            }
+            Kind::SkillEnhanceRestoreDurability => {
+                Message::SkillEnhanceRestoreDurability(Wire::read(&mut r)?)
+            }
         })
     };
     if strict && !r.remaining.is_empty() {

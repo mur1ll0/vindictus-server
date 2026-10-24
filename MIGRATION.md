@@ -1155,3 +1155,10 @@ B3.4c — armazenamento pessoal: abrir abas da bolsa (`give_storage`) (24/10/202
 - Diferenças: abas com ExpireTime (`ExtendStorage`/`UseExtraStorage`), `StorageTag`/nome (`UpdateStorageSetting`, entrega por filtro de tag), `CloseStorage` e `UpdateInventoryObservable` não migrados.
 - Cliente: entrada B3.4c em `docs/client-tests/B3-equipamento.md`.
 - Próxima ação: B3.4d — SkillEnhance (sessão, pedras de aprimoramento de habilidade, Erg e durabilidade), depois o gate do B3.
+
+B3.4d-0 — protocolo do SkillEnhance (24/10/2026).
+- Fonte: `ServiceCore.EndPointNetwork` `SkillEnhanceSessionStartMessage` (173), `SkillEnhanceSessionEndMessage` (174), `SkillEnhanceUseErgMessage` (175), `SkillEnhanceUseErgResultMessage` (176), `SkillEnhanceMessage` (177), `SkillEnhanceResultMessage` (178), `SkillEnhanceChangedMessage` (172), `SkillEnhanceUseDurabilityMessage` (179) e `SkillEnhanceRestoreDurabilityMessage` (180).
+- Verificação: oráculo `ItemSyncWireOracle.cs` com 1.980 casos (x86 = x64); `item_sync_wire`, `inventory_wire`; clippy `-D warnings`.
+- Cliente: não necessário (sem comportamento ainda).
+- Próxima ação: B3.4d-1 — tabela `SkillEnhance` (migração 0038 a partir de `docs/evidence/database/study_heroes.schema.json`), conteúdo `SkillEnhanceInfo`/`SkillEnhanceMaterialInfo`/`SkillInfo.SkillEnhanceGroup`, projeção na `SkillList`/MicroPlay e a sessão (início, materiais, sorteio, fim).
+

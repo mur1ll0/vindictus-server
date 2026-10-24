@@ -218,6 +218,24 @@ class ItemSyncWireOracle {
   AddCases("max_durability_repair_item",342,new Guid("66ecfcca-c35b-3005-a79c-ad9fc04da573"),new[]{null,new MaxDurabilityRepairItemMessage(0L,0L),new MaxDurabilityRepairItemMessage(long.MaxValue,long.MinValue),new MaxDurabilityRepairItemMessage(77L,78L)},cases);
   var storages=new List<StorageInfo>{new StorageInfo(0,true,-1,"",0),null,new StorageInfo(2,false,int.MaxValue,"保管",7),new StorageInfo(255,true,int.MinValue,null,int.MinValue)};
   AddCases("update_storage_info",620,new Guid("8eeec067-48d4-3852-9e5e-6a463040bf0c"),new[]{null,new UpdateStorageInfoMessage(null),new UpdateStorageInfoMessage(new List<StorageInfo>()),new UpdateStorageInfoMessage(storages)},cases);
+  var starts=new List<SkillEnhanceSessionStartMessage>{null};
+  foreach(string sk in new[]{null,"","skill_counter_attack"})foreach(long id in new[]{long.MinValue,0L,long.MaxValue})starts.Add(Obj<SkillEnhanceSessionStartMessage>("SkillName",sk,"SkillEnhanceStoneItemID",id));
+  AddCases("skill_enhance_session_start",173,new Guid("c48535b3-8e5e-3483-899d-0fa1c34cf886"),starts,cases);
+  var ends=new List<SkillEnhanceSessionEndMessage>{null};
+  foreach(string sk in new[]{null,"","skill_counter_attack"})ends.Add(Obj<SkillEnhanceSessionEndMessage>("SkillName",sk));
+  AddCases("skill_enhance_session_end",174,new Guid("7b5daeb1-f892-36a4-92f8-f7f5ab24babe"),ends,cases);
+  var ergs=new List<SkillEnhanceUseErgMessage>{null};
+  foreach(long id in new[]{long.MinValue,0L,long.MaxValue})foreach(int c in new[]{int.MinValue,1,int.MaxValue})ergs.Add(Obj<SkillEnhanceUseErgMessage>("ErgItemID",id,"UseCount",c));
+  AddCases("skill_enhance_use_erg",175,new Guid("8a2ad99d-4c45-3e7a-8c27-38c56dc45cda"),ergs,cases);
+  AddCases("skill_enhance_use_erg_result",176,new Guid("5a41f49f-bf50-3f92-806c-c16778a0d731"),new[]{null,new SkillEnhanceUseErgResultMessage(true,37,60),new SkillEnhanceUseErgResultMessage(false,int.MinValue,int.MaxValue)},cases);
+  var rolls=new List<SkillEnhanceMessage>{null};
+  foreach(var ids in new[]{null,new List<long>(),new List<long>{long.MinValue,0L,long.MaxValue}})rolls.Add(Obj<SkillEnhanceMessage>("AdditionalItemIDs",ids));
+  AddCases("skill_enhance",177,new Guid("852e561d-1231-3b4e-b53b-d8bec2c34d7e"),rolls,cases);
+  var brief=new BriefSkillEnhance{GroupKey=3,IndexKey=-1,Type=2,ReduceDurability=int.MinValue,MaxDurabilityBonus=int.MaxValue};
+  AddCases("skill_enhance_result",178,new Guid("8c9bc99c-7e1f-394a-b74e-a12e4b9f4779"),new[]{null,new SkillEnhanceResultMessage(true,"skill_counter_attack",new List<string>(),55,"skillenhance_cooltime_decrease_lv2",false,false,new List<BriefSkillEnhance>{brief}),new SkillEnhanceResultMessage(false,null,new List<string>{"skill_enhance_rune_cash_lv2",null},int.MinValue,null,true,true,new List<BriefSkillEnhance>{null}),new SkillEnhanceResultMessage(false,"",null,0,"",false,true,null)},cases);
+  AddCases("skill_enhance_changed",172,new Guid("edfa9396-8cdf-3ccf-811f-7b68c28731a6"),new[]{null,new SkillEnhanceChangedMessage(null),new SkillEnhanceChangedMessage(new Dictionary<string,BriefSkillEnhance>()),new SkillEnhanceChangedMessage(new Dictionary<string,BriefSkillEnhance>{{"skill_counter_attack",brief},{"",new BriefSkillEnhance()},{"skill_x",null}})},cases);
+  AddCases("skill_enhance_use_durability",179,new Guid("8d429b16-9c2a-37d5-9fef-1b97a60a1980"),new[]{null,new SkillEnhanceUseDurabilityMessage(0,null),new SkillEnhanceUseDurabilityMessage(-1,new Dictionary<string,int>()),new SkillEnhanceUseDurabilityMessage(int.MaxValue,new Dictionary<string,int>{{"skill_counter_attack",3},{"",int.MinValue}})},cases);
+  AddCases("skill_enhance_restore_durability",180,new Guid("05ccc728-0129-3695-b7ca-d5978545b1b3"),new[]{null,new SkillEnhanceRestoreDurabilityMessage(0L,0,null),new SkillEnhanceRestoreDurabilityMessage(long.MaxValue,int.MinValue,"skill_counter_attack"),new SkillEnhanceRestoreDurabilityMessage(long.MinValue,int.MaxValue,"")},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

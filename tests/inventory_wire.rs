@@ -110,6 +110,15 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::UnequippablePartsInfo
                 | Kind::MaxDurabilityRepairItem
                 | Kind::UpdateStorageInfo
+                | Kind::SkillEnhanceSessionStart
+                | Kind::SkillEnhanceSessionEnd
+                | Kind::SkillEnhanceUseErg
+                | Kind::SkillEnhanceUseErgResult
+                | Kind::SkillEnhance
+                | Kind::SkillEnhanceResult
+                | Kind::SkillEnhanceChanged
+                | Kind::SkillEnhanceUseDurability
+                | Kind::SkillEnhanceRestoreDurability
                 | Kind::ItemFail
                 | Kind::MoveInventoryItem
                 | Kind::EquipBundle

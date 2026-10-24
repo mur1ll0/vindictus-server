@@ -546,6 +546,115 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 .map(|o| o.iter().map(|v| v.as_i64().unwrap()).collect());
             assert_eq!(c.parts_id_list, parts, "case {n}");
         }
+        Some(Message::SkillEnhanceSessionStart(m)) => {
+            assert_eq!(m.skill_name.as_deref(), f["SkillName"].as_str(), "case {n}");
+            assert_eq!(
+                m.stone_item_id,
+                f["SkillEnhanceStoneItemID"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::SkillEnhanceSessionEnd(name)) => {
+            assert_eq!(name.as_deref(), f["SkillName"].as_str(), "case {n}");
+        }
+        Some(Message::SkillEnhanceUseErg(m)) => {
+            assert_eq!(m.erg_item_id, f["ErgItemID"].as_i64().unwrap(), "case {n}");
+            assert_eq!(
+                i64::from(m.use_count),
+                f["UseCount"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::SkillEnhanceUseErgResult(m)) => {
+            assert_eq!(Some(m.result), f["Result"].as_bool(), "case {n}");
+            assert_eq!(
+                i64::from(m.current),
+                f["CurrentPercentage"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(m.max),
+                f["MaxPercentage"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::SkillEnhance(ids)) => {
+            let source = f["AdditionalItemIDs"]
+                .as_array()
+                .map(|o| o.iter().map(|v| v.as_i64().unwrap()).collect());
+            assert_eq!(ids, source, "case {n}");
+        }
+        Some(Message::SkillEnhanceResult(m)) => {
+            assert_eq!(m.skill_name.as_deref(), f["SkillName"].as_str(), "case {n}");
+            assert_eq!(
+                m.stone_item.as_deref(),
+                f["SkillEnhanceStoneItem"].as_str(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(m.success_ratio),
+                f["SuccessRatio"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(Some(m.result), f["Result"].as_bool(), "case {n}");
+            assert_eq!(
+                (Some(m.additional_item_destroyed), Some(m.stone_protected)),
+                (
+                    f["IsAdditionalItemDestroyed"].as_bool(),
+                    f["IsEnhanceStoneProtected"].as_bool()
+                ),
+                "case {n}"
+            );
+            let classes = f["AdditionalItemClasses"]
+                .as_array()
+                .map(|o| o.iter().map(|v| v.as_str().map(str::to_owned)).collect());
+            assert_eq!(m.additional_item_classes, classes, "case {n}");
+            assert_eq!(
+                m.enhances.as_ref().map(Vec::len),
+                f["Enhances"].as_array().map(Vec::len),
+                "case {n}"
+            );
+        }
+        Some(Message::SkillEnhanceChanged(m)) => {
+            let source = f["SkillEnhanceChanged"].as_array().map(|o| {
+                o.iter()
+                    .map(|p| {
+                        (
+                            p["key"].as_str().unwrap().to_owned(),
+                            (!p["value"].is_null())
+                                .then(|| p["value"]["GroupKey"].as_i64().unwrap()),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            });
+            let ours = m.0.as_ref().map(|o| {
+                o.iter()
+                    .map(|(k, v)| (k.clone(), v.as_ref().map(|e| i64::from(e.group_key))))
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(ours, source, "case {n}");
+        }
+        Some(Message::SkillEnhanceUseDurability(m)) => {
+            assert_eq!(i64::from(m.slot), f["Slot"].as_i64().unwrap(), "case {n}");
+            assert_eq!(
+                m.use_durability.0.as_ref().map(Vec::len),
+                f["UseDurability"].as_array().map(Vec::len),
+                "case {n}"
+            );
+        }
+        Some(Message::SkillEnhanceRestoreDurability(m)) => {
+            assert_eq!(
+                m.stone_item_id,
+                f["EnhanceStoneItemID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(m.use_count),
+                f["UseCount"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(m.skill_name.as_deref(), f["SkillName"].as_str(), "case {n}");
+        }
         Some(Message::UpdateStorageInfo(list)) => {
             let source = &f["StorageInfos"];
             assert_eq!(list.is_none(), source.is_null(), "case {n}");
@@ -883,7 +992,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1839);
+        assert_eq!(cases.len(), 1980);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -934,6 +1043,25 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "manufacture_level_up" => check_inventory(Kind::ManufactureLevelUp, case, n),
                 "unequippable_parts_info" => check_inventory(Kind::UnequippablePartsInfo, case, n),
                 "update_storage_info" => check_inventory(Kind::UpdateStorageInfo, case, n),
+                "skill_enhance_session_start" => {
+                    check_inventory(Kind::SkillEnhanceSessionStart, case, n)
+                }
+                "skill_enhance_session_end" => {
+                    check_inventory(Kind::SkillEnhanceSessionEnd, case, n)
+                }
+                "skill_enhance_use_erg" => check_inventory(Kind::SkillEnhanceUseErg, case, n),
+                "skill_enhance_use_erg_result" => {
+                    check_inventory(Kind::SkillEnhanceUseErgResult, case, n)
+                }
+                "skill_enhance" => check_inventory(Kind::SkillEnhance, case, n),
+                "skill_enhance_result" => check_inventory(Kind::SkillEnhanceResult, case, n),
+                "skill_enhance_changed" => check_inventory(Kind::SkillEnhanceChanged, case, n),
+                "skill_enhance_use_durability" => {
+                    check_inventory(Kind::SkillEnhanceUseDurability, case, n)
+                }
+                "skill_enhance_restore_durability" => {
+                    check_inventory(Kind::SkillEnhanceRestoreDurability, case, n)
+                }
                 "max_durability_repair_item" => {
                     check_inventory(Kind::MaxDurabilityRepairItem, case, n)
                 }
