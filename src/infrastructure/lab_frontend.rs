@@ -2606,6 +2606,8 @@ impl Connection {
                 Kind::SkillEnhanceSessionEnd,
                 Kind::SkillEnhanceUseErg,
                 Kind::SkillEnhance,
+                Kind::SkillEnhanceUseDurability,
+                Kind::SkillEnhanceRestoreDurability,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
@@ -2645,6 +2647,13 @@ impl Connection {
                     .entity_ids(2)
                     .await
                     .map_err(|_| RuntimeError::Operation)?;
+                // SkillEnhanceUseDurabilityFromHost: a MicroPlay outside practice mode
+                // forwards it to the player of the slot (only this player here).
+                let battle_slot = self
+                    .mission
+                    .as_ref()
+                    .filter(|m| !m.option.is_practice_mode)
+                    .map(|m| m.member.slot);
                 let state = &mut self
                     .selected
                     .as_mut()
@@ -2663,6 +2672,25 @@ impl Connection {
                     }
                     Message::SkillEnhanceUseErg(request) => {
                         super::minimum_skill_enhance::use_erg(
+                            pool, &owner, assets, cid, state, &request, log,
+                        )
+                        .await
+                    }
+                    Message::SkillEnhanceUseDurability(request) => {
+                        if battle_slot != Some(request.slot) {
+                            tracing::info!(
+                                "minimum skill enhance durability ignored outside the player's battle"
+                            );
+                            return Ok(());
+                        }
+                        let uses = request.use_durability.0.unwrap_or_default();
+                        super::minimum_skill_enhance::use_durability(
+                            pool, &owner, cid, state, &uses, assets,
+                        )
+                        .await
+                    }
+                    Message::SkillEnhanceRestoreDurability(request) => {
+                        super::minimum_skill_enhance::restore_durability(
                             pool, &owner, assets, cid, state, &request, log,
                         )
                         .await

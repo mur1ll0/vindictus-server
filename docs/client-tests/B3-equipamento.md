@@ -102,3 +102,12 @@ Pré-condição: uma habilidade aprendida que aceite o grupo da pedra (`SkillInf
 - [ ] Fechar a janela sem confirmar → nada é consumido além dos cristais já usados.
 - [ ] Relogar → o aprimoramento continua na lista de habilidades e entra na batalha (MicroPlay).
 Limites conhecidos: durabilidade do aprimoramento (gasto em batalha e restauração) é a B3.4d-2; bolsa cheia para a pedra protegida recusa a confirmação (o original mandaria por correio).
+
+### B3.4d-2 — Durabilidade do aprimoramento de habilidade
+Pré-condição: uma habilidade com aprimoramento bem-sucedido (B3.4d-1) e uma pedra do mesmo tipo na bolsa.
+- [ ] Usar a habilidade em um calabouço (fora do modo prática) → a durabilidade do aprimoramento cai (janela/tooltip da habilidade).
+- [ ] Gastar até zerar → aparece a mensagem de durabilidade esgotada da habilidade.
+- [ ] Restaurar com a pedra → a pedra some, a durabilidade volta pelo valor de reparo da pedra e aparece a mensagem com antes/depois.
+- [ ] Restaurar com durabilidade cheia → mensagem de durabilidade já cheia, nada consumido.
+- [ ] Relogar → a durabilidade se mantém.
+Limites conhecidos: a poção de durabilidade máxima (`skill_enhance_max_durability_potion`) não foi migrada; em grupo (B5) o host não repassa o gasto aos outros jogadores.

@@ -601,3 +601,173 @@ async fn changed_message(
         Message::SkillEnhanceChanged(StrDict(Some(out))),
     )
 }
+
+/// ActionType.SkillEnhance_RestoreDurability.
+const ACTION_RESTORE_DURABILITY: i16 = 155;
+
+/// SkillEnhance.MaxDurability: EnhanceInfo.MaxDurability + MaxDurabilityBonus (0 without
+/// the info row).
+fn max_durability(assets: &Assets, e: &Enhance) -> i32 {
+    assets
+        .enhance
+        .as_ref()
+        .and_then(|c| c.skill_enhance(e.group, e.key))
+        .map_or(0, |i| i.max_durability.wrapping_add(e.max_durability_bonus))
+}
+
+async fn set_reduce(
+    tx: &mut Transaction<'_, Postgres>,
+    row: i64,
+    reduce: i32,
+) -> Result<bool, MinimumError> {
+    Ok(
+        sqlx::query("UPDATE game_skill_enhances SET reduce_durability=$2 WHERE skill_row_id=$1")
+            .bind(row)
+            .bind(reduce)
+            .execute(&mut **tx)
+            .await?
+            .rows_affected()
+            == 1,
+    )
+}
+
+/// SkillEnhanceUseDurability (from the battle host): SkillManager.UseEnhanceDurability,
+/// then FlushChangedEnhances.
+pub async fn use_durability(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    cid: i64,
+    state: &mut State,
+    uses: &[(String, i32)],
+    assets: &Assets,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let rows = load(&mut tx, cid).await?;
+    let mut packets = Vec::new();
+    for (skill, amount) in uses {
+        let Some((_, e)) = rows.iter().find(|(s, _)| s == skill) else {
+            continue;
+        };
+        if e.kind != skill_enhance::TYPE_SUCCESS {
+            continue;
+        }
+        let before = e.reduce_durability;
+        let max = max_durability(assets, e);
+        let mut reduce = before.wrapping_add(*amount).max(0);
+        if reduce > max {
+            reduce = max;
+        }
+        if set_reduce(&mut tx, e.skill_row_id, reduce).await?
+            && !state.updated.contains(&e.skill_row_id)
+        {
+            state.updated.push(e.skill_row_id);
+        }
+        if reduce != before && reduce == max {
+            packets.push(super::minimum_shop::system_message(
+                SYSTEM,
+                "GameUI_Heroes_SkillEnhance_UseDurability_Durability_Zero",
+                &[format!("HEROES_SKILL_NAME_{skill}")],
+            )?);
+        }
+    }
+    if !state.updated.is_empty() {
+        packets.push(changed_message(&mut tx, cid, &state.updated).await?);
+    }
+    tx.commit().await?;
+    Ok(packets)
+}
+
+/// SkillEnhanceRestoreDurabilityProcessor: UseCount stones are destroyed and the
+/// enhance regains the stone's RepairValue once.
+pub async fn restore_durability(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    state: &mut State,
+    request: &wire::SkillEnhanceRestoreDurability,
+    log: super::minimum_item_logs::Context,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let contents = assets.enhance.as_ref().ok_or_else(fail)?;
+    let refuse = |outcome: &str| {
+        super::minimum_shop::system_message(
+            SYSTEM,
+            "GameUI_Heroes_SkillEnhance_{0}",
+            &[outcome.to_owned()],
+        )
+        .map(|p| vec![p])
+    };
+    let journal =
+        super::minimum_item_logs::named_journal(pool, log.flags, "SkillEnhance_RestoreDurability")
+            .await;
+    let mut tx = begin(pool, owner, assets, cid).await?;
+    let stone = item(&mut tx, cid, request.stone_item_id).await?;
+    let Some((class, _, _)) = stone.filter(|(_, n, _)| *n >= request.use_count) else {
+        return refuse("RestoreDurability_NotEnough_Item");
+    };
+    let Some(info) = contents.skill_enhance_of_item(&class) else {
+        return refuse("RestoreDurability_CannotFind_EnhanceInfo");
+    };
+    let repair = info.repair_value;
+    // GetSkill(null) throws in the skill dictionary.
+    let skill = request.skill_name.as_deref().ok_or_else(fail)?;
+    let Some((_, Some(enhance))) = skill_row(&mut tx, cid, skill).await? else {
+        return refuse("RestoreDurability_CannotFind_EnhanceData");
+    };
+    if enhance.reduce_durability <= 0 {
+        return refuse("RestoreDurability_AlreadyMaxDurability");
+    }
+    if request.use_count <= 0 {
+        return Err(fail());
+    }
+    consume(&mut tx, cid, request.stone_item_id, request.use_count).await?;
+    let inventory = slots_packet(
+        &mut tx,
+        owner,
+        assets,
+        cid,
+        &[request.stone_item_id],
+        Vec::new(),
+    )
+    .await?;
+    let before = enhance.reduce_durability;
+    let after = before.wrapping_sub(repair).max(0);
+    let mut packets = vec![inventory];
+    if after == before {
+        packets.push(super::minimum_shop::system_message(
+            SYSTEM,
+            "GameUI_Heroes_SkillEnhance_{0}",
+            &["RestoreDurability_AlreadyMaxDurability".to_owned()],
+        )?);
+    } else {
+        if !set_reduce(&mut tx, enhance.skill_row_id, after).await? {
+            return Err(fail());
+        }
+        if !state.updated.contains(&enhance.skill_row_id) {
+            state.updated.push(enhance.skill_row_id);
+        }
+        packets.push(super::minimum_shop::system_message(
+            SYSTEM,
+            "GameUI_Heroes_SkillEnhance_RestoreDurability_Success",
+            &[
+                format!("HEROES_SKILL_NAME_{skill}"),
+                before.to_string(),
+                after.to_string(),
+            ],
+        )?);
+        packets.push(changed_message(&mut tx, cid, &state.updated).await?);
+    }
+    tx.commit().await?;
+    super::minimum_item_logs::write_requested_ledger(
+        pool,
+        cid,
+        journal,
+        LOG_DESTROY,
+        ACTION_RESTORE_DURABILITY,
+        &utf16(&class),
+        request.use_count,
+        log.flags,
+    )
+    .await;
+    Ok(packets)
+}

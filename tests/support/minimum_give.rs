@@ -4658,7 +4658,7 @@ async fn minimum_skill_enhance_session_rolls_success_then_penalty() {
         flags: minimum_item_logs::flags(&assets).unwrap(),
         civil_offset_seconds: 0,
     };
-    for (class, count) in [("enchant_scroll", 2), ("synthetic_bag", 1)] {
+    for (class, count) in [("enchant_scroll", 3), ("synthetic_bag", 1)] {
         assert!(
             minimum_give::lab_grant(&p, &assets, Some(1), class, count, 9)
                 .await
@@ -4781,6 +4781,52 @@ async fn minimum_skill_enhance_session_rolls_success_then_penalty() {
         .unwrap()
     };
     assert_eq!(row().await, [(2, 1, 1)]);
+    assert_eq!(ids("enchant_scroll").await, [stones[1], stones[2]]);
+    // Battle use: 30 then past the 100 maximum (Durability_Zero once), each flush resends
+    // the changed skill; another slot changes nothing.
+    let reduce = || async {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT e.reduce_durability FROM game_skill_enhances e JOIN game_skills s ON s.row_id=e.skill_row_id WHERE s.cid=1",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let packets = se::use_durability(&p, &owner, 1, &mut state, &[(skill.clone(), 30)], &assets)
+        .await
+        .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [Kind::SkillEnhanceChanged.category()]
+    );
+    assert_eq!(reduce().await, 30);
+    let packets = se::use_durability(&p, &owner, 1, &mut state, &[(skill.clone(), 1000)], &assets)
+        .await
+        .unwrap();
+    assert_eq!(packets.len(), 2);
+    assert_eq!(reduce().await, 100);
+    // Restore: one stone gives back its RepairValue 30.
+    let packets = se::restore_durability(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &mut state,
+        &vindictus_server::protocol::inventory::SkillEnhanceRestoreDurability {
+            stone_item_id: stones[2],
+            use_count: 1,
+            skill_name: Some(skill.clone()),
+        },
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>()[0],
+        Kind::UpdateInventoryInfo.category()
+    );
+    assert_eq!(packets.len(), 3);
+    assert_eq!(reduce().await, 70);
     assert_eq!(ids("enchant_scroll").await, [stones[1]]);
     // Without materials the ratio stays 0: the roll fails into a penalty first sending
     // the result, then the changed enhances.

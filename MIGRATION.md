@@ -1171,3 +1171,11 @@ B3.4d-1 — SkillEnhance: tabela, conteúdo, projeção e sessão (24/10/2026).
 - Diferenças: logs simples do SkillEnhance (`AddSkillEnhanceLog`) não gravados (só ledgers de itens); `TodayMission` e `MicroPlayObservable.Updated` não migrados; pedra protegida sem vaga recusa a confirmação (correio); `UseCount <= 0` recusado sem resposta.
 - Cliente: entrada B3.4d-1 em `docs/client-tests/B3-equipamento.md`.
 - Próxima ação: B3.4d-2 — durabilidade do aprimoramento (`SkillEnhanceUseDurabilityMessage` do host da batalha, `SkillEnhanceRestoreDurabilityMessage` com a pedra, aumento de durabilidade máxima), depois o gate do B3.
+
+B3.4d-2 — SkillEnhance: durabilidade (24/10/2026).
+- Fonte: `BattleServiceProxy` → `SkillEnhanceUseDurabilityFromHostProcessor` (MicroPlay fora do modo prática, jogador do slot) → `SkillEnhanceUseDurabilityProcessor` → `SkillManager.UseEnhanceDurability` (só Type Success; `ReduceDurability` limitado a `MaxDurability` = info + bônus; `UseDurability_Durability_Zero` ao chegar no máximo) e `FlushChangedEnhances`; `SkillEnhanceRestoreDurabilityProcessor` (checagens NotEnough_Item/CannotFind_EnhanceInfo/CannotFind_EnhanceData/AlreadyMaxDurability, destrói UseCount pedras, `RestoreEnhanceDurability` com o `RepairValue` uma vez, mensagem `RestoreDurability_Success` com antes/depois).
+- Infraestrutura: `minimum_skill_enhance::{use_durability, restore_durability}` e handlers 179 (só com missão ativa fora do modo prática e no slot do jogador) e 180.
+- Testes: PostgreSQL `minimum_skill_enhance_session_rolls_success_then_penalty` estendido (gasto 30, gasto até o máximo com a mensagem, restauração com uma pedra) e clippy `-D warnings`.
+- Diferenças: `IncreaseEnhanceMaxDurability` (poção `skill_enhance_max_durability_potion` pelo `UseInventoryItem`, depende de `ExtraData`) não migrado; logs simples do SkillEnhance não gravados.
+- Cliente: entrada B3.4d-2 em `docs/client-tests/B3-equipamento.md`.
+- Próxima ação: gate do B3 — reiniciar o PostgreSQL de teste, `scripts/dev/verify.ps1 -DatabaseIntegration`, smoke Docker, completar o roteiro `docs/client-tests/B3-equipamento.md`, commit de fechamento e desligar o computador (pedido do operador).
