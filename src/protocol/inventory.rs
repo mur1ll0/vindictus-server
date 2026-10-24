@@ -73,6 +73,7 @@ pub enum Kind {
     SkillEnhanceUseDurability,
     SkillEnhanceRestoreDurability,
     RandomItemRewardList,
+    RequestCraft,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -139,6 +140,7 @@ impl Kind {
             Self::SkillEnhanceUseDurability => 179,
             Self::SkillEnhanceRestoreDurability => 180,
             Self::RandomItemRewardList => 381,
+            Self::RequestCraft => 558,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -205,6 +207,7 @@ impl Kind {
             Self::SkillEnhanceUseDurability => 0x8d429b16_9c2a_37d5_9fef_1b97a60a1980,
             Self::SkillEnhanceRestoreDurability => 0x05ccc728_0129_3695_b7ca_d5978545b1b3,
             Self::RandomItemRewardList => 0x4ee2fd65_d464_3707_b876_3280b7d88f04,
+            Self::RequestCraft => 0x7ba36e6f_5935_30d7_b5a6_7bbcda0acce7,
         })
     }
 }
@@ -373,6 +376,8 @@ pub enum Message {
     SkillEnhanceUseDurability(SkillEnhanceUseDurability),
     SkillEnhanceRestoreDurability(SkillEnhanceRestoreDurability),
     RandomItemRewardList(RandomItemRewardList),
+    /// RequestCraftMessage: ShopID, Order, Count (the BuyItemMessage layout).
+    RequestCraft(BuyItem),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -810,6 +815,7 @@ impl Message {
             Self::SkillEnhanceUseDurability(_) => Kind::SkillEnhanceUseDurability,
             Self::SkillEnhanceRestoreDurability(_) => Kind::SkillEnhanceRestoreDurability,
             Self::RandomItemRewardList(_) => Kind::RandomItemRewardList,
+            Self::RequestCraft(_) => Kind::RequestCraft,
         }
     }
 }
@@ -1290,6 +1296,7 @@ pub fn encode(
             Message::SkillEnhanceUseDurability(v) => v.write(&mut w)?,
             Message::SkillEnhanceRestoreDurability(v) => v.write(&mut w)?,
             Message::RandomItemRewardList(v) => v.write(&mut w)?,
+            Message::RequestCraft(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1401,6 +1408,7 @@ fn decode_body(
                 Message::SkillEnhanceRestoreDurability(Wire::read(&mut r)?)
             }
             Kind::RandomItemRewardList => Message::RandomItemRewardList(Wire::read(&mut r)?),
+            Kind::RequestCraft => Message::RequestCraft(BuyItem::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

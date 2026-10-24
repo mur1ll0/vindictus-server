@@ -145,6 +145,17 @@ struct RecipeRow {
     #[serde(deserialize_with = "nullable")]
     feature: Option<String>,
 }
+/// CraftShopInfo: ShopID, Order, RecipeID.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CraftShopRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    shop_utf16: Option<PrivateText>,
+    order: i32,
+    #[serde(deserialize_with = "nullable")]
+    recipe_utf16: Option<PrivateText>,
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AntiBindRow {
@@ -344,6 +355,8 @@ pub struct Profile {
     runes: Vec<RuneRow>,
     rune_extra: Vec<RuneExtraRow>,
     recipes: Vec<RecipeRow>,
+    #[serde(default)]
+    craft_shops: Vec<CraftShopRow>,
     anti_bind: Vec<AntiBindRow>,
     enchant: Vec<EnchantRow>,
     enchant_stats: Vec<EnchantStatRow>,
@@ -382,6 +395,10 @@ pub struct Contents {
     rune_extra: BTreeMap<i32, RuneExtra>,
     /// makeItemRecipe: single equippable target recipes, last recipe wins.
     make_item_recipe: BTreeMap<String, Recipe>,
+    /// recipes: every enabled RecipeID with its Target (summed) and Material rows.
+    recipes: BTreeMap<String, CraftRecipe>,
+    /// craftShopInfoDic: (ShopID.ToLower(), Order) -> RecipeID, the first row wins.
+    craft_shops: BTreeMap<(String, i32), String>,
     /// antiBindInfo: enabled rows in provider order.
     anti_bind: Vec<AntiBind>,
     /// FeatureMatrix CraftPriceRatio text.
@@ -414,6 +431,14 @@ pub struct Contents {
 
 /// RecipeID, Target rows (AddItem sums) and Material rows (priced when used).
 type RecipeRows = (String, Vec<(String, i32)>, Vec<(String, i32)>);
+
+/// An ItemContents Recipe: Target rows summed in first-seen order and the Material rows
+/// before PriceCalc (AddMaterial sums the priced values).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CraftRecipe {
+    pub targets: Vec<(String, i32)>,
+    pub materials: Vec<(String, i32)>,
+}
 
 fn fail() -> MinimumError {
     MinimumError::Conflict
@@ -515,7 +540,9 @@ impl Profile {
             + p.skill_enhance.len()
             + p.skill_enhance_materials.len()
             + p.skill_enhance_groups.len();
-        if p.format_version != 6
+        if p.format_version != 7
+            || p.craft_shops.len() > 65536
+            || !ordered(&p.craft_shops, |r| r.source_index)
             || manufacture_rows > 65536
             || !ordered(&p.manufacture, |r| r.source_index)
             || !ordered(&p.manufacture_recipes, |r| r.source_index)
@@ -702,7 +729,20 @@ impl Profile {
                 _ => {}
             }
         }
-        for (_, targets, materials) in recipes {
+        for c in &self.craft_shops {
+            // ShopID.ToLower() throws on a null ShopID.
+            let shop = key(c.shop_utf16.as_ref())?.to_lowercase();
+            let recipe = key(c.recipe_utf16.as_ref())?;
+            out.craft_shops.entry((shop, c.order)).or_insert(recipe);
+        }
+        for (id, targets, materials) in recipes {
+            out.recipes.insert(
+                id,
+                CraftRecipe {
+                    targets: targets.clone(),
+                    materials: materials.clone(),
+                },
+            );
             if let [(target, 1)] = targets.as_slice() {
                 let bytes: Vec<u8> = target.encode_utf16().flat_map(u16::to_le_bytes).collect();
                 if out.types.contains_key(&bytes) {
@@ -1083,6 +1123,16 @@ impl Contents {
     /// GetMakeItemRecipe(itemClass).
     pub fn make_item_recipe(&self, class: &str) -> Option<&Recipe> {
         self.make_item_recipe.get(class)
+    }
+    /// ItemContents.GetCraftShopInfo(shopID, order).RecipeID.
+    pub fn craft_shop(&self, shop: &str, order: i32) -> Option<&str> {
+        self.craft_shops
+            .get(&(shop.to_lowercase(), order))
+            .map(String::as_str)
+    }
+    /// ItemContents.GetRecipe(id).
+    pub fn recipe(&self, id: &str) -> Option<&CraftRecipe> {
+        self.recipes.get(id)
     }
     pub fn anti_bind(&self) -> &[AntiBind] {
         &self.anti_bind

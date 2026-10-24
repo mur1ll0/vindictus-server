@@ -43,6 +43,14 @@ fn text(raw: &[u8]) -> Result<String, MinimumError> {
     )
     .map_err(|_| fail())
 }
+/// Item.IsExpired: ExpireDateTime < DateTime.UtcNow (ticks). An expired equipped item
+/// keeps its slot with BadStatus StatusFail_Expired (EquippableSlot.ItemDisabled).
+pub(super) fn expired(expire_ticks: Option<i64>) -> Result<bool, MinimumError> {
+    let Some(expire) = expire_ticks else {
+        return Ok(false);
+    };
+    Ok(expire < super::lab_clock::utc_now().map_err(|_| fail())?.ticks())
+}
 /// Password/city admission belongs to the frontend; ownership/provenance is
 /// independently checked here. The caller retains all locks until packet construction.
 pub async fn query(
@@ -123,11 +131,7 @@ pub(super) async fn load(
     let mut metadata = Vec::new();
     let bags = super::minimum_inventory::bags(tx, cid).await?;
     for row in rows {
-        if row.count != 1
-            || row.expire_ticks.is_some()
-            || !bags.contains(&row.collection)
-            || !(0..48).contains(&row.slot)
-        {
+        if row.count != 1 || !bags.contains(&row.collection) || !(0..48).contains(&row.slot) {
             return Err(fail());
         }
         let class = text(&row.item_class_utf16)?;
@@ -151,7 +155,8 @@ pub(super) async fn load(
         );
         let fields = item.stat.fields();
         let values = Stats::from_values(std::array::from_fn(|n| item.stat.get(Some(&names[n]))));
-        let disabled = d.has_durability() && d.maximum() >= 0 && d.current() == 0;
+        let disabled = (d.has_durability() && d.maximum() >= 0 && d.current() == 0)
+            || expired(row.expire_ticks)?;
         items.push(equipped_gear::Item {
             id: row.id,
             part: u8::try_from(row.part).map_err(|_| fail())?,

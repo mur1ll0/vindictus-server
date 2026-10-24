@@ -168,6 +168,9 @@ class ItemSyncWireOracle {
   var buys=new List<BuyItemMessage>{null};
   foreach(string sh in new[]{null,"","FERGHUS_Shop"})foreach(int o in new[]{-1,0,7})foreach(int c in new[]{int.MinValue,0,1,99})buys.Add(Obj<BuyItemMessage>("ShopID",sh,"Order",o,"Count",c));
   AddCases("buy_item",234,new Guid("2f52e151-33c1-34dc-bd6e-9535c35ab918"),buys,cases);
+  var shopCrafts=new List<RequestCraftMessage>{null};
+  foreach(string sh in new[]{null,"","FERGHUS_Craft"})foreach(int o in new[]{-1,0,15})foreach(int c in new[]{int.MinValue,0,1,99})shopCrafts.Add(Obj<RequestCraftMessage>("ShopID",sh,"Order",o,"Count",c));
+  AddCases("request_craft",558,new Guid("7ba36e6f-5935-30d7-b5a6-7bbcda0acce7"),shopCrafts,cases);
   AddCases("buy_item_result",235,new Guid("64a08bdf-6762-3be2-9f6f-c7ff64a2b4a3"),new[]{null,new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Failed,null,0,null,0),new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Succeeded,"potion_hp_lvl1",10,"gold",500,3,-1),new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Failed_UniqueConstraint,"x",int.MaxValue,"",int.MinValue,int.MinValue,int.MaxValue)},cases);
   AddCases("query_shop_item_info",167,new Guid("4088bd54-bc81-3398-8386-61bdaf5917c1"),new[]{null,Obj<QueryShopItemInfoMessage>("ShopID",null),Obj<QueryShopItemInfoMessage>("ShopID",""),Obj<QueryShopItemInfoMessage>("ShopID","FERGHUS_Shop")},cases);
   var sells=new List<SellItemMessage>{null};

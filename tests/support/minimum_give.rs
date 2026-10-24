@@ -3266,7 +3266,7 @@ fn processor_profile_with(
     let stat = |i: usize, level: i32, v: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key("MaxDurability"),"value_type":key("Add"),"value":single(v),"base":key("MaxDurability")});
     let server = |i: usize, level: i32, ratio: f32| json!({"source_index":i,"enhance_type":key(&level.to_string()),"level":level,"success_ratio":single(ratio),"feature":null});
     let feature = |k: &str, v: &str| json!({"key":k,"value":v});
-    let mut profile = json!({"format_version":6,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let mut profile = json!({"format_version":7,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":rows("equips"),"classes":rows("classes"),
         "enhance":[info(0,1,"NoPenalty",0),info(1,2,"RankDown",0),info(2,3,"Destroy",1)],
         "stats":[stat(0,1,100.0),stat(1,2,200.0),stat(2,3,300.0)],
@@ -5182,5 +5182,119 @@ async fn minimum_use_opens_a_random_item_v2_box_for_the_character() {
         }
         minimum_selection::disconnect(&p, 1).await.unwrap();
     }
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_craft_turns_shop_recipe_materials_into_targets() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_craft, minimum_item_logs, minimum_selection,
+        },
+        protocol::inventory::BuyItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    let key = appearance_fixture::key;
+    // recipe_bag: one synthetic_bag from 2 synthetic_cash and 100 synthetic_gold (summed rows).
+    let profile = processor_profile_with(&catalog, |v| {
+        v["recipes"] = json!([
+            {"source_index":0,"recipe_utf16":key("recipe_bag"),"item_utf16":key("synthetic_bag"),"num":1,"type":0,"feature":null},
+            {"source_index":1,"recipe_utf16":key("recipe_bag"),"item_utf16":key("synthetic_cash"),"num":1,"type":1,"feature":null},
+            {"source_index":2,"recipe_utf16":key("recipe_bag"),"item_utf16":key("synthetic_gold"),"num":100,"type":1,"feature":null},
+            {"source_index":3,"recipe_utf16":key("recipe_bag"),"item_utf16":key("synthetic_cash"),"num":1,"type":1,"feature":null}]);
+        v["craft_shops"] = json!([
+            {"source_index":0,"shop_utf16":key("FERGHUS_Craft"),"order":3,"recipe_utf16":key("recipe_bag")},
+            {"source_index":1,"shop_utf16":key("ferghus_craft"),"order":3,"recipe_utf16":key("missing")}]);
+    });
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_enhance(profile)
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64);
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    for (class, count) in [("synthetic_gold", 1000), ("synthetic_cash", 3)] {
+        minimum_give::lab_grant(&p, &assets, Some(1), class, count, 9)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let total = |class: &str| {
+        let p = &p;
+        let class = utf16(class);
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+            )
+            .bind(class)
+            .fetch_one(p)
+            .await
+            .unwrap()
+        }
+    };
+    let run = |shop: &str, order: i32, count: i32| {
+        let (p, owner, assets) = (&p, &owner, &assets);
+        let request = BuyItem {
+            shop_id: Some(shop.to_owned()),
+            order,
+            count,
+        };
+        async move { minimum_craft::craft(p, owner, assets, 1, &request, vec![941, 942], log).await }
+    };
+    let fail_name = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        let Some(Message::ItemFail(Some(m))) =
+            inventory::decode(Kind::ItemFail, &packets[0].body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("dialog missing")
+        };
+        m.format.unwrap()
+    };
+    let (gold, bags, cash) = (
+        total("synthetic_gold").await,
+        total("synthetic_bag").await,
+        total("synthetic_cash").await,
+    );
+    // ShopID is case-insensitive and the first row wins; Count <= 0 is a FailMessage only.
+    let packets = run("Ferghus_CRAFT", 3, 1).await.unwrap();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [Kind::UpdateInventoryInfo.category()]
+    );
+    assert_eq!(total("synthetic_cash").await, cash - 2);
+    assert_eq!(total("synthetic_gold").await, gold - 100);
+    assert_eq!(total("synthetic_bag").await, bags + 1);
+    assert!(run("FERGHUS_Craft", 3, 0).await.is_err());
+    assert_eq!(
+        fail_name(&run("FERGHUS_Craft", 9, 1).await.unwrap()),
+        "GameUI_Heroes_CraftItemFail_NoRecipe"
+    );
+    assert_eq!(
+        fail_name(&run("FERGHUS_Craft", 3, 100).await.unwrap()),
+        "GameUI_Heroes_CraftItemFail_NotEnoughMaterial"
+    );
+    assert_eq!(total("synthetic_cash").await, cash - 2);
     cleanup_game_pool(a, p, s).await;
 }

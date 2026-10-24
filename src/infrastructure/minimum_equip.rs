@@ -124,7 +124,11 @@ struct Target {
     part: Option<i16>,
     reduced_durability: Option<i32>,
     max_durability_bonus: Option<i32>,
+    expire_ticks: Option<i64>,
 }
+
+/// Equipped row: id, class, part, durability fields and ExpireDateTime ticks.
+type EquippedRow = (i64, Vec<u8>, i16, i32, i32, Option<i64>);
 
 /// The slot item and its Item.EnhanceLevel.
 #[allow(clippy::too_many_arguments)]
@@ -138,6 +142,7 @@ fn slot_item(
     bonus: i32,
     attributes: Option<&crate::domain::item_attribute::Attributes>,
     owner: &super::minimum_item_stat::ItemContext,
+    expire_ticks: Option<i64>,
 ) -> Result<(equipment_slot::Item, (i32, i32, i32)), MinimumError> {
     let profile = assets.equipment.as_ref().ok_or_else(fail)?;
     let metadata = profile.metadata(&assets.catalog, class)?;
@@ -156,8 +161,9 @@ fn slot_item(
         equippable: true,
         equipped_part: part,
         resolved_part: part.map(i32::from),
-        // Same BadStatus predicate as the equipped Gear loader.
-        bad_status: d.has_durability() && d.maximum() >= 0 && d.current() == 0,
+        // Same BadStatus predicate as the equipped Gear loader (broken or expired).
+        bad_status: (d.has_durability() && d.maximum() >= 0 && d.current() == 0)
+            || super::minimum_equipment::expired(expire_ticks)?,
         enhance_other: false,
     };
     Ok((
@@ -202,14 +208,14 @@ pub async fn equip(
         let locked = super::minimum_inventory::locked_parts(&mut tx, assets, cid).await?;
         let mut gear = Gear::new(assets, &locked)?;
         let stats = &assets.stats_index;
-        let equipped:Vec<(i64,Vec<u8>,i16,i32,i32)>=sqlx::query_as("SELECT i.id,i.item_class_utf16,e.part,e.reduced_durability,e.max_durability_bonus FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY i.id LIMIT 4097").bind(cid).fetch_all(&mut *tx).await?;
+        let equipped:Vec<EquippedRow>=sqlx::query_as("SELECT i.id,i.item_class_utf16,e.part,e.reduced_durability,e.max_durability_bonus,i.expire_ticks FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY i.id LIMIT 4097").bind(cid).fetch_all(&mut *tx).await?;
         let mut attribute_ids: Vec<i64> = equipped.iter().map(|e| e.0).collect();
         attribute_ids.push(item_id);
         let attributes = super::minimum_inventory::load_attributes(&mut tx, &attribute_ids).await?;
         let owner_context = super::minimum_item_stat::context(&mut tx, cid).await?;
         // Enhance/prefix/suffix levels of the equipped items, for the item constraints.
         let mut enhance_levels: BTreeMap<i64, (i32, i32, i32)> = BTreeMap::new();
-        for (id, class, p, reduced, bonus) in equipped {
+        for (id, class, p, reduced, bonus, expire) in equipped {
             let p = u8::try_from(p).map_err(|_| fail())?;
             let (item, level) = slot_item(
                 assets,
@@ -221,6 +227,7 @@ pub async fn equip(
                 bonus,
                 attributes.get(&id),
                 &owner_context,
+                expire,
             )?;
             enhance_levels.insert(id, level);
             let slot = gear.equipment.get_mut(&p).ok_or_else(fail)?;
@@ -277,7 +284,7 @@ pub async fn equip(
                 return Err(fail());
             }
         } else {
-            let target: Option<Target> = sqlx::query_as("SELECT i.item_class_utf16,e.id IS NOT NULL AS equippable,e.part,e.reduced_durability,e.max_durability_bonus FROM game_items i LEFT JOIN game_equippables e ON e.id=i.id WHERE i.id=$1 AND i.owner_id=$2").bind(item_id).bind(cid).fetch_optional(&mut *tx).await?;
+            let target: Option<Target> = sqlx::query_as("SELECT i.item_class_utf16,e.id IS NOT NULL AS equippable,e.part,e.reduced_durability,e.max_durability_bonus,i.expire_ticks FROM game_items i LEFT JOIN game_equippables e ON e.id=i.id WHERE i.id=$1 AND i.owner_id=$2").bind(item_id).bind(cid).fetch_optional(&mut *tx).await?;
             let Some(target) = target else {
                 return Ok(Outcome::Refused(item_fail("EquipItemFail_System")?));
             };
@@ -317,6 +324,7 @@ pub async fn equip(
                 target.max_durability_bonus.ok_or_else(fail)?,
                 attributes.get(&item_id),
                 &owner_context,
+                target.expire_ticks,
             )?;
             let skills: Vec<(Vec<u8>, i32)> =
                 sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097")

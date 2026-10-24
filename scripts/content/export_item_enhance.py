@@ -112,6 +112,10 @@ def read_package(database, config):
         recipes = [dict(source_index=i, recipe_utf16=text(r['RecipeID']), item_utf16=text(r['ItemClass']),
                         num=integer(r['Num']), type=integer(r['Type'], 0, 256), feature=r['Feature'])
                    for i, r in enumerate(db.execute('Select * From [RecipeMaterialInfo]'))]
+        # CraftShopInfo (ItemContents.craftShopInfoDic: ShopID.ToLower() and Order, first row wins).
+        craft_shops = [dict(source_index=i, shop_utf16=text(r['ShopID']), order=integer(r['Order']),
+                            recipe_utf16=text(r['RecipeID']))
+                       for i, r in enumerate(db.execute('Select * From [CraftShopInfo]'))]
         anti_bind = [dict(source_index=i, target=text(r['Target']), from_value=text(r['From']),
                           to_value=text(r['To']), count=integer(r['Count']), ap=integer(r['AP']),
                           feature=r['Feature'])
@@ -206,10 +210,10 @@ def read_package(database, config):
         raise ValueError('Enhance feature value bound')
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Enhance source changed during export')
-    return dict(format_version=6, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
+    return dict(format_version=7, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], equips=equips, classes=classes, enhance=enhance,
                 stats=stats, server=server, bonus=bonus, instead=instead, runes=runes, rune_extra=rune_extra,
-                recipes=recipes, anti_bind=anti_bind, enchant=enchant, enchant_stats=enchant_stats,
+                recipes=recipes, craft_shops=craft_shops, anti_bind=anti_bind, enchant=enchant, enchant_stats=enchant_stats,
                 enchant_dice=enchant_dice, manufacture=manufacture, manufacture_recipes=manufacture_recipes,
                 manufacture_materials=manufacture_materials, manufacture_dependencies=manufacture_dependencies,
                 quality_dice=quality_dice, quality_stats=quality_stats, skill_enhance=skill_enhance,

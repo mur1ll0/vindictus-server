@@ -298,7 +298,7 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 assert_eq!(b.phase_text.as_deref(), e["PhaseText"].as_str(), "case {n}");
             }
         }
-        Some(Message::BuyItem(b)) => {
+        Some(Message::BuyItem(b) | Message::RequestCraft(b)) => {
             assert_eq!(b.shop_id.as_deref(), f["ShopID"].as_str(), "case {n}");
             assert_eq!(i64::from(b.order), f["Order"].as_i64().unwrap(), "case {n}");
             assert_eq!(i64::from(b.count), f["Count"].as_i64().unwrap(), "case {n}");
@@ -1001,6 +1001,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::StoryLines,
         Kind::BuyItem,
         Kind::BuyItemResult,
+        Kind::RequestCraft,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
         Kind::QueryBuybackList,
@@ -1024,7 +1025,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1995);
+        assert_eq!(cases.len(), 2106);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1050,6 +1051,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "select_button" => check_inventory(Kind::SelectButton, case, n),
                 "story_lines" => check_inventory(Kind::StoryLines, case, n),
                 "buy_item" => check_inventory(Kind::BuyItem, case, n),
+                "request_craft" => check_inventory(Kind::RequestCraft, case, n),
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),

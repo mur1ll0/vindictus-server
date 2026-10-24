@@ -479,9 +479,11 @@ async fn enhance_with(
     .bind(request.item_id)
     .fetch_one(&mut *tx)
     .await?;
-    // Equipped items also change the character stats and EquipmentInfo.
+    // An equipped item keeps its part; its new stats reach the character through
+    // UpdateItemStat (PushUpdateStat below).
+    let equipped = equipment.0.is_some();
     let bags = super::minimum_inventory::bags(&mut tx, cid).await?;
-    if equipment.0.is_some() || !bags.contains(&collection) {
+    if !bags.contains(&collection) {
         return Err(fail());
     }
     let class_text = text(&class)?;
@@ -549,6 +551,11 @@ async fn enhance_with(
         arithmetic,
     )
     .map_err(|_| fail())?;
+    // Destroying an equipped item also unequips it (Gear, costumes), which is not migrated;
+    // the transaction is dropped and nothing is written.
+    if equipped && outcome.destroyed {
+        return Err(fail());
+    }
     let prev_class =
         item_attribute::build_class_ex(&class_text, &attributes).map_err(|_| fail())?;
     // DestroyItem(materials) on success; CraftItem(materials, fail rewards) otherwise.
@@ -672,6 +679,15 @@ async fn enhance_with(
             .unwrap_or(current);
         item_attribute::build_class_ex(&class_text, &after).map_err(|_| fail())?
     };
+    let update_stat = if equipped {
+        Some(
+            super::minimum_selection::update_stat(&mut tx, owner, assets, cid, arithmetic)
+                .await?
+                .0,
+        )
+    } else {
+        None
+    };
     tx.commit().await?;
     for a in &logs {
         super::minimum_item_logs::write_give(
@@ -720,6 +736,7 @@ async fn enhance_with(
         .map_err(|_| fail())?
         .to_vec(),
     }];
+    packets.extend(update_stat);
     if let Some(result) = outcome.result {
         packets.push(result_packet(EnhanceItemResult {
             result: Some(result),

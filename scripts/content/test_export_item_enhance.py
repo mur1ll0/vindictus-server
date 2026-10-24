@@ -10,6 +10,7 @@ SCHEMA = (
     'CREATE TABLE EnhanceRuneInfo(ItemClass nvarchar,ReleationNum INT,MinEnhanceLevel INT,MaxEnhanceLevel INT,Feature nvarchar,ConfirmationDesc nvarchar);'
     'CREATE TABLE EnhanceRuneExtraInfo(ReleationNum INT,SuccessRatio float,IsUseItemSuccessRatio bit,IsDestoryOnSuccess bit,IsResetRankOnFail bit,ForceRankDownOnFail INT);'
     'CREATE TABLE RecipeMaterialInfo(RecipeID nvarchar,ItemClass nvarchar,Num INT,Type tinyint,Feature nvarchar);'
+    'CREATE TABLE CraftShopInfo(ShopID varchar,[Order] INT,RecipeID varchar,AppearQuestID varchar,AppearQuestDifficulty INT,Feature varchar);'
     'CREATE TABLE AntiBindInfo(Target nvarchar,"From" nvarchar,"To" nvarchar,Count INT,AP INT,Feature nvarchar);'
     'CREATE TABLE EnchantInfo(ID INT,EnchantClass nvarchar,IsPrefix bit,EnchantType nvarchar,EnchantLevel INT,MinArgValue INT,MaxArgValue INT,ItemConstraint nvarchar,ItemConstraintDesc nvarchar,MinSuccessRatio INT,MaxSuccessRatio INT,DestructionRatio INT,MiniGameSize INT,Duration INT,IgnoreMaxArmor bit,Feature nvarchar);'
     'CREATE TABLE EnchantStatInfo(EnchantClass nvarchar,"Order" INT,Condition nvarchar,ConditionDesc nvarchar,Stat nvarchar,StatDesc nvarchar);'
@@ -59,6 +60,7 @@ def fill(db, ratio):
     db.executemany('INSERT INTO EnhanceRuneInfo VALUES (?,?,?,?,?,?)', [('rune', 0, 4, 15, 'enEU', None)])
     db.executemany('INSERT INTO EnhanceRuneExtraInfo VALUES (?,?,?,?,?,?)', [(0, '.4', 0, 1, 0, 0)])
     db.executemany('INSERT INTO RecipeMaterialInfo VALUES (?,?,?,?,?)', [('recipe_sword', 'sword', 1, 0, None), ('recipe_sword', 'stone', 4, 1, None)])
+    db.execute('INSERT INTO CraftShopInfo VALUES (?,?,?,?,?,?)', ('FERGHUS_Craft', 15, 'recipe_sword', None, 0, None))
     db.executemany('INSERT INTO AntiBindInfo VALUES (?,?,?,?,?,?)', [('Base', None, None, 2, 0, None), ('Enhance', '9', '15', 0, 500, 'enEU')])
     db.execute('INSERT INTO EnhanceInsteadMaterialInfo VALUES (?,?,?,?,?)', ('gevne', 1, 1, 1, 15))
     db.commit()
@@ -117,6 +119,7 @@ class ItemEnhanceExportTests(unittest.TestCase):
         self.assertEqual(p['rune_extra'][0]['success_ratio'], struct.pack('>d', 0.4).hex())
         self.assertEqual((p['rune_extra'][0]['destroy_on_success'], p['rune_extra'][0]['reset_rank_on_fail']), (True, False))
         self.assertEqual([r['type'] for r in p['recipes']], [0, 1])
+        self.assertEqual((p['craft_shops'][0]['order'], p['craft_shops'][0]['recipe_utf16']), (15, 'recipe_sword'.encode('utf-16-le').hex()))
         self.assertEqual(p['anti_bind'][1]['from_value'], '9'.encode('utf-16-le').hex())
         self.assertEqual(before, (digest(self.db), digest(self.config)))
 

@@ -103,6 +103,7 @@ pub mod minimum_selection;
 pub mod minimum_inventory;
 
 pub mod equipment_profile;
+pub mod minimum_craft;
 pub mod minimum_enchant;
 pub mod minimum_enhance;
 pub mod minimum_equipment;

@@ -23,7 +23,7 @@ fn profile() -> Value {
     let a = key("synthetic");
     let b = key("other");
     let info = |i: usize, kind: &str, level: i32, gold: i32, feature: Option<&str>| json!({"source_index":i,"enhance_type":key(kind),"level":level,"material1":key("stone"),"num1":2,"material2":null,"num2":0,"gold":gold,"success_ratio":single(1.0),"on_fail":key("RankDown"),"on_fail_recipe_ratio":single(0.5),"on_fail_material_num1":3,"effect":1,"feature":feature});
-    json!({"format_version":6,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    json!({"format_version":7,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":[{"source_index":0,"item_utf16":a,"feature":"on","enhance_type":key("T1"),"enchantable":1,"quality_type":null},{"source_index":1,"item_utf16":a,"feature":"off","enhance_type":key("T2"),"enchantable":1,"quality_type":null},{"source_index":2,"item_utf16":a,"feature":"on","enhance_type":key("T3"),"enchantable":1,"quality_type":null},{"source_index":3,"item_utf16":b,"feature":null,"enhance_type":null,"enchantable":0,"quality_type":null}],
         "enhance":[info(0,"T3",1,100,Some("on")),info(1,"T3",1,200,Some("on")),info(2,"T3",2,300,Some("off")),info(3,"T3",4,400,None),info(4,"T1",1,1,None)],
         "stats":[{"source_index":0,"enhance_type":key("T3"),"level":1,"stat":key("ATK"),"value_type":key("Add"),"value":single(50.0),"base":key("ATK")},{"source_index":1,"enhance_type":key("T3"),"level":1,"stat":key("Weight"),"value_type":key("Multiply"),"value":single(-0.1),"base":key("Weight")}],

@@ -152,3 +152,11 @@ Pré-condição: `randomitem_levelup_v2_10` ("Level Up Gift (Lv 10 or higher)") 
 - [ ] Relogar → os itens continuam e a caixa não volta.
 Limites conhecidos: caixas V2 com chave, Titicore, tempo de recarga, exclusivas, raras ou em sequência, recompensas de AP ou com validade e a sobra por correio não respondem; o anúncio global não é enviado.
 
+### B3.7 — Equipamento com validade, Enhance do item equipado e craft do Ferghus
+Pré-condição: `levelup_belt_lvl10` (Hero Belt) na bolsa; `longsword_saver` equipada com `enhance_stone_lvl1` e ouro; os materiais da receita do Ferghus (5 `iron_ore_lvl1`, 1 `skin_lvl1`, 2 `chieftain_hammer`).
+- [ ] Equipar o Hero Belt → ele vai para o slot do cinto e os atributos mudam; quando a validade acaba, o cinto continua no slot sem dar atributos.
+- [ ] Enhance da Sword of Salvation equipada no Ferghus → resultado da melhoria, a espada fica equipada e os atributos do personagem atualizam.
+- [ ] Craft da Sword of Salvation no Ferghus → os materiais saem, a espada aparece na bolsa; sem materiais → diálogo de material insuficiente.
+- [ ] Relogar → cinto equipado, melhoria e espada fabricada continuam.
+Limites conhecidos: Enhance que destruiria um item equipado é recusado sem resposta; a missão diária "TryCraftItem" não conta.
+

@@ -1859,6 +1859,7 @@ impl Connection {
                 Kind::ExecuteNpcServerCommand,
                 Kind::SetStoryLineStatus,
                 Kind::BuyItem,
+                Kind::RequestCraft,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
@@ -2256,6 +2257,36 @@ impl Connection {
                             Err(_) => {
                                 tracing::warn!("minimum shop purchase refused; values omitted")
                             }
+                        }
+                    }
+                    Message::RequestCraft(request) => {
+                        let needed = super::minimum_craft::entity_ids_needed(assets, &request);
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(needed)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                        match super::minimum_craft::craft(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            &request,
+                            ids,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!("minimum craft processed; values omitted");
+                            }
+                            Err(_) => tracing::warn!("minimum craft refused; values omitted"),
                         }
                     }
                     Message::QueryShopItemInfo(shop) => {

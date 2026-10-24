@@ -28,8 +28,7 @@ fn skill_rank_version_pairs_match_original_framework_comparisons() {
 #[test]
 fn random_item_version_pairs_match_original_framework_comparisons() {
     let fixture: Fixture =
-        serde_json::from_str(include_str!("fixtures/framework-random-item-features.json"))
-            .unwrap();
+        serde_json::from_str(include_str!("fixtures/framework-random-item-features.json")).unwrap();
     assert_eq!(fixture.pairs.len(), 2);
     for p in fixture.pairs {
         let policy = FeaturePolicy::new([
