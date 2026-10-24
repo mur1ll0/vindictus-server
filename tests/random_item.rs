@@ -160,3 +160,89 @@ fn variable_recipes_follow_the_owned_items() {
     // A variable recipe outside the cash/account storages answers the dialog.
     assert!(notes.variable_dialog);
 }
+
+#[test]
+fn v2_sessions_pick_one_gachapon_recipe_and_each_package() {
+    use vindictus_server::domain::random_item::{V2Data, V2Recipe, V2Unsupported, open_v2};
+    let r = |class: Option<&str>, count: i32, probability: f64| V2Recipe {
+        item_class: class.map(str::to_owned),
+        count,
+        probability,
+        rare: None,
+        character: None,
+        item: None,
+        feature_enabled: true,
+        colors: [-1; 3],
+        bind: false,
+        expire: None,
+        announce: None,
+        message: Some("m".into()),
+    };
+    let top = V2Data {
+        gachapon: vec![
+            r(Some("a"), 1, 1.0),
+            V2Recipe {
+                character: Some("3".into()),
+                ..r(Some("evie"), 1, 5.0)
+            },
+            r(Some("b"), 2, 3.0),
+        ],
+        package: vec![
+            r(Some("#inner"), 1, 1.0),
+            V2Recipe {
+                item: Some("!owned".into()),
+                ..r(Some("skipped"), 1, 1.0)
+            },
+            r(Some("lucky"), 1, 0.5),
+        ],
+        sequence: vec![],
+    };
+    let inner = V2Data {
+        package: vec![r(None, 1, 1.0)],
+        ..V2Data::default()
+    };
+    let data = |id: &str| match id {
+        "top" => Some(&top),
+        "inner" => Some(&inner),
+        _ => None,
+    };
+    let holds = |c: &str| c == "owned";
+    // Fiona's gachapon sums 4.0: 0.5 × 4 = 2.0 passes a (1.0) and takes b. The '#inner'
+    // package rolls 0.0, lucky rolls 0.6 (kept out) and then inner opens: a null class gives
+    // metal_clamp × 0.
+    let opened = open_v2(
+        &data,
+        "top",
+        1,
+        &holds,
+        &mut Script(vec![0.5, 0.0, 0.6, 0.0], vec![]),
+    )
+    .unwrap();
+    let grants: Vec<_> = opened
+        .grants
+        .iter()
+        .map(|g| (g.item_class.as_str(), g.count))
+        .collect();
+    assert_eq!(grants, [("b", 2), ("metal_clamp", 0)]);
+    assert_eq!(
+        opened.messages,
+        [("m".into(), "b".into(), 2), ("m".into(), String::new(), 1)]
+    );
+    let rare = V2Data {
+        package: vec![V2Recipe {
+            rare: Some(7),
+            ..r(Some("x"), 1, 1.0)
+        }],
+        ..V2Data::default()
+    };
+    assert_eq!(
+        open_v2(
+            &|_| Some(&rare),
+            "r",
+            1,
+            &holds,
+            &mut Script(vec![], vec![])
+        ),
+        Err(V2Unsupported::Rare)
+    );
+}

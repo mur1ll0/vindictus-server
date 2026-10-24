@@ -4861,6 +4861,50 @@ async fn minimum_skill_enhance_session_rolls_success_then_penalty() {
 
 /// A random-item profile over the fixture catalog where synthetic_cash is the box.
 fn random_item_profile(level: i32) -> vindictus_server::infrastructure::random_item::Profile {
+    random_item_profile_with(level, false)
+}
+
+/// With v2, synthetic_cash is also a RandomItemV2 box (dispatched first) whose packages
+/// give 4 synthetic_gold, a bound synthetic_bag for Fiona only and a null-class row.
+fn random_item_profile_with(
+    level: i32,
+    v2: bool,
+) -> vindictus_server::infrastructure::random_item::Profile {
+    let v2_key = appearance_fixture::key;
+    let v2_double = |v: f64| format!("{:016x}", v.to_bits());
+    let v2_recipe = |class: Option<&str>, count: i32, character: Option<&str>, bind: bool| {
+        json!([
+            v2_key("v2"),
+            class.map(v2_key),
+            count,
+            0,
+            v2_double(1.0),
+            null,
+            character.map(v2_key),
+            null,
+            null,
+            -1,
+            -1,
+            -1,
+            bind,
+            null,
+            null,
+            v2_key("GameUI_Heroes_RandomItem_GetItem")
+        ])
+    };
+    let (v2_boxes, v2_recipes) = if v2 {
+        (
+            json!([{"item_utf16":v2_key("synthetic_cash"),"key_utf16":null,"random_item_utf16":v2_key("v2"),"show_pop_up":true,"titicore":false,"cool_time":null,"exclusive_utf16":null,"feature":null}]),
+            json!([
+                v2_recipe(Some("synthetic_gold"), 4, None, false),
+                v2_recipe(Some("synthetic_bag"), 1, Some("3"), false),
+                v2_recipe(Some("synthetic_bag"), 1, Some("1"), true),
+                v2_recipe(None, 1, None, false)
+            ]),
+        )
+    } else {
+        (json!([]), json!([]))
+    };
     let key = appearance_fixture::key;
     let double = |v: f64| format!("{:016x}", v.to_bits());
     let recipe = |character: Option<i32>, class: &str, number: i32, probability: f64| {
@@ -4881,13 +4925,14 @@ fn random_item_profile(level: i32) -> vindictus_server::infrastructure::random_i
             null
         ])
     };
-    let profile = json!({"format_version":1,"source":"heroesContents.random-item","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":2,"source":"heroesContents.random-item","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "levels":[0, level, 0, 0],
         "boxes":[{"id":11,"server_code":null,"item_utf16":key("synthetic_cash"),"key_utf16":null,"visual":1,"feature":null}],
         "classes":[{"id":11,"name_utf16":key("c"),"expected":null,"probability":double(1.0),"number":2,"rule":null}],
         "recipes":[recipe(None, "synthetic_gold", 5, 0.5), recipe(Some(3), "synthetic_cash", 1, 0.5), recipe(Some(1), "synthetic_bag", 1, 0.5)],
-        "v2_items":[],
-        "features":[{"key":"RandomItemBundle","value":"1"},{"key":"RandomItemV2","value":null},{"key":"Titicore","value":null},{"key":"RandomItem_FeverSystem","value":null},{"key":"VariableProbability_RandomItem","value":null},{"key":"VariableItem_ConstraintCheck","value":null},{"key":"GameCode","value":"42"}]});
+        "v2_boxes":v2_boxes,
+        "v2_recipes":v2_recipes,
+        "features":[{"key":"RandomItemBundle","value":"1"},{"key":"RandomItemV2","value":if v2 { Some("1") } else { None }},{"key":"Titicore","value":null},{"key":"RandomItem_FeverSystem","value":null},{"key":"VariableProbability_RandomItem","value":null},{"key":"VariableItem_ConstraintCheck","value":null},{"key":"GameCode","value":"42"}]});
     vindictus_server::infrastructure::random_item::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
     )
@@ -5009,6 +5054,130 @@ async fn minimum_use_opens_a_random_item_box_for_the_character() {
                 panic!("reward list missing")
             };
             assert_eq!(list.item_quantities, Some(vec![5, 1]));
+            assert!(!list.disable_show_pop_up);
+        }
+        minimum_selection::disconnect(&p, 1).await.unwrap();
+    }
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_use_opens_a_random_item_v2_box_for_the_character() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_use,
+        },
+        protocol::inventory::UseItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let count = |class: &str| {
+        let p = &p;
+        let class = utf16(class);
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+            )
+            .bind(class)
+            .fetch_one(p)
+            .await
+            .unwrap()
+        }
+    };
+    for (level, opens) in [(99, false), (0, true)] {
+        let assets = assets_with(0, 1, 0)
+            .with_random_item(random_item_profile_with(level, true))
+            .unwrap()
+            .with_enhance_seed(9);
+        let log = minimum_item_logs::Context {
+            flags: minimum_item_logs::flags(&assets).unwrap(),
+            civil_offset_seconds: 0,
+        };
+        sqlx::query("DELETE FROM game_items WHERE item_class_utf16=$1")
+            .bind(utf16("synthetic_cash"))
+            .execute(&p)
+            .await
+            .unwrap();
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_cash", 3, 9)
+            .await
+            .unwrap()
+            .unwrap();
+        minimum_selection::select(
+            &p,
+            &owner,
+            &assets,
+            0,
+            QueryConfig {
+                max_free: 5,
+                care_clock: None,
+            },
+            Arithmetic::FrameworkX64,
+        )
+        .await
+        .unwrap();
+        let item: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1")
+            .bind(utf16("synthetic_cash"))
+            .fetch_one(&p)
+            .await
+            .unwrap();
+        let (gold, bags) = (count("synthetic_gold").await, count("synthetic_bag").await);
+        let outcome = minimum_use::use_item(
+            &p,
+            &owner,
+            &assets,
+            1,
+            UseItem {
+                item_id: item,
+                target_item_id: -1,
+            },
+            log,
+            Arithmetic::FrameworkX64,
+            &[],
+            (1..=8).map(|i| 961_000_000_000_000_000 + i).collect(),
+        )
+        .await
+        .unwrap();
+        let minimum_use::Outcome::Applied(packets) = outcome else {
+            panic!("no answer")
+        };
+        let categories: Vec<i32> = packets.iter().map(|p| p.category).collect();
+        if !opens {
+            // ItemClassInfo.Level above the character: ConstraintFail_LowLevel, no change.
+            assert_eq!(categories, [Kind::ItemFail.category()]);
+            assert_eq!(count("synthetic_cash").await, 3);
+        } else {
+            let system = vindictus_server::protocol::frontend_control::Kind::System.category();
+            // Sync, UseInventoryItemOk, RandomItem_UseItem, one Message per passing recipe
+            // (the null-class row included), the list.
+            assert_eq!(
+                categories,
+                [
+                    Kind::UpdateInventoryInfo.category(),
+                    Kind::UseInventoryItemOk.category(),
+                    system,
+                    system,
+                    system,
+                    system,
+                    Kind::RandomItemRewardList.category()
+                ]
+            );
+            assert_eq!(count("synthetic_cash").await, 2);
+            assert_eq!(count("synthetic_gold").await, gold + 4);
+            assert_eq!(count("synthetic_bag").await, bags + 1);
+            let Some(Message::RandomItemRewardList(list)) = inventory::decode(
+                Kind::RandomItemRewardList,
+                &packets[6].body,
+                DEFAULT_MAX_BODY,
+            )
+            .unwrap() else {
+                panic!("reward list missing")
+            };
+            // The metal_clamp × 0 request of the null-class row is dropped by Apply.
+            assert_eq!(list.item_quantities, Some(vec![4, 1]));
             assert!(!list.disable_show_pop_up);
         }
         minimum_selection::disconnect(&p, 1).await.unwrap();

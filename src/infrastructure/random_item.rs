@@ -1,7 +1,8 @@
 //! Source-bound random item contents exported by scripts/content/export_random_item.py:
 //! RandomItemContents (RandomItem by ItemClass, the feature-enabled RandomItemRecipe rows
-//! by RandomItemID and RecipeClassName, and the RandomItemRecipeClass rows they keep), the
-//! enabled RandomItemV2 item classes, ItemClassInfo.Level and the features they read.
+//! by RandomItemID and RecipeClassName, and the RandomItemRecipeClass rows they keep),
+//! RandomItemContentsV2 (RandomItemV2 by ItemClass and RandomItemData by RandomItemID),
+//! ItemClassInfo.Level and the features they read.
 use super::{
     item_catalog::Package as Catalog,
     minimum_character::MinimumError,
@@ -9,13 +10,10 @@ use super::{
 };
 use crate::domain::{
     feature_policy::FeaturePolicy,
-    random_item::{RandomBox, Recipe, RecipeClass},
+    random_item::{RandomBox, Recipe, RecipeClass, V2Data, V2Recipe},
 };
 use serde::Deserialize;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::Read,
-};
+use std::{collections::BTreeMap, io::Read};
 use zeroize::Zeroizing;
 
 #[derive(Deserialize)]
@@ -68,7 +66,48 @@ struct V2Row {
     #[serde(deserialize_with = "nullable")]
     item_utf16: Option<PrivateText>,
     #[serde(deserialize_with = "nullable")]
+    key_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    random_item_utf16: Option<PrivateText>,
+    show_pop_up: bool,
+    titicore: bool,
+    cool_time: Option<i32>,
+    #[serde(deserialize_with = "nullable")]
+    exclusive_utf16: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
     feature: Option<String>,
+}
+/// RandomItemID, ItemClass, Count, RecipeType, Probability, RareItemID, Cond_Character,
+/// Cond_Item, Cond_Feature, Color1-3, CharacterBind, ExpireBySec, Announce, Message.
+#[derive(Deserialize)]
+struct V2RecipeRow(
+    Option<PrivateText>,
+    Option<PrivateText>,
+    i32,
+    u8,
+    String,
+    Option<i32>,
+    Option<PrivateText>,
+    Option<PrivateText>,
+    Option<String>,
+    i32,
+    i32,
+    i32,
+    bool,
+    Option<i32>,
+    Option<PrivateText>,
+    Option<PrivateText>,
+);
+
+/// A RandomItemV2 row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct V2Box {
+    pub key: Option<String>,
+    pub random_item: String,
+    pub show_pop_up: bool,
+    pub titicore: bool,
+    pub cool_time: Option<i32>,
+    pub exclusive: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -87,7 +126,8 @@ pub struct Profile {
     boxes: Vec<BoxRow>,
     classes: Vec<ClassRow>,
     recipes: Vec<RecipeRow>,
-    v2_items: Vec<V2Row>,
+    v2_boxes: Vec<V2Row>,
+    v2_recipes: Vec<V2RecipeRow>,
     features: Vec<Feature>,
 }
 
@@ -96,7 +136,8 @@ pub struct Contents {
     boxes: BTreeMap<String, Vec<(RandomBox, Option<String>)>>,
     classes: BTreeMap<i32, Vec<RecipeClass>>,
     recipes: BTreeMap<(i32, String), Vec<Recipe>>,
-    v2: BTreeSet<String>,
+    v2: BTreeMap<String, Vec<V2Box>>,
+    v2_data: BTreeMap<String, V2Data>,
     levels: BTreeMap<Vec<u8>, i32>,
     policy: FeaturePolicy,
 }
@@ -155,12 +196,13 @@ impl Profile {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
-        if p.format_version != 1
+        if p.format_version != 2
             || p.source != "heroesContents.random-item"
             || p.boxes.len() > 65536
             || p.classes.len() > 65536
             || p.recipes.len() > 262_144
-            || p.v2_items.len() > 65536
+            || p.v2_boxes.len() > 65536
+            || p.v2_recipes.len() > 262_144
             || p.features.len() > 512
         {
             return Err(fail());
@@ -249,13 +291,50 @@ impl Profile {
                 rule: text(c.rule.as_ref())?,
             });
         }
-        let mut v2 = BTreeSet::new();
-        for r in &self.v2_items {
+        // Only the feature-enabled rows are ever returned by RandomItemContentsV2.
+        let mut v2: BTreeMap<String, Vec<V2Box>> = BTreeMap::new();
+        for r in &self.v2_boxes {
             if policy
                 .is_enabled(r.feature.as_deref())
                 .map_err(|_| fail())?
             {
-                v2.insert(key(r.item_utf16.as_ref())?);
+                v2.entry(key(r.item_utf16.as_ref())?)
+                    .or_default()
+                    .push(V2Box {
+                        key: text(r.key_utf16.as_ref())?,
+                        random_item: key(r.random_item_utf16.as_ref())?,
+                        show_pop_up: r.show_pop_up,
+                        titicore: r.titicore,
+                        cool_time: r.cool_time,
+                        exclusive: text(r.exclusive_utf16.as_ref())?,
+                    });
+            }
+        }
+        let mut v2_data: BTreeMap<String, V2Data> = BTreeMap::new();
+        for r in &self.v2_recipes {
+            let recipe = V2Recipe {
+                item_class: text(r.1.as_ref())?,
+                count: r.2,
+                probability: double(&r.4)?,
+                rare: r.5,
+                character: text(r.6.as_ref())?,
+                item: text(r.7.as_ref())?,
+                feature_enabled: match &r.8 {
+                    None => true,
+                    Some(f) => policy.is_enabled(Some(f)).map_err(|_| fail())?,
+                },
+                colors: [r.9, r.10, r.11],
+                bind: r.12,
+                expire: r.13,
+                announce: text(r.14.as_ref())?,
+                message: text(r.15.as_ref())?,
+            };
+            let data = v2_data.entry(key(r.0.as_ref())?).or_default();
+            match r.3 {
+                0 => data.package.push(recipe),
+                1 => data.gachapon.push(recipe),
+                2 => data.sequence.push(recipe),
+                _ => {}
             }
         }
         Ok(Contents {
@@ -263,6 +342,7 @@ impl Profile {
             classes,
             recipes,
             v2,
+            v2_data,
             levels,
             policy,
         })
@@ -273,9 +353,31 @@ impl Contents {
     pub fn policy(&self) -> &FeaturePolicy {
         &self.policy
     }
-    /// RandomItemContentsV2.IsRandomItem (with the RandomItemV2 feature).
+    /// RandomItemContentsV2.IsRandomItem.
     pub fn is_v2(&self, class: &str) -> bool {
-        self.v2.contains(class)
+        self.v2.contains_key(class)
+    }
+    /// RandomItemContentsV2.GetRandomItemKeyList.
+    pub fn v2_keys(&self, class: &str) -> Vec<String> {
+        self.v2
+            .get(class)
+            .into_iter()
+            .flatten()
+            .filter_map(|b| b.key.clone())
+            .collect()
+    }
+    /// RandomItemContentsV2.GetRandomItemInfo(itemClass, keyItemClass): the first row with
+    /// that key (rows of one key share a group, so provider order decides).
+    pub fn v2_box(&self, class: &str, key: Option<&str>) -> Option<&V2Box> {
+        self.v2
+            .get(class)
+            .into_iter()
+            .flatten()
+            .find(|b| b.key.as_deref() == key)
+    }
+    /// RandomItemContentsV2.GetRandomItemData.
+    pub fn v2_data(&self, id: &str) -> Option<&V2Data> {
+        self.v2_data.get(id)
     }
     /// RandomItemContents.IsRandomItem.
     pub fn is_random_item(&self, class: &str) -> bool {

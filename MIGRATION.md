@@ -1205,3 +1205,13 @@ B3.5 — abrir caixas do sistema RandomItem (pedido do operador, 24/10/2026: "le
 - Cliente: entrada B3.5 em `docs/client-tests/B3-equipamento.md`.
 - Próxima ação: sessão de cliente (B1–B3); o RandomItemV2 (caixas `randomitem_*_v2_*`) é a próxima lacuna de caixas.
 
+B3.6 — abrir caixas do RandomItemV2 (pedido do operador, 24/10/2026: "level up gift" de nível 10 confirmava e não abria com a Fiona nível 11).
+- Diagnóstico: a caixa da bolsa era `randomitem_levelup_v2_10` (RandomItemV2, `RandomItemID` igual, `ShowPopUp` True); o ramo V2 respondia "minimum item use rejected" sem mensagem.
+- Fonte: `UseInventoryItemProcessor` (ramo `RandomItemV2`: chaves, `ConstraintFail_LowLevel` por `ItemClassInfo.Level`, `GetRandomItemInfo` com NeedKeyItem/WrongItem, Titicore, ExclusiveID, NextUseTicks/CoolTime, `NoResultItem`, `Apply`, `UseInventoryItemOk` + `GameUI_Heroes_RandomItem_UseItem` + `SendResultMessages`), `RandomItemContentsV2` (linhas por feature, primeira com a chave; `RandomItemData` por RecipeType 0/1/2), `RandomItemSession` (`PickRecipe`: um gachapon pela soma das probabilidades, cada pacote pelo seu sorteio; recursão `#` até 10; classe nula ou contagem ≤ 0 vira `metal_clamp` × 0 descartado no `Apply`; `Message` como mensagem de sistema; lista de recompensas com `ItemClassExBuilder.Build`), `RandomItemContentsExtension.IsConstraintPassed` (`Cond_Character`, `Cond_Item` com `!`, `Cond_Feature`).
+- Conteúdo: `export_random_item.py` formato 2 com `v2_boxes` e `v2_recipes` (bit como texto 'True'/'False'), 32 MB.
+- Infraestrutura: `domain::random_item::open_v2`, `random_item::Contents::{v2_keys, v2_box, v2_data}`, `minimum_random_item::open_v2` (com `parse_reward`/`consume_box` compartilhados com o V1).
+- Testes: `random_item` (3); Python `test_export_random_item`; PostgreSQL `minimum_use_opens_a_random_item` (V1 e V2: nível baixo, abertura com filtro de personagem, item vinculado e linha de classe nula); clippy `-D warnings`.
+- Diferenças: recusados sem resposta — chave, Titicore ligado, ExclusiveID, CoolTime, receitas raras (`RandomItemV2RareCount`), listas de sequência (`RandomItemV2Sequence`), AP (`@`), `ExpireBySec`, sobra por correio; `Announce` (`NotifyRandomItem` para todos os frontends) não enviado (B5).
+- Cliente: entrada B3.6 em `docs/client-tests/B3-equipamento.md`.
+- Próxima ação: o operador testa a caixa nível 10 no cliente; depois a sessão de cliente B1–B3.
+

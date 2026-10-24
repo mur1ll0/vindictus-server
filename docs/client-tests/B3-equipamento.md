@@ -142,5 +142,13 @@ Pré-condição: uma caixa do sistema antigo na bolsa (ex.: `randomitem_levelup_
 - [ ] Abaixo do nível → clique direito em "usar" mostra o diálogo de nível insuficiente e a caixa fica.
 - [ ] Com o nível → a caixa some (uma unidade), aparecem a mensagem "item usado", uma mensagem por item recebido e a janela de recompensas; para a Fiona, a caixa de nível 10 dá `randomitem_levelup_v2_15`, 3 `energy_potion_lvl1`, `longsword_saver` e `levelup_belt_lvl10`.
 - [ ] Relogar → os itens recebidos continuam na bolsa e a caixa não volta.
-Limites conhecidos: caixas do RandomItemV2 (inclusive a `randomitem_levelup_v2_15` recebida), caixas com chave, Titicore, classes raras/pacote e a sobra por correio com a bolsa cheia não respondem; o anúncio global de item raro não é enviado.
+Limites conhecidos: caixas com chave, Titicore, classes raras/pacote e a sobra por correio com a bolsa cheia não respondem; o anúncio global de item raro não é enviado.
+
+### B3.6 — Abrir caixa de presente (RandomItemV2)
+Pré-condição: `randomitem_levelup_v2_10` ("Level Up Gift (Lv 10 or higher)") na bolsa ou na aba de cash; personagem nível 10 ou mais; espaço livre na bolsa.
+- [ ] Abaixo do nível → diálogo de nível insuficiente; a caixa fica.
+- [ ] Com o nível → confirmar o uso: a caixa some, aparecem "item usado", uma mensagem "recebeu" por item e a janela de recompensas; para a Fiona: `levelup_belt_lvl10`, 3 `cashshop_trade_coin` (se a feature `ingame_cashshop_preshow` estiver ligada), 20 `life_potion_lvl2_gift`, `randomitem_levelup_v2_15` e `longsword_saver`.
+- [ ] A `randomitem_levelup_v2_15` recebida, com nível 15, abre do mesmo jeito (as `phoenix_feather` chegam vinculadas).
+- [ ] Relogar → os itens continuam e a caixa não volta.
+Limites conhecidos: caixas V2 com chave, Titicore, tempo de recarga, exclusivas, raras ou em sequência, recompensas de AP ou com validade e a sobra por correio não respondem; o anúncio global não é enviado.
 

@@ -10,7 +10,8 @@ SCHEMA = (
     'CREATE TABLE RandomItem(ID INT,ServerCode INT,Description nchar,ItemClass nvarchar,KeyItemClass nvarchar,Visual INT,BaitProbability float,Feature nvarchar,UseFeverPoint INT,FeverPoint INT,RareItemCount INT,NormalItemCount INT);'
     'CREATE TABLE RandomItemRecipeClass(RandomItemID INT,ClassName nvarchar,ExpectedAppearanceCount INT,Probability float,ItemNumber INT,AdditionalRule varchar);'
     'CREATE TABLE RandomItemRecipe(RandomItemID INT,RecipeClassName nvarchar,CharacterType INT,ItemClass nvarchar,Number INT,Probability float,Color1 INT,Color2 INT,Color3 INT,NotifyMessage nvarchar,IsVariable INT,HaveItem float,DontHaveItem float,Feature nvarchar);'
-    'CREATE TABLE RandomItemV2(ItemClass nvarchar,KeyItemClass nvarchar,Feature nvarchar);'
+    'CREATE TABLE RandomItemV2(ItemClass nvarchar,KeyItemClass nvarchar,RandomItemID nvarchar,ShowPopUp bit,IsTitiCore bit,CoolTime INT,ExclusiveID nvarchar,Feature nvarchar);'
+    'CREATE TABLE RandomItemV2Recipe(RandomItemID nvarchar,ItemClass nvarchar,Count INT,RecipeType tinyint,Probability float,RareItemID INT,Cond_Character nvarchar,Cond_Item nvarchar,Cond_Feature nvarchar,Color1 INT,Color2 INT,Color3 INT,CharacterBind bit,ExpireBySec INT,Announce TEXT,Message TEXT);'
 )
 
 
@@ -29,7 +30,8 @@ class RandomItemExportTests(unittest.TestCase):
             db.execute('INSERT INTO RandomItem VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', (11, None, None, 'gift_box', None, 1, None, None, 0, 0, -1, -1))
             db.executemany('INSERT INTO RandomItemRecipeClass VALUES (?,?,?,?,?,?)', [(11, 'gift_box', None, 1.0, 4, None), (12, 'broken', 1, '.0001', '', None)])
             db.execute('INSERT INTO RandomItemRecipe VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (11, 'gift_box', None, 'potion', 3, '.33', None, None, None, '0', 0, 0.0, 0.0, 'enEU'))
-            db.execute('INSERT INTO RandomItemV2 VALUES (?,?,?)', ('other_box', None, None))
+            db.execute('INSERT INTO RandomItemV2 VALUES (?,?,?,?,?,?,?,?)', ('other_box', None, 'other', 'True', 'False', None, None, None))
+            db.execute('INSERT INTO RandomItemV2Recipe VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', ('other', 'potion', 2, 0, 1.0, None, '1', None, 'STUDY-A', -1, -1, -1, 'True', None, None, 'm'))
             db.commit()
 
     def test_tables_follow_the_loader(self):
@@ -39,7 +41,11 @@ class RandomItemExportTests(unittest.TestCase):
         # The '.33' text cell is the Double SQLite converts; the text ItemNumber row keeps 0.
         self.assertEqual(p['recipes'][0][5], struct.pack('>d', 0.33).hex())
         self.assertEqual((p['classes'][1]['number'], p['classes'][1]['rule']), (0, None))
-        self.assertEqual(p['v2_items'][0]['item_utf16'], 'other_box'.encode('utf-16-le').hex())
+        v2 = p['v2_boxes'][0]
+        self.assertEqual((v2['item_utf16'], v2['show_pop_up'], v2['titicore']), ('other_box'.encode('utf-16-le').hex(), True, False))
+        r = p['v2_recipes'][0]
+        self.assertEqual((r[2], r[3], r[6], r[8], r[12]), (2, 0, '1'.encode('utf-16-le').hex(), 'STUDY-A', True))
+        self.assertIn('STUDY-A', [f['key'] for f in p['features']])
         self.assertIn('enEU', [f['key'] for f in p['features']])
 
 

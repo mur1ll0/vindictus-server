@@ -1,6 +1,6 @@
 """Read-only random item contents: RandomItem, RandomItemRecipeClass and RandomItemRecipe
-(RandomItemContents) in provider order, the RandomItemV2 item classes (dispatched before
-RandomItemContents), ItemClassInfo.Level aligned with the catalog's class rows, and the
+(RandomItemContents) in provider order, RandomItemV2 and RandomItemV2Recipe
+(RandomItemContentsV2, dispatched before RandomItemContents), ItemClassInfo.Level aligned with the catalog's class rows, and the
 region values of the features they read. Float cells are exported as the Double that
 System.Data.SQLite reads (text cells are converted by SQLite itself). The tables are the
 same in the original content."""
@@ -78,10 +78,31 @@ def read_package(database, config):
                     text(r['NotifyMessage']), integer(r['IsVariable']), double(r['HaveItem']),
                     double(r['DontHaveItem']), r['Feature']]
                    for r in db.execute('Select * From [RandomItemRecipe]')]
-        v2 = [dict(item_utf16=text(r['ItemClass']), feature=r['Feature'])
-              for r in db.execute('Select ItemClass, Feature From [RandomItemV2]')]
+        def boolean(v):
+            # Convert.ChangeType of the bit cells ('True'/'False' text in the content).
+            if isinstance(v, str) and v.lower() in ('true', 'false'):
+                return v.lower() == 'true'
+            if type(v) is int and v in (0, 1):
+                return v == 1
+            raise ValueError('RandomItem Boolean type')
+
+        v2 = [dict(item_utf16=text(r['ItemClass']), key_utf16=text(r['KeyItemClass']),
+                   random_item_utf16=text(r['RandomItemID']), show_pop_up=boolean(r['ShowPopUp']),
+                   titicore=boolean(r['IsTitiCore']), cool_time=integer(r['CoolTime'], nullable=True),
+                   exclusive_utf16=text(r['ExclusiveID']), feature=r['Feature'])
+              for r in db.execute('Select * From [RandomItemV2]')]
+        # RandomItemID, ItemClass, Count, RecipeType, Probability, RareItemID, Cond_Character,
+        # Cond_Item, Cond_Feature, Color1-3, CharacterBind, ExpireBySec, Announce, Message.
+        v2_recipes = [[text(r['RandomItemID']), text(r['ItemClass']), integer(r['Count']),
+                       integer(r['RecipeType'], 0, 256), double(r['Probability']),
+                       integer(r['RareItemID'], nullable=True), text(r['Cond_Character']),
+                       text(r['Cond_Item']), r['Cond_Feature'], integer(r['Color1']),
+                       integer(r['Color2']), integer(r['Color3']), boolean(r['CharacterBind']),
+                       integer(r['ExpireBySec'], nullable=True), text(r['Announce']), text(r['Message'])]
+                      for r in db.execute('Select * From [RandomItemV2Recipe]')]
         values = region_features(db, config)
-    featured = [b['feature'] for b in boxes] + [r[13] for r in recipes] + [v['feature'] for v in v2]
+    featured = ([b['feature'] for b in boxes] + [r[13] for r in recipes] + [v['feature'] for v in v2]
+                + [r[8] for r in v2_recipes])
     if any(f is not None and not isinstance(f, str) for f in featured):
         raise ValueError('RandomItem feature type')
     # Values read by UseInventoryItemProcessor and RandomItemManager.
@@ -94,9 +115,9 @@ def read_package(database, config):
     features = [dict(key=k, value=values.get(k)) for k in sorted(atoms)]
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('RandomItem source changed during export')
-    return dict(format_version=1, source='heroesContents.random-item', database_sha256=manifest['database_sha256'],
+    return dict(format_version=2, source='heroesContents.random-item', database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], levels=levels, boxes=boxes, classes=classes,
-                recipes=recipes, v2_items=v2, features=features)
+                recipes=recipes, v2_boxes=v2, v2_recipes=v2_recipes, features=features)
 
 
 def main():
