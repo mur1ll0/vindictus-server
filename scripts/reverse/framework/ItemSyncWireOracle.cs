@@ -34,6 +34,11 @@ class ItemSyncWireOracle {
   typeof(T).GetField(field,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(obj,value);
   return obj;
  }
+ static T Fld<T>(params object[] fields) where T:class {
+  var obj=(T)FormatterServices.GetUninitializedObject(typeof(T));
+  for(int i=0;i<fields.Length;i+=2)typeof(T).GetField((string)fields[i],BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public).SetValue(obj,fields[i+1]);
+  return obj;
+ }
  static CostumeInfo Costume(int seed) {
   var c=new CostumeInfo();
   c.CostumeTypeInfo=new Dictionary<int,int>{{0,seed},{int.MaxValue,-1}};
@@ -171,6 +176,31 @@ class ItemSyncWireOracle {
   var shopCrafts=new List<RequestCraftMessage>{null};
   foreach(string sh in new[]{null,"","FERGHUS_Craft"})foreach(int o in new[]{-1,0,15})foreach(int c in new[]{int.MinValue,0,1,99})shopCrafts.Add(Obj<RequestCraftMessage>("ShopID",sh,"Order",o,"Count",c));
   AddCases("request_craft",558,new Guid("7ba36e6f-5935-30d7-b5a6-7bbcda0acce7"),shopCrafts,cases);
+  AddCases("query_cash_shop_product_list",242,new Guid("c60512f1-a197-3109-a28b-f89c6003d9fb"),new[]{null,Obj<QueryCashShopProductListMessage>()},cases);
+  var category=Fld<CashShopCategoryListElement>("CategoryNo",105,"CategoryName","AVATAR_TUNIC_é","ParentCategoryNo",int.MinValue,"DisplayNo",-1);
+  AddCases("cash_shop_category_list",244,new Guid("d5d8393b-80ea-36fb-a724-0dc9e66c1b32"),new[]{null,new CashShopCategoryListMessage(null),new CashShopCategoryListMessage(new List<CashShopCategoryListElement>()),new CashShopCategoryListMessage(new List<CashShopCategoryListElement>{category,null,Fld<CashShopCategoryListElement>("CategoryNo",int.MaxValue)})},cases);
+  var product=Fld<CashShopProductListElement>("ProductNo",int.MaxValue,"ProductExpire",(short)-1,"ProductPieces",short.MaxValue,"ProductID","avatar_tunic_é","ProductGUID","00000000-0000-0000-0000-000000000001","PaymentType",13001,"ProductType","","SalePrice",1500,"CategoryNo",105,"Status",1);
+  AddCases("cash_shop_product_list",243,new Guid("43148f51-9ebf-3fb3-a2ff-ceb7fe3503f2"),new[]{null,new CashShopProductListMessage(null),new CashShopProductListMessage(new List<CashShopProductListElement>{product,null,Fld<CashShopProductListElement>("ProductNo",int.MinValue,"ProductExpire",short.MinValue,"Status",-1)})},cases);
+  AddCases("query_cash_shop_balance",238,new Guid("1979a6ad-f975-3268-9ebf-19875d68756b"),new[]{null,Obj<QueryCashShopBalanceMessage>()},cases);
+  var balances=new List<CashShopBalanceMessage>{null};
+  foreach(int b in new[]{int.MinValue,0,1000000,int.MaxValue})balances.Add(new CashShopBalanceMessage(b,b==0?0:-1));
+  AddCases("cash_shop_balance",239,new Guid("b5b39940-43ec-33ec-aa7b-3f786d4bd5ac"),balances,cases);
+  AddCases("query_cash_shop_inventory",240,new Guid("12671796-6f21-3148-8097-e5f33dd30899"),new[]{null,Obj<QueryCashShopInventoryMessage>()},cases);
+  var order=Obj<CashShopInventoryElement>("OrderNo",7,"ProductNo",int.MaxValue,"ItemClass","avatar_tunic","ItemClassEx","avatar_tunic[X:1]","Count",short.MaxValue,"r","-1","g",null,"b","値","Expire",(short)-1,"IsGift",true,"SenderMessage","","RemainQuantity",short.MinValue);
+  AddCases("cash_shop_inventory",241,new Guid("c99ca6d7-9067-380e-9b93-b9c3cfeab051"),new[]{null,Obj<CashShopInventoryMessage>(),new CashShopInventoryMessage(new List<CashShopInventoryElement>{order,null,Obj<CashShopInventoryElement>()})},cases);
+  var pickups=new List<QueryCashShopItemPickUpMessage>{null};
+  foreach(int o in new[]{int.MinValue,0,7})foreach(short q in new short[]{short.MinValue,0,1,short.MaxValue})pickups.Add(new QueryCashShopItemPickUpMessage(o,o+1,q));
+  AddCases("query_cash_shop_item_pick_up",247,new Guid("ea22129f-5ff5-3a25-934c-764318735384"),pickups,cases);
+  var purchases=new List<QueryCashShopPurchaseItemMessage>{null,Fld<QueryCashShopPurchaseItemMessage>()};
+  foreach(short q in new short[]{short.MinValue,1,short.MaxValue})purchases.Add(Fld<QueryCashShopPurchaseItemMessage>("ProductNo",(int)q*3,"Quantity",q,"Attribute0","1","Attribute1",null,"Attribute2","","Attribute3","値","Attribute4","x","IsForCommonInven",q==1));
+  AddCases("query_cash_shop_purchase_item",248,new Guid("52d58673-c69c-3976-9e4b-b57e2d9adc9e"),purchases,cases);
+  AddCases("cash_shop_fail",250,new Guid("6a257038-7e65-3370-886d-bb0c30c7e1c8"),new[]{null,new CashShopFailMessage(0),new CashShopFailMessage(int.MinValue),new CashShopFailMessage(255)},cases);
+  AddCases("wish_list_select",213,new Guid("97389473-f994-3d1d-aaa8-df5138bdffc6"),new[]{null,new WishListSelectMessage(long.MinValue),new WishListSelectMessage(0),new WishListSelectMessage(long.MaxValue)},cases);
+  AddCases("wish_list_select_response",214,new Guid("643c7092-008e-3780-9e30-faa5fc68b1b5"),new[]{null,new WishListSelectResponseMessage(),new WishListSelectResponseMessage((WishListResult)1,7,new List<WishItemInfo>{new WishItemInfo(7,int.MaxValue,"値"),null,new WishItemInfo(long.MinValue,0,null)}),new WishListSelectResponseMessage((WishListResult)(-10),long.MaxValue,new List<WishItemInfo>())},cases);
+  AddCases("wish_list_insert",212,new Guid("a522e7d8-cc68-346c-907a-b11cd6630452"),new[]{null,new WishListInsertMessage(1,null),new WishListInsertMessage(long.MaxValue,new List<int>{int.MinValue,0,int.MaxValue})},cases);
+  AddCases("wish_list_insert_response",211,new Guid("a48093ce-a0b9-3bcd-a52b-6738c45cf30d"),new[]{null,new WishListInsertResponseMessage((WishListResult)1,7),new WishListInsertResponseMessage((WishListResult)(-9),long.MinValue)},cases);
+  AddCases("wish_list_delete",209,new Guid("c4587129-aa0e-3a5d-a47d-6e17ce2550a7"),new[]{null,new WishListDeleteMessage(1,null),new WishListDeleteMessage(long.MinValue,new List<int>{5})},cases);
+  AddCases("wish_list_delete_response",210,new Guid("a72f021b-568b-3ff6-8400-3c6a64c3c2bc"),new[]{null,new WishListDeleteResponseMessage((WishListResult)2,0)},cases);
   AddCases("buy_item_result",235,new Guid("64a08bdf-6762-3be2-9f6f-c7ff64a2b4a3"),new[]{null,new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Failed,null,0,null,0),new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Succeeded,"potion_hp_lvl1",10,"gold",500,3,-1),new BuyItemResultMessage(BuyItemResultMessage.BuyItemResult.Failed_UniqueConstraint,"x",int.MaxValue,"",int.MinValue,int.MinValue,int.MaxValue)},cases);
   AddCases("query_shop_item_info",167,new Guid("4088bd54-bc81-3398-8386-61bdaf5917c1"),new[]{null,Obj<QueryShopItemInfoMessage>("ShopID",null),Obj<QueryShopItemInfoMessage>("ShopID",""),Obj<QueryShopItemInfoMessage>("ShopID","FERGHUS_Shop")},cases);
   var sells=new List<SellItemMessage>{null};

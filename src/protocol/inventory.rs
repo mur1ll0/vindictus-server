@@ -74,6 +74,22 @@ pub enum Kind {
     SkillEnhanceRestoreDurability,
     RandomItemRewardList,
     RequestCraft,
+    QueryCashShopProductList,
+    CashShopCategoryList,
+    CashShopProductList,
+    QueryCashShopBalance,
+    CashShopBalance,
+    QueryCashShopInventory,
+    CashShopInventory,
+    QueryCashShopItemPickUp,
+    QueryCashShopPurchaseItem,
+    CashShopFail,
+    WishListSelect,
+    WishListSelectResponse,
+    WishListInsert,
+    WishListInsertResponse,
+    WishListDelete,
+    WishListDeleteResponse,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -141,6 +157,22 @@ impl Kind {
             Self::SkillEnhanceRestoreDurability => 180,
             Self::RandomItemRewardList => 381,
             Self::RequestCraft => 558,
+            Self::QueryCashShopProductList => 242,
+            Self::CashShopCategoryList => 244,
+            Self::CashShopProductList => 243,
+            Self::QueryCashShopBalance => 238,
+            Self::CashShopBalance => 239,
+            Self::QueryCashShopInventory => 240,
+            Self::CashShopInventory => 241,
+            Self::QueryCashShopItemPickUp => 247,
+            Self::QueryCashShopPurchaseItem => 248,
+            Self::CashShopFail => 250,
+            Self::WishListSelect => 213,
+            Self::WishListSelectResponse => 214,
+            Self::WishListInsert => 212,
+            Self::WishListInsertResponse => 211,
+            Self::WishListDelete => 209,
+            Self::WishListDeleteResponse => 210,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -208,6 +240,22 @@ impl Kind {
             Self::SkillEnhanceRestoreDurability => 0x05ccc728_0129_3695_b7ca_d5978545b1b3,
             Self::RandomItemRewardList => 0x4ee2fd65_d464_3707_b876_3280b7d88f04,
             Self::RequestCraft => 0x7ba36e6f_5935_30d7_b5a6_7bbcda0acce7,
+            Self::QueryCashShopProductList => 0xc60512f1_a197_3109_a28b_f89c6003d9fb,
+            Self::CashShopCategoryList => 0xd5d8393b_80ea_36fb_a724_0dc9e66c1b32,
+            Self::CashShopProductList => 0x43148f51_9ebf_3fb3_a2ff_ceb7fe3503f2,
+            Self::QueryCashShopBalance => 0x1979a6ad_f975_3268_9ebf_19875d68756b,
+            Self::CashShopBalance => 0xb5b39940_43ec_33ec_aa7b_3f786d4bd5ac,
+            Self::QueryCashShopInventory => 0x12671796_6f21_3148_8097_e5f33dd30899,
+            Self::CashShopInventory => 0xc99ca6d7_9067_380e_9b93_b9c3cfeab051,
+            Self::QueryCashShopItemPickUp => 0xea22129f_5ff5_3a25_934c_764318735384,
+            Self::QueryCashShopPurchaseItem => 0x52d58673_c69c_3976_9e4b_b57e2d9adc9e,
+            Self::CashShopFail => 0x6a257038_7e65_3370_886d_bb0c30c7e1c8,
+            Self::WishListSelect => 0x97389473_f994_3d1d_aaa8_df5138bdffc6,
+            Self::WishListSelectResponse => 0x643c7092_008e_3780_9e30_faa5fc68b1b5,
+            Self::WishListInsert => 0xa522e7d8_cc68_346c_907a_b11cd6630452,
+            Self::WishListInsertResponse => 0xa48093ce_a0b9_3bcd_a52b_6738c45cf30d,
+            Self::WishListDelete => 0xc4587129_aa0e_3a5d_a47d_6e17ce2550a7,
+            Self::WishListDeleteResponse => 0xa72f021b_568b_3ff6_8400_3c6a64c3c2bc,
         })
     }
 }
@@ -378,6 +426,22 @@ pub enum Message {
     RandomItemRewardList(RandomItemRewardList),
     /// RequestCraftMessage: ShopID, Order, Count (the BuyItemMessage layout).
     RequestCraft(BuyItem),
+    QueryCashShopProductList,
+    CashShopCategoryList(Option<Vec<Option<CashShopCategory>>>),
+    CashShopProductList(Option<Vec<Option<CashShopProduct>>>),
+    QueryCashShopBalance,
+    CashShopBalance(CashShopBalance),
+    QueryCashShopInventory,
+    CashShopInventory(Option<Vec<Option<CashShopInventoryItem>>>),
+    QueryCashShopItemPickUp(CashShopPickUp),
+    QueryCashShopPurchaseItem(CashShopPurchase),
+    CashShopFail(i32),
+    WishListSelect(i64),
+    WishListSelectResponse(WishListSelectResponse),
+    WishListInsert(WishListChange),
+    WishListInsertResponse(WishListResponse),
+    WishListDelete(WishListChange),
+    WishListDeleteResponse(WishListResponse),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -588,6 +652,95 @@ pub struct ColoredEquipment {
     pub color1: i32,
     pub color2: i32,
     pub color3: i32,
+}
+/// CashShopCategoryListElement: CategoryNo, CategoryName, ParentCategoryNo, DisplayNo.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CashShopCategory {
+    pub category_no: i32,
+    pub category_name: Option<String>,
+    pub parent_category_no: i32,
+    pub display_no: i32,
+}
+/// CashShopProductListElement in declaration order (ProductStatus as Int32).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CashShopProduct {
+    pub product_no: i32,
+    pub product_expire: i16,
+    pub product_pieces: i16,
+    pub product_id: Option<String>,
+    pub product_guid: Option<String>,
+    pub payment_type: i32,
+    pub product_type: Option<String>,
+    pub sale_price: i32,
+    pub category_no: i32,
+    pub status: i32,
+}
+/// CashShopInventoryElement (an order of the cash shop inventory).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CashShopInventoryItem {
+    pub order_no: i32,
+    pub product_no: i32,
+    pub item_class: Option<String>,
+    pub item_class_ex: Option<String>,
+    pub count: i16,
+    pub r: Option<String>,
+    pub g: Option<String>,
+    pub b: Option<String>,
+    pub expire: i16,
+    pub is_gift: bool,
+    pub sender_message: Option<String>,
+    pub remain_quantity: i16,
+}
+/// CashShopBalanceMessage: Balance, Refundless.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CashShopBalance {
+    pub balance: i32,
+    pub refundless: i32,
+}
+/// QueryCashShopItemPickUpMessage: OrderNo, ProductNo, Quantity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CashShopPickUp {
+    pub order_no: i32,
+    pub product_no: i32,
+    pub quantity: i16,
+}
+/// QueryCashShopPurchaseItemMessage: ProductNo, Quantity, Attribute0-4, IsForCommonInven.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CashShopPurchase {
+    pub product_no: i32,
+    pub quantity: i16,
+    pub attribute0: Option<String>,
+    pub attribute1: Option<String>,
+    pub attribute2: Option<String>,
+    pub attribute3: Option<String>,
+    pub attribute4: Option<String>,
+    pub is_for_common_inven: bool,
+}
+/// WishItemInfo: CID, ProductNo, ProductName.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WishItem {
+    pub cid: i64,
+    pub product_no: i32,
+    pub product_name: Option<String>,
+}
+/// WishListSelectResponseMessage: Result (WishListResult as Int32), CID, ProductInfo.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WishListSelectResponse {
+    pub result: i32,
+    pub cid: i64,
+    pub product_info: Option<Vec<Option<WishItem>>>,
+}
+/// WishListInsertMessage (CID, List_Wish) and WishListDeleteMessage (CID, ProductNo).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WishListChange {
+    pub cid: i64,
+    pub products: Option<Vec<i32>>,
+}
+/// WishListInsertResponseMessage / WishListDeleteResponseMessage: Result, CID.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WishListResponse {
+    pub result: i32,
+    pub cid: i64,
 }
 /// RandomItemRewardListMessage in declaration order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -816,6 +969,22 @@ impl Message {
             Self::SkillEnhanceRestoreDurability(_) => Kind::SkillEnhanceRestoreDurability,
             Self::RandomItemRewardList(_) => Kind::RandomItemRewardList,
             Self::RequestCraft(_) => Kind::RequestCraft,
+            Self::QueryCashShopProductList => Kind::QueryCashShopProductList,
+            Self::CashShopCategoryList(_) => Kind::CashShopCategoryList,
+            Self::CashShopProductList(_) => Kind::CashShopProductList,
+            Self::QueryCashShopBalance => Kind::QueryCashShopBalance,
+            Self::CashShopBalance(_) => Kind::CashShopBalance,
+            Self::QueryCashShopInventory => Kind::QueryCashShopInventory,
+            Self::CashShopInventory(_) => Kind::CashShopInventory,
+            Self::QueryCashShopItemPickUp(_) => Kind::QueryCashShopItemPickUp,
+            Self::QueryCashShopPurchaseItem(_) => Kind::QueryCashShopPurchaseItem,
+            Self::CashShopFail(_) => Kind::CashShopFail,
+            Self::WishListSelect(_) => Kind::WishListSelect,
+            Self::WishListSelectResponse(_) => Kind::WishListSelectResponse,
+            Self::WishListInsert(_) => Kind::WishListInsert,
+            Self::WishListInsertResponse(_) => Kind::WishListInsertResponse,
+            Self::WishListDelete(_) => Kind::WishListDelete,
+            Self::WishListDeleteResponse(_) => Kind::WishListDeleteResponse,
         }
     }
 }
@@ -835,6 +1004,7 @@ macro_rules! number {
         }
     };
 }
+number!(i16, 2);
 number!(i32, 4);
 number!(i64, 8);
 impl Wire for u8 {
@@ -1075,6 +1245,69 @@ object!(ColoredEquipment {
     color2,
     color3
 });
+object!(CashShopCategory {
+    category_no,
+    category_name,
+    parent_category_no,
+    display_no
+});
+object!(CashShopProduct {
+    product_no,
+    product_expire,
+    product_pieces,
+    product_id,
+    product_guid,
+    payment_type,
+    product_type,
+    sale_price,
+    category_no,
+    status
+});
+object!(CashShopInventoryItem {
+    order_no,
+    product_no,
+    item_class,
+    item_class_ex,
+    count,
+    r,
+    g,
+    b,
+    expire,
+    is_gift,
+    sender_message,
+    remain_quantity
+});
+object!(CashShopBalance {
+    balance,
+    refundless
+});
+object!(CashShopPickUp {
+    order_no,
+    product_no,
+    quantity
+});
+object!(CashShopPurchase {
+    product_no,
+    quantity,
+    attribute0,
+    attribute1,
+    attribute2,
+    attribute3,
+    attribute4,
+    is_for_common_inven
+});
+object!(WishItem {
+    cid,
+    product_no,
+    product_name
+});
+object!(WishListSelectResponse {
+    result,
+    cid,
+    product_info
+});
+object!(WishListChange { cid, products });
+object!(WishListResponse { result, cid });
 object!(RandomItemRewardList {
     item_classes,
     item_quantities,
@@ -1297,6 +1530,22 @@ pub fn encode(
             Message::SkillEnhanceRestoreDurability(v) => v.write(&mut w)?,
             Message::RandomItemRewardList(v) => v.write(&mut w)?,
             Message::RequestCraft(v) => v.write(&mut w)?,
+            Message::QueryCashShopProductList => {}
+            Message::CashShopCategoryList(v) => v.write(&mut w)?,
+            Message::CashShopProductList(v) => v.write(&mut w)?,
+            Message::QueryCashShopBalance => {}
+            Message::CashShopBalance(v) => v.write(&mut w)?,
+            Message::QueryCashShopInventory => {}
+            Message::CashShopInventory(v) => v.write(&mut w)?,
+            Message::QueryCashShopItemPickUp(v) => v.write(&mut w)?,
+            Message::QueryCashShopPurchaseItem(v) => v.write(&mut w)?,
+            Message::CashShopFail(v) => v.write(&mut w)?,
+            Message::WishListSelect(v) => v.write(&mut w)?,
+            Message::WishListSelectResponse(v) => v.write(&mut w)?,
+            Message::WishListInsert(v) => v.write(&mut w)?,
+            Message::WishListInsertResponse(v) => v.write(&mut w)?,
+            Message::WishListDelete(v) => v.write(&mut w)?,
+            Message::WishListDeleteResponse(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1409,6 +1658,32 @@ fn decode_body(
             }
             Kind::RandomItemRewardList => Message::RandomItemRewardList(Wire::read(&mut r)?),
             Kind::RequestCraft => Message::RequestCraft(BuyItem::read(&mut r)?),
+            Kind::QueryCashShopProductList => Message::QueryCashShopProductList,
+            Kind::CashShopCategoryList => Message::CashShopCategoryList(Wire::read(&mut r)?),
+            Kind::CashShopProductList => Message::CashShopProductList(Wire::read(&mut r)?),
+            Kind::QueryCashShopBalance => Message::QueryCashShopBalance,
+            Kind::CashShopBalance => Message::CashShopBalance(CashShopBalance::read(&mut r)?),
+            Kind::QueryCashShopInventory => Message::QueryCashShopInventory,
+            Kind::CashShopInventory => Message::CashShopInventory(Wire::read(&mut r)?),
+            Kind::QueryCashShopItemPickUp => {
+                Message::QueryCashShopItemPickUp(CashShopPickUp::read(&mut r)?)
+            }
+            Kind::QueryCashShopPurchaseItem => {
+                Message::QueryCashShopPurchaseItem(CashShopPurchase::read(&mut r)?)
+            }
+            Kind::CashShopFail => Message::CashShopFail(Wire::read(&mut r)?),
+            Kind::WishListSelect => Message::WishListSelect(Wire::read(&mut r)?),
+            Kind::WishListSelectResponse => {
+                Message::WishListSelectResponse(WishListSelectResponse::read(&mut r)?)
+            }
+            Kind::WishListInsert => Message::WishListInsert(WishListChange::read(&mut r)?),
+            Kind::WishListInsertResponse => {
+                Message::WishListInsertResponse(WishListResponse::read(&mut r)?)
+            }
+            Kind::WishListDelete => Message::WishListDelete(WishListChange::read(&mut r)?),
+            Kind::WishListDeleteResponse => {
+                Message::WishListDeleteResponse(WishListResponse::read(&mut r)?)
+            }
         })
     };
     if strict && !r.remaining.is_empty() {

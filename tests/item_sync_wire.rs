@@ -102,7 +102,12 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
         Some(Message::QuickSlotInfo(info)) => {
             assert_eq!(info.is_none(), f["info"].is_null(), "case {n}");
         }
-        Some(Message::QueryAp) => {}
+        Some(
+            Message::QueryAp
+            | Message::QueryCashShopProductList
+            | Message::QueryCashShopBalance
+            | Message::QueryCashShopInventory,
+        ) => {}
         Some(Message::Ap(a)) => {
             assert_eq!(
                 a.next_bonus_ms,
@@ -655,6 +660,176 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             );
             assert_eq!(m.skill_name.as_deref(), f["SkillName"].as_str(), "case {n}");
         }
+        Some(Message::CashShopCategoryList(list)) => {
+            let ours = list.as_ref().map(|l| {
+                l.iter()
+                    .map(|c| c.as_ref().map(|c| (c.category_no, c.category_name.clone())))
+                    .collect::<Vec<_>>()
+            });
+            let theirs = f["list"].as_array().map(|l| {
+                l.iter()
+                    .map(|c| {
+                        (!c.is_null()).then(|| {
+                            (
+                                i32::try_from(c["CategoryNo"].as_i64().unwrap()).unwrap(),
+                                c["CategoryName"].as_str().map(str::to_owned),
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(ours, theirs, "case {n}");
+        }
+        Some(Message::CashShopProductList(list)) => {
+            let ours = list.as_ref().map(|l| {
+                l.iter()
+                    .map(|p| {
+                        p.as_ref()
+                            .map(|p| (p.product_no, p.product_id.clone(), p.sale_price, p.status))
+                    })
+                    .collect::<Vec<_>>()
+            });
+            let theirs = f["list"].as_array().map(|l| {
+                l.iter()
+                    .map(|p| {
+                        (!p.is_null()).then(|| {
+                            (
+                                i32::try_from(p["ProductNo"].as_i64().unwrap()).unwrap(),
+                                p["ProductID"].as_str().map(str::to_owned),
+                                i32::try_from(p["SalePrice"].as_i64().unwrap()).unwrap(),
+                                i32::try_from(p["Status"].as_i64().unwrap()).unwrap(),
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(ours, theirs, "case {n}");
+        }
+        Some(Message::CashShopBalance(b)) => {
+            assert_eq!(
+                (i64::from(b.balance), i64::from(b.refundless)),
+                (
+                    f["Balance"].as_i64().unwrap(),
+                    f["Refundless"].as_i64().unwrap()
+                ),
+                "case {n}"
+            );
+        }
+        Some(Message::CashShopInventory(list)) => {
+            let ours = list.as_ref().map(|l| {
+                l.iter()
+                    .map(|o| {
+                        o.as_ref()
+                            .map(|o| (o.order_no, o.item_class_ex.clone(), o.count, o.is_gift))
+                    })
+                    .collect::<Vec<_>>()
+            });
+            let theirs = f["Inventory"].as_array().map(|l| {
+                l.iter()
+                    .map(|o| {
+                        (!o.is_null()).then(|| {
+                            (
+                                i32::try_from(o["OrderNo"].as_i64().unwrap()).unwrap(),
+                                o["ItemClassEx"].as_str().map(str::to_owned),
+                                i16::try_from(o["Count"].as_i64().unwrap()).unwrap(),
+                                o["IsGift"].as_bool().unwrap(),
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(ours, theirs, "case {n}");
+        }
+        Some(Message::QueryCashShopItemPickUp(p)) => {
+            assert_eq!(
+                (
+                    i64::from(p.order_no),
+                    i64::from(p.product_no),
+                    i64::from(p.quantity)
+                ),
+                (
+                    f["OrderNo"].as_i64().unwrap(),
+                    f["ProductNo"].as_i64().unwrap(),
+                    f["Quantity"].as_i64().unwrap()
+                ),
+                "case {n}"
+            );
+        }
+        Some(Message::QueryCashShopPurchaseItem(p)) => {
+            assert_eq!(
+                (
+                    i64::from(p.product_no),
+                    i64::from(p.quantity),
+                    p.attribute3.as_deref(),
+                    p.is_for_common_inven
+                ),
+                (
+                    f["ProductNo"].as_i64().unwrap(),
+                    f["Quantity"].as_i64().unwrap(),
+                    f["Attribute3"].as_str(),
+                    f["IsForCommonInven"].as_bool().unwrap()
+                ),
+                "case {n}"
+            );
+        }
+        Some(Message::CashShopFail(r)) => {
+            assert_eq!(i64::from(r), f["Reason"].as_i64().unwrap(), "case {n}");
+        }
+        Some(Message::WishListSelect(cid)) => {
+            assert_eq!(cid, f["CID"].as_i64().unwrap(), "case {n}");
+        }
+        Some(Message::WishListSelectResponse(r)) => {
+            assert_eq!(
+                (i64::from(r.result), r.cid),
+                (
+                    f["Result"]["value__"].as_i64().unwrap(),
+                    f["CID"].as_i64().unwrap(),
+                ),
+                "case {n}"
+            );
+            let ours = r.product_info.as_ref().map(|l| {
+                l.iter()
+                    .map(|w| w.as_ref().map(|w| (w.product_no, w.product_name.clone())))
+                    .collect::<Vec<_>>()
+            });
+            let theirs = f["ProductInfo"].as_array().map(|l| {
+                l.iter()
+                    .map(|w| {
+                        (!w.is_null()).then(|| {
+                            (
+                                i32::try_from(w["ProductNo"].as_i64().unwrap()).unwrap(),
+                                w["ProductName"].as_str().map(str::to_owned),
+                            )
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(ours, theirs, "case {n}");
+        }
+        Some(Message::WishListInsert(c) | Message::WishListDelete(c)) => {
+            assert_eq!(c.cid, f["CID"].as_i64().unwrap(), "case {n}");
+            let list = if f["List_Wish"].is_null() && !f["ProductNo"].is_null() {
+                &f["ProductNo"]
+            } else {
+                &f["List_Wish"]
+            };
+            let theirs = list.as_array().map(|l| {
+                l.iter()
+                    .map(|x| i32::try_from(x.as_i64().unwrap()).unwrap())
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(c.products, theirs, "case {n}");
+        }
+        Some(Message::WishListInsertResponse(r) | Message::WishListDeleteResponse(r)) => {
+            assert_eq!(
+                (i64::from(r.result), r.cid),
+                (
+                    f["Result"]["value__"].as_i64().unwrap(),
+                    f["CID"].as_i64().unwrap(),
+                ),
+                "case {n}"
+            );
+        }
         Some(Message::RandomItemRewardList(m)) => {
             let classes = f["ItemClasses"].as_array().map(|o| {
                 o.iter()
@@ -1002,6 +1177,22 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::BuyItem,
         Kind::BuyItemResult,
         Kind::RequestCraft,
+        Kind::QueryCashShopProductList,
+        Kind::CashShopCategoryList,
+        Kind::CashShopProductList,
+        Kind::QueryCashShopBalance,
+        Kind::CashShopBalance,
+        Kind::QueryCashShopInventory,
+        Kind::CashShopInventory,
+        Kind::QueryCashShopItemPickUp,
+        Kind::QueryCashShopPurchaseItem,
+        Kind::CashShopFail,
+        Kind::WishListSelect,
+        Kind::WishListSelectResponse,
+        Kind::WishListInsert,
+        Kind::WishListInsertResponse,
+        Kind::WishListDelete,
+        Kind::WishListDeleteResponse,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
         Kind::QueryBuybackList,
@@ -1025,7 +1216,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 2106);
+        assert_eq!(cases.len(), 2292);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1052,6 +1243,36 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "story_lines" => check_inventory(Kind::StoryLines, case, n),
                 "buy_item" => check_inventory(Kind::BuyItem, case, n),
                 "request_craft" => check_inventory(Kind::RequestCraft, case, n),
+                "query_cash_shop_product_list" => {
+                    check_inventory(Kind::QueryCashShopProductList, case, n)
+                }
+                "cash_shop_category_list" => check_inventory(Kind::CashShopCategoryList, case, n),
+                "cash_shop_product_list" => check_inventory(Kind::CashShopProductList, case, n),
+                "query_cash_shop_balance" => check_inventory(Kind::QueryCashShopBalance, case, n),
+                "cash_shop_balance" => check_inventory(Kind::CashShopBalance, case, n),
+                "query_cash_shop_inventory" => {
+                    check_inventory(Kind::QueryCashShopInventory, case, n)
+                }
+                "cash_shop_inventory" => check_inventory(Kind::CashShopInventory, case, n),
+                "query_cash_shop_item_pick_up" => {
+                    check_inventory(Kind::QueryCashShopItemPickUp, case, n)
+                }
+                "query_cash_shop_purchase_item" => {
+                    check_inventory(Kind::QueryCashShopPurchaseItem, case, n)
+                }
+                "cash_shop_fail" => check_inventory(Kind::CashShopFail, case, n),
+                "wish_list_select" => check_inventory(Kind::WishListSelect, case, n),
+                "wish_list_select_response" => {
+                    check_inventory(Kind::WishListSelectResponse, case, n)
+                }
+                "wish_list_insert" => check_inventory(Kind::WishListInsert, case, n),
+                "wish_list_insert_response" => {
+                    check_inventory(Kind::WishListInsertResponse, case, n)
+                }
+                "wish_list_delete" => check_inventory(Kind::WishListDelete, case, n),
+                "wish_list_delete_response" => {
+                    check_inventory(Kind::WishListDeleteResponse, case, n)
+                }
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),

@@ -112,6 +112,22 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::UpdateStorageInfo
                 | Kind::RandomItemRewardList
                 | Kind::RequestCraft
+                | Kind::QueryCashShopProductList
+                | Kind::CashShopCategoryList
+                | Kind::CashShopProductList
+                | Kind::QueryCashShopBalance
+                | Kind::CashShopBalance
+                | Kind::QueryCashShopInventory
+                | Kind::CashShopInventory
+                | Kind::QueryCashShopItemPickUp
+                | Kind::QueryCashShopPurchaseItem
+                | Kind::CashShopFail
+                | Kind::WishListSelect
+                | Kind::WishListSelectResponse
+                | Kind::WishListInsert
+                | Kind::WishListInsertResponse
+                | Kind::WishListDelete
+                | Kind::WishListDeleteResponse
                 | Kind::SkillEnhanceSessionStart
                 | Kind::SkillEnhanceSessionEnd
                 | Kind::SkillEnhanceUseErg
