@@ -1,7 +1,7 @@
 //! Item.Stat of an equipment item: ItemClassInfo.GetStat() plus the Stat of its
-//! attribute entities, as Item.UpdateItemStat(null) builds it. ENHANCE and PREFIX/SUFFIX
-//! carry a Stat (the enchant conditions read the owner's level, class, skill ranks and
-//! titles); ANTIBIND and RESTORED (set by MoveToBuybackStorage) have none. Other
+//! attribute entities, as Item.UpdateItemStat(null) builds it. ENHANCE, QUALITY and
+//! PREFIX/SUFFIX carry a Stat (the enchant conditions read the owner's level, class, skill
+//! ranks and titles); ANTIBIND and RESTORED (set by MoveToBuybackStorage) have none. Other
 //! equipment attributes (ENHANCEOTHER feeds Gear.GetEnhanceOtherValue) are refused, so
 //! the applied EnhanceOther value is always 0.
 use super::{minimum_assets::Assets, minimum_character::MinimumError};
@@ -23,6 +23,7 @@ pub(super) const ANTIBIND: &str = "ANTIBIND";
 pub(super) const RESTORED: &str = "RESTORED";
 pub(super) const PREFIX: &str = "PREFIX";
 pub(super) const SUFFIX: &str = "SUFFIX";
+pub(super) const QUALITY: &str = "QUALITY";
 
 pub(super) struct EquipmentStat {
     pub stat: ItemStat,
@@ -36,6 +37,8 @@ pub(super) struct EquipmentStat {
     /// PrefixEnchantLevel / SuffixEnchantLevel.
     pub prefix_level: i32,
     pub suffix_level: i32,
+    /// Item.QualityLevel: Quality.Level with the attribute, 2 without it.
+    pub quality_level: i32,
 }
 
 /// ItemOwner.Comm values the enchant conditions read.
@@ -135,6 +138,7 @@ pub(super) fn equipment_with(
         suffix_status: Vec::new(),
         prefix_level: 0,
         suffix_level: 0,
+        quality_level: 2,
     };
     if attributes.is_empty() {
         return Ok(out);
@@ -142,7 +146,7 @@ pub(super) fn equipment_with(
     if attributes
         .as_slice()
         .iter()
-        .any(|a| ![ENHANCE, ANTIBIND, RESTORED, PREFIX, SUFFIX].contains(&a.name.as_str()))
+        .any(|a| ![ENHANCE, ANTIBIND, RESTORED, PREFIX, SUFFIX, QUALITY].contains(&a.name.as_str()))
     {
         return Err(fail());
     }
@@ -173,6 +177,28 @@ pub(super) fn equipment_with(
         out.effect = enhance::current_level(loaded.level, 0, |l| contents.info(class, l).is_some())
             .and_then(|l| contents.info(class, l))
             .map(|i| i.effect);
+    }
+    if let Some(attribute) = attributes.get(QUALITY) {
+        // Quality.TryLoad on a fresh entity: an Arg of 0 keeps Level 0 and no Stat;
+        // otherwise UpdateBonusStat(null) over GetQualityStatInfo (an empty list without
+        // rows), the same Add/Multiply rule as Enhance on a non-combined item.
+        out.quality_level = attribute.arg;
+        if attribute.arg != 0 {
+            let rows = contents.quality_stat_rows(class, attribute.arg);
+            let run =
+                |arithmetic| enhance::bonus_stat(base, Some(rows), arithmetic).map_err(|_| fail());
+            let stat = match assets.item_arithmetic {
+                Some(arithmetic) => run(arithmetic)?,
+                None => {
+                    let x86 = run(Arithmetic::FrameworkX86)?;
+                    if run(Arithmetic::FrameworkX64)? != x86 {
+                        return Err(fail());
+                    }
+                    x86
+                }
+            };
+            out.stat.add(Some(&stat)).map_err(|_| fail())?;
+        }
     }
     for name in [PREFIX, SUFFIX] {
         let Some(attribute) = attributes.get(name) else {
@@ -217,6 +243,16 @@ pub(super) fn slot_enhance_level(slot: &Slot) -> i32 {
         .flatten()
         .find(|a| a.name.as_deref() == Some(ENHANCE))
         .map_or(0, |a| enhance::level(a.value.as_deref()))
+}
+
+/// Item.QualityLevel of a projected slot (2 without a QUALITY attribute).
+pub(super) fn slot_quality_level(slot: &Slot) -> i32 {
+    slot.attributes
+        .iter()
+        .flatten()
+        .flatten()
+        .find(|a| a.name.as_deref() == Some(QUALITY))
+        .map_or(2, |a| a.arg)
 }
 
 /// Prefix/SuffixEnchantLevel of a projected slot (unknown classes are 0).

@@ -73,6 +73,8 @@ pub struct Assets {
     pub(super) enhance_random: Mutex<super::minimum_enhance::EnhanceRandom>,
     /// The enchant session/dice/arg static Random instances.
     pub(super) enchant_random: Mutex<super::minimum_enchant::EnchantRandom>,
+    /// Seed of ProcessProduct's `new Random()` (None: time-seeded per craft).
+    pub(super) craft_seed: Option<i32>,
     /// shopInfoDic with PriceCalc prices for the configured arithmetic profile.
     pub(super) shops: Option<crate::domain::shop::Shops>,
     /// GetEquipItemInfo().EquipClass of each effective equipment class.
@@ -255,6 +257,7 @@ impl Assets {
             item_arithmetic: None,
             enhance_random: Mutex::new(enhance_random(time_seed())),
             enchant_random: Mutex::new(enchant_random(time_seed())),
+            craft_seed: None,
             shops: None,
             equip_class: Default::default(),
             initializer: parts.initializer,
@@ -340,7 +343,12 @@ impl Assets {
     pub fn with_enhance_seed(mut self, seed: i32) -> Self {
         self.enhance_random = Mutex::new(enhance_random(seed));
         self.enchant_random = Mutex::new(enchant_random(seed));
+        self.craft_seed = Some(seed.wrapping_add(5));
         self
+    }
+    /// The seed of a craft's fresh Random.
+    pub(super) fn craft_random_seed(&self) -> i32 {
+        self.craft_seed.unwrap_or_else(time_seed)
     }
     pub fn with_item_arithmetic(
         mut self,

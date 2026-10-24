@@ -24,6 +24,7 @@ SCHEMA = (
     'CREATE TABLE ManufactureMaterialInfo(RecipeID nvarchar,ItemClass nvarchar,Num INT,Type tinyint);'
     'CREATE TABLE ManufactureDependencyInfo(ManufactureID nvarchar,RequiredManufactureID nvarchar,RequiredExperience INT);'
     'CREATE TABLE QualityDiceInfo(ItemType nvarchar,Quality INT,Dice INT);'
+    'CREATE TABLE QualityStatInfo(ItemType varchar,Quality int,Stat varchar,ValueType varchar,Value real,Base varchar);'
     'CREATE TABLE EnhanceInsteadMaterialInfo(ItemClass varchar,UseCount INT,Slot tinyint,EnhanceMin smallint,EnhanceMax smallint);'
 )
 
@@ -40,6 +41,7 @@ def fill(db, ratio):
     db.executemany('INSERT INTO ManufactureMaterialInfo VALUES (?,?,?,?)', [('recipe_sword', 'sword', 1, 0), ('recipe_sword', 'stone', 4, 1)])
     db.execute('INSERT INTO ManufactureDependencyInfo VALUES (?,?,?)', ('metal_weapon_dc', 'metal_weapon', 350))
     db.executemany('INSERT INTO QualityDiceInfo VALUES (?,?,?)', [('WEAPON_LVL_1', 1, 50), ('WEAPON_LVL_1', 2, 650)])
+    db.execute('INSERT INTO QualityStatInfo VALUES (?,?,?,?,?,?)', ('WEAPON_LVL_1', 1, 'ATK', 'Multiply', -0.01, 'ATK'))
     db.executemany('INSERT INTO EnhanceInfo VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', [
         ('SWORD', 1, 'stone', 2, None, 0, 500, ratio, 'NoPenalty', 0.0, 0, 1, 'enEU'),
         ('SWORD', 9, 'stone', 4, 'elixir', 1, 9000, ratio, 'Destroy', 0.5, 21, 3, 'enEU'),
@@ -101,6 +103,7 @@ class ItemEnhanceExportTests(unittest.TestCase):
         self.assertEqual([m['type'] for m in p['manufacture_materials']], [0, 1])
         self.assertEqual(p['manufacture_dependencies'][0]['required_experience'], 350)
         self.assertEqual([d['dice'] for d in p['quality_dice']], [50, 650])
+        self.assertEqual(p['quality_stats'][0]['value'], single(-0.01))
         self.assertEqual(p['equips'][0]['quality_type'], 'WEAPON_LVL_1'.encode('utf-16-le').hex())
         self.assertEqual(p['rune_extra'][0]['success_ratio'], struct.pack('>d', 0.4).hex())
         self.assertEqual((p['rune_extra'][0]['destroy_on_success'], p['rune_extra'][0]['reset_rank_on_fail']), (True, False))

@@ -2577,6 +2577,69 @@ impl Connection {
             if matches(
                 category,
                 body,
+                Kind::ManufactureCraft.category(),
+                Kind::ManufactureCraft.type_id(),
+            ) {
+                let Some(Message::ManufactureCraft(request)) =
+                    wire::decode_ingress(Kind::ManufactureCraft, category, body, DEFAULT_MAX_BODY)
+                        .map_err(|_| RuntimeError::Message)?
+                else {
+                    return Err(RuntimeError::Message);
+                };
+                let (Some(selected), true) = (
+                    self.selected.as_ref(),
+                    self.password
+                        .as_ref()
+                        .is_some_and(|p| p.selection_allowed(&self.frontend)),
+                ) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                // ItemServiceProxy forwards it directly: no second password and no
+                // dungeon check.
+                let cid = selected.cid;
+                let id = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?;
+                let owner = super::character_lobby::UserKey {
+                    uid: id.nexon_sn,
+                    name: &id.nexon_id,
+                    revision: self
+                        .password
+                        .as_ref()
+                        .ok_or(RuntimeError::Operation)?
+                        .revision(),
+                };
+                let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let assets = &minimum.assets;
+                let ids = minimum
+                    .creation
+                    .entity_ids(8)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                let log = runtime.item_log_context(assets)?;
+                match super::minimum_manufacture::craft(
+                    pool, &owner, assets, cid, &request, ids, log,
+                )
+                .await
+                {
+                    Ok(packets) => {
+                        for packet in &packets {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        tracing::info!(
+                            categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+                            "minimum manufacture craft processed; values omitted"
+                        );
+                    }
+                    Err(_) => tracing::warn!("minimum manufacture craft refused; nothing written"),
+                }
+                return Ok(());
+            }
+            if matches(
+                category,
+                body,
                 Kind::EnchantItem.category(),
                 Kind::EnchantItem.type_id(),
             ) {

@@ -828,11 +828,11 @@ pub(super) fn enhance_profile_for(
         .enumerate()
         .map(|(i, c)| json!({"source_index":i,"item_utf16":c["item_utf16"],"feature":c["feature"],"max_anti_bind":2}))
         .collect();
-    let profile = json!({"format_version":4,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"equips":equips,
+    let profile = json!({"format_version":5,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"equips":equips,
         "enhance":[info(0,3,7),info(1,4,8),info(2,5,9)],
         // Every base stat of the fixture equipment is 0 except MaxDurability (200).
         "stats":[stat(0,3,"MaxDurability","Add",300.0),stat(1,3,"ATK","Add",50.0),stat(2,4,"DEF_Destroyed","Multiply",0.35)],
-        "server":[],"bonus":[],"instead":[],"classes":classes,"runes":[],"rune_extra":[],"recipes":[],"anti_bind":[],"enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"features":[]});
+        "server":[],"bonus":[],"instead":[],"classes":classes,"runes":[],"rune_extra":[],"recipes":[],"anti_bind":[],"enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"quality_stats":[],"features":[]});
     vindictus_server::infrastructure::item_enhance::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
     )
@@ -950,7 +950,7 @@ async fn minimum_enhanced_equipment_projects_item_stat_effect_and_durability() {
         .unwrap();
     let info = zero.projection.infos.iter().find(|i| i.part == 1).unwrap();
     assert_eq!((info.effect, info.maximum), (None, base_info.maximum));
-    sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,'QUALITY','',5,0)")
+    sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,'ENHANCEOTHER','',5,0)")
         .bind(id)
         .execute(&p)
         .await

@@ -23,7 +23,7 @@ fn profile() -> Value {
     let a = key("synthetic");
     let b = key("other");
     let info = |i: usize, kind: &str, level: i32, gold: i32, feature: Option<&str>| json!({"source_index":i,"enhance_type":key(kind),"level":level,"material1":key("stone"),"num1":2,"material2":null,"num2":0,"gold":gold,"success_ratio":single(1.0),"on_fail":key("RankDown"),"on_fail_recipe_ratio":single(0.5),"on_fail_material_num1":3,"effect":1,"feature":feature});
-    json!({"format_version":4,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    json!({"format_version":5,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":[{"source_index":0,"item_utf16":a,"feature":"on","enhance_type":key("T1"),"enchantable":1,"quality_type":null},{"source_index":1,"item_utf16":a,"feature":"off","enhance_type":key("T2"),"enchantable":1,"quality_type":null},{"source_index":2,"item_utf16":a,"feature":"on","enhance_type":key("T3"),"enchantable":1,"quality_type":null},{"source_index":3,"item_utf16":b,"feature":null,"enhance_type":null,"enchantable":0,"quality_type":null}],
         "enhance":[info(0,"T3",1,100,Some("on")),info(1,"T3",1,200,Some("on")),info(2,"T3",2,300,Some("off")),info(3,"T3",4,400,None),info(4,"T1",1,1,None)],
         "stats":[{"source_index":0,"enhance_type":key("T3"),"level":1,"stat":key("ATK"),"value_type":key("Add"),"value":single(50.0),"base":key("ATK")},{"source_index":1,"enhance_type":key("T3"),"level":1,"stat":key("Weight"),"value_type":key("Multiply"),"value":single(-0.1),"base":key("Weight")}],
@@ -35,7 +35,7 @@ fn profile() -> Value {
         "rune_extra":[{"source_index":0,"relation":0,"success_ratio":format!("{:016x}",0.4f64.to_bits()),"use_item_success_ratio":false,"destroy_on_success":true,"reset_rank_on_fail":false,"force_rank_down_on_fail":0}],
         "recipes":[{"source_index":0,"recipe_utf16":key("r1"),"item_utf16":a,"num":1,"type":0,"feature":null},{"source_index":1,"recipe_utf16":key("r1"),"item_utf16":b,"num":4,"type":1,"feature":null},{"source_index":2,"recipe_utf16":key("r1"),"item_utf16":key("gold"),"num":900,"type":1,"feature":null},{"source_index":3,"recipe_utf16":key("r1"),"item_utf16":b,"num":2,"type":1,"feature":null},{"source_index":4,"recipe_utf16":key("r2"),"item_utf16":b,"num":1,"type":0,"feature":null},{"source_index":5,"recipe_utf16":key("r3"),"item_utf16":a,"num":2,"type":0,"feature":null}],
         "anti_bind":[{"source_index":0,"target":key("Base"),"from_value":null,"to_value":null,"count":2,"ap":0,"feature":null},{"source_index":1,"target":key("Enhance"),"from_value":key("9"),"to_value":key("15"),"count":0,"ap":500,"feature":"off"}],
-        "enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"features":[{"key":"on","value":"1.1"},{"key":"CraftPriceRatio","value":"1"}]})
+        "enchant":[],"enchant_stats":[],"enchant_dice":[],"manufacture":[],"manufacture_recipes":[],"manufacture_materials":[],"manufacture_dependencies":[],"quality_dice":[],"quality_stats":[],"features":[{"key":"on","value":"1.1"},{"key":"CraftPriceRatio","value":"1"}]})
 }
 fn read(
     v: &Value,
@@ -249,11 +249,28 @@ fn manufacture_contents_follow_the_data_container() {
         contents.quality_type(&bytes("synthetic")),
         Some("WEAPON_LVL_1")
     );
-    // A repeated grade or dice quality refuses the load like Dictionary.Add.
+    // A repeated grade refuses the load like Dictionary.Add; ToDoubleDictionary keeps
+    // the first position of a repeated dice quality with the last value.
     let mut twice = p.clone();
     twice["manufacture"][1]["grade"] = json!(0);
     assert!(read(&twice).unwrap().bind(&catalog()).is_err());
     let mut twice = p.clone();
     twice["quality_dice"][1]["quality"] = json!(1);
-    assert!(read(&twice).unwrap().bind(&catalog()).is_err());
+    let contents = read(&twice).unwrap().bind(&catalog()).unwrap();
+    assert_eq!(contents.quality_dice("WEAPON_LVL_1"), [(1, 650)]);
+    // QualityStatInfo rows by QualityType and level (none at level 0).
+    let mut q = p.clone();
+    q["quality_stats"] = json!([{"source_index":0,"item_type_utf16":key("WEAPON_LVL_1"),"quality":1,"stat":key("ATK"),"value_type":key("Multiply"),"value":single(-0.01),"base":key("ATK")}]);
+    let contents = read(&q).unwrap().bind(&catalog()).unwrap();
+    assert_eq!(contents.quality_stat_rows(&bytes("synthetic"), 1).len(), 1);
+    assert!(
+        contents
+            .quality_stat_rows(&bytes("synthetic"), 0)
+            .is_empty()
+    );
+    assert!(
+        contents
+            .quality_stat_rows(&bytes("synthetic"), 2)
+            .is_empty()
+    );
 }

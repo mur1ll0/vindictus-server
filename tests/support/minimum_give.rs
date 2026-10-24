@@ -1142,14 +1142,21 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
         ..Default::default()
     };
     assert_eq!(
-        repair::repair_price(&tables, 50, 200, 0, None, (0, 0, 0)),
+        repair::repair_price(&tables, 50, 200, 0, None, (0, 2, 0, 0)),
         0
     );
     // 20000 lost × 1,000,000 × ItemValue 50 × 3e-10 × 100 / 100, truncated.
     assert_eq!(
-        repair::repair_price(&tables, 0, 20000, 1_000_000, None, (0, 0, 0)),
+        repair::repair_price(&tables, 0, 20000, 1_000_000, None, (0, 2, 0, 0)),
         299
     );
+    // GetItemValue: an unknown QualityLevel uses the quality 2 row.
+    assert_eq!(tables.item_value(0, 9, 0, 0), tables.item_value(0, 2, 0, 0));
+    let tables = repair::RepairTables {
+        quality: [(2, 6), (3, 16)].into_iter().collect(),
+        ..tables
+    };
+    assert_eq!(tables.item_value(0, 3, 0, 0), 60);
     let mut session = vindictus_server::domain::npc_talk::Session::default();
     let packets = minimum_story::talk(
         &p,
@@ -3141,12 +3148,27 @@ async fn minimum_give_creates_enhanced_equipment_with_its_item_stat_durability()
         Err(GiveError::Unsupported)
     );
     assert_eq!(
-        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_bag[QUALITY:(5)]", 1, 9)
-            .await
-            .unwrap(),
+        minimum_give::lab_grant(
+            &p,
+            &assets,
+            Some(1),
+            "synthetic_bag[ENHANCEOTHER:(5)]",
+            1,
+            9
+        )
+        .await
+        .unwrap(),
         Err(GiveError::Unsupported)
     );
     assert_eq!(bags().await, before);
+    // QUALITY carries the BAG_Q quality stats.
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_bag[QUALITY:(3)]", 1, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    let before = bags().await;
     assert_eq!(
         minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_bag[ENHANCE:3]", 1, 9)
             .await
@@ -3203,7 +3225,7 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
                 if section == "equips" {
                     row["enhance_type"] = json!(key("BAG"));
                     row["enchantable"] = json!(1);
-                    row["quality_type"] = Value::Null;
+                    row["quality_type"] = json!(key("BAG_Q"));
                 } else {
                     row["max_anti_bind"] = json!(2);
                 }
@@ -3215,7 +3237,7 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
     let stat = |i: usize, level: i32, v: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key("MaxDurability"),"value_type":key("Add"),"value":single(v),"base":key("MaxDurability")});
     let server = |i: usize, level: i32, ratio: f32| json!({"source_index":i,"enhance_type":key(&level.to_string()),"level":level,"success_ratio":single(ratio),"feature":null});
     let feature = |k: &str, v: &str| json!({"key":k,"value":v});
-    let profile = json!({"format_version":4,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":5,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "equips":rows("equips"),"classes":rows("classes"),
         "enhance":[info(0,1,"NoPenalty",0),info(1,2,"RankDown",0),info(2,3,"Destroy",1)],
         "stats":[stat(0,1,100.0),stat(1,2,200.0),stat(2,3,300.0)],
@@ -3239,8 +3261,10 @@ fn processor_profile(catalog: &Value) -> vindictus_server::infrastructure::item_
         "manufacture_materials":[
             {"source_index":0,"recipe_utf16":key("synthetic_bag_recipe"),"item_utf16":key("synthetic_bag"),"num":1,"type":0},
             {"source_index":1,"recipe_utf16":key("synthetic_bag_recipe"),"item_utf16":key("synthetic_gold"),"num":10,"type":1}],
-        "manufacture_dependencies":[],"quality_dice":[],
-        "features":[feature("CraftPriceRatio","1"),feature("EnchantSuccessBonus","0"),feature("Enchant_DestructibleItems","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5")]});
+        "manufacture_dependencies":[],
+        "quality_dice":[{"source_index":0,"item_type_utf16":key("BAG_Q"),"quality":3,"dice":100}],
+        "quality_stats":[{"source_index":0,"item_type_utf16":key("BAG_Q"),"quality":3,"stat":key("ATK"),"value_type":key("Add"),"value":format!("{:08x}",7.0f32.to_bits()),"base":key("ATK")}],
+        "features":[feature("CraftPriceRatio","1"),feature("manufacture_event_exp","1"),feature("EnchantSuccessBonus","0"),feature("Enchant_DestructibleItems","1"),feature("EnhanceSuccessBonus","0"),feature("EnhanceSuccessBonus_Limit","10"),feature("Enhance_Ferghus_v2","1"),feature("Event_enhance_a_shot",""),feature("Event_enhance_change_ratio",""),feature("RestoreItem","1"),feature("RestoreItemCount","5")]});
     vindictus_server::infrastructure::item_enhance::Profile::read(
         serde_json::to_vec(&profile).unwrap().as_slice(),
     )
@@ -3981,6 +4005,222 @@ async fn minimum_story_manufacture_commands_persist_and_push_the_manager() {
             .filter(|p| p.category == Kind::ManufactureLevelUp.category())
             .count(),
         1
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_manufacture_craft_consumes_materials_and_gives_quality_equipment() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_manufacture, minimum_selection,
+        },
+        protocol::inventory::ManufactureCraft,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_enhance(processor_profile(&catalog))
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64)
+        .with_enhance_seed(3);
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 1000, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO game_manufacture(cid,manufacture_utf16,grade,experience_point) VALUES(1,$1,0,40)")
+        .bind(utf16("metal_weapon"))
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO game_manufacture_recipes(cid,recipe_utf16,acquired_ticks) VALUES(1,$1,0)",
+    )
+    .bind(utf16("synthetic_bag_recipe"))
+    .execute(&p)
+    .await
+    .unwrap();
+    let ids = |base: i64| (1..=8).map(|i| base + i).collect::<Vec<i64>>();
+    let request = |id: &str, parts: Option<Vec<i64>>| ManufactureCraft {
+        recipe_id: Some(id.to_owned()),
+        parts_id_list: parts,
+    };
+    let bags = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT id FROM game_items WHERE owner_id=1 AND item_class_utf16=$1 ORDER BY id",
+        )
+        .bind(utf16("synthetic_bag"))
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    let gold = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+        )
+        .bind(utf16("synthetic_gold"))
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let before = bags().await;
+    let packets = minimum_manufacture::craft(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &request("synthetic_bag_recipe", None),
+        ids(940_000_000_000_000_000),
+        log,
+    )
+    .await
+    .unwrap();
+    let system = vindictus_server::protocol::frontend_control::Kind::System.category();
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [
+            system,
+            Kind::UpdateInventoryInfo.category(),
+            Kind::ManufactureInfo.category()
+        ]
+    );
+    assert_eq!(gold().await, 990);
+    let after = bags().await;
+    assert_eq!(after.len(), before.len() + 1);
+    let crafted = *after.iter().find(|id| !before.contains(id)).unwrap();
+    // QUALITY: the crafter name, the rolled quality (the BAG_Q table only holds 3).
+    let name: Vec<u8> = sqlx::query_scalar("SELECT name_utf16 FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let name: Vec<u16> = name
+        .chunks(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    let quality: (Vec<u8>, i32, i32) = sqlx::query_as(
+        "SELECT value_bytes,arg,arg2 FROM game_item_attributes WHERE item_id=$1 AND attribute_bytes=$2",
+    )
+    .bind(crafted)
+    .bind(b"QUALITY".to_vec())
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(
+        (String::from_utf8(quality.0).unwrap(), quality.1, quality.2),
+        (String::from_utf16(&name).unwrap(), 3, 0)
+    );
+    // A null ItemClassInfo.Bind is enabled: the crafted item is character-bound.
+    let tradable: bool = sqlx::query_scalar("SELECT tradable FROM game_items WHERE id=$1")
+        .bind(crafted)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert!(!tradable);
+    // 40 experience is within 10 of the 50 required: BaseRewardEXP 2 x 1 (+ 0 or 1).
+    let experience: i32 =
+        sqlx::query_scalar("SELECT experience_point FROM game_manufacture WHERE cid=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert!((42..=43).contains(&experience), "{experience}");
+    let Some(Message::ManufactureInfo(info)) =
+        inventory::decode(Kind::ManufactureInfo, &packets[2].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("info missing")
+    };
+    assert_eq!(
+        info.exp.0.unwrap(),
+        [("metal_weapon".to_owned(), experience)]
+    );
+    // The inventory still loads the QUALITY equipment.
+    minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    // Refusals answer the item dialog and change nothing.
+    let fail = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        assert_eq!(packets.len(), 1);
+        let Some(Message::ItemFail(Some(text))) =
+            inventory::decode(Kind::ItemFail, &packets[0].body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("dialog missing")
+        };
+        text.format.unwrap()
+    };
+    for id in ["missing", "synthetic_bag_recipe2"] {
+        let packets = minimum_manufacture::craft(
+            &p,
+            &owner,
+            &assets,
+            1,
+            &request(id, None),
+            ids(941_000_000_000_000_000),
+            log,
+        )
+        .await
+        .unwrap();
+        assert_eq!(fail(&packets), "GameUI_Heroes_CraftItemFail_NoRecipe");
+    }
+    sqlx::query("DELETE FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+        .bind(utf16("synthetic_gold"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let packets = minimum_manufacture::craft(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &request("synthetic_bag_recipe", None),
+        ids(942_000_000_000_000_000),
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        fail(&packets),
+        "GameUI_Heroes_CraftItemFail_NotEnoughMaterial"
+    );
+    assert_eq!(bags().await.len(), after.len());
+    // Combine Craft parts are not migrated: nothing is sent.
+    assert!(
+        minimum_manufacture::craft(
+            &p,
+            &owner,
+            &assets,
+            1,
+            &request("synthetic_bag_recipe", Some(vec![crafted])),
+            ids(943_000_000_000_000_000),
+            log,
+        )
+        .await
+        .is_err()
     );
     cleanup_game_pool(a, p, s).await;
 }

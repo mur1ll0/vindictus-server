@@ -276,6 +276,21 @@ struct QualityDiceRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct QualityStatRow {
+    source_index: usize,
+    #[serde(deserialize_with = "nullable")]
+    item_type_utf16: Option<PrivateText>,
+    quality: i32,
+    #[serde(deserialize_with = "nullable")]
+    stat: Option<PrivateText>,
+    #[serde(deserialize_with = "nullable")]
+    value_type: Option<PrivateText>,
+    value: String,
+    #[serde(deserialize_with = "nullable")]
+    base: Option<PrivateText>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Feature {
     key: String,
     value: Option<String>,
@@ -306,6 +321,7 @@ pub struct Profile {
     manufacture_materials: Vec<ManufactureMaterialRow>,
     manufacture_dependencies: Vec<ManufactureDependencyRow>,
     quality_dice: Vec<QualityDiceRow>,
+    quality_stats: Vec<QualityStatRow>,
     features: Vec<Feature>,
 }
 
@@ -351,6 +367,8 @@ pub struct Contents {
     manufacture: crate::domain::manufacture::Contents,
     /// qualityDiceDic: ToDoubleDictionary (ItemType -> Quality -> Dice) in insertion order.
     quality_dice: BTreeMap<String, Vec<(i32, i32)>>,
+    /// qualityStatInfoDic: ToDoubleListDictionary (ItemType -> Quality -> rows).
+    quality_stats: BTreeMap<String, BTreeMap<i32, Vec<EnhanceStat>>>,
 }
 
 /// RecipeID, Target rows (AddItem sums) and Material rows (priced when used).
@@ -427,10 +445,10 @@ impl Profile {
     pub fn read(input: impl Read) -> Result<Self, MinimumError> {
         let mut bytes = Zeroizing::new(Vec::new());
         input
-            .take(16 * 1024 * 1024 + 1)
+            .take(32 * 1024 * 1024 + 1)
             .read_to_end(&mut bytes)
             .map_err(|_| fail())?;
-        if bytes.len() > 16 * 1024 * 1024 {
+        if bytes.len() > 32 * 1024 * 1024 {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
@@ -451,14 +469,17 @@ impl Profile {
             + p.manufacture_recipes.len()
             + p.manufacture_materials.len()
             + p.manufacture_dependencies.len()
-            + p.quality_dice.len();
-        if p.format_version != 4
+            + p.quality_dice.len()
+            + p.quality_stats.len();
+        if p.format_version != 5
             || manufacture_rows > 65536
             || !ordered(&p.manufacture, |r| r.source_index)
             || !ordered(&p.manufacture_recipes, |r| r.source_index)
             || !ordered(&p.manufacture_materials, |r| r.source_index)
             || !ordered(&p.manufacture_dependencies, |r| r.source_index)
             || !ordered(&p.quality_dice, |r| r.source_index)
+            || !ordered(&p.quality_stats, |r| r.source_index)
+            || p.quality_stats.iter().any(|r| r.value.len() != 8)
             || p.source != "heroesContents.item-enhance"
             || sizes.iter().any(|n| *n > 65536)
             || p.features.len() > 256
@@ -837,11 +858,24 @@ impl Profile {
                 .quality_dice
                 .entry(key(r.item_type_utf16.as_ref())?)
                 .or_default();
-            // ToDoubleDictionary: Dictionary.Add throws on a repeated Quality.
-            if dice.iter().any(|(q, _)| *q == r.quality) {
-                return Err(fail());
+            // ToDoubleDictionary logs a repeated Quality and overwrites its value.
+            match dice.iter_mut().find(|(q, _)| *q == r.quality) {
+                Some(entry) => entry.1 = r.dice,
+                None => dice.push((r.quality, r.dice)),
             }
-            dice.push((r.quality, r.dice));
+        }
+        for r in &self.quality_stats {
+            out.quality_stats
+                .entry(key(r.item_type_utf16.as_ref())?)
+                .or_default()
+                .entry(r.quality)
+                .or_default()
+                .push(EnhanceStat {
+                    stat: r.stat.as_ref().map(units).transpose()?,
+                    value_type: text(r.value_type.as_ref())?,
+                    value: single(&r.value)?,
+                    base: r.base.as_ref().map(units).transpose()?,
+                });
         }
         out.policy = Some(policy);
         Ok(out)
@@ -856,6 +890,17 @@ impl Contents {
     /// GetEquipItemInfo().QualityType; `None` for unknown classes and null types.
     pub fn quality_type(&self, class: &[u8]) -> Option<&str> {
         self.quality_types.get(class)?.as_deref()
+    }
+    /// GetQualityStatInfo of a non-combined item: the rows of its QualityType ("" when
+    /// null) at the level, empty when missing or for a level of 0 or less.
+    pub fn quality_stat_rows(&self, class: &[u8], level: i32) -> &[EnhanceStat] {
+        if level <= 0 {
+            return &[];
+        }
+        self.quality_stats
+            .get(self.quality_type(class).unwrap_or(""))
+            .and_then(|l| l.get(&level))
+            .map_or(&[], Vec::as_slice)
     }
     /// GetQualityDiceInfo: (Quality, Dice) in insertion order (empty when unknown).
     pub fn quality_dice(&self, item_type: &str) -> &[(i32, i32)] {

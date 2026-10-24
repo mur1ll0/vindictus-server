@@ -249,3 +249,148 @@ impl State {
         }
     }
 }
+
+/// ProcessProduct refusals that answer CraftItemFail_NoRecipe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CraftRefusal {
+    NoRecipe,
+}
+
+/// ProcessProduct steps the port cannot reproduce (the source throws or the branch is
+/// not migrated); nothing is sent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CraftUnsupported {
+    /// EXP[recipe.ManufactureID] throws KeyNotFoundException for an unlearnt skill.
+    UnknownSkill,
+    /// Combine Craft (ItemCombinationSession) belongs to B3 item 5.
+    CombineCraft,
+    /// Integer division by zero or a negative Random.Next bound.
+    Arithmetic,
+}
+
+/// The checked recipe with its materials and targets times Count.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CraftPlan {
+    pub recipe: Recipe,
+    pub materials: Vec<(String, i32)>,
+    pub targets: Vec<(String, i32)>,
+}
+
+/// ProcessProduct up to the item requests. `enabled` is FeatureMatrix.IsEnable.
+pub fn plan_craft(
+    contents: &Contents,
+    state: &State,
+    recipe_id: &str,
+    count: i32,
+    enabled: impl Fn(&str) -> bool,
+) -> Result<Result<CraftPlan, CraftRefusal>, CraftUnsupported> {
+    if count <= 0 {
+        return Ok(Err(CraftRefusal::NoRecipe));
+    }
+    let Some(recipe) = contents.recipe(recipe_id) else {
+        return Ok(Err(CraftRefusal::NoRecipe));
+    };
+    if !state.recipes.iter().any(|r| r == recipe_id) && recipe.always_listed == 0 {
+        return Ok(Err(CraftRefusal::NoRecipe));
+    }
+    let skill = state
+        .skill(&recipe.manufacture_id)
+        .ok_or(CraftUnsupported::UnknownSkill)?;
+    if skill.experience.wrapping_add(20) < recipe.experience_required
+        || skill.grade < recipe.grade_required
+        || recipe.feature.as_deref().is_some_and(|f| !enabled(f))
+    {
+        return Ok(Err(CraftRefusal::NoRecipe));
+    }
+    let times = |rows: &[(String, i32)]| -> Vec<(String, i32)> {
+        rows.iter()
+            .map(|(c, n)| (c.clone(), n.wrapping_mul(count)))
+            .collect()
+    };
+    if recipe.targets.is_empty() {
+        return Ok(Err(CraftRefusal::NoRecipe));
+    }
+    Ok(Ok(CraftPlan {
+        materials: times(&recipe.materials),
+        targets: times(&recipe.targets),
+        recipe: recipe.clone(),
+    }))
+}
+
+/// The quality roll of an equippable target with a QualityType: 2 without dice rows;
+/// a dice table holding quality 4 adds ((exp + 1) / (required + 1) - 1) / 30 chances of 4.
+pub fn roll_quality(
+    dice: &[(i32, i32)],
+    experience: i32,
+    required: i32,
+    random: &mut dyn crate::domain::enchant::Random,
+) -> Result<i32, CraftUnsupported> {
+    let mut quality = 2;
+    if dice.is_empty() {
+        return Ok(quality);
+    }
+    let mut total = dice.iter().fold(0i32, |n, (_, d)| n.wrapping_add(*d));
+    let mut bonus = 0;
+    if dice.iter().any(|(q, _)| *q == 4) {
+        let ratio = experience
+            .wrapping_add(1)
+            .checked_div(required.wrapping_add(1))
+            .ok_or(CraftUnsupported::Arithmetic)?;
+        bonus = ratio.wrapping_sub(1) / 30;
+        total = total.wrapping_add(bonus);
+    }
+    let mut roll = random.next(total).ok_or(CraftUnsupported::Arithmetic)?;
+    for (q, d) in dice {
+        if roll < *d {
+            quality = *q;
+            break;
+        }
+        roll = roll.wrapping_sub(*d);
+    }
+    if bonus > 0 && roll < bonus {
+        quality = 4;
+    }
+    Ok(quality)
+}
+
+/// The experience step after a successful craft: the gained amount shown by
+/// GameUI_Heroes_Manufacture_GetExperience (None: no message) and the new experience.
+pub fn craft_experience(
+    max: i32,
+    experience: i32,
+    required: i32,
+    base_reward: i32,
+    event_exp: i32,
+    random: &mut dyn crate::domain::enchant::Random,
+) -> Result<(Option<i32>, i32), CraftUnsupported> {
+    let mut next = |n| random.next(n).ok_or(CraftUnsupported::Arithmetic);
+    let mut experience = experience;
+    let mut gained = None;
+    let near_max = max.wrapping_sub(10);
+    let bonus = if experience >= near_max && required < near_max {
+        // BreakEXP: no experience at the grade's cap.
+        None
+    } else if required.wrapping_sub(experience) > 10 {
+        Some(if next(1000)? >= 25 {
+            if next(100)? >= 70 { next(2)? + 1 } else { 0 }
+        } else {
+            0
+        })
+    } else if experience.wrapping_sub(required) <= 10 {
+        Some(i32::from(next(1000)? >= 50 && next(100)? >= 80))
+    } else {
+        None
+    };
+    if let Some(bonus) = bonus {
+        let mut value = base_reward.wrapping_mul(event_exp).wrapping_add(bonus);
+        if experience < max {
+            value = value.min(max.wrapping_sub(experience));
+            experience = experience.wrapping_add(value);
+            gained = Some(value);
+        }
+    }
+    if experience > max {
+        experience = max;
+    }
+    Ok((gained, experience))
+}

@@ -4,7 +4,7 @@ EnhanceStatInfo/EnhanceServerInfo/EnhanceBonusServerInfo/EnhanceInsteadMaterialI
 EnhanceRuneInfo/EnhanceRuneExtraInfo, RecipeMaterialInfo (GetMakeItemRecipe) and
 AntiBindInfo (CalcRequiredBuybackAP), EnchantInfo/EnchantStatInfo/EnchantDiceInfo,
 ManufactureInfo/ManufactureRecipeInfo/ManufactureMaterialInfo/ManufactureDependencyInfo
-(ManufactureDataContainer) and QualityDiceInfo in provider order, and the region values
+(ManufactureDataContainer), QualityDiceInfo and QualityStatInfo in provider order, and the region values
 of their features plus CraftPriceRatio. EnchantInfo.MinSuccessRatio/MaxSuccessRatio and
 ManufactureRecipeInfo.ExperienceRequired/GradeRequired come from the original content.
 SuccessRatio comes from the original content (content_overrides). REAL columns are
@@ -174,6 +174,10 @@ def read_package(database, config):
         quality_dice = [dict(source_index=i, item_type_utf16=text(r['ItemType']), quality=integer(r['Quality']),
                              dice=integer(r['Dice']))
                         for i, r in enumerate(db.execute('Select * From [QualityDiceInfo]'))]
+        quality_stats = [dict(source_index=i, item_type_utf16=text(r['ItemType']), quality=integer(r['Quality']),
+                              stat=text(r['Stat']), value_type=text(r['ValueType']), value=single(r['Value']),
+                              base=text(r['Base']))
+                         for i, r in enumerate(db.execute('Select * From [QualityStatInfo]'))]
         values = region_features(db, config)
     featured = enhance + server + runes + recipes + anti_bind + manufacture_recipes
     if any(r['feature'] is not None and not isinstance(r['feature'], str) for r in featured):
@@ -191,13 +195,13 @@ def read_package(database, config):
         raise ValueError('Enhance feature value bound')
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Enhance source changed during export')
-    return dict(format_version=4, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
+    return dict(format_version=5, source='heroesContents.item-enhance', database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], equips=equips, classes=classes, enhance=enhance,
                 stats=stats, server=server, bonus=bonus, instead=instead, runes=runes, rune_extra=rune_extra,
                 recipes=recipes, anti_bind=anti_bind, enchant=enchant, enchant_stats=enchant_stats,
                 enchant_dice=enchant_dice, manufacture=manufacture, manufacture_recipes=manufacture_recipes,
                 manufacture_materials=manufacture_materials, manufacture_dependencies=manufacture_dependencies,
-                quality_dice=quality_dice, features=features)
+                quality_dice=quality_dice, quality_stats=quality_stats, features=features)
 
 
 def main():
@@ -210,7 +214,7 @@ def main():
         raise ValueError('Private output outside ACL cache')
     package = read_package(base / 'heroesContents.db3', base / 'ServiceCore.dll.config')
     data = json.dumps(package, ensure_ascii=True, separators=(',', ':'))
-    if len(data.encode()) > 16 * 1024 * 1024:
+    if len(data.encode()) > 32 * 1024 * 1024:
         raise ValueError('Enhance profile bound exceeded')
     output.write_text(data, encoding='utf-8', newline='\n')
     print('Enhance contents exported: %d equipment, %d enhance, %d stat, %d server rows; values private'

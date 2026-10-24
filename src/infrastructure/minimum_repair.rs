@@ -89,6 +89,7 @@ async fn repairable(
                 let (prefix, suffix) = super::minimum_item_stat::slot_enchant_levels(assets, &slot);
                 (
                     super::minimum_item_stat::slot_enhance_level(&slot),
+                    super::minimum_item_stat::slot_quality_level(&slot),
                     prefix,
                     suffix,
                 )

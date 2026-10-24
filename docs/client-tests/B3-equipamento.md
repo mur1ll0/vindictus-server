@@ -56,3 +56,12 @@ Pré-condição: personagem sem ofício; um NPC de ofício (NIEVE, BARAX, ARTHYE
 - [ ] Escolher subir de grau sem a experiência máxima do grau → resposta de falha, o grau não muda.
 - [ ] Relogar → o ofício e as receitas aprendidas continuam na janela.
 Limites conhecidos: `remove_manufacture` e a entrega de receitas por quest (`AutoGiveQuest`) ainda não existem; fabricar é a B3.1b.
+
+### B3.1b — Fabricar um item (ofício)
+Pré-condição: ofício aprendido (B3.1a), uma receita aprendida (ou listada sempre) com a experiência e o grau exigidos, e os materiais e o ouro da receita na bolsa.
+- [ ] Abrir a janela de fabricação e fabricar a receita → os materiais somem uma vez, o item aparece na bolsa e aparece a mensagem de experiência ganha (ganho, atual, máximo do grau).
+- [ ] Equipamento fabricado → mostra a qualidade sorteada (e o nome do personagem como fabricante); os atributos do equipamento refletem a qualidade.
+- [ ] Fabricar sem material → diálogo de material insuficiente, nada muda.
+- [ ] Fabricar uma receita acima do grau → diálogo de receita indisponível.
+- [ ] Relogar → o item fabricado, a qualidade e a experiência do ofício se mantêm.
+Limites conhecidos: Combine Craft (peças, item 5 do B3) não responde; bolsa cheia recusa a fabricação (o original mandaria a sobra por correio); nomes de personagem fora do ASCII imprimível recusam o equipamento fabricado.
