@@ -115,3 +115,9 @@ Pré-condição: perfil `item-economy` reexportado no formato 3 (`scripts/conten
 - [ ] Usar uma poção de vida, pena de fênix, kit de reparo, dardo ou bomba na cidade → diálogo de item não utilizável aqui; nada é consumido.
 - [ ] Usar uma cápsula de AP (se houver) → continua funcionando como no B0 (AP aumenta, cápsula consumida).
 Limites conhecidos: abrir caixas (sorteio RandomItemV2, itens raros e sequências) fica para o B2, quando a Fiona alcança o nível da caixa; demais usáveis (comida, pets, megafones, bônus de cafe/VIP) seguem recusados sem resposta.
+
+### Histórias da Shayla (condições do cliente alinhadas ao servidor)
+Pré-condição: cópia do cliente alinhada (`py -3.13 scripts/client/align_story_goals.py --client-copy .cache/play-client` deve listar 0 histórias); "A Job for Shayla (1)" na fase de entrega sem `gold_gnoll_skin` na bolsa.
+- [ ] "A Job for Shayla (1)" não aparece como entregável enquanto falta o Gold Gnoll Leather.
+- [ ] As partes (2) e (3) aparecem entregáveis só com `white_gnoll_heart` e `red_gnoll_skin` na bolsa, e a conversa com a Shayla as conclui.
+
