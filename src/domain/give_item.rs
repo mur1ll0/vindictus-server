@@ -317,12 +317,9 @@ pub fn plan(
         if g.count < 0 {
             return Err(GiveError::InvalidRequest);
         }
-        // Equipment attributes change ItemStat (Enhance/Enchant/Quality entities), which
-        // this storage profile does not compute. ItemImpl.GiveItem also turns an
-        // equippable "<class>_lvlN" into <class> with ENHANCE N*2.
-        if g.class.equippable && g.attributes != 0 {
-            return Err(GiveError::Unsupported);
-        }
+        // ItemImpl.GiveItem turns an equippable "<class>_lvlN" into <class> with ENHANCE
+        // N*2 and a binding, which is not migrated. Equipment attributes are validated by
+        // the caller, which computes their Item.Stat.
         if g.class.equippable && {
             let units: Vec<u16> = g
                 .class

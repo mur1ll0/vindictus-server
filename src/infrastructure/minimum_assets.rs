@@ -66,6 +66,9 @@ pub struct Assets {
     pub(super) npc: Option<super::npc_scripts::Profile>,
     /// Enhance dictionaries and EnhanceType bound to `catalog`.
     pub(super) enhance: Option<super::item_enhance::Contents>,
+    /// Framework arithmetic of item stats (the runtime's identity profile); `None`
+    /// evaluates both measured profiles and refuses a disagreement.
+    pub(super) item_arithmetic: Option<crate::domain::character_stats::Arithmetic>,
     /// shopInfoDic with PriceCalc prices for the configured arithmetic profile.
     pub(super) shops: Option<crate::domain::shop::Shops>,
     /// GetEquipItemInfo().EquipClass of each effective equipment class.
@@ -226,6 +229,7 @@ impl Assets {
             economy: None,
             npc: None,
             enhance: None,
+            item_arithmetic: None,
             shops: None,
             equip_class: Default::default(),
             initializer: parts.initializer,
@@ -306,6 +310,13 @@ impl Assets {
         profile.bind(&self.catalog)?;
         self.economy = Some(profile);
         Ok(self)
+    }
+    pub fn with_item_arithmetic(
+        mut self,
+        arithmetic: crate::domain::character_stats::Arithmetic,
+    ) -> Self {
+        self.item_arithmetic = Some(arithmetic);
+        self
     }
     pub fn with_enhance(
         mut self,

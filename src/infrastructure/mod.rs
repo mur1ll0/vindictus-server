@@ -111,6 +111,7 @@ pub mod minimum_equip;
 pub mod minimum_give;
 pub mod minimum_growth;
 pub mod minimum_item_logs;
+mod minimum_item_stat;
 pub mod minimum_mission;
 pub mod minimum_mission_finish;
 pub mod minimum_move;

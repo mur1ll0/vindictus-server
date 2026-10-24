@@ -1134,10 +1134,10 @@ async fn minimum_repair_pays_the_source_price_through_message_and_npc() {
         rate: 100,
         ..Default::default()
     };
-    assert_eq!(repair::repair_price(&tables, 50, 200, 0, None), 0);
+    assert_eq!(repair::repair_price(&tables, 50, 200, 0, None, 0), 0);
     // 20000 lost × 1,000,000 × ItemValue 50 × 3e-10 × 100 / 100, truncated.
     assert_eq!(
-        repair::repair_price(&tables, 0, 20000, 1_000_000, None),
+        repair::repair_price(&tables, 0, 20000, 1_000_000, None, 0),
         299
     );
     let mut session = vindictus_server::domain::npc_talk::Session::default();
@@ -3096,5 +3096,77 @@ async fn minimum_attributed_items_stack_load_sell_and_buy_back_with_their_attrib
     let restored = rows.iter().find(|r| r.2 == b"bitter").unwrap();
     assert_eq!(restored.0, 930_000_000_000_000_002);
     assert_eq!(count_of(restored.0).await, 3);
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_give_creates_enhanced_equipment_with_its_item_stat_durability() {
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let plain = skill_assets(&p, 0).await;
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_enhance(super::minimum_equipment::enhance_profile())
+        .unwrap();
+    let bags = || async {
+        sqlx::query_as::<_, (i64, i32, i32)>(
+            "SELECT i.id,e.reduced_durability,e.max_durability_bonus FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=1 ORDER BY i.id",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    let before = bags().await;
+    // Without the enhance contents the attribute has no Item.Stat: refused, no writes.
+    assert_eq!(
+        minimum_give::lab_grant(&p, &plain, Some(1), "synthetic_bag[ENHANCE:3]", 1, 9)
+            .await
+            .unwrap(),
+        Err(GiveError::Unsupported)
+    );
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_bag[QUALITY:(5)]", 1, 9)
+            .await
+            .unwrap(),
+        Err(GiveError::Unsupported)
+    );
+    assert_eq!(bags().await, before);
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_bag[ENHANCE:3]", 1, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    let after = bags().await;
+    let created = after.iter().find(|b| !before.contains(b)).unwrap();
+    // Item.Initialize: MaxDurability = Stat.MaxDurability (200 + ENHANCE 300) + bonus,
+    // clamped by the fixture MaxDurabilityLimit 100: bonus 100 - 500.
+    assert_eq!((created.1, created.2), (0, -400));
+    let rows: Vec<(Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT attribute_bytes,value_bytes FROM game_item_attributes WHERE item_id=$1",
+    )
+    .bind(created.0)
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(rows, [(b"ENHANCE".to_vec(), b"3".to_vec())]);
+    let packet = minimum_inventory::query(&p, &super::initial_inventory::key(), &assets, 1)
+        .await
+        .unwrap();
+    let Some(Message::InventoryInfo(info)) =
+        inventory::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("inventory missing")
+    };
+    let slot = info
+        .slots
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .find(|s| s.id == created.0)
+        .unwrap();
+    assert_eq!((slot.maximum, slot.bonus), (100, created.2));
     cleanup_game_pool(a, p, s).await;
 }

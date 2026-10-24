@@ -791,3 +791,164 @@ async fn minimum_hide_head_costume_persists_and_pushes_costume_update() {
     assert!(hide(true, -1).await.unwrap().is_none());
     cleanup_game_pool(a, p, s).await;
 }
+
+fn plain_assets() -> Assets {
+    assets()
+}
+
+pub(super) fn enhance_profile() -> vindictus_server::infrastructure::item_enhance::Profile {
+    use serde_json::json;
+    let key = |s: &str| -> String {
+        s.encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    };
+    let single = |v: f32| format!("{:08x}", v.to_bits());
+    let (catalog, _, _, _) = super::fiona_inventory_delivery::appearance_fixture::fixtures();
+    let equips: Vec<serde_json::Value> = catalog["equips"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+        .map(|(i, e)| json!({"source_index":i,"item_utf16":e["item_utf16"],"feature":e["feature"],"enhance_type":key("BAG")}))
+        .collect();
+    let info = |i: usize, level: i32, effect: i32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"material1":key("stone"),"num1":1,"material2":null,"num2":0,"gold":100,"success_ratio":single(0.5),"on_fail":key("NoPenalty"),"on_fail_recipe_ratio":single(0.0),"on_fail_material_num1":0,"effect":effect,"feature":null});
+    let stat = |i: usize, level: i32, stat: &str, kind: &str, value: f32| json!({"source_index":i,"enhance_type":key("BAG"),"level":level,"stat":key(stat),"value_type":key(kind),"value":single(value),"base":key("MaxDurability")});
+    let profile = json!({"format_version":1,"source":"heroesContents.item-enhance","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"equips":equips,
+        "enhance":[info(0,3,7),info(1,4,8),info(2,5,9)],
+        // Every base stat of the fixture equipment is 0 except MaxDurability (200).
+        "stats":[stat(0,3,"MaxDurability","Add",300.0),stat(1,3,"ATK","Add",50.0),stat(2,4,"DEF_Destroyed","Multiply",0.35)],
+        "server":[],"bonus":[],"instead":[],"features":[]});
+    vindictus_server::infrastructure::item_enhance::Profile::read(
+        serde_json::to_vec(&profile).unwrap().as_slice(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_enhanced_equipment_projects_item_stat_effect_and_durability() {
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let plain = assets();
+    let assets = assets().with_enhance(enhance_profile()).unwrap();
+    let owner = super::initial_inventory::key();
+    let id = equipped(&p).await;
+    let base = minimum_equipment::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let base_info = base
+        .projection
+        .infos
+        .iter()
+        .find(|i| i.part == 1)
+        .unwrap()
+        .clone();
+    assert_eq!(base_info.effect, None);
+    let set = |value: &'static str| {
+        let p = &p;
+        async move {
+            sqlx::query("DELETE FROM game_item_attributes WHERE item_id=$1")
+                .bind(id)
+                .execute(p)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,'ENHANCE',$2,0,0)")
+                .bind(id)
+                .bind(value.as_bytes())
+                .execute(p)
+                .await
+                .unwrap();
+        }
+    };
+    // ENHANCE 3: Item.Stat = class stat + Enhance.Stat; Effect from EnhanceInfo.
+    set("3").await;
+    let gear = minimum_equipment::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let info = gear.projection.infos.iter().find(|i| i.part == 1).unwrap();
+    assert_eq!(info.effect, Some(7));
+    assert_eq!(info.maximum, base_info.maximum + 300);
+    assert_eq!(
+        info.stats.get(Field::Atk),
+        base_info.stats.get(Field::Atk) + 50
+    );
+    let packet = minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let Some(Message::InventoryInfo(inventory)) =
+        inventory::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("inventory missing")
+    };
+    let slot = inventory
+        .slots
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .find(|s| s.id == id)
+        .unwrap();
+    assert_eq!(slot.maximum, info.maximum);
+    assert_eq!(
+        slot.attributes.unwrap()[0]
+            .as_ref()
+            .unwrap()
+            .value
+            .as_deref(),
+        Some("3")
+    );
+    // ENHANCE 4: (int)((float)200 × 0.35f) is 70 on x64 and 69 on x86. Without the
+    // runtime's arithmetic the disagreement refuses the item.
+    set("4").await;
+    assert!(
+        minimum_equipment::query(&p, &owner, &assets, 1)
+            .await
+            .is_err()
+    );
+    assert!(
+        minimum_inventory::query(&p, &owner, &assets, 1)
+            .await
+            .is_err()
+    );
+    let x64 = plain_assets()
+        .with_enhance(enhance_profile())
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64);
+    let x86 = plain_assets()
+        .with_enhance(enhance_profile())
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX86);
+    for (assets, destroyed) in [(&x64, 70), (&x86, 69)] {
+        let gear = minimum_equipment::query(&p, &owner, assets, 1)
+            .await
+            .unwrap();
+        let info = gear.projection.infos.iter().find(|i| i.part == 1).unwrap();
+        assert_eq!((info.destroyed_def, info.effect), (destroyed, Some(8)));
+    }
+    // ENHANCE 5 has EnhanceInfo without EnhanceStatInfo (NullReference in the source);
+    // "0" leaves Level 0 without an info; other equipment attributes are refused.
+    set("5").await;
+    assert!(minimum_equipment::query(&p, &owner, &x64, 1).await.is_err());
+    set("0").await;
+    let zero = minimum_equipment::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let info = zero.projection.infos.iter().find(|i| i.part == 1).unwrap();
+    assert_eq!((info.effect, info.maximum), (None, base_info.maximum));
+    sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,'QUALITY','',5,0)")
+        .bind(id)
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(minimum_equipment::query(&p, &owner, &x64, 1).await.is_err());
+    // Without the enhance profile an ENHANCE item cannot be projected.
+    set("3").await;
+    assert!(
+        minimum_equipment::query(&p, &owner, &plain, 1)
+            .await
+            .is_err()
+    );
+    cleanup_game_pool(a, p, s).await;
+}

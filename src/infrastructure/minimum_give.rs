@@ -164,6 +164,15 @@ pub(super) async fn apply(
         .policy
         .is_enabled(Some("StoryTabInInventory"))?;
     let (destroy_infos, give_infos) = infos.split_at(destroys.len());
+    // Equipment attributes must have a migrated Item.Stat (only ENHANCE).
+    for (g, info) in gives.iter().zip(give_infos) {
+        if info.equippable
+            && !g.attributes.is_empty()
+            && super::minimum_item_stat::equipment(assets, g.class, g.attributes).is_err()
+        {
+            return Ok(Err(GiveError::Unsupported));
+        }
+    }
     let destroy_requests: Vec<Destroy<'_>> = destroys
         .iter()
         .zip(destroy_infos)
@@ -346,8 +355,10 @@ async fn write(
                     .color_index
                     .get(&c.class)
                     .ok_or(MinimumError::Conflict)?;
-                let e = initial_inventory::new_equipment(
+                let stat = super::minimum_item_stat::equipment(assets, &c.class, attributes)?.stat;
+                let e = initial_inventory::new_equipment_with_stat(
                     base,
+                    &stat,
                     names,
                     assets.colors_materials(),
                     &mut random,

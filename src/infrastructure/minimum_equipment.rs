@@ -125,15 +125,7 @@ pub(super) async fn load(
     profile.bind(&assets.catalog)?;
     let stats = &assets.stats_index;
     let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
-    let attributes: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM game_item_attributes WHERE item_id=ANY($1))",
-    )
-    .bind(&ids)
-    .fetch_one(&mut **tx)
-    .await?;
-    if attributes {
-        return Err(fail());
-    }
+    let mut attributes = super::minimum_inventory::load_attributes(tx, &ids).await?;
     let names: Vec<_> = Stats::default()
         .entries()
         .map(|(s, _)| s.encode_utf16().collect::<Vec<_>>())
@@ -154,10 +146,20 @@ pub(super) async fn load(
         }
         let m = profile.metadata(&assets.catalog, &row.item_class_utf16)?;
         let base = stats.get(Some(&row.item_class_utf16)).ok_or_else(fail)?;
-        let d =
-            EquipmentDurability::load(base, base, row.reduced_durability, row.max_durability_bonus);
-        let fields = base.fields();
-        let values = Stats::from_values(std::array::from_fn(|n| base.get(Some(&names[n]))));
+        // EquippableSlot.ToEquippedItemInfo: Data.Stat, MaxDurability and Enhance.Effect.
+        let item = super::minimum_item_stat::equipment(
+            assets,
+            &row.item_class_utf16,
+            &attributes.remove(&row.id).unwrap_or_default(),
+        )?;
+        let d = EquipmentDurability::load(
+            base,
+            &item.stat,
+            row.reduced_durability,
+            row.max_durability_bonus,
+        );
+        let fields = item.stat.fields();
+        let values = Stats::from_values(std::array::from_fn(|n| item.stat.get(Some(&names[n]))));
         let disabled = d.has_durability() && d.maximum() >= 0 && d.current() == 0;
         items.push(equipped_gear::Item {
             id: row.id,
@@ -174,7 +176,7 @@ pub(super) async fn load(
             armor_hp: fields[3],
             stats: values,
             destroyed_def: fields[2],
-            effect: None,
+            effect: item.effect,
             disabled,
         });
         metadata.push(m);

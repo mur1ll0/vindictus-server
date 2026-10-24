@@ -111,6 +111,18 @@ pub fn new_equipment(
     random: &mut ColorRandom,
     maximum_durability: i32,
 ) -> Result<Equipment, InventoryError> {
+    new_equipment_with_stat(base, base, names, materials, random, maximum_durability)
+}
+/// Item.Initialize for equipment whose attributes change Item.Stat (MaxDurability =
+/// Stat.MaxDurability + bonus); HasDurability still follows the class.
+pub fn new_equipment_with_stat(
+    base: &ItemStat,
+    stat: &ItemStat,
+    names: [Option<&[u16]>; 3],
+    materials: &Materials,
+    random: &mut ColorRandom,
+    maximum_durability: i32,
+) -> Result<Equipment, InventoryError> {
     let mut colors = [0; 3];
     item_colors::set_colors(
         &mut colors,
@@ -121,7 +133,7 @@ pub fn new_equipment(
         random,
     )?;
     let (mut durability, _) =
-        item_durability::initialize(Some(base), base, 0, 0, maximum_durability)
+        item_durability::initialize(Some(base), stat, 0, 0, maximum_durability)
             .ok_or(InventoryError::Bound)?;
     validate_durability(&mut durability, maximum_durability);
     Ok(Equipment {

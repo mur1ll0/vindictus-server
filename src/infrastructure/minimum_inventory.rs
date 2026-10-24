@@ -1,6 +1,6 @@
 //! Read-only initial inventory snapshot for the initialized, unequipped Fiona scope.
-//! Expanded/shared states are refused until their loaders exist. Item attributes load
-//! for non-equippable items (equipment attributes change ItemStat, not migrated yet).
+//! Expanded/shared states are refused until their loaders exist. Item attributes load;
+//! equipment attributes other than ENHANCE are refused by Item.Stat.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::{
@@ -245,11 +245,9 @@ pub(super) async fn snapshot_with_equipment(
         }
         let equippable = class.equippable;
         let attributes = attributes.remove(&row.id).unwrap_or_default();
-        // Equipment attributes feed ItemStat (Enhance/Enchant/Quality...); MIN_UPTIME
-        // needs ToFormatableDateTime for MinUpTimeDateTimeDiff.
-        if !attributes.is_empty()
-            && (equippable || attributes.get(item_attribute::MIN_UPTIME).is_some())
-        {
+        // MIN_UPTIME needs ToFormatableDateTime for MinUpTimeDateTimeDiff; equipment
+        // attributes go through Item.Stat (only ENHANCE is migrated).
+        if !equippable && attributes.get(item_attribute::MIN_UPTIME).is_some() {
             return Err(MinimumError::Conflict);
         }
         let (colors, durability, maximum, bonus) = match (equippable, equipment.remove(&row.id)) {
@@ -261,9 +259,14 @@ pub(super) async fn snapshot_with_equipment(
                 let base = stats
                     .get(Some(&row.item_class_utf16))
                     .ok_or(MinimumError::Conflict)?;
+                let item = super::minimum_item_stat::equipment(
+                    assets,
+                    &row.item_class_utf16,
+                    &attributes,
+                )?;
                 let d = EquipmentDurability::load(
                     base,
-                    base,
+                    &item.stat,
                     e.reduced_durability,
                     e.max_durability_bonus,
                 );

@@ -129,6 +129,8 @@ struct Target {
     max_durability_bonus: Option<i32>,
 }
 
+/// The slot item and its Item.EnhanceLevel.
+#[allow(clippy::too_many_arguments)]
 fn slot_item(
     assets: &Assets,
     stats: &super::item_stats::StatsIndex,
@@ -137,12 +139,19 @@ fn slot_item(
     part: Option<u8>,
     reduced: i32,
     bonus: i32,
-) -> Result<equipment_slot::Item, MinimumError> {
+    attributes: Option<&crate::domain::item_attribute::Attributes>,
+) -> Result<(equipment_slot::Item, i32), MinimumError> {
     let profile = assets.equipment.as_ref().ok_or_else(fail)?;
     let metadata = profile.metadata(&assets.catalog, class)?;
     let base = stats.get(Some(class)).ok_or_else(fail)?;
-    let d = crate::domain::item_durability::EquipmentDurability::load(base, base, reduced, bonus);
-    Ok(equipment_slot::Item {
+    let item = super::minimum_item_stat::equipment(
+        assets,
+        class,
+        attributes.unwrap_or(&crate::domain::item_attribute::EMPTY),
+    )?;
+    let d =
+        crate::domain::item_durability::EquipmentDurability::load(base, &item.stat, reduced, bonus);
+    let slot = equipment_slot::Item {
         id,
         category: utf16(&metadata.category),
         equippable: true,
@@ -151,7 +160,8 @@ fn slot_item(
         // Same BadStatus predicate as the equipped Gear loader.
         bad_status: d.has_durability() && d.maximum() >= 0 && d.current() == 0,
         enhance_other: false,
-    })
+    };
+    Ok((slot, item.enhance_level))
 }
 
 /// Admission (selected character, city state and second password) belongs to the frontend.
@@ -190,9 +200,24 @@ pub async fn equip(
         let mut gear = Gear::new(assets)?;
         let stats = &assets.stats_index;
         let equipped:Vec<(i64,Vec<u8>,i16,i32,i32)>=sqlx::query_as("SELECT i.id,i.item_class_utf16,e.part,e.reduced_durability,e.max_durability_bonus FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY i.id LIMIT 4097").bind(cid).fetch_all(&mut *tx).await?;
+        let mut attribute_ids: Vec<i64> = equipped.iter().map(|e| e.0).collect();
+        attribute_ids.push(item_id);
+        let attributes = super::minimum_inventory::load_attributes(&mut tx, &attribute_ids).await?;
+        // Item.EnhanceLevel of the equipped items, for RequiredEnhanceLevel.
+        let mut enhance_levels: BTreeMap<i64, i32> = BTreeMap::new();
         for (id, class, p, reduced, bonus) in equipped {
             let p = u8::try_from(p).map_err(|_| fail())?;
-            let item = slot_item(assets, stats, id, &class, Some(p), reduced, bonus)?;
+            let (item, level) = slot_item(
+                assets,
+                stats,
+                id,
+                &class,
+                Some(p),
+                reduced,
+                bonus,
+                attributes.get(&id),
+            )?;
+            enhance_levels.insert(id, level);
             let slot = gear.equipment.get_mut(&p).ok_or_else(fail)?;
             if !slot.load(item).map_err(|_| fail())? {
                 return Err(fail());
@@ -255,7 +280,10 @@ pub async fn equip(
                 .item_class_utf16
                 .starts_with(&utf16("cash_freepass_"))
             {
-                // Attributes are verified absent, therefore no LOOK attribute exists.
+                // Without attributes there is no LOOK attribute to apply.
+                if attributes.contains_key(&item_id) {
+                    return Err(fail());
+                }
                 return Ok(Outcome::Unchanged);
             }
             if !target.equippable {
@@ -274,7 +302,7 @@ pub async fn equip(
                 }
                 touch(item_id, &mut modified);
             }
-            let item = slot_item(
+            let (item, _) = slot_item(
                 assets,
                 stats,
                 item_id,
@@ -282,6 +310,7 @@ pub async fn equip(
                 gear.part_of(item_id),
                 target.reduced_durability.ok_or_else(fail)?,
                 target.max_durability_bonus.ok_or_else(fail)?,
+                attributes.get(&item_id),
             )?;
             let skills: Vec<(Vec<u8>, i32)> =
                 sqlx::query_as("SELECT skill_utf16,rank FROM game_skills WHERE cid=$1 ORDER BY row_id LIMIT 4097")
@@ -295,13 +324,13 @@ pub async fn equip(
                     String::from_utf16(&units).map(|k| (k, r)).map_err(|_| fail())
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()?;
-            // Enhance/enchant attributes are verified absent for every equipped item.
+            // EnhanceLevel of each equipped item; enchant attributes are refused.
             let levels: Vec<Equipped> = gear
                 .equipment
                 .values()
-                .filter(|s| s.value().is_some())
-                .map(|_| Equipped {
-                    enhance: 0,
+                .filter_map(|s| s.value())
+                .map(|i| Equipped {
+                    enhance: enhance_levels.get(&i.id).copied().unwrap_or(0),
                     prefix: 0,
                     suffix: 0,
                 })

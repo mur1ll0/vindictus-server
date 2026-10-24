@@ -353,21 +353,24 @@ fn attributes_split_stacks_and_merges_like_is_stackable_with() {
         ),
         Err(GiveError::Unsupported)
     );
-    // Attributed equipment needs ItemStat entities.
+    // Attributed equipment is planned like any equipment (the caller validates its
+    // Item.Stat); two requests never merge.
     let sword = class("longsword", 1, 1, 0, true);
     let enhanced = keys.intern(&parse_class_ex("longsword[ENHANCE:3]").unwrap().1);
+    let sword_give = || Give {
+        class: &sword,
+        count: 1,
+        bound: false,
+        attributes: enhanced,
+    };
     assert_eq!(
-        plan(
-            &inventory(&[]),
-            &[],
-            &[Give {
-                class: &sword,
-                count: 1,
-                bound: false,
-                attributes: enhanced
-            }]
-        ),
-        Err(GiveError::Unsupported)
+        plan(&inventory(&[]), &[], &[sword_give(), sword_give()])
+            .unwrap()
+            .created
+            .iter()
+            .map(|c| (c.request, c.location))
+            .collect::<Vec<_>>(),
+        [(0, at(0, 0)), (1, at(0, 1))]
     );
 }
 

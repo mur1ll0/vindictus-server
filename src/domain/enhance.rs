@@ -99,6 +99,23 @@ pub fn bonus_stat(
     Ok(stat)
 }
 
+/// Enhance.Level after TryLoad(value) on a new entity (null/invalid/zero leave 0).
+pub fn level(value: Option<&str>) -> i32 {
+    value
+        .and_then(|v| try_integer_argument(&v.encode_utf16().collect::<Vec<_>>()))
+        .unwrap_or(0)
+}
+
+/// CurrentEnhanceInfo: the EnhanceOther level when above the item's and present,
+/// otherwise the item's level; `None` when GetEnhanceInfo finds neither.
+pub fn current_level(level: i32, applied_other: i32, exists: impl Fn(i32) -> bool) -> Option<i32> {
+    if level >= applied_other || !exists(applied_other) {
+        exists(level).then_some(level)
+    } else {
+        Some(applied_other)
+    }
+}
+
 /// Enhance.TryLoad(value) on a new entity. `info(level)` is GetEnhanceInfo: `None` when
 /// absent, otherwise its stat rows. `applied_other` is Gear.GetEnhanceOtherValue of the
 /// equipped part (0 in the bag). Returns whether TryLoad reported a change.
@@ -123,12 +140,7 @@ pub fn load<'a>(
     if level == 0 {
         return Ok((false, empty));
     }
-    // CurrentEnhanceInfo: the EnhanceOther level when above the item's and present.
-    let current = if level >= applied_other {
-        info(level)
-    } else {
-        info(applied_other).or_else(|| info(level))
-    };
+    let current = current_level(level, applied_other, |l| info(l).is_some()).and_then(&info);
     let stat = match current {
         Some(rows) => bonus_stat(class_stat, rows, arithmetic)?,
         None => ItemStat::default(),

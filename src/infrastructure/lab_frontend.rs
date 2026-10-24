@@ -170,6 +170,7 @@ impl Runtime {
             )
         });
         self.relay = assets.relay.map(super::relay::Relay::new);
+        let assets = assets.with_item_arithmetic(self.stat_arithmetic());
         self.minimum = Some(MinimumRuntime {
             assets: Arc::new(assets),
             creation,
