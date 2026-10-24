@@ -160,6 +160,9 @@ pub enum Effect {
     Manufacture(ManufactureChange),
     /// ItemImpl.AddExpandedEquipmentSlot(slot): Gear.UnlockSlot, Save always succeeds.
     OpenEquipmentSlot(i32),
+    /// ItemImpl.OpenStorage(storageID): BagStorage.OpenStorage(id, null) of a valid
+    /// non-default bag.
+    OpenStorage(u8),
 }
 
 /// StoryEntity state a query reads and changes; the caller persists it when the
@@ -1095,6 +1098,19 @@ impl<'a> Talker<'a> {
                 };
                 self.set_variable(key, value)?;
                 self.resume(k)
+            }
+            "give_storage" => {
+                // byte.TryParse, then OpenStorage refuses an invalid or default bag ID.
+                let id = Self::parse(arg1).and_then(|v| u8::try_from(v).ok());
+                match id {
+                    Some(id @ (2..=5 | 7 | 8)) => {
+                        self.pushed
+                            .outputs
+                            .push(Output::Effect(Effect::OpenStorage(id)));
+                        self.resume(k)
+                    }
+                    _ => self.on_error("give_storage"),
+                }
             }
             "open_equipment_slot" => {
                 // int.Parse throws on a malformed slot: the completion is never called.

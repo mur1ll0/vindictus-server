@@ -480,7 +480,8 @@ async fn enhance_with(
     .fetch_one(&mut *tx)
     .await?;
     // Equipped items also change the character stats and EquipmentInfo.
-    if equipment.0.is_some() || !matches!(collection, 0 | 1 | 6) {
+    let bags = super::minimum_inventory::bags(&mut tx, cid).await?;
+    if equipment.0.is_some() || !bags.contains(&collection) {
         return Err(fail());
     }
     let class_text = text(&class)?;
@@ -518,11 +519,12 @@ async fn enhance_with(
     };
     let now = super::lab_clock::utc_now().map_err(|_| fail())?.ticks();
     let useable: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=$1 AND item_class_utf16=$2 AND collection IN (0,1,6,100) AND (expire_ticks IS NULL OR expire_ticks>=$3)",
+        "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=$1 AND item_class_utf16=$2 AND (collection=ANY($4) OR collection=100) AND (expire_ticks IS NULL OR expire_ticks>=$3)",
     )
     .bind(cid)
     .bind(utf16(additional))
     .bind(now)
+    .bind(&bags)
     .fetch_one(&mut *tx)
     .await?;
     let enhance_request = enhance_item::Request {

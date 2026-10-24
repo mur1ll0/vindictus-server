@@ -28,7 +28,6 @@ fn fail() -> MinimumError {
 }
 /// StorageSetting.DefaultBagStorageIDs; other bag IDs need a storage status row,
 /// which the snapshot loader verifies absent.
-const DEFAULT_BAG: [i32; 3] = [0, 1, 6];
 /// StorageSetting.ValidBagStorageIDs.
 const VALID_BAG: [i32; 9] = [0, 1, 6, 2, 3, 4, 5, 7, 8];
 
@@ -182,8 +181,13 @@ pub async fn move_item(
             .copied();
         // SwapSlot availability: the moved item needs an available target and the
         // occupant an available source.
-        if !DEFAULT_BAG.contains(&to_collection)
-            || (occupant.is_some() && !DEFAULT_BAG.contains(&item.tab))
+        let available: Vec<i32> = super::minimum_inventory::bags(&mut tx, cid)
+            .await?
+            .into_iter()
+            .map(i32::from)
+            .collect();
+        if !available.contains(&to_collection)
+            || (occupant.is_some() && !available.contains(&item.tab))
         {
             return Ok((Outcome::Refused(move_fail()?), Vec::new()));
         }

@@ -546,6 +546,36 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 .map(|o| o.iter().map(|v| v.as_i64().unwrap()).collect());
             assert_eq!(c.parts_id_list, parts, "case {n}");
         }
+        Some(Message::UpdateStorageInfo(list)) => {
+            let source = &f["StorageInfos"];
+            assert_eq!(list.is_none(), source.is_null(), "case {n}");
+            if let Some(list) = list {
+                let rows = source.as_array().unwrap();
+                assert_eq!(list.len(), rows.len(), "case {n}");
+                for (info, row) in list.iter().zip(rows) {
+                    assert_eq!(info.is_none(), row.is_null(), "case {n}");
+                    if let Some(info) = info {
+                        assert_eq!(
+                            (
+                                i64::from(info.id),
+                                i64::from(info.available),
+                                i64::from(info.last_seconds),
+                                info.name.as_deref(),
+                                i64::from(info.tag)
+                            ),
+                            (
+                                row["StorageID"].as_i64().unwrap(),
+                                row["IsAvailable"].as_i64().unwrap(),
+                                row["LastSecsToExpire"].as_i64().unwrap(),
+                                row["StorageName"].as_str(),
+                                row["StorageTag"].as_i64().unwrap()
+                            ),
+                            "case {n}"
+                        );
+                    }
+                }
+            }
+        }
         Some(Message::MaxDurabilityRepairItem(m)) => {
             assert_eq!(
                 m.target_item_id,
@@ -853,7 +883,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1827);
+        assert_eq!(cases.len(), 1839);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -903,6 +933,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "manufacture_craft" => check_inventory(Kind::ManufactureCraft, case, n),
                 "manufacture_level_up" => check_inventory(Kind::ManufactureLevelUp, case, n),
                 "unequippable_parts_info" => check_inventory(Kind::UnequippablePartsInfo, case, n),
+                "update_storage_info" => check_inventory(Kind::UpdateStorageInfo, case, n),
                 "max_durability_repair_item" => {
                     check_inventory(Kind::MaxDurabilityRepairItem, case, n)
                 }

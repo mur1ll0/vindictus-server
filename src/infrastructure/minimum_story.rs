@@ -948,6 +948,27 @@ async fn apply_outputs(
                     Message::UpdateInventoryInfo(Some(applied.slots)),
                 )?);
             }
+            Output::Effect(Effect::OpenStorage(id)) => {
+                // A new ItemStorageStatus row without ExpireTime (an opened bag already is
+                // unlimited), then Sync pushes UpdateStorageInfoMessage.
+                if !super::minimum_inventory::bags(tx, cid)
+                    .await?
+                    .contains(&i16::from(id))
+                {
+                    sqlx::query("INSERT INTO game_item_storage_status(id,owner_id,storage_type,storage,expire_units300,storage_name_utf16,storage_tag) VALUES(nextval('game_item_storage_id'),$1,$2,$3,NULL,'',0)")
+                        .bind(cid)
+                        .bind(super::minimum_inventory::STORAGE_TYPE_BAG)
+                        .bind(i16::from(id))
+                        .execute(&mut **tx)
+                        .await?;
+                }
+                packets.push(packet(
+                    Kind::UpdateStorageInfo,
+                    Message::UpdateStorageInfo(Some(
+                        super::minimum_inventory::storage_infos(tx, cid).await?,
+                    )),
+                )?);
+            }
             Output::Effect(Effect::OpenEquipmentSlot(slot)) => {
                 // Gear.UnlockSlot: a locked gear slot adds its ExpandSlotInfo row and Sync
                 // pushes UnequippablePartsInfoMessage; any other slot changes nothing.

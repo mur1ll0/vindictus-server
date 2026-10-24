@@ -205,7 +205,10 @@ async fn open(
     let Some(info) = contents.enchant(&value) else {
         return Ok(None);
     };
-    if !matches!(target.collection, 0 | 1 | 6) {
+    if !super::minimum_inventory::bags(tx, cid)
+        .await?
+        .contains(&target.collection)
+    {
         return Err(fail());
     }
     let (_, _, broken) = target_state(

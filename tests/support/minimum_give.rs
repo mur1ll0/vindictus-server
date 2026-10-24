@@ -4465,3 +4465,135 @@ async fn minimum_max_durability_repair_consumes_the_same_class_source() {
     assert_eq!(left, 0);
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_story_give_storage_opens_a_bag_tab_for_items() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_move, minimum_selection,
+            minimum_story,
+        },
+        protocol::inventory::Move,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets(0)
+        .with_npc_scripts(npc_profile_p3(Some(vec![
+            ("give_storage", "2".to_owned()),
+            ("give_storage", "2".to_owned()),
+            ("talk", "opened".to_owned()),
+        ])))
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let inventory = || async {
+        let packet = minimum_inventory::query(&p, &owner, &assets, 1)
+            .await
+            .unwrap();
+        let Some(Message::InventoryInfo(info)) =
+            inventory::decode(Kind::InventoryInfo, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("inventory missing")
+        };
+        info
+    };
+    let ids = |info: &vindictus_server::protocol::inventory::Inventory| {
+        info.storages
+            .clone()
+            .unwrap()
+            .into_iter()
+            .map(|s| s.unwrap().id)
+            .collect::<Vec<u8>>()
+    };
+    assert_eq!(ids(&inventory().await), [0, 1, 6]);
+    // Moving into a closed tab fails like SwapSlot on an unavailable collection.
+    let item: i64 = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE owner_id=1 AND collection IN (0,1,6) ORDER BY id LIMIT 1",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let to_tab = || Move {
+        item_id: item,
+        storage: 2,
+        slot: 0,
+    };
+    assert!(matches!(
+        minimum_move::move_item(&p, &owner, &assets, 1, to_tab(), log)
+            .await
+            .unwrap(),
+        minimum_move::Outcome::Refused(_)
+    ));
+    minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+        .await
+        .unwrap();
+    let packets = talk_p3(&p, &owner, &assets).await;
+    // Each command pushes the storage list; the second finds the bag already open.
+    let lists: Vec<Vec<u8>> = packets
+        .iter()
+        .filter(|p| p.category == Kind::UpdateStorageInfo.category())
+        .map(|p| {
+            match inventory::decode(Kind::UpdateStorageInfo, &p.body, DEFAULT_MAX_BODY).unwrap() {
+                Some(Message::UpdateStorageInfo(Some(list))) => {
+                    list.into_iter().map(|s| s.unwrap().id).collect()
+                }
+                _ => panic!("storage info missing"),
+            }
+        })
+        .collect();
+    assert_eq!(lists, [vec![0, 1, 6, 2], vec![0, 1, 6, 2]]);
+    let rows: Vec<(i16, i16, Option<i64>)> = sqlx::query_as(
+        "SELECT storage_type,storage,expire_units300 FROM game_item_storage_status WHERE owner_id=1",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(rows, [(1, 2, None)]);
+    assert_eq!(ids(&inventory().await), [0, 1, 6, 2]);
+    // The opened tab now takes items and keeps them after a reload.
+    assert!(matches!(
+        minimum_move::move_item(&p, &owner, &assets, 1, to_tab(), log)
+            .await
+            .unwrap(),
+        minimum_move::Outcome::Applied(_)
+    ));
+    let slot = inventory()
+        .await
+        .slots
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .find(|s| s.id == item)
+        .unwrap();
+    assert_eq!((slot.tab, slot.slot), (2, 0));
+    // A default or unknown bag ID answers the command error.
+    let assets = self::assets(0)
+        .with_npc_scripts(npc_profile_p3(Some(vec![("give_storage", "1".to_owned())])))
+        .unwrap();
+    let packets = talk_p3(&p, &owner, &assets).await;
+    assert!(
+        !packets
+            .iter()
+            .any(|p| p.category == Kind::UpdateStorageInfo.category())
+    );
+    cleanup_game_pool(a, p, s).await;
+}

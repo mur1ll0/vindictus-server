@@ -341,8 +341,12 @@ pub async fn sell(
             // GetItem == null: FailMessage only.
             return Ok(Err(None));
         };
-        // Bag (0/1/6) and Cash (100) are sellable; AccountStorage (gold) is not.
-        if !matches!(row.collection, 0 | 1 | 6 | 100) {
+        // Bag and Cash (100) are sellable; AccountStorage (gold) is not.
+        if !(row.collection == 100
+            || super::minimum_inventory::bags(&mut tx, cid)
+                .await?
+                .contains(&row.collection))
+        {
             return Ok(Err(None));
         }
         let indexed = assets.stats_index.class(Some(&row.item_class_utf16)).ok_or_else(fail)?;

@@ -216,6 +216,8 @@ class ItemSyncWireOracle {
   AddCases("manufacture_level_up",361,new Guid("4b8c26ec-6412-3016-b31e-157b18638117"),levelups,cases);
   AddCases("unequippable_parts_info",614,new Guid("d0ac3a73-85f7-38bb-ba07-68bec5d8ae21"),new[]{null,new UnequippablePartsInfoMessage(null),new UnequippablePartsInfoMessage(new List<int>()),new UnequippablePartsInfoMessage(new List<int>{17,18,int.MinValue,int.MaxValue})},cases);
   AddCases("max_durability_repair_item",342,new Guid("66ecfcca-c35b-3005-a79c-ad9fc04da573"),new[]{null,new MaxDurabilityRepairItemMessage(0L,0L),new MaxDurabilityRepairItemMessage(long.MaxValue,long.MinValue),new MaxDurabilityRepairItemMessage(77L,78L)},cases);
+  var storages=new List<StorageInfo>{new StorageInfo(0,true,-1,"",0),null,new StorageInfo(2,false,int.MaxValue,"保管",7),new StorageInfo(255,true,int.MinValue,null,int.MinValue)};
+  AddCases("update_storage_info",620,new Guid("8eeec067-48d4-3852-9e5e-6a463040bf0c"),new[]{null,new UpdateStorageInfoMessage(null),new UpdateStorageInfoMessage(new List<StorageInfo>()),new UpdateStorageInfoMessage(storages)},cases);
   AddCases("costume_update",447,new Guid("099b778f-141e-359d-b270-60c9d2f99bbb"),costumes,cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }

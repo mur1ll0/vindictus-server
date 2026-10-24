@@ -82,3 +82,12 @@ Pré-condição: duas peças da mesma classe na bolsa (não vestidas), uma com d
 - [ ] Sem ouro suficiente → diálogo de ouro insuficiente, nada muda.
 - [ ] Relogar → a durabilidade máxima reparada se mantém.
 Limites conhecidos: peças vestidas (alvo ou material) não respondem.
+
+### B3.4c — Abrir aba de armazenamento pessoal (`give_storage`)
+Pré-condição: uma história ou NPC que execute `give_storage` para uma aba extra (2–5, 7 ou 8).
+- [ ] Antes do comando → a aba aparece fechada/indisponível; mover item para ela falha com o diálogo de movimento.
+- [ ] Executar o comando → a aba abre na hora, sem validade, e o diálogo continua.
+- [ ] Mover um item para a aba nova → o item fica lá.
+- [ ] Receber itens com as abas padrão cheias → os itens vão para a aba nova.
+- [ ] Relogar → a aba continua aberta com os itens.
+Limites conhecidos: abas com validade (itens de aba extra), renomear/marcar abas (`UpdateStorageStatus`) e o depósito compartilhado não foram migrados; um personagem com uma aba nesses estados não carrega o inventário.

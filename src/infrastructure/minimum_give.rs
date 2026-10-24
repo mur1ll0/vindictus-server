@@ -192,9 +192,14 @@ pub(super) async fn apply(
             attributes: keys.intern(r.attributes),
         })
         .collect();
+    let bags: Vec<u8> = super::minimum_inventory::bags(tx, cid)
+        .await?
+        .into_iter()
+        .map(|b| u8::try_from(b).map_err(|_| MinimumError::Conflict))
+        .collect::<Result<_, _>>()?;
     let inventory = Inventory {
         items: &held,
-        bags: &[0, 1, 6],
+        bags: &bags,
         bundle_exceed,
         story_tab,
     };

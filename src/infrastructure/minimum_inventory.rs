@@ -188,15 +188,7 @@ async fn project(
         return Err(MinimumError::Conflict);
     }
     sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;
-    let storage: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM game_item_storage_status WHERE owner_id=$1)",
-    )
-    .bind(cid)
-    .fetch_one(&mut **tx)
-    .await?;
-    if storage {
-        return Err(MinimumError::Conflict);
-    }
+    let opened = bags(tx, cid).await?;
     let rows:Vec<Item>=sqlx::query_as("SELECT id,item_class_utf16,count,collection,slot,expire_ticks,tradable,checksum FROM game_items WHERE owner_id=$1 ORDER BY id LIMIT 4097").bind(cid).fetch_all(&mut **tx).await?;
     if rows.is_empty() || rows.len() > 4096 {
         return Err(MinimumError::Conflict);
@@ -218,7 +210,7 @@ async fn project(
         .ticks();
     let owner_context = super::minimum_item_stat::context(tx, cid).await?;
     for row in rows {
-        let bag = matches!(row.collection, 0 | 1 | 6);
+        let bag = opened.contains(&row.collection);
         // AccountStorage: one item per class at AccountLocation (101, -1).
         let account = row.collection == 101;
         let story =
@@ -359,20 +351,7 @@ async fn project(
         }
     };
     let inventory = Inventory {
-        storages: Some(
-            [0, 1, 6]
-                .into_iter()
-                .map(|id| {
-                    Some(Storage {
-                        id,
-                        available: 1,
-                        last_seconds: -1,
-                        name: Some(String::new()),
-                        tag: 0,
-                    })
-                })
-                .collect(),
-        ),
+        storages: Some(storage_infos(tx, cid).await?),
         slots: Some(slots),
         equipment: Dict(Some(equipment_info)),
         quick_slots: Some(super::minimum_quickslot::info(&quick)),
@@ -411,5 +390,89 @@ pub(super) async fn locked_parts(
         .inventory_locked_parts()?
         .into_iter()
         .filter(|p| !expanded.contains(p))
+        .collect())
+}
+
+/// StorageSetting.ValidBagStorageIDs (also the BagStorage empty-slot order).
+const VALID_BAGS: [i16; 9] = [0, 1, 6, 2, 3, 4, 5, 7, 8];
+/// StorageSetting.DefaultBagStorageIDs.
+const DEFAULT_BAGS: [i16; 3] = [0, 1, 6];
+/// StorageType.Bag.
+pub(super) const STORAGE_TYPE_BAG: i16 = 1;
+
+/// ItemStorageStatus: StorageType, Storage, ExpireTime, StorageName, StorageTag.
+type StatusRow = (i16, i16, Option<i64>, Vec<u8>, i32);
+/// BagStorage.Load(ItemStorageStatus) rows: the bags opened by OpenStorage without an
+/// ExpireTime, with their StorageName. Expiring or tagged storages (ExtendStorage,
+/// UpdateStorageSetting) and other storage types are not migrated and refused.
+async fn opened_bags(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<BTreeMap<i16, String>, MinimumError> {
+    let rows: Vec<StatusRow> = sqlx::query_as(
+        "SELECT storage_type,storage,expire_units300,storage_name_utf16,storage_tag FROM game_item_storage_status WHERE owner_id=$1 ORDER BY id LIMIT 17",
+    )
+    .bind(cid)
+    .fetch_all(&mut **tx)
+    .await?;
+    let mut out = BTreeMap::new();
+    for (kind, storage, expire, name, tag) in rows {
+        if kind != STORAGE_TYPE_BAG
+            || !VALID_BAGS.contains(&storage)
+            || DEFAULT_BAGS.contains(&storage)
+            || expire.is_some()
+            || tag != 0
+        {
+            return Err(MinimumError::Conflict);
+        }
+        let units: Vec<u16> = name
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| u16::from_le_bytes(*b))
+            .collect();
+        let name = String::from_utf16(&units).map_err(|_| MinimumError::Conflict)?;
+        if out.insert(storage, name).is_some() {
+            return Err(MinimumError::Conflict);
+        }
+    }
+    Ok(out)
+}
+
+/// The available bag collections (BagStorage.IsAvailable) in ValidBagStorageIDs order.
+pub(super) async fn bags(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<Vec<i16>, MinimumError> {
+    let opened = opened_bags(tx, cid).await?;
+    Ok(VALID_BAGS
+        .into_iter()
+        .filter(|b| DEFAULT_BAGS.contains(b) || opened.contains_key(b))
+        .collect())
+}
+
+/// ItemStorage.ToStorageInfo: BagStorage.ToStorageInfo in ValidBagStorageIDs order
+/// (default bags and unlimited opened ones are available with LastSecsToExpire -1).
+pub(super) async fn storage_infos(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<Vec<Option<Storage>>, MinimumError> {
+    let opened = opened_bags(tx, cid).await?;
+    Ok(VALID_BAGS
+        .into_iter()
+        .filter_map(|b| {
+            let name = match opened.get(&b) {
+                Some(n) => n.clone(),
+                None if DEFAULT_BAGS.contains(&b) => String::new(),
+                None => return None,
+            };
+            Some(Some(Storage {
+                id: u8::try_from(b).ok()?,
+                available: 1,
+                last_seconds: -1,
+                name: Some(name),
+                tag: 0,
+            }))
+        })
         .collect())
 }

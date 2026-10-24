@@ -71,15 +71,6 @@ pub(super) async fn load(
         return Err(fail());
     }
     sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;
-    let storage: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM game_item_storage_status WHERE owner_id=$1)",
-    )
-    .bind(cid)
-    .fetch_one(&mut **tx)
-    .await?;
-    if storage {
-        return Err(fail());
-    }
     let rows:Vec<Row>=sqlx::query_as("SELECT i.id,i.item_class_utf16,i.count,i.collection,i.slot,i.expire_ticks,e.part,e.color1,e.color2,e.color3,e.reduced_durability,e.max_durability_bonus FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.owner_id=$1 AND e.part IS NOT NULL ORDER BY i.id LIMIT 4097").bind(cid).fetch_all(&mut **tx).await?;
     if rows.len() > 4096 {
         return Err(fail());
@@ -130,10 +121,11 @@ pub(super) async fn load(
         .collect();
     let mut items = Vec::new();
     let mut metadata = Vec::new();
+    let bags = super::minimum_inventory::bags(tx, cid).await?;
     for row in rows {
         if row.count != 1
             || row.expire_ticks.is_some()
-            || !matches!(row.collection, 0 | 1 | 6)
+            || !bags.contains(&row.collection)
             || !(0..48).contains(&row.slot)
         {
             return Err(fail());

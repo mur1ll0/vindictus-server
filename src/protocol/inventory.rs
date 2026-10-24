@@ -62,6 +62,7 @@ pub enum Kind {
     ManufactureLevelUp,
     UnequippablePartsInfo,
     MaxDurabilityRepairItem,
+    UpdateStorageInfo,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -117,6 +118,7 @@ impl Kind {
             Self::ManufactureLevelUp => 361,
             Self::UnequippablePartsInfo => 614,
             Self::MaxDurabilityRepairItem => 342,
+            Self::UpdateStorageInfo => 620,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -172,6 +174,7 @@ impl Kind {
             Self::ManufactureLevelUp => 0x4b8c26ec_6412_3016_b31e_157b18638117,
             Self::UnequippablePartsInfo => 0xd0ac3a73_85f7_38bb_ba07_68bec5d8ae21,
             Self::MaxDurabilityRepairItem => 0x66ecfcca_c35b_3005_a79c_ad9fc04da573,
+            Self::UpdateStorageInfo => 0x8eeec067_48d4_3852_9e5e_6a463040bf0c,
         })
     }
 }
@@ -325,6 +328,8 @@ pub enum Message {
     /// UnequippablePartsInfoMessage.Parts (Gear.ToUnequippableParts).
     UnequippablePartsInfo(Option<Vec<i32>>),
     MaxDurabilityRepairItem(MaxDurabilityRepairItem),
+    /// UpdateStorageInfoMessage.StorageInfos (ItemStorage.ToStorageInfo).
+    UpdateStorageInfo(Option<Vec<Option<Storage>>>),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -690,6 +695,7 @@ impl Message {
             Self::ManufactureLevelUp(_) => Kind::ManufactureLevelUp,
             Self::UnequippablePartsInfo(_) => Kind::UnequippablePartsInfo,
             Self::MaxDurabilityRepairItem(_) => Kind::MaxDurabilityRepairItem,
+            Self::UpdateStorageInfo(_) => Kind::UpdateStorageInfo,
         }
     }
 }
@@ -1114,6 +1120,7 @@ pub fn encode(
             Message::ManufactureLevelUp(v) => v.write(&mut w)?,
             Message::UnequippablePartsInfo(v) => v.write(&mut w)?,
             Message::MaxDurabilityRepairItem(v) => v.write(&mut w)?,
+            Message::UpdateStorageInfo(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1206,6 +1213,7 @@ fn decode_body(
             Kind::MaxDurabilityRepairItem => {
                 Message::MaxDurabilityRepairItem(MaxDurabilityRepairItem::read(&mut r)?)
             }
+            Kind::UpdateStorageInfo => Message::UpdateStorageInfo(Wire::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {
