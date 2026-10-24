@@ -3365,9 +3365,22 @@ async fn minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_resto
     let run = |r: EnhanceItem| {
         let (p, owner, assets) = (&p, &owner, &assets);
         async move {
-            minimum_enhance::enhance(p, owner, assets, 1, &r, vec![931, 932, 933, 934], log)
-                .await
-                .unwrap()
+            minimum_enhance::enhance(
+                p,
+                owner,
+                assets,
+                1,
+                &r,
+                vec![931, 932, 933, 934],
+                log,
+                QueryConfig {
+                    max_free: 5,
+                    care_clock: None,
+                },
+            )
+            .await
+            .unwrap()
+            .packets
         }
     };
     let result = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
@@ -3458,7 +3471,8 @@ async fn minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_resto
     assert_eq!(enhance_value().await, None);
     assert_eq!((gold().await, cash().await), (gold0 - 200, cash0 - 2));
     // From +2, +3 fails Destroy: one material back, and the restorable item moves to the
-    // RestoreStorage bound, restored and with its AntiBindCount.
+    // RestoreStorage bound, restored and with its AntiBindCount. The item is equipped:
+    // MoveToBuybackStorage unequips it first (EquipmentInfo, UpdateItemStat, costumes).
     sqlx::query("INSERT INTO game_item_attributes(id,item_id,attribute_bytes,value_bytes,arg,arg2) VALUES(nextval('game_item_attribute_id'),$1,$2,$3,0,0)")
         .bind(bag)
         .bind(b"ENHANCE".to_vec())
@@ -3466,7 +3480,27 @@ async fn minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_resto
         .execute(&p)
         .await
         .unwrap();
+    sqlx::query("UPDATE game_equippables SET part=1 WHERE id=$1")
+        .bind(bag)
+        .execute(&p)
+        .await
+        .unwrap();
     let packets = run(request(bag, "synthetic_cash", "")).await;
+    assert_eq!(
+        packets.iter().map(|p| p.category).collect::<Vec<_>>()[..4],
+        [
+            Kind::UpdateInventoryInfo.category(),
+            vindictus_server::protocol::equipment::Kind::EquipmentInfo.category(),
+            619,
+            vindictus_server::protocol::character_list::COSTUME_UPDATE_CATEGORY
+        ]
+    );
+    let part: Option<i16> = sqlx::query_scalar("SELECT part FROM game_equippables WHERE id=$1")
+        .bind(bag)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(part, None);
     let r = result(&packets);
     assert_eq!(
         (r.result.as_deref(), r.enhanced_item_class.as_deref()),

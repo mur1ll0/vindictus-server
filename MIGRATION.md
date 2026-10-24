@@ -1230,5 +1230,13 @@ B3.7 — equipar item com validade, Enhance de item equipado e craft na loja de 
 - Testes: Python `test_export_item_enhance`; `item_sync_wire`, `inventory_wire`, `item_enhance`, `random_item`, `give_item`, `skill_features`; PostgreSQL `minimum_craft_turns_shop_recipe_materials_into_targets` e filtros `minimum_enhance minimum_equip minimum_use minimum_manufacture minimum_give minimum_random` (40); clippy `-D warnings`. Na cópia do banco: cinto na parte 14 aplicado; Enhance da espada equipada → 617, 619 (UpdateStat), 355; craft FERGHUS_Craft/15 → 617.
 - Diferenças: TodayMission "TryCraftItem" e o tempo de recarga visual do craft não migrados; Enhance que destrói item vestido recusado; anúncio global do Enhance continua fora (B5).
 - Cliente: entrada B3.7 em `docs/client-tests/B3-equipamento.md`.
-- Próxima ação: o operador repete os três testes no cliente.
+- Cliente (24/10/2026): o operador confirmou craft, Enchant, Enhance e as histórias da Shayla.
+
+B3.8 — Enhance que destrói um item equipado (24/10/2026, pedido do operador).
+- Fonte: `EnhanceItemByDataProcessor` "Destroy" → `MoveToBuybackStorage` (`Unequip(item)` antes de mover para a RestoreStorage) ou `item.Num = 0` (`RegisterDelete` → `Unequip`); `ItemOwner.Sync` envia `UpdateInventoryInfo`, `EquipmentInfo`, `UpdateItemStat` e a atualização de visual.
+- Infraestrutura: `minimum_equip::refresh_gear` (extraído do equipar: visual persistido, `EquipmentInfo`, `UpdateStat`, `CostumeUpdate` e a aparência nova), usado pelo equipar e pelo Enhance; `minimum_enhance::enhance` recebe `QueryConfig`, desequipa antes de `destroy_or_restore` e devolve `Enhanced { packets, look }` (o frontend troca a aparência da seleção).
+- Testes: PostgreSQL `minimum_enhance_succeeds_ranks_down_and_moves_a_destroyed_item_to_restore` agora destrói o item equipado (617, 458, 619, 447 e `part` nulo) e filtros `minimum_enhance minimum_equip` (11); clippy `-D warnings`.
+- TodayMission "TryCraftItem": `CraftItemProcessor` chama `TodayMission.PorcessCommand("TryCraftItem")`, mas nenhuma das 21 linhas de `TodayMissionGoalInfo` casa com esse comando (as regex são `TryManufactureCraftItem`, `kill npc_*`, `get item`, `use.+…`, `TalkTo … smalltalk` etc.); no original o craft da loja não conta missão diária. O sistema de missões diárias (`TodayMission`, ligado na região: `TodayMission` 3.01.01, `TodayMission_Count` 3, `TodayMission_InitTimeAdder` 7) não está migrado; sorteio diário com `string.GetHashCode` do Framework.
+- Cliente: entrada B3.8 em `docs/client-tests/B3-equipamento.md`.
+- Próxima ação: decisão do operador sobre o catálogo do cash shop (os produtos, preços e saldo vêm do NISMS da Nexon, ausente das evidências).
 

@@ -2980,12 +2980,19 @@ impl Connection {
                     &request,
                     ids,
                     runtime.item_log_context(assets)?,
+                    runtime.minimum_header()?,
                 )
                 .await
                 {
-                    Ok(packets) => {
+                    Ok(enhanced) => {
+                        let packets = enhanced.packets;
                         for packet in &packets {
                             send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        if let (Some(look), Some(selected)) =
+                            (enhanced.look, self.selected.as_mut())
+                        {
+                            selected.look = look;
                         }
                         tracing::info!(
                             categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),

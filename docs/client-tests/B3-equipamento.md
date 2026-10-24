@@ -160,3 +160,8 @@ Pré-condição: `levelup_belt_lvl10` (Hero Belt) na bolsa; `longsword_saver` eq
 - [ ] Relogar → cinto equipado, melhoria e espada fabricada continuam.
 Limites conhecidos: Enhance que destruiria um item equipado é recusado sem resposta; a missão diária "TryCraftItem" não conta.
 
+### B3.8 — Enhance que destrói um item equipado
+Pré-condição: uma arma equipada num nível de Enhance em que a falha destrói (ex.: +3 de uma arma comum, conforme `EnhanceInfo.OnFail = Destroy`), pedra e ouro.
+- [ ] Falha com destruição → a arma sai do personagem (slot vazio, visual e atributos atualizados) e, quando restaurável, aparece na lista de restauração.
+- [ ] Relogar → o slot continua vazio e a arma continua na restauração.
+

@@ -389,7 +389,14 @@ async fn slot_of(
     )
 }
 
+/// The packets and, when a destroyed item left the Gear, the refreshed look.
+pub struct Enhanced {
+    pub packets: Vec<OutgoingPacket>,
+    pub look: Option<OutgoingPacket>,
+}
+
 /// Locks the assets' enhance random for the processor.
+#[allow(clippy::too_many_arguments)]
 pub async fn enhance(
     pool: &PgPool,
     owner: &UserKey<'_>,
@@ -398,7 +405,8 @@ pub async fn enhance(
     request: &EnhanceItem,
     entity_ids: Vec<i64>,
     log: super::minimum_item_logs::Context,
-) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    config: super::character_lobby::QueryConfig,
+) -> Result<Enhanced, MinimumError> {
     let mut random = assets.enhance_random.lock().await;
     tokio::time::timeout(
         std::time::Duration::from_secs(15),
@@ -411,6 +419,7 @@ pub async fn enhance(
             &mut *random,
             entity_ids,
             log,
+            config,
         ),
     )
     .await
@@ -427,7 +436,8 @@ async fn enhance_with(
     random: &mut (dyn Random + Send),
     entity_ids: Vec<i64>,
     log: super::minimum_item_logs::Context,
-) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    config: super::character_lobby::QueryConfig,
+) -> Result<Enhanced, MinimumError> {
     let contents = assets.enhance.as_ref().ok_or_else(fail)?;
     let policy = contents.policy().ok_or_else(fail)?;
     let arithmetic = assets.item_arithmetic.ok_or_else(fail)?;
@@ -456,8 +466,11 @@ async fn enhance_with(
         .execute(&mut *tx)
         .await?;
     super::minimum_inventory::snapshot_with_equipment(&mut tx, owner, assets, cid, None).await?;
-    let dialog = |r: Refusal| -> Result<Vec<OutgoingPacket>, MinimumError> {
-        Ok(vec![super::minimum_equip::item_fail(r.name())?])
+    let dialog = |r: Refusal| -> Result<Enhanced, MinimumError> {
+        Ok(Enhanced {
+            packets: vec![super::minimum_equip::item_fail(r.name())?],
+            look: None,
+        })
     };
     let row: Option<(Vec<u8>, i16)> = sqlx::query_as(
         "SELECT item_class_utf16,collection FROM game_items WHERE id=$1 AND owner_id=$2",
@@ -551,11 +564,6 @@ async fn enhance_with(
         arithmetic,
     )
     .map_err(|_| fail())?;
-    // Destroying an equipped item also unequips it (Gear, costumes), which is not migrated;
-    // the transaction is dropped and nothing is written.
-    if equipped && outcome.destroyed {
-        return Err(fail());
-    }
     let prev_class =
         item_attribute::build_class_ex(&class_text, &attributes).map_err(|_| fail())?;
     // DestroyItem(materials) on success; CraftItem(materials, fail rewards) otherwise.
@@ -650,6 +658,13 @@ async fn enhance_with(
             .await?;
     }
     if outcome.destroyed {
+        // MoveToBuybackStorage and Num = 0 both Unequip(item) first.
+        if equipped {
+            sqlx::query("UPDATE game_equippables SET part=NULL WHERE id=$1")
+                .bind(request.item_id)
+                .execute(&mut *tx)
+                .await?;
+        }
         let (notice, removed) = destroy_or_restore(
             &mut tx,
             assets,
@@ -679,7 +694,17 @@ async fn enhance_with(
             .unwrap_or(current);
         item_attribute::build_class_ex(&class_text, &after).map_err(|_| fail())?
     };
-    let update_stat = if equipped {
+    // Sync: EquipmentInfo, UpdateItemStat and the costumes when the Gear lost the item,
+    // UpdateItemStat alone when an equipped item changed.
+    let gear = if equipped && outcome.destroyed {
+        Some(
+            super::minimum_equip::refresh_gear(&mut tx, owner, assets, cid, config, arithmetic)
+                .await?,
+        )
+    } else {
+        None
+    };
+    let update_stat = if equipped && !outcome.destroyed {
         Some(
             super::minimum_selection::update_stat(&mut tx, owner, assets, cid, arithmetic)
                 .await?
@@ -737,6 +762,13 @@ async fn enhance_with(
         .to_vec(),
     }];
     packets.extend(update_stat);
+    let look = match gear {
+        Some(g) => {
+            packets.extend(g.packets);
+            Some(g.look)
+        }
+        None => None,
+    };
     if let Some(result) = outcome.result {
         packets.push(result_packet(EnhanceItemResult {
             result: Some(result),
@@ -753,5 +785,5 @@ async fn enhance_with(
             &[],
         )?);
     }
-    Ok(packets)
+    Ok(Enhanced { packets, look })
 }

@@ -458,19 +458,13 @@ pub async fn equip(
                 return Err(fail());
             }
         }
-        let view =
-            super::minimum_selection::view(&mut tx, owner, assets, cid, config, arithmetic, true, 0)
-                .await?;
-        let (before, after) = view.costumes.as_ref().ok_or_else(fail)?;
-        super::character_costumes::persist_item_costumes(&mut tx, cid, before, after)
-            .await
-            .map_err(|_| fail())?;
+        let gear = refresh_gear(&mut tx, owner, assets, cid, config, arithmetic).await?;
         let inventory = super::minimum_inventory::snapshot_with_equipment(
             &mut tx,
             owner,
             assets,
             cid,
-            Some(view.equipment.clone()),
+            Some(gear.equipment_info.clone()),
         )
         .await?;
         let mut slots = Vec::with_capacity(modified.len());
@@ -483,36 +477,18 @@ pub async fn equip(
             slots.push(Some(slot.clone()));
         }
         let update = inventory_wire::Message::UpdateInventoryInfo(Some(slots));
-        let equipment = EquipmentMessage::EquipmentInfo(Dict(Some(view.equipment.clone())));
-        let packets = vec![
-            OutgoingPacket {
-                category: InventoryKind::UpdateInventoryInfo.category(),
-                body: inventory_wire::encode(
-                    InventoryKind::UpdateInventoryInfo,
-                    Some(&update),
-                    DEFAULT_MAX_BODY,
-                )
-                .map_err(|_| fail())?
-                .to_vec(),
-            },
-            OutgoingPacket {
-                category: equipment.kind().category(),
-                body: equipment_wire::encode(equipment.kind(), Some(&equipment), DEFAULT_MAX_BODY)
-                    .map_err(|_| fail())?
-                    .to_vec(),
-            },
-            view.stat,
-            OutgoingPacket {
-                category: crate::protocol::character_list::COSTUME_UPDATE_CATEGORY,
-                body: crate::protocol::character_list::encode_costume_update(
-                    Some(view.costume.as_ref()),
-                    DEFAULT_MAX_BODY,
-                )
-                .map_err(|_| fail())?
-                .to_vec(),
-            },
-        ];
-        let mut packets = packets;
+        let mut packets = vec![OutgoingPacket {
+            category: InventoryKind::UpdateInventoryInfo.category(),
+            body: inventory_wire::encode(
+                InventoryKind::UpdateInventoryInfo,
+                Some(&update),
+                DEFAULT_MAX_BODY,
+            )
+            .map_err(|_| fail())?
+            .to_vec(),
+        }];
+        packets.extend(gear.packets);
+        let view_look = gear.look;
         if !quick_changes.is_empty() {
             // Sync: QuickSlots after inventory, equipment and UpdateItemStat.
             super::minimum_quickslot::persist(&mut tx, cid, &quick_changes).await?;
@@ -521,9 +497,56 @@ pub async fn equip(
         tx.commit().await?;
         Ok(Outcome::Applied {
             packets,
-            look: view.look,
+            look: view_look,
         })
     })
     .await
     .map_err(|_| fail())?
+}
+
+/// Gear after an equipment change: the costumes persisted and the EquipmentInfo,
+/// UpdateItemStat and costume update packets of ItemOwner.Sync, with the new look.
+pub(super) struct GearRefresh {
+    pub packets: Vec<OutgoingPacket>,
+    pub look: OutgoingPacket,
+    pub equipment_info: Vec<(i32, i64)>,
+}
+pub(super) async fn refresh_gear(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<GearRefresh, MinimumError> {
+    let view =
+        super::minimum_selection::view(tx, owner, assets, cid, config, arithmetic, true, 0).await?;
+    let (before, after) = view.costumes.as_ref().ok_or_else(fail)?;
+    super::character_costumes::persist_item_costumes(tx, cid, before, after)
+        .await
+        .map_err(|_| fail())?;
+    let equipment = EquipmentMessage::EquipmentInfo(Dict(Some(view.equipment.clone())));
+    let packets = vec![
+        OutgoingPacket {
+            category: equipment.kind().category(),
+            body: equipment_wire::encode(equipment.kind(), Some(&equipment), DEFAULT_MAX_BODY)
+                .map_err(|_| fail())?
+                .to_vec(),
+        },
+        view.stat,
+        OutgoingPacket {
+            category: crate::protocol::character_list::COSTUME_UPDATE_CATEGORY,
+            body: crate::protocol::character_list::encode_costume_update(
+                Some(view.costume.as_ref()),
+                DEFAULT_MAX_BODY,
+            )
+            .map_err(|_| fail())?
+            .to_vec(),
+        },
+    ];
+    Ok(GearRefresh {
+        packets,
+        look: view.look,
+        equipment_info: view.equipment,
+    })
 }
