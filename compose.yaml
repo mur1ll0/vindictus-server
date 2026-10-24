@@ -18,6 +18,9 @@ x-app: &app
 services:
   postgres:
     image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
+    # Crash recovery syncs the data directory with one syncfs instead of an fsync per file:
+    # the restored legacy data has too many files for the per-file pass (over 30 minutes).
+    command: [postgres, -c, recovery_init_sync_method=syncfs]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate a local .env first}

@@ -1278,4 +1278,5 @@ CS5 — catálogo do cash shop acima de 4.096 produtos (24/10/2026, teste de cli
 - Diagnóstico: no lobby o saldo (239) ia, mas o catálogo era recusado ("cash shop account query refused"); reproduzido com os assets reais: a codificação recusava listas acima de `MAX_ROWS` (4.096) e o catálogo tem 9.094 produtos.
 - Correção: `protocol::inventory` separa o limite de escrita das listas (`MAX_WRITE_ROWS` 65.536, dados do servidor) do de leitura (4.096, entrada do cliente); dicionários mantêm 4.096 na escrita.
 - Testes: `inventory_wire` (lista de 9.094 produtos), suíte sem PostgreSQL completa (500, 0 falhas), clippy `-D warnings`.
+- Deploy: o build do Docker caiu por falta de memória da VM (8 GB) e o PostgreSQL do laboratório passou mais de 30 minutos na recuperação (fsync arquivo por arquivo dos dados legados). Com autorização do operador: `.wslconfig` com 12 GB, `wsl --shutdown`, e `compose.yaml` com `recovery_init_sync_method=syncfs` no PostgreSQL; volume preservado, todos os serviços saudáveis.
 
