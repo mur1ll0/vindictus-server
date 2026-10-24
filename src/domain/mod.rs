@@ -118,5 +118,6 @@ pub mod item_stack;
 pub mod progression;
 pub mod quest;
 pub mod quick_slot;
+pub mod random_item;
 
 pub mod skill_list;

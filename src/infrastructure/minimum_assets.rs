@@ -46,6 +46,8 @@ struct Files {
     npc_scripts: Option<PathBuf>,
     #[serde(default)]
     enhance: Option<PathBuf>,
+    #[serde(default)]
+    random_item: Option<PathBuf>,
 }
 pub struct Assets {
     pub(super) equipment: Option<super::equipment_profile::Profile>,
@@ -66,6 +68,10 @@ pub struct Assets {
     pub(super) npc: Option<super::npc_scripts::Profile>,
     /// Enhance dictionaries and EnhanceType bound to `catalog`.
     pub(super) enhance: Option<super::item_enhance::Contents>,
+    /// RandomItemContents bound to `catalog`.
+    pub(super) random_item: Option<super::random_item::Contents>,
+    /// RandomItemManager's static Random.
+    pub(super) random_item_random: Mutex<ColorRandom>,
     /// Framework arithmetic of item stats (the runtime's identity profile); `None`
     /// evaluates both measured profiles and refuses a disagreement.
     pub(super) item_arithmetic: Option<crate::domain::character_stats::Arithmetic>,
@@ -236,6 +242,9 @@ impl Assets {
         if let Some(path) = f.enhance {
             assets = assets.with_enhance(super::item_enhance::Profile::read(open(&path)?)?)?;
         }
+        if let Some(path) = f.random_item {
+            assets = assets.with_random_item(super::random_item::Profile::read(open(&path)?)?)?;
+        }
         Ok(assets)
     }
     pub fn from_parts(parts: Parts) -> Result<Self, MinimumError> {
@@ -256,6 +265,8 @@ impl Assets {
             economy: None,
             npc: None,
             enhance: None,
+            random_item: None,
+            random_item_random: Mutex::new(ColorRandom::from_seed(time_seed())),
             item_arithmetic: None,
             enhance_random: Mutex::new(enhance_random(time_seed())),
             enchant_random: Mutex::new(enchant_random(time_seed())),
@@ -348,6 +359,7 @@ impl Assets {
         self.enchant_random = Mutex::new(enchant_random(seed));
         self.craft_seed = Some(seed.wrapping_add(5));
         self.skill_enhance_random = Mutex::new(ColorRandom::from_seed(seed.wrapping_add(6)));
+        self.random_item_random = Mutex::new(ColorRandom::from_seed(seed.wrapping_add(7)));
         self
     }
     /// The seed of a craft's fresh Random.
@@ -366,6 +378,13 @@ impl Assets {
         profile: super::item_enhance::Profile,
     ) -> Result<Self, MinimumError> {
         self.enhance = Some(profile.bind(&self.catalog)?);
+        Ok(self)
+    }
+    pub fn with_random_item(
+        mut self,
+        profile: super::random_item::Profile,
+    ) -> Result<Self, MinimumError> {
+        self.random_item = Some(profile.bind(&self.catalog)?);
         Ok(self)
     }
     pub fn with_skills(

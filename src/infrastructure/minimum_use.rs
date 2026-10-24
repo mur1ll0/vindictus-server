@@ -1,7 +1,8 @@
 //! UseInventoryItemProcessor for the selected first Fiona: the UseInTown dispatch with
 //! its dialogs (UseInTown 0 and IsConstraintSatisfied failures) and the capsule_ap
-//! branch (UseUseableItem + CharacterImpl.GiveAP). Other usable branches (food,
-//! RandomItemV2 opening, pets, ...) are rejected without changes until migrated.
+//! branch (UseUseableItem + CharacterImpl.GiveAP) and the RandomItemContents boxes
+//! (`minimum_random_item`). Other usable branches (food, RandomItemV2 opening, pets, ...)
+//! are rejected without changes until migrated.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::map_partition::OutgoingPacket,
@@ -94,7 +95,9 @@ async fn constraint_failure(
     Ok(item_constraint::check(&character, constraint).map(|f| f.name()))
 }
 
-/// Admission (selection and UseSecondPassword) belongs to the frontend.
+/// Admission (selection and UseSecondPassword) belongs to the frontend. `buyback`: the
+/// ItemClass of each BuybackList item; `entity_ids` serve items a box creates.
+#[allow(clippy::too_many_arguments)]
 pub async fn use_item(
     pool: &PgPool,
     owner: &UserKey<'_>,
@@ -103,9 +106,13 @@ pub async fn use_item(
     request: UseItem,
     log: super::minimum_item_logs::Context,
     arithmetic: crate::domain::character_stats::Arithmetic,
+    buyback: &[String],
+    entity_ids: Vec<i64>,
 ) -> Result<Outcome, MinimumError> {
     // UseInventoryItemProcessor constructor: GetJournalID (UseInventoryItem).
     let journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
+    let mut ids = entity_ids.into_iter();
+    let mut opened_box = None;
     let (outcome, used) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
         let connected: bool =
@@ -177,7 +184,31 @@ pub async fn use_item(
             ));
         }
         let Some(amount) = capsule_amount(&class).filter(|_| !indexed.equippable) else {
-            return Err(fail());
+            // questscroll_/questscroll2_ and the other branches before the boxes.
+            if ["questscroll_", "questscroll2_", "cashshop_trade_coin"]
+                .iter()
+                .any(|p| class.starts_with(p))
+            {
+                return Err(fail());
+            }
+            let Some(opened) = super::minimum_random_item::open(
+                &mut tx,
+                owner,
+                assets,
+                cid,
+                item,
+                request.target_item_id,
+                buyback,
+                &mut || ids.next().ok_or_else(fail),
+            )
+            .await?
+            else {
+                return Err(fail());
+            };
+            tx.commit().await?;
+            let packets = opened.packets.clone();
+            opened_box = Some(opened);
+            return Ok((Outcome::Applied(packets), None));
         };
         // UseUseableItem: DestroyItem(Useable(item), 1) and Save before onSuccess.
         let deleted = item.count == 1;
@@ -246,6 +277,35 @@ pub async fn use_item(
     })
     .await
     .map_err(|_| fail())??;
+    if let Some(opened) = opened_box {
+        let box_journal =
+            super::minimum_item_logs::named_journal(pool, log.flags, "RandomItem").await;
+        if let Some(applied) = &opened.applied {
+            super::minimum_item_logs::write_give(
+                pool,
+                cid,
+                journal,
+                super::minimum_item_logs::USE_INVENTORY_ITEM,
+                applied,
+                log,
+            )
+            .await;
+        }
+        // ItemLog.AddItemLedger(DestroyItem/GiveItem, ActionType.Use).
+        for (kind, class, count) in &opened.ledgers {
+            super::minimum_item_logs::write_requested_ledger(
+                pool,
+                cid,
+                box_journal,
+                *kind,
+                9,
+                class,
+                *count,
+                log.flags,
+            )
+            .await;
+        }
+    }
     if let Some((change, use_journal)) = used {
         // Save → LogManager.Write (Num −1), then UseUseableItem's ledger.
         super::minimum_item_logs::write_changes(

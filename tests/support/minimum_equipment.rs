@@ -566,6 +566,8 @@ async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing(
             },
             log(&assets),
             Arithmetic::FrameworkX64,
+            &[],
+            Vec::new(),
         )
     };
     assert!(use_item(cash).await.is_err());

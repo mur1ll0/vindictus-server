@@ -136,3 +136,11 @@ Pré-condição: uma habilidade com aprimoramento bem-sucedido (B3.4d-1) e uma p
 - [ ] Restaurar com durabilidade cheia → mensagem de durabilidade já cheia, nada consumido.
 - [ ] Relogar → a durabilidade se mantém.
 Limites conhecidos: a poção de durabilidade máxima (`skill_enhance_max_durability_potion`) não foi migrada; em grupo (B5) o host não repassa o gasto aos outros jogadores.
+
+### B3.5 — Abrir caixa de presente (RandomItem)
+Pré-condição: uma caixa do sistema antigo na bolsa (ex.: `randomitem_levelup_gift_lvl10`, "Level Up Gift (Lv 10 or higher)") e o nível exigido pela caixa (10 nesse exemplo); espaço livre na bolsa.
+- [ ] Abaixo do nível → clique direito em "usar" mostra o diálogo de nível insuficiente e a caixa fica.
+- [ ] Com o nível → a caixa some (uma unidade), aparecem a mensagem "item usado", uma mensagem por item recebido e a janela de recompensas; para a Fiona, a caixa de nível 10 dá `randomitem_levelup_v2_15`, 3 `energy_potion_lvl1`, `longsword_saver` e `levelup_belt_lvl10`.
+- [ ] Relogar → os itens recebidos continuam na bolsa e a caixa não volta.
+Limites conhecidos: caixas do RandomItemV2 (inclusive a `randomitem_levelup_v2_15` recebida), caixas com chave, Titicore, classes raras/pacote e a sobra por correio com a bolsa cheia não respondem; o anúncio global de item raro não é enviado.
+

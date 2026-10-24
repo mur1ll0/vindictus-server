@@ -72,6 +72,7 @@ pub enum Kind {
     SkillEnhanceChanged,
     SkillEnhanceUseDurability,
     SkillEnhanceRestoreDurability,
+    RandomItemRewardList,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -137,6 +138,7 @@ impl Kind {
             Self::SkillEnhanceChanged => 172,
             Self::SkillEnhanceUseDurability => 179,
             Self::SkillEnhanceRestoreDurability => 180,
+            Self::RandomItemRewardList => 381,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -202,6 +204,7 @@ impl Kind {
             Self::SkillEnhanceChanged => 0xedfa9396_8cdf_3ccf_811f_7b68c28731a6,
             Self::SkillEnhanceUseDurability => 0x8d429b16_9c2a_37d5_9fef_1b97a60a1980,
             Self::SkillEnhanceRestoreDurability => 0x05ccc728_0129_3695_b7ca_d5978545b1b3,
+            Self::RandomItemRewardList => 0x4ee2fd65_d464_3707_b876_3280b7d88f04,
         })
     }
 }
@@ -369,6 +372,7 @@ pub enum Message {
     SkillEnhanceChanged(super::mission::StrDict<Option<SkillEnhance>>),
     SkillEnhanceUseDurability(SkillEnhanceUseDurability),
     SkillEnhanceRestoreDurability(SkillEnhanceRestoreDurability),
+    RandomItemRewardList(RandomItemRewardList),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -571,6 +575,23 @@ pub struct SkillEnhanceRestoreDurability {
     pub stone_item_id: i64,
     pub use_count: i32,
     pub skill_name: Option<String>,
+}
+/// ColoredEquipment: ItemClass and colors.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ColoredEquipment {
+    pub item_class: Option<String>,
+    pub color1: i32,
+    pub color2: i32,
+    pub color3: i32,
+}
+/// RandomItemRewardListMessage in declaration order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RandomItemRewardList {
+    pub item_classes: Option<Vec<Option<ColoredEquipment>>>,
+    pub item_quantities: Option<Vec<i32>>,
+    pub is_user_care: bool,
+    pub key_item_class: Option<String>,
+    pub disable_show_pop_up: bool,
 }
 /// MaxDurabilityRepairItemMessage: TargetItemID, SourceItemID.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -788,6 +809,7 @@ impl Message {
             Self::SkillEnhanceChanged(_) => Kind::SkillEnhanceChanged,
             Self::SkillEnhanceUseDurability(_) => Kind::SkillEnhanceUseDurability,
             Self::SkillEnhanceRestoreDurability(_) => Kind::SkillEnhanceRestoreDurability,
+            Self::RandomItemRewardList(_) => Kind::RandomItemRewardList,
         }
     }
 }
@@ -1041,6 +1063,19 @@ object!(ManufactureCraft {
     parts_id_list
 });
 object!(ManufactureLevelUp { mid, grade });
+object!(ColoredEquipment {
+    item_class,
+    color1,
+    color2,
+    color3
+});
+object!(RandomItemRewardList {
+    item_classes,
+    item_quantities,
+    is_user_care,
+    key_item_class,
+    disable_show_pop_up
+});
 object!(SkillEnhanceSessionStart {
     skill_name,
     stone_item_id
@@ -1254,6 +1289,7 @@ pub fn encode(
             Message::SkillEnhanceChanged(v) => v.write(&mut w)?,
             Message::SkillEnhanceUseDurability(v) => v.write(&mut w)?,
             Message::SkillEnhanceRestoreDurability(v) => v.write(&mut w)?,
+            Message::RandomItemRewardList(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1364,6 +1400,7 @@ fn decode_body(
             Kind::SkillEnhanceRestoreDurability => {
                 Message::SkillEnhanceRestoreDurability(Wire::read(&mut r)?)
             }
+            Kind::RandomItemRewardList => Message::RandomItemRewardList(Wire::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

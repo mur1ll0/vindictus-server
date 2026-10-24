@@ -107,6 +107,34 @@ pub(super) async fn apply(
     gives: &[Request<'_>],
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Result<Applied, GiveError>, MinimumError> {
+    apply_with(tx, owner, assets, cid, destroys, gives, ids, true).await
+}
+
+/// `apply` for ItemOwner.CraftItem callers: equippable "_lvlN" classes are given as they
+/// are (only ItemImpl.GiveItem converts them).
+pub(super) async fn apply_craft(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    destroys: &[Request<'_>],
+    gives: &[Request<'_>],
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+) -> Result<Result<Applied, GiveError>, MinimumError> {
+    apply_with(tx, owner, assets, cid, destroys, gives, ids, false).await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn apply_with(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    destroys: &[Request<'_>],
+    gives: &[Request<'_>],
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+    item_impl: bool,
+) -> Result<Result<Applied, GiveError>, MinimumError> {
     if destroys.len() + gives.len() > 256 {
         return Err(MinimumError::Conflict);
     }
@@ -210,6 +238,7 @@ pub(super) async fn apply(
         bags: &bags,
         bundle_exceed,
         story_tab,
+        item_impl,
     };
     let plan = match give_item::plan(&inventory, &destroy_requests, &give_requests) {
         Ok(plan) => plan,

@@ -36,6 +36,7 @@ fn inventory(items: &[(Vec<u8>, Held)]) -> Inventory<'_> {
         bags: &[0, 1, 6],
         bundle_exceed: 0,
         story_tab: false,
+        item_impl: true,
     }
 }
 fn give(class: &ClassInfo, count: i32) -> Give<'_> {
@@ -252,6 +253,15 @@ fn only_equippable_lvl_classes_need_the_enhance_attribute() {
     assert_eq!(
         plan(&inventory(&items), &[], &[give(&sword, 1)]),
         Err(GiveError::Unsupported)
+    );
+    // CraftItem (random boxes) gives the "_lvlN" class as it is.
+    let craft = Inventory {
+        item_impl: false,
+        ..inventory(&items)
+    };
+    assert_eq!(
+        plan(&craft, &[], &[give(&sword, 1)]).unwrap().created.len(),
+        1
     );
     // A non-equippable class keeps its name (GuidePlay_5 gives enhance_stone_lvl1).
     let stone = class("enhance_stone_lvl1", 1, 99, 0, false);

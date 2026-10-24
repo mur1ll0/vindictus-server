@@ -655,6 +655,38 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             );
             assert_eq!(m.skill_name.as_deref(), f["SkillName"].as_str(), "case {n}");
         }
+        Some(Message::RandomItemRewardList(m)) => {
+            let classes = f["ItemClasses"].as_array().map(|o| {
+                o.iter()
+                    .map(|v| (!v.is_null()).then(|| v["ItemClass"].as_str().map(str::to_owned)))
+                    .collect::<Vec<_>>()
+            });
+            let ours = m.item_classes.as_ref().map(|o| {
+                o.iter()
+                    .map(|c| c.as_ref().map(|c| c.item_class.clone()))
+                    .collect::<Vec<_>>()
+            });
+            assert_eq!(ours, classes, "case {n}");
+            let quantities = f["ItemQuantities"].as_array().map(|o| {
+                o.iter()
+                    .map(|v| i32::try_from(v.as_i64().unwrap()).unwrap())
+                    .collect()
+            });
+            assert_eq!(m.item_quantities, quantities, "case {n}");
+            assert_eq!(
+                (
+                    Some(m.is_user_care),
+                    m.key_item_class.as_deref(),
+                    Some(m.disable_show_pop_up)
+                ),
+                (
+                    f["IsUserCare"].as_bool(),
+                    f["KeyItemClass"].as_str(),
+                    f["DisableShowPopUp"].as_bool()
+                ),
+                "case {n}"
+            );
+        }
         Some(Message::UpdateStorageInfo(list)) => {
             let source = &f["StorageInfos"];
             assert_eq!(list.is_none(), source.is_null(), "case {n}");
@@ -992,7 +1024,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 1980);
+        assert_eq!(cases.len(), 1995);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1043,6 +1075,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "manufacture_level_up" => check_inventory(Kind::ManufactureLevelUp, case, n),
                 "unequippable_parts_info" => check_inventory(Kind::UnequippablePartsInfo, case, n),
                 "update_storage_info" => check_inventory(Kind::UpdateStorageInfo, case, n),
+                "random_item_reward_list" => check_inventory(Kind::RandomItemRewardList, case, n),
                 "skill_enhance_session_start" => {
                     check_inventory(Kind::SkillEnhanceSessionStart, case, n)
                 }

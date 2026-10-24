@@ -17,5 +17,6 @@
   "economy": "/content/item-economy.json",
   "npc_scripts": "/content/npc-scripts.json",
   "enhance": "/content/item-enhance.json",
-  "relay_bind": "127.0.0.1:27005"
+  "relay_bind": "127.0.0.1:27005",
+  "random_item": "/content/random-item.json"
 }

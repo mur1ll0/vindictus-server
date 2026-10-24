@@ -2378,6 +2378,16 @@ impl Connection {
                         }
                     }
                     Message::UseInventoryItem(request) => {
+                        let buyback: Vec<String> =
+                            selected.buyback.iter().map(|b| b.class.clone()).collect();
+                        let ids = runtime
+                            .minimum
+                            .as_ref()
+                            .ok_or(RuntimeError::Profile)?
+                            .creation
+                            .entity_ids(16)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
                         match super::minimum_use::use_item(
                             pool,
                             &owner,
@@ -2386,6 +2396,8 @@ impl Connection {
                             request,
                             runtime.item_log_context(assets)?,
                             runtime.stat_arithmetic(),
+                            &buyback,
+                            ids,
                         )
                         .await
                         {

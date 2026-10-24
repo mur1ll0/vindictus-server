@@ -71,6 +71,9 @@ pub struct Inventory<'a> {
     pub bundle_exceed: i32,
     /// FeatureMatrix StoryTabInInventory.
     pub story_tab: bool,
+    /// ItemImpl.GiveItem (true) converts equippable "<class>_lvlN" requests, which is not
+    /// migrated; CraftItem/ProcessItemRequest (false) gives the class as it is.
+    pub item_impl: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Created {
@@ -320,7 +323,7 @@ pub fn plan(
         // ItemImpl.GiveItem turns an equippable "<class>_lvlN" into <class> with ENHANCE
         // N*2 and a binding, which is not migrated. Equipment attributes are validated by
         // the caller, which computes their Item.Stat.
-        if g.class.equippable && {
+        if inventory.item_impl && g.class.equippable && {
             let units: Vec<u16> = g
                 .class
                 .class
