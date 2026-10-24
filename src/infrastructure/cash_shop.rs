@@ -50,6 +50,24 @@ struct CouponRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct ColorRow {
+    category: Option<String>,
+    order: i32,
+    color: i32,
+    shop: Option<String>,
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TirRow {
+    item: Option<String>,
+    duration: Option<i32>,
+    price: Option<i32>,
+    shop: Option<String>,
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Feature {
     key: String,
     value: Option<String>,
@@ -68,7 +86,19 @@ pub struct Profile {
     customize_items: Vec<CustomizeRow>,
     customize_prices: Vec<PriceRow>,
     customize_coupons: Vec<CouponRow>,
+    customize_colors: Vec<ColorRow>,
+    tir_ignored: Vec<TirRow>,
+    class_restrictions: Vec<i32>,
     features: Vec<Feature>,
+}
+
+/// Cashshop_Tircoin_notsell_list row of the LanguageTag (Duration/Price null match all).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TirIgnored {
+    pub item: String,
+    pub duration: Option<i32>,
+    pub price: Option<i32>,
+    pub feature: Option<String>,
 }
 
 /// CustomizePriceInfo: Duration (days, 0 or less permanent) and Price.
@@ -86,6 +116,13 @@ pub struct Customize {
     pub prices: BTreeMap<String, Vec<CustomizePrice>>,
     /// customizeCouponInfoDic: ItemClass -> (Category, Price).
     pub coupons: BTreeMap<String, (Option<String>, i32)>,
+    /// customizeColorInfoDic: (Category, Color) present (skin_sss excluded).
+    pub colors: std::collections::BTreeSet<(String, i32)>,
+    /// skinSSSColorDic: skin Color -> skin_sss Color through the shared Order.
+    pub skin_sss: BTreeMap<i32, i32>,
+    pub tir_ignored: Vec<TirIgnored>,
+    /// ItemClassInfo.Category and ClassRestriction of each effective class.
+    pub classes: BTreeMap<Vec<u8>, (Option<String>, i32)>,
     pub policy: crate::domain::feature_policy::FeaturePolicy,
 }
 
@@ -119,10 +156,12 @@ impl Profile {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
-        if p.format_version != 2
+        if p.format_version != 3
             || p.customize_items.len() + p.customize_prices.len() + p.customize_coupons.len()
                 > 262_144
             || p.features.len() > 512
+            || p.customize_colors.len() + p.tir_ignored.len() > 65536
+            || p.class_restrictions.len() != p.categories.len()
             || p.source != "heroesContents.cash-shop"
             || p.categories.len() > 262_144
             || p.prices.len() > 1024
@@ -295,10 +334,74 @@ impl Profile {
                 }
             }
         }
+        let mut colors = std::collections::BTreeSet::new();
+        let mut skin_orders: BTreeMap<i32, i32> = BTreeMap::new();
+        let color_kept = |r: &ColorRow| -> Result<bool, MinimumError> {
+            Ok((r.feature.is_none()
+                || policy
+                    .is_enabled(r.feature.as_deref())
+                    .map_err(|_| fail())?)
+                && r.shop.as_deref().is_none_or(|s| s == language))
+        };
+        for r in &self.customize_colors {
+            if !color_kept(r)? {
+                continue;
+            }
+            let category = r.category.clone().ok_or_else(fail)?;
+            if category != "skin_sss" {
+                // A duplicate (Category, Color) is logged and the first row kept.
+                colors.insert((category.clone(), r.color));
+            }
+            // dictionary4.Add(Order, Color) refuses a duplicate Order.
+            if category == "skin" && skin_orders.insert(r.order, r.color).is_some() {
+                return Err(fail());
+            }
+        }
+        let mut skin_sss = BTreeMap::new();
+        for r in &self.customize_colors {
+            if color_kept(r)? && r.category.as_deref() == Some("skin_sss") {
+                // dictionary4.TryGetValue(Order) is 0 for an unknown Order.
+                skin_sss.insert(skin_orders.get(&r.order).copied().unwrap_or(0), r.color);
+            }
+        }
+        let tir_ignored = self
+            .tir_ignored
+            .iter()
+            .filter(|r| r.shop.as_deref() == Some(language.as_str()))
+            .map(|r| {
+                Ok(TirIgnored {
+                    item: r.item.clone().ok_or_else(fail)?,
+                    duration: r.duration,
+                    price: r.price,
+                    feature: r.feature.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, MinimumError>>()?;
+        let effective = crate::application::item_catalog_inspection::catalog(catalog)?;
+        let mut classes = BTreeMap::new();
+        for (class, item) in effective.items() {
+            classes.insert(
+                class.to_vec(),
+                (
+                    self.categories
+                        .get(item.source_index)
+                        .ok_or_else(fail)?
+                        .clone(),
+                    *self
+                        .class_restrictions
+                        .get(item.source_index)
+                        .ok_or_else(fail)?,
+                ),
+            );
+        }
         Ok(Customize {
             items,
             prices,
             coupons,
+            colors,
+            skin_sss,
+            tir_ignored,
+            classes,
             policy,
         })
     }

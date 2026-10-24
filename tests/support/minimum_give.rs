@@ -5348,11 +5348,12 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     // synthetic_cash (row 1) is the only cash-tab class of the fixture catalog.
-    let profile = json!({"format_version":2,"source":"heroesContents.cash-shop","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":3,"source":"heroesContents.cash-shop","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[{"category":"CASHITEM","price":300}],
         "customize_items":[{"item":"synthetic_bag","category":"HAIR","shop":"en-EU","feature":null},{"item":"synthetic_cash","category":"HAIR","shop":"ko-KR","feature":null}],
         "customize_prices":[{"item":"synthetic_bag","duration":-1,"price":139,"shop":"en-EU","feature":null},{"item":"synthetic_bag","duration":30,"price":69,"shop":null,"feature":""}],
-        "customize_coupons":[{"item":"coupon_hair","category":"HAIR","price":1000,"shop":"en-EU","feature":null}],
+        "customize_coupons":[{"item":"coupon_hair","category":"HAIR","price":1000,"shop":"en-EU","feature":null},{"item":"synthetic_cash","category":"HAIR","price":200,"shop":"en-EU","feature":null}],
+        "customize_colors":[],"tir_ignored":[],"class_restrictions":[2047,2047,2047,2047],
         "features":[{"key":"LanguageTag","value":"en-EU"},{"key":"AvatarBeauty","value":null},{"key":"CashShop","value":null}]});
     let assets = assets_with(0, 1, 0)
         .with_equipment(
@@ -5651,5 +5652,59 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
         balance(&minimum_cash_shop::balance(&p, owner.uid).await.unwrap()),
         400 - 139 - 69
     );
+    // A value coupon (synthetic_cash, 200 >= 139) pays the permanent bag: one coupon is
+    // destroyed, the cash balance stays, and the painting positions reach the base costume.
+    let coupons = count().await;
+    let mut paid = beauty(vec![item(-1, "synthetic_cash")]);
+    paid.painting_pos_x = 12;
+    paid.body_painting_mode = 3;
+    let out = vindictus_server::infrastructure::minimum_beauty_shop::customize(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &paid,
+        vec![965],
+        log,
+        config,
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        fail_name(out.packets.last().unwrap()),
+        "GameUI_Heroes_Success"
+    );
+    assert_eq!(count().await, coupons - 1);
+    assert_eq!(bags().await.0, held + 3);
+    assert_eq!(
+        balance(&minimum_cash_shop::balance(&p, owner.uid).await.unwrap()),
+        400 - 139 - 69
+    );
+    let extras: Vec<(i16, Option<i32>)> = sqlx::query_as(
+        "SELECT costume_key,costume_sn FROM game_costumes WHERE cid=1 AND is_base AND costume_type=2 AND costume_key IN (3,14) ORDER BY costume_key",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(extras, [(3, Some(12)), (14, Some(3))]);
+    // Tir payment without tir_coin: DestroyItem fails and nothing changes.
+    let mut tir = beauty(vec![item(-1, "139")]);
+    tir.payment = 2;
+    let out = vindictus_server::infrastructure::minimum_beauty_shop::customize(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &tir,
+        vec![966],
+        log,
+        config,
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    assert_eq!(fail_name(&out.packets[0]), "GameUI_Heroes_BeautyShopFail");
+    assert_eq!(bags().await.0, held + 3);
     cleanup_game_pool(a, p, s).await;
 }

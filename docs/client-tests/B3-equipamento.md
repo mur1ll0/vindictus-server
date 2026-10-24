@@ -181,3 +181,13 @@ Pré-condição: saldo creditado (`pwsh scripts/dev/lab-give-cash.ps1`).
 - [ ] Preço com cupom → mensagem de falha da loja de visual, nada muda.
 Limites conhecidos: cupons, pinturas grátis, mudança de rosto/corpo e pacotes de avatar respondem falha.
 
+### CS4 — Loja de visual: cupons, Tir, pinturas, rosto/corpo e pacotes
+Pré-condição: cupons da loja de visual na bolsa (ex.: `cash_free_hair_*`, `cash_unlimitedpass_*`, `cash_freepass_*` via `lab-give-item.ps1`), `tir_coin` para pagar com Tir, saldo de cash.
+- [ ] Cupom de valor ou de preço fixo → o item vem sem cobrar cash e um cupom sai da bolsa; cupom que cobre um preço maior que o permitido mostra o aviso de cupom inválido.
+- [ ] Unlimited pass → o item vem permanente e o cupom é consumido.
+- [ ] Free pass → o próprio cupom fica equipado com o visual escolhido e com validade (dias do nome do cupom).
+- [ ] Pagar com Tir → as moedas Tir saem; sem moedas suficientes, falha.
+- [ ] Pintura de rosto/corpo (inclusive as grátis) → a posição/tamanho/rotação escolhidos ficam no personagem e na pintura equipada.
+- [ ] Mudança de rosto/corpo (lookchange) → pele, olhos, sobrancelha, altura, busto, brilho e formato do corpo mudam e continuam depois de relogar.
+- [ ] Pacote de avatar → o pacote vai para a bolsa.
+

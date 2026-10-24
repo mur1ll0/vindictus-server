@@ -161,9 +161,26 @@ fn slot_item(
         equippable: true,
         equipped_part: part,
         resolved_part: part.map(i32::from),
-        // Same BadStatus predicate as the equipped Gear loader (broken or expired).
+        // Same BadStatus predicate as the equipped Gear loader (broken, expired or an unset
+        // free pass coupon).
         bad_status: (d.has_durability() && d.maximum() >= 0 && d.current() == 0)
-            || super::minimum_equipment::expired(expire_ticks)?,
+            || super::minimum_equipment::expired(expire_ticks)?
+            || {
+                let class = String::from_utf16(
+                    &class
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|a| u16::from_le_bytes(*a))
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|_| fail())?;
+                let look = super::minimum_equipment::look_class(
+                    &class,
+                    attributes.unwrap_or(&crate::domain::item_attribute::EMPTY),
+                );
+                super::minimum_equipment::free_pass_unset(&class, &look)
+            },
         enhance_other: false,
     };
     Ok((

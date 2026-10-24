@@ -137,7 +137,20 @@ pub(super) fn equipment_with(
     if attributes
         .as_slice()
         .iter()
-        .any(|a| ![ENHANCE, ANTIBIND, RESTORED, PREFIX, SUFFIX, QUALITY].contains(&a.name.as_str()))
+        // LOOK (Item.Look) and COSTUMELOC change the appearance only.
+        .any(|a| {
+            ![
+                ENHANCE,
+                ANTIBIND,
+                RESTORED,
+                PREFIX,
+                SUFFIX,
+                QUALITY,
+                "LOOK",
+                "COSTUMELOC",
+            ]
+            .contains(&a.name.as_str())
+        })
     {
         return Err(fail());
     }

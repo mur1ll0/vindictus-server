@@ -42,13 +42,15 @@ def read_package(database, config, prices_path=PRICES):
         db.execute('PRAGMA query_only=ON')
         db.row_factory = sqlite3.Row
         categories = []
-        for index, r in enumerate(db.execute('Select ItemClass, Feature, Category From [ItemClassInfo]')):
+        restrictions = []
+        for index, r in enumerate(db.execute('Select ItemClass, Feature, Category, ClassRestriction From [ItemClassInfo]')):
             if index >= len(package['classes']):
                 raise ValueError('Catalog alignment changed')
             if (r['ItemClass'].encode('utf-16-le').hex() != package['classes'][index]['item_utf16']
                     or r['Feature'] != package['classes'][index]['feature']):
                 raise ValueError('Catalog order changed')
             categories.append(text(r['Category']))
+            restrictions.append(integer(r['ClassRestriction']))
         if len(categories) != len(package['classes']):
             raise ValueError('Catalog alignment changed')
         items = [dict(item=text(r['ItemClass']), category=text(r['Category']), shop=text(r['CashShopType']),
@@ -59,19 +61,28 @@ def read_package(database, config, prices_path=PRICES):
         coupons = [dict(item=text(r['ItemClass']), category=text(r['Category']), price=integer(r['Price']),
                         shop=text(r['CashShopType']), feature=text(r['Feature']))
                    for r in db.execute('Select * From [CustomizeCouponInfo]')]
+        def nullable(v):
+            return None if v is None else integer(v)
+        colors = [dict(category=text(r['Category']), order=integer(r['Order']), color=integer(r['Color']),
+                       shop=text(r['CashShopType']), feature=text(r['Feature']))
+                  for r in db.execute('Select * From [CustomizeColorInfo]')]
+        tir_ignored = [dict(item=text(r['ItemClass']), duration=nullable(r['Duration']), price=nullable(r['Price']),
+                            shop=text(r['CashShopType']), feature=text(r['Feature']))
+                       for r in db.execute('Select * From [Cashshop_Tircoin_notsell_list]')]
         values = region_features(db, config)
     atoms = {'LanguageTag', 'AvatarBeauty', 'CashShop'}
-    for r in items + prices + coupons:
+    for r in items + prices + coupons + colors + tir_ignored:
         atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 512 or any(not k.isascii() or not k or len(k) > 256 for k in atoms):
         raise ValueError('Cash shop feature subset bound')
     features = [dict(key=k, value=values.get(k)) for k in sorted(atoms)]
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Cash shop source changed during export')
-    return dict(format_version=2, source='heroesContents.cash-shop', database_sha256=manifest['database_sha256'],
+    return dict(format_version=3, source='heroesContents.cash-shop', database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], root_category=105, categories=categories,
                 default_price=default, prices=[dict(category=k, price=v) for k, v in sorted(table.items())],
-                customize_items=items, customize_prices=prices, customize_coupons=coupons, features=features)
+                customize_items=items, customize_prices=prices, customize_coupons=coupons,
+                customize_colors=colors, tir_ignored=tir_ignored, class_restrictions=restrictions, features=features)
 
 
 def main():

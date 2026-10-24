@@ -43,6 +43,20 @@ fn text(raw: &[u8]) -> Result<String, MinimumError> {
     )
     .map_err(|_| fail())
 }
+/// Item.LookClassInfo class: the LOOK attribute value, else the item class.
+pub(super) fn look_class(
+    class: &str,
+    attributes: &crate::domain::item_attribute::Attributes,
+) -> String {
+    attributes
+        .get("LOOK")
+        .map_or_else(|| class.to_owned(), |a| a.value.clone())
+}
+/// BadStatus StatusFail_NotFreePassCouponSetted: a free pass coupon whose look is still a
+/// free pass coupon (no LOOK chosen in the beauty shop).
+pub(super) fn free_pass_unset(class: &str, look: &str) -> bool {
+    class.starts_with("cash_freepass_") && look.starts_with("cash_freepass_")
+}
 /// Item.IsExpired: ExpireDateTime < DateTime.UtcNow (ticks). An expired equipped item
 /// keeps its slot with BadStatus StatusFail_Expired (EquippableSlot.ItemDisabled).
 pub(super) fn expired(expire_ticks: Option<i64>) -> Result<bool, MinimumError> {
@@ -135,16 +149,30 @@ pub(super) async fn load(
             return Err(fail());
         }
         let class = text(&row.item_class_utf16)?;
-        if class.starts_with("cash_freepass_") {
-            return Err(fail());
-        }
         let m = profile.metadata(&assets.catalog, &row.item_class_utf16)?;
         let base = stats.get(Some(&row.item_class_utf16)).ok_or_else(fail)?;
+        let row_attributes = attributes.remove(&row.id).unwrap_or_default();
+        // Item.LookClassInfo: the LOOK attribute's class, else the item's own; its
+        // EquipItemInfo.CostumeType is the CostumeSN of the part.
+        let look = look_class(&class, &row_attributes);
+        let serial = if look == class {
+            m.serial
+        } else {
+            profile
+                .metadata(
+                    &assets.catalog,
+                    &look
+                        .encode_utf16()
+                        .flat_map(u16::to_le_bytes)
+                        .collect::<Vec<_>>(),
+                )?
+                .serial
+        };
         // EquippableSlot.ToEquippedItemInfo: Data.Stat, MaxDurability and Enhance.Effect.
         let item = super::minimum_item_stat::equipment_with(
             assets,
             &row.item_class_utf16,
-            &attributes.remove(&row.id).unwrap_or_default(),
+            &row_attributes,
             Some(&owner_context),
         )?;
         let d = EquipmentDurability::load(
@@ -156,14 +184,15 @@ pub(super) async fn load(
         let fields = item.stat.fields();
         let values = Stats::from_values(std::array::from_fn(|n| item.stat.get(Some(&names[n]))));
         let disabled = (d.has_durability() && d.maximum() >= 0 && d.current() == 0)
-            || expired(row.expire_ticks)?;
+            || expired(row.expire_ticks)?
+            || free_pass_unset(&class, &look);
         items.push(equipped_gear::Item {
             id: row.id,
             part: u8::try_from(row.part).map_err(|_| fail())?,
             category: m.category.clone(),
             class,
             equip_class: m.equip_class.clone(),
-            serial: m.serial,
+            serial,
             level: m.level,
             colors: [row.color1, row.color2, row.color3],
             weight: fields[1],
