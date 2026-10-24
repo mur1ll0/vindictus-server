@@ -1090,3 +1090,5 @@ B3.2d — lista e restauração do depósito (24/10/2026).
 - Operação: por instrução do operador (24/10/2026, máquina com memória/CPU/disco no limite), o Docker passa a ser recompilado só no fechamento de cada grupo de etapas (registrado no AGENTS.md). A compilação do crate de testes PostgreSQL levou 39 min nesta etapa.
 - Cliente: entrada B3.2d em `docs/client-tests/B3-equipamento.md`.
 - Próxima ação: fechar o grupo Enhance (recompilar o Docker uma vez) e seguir para melhorar peça vestida (reenvio de EquipmentInfo/UpdateStat) ou para o Enchant (B3.3).
+
+Fechamento do grupo Enhance (24/10/2026): `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait` exit 0 (postgres/server/game healthy) com os commits B3.0a–B3.2d. Parada para decisão do operador (AGENTS.md, item 3): a máquina está no limite de recursos e cada etapa custa ~40 min de compilação do crate de testes; escolher entre testar no cliente as entradas B3.0a–B3.2d de `docs/client-tests/B3-equipamento.md` antes de seguir, ou continuar direto para o Enchant (B3.3). Pendente no Enhance: melhorar peça vestida. Próxima ação ao retomar: a opção escolhida.
