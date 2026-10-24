@@ -257,3 +257,27 @@ fn inventory_rejects_duplicate_dictionary_keys_and_large_counts() {
         .is_err()
     );
 }
+
+#[test]
+fn the_cash_shop_product_list_encodes_every_cash_tab_class() {
+    use vindictus_server::protocol::inventory::{self as wire, CashShopProduct, Kind, Message};
+    let product = |n: i32| {
+        Some(CashShopProduct {
+            product_no: n,
+            product_expire: 0,
+            product_pieces: 1,
+            product_id: Some(format!("avatar_tunic_{n}")),
+            product_guid: Some(format!("00000000-0000-4000-8000-{n:012x}")),
+            payment_type: 13001,
+            product_type: Some(String::new()),
+            sale_price: 1500,
+            category_no: 1000,
+            status: 1,
+        })
+    };
+    // The real catalog lists 9,094 products, above the 4,096 rows accepted from the client.
+    let list = Message::CashShopProductList(Some((1..=9094).map(product).collect()));
+    let body = wire::encode(Kind::CashShopProductList, Some(&list), 4 * 1024 * 1024).unwrap();
+    assert!(body.len() > 100_000);
+}
+

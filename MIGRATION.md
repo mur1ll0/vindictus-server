@@ -1274,3 +1274,8 @@ CS4 — loja de visual completa (24/10/2026, pedido do operador: cupons, pintura
 - Diferenças: a `CashshopTirCoinResultMessage` não é enviada (nenhum item da loja de visual está na lista de exclusão de Tir deste conteúdo; um excluído é recusado); o `PushCharacterInfo` do look change não é reenviado (o `UpdateStat` e o visual vão pela sincronização do equipamento).
 - Cliente: entrada CS4 em `docs/client-tests/B3-equipamento.md`.
 
+CS5 — catálogo do cash shop acima de 4.096 produtos (24/10/2026, teste de cliente: botão Depot continuava inativo).
+- Diagnóstico: no lobby o saldo (239) ia, mas o catálogo era recusado ("cash shop account query refused"); reproduzido com os assets reais: a codificação recusava listas acima de `MAX_ROWS` (4.096) e o catálogo tem 9.094 produtos.
+- Correção: `protocol::inventory` separa o limite de escrita das listas (`MAX_WRITE_ROWS` 65.536, dados do servidor) do de leitura (4.096, entrada do cliente); dicionários mantêm 4.096 na escrita.
+- Testes: `inventory_wire` (lista de 9.094 produtos), suíte sem PostgreSQL completa (500, 0 falhas), clippy `-D warnings`.
+

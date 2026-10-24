@@ -8,6 +8,9 @@ use thiserror::Error;
 use uuid::Uuid;
 use zeroize::{Zeroize, Zeroizing};
 const MAX_ROWS: usize = 4096;
+/// Lists the server writes (the cash shop product array holds every cash-tab class);
+/// client input keeps MAX_ROWS.
+const MAX_WRITE_ROWS: usize = 65536;
 const MOVE_TYPE_ID: u128 = 0x7c957f24_e8d7_338f_a93c_97bc6903f320;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -1081,7 +1084,7 @@ impl Wire for Option<String> {
 impl<T: Wire> Wire for Option<Vec<T>> {
     fn write(&self, w: &mut Writer) -> Result<(), PayloadError> {
         let Some(v) = self else { return w.append(&[0]) };
-        if v.len() > MAX_ROWS {
+        if v.len() > MAX_WRITE_ROWS {
             return Err(PayloadError::TooLarge);
         }
         w.append(&encode_integer((v.len() + 1) as i32))?;
@@ -1114,6 +1117,9 @@ impl<T: Wire> Wire for (i32, T) {
 impl<T: Wire> Wire for Dict<T> {
     fn write(&self, w: &mut Writer) -> Result<(), PayloadError> {
         check_keys(&self.0)?;
+        if self.0.as_ref().is_some_and(|d| d.len() > MAX_ROWS) {
+            return Err(PayloadError::TooLarge);
+        }
         self.0.write(w)
     }
     fn read(r: &mut Reader<'_>) -> Result<Self, PayloadError> {
