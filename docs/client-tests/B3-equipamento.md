@@ -221,3 +221,11 @@ Pré-condições: um ticket com prazo (ex.: "Storage Chest Expansion Ticket (30 
 - [ ] Usar o ticket numa aba bloqueada → a aba abre e mostra o tempo restante (≈30 dias).
 - [ ] Usar outro ticket com prazo na mesma aba → o tempo restante soma.
 - [ ] Usar um ticket permanente numa aba com prazo → a aba fica permanente.
+
+### VIP1 — VIP e VVIP
+Pré-condições: "VIP Service (7 Days)" e "VVIP Service (7 Days)" comprados no Depot e retirados; `game` reconstruído.
+- [ ] Usar o VIP Service → mensagem de VIP, ícone do efeito com ~7 dias, ATK/MATK/WILL sobem (+19/+18/+10 até o nível 10) e o personagem aparece como VIP.
+- [ ] Relogar → o efeito e os atributos continuam.
+- [ ] Usar o VVIP Service → o efeito passa a ser o da conta (VVIP) e o personagem aparece como VVIP; outro personagem da conta também recebe.
+- [ ] Entrar numa fase com o efeito → a missão carrega e os atributos com bônus valem no combate.
+- Relatar: o que o cliente mostra (ícone, tempo, atributos) e o horário de qualquer erro.

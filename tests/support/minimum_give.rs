@@ -36,6 +36,7 @@ fn assets_with_appearance(
         cash_level,
         appearance,
         "enchant_scroll",
+        0,
     )
 }
 /// `assets_with_appearance` whose row-3 bag class (one per stack) is `scroll_class`.
@@ -45,6 +46,7 @@ fn assets_with_classes(
     cash_level: i32,
     appearance: Option<Value>,
     scroll_class: &str,
+    scroll_use_in_town: i32,
 ) -> Assets {
     let mut i = super::fiona_inventory_delivery::AppearanceInputs::new();
     if let Some(v) = appearance {
@@ -67,7 +69,7 @@ fn assets_with_classes(
         .unwrap()
         .iter()
         .enumerate()
-        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":if n == 1 { cash_level } else { 0 },"class_restriction":if n == 1 { 2047 } else { 0 },"use_in_town":if n == 1 { cash_use_in_town } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0,"quick_slot_max_stack":0,"draft":0}))
+        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":if n == 1 { cash_level } else { 0 },"class_restriction":if n == 1 || (n == 3 && scroll_use_in_town != 0) { 2047 } else { 0 },"use_in_town":if n == 1 { cash_use_in_town } else if n == 3 { scroll_use_in_town } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0,"quick_slot_max_stack":0,"draft":0}))
         .collect();
     let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows});
     Assets::from_parts(Parts {
@@ -1486,6 +1488,198 @@ async fn minimum_quest_login_gives_first_and_level_quests_once_and_pushes_progre
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            cash_shop, character_lobby::QueryConfig, minimum_item_logs, minimum_selection,
+            minimum_use,
+        },
+        protocol::inventory::UseItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let effect = |t: &str| json!({"type":t,"level":1,"abs_level":1,"id_tag":t,"duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]});
+    let profile = json!({"format_version":6,"source":"heroesContents.cash-shop","without_contents":[],"value_products":[],
+        "status_effects":[effect("homecafe_bonus"),effect("account_homecafe_bonus")],
+        "database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"localized_sha256":"c".repeat(64),"names":[null,null,null,null],
+        "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[],
+        "customize_items":[],"customize_prices":[],"customize_coupons":[],"customize_colors":[],"tir_ignored":[],"class_restrictions":[2047,2047,2047,2047],
+        "features":[{"key":"LanguageTag","value":"en-EU"},{"key":"HomeCafeBonus","value":"2.02.05"},{"key":"HomeCafeBonus_Rule_zhCN","value":null},
+            {"key":"HomeCafeBonus_StatusEffect","value":"homecafe_bonus,account_homecafe_bonus"},{"key":"CafeBonusIncreaseTime","value":"0"}]});
+    let assets = assets_with_classes(0, 1, 0, None, "homecafe_bonus_day", 1)
+        .with_cash_shop(
+            cash_shop::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
+        )
+        .unwrap();
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_give::lab_grant(&p, &assets, Some(1), "homecafe_bonus_day[VALUE:7]", 1, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    let kinds = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        packets.iter().map(|p| p.category).collect::<Vec<_>>()
+    };
+    let atk = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        use vindictus_server::protocol::minimum_map::{self as map, Kind as MapKind};
+        packets
+            .iter()
+            .filter(|p| p.category == MapKind::UpdateStat.category())
+            .find_map(
+                |p| match map::decode(MapKind::UpdateStat, &p.body, DEFAULT_MAX_BODY) {
+                    Ok(Some(map::Message::UpdateStat { stat: Some(s) })) => {
+                        s.into_iter().find(|(k, _)| *k == "ATK").map(|(_, v)| v)
+                    }
+                    _ => None,
+                },
+            )
+    };
+    let system = |packets: &[vindictus_server::domain::map_partition::OutgoingPacket]| {
+        use vindictus_server::protocol::frontend_control::{self as ctl, Kind as CtlKind};
+        packets
+            .iter()
+            .filter(|p| p.category == CtlKind::System.category())
+            .filter_map(
+                |p| match ctl::decode(CtlKind::System, &p.body, DEFAULT_MAX_BODY) {
+                    Ok(Some(ctl::Message::System { category, text })) => {
+                        Some((category, text.and_then(|t| t.format.map(str::to_owned))))
+                    }
+                    _ => None,
+                },
+            )
+            .collect::<Vec<_>>()
+    };
+    let selected =
+        minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    // Without a bonus row there is no HomeCafe message or effect.
+    assert!(!kinds(&selected.packets).contains(&Kind::StatusEffectUpdated.category()));
+    let base_atk = atk(&selected.packets).unwrap();
+    let item: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1")
+        .bind(utf16("homecafe_bonus_day"))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    let outcome = minimum_use::use_item(
+        &p,
+        &owner,
+        &assets,
+        1,
+        UseItem {
+            item_id: item,
+            target_item_id: -1,
+        },
+        log,
+        Arithmetic::FrameworkX64,
+        &[],
+        Vec::new(),
+    )
+    .await
+    .unwrap();
+    let packets = match outcome {
+        minimum_use::Outcome::AppliedWithSummary(packets) => packets,
+        minimum_use::Outcome::Applied(packets) => {
+            let fail = inventory::decode(Kind::ItemFail, &packets[0].body, DEFAULT_MAX_BODY);
+            let format = match fail {
+                Ok(Some(Message::ItemFail(f))) => f.and_then(|f| f.format),
+                _ => None,
+            };
+            panic!("VIP not applied: {format:?}")
+        }
+        minimum_use::Outcome::Unchanged => panic!("VIP not applied: unchanged"),
+    };
+    let k = kinds(&packets);
+    assert_eq!(k[0], Kind::UseInventoryItemOk.category());
+    assert!(k.contains(&Kind::StatusEffectUpdated.category()));
+    assert_eq!(
+        system(&packets),
+        [(
+            0,
+            Some("GameUI_Heroes_DailyItemProcess_homecafe_bonus_First".to_owned())
+        )]
+    );
+    assert_eq!(k.last(), Some(&Kind::UpdateInventoryInfo.category()));
+    let updated = packets
+        .iter()
+        .find(|p| p.category == Kind::StatusEffectUpdated.category())
+        .unwrap();
+    let Some(Message::StatusEffectUpdated(m)) =
+        inventory::decode(Kind::StatusEffectUpdated, &updated.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("status effects")
+    };
+    let e = m.status_effects.unwrap()[0].clone().unwrap();
+    assert_eq!(
+        (e.kind.as_deref(), e.level, e.combat_count),
+        (Some("homecafe_bonus"), 1, -1)
+    );
+    assert!(
+        (7 * 86_400 - 120..=7 * 86_400).contains(&e.remain_time),
+        "{}",
+        e.remain_time
+    );
+    // StatusEffectStat: ATK +19.
+    assert_eq!(atk(&packets), Some(base_atk + 19));
+    let row: (i64, i16) =
+        sqlx::query_as("SELECT cid,bonus_type FROM game_home_cafe_bonus WHERE uid=$1")
+            .bind(owner.uid)
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(row, (1, 2));
+    // A second login keeps the VIP; once expired, the login ends it with the dialog.
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    let again = minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert!(kinds(&again.packets).contains(&Kind::StatusEffectUpdated.category()));
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    sqlx::query("UPDATE game_home_cafe_bonus SET expired_time_units300=expired_time_units300-$1 WHERE uid=$2")
+        .bind(8 * 25_920_000_i64)
+        .bind(owner.uid)
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE game_status_effects SET expire_ticks=expire_ticks-$1 WHERE cid=1")
+        .bind(8 * 86_400 * 10_000_000_i64)
+        .execute(&p)
+        .await
+        .unwrap();
+    let ended = minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!(
+        system(&ended.packets),
+        [(4, Some("GameUI_Heroes_End_HomeCafe_Message".to_owned()))]
+    );
+    assert_eq!(atk(&ended.packets), Some(base_atk));
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM game_home_cafe_bonus WHERE uid=$1")
+        .bind(owner.uid)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    let effects: i64 = sqlx::query_scalar("SELECT count(*) FROM game_status_effects WHERE cid=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(effects, 0);
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_extra_storage_extends_expiring_bags_with_timed_tickets() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,
@@ -1500,7 +1694,7 @@ async fn minimum_extra_storage_extends_expiring_bags_with_timed_tickets() {
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     let owner = super::initial_inventory::key();
-    let assets = assets_with_classes(0, 1, 0, None, "warehouse_ticket_7");
+    let assets = assets_with_classes(0, 1, 0, None, "warehouse_ticket_7", 0);
     minimum_give::lab_grant(&p, &assets, Some(1), "warehouse_ticket_7", 4, 9)
         .await
         .unwrap()
@@ -1599,7 +1793,7 @@ async fn minimum_extra_storage_opens_a_bag_with_a_permanent_ticket() {
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     let owner = super::initial_inventory::key();
-    let assets = assets_with_classes(0, 1, 0, None, "warehouse_ticket_free");
+    let assets = assets_with_classes(0, 1, 0, None, "warehouse_ticket_free", 0);
     minimum_give::lab_grant(&p, &assets, Some(1), "warehouse_ticket_free", 2, 9)
         .await
         .unwrap()
@@ -5621,7 +5815,7 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     // synthetic_cash (row 1) is the only cash-tab class of the fixture catalog.
-    let profile = json!({"format_version":5,"source":"heroesContents.cash-shop","without_contents":[],"value_products":[],"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":6,"source":"heroesContents.cash-shop","without_contents":[],"value_products":[],"status_effects":[{"type":"homecafe_bonus","level":1,"abs_level":1,"id_tag":"homecafe_bonus","duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]},{"type":"account_homecafe_bonus","level":1,"abs_level":1,"id_tag":"account_homecafe_bonus","duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]}],"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "localized_sha256":"c".repeat(64),"names":[null,{"name":"Synthetic & Cash","description":"Line one.\nLine <two>."},null,null],
         "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[{"category":"CASHITEM","price":300}],
         "customize_items":[{"item":"synthetic_bag","category":"HAIR","shop":"en-EU","feature":null},{"item":"synthetic_cash","category":"HAIR","shop":"ko-KR","feature":null}],

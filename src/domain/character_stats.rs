@@ -99,6 +99,16 @@ impl Stats {
     pub fn set(&mut self, field: Field, value: i32) {
         self.0[field as usize] = value;
     }
+    /// CharacterStats.AddStat(Dictionary): named amounts (Stats enum names); None for an
+    /// unknown name.
+    pub fn from_named(pairs: &[(String, i32)]) -> Option<Self> {
+        let mut out = Self::default();
+        for (name, value) in pairs {
+            let index = Self::default().entries().position(|(n, _)| n == name)?;
+            out.0[index] = out.0[index].wrapping_add(*value);
+        }
+        Some(out)
+    }
     /// CharacterStats.Add uses unchecked Int32 additions.
     pub fn add(&self, rhs: &Self) -> Self {
         Self(std::array::from_fn(|i| self.0[i].wrapping_add(rhs.0[i])))

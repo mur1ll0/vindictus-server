@@ -19,6 +19,9 @@ pub enum Outcome {
     Applied(Vec<OutgoingPacket>),
     /// Source failure without a frontend message (unknown item ID).
     Unchanged,
+    /// A HomeCafeBonus item: the messages, then CharacterCommonInfo (MakeSummary) from the
+    /// frontend, which owns the summary query configuration.
+    AppliedWithSummary(Vec<OutgoingPacket>),
 }
 
 fn fail() -> MinimumError {
@@ -143,12 +146,20 @@ pub async fn use_item(
             // GetItem == null: FailMessage only.
             return Ok((Outcome::Unchanged, None));
         };
+        let class = item.class.clone().unwrap_or_default();
+        let home_cafe =
+            class.starts_with("homecafe_bonus_") || class.starts_with("account_homecafe_bonus_");
         // Item attributes change what some usables do (VALUE amounts, enchant scrolls);
-        // no attributed use is migrated.
-        if item.attributes.as_ref().is_some_and(|a| !a.is_empty()) {
+        // only the VALUE of the HomeCafeBonus items is migrated.
+        let attributes = item.attributes.as_deref().unwrap_or_default();
+        if !attributes.is_empty()
+            && !(home_cafe
+                && attributes
+                    .iter()
+                    .all(|a| a.as_ref().and_then(|a| a.name.as_deref()) == Some("VALUE")))
+        {
             return Err(fail());
         }
-        let class = item.class.clone().unwrap_or_default();
         let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
         let indexed = assets.stats_index.class(Some(&key)).ok_or_else(fail)?;
         // Branches dispatched before the UseInTown test are not migrated.
@@ -181,6 +192,100 @@ pub async fn use_item(
             return Ok((
                 Outcome::Applied(vec![super::minimum_equip::item_fail(failure)?]),
                 None,
+            ));
+        }
+        if home_cafe {
+            // item.Value.IntValue: int.TryParse of the VALUE attribute, else 0.
+            let days = attributes
+                .iter()
+                .flatten()
+                .find(|a| a.name.as_deref() == Some("VALUE"))
+                .and_then(|a| a.value.as_deref())
+                .and_then(|v| v.parse::<i32>().ok())
+                .unwrap_or(0);
+            if let Some(dialog) =
+                super::minimum_home_cafe::use_check(&mut tx, owner, cid, &class, days).await?
+            {
+                return Ok((
+                    Outcome::Applied(vec![super::minimum_equip::item_fail(dialog)?]),
+                    None,
+                ));
+            }
+            // UseUseableItem(1): DestroyItem and Save, then HomeCafeBonus.OnUseItem.
+            let deleted = item.count == 1;
+            if deleted {
+                sqlx::query("DELETE FROM game_item_attributes WHERE item_id=$1")
+                    .bind(item.id)
+                    .execute(&mut *tx)
+                    .await?;
+                sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
+                    .bind(item.id)
+                    .bind(cid)
+                    .execute(&mut *tx)
+                    .await?;
+            } else {
+                sqlx::query("UPDATE game_items SET count=count-1 WHERE id=$1 AND owner_id=$2")
+                    .bind(item.id)
+                    .bind(cid)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            let level: i32 =
+                sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=$1")
+                    .bind(cid)
+                    .fetch_one(&mut *tx)
+                    .await?;
+            let mut packets = vec![OutgoingPacket {
+                category: Kind::UseInventoryItemOk.category(),
+                body: wire::encode(
+                    Kind::UseInventoryItemOk,
+                    Some(&Message::UseInventoryItemOk(Some(class.clone()))),
+                    DEFAULT_MAX_BODY,
+                )
+                .map_err(|_| fail())?
+                .to_vec(),
+            }];
+            let changed = super::minimum_home_cafe::use_bonus(
+                &mut tx, assets, owner, cid, level, &class, days,
+            )
+            .await?;
+            packets.extend(changed.packets);
+            // StatusEffectStat changed: CalculateFinalStat then PushUpdateStat.
+            packets.push(
+                super::minimum_selection::update_stat(&mut tx, owner, assets, cid, arithmetic)
+                    .await?
+                    .0,
+            );
+            let slot = if deleted {
+                super::minimum_move::deleted_slot(item.id)
+            } else {
+                let after = super::minimum_inventory::snapshot_with_equipment(
+                    &mut tx, owner, assets, cid, None,
+                )
+                .await?;
+                after
+                    .slots
+                    .as_ref()
+                    .and_then(|s| s.iter().flatten().find(|s| s.id == item.id))
+                    .cloned()
+                    .ok_or_else(fail)?
+            };
+            let update = Message::UpdateInventoryInfo(Some(vec![Some(slot)]));
+            packets.push(OutgoingPacket {
+                category: Kind::UpdateInventoryInfo.category(),
+                body: wire::encode(Kind::UpdateInventoryInfo, Some(&update), DEFAULT_MAX_BODY)
+                    .map_err(|_| fail())?
+                    .to_vec(),
+            });
+            tx.commit().await?;
+            let change = super::minimum_item_logs::NumChange {
+                item_id: item.id,
+                class_utf16: key.clone(),
+                delta: -1,
+            };
+            return Ok((
+                Outcome::AppliedWithSummary(packets),
+                Some((change, use_journal)),
             ));
         }
         let Some(amount) = capsule_amount(&class).filter(|_| !indexed.equippable) else {

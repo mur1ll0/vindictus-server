@@ -56,6 +56,33 @@ def integer(v):
     return v
 
 
+def status_effect(r):
+    """StatusEffectGroupInfo.Build: Effects (ServerEffect1-3, then each ServerEffect entry
+    split on spaces), StatusEffectType (ServerSide 0 Client, 1 UseExpireTime with
+    RealTimePeriod 1 else UseRemainTime, other DeleteOnLogOut) and StatAdder."""
+    effects = []
+    for i in (1, 2, 3):
+        if r['ServerEffect%d' % i] is not None:
+            effects.append([r['ServerEffect%d' % i]] + [r['ServerEffect%d_Arg%d' % (i, a)] for a in (1, 2, 3)])
+    for entry in (r['ServerEffect'] or '').split(',') if r['ServerEffect'] is not None else []:
+        args = [x.strip() for x in entry.strip().split(' ')]
+        if args and args[0] != '':
+            effects.append(args)
+    side = r['ServerSide']
+    kind = 'Client' if side == 0 else ('UseExpireTime' if r['RealTimePeriod'] == 1 else 'UseRemainTime') if side == 1 else 'DeleteOnLogOut'
+    adder = {}
+    for e in effects:
+        if e[0] != 'stat_adder' or len(e) < 3 or e[1] is None or e[2] is None:
+            continue
+        keys, values = e[1].strip().split(';'), e[2].strip().split(';')
+        pairs = zip(keys, values) if 1 < len(keys) and len(keys) == len(values) else [(e[1], e[2])]
+        for k, v in pairs:
+            adder[k] = adder.get(k, 0) + integer(int(v))
+    return dict(type=text(r['Type']), level=integer(r['Level']), abs_level=integer(r['Abslevel']), id_tag=text(r['IDTag']),
+                duration=None if r['Duration'] is None else integer(r['Duration']), combat_count=integer(r['CombatCount']),
+                kind=kind, stat_adder=sorted([k, v] for k, v in adder.items()))
+
+
 def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED):
     package = catalog_read(database, config)
     entries = localized_entries(localized_path)
@@ -110,7 +137,15 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
                             shop=text(r['CashShopType']), feature=text(r['Feature']))
                        for r in db.execute('Select * From [Cashshop_Tircoin_notsell_list]')]
         values = region_features(db, config)
-    atoms = {'LanguageTag', 'AvatarBeauty', 'CashShop', 'TradeAndCashShopLevelLimit'}
+        # StatusEffectGroupInfo of the HomeCafeBonus effects (HomeCafeBonus_StatusEffect), with
+        # the persistence kind and StatAdder of StatusEffectGroupInfo.Build.
+        cafe_types = [t for t in (values.get('HomeCafeBonus_StatusEffect') or '').split(',') if t]
+        status_effects = []
+        for r in db.execute('Select * From [StatusEffectGroupInfo]'):
+            if r['Type'] in cafe_types:
+                status_effects.append(status_effect(r))
+    atoms = {'LanguageTag', 'AvatarBeauty', 'CashShop', 'TradeAndCashShopLevelLimit', 'HomeCafeBonus',
+             'HomeCafeBonus_Rule_zhCN', 'HomeCafeBonus_StatusEffect', 'CafeBonusIncreaseTime', 'ShowCafeBonusDialog'}
     for r in items + prices + coupons + colors + tir_ignored:
         atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 512 or any(not k.isascii() or not k or len(k) > 256 for k in atoms):
@@ -118,7 +153,7 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
     features = [dict(key=k, value=values.get(k)) for k in sorted(atoms)]
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Cash shop source changed during export')
-    return dict(format_version=5, source='heroesContents.cash-shop', database_sha256=manifest['database_sha256'],
+    return dict(format_version=6, source='heroesContents.cash-shop', status_effects=status_effects, database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], localized_sha256=digest(localized_path),
                 root_category=105, categories=categories, names=names, without_contents=boxed,
                 value_products=[dict(item=k, days=v) for k, v in sorted(value_products.items())],

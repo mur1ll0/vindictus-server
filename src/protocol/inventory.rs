@@ -97,6 +97,7 @@ pub enum Kind {
     RequestSecuredOperation,
     SecuredOperation,
     UseExtraStorage,
+    StatusEffectUpdated,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -184,6 +185,7 @@ impl Kind {
             Self::RequestSecuredOperation => 298,
             Self::SecuredOperation => 299,
             Self::UseExtraStorage => 626,
+            Self::StatusEffectUpdated => 596,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -271,6 +273,7 @@ impl Kind {
             Self::RequestSecuredOperation => 0xd7b15418_06ce_3d45_8e42_08179db5f5a6,
             Self::SecuredOperation => 0xe4c5c606_88ae_304e_9431_97df6b3c4419,
             Self::UseExtraStorage => 0xe9cd479d_3b6b_3d9e_850e_c228d89b7aa7,
+            Self::StatusEffectUpdated => 0x66f872d1_ed92_357d_862e_d6bbc3022c7a,
         })
     }
 }
@@ -462,6 +465,7 @@ pub enum Message {
     RequestSecuredOperation(i32),
     SecuredOperation(SecuredOperation),
     UseExtraStorage(UseExtraStorage),
+    StatusEffectUpdated(StatusEffectUpdated),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -1057,6 +1061,7 @@ impl Message {
             Self::RequestSecuredOperation(_) => Kind::RequestSecuredOperation,
             Self::SecuredOperation(_) => Kind::SecuredOperation,
             Self::UseExtraStorage(_) => Kind::UseExtraStorage,
+            Self::StatusEffectUpdated(_) => Kind::StatusEffectUpdated,
         }
     }
 }
@@ -1433,6 +1438,16 @@ object!(UseExtraStorage {
     item_id,
     storage_id
 });
+/// StatusEffectUpdated: CharacterName, StatusEffects (StatusEffectElement list).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StatusEffectUpdated {
+    pub character_name: Option<String>,
+    pub status_effects: Option<Vec<Option<super::mission::StatusEffect>>>,
+}
+object!(StatusEffectUpdated {
+    character_name,
+    status_effects
+});
 object!(RandomItemRewardList {
     item_classes,
     item_quantities,
@@ -1675,6 +1690,7 @@ pub fn encode(
             Message::RequestSecuredOperation(v) => v.write(&mut w)?,
             Message::SecuredOperation(v) => v.write(&mut w)?,
             Message::UseExtraStorage(v) => v.write(&mut w)?,
+            Message::StatusEffectUpdated(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1819,6 +1835,9 @@ fn decode_body(
             Kind::RequestSecuredOperation => Message::RequestSecuredOperation(Wire::read(&mut r)?),
             Kind::SecuredOperation => Message::SecuredOperation(SecuredOperation::read(&mut r)?),
             Kind::UseExtraStorage => Message::UseExtraStorage(UseExtraStorage::read(&mut r)?),
+            Kind::StatusEffectUpdated => {
+                Message::StatusEffectUpdated(StatusEffectUpdated::read(&mut r)?)
+            }
         })
     };
     if strict && !r.remaining.is_empty() {

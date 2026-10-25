@@ -90,6 +90,7 @@ pub mod equipped_skills;
 pub mod fresh_skill_runtime;
 pub mod initial_gear;
 pub mod skill_multicast;
+pub mod status_effect;
 
 pub mod initial_vocation;
 

@@ -880,6 +880,43 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 "case {n}"
             );
         }
+        Some(Message::StatusEffectUpdated(m)) => {
+            assert_eq!(
+                m.character_name.as_deref(),
+                f["CharacterName"].as_str(),
+                "case {n}"
+            );
+            let ours: Option<Vec<Option<(Option<String>, i64, i64, i64)>>> =
+                m.status_effects.as_ref().map(|l| {
+                    l.iter()
+                        .map(|e| {
+                            e.as_ref().map(|e| {
+                                (
+                                    e.kind.clone(),
+                                    i64::from(e.level),
+                                    i64::from(e.remain_time),
+                                    i64::from(e.combat_count),
+                                )
+                            })
+                        })
+                        .collect()
+                });
+            let theirs = f["StatusEffects"].as_array().map(|l| {
+                l.iter()
+                    .map(|e| {
+                        (!e.is_null()).then(|| {
+                            (
+                                e["Type"].as_str().map(str::to_owned),
+                                e["Level"].as_i64().unwrap(),
+                                e["RemainTime"].as_i64().unwrap(),
+                                e["CombatCount"].as_i64().unwrap(),
+                            )
+                        })
+                    })
+                    .collect()
+            });
+            assert_eq!(ours, theirs, "case {n}");
+        }
         Some(Message::UseExtraStorage(op)) => {
             assert_eq!(
                 (op.item_id, i64::from(op.storage_id)),
@@ -1269,6 +1306,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::BeautyShopCustomize,
         Kind::RequestSecuredOperation,
         Kind::UseExtraStorage,
+        Kind::StatusEffectUpdated,
         Kind::SecuredOperation,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
@@ -1293,7 +1331,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 2346);
+        assert_eq!(cases.len(), 2358);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1356,6 +1394,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 }
                 "secured_operation" => check_inventory(Kind::SecuredOperation, case, n),
                 "use_extra_storage" => check_inventory(Kind::UseExtraStorage, case, n),
+                "status_effect_updated" => check_inventory(Kind::StatusEffectUpdated, case, n),
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),

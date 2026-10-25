@@ -248,7 +248,9 @@ pub(super) fn system_message(
     })
 }
 /// SystemMessageCategory.Dialog.
-const DIALOG: u8 = 4;
+pub(super) const DIALOG: u8 = 4;
+/// SystemMessageCategory.System.
+pub(super) const SYSTEM: u8 = 0;
 
 /// GetBuybackInfoList: newest first, Order is the list index, unit price
 /// SellPrice × BuybackPriceRatio.

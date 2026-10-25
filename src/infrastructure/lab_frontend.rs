@@ -2667,6 +2667,25 @@ impl Connection {
                                 }
                                 tracing::info!("minimum item use saved and synchronized");
                             }
+                            Ok(super::minimum_use::Outcome::AppliedWithSummary(packets)) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                // HomeCafeBonus.OnUseItem: PushCharacterInfo (QueryID 0).
+                                let common = super::minimum_selection::common_info(
+                                    pool,
+                                    &owner,
+                                    assets,
+                                    cid,
+                                    0,
+                                    runtime.minimum_header()?,
+                                    runtime.stat_arithmetic(),
+                                )
+                                .await
+                                .map_err(|_| RuntimeError::Operation)?;
+                                send(stream, sender, common.category, &common.body).await?;
+                                tracing::info!("minimum home cafe bonus applied; values omitted");
+                            }
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
                                 tracing::warn!("minimum item use rejected; values omitted")

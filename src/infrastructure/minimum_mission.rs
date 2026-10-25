@@ -216,13 +216,28 @@ pub async fn member_info(
             .bind(cid)
             .fetch_optional(&mut *tx)
             .await?;
-    let effects: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM game_status_effects WHERE cid=$1")
-        .bind(cid)
-        .fetch_one(&mut *tx)
-        .await?;
-    if vocation.is_some() || effects != 0 {
+    // WhoIs.StatusEffects: the exported effects; other stored effects are not migrated.
+    let (effects, other) = match assets.cash_shop.as_ref() {
+        Some(shop) => {
+            super::minimum_status_effect::load(&mut tx, &shop.customize().status_effects, cid)
+                .await?
+        }
+        None => {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM game_status_effects WHERE cid=$1")
+                    .bind(cid)
+                    .fetch_one(&mut *tx)
+                    .await?;
+            (Vec::new(), count != 0)
+        }
+    };
+    if vocation.is_some() || other {
         return Err(fail());
     }
+    let status_effects = super::minimum_status_effect::elements(
+        &effects,
+        super::minimum_status_effect::now_ticks()?,
+    );
     // MakeMemberInfo: SkillManager.GetBriefSkillEnhanceData.
     let skill_enhances = super::minimum_skill_enhance::brief_data(&mut tx, cid).await?;
     // SkillManager.ToDictionary: base ranks without item skill ranks (refused by view).
@@ -372,7 +387,7 @@ pub async fn member_info(
         equipped_items: Dict(Some(equipped)),
         ability_list: Some(Vec::new()),
         status_effect_dict: StrDict(Some(Vec::new())),
-        status_effects: Some(Vec::new()),
+        status_effects: Some(status_effects),
         destroyed_def: m.destroyed_def,
         is_teacher: false,
         is_assist: false,

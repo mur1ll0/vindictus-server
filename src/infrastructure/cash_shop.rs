@@ -70,6 +70,19 @@ struct TirRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct StatusEffectRow {
+    #[serde(rename = "type")]
+    type_name: String,
+    level: i32,
+    abs_level: i32,
+    id_tag: Option<String>,
+    duration: Option<i32>,
+    combat_count: i32,
+    kind: String,
+    stat_adder: Vec<(String, i32)>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ValueProduct {
     item: String,
     days: Vec<i32>,
@@ -102,6 +115,8 @@ pub struct Profile {
     without_contents: Vec<usize>,
     /// Classes sold once per duration with ProductAttribute3 `[VALUE:n]`.
     value_products: Vec<ValueProduct>,
+    /// StatusEffectGroupInfo of the HomeCafeBonus effects.
+    status_effects: Vec<StatusEffectRow>,
     default_price: i32,
     prices: Vec<Price>,
     customize_items: Vec<CustomizeRow>,
@@ -142,6 +157,8 @@ pub struct Customize {
     /// skinSSSColorDic: skin Color -> skin_sss Color through the shared Order.
     pub skin_sss: BTreeMap<i32, i32>,
     pub tir_ignored: Vec<TirIgnored>,
+    /// StatusEffectGroupInfo of the HomeCafeBonus effects.
+    pub status_effects: crate::domain::status_effect::Contents,
     /// ItemClassInfo.Category and ClassRestriction of each effective class.
     pub classes: BTreeMap<Vec<u8>, (Option<String>, i32)>,
     pub policy: crate::domain::feature_policy::FeaturePolicy,
@@ -182,7 +199,8 @@ impl Profile {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
-        if p.format_version != 5
+        if p.format_version != 6
+            || p.status_effects.len() > 4096
             || p.without_contents.len() > p.categories.len()
             || p.value_products.len() > 64
             || p.value_products.iter().any(|v| {
@@ -474,7 +492,33 @@ impl Profile {
                 ),
             );
         }
+        let status_effects = crate::domain::status_effect::Contents::new(
+            self.status_effects
+                .iter()
+                .map(|r| {
+                    use crate::domain::status_effect::{Info, Kind};
+                    Ok(Info {
+                        type_name: r.type_name.clone(),
+                        level: r.level,
+                        abs_level: r.abs_level,
+                        id_tag: r.id_tag.clone(),
+                        duration: r.duration,
+                        combat_count: r.combat_count,
+                        kind: match r.kind.as_str() {
+                            "Client" => Kind::Client,
+                            "DeleteOnLogOut" => Kind::DeleteOnLogOut,
+                            "UseRemainTime" => Kind::UseRemainTime,
+                            "UseExpireTime" => Kind::UseExpireTime,
+                            _ => return Err(fail()),
+                        },
+                        stat_adder: r.stat_adder.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, MinimumError>>()?,
+        )
+        .ok_or_else(fail)?;
         Ok(Customize {
+            status_effects,
             items,
             prices,
             coupons,

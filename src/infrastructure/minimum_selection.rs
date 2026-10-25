@@ -75,6 +75,10 @@ pub async fn select(
     if row.try_get::<bool, _>("dirty")? || row.try_get::<bool, _>("is_connected")? {
         return Err(MinimumError::Conflict);
     }
+    // CafeManager.OnLogIn (HomeCafeBonus) before the entry state is projected.
+    let level: i32 = row.try_get("level")?;
+    let cafe = super::minimum_home_cafe::login(&mut tx, assets, owner, cid, level).await?;
+    let user_cafe_type = super::minimum_home_cafe::account_cafe_type(&mut tx, owner.uid).await?;
     let view = view(&mut tx, owner, assets, cid, config, arithmetic, false, 0).await?;
     let look = view.look;
     let equipment = view.equipment;
@@ -94,7 +98,8 @@ pub async fn select(
                 .map_err(|_| MinimumError::Conflict)?,
         })?,
         packet(Message::NoticeGameEnvironment {
-            cafe_type: 0,
+            // UserInfo.CafeType: the account-level HomeCafeBonus type of the login.
+            cafe_type: user_cafe_type,
             is_otp: false,
         })?,
         view.common,
@@ -121,6 +126,7 @@ pub async fn select(
     }
     packets
         .push(super::minimum_inventory::load(&mut tx, owner, assets, cid, Some(equipment)).await?);
+    packets.extend(cafe.packets);
     sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=EXCLUDED.last_login_cid").bind(owner.uid).bind(cid).execute(&mut *tx).await?;
     sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=$1")
         .bind(cid)
@@ -142,8 +148,22 @@ pub async fn select(
         log_journal: 0,
     })
 }
+/// StatusEffectManager.StatusEffectStat: the StatAdder of the stored exported effects.
+pub(super) async fn status_stats(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    assets: &Assets,
+    cid: i64,
+) -> Result<Stats, MinimumError> {
+    let Some(shop) = assets.cash_shop.as_ref() else {
+        return Ok(Stats::default());
+    };
+    let (active, _) =
+        super::minimum_status_effect::load(tx, &shop.customize().status_effects, cid).await?;
+    Stats::from_named(&crate::domain::status_effect::stat_adder(&active))
+        .ok_or(MinimumError::Conflict)
+}
 /// StatManager FinalStat[INT] (CalculateItemStat, then ApplyStatSkills) for
-/// SkillEffect.CalculateAPTime; town status effects are not migrated.
+/// SkillEffect.CalculateAPTime, with the stored status effects' stats.
 pub(super) async fn final_int(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     owner: &UserKey<'_>,
@@ -161,7 +181,10 @@ pub(super) async fn final_int(
         .projection
         .item_stats(&gear.bonus.stats, cache)
         .map_err(|_| MinimumError::Conflict)?;
-    let total = Stats::from_base(&base).add(&items.stats);
+    // BaseStat + ItemStat + StatusEffect.StatusEffectStat (the exported effects).
+    let total = Stats::from_base(&base)
+        .add(&items.stats)
+        .add(&status_stats(tx, assets, cid).await?);
     let stats = character_stats::apply_skills(&total, &items.armor_def, cache, false, arithmetic)
         .map_err(|_| MinimumError::Conflict)?;
     Ok(stats.stats.get(character_stats::Field::Int))
@@ -322,7 +345,10 @@ async fn compute_stats(
         .projection
         .item_stats(&gear.bonus.stats, &cache)
         .map_err(|_| MinimumError::Conflict)?;
-    let total = Stats::from_base(&base).add(&items.stats);
+    // BaseStat + ItemStat + StatusEffect.StatusEffectStat (the exported effects).
+    let total = Stats::from_base(&base)
+        .add(&items.stats)
+        .add(&status_stats(tx, assets, cid).await?);
     let armor_hp = items.armor_hp.clone();
     let armor_def = items.armor_def.clone();
     let weight = items.weight;
@@ -422,6 +448,8 @@ pub(super) async fn view(
     .fetch_one(&mut **tx)
     .await?;
     summary.title_count = i32::try_from(acquired).map_err(|_| MinimumError::Conflict)?;
+    // CharacterEntity.CafeType: the HomeCafeBonus type set by HomeCafeBonus.OnLogIn.
+    summary.cafe_type = super::minimum_home_cafe::cafe_type(tx, owner.uid, cid).await?;
     let mut costumes = None;
     if project || !gear.projection.equipment.is_empty() {
         let before = super::character_costumes::load_for_constructor(tx, cid)
