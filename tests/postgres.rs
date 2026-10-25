@@ -1613,3 +1613,6 @@ mod minimum_equipment;
 
 #[path = "support/minimum_give.rs"]
 mod minimum_give;
+
+#[path = "support/admin_panel.rs"]
+mod admin_panel;

@@ -1,6 +1,6 @@
 #requires -Version 7.4
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$ProfileFile,[string]$NameProofFile,[string]$MinimumCreationAssetsFile,[ValidateRange(1,65535)][int]$BootstrapPort=8081,[switch]$SkipBootstrapHttp)
+param([Parameter(Mandatory)][string]$ProfileFile,[string]$NameProofFile,[string]$MinimumCreationAssetsFile,[ValidateRange(1,65535)][int]$BootstrapPort=8081,[switch]$SkipBootstrapHttp,[ValidateRange(0,65535)][int]$AdminPort=0)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $private=[IO.Path]::GetFullPath((Join-Path $project '.cache/private-frontend'))
@@ -67,6 +67,12 @@ if($MinimumCreationAssetsFile){
  $taskAssetsRules=@([IO.FileSystemAclExtensions]::GetAccessControl([IO.FileInfo]::new($taskAssets)).GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]))
  if($taskAssetsRules.Count-lt1-or@($taskAssetsRules|Where-Object{$_.IdentityReference-ne$sid-and$_.IdentityReference-ne$system}).Count-ne0){throw 'Private assets configuration ACL is not protected'}
  $taskRuntimeArguments+=@('--minimum-creation-assets',('"'+$taskAssets+'"'))
+}
+# Admin panel (B4): loopback listener; serves web/admin/dist when it was built.
+if($AdminPort-gt0){
+ $taskRuntimeArguments+=@('--admin-listen',('127.0.0.1:'+$AdminPort))
+ $taskUi=Join-Path $project 'web/admin/dist'
+ if(Test-Path -LiteralPath (Join-Path $taskUi 'index.html')){$taskRuntimeArguments+=@('--admin-ui-dir',('"'+$taskUi+'"'))}
 }
 $process=Start-Process -FilePath $exe -ArgumentList $taskRuntimeArguments -WorkingDirectory $project -WindowStyle Hidden -Environment @{DATABASE_URL=$url;DATABASE_URL_FILE=$null;DB_MAX_CONNECTIONS='8';RUST_LOG='info'} -RedirectStandardInput $stdinCopy -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
 $settings.Clear();$url=$null

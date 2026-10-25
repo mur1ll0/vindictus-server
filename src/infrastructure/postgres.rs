@@ -39,7 +39,14 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
         return Err(Error::SchemaNotReady);
     }
     sqlx::query(
-        "SELECT id, username, normalized_name, password_hash, created_at FROM accounts LIMIT 0",
+        "SELECT id, username, normalized_name, password_hash, created_at, panel_role,
+         failed_logins, locked_until, password_changed_at FROM accounts LIMIT 0",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "SELECT s.token_sha256, s.expires_at, e.id, e.operation_id, e.outcome
+         FROM admin_sessions s, admin_audit_events e LIMIT 0",
     )
     .execute(pool)
     .await?;

@@ -108,15 +108,17 @@ Regra: o painel **nunca** grava direto em tabela de jogo. Só os casos de uso to
 ### 2.4 Autenticação e segurança
 
 - **Mesma conta do jogo com papel (D5, decisão do operador de 25/10/2026):** a conta de `accounts` (login + senha argon2id) ganha `panel_role` (nulo = sem acesso ao painel; `admin`, `gm` ou `leitura`), `failed_attempts`, `locked_until` e `password_changed_at`. O painel nunca pede a segunda senha. Ainda não existe criação de conta pelo painel, então o primeiro admin vem do CLI: `create-account --username X --password-stdin` (já existe) e `account-set-role --username X --role admin` (novo, sem argumento de senha), pelos scripts `create-account.ps1` e `account-set-role.ps1`. Não há credencial padrão. Só um admin pode mudar papéis pelo painel; a última conta admin não pode ser rebaixada.
-- **Sessão:** token aleatório de 32 bytes no cookie `vindictus_admin` (HttpOnly, SameSite=Strict, Path=/; Secure configurável, porque `http://127.0.0.1` não é HTTPS). Só o SHA-256 do token vai para `admin.sessions`, com expiração absoluta de 8 h, ociosa de 30 min e a impressão do hash de senha. Trocar a senha ou desativar o operador invalida as sessões, como o `seguranca.py:227-245` do pw-universal.
+- **Sessão:** token aleatório de 32 bytes no cookie `vindictus_admin` (HttpOnly, SameSite=Strict, Path=/; Secure configurável, porque `http://127.0.0.1` não é HTTPS). Só o SHA-256 do token vai para `admin_sessions`, com expiração absoluta de 8 h, ociosa de 30 min e a impressão do hash de senha. Trocar a senha ou desativar o operador invalida as sessões, como o `seguranca.py:227-245` do pw-universal.
 - **CSRF:** token sincronizador por sessão, devolvido em `GET /api/session` e exigido em `X-CSRF-Token` nas mutações, mais checagem de `Origin`/`Sec-Fetch-Site` (mesma origem). A SPA é servida pelo mesmo listener, sem CORS.
 - **Limites:** tentativas de login por IP (20/min) e por nome (10/min) em memória no processo; bloqueio persistente do operador depois de 10 falhas seguidas (15 min). A verificação argon2 roda em `spawn_blocking` com um semáforo de 2, para não saturar a máquina.
 - **Papéis:** Leitura = GET; GM = contas, personagens, lojas (rascunho); Admin = tudo, inclusive papéis, publicação de conteúdo e revogação.
 - **Logs:** nenhum token, senha, passport ou CSRF em log. Os tipos com segredo não implementam `Debug`/`Serialize`, como o `LabRuntimeConfig` já faz. Corpo limitado antes da leitura.
 
+Nota (B4.1): as tabelas do painel usam prefixo (`admin_*`, `content_*`) em vez de esquemas próprios, porque os testes PostgreSQL isolam cada execução por `search_path` num esquema aleatório; um esquema fixo seria compartilhado entre execuções.
+
 ### 2.5 Auditoria
 
-`admin.audit_events` (identity bigint, `at` timestamptz, `account_id` (quem), `role`, `operation_id` único, `action`, `target_kind`, `target_id`, `reason` não nulo nas mudanças, `before` jsonb, `after` jsonb, `outcome`, `peer`). Gravada na mesma transação da mudança. A tabela é só de acréscimo: um trigger recusa UPDATE/DELETE. Login, logout e falhas de login também entram. A tela Auditoria filtra por operador, alvo, ação e período, com paginação por chave (id), sem OFFSET, e índices `(target_kind, target_id, id)` e `(operator_id, id)`.
+`admin_audit_events` (identity bigint, `at` timestamptz, `account_id` (quem), `role`, `operation_id` único, `action`, `target_kind`, `target_id`, `reason` não nulo nas mudanças, `before` jsonb, `after` jsonb, `outcome`, `peer`). Gravada na mesma transação da mudança. A tabela é só de acréscimo: um trigger recusa UPDATE/DELETE. Login, logout e falhas de login também entram. A tela Auditoria filtra por operador, alvo, ação e período, com paginação por chave (id), sem OFFSET, e índices `(target_kind, target_id, id)` e `(operator_id, id)`.
 
 ### 2.6 Personagem online: regra por ação (D4)
 
@@ -132,7 +134,7 @@ Entrega com o personagem online (mensagens de atualização enviadas pela sessã
 
 ### 2.7 Conteúdo: edições versionadas e ciclo de aplicação (D6)
 
-- Tabelas `content.edit_sets` (versão, estado `rascunho → publicado → aplicado`, autor, motivo) e `content.edit_rows` (tabela, chave jsonb, coluna, valor original, valor novo; ou linha adicionada/removida em `ShopInfo`), no esquema `content`, separado do estado dos personagens.
+- Tabelas `content_edit_sets` (versão, estado `rascunho → publicado → aplicado`, autor, motivo) e `content_edit_rows` (tabela, chave jsonb, coluna, valor original, valor novo; ou linha adicionada/removida em `ShopInfo`), separadas do estado dos personagens.
 - Validação na hora da edição: a tabela e a coluna precisam ser um `TuningPoint` conhecido, com o tipo e a faixa da coluna. A chave precisa existir no catálogo carregado. O painel mostra o valor original, o modificado e o novo lado a lado, como a tabela de `docs/content-tuning.md`.
 - **Aplicar** (no host, porque o container só lê `.cache/private-content` e não alcança os SQLite originais nem a cópia do cliente): `scripts/content/apply-content-edits.ps1 -Version N`.
   1. `vindictus-server content-edits-export --version N` grava `.cache/private-content/content-edits.json`, a URL do banco vem do `.env`, como no `lab-give-item.ps1`.
@@ -160,7 +162,7 @@ Testes (D7, decisão do operador): sem e2e e sem suíte de frontend. O operador 
 Cada passo tem testes focados (alvos Rust afetados e testes PostgreSQL filtrados em esquema isolado), commit próprio e atualização do `MIGRATION.md`. A suíte completa e o smoke Docker ficam para o gate.
 
 ### B4.1 — Login de admin e auditoria
-- Migração `0042_admin.sql`: colunas de papel e bloqueio em `accounts`; esquema `admin` com `sessions`, `audit_events` (+ trigger só-acréscimo) e `operations`. CLI e script `account-set-role`. Listener `--admin-listen`. Rotas `POST /api/session/login`, `GET /api/session`, `POST /api/session/logout`, `GET /api/audit`. OpenAPI e teste de divergência.
+- Migração `0042_admin_panel.sql` (feita): colunas de papel e bloqueio em `accounts`; `admin_sessions` e `admin_audit_events` (+ trigger só-acréscimo; `operation_id` único serve à idempotência). CLI e script `account-set-role`. Listener `--admin-listen`. Rotas `POST /api/session/login`, `GET /api/session`, `POST /api/session/logout`, `GET /api/audit`. OpenAPI e teste de divergência.
 - SPA mínima: Entrar, layout, Auditoria. Instalação do `web/admin` (Vite, Router, Query, shadcn/ui).
 - Testes: Rust (domínio de papéis/motivo, parse de cookie/CSRF, `RequireRole`); PostgreSQL `admin_login_*` (senha errada conta tentativas, bloqueio, expiração, sessão invalidada ao trocar a senha, CSRF ausente recusado, Leitura recusada em POST, UPDATE/DELETE de auditoria recusados, `operation_id` repetido)..
 - Cliente: não necessário.
@@ -185,7 +187,7 @@ Cada passo tem testes focados (alvos Rust afetados e testes PostgreSQL filtrados
 - Roteiro: B4.3c (subir nível, dar VIP 7 dias, conferir no cliente).
 
 ### B4.4 — Lojas de NPC e cash shop (e o ciclo de conteúdo)
-- Migração `0044_content_edits.sql` (esquema `content`); `content-edits-export`; `apply-content-edits.ps1`; `content_overrides.py` lendo o overlay.
+- Migração `0044_content_edits.sql` (tabelas `content_*`); `content-edits-export`; `apply-content-edits.ps1`; `content_overrides.py` lendo o overlay.
 - Lojas de NPC: ver `ShopInfo` (original + adições do laboratório + edições), adicionar/alterar/remover linha (item, preço, ordem, quest de aparição, limite), com a cópia do cliente atualizada por `apply_lab_content_additions.py`.
 - Cash shop: categorias e preços (`cash_shop_prices.json` → edição), produtos VIP 7/30/90 dias, prévia do ShopList que o `lab-export-shop-list.ps1` gera.
 - Testes: Python (`test_content_overrides`, `test_export_npc_scripts`, `test_export_cash_shop` com overlay), PostgreSQL `content_edit_*` (versão, validação de faixa/chave, publicação, só-acréscimo).
@@ -242,7 +244,7 @@ Cada um entra como uma rota OpenAPI nova, um caso de uso em `application/admin/`
 | D3 | Onde roda a API admin | No processo do jogo (`game`), listener 127.0.0.1:27090. |
 | D4 | Personagem online | Exigir offline no B4, com "Desconectar e aplicar"; entrega online no B5. |
 | D5 | Contas do painel | **Decidido (25/10/2026):** a mesma conta do jogo, com papel `admin`/`gm`/`leitura` em `accounts.panel_role`. |
-| D6 | Onde ficam as edições de conteúdo | PostgreSQL (esquema `content`) com export para `.cache/private-content`; o `lab_content_additions.json` versionado no git continua para adições permanentes. |
+| D6 | Onde ficam as edições de conteúdo | PostgreSQL (tabelas `content_*`) com export para `.cache/private-content`; o `lab_content_additions.json` versionado no git continua para adições permanentes. |
 | D7 | Testes | **Decidido (25/10/2026):** sem e2e; só testes unitários/PostgreSQL necessários no servidor; o painel é testado pelo operador. |
 | D8 | Mapas/canais | Somente leitura. |
 | D9 | Ferramentas do frontend | npm (já instalado, Node 24) e shadcn/ui. |

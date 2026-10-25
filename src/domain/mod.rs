@@ -1,6 +1,8 @@
 //! Foundation account invariants, independent of legacy credential formats.
 mod account;
-pub use account::{Username, hash_password, validate_password};
+pub use account::{Username, hash_password, validate_password, verify_password};
+
+pub mod admin;
 
 pub mod legacy_user;
 

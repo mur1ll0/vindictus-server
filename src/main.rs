@@ -305,11 +305,19 @@ async fn run(cli: Cli) -> Result<(), Error> {
         );
         return Ok(());
     }
+    if let Command::ExportOpenapi { output } = &cli.command {
+        std::fs::write(output, vindictus_server::http::admin::openapi_json())?;
+        println!("Admin panel OpenAPI written");
+        return Ok(());
+    }
     if let Command::LabFrontend {
         policy_file,
         name_proof_file,
         minimum_creation_assets,
         container_listen,
+        admin_listen,
+        admin_ui_dir,
+        admin_secure_cookie,
         ..
     } = &cli.command
     {
@@ -394,6 +402,26 @@ async fn run(cli: Cli) -> Result<(), Error> {
             }
             None => None,
         };
+        // Administration panel (B4): its own loopback listener, aborted with the frontend.
+        let admin_task = match admin_listen {
+            Some(bind) => {
+                use vindictus_server::{application::admin_session::PanelAuth, http::admin};
+                if !bind.ip().is_loopback() || bind.port() == 0 {
+                    return Err(Error::Configuration(
+                        "admin panel must listen on a loopback port".into(),
+                    ));
+                }
+                let admin_listener =
+                    tokio::net::TcpListener::bind(lab_peer::listen_addr(*bind)).await?;
+                tracing::info!(address=%admin_listener.local_addr()?, "admin panel listening");
+                let app = admin::router(
+                    admin::AdminState::new(PanelAuth::new(pool.clone()), *admin_secure_cookie),
+                    admin_ui_dir.as_deref(),
+                );
+                Some(tokio::spawn(admin::serve(admin_listener, app)))
+            }
+            None => None,
+        };
         let result = if let Some((channel_listener, channel)) = channel_listener {
             tracing::info!(address=%channel_listener.local_addr()?, "minimum channel listening without cipher");
             let (stop, signal) = tokio::sync::watch::channel(false);
@@ -423,6 +451,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
             task.abort();
         }
         if let Some(task) = web_shop_task {
+            task.abort();
+        }
+        if let Some(task) = admin_task {
             task.abort();
         }
         let minimum_cleanup = runtime.shutdown_minimum().await;
@@ -588,7 +619,26 @@ async fn run(cli: Cli) -> Result<(), Error> {
         | Command::InspectMinimumCreationAssets { .. }
         | Command::InspectMissionContent { .. }
         | Command::LabExportShopList { .. }
+        | Command::ExportOpenapi { .. }
         | Command::LabFrontend { .. } => {}
+        Command::AccountSetRole {
+            username,
+            role,
+            reason,
+        } => {
+            use vindictus_server::{
+                application::admin_session::set_role_from_cli, domain::admin::PanelRole,
+            };
+            postgres::check_ready(&pool).await?;
+            let role = PanelRole::parse(&role);
+            set_role_from_cli(&pool, &username, role, &reason)
+                .await
+                .map_err(|e| Error::Configuration(format!("role change refused: {e}")))?;
+            println!(
+                "{}",
+                serde_json::json!({"username": username, "panel_role": role})
+            );
+        }
         Command::Migrate => {
             postgres::migrate(&pool).await?;
             println!("PostgreSQL migrations applied; migrate does not import legacy data.");

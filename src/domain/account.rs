@@ -1,7 +1,7 @@
 use crate::error::Error;
 use argon2::{
     Argon2,
-    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 
 /// Validated ASCII username retaining display case and a case-insensitive identity.
@@ -51,4 +51,10 @@ pub fn hash_password(password: &[u8]) -> Result<String, Error> {
         .hash_password(password, &salt)
         .map(|hash| hash.to_string())
         .map_err(|_| Error::PasswordHash)
+}
+
+/// Check a password against a stored Argon2id PHC string; an unparsable hash never matches.
+pub fn verify_password(password: &[u8], hash: &str) -> bool {
+    PasswordHash::new(hash)
+        .is_ok_and(|parsed| Argon2::default().verify_password(password, &parsed).is_ok())
 }

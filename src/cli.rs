@@ -39,6 +39,31 @@ pub enum Command {
         /// Docker publishes only on the host loopback; advertised addresses stay loopback.
         #[arg(long)]
         container_listen: bool,
+        /// Loopback IP:port of the administration panel (for example 127.0.0.1:27090);
+        /// omitted, no panel listener is opened.
+        #[arg(long)]
+        admin_listen: Option<std::net::SocketAddr>,
+        /// Built panel single-page app (web/admin/dist) served by the panel listener.
+        #[arg(long, requires = "admin_listen")]
+        admin_ui_dir: Option<std::path::PathBuf>,
+        /// Mark the panel cookie Secure (only behind HTTPS).
+        #[arg(long, requires = "admin_listen")]
+        admin_secure_cookie: bool,
+    },
+    /// Give, change or remove (`none`) the panel role of an existing account; audited.
+    AccountSetRole {
+        #[arg(long)]
+        username: String,
+        #[arg(long, value_parser = ["admin", "gm", "leitura", "none"])]
+        role: String,
+        /// Mandatory audit reason.
+        #[arg(long)]
+        reason: String,
+    },
+    /// Write the panel OpenAPI document (web/admin/openapi.json); no database or listener.
+    ExportOpenapi {
+        #[arg(long)]
+        output: std::path::PathBuf,
     },
     /// Laboratory GiveItem for an offline first Fiona (gold or any item class); the
     /// client sees the result after selecting the character. Not a game command.
