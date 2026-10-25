@@ -1869,6 +1869,7 @@ impl Connection {
                 Kind::WishListInsert,
                 Kind::WishListDelete,
                 Kind::BeautyShopCustomize,
+                Kind::RequestSecuredOperation,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
@@ -2304,6 +2305,24 @@ impl Connection {
                             }
                             Err(_) => {
                                 tracing::warn!("minimum shop purchase refused; values omitted")
+                            }
+                        }
+                    }
+                    Message::RequestSecuredOperation(operation) => {
+                        match super::minimum_cash_shop::secured_operation(
+                            pool, &owner, assets, cid, operation,
+                        )
+                        .await
+                        {
+                            Ok(packet) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!(
+                                    category = packet.category,
+                                    "minimum secured operation answered; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum secured operation refused; values omitted")
                             }
                         }
                     }

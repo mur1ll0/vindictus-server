@@ -70,7 +70,7 @@ def read_package(database, config, prices_path=PRICES):
                             shop=text(r['CashShopType']), feature=text(r['Feature']))
                        for r in db.execute('Select * From [Cashshop_Tircoin_notsell_list]')]
         values = region_features(db, config)
-    atoms = {'LanguageTag', 'AvatarBeauty', 'CashShop'}
+    atoms = {'LanguageTag', 'AvatarBeauty', 'CashShop', 'TradeAndCashShopLevelLimit'}
     for r in items + prices + coupons + colors + tir_ignored:
         atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 512 or any(not k.isascii() or not k or len(k) > 256 for k in atoms):

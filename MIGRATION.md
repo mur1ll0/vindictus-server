@@ -1287,3 +1287,9 @@ CS6 — Depot e equipar itens da aba cash (25/10/2026, teste de cliente: Depot i
 - Testes: PostgreSQL `minimum_equip lab_frontend` (18, inclui a sincronização de features), `frontend_probe`, `lab_runtime_config`; clippy `-D warnings`.
 - Cliente: entrada CS6 em `docs/client-tests/B3-equipamento.md`.
 
+CS7 — abrir o cash shop pelo Depot (25/10/2026, teste de cliente: o botão aparece mas o clique não faz nada; equipar os itens da aba cash confirmado).
+- Diagnóstico: o clique envia `RequestSecuredOperationMessage` (298) sem handler.
+- Fonte: `ItemServiceProxy` (`UseSecondPassword`; nível abaixo de `TradeAndCashShopLevelLimit` → Dialog "GameUI_Heroes_TradeAndCashShopLevelLimit_Desc"; senão `SecuredOperationMessage(Operation, LockedTimeInSeconds 0)`), `SecuredOperationType` (Public, OpenCashShopDialog, OpenTradeDialog).
+- Protocolo: 298 e 299 (enum como Int32); oráculo 2.334 casos (x86 = x64). Conteúdo: `TradeAndCashShopLevelLimit` (1) no perfil do cash shop. Infraestrutura: `minimum_cash_shop::secured_operation`, rota no `lab_frontend`.
+- Testes: `item_sync_wire`, `inventory_wire`, PostgreSQL `minimum_cash_shop` (abre o diálogo), clippy `-D warnings`.
+

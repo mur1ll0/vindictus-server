@@ -521,3 +521,41 @@ pub async fn wish_delete(
     tx.commit().await?;
     wish_response(Kind::WishListDeleteResponse, WISH_SUCCESS, request.cid)
 }
+
+/// RequestSecuredOperationMessage (after the second password): below
+/// TradeAndCashShopLevelLimit a Dialog SystemMessage, otherwise SecuredOperationMessage
+/// (Operation, LockedTimeInSeconds 0), which opens the cash shop or trade dialog.
+pub async fn secured_operation(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    operation: i32,
+) -> Result<OutgoingPacket, MinimumError> {
+    let contents = assets.cash_shop.as_ref().ok_or_else(fail)?;
+    let limit = contents
+        .customize()
+        .policy
+        .get_integer("TradeAndCashShopLevelLimit")?;
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let level: i32 = sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=$1")
+        .bind(cid)
+        .fetch_one(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    if level < limit {
+        return super::minimum_shop::system_message(
+            4,
+            "GameUI_Heroes_TradeAndCashShopLevelLimit_Desc",
+            &[limit.to_string()],
+        );
+    }
+    packet(
+        Kind::SecuredOperation,
+        Message::SecuredOperation(wire::SecuredOperation {
+            operation,
+            locked_time_in_seconds: 0,
+        }),
+        DEFAULT_MAX_BODY,
+    )
+}

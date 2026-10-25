@@ -94,6 +94,8 @@ pub enum Kind {
     WishListDelete,
     WishListDeleteResponse,
     BeautyShopCustomize,
+    RequestSecuredOperation,
+    SecuredOperation,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -178,6 +180,8 @@ impl Kind {
             Self::WishListDelete => 209,
             Self::WishListDeleteResponse => 210,
             Self::BeautyShopCustomize => 233,
+            Self::RequestSecuredOperation => 298,
+            Self::SecuredOperation => 299,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -262,6 +266,8 @@ impl Kind {
             Self::WishListDelete => 0xc4587129_aa0e_3a5d_a47d_6e17ce2550a7,
             Self::WishListDeleteResponse => 0xa72f021b_568b_3ff6_8400_3c6a64c3c2bc,
             Self::BeautyShopCustomize => 0x31e4e1d4_592f_3f80_b094_27cc6a284f97,
+            Self::RequestSecuredOperation => 0xd7b15418_06ce_3d45_8e42_08179db5f5a6,
+            Self::SecuredOperation => 0xe4c5c606_88ae_304e_9431_97df6b3c4419,
         })
     }
 }
@@ -449,6 +455,9 @@ pub enum Message {
     WishListDelete(WishListChange),
     WishListDeleteResponse(WishListResponse),
     BeautyShopCustomize(BeautyShopCustomize),
+    /// RequestSecuredOperationMessage: Operation (SecuredOperationType as Int32).
+    RequestSecuredOperation(i32),
+    SecuredOperation(SecuredOperation),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -791,6 +800,12 @@ pub struct BeautyShopCustomize {
     pub look_change_price: Option<String>,
     pub body_shape_info: Dict<i32>,
 }
+/// SecuredOperationMessage: Operation (SecuredOperationType as Int32), LockedTimeInSeconds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SecuredOperation {
+    pub operation: i32,
+    pub locked_time_in_seconds: i32,
+}
 /// RandomItemRewardListMessage in declaration order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RandomItemRewardList {
@@ -1035,6 +1050,8 @@ impl Message {
             Self::WishListDelete(_) => Kind::WishListDelete,
             Self::WishListDeleteResponse(_) => Kind::WishListDeleteResponse,
             Self::BeautyShopCustomize(_) => Kind::BeautyShopCustomize,
+            Self::RequestSecuredOperation(_) => Kind::RequestSecuredOperation,
+            Self::SecuredOperation(_) => Kind::SecuredOperation,
         }
     }
 }
@@ -1397,6 +1414,10 @@ object!(BeautyShopCustomize {
     look_change_price,
     body_shape_info
 });
+object!(SecuredOperation {
+    operation,
+    locked_time_in_seconds
+});
 object!(RandomItemRewardList {
     item_classes,
     item_quantities,
@@ -1636,6 +1657,8 @@ pub fn encode(
             Message::WishListDelete(v) => v.write(&mut w)?,
             Message::WishListDeleteResponse(v) => v.write(&mut w)?,
             Message::BeautyShopCustomize(v) => v.write(&mut w)?,
+            Message::RequestSecuredOperation(v) => v.write(&mut w)?,
+            Message::SecuredOperation(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1777,6 +1800,8 @@ fn decode_body(
             Kind::BeautyShopCustomize => {
                 Message::BeautyShopCustomize(BeautyShopCustomize::read(&mut r)?)
             }
+            Kind::RequestSecuredOperation => Message::RequestSecuredOperation(Wire::read(&mut r)?),
+            Kind::SecuredOperation => Message::SecuredOperation(SecuredOperation::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

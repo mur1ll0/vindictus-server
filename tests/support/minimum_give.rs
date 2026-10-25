@@ -5688,6 +5688,14 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
     .await
     .unwrap();
     assert_eq!(extras, [(3, Some(12)), (14, Some(3))]);
+    // RequestSecuredOperation(OpenCashShopDialog) above the level limit opens the dialog.
+    let opened = minimum_cash_shop::secured_operation(&p, &owner, &assets, 1, 1)
+        .await
+        .unwrap();
+    let Message::SecuredOperation(op) = decode(&opened, Kind::SecuredOperation) else {
+        panic!("secured operation")
+    };
+    assert_eq!((op.operation, op.locked_time_in_seconds), (1, 0));
     // Tir payment without tir_coin: DestroyItem fails and nothing changes.
     let mut tir = beauty(vec![item(-1, "139")]);
     tir.payment = 2;

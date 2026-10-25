@@ -873,6 +873,26 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
             });
             assert_eq!(b.body_shape_info.0, shapes, "case {n}");
         }
+        Some(Message::RequestSecuredOperation(op)) => {
+            assert_eq!(
+                i64::from(op),
+                f["Operation"]["value__"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::SecuredOperation(op)) => {
+            assert_eq!(
+                (
+                    i64::from(op.operation),
+                    i64::from(op.locked_time_in_seconds)
+                ),
+                (
+                    f["Operation"]["value__"].as_i64().unwrap(),
+                    f["LockedTimeInSeconds"].as_i64().unwrap()
+                ),
+                "case {n}"
+            );
+        }
         Some(Message::RandomItemRewardList(m)) => {
             let classes = f["ItemClasses"].as_array().map(|o| {
                 o.iter()
@@ -1237,6 +1257,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::WishListDelete,
         Kind::WishListDeleteResponse,
         Kind::BeautyShopCustomize,
+        Kind::RequestSecuredOperation,
+        Kind::SecuredOperation,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
         Kind::QueryBuybackList,
@@ -1260,7 +1282,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 2310);
+        assert_eq!(cases.len(), 2334);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1318,6 +1340,10 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                     check_inventory(Kind::WishListDeleteResponse, case, n)
                 }
                 "beauty_shop_customize" => check_inventory(Kind::BeautyShopCustomize, case, n),
+                "request_secured_operation" => {
+                    check_inventory(Kind::RequestSecuredOperation, case, n)
+                }
+                "secured_operation" => check_inventory(Kind::SecuredOperation, case, n),
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),
