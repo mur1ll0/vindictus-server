@@ -16,6 +16,13 @@ class ItemEconomyExportTests(unittest.TestCase):
             db.execute("UPDATE ItemClassInfo SET QuickSlotMaxStack=10,Draft=1 WHERE ItemClass='synthetic'")
             db.execute('CREATE TABLE AlchemistBoxInfo(BoxItemClass TEXT,Attribute TEXT,Slot1 TEXT)')
             db.execute("INSERT INTO AlchemistBoxInfo VALUES('box_b','a','x'),('box_a',NULL,NULL)")
+            for column, kind in (('SortOrder', 'TEXT'), ('Level', 'INTEGER DEFAULT 0'), ('InventoryFilterName', 'TEXT')):
+                db.execute(f'ALTER TABLE ItemClassInfo ADD COLUMN {column} {kind}')
+            db.execute("UPDATE ItemClassInfo SET SortOrder='100.02',Level=7,InventoryFilterName='GOODS' WHERE ItemClass='synthetic'")
+            db.execute('CREATE TABLE SetInfo(SetID TEXT)')
+            db.execute('CREATE TABLE SetItemInfo(ItemClass TEXT,BaseItemClass TEXT,SetID TEXT)')
+            db.execute("INSERT INTO SetInfo VALUES('set_a')")
+            db.execute("INSERT INTO SetItemInfo VALUES('synthetic',NULL,'set_a'),('synthetic',NULL,'set_b')")
             db.commit()
     def test_rows_keep_catalog_order_duplicates_and_hashes_are_readonly(self):
         before = [digest(p) for p in (self.db, self.config)]
@@ -26,6 +33,8 @@ class ItemEconomyExportTests(unittest.TestCase):
         self.assertEqual((p['classes'][1]['quick_slot_max_stack'], p['classes'][1]['draft'], p['classes'][0]['quick_slot_max_stack']), (10, 1, 10))
         self.assertEqual(p['alchemist_boxes'], ['box_a'.encode('utf-16-le').hex(), 'box_b'.encode('utf-16-le').hex()])
         self.assertEqual((p['classes'][1]['level_upper_bound'], p['classes'][1]['cafe_only'], p['classes'][1]['required_skill_rank'], p['classes'][1]['required_skill_utf16']), (40, 2, 5, 'skill_x'.encode('utf-16-le').hex()))
+        c = p['classes'][1]
+        self.assertEqual((c['sort_order'], c['level'], c['inventory_filter'], c['set_id']), ('100.02', 7, 'GOODS', 'set_a'))
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
     def test_mistyped_values_are_refused(self):
         with contextlib.closing(sqlite3.connect(self.db)) as db:

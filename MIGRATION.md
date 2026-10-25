@@ -1385,3 +1385,11 @@ EL1 — Enhancement Elixir no Ferghus e isolamento dos itens diários (25/10/202
 - Testes: Python `test_export_npc_scripts` (2), `test_apply_lab_content_additions` (2), PostgreSQL `minimum_daily minimum_shop` (3), clippy `-D warnings`; assets reais validados (`inspect-minimum-creation-assets`).
 - Pendente: identificar no log do próximo login qual procedimento diário falhava.
 - Cliente: entrada EL1 em `docs/client-tests/B3-equipamento.md`.
+
+SO1 — Sort e Sort All do inventário (25/10/2026, pedido do operador).
+- Fonte: `ItemServiceProxy` (`RequestSortInventoryMessage` 401, StorageNo → `SortInventory`), `SortInventoryProcessor` (100 cash, 103 história, outro valor uma bolsa ou −1 todas), `ItemOwner.SortBagInventory/SortCashInventory/SortStoryInventory` (30 s entre ordenações com o diálogo "GameUI_Heroes_SortFail_Cooling"; bolsa indisponível recusa; com −1 os itens cujo InventoryFilterType bate com a StorageTag da bolsa primeiro e o resto nas bolsas disponíveis em ValidBagStorageIDs, 48 por bolsa), `ItemComparer` (equipado primeiro; SortOrder, com "200.00" para item de set; sets por SetID, Category e Level; Level e Price decrescentes; ItemClass), `GetInventoryFilterType`, `Item.IsSetItem`, `BagStorage.ArrangeSlot`; AvatarSynthesis_V2 desligado na EU.
+- Conteúdo: `export_item_economy.py` acrescenta SortOrder, Level, InventoryFilterName e o primeiro SetID com SetInfo (`SetItemInfo`).
+- Protocolo: 401 no oráculo de item sync (2.370 casos, x86 = x64). Infraestrutura: `minimum_sort::sort` (move as linhas e envia UpdateInventoryInfo dos itens que mudaram), rota no `lab_frontend` com o tempo de espera da sessão.
+- Diferenças: as strings comparam em ordem ordinal (o original usa a cultura; as chaves do conteúdo são ASCII); as StorageTag das bolsas são 0 (UpdateStorageSetting não migrado).
+- Testes: Python `test_export_item_economy` (2), `item_sync_wire`, `inventory_wire`, PostgreSQL `minimum_sort_compacts_a_bag_and_sort_all_fills_bags_in_order` e regressão `minimum_give minimum_equipment minimum_inventory` (49), clippy `-D warnings`.
+- Cliente: entrada SO1 em `docs/client-tests/B3-equipamento.md`.

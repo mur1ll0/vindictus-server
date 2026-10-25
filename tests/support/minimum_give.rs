@@ -1488,6 +1488,99 @@ async fn minimum_quest_login_gives_first_and_level_quests_once_and_pushes_progre
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_sort_compacts_a_bag_and_sort_all_fills_bags_in_order() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_selection, minimum_sort},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let assets = assets_with(0, 1, 0);
+    minimum_give::lab_grant(&p, &assets, Some(1), "enchant_scroll", 3, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let positions = || async {
+        sqlx::query_as::<_, (i16, i32)>(
+            "SELECT collection,slot FROM game_items WHERE owner_id=1 AND collection IN (0,1,6) ORDER BY collection,slot",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    // Scatter the bag items over bags 1 and 6 with gaps.
+    let ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE owner_id=1 AND collection IN (0,1,6) ORDER BY id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert!(ids.len() >= 3);
+    for (n, id) in ids.iter().enumerate() {
+        let (collection, slot) = if n % 2 == 0 {
+            (1, 40 - n as i32)
+        } else {
+            (6, 30 - n as i32)
+        };
+        sqlx::query("UPDATE game_items SET collection=$2,slot=$3 WHERE id=$1")
+            .bind(id)
+            .bind(collection as i16)
+            .bind(slot)
+            .execute(&p)
+            .await
+            .unwrap();
+    }
+    // One bag: its items move to slots 0.. of that bag.
+    let in_bag1 = ids.iter().step_by(2).count();
+    let packets = minimum_sort::sort(&p, &owner, &assets, 1, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(packets[0].category, Kind::UpdateInventoryInfo.category());
+    let bag1: Vec<i32> = positions()
+        .await
+        .into_iter()
+        .filter(|(c, _)| *c == 1)
+        .map(|(_, s)| s)
+        .collect();
+    assert_eq!(bag1, (0..in_bag1 as i32).collect::<Vec<_>>());
+    // Sort All: every available bag item fills bag 0 from slot 0 (fewer than 48 items).
+    minimum_sort::sort(&p, &owner, &assets, 1, -1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        positions().await,
+        (0..ids.len() as i32).map(|s| (0, s)).collect::<Vec<_>>()
+    );
+    // A bag that is not available is refused without changes.
+    assert!(
+        minimum_sort::sort(&p, &owner, &assets, 1, 2)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_daily_items_give_vvip_items_once_per_range() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,

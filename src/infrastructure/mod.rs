@@ -135,6 +135,7 @@ pub mod minimum_repair;
 pub mod minimum_restore;
 pub mod minimum_shop;
 pub mod minimum_skills;
+pub mod minimum_sort;
 pub mod minimum_status_effect;
 pub mod minimum_story;
 pub mod minimum_use;

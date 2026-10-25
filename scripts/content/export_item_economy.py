@@ -22,6 +22,16 @@ def read_package(database, config):
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         # Same SELECT * provider order as the catalog projection; rows bind by position.
         rows = []
+        # ItemContents.setInfoByItemClass: SetItemInfo rows by ItemClass, each SetInfo of its
+        # SetID (GetSetInfo is null without a SetInfo row); the first one decides IsSetItem.
+        set_ids = {r['SetID'] for r in db.execute('Select SetID From [SetInfo]')}
+        first_set = {}
+        for r in db.execute('Select ItemClass, SetID From [SetItemInfo]'):
+            first_set.setdefault(r['ItemClass'], r['SetID'] if r['SetID'] in set_ids else None)
+        def plain(v):
+            if v is None: return None
+            if not isinstance(v, str) or len(v) > 256: raise ValueError('Economy sort text')
+            return v
         for r in overrides.select(db, 'ItemClassInfo'):
             rows.append(dict(item_utf16=text(r['ItemClass']), category_utf16=text(r['Category']),
                              unique=integer(r['Unique']), expire_in=integer(r['ExpireIn'], True),
@@ -34,7 +44,10 @@ def read_package(database, config):
                              required_skill_utf16=text(r['RequiredSkill']), required_skill_rank=integer(r['RequiredSkillRank']),
                              required_enhance=integer(r['RequiredEnhanceLevel']), required_enchant=integer(r['RequiredEnchantLevel']),
                              # ItemOwner.MakeConsumablesInfo (battle inventory of mission entry).
-                             quick_slot_max_stack=integer(r['QuickSlotMaxStack']), draft=integer(r['Draft'])))
+                             quick_slot_max_stack=integer(r['QuickSlotMaxStack']), draft=integer(r['Draft']),
+                             # ItemOwner.ItemComparer (SortInventory) and GetInventoryFilterType.
+                             sort_order=plain(r['SortOrder']), level=integer(r['Level']),
+                             inventory_filter=plain(r['InventoryFilterName']), set_id=plain(first_set.get(r['ItemClass']))))
             if len(rows) > 50000: raise ValueError('Economy row bound')
         # AlchemistBoxInfo box classes: their inner consumables are not migrated (refused).
         boxes = sorted({text(r['BoxItemClass']) or '' for r in db.execute('Select * From [AlchemistBoxInfo]')})

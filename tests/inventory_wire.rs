@@ -132,6 +132,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::RequestSecuredOperation
                 | Kind::UseExtraStorage
                 | Kind::StatusEffectUpdated
+                | Kind::RequestSortInventory
                 | Kind::SecuredOperation
                 | Kind::SkillEnhanceSessionStart
                 | Kind::SkillEnhanceSessionEnd

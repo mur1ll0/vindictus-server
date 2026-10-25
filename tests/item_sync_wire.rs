@@ -880,6 +880,9 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 "case {n}"
             );
         }
+        Some(Message::RequestSortInventory(no)) => {
+            assert_eq!(i64::from(no), f["StorageNo"].as_i64().unwrap(), "case {n}");
+        }
         Some(Message::StatusEffectUpdated(m)) => {
             assert_eq!(
                 m.character_name.as_deref(),
@@ -1307,6 +1310,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::RequestSecuredOperation,
         Kind::UseExtraStorage,
         Kind::StatusEffectUpdated,
+        Kind::RequestSortInventory,
         Kind::SecuredOperation,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
@@ -1331,7 +1335,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 2358);
+        assert_eq!(cases.len(), 2370);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1395,6 +1399,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "secured_operation" => check_inventory(Kind::SecuredOperation, case, n),
                 "use_extra_storage" => check_inventory(Kind::UseExtraStorage, case, n),
                 "status_effect_updated" => check_inventory(Kind::StatusEffectUpdated, case, n),
+                "request_sort_inventory" => check_inventory(Kind::RequestSortInventory, case, n),
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),

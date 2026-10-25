@@ -393,6 +393,8 @@ struct Connection {
     effect_expiry: Option<tokio::time::Instant>,
     /// DailyItemScheduler: the next range start of a periodic daily item procedure.
     daily_at: Option<tokio::time::Instant>,
+    /// ItemOwner.LatestSort (30-second SortInventory cooldown).
+    latest_sort: Option<std::time::Instant>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -409,6 +411,7 @@ impl Connection {
             last_recommend_ship: None,
             effect_expiry: None,
             daily_at: None,
+            latest_sort: None,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
@@ -2037,6 +2040,7 @@ impl Connection {
                 Kind::BeautyShopCustomize,
                 Kind::RequestSecuredOperation,
                 Kind::UseExtraStorage,
+                Kind::RequestSortInventory,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
@@ -2837,6 +2841,40 @@ impl Connection {
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
                                 tracing::warn!("minimum item use rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::RequestSortInventory(target) => {
+                        // ItemOwner.SortBagInventory/SortCashInventory/SortStoryInventory.
+                        if self
+                            .latest_sort
+                            .is_some_and(|t| t.elapsed() < Duration::from_secs(30))
+                        {
+                            let dialog = super::minimum_shop::system_message(
+                                super::minimum_shop::DIALOG,
+                                "GameUI_Heroes_SortFail_Cooling",
+                                &[],
+                            )
+                            .map_err(|_| RuntimeError::Message)?;
+                            send(stream, sender, dialog.category, &dialog.body).await?;
+                            return Ok(());
+                        }
+                        match super::minimum_sort::sort(pool, &owner, assets, cid, target).await {
+                            Ok(Some(packets)) => {
+                                self.latest_sort = Some(std::time::Instant::now());
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(target, "minimum inventory sorted; values omitted");
+                            }
+                            Ok(None) => {
+                                tracing::info!(
+                                    target,
+                                    "minimum inventory sort refused; values omitted"
+                                )
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum inventory sort rejected; values omitted")
                             }
                         }
                     }

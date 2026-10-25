@@ -98,6 +98,7 @@ pub enum Kind {
     SecuredOperation,
     UseExtraStorage,
     StatusEffectUpdated,
+    RequestSortInventory,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -186,6 +187,7 @@ impl Kind {
             Self::SecuredOperation => 299,
             Self::UseExtraStorage => 626,
             Self::StatusEffectUpdated => 596,
+            Self::RequestSortInventory => 401,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -274,6 +276,7 @@ impl Kind {
             Self::SecuredOperation => 0xe4c5c606_88ae_304e_9431_97df6b3c4419,
             Self::UseExtraStorage => 0xe9cd479d_3b6b_3d9e_850e_c228d89b7aa7,
             Self::StatusEffectUpdated => 0x66f872d1_ed92_357d_862e_d6bbc3022c7a,
+            Self::RequestSortInventory => 0x984edd04_a6ed_3242_8490_613f3862d0d7,
         })
     }
 }
@@ -466,6 +469,8 @@ pub enum Message {
     SecuredOperation(SecuredOperation),
     UseExtraStorage(UseExtraStorage),
     StatusEffectUpdated(StatusEffectUpdated),
+    /// RequestSortInventoryMessage: StorageNo.
+    RequestSortInventory(i32),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -1062,6 +1067,7 @@ impl Message {
             Self::SecuredOperation(_) => Kind::SecuredOperation,
             Self::UseExtraStorage(_) => Kind::UseExtraStorage,
             Self::StatusEffectUpdated(_) => Kind::StatusEffectUpdated,
+            Self::RequestSortInventory(_) => Kind::RequestSortInventory,
         }
     }
 }
@@ -1691,6 +1697,7 @@ pub fn encode(
             Message::SecuredOperation(v) => v.write(&mut w)?,
             Message::UseExtraStorage(v) => v.write(&mut w)?,
             Message::StatusEffectUpdated(v) => v.write(&mut w)?,
+            Message::RequestSortInventory(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1838,6 +1845,7 @@ fn decode_body(
             Kind::StatusEffectUpdated => {
                 Message::StatusEffectUpdated(StatusEffectUpdated::read(&mut r)?)
             }
+            Kind::RequestSortInventory => Message::RequestSortInventory(Wire::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

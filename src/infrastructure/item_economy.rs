@@ -42,6 +42,14 @@ struct RawClass {
     required_enchant: i32,
     quick_slot_max_stack: i32,
     draft: i32,
+    #[serde(default)]
+    sort_order: Option<String>,
+    #[serde(default)]
+    level: i32,
+    #[serde(default)]
+    inventory_filter: Option<String>,
+    #[serde(default)]
+    set_id: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,6 +78,12 @@ pub struct EconomyClass {
     /// ItemClassInfo.QuickSlotMaxStack and Draft (MakeConsumablesInfo).
     pub quick_slot_max_stack: i32,
     pub draft: i32,
+    /// ItemClassInfo.SortOrder, Level and InventoryFilterName, and the first SetInfo SetID
+    /// (ItemOwner.ItemComparer of SortInventory).
+    pub sort_order: Option<String>,
+    pub level: i32,
+    pub inventory_filter: Option<String>,
+    pub set_id: Option<String>,
 }
 pub struct Profile {
     manifest: Manifest,
@@ -154,6 +168,10 @@ impl Profile {
                     indestructible: r.indestructible,
                     quick_slot_max_stack: r.quick_slot_max_stack,
                     draft: r.draft,
+                    sort_order: r.sort_order,
+                    level: r.level,
+                    inventory_filter: r.inventory_filter,
+                    set_id: r.set_id,
                 })
             })
             .collect::<Result<Vec<_>, crate::error::Error>>()?;

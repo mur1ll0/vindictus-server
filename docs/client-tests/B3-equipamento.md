@@ -240,3 +240,10 @@ Pré-condições: VVIP ativo (VVIP Service usado); `game` reconstruído.
 Pré-condições: `python scripts/client/apply_lab_content_additions.py --client-copy .cache/play-client --apply` aplicado; `game` reconstruído.
 - [ ] Abrir a loja do Ferghus → "Enhancement Elixir" aparece por 4.000 de ouro; comprar → o ouro cai e o item vai para a bolsa.
 - [ ] Usar o Elixir num aprimoramento acima de +5.
+
+### SO1 — Sort e Sort All
+Pré-condições: itens espalhados em mais de uma aba da bolsa; `game` reconstruído.
+- [ ] "Sort" numa aba → os itens dela ficam juntos a partir do primeiro slot, equipados primeiro, depois por tipo/nível.
+- [ ] "Sort All" → os itens de todas as abas disponíveis se reorganizam a partir da primeira aba.
+- [ ] Ordenar de novo antes de 30 s → diálogo de espera; nada muda.
+- [ ] Ordenar a aba cash → os itens dela se reorganizam.
