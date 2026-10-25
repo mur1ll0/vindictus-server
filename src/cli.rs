@@ -74,6 +74,9 @@ pub enum Command {
         assets_file: std::path::PathBuf,
         #[arg(long)]
         output: std::path::PathBuf,
+        /// Products listed per category (the client stalls on the whole catalog).
+        #[arg(long, default_value_t = 10)]
+        per_category: usize,
     },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,

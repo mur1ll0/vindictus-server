@@ -75,12 +75,13 @@ async fn run(cli: Cli) -> Result<(), Error> {
     if let Command::LabExportShopList {
         assets_file,
         output,
+        per_category,
     } = &cli.command
     {
         let assets = vindictus_server::infrastructure::minimum_assets::Assets::read(assets_file)
             .map_err(|_| Error::Configuration("minimum creation assets invalid".into()))?;
         let list = assets
-            .cash_shop_list()
+            .cash_shop_list(*per_category)
             .ok_or_else(|| Error::Configuration("cash shop assets not exported".into()))?;
         let partial = output.with_extension("partial");
         std::fs::write(&partial, list.as_bytes())
@@ -88,7 +89,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
             .map_err(|_| Error::Configuration("shop list not written".into()))?;
         println!(
             "{}",
-            serde_json::json!({"written_bytes":list.len(),"fits_original_client":list.len()<=SHOP_LIST_CLIENT_LIMIT,"fits_patched_client":list.len()<=SHOP_LIST_PATCHED_LIMIT})
+            serde_json::json!({"products":list.matches("<Table>").count(),"written_bytes":list.len(),"fits_original_client":list.len()<=SHOP_LIST_CLIENT_LIMIT,"fits_patched_client":list.len()<=SHOP_LIST_PATCHED_LIMIT})
         );
         return Ok(());
     }

@@ -427,12 +427,21 @@ impl Contents {
     /// elements (`Table2` package contents are not sold here). The client keeps a
     /// product only when `item_no` names a known ItemClass. Values the laboratory does
     /// not model follow the original server's ShopList (status 6, gender mask 1023).
-    pub fn shop_list(&self) -> String {
+    /// The client stalls on the whole catalog (8,303 products; the original listed 94),
+    /// so at most `per_category` products of each category are listed, in catalog order;
+    /// the CashShopProductList still carries every product.
+    pub fn shop_list(&self, per_category: usize) -> String {
         use std::fmt::Write as _;
         let mut out = String::with_capacity(self.products.len() * 512 + 64);
         out.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<ProductList>\r\n");
+        let mut listed: BTreeMap<i32, usize> = BTreeMap::new();
         for p in &self.products {
             let e = &p.element;
+            let count = listed.entry(e.category_no).or_default();
+            if *count >= per_category {
+                continue;
+            }
+            *count += 1;
             let class = escape(e.product_id.as_deref().unwrap_or(""));
             let guid = escape(e.product_guid.as_deref().unwrap_or(""));
             // Writing to a String cannot fail.

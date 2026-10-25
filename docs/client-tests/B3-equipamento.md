@@ -201,4 +201,4 @@ Pré-condições: `.cache/play-client/bin/client.dll` com o patch de limite (`py
 - [ ] Clicar em Depot → a janela mostra "Loading" e depois a lista de produtos (sem "An error occured while communicating with the server").
 - [ ] Navegar pelas abas/categorias → os produtos aparecem com ícone e preço.
 - [ ] Comprar um produto → o saldo diminui e a compra aparece no depósito; retirar → vai para a aba cash.
-- Relatar: se a janela abrir vazia ou com outro erro, o horário do clique (para os logs do `game`).
+- Relatar: se a janela abrir vazia, travar ou mostrar outro erro, o horário do clique (para os logs do `game`) e quanto tempo levou para abrir. A lista tem até 10 produtos por categoria (317); para mais, `pwsh scripts/dev/lab-export-shop-list.ps1 -PerCategory 25` antes de clicar (sem reiniciar nada).
