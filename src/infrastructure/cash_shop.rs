@@ -68,6 +68,12 @@ struct TirRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct Localized {
+    name: String,
+    description: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Feature {
     key: String,
     value: Option<String>,
@@ -79,8 +85,11 @@ pub struct Profile {
     source: String,
     database_sha256: String,
     config_sha256: String,
+    localized_sha256: String,
     root_category: i32,
     categories: Vec<Option<String>>,
+    /// Client english_eu item name and description of each catalog class.
+    names: Vec<Option<Localized>>,
     default_price: i32,
     prices: Vec<Price>,
     customize_items: Vec<CustomizeRow>,
@@ -131,6 +140,9 @@ pub struct Customize {
 pub struct Product {
     pub class_utf16: Vec<u8>,
     pub element: CashShopProduct,
+    /// Client english_eu name and description; none when the EU never translated it.
+    pub name: Option<String>,
+    pub description: Option<String>,
 }
 
 /// The bound catalog: categories, products and the products by ProductNo.
@@ -156,7 +168,14 @@ impl Profile {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
-        if p.format_version != 3
+        if p.format_version != 4
+            || p.names.len() != p.categories.len()
+            || p.localized_sha256.len() != 64
+            || p.names.iter().flatten().any(|n| {
+                n.name.is_empty()
+                    || n.name.len() > 1024
+                    || n.description.as_ref().is_some_and(|d| d.len() > 16384)
+            })
             || p.customize_items.len() + p.customize_prices.len() + p.customize_coupons.len()
                 > 262_144
             || p.features.len() > 512
@@ -241,7 +260,10 @@ impl Profile {
                 .collect();
             let product_id = String::from_utf16(&units).map_err(|_| fail())?;
             let product_no = i32::try_from(index).map_err(|_| fail())? + 1;
+            let localized = self.names.get(index).ok_or_else(fail)?.as_ref();
             products.push(Product {
+                name: localized.map(|l| l.name.clone()),
+                description: localized.and_then(|l| l.description.clone()),
                 class_utf16: class,
                 element: CashShopProduct {
                     product_no,
@@ -428,8 +450,9 @@ impl Contents {
     /// product only when `item_no` names a known ItemClass. Values the laboratory does
     /// not model follow the original server's ShopList (status 6, gender mask 1023).
     /// The client stalls on the whole catalog (8,303 products; the original listed 94),
-    /// so at most `per_category` products of each category are listed, in catalog order;
-    /// the CashShopProductList still carries every product.
+    /// so at most `per_category` products of each category are listed, in catalog order,
+    /// and only those with a client english_eu name (product_name, product_desc); the
+    /// CashShopProductList still carries every product.
     pub fn shop_list(&self, per_category: usize) -> String {
         use std::fmt::Write as _;
         let mut out = String::with_capacity(self.products.len() * 512 + 64);
@@ -437,6 +460,9 @@ impl Contents {
         let mut listed: BTreeMap<i32, usize> = BTreeMap::new();
         for p in &self.products {
             let e = &p.element;
+            let Some(name) = p.name.as_deref() else {
+                continue;
+            };
             let count = listed.entry(e.category_no).or_default();
             if *count >= per_category {
                 continue;
@@ -444,10 +470,12 @@ impl Contents {
             *count += 1;
             let class = escape(e.product_id.as_deref().unwrap_or(""));
             let guid = escape(e.product_guid.as_deref().unwrap_or(""));
+            let name = escape(name);
+            let desc = escape(p.description.as_deref().unwrap_or(""));
             // Writing to a String cannot fail.
             let _ = writeln!(
                 out,
-                "<Table><product_no>{no}</product_no><product_status>{SHOP_LIST_STATUS}</product_status><product_name>{class}</product_name><product_price>{price}</product_price><sale_price>{price}</sale_price><category_no>{category}</category_no><use_sex>U</use_sex><use_level>0</use_level><item_no>{class}</item_no><product_pieces>{pieces}</product_pieces><product_rendering>true</product_rendering><usable_present>false</usable_present><product_expire>{expire}</product_expire><product_status_master>{SHOP_LIST_STATUS}</product_status_master><product_guid>{guid}</product_guid><usable_gender>{SHOP_LIST_GENDERS}</usable_gender><payment_type>{payment}</payment_type><show_inventory>1</show_inventory></Table>\r",
+                "<Table><product_no>{no}</product_no><product_status>{SHOP_LIST_STATUS}</product_status><product_name>{name}</product_name><product_price>{price}</product_price><sale_price>{price}</sale_price><product_desc>{desc}</product_desc><category_no>{category}</category_no><use_sex>U</use_sex><use_level>0</use_level><item_no>{class}</item_no><product_pieces>{pieces}</product_pieces><product_rendering>true</product_rendering><usable_present>false</usable_present><product_expire>{expire}</product_expire><product_status_master>{SHOP_LIST_STATUS}</product_status_master><product_guid>{guid}</product_guid><usable_gender>{SHOP_LIST_GENDERS}</usable_gender><payment_type>{payment}</payment_type><show_inventory>1</show_inventory></Table>\r",
                 no = e.product_no,
                 price = e.sale_price,
                 category = e.category_no,

@@ -23,6 +23,11 @@ class CashShopExportTests(unittest.TestCase):
         self.db = root / 'heroesContents.db3'
         self.config = root / 'ServiceCore.dll.config'
         self.prices = root / 'prices.json'
+        self.text = root / 'heroes_text_english_eu.txt'
+        self.text.write_bytes(('\ufeff"lang"\r\n{\r\n\t"Tokens"\r\n\t{\r\n'
+                               '\t\t"HEROES_ITEM_NAME_HAIR_A"\t"Short Hair"\r\n'
+                               '\t\t"HEROES_ITEM_DESC_HAIR_A"\t"A hair.\\nPermanent."\r\n'
+                               '\t\t"HEROES_ITEM_NAME_POTION"\t"\ud3ec\uc158"\r\n\t}\r\n}\r\n').encode('utf-16-le'))
         self.prices.write_text(json.dumps({'default': 500, 'categories': {'HAIR': 800}}), encoding='utf-8')
         self.config.write_text('<configuration><setting name="GameCode"><value>42</value></setting><setting name="heroesContentsDB3"><value>heroesContents.db3</value></setting></configuration>', encoding='utf-8')
         with contextlib.closing(sqlite3.connect(self.db)) as db:
@@ -34,7 +39,9 @@ class CashShopExportTests(unittest.TestCase):
             db.commit()
 
     def test_categories_follow_the_catalog_rows(self):
-        p = read_package(self.db, self.config, self.prices)
+        p = read_package(self.db, self.config, self.prices, self.text)
+        # The EU text of potion is still Korean: no english name.
+        self.assertEqual(p['names'], [{'name': 'Short Hair', 'description': 'A hair.\nPermanent.'}, None])
         self.assertEqual(p['categories'], ['HAIR', None])
         self.assertEqual((p['root_category'], p['default_price'], p['prices']), (105, 500, [{'category': 'HAIR', 'price': 800}]))
         self.assertEqual([(r['duration'], r['price']) for r in p['customize_prices']], [(-1, 139), (30, 69)])
@@ -45,7 +52,7 @@ class CashShopExportTests(unittest.TestCase):
     def test_price_table_is_bounded(self):
         self.prices.write_text(json.dumps({'default': 0, 'categories': {}}), encoding='utf-8')
         with self.assertRaises(ValueError):
-            read_package(self.db, self.config, self.prices)
+            read_package(self.db, self.config, self.prices, self.text)
 
 
 if __name__ == '__main__':

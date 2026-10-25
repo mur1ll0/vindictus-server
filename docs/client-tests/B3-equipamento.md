@@ -200,5 +200,6 @@ Pré-condição: cupons da loja de visual na bolsa (ex.: `cash_free_hair_*`, `ca
 Pré-condições: `.cache/play-client/bin/client.dll` com o patch de limite (`python scripts/client/patch_shop_list_limit.py --client-copy .cache/play-client` mostra `already_patched: true`); ShopList gerado por `pwsh scripts/dev/lab-export-shop-list.ps1`; `bootstrap` e `game` saudáveis.
 - [ ] Clicar em Depot → a janela mostra "Loading" e depois a lista de produtos (sem "An error occured while communicating with the server").
 - [ ] Navegar pelas abas/categorias → os produtos aparecem com ícone e preço.
+- [ ] Os produtos mostram o nome em inglês (por exemplo "Merc Recovery Potion") e a descrição; nenhum item aparece em coreano.
 - [ ] Comprar um produto → o saldo diminui e a compra aparece no depósito; retirar → vai para a aba cash.
 - Relatar: se a janela abrir vazia, travar ou mostrar outro erro, o horário do clique (para os logs do `game`) e quanto tempo levou para abrir. A lista tem até 10 produtos por categoria (317); para mais, `pwsh scripts/dev/lab-export-shop-list.ps1 -PerCategory 25` antes de clicar (sem reiniciar nada).
