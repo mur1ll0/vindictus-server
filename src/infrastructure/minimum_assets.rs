@@ -152,6 +152,10 @@ impl Assets {
     pub fn npc_policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
         self.npc.as_ref().map(|n| &n.policy)
     }
+    /// ShopList.aspx of the laboratory cash shop, when exported.
+    pub fn cash_shop_list(&self) -> Option<String> {
+        self.cash_shop.as_ref().map(|c| c.shop_list())
+    }
     /// Mission entry contents of the NPC script profile, when exported.
     pub fn mission(&self) -> Option<&crate::domain::mission::MissionContents> {
         self.npc.as_ref().and_then(|n| n.mission.as_ref())

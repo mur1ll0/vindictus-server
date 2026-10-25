@@ -110,14 +110,21 @@ pub async fn open(
     )
     .unwrap()
     .unwrap();
-    // NGM_disable from the pinned config and the laboratory CashShop override.
+    // NGM_disable from the pinned config and the laboratory cash shop overrides.
     let features = decoded.features.as_ref().unwrap();
     assert_eq!(
         features
             .iter()
             .map(|f| (f.key, f.value))
             .collect::<Vec<_>>(),
-        [("NGM_disable", Some("1")), ("CashShop", Some("1.04.08"))]
+        [
+            ("NGM_disable", Some("1")),
+            ("CashShop", Some("1.04.08")),
+            (
+                "ingame_cashshop_shopListURL",
+                Some("http://127.0.0.1:8081/en-eu-x-gm/ShopList.aspx")
+            )
+        ]
     );
     let sender =
         LegacySender::with_profile(CipherProfile::VindictusFrontend, 123, DEFAULT_MAX_BODY)

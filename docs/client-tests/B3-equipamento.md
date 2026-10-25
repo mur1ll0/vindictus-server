@@ -195,3 +195,10 @@ Pré-condição: cupons da loja de visual na bolsa (ex.: `cash_free_hair_*`, `ca
 - [ ] Depois do login, o botão Depot/cash shop fica ativo (a sincronização de features traz `CashShop`).
 - [ ] Equipar o cabelo, a inner armor e a maquiagem comprados (aba cash) → equipam e o visual muda; relogar mantém.
 
+
+### CS8 — lista de produtos do Depot
+Pré-condições: `.cache/play-client/bin/client.dll` com o patch de limite (`python scripts/client/patch_shop_list_limit.py --client-copy .cache/play-client` mostra `already_patched: true`); ShopList gerado por `pwsh scripts/dev/lab-export-shop-list.ps1`; `bootstrap` e `game` saudáveis.
+- [ ] Clicar em Depot → a janela mostra "Loading" e depois a lista de produtos (sem "An error occured while communicating with the server").
+- [ ] Navegar pelas abas/categorias → os produtos aparecem com ícone e preço.
+- [ ] Comprar um produto → o saldo diminui e a compra aparece no depósito; retirar → vai para a aba cash.
+- Relatar: se a janela abrir vazia ou com outro erro, o horário do clique (para os logs do `game`).

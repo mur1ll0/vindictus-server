@@ -8,6 +8,12 @@ use vindictus_server::{
     infrastructure::postgres,
 };
 
+/// Response size InGameCashShopDialog_V2 accepts from ingame_cashshop_shopListURL
+/// (client.dll 0x38479247 and 0x38479306 pass 0x100000 to the download), and the limit
+/// of a copy patched by scripts/client/patch_shop_list_limit.py.
+const SHOP_LIST_CLIENT_LIMIT: usize = 0x10_0000;
+const SHOP_LIST_PATCHED_LIMIT: usize = 0x100_0000;
+
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     tracing_subscriber::fmt()
@@ -63,6 +69,26 @@ async fn run(cli: Cli) -> Result<(), Error> {
         println!(
             "{}",
             serde_json::json!({"assets_validated":true,"database_opened":false,"listener_opened":false,"client_acceptance_verified":false})
+        );
+        return Ok(());
+    }
+    if let Command::LabExportShopList {
+        assets_file,
+        output,
+    } = &cli.command
+    {
+        let assets = vindictus_server::infrastructure::minimum_assets::Assets::read(assets_file)
+            .map_err(|_| Error::Configuration("minimum creation assets invalid".into()))?;
+        let list = assets
+            .cash_shop_list()
+            .ok_or_else(|| Error::Configuration("cash shop assets not exported".into()))?;
+        let partial = output.with_extension("partial");
+        std::fs::write(&partial, list.as_bytes())
+            .and_then(|()| std::fs::rename(&partial, output))
+            .map_err(|_| Error::Configuration("shop list not written".into()))?;
+        println!(
+            "{}",
+            serde_json::json!({"written_bytes":list.len(),"fits_original_client":list.len()<=SHOP_LIST_CLIENT_LIMIT,"fits_patched_client":list.len()<=SHOP_LIST_PATCHED_LIMIT})
         );
         return Ok(());
     }
@@ -518,6 +544,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         | Command::InspectLabFrontendProfile { .. }
         | Command::InspectMinimumCreationAssets { .. }
         | Command::InspectMissionContent { .. }
+        | Command::LabExportShopList { .. }
         | Command::LabFrontend { .. } => {}
         Command::Migrate => {
             postgres::migrate(&pool).await?;

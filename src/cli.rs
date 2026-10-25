@@ -67,6 +67,14 @@ pub enum Command {
         #[arg(long)]
         amount: i32,
     },
+    /// Write the laboratory ShopList.aspx (the in-game cash shop product list the client
+    /// downloads from ingame_cashshop_shopListURL); no database or listener.
+    LabExportShopList {
+        #[arg(long)]
+        assets_file: std::path::PathBuf,
+        #[arg(long)]
+        output: std::path::PathBuf,
+    },
     /// Apply embedded PostgreSQL migrations. Does not import SQL Server backups.
     Migrate,
     /// Read-only reward diagnostic. Reads private policy from stdin and prints counts/digest only.

@@ -421,4 +421,44 @@ impl Contents {
     pub fn product(&self, product_no: i32) -> Option<&Product> {
         self.by_no.get(&product_no).map(|i| &self.products[*i])
     }
+
+    /// ShopList.aspx read by InGameCashShopDialog_V2 from ingame_cashshop_shopListURL:
+    /// TinyXML `ProductList` whose `Table` children carry the product fields as child
+    /// elements (`Table2` package contents are not sold here). The client keeps a
+    /// product only when `item_no` names a known ItemClass. Values the laboratory does
+    /// not model follow the original server's ShopList (status 6, gender mask 1023).
+    pub fn shop_list(&self) -> String {
+        use std::fmt::Write as _;
+        let mut out = String::with_capacity(self.products.len() * 512 + 64);
+        out.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<ProductList>\r\n");
+        for p in &self.products {
+            let e = &p.element;
+            let class = escape(e.product_id.as_deref().unwrap_or(""));
+            let guid = escape(e.product_guid.as_deref().unwrap_or(""));
+            // Writing to a String cannot fail.
+            let _ = writeln!(
+                out,
+                "<Table><product_no>{no}</product_no><product_status>{SHOP_LIST_STATUS}</product_status><product_name>{class}</product_name><product_price>{price}</product_price><sale_price>{price}</sale_price><category_no>{category}</category_no><use_sex>U</use_sex><use_level>0</use_level><item_no>{class}</item_no><product_pieces>{pieces}</product_pieces><product_rendering>true</product_rendering><usable_present>false</usable_present><product_expire>{expire}</product_expire><product_status_master>{SHOP_LIST_STATUS}</product_status_master><product_guid>{guid}</product_guid><usable_gender>{SHOP_LIST_GENDERS}</usable_gender><payment_type>{payment}</payment_type><show_inventory>1</show_inventory></Table>\r",
+                no = e.product_no,
+                price = e.sale_price,
+                category = e.category_no,
+                pieces = e.product_pieces,
+                expire = e.product_expire,
+                payment = e.payment_type,
+            );
+        }
+        out.push_str("</ProductList>\r\n");
+        out
+    }
+}
+
+/// ShopList product_status/product_status_master of the original server's sold products.
+const SHOP_LIST_STATUS: i32 = 6;
+/// ShopList usable_gender of the original server (every class).
+const SHOP_LIST_GENDERS: i32 = 1023;
+
+fn escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }

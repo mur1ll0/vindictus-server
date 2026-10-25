@@ -63,6 +63,8 @@ pub const ADMISSION_TIMEOUT: Duration = Duration::from_secs(30);
 /// screen opens (it needs the NGM_disable feature sync), so the player's typing time
 /// counts here; 30 s disconnected slow logins. The laboratory keeps a finite bound.
 pub const LOGIN_WAIT: Duration = Duration::from_secs(600);
+/// ShopList.aspx on the bootstrap HTTP of compose.yaml (127.0.0.1:8081, region folder).
+const LAB_SHOP_LIST_URL: &str = "http://127.0.0.1:8081/en-eu-x-gm/ShopList.aspx";
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const FAILURE_DISCONNECT: Duration = Duration::from_secs(5);
 #[derive(Debug, Error)]
@@ -3470,7 +3472,10 @@ pub async fn connection(
   // The pinned original config sets NGM_Disable=1. The laboratory replaces the NISMS cash
   // shop, so it also overrides CashShop (empty in en-EU-x-GM) with the en-EU value
   // (operator decision 2026-10-24), as a FeatureMatrix override of the original config would.
-  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")}])};
+  // InGameCashShopDialog_V2 downloads its product list from ingame_cashshop_shopListURL; the
+  // original server published a static ShopList.aspx, here served by the bootstrap HTTP
+  // (scripts/dev/lab-export-shop-list.ps1) instead of the unreachable 192.168.0.200.
+  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)}])};
   let (mut sender,packets)=encode_initial_packets(salt,Some(&features),super::minimum_cash_shop::CATALOG_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);
