@@ -96,6 +96,7 @@ pub enum Kind {
     BeautyShopCustomize,
     RequestSecuredOperation,
     SecuredOperation,
+    UseExtraStorage,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -182,6 +183,7 @@ impl Kind {
             Self::BeautyShopCustomize => 233,
             Self::RequestSecuredOperation => 298,
             Self::SecuredOperation => 299,
+            Self::UseExtraStorage => 626,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -268,6 +270,7 @@ impl Kind {
             Self::BeautyShopCustomize => 0x31e4e1d4_592f_3f80_b094_27cc6a284f97,
             Self::RequestSecuredOperation => 0xd7b15418_06ce_3d45_8e42_08179db5f5a6,
             Self::SecuredOperation => 0xe4c5c606_88ae_304e_9431_97df6b3c4419,
+            Self::UseExtraStorage => 0xe9cd479d_3b6b_3d9e_850e_c228d89b7aa7,
         })
     }
 }
@@ -458,6 +461,7 @@ pub enum Message {
     /// RequestSecuredOperationMessage: Operation (SecuredOperationType as Int32).
     RequestSecuredOperation(i32),
     SecuredOperation(SecuredOperation),
+    UseExtraStorage(UseExtraStorage),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -1052,6 +1056,7 @@ impl Message {
             Self::BeautyShopCustomize(_) => Kind::BeautyShopCustomize,
             Self::RequestSecuredOperation(_) => Kind::RequestSecuredOperation,
             Self::SecuredOperation(_) => Kind::SecuredOperation,
+            Self::UseExtraStorage(_) => Kind::UseExtraStorage,
         }
     }
 }
@@ -1418,6 +1423,16 @@ object!(SecuredOperation {
     operation,
     locked_time_in_seconds
 });
+/// UseExtraStorageMessage: itemID, storageID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UseExtraStorage {
+    pub item_id: i64,
+    pub storage_id: u8,
+}
+object!(UseExtraStorage {
+    item_id,
+    storage_id
+});
 object!(RandomItemRewardList {
     item_classes,
     item_quantities,
@@ -1659,6 +1674,7 @@ pub fn encode(
             Message::BeautyShopCustomize(v) => v.write(&mut w)?,
             Message::RequestSecuredOperation(v) => v.write(&mut w)?,
             Message::SecuredOperation(v) => v.write(&mut w)?,
+            Message::UseExtraStorage(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1802,6 +1818,7 @@ fn decode_body(
             }
             Kind::RequestSecuredOperation => Message::RequestSecuredOperation(Wire::read(&mut r)?),
             Kind::SecuredOperation => Message::SecuredOperation(SecuredOperation::read(&mut r)?),
+            Kind::UseExtraStorage => Message::UseExtraStorage(UseExtraStorage::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

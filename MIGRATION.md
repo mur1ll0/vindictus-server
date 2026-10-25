@@ -1324,3 +1324,11 @@ CS9 — compra pelo Depot (25/10/2026, teste de cliente: a lista abre com nomes 
 - Testes: PostgreSQL `minimum_cash_shop` (GET HTTP real em loopback: 1001104, 98, 1, 0 com débito, 21, 1001104 após remover a sessão), `lab_frontend` (PostgreSQL 9 e alvo 4), clippy `-D warnings`.
 - Pendente: cupons (`ingame_cashshop_couponURL`), presentes e histórico (`ingame_cashshop_historyURL`) da janela V2; a "wish list refused" do log de 14:51:18 ainda não foi investigada.
 - Próxima ação: teste de cliente da CS9 (comprar, ver o saldo cair e o item no depósito; criar o barco várias vezes); depois a wish list e o sistema TodayMission (adiado pelo operador).
+
+ST1 — Storage Chest Expansion Ticket (25/10/2026, relato do operador: usar o ticket não fazia nada).
+- Diagnóstico: o uso envia `UseExtraStorageMessage` (categoria 626, `itemID` i64 e `storageID` u8), sem handler no `lab_frontend`. O operador comprou `warehouse_ticket_free` no Depot.
+- Fonte: `ItemServiceProxy` (UseSecondPassword → `UseExtraStorage`), `UseExtraStorageProcessor` (tabela de tickets: StorageIDs 2, 3, 4, 5, 7, 8; ExtendTime −1 → `OpenStorage(id, null)`, demais → `ExtendStorage`; item inexistente, fora da tabela ou expirado, storage fora da lista ou já ilimitado → FailMessage sem resposta ao cliente; Num−1 e Save), `BagStorage.OpenStorage/IsUnlimited`, `ItemOwner.Sync` (UpdateInventoryInfo antes de UpdateStorageInfo).
+- Protocolo: 626 no oráculo de item sync (2.346 casos, x86 = x64). Infraestrutura: `minimum_extra_storage::use_extra_storage` (tickets permanentes `warehouse_ticket_free`, `_free_gift`, `_free_gift_accounttrade`; nova linha de `game_item_storage_status` sem validade, consumo do ticket, UpdateInventoryInfo e UpdateStorageInfo), rota no `lab_frontend`.
+- Diferenças: tickets com prazo (`ExtendStorage`) são recusados sem mudanças até o inventário migrar bolsas com validade; o journal/ledger `UseExtraStorage` (ExtendStorage/DestroyItem) não é gravado.
+- Testes: `item_sync_wire`, `inventory_wire`, PostgreSQL `minimum_extra_storage` (recusas sem mudança, abre a bolsa 2 e a 7, ticket consumido, bolsa aberta é ilimitada) e regressão `minimum_use minimum_give minimum_cash_shop` (33), clippy `-D warnings`.
+- Cliente: entrada ST1 em `docs/client-tests/B3-equipamento.md`.

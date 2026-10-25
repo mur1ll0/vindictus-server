@@ -30,6 +30,22 @@ fn assets_with_appearance(
     cash_level: i32,
     appearance: Option<Value>,
 ) -> Assets {
+    assets_with_classes(
+        cash_unique,
+        cash_use_in_town,
+        cash_level,
+        appearance,
+        "enchant_scroll",
+    )
+}
+/// `assets_with_appearance` whose row-3 bag class (one per stack) is `scroll_class`.
+fn assets_with_classes(
+    cash_unique: i32,
+    cash_use_in_town: i32,
+    cash_level: i32,
+    appearance: Option<Value>,
+    scroll_class: &str,
+) -> Assets {
     let mut i = super::fiona_inventory_delivery::AppearanceInputs::new();
     if let Some(v) = appearance {
         i.profile = vindictus_server::infrastructure::fiona_appearance::Profile::read(
@@ -42,7 +58,7 @@ fn assets_with_appearance(
     profile["classes"].as_array_mut().unwrap().push(json!({"source_index":2,"item_utf16":gold,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
     catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":gold,"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
     // Enchant scrolls carry PREFIX/SUFFIX attributes (bag storage, one per stack).
-    let scroll = appearance_fixture::key("enchant_scroll");
+    let scroll = appearance_fixture::key(scroll_class);
     profile["classes"].as_array_mut().unwrap().push(json!({"source_index":3,"item_utf16":scroll,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
     catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":scroll,"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
     catalog["manifest"]["class_rows"] = json!(4);
@@ -1465,6 +1481,160 @@ async fn minimum_quest_login_gives_first_and_level_quests_once_and_pushes_progre
         .await
         .unwrap();
     assert_eq!(queried[0].body, again[0].body);
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_extra_storage_opens_a_bag_with_a_permanent_ticket() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{character_lobby::QueryConfig, minimum_extra_storage, minimum_selection},
+        protocol::inventory::UseExtraStorage,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let assets = assets_with_classes(0, 1, 0, None, "warehouse_ticket_free");
+    minimum_give::lab_grant(&p, &assets, Some(1), "warehouse_ticket_free", 2, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_cash", 1, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let id_of = |class: &'static str| {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM game_items WHERE item_class_utf16=$1 ORDER BY id LIMIT 1",
+            )
+            .bind(utf16(class))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    // MaxStack 1: two ticket items.
+    let tickets: Vec<i64> =
+        sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1 ORDER BY id")
+            .bind(utf16("warehouse_ticket_free"))
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(tickets.len(), 2);
+    let ticket = tickets[0];
+    let cash = id_of("synthetic_cash").await;
+    let opened = || async {
+        sqlx::query_scalar::<_, i16>(
+            "SELECT storage FROM game_item_storage_status WHERE owner_id=1 ORDER BY storage",
+        )
+        .fetch_all(&p)
+        .await
+        .unwrap()
+    };
+    let before = items(&p).await;
+    // A non-ticket item, a storage outside StorageIDs and a default bag are refused.
+    for (item_id, storage_id) in [(cash, 2), (ticket, 1), (ticket, 6), (ticket, 9)] {
+        let outcome = minimum_extra_storage::use_extra_storage(
+            &p,
+            &owner,
+            &assets,
+            1,
+            UseExtraStorage {
+                item_id,
+                storage_id,
+            },
+        )
+        .await
+        .unwrap();
+        assert!(matches!(outcome, minimum_extra_storage::Outcome::Refused));
+    }
+    assert_eq!(items(&p).await, before);
+    assert!(opened().await.is_empty());
+    let use_on = |ticket: i64, storage_id: u8| {
+        let (p, assets) = (p.clone(), &assets);
+        async move {
+            minimum_extra_storage::use_extra_storage(
+                &p,
+                &super::initial_inventory::key(),
+                assets,
+                1,
+                UseExtraStorage {
+                    item_id: ticket,
+                    storage_id,
+                },
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let minimum_extra_storage::Outcome::Applied(packets) = use_on(ticket, 2).await else {
+        panic!("bag 2 not opened")
+    };
+    let kinds: Vec<i32> = packets.iter().map(|p| p.category).collect();
+    assert_eq!(
+        kinds,
+        [
+            Kind::UpdateInventoryInfo.category(),
+            Kind::UpdateStorageInfo.category()
+        ]
+    );
+    let Some(Message::UpdateInventoryInfo(Some(slots))) = inventory::decode(
+        Kind::UpdateInventoryInfo,
+        &packets[0].body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
+        panic!("inventory update")
+    };
+    assert_eq!(
+        slots[0].as_ref().map(|s| (s.id, s.count)),
+        Some((ticket, 0))
+    );
+    let Some(Message::UpdateStorageInfo(Some(storages))) =
+        inventory::decode(Kind::UpdateStorageInfo, &packets[1].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("storage update")
+    };
+    assert_eq!(
+        storages.iter().flatten().map(|s| s.id).collect::<Vec<_>>(),
+        [0, 1, 6, 2]
+    );
+    assert_eq!(opened().await, [2]);
+    // An opened bag is unlimited: the other ticket is kept.
+    assert!(matches!(
+        use_on(tickets[1], 2).await,
+        minimum_extra_storage::Outcome::Refused
+    ));
+    // The last ticket opens bag 7 and leaves the inventory.
+    assert!(matches!(
+        use_on(tickets[1], 7).await,
+        minimum_extra_storage::Outcome::Applied(_)
+    ));
+    assert_eq!(opened().await, [2, 7]);
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items WHERE id=$1")
+        .bind(tickets[1])
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }
 

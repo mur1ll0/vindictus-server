@@ -210,3 +210,8 @@ Pré-condições: `game` reconstruído com a porta 27080 publicada; saldo credit
 - [ ] O item comprado aparece no depósito; retirar → vai para a aba cash do inventário.
 - [ ] Comprar sem saldo suficiente → mensagem de saldo insuficiente; nada é debitado.
 - Relatar: horário e mensagem de qualquer erro (os logs do `game` registram "laboratory web shop purchase answered" com o código).
+
+### ST1 — Storage Chest Expansion Ticket
+Pré-condições: `warehouse_ticket_free` no inventário (comprado no Depot e retirado); `game` reconstruído.
+- [ ] Usar o ticket numa aba bloqueada do inventário → a aba abre, o ticket some (ou diminui) e a aba continua aberta depois de relogar.
+- [ ] Tentar usar outro ticket numa aba já aberta → nada muda e o ticket fica.

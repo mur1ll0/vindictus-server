@@ -130,6 +130,7 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::WishListDeleteResponse
                 | Kind::BeautyShopCustomize
                 | Kind::RequestSecuredOperation
+                | Kind::UseExtraStorage
                 | Kind::SecuredOperation
                 | Kind::SkillEnhanceSessionStart
                 | Kind::SkillEnhanceSessionEnd

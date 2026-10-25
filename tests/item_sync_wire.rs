@@ -880,6 +880,16 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 "case {n}"
             );
         }
+        Some(Message::UseExtraStorage(op)) => {
+            assert_eq!(
+                (op.item_id, i64::from(op.storage_id)),
+                (
+                    f["ItemID"].as_i64().unwrap(),
+                    f["StorageID"].as_i64().unwrap()
+                ),
+                "case {n}"
+            );
+        }
         Some(Message::SecuredOperation(op)) => {
             assert_eq!(
                 (
@@ -1258,6 +1268,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::WishListDeleteResponse,
         Kind::BeautyShopCustomize,
         Kind::RequestSecuredOperation,
+        Kind::UseExtraStorage,
         Kind::SecuredOperation,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
@@ -1282,7 +1293,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 2334);
+        assert_eq!(cases.len(), 2346);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1344,6 +1355,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                     check_inventory(Kind::RequestSecuredOperation, case, n)
                 }
                 "secured_operation" => check_inventory(Kind::SecuredOperation, case, n),
+                "use_extra_storage" => check_inventory(Kind::UseExtraStorage, case, n),
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),

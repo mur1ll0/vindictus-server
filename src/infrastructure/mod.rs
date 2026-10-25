@@ -111,6 +111,7 @@ pub mod minimum_craft;
 pub mod minimum_enchant;
 pub mod minimum_enhance;
 pub mod minimum_equipment;
+pub mod minimum_extra_storage;
 pub mod minimum_manufacture;
 pub mod minimum_random_item;
 pub mod minimum_skill_enhance;

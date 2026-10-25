@@ -1891,6 +1891,7 @@ impl Connection {
                 Kind::WishListDelete,
                 Kind::BeautyShopCustomize,
                 Kind::RequestSecuredOperation,
+                Kind::UseExtraStorage,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
@@ -2669,6 +2670,32 @@ impl Connection {
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
                                 tracing::warn!("minimum item use rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::UseExtraStorage(request) => {
+                        match super::minimum_extra_storage::use_extra_storage(
+                            pool, &owner, assets, cid, request,
+                        )
+                        .await
+                        {
+                            Ok(super::minimum_extra_storage::Outcome::Applied(packets)) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    storage = request.storage_id,
+                                    "minimum extra storage opened; values omitted"
+                                );
+                            }
+                            Ok(super::minimum_extra_storage::Outcome::Refused) => {
+                                tracing::info!(
+                                    storage = request.storage_id,
+                                    "minimum extra storage refused; values omitted"
+                                )
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum extra storage rejected; values omitted")
                             }
                         }
                     }
