@@ -391,6 +391,8 @@ struct Connection {
     last_recommend_ship: Option<std::time::Instant>,
     /// RemoveScheduleID of the next stored status effect to expire.
     effect_expiry: Option<tokio::time::Instant>,
+    /// DailyItemScheduler: the next range start of a periodic daily item procedure.
+    daily_at: Option<tokio::time::Instant>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -406,6 +408,7 @@ impl Connection {
             mission: None,
             last_recommend_ship: None,
             effect_expiry: None,
+            daily_at: None,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
@@ -418,6 +421,7 @@ impl Connection {
             relay.close_group(m.group);
         }
         self.effect_expiry = None;
+        self.daily_at = None;
         if let Some(selected) = self.selected.take() {
             runtime.web_shop.remove(selected.cid);
             if let Some((_, channel)) = &runtime.channel
@@ -1369,6 +1373,62 @@ impl Connection {
         self.schedule_effects(runtime, pool).await;
         Ok(())
     }
+    /// DailyItemController.OnLogIn/ExecuteDailyItemProcess/OnSchedulerEvent: the due
+    /// procedures for the selected character, then the next range is scheduled.
+    async fn daily_items(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        self.daily_at = None;
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return Ok(());
+        };
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets;
+        let ids = minimum
+            .creation
+            .entity_ids(32)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        let mut ids = ids.into_iter();
+        match super::minimum_daily_item::process(pool, &owner, assets, cid, &mut || {
+            ids.next()
+                .ok_or(super::minimum_character::MinimumError::Conflict)
+        })
+        .await
+        {
+            Ok(packets) => {
+                for packet in &packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                if !packets.is_empty() {
+                    tracing::info!("minimum daily items processed; values omitted");
+                }
+            }
+            Err(_) => tracing::warn!("minimum daily items rejected; values omitted"),
+        }
+        if let Ok(Some(after)) = super::minimum_daily_item::next_range(assets) {
+            // DailyItemScheduler schedules three seconds after the range start.
+            self.daily_at = Some(tokio::time::Instant::now() + after + Duration::from_secs(3));
+        }
+        Ok(())
+    }
     fn mission_timer(&self) -> Option<tokio::time::Instant> {
         let at = super::minimum_mission_finish::next_job(self.mission.as_deref()?)?;
         Some(tokio::time::Instant::from_std(at))
@@ -1676,6 +1736,7 @@ impl Connection {
                             "minimum character selected; optional services deferred; values omitted"
                         );
                         self.schedule_effects(runtime, pool).await;
+                        self.daily_items(runtime, pool, stream, sender).await?;
                     }
                     Message::EnterChannel {
                         channel_id,
@@ -2770,6 +2831,8 @@ impl Connection {
                                 send(stream, sender, common.category, &common.body).await?;
                                 tracing::info!("minimum home cafe bonus applied; values omitted");
                                 self.schedule_effects(runtime, pool).await;
+                                // HomeCafeBonus.OnUseItem: ExecuteDailyItemProcess.
+                                self.daily_items(runtime, pool, stream, sender).await?;
                             }
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
@@ -3634,11 +3697,13 @@ pub async fn connection(
    let deadline=state.close_at.unwrap_or(state.login_deadline);let waiting=state.close_at.is_some()||state.frontend.phase()!=SessionPhase::PoliciesAccepted;
    let timer=state.mission_timer();
    let effects=state.effect_expiry;
+   let daily=state.daily_at;
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
     _=tokio::time::sleep_until(deadline),if waiting=>return if state.close_at.is_some(){Ok(())}else{Err(RuntimeError::Timeout)},
     _=tokio::time::sleep_until(timer.unwrap_or(deadline)),if timer.is_some()&&state.close_at.is_none()=>{state.mission_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(effects.unwrap_or(deadline)),if effects.is_some()&&state.close_at.is_none()=>{state.effect_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    _=tokio::time::sleep_until(daily.unwrap_or(deadline)),if daily.is_some()&&state.close_at.is_none()=>{state.daily_items(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     value=stream.read(&mut buffer[..])=>value?,
    };
    if count==0{return if receiver.buffered_len()==0{Ok(())}else{Err(RuntimeError::Message)}}

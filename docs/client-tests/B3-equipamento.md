@@ -229,3 +229,9 @@ Pré-condições: "VIP Service (7 Days)" e "VVIP Service (7 Days)" comprados no 
 - [ ] Usar o VVIP Service → o efeito passa a ser o da conta (VVIP) e o personagem aparece como VVIP; outro personagem da conta também recebe.
 - [ ] Entrar numa fase com o efeito → a missão carrega e os atributos com bônus valem no combate.
 - Relatar: o que o cliente mostra (ícone, tempo, atributos) e o horário de qualquer erro.
+
+### VIP3 — itens diários do VVIP
+Pré-condições: VVIP ativo (VVIP Service usado); `game` reconstruído.
+- [ ] Ao usar o VVIP ou entrar com ele → mensagens de item diário; o inventário recebe 3 "Goddess Grace (VVIP Benefit)" (revive) e 20 "Merc Recovery Potion Plus (VVIP)".
+- [ ] Gastar uma poção e relogar no mesmo dia → nada novo; no dia seguinte (UTC) completa de novo até 20.
+- [ ] Com menos de 1 revive, a cada hora cheia (UTC) chega 1 revive.

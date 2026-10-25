@@ -12,6 +12,8 @@ SCHEMA = (
     'CREATE TABLE CustomizeCouponInfo(ItemClass varchar,Category varchar,Price INT,CashShopType varchar,Feature varchar);'
     'CREATE TABLE CustomizeColorInfo(Category varchar,[Order] INT,Color INT,Weight INT,IsCash bit,Description varchar,CashShopType varchar,Feature varchar);'
     'CREATE TABLE RandomItem(ItemClass TEXT);CREATE TABLE RandomItemV2(ItemClass TEXT);'
+    'CREATE TABLE DailyItemProcessInfo(DailyProcessID INT,DateFrom TEXT,DateUntil TEXT,Period INT,CafeLevel INT,CafeType INT,LevelMin INT,LevelMax INT,QueryString TEXT,Message TEXT,Feature TEXT);'
+    "INSERT INTO DailyItemProcessInfo VALUES(110,'2010-02-02 00:00:00.000','3000-12-31 00:00:00.001',1440,0,3,NULL,NULL,'giveitemuntil cash_revive 3','GameUI_Heroes_DailyItemProcess_GiveItemMessage','HomeCafeBonus&&enEU');"
     'CREATE TABLE StatusEffectGroupInfo(Type TEXT,Level INT,Abslevel INT,IDTag TEXT,Duration INT,CombatCount INT,ServerSide INT,RealTimePeriod INT,ServerEffect1 TEXT,ServerEffect1_Arg1 TEXT,ServerEffect1_Arg2 TEXT,ServerEffect1_Arg3 TEXT,ServerEffect2 TEXT,ServerEffect2_Arg1 TEXT,ServerEffect2_Arg2 TEXT,ServerEffect2_Arg3 TEXT,ServerEffect3 TEXT,ServerEffect3_Arg1 TEXT,ServerEffect3_Arg2 TEXT,ServerEffect3_Arg3 TEXT,ServerEffect TEXT);'
     'CREATE TABLE Cashshop_Tircoin_notsell_list(CashShopType varchar,ItemClass varchar,Amount INT,Duration INT,Price INT,Feature varchar);'
 )
@@ -56,6 +58,10 @@ class CashShopExportTests(unittest.TestCase):
         self.assertEqual(p['class_restrictions'], [2, 2047])
         self.assertEqual(p['value_products'], [{'item': 'potion', 'days': [7, 30]}])
         self.assertEqual(p['without_contents'], [])
+        self.assertEqual(p['daily_items'], [{'id': 110, 'start_ticks': 634006656000000000, 'end_ticks': 946707264000010000, 'period_minutes': 1440, 'cafe_level': 0, 'cafe_type': 3,
+                                             'level_min': None, 'level_max': None, 'query': 'giveitemuntil cash_revive 3',
+                                             'message': 'GameUI_Heroes_DailyItemProcess_GiveItemMessage', 'feature': 'HomeCafeBonus&&enEU'}])
+        self.assertIn('enEU', [f['key'] for f in p['features']])
         self.assertEqual(p['status_effects'], [{'type': 'homecafe_bonus', 'level': 1, 'abs_level': 1, 'id_tag': 'homecafe_bonus', 'duration': 2592000,
                                                  'combat_count': -1, 'kind': 'UseExpireTime', 'stat_adder': [['ATK', 19], ['MATK', 18]]},
                                                 {'type': 'other', 'level': 1, 'abs_level': 1, 'id_tag': None, 'duration': 10,

@@ -56,6 +56,16 @@ def integer(v):
     return v
 
 
+def ticks(value):
+    """A SQL datetime text ('YYYY-MM-DD hh:mm:ss.fff') as UTC .NET DateTime ticks."""
+    import datetime
+    if not isinstance(value, str):
+        raise ValueError('Cash shop date')
+    moment = datetime.datetime.strptime(value[:23], '%Y-%m-%d %H:%M:%S.%f')
+    delta = moment - datetime.datetime(1, 1, 1)
+    return (delta.days * 86400 + delta.seconds) * 10_000_000 + delta.microseconds * 10
+
+
 def status_effect(r):
     """StatusEffectGroupInfo.Build: Effects (ServerEffect1-3, then each ServerEffect entry
     split on spaces), StatusEffectType (ServerSide 0 Client, 1 UseExpireTime with
@@ -140,8 +150,18 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
         # CharacterContents.StatusEffectGroupInfo (every row), with the persistence kind and
         # StatAdder of StatusEffectGroupInfo.Build.
         status_effects = [status_effect(r) for r in db.execute('Select * From [StatusEffectGroupInfo]')]
+        # ItemContents.dailyItemProcessInfo (DailyItemController), dates as UTC .NET ticks.
+        daily_items = [dict(id=integer(r['DailyProcessID']), start_ticks=ticks(r['DateFrom']), end_ticks=ticks(r['DateUntil']),
+                            period_minutes=integer(r['Period'] or 0), cafe_level=integer(r['CafeLevel'] or 0),
+                            cafe_type=integer(r['CafeType'] or 0),
+                            level_min=None if r['LevelMin'] is None else integer(r['LevelMin']),
+                            level_max=None if r['LevelMax'] is None else integer(r['LevelMax']),
+                            query=text(r['QueryString'], 512), message=text(r['Message']), feature=text(r['Feature'], 512))
+                       for r in db.execute('Select * From [DailyItemProcessInfo]')]
     atoms = {'LanguageTag', 'AvatarBeauty', 'CashShop', 'TradeAndCashShopLevelLimit', 'HomeCafeBonus',
              'HomeCafeBonus_Rule_zhCN', 'HomeCafeBonus_StatusEffect', 'CafeBonusIncreaseTime', 'ShowCafeBonusDialog'}
+    for r in daily_items:
+        atoms |= feature_atoms(r['feature'] or '')
     for r in items + prices + coupons + colors + tir_ignored:
         atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 512 or any(not k.isascii() or not k or len(k) > 256 for k in atoms):
@@ -149,7 +169,7 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
     features = [dict(key=k, value=values.get(k)) for k in sorted(atoms)]
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Cash shop source changed during export')
-    return dict(format_version=6, source='heroesContents.cash-shop', status_effects=status_effects, database_sha256=manifest['database_sha256'],
+    return dict(format_version=7, source='heroesContents.cash-shop', status_effects=status_effects, daily_items=daily_items, database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], localized_sha256=digest(localized_path),
                 root_category=105, categories=categories, names=names, without_contents=boxed,
                 value_products=[dict(item=k, days=v) for k, v in sorted(value_products.items())],

@@ -83,6 +83,21 @@ struct StatusEffectRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct DailyItemRow {
+    id: i32,
+    start_ticks: i64,
+    end_ticks: i64,
+    period_minutes: i32,
+    cafe_level: i32,
+    cafe_type: i32,
+    level_min: Option<i32>,
+    level_max: Option<i32>,
+    query: Option<String>,
+    message: Option<String>,
+    feature: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ValueProduct {
     item: String,
     days: Vec<i32>,
@@ -117,6 +132,8 @@ pub struct Profile {
     value_products: Vec<ValueProduct>,
     /// StatusEffectGroupInfo of the HomeCafeBonus effects.
     status_effects: Vec<StatusEffectRow>,
+    /// ItemContents.dailyItemProcessInfo.
+    daily_items: Vec<DailyItemRow>,
     default_price: i32,
     prices: Vec<Price>,
     customize_items: Vec<CustomizeRow>,
@@ -159,6 +176,8 @@ pub struct Customize {
     pub tir_ignored: Vec<TirIgnored>,
     /// StatusEffectGroupInfo of the HomeCafeBonus effects.
     pub status_effects: crate::domain::status_effect::Contents,
+    /// DailyItemScheduler procedures with an enabled Feature and a known ProcessType.
+    pub daily_items: Vec<crate::domain::daily_item::Procedure>,
     /// ItemClassInfo.Category and ClassRestriction of each effective class.
     pub classes: BTreeMap<Vec<u8>, (Option<String>, i32)>,
     pub policy: crate::domain::feature_policy::FeaturePolicy,
@@ -199,7 +218,8 @@ impl Profile {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
-        if p.format_version != 6
+        if p.format_version != 7
+            || p.daily_items.len() > 4096
             || p.status_effects.len() > 4096
             || p.without_contents.len() > p.categories.len()
             || p.value_products.len() > 64
@@ -517,7 +537,31 @@ impl Profile {
                 .collect::<Result<Vec<_>, MinimumError>>()?,
         )
         .ok_or_else(fail)?;
+        let mut daily_items = Vec::new();
+        for r in &self.daily_items {
+            if !policy
+                .is_enabled(r.feature.as_deref())
+                .map_err(|_| fail())?
+            {
+                continue;
+            }
+            if let Some(p) = crate::domain::daily_item::Procedure::parse(
+                r.id,
+                r.start_ticks,
+                r.end_ticks,
+                r.period_minutes,
+                r.cafe_level,
+                r.cafe_type,
+                r.level_min,
+                r.level_max,
+                r.query.as_deref().unwrap_or(""),
+                r.message.clone(),
+            ) {
+                daily_items.push(p);
+            }
+        }
         Ok(Customize {
+            daily_items,
             status_effects,
             items,
             prices,

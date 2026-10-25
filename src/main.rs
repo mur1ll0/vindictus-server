@@ -14,8 +14,30 @@ use vindictus_server::{
 const SHOP_LIST_CLIENT_LIMIT: usize = 0x10_0000;
 const SHOP_LIST_PATCHED_LIMIT: usize = 0x100_0000;
 
-#[tokio::main]
-async fn main() -> std::process::ExitCode {
+/// Stack of the thread that drives the runtime: the command futures (asset loading and
+/// the frontend session) outgrow the 1 MiB Windows main-thread stack in debug builds.
+const MAIN_STACK_BYTES: usize = 32 * 1024 * 1024;
+
+fn main() -> std::process::ExitCode {
+    let driver = std::thread::Builder::new()
+        .name("main-runtime".to_owned())
+        .stack_size(MAIN_STACK_BYTES)
+        .spawn(|| {
+            match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(runtime) => runtime.block_on(entry()),
+                Err(_) => std::process::ExitCode::FAILURE,
+            }
+        });
+    match driver {
+        Ok(handle) => handle.join().unwrap_or(std::process::ExitCode::FAILURE),
+        Err(_) => std::process::ExitCode::FAILURE,
+    }
+}
+
+async fn entry() -> std::process::ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),

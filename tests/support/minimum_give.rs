@@ -1488,6 +1488,120 @@ async fn minimum_quest_login_gives_first_and_level_quests_once_and_pushes_progre
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_daily_items_give_vvip_items_once_per_range() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            cash_shop, character_lobby::QueryConfig, minimum_daily_item, minimum_selection,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let profile = json!({"format_version":7,"source":"heroesContents.cash-shop","daily_items":[
+            {"id":110,"start_ticks":634_006_656_000_000_000_i64,"end_ticks":946_707_264_000_010_000_i64,"period_minutes":1440,"cafe_level":0,"cafe_type":3,
+             "level_min":null,"level_max":null,"query":"giveitemuntil synthetic_cash 3","message":"GameUI_Heroes_DailyItemProcess_GiveItemMessage","feature":"HomeCafeBonus"},
+            {"id":3,"start_ticks":634_006_656_000_000_000_i64,"end_ticks":946_707_264_000_010_000_i64,"period_minutes":1440,"cafe_level":1,"cafe_type":0,
+             "level_min":null,"level_max":null,"query":"giveitemuntil synthetic_cash 9","message":"GameUI_Heroes_DailyItemProcess_GiveItemMessage","feature":null}],
+        "without_contents":[],"value_products":[],"status_effects":[],
+        "database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"localized_sha256":"c".repeat(64),"names":[null,null,null,null],
+        "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[],
+        "customize_items":[],"customize_prices":[],"customize_coupons":[],"customize_colors":[],"tir_ignored":[],"class_restrictions":[2047,2047,2047,2047],
+        "features":[{"key":"LanguageTag","value":"en-EU"},{"key":"HomeCafeBonus","value":"2.02.05"},{"key":"HomeCafeBonus_Rule_zhCN","value":null},
+            {"key":"HomeCafeBonus_StatusEffect","value":"homecafe_bonus,account_homecafe_bonus"},{"key":"CafeBonusIncreaseTime","value":"0"}]});
+    let assets = assets_with(0, 1, 0)
+        .with_cash_shop(
+            cash_shop::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
+        )
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let mut next = 900_000_i64;
+    let mut ids = move || {
+        next += 1;
+        Ok(next)
+    };
+    let held = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(SUM(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+        )
+        .bind(utf16("synthetic_cash"))
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    // Without a VVIP (CafeType 3) and without a PC cafe nothing runs.
+    let before = held().await;
+    assert!(
+        minimum_daily_item::process(&p, &owner, &assets, 1, &mut ids)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(held().await, before);
+    sqlx::query("INSERT INTO game_home_cafe_bonus(uid,cid,bonus_type,expired_time_units300) VALUES($1,0,3,76682609279700)")
+        .bind(owner.uid)
+        .execute(&p)
+        .await
+        .unwrap();
+    // GiveItemUntil tops the item up to 3 with the GiveItemMessage, then UpdateInventoryInfo.
+    let packets = minimum_daily_item::process(&p, &owner, &assets, 1, &mut ids)
+        .await
+        .unwrap();
+    assert_eq!(held().await, before.max(3));
+    if before < 3 {
+        assert_eq!(packets.len(), 2);
+        assert_eq!(packets[1].category, Kind::UpdateInventoryInfo.category());
+    }
+    // Once per range: nothing more today.
+    sqlx::query("UPDATE game_items SET count=1 WHERE owner_id=1 AND item_class_utf16=$1")
+        .bind(utf16("synthetic_cash"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let held_now = held().await;
+    assert!(
+        minimum_daily_item::process(&p, &owner, &assets, 1, &mut ids)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(held().await, held_now);
+    // A processed time from an earlier range runs it again.
+    sqlx::query("UPDATE game_daily_item_process SET processed_ticks=processed_ticks-$1 WHERE cid=1 AND process_id=110")
+        .bind(1440 * 600_000_000_i64)
+        .execute(&p)
+        .await
+        .unwrap();
+    minimum_daily_item::process(&p, &owner, &assets, 1, &mut ids)
+        .await
+        .unwrap();
+    assert_eq!(held().await, held_now.max(3));
+    let processed: Vec<i32> = sqlx::query_scalar(
+        "SELECT process_id FROM game_daily_item_process WHERE cid=1 ORDER BY process_id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(processed, [110]);
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,
@@ -1502,7 +1616,7 @@ async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
     minimum_character::initialize(&p).await.unwrap();
     let owner = super::initial_inventory::key();
     let effect = |t: &str| json!({"type":t,"level":1,"abs_level":1,"id_tag":t,"duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]});
-    let profile = json!({"format_version":6,"source":"heroesContents.cash-shop","without_contents":[],"value_products":[],
+    let profile = json!({"format_version":7,"source":"heroesContents.cash-shop","daily_items":[],"without_contents":[],"value_products":[],
         "status_effects":[effect("homecafe_bonus"),effect("account_homecafe_bonus")],
         "database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"localized_sha256":"c".repeat(64),"names":[null,null,null,null],
         "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[],
@@ -5844,7 +5958,7 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     // synthetic_cash (row 1) is the only cash-tab class of the fixture catalog.
-    let profile = json!({"format_version":6,"source":"heroesContents.cash-shop","without_contents":[],"value_products":[],"status_effects":[{"type":"homecafe_bonus","level":1,"abs_level":1,"id_tag":"homecafe_bonus","duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]},{"type":"account_homecafe_bonus","level":1,"abs_level":1,"id_tag":"account_homecafe_bonus","duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]}],"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":7,"source":"heroesContents.cash-shop","daily_items":[],"without_contents":[],"value_products":[],"status_effects":[{"type":"homecafe_bonus","level":1,"abs_level":1,"id_tag":"homecafe_bonus","duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]},{"type":"account_homecafe_bonus","level":1,"abs_level":1,"id_tag":"account_homecafe_bonus","duration":2592000,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",19],["MATK",18],["WILL",10]]}],"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "localized_sha256":"c".repeat(64),"names":[null,{"name":"Synthetic & Cash","description":"Line one.\nLine <two>."},null,null],
         "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[{"category":"CASHITEM","price":300}],
         "customize_items":[{"item":"synthetic_bag","category":"HAIR","shop":"en-EU","feature":null},{"item":"synthetic_cash","category":"HAIR","shop":"ko-KR","feature":null}],
