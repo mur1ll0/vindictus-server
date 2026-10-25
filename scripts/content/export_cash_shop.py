@@ -66,12 +66,19 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
     if type(default) is not int or default <= 0 or any(
             type(v) is not int or v <= 0 or not text(k) for k, v in table.items()):
         raise ValueError('Cash shop price table')
+    value_products = prices.get('value_products', {})
+    if any(not text(k) or not v or any(type(d) is not int or not 0 < d <= 3650 for d in v)
+           for k, v in value_products.items()):
+        raise ValueError('Cash shop VALUE products')
     with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
         db.execute('PRAGMA query_only=ON')
         db.row_factory = sqlite3.Row
         categories = []
         restrictions = []
         names = []
+        boxed = []
+        # RandomItem/RandomItemV2 open a box; a box class without them has no contents.
+        openable = {r[0] for r in db.execute('Select ItemClass From [RandomItem] Union Select ItemClass From [RandomItemV2]')}
         for index, r in enumerate(db.execute('Select ItemClass, Feature, Category, ClassRestriction From [ItemClassInfo]')):
             if index >= len(package['classes']):
                 raise ValueError('Catalog alignment changed')
@@ -81,6 +88,9 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
             categories.append(text(r['Category']))
             restrictions.append(integer(r['ClassRestriction']))
             names.append(localized(entries, r['ItemClass']))
+            if ((r['ItemClass'].startswith('randomitem_') or r['Category'] == 'PACKAGE')
+                    and r['ItemClass'] not in openable):
+                boxed.append(index)
         if len(categories) != len(package['classes']):
             raise ValueError('Catalog alignment changed')
         items = [dict(item=text(r['ItemClass']), category=text(r['Category']), shop=text(r['CashShopType']),
@@ -108,9 +118,10 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
     features = [dict(key=k, value=values.get(k)) for k in sorted(atoms)]
     if digest(database) != manifest['database_sha256'] or digest(config) != manifest['config_sha256']:
         raise ValueError('Cash shop source changed during export')
-    return dict(format_version=4, source='heroesContents.cash-shop', database_sha256=manifest['database_sha256'],
+    return dict(format_version=5, source='heroesContents.cash-shop', database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], localized_sha256=digest(localized_path),
-                root_category=105, categories=categories, names=names,
+                root_category=105, categories=categories, names=names, without_contents=boxed,
+                value_products=[dict(item=k, days=v) for k, v in sorted(value_products.items())],
                 default_price=default, prices=[dict(category=k, price=v) for k, v in sorted(table.items())],
                 customize_items=items, customize_prices=prices, customize_coupons=coupons,
                 customize_colors=colors, tir_ignored=tir_ignored, class_restrictions=restrictions, features=features)

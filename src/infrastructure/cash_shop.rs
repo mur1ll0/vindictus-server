@@ -15,6 +15,8 @@ const NEXON_CASH: i32 = 13001;
 const ON_SALE: i32 = 1;
 /// First CategoryNo of the item categories (below the root).
 const FIRST_CATEGORY: i32 = 1000;
+/// ProductNo of the VALUE variants: base + catalog row × 8 + duration index.
+const VALUE_PRODUCT_BASE: i32 = 2_000_000;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -68,6 +70,12 @@ struct TirRow {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct ValueProduct {
+    item: String,
+    days: Vec<i32>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Localized {
     name: String,
     description: Option<String>,
@@ -90,6 +98,10 @@ pub struct Profile {
     categories: Vec<Option<String>>,
     /// Client english_eu item name and description of each catalog class.
     names: Vec<Option<Localized>>,
+    /// Catalog rows of boxes without RandomItem/RandomItemV2 contents (not sold).
+    without_contents: Vec<usize>,
+    /// Classes sold once per duration with ProductAttribute3 `[VALUE:n]`.
+    value_products: Vec<ValueProduct>,
     default_price: i32,
     prices: Vec<Price>,
     customize_items: Vec<CustomizeRow>,
@@ -143,6 +155,8 @@ pub struct Product {
     /// Client english_eu name and description; none when the EU never translated it.
     pub name: Option<String>,
     pub description: Option<String>,
+    /// ProductAttribute3 (ItemClassEx attributes) of the product, such as `[VALUE:30]`.
+    pub attribute3: Option<String>,
 }
 
 /// The bound catalog: categories, products and the products by ProductNo.
@@ -168,7 +182,16 @@ impl Profile {
             return Err(fail());
         }
         let p: Self = serde_json::from_slice(&bytes).map_err(|_| fail())?;
-        if p.format_version != 4
+        if p.format_version != 5
+            || p.without_contents.len() > p.categories.len()
+            || p.value_products.len() > 64
+            || p.value_products.iter().any(|v| {
+                v.item.is_empty()
+                    || !v.item.is_ascii()
+                    || v.days.is_empty()
+                    || v.days.len() > 8
+                    || v.days.iter().any(|d| !(1..=3650).contains(d))
+            })
             || p.names.len() != p.categories.len()
             || p.localized_sha256.len() != 64
             || p.names.iter().flatten().any(|n| {
@@ -230,7 +253,12 @@ impl Profile {
         }];
         let mut numbers: BTreeMap<String, i32> = BTreeMap::new();
         let mut products = Vec::with_capacity(rows.len());
+        let hidden: std::collections::BTreeSet<usize> =
+            self.without_contents.iter().copied().collect();
         for (index, class) in rows {
+            if hidden.contains(&index) {
+                continue;
+            }
             let name = self
                 .categories
                 .get(index)
@@ -261,26 +289,56 @@ impl Profile {
             let product_id = String::from_utf16(&units).map_err(|_| fail())?;
             let product_no = i32::try_from(index).map_err(|_| fail())? + 1;
             let localized = self.names.get(index).ok_or_else(fail)?.as_ref();
-            products.push(Product {
-                name: localized.map(|l| l.name.clone()),
-                description: localized.and_then(|l| l.description.clone()),
-                class_utf16: class,
-                element: CashShopProduct {
-                    product_no,
-                    product_expire: 0,
-                    product_pieces: 1,
-                    product_id: Some(product_id),
-                    product_guid: Some(format!("00000000-0000-4000-8000-{product_no:012x}")),
-                    payment_type: NEXON_CASH,
-                    product_type: Some(String::new()),
-                    sale_price: prices
-                        .get(name.as_str())
-                        .copied()
-                        .unwrap_or(self.default_price),
-                    category_no,
-                    status: ON_SALE,
-                },
-            });
+            let sale_price = prices
+                .get(name.as_str())
+                .copied()
+                .unwrap_or(self.default_price);
+            // One product per duration; the base product would be unusable (VALUE 0).
+            let variants: Vec<(i32, Option<i32>)> =
+                match self.value_products.iter().find(|v| v.item == product_id) {
+                    Some(v) => v
+                        .days
+                        .iter()
+                        .enumerate()
+                        .map(|(k, d)| {
+                            let k = i32::try_from(k).map_err(|_| fail())?;
+                            let row = i32::try_from(index).map_err(|_| fail())?;
+                            Ok((
+                                VALUE_PRODUCT_BASE
+                                    .checked_add(row.checked_mul(8).ok_or_else(fail)?)
+                                    .and_then(|n| n.checked_add(k))
+                                    .ok_or_else(fail)?,
+                                Some(*d),
+                            ))
+                        })
+                        .collect::<Result<_, MinimumError>>()?,
+                    None => vec![(product_no, None)],
+                };
+            for (product_no, days) in variants {
+                // HEROES_ITEM_NAME "VIP Service ({0} Days)" takes the duration.
+                let name = localized.map(|l| match days {
+                    Some(d) => l.name.replace("{0}", &d.to_string()),
+                    None => l.name.clone(),
+                });
+                products.push(Product {
+                    name,
+                    description: localized.and_then(|l| l.description.clone()),
+                    class_utf16: class.clone(),
+                    attribute3: days.map(|d| format!("[VALUE:{d}]")),
+                    element: CashShopProduct {
+                        product_no,
+                        product_expire: 0,
+                        product_pieces: 1,
+                        product_id: Some(product_id.clone()),
+                        product_guid: Some(format!("00000000-0000-4000-8000-{product_no:012x}")),
+                        payment_type: NEXON_CASH,
+                        product_type: Some(String::new()),
+                        sale_price,
+                        category_no,
+                        status: ON_SALE,
+                    },
+                });
+            }
         }
         let customize = self.customize(catalog)?;
         let by_no = products
@@ -463,11 +521,14 @@ impl Contents {
             let Some(name) = p.name.as_deref() else {
                 continue;
             };
-            let count = listed.entry(e.category_no).or_default();
-            if *count >= per_category {
-                continue;
+            // VALUE products (VIP/VVIP durations) are always listed.
+            if p.attribute3.is_none() {
+                let count = listed.entry(e.category_no).or_default();
+                if *count >= per_category {
+                    continue;
+                }
+                *count += 1;
             }
-            *count += 1;
             let class = escape(e.product_id.as_deref().unwrap_or(""));
             let guid = escape(e.product_guid.as_deref().unwrap_or(""));
             let name = escape(name);

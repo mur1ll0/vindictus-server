@@ -285,7 +285,14 @@ pub async fn purchase_order(
         .bind(attribute(&request.attribute0))
         .bind(attribute(&request.attribute1))
         .bind(attribute(&request.attribute2))
-        .bind(attribute(&request.attribute3))
+        // The product's own ProductAttribute3 (VALUE durations) wins over the request's.
+        .bind(
+            product
+                .attribute3
+                .as_deref()
+                .or(request.attribute3.as_deref())
+                .map(utf16),
+        )
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;

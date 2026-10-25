@@ -5518,7 +5518,7 @@ async fn minimum_cash_shop_sells_cash_tab_items_into_the_depot_and_picks_them_up
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     // synthetic_cash (row 1) is the only cash-tab class of the fixture catalog.
-    let profile = json!({"format_version":4,"source":"heroesContents.cash-shop","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
+    let profile = json!({"format_version":5,"source":"heroesContents.cash-shop","without_contents":[],"value_products":[],"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),
         "localized_sha256":"c".repeat(64),"names":[null,{"name":"Synthetic & Cash","description":"Line one.\nLine <two>."},null,null],
         "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[{"category":"CASHITEM","price":300}],
         "customize_items":[{"item":"synthetic_bag","category":"HAIR","shop":"en-EU","feature":null},{"item":"synthetic_cash","category":"HAIR","shop":"ko-KR","feature":null}],

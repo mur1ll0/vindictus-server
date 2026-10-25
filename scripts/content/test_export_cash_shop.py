@@ -11,6 +11,7 @@ SCHEMA = (
     'CREATE TABLE CustomizePriceInfo(ItemClass varchar,Duration INT,Price INT,CashShopType varchar,Feature varchar);'
     'CREATE TABLE CustomizeCouponInfo(ItemClass varchar,Category varchar,Price INT,CashShopType varchar,Feature varchar);'
     'CREATE TABLE CustomizeColorInfo(Category varchar,[Order] INT,Color INT,Weight INT,IsCash bit,Description varchar,CashShopType varchar,Feature varchar);'
+    'CREATE TABLE RandomItem(ItemClass TEXT);CREATE TABLE RandomItemV2(ItemClass TEXT);'
     'CREATE TABLE Cashshop_Tircoin_notsell_list(CashShopType varchar,ItemClass varchar,Amount INT,Duration INT,Price INT,Feature varchar);'
 )
 
@@ -28,7 +29,8 @@ class CashShopExportTests(unittest.TestCase):
                                '\t\t"HEROES_ITEM_NAME_HAIR_A"\t"Short Hair"\r\n'
                                '\t\t"HEROES_ITEM_DESC_HAIR_A"\t"A hair.\\nPermanent."\r\n'
                                '\t\t"HEROES_ITEM_NAME_POTION"\t"\ud3ec\uc158"\r\n\t}\r\n}\r\n').encode('utf-16-le'))
-        self.prices.write_text(json.dumps({'default': 500, 'categories': {'HAIR': 800}}), encoding='utf-8')
+        self.prices.write_text(json.dumps({'default': 500, 'categories': {'HAIR': 800},
+                                           'value_products': {'potion': [7, 30]}}), encoding='utf-8')
         self.config.write_text('<configuration><setting name="GameCode"><value>42</value></setting><setting name="heroesContentsDB3"><value>heroesContents.db3</value></setting></configuration>', encoding='utf-8')
         with contextlib.closing(sqlite3.connect(self.db)) as db:
             db.executescript(SCHEMA)
@@ -48,6 +50,8 @@ class CashShopExportTests(unittest.TestCase):
         self.assertEqual(p['customize_items'][0]['category'], 'HAIR')
         self.assertIn('STUDY-A', [f['key'] for f in p['features']])
         self.assertEqual(p['class_restrictions'], [2, 2047])
+        self.assertEqual(p['value_products'], [{'item': 'potion', 'days': [7, 30]}])
+        self.assertEqual(p['without_contents'], [])
 
     def test_price_table_is_bounded(self):
         self.prices.write_text(json.dumps({'default': 0, 'categories': {}}), encoding='utf-8')

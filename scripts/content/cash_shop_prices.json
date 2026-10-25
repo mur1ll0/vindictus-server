@@ -17,5 +17,18 @@
     "RAREITEM": 3000,
     "CASHITEM": 300,
     "GARBAGE": 100
+  },
+  "_value_comment": "VALUE products (operator decision 2026-10-25): one product per duration with ProductAttribute3 [VALUE:n], the days UseInventoryItem reads from item.Value.",
+  "value_products": {
+    "homecafe_bonus_day": [
+      7,
+      30,
+      90
+    ],
+    "account_homecafe_bonus_day": [
+      7,
+      30,
+      90
+    ]
   }
 }
