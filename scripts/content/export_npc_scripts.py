@@ -49,6 +49,14 @@ def load(path, hasher):
     hasher.update(len(data).to_bytes(8, 'little')); hasher.update(data)
     return tree(ET.fromstring(data))
 
+ADDITIONS = pathlib.Path(__file__).resolve().parent / 'lab_content_additions.json'
+
+
+def lab_additions():
+    """Versioned laboratory content rows added on top of heroesContents."""
+    return json.loads(ADDITIONS.read_text(encoding='utf-8'))
+
+
 def read_package(base, database, config):
     catalog = catalog_read(database, config)
     hasher = hashlib.sha256()
@@ -120,6 +128,19 @@ def read_package(base, database, config):
             if row['ID'] is not None and (type(row['ID']) is not int or not -(2**31) <= row['ID'] < 2**31): raise ValueError('ShopInfo ID')
             shops.append(row)
             if len(shops) > 100000: raise ValueError('ShopInfo bound')
+        # Laboratory additions (lab_content_additions.json) after the original rows.
+        keys = {(r['ShopID'], r['Order']) for r in shops}
+        for r in lab_additions().get('ShopInfo', []):
+            row = {'ShopID': nullable_text(r['ShopID']), 'Order': short(r['Order']), 'ItemClass': nullable_text(r['ItemClass']),
+                   'PriceItemClass': nullable_text(r['PriceItemClass']), 'AppearQuestID': nullable_text(r['AppearQuestID']),
+                   'CharacterBind': boolean(r['CharacterBind']), 'ID': r['ID'], 'RestrictionResetTime': nullable_text(r['RestrictionResetTime']),
+                   'Feature': nullable_text(r['Feature'])}
+            for k in ('Count', 'PriceCount', 'RestrictionPeriodDay', 'RestrictionCount'):
+                if type(r[k]) is not int or not -(2**31) <= r[k] < 2**31: raise ValueError('ShopInfo addition Int32')
+                row[k] = r[k]
+            if (row['ShopID'], row['Order']) in keys: raise ValueError('ShopInfo addition overlaps an original row')
+            keys.add((row['ShopID'], row['Order']))
+            shops.append(row)
     def int32(v):
         if type(v) is not int or not -(2**31) <= v < 2**31: raise ValueError('Repair Int32')
         return v

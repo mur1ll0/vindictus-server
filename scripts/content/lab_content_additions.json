@@ -1,0 +1,6 @@
+{
+  "_comment": "Laboratory content rows added on top of heroesContents (server export) and the client copy's heroes.db3 (scripts/client/apply_lab_content_additions.py). Operator decision 2026-10-25: Ferghus sells Enhancement Elixir for its ItemClassInfo.Price (4000 gold); originally it only dropped from Hard and harder bosses.",
+  "ShopInfo": [
+    {"ShopID": "FERGHUS_Shop", "Order": 124, "ItemClass": "enhance_elixir", "Count": 1, "PriceItemClass": "gold", "PriceCount": 4000, "AppearQuestID": null, "CharacterBind": "False", "ID": null, "RestrictionResetTime": null, "RestrictionPeriodDay": 0, "RestrictionCount": 0, "Feature": null}
+  ]
+}

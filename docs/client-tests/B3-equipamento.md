@@ -235,3 +235,8 @@ Pré-condições: VVIP ativo (VVIP Service usado); `game` reconstruído.
 - [ ] Ao usar o VVIP ou entrar com ele → mensagens de item diário; o inventário recebe 3 "Goddess Grace (VVIP Benefit)" (revive) e 20 "Merc Recovery Potion Plus (VVIP)".
 - [ ] Gastar uma poção e relogar no mesmo dia → nada novo; no dia seguinte (UTC) completa de novo até 20.
 - [ ] Com menos de 1 revive, a cada hora cheia (UTC) chega 1 revive.
+
+### EL1 — Enhancement Elixir no Ferghus
+Pré-condições: `python scripts/client/apply_lab_content_additions.py --client-copy .cache/play-client --apply` aplicado; `game` reconstruído.
+- [ ] Abrir a loja do Ferghus → "Enhancement Elixir" aparece por 4.000 de ouro; comprar → o ouro cai e o item vai para a bolsa.
+- [ ] Usar o Elixir num aprimoramento acima de +5.

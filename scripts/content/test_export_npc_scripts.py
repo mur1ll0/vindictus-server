@@ -57,7 +57,11 @@ class NpcScriptExportTests(unittest.TestCase):
         info = p['storylines'][0]['info']
         self.assertEqual((info['RewardItemCount'], info['AutoReveal'], info['AutoProcess'], p['manifest']['coerced_integers']), (0, True, False, 1))
         shop = p['shops'][0]
-        self.assertEqual((shop['ShopID'], shop['Order'], shop['PriceCount'], shop['CharacterBind'], p['manifest']['shops']), ('A_Shop', 1, 95, False, 1))
+        self.assertEqual((shop['ShopID'], shop['Order'], shop['PriceCount'], shop['CharacterBind'], p['manifest']['shops']), ('A_Shop', 1, 95, False, 2))
+        # lab_content_additions.json follows the original rows.
+        added = p['shops'][-1]
+        self.assertEqual((added['ShopID'], added['Order'], added['ItemClass'], added['PriceItemClass'], added['PriceCount']),
+                         ('FERGHUS_Shop', 124, 'enhance_elixir', 'gold', 4000))
         self.assertIn('shop_flag', [f['key'] for f in p['features']])
         self.assertEqual((p['repair']['quality'], len(p['repair']['equip_item_class'])), ([[2, 5]], 0))
         m = p['mission']

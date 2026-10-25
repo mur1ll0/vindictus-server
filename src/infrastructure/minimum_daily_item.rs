@@ -99,68 +99,38 @@ pub async fn process(
             Err(_) => continue,
         };
         let key = utf16(&class);
-        let have = held(&mut tx, cid, &class).await?;
-        // (destroy, give) counts of the process.
-        let (destroy, give) = match &p.kind {
-            ProcessKind::GiveItem => (0, count),
-            ProcessKind::TakeItem => (count.min(have), 0),
-            ProcessKind::GiveItemUntil | ProcessKind::GiveItemUntilByCharacterClass => {
-                (0, (count - have).max(0))
+        // The source catches each procedure: a failing one is logged and skipped.
+        let mut sp = sqlx::Acquire::begin(&mut *tx).await?;
+        match run(
+            &mut sp,
+            owner,
+            assets,
+            cid,
+            p,
+            &class,
+            &key,
+            &attributes,
+            count,
+            base_class,
+            now,
+            ids,
+        )
+        .await
+        {
+            Ok((message, changed)) => {
+                sp.commit().await?;
+                messages.extend(message);
+                slots.extend(changed);
             }
-            ProcessKind::TakeItemUntil => ((have - count).max(0), 0),
-            ProcessKind::NotMigrated(_) => continue,
-        };
-        if p.kind == ProcessKind::GiveItemUntilByCharacterClass && give > 0 {
-            // ItemClassInfo.IsAvailableFor(BaseCharacter).
-            let restriction = assets
-                .stats_index
-                .class(Some(&key))
-                .and_then(|c| assets.economy.as_ref()?.get(c.source_index))
-                .map_or(0, |e| e.class_restriction);
-            if 1_i32
-                .checked_shl(u32::try_from(base_class).map_err(|_| fail())?)
-                .unwrap_or(0)
-                & restriction
-                == 0
-            {
-                continue;
-            }
-        }
-        if destroy > 0 || give > 0 {
-            let request = [super::minimum_give::Request {
-                class: &key,
-                count: destroy.max(give),
-                bound: false,
-                equipment: None,
-                attributes: &attributes,
-            }];
-            let (destroys, gives): (&[super::minimum_give::Request<'_>], &[_]) = if destroy > 0 {
-                (&request, &[])
-            } else {
-                (&[], &request)
-            };
-            match super::minimum_give::apply(&mut tx, owner, assets, cid, destroys, gives, ids)
-                .await?
-            {
-                Ok(applied) => slots.extend(applied.slots),
-                // The source mails what does not fit; this range is retried later.
-                Err(_) => continue,
-            }
-            if give > 0 && p.kind != ProcessKind::GiveItem {
-                messages.push(super::minimum_shop::system_message(
-                    super::minimum_shop::SYSTEM,
-                    p.message.as_deref().unwrap_or(""),
-                    &[class.clone(), give.to_string(), count.to_string()],
-                )?);
+            Err(error) => {
+                sp.rollback().await?;
+                tracing::warn!(
+                    process = p.id,
+                    error = ?error,
+                    "minimum daily item procedure failed; values omitted"
+                );
             }
         }
-        // UpdateDailyItemProcess(ID, now).
-        sqlx::query("INSERT INTO game_daily_item_process(cid,process_id,processed_ticks) VALUES($1,$2,$3) ON CONFLICT (cid,process_id) DO UPDATE SET processed_ticks=EXCLUDED.processed_ticks")
-            .bind(cid)
-            .bind(p.id)
-            .bind(now)
-            .execute(&mut *tx)
-            .await?;
     }
     tx.commit().await?;
     if !slots.is_empty() {
@@ -173,6 +143,88 @@ pub async fn process(
         });
     }
     Ok(messages)
+}
+
+/// One DailyItemProcedure.Process after its admission: the message and changed slots;
+/// Ok(None) for a process that is not migrated or an item that does not fit (no record).
+#[allow(clippy::too_many_arguments)]
+async fn run(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    p: &Procedure,
+    class: &str,
+    key: &[u8],
+    attributes: &crate::domain::item_attribute::Attributes,
+    count: i32,
+    base_class: i32,
+    now: i64,
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+) -> Result<(Option<OutgoingPacket>, Vec<Option<wire::Slot>>), MinimumError> {
+    let have = held(tx, cid, class).await?;
+    // (destroy, give) counts of the process.
+    let (destroy, give) = match &p.kind {
+        ProcessKind::GiveItem => (0, count),
+        ProcessKind::TakeItem => (count.min(have), 0),
+        ProcessKind::GiveItemUntil | ProcessKind::GiveItemUntilByCharacterClass => {
+            (0, (count - have).max(0))
+        }
+        ProcessKind::TakeItemUntil => ((have - count).max(0), 0),
+        ProcessKind::NotMigrated(_) => return Ok((None, Vec::new())),
+    };
+    if p.kind == ProcessKind::GiveItemUntilByCharacterClass && give > 0 {
+        // ItemClassInfo.IsAvailableFor(BaseCharacter).
+        let restriction = assets
+            .stats_index
+            .class(Some(key))
+            .and_then(|c| assets.economy.as_ref()?.get(c.source_index))
+            .map_or(0, |e| e.class_restriction);
+        if 1_i32
+            .checked_shl(u32::try_from(base_class).map_err(|_| fail())?)
+            .unwrap_or(0)
+            & restriction
+            == 0
+        {
+            return Ok((None, Vec::new()));
+        }
+    }
+    let mut message = None;
+    let mut slots = Vec::new();
+    if destroy > 0 || give > 0 {
+        let request = [super::minimum_give::Request {
+            class: key,
+            count: destroy.max(give),
+            bound: false,
+            equipment: None,
+            attributes,
+        }];
+        let (destroys, gives): (&[super::minimum_give::Request<'_>], &[_]) = if destroy > 0 {
+            (&request, &[])
+        } else {
+            (&[], &request)
+        };
+        match super::minimum_give::apply(tx, owner, assets, cid, destroys, gives, ids).await? {
+            Ok(applied) => slots = applied.slots,
+            // The source mails what does not fit; this range is retried later.
+            Err(_) => return Ok((None, Vec::new())),
+        }
+        if give > 0 && p.kind != ProcessKind::GiveItem {
+            message = Some(super::minimum_shop::system_message(
+                super::minimum_shop::SYSTEM,
+                p.message.as_deref().unwrap_or(""),
+                &[class.to_owned(), give.to_string(), count.to_string()],
+            )?);
+        }
+    }
+    // UpdateDailyItemProcess(ID, now).
+    sqlx::query("INSERT INTO game_daily_item_process(cid,process_id,processed_ticks) VALUES($1,$2,$3) ON CONFLICT (cid,process_id) DO UPDATE SET processed_ticks=EXCLUDED.processed_ticks")
+        .bind(cid)
+        .bind(p.id)
+        .bind(now)
+        .execute(&mut **tx)
+        .await?;
+    Ok((message, slots))
 }
 
 /// Time until the next range of a periodic procedure starts (DailyItemScheduler).

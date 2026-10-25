@@ -1377,4 +1377,11 @@ VIP3 — itens diários do VVIP (25/10/2026, pedido do operador).
 - Diferenças: GiveFatigueItem, processos de guilda/título, GiveBaseHair e ExtendExpireTime não são migrados (sem registro); item que não cabe no inventário fica para a próxima faixa (o original envia por correio).
 - Testes: `daily_item` (3), Python `test_export_cash_shop` (2), PostgreSQL `minimum_daily_items_give_vvip_items_once_per_range` (sem VVIP nada; com VVIP completa até 3 com mensagem e UpdateInventoryInfo; uma vez por faixa; faixa anterior roda de novo; PC cafe ignorado) e a suíte PostgreSQL inteira em três lotes (284), clippy `-D warnings`.
 - Cliente: entrada VIP3 em `docs/client-tests/B3-equipamento.md`.
-- Próxima ação: teste de cliente de ST2, VIP1 e VIP3; depois o sistema TodayMission (adiado pelo operador).
+
+EL1 — Enhancement Elixir no Ferghus e isolamento dos itens diários (25/10/2026, teste do operador: nenhum Elixir em chefes; os logs mostraram "minimum daily items rejected" nos logins).
+- Diagnóstico: o `enhance_elixir` só está em `MonsterDropItemInfo` nas dificuldades 3–4 e em lojas de evento desligadas na EU. Nos itens diários, além dos três do VVIP há procedimentos para todos (`slayer_stamp_limit` 20/dia, `honor_stamp_limit` 70/semana, `trophy_sportsday_limit` 20/dia, títulos de rank e guilda); um que falhava derrubava o processamento inteiro, enquanto o `DailyItemProcedure.Process` original tem try/catch por procedimento.
+- Decisão do operador (25/10/2026): o Ferghus vende o Enhancement Elixir pelo `ItemClassInfo.Price` (4.000 de ouro).
+- Implementação: `scripts/content/lab_content_additions.json` (linha `FERGHUS_Shop` 124 `enhance_elixir` por 4.000 de ouro) aplicada pelo `export_npc_scripts.py` depois das linhas originais (recusa sobreposição) e na cópia do cliente por `scripts/client/apply_lab_content_additions.py` (dry-run por padrão, idempotente, backup `heroes.db3.pre-lab-additions`, recusa os clientes originais; aplicado em `.cache/play-client`); cada procedimento diário roda num savepoint e uma falha é registrada no log com o ID e o erro, sem afetar os demais.
+- Testes: Python `test_export_npc_scripts` (2), `test_apply_lab_content_additions` (2), PostgreSQL `minimum_daily minimum_shop` (3), clippy `-D warnings`; assets reais validados (`inspect-minimum-creation-assets`).
+- Pendente: identificar no log do próximo login qual procedimento diário falhava.
+- Cliente: entrada EL1 em `docs/client-tests/B3-equipamento.md`.
