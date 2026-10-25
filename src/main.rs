@@ -355,6 +355,23 @@ async fn run(cli: Cli) -> Result<(), Error> {
             }
             None => None,
         };
+        // In-game cash shop purchases (ingame_cashshop_purchaseURL): served like the relay.
+        let web_shop_task = match runtime.minimum_assets() {
+            Some(assets) => {
+                use vindictus_server::infrastructure::lab_web_shop;
+                let web_listener =
+                    tokio::net::TcpListener::bind(lab_peer::listen_addr(lab_web_shop::BIND))
+                        .await?;
+                tracing::info!(address=%web_listener.local_addr()?, "laboratory web shop listening");
+                Some(tokio::spawn(lab_web_shop::serve(
+                    web_listener,
+                    runtime.web_shop(),
+                    pool.clone(),
+                    assets,
+                )))
+            }
+            None => None,
+        };
         let result = if let Some((channel_listener, channel)) = channel_listener {
             tracing::info!(address=%channel_listener.local_addr()?, "minimum channel listening without cipher");
             let (stop, signal) = tokio::sync::watch::channel(false);
@@ -381,6 +398,9 @@ async fn run(cli: Cli) -> Result<(), Error> {
             lab_frontend::run(listener, runtime.clone(), pool.clone(), shutdown()).await
         };
         if let Some(task) = relay_task {
+            task.abort();
+        }
+        if let Some(task) = web_shop_task {
             task.abort();
         }
         let minimum_cleanup = runtime.shutdown_minimum().await;

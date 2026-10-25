@@ -123,6 +123,10 @@ pub async fn open(
             (
                 "ingame_cashshop_shopListURL",
                 Some("http://127.0.0.1:8081/en-eu-x-gm/ShopList.aspx")
+            ),
+            (
+                "ingame_cashshop_purchaseURL",
+                Some(vindictus_server::infrastructure::lab_web_shop::PURCHASE_URL)
             )
         ]
     );

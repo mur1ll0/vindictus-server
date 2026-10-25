@@ -216,16 +216,40 @@ pub async fn purchase(
     cid: i64,
     request: &CashShopPurchase,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    match purchase_order(pool, owner, assets, cid, request).await? {
+        Purchased::Bought { balance } => Ok(vec![balance_packet(balance)?]),
+        Purchased::UnknownProduct | Purchased::InvalidQuantity => failure(RESULT_FAILED),
+        Purchased::NotEnoughCash => failure(RESULT_NOT_ENOUGH_CASH),
+    }
+}
+
+/// Outcome of a cash shop order, shared by the CashShopService message and the in-game
+/// web shop (ingame_cashshop_purchaseURL).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Purchased {
+    Bought { balance: i32 },
+    UnknownProduct,
+    InvalidQuantity,
+    NotEnoughCash,
+}
+
+pub async fn purchase_order(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    request: &CashShopPurchase,
+) -> Result<Purchased, MinimumError> {
     let contents = assets.cash_shop.as_ref().ok_or_else(fail)?;
     // The common (shared) inventory is not migrated.
     if request.is_for_common_inven {
         return Err(fail());
     }
     let Some(product) = contents.product(request.product_no) else {
-        return failure(RESULT_FAILED);
+        return Ok(Purchased::UnknownProduct);
     };
     if request.quantity <= 0 {
-        return failure(RESULT_FAILED);
+        return Ok(Purchased::InvalidQuantity);
     }
     let total = i64::from(request.quantity) * i64::from(product.element.sale_price);
     let total = i32::try_from(total).map_err(|_| fail())?;
@@ -246,7 +270,7 @@ pub async fn purchase(
     .fetch_optional(&mut *tx)
     .await?;
     let Some(balance) = debited else {
-        return failure(RESULT_NOT_ENOUGH_CASH);
+        return Ok(Purchased::NotEnoughCash);
     };
     let attribute = |a: &Option<String>| a.as_deref().map(utf16);
     sqlx::query("INSERT INTO game_cash_orders(uid,cid,product_no,item_class_utf16,pieces,expire_days,remain_quantity,price,attribute0_utf16,attribute1_utf16,attribute2_utf16,attribute3_utf16) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)")
@@ -265,7 +289,7 @@ pub async fn purchase(
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    Ok(vec![balance_packet(balance)?])
+    Ok(Purchased::Bought { balance })
 }
 
 /// Entity IDs the pick-up may need (one per non-stacking unit), bounded.

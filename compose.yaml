@@ -98,6 +98,7 @@ services:
       - 127.0.0.1:27015:27015
       - 127.0.0.1:27003:27003
       - 127.0.0.1:27005:27005
+      - 127.0.0.1:27080:27080
     healthcheck:
       # Port 27015 (0x6987) in LISTEN state; connecting would open a login session.
       test: [CMD-SHELL, "grep -qi ':6987 00000000:0000 0A' /proc/net/tcp"]

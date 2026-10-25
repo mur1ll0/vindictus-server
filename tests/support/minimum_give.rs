@@ -5724,5 +5724,62 @@ Line &lt;two&gt;.</product_desc>"
     .unwrap();
     assert_eq!(fail_name(&out.packets[0]), "GameUI_Heroes_BeautyShopFail");
     assert_eq!(bags().await.0, held + 3);
+    // In-game web shop (ingame_cashshop_purchaseURL): result codes for client.dll 0x38479040.
+    use vindictus_server::infrastructure::lab_web_shop;
+    let sessions = lab_web_shop::Sessions::default();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(lab_web_shop::serve(
+        listener,
+        sessions.clone(),
+        p.clone(),
+        std::sync::Arc::new(assets),
+    ));
+    let get = |query: String| async move {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream
+            .write_all(
+                format!(
+                    "GET /Purchase.aspx?{query} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).await.unwrap();
+        response.rsplit("\r\n\r\n").next().unwrap().to_owned()
+    };
+    let url = |product: i32, quantity: i32, cid: i64, gift: i64| {
+        format!(
+            "passport=&ServerCode=1&productno={product}&quantity={quantity}&characterid={cid}&giftcharacterid={gift}&giftmessage=&ruleid=0"
+        )
+    };
+    // Not selected in a live connection: NoUser.
+    assert_eq!(get(url(2, 1, 1, 0)).await, "1001104");
+    sessions.insert(
+        1,
+        lab_web_shop::Owner {
+            uid: owner.uid,
+            name: owner.name.to_owned(),
+            revision: owner.revision,
+        },
+    );
+    // Credit, then buy as many 300-cash products as the balance allows.
+    let funded = minimum_cash_shop::lab_credit(&p, None, 600).await.unwrap();
+    let quantity = funded / 300;
+    assert_eq!(get(url(2, 1, 1, 7)).await, "98");
+    assert_eq!(get(url(2, 0, 1, 0)).await, "98");
+    assert_eq!(get(url(999_999, 1, 1, 0)).await, "1");
+    assert_eq!(get(url(2, quantity, 1, 0)).await, "0");
+    assert_eq!(
+        balance(&minimum_cash_shop::balance(&p, owner.uid).await.unwrap()),
+        funded % 300
+    );
+    assert_eq!(get(url(2, 1, 1, 0)).await, "21");
+    sessions.remove(1);
+    assert_eq!(get(url(2, 1, 1, 0)).await, "1001104");
+    server.abort();
     cleanup_game_pool(a, p, s).await;
 }

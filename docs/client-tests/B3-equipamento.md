@@ -203,3 +203,10 @@ Pré-condições: `.cache/play-client/bin/client.dll` com o patch de limite (`py
 - [ ] Os produtos mostram o nome em inglês (por exemplo "Merc Recovery Potion") e a descrição; nenhum item aparece em coreano.
 - [ ] Comprar um produto → o saldo diminui e a compra aparece no depósito; retirar → vai para a aba cash.
 - Relatar: se a janela abrir vazia, travar ou mostrar outro erro, o horário do clique (para os logs do `game`) e quanto tempo levou para abrir. A lista tem até 10 produtos por categoria (317); para mais, `pwsh scripts/dev/lab-export-shop-list.ps1 -PerCategory 25` antes de clicar (sem reiniciar nada).
+
+### CS9 — comprar pelo Depot
+Pré-condições: `game` reconstruído com a porta 27080 publicada; saldo creditado (`pwsh scripts/dev/lab-give-cash.ps1`).
+- [ ] Comprar um produto no Depot → mensagem de compra concluída (sem "SSO Authentication Failed"); o saldo cai pelo preço × quantidade.
+- [ ] O item comprado aparece no depósito; retirar → vai para a aba cash do inventário.
+- [ ] Comprar sem saldo suficiente → mensagem de saldo insuficiente; nada é debitado.
+- Relatar: horário e mensagem de qualquer erro (os logs do `game` registram "laboratory web shop purchase answered" com o código).

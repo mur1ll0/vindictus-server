@@ -103,6 +103,7 @@ pub struct Runtime {
     minimum: Option<MinimumRuntime>,
     channel: Option<(std::net::SocketAddr, Arc<super::channel_server::Runtime>)>,
     relay: Option<super::relay::Relay>,
+    web_shop: super::lab_web_shop::Sessions,
 }
 impl Runtime {
     pub fn new(
@@ -140,6 +141,7 @@ impl Runtime {
             minimum: None,
             channel: None,
             relay: None,
+            web_shop: super::lab_web_shop::Sessions::default(),
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
@@ -178,6 +180,14 @@ impl Runtime {
             creation,
         });
         Ok(self)
+    }
+    /// Characters selected in live connections, the authority of the in-game web shop.
+    pub fn web_shop(&self) -> super::lab_web_shop::Sessions {
+        self.web_shop.clone()
+    }
+    /// The minimum creation assets, when configured.
+    pub fn minimum_assets(&self) -> Option<Arc<super::minimum_assets::Assets>> {
+        self.minimum.as_ref().map(|m| m.assets.clone())
     }
     /// The RelayServer of mission entry, when the assets configure one.
     pub fn relay(&self) -> Option<super::relay::Relay> {
@@ -405,6 +415,7 @@ impl Connection {
             relay.close_group(m.group);
         }
         if let Some(selected) = self.selected.take() {
+            runtime.web_shop.remove(selected.cid);
             if let Some((_, channel)) = &runtime.channel
                 && channel.remove(selected.cid, pool).await.is_err()
             {
@@ -1441,6 +1452,14 @@ impl Connection {
                         )
                         .await
                         .map_err(|_| RuntimeError::Operation)?;
+                        runtime.web_shop.insert(
+                            selected.cid,
+                            super::lab_web_shop::Owner {
+                                uid: owner.uid,
+                                name: owner.name.to_owned(),
+                                revision: owner.revision,
+                            },
+                        );
                         self.selected = Some(selected);
                         // SelectCharacterProcessor: OpenLog (AddCharacterJournal "Login").
                         if let Some(selected) = self.selected.as_mut() {
@@ -3474,8 +3493,9 @@ pub async fn connection(
   // (operator decision 2026-10-24), as a FeatureMatrix override of the original config would.
   // InGameCashShopDialog_V2 downloads its product list from ingame_cashshop_shopListURL; the
   // original server published a static ShopList.aspx, here served by the bootstrap HTTP
-  // (scripts/dev/lab-export-shop-list.ps1) instead of the unreachable 192.168.0.200.
-  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)}])};
+  // (scripts/dev/lab-export-shop-list.ps1) instead of the unreachable 192.168.0.200. Its
+  // purchases go to ingame_cashshop_purchaseURL, the laboratory web shop of this process.
+  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)},FeatureEntry{key:"ingame_cashshop_purchaseURL",value:Some(super::lab_web_shop::PURCHASE_URL)}])};
   let (mut sender,packets)=encode_initial_packets(salt,Some(&features),super::minimum_cash_shop::CATALOG_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);

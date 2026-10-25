@@ -37,6 +37,7 @@ pub mod lab_runtime_config;
 
 pub mod lab_frontend;
 pub mod lab_peer;
+pub mod lab_web_shop;
 
 pub mod character_reservations;
 
