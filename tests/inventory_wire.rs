@@ -133,6 +133,12 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::UseExtraStorage
                 | Kind::StatusEffectUpdated
                 | Kind::RequestSortInventory
+                | Kind::HotSpringRequestInfo
+                | Kind::HotSpringRequestInfoResult
+                | Kind::HotSpringRequestInfoResultChannel
+                | Kind::HotSpringAddPotion
+                | Kind::HotSpringAddPotionResult
+                | Kind::HotSpringRequestPotionEffect
                 | Kind::SecuredOperation
                 | Kind::SkillEnhanceSessionStart
                 | Kind::SkillEnhanceSessionEnd

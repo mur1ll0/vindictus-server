@@ -34,6 +34,37 @@ fn fields(category: i32, expected: i32, type_id: uuid::Uuid, body: &[u8]) -> &[u
         &body[16..]
     }
 }
+/// HotSpringPotionEffectInfo against its captured fields.
+fn hot_spring_info(ours: Option<&wire::HotSpringPotionEffectInfo>, theirs: &Value, n: usize) {
+    assert_eq!(ours.is_none(), theirs.is_null(), "case {n}");
+    if let Some(i) = ours {
+        assert_eq!(
+            i.potion_item_class.as_deref(),
+            theirs["PotionItemClass"].as_str(),
+            "case {n}"
+        );
+        assert_eq!(
+            i.character_name.as_deref(),
+            theirs["CharacterName"].as_str(),
+            "case {n}"
+        );
+        assert_eq!(
+            i.guild_name.as_deref(),
+            theirs["GuildName"].as_str(),
+            "case {n}"
+        );
+        assert_eq!(
+            i64::from(i.expired_time),
+            theirs["ExpiredTime"].as_i64().unwrap(),
+            "case {n}"
+        );
+        assert_eq!(
+            i64::from(i.other_potion_usable_time),
+            theirs["OtherPotionUsableTime"].as_i64().unwrap(),
+            "case {n}"
+        );
+    }
+}
 fn check_inventory(kind: Kind, case: &Value, n: usize) {
     let category = case["category"].as_i64().unwrap() as i32;
     let body = bytes(&case["body"]);
@@ -880,6 +911,89 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 "case {n}"
             );
         }
+        Some(Message::HotSpringRequestInfo(m)) => {
+            assert_eq!(
+                i64::from(m.channel),
+                f["Channel"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(m.town_id),
+                f["TownID"].as_i64().unwrap(),
+                "case {n}"
+            );
+        }
+        Some(Message::HotSpringRequestInfoResult(m))
+        | Some(Message::HotSpringRequestInfoResultChannel(m)) => {
+            assert_eq!(
+                i64::from(m.town_id),
+                f["TownID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            let source = &f["HotSpringPotionEffectInfos"];
+            assert_eq!(m.infos.is_none(), source.is_null(), "case {n}");
+            for (ours, theirs) in m
+                .infos
+                .iter()
+                .flatten()
+                .zip(source.as_array().into_iter().flatten())
+            {
+                hot_spring_info(ours.as_ref(), theirs, n);
+            }
+            assert_eq!(
+                m.infos.as_ref().map(Vec::len),
+                source.as_array().map(Vec::len),
+                "case {n}"
+            );
+        }
+        Some(Message::HotSpringAddPotion(m)) => {
+            assert_eq!(
+                i64::from(m.channel),
+                f["Channel"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(m.town_id),
+                f["TownID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(m.item_id, f["ItemID"].as_i64().unwrap(), "case {n}");
+        }
+        Some(Message::HotSpringAddPotionResult(m)) => {
+            assert_eq!(
+                i64::from(m.result),
+                f["Result"]["value__"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(m.town_id),
+                f["TownID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                m.prev_potion_item_class.as_deref(),
+                f["PrevPotionItemClass"].as_str(),
+                "case {n}"
+            );
+            hot_spring_info(m.info.as_ref(), &f["hotSpringPotionEffectInfos"], n);
+        }
+        Some(Message::HotSpringRequestPotionEffect(m)) => {
+            assert_eq!(
+                i64::from(m.channel),
+                f["Channel"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                i64::from(m.town_id),
+                f["TownID"].as_i64().unwrap(),
+                "case {n}"
+            );
+            assert_eq!(
+                m.potion_item_class.as_deref(),
+                f["PotionItemClass"].as_str(),
+                "case {n}"
+            );
+        }
         Some(Message::RequestSortInventory(no)) => {
             assert_eq!(i64::from(no), f["StorageNo"].as_i64().unwrap(), "case {n}");
         }
@@ -1311,6 +1425,12 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::UseExtraStorage,
         Kind::StatusEffectUpdated,
         Kind::RequestSortInventory,
+        Kind::HotSpringRequestInfo,
+        Kind::HotSpringRequestInfoResult,
+        Kind::HotSpringRequestInfoResultChannel,
+        Kind::HotSpringAddPotion,
+        Kind::HotSpringAddPotionResult,
+        Kind::HotSpringRequestPotionEffect,
         Kind::SecuredOperation,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
@@ -1335,7 +1455,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
     }
     for profile in profiles {
         let cases = profile["wire_cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 2370);
+        assert_eq!(cases.len(), 2430);
         for (n, case) in cases.iter().enumerate() {
             match case["kind"].as_str().unwrap() {
                 "update_inventory_info" => check_inventory(Kind::UpdateInventoryInfo, case, n),
@@ -1400,6 +1520,20 @@ fn framework_item_sync_envelopes_match_x86_x64() {
                 "use_extra_storage" => check_inventory(Kind::UseExtraStorage, case, n),
                 "status_effect_updated" => check_inventory(Kind::StatusEffectUpdated, case, n),
                 "request_sort_inventory" => check_inventory(Kind::RequestSortInventory, case, n),
+                "hot_spring_request_info" => check_inventory(Kind::HotSpringRequestInfo, case, n),
+                "hot_spring_request_info_result" => {
+                    check_inventory(Kind::HotSpringRequestInfoResult, case, n)
+                }
+                "hot_spring_request_info_result_channel" => {
+                    check_inventory(Kind::HotSpringRequestInfoResultChannel, case, n)
+                }
+                "hot_spring_add_potion" => check_inventory(Kind::HotSpringAddPotion, case, n),
+                "hot_spring_add_potion_result" => {
+                    check_inventory(Kind::HotSpringAddPotionResult, case, n)
+                }
+                "hot_spring_request_potion_effect" => {
+                    check_inventory(Kind::HotSpringRequestPotionEffect, case, n)
+                }
                 "buy_item_result" => check_inventory(Kind::BuyItemResult, case, n),
                 "query_shop_item_info" => check_inventory(Kind::QueryShopItemInfo, case, n),
                 "sell_item" => check_inventory(Kind::SellItem, case, n),

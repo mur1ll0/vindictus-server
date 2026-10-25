@@ -247,3 +247,11 @@ Pré-condições: itens espalhados em mais de uma aba da bolsa; `game` reconstru
 - [ ] "Sort All" → os itens de todas as abas disponíveis se reorganizam a partir da primeira aba.
 - [ ] Ordenar de novo antes de 30 s → diálogo de espera; nada muda.
 - [ ] Ordenar a aba cash → os itens dela se reorganizam.
+
+### HS1 — Fontes termais (Bath Soap)
+Pré-condições: dois Bath Soap (ex.: Rose Bath Soap, `hotspring_powder_rose`) no inventário; personagem na cidade com fonte termal, canal 1; `game` reconstruído.
+- [ ] Abrir a fonte termal → a interface carrega sem erro (lista vazia na primeira vez).
+- [ ] Colocar um Bath Soap → um sabonete é gasto; a fonte mostra o sabonete com seu nome e o tempo.
+- [ ] Colocar outro igual antes de 1 minuto → mensagem de que outro jogador usou há pouco; o segundo sabonete fica no inventário.
+- [ ] Entrar na água → o efeito aparece nos buffs com o bônus (Rose: ATK/MATK) e some ao expirar (90 min).
+- [ ] Relogar → o efeito continua com o tempo restante.

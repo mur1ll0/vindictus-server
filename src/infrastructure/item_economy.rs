@@ -59,6 +59,19 @@ struct Export {
     manifest: Manifest,
     classes: Vec<RawClass>,
     alchemist_boxes: Vec<PrivateText>,
+    #[serde(default)]
+    hot_spring: Vec<HotSpringPotion>,
+}
+/// HotSpringPotionInfo row (UntilEffectSec and ShowName are not read by the server).
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HotSpringPotion {
+    pub item_class: String,
+    pub status_effect: String,
+    pub level: i32,
+    pub bath_time_sec: i32,
+    pub overlap_min_sec: i32,
+    pub all_announce: i32,
 }
 /// One ItemClassInfo row; the effective row is chosen by the catalog's source_index.
 pub struct EconomyClass {
@@ -90,6 +103,7 @@ pub struct Profile {
     classes: Vec<EconomyClass>,
     /// AlchemistBoxInfo.BoxItemClass (UTF-16LE).
     alchemist_boxes: Vec<Vec<u8>>,
+    hot_spring: Vec<HotSpringPotion>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -183,11 +197,37 @@ impl Profile {
                     .map(|b| b.map(|b| b.as_bytes().to_vec()).unwrap_or_default())
             })
             .collect::<Result<Vec<_>, crate::error::Error>>()?;
+        if export.hot_spring.len() > 1000
+            || export.hot_spring.iter().enumerate().any(|(i, h)| {
+                h.item_class.len() > 50
+                    || h.status_effect.len() > 50
+                    || export.hot_spring[..i]
+                        .iter()
+                        .any(|o| o.item_class == h.item_class)
+            })
+        {
+            return Err(MinimumError::Conflict);
+        }
         Ok(Self {
             manifest: export.manifest,
             classes,
             alchemist_boxes,
+            hot_spring: export.hot_spring,
         })
+    }
+    /// ItemContents.GetHotSpringPotionInfo.
+    pub fn hot_spring(&self, class: &str) -> Option<&HotSpringPotion> {
+        self.hot_spring.iter().find(|h| h.item_class == class)
+    }
+    /// ItemContents.GetHotSpringStatusEffectList: the distinct StatusEffect values in order.
+    pub fn hot_spring_effects(&self) -> Vec<&str> {
+        let mut out: Vec<&str> = Vec::new();
+        for h in &self.hot_spring {
+            if !out.contains(&h.status_effect.as_str()) {
+                out.push(&h.status_effect);
+            }
+        }
+        out
     }
     /// Same source files and the same row sequence as the bound catalog.
     pub fn bind(&self, catalog: &Package) -> Result<(), MinimumError> {

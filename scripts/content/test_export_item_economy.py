@@ -23,6 +23,8 @@ class ItemEconomyExportTests(unittest.TestCase):
             db.execute('CREATE TABLE SetItemInfo(ItemClass TEXT,BaseItemClass TEXT,SetID TEXT)')
             db.execute("INSERT INTO SetInfo VALUES('set_a')")
             db.execute("INSERT INTO SetItemInfo VALUES('synthetic',NULL,'set_a'),('synthetic',NULL,'set_b')")
+            db.execute('CREATE TABLE HotSpringPotionInfo(ItemClass TEXT,StatusEffect TEXT,Level INT,UntilEffectSec INT,BathTimeSec INT,OverlapMinSec INT,AllAnnounce INT,ShowName INT)')
+            db.execute("INSERT INTO HotSpringPotionInfo VALUES('hotspring_powder_rose','hotspring_powder_rose',1,30,1800,60,0,1)")
             db.commit()
     def test_rows_keep_catalog_order_duplicates_and_hashes_are_readonly(self):
         before = [digest(p) for p in (self.db, self.config)]
@@ -35,6 +37,8 @@ class ItemEconomyExportTests(unittest.TestCase):
         self.assertEqual((p['classes'][1]['level_upper_bound'], p['classes'][1]['cafe_only'], p['classes'][1]['required_skill_rank'], p['classes'][1]['required_skill_utf16']), (40, 2, 5, 'skill_x'.encode('utf-16-le').hex()))
         c = p['classes'][1]
         self.assertEqual((c['sort_order'], c['level'], c['inventory_filter'], c['set_id']), ('100.02', 7, 'GOODS', 'set_a'))
+        self.assertEqual(p['hot_spring'], [dict(item_class='hotspring_powder_rose', status_effect='hotspring_powder_rose', level=1,
+                                                bath_time_sec=1800, overlap_min_sec=60, all_announce=0)])
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
     def test_mistyped_values_are_refused(self):
         with contextlib.closing(sqlite3.connect(self.db)) as db:

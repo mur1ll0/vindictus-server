@@ -49,6 +49,14 @@ def read_package(database, config):
                              sort_order=plain(r['SortOrder']), level=integer(r['Level']),
                              inventory_filter=plain(r['InventoryFilterName']), set_id=plain(first_set.get(r['ItemClass']))))
             if len(rows) > 50000: raise ValueError('Economy row bound')
+        # ItemContents.HotSpringPotionInfoDic (ToDictionary by ItemClass: a repeated class throws).
+        hot_spring = []
+        for r in db.execute('Select * From [HotSpringPotionInfo]'):
+            if any(h['item_class'] == r['ItemClass'] for h in hot_spring): raise ValueError('Repeated hot spring potion')
+            hot_spring.append(dict(item_class=plain(r['ItemClass']), status_effect=plain(r['StatusEffect']),
+                                   level=integer(r['Level']), bath_time_sec=integer(r['BathTimeSec']),
+                                   overlap_min_sec=integer(r['OverlapMinSec']), all_announce=integer(r['AllAnnounce'])))
+            if len(hot_spring) > 1000: raise ValueError('Hot spring row bound')
         # AlchemistBoxInfo box classes: their inner consumables are not migrated (refused).
         boxes = sorted({text(r['BoxItemClass']) or '' for r in db.execute('Select * From [AlchemistBoxInfo]')})
     if [r['item_utf16'] for r in rows] != [c['item_utf16'] for c in catalog['classes']]:
@@ -56,7 +64,7 @@ def read_package(database, config):
     m = catalog['manifest']
     return {'format_version': 4, 'source': 'heroesContents.item-economy', 'alchemist_boxes': boxes,
             'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
-            'classes': rows}
+            'classes': rows, 'hot_spring': hot_spring}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

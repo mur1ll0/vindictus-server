@@ -103,6 +103,22 @@ impl Runtime {
             .map_err(|_| RuntimeError::Operation)?;
         Ok(())
     }
+    /// Channel.Broadcast of a channel component (MMOChannelService's member lookup first):
+    /// the one authority for state every member of the channel sees. False when `cid` is
+    /// not a member of channel `channel_id` (the laboratory has channel 1 only).
+    pub async fn broadcast_from(&self, channel_id: i32, cid: i64, packet: OutgoingPacket) -> bool {
+        let mut state = self.state.lock().await;
+        if channel_id != 1 || !state.peers.contains_key(&cid) {
+            return false;
+        }
+        let packets = state
+            .peers
+            .keys()
+            .map(|id| (*id, vec![packet.clone()]))
+            .collect();
+        state.broadcast(packets);
+        true
+    }
     pub async fn member_count(&self) -> usize {
         self.state.lock().await.channel.member_count()
     }

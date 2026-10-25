@@ -99,6 +99,12 @@ pub enum Kind {
     UseExtraStorage,
     StatusEffectUpdated,
     RequestSortInventory,
+    HotSpringRequestInfo,
+    HotSpringRequestInfoResult,
+    HotSpringRequestInfoResultChannel,
+    HotSpringAddPotion,
+    HotSpringAddPotionResult,
+    HotSpringRequestPotionEffect,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -188,6 +194,12 @@ impl Kind {
             Self::UseExtraStorage => 626,
             Self::StatusEffectUpdated => 596,
             Self::RequestSortInventory => 401,
+            Self::HotSpringRequestInfo => 20,
+            Self::HotSpringRequestInfoResult => 22,
+            Self::HotSpringRequestInfoResultChannel => 23,
+            Self::HotSpringAddPotion => 24,
+            Self::HotSpringAddPotionResult => 25,
+            Self::HotSpringRequestPotionEffect => 26,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -277,6 +289,12 @@ impl Kind {
             Self::UseExtraStorage => 0xe9cd479d_3b6b_3d9e_850e_c228d89b7aa7,
             Self::StatusEffectUpdated => 0x66f872d1_ed92_357d_862e_d6bbc3022c7a,
             Self::RequestSortInventory => 0x984edd04_a6ed_3242_8490_613f3862d0d7,
+            Self::HotSpringRequestInfo => 0x7b268fff_460d_3196_ad20_1cd3884c57d4,
+            Self::HotSpringRequestInfoResult => 0x97acc617_5f41_3e3a_948d_dd1d6bb89fc9,
+            Self::HotSpringRequestInfoResultChannel => 0xffa461f7_ea1f_31ea_8b38_b015b596103c,
+            Self::HotSpringAddPotion => 0xf26d5bf9_e232_3b17_98b0_6122c15a518e,
+            Self::HotSpringAddPotionResult => 0x10296e17_0877_3515_9f51_ff3cdb908436,
+            Self::HotSpringRequestPotionEffect => 0x156a9b52_538c_3ca9_b30d_9ecc5ae1d2bc,
         })
     }
 }
@@ -471,6 +489,18 @@ pub enum Message {
     StatusEffectUpdated(StatusEffectUpdated),
     /// RequestSortInventoryMessage: StorageNo.
     RequestSortInventory(i32),
+    /// HotSpringRequestInfoMessage: Channel, TownID.
+    HotSpringRequestInfo(HotSpringRequestInfo),
+    /// HotSpringRequestInfoResultMessage: HotSpringPotionEffectInfos, TownID.
+    HotSpringRequestInfoResult(HotSpringInfos),
+    /// HotSpringRequestInfoResultChannelMessage (the channel broadcast).
+    HotSpringRequestInfoResultChannel(HotSpringInfos),
+    /// HotSpringAddPotionMessage: Channel, TownID, ItemID.
+    HotSpringAddPotion(HotSpringAddPotion),
+    /// HotSpringAddPotionResultMessage.
+    HotSpringAddPotionResult(HotSpringAddPotionResult),
+    /// HotSpringRequestPotionEffectMessage: Channel, TownID, PotionItemClass.
+    HotSpringRequestPotionEffect(HotSpringRequestPotionEffect),
 }
 /// TitleSlotInfo: TitleID, Status (TitleState), TimeStamp, QuestID, GoalProgress,
 /// IsExpireable, ExpireDateTime.
@@ -1068,6 +1098,12 @@ impl Message {
             Self::UseExtraStorage(_) => Kind::UseExtraStorage,
             Self::StatusEffectUpdated(_) => Kind::StatusEffectUpdated,
             Self::RequestSortInventory(_) => Kind::RequestSortInventory,
+            Self::HotSpringRequestInfo(_) => Kind::HotSpringRequestInfo,
+            Self::HotSpringRequestInfoResult(_) => Kind::HotSpringRequestInfoResult,
+            Self::HotSpringRequestInfoResultChannel(_) => Kind::HotSpringRequestInfoResultChannel,
+            Self::HotSpringAddPotion(_) => Kind::HotSpringAddPotion,
+            Self::HotSpringAddPotionResult(_) => Kind::HotSpringAddPotionResult,
+            Self::HotSpringRequestPotionEffect(_) => Kind::HotSpringRequestPotionEffect,
         }
     }
 }
@@ -1444,6 +1480,71 @@ object!(UseExtraStorage {
     item_id,
     storage_id
 });
+/// HotSpringPotionEffectInfo: the channel buff of one potion (times in POSIX seconds).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HotSpringPotionEffectInfo {
+    pub potion_item_class: Option<String>,
+    pub character_name: Option<String>,
+    pub guild_name: Option<String>,
+    pub expired_time: i32,
+    pub other_potion_usable_time: i32,
+}
+object!(HotSpringPotionEffectInfo {
+    potion_item_class,
+    character_name,
+    guild_name,
+    expired_time,
+    other_potion_usable_time
+});
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HotSpringRequestInfo {
+    pub channel: i32,
+    pub town_id: i32,
+}
+object!(HotSpringRequestInfo { channel, town_id });
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HotSpringInfos {
+    pub infos: Option<Vec<Option<HotSpringPotionEffectInfo>>>,
+    pub town_id: i32,
+}
+object!(HotSpringInfos { infos, town_id });
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HotSpringAddPotion {
+    pub channel: i32,
+    pub town_id: i32,
+    pub item_id: i64,
+}
+object!(HotSpringAddPotion {
+    channel,
+    town_id,
+    item_id
+});
+/// HotSpringAddPotionResultMessage: Result (HotSpringAddPotionResult), TownID,
+/// PrevPotionItemClass, hotSpringPotionEffectInfos.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HotSpringAddPotionResult {
+    pub result: i32,
+    pub town_id: i32,
+    pub prev_potion_item_class: Option<String>,
+    pub info: Option<HotSpringPotionEffectInfo>,
+}
+object!(HotSpringAddPotionResult {
+    result,
+    town_id,
+    prev_potion_item_class,
+    info
+});
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HotSpringRequestPotionEffect {
+    pub channel: i32,
+    pub town_id: i32,
+    pub potion_item_class: Option<String>,
+}
+object!(HotSpringRequestPotionEffect {
+    channel,
+    town_id,
+    potion_item_class
+});
 /// StatusEffectUpdated: CharacterName, StatusEffects (StatusEffectElement list).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StatusEffectUpdated {
@@ -1698,6 +1799,12 @@ pub fn encode(
             Message::UseExtraStorage(v) => v.write(&mut w)?,
             Message::StatusEffectUpdated(v) => v.write(&mut w)?,
             Message::RequestSortInventory(v) => v.write(&mut w)?,
+            Message::HotSpringRequestInfo(v) => v.write(&mut w)?,
+            Message::HotSpringRequestInfoResult(v) => v.write(&mut w)?,
+            Message::HotSpringRequestInfoResultChannel(v) => v.write(&mut w)?,
+            Message::HotSpringAddPotion(v) => v.write(&mut w)?,
+            Message::HotSpringAddPotionResult(v) => v.write(&mut w)?,
+            Message::HotSpringRequestPotionEffect(v) => v.write(&mut w)?,
         }
         Ok(())
     })();
@@ -1846,6 +1953,20 @@ fn decode_body(
                 Message::StatusEffectUpdated(StatusEffectUpdated::read(&mut r)?)
             }
             Kind::RequestSortInventory => Message::RequestSortInventory(Wire::read(&mut r)?),
+            Kind::HotSpringRequestInfo => Message::HotSpringRequestInfo(Wire::read(&mut r)?),
+            Kind::HotSpringRequestInfoResult => {
+                Message::HotSpringRequestInfoResult(Wire::read(&mut r)?)
+            }
+            Kind::HotSpringRequestInfoResultChannel => {
+                Message::HotSpringRequestInfoResultChannel(Wire::read(&mut r)?)
+            }
+            Kind::HotSpringAddPotion => Message::HotSpringAddPotion(Wire::read(&mut r)?),
+            Kind::HotSpringAddPotionResult => {
+                Message::HotSpringAddPotionResult(Wire::read(&mut r)?)
+            }
+            Kind::HotSpringRequestPotionEffect => {
+                Message::HotSpringRequestPotionEffect(Wire::read(&mut r)?)
+            }
         })
     };
     if strict && !r.remaining.is_empty() {

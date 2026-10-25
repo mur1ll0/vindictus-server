@@ -71,7 +71,15 @@ fn assets_with_classes(
         .enumerate()
         .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":if n == 1 { cash_unique } else { 0 },"expire_in":null,"price":0,"sell_price":if n == 1 { 7 } else { 0 },"required_level":if n == 1 { cash_level } else { 0 },"class_restriction":if n == 1 || (n == 3 && scroll_use_in_town != 0) { 2047 } else { 0 },"use_in_town":if n == 1 { cash_use_in_town } else if n == 3 { scroll_use_in_town } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0,"quick_slot_max_stack":0,"draft":0}))
         .collect();
-    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows});
+    // A hot spring powder row-3 class has its HotSpringPotionInfo (AllAnnounce on).
+    let hot_spring: Vec<Value> = if scroll_class.starts_with("hotspring_") {
+        vec![
+            json!({"item_class":scroll_class,"status_effect":scroll_class,"level":1,"bath_time_sec":1800,"overlap_min_sec":60,"all_announce":1}),
+        ]
+    } else {
+        Vec::new()
+    };
+    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":hot_spring});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -6767,5 +6775,169 @@ async fn minimum_mission_required_item_is_reserved_and_paid_at_start() {
             .is_empty()
     );
     assert_eq!(count("synthetic_cash").await, 1);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_hot_spring_potion_sets_the_channel_buff_and_gives_its_effect() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            cash_shop, character_lobby::QueryConfig, minimum_hot_spring, minimum_selection,
+        },
+        protocol::inventory::{
+            HotSpringAddPotion, HotSpringRequestPotionEffect, Kind, Message, decode,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let powder = "hotspring_powder_rose";
+    let profile = json!({"format_version":7,"source":"heroesContents.cash-shop","daily_items":[],"without_contents":[],"value_products":[],
+        "status_effects":[{"type":powder,"level":1,"abs_level":1,"id_tag":powder,"duration":5400,"combat_count":-1,"kind":"UseExpireTime","stat_adder":[["ATK",100]]}],
+        "database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"localized_sha256":"c".repeat(64),"names":[null,null,null,null],
+        "root_category":105,"categories":[null,"CASHITEM",null,null],"default_price":500,"prices":[],
+        "customize_items":[],"customize_prices":[],"customize_coupons":[],"customize_colors":[],"tir_ignored":[],"class_restrictions":[2047,2047,2047,2047],
+        "features":[{"key":"LanguageTag","value":"en-EU"}]});
+    let assets = assets_with_classes(0, 1, 0, None, powder, 0)
+        .with_cash_shop(
+            cash_shop::Profile::read(serde_json::to_vec(&profile).unwrap().as_slice()).unwrap(),
+        )
+        .unwrap();
+    for _ in 0..2 {
+        minimum_give::lab_grant(&p, &assets, Some(1), powder, 1, 9)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let powders: Vec<i64> =
+        sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1 ORDER BY id")
+            .bind(utf16(powder))
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(powders.len(), 2);
+    let infos =
+        |packet: vindictus_server::domain::map_partition::OutgoingPacket, kind: Kind| match decode(
+            kind,
+            &packet.body,
+            DEFAULT_MAX_BODY,
+        )
+        .unwrap()
+        {
+            Some(Message::HotSpringRequestInfoResult(i))
+            | Some(Message::HotSpringRequestInfoResultChannel(i)) => i,
+            _ => panic!("hot spring infos"),
+        };
+    let info = || async {
+        infos(
+            minimum_hot_spring::request_info(&p, 1, 2)
+                .await
+                .unwrap()
+                .unwrap(),
+            Kind::HotSpringRequestInfoResult,
+        )
+    };
+    let empty = info().await;
+    assert_eq!((empty.infos, empty.town_id), (Some(Vec::new()), 2));
+    let add = |item_id, channel| {
+        let (p, assets, owner) = (p.clone(), &assets, &owner);
+        async move {
+            minimum_hot_spring::add_potion(
+                &p,
+                owner,
+                assets,
+                1,
+                &HotSpringAddPotion {
+                    channel,
+                    town_id: 2,
+                    item_id,
+                },
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let result = |added: &minimum_hot_spring::AddPotion| match decode(
+        Kind::HotSpringAddPotionResult,
+        &added.reply[0].body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap()
+    {
+        Some(Message::HotSpringAddPotionResult(r)) => r.result,
+        _ => panic!("add potion result"),
+    };
+    // Channel -1 and an unknown item are refused without changes.
+    assert_eq!(result(&add(powders[0], -1).await), 1);
+    assert_eq!(result(&add(i64::MAX, 1).await), 2);
+    // The potion: one powder spent, the buff stored, the channel and town told.
+    let added = add(powders[0], 1).await;
+    assert_eq!(
+        added.reply[0].category,
+        Kind::UpdateInventoryInfo.category()
+    );
+    assert!(added.announce.is_some());
+    let broadcast = infos(
+        added.channel.unwrap(),
+        Kind::HotSpringRequestInfoResultChannel,
+    );
+    let sent = broadcast.infos.unwrap()[0].clone().unwrap();
+    assert_eq!(sent.potion_item_class.as_deref(), Some(powder));
+    assert_eq!(sent.other_potion_usable_time + 1740, sent.expired_time);
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items WHERE item_class_utf16=$1")
+        .bind(utf16(powder))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(left, 1);
+    // Before its ChangeTime the same potion is refused and the second powder kept.
+    assert_eq!(result(&add(powders[1], 1).await), 6);
+    let listed = info().await.infos.unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0], Some(sent));
+    // RequestPotionEffect: UpdateStat then StatusEffectUpdated, one stored effect.
+    let effect = |class: &'static str| {
+        let (p, assets, owner) = (p.clone(), &assets, &owner);
+        async move {
+            minimum_hot_spring::request_effect(
+                &p,
+                owner,
+                assets,
+                1,
+                &HotSpringRequestPotionEffect {
+                    channel: 1,
+                    town_id: 2,
+                    potion_item_class: Some(class.to_owned()),
+                },
+                Arithmetic::FrameworkX64,
+            )
+            .await
+            .unwrap()
+        }
+    };
+    for _ in 0..2 {
+        let packets = effect(powder).await;
+        assert_eq!(packets.len(), 2);
+        assert_eq!(packets[1].category, Kind::StatusEffectUpdated.category());
+    }
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM game_status_effects WHERE cid=1 AND type_utf16=$1",
+    )
+    .bind(utf16(powder))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(stored, 1);
+    // A class without a buff in the town gives nothing.
+    assert!(effect("hotspring_powder_honey").await.is_empty());
     cleanup_game_pool(a, p, s).await;
 }

@@ -2053,6 +2053,9 @@ impl Connection {
                 Kind::RequestSecuredOperation,
                 Kind::UseExtraStorage,
                 Kind::RequestSortInventory,
+                Kind::HotSpringRequestInfo,
+                Kind::HotSpringAddPotion,
+                Kind::HotSpringRequestPotionEffect,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
                 Kind::QueryBuybackList,
@@ -2853,6 +2856,100 @@ impl Connection {
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
                                 tracing::warn!("minimum item use rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::HotSpringRequestInfo(_)
+                    | Message::HotSpringAddPotion(_)
+                    | Message::HotSpringRequestPotionEffect(_)
+                        if !assets
+                            .catalog
+                            .policy
+                            .is_enabled(Some("HotSpring"))
+                            .unwrap_or(false) => {}
+                    Message::HotSpringRequestInfo(request) => {
+                        match super::minimum_hot_spring::request_info(
+                            pool,
+                            request.channel,
+                            request.town_id,
+                        )
+                        .await
+                        {
+                            Ok(Some(packet)) => {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                                tracing::info!("minimum hot spring info sent; values omitted");
+                            }
+                            Ok(None) => {}
+                            Err(_) => {
+                                tracing::warn!("minimum hot spring info rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::HotSpringAddPotion(request) => {
+                        match super::minimum_hot_spring::add_potion(
+                            pool, &owner, assets, cid, &request,
+                        )
+                        .await
+                        {
+                            Ok(added) => {
+                                // ChannelHotSpringInfo → MMOChannelService: every member of
+                                // the channel sees the new potion through the channel runtime.
+                                if let Some(packet) = added.channel {
+                                    let broadcast = match &runtime.channel {
+                                        Some((_, channel)) => {
+                                            channel
+                                                .broadcast_from(request.channel, cid, packet)
+                                                .await
+                                        }
+                                        None => false,
+                                    };
+                                    if !broadcast {
+                                        tracing::warn!(
+                                            "minimum hot spring member not in channel; values omitted"
+                                        );
+                                    }
+                                }
+                                // NotifyClient: every frontend client in town (only this
+                                // session until B5 adds the client registry).
+                                if let Some(packet) = added.announce {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                for packet in &added.reply {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    "minimum hot spring potion processed; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum hot spring potion rejected; values omitted")
+                            }
+                        }
+                    }
+                    Message::HotSpringRequestPotionEffect(request) => {
+                        match super::minimum_hot_spring::request_effect(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            &request,
+                            runtime.stat_arithmetic(),
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                if !packets.is_empty() {
+                                    self.schedule_effects(runtime, pool).await;
+                                }
+                                tracing::info!(
+                                    "minimum hot spring effect processed; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum hot spring effect rejected; values omitted")
                             }
                         }
                     }
