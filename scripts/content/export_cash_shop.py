@@ -137,13 +137,9 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED)
                             shop=text(r['CashShopType']), feature=text(r['Feature']))
                        for r in db.execute('Select * From [Cashshop_Tircoin_notsell_list]')]
         values = region_features(db, config)
-        # StatusEffectGroupInfo of the HomeCafeBonus effects (HomeCafeBonus_StatusEffect), with
-        # the persistence kind and StatAdder of StatusEffectGroupInfo.Build.
-        cafe_types = [t for t in (values.get('HomeCafeBonus_StatusEffect') or '').split(',') if t]
-        status_effects = []
-        for r in db.execute('Select * From [StatusEffectGroupInfo]'):
-            if r['Type'] in cafe_types:
-                status_effects.append(status_effect(r))
+        # CharacterContents.StatusEffectGroupInfo (every row), with the persistence kind and
+        # StatAdder of StatusEffectGroupInfo.Build.
+        status_effects = [status_effect(r) for r in db.execute('Select * From [StatusEffectGroupInfo]')]
     atoms = {'LanguageTag', 'AvatarBeauty', 'CashShop', 'TradeAndCashShopLevelLimit', 'HomeCafeBonus',
              'HomeCafeBonus_Rule_zhCN', 'HomeCafeBonus_StatusEffect', 'CafeBonusIncreaseTime', 'ShowCafeBonusDialog'}
     for r in items + prices + coupons + colors + tir_ignored:

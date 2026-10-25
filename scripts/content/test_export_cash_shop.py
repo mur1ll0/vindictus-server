@@ -57,7 +57,9 @@ class CashShopExportTests(unittest.TestCase):
         self.assertEqual(p['value_products'], [{'item': 'potion', 'days': [7, 30]}])
         self.assertEqual(p['without_contents'], [])
         self.assertEqual(p['status_effects'], [{'type': 'homecafe_bonus', 'level': 1, 'abs_level': 1, 'id_tag': 'homecafe_bonus', 'duration': 2592000,
-                                                 'combat_count': -1, 'kind': 'UseExpireTime', 'stat_adder': [['ATK', 19], ['MATK', 18]]}])
+                                                 'combat_count': -1, 'kind': 'UseExpireTime', 'stat_adder': [['ATK', 19], ['MATK', 18]]},
+                                                {'type': 'other', 'level': 1, 'abs_level': 1, 'id_tag': None, 'duration': 10,
+                                                 'combat_count': -1, 'kind': 'UseRemainTime', 'stat_adder': [['DEX', 2], ['STR', 1]]}])
 
     def test_price_table_is_bounded(self):
         self.prices.write_text(json.dumps({'default': 0, 'categories': {}}), encoding='utf-8')

@@ -1,7 +1,7 @@
-//! StatusEffectManager over `game_status_effects` for the selected first Fiona: the effects
-//! of the exported StatusEffectGroupInfo subset (the HomeCafeBonus ones) are loaded, added,
-//! removed, summed into StatusEffectStat and announced with StatusEffectUpdated. Rows of
-//! other types (preserved legacy effects) are left untouched and carry no stats here.
+//! StatusEffectManager over `game_status_effects` for the selected first Fiona: the stored
+//! effects (CharacterContents.StatusEffectGroupInfo) are loaded, added, removed, expired
+//! (RemoveExpiredStatusEffect), summed into StatusEffectStat and announced with
+//! StatusEffectUpdated. A row whose Type/Level is not in the contents is left untouched.
 use super::minimum_character::MinimumError;
 use crate::{
     domain::{
@@ -48,6 +48,16 @@ pub(super) async fn load(
     contents: &Contents,
     cid: i64,
 ) -> Result<(Vec<Active>, bool), MinimumError> {
+    let (active, other, _) = load_dropping(tx, contents, cid).await?;
+    Ok((active, other))
+}
+
+/// `load` with the infos of the effects it dropped (expired or repeated).
+async fn load_dropping(
+    tx: &mut Transaction<'_, Postgres>,
+    contents: &Contents,
+    cid: i64,
+) -> Result<(Vec<Active>, bool, Vec<crate::domain::status_effect::Info>), MinimumError> {
     let rows: Vec<Row> = sqlx::query_as(
         "SELECT row_id,type_utf16,level,remain_time,expire_ticks,remain_micro FROM game_status_effects WHERE cid=$1 ORDER BY row_id LIMIT 257",
     )
@@ -61,6 +71,7 @@ pub(super) async fn load(
     let mut active: Vec<Active> = Vec::new();
     let mut other = false;
     let mut dropped = Vec::new();
+    let mut dropped_infos = Vec::new();
     for (row_id, type_utf16, level, remain, expire, micro) in rows {
         let name = text(&type_utf16)?;
         let Some(info) = contents.get(&name, level) else {
@@ -69,6 +80,7 @@ pub(super) async fn load(
         };
         if !matches!(info.kind, Kind::UseExpireTime | Kind::UseRemainTime) {
             dropped.push(row_id);
+            dropped_infos.push(info.clone());
             continue;
         }
         // RemainTime without ExpireTime counts from the login.
@@ -88,6 +100,7 @@ pub(super) async fn load(
         });
         if effect.is_expired(now) || duplicate {
             dropped.push(row_id);
+            dropped_infos.push(effect.info);
         } else {
             active.push(effect);
         }
@@ -99,7 +112,52 @@ pub(super) async fn load(
             .execute(&mut **tx)
             .await?;
     }
-    Ok((active, other))
+    Ok((active, other, dropped_infos))
+}
+
+/// Time until the next stored effect expires (the RemoveScheduleID of its ExpireTime).
+pub(super) async fn next_expiry(
+    tx: &mut Transaction<'_, Postgres>,
+    contents: &Contents,
+    cid: i64,
+) -> Result<Option<std::time::Duration>, MinimumError> {
+    let (active, _) = load(tx, contents, cid).await?;
+    let now = now_ticks()?;
+    Ok(active.iter().filter_map(|a| a.expire_ticks).min().map(|e| {
+        std::time::Duration::from_micros(u64::try_from((e - now).max(0) / 10).unwrap_or(0))
+    }))
+}
+
+/// StatusEffectManager.RemoveExpiredStatusEffect then Save: the expired effects leave the
+/// rows; Save sends UpdateStat when one carried StatAdder, then StatusEffectUpdated. None
+/// when nothing expired.
+pub async fn expire_due(
+    pool: &sqlx::PgPool,
+    owner: &super::character_lobby::UserKey<'_>,
+    assets: &super::minimum_assets::Assets,
+    cid: i64,
+    arithmetic: crate::domain::character_stats::Arithmetic,
+) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+    let Some(shop) = assets.cash_shop.as_ref() else {
+        return Ok(None);
+    };
+    let contents = &shop.customize().status_effects;
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    let (_, _, dropped) = load_dropping(&mut tx, contents, cid).await?;
+    if dropped.is_empty() {
+        return Ok(None);
+    }
+    let mut packets = Vec::new();
+    if dropped.iter().any(|i| !i.stat_adder.is_empty()) {
+        packets.push(
+            super::minimum_selection::update_stat(&mut tx, owner, assets, cid, arithmetic)
+                .await?
+                .0,
+        );
+    }
+    packets.push(updated_packet(&mut tx, contents, cid).await?);
+    tx.commit().await?;
+    Ok(Some(packets))
 }
 
 /// StatusEffectManager.AddStatusEffect(type, level, length): false (nothing changes) for

@@ -159,8 +159,9 @@ pub(super) async fn status_stats(
     };
     let (active, _) =
         super::minimum_status_effect::load(tx, &shop.customize().status_effects, cid).await?;
-    Stats::from_named(&crate::domain::status_effect::stat_adder(&active))
-        .ok_or(MinimumError::Conflict)
+    Ok(Stats::from_named(
+        &crate::domain::status_effect::stat_adder(&active),
+    ))
 }
 /// StatManager FinalStat[INT] (CalculateItemStat, then ApplyStatSkills) for
 /// SkillEffect.CalculateAPTime, with the stored status effects' stats.

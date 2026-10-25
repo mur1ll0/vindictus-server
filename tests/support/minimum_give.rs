@@ -1637,6 +1637,35 @@ async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
             .await
             .unwrap();
     assert_eq!(row, (1, 2));
+    // RemoveExpiredStatusEffect in the session: nothing is due yet, then the expired
+    // effect leaves with UpdateStat (base ATK) and an empty StatusEffectUpdated.
+    use vindictus_server::infrastructure::minimum_status_effect;
+    assert!(
+        minimum_status_effect::expire_due(&p, &owner, &assets, 1, Arithmetic::FrameworkX64)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    sqlx::query("UPDATE game_status_effects SET expire_ticks=expire_ticks-$1 WHERE cid=1")
+        .bind(8 * 86_400 * 10_000_000_i64)
+        .execute(&p)
+        .await
+        .unwrap();
+    let expired =
+        minimum_status_effect::expire_due(&p, &owner, &assets, 1, Arithmetic::FrameworkX64)
+            .await
+            .unwrap()
+            .unwrap();
+    assert_eq!(atk(&expired), Some(base_atk));
+    let Some(Message::StatusEffectUpdated(m)) = inventory::decode(
+        Kind::StatusEffectUpdated,
+        &expired.last().unwrap().body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
+        panic!("status effects")
+    };
+    assert_eq!(m.status_effects, Some(Vec::new()));
     // A second login keeps the VIP; once expired, the login ends it with the dialog.
     minimum_selection::disconnect(&p, 1).await.unwrap();
     let again = minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)

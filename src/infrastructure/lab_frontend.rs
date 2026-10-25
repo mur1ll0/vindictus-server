@@ -389,6 +389,8 @@ struct Connection {
     mission: Option<Box<super::minimum_mission::Mission>>,
     /// InGame.LastQueryRecommendShip (2 s cooldown of the boat ship list).
     last_recommend_ship: Option<std::time::Instant>,
+    /// RemoveScheduleID of the next stored status effect to expire.
+    effect_expiry: Option<tokio::time::Instant>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -403,6 +405,7 @@ impl Connection {
             selected: None,
             mission: None,
             last_recommend_ship: None,
+            effect_expiry: None,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
@@ -414,6 +417,7 @@ impl Connection {
         {
             relay.close_group(m.group);
         }
+        self.effect_expiry = None;
         if let Some(selected) = self.selected.take() {
             runtime.web_shop.remove(selected.cid);
             if let Some((_, channel)) = &runtime.channel
@@ -1286,6 +1290,85 @@ impl Connection {
         Ok(packets)
     }
     /// When the earliest MicroPlay job of the mission is due.
+    /// StatusEffectManager.AddStatusEffectToMemory: schedules the next expiry of the stored
+    /// effects of the selected character (none when it has none or they cannot load).
+    async fn schedule_effects(&mut self, runtime: &Runtime, pool: &PgPool) {
+        self.effect_expiry = None;
+        let (Some(selected), Some(minimum)) = (self.selected.as_ref(), runtime.minimum.as_ref())
+        else {
+            return;
+        };
+        let Some(shop) = minimum.assets.cash_shop.as_ref() else {
+            return;
+        };
+        let Ok(mut tx) = pool.begin().await else {
+            return;
+        };
+        let next = super::minimum_status_effect::next_expiry(
+            &mut tx,
+            &shop.customize().status_effects,
+            selected.cid,
+        )
+        .await;
+        if tx.commit().await.is_err() {
+            return;
+        }
+        if let Ok(Some(after)) = next {
+            // Wake a second after the ExpireTime: IsExpired is strictly past it.
+            self.effect_expiry = Some(tokio::time::Instant::now() + after + Duration::from_secs(1));
+        }
+    }
+    /// RemoveExpiredStatusEffect: the expired effects leave and Save announces them.
+    async fn effect_jobs(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        self.effect_expiry = None;
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return Ok(());
+        };
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets;
+        match super::minimum_status_effect::expire_due(
+            pool,
+            &owner,
+            assets,
+            cid,
+            runtime.stat_arithmetic(),
+        )
+        .await
+        {
+            Ok(Some(packets)) => {
+                for packet in &packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                tracing::info!("minimum status effects expired; values omitted");
+            }
+            Ok(None) => {}
+            Err(_) => tracing::warn!("minimum status effect expiry rejected; values omitted"),
+        }
+        self.schedule_effects(runtime, pool).await;
+        Ok(())
+    }
     fn mission_timer(&self) -> Option<tokio::time::Instant> {
         let at = super::minimum_mission_finish::next_job(self.mission.as_deref()?)?;
         Some(tokio::time::Instant::from_std(at))
@@ -1592,6 +1675,7 @@ impl Connection {
                             early_categories = ?early.iter().map(|p| p.category).collect::<Vec<_>>(),
                             "minimum character selected; optional services deferred; values omitted"
                         );
+                        self.schedule_effects(runtime, pool).await;
                     }
                     Message::EnterChannel {
                         channel_id,
@@ -2685,6 +2769,7 @@ impl Connection {
                                 .map_err(|_| RuntimeError::Operation)?;
                                 send(stream, sender, common.category, &common.body).await?;
                                 tracing::info!("minimum home cafe bonus applied; values omitted");
+                                self.schedule_effects(runtime, pool).await;
                             }
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
@@ -3548,10 +3633,12 @@ pub async fn connection(
   loop {
    let deadline=state.close_at.unwrap_or(state.login_deadline);let waiting=state.close_at.is_some()||state.frontend.phase()!=SessionPhase::PoliciesAccepted;
    let timer=state.mission_timer();
+   let effects=state.effect_expiry;
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
     _=tokio::time::sleep_until(deadline),if waiting=>return if state.close_at.is_some(){Ok(())}else{Err(RuntimeError::Timeout)},
     _=tokio::time::sleep_until(timer.unwrap_or(deadline)),if timer.is_some()&&state.close_at.is_none()=>{state.mission_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    _=tokio::time::sleep_until(effects.unwrap_or(deadline)),if effects.is_some()&&state.close_at.is_none()=>{state.effect_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     value=stream.read(&mut buffer[..])=>value?,
    };
    if count==0{return if receiver.buffered_len()==0{Ok(())}else{Err(RuntimeError::Message)}}
