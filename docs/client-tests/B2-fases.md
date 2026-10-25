@@ -122,3 +122,10 @@ Pré-condições: história Friendship Sword na fase que pede a espada (Clodagh:
 - [ ] Fazer The Gnoll's Rally Point e matar o Gnoll Veteran → cai um núcleo de história; coletar → `Destroyed Friendship Sword` vai para o inventário.
 - [ ] Entregar a espada e seguir a história.
 - [ ] Repetir a fase já com a espada no inventário → o núcleo de história não cai de novo.
+
+### QT1 — Ticket de gauntlet e item exigido
+Pré-condições: um ticket "Hoarfrost Hollow" (questscroll2_elite_boss_stage2) no inventário; `game` reconstruído.
+- [ ] Usar o ticket → mensagem de quest recebida; a quest aparece no quadro; o ticket continua no inventário.
+- [ ] Usar de novo → mesma mensagem, nada duplica.
+- [ ] Personagem abaixo do nível exigido (44) → a missão recusa a entrada; o ticket não é gasto.
+- [ ] Personagem com o nível: sem o item exigido → entrada recusada; com o item → ao iniciar a fase o item é consumido uma vez.

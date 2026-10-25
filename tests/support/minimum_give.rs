@@ -465,6 +465,16 @@ fn npc_profile_taking(
 fn npc_profile_p3(
     p3: Option<Vec<(&str, String)>>,
 ) -> vindictus_server::infrastructure::npc_scripts::Profile {
+    npc_profile_from(npc_export_p3(p3))
+}
+fn npc_profile_from(export: Value) -> vindictus_server::infrastructure::npc_scripts::Profile {
+    vindictus_server::infrastructure::npc_scripts::Profile::read(
+        serde_json::to_vec(&export).unwrap().as_slice(),
+    )
+    .unwrap()
+}
+/// The export behind `npc_profile_p3`.
+fn npc_export_p3(p3: Option<Vec<(&str, String)>>) -> Value {
     let leaf = |name: &str, text: &str| json!([name, [], text, [], ""]);
     let default = json!([
         "DefaultPhase",
@@ -644,10 +654,7 @@ fn npc_profile_p3(
         {"ShopID":"TEST_Shop","Order":1,"ItemClass":"synthetic_cash","Count":2,"PriceItemClass":"synthetic_gold","PriceCount":100,"AppearQuestID":null,"CharacterBind":false,"ID":null,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":0,"Feature":null},
         {"ShopID":"TEST_Shop","Order":2,"ItemClass":"synthetic_cash","Count":1,"PriceItemClass":"gold","PriceCount":10,"AppearQuestID":null,"CharacterBind":false,"ID":7,"RestrictionResetTime":null,"RestrictionPeriodDay":0,"RestrictionCount":5,"Feature":null}
     ]});
-    vindictus_server::infrastructure::npc_scripts::Profile::read(
-        serde_json::to_vec(&export).unwrap().as_slice(),
-    )
-    .unwrap()
+    export
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
@@ -1787,7 +1794,10 @@ async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
             target_item_id: -1,
         },
         log,
-        Arithmetic::FrameworkX64,
+        vindictus_server::infrastructure::minimum_quest::QuestClock {
+            arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+            civil_offset_seconds: 0,
+        },
         &[],
         Vec::new(),
     )
@@ -2241,7 +2251,10 @@ async fn minimum_use_answers_town_and_constraint_dialogs_without_changes() {
                 target_item_id: -1,
             },
             log,
-            vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+            vindictus_server::infrastructure::minimum_quest::QuestClock {
+                arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+                civil_offset_seconds: 0,
+            },
             &[],
             Vec::new(),
         )
@@ -5750,7 +5763,10 @@ async fn minimum_use_opens_a_random_item_box_for_the_character() {
                 target_item_id: -1,
             },
             log,
-            Arithmetic::FrameworkX64,
+            vindictus_server::infrastructure::minimum_quest::QuestClock {
+                arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+                civil_offset_seconds: 0,
+            },
             &[],
             (1..=8).map(|i| 960_000_000_000_000_000 + i).collect(),
         )
@@ -5872,7 +5888,10 @@ async fn minimum_use_opens_a_random_item_v2_box_for_the_character() {
                 target_item_id: -1,
             },
             log,
-            Arithmetic::FrameworkX64,
+            vindictus_server::infrastructure::minimum_quest::QuestClock {
+                arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+                civil_offset_seconds: 0,
+            },
             &[],
             (1..=8).map(|i| 961_000_000_000_000_000 + i).collect(),
         )
@@ -6484,5 +6503,269 @@ Line &lt;two&gt;.</product_desc>"
     sessions.remove(1);
     assert_eq!(get(url(2, 1, 1, 0)).await, "1001104");
     server.abort();
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_questscroll2_gives_its_quest_without_consuming_the_scroll() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_use,
+        },
+        protocol::inventory::UseItem,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    let count = |class: &'static str| {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+            )
+            .bind(utf16(class))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    // questscroll2_gnoll_shadowfang → GiveQuest("quest_gnoll_shadowfang", reveal).
+    let scroll = "questscroll2_gnoll_shadowfang";
+    let assets = assets_with_classes(0, 1, 0, None, scroll, 1)
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    minimum_give::lab_grant(&p, &assets, Some(1), scroll, 1, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let item: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1")
+        .bind(utf16(scroll))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let revealed = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i32>(
+                "SELECT revealed FROM game_quests WHERE owner_id=1 AND quest_utf16=$1",
+            )
+            .bind(utf16("quest_gnoll_shadowfang"))
+            .fetch_optional(&p)
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(revealed().await, None);
+    for _ in 0..2 {
+        let outcome = minimum_use::use_item(
+            &p,
+            &owner,
+            &assets,
+            1,
+            UseItem {
+                item_id: item,
+                target_item_id: -1,
+            },
+            minimum_item_logs::Context {
+                flags: minimum_item_logs::flags(&assets).unwrap(),
+                civil_offset_seconds: 0,
+            },
+            quest_clock(),
+            &[],
+            (1..=16).map(|i| 962_000_000_000_000_000 + i).collect(),
+        )
+        .await
+        .unwrap();
+        let minimum_use::Outcome::Applied(packets) = outcome else {
+            panic!("applied expected")
+        };
+        // QuestProgress, UseInventoryItemOk, the telepathy; the scroll stays (owned and
+        // revealed again succeeds through RevealQuest).
+        assert_eq!(packets.len(), 3);
+        assert_eq!(
+            packets[1].category,
+            vindictus_server::protocol::inventory::Kind::UseInventoryItemOk.category()
+        );
+        assert_eq!(revealed().await, Some(1));
+        assert_eq!(count(scroll).await, 1);
+    }
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_mission_required_item_is_reserved_and_paid_at_start() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig,
+            minimum_mission::{self, Accept, OsMissionRandom, RelayTicket},
+            minimum_quest, minimum_selection,
+        },
+        protocol::mission::{AcceptQuest, GameInfo, ShipOption},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    let count = |class: &'static str| {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+            )
+            .bind(utf16(class))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    // The host holding none is refused at AddPlayer; one held is reserved and destroyed
+    // by CheckCoinPaid when the game starts.
+    let mut export = npc_export_p3(None);
+    export["mission"]["quests"][0][14] = json!("synthetic_cash");
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile_from(export))
+        .unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    minimum_quest::login(
+        &p,
+        &owner,
+        &assets,
+        1,
+        vec![940_000_000_000_000_001, 940_000_000_000_000_002],
+        quest_clock(),
+    )
+    .await
+    .unwrap();
+    sqlx::query("DELETE FROM game_items WHERE item_class_utf16=$1")
+        .bind(utf16("synthetic_cash"))
+        .execute(&p)
+        .await
+        .unwrap();
+    let accept = AcceptQuest {
+        quest_id: Some("quest_gnoll_watchman".to_owned()),
+        title: Some(String::new()),
+        swear_id: -1,
+        option: Some(ShipOption {
+            max_member_count: 4,
+            swear_member_limit: -1,
+            until_force_start: -1,
+            min_level: 1,
+            max_level: 90,
+            is_party_only: 0,
+            over18_only: 0,
+            difficulty: 2,
+            is_season2: false,
+            selected_boss_quest_ids: None,
+            is_practice_mode: false,
+            user_ds_mode: false,
+        }),
+    };
+    let ticket = |_| RelayTicket {
+        address: "127.0.0.1:27016".parse().unwrap(),
+        group: 7,
+        sn: 3,
+        key: 99,
+    };
+    let refused = minimum_mission::accept_quest(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &accept,
+        |_| panic!("relay must not be reached"),
+        config(),
+        quest_clock(),
+    )
+    .await
+    .unwrap();
+    let Accept::Failed(packets) = refused else {
+        panic!("ItemRequired expected")
+    };
+    assert_eq!(packets.last().unwrap().category, 602);
+    // lab_grant serves offline characters only.
+    let connected = |on: bool| {
+        let p = p.clone();
+        async move {
+            sqlx::query("UPDATE game_character_info SET is_connected=$1 WHERE id=1")
+                .bind(on)
+                .execute(&p)
+                .await
+                .unwrap();
+        }
+    };
+    connected(false).await;
+    minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_cash", 2, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    connected(true).await;
+    let Accept::Started { mut mission, .. } = minimum_mission::accept_quest(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &accept,
+        ticket,
+        config(),
+        quest_clock(),
+    )
+    .await
+    .unwrap() else {
+        panic!("accepted expected")
+    };
+    assert_eq!(mission.reserved_item.as_deref(), Some("synthetic_cash"));
+    minimum_mission::register_server(
+        &mut mission,
+        Some(GameInfo {
+            name: Some("host".to_owned()),
+            map: Some("01j".to_owned()),
+            game_dir: None,
+            description: None,
+            host_id: 1,
+            ds_ip: None,
+            ds_port: 0,
+        }),
+    )
+    .unwrap();
+    let paid = minimum_mission::pay_required_item(&p, &owner, &assets, 1, &mut mission)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(paid.len(), 1);
+    assert_eq!(count("synthetic_cash").await, 1);
+    assert_eq!(mission.reserved_item, None);
+    // Paid once: a second StartGame pays nothing.
+    let started = minimum_mission::start_game(
+        &mut mission,
+        assets.mission().unwrap(),
+        &mut OsMissionRandom,
+    )
+    .unwrap();
+    assert_eq!(started.len(), 5);
+    assert!(
+        minimum_mission::pay_required_item(&p, &owner, &assets, 1, &mut mission)
+            .await
+            .unwrap()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(count("synthetic_cash").await, 1);
     cleanup_game_pool(a, p, s).await;
 }

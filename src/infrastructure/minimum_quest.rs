@@ -387,6 +387,49 @@ pub async fn login(
     .map_err(|_| fail())?
 }
 
+/// QuestImpl.GiveQuest(questID, reveal: true) inside the caller's transaction: the
+/// outcome and, on Success, the PushQuestProgressMessage after Save. A ServiceCoin
+/// (GiveItem silver_coin, ForceMail) is not migrated and fails.
+pub(super) async fn give(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    quest: &str,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+    clock: QuestClock,
+) -> Result<(crate::domain::quest::GiveQuest, Option<OutgoingPacket>), MinimumError> {
+    use crate::domain::quest::GiveQuest;
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let contents = npc.quests.as_ref().ok_or_else(fail)?;
+    let level = level(tx, cid).await?;
+    let original = load(tx, cid, contents).await?;
+    let mut quests = original.clone();
+    quests.init_status(contents);
+    quests.level = level;
+    let (result, coin) = quests.give_quest(contents, quest, true);
+    if result != GiveQuest::Success {
+        return Ok((result, None));
+    }
+    if coin > 0 {
+        return Err(fail());
+    }
+    save(tx, cid, &original, &quests, ids).await?;
+    // PushQuestProgressMessage needs CharacterLevel > 0.
+    if level <= 0 {
+        return Ok((result, None));
+    }
+    let ctx = Context {
+        contents,
+        policy: &npc.policy,
+        cafe: false,
+        raid_coupons: raid_coupons(tx, cid).await?,
+    };
+    Ok((
+        result,
+        Some(progress_packet(&quests, ctx, clock, now_units()?)?),
+    ))
+}
+
 /// QueryQuestProgressMessage: PushQuestProgressMessage of the current state.
 pub async fn query_progress(
     pool: &PgPool,

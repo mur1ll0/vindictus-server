@@ -890,8 +890,20 @@ impl Connection {
                     return Ok(());
                 };
                 let contents = assets.mission().ok_or(RuntimeError::Profile)?;
-                let packets = mission::start_game(m, contents, &mut mission::OsMissionRandom)
-                    .map_err(|_| RuntimeError::Operation)?;
+                let packets = match mission::pay_required_item(pool, &owner, assets, cid, m).await {
+                    Ok(Ok(mut paid)) => {
+                        paid.extend(
+                            mission::start_game(m, contents, &mut mission::OsMissionRandom)
+                                .map_err(|_| RuntimeError::Operation)?,
+                        );
+                        paid
+                    }
+                    Ok(Err(failed)) => {
+                        tracing::warn!("mission required item not paid; values omitted");
+                        failed
+                    }
+                    Err(_) => return Err(RuntimeError::Operation),
+                };
                 tracing::info!(
                     granted = m.sectors.is_some(),
                     "mission start processed; values omitted"
@@ -2804,7 +2816,7 @@ impl Connection {
                             cid,
                             request,
                             runtime.item_log_context(assets)?,
-                            runtime.stat_arithmetic(),
+                            runtime.quest_clock(),
                             &buyback,
                             ids,
                         )

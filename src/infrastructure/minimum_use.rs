@@ -98,6 +98,51 @@ async fn constraint_failure(
     Ok(item_constraint::check(&character, constraint).map(|f| f.name()))
 }
 
+/// The questscroll2_ branch: GiveQuest, then UseInventoryItemOk and the telepathy on
+/// Success, or the failure dialog.
+async fn give_quest(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    assets: &Assets,
+    cid: i64,
+    class: &str,
+    suffix: &str,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+    clock: super::minimum_quest::QuestClock,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    use crate::domain::quest::GiveQuest;
+    let quest = format!("quest_{suffix}");
+    let (result, progress) =
+        super::minimum_quest::give(tx, assets, cid, &quest, ids, clock).await?;
+    Ok(match result {
+        GiveQuest::Success => {
+            let mut packets: Vec<OutgoingPacket> = progress.into_iter().collect();
+            packets.push(OutgoingPacket {
+                category: Kind::UseInventoryItemOk.category(),
+                body: wire::encode(
+                    Kind::UseInventoryItemOk,
+                    Some(&Message::UseInventoryItemOk(Some(class.to_owned()))),
+                    DEFAULT_MAX_BODY,
+                )
+                .map_err(|_| fail())?
+                .to_vec(),
+            });
+            // SystemMessageCategory.Telepathy.
+            packets.push(super::minimum_shop::system_message(
+                2,
+                "GameUI_Heroes_NPC_Give_Quest_Successful",
+                &[quest],
+            )?);
+            packets
+        }
+        GiveQuest::AlreadyOwned => vec![super::minimum_equip::item_fail(
+            "UseItemFail_Quest_AlreadyOwned",
+        )?],
+        GiveQuest::NoSuchQuest => vec![super::minimum_equip::item_fail(
+            "UseItemFail_Quest_NoSuchQuest",
+        )?],
+    })
+}
+
 /// Admission (selection and UseSecondPassword) belongs to the frontend. `buyback`: the
 /// ItemClass of each BuybackList item; `entity_ids` serve items a box creates.
 #[allow(clippy::too_many_arguments)]
@@ -108,12 +153,13 @@ pub async fn use_item(
     cid: i64,
     request: UseItem,
     log: super::minimum_item_logs::Context,
-    arithmetic: crate::domain::character_stats::Arithmetic,
+    clock: super::minimum_quest::QuestClock,
     buyback: &[String],
     entity_ids: Vec<i64>,
 ) -> Result<Outcome, MinimumError> {
     // UseInventoryItemProcessor constructor: GetJournalID (UseInventoryItem).
     let journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
+    let arithmetic = clock.arithmetic;
     let mut ids = entity_ids.into_iter();
     let mut opened_box = None;
     let (outcome, used) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
@@ -288,9 +334,15 @@ pub async fn use_item(
                 Some((change, use_journal)),
             ));
         }
+        if let Some(suffix) = class.strip_prefix("questscroll2_") {
+            // QuestImpl.GiveQuest($"quest_{suffix}", reveal): the item is not consumed.
+            let packets = give_quest(&mut tx, assets, cid, &class, suffix, &mut ids, clock).await?;
+            tx.commit().await?;
+            return Ok((Outcome::Applied(packets), None));
+        }
         let Some(amount) = capsule_amount(&class).filter(|_| !indexed.equippable) else {
-            // questscroll_/questscroll2_ and the other branches before the boxes.
-            if ["questscroll_", "questscroll2_", "cashshop_trade_coin"]
+            // questscroll_ and the other branches before the boxes.
+            if ["questscroll_", "cashshop_trade_coin"]
                 .iter()
                 .any(|p| class.starts_with(p))
             {

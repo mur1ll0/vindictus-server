@@ -889,21 +889,21 @@ fn check_inventory(kind: Kind, case: &Value, n: usize) {
                 f["CharacterName"].as_str(),
                 "case {n}"
             );
-            let ours: Option<Vec<Option<(Option<String>, i64, i64, i64)>>> =
-                m.status_effects.as_ref().map(|l| {
-                    l.iter()
-                        .map(|e| {
-                            e.as_ref().map(|e| {
-                                (
-                                    e.kind.clone(),
-                                    i64::from(e.level),
-                                    i64::from(e.remain_time),
-                                    i64::from(e.combat_count),
-                                )
-                            })
+            type Effect = Option<(Option<String>, i64, i64, i64)>;
+            let ours: Option<Vec<Effect>> = m.status_effects.as_ref().map(|l| {
+                l.iter()
+                    .map(|e| {
+                        e.as_ref().map(|e| {
+                            (
+                                e.kind.clone(),
+                                i64::from(e.level),
+                                i64::from(e.remain_time),
+                                i64::from(e.combat_count),
+                            )
                         })
-                        .collect()
-                });
+                    })
+                    .collect()
+            });
             let theirs = f["StatusEffects"].as_array().map(|l| {
                 l.iter()
                     .map(|e| {

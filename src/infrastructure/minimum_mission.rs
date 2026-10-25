@@ -532,6 +532,8 @@ pub struct Mission {
     pub combat_record: Option<wire::CombatRecord>,
     /// ReduceMinClearTime amounts applied by server-only effects.
     pub min_clear_time_reduced: i32,
+    /// MicroPlayer.ReservedRequiredItem (AddPlayer), paid by CheckCoinPaid.
+    pub reserved_item: Option<String>,
     /// Goal tracking, rewards and the EndGame of the quest.
     pub completion: super::minimum_mission_finish::Completion,
 }
@@ -709,17 +711,17 @@ pub async fn accept_quest(
     if digest.party_limit < 1 {
         return fail_with(packets, "TooManyPartyMembers");
     }
-    // Forms this server does not migrate: fishing/hunting/tower modules, gear limits
-    // (UnequipClassifiedParts) and required items (CheckCoinPaid/ConsumeRequiredItem).
-    if contents.check_supported(&quest, difficulty).is_err()
-        || !digest.gear_limit.is_empty()
-        || digest
-            .required_item
-            .as_deref()
-            .is_some_and(|i| !i.is_empty())
-    {
+    // Forms this server does not migrate: fishing/hunting/tower modules and gear limits
+    // (UnequipClassifiedParts).
+    if contents.check_supported(&quest, difficulty).is_err() || !digest.gear_limit.is_empty() {
         return fail_with(packets, "InvalidQuest");
     }
+    // AddPlayer of the host outside practice mode reserves QuestDigest.RequiredItem
+    // (practice mode's ticket_training is not migrated).
+    let reserved_item = digest
+        .required_item
+        .clone()
+        .filter(|i| !i.is_empty() && !practice);
     let mut mission = Mission {
         party_id,
         group: 0,
@@ -751,6 +753,7 @@ pub async fn accept_quest(
         consumables: Vec::new(),
         combat_record: None,
         min_clear_time_reduced: 0,
+        reserved_item,
         completion: super::minimum_mission_finish::Completion::new(cid),
     };
     // AddPlayer: QueryQuestState and the achieved goals of QueryPlayerInfo.
@@ -760,6 +763,12 @@ pub async fn accept_quest(
     mission.completion.today_play_count = today_play_count;
     mission.completion.today_quest = today;
     packets.extend(mission.broadcast()?);
+    if let Some(class) = &mission.reserved_item
+        && held(pool, cid, class).await? <= 0
+    {
+        // AddPlayer.FailReasonEnum.ItemRequired.
+        return fail_with(packets, "ItemRequired");
+    }
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
     mission.state = party_state::ENTERING_SHIP;
     // AddPlayer: the item limit regex, member info, relay registration.
@@ -1423,6 +1432,42 @@ pub fn use_consumable(
         ),
     ));
     Ok(Some(((!free).then_some(class), packets)))
+}
+
+/// MicroPlayer.HoldingItems[class]: the count the character holds.
+async fn held(pool: &PgPool, cid: i64, class: &str) -> Result<i64, MinimumError> {
+    Ok(sqlx::query_scalar(
+        "SELECT COALESCE(SUM(count),0)::BIGINT FROM game_items WHERE owner_id=$1 AND item_class_utf16=$2",
+    )
+    .bind(cid)
+    .bind(utf16(class))
+    .fetch_one(pool)
+    .await?)
+}
+
+/// CheckCoinPaid for the reserved required item: DestroyItem(1, QuestToken) and its
+/// inventory update; `Ok(Err(packets))` is the StartGame failure (ITEM_REQUIRED or
+/// CANNOT_REMOVE_COIN → GameStartingFailed, LeaveParty, CheckCoinPaidFail).
+pub async fn pay_required_item(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    mission: &mut Mission,
+) -> Result<Result<Vec<OutgoingPacket>, Vec<OutgoingPacket>>, MinimumError> {
+    if mission.state != party_state::IN_SHIP {
+        return Ok(Ok(Vec::new()));
+    }
+    let Some(class) = mission.reserved_item.take() else {
+        return Ok(Ok(Vec::new()));
+    };
+    if held(pool, cid, &class).await? <= 0 {
+        return Ok(Err(general_fail("StartGame", "CheckCoinPaidFail")?));
+    }
+    match destroy_consumable(pool, owner, assets, cid, &class).await {
+        Ok(packets) => Ok(Ok(packets)),
+        Err(_) => Ok(Err(general_fail("StartGame", "CheckCoinPaidFail")?)),
+    }
 }
 
 /// DestroyItem of a used consumable (one item), with its inventory update.

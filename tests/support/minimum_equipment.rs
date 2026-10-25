@@ -565,7 +565,10 @@ async fn minimum_ap_query_reports_stored_ap_and_unsupported_use_changes_nothing(
                 target_item_id: -1,
             },
             log(&assets),
-            Arithmetic::FrameworkX64,
+            vindictus_server::infrastructure::minimum_quest::QuestClock {
+                arithmetic: vindictus_server::domain::character_stats::Arithmetic::FrameworkX64,
+                civil_offset_seconds: 0,
+            },
             &[],
             Vec::new(),
         )
