@@ -191,3 +191,7 @@ Pré-condição: cupons da loja de visual na bolsa (ex.: `cash_free_hair_*`, `ca
 - [ ] Mudança de rosto/corpo (lookchange) → pele, olhos, sobrancelha, altura, busto, brilho e formato do corpo mudam e continuam depois de relogar.
 - [ ] Pacote de avatar → o pacote vai para a bolsa.
 
+### CS6 — Depot ativo e itens da aba cash equipáveis
+- [ ] Depois do login, o botão Depot/cash shop fica ativo (a sincronização de features traz `CashShop`).
+- [ ] Equipar o cabelo, a inner armor e a maquiagem comprados (aba cash) → equipam e o visual muda; relogar mantém.
+

@@ -43,6 +43,9 @@ fn text(raw: &[u8]) -> Result<String, MinimumError> {
     )
     .map_err(|_| fail())
 }
+/// StorageSetting.GetStorageTypeOf: Cash (100) and Story (103) collections.
+const CASH_COLLECTION: i16 = 100;
+const STORY_COLLECTION: i16 = 103;
 /// Item.LookClassInfo class: the LOOK attribute value, else the item class.
 pub(super) fn look_class(
     class: &str,
@@ -144,8 +147,18 @@ pub(super) async fn load(
     let mut items = Vec::new();
     let mut metadata = Vec::new();
     let bags = super::minimum_inventory::bags(tx, cid).await?;
+    let story_tab = assets
+        .catalog
+        .policy
+        .is_enabled(Some("StoryTabInInventory"))?;
     for row in rows {
-        if row.count != 1 || !bags.contains(&row.collection) || !(0..48).contains(&row.slot) {
+        // StorageSetting.EquippableItemStorage: Bag, Cash (100) and Story (103 with
+        // StoryTabInInventory); a Cash or Story location only needs Slot >= 0.
+        let located = (bags.contains(&row.collection) && (0..48).contains(&row.slot))
+            || ((row.collection == CASH_COLLECTION
+                || (story_tab && row.collection == STORY_COLLECTION))
+                && row.slot >= 0);
+        if row.count != 1 || !located {
             return Err(fail());
         }
         let class = text(&row.item_class_utf16)?;

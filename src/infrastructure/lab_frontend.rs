@@ -3447,8 +3447,10 @@ pub async fn connection(
     let mut state = Connection::new(&runtime, peer);
     let result=async {
   let b=uuid::Uuid::new_v4().into_bytes();let salt=u32::from_be_bytes([b[0],b[1],b[2],b[3]])&0x7fffffff;
-  // The pinned original config sets NGM_Disable=1; the bootstrap sync contains only that override.
-  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")}])};
+  // The pinned original config sets NGM_Disable=1. The laboratory replaces the NISMS cash
+  // shop, so it also overrides CashShop (empty in en-EU-x-GM) with the en-EU value
+  // (operator decision 2026-10-24), as a FeatureMatrix override of the original config would.
+  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")}])};
   let (mut sender,packets)=encode_initial_packets(salt,Some(&features),super::minimum_cash_shop::CATALOG_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);

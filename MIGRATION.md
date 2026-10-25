@@ -1280,3 +1280,10 @@ CS5 — catálogo do cash shop acima de 4.096 produtos (24/10/2026, teste de cli
 - Testes: `inventory_wire` (lista de 9.094 produtos), suíte sem PostgreSQL completa (500, 0 falhas), clippy `-D warnings`.
 - Deploy: o build do Docker caiu por falta de memória da VM (8 GB) e o PostgreSQL do laboratório passou mais de 30 minutos na recuperação (fsync arquivo por arquivo dos dados legados). Com autorização do operador: `.wslconfig` com 12 GB, `wsl --shutdown`, e `compose.yaml` com `recovery_init_sync_method=syncfs` no PostgreSQL; volume preservado, todos os serviços saudáveis.
 
+CS6 — Depot e equipar itens da aba cash (25/10/2026, teste de cliente: Depot inativo com catálogo e saldo entregues; "Transaction Failed" na primeira compra; cabelo, inner armor e makeup comprados não equipavam).
+- Diagnóstico: catálogo (244/243) e saldo (239) chegam no lobby; o botão continua inativo pela `FeatureMatrix` do cliente (`CashShop` vazio em EN-EU-X-GM, "1.04.08" em EN-EU). "Transaction Failed": queda do PostgreSQL do laboratório (processo saiu com código 2, disco da VM lento) no meio da compra; o servidor recusou sem gravar e a segunda compra funcionou. Equipar: os itens comprados ficam na aba cash (coleção 100) e o carregador de equipamento só aceitava as bolsas; reprodução numa cópia do banco do laboratório (cabelo na parte 21, inner na 30, makeup na 28 depois da correção; cópia apagada).
+- Fonte: `StorageSetting.EquippableItemStorage` (Bag, Cash, Story) e `GetStorageTypeOf` (100 Cash, 103 Story com `StoryTabInInventory`); `GameClient.SyncFeatureMatrix` (`SyncFeatureMatrixMessage` com o `overrideMap` da configuração).
+- Correção: `minimum_equipment` aceita itens vestidos das coleções 100 e 103 (Slot ≥ 0); o `lab_frontend` acrescenta `CashShop = 1.04.08` à sincronização de features da conexão (decisão do operador: o laboratório substitui o NISMS).
+- Testes: PostgreSQL `minimum_equip lab_frontend` (18, inclui a sincronização de features), `frontend_probe`, `lab_runtime_config`; clippy `-D warnings`.
+- Cliente: entrada CS6 em `docs/client-tests/B3-equipamento.md`.
+

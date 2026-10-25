@@ -110,9 +110,15 @@ pub async fn open(
     )
     .unwrap()
     .unwrap();
-    assert_eq!(decoded.features.as_ref().unwrap().len(), 1);
-    assert_eq!(decoded.features.as_ref().unwrap()[0].key, "NGM_disable");
-    assert_eq!(decoded.features.as_ref().unwrap()[0].value, Some("1"));
+    // NGM_disable from the pinned config and the laboratory CashShop override.
+    let features = decoded.features.as_ref().unwrap();
+    assert_eq!(
+        features
+            .iter()
+            .map(|f| (f.key, f.value))
+            .collect::<Vec<_>>(),
+        [("NGM_disable", Some("1")), ("CashShop", Some("1.04.08"))]
+    );
     let sender =
         LegacySender::with_profile(CipherProfile::VindictusFrontend, 123, DEFAULT_MAX_BODY)
             .unwrap();

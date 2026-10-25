@@ -280,4 +280,3 @@ fn the_cash_shop_product_list_encodes_every_cash_tab_class() {
     let body = wire::encode(Kind::CashShopProductList, Some(&list), 4 * 1024 * 1024).unwrap();
     assert!(body.len() > 100_000);
 }
-
