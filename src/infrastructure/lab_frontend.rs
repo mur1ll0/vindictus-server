@@ -2318,6 +2318,7 @@ impl Connection {
                                 send(stream, sender, packet.category, &packet.body).await?;
                                 tracing::info!(
                                     category = packet.category,
+                                    operation,
                                     "minimum secured operation answered; values omitted"
                                 );
                             }
