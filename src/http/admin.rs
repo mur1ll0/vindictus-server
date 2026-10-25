@@ -26,6 +26,8 @@ use tower_http::{
 use utoipa::{IntoParams, OpenApi, ToSchema};
 use zeroize::Zeroizing;
 
+mod accounts;
+
 pub const COOKIE: &str = "vindictus_admin";
 pub const CSRF_HEADER: &str = "x-csrf-token";
 const MAX_BODY: usize = 8 * 1024;
@@ -52,8 +54,28 @@ impl AdminState {
         title = "Vindictus admin panel",
         description = "Laboratory administration API (B4)."
     ),
-    paths(login, session, logout, audit),
-    components(schemas(LoginRequest, SessionResponse, AuditEntry, ApiError))
+    paths(
+        login,
+        session,
+        logout,
+        audit,
+        accounts::list,
+        accounts::create,
+        accounts::set_role,
+        accounts::set_password,
+        accounts::set_status
+    ),
+    components(schemas(
+        LoginRequest,
+        SessionResponse,
+        AuditEntry,
+        ApiError,
+        crate::infrastructure::admin_accounts::AccountSummary,
+        accounts::CreateAccount,
+        accounts::SetRole,
+        accounts::SetPassword,
+        accounts::SetStatus
+    ))
 )]
 pub struct ApiDoc;
 
@@ -72,6 +94,16 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/session", get(session))
         .route("/api/session/logout", post(logout))
         .route("/api/audit", get(audit))
+        .route("/api/accounts", get(accounts::list).post(accounts::create))
+        .route("/api/accounts/{username}/role", post(accounts::set_role))
+        .route(
+            "/api/accounts/{username}/password",
+            post(accounts::set_password),
+        )
+        .route(
+            "/api/accounts/{username}/status",
+            post(accounts::set_status),
+        )
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-store"),
@@ -175,6 +207,16 @@ impl IntoResponse for Refusal {
                 AdminError::NotFound => {
                     (StatusCode::NOT_FOUND, "nao_encontrado", "Não encontrado.")
                 }
+                AdminError::Exists => (
+                    StatusCode::CONFLICT,
+                    "conta_existente",
+                    "Já existe uma conta com esse login.",
+                ),
+                AdminError::RepeatedOperation => (
+                    StatusCode::CONFLICT,
+                    "operacao_repetida",
+                    "Esta operação já foi aplicada.",
+                ),
                 AdminError::LastAdmin => (
                     StatusCode::CONFLICT,
                     "ultimo_admin",

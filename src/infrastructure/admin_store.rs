@@ -11,6 +11,7 @@ pub struct LoginAccount {
     pub username: String,
     pub password_hash: String,
     pub role: Option<PanelRole>,
+    /// Login locked after failures, or the account is disabled.
     pub locked: bool,
 }
 
@@ -77,7 +78,7 @@ pub async fn login_account(
 ) -> Result<Option<LoginAccount>, sqlx::Error> {
     let row: Option<(Uuid, String, String, Option<String>, bool)> = sqlx::query_as(
         "SELECT id, username, password_hash, panel_role,
-                COALESCE(locked_until > now(), false)
+                COALESCE(locked_until > now(), false) OR status <> 'active'
          FROM accounts WHERE normalized_name = $1",
     )
     .bind(normalized)
@@ -196,7 +197,7 @@ pub async fn touch_session(
          WHERE s.token_sha256 = $1 AND a.id = s.account_id
            AND s.expires_at > now()
            AND s.last_seen_at > now() - make_interval(secs => $2)
-           AND a.panel_role IS NOT NULL
+           AND a.panel_role IS NOT NULL AND a.status = 'active'
            AND a.password_changed_at = s.password_changed_at
          RETURNING a.id, a.username, a.panel_role",
     )
@@ -267,6 +268,7 @@ pub enum RoleChange {
     },
     NoAccount,
     LastAdmin,
+    RepeatedOperation,
 }
 
 /// Set or remove a panel role. The last admin cannot lose the role; admin rows are locked so
@@ -276,7 +278,7 @@ pub async fn set_role(
     normalized: &str,
     new_role: Option<PanelRole>,
     reason: &AuditReason,
-    actor: Option<(&SessionAccount, Option<IpAddr>)>,
+    actor: Option<(&SessionAccount, Option<IpAddr>, Uuid)>,
 ) -> Result<RoleChange, sqlx::Error> {
     let mut tx = pool.begin().await?;
     sqlx::query("SET LOCAL lock_timeout = '2s'")
@@ -306,13 +308,13 @@ pub async fn set_role(
         .await?;
     let json = |r: Option<PanelRole>| serde_json::json!({ "panel_role": r }).to_string();
     let target_id = username.to_ascii_lowercase();
-    insert_audit(
+    match insert_audit(
         &mut tx,
         &AuditRecord {
-            account_id: actor.map(|(a, _)| a.account_id),
-            actor_name: actor.map(|(a, _)| a.username.as_str()),
-            role: actor.map(|(a, _)| a.role),
-            operation_id: None,
+            account_id: actor.map(|(a, _, _)| a.account_id),
+            actor_name: actor.map(|(a, _, _)| a.username.as_str()),
+            role: actor.map(|(a, _, _)| a.role),
+            operation_id: actor.map(|(_, _, o)| o),
             action: "account.role",
             target_kind: Some("account"),
             target_id: Some(&target_id),
@@ -320,10 +322,17 @@ pub async fn set_role(
             before: Some(json(before)),
             after: Some(json(new_role)),
             refused: false,
-            peer: actor.and_then(|(_, p)| p),
+            peer: actor.and_then(|(_, p, _)| p),
         },
     )
-    .await?;
+    .await
+    {
+        Ok(()) => {}
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            return Ok(RoleChange::RepeatedOperation);
+        }
+        Err(e) => return Err(e),
+    }
     tx.commit().await?;
     Ok(RoleChange::Changed {
         before,

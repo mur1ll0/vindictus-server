@@ -1,5 +1,6 @@
 //! Application use cases coordinating domain rules and persistence.
 pub mod accounts;
+pub mod admin_accounts;
 pub mod admin_session;
 
 pub mod frontend_session;

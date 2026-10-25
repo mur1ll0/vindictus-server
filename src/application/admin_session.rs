@@ -55,6 +55,10 @@ pub enum AdminError {
     NotFound,
     #[error("the last admin cannot lose the admin role")]
     LastAdmin,
+    #[error("account already exists")]
+    Exists,
+    #[error("operation already applied")]
+    RepeatedOperation,
     #[error("panel storage unavailable")]
     Unavailable(#[from] sqlx::Error),
 }
@@ -303,6 +307,7 @@ pub async fn set_role_from_cli(
     match admin_store::set_role(pool, name.normalized(), role, &reason, None).await? {
         RoleChange::NoAccount => Err(AdminError::NotFound),
         RoleChange::LastAdmin => Err(AdminError::LastAdmin),
+        RoleChange::RepeatedOperation => Err(AdminError::RepeatedOperation),
         change => Ok(change),
     }
 }

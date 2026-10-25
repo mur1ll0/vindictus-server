@@ -3,6 +3,7 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  Link,
   Outlet,
   redirect,
   useNavigate,
@@ -10,6 +11,7 @@ import {
 import type { Role } from '@/api/client';
 import { logout, sessionQuery } from '@/api/session';
 import { Button } from '@/components/ui/button';
+import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
 import { LoginPage } from '@/pages/Login';
 
@@ -30,7 +32,23 @@ function Shell() {
     <div className="min-h-screen">
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <span className="font-semibold">Painel Vindictus</span>
+          <nav className="flex items-center gap-4 text-sm">
+            <span className="font-semibold">Painel Vindictus</span>
+            {[
+              { to: '/', label: 'Contas' },
+              { to: '/auditoria', label: 'Auditoria' },
+            ].map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="text-muted hover:text-fg"
+                activeProps={{ className: 'font-medium text-fg' }}
+                activeOptions={{ exact: true }}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
           <div className="flex items-center gap-3 text-sm">
             <span>
               {session?.username}{' '}
@@ -65,11 +83,16 @@ const shellRoute = createRoute({
   },
 });
 
-const auditRoute = createRoute({ getParentRoute: () => shellRoute, path: '/', component: AuditPage });
+const accountsRoute = createRoute({ getParentRoute: () => shellRoute, path: '/', component: AccountsPage });
+const auditRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/auditoria',
+  component: AuditPage,
+});
 
 export function makeRouter(queryClient: QueryClient) {
   return createRouter({
-    routeTree: root.addChildren([loginRoute, shellRoute.addChildren([auditRoute])]),
+    routeTree: root.addChildren([loginRoute, shellRoute.addChildren([accountsRoute, auditRoute])]),
     context: { queryClient },
   });
 }

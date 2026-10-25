@@ -19,7 +19,7 @@ use vindictus_server::{
 };
 use zeroize::Zeroizing;
 
-async fn isolated_pool() -> (sqlx::PgPool, sqlx::PgPool, String) {
+pub(super) async fn isolated_pool() -> (sqlx::PgPool, sqlx::PgPool, String) {
     let url = std::env::var("TEST_DATABASE_URL").expect("TEST_DATABASE_URL is required");
     let admin = PgPoolOptions::new()
         .max_connections(2)

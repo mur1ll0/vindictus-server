@@ -40,7 +40,7 @@ pub async fn check_ready(pool: &PgPool) -> Result<(), Error> {
     }
     sqlx::query(
         "SELECT id, username, normalized_name, password_hash, created_at, panel_role,
-         failed_logins, locked_until, password_changed_at FROM accounts LIMIT 0",
+         failed_logins, locked_until, password_changed_at, status FROM accounts LIMIT 0",
     )
     .execute(pool)
     .await?;

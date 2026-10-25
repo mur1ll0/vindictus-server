@@ -6,6 +6,332 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/accounts": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Accounts in login order.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Part of the login (letters, digits, underscore).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Next page: logins after this one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1–100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccount"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{username}/password": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "New password; the account's panel sessions end.",
+        "operationId": "set_password",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPassword"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{username}/role": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "operationId": "set_role",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRole"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{username}/status": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Enable or disable an account; disabling ends its panel sessions.",
+        "operationId": "set_status",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/audit": {
       "get": {
         "tags": [],
@@ -206,6 +532,52 @@
   },
   "components": {
     "schemas": {
+      "AccountSummary": {
+        "type": "object",
+        "required": [
+          "username",
+          "status",
+          "locked",
+          "created_at",
+          "characters"
+        ],
+        "properties": {
+          "characters": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "description": "UTC, RFC 3339."
+          },
+          "game_uid": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Game user created at the first game login (same name), if any."
+          },
+          "locked": {
+            "type": "boolean",
+            "description": "Panel login locked after consecutive wrong passwords."
+          },
+          "panel_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "admin, gm, leitura or null (no panel access)."
+          },
+          "status": {
+            "type": "string",
+            "description": "active or disabled."
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
       "ApiError": {
         "type": "object",
         "description": "Error body of every refused request.",
@@ -298,6 +670,41 @@
           }
         }
       },
+      "CreateAccount": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "username",
+          "password"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "panel_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Panel role; only an admin can give one.",
+            "example": "gm"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "description": "12–128 bytes."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string",
+            "description": "3–24 letters, digits or underscore (fits the game's account name)."
+          }
+        }
+      },
       "LoginRequest": {
         "type": "object",
         "required": [
@@ -331,6 +738,71 @@
             "example": "admin"
           },
           "username": {
+            "type": "string"
+          }
+        }
+      },
+      "SetPassword": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "password"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "SetRole": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "panel_role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "admin, gm, leitura or null to remove panel access.",
+            "example": "leitura"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "SetStatus": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
             "type": "string"
           }
         }

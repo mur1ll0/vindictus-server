@@ -1,6 +1,8 @@
 import createClient, { type Middleware } from 'openapi-fetch';
 import type { components, paths } from './schema';
 
+export type { components };
+
 export type Session = components['schemas']['SessionResponse'];
 export type AuditEntry = components['schemas']['AuditEntry'];
 export type ApiError = components['schemas']['ApiError'];

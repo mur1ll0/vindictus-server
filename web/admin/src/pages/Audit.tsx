@@ -9,6 +9,9 @@ const ACTIONS: Record<string, string> = {
   'session.login': 'Entrada no painel',
   'session.logout': 'Saída do painel',
   'account.role': 'Papel da conta',
+  'account.create': 'Conta criada',
+  'account.password': 'Senha trocada',
+  'account.status': 'Conta ativada/desativada',
 };
 
 async function page(beforeId: number | undefined): Promise<AuditEntry[]> {
