@@ -111,3 +111,8 @@ Limites conhecidos: reentrar na missão (CombatRejoinSystem) e o envio por corre
 - [ ] (23/10) Numa fase com pote grande guardado por whisps (prop nomeado `stage*_common/rare/ultra_rare`), quebrar o pote → caem Ergs/itens da tabela do prop (2 a N conforme `NamedPropDropAmountInfo`; cura INSTANT aplicada na hora), que podem ser pegos e entram no inventário. No log: "mission erg picked".
 - [ ] (23/10) Títulos por ação: numa fase com aranhas, matar uma aranha com chute → aparece o aviso de título descoberto/progresso (ex.: título de chutar aranhas) na janela de títulos; agarrar monstros com E (Neck Grabber) e repetir até a meta → o título é adquirido, o status recebe o bônus dele e, ao relogar, continua adquirido. No log: "mission title goals proceeded". No modo prática nada conta.
 
+
+### Barco sem crash no engine.dll (25/10/2026)
+Pré-condições: `game` reconstruído depois do commit da correção do campo do `P2PGroup_MemberJoin`.
+- [ ] Criar o barco para uma fase, voltar e criar de novo, ao menos 5 vezes → nenhum `EXCEPTION_ACCESS_VIOLATION` em `engine.dll`; a fase carrega e o combate funciona.
+- Relatar: o horário de qualquer crash e o arquivo novo em `Documents\Vindictus EU GM\Report Error`.

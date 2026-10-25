@@ -1310,3 +1310,11 @@ CS8 — lista de produtos do cash shop in-game (25/10/2026, teste de cliente: de
 ` vira quebra de linha; texto com hangul/CJK/kana é tratado como não traduzido) e `localized_sha256`; o ShopList usa `product_name` e `product_desc` em inglês e omite os produtos sem tradução. Com `-PerCategory 25`: 621 produtos, 559 com descrição, nenhum nome em coreano, 510.004 bytes.
 - Testes: Python `test_export_cash_shop` (2), PostgreSQL `minimum_cash_shop` (inclui nome, descrição e escape do ShopList), clippy `-D warnings`.
 - Próxima ação: teste de cliente da CS8 (nomes e descrições em inglês, sem itens em coreano); depois o sistema TodayMission (adiado pelo operador).
+
+Crash ao criar o barco (25/10/2026, teste de cliente: `EXCEPTION_ACCESS_VIOLATION` em `engine.dll` 0x4235193b; o mesmo endereço ±9 nos relatórios de 23/10 e 24/10, antes atribuído a recursos).
+- Memória: o relatório mostra 32 GB físicos (6,6 GB livres), 2 GB de espaço virtual livre no processo de 4 GB e 1,5 GB em uso; não é falta de memória. `WaveData` em ~100% é o LRU do cache de som (`MAXIMUM_SOUND_CACHE_SIZE`, constante).
+- Diagnóstico: as três pilhas (leitor de minidump no scratchpad) são idênticas na thread principal; a instrução lê registros de 16 bytes de um buffer sem limite e falha logo após o fim de uma página. A função (0x42351740) é registrada como `delegate<Object, P2PMemberJoinEventArgs>` (RTTI) e lê o campo customizado do `P2PGroup_MemberJoin`: ParentID, string, ParentID, contador e registros {HostID, CID, NexonSN}. O relay enviava só ParentID e ParentCategory, então o cliente lia lixo além do buffer: contador ≤ 0 seguia normalmente, positivo crashava (intermitente).
+- Fonte: `RelayServer/P2PGroup.cs` `Join` (ParentID, ParentCategory, ParentID, 1, ClientHostID, CID, NexonSN) e `SendNMInfos` com os membros anteriores à entrada.
+- Correção: `relay.rs` `join` com o campo completo e `NMInfos` só dos membros já presentes; `docs/battle-transport.md` corrigido.
+- Testes: `proudnet` (5; o campo e o NMInfos vazio do primeiro membro conferidos byte a byte).
+- Cliente: entrada em `docs/client-tests/B2-fases.md` (criar o barco várias vezes sem crash).

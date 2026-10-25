@@ -148,8 +148,11 @@ impl Relay {
         );
         id
     }
-    /// P2PGroup.Join: JoinP2PGroup(member, group, ParentID + ParentCategory) and
-    /// SendNMInfos to the joining client. False when the client is not connected.
+    /// P2PGroup.Join: JoinP2PGroup(member, group, custom field) and SendNMInfos of the
+    /// members already in the group to the joining client. The custom field is ParentID,
+    /// ParentCategory, ParentID, 1 and the joining member's HostID, CID and NexonSN; the
+    /// client's P2PMemberJoin handler (engine.dll 0x42351740) reads it unbounded, so a
+    /// shorter field makes it read past the buffer. False when the client is not connected.
     pub fn join(&self, group: i32, cid: i64, parent_id: i64, category: &str) -> bool {
         let mut s = lock(&self.state);
         let Some((&host, client)) = s.clients.iter().find(|(_, c)| c.cid == cid && c.connected)
@@ -157,22 +160,29 @@ impl Relay {
             return false;
         };
         let out = client.out.clone();
+        let nexon_sn = client.nexon_sn;
         let Some(g) = s.groups.get(&group) else {
             return false;
         };
         if g.members.contains(&host) {
             return false;
         }
-        let mut members: Vec<i32> = g.members.clone();
+        let previous: Vec<i32> = g.members.clone();
+        let mut members = previous.clone();
         members.push(host);
         let mut join_field = Vec::new();
         join_field.extend_from_slice(&parent_id.to_le_bytes());
         write_dotnet_string(&mut join_field, category);
+        join_field.extend_from_slice(&parent_id.to_le_bytes());
+        join_field.extend_from_slice(&1_i32.to_le_bytes());
+        join_field.extend_from_slice(&host.to_le_bytes());
+        join_field.extend_from_slice(&cid.to_le_bytes());
+        join_field.extend_from_slice(&nexon_sn.to_le_bytes());
         s.next_event += 1;
         let event = s.next_event;
         let nm_id = s.next_nm_id;
         s.next_nm_id += 1;
-        let infos: Vec<(i32, i64, i32)> = members
+        let infos: Vec<(i32, i64, i32)> = previous
             .iter()
             .filter_map(|h| s.clients.get(h).map(|c| (*h, c.cid, c.nexon_sn)))
             .collect();

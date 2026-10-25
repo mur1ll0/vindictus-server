@@ -95,8 +95,8 @@ Heroes game RMIs (PIDL `S2C`/`C2S`):
 - **Registration:** `AddClientWaiting` issues a serial number and a random key.
 - **Connection request (type 7):** the user data must be exactly 8 bytes, `int SN` then `int Key`, matching a waiting client. The reply is the CID (int64) followed by the NexonSN (int32).
 - **NMInfosResult:** the client sends its CID, which moves the relay client to Connected.
-- **Joining the group:** `P2PGroup.Join` calls `JoinP2PGroup(member, group, customField)`, where the custom field is ParentID (int64) then ParentCategory (BinaryWriter string), and then sends NMInfos. The member's `P2PGroup_MemberJoin_Ack` completes the join; this is the event that admits the player into the MicroPlay.
-- **Group custom field:** ParentCategory, ParentID, then the int 0.
+- **Joining the group:** `P2PGroup.Join` (`RelayServer/P2PGroup.cs`) calls `JoinP2PGroup(member, group, customField)`, where the custom field is ParentID (int64), ParentCategory (BinaryWriter string), ParentID again, the int 1 and the joining member's ClientHostID (int32), CID (int64) and NexonSN (int32). It then sends `SendNMInfos` with the members already in the group (the joining client is added afterwards). The member's `P2PGroup_MemberJoin_Ack` completes the join; this is the event that admits the player into the MicroPlay. The client's `P2PMemberJoinEventArgs` handler (`engine.dll` 0x42351740) reads this field without bounds: with only ParentID and ParentCategory it read past the buffer and crashed intermittently at +0x351932/+0x35193b (reports of 23, 24 and 25/10/2026).
+- **Group custom field (`MakeCustomField`):** ParentID, ParentCategory, ParentID, then the int 0.
 
 Message types 20, 21 and 22 relay reliable, unreliable and linger frames to the other group members, answered as types 23, 24 and 25. A one-member group has nobody to relay to.
 

@@ -186,15 +186,25 @@ async fn relay_admits_a_waiting_client_and_joins_it_to_a_one_member_group() {
     let mut r = Reader::new(&join);
     assert_eq!((r.u8().unwrap(), r.u16().unwrap()), (1, 0xfbf6));
     assert_eq!((r.i32().unwrap(), r.i32().unwrap()), (group, host));
+    // RelayServer P2PGroup.Join custom field: ParentID, ParentCategory, ParentID, 1 and
+    // the joining member (HostID, CID, NexonSN).
+    let field = r.bytes(256).unwrap();
+    let category = b"MicroPlayServiceCore.MicroPlayService";
+    let mut expected = 77_i64.to_le_bytes().to_vec();
+    expected.push(category.len() as u8);
+    expected.extend_from_slice(category);
+    expected.extend_from_slice(&77_i64.to_le_bytes());
+    expected.extend_from_slice(&1_i32.to_le_bytes());
+    expected.extend_from_slice(&host.to_le_bytes());
+    expected.extend_from_slice(&1_234_567_i64.to_le_bytes());
+    expected.extend_from_slice(&42_i32.to_le_bytes());
+    assert_eq!(field, expected);
+    // SendNMInfos carries the members already in the group: none for the first.
     let nm = read_message(&mut s, &mut buf).await;
     let mut r = Reader::new(&nm);
     assert_eq!((r.u8().unwrap(), r.u16().unwrap()), (1, 0x7d1));
     let _id = r.i64().unwrap();
-    assert_eq!(r.i32().unwrap(), 1);
-    assert_eq!(
-        (r.i32().unwrap(), r.i64().unwrap(), r.i32().unwrap()),
-        (host, 1_234_567, 42)
-    );
+    assert_eq!(r.i32().unwrap(), 0);
     let mut w = Writer::rmi(rmi::P2P_GROUP_MEMBER_JOIN_ACK);
     w.i32(group).i32(host).i32(1).bool(false);
     send(&mut s, &w.finish()).await;
