@@ -949,9 +949,18 @@ async fn apply_outputs(
                 )?);
             }
             Output::Effect(Effect::OpenStorage(id)) => {
-                // A new ItemStorageStatus row without ExpireTime (an opened bag already is
-                // unlimited), then Sync pushes UpdateStorageInfoMessage.
-                if !super::minimum_inventory::bags(tx, cid)
+                // OpenStorage(id, null): a new ItemStorageStatus row without ExpireTime, or
+                // the existing row loses its ExpireTime; then Sync pushes
+                // UpdateStorageInfoMessage. Default bags are not storage rows.
+                let opened = super::minimum_inventory::opened_bags(tx, cid).await?;
+                if opened.contains_key(&i16::from(id)) {
+                    sqlx::query("UPDATE game_item_storage_status SET expire_units300=NULL WHERE owner_id=$1 AND storage_type=$2 AND storage=$3")
+                        .bind(cid)
+                        .bind(super::minimum_inventory::STORAGE_TYPE_BAG)
+                        .bind(i16::from(id))
+                        .execute(&mut **tx)
+                        .await?;
+                } else if !super::minimum_inventory::bags(tx, cid)
                     .await?
                     .contains(&i16::from(id))
                 {

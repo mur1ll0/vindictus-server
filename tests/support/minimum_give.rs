@@ -1486,6 +1486,109 @@ async fn minimum_quest_login_gives_first_and_level_quests_once_and_pushes_progre
 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_extra_storage_extends_expiring_bags_with_timed_tickets() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_extra_storage, minimum_inventory,
+            minimum_selection,
+        },
+        protocol::inventory::UseExtraStorage,
+    };
+    const WEEK: i32 = 604_800;
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let assets = assets_with_classes(0, 1, 0, None, "warehouse_ticket_7");
+    minimum_give::lab_grant(&p, &assets, Some(1), "warehouse_ticket_7", 4, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let tickets: Vec<i64> =
+        sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1 ORDER BY id")
+            .bind(utf16("warehouse_ticket_7"))
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(tickets.len(), 4);
+    // (available, seconds left) of bag 3 in the UpdateStorageInfo of a ticket use.
+    let bag3 = |ticket: i64| {
+        let (p, assets) = (p.clone(), &assets);
+        async move {
+            let minimum_extra_storage::Outcome::Applied(packets) =
+                minimum_extra_storage::use_extra_storage(
+                    &p,
+                    &super::initial_inventory::key(),
+                    assets,
+                    1,
+                    UseExtraStorage {
+                        item_id: ticket,
+                        storage_id: 3,
+                    },
+                )
+                .await
+                .unwrap()
+            else {
+                panic!("ticket refused")
+            };
+            let Some(Message::UpdateStorageInfo(Some(storages))) =
+                inventory::decode(Kind::UpdateStorageInfo, &packets[1].body, DEFAULT_MAX_BODY)
+                    .unwrap()
+            else {
+                panic!("storage update")
+            };
+            let s = storages.into_iter().flatten().find(|s| s.id == 3).unwrap();
+            (s.available, s.last_seconds)
+        }
+    };
+    let (available, left) = bag3(tickets[0]).await;
+    assert_eq!(available, 1);
+    assert!((WEEK - 60..=WEEK).contains(&left), "{left}");
+    // An available expiring bag adds the ticket's time.
+    let (_, left) = bag3(tickets[1]).await;
+    assert!((2 * WEEK - 60..=2 * WEEK).contains(&left), "{left}");
+    // An item kept in the bag after it expires: the inventory still loads and the bag
+    // is listed unavailable with negative seconds; its item stays.
+    sqlx::query("UPDATE game_items SET collection=3,slot=0 WHERE id=$1")
+        .bind(tickets[3])
+        .execute(&p)
+        .await
+        .unwrap();
+    minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .expect("inventory with the item in an available bag");
+    sqlx::query("UPDATE game_item_storage_status SET expire_units300=expire_units300-$1 WHERE owner_id=1 AND storage=3")
+        .bind(i64::from(3 * WEEK) * 300)
+        .execute(&p)
+        .await
+        .unwrap();
+    minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    // An unavailable bag reopens from now.
+    let (available, left) = bag3(tickets[2]).await;
+    assert_eq!(available, 1);
+    assert!((WEEK - 60..=WEEK).contains(&left), "{left}");
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_extra_storage_opens_a_bag_with_a_permanent_ticket() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,

@@ -188,7 +188,7 @@ async fn project(
         return Err(MinimumError::Conflict);
     }
     sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;
-    let opened = bags(tx, cid).await?;
+    let opened = present_bags(tx, cid).await?;
     let rows:Vec<Item>=sqlx::query_as("SELECT id,item_class_utf16,count,collection,slot,expire_ticks,tradable,checksum FROM game_items WHERE owner_id=$1 ORDER BY id LIMIT 4097").bind(cid).fetch_all(&mut **tx).await?;
     if rows.is_empty() || rows.len() > 4096 {
         return Err(MinimumError::Conflict);
@@ -402,13 +402,31 @@ pub(super) const STORAGE_TYPE_BAG: i16 = 1;
 
 /// ItemStorageStatus: StorageType, Storage, ExpireTime, StorageName, StorageTag.
 type StatusRow = (i16, i16, Option<i64>, Vec<u8>, i32);
-/// BagStorage.Load(ItemStorageStatus) rows: the bags opened by OpenStorage without an
-/// ExpireTime, with their StorageName. Expiring or tagged storages (ExtendStorage,
-/// UpdateStorageSetting) and other storage types are not migrated and refused.
-async fn opened_bags(
+/// ItemStorageStatus of an opened bag: StorageName and ExpireTime (SQL datetime units).
+#[derive(Clone, Debug)]
+pub(super) struct BagStatus {
+    pub name: String,
+    pub expire_units300: Option<i64>,
+}
+/// BagStorage.OpenStorage caps ExpireTime at 9999-12-01 23:59:59.
+pub(super) const MAX_BAG_EXPIRE_UNITS300: i64 = 76_682_609_279_700;
+
+/// The current time in SQL datetime units (1/300 s since 1900-01-01).
+pub(super) fn now_units300() -> Result<i64, MinimumError> {
+    Ok(super::lab_clock::utc_now()
+        .map_err(|_| MinimumError::Conflict)?
+        .sql_parameter()
+        .map_err(|_| MinimumError::Conflict)?
+        .units300())
+}
+
+/// BagStorage.Load(ItemStorageStatus) rows: the bags opened by OpenStorage (with or
+/// without ExpireTime), with their StorageName. Tagged storages (UpdateStorageSetting)
+/// and other storage types are not migrated and refused.
+pub(super) async fn opened_bags(
     tx: &mut Transaction<'_, Postgres>,
     cid: i64,
-) -> Result<BTreeMap<i16, String>, MinimumError> {
+) -> Result<BTreeMap<i16, BagStatus>, MinimumError> {
     let rows: Vec<StatusRow> = sqlx::query_as(
         "SELECT storage_type,storage,expire_units300,storage_name_utf16,storage_tag FROM game_item_storage_status WHERE owner_id=$1 ORDER BY id LIMIT 17",
     )
@@ -420,7 +438,6 @@ async fn opened_bags(
         if kind != STORAGE_TYPE_BAG
             || !VALID_BAGS.contains(&storage)
             || DEFAULT_BAGS.contains(&storage)
-            || expire.is_some()
             || tag != 0
         {
             return Err(MinimumError::Conflict);
@@ -432,15 +449,39 @@ async fn opened_bags(
             .map(|b| u16::from_le_bytes(*b))
             .collect();
         let name = String::from_utf16(&units).map_err(|_| MinimumError::Conflict)?;
-        if out.insert(storage, name).is_some() {
+        let status = BagStatus {
+            name,
+            expire_units300: expire,
+        };
+        if out.insert(storage, status).is_some() {
             return Err(MinimumError::Conflict);
         }
     }
     Ok(out)
 }
 
-/// The available bag collections (BagStorage.IsAvailable) in ValidBagStorageIDs order.
+/// BagStorage.IsAvailable of an opened bag: no ExpireTime, or now ≤ ExpireTime.
+fn available(status: &BagStatus, now: i64) -> bool {
+    status.expire_units300.is_none_or(|e| now <= e)
+}
+
+/// The available bag collections (BagStorage.IsAvailable) in ValidBagStorageIDs order:
+/// where items may be put, moved and given.
 pub(super) async fn bags(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+) -> Result<Vec<i16>, MinimumError> {
+    let opened = opened_bags(tx, cid).await?;
+    let now = now_units300()?;
+    Ok(VALID_BAGS
+        .into_iter()
+        .filter(|b| DEFAULT_BAGS.contains(b) || opened.get(b).is_some_and(|s| available(s, now)))
+        .collect())
+}
+
+/// The bag collections that hold items (BagStorage.ItemSlots): the default bags and every
+/// opened one, expired or not. An expired bag keeps its items, which cannot move.
+async fn present_bags(
     tx: &mut Transaction<'_, Postgres>,
     cid: i64,
 ) -> Result<Vec<i16>, MinimumError> {
@@ -452,24 +493,33 @@ pub(super) async fn bags(
 }
 
 /// ItemStorage.ToStorageInfo: BagStorage.ToStorageInfo in ValidBagStorageIDs order
-/// (default bags and unlimited opened ones are available with LastSecsToExpire -1).
+/// (default bags and unlimited opened ones are available with LastSecsToExpire -1; an
+/// expiring one carries IsAvailable and the seconds left, negative once expired).
 pub(super) async fn storage_infos(
     tx: &mut Transaction<'_, Postgres>,
     cid: i64,
 ) -> Result<Vec<Option<Storage>>, MinimumError> {
     let opened = opened_bags(tx, cid).await?;
+    let now = now_units300()?;
     Ok(VALID_BAGS
         .into_iter()
         .filter_map(|b| {
-            let name = match opened.get(&b) {
-                Some(n) => n.clone(),
-                None if DEFAULT_BAGS.contains(&b) => String::new(),
+            let (name, available, last_seconds) = match opened.get(&b) {
+                Some(s) => match s.expire_units300 {
+                    None => (s.name.clone(), 1, -1),
+                    Some(e) => (
+                        s.name.clone(),
+                        u8::from(available(s, now)),
+                        i32::try_from((e - now).div_euclid(300)).unwrap_or(i32::MAX),
+                    ),
+                },
+                None if DEFAULT_BAGS.contains(&b) => (String::new(), 1, -1),
                 None => return None,
             };
             Some(Some(Storage {
                 id: u8::try_from(b).ok()?,
-                available: 1,
-                last_seconds: -1,
+                available,
+                last_seconds,
                 name: Some(name),
                 tag: 0,
             }))

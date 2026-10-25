@@ -1,7 +1,7 @@
 //! UseExtraStorageProcessor for the selected first Fiona: a Storage Chest Expansion Ticket
 //! opens one of the extra bags (2, 3, 4, 5, 7, 8). The permanent tickets OpenStorage
-//! without ExpireTime; the timed ones ExtendStorage, whose expiring bags the inventory
-//! does not migrate yet, so they are refused without changes. A refusal answers nothing
+//! without ExpireTime; the timed ones ExtendStorage (an unavailable bag opens until now
+//! plus the time, an available expiring one adds the time). A refusal answers nothing
 //! (FailMessage without a frontend message), like the source.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
@@ -13,11 +13,28 @@ use crate::{
 };
 use sqlx::PgPool;
 
-/// UseExtraStorageProcessor.Tickets with ExtendTime -1 (OpenStorage without expiry).
-const PERMANENT_TICKETS: [&str; 3] = [
-    "warehouse_ticket_free",
-    "warehouse_ticket_free_gift",
-    "warehouse_ticket_free_gift_accounttrade",
+/// UseExtraStorageProcessor.Tickets: ItemClass → ExtendTime in seconds (-1 permanent).
+const TICKETS: [(&str, i64); 20] = [
+    ("warehouse_ticket_test", 300),
+    ("warehouse_ticket_5", 432_000),
+    ("warehouse_ticket_7", 604_800),
+    ("warehouse_ticket_10", 864_000),
+    ("warehouse_ticket_10_cash", 864_000),
+    ("warehouse_ticket_15", 1_296_000),
+    ("warehouse_ticket_30", 2_592_000),
+    ("warehouse_ticket_60", 5_184_000),
+    ("warehouse_ticket_90", 7_776_000),
+    ("warehouse_ticket_100", 8_640_000),
+    ("warehouse_ticket_180", 15_552_000),
+    ("warehouse_ticket_180_gift", 15_552_000),
+    ("warehouse_ticket_500", 43_200_000),
+    ("warehouse_ticket_500_event", 43_200_000),
+    ("warehouse_ticket_free", -1),
+    ("warehouse_ticket_free_gift", -1),
+    ("warehouse_ticket_30_gift", 2_592_000),
+    ("warehouse_ticket_500_gift", 43_200_000),
+    ("warehouse_ticket_180_gift_accounttrade", 15_552_000),
+    ("warehouse_ticket_free_gift_accounttrade", -1),
 ];
 /// StorageTicket.StorageIDs of every ticket.
 const TICKET_STORAGES: [u8; 6] = [2, 3, 4, 5, 7, 8];
@@ -79,18 +96,38 @@ pub async fn use_extra_storage(
         return Ok(Outcome::Refused);
     };
     let class = item.class.clone().unwrap_or_default();
-    // Tickets.TryGetValue and IsExpired; timed tickets need expiring bags (not migrated).
-    if !PERMANENT_TICKETS.contains(&class.as_str()) || item.expireable {
+    // Tickets.TryGetValue and IsExpired (a ticket with an expiry is not migrated).
+    let Some(&(_, extend)) = TICKETS.iter().find(|(c, _)| *c == class) else {
+        return Ok(Outcome::Refused);
+    };
+    if item.expireable {
         return Ok(Outcome::Refused);
     }
-    // IExpirableStorage of the bag type, StorageIDs and IsUnlimited (an opened bag).
+    // IExpirableStorage of the bag type, StorageIDs and IsUnlimited.
+    let storage = i16::from(request.storage_id);
+    let status = super::minimum_inventory::opened_bags(&mut tx, cid)
+        .await?
+        .remove(&storage);
     if !TICKET_STORAGES.contains(&request.storage_id)
-        || super::minimum_inventory::bags(&mut tx, cid)
-            .await?
-            .contains(&i16::from(request.storage_id))
+        || status.as_ref().is_some_and(|s| s.expire_units300.is_none())
     {
         return Ok(Outcome::Refused);
     }
+    let now = super::minimum_inventory::now_units300()?;
+    // OpenStorage(id, null) / ExtendStorage(id, ExtendTime): IsAvailable opens from now,
+    // an available expiring bag adds the time; both cap at 9999-12-01 23:59:59.
+    let expire = if extend < 0 {
+        None
+    } else {
+        let base = match status.as_ref().and_then(|s| s.expire_units300) {
+            Some(e) if now <= e => e,
+            _ => now,
+        };
+        Some(
+            base.saturating_add(extend.saturating_mul(300))
+                .min(super::minimum_inventory::MAX_BAG_EXPIRE_UNITS300),
+        )
+    };
     let deleted = item.count == 1;
     if deleted {
         sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
@@ -105,13 +142,23 @@ pub async fn use_extra_storage(
             .execute(&mut *tx)
             .await?;
     }
-    // OpenStorage(StorageID, null): a new ItemStorageStatus row without ExpireTime.
-    sqlx::query("INSERT INTO game_item_storage_status(id,owner_id,storage_type,storage,expire_units300,storage_name_utf16,storage_tag) VALUES(nextval('game_item_storage_id'),$1,$2,$3,NULL,'',0)")
-        .bind(cid)
-        .bind(super::minimum_inventory::STORAGE_TYPE_BAG)
-        .bind(i16::from(request.storage_id))
-        .execute(&mut *tx)
-        .await?;
+    if status.is_some() {
+        sqlx::query("UPDATE game_item_storage_status SET expire_units300=$3 WHERE owner_id=$1 AND storage_type=$2 AND storage=$4")
+            .bind(cid)
+            .bind(super::minimum_inventory::STORAGE_TYPE_BAG)
+            .bind(expire)
+            .bind(storage)
+            .execute(&mut *tx)
+            .await?;
+    } else {
+        sqlx::query("INSERT INTO game_item_storage_status(id,owner_id,storage_type,storage,expire_units300,storage_name_utf16,storage_tag) VALUES(nextval('game_item_storage_id'),$1,$2,$3,$4,'',0)")
+            .bind(cid)
+            .bind(super::minimum_inventory::STORAGE_TYPE_BAG)
+            .bind(storage)
+            .bind(expire)
+            .execute(&mut *tx)
+            .await?;
+    }
     let slot = if deleted {
         super::minimum_move::deleted_slot(item.id)
     } else {

@@ -215,3 +215,9 @@ Pré-condições: `game` reconstruído com a porta 27080 publicada; saldo credit
 Pré-condições: `warehouse_ticket_free` no inventário (comprado no Depot e retirado); `game` reconstruído.
 - [ ] Usar o ticket numa aba bloqueada do inventário → a aba abre, o ticket some (ou diminui) e a aba continua aberta depois de relogar.
 - [ ] Tentar usar outro ticket numa aba já aberta → nada muda e o ticket fica.
+
+### ST2 — Storage Chest com prazo
+Pré-condições: um ticket com prazo (ex.: "Storage Chest Expansion Ticket (30 days)") retirado do Depot; `game` reconstruído.
+- [ ] Usar o ticket numa aba bloqueada → a aba abre e mostra o tempo restante (≈30 dias).
+- [ ] Usar outro ticket com prazo na mesma aba → o tempo restante soma.
+- [ ] Usar um ticket permanente numa aba com prazo → a aba fica permanente.
