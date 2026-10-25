@@ -509,6 +509,8 @@ pub struct Mission {
     pub boss_killed: Vec<String>,
     /// MicroPlayer.Luck (Stats LUCK; no platinum, bless stone or dormant bonus).
     pub luck: i32,
+    /// MicroPlayer.StoryDropData (QueryPlayerInfo → StoryEntity.QueryStoryDropData).
+    pub story_drops: Vec<domain::StoryDropData>,
     /// BattleInventory: part → (ItemClass, BringNum, UsedNum, DraftNum).
     pub consumables: Vec<(i32, String, i32, i32, i32)>,
     /// MicroPlayer.actionRecord of the latest CombatRecord.
@@ -730,6 +732,7 @@ pub async fn accept_quest(
         title_events: Vec::new(),
         boss_killed: Vec::new(),
         luck: 0,
+        story_drops: Vec::new(),
         consumables: Vec::new(),
         combat_record: None,
         min_clear_time_reduced: 0,
@@ -778,6 +781,7 @@ pub async fn accept_quest(
         .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
         .map_or(0, |(_, v)| *v);
     mission.luck = luck;
+    mission.story_drops = story_drop_data(pool, contents, cid, &mission.quest).await?;
     mission.consumables = member
         .join
         .battle_inventory
@@ -1030,6 +1034,7 @@ pub fn monster_killed(
                     &mission.quest,
                     difficulty,
                     mission.luck,
+                    (&mut mission.story_drops, monster_type),
                     random,
                 )
                 .map_err(|_| fail())?;
@@ -1430,4 +1435,64 @@ pub async fn destroy_consumable(
         .map_err(|_| fail())?;
     tx.commit().await?;
     Ok(vec![inventory_packet(applied.slots)?])
+}
+
+/// StoryEntity.QueryStoryDropData for the mission: the character's story progress phases
+/// and the inventory count of each candidate class. StoryDrop.TryCount is not persisted
+/// yet, so every mission starts at zero tries (rows with MaxTry 1 are unaffected).
+async fn story_drop_data(
+    pool: &PgPool,
+    contents: &domain::MissionContents,
+    cid: i64,
+    quest: &str,
+) -> Result<Vec<domain::StoryDropData>, MinimumError> {
+    let rows: Vec<(Vec<u8>, Option<Vec<u8>>)> = sqlx::query_as(
+        "SELECT story_line_utf16,phase_utf16 FROM game_story_progress WHERE cid=$1 ORDER BY row_id LIMIT 4096",
+    )
+    .bind(cid)
+    .fetch_all(pool)
+    .await?;
+    let text = |b: &[u8]| -> Result<String, MinimumError> {
+        let units: Vec<u16> = b
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|a| u16::from_le_bytes(*a))
+            .collect();
+        String::from_utf16(&units).map_err(|_| fail())
+    };
+    let mut progress = Vec::with_capacity(rows.len());
+    for (line, phase) in rows {
+        progress.push((text(&line)?, phase.as_deref().map(text).transpose()?));
+    }
+    let tries = std::collections::BTreeMap::new();
+    let candidates = contents.story_drop_data(&progress, quest, &|_| 0, &tries);
+    let mut held = std::collections::BTreeMap::new();
+    for d in &candidates {
+        if held.contains_key(&d.item_class) {
+            continue;
+        }
+        let key: Vec<u8> = d
+            .item_class
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(count),0)::BIGINT FROM game_items WHERE owner_id=$1 AND item_class_utf16=$2",
+        )
+        .bind(cid)
+        .bind(key)
+        .fetch_one(pool)
+        .await?;
+        held.insert(
+            d.item_class.clone(),
+            i32::try_from(count).unwrap_or(i32::MAX),
+        );
+    }
+    Ok(contents.story_drop_data(
+        &progress,
+        quest,
+        &|class| held.get(class).copied().unwrap_or(0),
+        &tries,
+    ))
 }

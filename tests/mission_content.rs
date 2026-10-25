@@ -231,6 +231,34 @@ fn tables() -> MissionTables {
             (12, s("npc_gnoll"), s("chief"), 1, 400, 900, 100),
             (13, s("npc_gnoll"), s("chief"), 2, 800, 1800, 100),
         ],
+        story_drops: vec![
+            (
+                350,
+                s("S1NB_promise_sword"),
+                s("H"),
+                None,
+                s("evilcore"),
+                s("^NPC_GNOLL NORMAL$"),
+                s("broken_promise_sword"),
+                1,
+                100,
+                1,
+                None,
+            ),
+            (
+                351,
+                s("S1NB_promise_sword"),
+                s("H"),
+                s("quest_other"),
+                s("evilcore"),
+                s("gnoll"),
+                s("other_item"),
+                1,
+                100,
+                1,
+                None,
+            ),
+        ],
         monster_drops: vec![
             // The exported npc_gnoll table carries Regina's Sealed Power as a 90 %
             // absolute row behind DropRequiredTest; GetTable must leave it out.
@@ -275,6 +303,7 @@ fn tables() -> MissionTables {
             (s("cloth_lvl1"), 1, 2047, None),
             (s("rare_gem"), 6, 2047, None),
             (s("lance_only"), 1, 4, None),
+            (s("broken_promise_sword"), 1, 2047, None),
         ],
         prop_tables: vec![(s("quest_a"), s("ruin"), None)],
         prop_items: vec![
@@ -779,6 +808,7 @@ fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
             "quest_a",
             1,
             150,
+            (&mut [], "npc_gnoll normal"),
             &mut Script::default(),
         )
         .unwrap();
@@ -797,6 +827,7 @@ fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
             "quest_a",
             1,
             150,
+            (&mut [], "npc_gnoll normal"),
             &mut rare_roll,
         )
         .unwrap();
@@ -1270,4 +1301,83 @@ fn named_props_break_into_named_drop_table_ergs() {
             .break_named_prop(&mut sequence, "crate", 0, 1, &mut Script::default())
             .is_none()
     );
+}
+
+#[test]
+fn story_drops_follow_the_story_phase_and_drop_story_cores() {
+    use vindictus_server::domain::mission::STORY_CORE;
+    let contents = MissionContents::load(tables(), &policy()).unwrap();
+    let progress = [
+        ("S1NB_promise_sword".to_owned(), Some("H".to_owned())),
+        ("other_line".to_owned(), None),
+    ];
+    let tries = std::collections::BTreeMap::new();
+    // The quest-bound row of another quest is left out; a held item stops the drop.
+    let data = contents.story_drop_data(&progress, "quest_a", &|_| 0, &tries);
+    assert_eq!(
+        data.iter().map(|d| d.story_drop_id).collect::<Vec<_>>(),
+        [350]
+    );
+    assert!(
+        contents
+            .story_drop_data(&progress, "quest_a", &|_| 1, &tries)
+            .is_empty()
+    );
+    let other = [("S1NB_promise_sword".to_owned(), Some("G".to_owned()))];
+    assert!(
+        contents
+            .story_drop_data(&other, "quest_a", &|_| 0, &tries)
+            .is_empty()
+    );
+    // MaxTry 1: the first matching kill drops it (case-insensitive regex), only once.
+    let mut data = data;
+    let mut random = Script::default();
+    let mut sequence = contents
+        .sector_sequence(
+            &contents.digest("quest_a", -1).unwrap(),
+            1,
+            false,
+            false,
+            &mut random,
+        )
+        .unwrap();
+    assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
+    let extra = contents
+        .make_evil_core(
+            &mut sequence,
+            "story_key",
+            0,
+            None,
+            false,
+            "quest_a",
+            1,
+            100,
+            (&mut data, "npc_gnoll normal"),
+            &mut Script::default(),
+        )
+        .unwrap();
+    assert_eq!(extra, [(STORY_CORE, false)]);
+    assert_eq!(
+        contents
+            .loot(&mut sequence, "story_key", STORY_CORE, false)
+            .unwrap()
+            .as_deref(),
+        Some("broken_promise_sword")
+    );
+    assert_eq!((data[0].current_amount, data[0].try_count), (1, 1));
+    let again = contents
+        .make_evil_core(
+            &mut sequence,
+            "story_key",
+            0,
+            None,
+            false,
+            "quest_a",
+            1,
+            100,
+            (&mut data, "npc_gnoll normal"),
+            &mut Script::default(),
+        )
+        .unwrap();
+    assert!(again.is_empty());
 }

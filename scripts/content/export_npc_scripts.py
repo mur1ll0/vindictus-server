@@ -257,7 +257,14 @@ def read_package(base, database, config):
         mission['difficulty_rewards'] = [[nullable_text(r['QuestID']), int32(r['Difficulty']), int32(r['GoalExpRatio']), int32(r['GoalGoldRatio']), int32(r['MaxLevel']), nullable_text(r['Feature'])]
                                          for r in overrides.select(db, 'QuestDifficultyInfo')]
         mission['quest_rewards'] = [[nullable_text(r['ID']), nullable_int32(r['MinClearTime']), flag(r['FreeQuest'])] for r in overrides.select(db, 'QuestInfo')]
-        dropped = {(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']} | {'javelin_lvl0'}
+        # StoryContents.StoryLineDropItemInfo (by StoryLineID and Phase) and the
+        # MicroPlayContents.StoryLineRegexs built from the same rows.
+        mission['story_drops'] = [[int32(r['ID']), nullable_text(r['StoryLineID']), nullable_text(r['Phase']), nullable_text(r['QuestID']),
+                                   nullable_text(r['ObjectType']), nullable_text(r['ObjectRegex']), nullable_text(r['ItemClass']),
+                                   int32(r['Amount']), int32(r['Probability']), int32(r['MaxTry']), nullable_text(r['Feature'])]
+                                  for r in db.execute('Select * From [StoryLineDropItemInfo]')]
+        dropped = ({(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']}
+                   | {d[6] for d in mission['story_drops']} | {'javelin_lvl0'})
         mission['drop_classes'] = [[nullable_text(r['ItemClass']), int32(r['Rarity']), int32(r['ClassRestriction']), nullable_text(r['Feature'])]
                                    for r in db.execute('Select * From [ItemClassInfo]') if r['ItemClass'] in dropped]
     if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
@@ -287,6 +294,7 @@ def read_package(base, database, config):
     for d in mission['difficulty_rewards']: wanted |= feature_atoms(d[5] or '')
     for g in mission['goal_infos']: wanted |= feature_atoms(g[13] or '')
     for d in mission['drop_classes']: wanted |= feature_atoms(d[3] or '')
+    for d in mission['story_drops']: wanted |= feature_atoms(d[10] or '')
     for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')
     for d in mission['named_prop_items']: wanted |= feature_atoms(d[5] or '')

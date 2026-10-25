@@ -116,3 +116,9 @@ Limites conhecidos: reentrar na missão (CombatRejoinSystem) e o envio por corre
 Pré-condições: `game` reconstruído depois do commit da correção do campo do `P2PGroup_MemberJoin`.
 - [ ] Criar o barco para uma fase, voltar e criar de novo, ao menos 5 vezes → nenhum `EXCEPTION_ACCESS_VIOLATION` em `engine.dll`; a fase carrega e o combate funciona.
 - Relatar: o horário de qualquer crash e o arquivo novo em `Documents\Vindictus EU GM\Report Error`.
+
+### SD1 — Destroyed Friendship Sword (drop de história)
+Pré-condições: história Friendship Sword na fase que pede a espada (Clodagh: "Go find the Friendship Sword"); sem `Destroyed Friendship Sword` no inventário; `game` reconstruído.
+- [ ] Fazer The Gnoll's Rally Point e matar o Gnoll Veteran → cai um núcleo de história; coletar → `Destroyed Friendship Sword` vai para o inventário.
+- [ ] Entregar a espada e seguir a história.
+- [ ] Repetir a fase já com a espada no inventário → o núcleo de história não cai de novo.

@@ -125,6 +125,10 @@ pub struct MissionTables {
     /// MonsterDropItemInfo: MonsterID, QuestID, Difficulty, ItemClassEX, Weight, IsAbsolute,
     /// IsRequiredClass, IsUniqueDrop, Feature.
     pub monster_drops: Vec<DropRow>,
+    /// StoryLineDropItemInfo: ID, StoryLineID, Phase, QuestID, ObjectType, ObjectRegex,
+    /// ItemClass, Amount, Probability, MaxTry, Feature.
+    #[serde(default)]
+    pub story_drops: Vec<StoryDropRow>,
     /// QuestDifficultyInfo: QuestID, Difficulty, GameMode, EvilCoreCount, Feature.
     pub quest_difficulties: Vec<DifficultyRow>,
     /// ItemClassInfo of dropped classes: ItemClass, Rarity, ClassRestriction, Feature.
@@ -158,6 +162,46 @@ pub type DifficultyRewardRow = (Option<String>, i32, i32, i32, i32, Option<Strin
 /// QuestDifficultyInfo: QuestID, Difficulty, GameMode, EvilCoreCount, Feature.
 pub type DifficultyRow = (Option<String>, i32, i32, i32, Option<String>);
 /// MonsterDropItemInfo row.
+pub type StoryDropRow = (
+    i32,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    i32,
+    i32,
+    i32,
+    Option<String>,
+);
+
+/// StoryLineDropItemInfo row of the story contents, with its feature state.
+#[derive(Clone, Debug)]
+struct StoryDropInfo {
+    id: i32,
+    quest: Option<String>,
+    object_type: String,
+    item_class: String,
+    amount: i32,
+    probability: i32,
+    max_try: i32,
+    enabled: bool,
+}
+
+/// StoryDropData of one player (QueryStoryDropData), consumed by GetStoryDropItem.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoryDropData {
+    pub story_drop_id: i32,
+    pub object_type: String,
+    pub item_class: String,
+    pub current_amount: i32,
+    pub amount: i32,
+    pub probability: i32,
+    pub try_count: i32,
+    pub max_try_count: i32,
+}
+
 pub type DropRow = (
     i32,
     Option<String>,
@@ -737,6 +781,10 @@ pub struct MissionContents {
     prop_drops: BTreeMap<String, Vec<PropGroup>>,
     /// NamedPropDropTable.DropTables: (EntityName, Difficulty) -> element.
     named_drops: BTreeMap<(String, i32), NamedPropTable>,
+    /// StoryContents.StoryLineDropItemInfo: (StoryLineID, Phase) → rows in provider order.
+    story_drops: BTreeMap<(String, String), Vec<StoryDropInfo>>,
+    /// MicroPlayContents.StoryLineRegexs: ID → ObjectRegex (IgnoreCase), first per ID.
+    story_regexes: BTreeMap<i32, Regex>,
     /// effectInfoDic: EffectSource → MicroPlayEffectElements in provider order.
     effects: BTreeMap<String, Vec<EffectElement>>,
     /// FeatureMatrix: LuckyBonus, RareCoreEffectRarity, bossevilcore_bonus.
@@ -961,6 +1009,49 @@ impl MissionContents {
                 },
             ));
         }
+        let mut story_drops: BTreeMap<(String, String), Vec<StoryDropInfo>> = BTreeMap::new();
+        let mut story_regexes = BTreeMap::new();
+        for (
+            id,
+            line,
+            phase,
+            quest,
+            object_type,
+            regex,
+            item,
+            amount,
+            probability,
+            max_try,
+            feature,
+        ) in t.story_drops
+        {
+            let (Some(line), Some(phase), Some(regex), Some(item)) = (line, phase, regex, item)
+            else {
+                return Err(MissionError::Content);
+            };
+            if let std::collections::btree_map::Entry::Vacant(e) = story_regexes.entry(id) {
+                e.insert(
+                    RegexBuilder::new(&regex)
+                        .case_insensitive(true)
+                        .size_limit(1 << 20)
+                        .build()
+                        .map_err(|_| MissionError::Content)?,
+                );
+            }
+            story_drops
+                .entry((line, phase))
+                .or_default()
+                .push(StoryDropInfo {
+                    id,
+                    quest,
+                    object_type: object_type.unwrap_or_default(),
+                    item_class: item,
+                    amount,
+                    probability,
+                    max_try,
+                    enabled: enabled(feature.as_deref())?,
+                });
+        }
         let mut drops: BTreeMap<(i32, i32), Vec<(DropRow, bool)>> = BTreeMap::new();
         for row in t.monster_drops {
             let on = enabled(row.8.as_deref())?;
@@ -1125,6 +1216,8 @@ impl MissionContents {
             material_groups,
             prop_drops,
             named_drops,
+            story_drops,
+            story_regexes,
             effects,
             lucky_bonus,
             rare_core_rarity,
@@ -1645,6 +1738,7 @@ impl MissionContents {
         quest: &str,
         difficulty: i32,
         luck: i32,
+        story: (&mut [StoryDropData], &str),
         random: &mut dyn MissionRandom,
     ) -> Result<Vec<(i32, bool)>, MissionError> {
         let group = sequence.current.ok_or(MissionError::NoSectorInfo)?;
@@ -1684,6 +1778,18 @@ impl MissionContents {
                 additional.push((BASIC_GOLD_CORE, rare));
             }
         }
+        // GetStoryDropItem("evilcore", MonsterType, IsBoss ? 3 : 1): StoryCore items.
+        let (data, monster_type) = story;
+        for class in self.story_drop_items(
+            data,
+            "evilcore",
+            monster_type,
+            if is_boss { 3 } else { 1 },
+            random,
+        ) {
+            add(&mut items, STORY_CORE, Some(class));
+            additional.push((STORY_CORE, false));
+        }
         if !items.is_empty() {
             match sequence
                 .cores
@@ -1707,6 +1813,95 @@ impl MissionContents {
             }
         }
         Ok(additional)
+    }
+
+    /// StoryEntity.QueryStoryDropData: the rows of every story progress phase, first per
+    /// ID, of the quest (or without one) and enabled, whose item the character holds
+    /// fewer than Amount of. `held` counts an ItemClass in the inventory; `tries` is the
+    /// saved StoryDrop.TryCount by ID.
+    pub fn story_drop_data(
+        &self,
+        progress: &[(String, Option<String>)],
+        quest: &str,
+        held: &dyn Fn(&str) -> i32,
+        tries: &BTreeMap<i32, i32>,
+    ) -> Vec<StoryDropData> {
+        let mut seen = std::collections::BTreeSet::new();
+        let mut out = Vec::new();
+        for (line, phase) in progress {
+            let Some(phase) = phase else { continue };
+            let Some(rows) = self.story_drops.get(&(line.clone(), phase.clone())) else {
+                continue;
+            };
+            for row in rows {
+                if seen.contains(&row.id)
+                    || row.quest.as_deref().is_some_and(|q| q != quest)
+                    || !row.enabled
+                {
+                    continue;
+                }
+                let current = held(&row.item_class);
+                if current < row.amount {
+                    seen.insert(row.id);
+                    out.push(StoryDropData {
+                        story_drop_id: row.id,
+                        object_type: row.object_type.clone(),
+                        item_class: row.item_class.clone(),
+                        current_amount: current,
+                        amount: row.amount,
+                        probability: row.probability,
+                        try_count: tries.get(&row.id).copied().unwrap_or(0),
+                        max_try_count: row.max_try,
+                    });
+                }
+            }
+        }
+        out
+    }
+
+    /// MicroPlayer.GetStoryDropItem: every matching row counts a try; in shuffled order a
+    /// row below its Amount drops when its tries reach MaxTry or the dice roll under its
+    /// Probability, up to `amount` items.
+    pub fn story_drop_items(
+        &self,
+        data: &mut [StoryDropData],
+        object_type: &str,
+        source: &str,
+        amount: i32,
+        random: &mut dyn MissionRandom,
+    ) -> Vec<String> {
+        let mut matched: Vec<usize> = Vec::new();
+        for (i, d) in data.iter_mut().enumerate() {
+            if d.object_type.eq_ignore_ascii_case(object_type)
+                && self
+                    .story_regexes
+                    .get(&d.story_drop_id)
+                    .is_some_and(|r| r.is_match(source))
+            {
+                matched.push(i);
+                d.try_count = d.try_count.saturating_add(1);
+            }
+        }
+        // List.Shuffle(Dice.StoryDropDice): Fisher-Yates from the end.
+        for i in (1..matched.len()).rev() {
+            let bound = i32::try_from(i + 1).unwrap_or(i32::MAX);
+            let j = usize::try_from(random.next_range(0, bound)).unwrap_or(0);
+            matched.swap(i, j.min(i));
+        }
+        let mut items = Vec::new();
+        for i in matched {
+            let d = &mut data[i];
+            if d.current_amount < d.amount
+                && (d.try_count >= d.max_try_count || random.next_range(0, 100) < d.probability)
+            {
+                d.current_amount += 1;
+                items.push(d.item_class.clone());
+                if i32::try_from(items.len()).unwrap_or(i32::MAX) >= amount {
+                    break;
+                }
+            }
+        }
+        items
     }
 
     /// LuckyCoreDice.Roll.
@@ -2779,6 +2974,7 @@ pub fn monster_kill_exp(info: MonsterInfo, spawn_count: i32, exp_rate_monster: i
 /// EvilCoreType values.
 pub const EVIL_CORE: i32 = 1;
 pub const BASIC_GOLD_CORE: i32 = 2;
+pub const STORY_CORE: i32 = 10;
 
 /// ItemClassExBuilder.Parse: the class before ',', '[' or ']'.
 pub fn item_class(class_ex: &str) -> &str {
