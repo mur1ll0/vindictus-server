@@ -1441,3 +1441,16 @@ B4.2a — contas no painel (25/10/2026; parte do B4.2 que não depende de T1/T2)
 - Cliente: não necessário.
 - Parada (AGENTS, caso 2): o passport de sessão (B4.2b: `game_play_sessions`, `POST /api/play/session`, `PassportAuthority::redeem` no `lab_frontend.rs:484`, `scripts/dev/play.ps1`, `admin-import-account`) depende de T1/T2 no cliente (seção 1.3 de `docs/b4-painel-plano.md`), que decidem entre `-passport` e o código digitado no campo ID.
 - Próxima ação retomável: com o resultado de T1/T2, implementar o B4.2b, depois fechar o grupo B4.1+B4.2 com o serviço do painel no compose (127.0.0.1:27090, estágio Node no Dockerfile, `.dockerignore`), `docker compose build` com `COMPOSE_PARALLEL_LIMIT=1`, migrações 0042–0044 no banco do operador e a entrada B4.2 do roteiro `docs/client-tests/B4-painel.md`.
+
+HS2 — fontes termais no cliente (25–26/10/2026, testes do operador).
+- Evidência de cliente: o sabonete é gasto e o buff gravado, mas o efeito não vem. Sentado na água aparece "NoPotion" depois de um sabonete colocado na sessão; depois de relogar com o buff ativo aparece o Rose. A HotSpringRequestInfoResultMessage 22 (frontend) é aceita; a HotSpringRequestInfoResultChannelMessage 23 enviada pelo canal não entra na lista do cliente.
+- Leitura dirigida do client.dll/server.dll da cópia (capstone, sem análise do binário inteiro):
+  - os tratadores das duas mensagens passam cada HotSpringPotionEffectInfo para `C_HotSpringFacade` (cidade, classe, nome, guilda, validade, troca);
+  - a entidade só aceita a cidade igual a `m_netTownID` e uma classe existente no seu HotSpringPotionInfo;
+  - a telepathy do banho exige `m_isHostInHotSpring` e a animação `_sit`;
+  - o timer do efeito (`hotspring_request_potion_effect`) só começa para um sabonete listado enquanto o personagem está na fonte. Por isso, depois de relogar, o Rose apareceu, mas o efeito não foi pedido.
+- Mudança: depois de um sabonete aceito, `add_potion` devolve também a HotSpringRequestInfoResultMessage da cidade (`refresh`), enviada pelo frontend ao solicitante. O broadcast do canal continua sendo o ponto único para os outros membros (desvio do laboratório, registrado no código).
+- Aberto (B5): por que o cliente não aplica a mensagem 23 recebida pelo canal. O original envia o conversor de tipos do canal no accept (`Server.server_ClientAccept`), que o canal do laboratório não envia.
+- Testes: PostgreSQL `minimum_hot_spring_potion_sets_the_channel_buff_and_gives_its_effect` (verifica o refresh) e clippy `--all-targets -D warnings`.
+- Cliente: entrada HS1 de `docs/client-tests/B3-equipamento.md` atualizada (colocar o sabonete de dentro da água).
+- Também nos logs: 3 procedimentos diários gerais falham a cada login (isolados por savepoint; causa ainda não identificada).

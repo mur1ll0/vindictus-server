@@ -253,5 +253,5 @@ Pré-condições: dois Bath Soap (ex.: Rose Bath Soap, `hotspring_powder_rose`) 
 - [ ] Abrir a fonte termal → a interface carrega sem erro (lista vazia na primeira vez).
 - [ ] Colocar um Bath Soap → um sabonete é gasto; a fonte mostra o sabonete com seu nome e o tempo.
 - [ ] Colocar outro igual antes de 1 minuto → mensagem de que outro jogador usou há pouco; o segundo sabonete fica no inventário.
-- [ ] Entrar na água → o efeito aparece nos buffs com o bônus (Rose: ATK/MATK) e some ao expirar (90 min).
+- [ ] Colocar o sabonete estando dentro da água, sentar e esperar ~30 s → telepathy com o nome do sabonete e o efeito nos buffs com o bônus (Rose: ATK/MATK); some ao expirar (90 min).
 - [ ] Relogar → o efeito continua com o tempo restante.

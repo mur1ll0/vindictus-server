@@ -153,6 +153,11 @@ pub struct AddPotion {
     pub reply: Vec<OutgoingPacket>,
     /// ChannelHotSpringInfo → HotSpringRequestInfoResultChannelMessage for the channel.
     pub channel: Option<OutgoingPacket>,
+    /// Laboratory deviation: the requester's client does not apply the channel message
+    /// (verified in the client, 25/10/2026), so the HotSpringRequestInfoResultMessage of the
+    /// town follows on the frontend. Its client starts the bath timer only for a potion
+    /// listed while the character is in the hot spring.
+    pub refresh: Option<OutgoingPacket>,
     /// AllAnnounce NotifyClient (Telepathy, town only) for a requester at or above
     /// RandomItem_AnnounceLevel (BroadcastToAllClients).
     pub announce: Option<OutgoingPacket>,
@@ -170,6 +175,7 @@ fn add_result(result: i32, town: i32) -> Result<AddPotion, MinimumError> {
             }),
         )?],
         channel: None,
+        refresh: None,
         announce: None,
     })
 }
@@ -300,6 +306,7 @@ pub async fn add_potion(
             Message::UpdateInventoryInfo(Some(vec![Some(slot)])),
         )?],
         channel: Some(channel),
+        refresh: request_info(pool, message.channel, town).await?,
         announce,
     })
 }

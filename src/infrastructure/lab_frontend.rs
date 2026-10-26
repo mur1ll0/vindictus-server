@@ -2914,7 +2914,7 @@ impl Connection {
                                 if let Some(packet) = added.announce {
                                     send(stream, sender, packet.category, &packet.body).await?;
                                 }
-                                for packet in &added.reply {
+                                for packet in added.reply.iter().chain(&added.refresh) {
                                     send(stream, sender, packet.category, &packet.body).await?;
                                 }
                                 tracing::info!(

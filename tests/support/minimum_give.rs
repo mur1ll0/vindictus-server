@@ -6886,10 +6886,13 @@ async fn minimum_hot_spring_potion_sets_the_channel_buff_and_gives_its_effect() 
         Kind::UpdateInventoryInfo.category()
     );
     assert!(added.announce.is_some());
+    // The frontend refresh lists the same potion for the requester.
+    let refreshed = infos(added.refresh.unwrap(), Kind::HotSpringRequestInfoResult);
     let broadcast = infos(
         added.channel.unwrap(),
         Kind::HotSpringRequestInfoResultChannel,
     );
+    assert_eq!(refreshed.infos, broadcast.infos);
     let sent = broadcast.infos.unwrap()[0].clone().unwrap();
     assert_eq!(sent.potion_item_class.as_deref(), Some(powder));
     assert_eq!(sent.other_potion_usable_time + 1740, sent.expired_time);
