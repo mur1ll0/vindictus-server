@@ -70,8 +70,8 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # Game laboratory: frontend 27015, city channel 27003 and mission relay 27005, published
-  # only on the host loopback. Private content and the protected runtime profile stay on the
+  # Game laboratory: frontend 27015, city channel 27003, mission relay 27005, web shop 27080 and
+  # admin panel 27090, published only on the host loopback. Private content and the protected runtime profile stay on the
   # host (.cache) and are mounted read-only; nothing private enters the image.
   game:
     <<: *app
@@ -81,6 +81,7 @@ services:
         --policy-file /content/reward-policy.json
         --name-proof-file /content/character-name-proof.json
         --minimum-creation-assets /lab/minimum-creation-assets.json
+        --admin-listen 127.0.0.1:27090 --admin-ui-dir /app/admin-ui
         < /run/secrets/lab_runtime_profile
     environment:
       <<: *app-environment
@@ -99,6 +100,8 @@ services:
       - 127.0.0.1:27003:27003
       - 127.0.0.1:27005:27005
       - 127.0.0.1:27080:27080
+      # Admin panel (B4): API and single-page app, host loopback only.
+      - 127.0.0.1:27090:27090
     healthcheck:
       # Port 27015 (0x6987) in LISTEN state; connecting would open a login session.
       test: [CMD-SHELL, "grep -qi ':6987 00000000:0000 0A' /proc/net/tcp"]

@@ -20,3 +20,8 @@
 !docs/evidence/database/limited-account-oracle.json
 !docs/evidence/database/login-account-oracle.json
 !docs/evidence/database/character-login-oracle.json
+!web
+!web/admin
+!web/admin/**
+web/admin/node_modules
+web/admin/dist

@@ -56,6 +56,8 @@ launcher (scripts/dev/play.ps1 ou página /jogar do painel)
   - **T1:** na tela de login, `lab169_a` com uma senha qualquer → entra normalmente (confirma que a senha é ignorada).
   - **T2:** fechar o cliente e abrir pela linha de comando `vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4 -passport lab169_a` na `.cache/play-client` → anotar se pula a tela de login e entra, se mostra a tela de login, ou se aparece "NMManager - Warning".
 
+Resultado (25/10/2026): T1 entrou com uma senha qualquer (a senha é ignorada); T2 mostrou "Erro [Auth] SSO" e fechou. Implementado o código de uso único digitado no campo ID (B4.2b); a conta `admin` foi ligada ao usuário de jogo `lab169_a` (Fiona Murael) com `account-link-game`.
+
 ### 1.3b Detalhes da conta (válidos nas duas variantes)
 
 - **Criar conta (painel):** `create_playable_account(username, senha)`. O username segue `[A-Za-z0-9_]{3,24}`, para caber inteiro no `NexonID`. A senha é guardada com argon2id na tabela `accounts` (já existente; o formato atual é 3–32 caracteres, então o limite cai para 24). O caso de uso deriva `NexonSN` e `name_key` com o mesmo `derive_lab_identity` e recusa colisão (hash de 32 bits) ou nome já usado em `game_users` ou nas tabelas que o `prepare_scoped_lab_user` confere como órfãs ("escolha outro nome"). Conta e auditoria vão na mesma transação. O usuário do jogo continua nascendo no primeiro login.
