@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { type CharacterItem, gold } from '@/api/characters';
 import { api, type components, fail } from '@/api/client';
 import { ActionForm } from '@/components/forms';
+import { ItemIcon } from '@/components/ItemIcon';
 import { Modal } from '@/components/Modal';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -98,8 +99,11 @@ export function GiveItemModal({ cid, onClose, onDone }: { cid: string; onClose: 
                     onClick={() => setItem(c.class)}
                     className={cn('w-full rounded-md px-2 py-1 text-left hover:bg-raised', item === c.class && 'bg-raised')}
                   >
-                    <span className="text-sm font-medium">{c.name}</span>{' '}
-                    <span className="font-mono text-xs text-muted">{c.class}</span>
+                    <span className="flex items-center gap-2">
+                      <ItemIcon icon={c.icon} size="sm" />
+                      <span className="text-sm font-medium">{c.name}</span>
+                      <span className="font-mono text-xs text-muted">{c.class}</span>
+                    </span>
                   </button>
                 </li>
               ))}

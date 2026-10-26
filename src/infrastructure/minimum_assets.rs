@@ -156,6 +156,13 @@ impl Assets {
     pub fn cash_shop(&self) -> Option<&super::cash_shop::Contents> {
         self.cash_shop.as_ref()
     }
+    /// Whether a FeatureMatrix expression (ShopInfo.Feature and the like) is enabled in the
+    /// loaded region; no NPC scripts or an unreadable expression count as disabled.
+    pub fn feature_enabled(&self, feature: Option<&str>) -> bool {
+        self.npc
+            .as_ref()
+            .is_some_and(|n| n.policy.is_enabled(feature).unwrap_or(false))
+    }
     /// Whether the item catalog has this ItemClass.
     pub fn has_item_class(&self, class: &str) -> bool {
         let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();

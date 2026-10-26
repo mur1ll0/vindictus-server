@@ -28,7 +28,7 @@ const SPECIAL: Record<number, string> = {
   100: 'Cash',
   101: 'Conta (ouro)',
   102: 'Restauração',
-  103: 'História',
+  103: 'Quest',
 };
 
 export function collectionName(value: number) {

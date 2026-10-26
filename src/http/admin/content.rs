@@ -32,6 +32,7 @@ pub(super) async fn shops(
     Ok(Json(content_admin::shops(
         &auth.session,
         assets(&state).as_deref(),
+        &state.names,
     )?))
 }
 
@@ -166,4 +167,33 @@ pub(super) async fn publish(
     };
     let version = content_admin::publish(state.auth.pool(), &actor).await?;
     Ok(Json(Published { version }))
+}
+
+/// Item icon of the client (PNG exported by export_panel_catalog.py), for the panel's lists.
+#[utoipa::path(get, path = "/api/icons/item/{icon}", params(("icon" = String, Path)),
+    responses((status = 200, content_type = "image/png"), (status = 404, body = super::ApiError)))]
+pub(super) async fn item_icon(
+    State(state): State<AdminState>,
+    _auth: Authenticated,
+    Path(icon): Path<String>,
+) -> Result<axum::response::Response, Refusal> {
+    use axum::response::IntoResponse;
+    let name = icon.strip_suffix(".png").unwrap_or(&icon);
+    let valid = !name.is_empty()
+        && name.len() <= 96
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+    let Some(dir) = state.icons_dir.as_ref().filter(|_| valid) else {
+        return Err(crate::application::admin_session::AdminError::NotFound.into());
+    };
+    let bytes = tokio::fs::read(dir.join("item").join(format!("{name}.png")))
+        .await
+        .map_err(|_| Refusal::from(crate::application::admin_session::AdminError::NotFound))?;
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "image/png"),
+            (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
+        ],
+        bytes,
+    )
+        .into_response())
 }

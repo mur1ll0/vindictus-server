@@ -13,6 +13,7 @@ import {
 } from '@/api/characters';
 import { sessionQuery } from '@/api/session';
 import { Avatar } from '@/components/Avatar';
+import { ItemIcon } from '@/components/ItemIcon';
 import { CashModal, GiveItemModal, GoldModal, RemoveItemForm } from '@/components/CharacterEdits';
 import { ProgressionModal, RemoveEffectModal } from '@/components/ProgressionEdits';
 import { Button } from '@/components/ui/button';
@@ -44,10 +45,13 @@ function ItemCard({ item, onOpen }: { item: CharacterItem; onOpen: () => void })
       onClick={onOpen}
       className="flex w-full flex-col gap-2 rounded-xl border border-border bg-surface p-3 text-left transition-colors hover:border-accent/70"
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-3">
+        <ItemIcon icon={item.icon} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{item.name ?? item.class}</p>
-          <p className="truncate font-mono text-xs text-muted">{item.class}</p>
+          <p className="truncate font-mono text-xs text-muted">
+            espaço {item.slot} · {item.class}
+          </p>
         </div>
         {item.count > 1 && <span className="text-sm font-semibold">×{item.count.toLocaleString('pt-BR')}</span>}
       </div>
@@ -131,40 +135,66 @@ function ItemModal({
 function Inventory({ sheet, canManage, onChanged }: { sheet: CharacterSheet; canManage: boolean; onChanged: () => void }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<CharacterItem | null>(null);
-  const groups = useMemo(() => {
-    const term = filter.trim().toLowerCase();
-    const visible = sheet.items.filter(
-      (i) => !term || i.class.toLowerCase().includes(term) || i.name?.toLowerCase().includes(term),
-    );
+  const tabs = useMemo(() => {
     const map = new Map<number, CharacterItem[]>();
-    for (const item of visible) map.set(item.collection, [...(map.get(item.collection) ?? []), item]);
+    for (const item of sheet.items) map.set(item.collection, [...(map.get(item.collection) ?? []), item]);
+    for (const items of map.values()) items.sort((x, y) => x.slot - y.slot);
     return [...map.entries()].sort((a, b) => collectionOrder(a[0]) - collectionOrder(b[0]));
-  }, [sheet.items, filter]);
+  }, [sheet.items]);
+  const [tab, setTab] = useState<number | null>(null);
+  const term = filter.trim().toLowerCase();
+  const matches = (i: CharacterItem) => !term || i.class.toLowerCase().includes(term) || (i.name ?? '').toLowerCase().includes(term);
+  const counts = new Map(tabs.map(([c, items]) => [c, items.filter(matches).length]));
+  // While searching, stay on a tab that has matches.
+  const firstMatch = tabs.find(([c]) => (counts.get(c) ?? 0) > 0)?.[0];
+  const current = tab != null && (!term || (counts.get(tab) ?? 0) > 0) ? tab : (term ? firstMatch : tabs[0]?.[0]) ?? null;
+  const items = (tabs.find(([c]) => c === current)?.[1] ?? []).filter(matches);
   return (
     <div className="space-y-4">
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
         <Input
-          aria-label="Filtrar itens"
-          placeholder="Filtrar por nome ou classe"
+          aria-label="Buscar item em todas as abas"
+          placeholder="Buscar em todas as abas (nome ou classe)"
           className="pl-9"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
       </div>
-      {groups.map(([collection, items]) => (
-        <section key={collection} className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted">
-            {collectionName(collection)} <span className="font-normal">({items.length})</span>
-          </h3>
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {items.map((item) => (
-              <ItemCard key={item.id} item={item} onOpen={() => setOpen(item)} />
-            ))}
-          </div>
-        </section>
-      ))}
-      {groups.length === 0 && <p className="text-sm text-muted">Nenhum item.</p>}
+      <div role="tablist" className="flex flex-wrap gap-1 rounded-lg bg-raised p-1 text-sm">
+        {tabs.map(([c, all]) => {
+          const n = counts.get(c) ?? 0;
+          return (
+            <button
+              key={c}
+              role="tab"
+              type="button"
+              aria-selected={current === c}
+              onClick={() => setTab(c)}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-muted',
+                current === c && 'bg-surface font-medium text-fg shadow-sm',
+                term && n === 0 && 'opacity-40',
+                term && n > 0 && current !== c && 'text-accent',
+              )}
+            >
+              {collectionName(c)} <span className="text-xs">({term ? `${n}/${all.length}` : all.length})</span>
+            </button>
+          );
+        })}
+      </div>
+      {term && (
+        <p className="text-sm text-muted">
+          {[...counts.values()].reduce((a, b) => a + b, 0)} item(ns) em{' '}
+          {tabs.filter(([c]) => (counts.get(c) ?? 0) > 0).map(([c]) => collectionName(c)).join(', ') || 'nenhuma aba'}
+        </p>
+      )}
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => (
+          <ItemCard key={item.id} item={item} onOpen={() => setOpen(item)} />
+        ))}
+      </div>
+      {items.length === 0 && <p className="text-sm text-muted">Nenhum item.</p>}
       {open && (
         <ItemModal
           item={open}

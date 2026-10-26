@@ -42,6 +42,8 @@ pub struct AdminState {
     /// The game's runtime: item content and the level-up chain's values (and, in B5, the
     /// live sessions).
     runtime: Option<std::sync::Arc<crate::infrastructure::lab_frontend::Runtime>>,
+    /// Exported client icons (PNG), served to the panel.
+    icons_dir: Option<std::sync::Arc<std::path::PathBuf>>,
 }
 
 impl AdminState {
@@ -52,9 +54,15 @@ impl AdminState {
             secure_cookie,
             names: std::sync::Arc::default(),
             runtime: None,
+            icons_dir: None,
         }
     }
     /// English item/skill/status names (scripts/content/export_item_names.py).
+    /// Directory of the exported icons (icons/item/<icon>.png).
+    pub fn with_icons(mut self, dir: std::path::PathBuf) -> Self {
+        self.icons_dir = Some(std::sync::Arc::new(dir));
+        self
+    }
     /// The game's runtime, needed to change items and progression.
     pub fn with_runtime(
         mut self,
@@ -105,7 +113,8 @@ impl AdminState {
         content::content_state,
         content::create_edit,
         content::withdraw,
-        content::publish
+        content::publish,
+        content::item_icon
     ),
     components(schemas(
         LoginRequest,
@@ -134,6 +143,7 @@ impl AdminState {
         crate::application::admin_character_edits::ProgressionResult,
         characters::ProgressionChange,
         crate::application::content_admin::ShopSummary,
+        crate::application::content_admin::ShopNpcView,
         crate::application::content_admin::ShopRowView,
         crate::application::content_admin::CashCategoryView,
         crate::application::content_admin::EditRequest,
@@ -206,7 +216,12 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(10),
         ))
-        .with_state(state);
+        .with_state(state.clone());
+    // Icons may be cached by the browser (the API is no-store).
+    let icons = Router::new()
+        .route("/api/icons/item/{icon}", get(content::item_icon))
+        .with_state(state.clone());
+    let api = icons.merge(api);
     let app = match ui_dir {
         Some(dir) => api
             .fallback_service(ServeDir::new(dir).fallback(ServeFile::new(dir.join("index.html")))),

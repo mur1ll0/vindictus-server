@@ -21,9 +21,22 @@ pub const MAX_PRICE: i64 = 2_000_000_000;
 pub const MAX_CASH_PRICE: i64 = 1_000_000;
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ShopNpcView {
+    pub npc: String,
+    /// English name of the NPC, when the client has one.
+    pub name: Option<String>,
+    /// Place of the NPC (Colhen, Rocheste, Malina (Morvan), Eventos, ...).
+    pub place: String,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ShopSummary {
     pub shop_id: String,
     pub rows: usize,
+    /// Rows the game sells in this region (FeatureMatrix of each row).
+    pub available_rows: usize,
+    /// NPCs that open the shop, from the NPC talk scripts; empty when none does.
+    pub npcs: Vec<ShopNpcView>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -39,6 +52,11 @@ pub struct ShopRowView {
     /// Rows with a purchase limit are not sold by the laboratory yet.
     pub restricted: bool,
     pub feature: Option<String>,
+    /// The row's FeatureMatrix is enabled in this region, so the client shows it (NotSell,
+    /// TestServer and other regions' events are not).
+    pub available: bool,
+    /// Icon file (GET /api/icons/item/{icon}).
+    pub icon: Option<String>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -125,20 +143,33 @@ fn outcome(outcome: EditOutcome) -> Result<i64, AdminError> {
 pub fn shops(
     session: &SessionAccount,
     assets: Option<&Assets>,
+    names: &EnglishNames,
 ) -> Result<Vec<ShopSummary>, AdminError> {
     require(session, Permission::Read)?;
-    let shops = assets
-        .and_then(Assets::shops)
-        .ok_or(AdminError::ContentUnavailable)?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    let shops = assets.shops().ok_or(AdminError::ContentUnavailable)?;
     let mut by_id: BTreeMap<String, ShopSummary> = BTreeMap::new();
     for row in shops.all() {
-        by_id
+        let summary = by_id
             .entry(row.shop_id.to_lowercase())
             .or_insert_with(|| ShopSummary {
                 shop_id: row.shop_id.clone(),
                 rows: 0,
-            })
-            .rows += 1;
+                available_rows: 0,
+                npcs: names
+                    .shop_npcs(&row.shop_id)
+                    .into_iter()
+                    .map(|n| ShopNpcView {
+                        name: names.npc_name(&n.npc),
+                        npc: n.npc,
+                        place: n.place,
+                    })
+                    .collect(),
+            });
+        summary.rows += 1;
+        if assets.feature_enabled(row.feature.as_deref()) {
+            summary.available_rows += 1;
+        }
     }
     Ok(by_id.into_values().collect())
 }
@@ -150,12 +181,13 @@ pub fn shop(
     shop_id: &str,
 ) -> Result<Vec<ShopRowView>, AdminError> {
     require(session, Permission::Read)?;
-    let shops = assets
-        .and_then(Assets::shops)
-        .ok_or(AdminError::ContentUnavailable)?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    let shops = assets.shops().ok_or(AdminError::ContentUnavailable)?;
     let rows: Vec<ShopRowView> = shops
         .rows_of(shop_id)
         .map(|r| ShopRowView {
+            available: assets.feature_enabled(r.feature.as_deref()),
+            icon: names.item_icon(&r.item_class),
             order: r.order,
             item_name: names.item_name(&r.item_class),
             item_class: r.item_class.clone(),

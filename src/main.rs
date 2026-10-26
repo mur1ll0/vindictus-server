@@ -319,6 +319,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
         admin_ui_dir,
         admin_secure_cookie,
         admin_item_names,
+        admin_panel_catalog,
+        admin_icons_dir,
         ..
     } = &cli.command
     {
@@ -404,35 +406,44 @@ async fn run(cli: Cli) -> Result<(), Error> {
             None => None,
         };
         // Administration panel (B4): its own loopback listener, aborted with the frontend.
-        let admin_task = match admin_listen {
-            Some(bind) => {
-                use vindictus_server::{application::admin_session::PanelAuth, http::admin};
-                if !bind.ip().is_loopback() || bind.port() == 0 {
-                    return Err(Error::Configuration(
-                        "admin panel must listen on a loopback port".into(),
-                    ));
+        let admin_task =
+            match admin_listen {
+                Some(bind) => {
+                    use vindictus_server::{application::admin_session::PanelAuth, http::admin};
+                    if !bind.ip().is_loopback() || bind.port() == 0 {
+                        return Err(Error::Configuration(
+                            "admin panel must listen on a loopback port".into(),
+                        ));
+                    }
+                    let admin_listener =
+                        tokio::net::TcpListener::bind(lab_peer::listen_addr(*bind)).await?;
+                    tracing::info!(address=%admin_listener.local_addr()?, "admin panel listening");
+                    let mut state =
+                        admin::AdminState::new(PanelAuth::new(pool.clone()), *admin_secure_cookie);
+                    if let Some(path) = admin_item_names {
+                        let mut names =
+                            vindictus_server::infrastructure::admin_characters::EnglishNames::read(
+                                std::fs::File::open(path)?,
+                            )
+                            .map_err(|_| {
+                                Error::Configuration("invalid admin English names file".into())
+                            })?;
+                        if let Some(catalog) = admin_panel_catalog {
+                            names = names.with_catalog(std::fs::File::open(catalog)?).map_err(
+                                |_| Error::Configuration("invalid admin panel catalog file".into()),
+                            )?;
+                        }
+                        state = state.with_names(names);
+                    }
+                    state = state.with_runtime(runtime.clone());
+                    if let Some(dir) = admin_icons_dir {
+                        state = state.with_icons(dir.clone());
+                    }
+                    let app = admin::router(state, admin_ui_dir.as_deref());
+                    Some(tokio::spawn(admin::serve(admin_listener, app)))
                 }
-                let admin_listener =
-                    tokio::net::TcpListener::bind(lab_peer::listen_addr(*bind)).await?;
-                tracing::info!(address=%admin_listener.local_addr()?, "admin panel listening");
-                let mut state =
-                    admin::AdminState::new(PanelAuth::new(pool.clone()), *admin_secure_cookie);
-                if let Some(path) = admin_item_names {
-                    let names =
-                        vindictus_server::infrastructure::admin_characters::EnglishNames::read(
-                            std::fs::File::open(path)?,
-                        )
-                        .map_err(|_| {
-                            Error::Configuration("invalid admin English names file".into())
-                        })?;
-                    state = state.with_names(names);
-                }
-                state = state.with_runtime(runtime.clone());
-                let app = admin::router(state, admin_ui_dir.as_deref());
-                Some(tokio::spawn(admin::serve(admin_listener, app)))
-            }
-            None => None,
-        };
+                None => None,
+            };
         let result = if let Some((channel_listener, channel)) = channel_listener {
             tracing::info!(address=%channel_listener.local_addr()?, "minimum channel listening without cipher");
             let (stop, signal) = tokio::sync::watch::channel(false);

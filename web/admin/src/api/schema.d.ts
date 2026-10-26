@@ -262,6 +262,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/icons/item/{icon}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Item icon of the client (PNG exported by export_panel_catalog.py), for the panel's lists. */
+        get: operations["item_icon"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -536,6 +553,7 @@ export interface components {
             /** @description Item class as the game writes it (lower case). */
             class: string;
             description?: string | null;
+            icon?: string | null;
             name: string;
         };
         ChangeResult: {
@@ -567,6 +585,8 @@ export interface components {
              * @description Expiry as Unix seconds.
              */
             expires_at?: number | null;
+            /** @description Icon file (GET /api/icons/item/{icon}). */
+            icon?: string | null;
             /** @description Item ID (64-bit, as text). */
             id: string;
             name?: string | null;
@@ -872,11 +892,25 @@ export interface components {
             operation_id: string;
             reason: string;
         };
+        ShopNpcView: {
+            /** @description English name of the NPC, when the client has one. */
+            name?: string | null;
+            npc: string;
+            /** @description Place of the NPC (Colhen, Rocheste, Malina (Morvan), Eventos, ...). */
+            place: string;
+        };
         ShopRowView: {
+            /**
+             * @description The row's FeatureMatrix is enabled in this region, so the client shows it (NotSell,
+             *     TestServer and other regions' events are not).
+             */
+            available: boolean;
             character_bind: boolean;
             /** Format: int32 */
             count: number;
             feature?: string | null;
+            /** @description Icon file (GET /api/icons/item/{icon}). */
+            icon?: string | null;
             item_class: string;
             item_name?: string | null;
             /** Format: int32 */
@@ -891,6 +925,10 @@ export interface components {
             restricted: boolean;
         };
         ShopSummary: {
+            /** @description Rows the game sells in this region (FeatureMatrix of each row). */
+            available_rows: number;
+            /** @description NPCs that open the shop, from the NPC talk scripts; empty when none does. */
+            npcs: components["schemas"]["ShopNpcView"][];
             rows: number;
             shop_id: string;
         };
@@ -1557,6 +1595,35 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_icon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                icon: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

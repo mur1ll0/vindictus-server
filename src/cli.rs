@@ -52,6 +52,12 @@ pub enum Command {
         /// English item/skill/status names for the panel (scripts/content/export_item_names.py).
         #[arg(long, requires = "admin_listen")]
         admin_item_names: Option<std::path::PathBuf>,
+        /// Panel catalog (scripts/content/export_panel_catalog.py: shops' NPCs, item icons).
+        #[arg(long, requires = "admin_item_names")]
+        admin_panel_catalog: Option<std::path::PathBuf>,
+        /// Exported icons directory (icons/item/*.png).
+        #[arg(long, requires = "admin_listen")]
+        admin_icons_dir: Option<std::path::PathBuf>,
     },
     /// Give, change or remove (`none`) the panel role of an existing account; audited.
     AccountSetRole {

@@ -2,11 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Store, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { api, type components, fail } from '@/api/client';
-import { createEdit, type ShopRow, shop, shops } from '@/api/content';
+import { createEdit, type ShopRow, type ShopSummary, shop, shops } from '@/api/content';
+import { ItemIcon } from '@/components/ItemIcon';
 import { sessionQuery } from '@/api/session';
 import { ActionForm, errorText } from '@/components/forms';
 import { Modal } from '@/components/Modal';
-import { Stat } from '@/components/Stat';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -110,8 +110,11 @@ function RowModal({
                         onClick={() => setItem(c.class)}
                         className={cn('w-full rounded-md px-2 py-1 text-left hover:bg-raised', item === c.class && 'bg-raised')}
                       >
-                        <span className="text-sm font-medium">{c.name}</span>{' '}
-                        <span className="font-mono text-xs text-muted">{c.class}</span>
+                        <span className="flex items-center gap-2">
+                          <ItemIcon icon={c.icon} size="sm" />
+                          <span className="text-sm font-medium">{c.name}</span>
+                          <span className="font-mono text-xs text-muted">{c.class}</span>
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -142,34 +145,68 @@ function RowModal({
   );
 }
 
-function ShopModal({ shopId, canEdit, onClose }: { shopId: string; canEdit: boolean; onClose: () => void }) {
+function ShopModal({ shop: summary, canEdit, onClose }: { shop: ShopSummary; canEdit: boolean; onClose: () => void }) {
+  const shopId = summary.shop_id;
   const queryClient = useQueryClient();
   const rows = useQuery({ queryKey: ['shop', shopId], queryFn: () => shop(shopId) });
   const [edit, setEdit] = useState<ShopRow | 'new' | null>(null);
+  const [search, setSearch] = useState('');
+  const [all, setAll] = useState(false);
   const nextOrder = useMemo(() => Math.max(0, ...(rows.data ?? []).map((r) => r.order)) + 1, [rows.data]);
+  const term = search.trim().toLowerCase();
+  const visible = (rows.data ?? []).filter(
+    (r) =>
+      (all || r.available) &&
+      (!term || r.item_class.toLowerCase().includes(term) || (r.item_name ?? '').toLowerCase().includes(term)),
+  );
+  const hidden = (rows.data ?? []).filter((r) => !r.available).length;
   const done = () => {
     setEdit(null);
     void queryClient.invalidateQueries({ queryKey: ['content'] });
     void queryClient.invalidateQueries({ queryKey: ['audit'] });
   };
+  const npcs = summary.npcs.map((n) => `${n.name ?? n.npc} (${n.place})`).join(', ');
   return (
-    <Modal open title={shopId} subtitle="Como o jogo vende agora (preço efetivo)." icon={<Store className="size-5 text-muted" />} onClose={onClose} width="max-w-3xl">
+    <Modal
+      open
+      title={summary.npcs[0]?.name ?? shopId}
+      subtitle={`${shopId}${npcs ? ` · ${npcs}` : ''} · preço efetivo que o jogo cobra`}
+      icon={<Store className="size-5 text-muted" />}
+      onClose={onClose}
+      width="max-w-3xl"
+    >
       <div className="space-y-3">
-        {canEdit && (
-          <Button variant="outline" size="sm" onClick={() => setEdit('new')}>
-            <Plus /> Adicionar linha
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
+            <Input aria-label="Buscar item" placeholder="Buscar item (nome ou classe)" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setEdit('new')}>
+              <Plus /> Adicionar linha
+            </Button>
+          )}
+        </div>
+        {hidden > 0 && (
+          <label className="flex items-center gap-2 text-sm text-muted">
+            <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
+            Mostrar {hidden} linha(s) que o jogo não vende nesta região (NotSell, TestServer, eventos de outras regiões)
+          </label>
         )}
         <div className="grid max-h-[60vh] gap-2 overflow-y-auto sm:grid-cols-2">
-          {(rows.data ?? []).map((r) => (
+          {visible.map((r) => (
             <button
               key={r.order}
               type="button"
               disabled={!canEdit}
               onClick={() => setEdit(r)}
-              className="rounded-xl border border-border bg-surface p-3 text-left transition-colors enabled:hover:border-accent/70"
+              className={cn(
+                'rounded-xl border border-border bg-surface p-3 text-left transition-colors enabled:hover:border-accent/70',
+                !r.available && 'opacity-60',
+              )}
             >
-              <div className="flex items-start gap-2">
+              <div className="flex items-start gap-3">
+                <ItemIcon icon={r.icon} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{r.item_name ?? r.item_class}</p>
                   <p className="truncate font-mono text-xs text-muted">
@@ -182,12 +219,14 @@ function ShopModal({ shopId, canEdit, onClose }: { shopId: string; canEdit: bool
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
+                {!r.available && <Badge tone="danger">fora da região</Badge>}
                 {r.restricted && <Badge tone="danger">limitado</Badge>}
                 {r.character_bind && <Badge>vinculado</Badge>}
                 {r.feature && <Badge>{r.feature}</Badge>}
               </div>
             </button>
           ))}
+          {visible.length === 0 && !rows.isPending && <p className="text-sm text-muted">Nenhuma linha.</p>}
         </div>
         {rows.error && <p className="text-sm text-danger">{errorText(rows.error)}</p>}
       </div>
@@ -198,18 +237,50 @@ function ShopModal({ shopId, canEdit, onClose }: { shopId: string; canEdit: bool
   );
 }
 
+const PLACE_ORDER = ['Colhen', 'Rocheste', 'Malina (Morvan)', 'Campos', 'Navios', 'Eventos', 'Ofícios', 'Desenvolvimento', 'Outros', 'Sem NPC'];
+
+function placeOf(s: ShopSummary) {
+  return s.npcs[0]?.place ?? 'Sem NPC';
+}
+
 export function ShopsPage() {
   const { data: session } = useQuery(sessionQuery);
   const canEdit = session?.role === 'admin' || session?.role === 'gm';
   const list = useQuery({ queryKey: ['shops'], queryFn: shops });
   const [filter, setFilter] = useState('');
-  const [open, setOpen] = useState<string | null>(null);
-  const visible = (list.data ?? []).filter((s) => s.shop_id.toLowerCase().includes(filter.trim().toLowerCase()));
+  const [place, setPlace] = useState('Todos');
+  const [open, setOpen] = useState<ShopSummary | null>(null);
+  const term = filter.trim().toLowerCase();
+  const all = list.data ?? [];
+  const places = PLACE_ORDER.filter((p) => all.some((s) => placeOf(s) === p));
+  const visible = all
+    .filter((s) => place === 'Todos' || placeOf(s) === place)
+    .filter(
+      (s) =>
+        !term ||
+        s.shop_id.toLowerCase().includes(term) ||
+        s.npcs.some((n) => n.npc.toLowerCase().includes(term) || (n.name ?? '').toLowerCase().includes(term)),
+    )
+    .sort((a, b) => (a.npcs[0]?.name ?? a.shop_id).localeCompare(b.npcs[0]?.name ?? b.shop_id));
   return (
     <section className="space-y-4">
+      <div role="tablist" className="flex flex-wrap gap-1 rounded-lg bg-raised p-1 text-sm">
+        {['Todos', ...places].map((p) => (
+          <button
+            key={p}
+            role="tab"
+            type="button"
+            aria-selected={place === p}
+            onClick={() => setPlace(p)}
+            className={cn('rounded-md px-3 py-1.5 text-muted', place === p && 'bg-surface font-medium text-fg shadow-sm')}
+          >
+            {p} <span className="text-xs">({p === 'Todos' ? all.length : all.filter((s) => placeOf(s) === p).length})</span>
+          </button>
+        ))}
+      </div>
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
-        <Input aria-label="Filtrar lojas" placeholder="Filtrar lojas (ex.: ferghus)" className="pl-9" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <Input aria-label="Buscar loja" placeholder="Buscar por NPC ou loja (ex.: ferghus)" className="pl-9" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </div>
       <p className="text-sm text-muted">{list.isPending ? 'Carregando…' : `${visible.length} loja(s)`}</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -217,22 +288,24 @@ export function ShopsPage() {
           <button
             key={s.shop_id}
             type="button"
-            onClick={() => setOpen(s.shop_id)}
+            onClick={() => setOpen(s)}
             className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 text-left shadow-sm transition-colors hover:border-accent/70"
           >
-            <span className="flex size-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
               <Store className="size-5" />
             </span>
             <div className="min-w-0">
-              <p className="truncate font-semibold">{s.shop_id}</p>
-              <p className="text-xs text-muted">{s.rows} linha(s)</p>
+              <p className="truncate font-semibold">{s.npcs[0]?.name ?? s.npcs[0]?.npc ?? s.shop_id}</p>
+              <p className="truncate font-mono text-xs text-muted">{s.shop_id}</p>
+              <p className="text-xs text-muted">
+                {placeOf(s)} · {s.available_rows} à venda{s.rows > s.available_rows && ` (${s.rows - s.available_rows} fora da região)`}
+              </p>
             </div>
           </button>
         ))}
       </div>
       {list.error && <p className="text-sm text-danger">{errorText(list.error)}</p>}
-      {open && <ShopModal shopId={open} canEdit={canEdit} onClose={() => setOpen(null)} />}
-      <Stat label="Como aplicar">Edições → Conteúdo → Publicar (admin) → no host: pwsh scripts/content/apply-content-edits.ps1</Stat>
+      {open && <ShopModal shop={open} canEdit={canEdit} onClose={() => setOpen(null)} />}
     </section>
   );
 }

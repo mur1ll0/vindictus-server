@@ -74,7 +74,11 @@ if($AdminPort-gt0){
  $taskUi=Join-Path $project 'web/admin/dist'
  if(Test-Path -LiteralPath (Join-Path $taskUi 'index.html')){$taskRuntimeArguments+=@('--admin-ui-dir',('"'+$taskUi+'"'))}
  $taskNames=Join-Path $project '.cache/private-content/item-names.json'
- if(Test-Path -LiteralPath $taskNames){$taskRuntimeArguments+=@('--admin-item-names',('"'+$taskNames+'"'))}
+ if(Test-Path -LiteralPath $taskNames){$taskRuntimeArguments+=@('--admin-item-names',('"'+$taskNames+'"'))
+  $taskCatalog=Join-Path $project '.cache/private-content/panel-catalog.json'
+  if(Test-Path -LiteralPath $taskCatalog){$taskRuntimeArguments+=@('--admin-panel-catalog',('"'+$taskCatalog+'"'))}}
+ $taskIcons=Join-Path $project '.cache/private-content/icons'
+ if(Test-Path -LiteralPath $taskIcons){$taskRuntimeArguments+=@('--admin-icons-dir',('"'+$taskIcons+'"'))}
 }
 $process=Start-Process -FilePath $exe -ArgumentList $taskRuntimeArguments -WorkingDirectory $project -WindowStyle Hidden -Environment @{DATABASE_URL=$url;DATABASE_URL_FILE=$null;DB_MAX_CONNECTIONS='8';RUST_LOG='info'} -RedirectStandardInput $stdinCopy -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
 $settings.Clear();$url=$null

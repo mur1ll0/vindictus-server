@@ -22,6 +22,29 @@ pub struct EnglishNames {
     skills: HashMap<String, String>,
     #[serde(default)]
     status_effects: HashMap<String, String>,
+    /// Panel catalog (scripts/content/export_panel_catalog.py): NPCs of each shop, NPC names,
+    /// item icons. Loaded with `with_catalog`.
+    #[serde(skip)]
+    catalog: PanelCatalog,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct ShopNpc {
+    pub npc: String,
+    pub location: String,
+    pub place: String,
+}
+
+#[derive(Default, Deserialize)]
+struct PanelCatalog {
+    #[serde(default)]
+    shops: HashMap<String, Vec<ShopNpc>>,
+    /// NPC ID (upper case) → English name and description.
+    #[serde(default)]
+    npcs: HashMap<String, (Option<String>, Option<String>)>,
+    /// Item class (upper case) → icon file name (icons/item/<icon>.png).
+    #[serde(default)]
+    item_icons: HashMap<String, String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -40,9 +63,39 @@ impl EnglishNames {
         }
         serde_json::from_slice(&bytes).map_err(|_| NamesError)
     }
+    /// Add the panel catalog (bounded like the names file).
+    pub fn with_catalog(mut self, reader: impl Read) -> Result<Self, NamesError> {
+        let mut bytes = Vec::new();
+        reader
+            .take(MAX_NAMES_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| NamesError)?;
+        if bytes.len() as u64 > MAX_NAMES_BYTES {
+            return Err(NamesError);
+        }
+        self.catalog = serde_json::from_slice(&bytes).map_err(|_| NamesError)?;
+        Ok(self)
+    }
+    /// The NPCs that open a shop (by the shop ID as the content writes it).
+    pub fn shop_npcs(&self, shop_id: &str) -> Vec<ShopNpc> {
+        self.catalog.shops.get(shop_id).cloned().unwrap_or_default()
+    }
+    pub fn npc_name(&self, npc: &str) -> Option<String> {
+        self.catalog
+            .npcs
+            .get(&npc.to_ascii_uppercase())
+            .and_then(|n| n.0.clone())
+    }
+    /// The icon file of an item class (attributes such as `[ENHANCE:3]` ignored).
+    pub fn item_icon(&self, class: &str) -> Option<String> {
+        self.catalog
+            .item_icons
+            .get(&base_class(class).to_ascii_uppercase())
+            .cloned()
+    }
     fn item(&self, class: &str) -> (Option<String>, Option<String>) {
         self.items
-            .get(&class.to_ascii_uppercase())
+            .get(&base_class(class).to_ascii_uppercase())
             .map_or((None, None), |(n, d)| (Some(n.clone()), d.clone()))
     }
     fn skill(&self, key: &str) -> Option<String> {
@@ -51,6 +104,11 @@ impl EnglishNames {
     fn status(&self, key: &str) -> Option<String> {
         self.status_effects.get(&key.to_ascii_uppercase()).cloned()
     }
+}
+
+/// The class of an ItemClassEx (`class[NAME:value,...]`).
+fn base_class(class: &str) -> &str {
+    class.split_once('[').map_or(class, |(c, _)| c)
 }
 
 fn utf16(bytes: &[u8]) -> String {
@@ -98,6 +156,8 @@ pub struct CharacterItem {
     pub class: String,
     pub name: Option<String>,
     pub description: Option<String>,
+    /// Icon file (GET /api/icons/item/{icon}).
+    pub icon: Option<String>,
     pub count: i32,
     /// 0–8 bags, 100 cash, 101 account (gold), 102 restore, 103 story.
     pub collection: i16,
@@ -318,7 +378,9 @@ pub async fn sheet(
                     gold += i64::from(count);
                 }
                 let (name, description) = names.item(&class);
+                let icon = names.item_icon(&class);
                 CharacterItem {
+                    icon,
                     id: id.to_string(),
                     name,
                     description,
@@ -419,6 +481,7 @@ pub struct CatalogItem {
     /// Item class as the game writes it (lower case).
     pub class: String,
     pub name: String,
+    pub icon: Option<String>,
     pub description: Option<String>,
 }
 
@@ -433,6 +496,7 @@ impl EnglishNames {
                 class.to_lowercase().contains(&term) || name.to_lowercase().contains(&term)
             })
             .map(|(class, (name, description))| CatalogItem {
+                icon: self.catalog.item_icons.get(class).cloned(),
                 class: class.to_lowercase(),
                 name: name.clone(),
                 description: description.clone(),

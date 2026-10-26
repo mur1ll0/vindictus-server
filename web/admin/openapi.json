@@ -948,6 +948,43 @@
         }
       }
     },
+    "/api/icons/item/{icon}": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Item icon of the client (PNG exported by export_panel_catalog.py), for the panel's lists.",
+        "operationId": "item_icon",
+        "parameters": [
+          {
+            "name": "icon",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/items": {
       "get": {
         "tags": [
@@ -1664,6 +1701,12 @@
               "null"
             ]
           },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "name": {
             "type": "string"
           }
@@ -1744,6 +1787,13 @@
             ],
             "format": "int64",
             "description": "Expiry as Unix seconds."
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Icon file (GET /api/icons/item/{icon})."
           },
           "id": {
             "type": "string",
@@ -2675,6 +2725,29 @@
           }
         }
       },
+      "ShopNpcView": {
+        "type": "object",
+        "required": [
+          "npc",
+          "place"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "English name of the NPC, when the client has one."
+          },
+          "npc": {
+            "type": "string"
+          },
+          "place": {
+            "type": "string",
+            "description": "Place of the NPC (Colhen, Rocheste, Malina (Morvan), Eventos, ...)."
+          }
+        }
+      },
       "ShopRowView": {
         "type": "object",
         "required": [
@@ -2684,9 +2757,14 @@
           "price_item_class",
           "price_count",
           "character_bind",
-          "restricted"
+          "restricted",
+          "available"
         ],
         "properties": {
+          "available": {
+            "type": "boolean",
+            "description": "The row's FeatureMatrix is enabled in this region, so the client shows it (NotSell,\nTestServer and other regions' events are not)."
+          },
           "character_bind": {
             "type": "boolean"
           },
@@ -2699,6 +2777,13 @@
               "string",
               "null"
             ]
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Icon file (GET /api/icons/item/{icon})."
           },
           "item_class": {
             "type": "string"
@@ -2731,9 +2816,23 @@
         "type": "object",
         "required": [
           "shop_id",
-          "rows"
+          "rows",
+          "available_rows",
+          "npcs"
         ],
         "properties": {
+          "available_rows": {
+            "type": "integer",
+            "description": "Rows the game sells in this region (FeatureMatrix of each row).",
+            "minimum": 0
+          },
+          "npcs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShopNpcView"
+            },
+            "description": "NPCs that open the shop, from the NPC talk scripts; empty when none does."
+          },
           "rows": {
             "type": "integer",
             "minimum": 0

@@ -86,5 +86,14 @@ Pré-condição: containers recompilados depois de 26/10/2026.
 Resultado do operador (26/10/2026): testado e resolvido (voltar à seleção e entrar de novo funcionou).
 Limites conhecidos: nenhum.
 
+### B4.4b — Lojas por local, NPC, ícones e abas do inventário
+Pré-condição: containers recompilados depois de 26/10/2026 com `.cache/private-content/panel-catalog.json` e `icons/` exportados (`py -3.13 scripts/content/export_panel_catalog.py`). Só painel; cliente: não necessário.
+- [ ] Lojas de NPC → abas por local (Colhen, Rocheste, Malina, Campos, Navios, Eventos…) com a contagem; cada cartão mostra o nome do NPC, a loja e quantas linhas estão à venda.
+- [ ] Buscar "ferghus" → abrir → título "Ferghus", subtítulo com a loja e o local; linhas com ícone e nome oficial; busca dentro da loja filtra por nome ou classe.
+- [ ] As linhas NotSell/TestServer/eventos de outras regiões ficam ocultas; marcar "Mostrar N linha(s)…" → aparecem esmaecidas com "fora da região".
+- [ ] Ficha da Murael → Inventário → abas Bolsa 1…, Quest, Cash… com a contagem; buscar um item → as abas com resultado ficam destacadas com `n/total` e a lista diz em quais abas está.
+- [ ] Dar item → a busca do catálogo mostra os ícones.
+Limites conhecidos: reordenar e arrastar itens pelo painel ainda não existem; ícones só de itens (não de skills/efeitos).
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.
