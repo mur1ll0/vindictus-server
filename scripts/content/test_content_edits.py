@@ -17,6 +17,30 @@ def overlay(**kw):
 
 
 class ContentEditsTests(unittest.TestCase):
+    def test_client_tuning_cells_change_once(self):
+        import sqlite3
+        db = sqlite3.connect(':memory:')
+        db.execute('CREATE TABLE QuestInfo(ID TEXT, DropItemCountMin INT, DropItemCountMax INT)')
+        db.execute("INSERT INTO QuestInfo VALUES('q1', 1, 2)")
+        db.execute('CREATE TABLE EnchantInfo(EnchantClass TEXT, MinSuccessRatio INT, MaxSuccessRatio INT)')
+        db.execute("INSERT INTO EnchantInfo VALUES('simple', 25, 60)")
+        db.execute('CREATE TABLE EnhanceInfo(EnhanceType TEXT, EnhanceLevel INT, SuccessRatio REAL)')
+        db.executemany('INSERT INTO EnhanceInfo VALUES(?,?,?)', [('A', 5, 0.75), ('B', 5, 0.75), ('A', 6, 0.5)])
+        tuned = overlay(quest_drops={'q1': [3, 4]}, enchant_ratios={'simple': [50, 90]}, enhance_ratios={'5#5': 0.9})
+        self.assertEqual(content_edits.apply_client_tuning(db, tuned), 4)
+        self.assertEqual(content_edits.apply_client_tuning(db, tuned), 0)
+        self.assertEqual(db.execute('SELECT * FROM QuestInfo').fetchall(), [('q1', 3, 4)])
+        self.assertEqual(db.execute('SELECT SuccessRatio FROM EnhanceInfo ORDER BY rowid').fetchall(), [(0.9,), (0.9,), (0.5,)])
+
+    def test_tuning_bounds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / 'e.json'
+            path.write_text(json.dumps(overlay(quest_drops={'q1': [5, 4]})), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                content_edits.load(path)
+            path.write_text(json.dumps(content_edits.EMPTY), encoding='utf-8')
+            self.assertEqual(content_edits.load(path)['features'], {})
+
     def test_shop_rows_change_remove_and_add_keep_other_fields(self):
         out = content_edits.apply_shop_rows(ROWS, overlay(shop_rows=[
             {'ShopID': 'FERGHUS_Shop', 'Order': 2, 'ItemClass': 'shield', 'Count': 3, 'PriceItemClass': 'gold', 'PriceCount': 250},

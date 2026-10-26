@@ -187,6 +187,11 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
     let mut shops = std::collections::BTreeMap::new();
     let mut prices = std::collections::BTreeMap::new();
     let mut default = serde_json::Value::Null;
+    // B4.5 tuning: the newest edit of each target wins.
+    let mut features = std::collections::BTreeMap::new();
+    let mut quest_drops = std::collections::BTreeMap::new();
+    let mut enhance_ratios = std::collections::BTreeMap::new();
+    let mut enchant_ratios = std::collections::BTreeMap::new();
     let mut version = 0;
     for (kind, target, value, v) in rows {
         version = version.max(v);
@@ -207,6 +212,18 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
                 prices.insert(target, value["price"].clone());
             }
             "cash_default" => default = value["price"].clone(),
+            "feature" => {
+                features.insert(target, value["value"].clone());
+            }
+            "quest_drop" => {
+                quest_drops.insert(target, serde_json::json!([value["min"], value["max"]]));
+            }
+            "enhance_ratio" => {
+                enhance_ratios.insert(target, value["ratio"].clone());
+            }
+            "enchant_ratio" => {
+                enchant_ratios.insert(target, serde_json::json!([value["min"], value["max"]]));
+            }
             _ => {}
         }
     }
@@ -232,6 +249,10 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
         "shop_rows": shop_rows,
         "cash_prices": prices,
         "cash_default": default,
+        "features": features,
+        "quest_drops": quest_drops,
+        "enhance_ratios": enhance_ratios,
+        "enchant_ratios": enchant_ratios,
     }))
 }
 

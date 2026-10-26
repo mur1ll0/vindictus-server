@@ -194,6 +194,55 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
     assert_eq!(edits.iter().filter(|e| e.state == "withdrawn").count(), 1);
     assert_eq!(edits.iter().find(|e| e.id == a).unwrap().version, Some(1));
 
+    // B4.5 tuning kinds (migration 0047) reach the loaded overlay, newest edit per target.
+    edit(
+        "feature",
+        "ExpRate_Combat",
+        Some(serde_json::json!({"value": 200})),
+        Uuid::new_v4(),
+    )
+    .await;
+    edit(
+        "quest_drop",
+        "QUEST_A",
+        Some(serde_json::json!({"min": 3, "max": 5})),
+        Uuid::new_v4(),
+    )
+    .await;
+    edit(
+        "enhance_ratio",
+        "5#5",
+        Some(serde_json::json!({"ratio": 0.9})),
+        Uuid::new_v4(),
+    )
+    .await;
+    edit(
+        "enchant_ratio",
+        "simple",
+        Some(serde_json::json!({"min": 40, "max": 80})),
+        Uuid::new_v4(),
+    )
+    .await;
+    edit(
+        "feature",
+        "ExpRate_Combat",
+        Some(serde_json::json!({"value": 300})),
+        Uuid::new_v4(),
+    )
+    .await;
+    assert_eq!(
+        content_admin::publish(&pool, &actor(&chefe, "taxas"), None, 0)
+            .await
+            .unwrap()
+            .0,
+        3
+    );
+    let loaded = content_edits::loaded_overlay(&pool).await.unwrap();
+    assert_eq!(loaded.features.get("ExpRate_Combat"), Some(&300));
+    assert_eq!(loaded.quest_drops.get("QUEST_A"), Some(&[3, 5]));
+    assert_eq!(loaded.enhance_ratios.get("5#5"), Some(&0.9));
+    assert_eq!(loaded.enchant_ratios.get("simple"), Some(&[40, 80]));
+
     pool.close().await;
     sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
         .execute(&admin_pool)

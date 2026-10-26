@@ -61,4 +61,8 @@ export const KIND_LABEL: Record<string, string> = {
   shop_row_remove: 'Linha de loja (remover)',
   cash_price: 'Preço de categoria do cash shop',
   cash_default: 'Preço padrão do cash shop',
+  feature: 'Taxa do FeatureMatrix',
+  quest_drop: 'Drops da fase',
+  enhance_ratio: 'Chance de Enhance',
+  enchant_ratio: 'Chance de Enchant',
 };

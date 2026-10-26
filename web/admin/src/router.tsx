@@ -5,6 +5,7 @@ import { Layout } from '@/components/Layout';
 import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
 import { CashShopPage } from '@/pages/CashShop';
+import { TuningPage } from '@/pages/Tuning';
 import { ContentPage } from '@/pages/Content';
 import { ShopsPage } from '@/pages/Shops';
 import { CharacterPage } from '@/pages/Character';
@@ -71,6 +72,12 @@ const cashShopRoute = createRoute({
   beforeLoad: staffOnly,
   component: CashShopPage,
 });
+const tuningRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/ajustes',
+  beforeLoad: staffOnly,
+  component: TuningPage,
+});
 const contentRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/conteudo',
@@ -98,6 +105,7 @@ export function makeRouter(queryClient: QueryClient) {
         accountsRoute,
         shopsRoute,
         cashShopRoute,
+        tuningRoute,
         contentRoute,
         auditRoute,
         characterRoute,

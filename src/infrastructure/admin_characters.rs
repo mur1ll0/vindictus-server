@@ -54,6 +54,9 @@ struct PanelCatalog {
     /// The client's tooltip texts (upper-case keys).
     #[serde(default)]
     tooltip_text: HashMap<String, String>,
+    /// QuestID (upper case) → English title (HEROES_QUEST_TITLE_<ID>).
+    #[serde(default)]
+    quest_titles: HashMap<String, String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -125,6 +128,18 @@ impl EnglishNames {
             .tooltip_text
             .get(&key.to_ascii_uppercase())
             .cloned()
+    }
+    /// English title of a quest.
+    pub fn quest_title(&self, quest: &str) -> Option<String> {
+        self.catalog
+            .quest_titles
+            .get(&quest.to_ascii_uppercase())
+            .cloned()
+    }
+    /// The client's name of an enchant (GameUI_Heroes_Attribute_Prefix/Suffix_<class>).
+    pub fn enchant_name(&self, class: &str, prefix: bool) -> Option<String> {
+        let side = if prefix { "PREFIX" } else { "SUFFIX" };
+        self.text(&format!("GAMEUI_HEROES_ATTRIBUTE_{side}_{class}"))
     }
     pub(super) fn skill_name(&self, key: &str) -> Option<String> {
         self.skill(key)

@@ -183,6 +183,10 @@ impl Assets {
         self.cash_shop.as_ref().map(|c| c.shop_list(per_category))
     }
     /// Mission entry contents of the NPC script profile, when exported.
+    /// Enhance/enchant contents, when exported.
+    pub fn enhance_contents(&self) -> Option<&super::item_enhance::Contents> {
+        self.enhance.as_ref()
+    }
     pub fn mission(&self) -> Option<&crate::domain::mission::MissionContents> {
         self.npc.as_ref().and_then(|n| n.mission.as_ref())
     }
@@ -281,10 +285,20 @@ impl Assets {
         if let Some(path) = f.npc_scripts {
             let mut profile = super::npc_scripts::Profile::read(open(&path)?)?;
             profile.shop_rows = overlay.apply_shop_rows(std::mem::take(&mut profile.shop_rows));
+            // B4.5: FeatureMatrix rates and the quests' drop counts.
+            for (key, value) in &overlay.features {
+                profile.policy.override_value(key, value.to_string());
+            }
+            if let Some(mission) = profile.mission.as_mut() {
+                for (quest, [min, max]) in &overlay.quest_drops {
+                    mission.set_drop_counts(quest, *min, *max);
+                }
+            }
             assets = assets.with_npc_scripts(profile)?;
         }
         if let Some(path) = f.enhance {
             assets = assets.with_enhance(super::item_enhance::Profile::read(open(&path)?)?)?;
+            assets.enhance = assets.enhance.take().map(|e| e.with_overlay(overlay));
         }
         if let Some(path) = f.random_item {
             assets = assets.with_random_item(super::random_item::Profile::read(open(&path)?)?)?;

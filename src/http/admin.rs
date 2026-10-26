@@ -112,6 +112,7 @@ impl AdminState {
         content::shops,
         content::shop,
         content::cash_categories,
+        content::tuning,
         content::content_state,
         content::create_edit,
         content::withdraw,
@@ -152,6 +153,11 @@ impl AdminState {
         crate::application::content_admin::ShopNpcView,
         crate::application::content_admin::ShopRowView,
         crate::application::content_admin::CashCategoryView,
+        crate::application::content_admin::TuningView,
+        crate::application::content_admin::FeatureView,
+        crate::application::content_admin::QuestDropView,
+        crate::application::content_admin::EnhanceRatioView,
+        crate::application::content_admin::EnchantRatioView,
         crate::application::content_admin::EditRequest,
         crate::infrastructure::content_edits::ContentEdit,
         crate::infrastructure::content_edits::ContentVersion,
@@ -215,6 +221,7 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/shops", get(content::shops))
         .route("/api/shops/{shop_id}", get(content::shop))
         .route("/api/cash-shop/categories", get(content::cash_categories))
+        .route("/api/tuning", get(content::tuning))
         .route("/api/content", get(content::content_state))
         .route("/api/content/edits", post(content::create_edit))
         .route("/api/content/edits/{id}/withdraw", post(content::withdraw))

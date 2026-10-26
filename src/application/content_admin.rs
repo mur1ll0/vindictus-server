@@ -95,6 +95,69 @@ pub enum EditRequest {
     CashDefault {
         price: i64,
     },
+    /// B4.5: a FeatureMatrix rate in percent (ExpRate_Combat, GoldRate_Story, ...).
+    Feature {
+        key: String,
+        value: i32,
+    },
+    /// QuestInfo DropItemCountMin/Max: how many common monsters of a stage carry a drop.
+    QuestDrop {
+        quest: String,
+        min: i32,
+        max: i32,
+    },
+    /// EnhanceServerInfo SuccessRatio (0–1) of a type and level.
+    EnhanceRatio {
+        enhance_type: String,
+        level: i32,
+        ratio: f32,
+    },
+    /// EnchantInfo Min/MaxSuccessRatio (percent) of an enchant.
+    EnchantRatio {
+        class: String,
+        min: i32,
+        max: i32,
+    },
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct FeatureView {
+    pub key: String,
+    pub value: i32,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct QuestDropView {
+    pub quest: String,
+    pub title: Option<String>,
+    pub min: i32,
+    pub max: i32,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EnhanceRatioView {
+    pub enhance_type: String,
+    pub level: i32,
+    pub ratio: f32,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EnchantRatioView {
+    pub class: String,
+    pub name: Option<String>,
+    pub prefix: bool,
+    pub rank: i32,
+    pub min: i32,
+    pub max: i32,
+}
+
+/// The tunable values the game loaded (published versions included).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct TuningView {
+    pub features: Vec<FeatureView>,
+    pub quests: Vec<QuestDropView>,
+    pub enhance: Vec<EnhanceRatioView>,
+    pub enchants: Vec<EnchantRatioView>,
 }
 
 pub struct Actor<'a> {
@@ -209,6 +272,67 @@ pub fn shop(
     Ok(rows)
 }
 
+pub fn tuning(
+    session: &SessionAccount,
+    assets: Option<&Assets>,
+    names: &EnglishNames,
+) -> Result<TuningView, AdminError> {
+    require(session, Permission::Read)?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    let policy = assets.npc_policy();
+    let features = crate::domain::content_overlay::TUNABLE_FEATURES
+        .iter()
+        .filter_map(|key| {
+            let value = policy?.get_integer(key).ok()?;
+            Some(FeatureView {
+                key: (*key).to_owned(),
+                value,
+            })
+        })
+        .collect();
+    let quests = assets
+        .mission()
+        .map(|m| {
+            m.drop_counts()
+                .map(|(quest, min, max)| QuestDropView {
+                    quest: quest.to_owned(),
+                    title: names.quest_title(quest),
+                    min,
+                    max,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let (enhance, enchants) = match assets.enhance_contents() {
+        Some(c) => (
+            c.server_ratios()
+                .map(|(t, level, ratio)| EnhanceRatioView {
+                    enhance_type: t.to_owned(),
+                    level,
+                    ratio,
+                })
+                .collect(),
+            c.enchants()
+                .map(|e| EnchantRatioView {
+                    class: e.class.clone(),
+                    name: names.enchant_name(&e.class, e.is_prefix),
+                    prefix: e.is_prefix,
+                    rank: e.level,
+                    min: e.min_ratio,
+                    max: e.max_ratio,
+                })
+                .collect(),
+        ),
+        None => (Vec::new(), Vec::new()),
+    };
+    Ok(TuningView {
+        features,
+        quests,
+        enhance,
+        enchants,
+    })
+}
+
 pub fn cash_categories(
     session: &SessionAccount,
     assets: Option<&Assets>,
@@ -307,6 +431,70 @@ fn validate(
                 Some(serde_json::json!({ "price": price })),
             ))
         }
+        EditRequest::Feature { key, value } => {
+            let known = crate::domain::content_overlay::TUNABLE_FEATURES.contains(&key.as_str())
+                && assets
+                    .npc_policy()
+                    .is_some_and(|p| p.get_integer(key).is_ok());
+            if !known || !(0..=crate::domain::content_overlay::MAX_RATE).contains(value) {
+                return Err(AdminError::InvalidInput);
+            }
+            Ok((
+                "feature",
+                key.clone(),
+                Some(serde_json::json!({ "value": value })),
+            ))
+        }
+        EditRequest::QuestDrop { quest, min, max } => {
+            let mission = assets.mission().ok_or(AdminError::ContentUnavailable)?;
+            if !mission.drop_counts().any(|(q, _, _)| q == quest) {
+                return Err(AdminError::NotFound);
+            }
+            if !(0..=*max).contains(min) || *max > crate::domain::content_overlay::MAX_DROP_COUNT {
+                return Err(AdminError::InvalidInput);
+            }
+            Ok((
+                "quest_drop",
+                quest.clone(),
+                Some(serde_json::json!({ "min": min, "max": max })),
+            ))
+        }
+        EditRequest::EnhanceRatio {
+            enhance_type,
+            level,
+            ratio,
+        } => {
+            let contents = assets
+                .enhance_contents()
+                .ok_or(AdminError::ContentUnavailable)?;
+            if contents.server_ratio(enhance_type, *level).is_none() {
+                return Err(AdminError::NotFound);
+            }
+            if !(0.0..=1.0).contains(ratio) {
+                return Err(AdminError::InvalidInput);
+            }
+            Ok((
+                "enhance_ratio",
+                format!("{enhance_type}#{level}"),
+                Some(serde_json::json!({ "ratio": ratio })),
+            ))
+        }
+        EditRequest::EnchantRatio { class, min, max } => {
+            let contents = assets
+                .enhance_contents()
+                .ok_or(AdminError::ContentUnavailable)?;
+            if contents.enchant(class).is_none() {
+                return Err(AdminError::NotFound);
+            }
+            if !(0..=*max).contains(min) || *max > 100 {
+                return Err(AdminError::InvalidInput);
+            }
+            Ok((
+                "enchant_ratio",
+                class.clone(),
+                Some(serde_json::json!({ "min": min, "max": max })),
+            ))
+        }
         EditRequest::CashDefault { price } => {
             if !(1..=MAX_CASH_PRICE).contains(price) {
                 return Err(AdminError::InvalidInput);
@@ -359,7 +547,6 @@ pub async fn withdraw(pool: &PgPool, actor: &Actor<'_>, id: i64) -> Result<(), A
     .map(|_| ())
 }
 
-/// Publish the pending edits as the next version (admin).
 /// Publish the pending edits as the next version and schedule the restart that applies it
 /// in `minutes` (0 = now). Without a game runtime the version stays to be applied.
 pub async fn publish(

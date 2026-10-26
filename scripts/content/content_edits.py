@@ -42,6 +42,19 @@ def load(path=EDITS):
         _text(k, 'category'); _int(v, 1, 1_000_000, 'cash price')
     if overlay['cash_default'] is not None:
         _int(overlay['cash_default'], 1, 1_000_000, 'cash default')
+    # B4.5 tuning (absent from overlays exported before it).
+    for k in ('features', 'quest_drops', 'enhance_ratios', 'enchant_ratios'):
+        overlay.setdefault(k, {})
+    for k, v in overlay['features'].items():
+        _text(k, 'feature'); _int(v, 0, 10_000, 'rate')
+    for k, (low, high) in overlay['quest_drops'].items():
+        _text(k, 'quest'); _int(high, 0, 100, 'drop max'); _int(low, 0, high, 'drop min')
+    for k, v in overlay['enhance_ratios'].items():
+        _text(k, 'enhance'); _int(int(k.rsplit('#', 1)[1]), 0, 99, 'enhance level')
+        if not isinstance(v, (int, float)) or not 0 <= v <= 1:
+            raise ValueError('Content edit enhance ratio')
+    for k, (low, high) in overlay['enchant_ratios'].items():
+        _text(k, 'enchant'); _int(high, 0, 100, 'enchant max'); _int(low, 0, high, 'enchant min')
     return overlay
 
 
@@ -74,3 +87,21 @@ def apply_prices(default, table, overlay):
     if overlay['cash_default'] is not None:
         default = overlay['cash_default']
     return default, table
+
+
+def apply_client_tuning(db, overlay):
+    """The tuning cells the client shows, in its heroes.db3: QuestInfo drop counts, EnchantInfo
+    ratios, and the EnhanceInfo ratio of every type at a tuned level (the server's
+    EnhanceServerInfo overrides the per-type ratio by level). Returns the cells that changed."""
+    changed = 0
+    for quest, (low, high) in overlay.get('quest_drops', {}).items():
+        changed += db.execute('UPDATE QuestInfo SET DropItemCountMin=?, DropItemCountMax=? WHERE ID=? AND '
+                              '(DropItemCountMin IS NOT ? OR DropItemCountMax IS NOT ?)', (low, high, quest, low, high)).rowcount
+    for cls, (low, high) in overlay.get('enchant_ratios', {}).items():
+        changed += db.execute('UPDATE EnchantInfo SET MinSuccessRatio=?, MaxSuccessRatio=? WHERE EnchantClass=? AND '
+                              '(MinSuccessRatio IS NOT ? OR MaxSuccessRatio IS NOT ?)', (low, high, cls, low, high)).rowcount
+    for target, ratio in overlay.get('enhance_ratios', {}).items():
+        level = int(target.rsplit('#', 1)[1])
+        changed += db.execute('UPDATE EnhanceInfo SET SuccessRatio=? WHERE EnhanceLevel=? AND SuccessRatio IS NOT ?',
+                              (ratio, level, ratio)).rowcount
+    return changed

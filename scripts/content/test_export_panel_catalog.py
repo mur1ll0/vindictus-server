@@ -28,7 +28,8 @@ class PanelCatalogTests(unittest.TestCase):
             lines = ['"HEROES_NPC_FERGHUS" "Ferghus"', '"GAMEUI_HEROES_NPCDESCRIPTION_FERGHUS" "Line one\\nLine two"',
                      '"HEROES_NPC_ARTHYEN" "한글"', '"HEROES_ITEM_NAME_FIONA_NOLUCK_INNER_X" "한글"',
                      '"HEROES_ITEM_NAME_DELIA_INNER_X" "Crescent Moon Inner Armor"',
-                     '"GAMEUI_HEROES_ItemStat_ATK" "ATT"', '"GAMEUI_HEROES_ITEMTOOLTIP_RARITY_5" "Rare"']
+                     '"GAMEUI_HEROES_ItemStat_ATK" "ATT"', '"GAMEUI_HEROES_ITEMTOOLTIP_RARITY_5" "Rare"',
+                     '"HEROES_QUEST_TITLE_quest_a" "Stage A"']
             text.write_bytes(b'\xff\xfe' + '\r\n'.join(lines).encode('utf-16-le'))
             package = read_package(root / 'xml', db, text)
         self.assertEqual(package['shops']['FERGHUS_Shop'], [{'npc': 'FERGHUS', 'location': 't01_bs', 'place': 'Colhen'}])
@@ -39,6 +40,7 @@ class PanelCatalogTests(unittest.TestCase):
         self.assertEqual(package['item_icons']['ENHANCE_ELIXIR'], 'enhance_elixir')
         self.assertNotIn('BAD', package['item_icons'])
         self.assertEqual(package['item_aliases'], {'FIONA_NOLUCK_INNER_X': 'DELIA_INNER_X'})
+        self.assertEqual(package['quest_titles'], {'QUEST_A': 'Stage A'})
         self.assertEqual(package['item_info']['FIONA_NOLUCK_INNER_X'],
                          {'r': 1, 'c': 'INNERARMOR', 'bg': 'fiona_inner', 'w': 24, 'dy': 1})
         self.assertEqual(package['tooltip_text'], {'GAMEUI_HEROES_ITEMSTAT_ATK': 'ATT', 'GAMEUI_HEROES_ITEMTOOLTIP_RARITY_5': 'Rare'})

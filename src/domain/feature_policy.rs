@@ -131,6 +131,16 @@ impl FeaturePolicy {
     pub fn current_version(&self) -> &str {
         &self.current
     }
+    /// A panel tuning (B4.5): the resolved value of an existing key.
+    pub fn override_value(&mut self, key: &str, value: String) -> bool {
+        match self.values.get_mut(key) {
+            Some(v) => {
+                *v = value;
+                true
+            }
+            None => false,
+        }
+    }
     pub fn get_string(&self, key: &str) -> &str {
         self.values.get(key).map_or("", String::as_str)
     }

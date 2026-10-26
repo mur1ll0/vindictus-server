@@ -67,6 +67,21 @@ pub(super) async fn cash_categories(
     )?))
 }
 
+/// The tunable game values as loaded (B4.5): FeatureMatrix rates, quest drop counts,
+/// Enhance and Enchant success ratios.
+#[utoipa::path(get, path = "/api/tuning",
+    responses((status = 200, body = content_admin::TuningView), (status = 403, body = super::ApiError)))]
+pub(super) async fn tuning(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+) -> Result<Json<content_admin::TuningView>, Refusal> {
+    Ok(Json(content_admin::tuning(
+        &auth.session,
+        assets(&state).as_deref(),
+        &state.names,
+    )?))
+}
+
 #[derive(Serialize, ToSchema)]
 pub(super) struct ContentState {
     /// Pending first, then the latest.

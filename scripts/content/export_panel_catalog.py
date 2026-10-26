@@ -30,6 +30,7 @@ NAME = re.compile(r'^\s*"((?:HEROES_NPC|GAMEUI_HEROES_NPCDESCRIPTION)_[^"]+)"\s+
 TOOLTIP = re.compile(r'^\s*"((?:GAMEUI_HEROES_ITEM_?TOOLTIP|GAMEUI_HEROES_ITEMSTAT|GAMEUI_HEROES_ENCHANTSTAT|'
                      r'GAMEUI_HEROES_ENCHANTCONDITION|GAMEUI_HEROES_ATTRIBUTE_(?:PREFIX|SUFFIX)|GAMEUI_HEROES_ITEMCONSTRAINT|'
                      r'HEROES_SET_ITEM|HEROES_ITEM_SETITEM)[^"]*)"\s+"(.*)"\s*$', re.M | re.I)
+QUEST_TITLE = re.compile(r'^\s*"HEROES_QUEST_TITLE_([^"]+)"\s+"(.*)"\s*$', re.M | re.I)
 ITEM_TEXT = re.compile(r'^\s*"(HEROES_ITEM_(?:NAME|DESC)_[^"]+)"\s+"(.*)"\s*$', re.M)
 # ItemClassInfo / EquipItemInfo columns the tooltip shows (short key in the catalog).
 CLASS_FIELDS = [('Rarity', 'r'), ('Category', 'c'), ('SellPrice', 'sp'), ('Price', 'p'), ('RequiredLevel', 'rl'),
@@ -39,6 +40,7 @@ CLASS_FIELDS = [('Rarity', 'r'), ('Category', 'c'), ('SellPrice', 'sp'), ('Price
 EQUIP_FIELDS = [('EquipClass', 'ec'), ('MaxDurability', 'md'), ('Weight', 'w'), ('ColorOverride', 'co'),
                 ('Enchantable', 'en'), ('Dyeable', 'dy'), ('Synthesizable', 'sy'), ('EnhanceType', 'et')]
 ICON = re.compile(r'^[A-Za-z0-9_]{1,96}$')
+KEYLIKE = re.compile(r'^[A-Za-z0-9_]{1,128}$')
 # Location prefix → place shown by the panel.
 PLACES = [('t01', 'Colhen'), ('rochest', 'Rocheste'), ('morvan', 'Malina (Morvan)'), ('field1', 'Campos'),
           ('event', 'Eventos'), ('ship', 'Navios'), ('dev', 'Desenvolvimento'), ('armor', 'Ofícios'),
@@ -83,6 +85,8 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
     tooltip_text = {k.upper(): v.replace('\\n', '\n') for k, v in TOOLTIP.findall(decoded)
                     if not UNTRANSLATED.search(v) and len(v) <= 1024}
     item_text = {k.upper(): v for k, v in ITEM_TEXT.findall(decoded)}
+    quest_titles = {k.upper(): v for k, v in QUEST_TITLE.findall(decoded)
+                    if KEYLIKE.match(k) and not UNTRANSLATED.search(v) and len(v) <= 256}
     with contextlib.closing(sqlite3.connect(pathlib.Path(database).resolve().as_uri() + '?mode=ro', uri=True)) as db:
         db.execute('PRAGMA query_only=ON')
         shop_ids = {r[0].lower(): r[0] for r in db.execute('SELECT DISTINCT ShopID FROM ShopInfo') if r[0]}
@@ -106,7 +110,8 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
     return dict(format_version=1, source='npc-talk-xml+heroes_text_english_eu', localized_sha256=digest(localized),
                 database_sha256=digest(database), shops=dict(sorted(shops.items())), npcs=dict(sorted(npcs.items())),
                 item_icons=dict(sorted(icons.items())), item_info=dict(sorted(info.items())),
-                item_aliases=dict(sorted(aliases.items())), tooltip_text=dict(sorted(tooltip_text.items())))
+                item_aliases=dict(sorted(aliases.items())), tooltip_text=dict(sorted(tooltip_text.items())),
+                quest_titles=dict(sorted(quest_titles.items())))
 
 
 def columns(db, table):

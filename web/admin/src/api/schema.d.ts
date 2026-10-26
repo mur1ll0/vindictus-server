@@ -520,6 +520,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tuning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tunable game values as loaded (B4.5): FeatureMatrix rates, quest drop counts,
+         *     Enhance and Enchant success ratios.
+         */
+        get: operations["tuning"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -819,6 +839,59 @@ export interface components {
             kind: "cash_default";
             /** Format: int64 */
             price: number;
+        } | {
+            key: string;
+            /** @enum {string} */
+            kind: "feature";
+            /** Format: int32 */
+            value: number;
+        } | {
+            /** @enum {string} */
+            kind: "quest_drop";
+            /** Format: int32 */
+            max: number;
+            /** Format: int32 */
+            min: number;
+            quest: string;
+        } | {
+            enhance_type: string;
+            /** @enum {string} */
+            kind: "enhance_ratio";
+            /** Format: int32 */
+            level: number;
+            /** Format: float */
+            ratio: number;
+        } | {
+            class: string;
+            /** @enum {string} */
+            kind: "enchant_ratio";
+            /** Format: int32 */
+            max: number;
+            /** Format: int32 */
+            min: number;
+        };
+        EnchantRatioView: {
+            class: string;
+            /** Format: int32 */
+            max: number;
+            /** Format: int32 */
+            min: number;
+            name?: string | null;
+            prefix: boolean;
+            /** Format: int32 */
+            rank: number;
+        };
+        EnhanceRatioView: {
+            enhance_type: string;
+            /** Format: int32 */
+            level: number;
+            /** Format: float */
+            ratio: number;
+        };
+        FeatureView: {
+            key: string;
+            /** Format: int32 */
+            value: number;
         };
         InventorySort: {
             /** Format: uuid */
@@ -1006,6 +1079,14 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
+        QuestDropView: {
+            /** Format: int32 */
+            max: number;
+            /** Format: int32 */
+            min: number;
+            quest: string;
+            title?: string | null;
+        };
         Reasoned: {
             /** Format: uuid */
             operation_id: string;
@@ -1104,6 +1185,13 @@ export interface components {
             label: string;
             /** Format: int32 */
             value: number;
+        };
+        /** @description The tunable values the game loaded (published versions included). */
+        TuningView: {
+            enchants: components["schemas"]["EnchantRatioView"][];
+            enhance: components["schemas"]["EnhanceRatioView"][];
+            features: components["schemas"]["FeatureView"][];
+            quests: components["schemas"]["QuestDropView"][];
         };
     };
     responses: never;
@@ -2312,6 +2400,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    tuning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningView"];
                 };
             };
             403: {

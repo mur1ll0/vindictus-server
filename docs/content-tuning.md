@@ -1,6 +1,6 @@
 # Valores de jogo ajustáveis (base para o painel B4)
 
-Onde ficam, no conteúdo, os números que definem drop, EXP, títulos, níveis e pilhas, e por onde eles chegam ao servidor e ao cliente. O painel de administrador (bloco B4) deve editar estes pontos. Hoje eles são aplicados pela camada `scripts/content/content_overrides.py` (servidor) e por `scripts/client/apply_original_content.py` (cópia do cliente).
+Onde ficam, no conteúdo, os números que definem drop, EXP, títulos, níveis e pilhas, e por onde eles chegam ao servidor e ao cliente. O painel de administrador (bloco B4) deve editar estes pontos. Pelo painel (B4.5, tela "Ajustes de jogo") já se editam as taxas do FeatureMatrix (`ExpRate/GoldRate/APRate` de combate e história, `ExpRate_Monster`), `QuestInfo.DropItemCountMin/Max`, `EnhanceServerInfo.SuccessRatio` e `EnchantInfo.Min/MaxSuccessRatio`: a edição publicada é aplicada na carga do servidor (`Assets::read_with_overlay`) e na cópia do cliente pelo `start-lab.bat` (`content_edits.apply_client_tuning`, inclusive o `EnhanceInfo.SuccessRatio` de todos os tipos no nível ajustado). Hoje eles são aplicados pela camada `scripts/content/content_overrides.py` (servidor) e por `scripts/client/apply_original_content.py` (cópia do cliente).
 
 ## Fontes
 

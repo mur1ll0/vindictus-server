@@ -1093,6 +1093,34 @@ impl Contents {
             .and_then(|l| l.keys().next_back().copied())
             .unwrap_or(-1)
     }
+    /// Panel tunings (B4.5): EnhanceServerInfo SuccessRatio and EnchantInfo Min/Max ratios
+    /// of existing rows.
+    pub fn with_overlay(mut self, overlay: &crate::domain::content_overlay::Overlay) -> Self {
+        for (target, ratio) in &overlay.enhance_ratios {
+            if let Some((kind, level)) = crate::domain::content_overlay::enhance_target(target)
+                && let Some(value) = self.server.get_mut(kind).and_then(|l| l.get_mut(&level))
+            {
+                *value = *ratio;
+            }
+        }
+        for (class, [min, max]) in &overlay.enchant_ratios {
+            if let Some(info) = self.enchant.get_mut(class) {
+                info.min_ratio = *min;
+                info.max_ratio = *max;
+            }
+        }
+        self
+    }
+    /// EnhanceServerInfo rows: (EnhanceType, level, SuccessRatio), for the panel.
+    pub fn server_ratios(&self) -> impl Iterator<Item = (&str, i32, f32)> {
+        self.server
+            .iter()
+            .flat_map(|(k, levels)| levels.iter().map(move |(l, r)| (k.as_str(), *l, *r)))
+    }
+    /// EnchantInfo rows, for the panel.
+    pub fn enchants(&self) -> impl Iterator<Item = &crate::domain::enchant::EnchantInfo> {
+        self.enchant.values()
+    }
     /// GetEnhanceServerInfo(enhanceType, level).SuccessRatio.
     pub fn server_ratio(&self, enhance_type: &str, level: i32) -> Option<f32> {
         if enhance_type.is_empty() {

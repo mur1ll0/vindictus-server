@@ -128,5 +128,15 @@ Pré-condição: containers recompilados depois de 26/10/2026 com `py -3.13 scri
 - [ ] Clicar num item → o modal mostra a mesma caixa.
 Limites conhecidos: a mistura das cores da máscara é uma aproximação do cliente; as cores de raridade são aproximadas; o efeito de uso de consumíveis aparece só pela descrição do item; durabilidade mostrada como valor do jogo / 100.
 
+### B4.5 — Taxas, drops por fase e chances de Enhance/Enchant pelo painel
+Pré-condição: containers recompilados depois de 26/10/2026 (migração 0047); cliente aberto pelo `.cache/play-client/start-lab.bat`.
+- [ ] Ajustes de jogo → Taxas: as 7 taxas aparecem com o valor carregado (100% = original). Mudar "EXP das missões (combate)" para 200 com motivo → Conteúdo mostra 1 pendente "Taxa do FeatureMatrix".
+- [ ] Drops por fase: buscar uma fase que você joga (nome em inglês) → mudar mínimo/máximo (ex.: 3–5) → pendente.
+- [ ] Enhance: a chance de cada nível (+1…). Mudar o +5 para 100% → pendente.
+- [ ] Enchant: buscar um encantamento que você tem (ex.: o nome do pergaminho) → mudar a chance mínima/máxima → pendente.
+- [ ] Conteúdo → Publicar versão com 1 minuto → aviso, reinício; Ajustes de jogo mostra os valores novos.
+- [ ] Fechar o cliente e abrir pelo `start-lab.bat`. Jogar a fase ajustada: a EXP do resultado dobra e mais monstros deixam drop; Enhance +5 numa peça +4 → sucesso e a janela mostra a chance nova; o minijogo do encantamento mostra a chance nova.
+Limites conhecidos: valores fora dos limites são recusados (taxas 0–10000%, drops 0–100, chances 0–100%); o Enhance é por nível (vale para todos os equipamentos naquele nível, como o EnhanceServerInfo do servidor); o cliente só mostra os valores novos depois de abrir pelo `start-lab.bat`.
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

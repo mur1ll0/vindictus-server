@@ -5,7 +5,7 @@ use super::shop::ShopRow;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
-#[derive(Debug, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Default, PartialEq, Deserialize)]
 pub struct Overlay {
     pub format_version: u32,
     /// The newest published version included (0 = nothing published).
@@ -13,6 +13,38 @@ pub struct Overlay {
     pub shop_rows: Vec<OverlayRow>,
     pub cash_prices: BTreeMap<String, i32>,
     pub cash_default: Option<i32>,
+    /// B4.5: FeatureMatrix rates (percent) by key.
+    #[serde(default)]
+    pub features: BTreeMap<String, i32>,
+    /// QuestInfo DropItemCountMin/Max by QuestID.
+    #[serde(default)]
+    pub quest_drops: BTreeMap<String, [i32; 2]>,
+    /// EnhanceServerInfo SuccessRatio by "<EnhanceType>#<EnhanceLevel>".
+    #[serde(default)]
+    pub enhance_ratios: BTreeMap<String, f32>,
+    /// EnchantInfo Min/MaxSuccessRatio (percent) by EnchantClass.
+    #[serde(default)]
+    pub enchant_ratios: BTreeMap<String, [i32; 2]>,
+}
+
+/// The FeatureMatrix rates the panel tunes (percent; 100 = the original value).
+pub const TUNABLE_FEATURES: [&str; 7] = [
+    "ExpRate_Combat",
+    "GoldRate_Combat",
+    "APRate_Combat",
+    "ExpRate_Story",
+    "GoldRate_Story",
+    "APRate_Story",
+    "ExpRate_Monster",
+];
+pub const MAX_RATE: i32 = 10_000;
+pub const MAX_DROP_COUNT: i32 = 100;
+
+/// Split "<EnhanceType>#<EnhanceLevel>".
+pub fn enhance_target(target: &str) -> Option<(&str, i32)> {
+    let (kind, level) = target.rsplit_once('#')?;
+    let level: i32 = level.parse().ok()?;
+    (!kind.is_empty() && (0..=99).contains(&level)).then_some((kind, level))
 }
 
 #[derive(Debug, PartialEq, Eq, Deserialize)]
@@ -61,6 +93,20 @@ impl Overlay {
         let default_ok = self
             .cash_default
             .is_none_or(|v| (1..=1_000_000).contains(&v));
+        let tuning_ok = self
+            .features
+            .iter()
+            .all(|(k, v)| TUNABLE_FEATURES.contains(&k.as_str()) && (0..=MAX_RATE).contains(v))
+            && self.quest_drops.iter().all(|(k, [min, max])| {
+                text(k, 128) && (0..=*max).contains(min) && *max <= MAX_DROP_COUNT
+            })
+            && self.enhance_ratios.iter().all(|(k, r)| {
+                text(k, 128) && enhance_target(k).is_some() && (0.0..=1.0).contains(r)
+            })
+            && self
+                .enchant_ratios
+                .iter()
+                .all(|(k, [min, max])| text(k, 128) && (0..=*max).contains(min) && *max <= 100);
         if self.format_version == 1
             && self.version >= 0
             && self.shop_rows.len() <= 100_000
@@ -68,6 +114,7 @@ impl Overlay {
             && rows_ok
             && prices_ok
             && default_ok
+            && tuning_ok
         {
             Ok(self)
         } else {
@@ -189,6 +236,31 @@ mod tests {
         assert_eq!((once[1].order, once[1].feature.as_deref()), (9, None));
         let twice = overlay.apply_shop_rows(once.clone());
         assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn tuning_bounds_and_targets() {
+        let ok: Overlay = serde_json::from_value(serde_json::json!({
+            "format_version": 1, "version": 3, "shop_rows": [], "cash_prices": {}, "cash_default": null,
+            "features": {"ExpRate_Combat": 200}, "quest_drops": {"Q": [1, 2]},
+            "enhance_ratios": {"5#5": 0.5}, "enchant_ratios": {"simple": [10, 20]}
+        }))
+        .unwrap();
+        assert!(ok.validate().is_ok());
+        for bad in [
+            serde_json::json!({"features": {"NGM_disable": 1}}),
+            serde_json::json!({"quest_drops": {"Q": [3, 2]}}),
+            serde_json::json!({"enhance_ratios": {"5": 0.5}}),
+            serde_json::json!({"enchant_ratios": {"simple": [10, 101]}}),
+        ] {
+            let mut value = serde_json::json!({
+                "format_version": 1, "version": 1, "shop_rows": [], "cash_prices": {}, "cash_default": null
+            });
+            value.as_object_mut().unwrap().extend(bad.as_object().unwrap().clone());
+            let overlay: Overlay = serde_json::from_value(value).unwrap();
+            assert_eq!(overlay.validate(), Err(OverlayError));
+        }
+        assert_eq!(enhance_target("LONGSWORD_LVL1#12"), Some(("LONGSWORD_LVL1", 12)));
     }
 
     #[test]

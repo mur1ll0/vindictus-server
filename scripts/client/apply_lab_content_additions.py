@@ -70,6 +70,10 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
         plan = {'mode': 'apply' if apply_changes else 'dry-run', 'database': str(database),
                 'shop_rows_missing': len(missing_rows(db, rows)), 'shop_rows': len(rows),
                 'edits_version': edits.get('version', 0), 'changed': current != target}
+        if apply_changes:
+            # B4.5 tuning cells; already-applied values change nothing.
+            with db:
+                plan['tuning_cells'] = content_edits.apply_client_tuning(db, edits)
         if apply_changes and current != target:
             if not backup.exists():
                 with closing(sqlite3.connect(backup)) as copy:

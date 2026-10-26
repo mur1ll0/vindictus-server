@@ -1644,6 +1644,37 @@
           }
         }
       }
+    },
+    "/api/tuning": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "The tunable game values as loaded (B4.5): FeatureMatrix rates, quest drop counts,\nEnhance and Enchant success ratios.",
+        "operationId": "tuning",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuningView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2531,8 +2562,192 @@
                 "format": "int64"
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "B4.5: a FeatureMatrix rate in percent (ExpRate_Combat, GoldRate_Story, ...).",
+            "required": [
+              "key",
+              "value",
+              "kind"
+            ],
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "feature"
+                ]
+              },
+              "value": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "QuestInfo DropItemCountMin/Max: how many common monsters of a stage carry a drop.",
+            "required": [
+              "quest",
+              "min",
+              "max",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "quest_drop"
+                ]
+              },
+              "max": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "min": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "quest": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "EnhanceServerInfo SuccessRatio (0–1) of a type and level.",
+            "required": [
+              "enhance_type",
+              "level",
+              "ratio",
+              "kind"
+            ],
+            "properties": {
+              "enhance_type": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "enhance_ratio"
+                ]
+              },
+              "level": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "ratio": {
+                "type": "number",
+                "format": "float"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "EnchantInfo Min/MaxSuccessRatio (percent) of an enchant.",
+            "required": [
+              "class",
+              "min",
+              "max",
+              "kind"
+            ],
+            "properties": {
+              "class": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "enchant_ratio"
+                ]
+              },
+              "max": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "min": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
           }
         ]
+      },
+      "EnchantRatioView": {
+        "type": "object",
+        "required": [
+          "class",
+          "prefix",
+          "rank",
+          "min",
+          "max"
+        ],
+        "properties": {
+          "class": {
+            "type": "string"
+          },
+          "max": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "min": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prefix": {
+            "type": "boolean"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EnhanceRatioView": {
+        "type": "object",
+        "required": [
+          "enhance_type",
+          "level",
+          "ratio"
+        ],
+        "properties": {
+          "enhance_type": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ratio": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "FeatureView": {
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
       },
       "InventorySort": {
         "type": "object",
@@ -3094,6 +3309,33 @@
           }
         }
       },
+      "QuestDropView": {
+        "type": "object",
+        "required": [
+          "quest",
+          "min",
+          "max"
+        ],
+        "properties": {
+          "max": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "min": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "quest": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Reasoned": {
         "type": "object",
         "required": [
@@ -3390,6 +3632,42 @@
           "value": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "TuningView": {
+        "type": "object",
+        "description": "The tunable values the game loaded (published versions included).",
+        "required": [
+          "features",
+          "quests",
+          "enhance",
+          "enchants"
+        ],
+        "properties": {
+          "enchants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnchantRatioView"
+            }
+          },
+          "enhance": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnhanceRatioView"
+            }
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureView"
+            }
+          },
+          "quests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestDropView"
+            }
           }
         }
       }

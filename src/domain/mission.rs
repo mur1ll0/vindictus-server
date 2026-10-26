@@ -1319,6 +1319,23 @@ impl MissionContents {
     }
 
     /// Quests with a normal sector sequence builder.
+    /// QuestInfo DropItemCountMin/Max of each quest, for the panel.
+    pub fn drop_counts(&self) -> impl Iterator<Item = (&str, i32, i32)> {
+        self.quests
+            .iter()
+            .map(|(id, e)| (id.as_str(), e.row.3, e.row.4))
+    }
+    /// A panel tuning (B4.5): DropItemCountMin/Max of an existing quest.
+    pub fn set_drop_counts(&mut self, quest: &str, min: i32, max: i32) -> bool {
+        match self.quests.get_mut(quest) {
+            Some(e) => {
+                e.row.3 = min;
+                e.row.4 = max;
+                true
+            }
+            None => false,
+        }
+    }
     pub fn quest_ids(&self) -> impl Iterator<Item = &str> {
         self.builders.keys().map(String::as_str)
     }
