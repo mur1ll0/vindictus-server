@@ -38,6 +38,7 @@ pub struct AdminState {
     auth: PanelAuth,
     secure_cookie: bool,
     names: std::sync::Arc<crate::infrastructure::admin_characters::EnglishNames>,
+    assets: Option<std::sync::Arc<crate::infrastructure::minimum_assets::Assets>>,
 }
 
 impl AdminState {
@@ -47,9 +48,18 @@ impl AdminState {
             auth,
             secure_cookie,
             names: std::sync::Arc::default(),
+            assets: None,
         }
     }
     /// English item/skill/status names (scripts/content/export_item_names.py).
+    /// The game's item content, needed to give and remove items.
+    pub fn with_assets(
+        mut self,
+        assets: std::sync::Arc<crate::infrastructure::minimum_assets::Assets>,
+    ) -> Self {
+        self.assets = Some(assets);
+        self
+    }
     pub fn with_names(
         mut self,
         names: crate::infrastructure::admin_characters::EnglishNames,
@@ -80,7 +90,10 @@ impl AdminState {
         accounts::set_status,
         characters::of_account,
         characters::mine,
-        characters::sheet
+        characters::sheet,
+        characters::change_item,
+        characters::adjust_cash,
+        characters::catalog
     ),
     components(schemas(
         LoginRequest,
@@ -100,7 +113,11 @@ impl AdminState {
         crate::infrastructure::admin_characters::ItemAttribute,
         crate::infrastructure::admin_characters::CharacterSkill,
         crate::infrastructure::admin_characters::CharacterStatusEffect,
-        crate::infrastructure::admin_characters::CharacterTitle
+        crate::infrastructure::admin_characters::CharacterTitle,
+        crate::application::admin_character_edits::ChangeResult,
+        characters::ItemChange,
+        characters::CashChange,
+        crate::infrastructure::admin_characters::CatalogItem
     ))
 )]
 pub struct ApiDoc;
@@ -139,6 +156,9 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         )
         .route("/api/me/characters", get(characters::mine))
         .route("/api/characters/{cid}", get(characters::sheet))
+        .route("/api/characters/{cid}/items", post(characters::change_item))
+        .route("/api/characters/{cid}/cash", post(characters::adjust_cash))
+        .route("/api/items", get(characters::catalog))
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-store"),
@@ -252,6 +272,29 @@ impl IntoResponse for Refusal {
                     "operacao_repetida",
                     "Esta operação já foi aplicada.",
                 ),
+                AdminError::Online => (
+                    StatusCode::CONFLICT,
+                    "precisa_estar_offline",
+                    "O personagem está no jogo. Saia do jogo (ou desconecte) e tente de novo.",
+                ),
+                AdminError::ItemRefused(name) => {
+                    (StatusCode::CONFLICT, "item_recusado", item_refusal(&name))
+                }
+                AdminError::NotEditable => (
+                    StatusCode::BAD_REQUEST,
+                    "fora_do_perfil",
+                    "Item inválido, ou personagem fora do perfil editável (Fiona de laboratório inicializada).",
+                ),
+                AdminError::ContentUnavailable => (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "conteudo_indisponivel",
+                    "O conteúdo de itens do servidor não está carregado.",
+                ),
+                AdminError::NotEnough => (
+                    StatusCode::CONFLICT,
+                    "saldo_insuficiente",
+                    "Saldo insuficiente para o débito.",
+                ),
                 AdminError::LastAdmin => (
                     StatusCode::CONFLICT,
                     "ultimo_admin",
@@ -268,6 +311,21 @@ impl IntoResponse for Refusal {
             },
         };
         (status, Json(ApiError { code, message })).into_response()
+    }
+}
+
+/// The game's GiveItem/DestroyItem failure names (GiveError) as panel messages.
+fn item_refusal(name: &str) -> &'static str {
+    match name {
+        "InvalidItemClass" => "Classe de item inexistente no conteúdo do servidor.",
+        "DestroyItemFail_NotEnoughItem" => "O personagem não tem essa quantidade do item.",
+        "DestroyItemFail_InvalidRequest" => "Pedido de item inválido.",
+        "GiveItemFail_ExceedBundleCount" => "A quantidade passa do limite de pilhas do inventário.",
+        "GiveItemFail_UniqueConstraint" => "Item único: o personagem já tem um.",
+        "GiveItemFail_NoEmptySlot" => "Sem espaço livre no inventário.",
+        _ => {
+            "Pedido fora do que o servidor já migrou (por exemplo, item com atributos ou que expira)."
+        }
     }
 }
 

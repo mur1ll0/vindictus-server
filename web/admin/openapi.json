@@ -515,6 +515,203 @@
         }
       }
     },
+    "/api/characters/{cid}/cash": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Credit or debit the cash balance of the character's account.",
+        "operationId": "adjust_cash",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/characters/{cid}/items": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Give or remove items (gold included) with the game's item rules; the character must be\noffline.",
+        "operationId": "change_item",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Item catalog with the client's English names (staff).",
+        "operationId": "catalog",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "2–64 characters of the class or the English name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogItem"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [],
@@ -946,6 +1143,67 @@
           }
         }
       },
+      "CashChange": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "delta"
+        ],
+        "properties": {
+          "delta": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Positive credits, negative debits; never below zero."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogItem": {
+        "type": "object",
+        "required": [
+          "class",
+          "name"
+        ],
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "Item class as the game writes it (lower case)."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ChangeResult": {
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "properties": {
+          "after": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "before": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "CharacterItem": {
         "type": "object",
         "required": [
@@ -1030,6 +1288,7 @@
           "summary",
           "owner",
           "gold",
+          "cash",
           "stats",
           "items",
           "skills",
@@ -1037,6 +1296,11 @@
           "titles"
         ],
         "properties": {
+          "cash": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cash balance of the owner's account (what the cash shop reads)."
+          },
           "gold": {
             "type": "integer",
             "format": "int64"
@@ -1287,6 +1551,13 @@
           }
         }
       },
+      "ItemAction": {
+        "type": "string",
+        "enum": [
+          "give",
+          "remove"
+        ]
+      },
       "ItemAttribute": {
         "type": "object",
         "required": [
@@ -1308,6 +1579,37 @@
             "type": "string"
           },
           "value": {
+            "type": "string"
+          }
+        }
+      },
+      "ItemChange": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "item",
+          "count",
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ItemAction"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 to 1 000 000 000."
+          },
+          "item": {
+            "type": "string",
+            "description": "give: an ItemClassEx (`gold`, `longsword[ENHANCE:6]`); remove: a plain class."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
             "type": "string"
           }
         }

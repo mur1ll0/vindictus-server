@@ -122,6 +122,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{cid}/cash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Credit or debit the cash balance of the character's account. */
+        post: operations["adjust_cash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{cid}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Give or remove items (gold included) with the game's item rules; the character must be
+         *     offline.
+         */
+        post: operations["change_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Item catalog with the client's English names (staff). */
+        get: operations["catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -291,6 +345,28 @@ export interface components {
             target_id?: string | null;
             target_kind?: string | null;
         };
+        CashChange: {
+            /**
+             * Format: int32
+             * @description Positive credits, negative debits; never below zero.
+             */
+            delta: number;
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
+        };
+        CatalogItem: {
+            /** @description Item class as the game writes it (lower case). */
+            class: string;
+            description?: string | null;
+            name: string;
+        };
+        ChangeResult: {
+            /** Format: int64 */
+            after: number;
+            /** Format: int64 */
+            before: number;
+        };
         CharacterItem: {
             attributes: components["schemas"]["ItemAttribute"][];
             class: string;
@@ -322,6 +398,11 @@ export interface components {
             tradable: boolean;
         };
         CharacterSheet: {
+            /**
+             * Format: int64
+             * @description Cash balance of the owner's account (what the cash shop reads).
+             */
+            cash: number;
             /** Format: int64 */
             gold: number;
             items: components["schemas"]["CharacterItem"][];
@@ -417,6 +498,8 @@ export interface components {
             /** @description 3–24 letters, digits or underscore (fits the game's account name). */
             username: string;
         };
+        /** @enum {string} */
+        ItemAction: "give" | "remove";
         ItemAttribute: {
             /** Format: int32 */
             arg: number;
@@ -424,6 +507,19 @@ export interface components {
             arg2: number;
             name: string;
             value: string;
+        };
+        ItemChange: {
+            action: components["schemas"]["ItemAction"];
+            /**
+             * Format: int32
+             * @description 1 to 1 000 000 000.
+             */
+            count: number;
+            /** @description give: an ItemClassEx (`gold`, `longsword[ENHANCE:6]`); remove: a plain class. */
+            item: string;
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
         };
         LoginRequest: {
             /** Format: password */
@@ -817,6 +913,142 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    adjust_cash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    change_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangeResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    catalog: {
+        parameters: {
+            query: {
+                /** @description 2–64 characters of the class or the English name. */
+                search: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItem"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

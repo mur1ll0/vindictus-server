@@ -164,6 +164,37 @@ async fn character_sheet_for_owner_and_staff_only() {
         Err(AdminError::NotFound)
     ));
 
+    // Changes (B4.3b): reading roles and players are refused; a GM passes the permission check
+    // (no item content loaded here), but not on a character whose account has a panel role.
+    use vindictus_server::application::admin_character_edits::{Change, change_item};
+    let edit = |session| Change {
+        session,
+        peer: None,
+        operation_id: uuid::Uuid::new_v4(),
+        reason: "teste",
+    };
+    for session in [&owner, &staff] {
+        assert!(matches!(
+            change_item(&pool, None, &edit(session), "9001", "gold", 1, true).await,
+            Err(AdminError::Forbidden)
+        ));
+    }
+    set_role_from_cli(&pool, "equipe", Some(PanelRole::Gm), "gm")
+        .await
+        .expect("gm");
+    let gm = login("equipe").await;
+    assert!(matches!(
+        change_item(&pool, None, &edit(&gm), "9001", "gold", 1, true).await,
+        Err(AdminError::ContentUnavailable)
+    ));
+    set_role_from_cli(&pool, "dono", Some(PanelRole::Leitura), "leitura")
+        .await
+        .expect("role");
+    assert!(matches!(
+        change_item(&pool, None, &edit(&gm), "9001", "gold", 1, true).await,
+        Err(AdminError::Forbidden)
+    ));
+
     pool.close().await;
     sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
         .execute(&admin_pool)

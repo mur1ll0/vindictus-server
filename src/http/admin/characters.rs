@@ -1,14 +1,21 @@
-//! Read-only character routes (B4.3a): an account's characters (staff), the session's own
-//! characters, and one character's sheet (staff, or the owner).
+//! Character routes: an account's characters (staff), the session's own characters, one
+//! character's sheet (staff, or the owner) (B4.3a); item, gold and cash changes and the item
+//! catalog (staff, B4.3b).
 use super::{AdminState, Authenticated, Refusal};
 use crate::{
-    application::admin_characters,
+    application::{
+        admin_character_edits::{self, Change, ChangeResult},
+        admin_characters,
+    },
     infrastructure::admin_characters::{CharacterSheet, CharacterSummary},
 };
 use axum::{
     Json,
     extract::{Path, State},
 };
+use serde::Deserialize;
+use utoipa::ToSchema;
+use uuid::Uuid;
 
 /// Characters of an account's game user (staff).
 #[utoipa::path(get, path = "/api/accounts/{username}/characters",
@@ -48,4 +55,108 @@ pub(super) async fn sheet(
     Ok(Json(
         admin_characters::sheet(state.auth.pool(), &state.names, &auth.session, &cid).await?,
     ))
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub(super) enum ItemAction {
+    Give,
+    Remove,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct ItemChange {
+    operation_id: Uuid,
+    reason: String,
+    /// give: an ItemClassEx (`gold`, `longsword[ENHANCE:6]`); remove: a plain class.
+    item: String,
+    /// 1 to 1 000 000 000.
+    count: i32,
+    action: ItemAction,
+}
+
+/// Give or remove items (gold included) with the game's item rules; the character must be
+/// offline.
+#[utoipa::path(post, path = "/api/characters/{cid}/items", params(("cid" = String, Path)),
+    request_body = ItemChange,
+    responses((status = 200, body = ChangeResult), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn change_item(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+    Json(body): Json<ItemChange>,
+) -> Result<Json<ChangeResult>, Refusal> {
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+        reason: &body.reason,
+    };
+    Ok(Json(
+        admin_character_edits::change_item(
+            state.auth.pool(),
+            state.assets.as_deref(),
+            &change,
+            &cid,
+            &body.item,
+            body.count,
+            matches!(body.action, ItemAction::Give),
+        )
+        .await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct CashChange {
+    operation_id: Uuid,
+    reason: String,
+    /// Positive credits, negative debits; never below zero.
+    delta: i32,
+}
+
+/// Credit or debit the cash balance of the character's account.
+#[utoipa::path(post, path = "/api/characters/{cid}/cash", params(("cid" = String, Path)),
+    request_body = CashChange,
+    responses((status = 200, body = ChangeResult), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn adjust_cash(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+    Json(body): Json<CashChange>,
+) -> Result<Json<ChangeResult>, Refusal> {
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+        reason: &body.reason,
+    };
+    Ok(Json(
+        admin_character_edits::adjust_cash(state.auth.pool(), &change, &cid, body.delta).await?,
+    ))
+}
+
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct CatalogQuery {
+    /// 2–64 characters of the class or the English name.
+    search: String,
+}
+
+/// Item catalog with the client's English names (staff).
+#[utoipa::path(get, path = "/api/items", params(CatalogQuery),
+    responses((status = 200, body = Vec<crate::infrastructure::admin_characters::CatalogItem>),
+              (status = 400, body = super::ApiError), (status = 403, body = super::ApiError)))]
+pub(super) async fn catalog(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    axum::extract::Query(query): axum::extract::Query<CatalogQuery>,
+) -> Result<Json<Vec<crate::infrastructure::admin_characters::CatalogItem>>, Refusal> {
+    auth.require(crate::domain::admin::Permission::Read)?;
+    let term = query.search.trim();
+    if !(2..=64).contains(&term.chars().count()) {
+        return Err(crate::application::admin_session::AdminError::InvalidInput.into());
+    }
+    Ok(Json(state.names.search_items(term, 50)))
 }

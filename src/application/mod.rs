@@ -1,6 +1,7 @@
 //! Application use cases coordinating domain rules and persistence.
 pub mod accounts;
 pub mod admin_accounts;
+pub mod admin_character_edits;
 pub mod admin_characters;
 pub mod admin_session;
 

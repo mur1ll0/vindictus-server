@@ -650,3 +650,151 @@ impl Applied {
         }
     }
 }
+
+async fn held_count(
+    tx: &mut Transaction<'_, Postgres>,
+    cid: i64,
+    key: &[u8],
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT COALESCE(SUM(count),0)::BIGINT FROM game_items WHERE owner_id=$1 AND item_class_utf16=$2",
+    )
+    .bind(cid)
+    .bind(key)
+    .fetch_one(&mut **tx)
+    .await
+}
+
+/// Admin panel item change (B4.3b): GiveItem(ItemClassEx, num) or ItemOwner.DestroyItem(class,
+/// num) through the same planner as the game, for an offline initialized character.
+#[derive(Clone, Copy, Debug)]
+pub enum PanelItemChange<'a> {
+    Give(&'a str),
+    Destroy(&'a str),
+}
+
+#[derive(Debug)]
+pub enum PanelItemOutcome {
+    /// Held count of the class before and after.
+    Applied {
+        before: i64,
+        after: i64,
+    },
+    Refused(GiveError),
+    /// The character is in a live session: its inventory belongs to the connection.
+    Online,
+    /// The audit's operation id was already used: nothing applied.
+    Repeated,
+}
+
+/// The panel's audit row is written in the same transaction, with the held count of the
+/// class before and after, so a change and its audit commit together.
+pub async fn panel_change(
+    pool: &sqlx::PgPool,
+    assets: &Assets,
+    cid: i64,
+    change: PanelItemChange<'_>,
+    count: i32,
+    service_id: i32,
+    mut audit: super::admin_store::AuditRecord<'_>,
+) -> Result<PanelItemOutcome, MinimumError> {
+    let text = match change {
+        PanelItemChange::Give(t) | PanelItemChange::Destroy(t) => t,
+    };
+    if text.is_empty() || text.len() > 512 || !text.is_ascii() || !(1..=i32::MAX).contains(&count) {
+        return Err(MinimumError::Conflict);
+    }
+    // DestroyItem(class, num) takes a plain class; GiveItem an ItemClassEx.
+    let (class, attributes) =
+        item_attribute::parse_class_ex(text).map_err(|_| MinimumError::Conflict)?;
+    let destroy = matches!(change, PanelItemChange::Destroy(_));
+    if class.is_empty() || class.len() > 50 || (destroy && class != text) {
+        return Err(MinimumError::Conflict);
+    }
+    let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let user: Option<(i32, String, i64)> = sqlx::query_as(
+        "SELECT u.id,u.name,u.local_revision FROM game_character_info c JOIN game_users u ON u.id=c.uid WHERE c.id=$1",
+    )
+    .bind(cid)
+    .fetch_optional(pool)
+    .await?;
+    let (uid, name, revision) = user.ok_or(MinimumError::Conflict)?;
+    let owner = UserKey {
+        uid,
+        name: &name,
+        revision,
+    };
+    let flags = super::minimum_item_logs::flags(assets)?;
+    let journal = match change {
+        PanelItemChange::Give(_) => super::minimum_item_logs::operation_journal(pool, flags).await,
+        PanelItemChange::Destroy(_) => {
+            super::minimum_item_logs::destroy_item_journal(pool, flags).await
+        }
+    };
+    let mut authority = crate::application::character_creation::EntityAuthority::new(service_id);
+    let mut ids = move || {
+        let now = super::lab_clock::utc_now().map_err(|_| MinimumError::Conflict)?;
+        authority
+            .allocate(now)
+            .map(|a| a.entity_time.ticks())
+            .map_err(|_| MinimumError::Conflict)
+    };
+    let mut tx = super::fiona_character_state::owned_first_fiona(pool, &owner, cid).await?;
+    let connected: bool =
+        sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut *tx)
+            .await?;
+    if connected {
+        return Ok(PanelItemOutcome::Online);
+    }
+    let before = held_count(&mut tx, cid, &key).await?;
+    let request = [Request {
+        class: &key,
+        count,
+        bound: false,
+        equipment: None,
+        attributes: &attributes,
+    }];
+    let (destroys, gives): (&[Request<'_>], &[Request<'_>]) = match change {
+        PanelItemChange::Give(_) => (&[], &request),
+        PanelItemChange::Destroy(_) => (&request, &[]),
+    };
+    let applied = match apply(&mut tx, &owner, assets, cid, destroys, gives, &mut ids).await? {
+        Ok(applied) => applied,
+        Err(e) => return Ok(PanelItemOutcome::Refused(e)),
+    };
+    let after = held_count(&mut tx, cid, &key).await?;
+    audit.before = Some(serde_json::json!({ "item": text, "count": before }).to_string());
+    audit.after = Some(serde_json::json!({ "item": text, "count": after }).to_string());
+    match super::admin_store::insert_audit(&mut tx, &audit).await {
+        Ok(()) => {}
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            return Ok(PanelItemOutcome::Repeated);
+        }
+        Err(e) => return Err(e.into()),
+    }
+    tx.commit().await?;
+    let context = super::minimum_item_logs::Context {
+        flags,
+        civil_offset_seconds: 0,
+    };
+    match change {
+        PanelItemChange::Give(_) => {
+            super::minimum_item_logs::write_give(
+                pool,
+                cid,
+                journal,
+                super::minimum_item_logs::LAB_GRANT,
+                &applied,
+                context,
+            )
+            .await;
+        }
+        PanelItemChange::Destroy(_) => {
+            super::minimum_item_logs::write_destroy_ledger(pool, cid, journal, &key, count, flags)
+                .await;
+        }
+    }
+    Ok(PanelItemOutcome::Applied { before, after })
+}

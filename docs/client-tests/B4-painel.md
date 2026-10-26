@@ -40,5 +40,17 @@ Pré-condição: containers recompilados com `item-names.json` exportado (`py -3
 - [ ] Como `teste_b4` (sem papel): Minha conta → "Meus personagens" mostra só os dele; abrir no navegador `http://127.0.0.1:27090/personagens/<CID da Murael>` → "Não encontrado".
 Limites conhecidos: somente leitura (dar/remover itens é o B4.3b); títulos aparecem pelo ID; nomes coreanos não traduzidos no cliente EU aparecem pela classe.
 
+### B4.3b — Dar e remover itens, ouro e cash pelo painel
+Pré-condição: containers recompilados depois de 26/10/2026; a Murael **fora do jogo** (no lobby ou com o cliente fechado) para itens e ouro.
+- [ ] Como `admin`, ficha da Murael → Ouro → Dar 10000 com motivo → o ouro do cabeçalho sobe 10.000; Auditoria mostra "Item dado ao personagem" com antes → depois.
+- [ ] Dar item → buscar "elixir" (ou outro nome) no catálogo, escolher, quantidade 2, motivo → aparece no inventário da ficha.
+- [ ] Dar item com atributo, digitando `enchant_scroll[PREFIX:bitter]` → aparece com o crachá "1 atributo(s)".
+- [ ] Abrir um item no inventário → Remover → quantidade 1 → some (ou diminui) na ficha.
+- [ ] Ouro → Remover mais do que existe → "O personagem não tem essa quantidade do item."; nada muda.
+- [ ] Entrar no jogo com `admin` e conferir o ouro, o elixir e o pergaminho no inventário; com a Murael dentro do jogo, tentar dar ouro no painel → "O personagem está no jogo…".
+- [ ] Cash → Creditar 1000 (pode ser com a Murael no jogo) → abrir o Depot no jogo → saldo maior; Debitar mais do que o saldo → "Saldo insuficiente".
+- [ ] Como `teste_b4` (sem papel): a ficha dos próprios personagens não mostra os botões Dar item/Ouro/Cash/Remover.
+Limites conhecidos: itens e ouro só com o personagem fora do jogo; remover tira a quantidade da classe na ordem do jogo (DestroyItem), não um item escolhido; itens com atributos ou que expiram podem ser recusados na remoção; só Fiona de laboratório inicializada é editável; mover itens entre bolsas ainda não existe.
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

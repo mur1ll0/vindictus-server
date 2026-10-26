@@ -141,6 +141,8 @@ pub struct CharacterSheet {
     /// Login (game account name) of the owner.
     pub owner: String,
     pub gold: i64,
+    /// Cash balance of the owner's account (what the cash shop reads).
+    pub cash: i64,
     pub stats: CharacterStats,
     pub items: Vec<CharacterItem>,
     pub skills: Vec<CharacterSkill>,
@@ -288,6 +290,12 @@ pub async fn sheet(
     .bind(MAX_ROWS)
     .fetch_all(&mut *tx)
     .await?;
+    let cash: Option<i32> = sqlx::query_scalar(
+        "SELECT b.balance FROM game_cash_balances b JOIN game_character_info c ON c.uid = b.uid WHERE c.id = $1",
+    )
+    .bind(cid)
+    .fetch_optional(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let ascii = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
@@ -332,6 +340,7 @@ pub async fn sheet(
         summary: summary(row),
         owner,
         gold,
+        cash: cash.map_or(0, i64::from),
         stats: CharacterStats {
             str,
             dex,
@@ -377,4 +386,60 @@ pub async fn sheet(
             })
             .collect(),
     }))
+}
+
+/// Who owns a character: its game user and the account entering that game user, if any.
+pub struct CharacterOwner {
+    pub uid: i32,
+    pub account_id: Option<uuid::Uuid>,
+    pub account_role: Option<crate::domain::admin::PanelRole>,
+}
+
+pub async fn owner(pool: &PgPool, cid: i64) -> Result<Option<CharacterOwner>, sqlx::Error> {
+    let row: Option<(i32, Option<uuid::Uuid>, Option<String>)> = sqlx::query_as(
+        "SELECT c.uid, a.id, a.panel_role
+         FROM game_character_info c JOIN game_users u ON u.id = c.uid
+         LEFT JOIN accounts a ON lower(COALESCE(a.game_name, a.username)) = u.name_key
+         WHERE c.id = $1",
+    )
+    .bind(cid)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|(uid, account_id, role)| CharacterOwner {
+        uid,
+        account_id,
+        account_role: role
+            .as_deref()
+            .and_then(crate::domain::admin::PanelRole::parse),
+    }))
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct CatalogItem {
+    /// Item class as the game writes it (lower case).
+    pub class: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+impl EnglishNames {
+    /// Items whose class or English name contains `term` (case-insensitive), by name.
+    pub fn search_items(&self, term: &str, limit: usize) -> Vec<CatalogItem> {
+        let term = term.to_lowercase();
+        let mut found: Vec<CatalogItem> = self
+            .items
+            .iter()
+            .filter(|(class, (name, _))| {
+                class.to_lowercase().contains(&term) || name.to_lowercase().contains(&term)
+            })
+            .map(|(class, (name, description))| CatalogItem {
+                class: class.to_lowercase(),
+                name: name.clone(),
+                description: description.clone(),
+            })
+            .collect();
+        found.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.class.cmp(&b.class)));
+        found.truncate(limit);
+        found
+    }
 }

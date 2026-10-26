@@ -66,6 +66,20 @@ pub enum AdminError {
     Exists,
     #[error("operation already applied")]
     RepeatedOperation,
+    /// The character is in a live game session; the change needs it offline.
+    #[error("character is online")]
+    Online,
+    /// The game's item rules refused the change (GiveItem/DestroyItem failure name).
+    #[error("item change refused: {0}")]
+    ItemRefused(String),
+    /// Not an initialized laboratory Fiona, or an item outside the migrated profile.
+    #[error("character or item outside the editable profile")]
+    NotEditable,
+    /// Item changes need the game's content (laboratory frontend with its minimum assets).
+    #[error("item content not loaded")]
+    ContentUnavailable,
+    #[error("not enough balance")]
+    NotEnough,
     #[error("panel storage unavailable")]
     Unavailable(#[from] sqlx::Error),
 }

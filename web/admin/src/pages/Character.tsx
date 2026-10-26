@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { ArrowLeft, Clock, Coins, Search, Shirt, Sparkles } from 'lucide-react';
+import { ArrowLeft, Clock, Coins, Gem, PackagePlus, Search, Shirt, Sparkles, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
   type CharacterItem,
@@ -11,7 +11,10 @@ import {
   collectionOrder,
   gold,
 } from '@/api/characters';
+import { sessionQuery } from '@/api/session';
 import { Avatar } from '@/components/Avatar';
+import { CashModal, GiveItemModal, GoldModal, RemoveItemForm } from '@/components/CharacterEdits';
+import { Button } from '@/components/ui/button';
 import { errorText } from '@/components/forms';
 import { Modal } from '@/components/Modal';
 import { Stat } from '@/components/Stat';
@@ -69,9 +72,33 @@ function ItemCard({ item, onOpen }: { item: CharacterItem; onOpen: () => void })
   );
 }
 
-function ItemModal({ item, onClose }: { item: CharacterItem; onClose: () => void }) {
+function ItemModal({
+  item,
+  cid,
+  canManage,
+  onClose,
+  onChanged,
+}: {
+  item: CharacterItem;
+  cid: string;
+  canManage: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [removing, setRemoving] = useState(false);
   return (
     <Modal open title={item.name ?? item.class} subtitle={item.class} onClose={onClose}>
+      {removing ? (
+        <RemoveItemForm
+          cid={cid}
+          item={item}
+          onCancel={() => setRemoving(false)}
+          onDone={() => {
+            onChanged();
+            onClose();
+          }}
+        />
+      ) : (
       <div className="space-y-4">
         {item.description && <p className="text-sm whitespace-pre-line text-muted">{item.description}</p>}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -89,12 +116,18 @@ function ItemModal({ item, onClose }: { item: CharacterItem; onClose: () => void
           </div>
         )}
         <p className="text-xs text-muted">ID do item: {item.id}</p>
+        {canManage && (
+          <Button variant="danger" onClick={() => setRemoving(true)}>
+            <Trash2 /> Remover
+          </Button>
+        )}
       </div>
+      )}
     </Modal>
   );
 }
 
-function Inventory({ sheet }: { sheet: CharacterSheet }) {
+function Inventory({ sheet, canManage, onChanged }: { sheet: CharacterSheet; canManage: boolean; onChanged: () => void }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<CharacterItem | null>(null);
   const groups = useMemo(() => {
@@ -131,7 +164,15 @@ function Inventory({ sheet }: { sheet: CharacterSheet }) {
         </section>
       ))}
       {groups.length === 0 && <p className="text-sm text-muted">Nenhum item.</p>}
-      {open && <ItemModal item={open} onClose={() => setOpen(null)} />}
+      {open && (
+        <ItemModal
+          item={open}
+          cid={sheet.summary.cid}
+          canManage={canManage}
+          onClose={() => setOpen(null)}
+          onChanged={onChanged}
+        />
+      )}
     </div>
   );
 }
@@ -157,6 +198,15 @@ export function CharacterPage() {
   const { cid } = useParams({ strict: false }) as { cid: string };
   const query = useQuery({ queryKey: ['character', cid], queryFn: () => characterSheet(cid) });
   const [tab, setTab] = useState<Tab>('items');
+  const [edit, setEdit] = useState<'item' | 'gold' | 'cash' | null>(null);
+  const queryClient = useQueryClient();
+  const { data: session } = useQuery(sessionQuery);
+  const canManage = session?.role === 'admin' || session?.role === 'gm';
+  const changed = () => {
+    void queryClient.invalidateQueries({ queryKey: ['character', cid] });
+    void queryClient.invalidateQueries({ queryKey: ['audit'] });
+    setEdit(null);
+  };
   const sheet = query.data;
   if (!sheet) return <p className="text-sm text-muted">{query.error ? errorText(query.error) : 'Carregando…'}</p>;
   const s = sheet.summary;
@@ -180,11 +230,30 @@ export function CharacterPage() {
               {className(s.class)} · nível {s.level} · conta de jogo {sheet.owner}
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-lg bg-accent-soft px-3 py-2 font-semibold">
+          <div className="flex items-center gap-2 rounded-lg bg-accent-soft px-3 py-2 font-semibold" title="Ouro">
             <Coins className="size-4 text-accent" /> {gold(sheet.gold)}
+          </div>
+          <div className="flex items-center gap-2 rounded-lg bg-raised px-3 py-2 font-semibold" title="Cash da conta">
+            <Gem className="size-4 text-muted" /> {gold(sheet.cash)}
           </div>
           {s.connected ? <Badge tone="ok">online</Badge> : <Badge>offline</Badge>}
         </div>
+        {canManage && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setEdit('item')}>
+              <PackagePlus /> Dar item
+            </Button>
+            <Button variant="outline" onClick={() => setEdit('gold')}>
+              <Coins /> Ouro
+            </Button>
+            <Button variant="outline" onClick={() => setEdit('cash')}>
+              <Gem /> Cash
+            </Button>
+            {s.connected && (
+              <span className="self-center text-sm text-danger">Online: itens e ouro só mudam com o personagem fora do jogo.</span>
+            )}
+          </div>
+        )}
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
           <Stat label="EXP">{s.exp.toLocaleString('pt-BR')}</Stat>
           <Stat label="AP">{`${s.ap} (usados ${sheet.stats.total_used_ap})`}</Stat>
@@ -213,7 +282,10 @@ export function CharacterPage() {
           </button>
         ))}
       </div>
-      {tab === 'items' && <Inventory sheet={sheet} />}
+      {tab === 'items' && <Inventory sheet={sheet} canManage={canManage} onChanged={changed} />}
+      {edit === 'item' && <GiveItemModal cid={s.cid} onClose={() => setEdit(null)} onDone={changed} />}
+      {edit === 'gold' && <GoldModal cid={s.cid} current={sheet.gold} onClose={() => setEdit(null)} onDone={changed} />}
+      {edit === 'cash' && <CashModal cid={s.cid} current={sheet.cash} onClose={() => setEdit(null)} onDone={changed} />}
       {tab === 'skills' && (
         <SimpleList
           empty="Nenhuma skill."

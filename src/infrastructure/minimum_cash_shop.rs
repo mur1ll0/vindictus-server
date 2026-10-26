@@ -590,3 +590,63 @@ pub async fn secured_operation(
         DEFAULT_MAX_BODY,
     )
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum PanelCashOutcome {
+    Applied {
+        before: i64,
+        after: i64,
+    },
+    /// A debit larger than the balance.
+    NotEnough,
+    /// The audit's operation id was already used: nothing applied.
+    Repeated,
+}
+
+/// Admin panel (B4.3b): credit (`delta` > 0) or debit (`delta` < 0) the account balance the
+/// cash shop reads; never below zero. The audit row commits with the change. The balance is
+/// not held by a live session (the client asks for it when the shop opens).
+pub async fn panel_adjust(
+    pool: &PgPool,
+    uid: i32,
+    delta: i32,
+    mut audit: super::admin_store::AuditRecord<'_>,
+) -> Result<PanelCashOutcome, MinimumError> {
+    if delta == 0 {
+        return Err(fail());
+    }
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "INSERT INTO game_cash_balances(uid,balance) VALUES($1,0) ON CONFLICT(uid) DO NOTHING",
+    )
+    .bind(uid)
+    .execute(&mut *tx)
+    .await?;
+    let before: i32 =
+        sqlx::query_scalar("SELECT balance FROM game_cash_balances WHERE uid=$1 FOR UPDATE")
+            .bind(uid)
+            .fetch_one(&mut *tx)
+            .await?;
+    let Some(after) = before.checked_add(delta).filter(|v| *v >= 0) else {
+        return Ok(PanelCashOutcome::NotEnough);
+    };
+    sqlx::query("UPDATE game_cash_balances SET balance=$2 WHERE uid=$1")
+        .bind(uid)
+        .bind(after)
+        .execute(&mut *tx)
+        .await?;
+    audit.before = Some(serde_json::json!({ "cash": before }).to_string());
+    audit.after = Some(serde_json::json!({ "cash": after }).to_string());
+    match super::admin_store::insert_audit(&mut tx, &audit).await {
+        Ok(()) => {}
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            return Ok(PanelCashOutcome::Repeated);
+        }
+        Err(e) => return Err(e.into()),
+    }
+    tx.commit().await?;
+    Ok(PanelCashOutcome::Applied {
+        before: i64::from(before),
+        after: i64::from(after),
+    })
+}

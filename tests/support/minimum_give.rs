@@ -6944,3 +6944,124 @@ async fn minimum_hot_spring_potion_sets_the_channel_buff_and_gives_its_effect() 
     assert!(effect("hotspring_powder_honey").await.is_empty());
     cleanup_game_pool(a, p, s).await;
 }
+/// B4.3b: the panel's item and cash changes use the game's planner, keep the audit in the
+/// same transaction (a repeated operation id applies nothing) and refuse online characters.
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn panel_item_and_cash_changes_are_audited_once_and_refuse_online() {
+    use vindictus_server::{
+        domain::admin::AuditReason,
+        infrastructure::{
+            admin_store::AuditRecord,
+            minimum_cash_shop::{self, PanelCashOutcome},
+            minimum_give::{PanelItemChange, PanelItemOutcome},
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets(0);
+    let reason = AuditReason::parse("teste do painel").unwrap();
+    let record = |operation: u128, action: &'static str| AuditRecord {
+        account_id: None,
+        actor_name: None,
+        role: None,
+        operation_id: Some(uuid::Uuid::from_u128(operation)),
+        action,
+        target_kind: Some("character"),
+        target_id: Some("1"),
+        reason: Some(&reason),
+        before: None,
+        after: None,
+        refused: false,
+        peer: None,
+    };
+    let change = |kind, count, operation| {
+        let p = p.clone();
+        let assets = &assets;
+        let record = record(operation, "character.item_give");
+        async move {
+            minimum_give::panel_change(&p, assets, 1, kind, count, 65533, record)
+                .await
+                .unwrap()
+        }
+    };
+    let gold = || PanelItemChange::Give("synthetic_gold");
+    assert!(matches!(
+        change(gold(), 1000, 1).await,
+        PanelItemOutcome::Applied {
+            before: 0,
+            after: 1000
+        }
+    ));
+    // The same operation id again applies nothing.
+    assert!(matches!(
+        change(gold(), 1000, 1).await,
+        PanelItemOutcome::Repeated
+    ));
+    assert!(matches!(
+        change(PanelItemChange::Destroy("synthetic_gold"), 400, 2).await,
+        PanelItemOutcome::Applied {
+            before: 1000,
+            after: 600
+        }
+    ));
+    assert!(matches!(
+        change(PanelItemChange::Destroy("synthetic_gold"), 601, 3).await,
+        PanelItemOutcome::Refused(GiveError::NotEnoughItem)
+    ));
+    assert!(matches!(
+        change(PanelItemChange::Give("unknown_class"), 1, 4).await,
+        PanelItemOutcome::Refused(GiveError::InvalidItemClass)
+    ));
+    sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        change(gold(), 1, 5).await,
+        PanelItemOutcome::Online
+    ));
+    let audited: Vec<(String, String)> =
+        sqlx::query_as("SELECT before::text, after::text FROM admin_audit_events ORDER BY id")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(audited.len(), 2);
+    assert!(audited[1].0.contains("1000") && audited[1].1.contains("600"));
+
+    // Cash: credit, debit, never below zero, once per operation id.
+    let uid: i32 = sqlx::query_scalar("SELECT uid FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let cash = |delta, operation| {
+        let p = p.clone();
+        let record = record(operation, "character.cash");
+        async move {
+            minimum_cash_shop::panel_adjust(&p, uid, delta, record)
+                .await
+                .unwrap()
+        }
+    };
+    let start = match cash(500, 10).await {
+        PanelCashOutcome::Applied { before, after } => {
+            assert_eq!(after, before + 500);
+            before
+        }
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(cash(500, 10).await, PanelCashOutcome::Repeated);
+    assert_eq!(
+        cash(-(start as i32) - 501, 11).await,
+        PanelCashOutcome::NotEnough
+    );
+    assert_eq!(
+        cash(-200, 12).await,
+        PanelCashOutcome::Applied {
+            before: start + 500,
+            after: start + 300
+        }
+    );
+    cleanup_game_pool(a, p, s).await;
+}
