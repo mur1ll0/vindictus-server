@@ -1594,6 +1594,131 @@ async fn minimum_sort_compacts_a_bag_and_sort_all_fills_bags_in_order() {
     cleanup_game_pool(a, p, s).await;
 }
 
+/// B4.4d: the panel moves and sorts with MoveInventoryItem/SortInventory, only offline,
+/// audited once per operation and only when something changed.
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn panel_move_and_sort_offline_audited_once() {
+    use vindictus_server::{
+        domain::admin::AuditReason,
+        infrastructure::{
+            admin_store::AuditRecord,
+            minimum_move::{self, Outcome, PanelStop},
+            minimum_sort,
+        },
+        protocol::inventory::Move,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets_with(0, 1, 0);
+    minimum_give::lab_grant(&p, &assets, Some(1), "enchant_scroll", 3, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    let reason = AuditReason::parse("teste do painel").unwrap();
+    let record = |operation: u128, action: &'static str| AuditRecord {
+        account_id: None,
+        actor_name: None,
+        role: None,
+        operation_id: Some(uuid::Uuid::from_u128(operation)),
+        action,
+        target_kind: Some("character"),
+        target_id: Some("1"),
+        reason: Some(&reason),
+        before: None,
+        after: None,
+        refused: false,
+        peer: None,
+    };
+    let ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE owner_id=1 AND collection IN (0,1,6) ORDER BY id",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert!(ids.len() >= 2);
+    let place = |id: i64| {
+        let p = p.clone();
+        async move {
+            sqlx::query_as::<_, (i16, i32)>("SELECT collection,slot FROM game_items WHERE id=$1")
+                .bind(id)
+                .fetch_one(&p)
+                .await
+                .unwrap()
+        }
+    };
+    let to = |item_id, storage, slot| Move {
+        item_id,
+        storage,
+        slot,
+    };
+    let moving = record(1, "character.item_move");
+    assert!(matches!(
+        minimum_move::panel_move(&p, &assets, 1, to(ids[0], 0, 30), &moving).await,
+        Ok(Ok(Outcome::Applied(_)))
+    ));
+    assert_eq!(place(ids[0]).await, (0, 30));
+    // The same operation id again changes nothing.
+    assert!(matches!(
+        minimum_move::panel_move(&p, &assets, 1, to(ids[0], 0, 31), &moving).await,
+        Ok(Err(PanelStop::Repeated))
+    ));
+    assert_eq!(place(ids[0]).await, (0, 30));
+    // The game's refusals: an unavailable bag, a slot outside 0..48.
+    for r in [to(ids[0], 2, 0), to(ids[0], 0, 48)] {
+        assert!(matches!(
+            minimum_move::panel_move(&p, &assets, 1, r, &record(2, "character.item_move")).await,
+            Ok(Ok(Outcome::Refused(_)))
+        ));
+    }
+    // Sort all: the bag items fill bag 0 from slot 0; sorting again moves nothing.
+    let Ok(Ok(Some(moved))) =
+        minimum_sort::panel_sort(&p, &assets, 1, -1, &record(3, "character.inventory_sort")).await
+    else {
+        panic!("sort expected")
+    };
+    assert!(moved >= 1);
+    let mut slots = Vec::new();
+    for id in &ids {
+        slots.push(place(*id).await);
+    }
+    slots.sort();
+    assert_eq!(
+        slots,
+        (0..ids.len() as i32).map(|s| (0, s)).collect::<Vec<_>>()
+    );
+    assert!(matches!(
+        minimum_sort::panel_sort(&p, &assets, 1, -1, &record(4, "character.inventory_sort")).await,
+        Ok(Ok(Some(0)))
+    ));
+    sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        minimum_move::panel_move(
+            &p,
+            &assets,
+            1,
+            to(ids[0], 0, 40),
+            &record(5, "character.item_move")
+        )
+        .await,
+        Ok(Err(PanelStop::Online))
+    ));
+    assert!(matches!(
+        minimum_sort::panel_sort(&p, &assets, 1, -1, &record(6, "character.inventory_sort")).await,
+        Ok(Err(PanelStop::Online))
+    ));
+    let audited: i64 = sqlx::query_scalar("SELECT count(*) FROM admin_audit_events")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(audited, 2);
+    cleanup_game_pool(a, p, s).await;
+}
+
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
 async fn minimum_daily_items_give_vvip_items_once_per_range() {

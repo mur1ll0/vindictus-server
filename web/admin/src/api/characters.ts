@@ -37,6 +37,13 @@ export function collectionName(value: number) {
   return SPECIAL[value] ?? `Coleção ${value}`;
 }
 
+/** Bag collections hold 48 slots (StorageSetting.IsValid). */
+export const BAG_SLOTS = 48;
+
+export function isBag(value: number) {
+  return BAG_ORDER.includes(value);
+}
+
 export function collectionOrder(value: number) {
   const bag = BAG_ORDER.indexOf(value);
   return bag >= 0 ? bag : 100 + value;
@@ -60,6 +67,25 @@ export async function characterSheet(cid: string): Promise<CharacterSheet> {
   const { data, error, response } = await api.GET('/api/characters/{cid}', { params: { path: { cid } } });
   if (!data) fail(response, error);
   return data;
+}
+
+/** MoveInventoryItem with the game's SwapSlot; the character must be offline. */
+export async function moveItem(cid: string, item: string, storage: number, slot: number, operation_id: string, reason: string) {
+  const { error, response } = await api.POST('/api/characters/{cid}/inventory/move', {
+    params: { path: { cid } },
+    body: { operation_id, reason, item, storage, slot },
+  });
+  if (!response.ok) fail(response, error);
+}
+
+/** SortInventory: -1 every bag, one bag, 100 cash or 103 quest. */
+export async function sortInventory(cid: string, target: number, operation_id: string, reason: string) {
+  const { data, error, response } = await api.POST('/api/characters/{cid}/inventory/sort', {
+    params: { path: { cid } },
+    body: { operation_id, reason, target },
+  });
+  if (!data) fail(response, error);
+  return data.moved;
 }
 
 export function gold(value: number) {

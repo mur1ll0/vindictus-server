@@ -620,6 +620,141 @@
         }
       }
     },
+    "/api/characters/{cid}/inventory/move": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Move an item to a bag slot with the game's SwapSlot (swap or stack); character offline.",
+        "operationId": "move_item",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemMove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/characters/{cid}/inventory/sort": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Sort like the game's Sort button (SortInventory); character offline.",
+        "operationId": "sort_inventory",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventorySort"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sorted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/characters/{cid}/items": {
       "post": {
         "tags": [
@@ -2387,6 +2522,28 @@
           }
         ]
       },
+      "InventorySort": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "target"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "target": {
+            "type": "integer",
+            "format": "int32",
+            "description": "-1 every bag, 0–8 one bag, 100 cash, 103 quest."
+          }
+        }
+      },
       "ItemAction": {
         "type": "string",
         "enum": [
@@ -2447,6 +2604,40 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "ItemMove": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "item",
+          "storage",
+          "slot"
+        ],
+        "properties": {
+          "item": {
+            "type": "string",
+            "description": "Item ID (64-bit, as text)."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "slot": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Slot 0–47."
+          },
+          "storage": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Bag collection (0–8).",
+            "minimum": 0
           }
         }
       },
@@ -2971,6 +3162,19 @@
           },
           "shop_id": {
             "type": "string"
+          }
+        }
+      },
+      "Sorted": {
+        "type": "object",
+        "required": [
+          "moved"
+        ],
+        "properties": {
+          "moved": {
+            "type": "integer",
+            "description": "Items that changed place.",
+            "minimum": 0
           }
         }
       }

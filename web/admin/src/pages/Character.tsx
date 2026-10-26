@@ -1,15 +1,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { ArrowLeft, Clock, Coins, Gem, PackagePlus, Search, Shirt, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowLeft, Clock, Coins, Gem, PackagePlus, Search, Shirt, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
   type CharacterItem,
   type CharacterSheet,
   characterSheet,
   className,
+  BAG_SLOTS,
   collectionName,
   collectionOrder,
   gold,
+  isBag,
+  moveItem,
+  sortInventory,
 } from '@/api/characters';
 import { sessionQuery } from '@/api/session';
 import { Avatar } from '@/components/Avatar';
@@ -17,7 +21,7 @@ import { ItemIcon } from '@/components/ItemIcon';
 import { CashModal, GiveItemModal, GoldModal, RemoveItemForm } from '@/components/CharacterEdits';
 import { ProgressionModal, RemoveEffectModal } from '@/components/ProgressionEdits';
 import { Button } from '@/components/ui/button';
-import { errorText } from '@/components/forms';
+import { ActionForm, errorText } from '@/components/forms';
 import { Modal } from '@/components/Modal';
 import { Stat } from '@/components/Stat';
 import { Badge } from '@/components/ui/badge';
@@ -132,9 +136,127 @@ function ItemModal({
   );
 }
 
+const DRAG_REASON = 'Movido arrastando no painel';
+const SORTABLE = (c: number) => isBag(c) || c === 100 || c === 103;
+
+function SlotCell({
+  item,
+  slot,
+  draggable,
+  dropping,
+  onOpen,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+}: {
+  item?: CharacterItem;
+  slot: number;
+  draggable: boolean;
+  dropping: boolean;
+  onOpen: () => void;
+  onDragStart: () => void;
+  onDragOver: () => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+}) {
+  return (
+    <div
+      onDragOver={(e) => {
+        // A worn item keeps its bag slot; dropping there would swap it out of place.
+        if (!draggable || item?.equipped_part != null) return;
+        e.preventDefault();
+        onDragOver();
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => {
+        e.preventDefault();
+        if (item?.equipped_part == null) onDrop();
+      }}
+      className={cn(
+        'relative flex aspect-square items-center justify-center rounded-lg border border-border bg-raised/60',
+        dropping && 'border-accent bg-accent-soft',
+      )}
+    >
+      {item ? (
+        <button
+          type="button"
+          draggable={draggable && item.equipped_part == null}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', item.id);
+            onDragStart();
+          }}
+          onClick={onOpen}
+          title={`${item.name ?? item.class} · espaço ${slot}${item.count > 1 ? ` · ×${item.count}` : ''}`}
+          className={cn('flex size-full items-center justify-center rounded-lg hover:ring-2 hover:ring-accent/60', draggable && 'cursor-grab')}
+        >
+          <ItemIcon icon={item.icon} />
+          {item.count > 1 && (
+            <span className="absolute right-1 bottom-0.5 text-[11px] font-semibold text-fg [text-shadow:0_0_3px_var(--color-surface)]">
+              {item.count.toLocaleString('pt-BR')}
+            </span>
+          )}
+          {item.equipped_part != null && <Shirt className="absolute top-1 left-1 size-3 text-accent" />}
+        </button>
+      ) : (
+        <span className="text-[10px] text-muted/50">{slot}</span>
+      )}
+    </div>
+  );
+}
+
+function SortModal({ cid, current, onClose, onDone }: { cid: string; current: number | null; onClose: () => void; onDone: () => void }) {
+  const [target, setTarget] = useState(-1);
+  const [moved, setMoved] = useState<number | null>(null);
+  const options = [{ value: -1, label: 'Todas as bolsas' }];
+  if (current != null && SORTABLE(current)) options.push({ value: current, label: `Só ${collectionName(current)}` });
+  return (
+    <Modal
+      open
+      title="Organizar inventário"
+      subtitle="A mesma regra do botão Organizar do jogo. O personagem precisa estar fora do jogo."
+      icon={<ArrowDownWideNarrow className="size-5 text-muted" />}
+      onClose={onClose}
+    >
+      {moved == null ? (
+        <ActionForm
+          submitLabel="Organizar"
+          onCancel={onClose}
+          onDone={onDone}
+          onSubmit={async (op, reason) => setMoved(await sortInventory(cid, target, op, reason))}
+        >
+          <div role="radiogroup" className="grid gap-1 rounded-lg bg-raised p-1 text-sm">
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={target === o.value}
+                onClick={() => setTarget(o.value)}
+                className={cn('rounded-md py-1.5 text-muted', target === o.value && 'bg-surface font-medium text-fg shadow-sm')}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </ActionForm>
+      ) : (
+        <p className="text-sm">{moved} item(ns) mudaram de lugar.</p>
+      )}
+    </Modal>
+  );
+}
+
 function Inventory({ sheet, canManage, onChanged }: { sheet: CharacterSheet; canManage: boolean; onChanged: () => void }) {
+  const cid = sheet.summary.cid;
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<CharacterItem | null>(null);
+  const [sorting, setSorting] = useState(false);
+  const [dragged, setDragged] = useState<CharacterItem | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
   const tabs = useMemo(() => {
     const map = new Map<number, CharacterItem[]>();
     for (const item of sheet.items) map.set(item.collection, [...(map.get(item.collection) ?? []), item]);
@@ -148,22 +270,59 @@ function Inventory({ sheet, canManage, onChanged }: { sheet: CharacterSheet; can
   // While searching, stay on a tab that has matches.
   const firstMatch = tabs.find(([c]) => (counts.get(c) ?? 0) > 0)?.[0];
   const current = tab != null && (!term || (counts.get(tab) ?? 0) > 0) ? tab : (term ? firstMatch : tabs[0]?.[0]) ?? null;
-  const items = (tabs.find(([c]) => c === current)?.[1] ?? []).filter(matches);
+  const all = tabs.find(([c]) => c === current)?.[1] ?? [];
+  const items = all.filter(matches);
+  const grid = current != null && isBag(current) && !term;
+  const move = async (item: CharacterItem, storage: number, slot: number) => {
+    setOver(null);
+    setDragged(null);
+    if (item.collection === storage && item.slot === slot) return;
+    setBusy(true);
+    setMoveError(null);
+    try {
+      await moveItem(cid, item.id, storage, slot, crypto.randomUUID(), DRAG_REASON);
+      onChanged();
+    } catch (e) {
+      setMoveError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Dropped on another bag's tab: its first free slot.
+  const dropOnTab = (collection: number) => {
+    if (!dragged || !isBag(collection)) return;
+    const used = new Set((tabs.find(([c]) => c === collection)?.[1] ?? []).map((i) => i.slot));
+    const slot = Array.from({ length: BAG_SLOTS }, (_, n) => n).find((n) => !used.has(n));
+    if (slot == null) {
+      setMoveError(new Error(`${collectionName(collection)} está cheia.`));
+      return;
+    }
+    void move(dragged, collection, slot);
+  };
+  const bySlot = new Map(all.map((i) => [i.slot, i]));
   return (
     <div className="space-y-4">
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
-        <Input
-          aria-label="Buscar item em todas as abas"
-          placeholder="Buscar em todas as abas (nome ou classe)"
-          className="pl-9"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative max-w-sm min-w-0 flex-1">
+          <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
+          <Input
+            aria-label="Buscar item em todas as abas"
+            placeholder="Buscar em todas as abas (nome ou classe)"
+            className="pl-9"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
+        {canManage && (
+          <Button variant="outline" size="sm" onClick={() => setSorting(true)}>
+            <ArrowDownWideNarrow /> Organizar
+          </Button>
+        )}
       </div>
       <div role="tablist" className="flex flex-wrap gap-1 rounded-lg bg-raised p-1 text-sm">
-        {tabs.map(([c, all]) => {
+        {tabs.map(([c, list]) => {
           const n = counts.get(c) ?? 0;
+          const target = dragged != null && isBag(c) && c !== current;
           return (
             <button
               key={c}
@@ -171,14 +330,26 @@ function Inventory({ sheet, canManage, onChanged }: { sheet: CharacterSheet; can
               type="button"
               aria-selected={current === c}
               onClick={() => setTab(c)}
+              onDragOver={(e) => {
+                if (!target) return;
+                e.preventDefault();
+                setOver(`tab-${c}`);
+              }}
+              onDragLeave={() => setOver(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                dropOnTab(c);
+              }}
               className={cn(
                 'rounded-md px-3 py-1.5 text-muted',
                 current === c && 'bg-surface font-medium text-fg shadow-sm',
                 term && n === 0 && 'opacity-40',
                 term && n > 0 && current !== c && 'text-accent',
+                target && 'ring-1 ring-accent/50',
+                over === `tab-${c}` && 'bg-accent-soft text-accent',
               )}
             >
-              {collectionName(c)} <span className="text-xs">({term ? `${n}/${all.length}` : all.length})</span>
+              {collectionName(c)} <span className="text-xs">({term ? `${n}/${list.length}` : list.length})</span>
             </button>
           );
         })}
@@ -189,19 +360,60 @@ function Inventory({ sheet, canManage, onChanged }: { sheet: CharacterSheet; can
           {tabs.filter(([c]) => (counts.get(c) ?? 0) > 0).map(([c]) => collectionName(c)).join(', ') || 'nenhuma aba'}
         </p>
       )}
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {items.map((item) => (
-          <ItemCard key={item.id} item={item} onOpen={() => setOpen(item)} />
-        ))}
-      </div>
-      {items.length === 0 && <p className="text-sm text-muted">Nenhum item.</p>}
+      {canManage && grid && (
+        <p className="text-xs text-muted">
+          Arraste um item para outro espaço (troca de lugar ou junta a pilha, como no jogo) ou para a aba de outra bolsa. Só
+          com o personagem fora do jogo.
+        </p>
+      )}
+      {moveError != null && <p className="text-sm text-danger">{errorText(moveError)}</p>}
+      {grid ? (
+        <div className={cn('grid max-w-3xl grid-cols-6 gap-1.5 sm:grid-cols-8', busy && 'pointer-events-none opacity-60')}>
+          {Array.from({ length: BAG_SLOTS }, (_, slot) => (
+            <SlotCell
+              key={slot}
+              slot={slot}
+              item={bySlot.get(slot)}
+              draggable={canManage}
+              dropping={over === `slot-${slot}`}
+              onOpen={() => {
+                const item = bySlot.get(slot);
+                if (item) setOpen(item);
+              }}
+              onDragStart={() => setDragged(bySlot.get(slot) ?? null)}
+              onDragOver={() => setOver(`slot-${slot}`)}
+              onDragLeave={() => setOver(null)}
+              onDrop={() => {
+                if (dragged && current != null) void move(dragged, current, slot);
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <ItemCard key={item.id} item={item} onOpen={() => setOpen(item)} />
+          ))}
+        </div>
+      )}
+      {!grid && items.length === 0 && <p className="text-sm text-muted">Nenhum item.</p>}
       {open && (
         <ItemModal
           item={open}
-          cid={sheet.summary.cid}
+          cid={cid}
           canManage={canManage}
           onClose={() => setOpen(null)}
           onChanged={onChanged}
+        />
+      )}
+      {sorting && (
+        <SortModal
+          cid={cid}
+          current={current}
+          onClose={() => setSorting(false)}
+          onDone={() => {
+            onChanged();
+          }}
         />
       )}
     </div>

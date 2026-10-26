@@ -23,6 +23,62 @@ pub enum Outcome {
     Unchanged,
 }
 
+/// Why a panel change (B4.4d) did nothing.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PanelStop {
+    /// The character is in a live session: its inventory belongs to the connection.
+    Online,
+    /// The audit's operation id was already used.
+    Repeated,
+}
+
+/// The panel's entry: the character offline, the audit inserted in the same transaction.
+pub(super) async fn panel_gate(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    cid: i64,
+    panel: Option<&super::admin_store::AuditRecord<'_>>,
+) -> Result<Option<PanelStop>, MinimumError> {
+    let connected: bool =
+        sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_one(&mut **tx)
+            .await?;
+    match (panel, connected) {
+        // The processors serve the selected (connected) character only.
+        (None, false) => Err(fail()),
+        (Some(_), true) => Ok(Some(PanelStop::Online)),
+        _ => Ok(None),
+    }
+}
+
+pub(super) async fn panel_audit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    panel: Option<&super::admin_store::AuditRecord<'_>>,
+) -> Result<Option<PanelStop>, MinimumError> {
+    let Some(record) = panel else {
+        return Ok(None);
+    };
+    match super::admin_store::insert_audit(tx, record).await {
+        Ok(()) => Ok(None),
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => Ok(Some(PanelStop::Repeated)),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Owner key of a character for a change made outside its session.
+pub(super) async fn panel_owner(
+    pool: &PgPool,
+    cid: i64,
+) -> Result<(i32, String, i64), MinimumError> {
+    let user: Option<(i32, String, i64)> = sqlx::query_as(
+        "SELECT u.id,u.name,u.local_revision FROM game_character_info c JOIN game_users u ON u.id=c.uid WHERE c.id=$1",
+    )
+    .bind(cid)
+    .fetch_optional(pool)
+    .await?;
+    user.ok_or_else(fail)
+}
+
 fn fail() -> MinimumError {
     MinimumError::Conflict
 }
@@ -132,17 +188,50 @@ pub async fn move_item(
     request: Move,
     log: super::minimum_item_logs::Context,
 ) -> Result<Outcome, MinimumError> {
+    move_in(pool, owner, assets, cid, request, log, None)
+        .await?
+        .map_err(|_| fail())
+}
+
+/// The same move from the admin panel (B4.4d), the character offline; the audit is
+/// recorded only when something moved.
+pub async fn panel_move(
+    pool: &PgPool,
+    assets: &Assets,
+    cid: i64,
+    request: Move,
+    audit: &super::admin_store::AuditRecord<'_>,
+) -> Result<Result<Outcome, PanelStop>, MinimumError> {
+    let (uid, name, revision) = panel_owner(pool, cid).await?;
+    let owner = UserKey {
+        uid,
+        name: &name,
+        revision,
+    };
+    let log = super::minimum_item_logs::Context {
+        flags: super::minimum_item_logs::flags(assets)?,
+        civil_offset_seconds: 0,
+    };
+    move_in(pool, &owner, assets, cid, request, log, Some(audit)).await
+}
+
+async fn move_in(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    request: Move,
+    log: super::minimum_item_logs::Context,
+    panel: Option<&super::admin_store::AuditRecord<'_>>,
+) -> Result<Result<Outcome, PanelStop>, MinimumError> {
     // MoveInventoryItemProcessor constructor: GetJournalID (MoveInventoryItem).
     let journal = super::minimum_item_logs::operation_journal(pool, log.flags).await;
+    let mut stopped = None;
     let (outcome, changes) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
         let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
-        let connected: bool =
-            sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
-                .bind(cid)
-                .fetch_one(&mut *tx)
-                .await?;
-        if !connected {
-            return Err(fail());
+        if let Some(stop) = panel_gate(&mut tx, cid, panel).await? {
+            stopped = Some(stop);
+            return Ok((Outcome::Unchanged, Vec::new()));
         }
         sqlx::query("LOCK TABLE game_items,game_equippables IN SHARE ROW EXCLUSIVE MODE")
             .execute(&mut *tx)
@@ -307,11 +396,18 @@ pub async fn move_item(
                 .map_err(|_| fail())?
                 .to_vec(),
         };
+        if let Some(stop) = panel_audit(&mut tx, panel).await? {
+            stopped = Some(stop);
+            return Ok((Outcome::Unchanged, Vec::new()));
+        }
         tx.commit().await?;
         Ok((Outcome::Applied(packet), log_changes))
     })
     .await
     .map_err(|_| fail())??;
+    if let Some(stop) = stopped {
+        return Ok(Err(stop));
+    }
     super::minimum_item_logs::write_changes(
         pool,
         cid,
@@ -321,5 +417,5 @@ pub async fn move_item(
         log,
     )
     .await;
-    Ok(outcome)
+    Ok(Ok(outcome))
 }

@@ -107,5 +107,17 @@ Pré-condição: containers recompilados depois de 26/10/2026; abrir o cliente p
 - [ ] (Imediato) Publicar com 0 minutos → aviso de 0 s e desconexão imediata; o servidor volta com a versão.
 Limites conhecidos: o aviso é só o NoticeShutDownMessage do original (sem anúncio de texto, que o original só mandava em esperas de 10 minutos ou mais); a cópia do cliente só muda ao abrir pelo `start-lab.bat` (o `start.bat` original abre sem a atualização); cancelar não desfaz a versão publicada.
 
+### B4.4d — Organizar e arrastar itens no inventário pelo painel
+Pré-condição: containers recompilados depois de 26/10/2026; a Murael fora do jogo (na tela de seleção ou com o cliente fechado).
+- [ ] Ficha da Murael → Inventário → aba Bolsa 1: grade de 48 espaços com ícones e quantidades, como no jogo.
+- [ ] Arrastar um item para um espaço vazio → ele vai para lá; Auditoria registra "Item movido no inventário".
+- [ ] Arrastar um item sobre outro diferente → trocam de lugar.
+- [ ] Arrastar uma pilha sobre outra do mesmo item (ex.: duas pilhas de poção) → juntam até o limite da pilha.
+- [ ] Arrastar um item para a aba de outra bolsa (se houver) → vai para o primeiro espaço livre dela.
+- [ ] Organizar → Todas as bolsas → motivo → "N item(ns) mudaram de lugar"; de novo → "O inventário já está organizado.".
+- [ ] Entrar no jogo com a Murael → os itens estão nos mesmos espaços que o painel mostrou.
+- [ ] Com a Murael dentro do jogo, arrastar ou Organizar → "O personagem está no jogo…" e nada muda.
+Limites conhecidos: itens vestidos ocupam espaços da bolsa (ícone de camisa), não são arrastados e não recebem itens soltos; só bolsas (Cash e Quest só pelo Organizar); arrastar usa o motivo fixo "Movido arrastando no painel".
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

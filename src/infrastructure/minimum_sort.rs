@@ -111,8 +111,50 @@ pub async fn sort(
     cid: i64,
     target: i32,
 ) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+    sort_in(pool, owner, assets, cid, target, None)
+        .await?
+        .map(|(packets, _)| packets)
+        .map_err(|_| fail())
+}
+
+/// The same sort from the admin panel (B4.4d), the character offline: Ok(Some(moved))
+/// with the number of items that changed place (the audit is recorded only then).
+pub async fn panel_sort(
+    pool: &PgPool,
+    assets: &Assets,
+    cid: i64,
+    target: i32,
+    audit: &super::admin_store::AuditRecord<'_>,
+) -> Result<Result<Option<usize>, super::minimum_move::PanelStop>, MinimumError> {
+    let (uid, name, revision) = super::minimum_move::panel_owner(pool, cid).await?;
+    let owner = UserKey {
+        uid,
+        name: &name,
+        revision,
+    };
+    Ok(sort_in(pool, &owner, assets, cid, target, Some(audit))
+        .await?
+        .map(|(packets, moved)| packets.map(|_| moved)))
+}
+
+type Sorted = (Option<Vec<OutgoingPacket>>, usize);
+
+async fn sort_in(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    target: i32,
+    panel: Option<&super::admin_store::AuditRecord<'_>>,
+) -> Result<Result<Sorted, super::minimum_move::PanelStop>, MinimumError> {
     let economy = assets.economy.as_ref().ok_or_else(fail)?;
     let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+    // The frontend admits the selected character; the panel only an offline one.
+    if panel.is_some()
+        && let Some(stop) = super::minimum_move::panel_gate(&mut tx, cid, panel).await?
+    {
+        return Ok(Err(stop));
+    }
     sqlx::query("LOCK TABLE game_items,game_equippables IN SHARE ROW EXCLUSIVE MODE")
         .execute(&mut *tx)
         .await?;
@@ -129,7 +171,7 @@ pub async fn sort(
     if (bag_sort && target != -1 && !i16::try_from(target).is_ok_and(|t| available.contains(&t)))
         || (target == STORY && !story_tab)
     {
-        return Ok(None);
+        return Ok(Ok((None, 0)));
     }
     let equipped: Vec<i64> = sqlx::query_scalar(
         "SELECT e.id FROM game_equippables e JOIN game_items i ON i.id=e.id WHERE i.owner_id=$1 AND e.part IS NOT NULL",
@@ -228,9 +270,14 @@ pub async fn sort(
     let after =
         super::minimum_inventory::snapshot_with_equipment(&mut tx, owner, assets, cid, None)
             .await?;
+    if !moved.is_empty()
+        && let Some(stop) = super::minimum_move::panel_audit(&mut tx, panel).await?
+    {
+        return Ok(Err(stop));
+    }
     tx.commit().await?;
     if moved.is_empty() {
-        return Ok(Some(Vec::new()));
+        return Ok(Ok((Some(Vec::new()), 0)));
     }
     let slots: Vec<Option<wire::Slot>> = after
         .slots
@@ -243,10 +290,11 @@ pub async fn sort(
         .map(Some)
         .collect();
     let update = Message::UpdateInventoryInfo(Some(slots));
-    Ok(Some(vec![OutgoingPacket {
+    let packet = OutgoingPacket {
         category: Kind::UpdateInventoryInfo.category(),
         body: wire::encode(Kind::UpdateInventoryInfo, Some(&update), DEFAULT_MAX_BODY)
             .map_err(|_| fail())?
             .to_vec(),
-    }]))
+    };
+    Ok(Ok((Some(vec![packet]), moved.len())))
 }

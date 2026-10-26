@@ -156,6 +156,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{cid}/inventory/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move an item to a bag slot with the game's SwapSlot (swap or stack); character offline. */
+        post: operations["move_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{cid}/inventory/sort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sort like the game's Sort button (SortInventory); character offline. */
+        post: operations["sort_inventory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{cid}/items": {
         parameters: {
             query?: never;
@@ -782,6 +816,16 @@ export interface components {
             /** Format: int64 */
             price: number;
         };
+        InventorySort: {
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
+            /**
+             * Format: int32
+             * @description -1 every bag, 0–8 one bag, 100 cash, 103 quest.
+             */
+            target: number;
+        };
         /** @enum {string} */
         ItemAction: "give" | "remove";
         ItemAttribute: {
@@ -804,6 +848,23 @@ export interface components {
             /** Format: uuid */
             operation_id: string;
             reason: string;
+        };
+        ItemMove: {
+            /** @description Item ID (64-bit, as text). */
+            item: string;
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
+            /**
+             * Format: int32
+             * @description Slot 0–47.
+             */
+            slot: number;
+            /**
+             * Format: int32
+             * @description Bag collection (0–8).
+             */
+            storage: number;
         };
         LoginRequest: {
             /** Format: password */
@@ -978,6 +1039,10 @@ export interface components {
             npcs: components["schemas"]["ShopNpcView"][];
             rows: number;
             shop_id: string;
+        };
+        Sorted: {
+            /** @description Items that changed place. */
+            moved: number;
         };
     };
     responses: never;
@@ -1381,6 +1446,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChangeResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    move_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemMove"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    sort_inventory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventorySort"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sorted"];
                 };
             };
             400: {

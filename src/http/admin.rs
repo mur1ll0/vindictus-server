@@ -103,6 +103,8 @@ impl AdminState {
         characters::mine,
         characters::sheet,
         characters::change_item,
+        characters::move_item,
+        characters::sort_inventory,
         characters::adjust_cash,
         characters::catalog,
         characters::progression,
@@ -138,6 +140,9 @@ impl AdminState {
         crate::infrastructure::admin_characters::CharacterTitle,
         crate::application::admin_character_edits::ChangeResult,
         characters::ItemChange,
+        characters::ItemMove,
+        characters::InventorySort,
+        characters::Sorted,
         characters::CashChange,
         crate::infrastructure::admin_characters::CatalogItem,
         crate::infrastructure::admin_characters::CatalogEffect,
@@ -196,6 +201,14 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/me/characters", get(characters::mine))
         .route("/api/characters/{cid}", get(characters::sheet))
         .route("/api/characters/{cid}/items", post(characters::change_item))
+        .route(
+            "/api/characters/{cid}/inventory/move",
+            post(characters::move_item),
+        )
+        .route(
+            "/api/characters/{cid}/inventory/sort",
+            post(characters::sort_inventory),
+        )
         .route("/api/characters/{cid}/cash", post(characters::adjust_cash))
         .route("/api/items", get(characters::catalog))
         .route("/api/status-effects", get(characters::effects_catalog))
@@ -358,6 +371,8 @@ impl IntoResponse for Refusal {
                             "Nível alvo inválido: precisa ser maior que o atual e até o nível máximo."
                         }
                         "sem_pendentes" => "Não há edições pendentes para publicar.",
+                        "mover" => "O item já está nesse espaço.",
+                        "organizar" => "O inventário já está organizado.",
                         "manutencao" => {
                             "Já há uma manutenção agendada; cancele-a ou espere o reinício."
                         }

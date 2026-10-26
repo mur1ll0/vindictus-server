@@ -13,7 +13,7 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -163,6 +163,98 @@ pub(super) async fn catalog(
         return Err(crate::application::admin_session::AdminError::InvalidInput.into());
     }
     Ok(Json(state.names.search_items(term, 50)))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct ItemMove {
+    operation_id: Uuid,
+    reason: String,
+    /// Item ID (64-bit, as text).
+    item: String,
+    /// Bag collection (0–8).
+    storage: u8,
+    /// Slot 0–47.
+    slot: i32,
+}
+
+/// Move an item to a bag slot with the game's SwapSlot (swap or stack); character offline.
+#[utoipa::path(post, path = "/api/characters/{cid}/inventory/move", params(("cid" = String, Path)),
+    request_body = ItemMove,
+    responses((status = 204), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn move_item(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+    Json(body): Json<ItemMove>,
+) -> Result<axum::http::StatusCode, Refusal> {
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+        reason: &body.reason,
+    };
+    admin_character_edits::move_item(
+        state.auth.pool(),
+        state
+            .runtime
+            .as_ref()
+            .and_then(|r| r.minimum_assets())
+            .as_deref(),
+        &change,
+        &cid,
+        &body.item,
+        body.storage,
+        body.slot,
+    )
+    .await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct InventorySort {
+    operation_id: Uuid,
+    reason: String,
+    /// -1 every bag, 0–8 one bag, 100 cash, 103 quest.
+    target: i32,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct Sorted {
+    /// Items that changed place.
+    moved: usize,
+}
+
+/// Sort like the game's Sort button (SortInventory); character offline.
+#[utoipa::path(post, path = "/api/characters/{cid}/inventory/sort", params(("cid" = String, Path)),
+    request_body = InventorySort,
+    responses((status = 200, body = Sorted), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn sort_inventory(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+    Json(body): Json<InventorySort>,
+) -> Result<Json<Sorted>, Refusal> {
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+        reason: &body.reason,
+    };
+    let moved = admin_character_edits::sort_inventory(
+        state.auth.pool(),
+        state
+            .runtime
+            .as_ref()
+            .and_then(|r| r.minimum_assets())
+            .as_deref(),
+        &change,
+        &cid,
+        body.target,
+    )
+    .await?;
+    Ok(Json(Sorted { moved }))
 }
 
 #[derive(Deserialize, ToSchema)]

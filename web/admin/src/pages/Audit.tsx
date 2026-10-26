@@ -24,6 +24,8 @@ const ACTIONS: Record<string, { label: string; icon: ReactNode }> = {
   'character.progression': { label: 'Progressão do personagem', icon: <TrendingUp /> },
   'content.edit': { label: 'Edição de conteúdo', icon: <FileStack /> },
   'content.withdraw': { label: 'Edição de conteúdo retirada', icon: <Undo2 /> },
+  'character.item_move': { label: 'Item movido no inventário', icon: <PackagePlus /> },
+  'character.inventory_sort': { label: 'Inventário organizado', icon: <RefreshCw /> },
   'content.publish': { label: 'Versão de conteúdo publicada', icon: <Upload /> },
   'content.maintenance_cancel': { label: 'Manutenção cancelada', icon: <TimerReset /> },
 };

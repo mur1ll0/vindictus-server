@@ -1,5 +1,6 @@
 //! Character changes from the panel (B4.3b): give an item (ItemClassEx with attributes) or
-//! gold, remove items or gold, and credit/debit cash. Item changes go through the game's own
+//! gold, remove items or gold, and credit/debit cash; move and sort the inventory (B4.4d)
+//! with MoveInventoryItem/SortInventory. Item changes go through the game's own
 //! planner (`minimum_give`) and need the character offline: a live session owns its inventory.
 //! Panel policy: GM and admin change characters; a character of an account with a panel role
 //! needs an admin, unless it is the actor's own. Every change is audited in its transaction.
@@ -13,6 +14,8 @@ use crate::{
         minimum_cash_shop::{self, PanelCashOutcome},
         minimum_character::MinimumError,
         minimum_give::{self, PanelItemChange, PanelItemOutcome},
+        minimum_move::{self, PanelStop},
+        minimum_sort,
     },
 };
 use sqlx::PgPool;
@@ -122,6 +125,78 @@ pub async fn change_item(
         PanelItemOutcome::Refused(e) => Err(AdminError::ItemRefused(e.to_string())),
         PanelItemOutcome::Online => Err(AdminError::Online),
         PanelItemOutcome::Repeated => Err(AdminError::RepeatedOperation),
+    }
+}
+
+fn stopped(stop: PanelStop) -> AdminError {
+    match stop {
+        PanelStop::Online => AdminError::Online,
+        PanelStop::Repeated => AdminError::RepeatedOperation,
+    }
+}
+
+/// MoveInventoryItem: put item `item` in bag `storage` at `slot` (0–47), with the game's
+/// SwapSlot (an occupant swaps places, or the same class stacks onto it).
+pub async fn move_item(
+    pool: &PgPool,
+    assets: Option<&Assets>,
+    change: &Change<'_>,
+    cid: &str,
+    item: &str,
+    storage: u8,
+    slot: i32,
+) -> Result<(), AdminError> {
+    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
+    let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
+    let item_id: i64 = item.parse().map_err(|_| AdminError::InvalidInput)?;
+    authorize(pool, change.session, cid_value).await?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    let mut record = audit(change, &reason, "character.item_move", cid);
+    record.after =
+        Some(serde_json::json!({ "item": item, "storage": storage, "slot": slot }).to_string());
+    let request = crate::protocol::inventory::Move {
+        item_id,
+        storage,
+        slot,
+    };
+    match minimum_move::panel_move(pool, assets, cid_value, request, &record)
+        .await
+        .map_err(minimum)?
+    {
+        Ok(minimum_move::Outcome::Applied(_)) => Ok(()),
+        Ok(minimum_move::Outcome::Refused(_)) => Err(AdminError::ItemRefused(
+            "o jogo recusou o movimento (bolsa indisponível, outro tipo de inventário ou espaço inválido)".into(),
+        )),
+        Ok(minimum_move::Outcome::Unchanged) => Err(AdminError::Unchanged("mover")),
+        Err(stop) => Err(stopped(stop)),
+    }
+}
+
+/// SortInventory: -1 every bag, one bag (0–8), 100 cash or 103 quest; returns how many
+/// items changed place.
+pub async fn sort_inventory(
+    pool: &PgPool,
+    assets: Option<&Assets>,
+    change: &Change<'_>,
+    cid: &str,
+    target: i32,
+) -> Result<usize, AdminError> {
+    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
+    let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
+    if !matches!(target, -1..=8 | 100 | 103) {
+        return Err(AdminError::InvalidInput);
+    }
+    authorize(pool, change.session, cid_value).await?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    let mut record = audit(change, &reason, "character.inventory_sort", cid);
+    record.after = Some(serde_json::json!({ "target": target }).to_string());
+    match minimum_sort::panel_sort(pool, assets, cid_value, target, &record)
+        .await
+        .map_err(minimum)?
+    {
+        Ok(Some(0)) | Ok(None) => Err(AdminError::Unchanged("organizar")),
+        Ok(Some(moved)) => Ok(moved),
+        Err(stop) => Err(stopped(stop)),
     }
 }
 
