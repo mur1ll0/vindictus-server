@@ -53,5 +53,12 @@ Pré-condição: containers recompilados depois de 26/10/2026; a Murael **fora d
 Resultado do operador (26/10/2026): dar 2 itens e dar ouro pelo painel funcionaram; as demais linhas não foram relatadas.
 Limites conhecidos: itens e ouro só com o personagem fora do jogo; remover tira a quantidade da classe na ordem do jogo (DestroyItem), não um item escolhido; itens com atributos ou que expiram podem ser recusados na remoção; só Fiona de laboratório inicializada é editável; mover itens entre bolsas ainda não existe.
 
+### FX-relist — Voltar à seleção de personagens e entrar de novo
+Pré-condição: containers recompilados depois de 26/10/2026.
+- [ ] Entrar com `admin`, entrar na cidade com a Murael, voltar à tela de seleção (Home) → a lista aparece.
+- [ ] Selecionar a Murael e apertar Start → entra na cidade de novo, sem precisar de Go back e novo login.
+- [ ] Repetir uma segunda vez → também entra.
+Limites conhecidos: nenhum.
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

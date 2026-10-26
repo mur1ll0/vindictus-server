@@ -335,6 +335,17 @@ pub(super) async fn exercise(
             body = raw;
         }
         send(client, tx, category, &body).await;
+        // InitSecondPassword once passed: HasSecondPassword(first false, passed) before the
+        // list; without it the client's Start does nothing.
+        let has = read(client, rx).await;
+        use vindictus_server::protocol::second_password as pwd;
+        assert_eq!(has.category_id, pwd::Kind::Has.category());
+        let Some(pwd::Message::Has(state)) =
+            pwd::decode(pwd::Kind::Has, &has.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("HasSecondPassword missing")
+        };
+        assert!(!state.first && state.passed);
         let list = read(client, rx).await;
         assert_eq!(list.category_id, 479);
         let state: (bool, Option<i16>) =

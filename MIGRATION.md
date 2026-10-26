@@ -1507,3 +1507,12 @@ B4.3b — dar e remover itens, ouro e cash pelo painel (26/10/2026).
 - Cliente: entrada B4.3b em `docs/client-tests/B4-painel.md`.
 - Aceite parcial no cliente (operador, 26/10/2026): dar 2 itens e dar ouro pelo painel funcionaram; remover, atributo, recusa online e cash não relatados.
 - Próxima ação retomável: B4.3c — progressão (nível/EXP, AP, skills, títulos, status effects VIP/VVIP) pelo painel, com a personagem offline.
+
+FX-relist — Start sem efeito depois de voltar à seleção de personagens (26/10/2026, relato do operador).
+- Sintoma: dentro do jogo, voltar à seleção (Home) mostrava a lista, mas selecionar e apertar Start não fazia nada; era preciso Go back e logar de novo.
+- Log do `game` (13:50:28 "minimum character logged out; character list sent"): nenhuma mensagem do cliente até o Logout de 13:51:46. O cliente não enviava a seleção.
+- Fonte: `FrontendServiceCore.States/CharacterList.OnEnter` com `sendList` chama `GameClient.InitSecondPassword()` antes da `CharacterListMessage`; com a segunda senha já validada, ela envia `HasSecondPasswordMessage(isFirstQuery: false, SecondPasswordState != NoPassword, IsSecondPasswordPassed, 0, null)` e `SendDifferentIPMessage` (nada com `enEU`). O `lab_frontend` supunha que não enviava nada.
+- Correção: o retorno do LogOut envia o HasSecondPassword (não primeira consulta, com senha, validada; falhas 0, prazo nulo) antes da lista.
+- Testes: TCP `actual_tcp_minimum_selection_channel_identify_movement_and_disconnect` (o LogOut, pelas categorias 493 e 0, agora confere o HasSecondPassword antes da lista e uma nova seleção), `actual_tcp_minimum_create_returns_persisted_filled_list_and_relogin`, `actual_tcp_minimum_equipped_selection_channel_and_relogin`, `actual_tcp_scoped_login_password_reconnect_duplicate_and_cleanup_persist`; clippy. Logs: `.cache/verification/fix-relist-*.log`.
+- Cliente: entrada FX-relist em `docs/client-tests/B4-painel.md`.
+- B4.3c em andamento guardado em `git stash` ("B4.3c progression WIP"): EXP/AP/título/efeito pelo painel implementados; o level up offline falha porque `minimum_story::level_up` → `character()` exige a personagem conectada (StoryEntity da sessão). Retomar daí.

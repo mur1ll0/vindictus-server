@@ -3068,12 +3068,26 @@ impl Connection {
             // PlayerConn.Closed handler of CharacterSelecting enters
             // CharacterList(sendList: true) while the client stays connected.
             self.release_selected(runtime, pool).await;
-            let revision = self
-                .password
-                .as_ref()
-                .ok_or(RuntimeError::Operation)?
-                .revision();
-            // InitSecondPassword sends nothing once the password has passed.
+            let password = self.password.as_ref().ok_or(RuntimeError::Operation)?;
+            let revision = password.revision();
+            let state = password.state();
+            // CharacterList(sendList: true) → InitSecondPassword before CharacterListMessage.
+            // Once passed it sends HasSecondPasswordMessage(isFirstQuery false, State !=
+            // NoPassword, IsSecondPasswordPassed, 0, null) and SendDifferentIPMessage (nothing
+            // with enEU). The client waits for it: without it Start does nothing (operator
+            // report of 2026-10-26).
+            send_password(
+                stream,
+                sender,
+                PasswordMessage::Has(HasPassword {
+                    first: false,
+                    has_password: state != crate::domain::second_password::ClientState::NoPassword,
+                    passed: state.passed(true),
+                    fail_count: 0,
+                    retry_seconds: -1,
+                }),
+            )
+            .await?;
             let list = runtime
                 .character_list(&self.frontend, pool, revision)
                 .await?;
