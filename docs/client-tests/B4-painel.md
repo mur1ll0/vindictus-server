@@ -55,20 +55,22 @@ Limites conhecidos: itens e ouro só com o personagem fora do jogo; remover tira
 
 ### B4.3c — Progressão pelo painel (nível/EXP, AP, título, efeitos)
 Pré-condição: containers recompilados depois de 26/10/2026; a Murael **fora do jogo**.
-- [ ] Como `admin`, ficha da Murael → Progressão → Nível → subir até o nível atual + 1, com motivo → a ficha mostra o nível novo; Auditoria mostra "Progressão do personagem" com nível/EXP antes → depois.
+- [x] Como `admin`, ficha da Murael → Progressão → Nível → subir até o nível atual + 1, com motivo → a ficha mostra o nível novo; Auditoria mostra "Progressão do personagem" com nível/EXP antes → depois.
 - [ ] Progressão → AP → dar 10 → o AP da ficha sobe (ou o painel avisa que o jogo não mudou nada, se já estiver no limite).
 - [ ] Progressão → Efeito → buscar "vip" → escolher um VIP/VVIP → duração 7 (dias) → aparece na aba Efeitos com a validade.
 - [ ] Aba Efeitos → Remover o efeito → some.
 - [ ] Progressão → Título → um ID conhecido (aba Títulos) ainda não conquistado → aparece como conquistado.
-- [ ] Entrar no jogo com `admin` → nível novo na seleção e na cidade; histórias do nível novo no diário; AP, título e efeito (ícone VIP) presentes.
+- [x] Entrar no jogo com `admin` → nível novo na seleção e na cidade; histórias do nível novo no diário; AP, título e efeito (ícone VIP) presentes.
 - [ ] Com a Murael dentro do jogo, tentar Progressão → "O personagem está no jogo…".
+Resultado do operador (26/10/2026): subir até o nível 20 e dar 50.000 de EXP pelo painel funcionaram e apareceram no jogo; AP, efeito, título e recusa online não relatados.
 Limites conhecidos: só com a personagem fora do jogo; skills não mudam pelo painel ainda; títulos pelo ID (sem nome).
 
 ### FX-relist — Voltar à seleção de personagens e entrar de novo
 Pré-condição: containers recompilados depois de 26/10/2026.
-- [ ] Entrar com `admin`, entrar na cidade com a Murael, voltar à tela de seleção (Home) → a lista aparece.
-- [ ] Selecionar a Murael e apertar Start → entra na cidade de novo, sem precisar de Go back e novo login.
-- [ ] Repetir uma segunda vez → também entra.
+- [x] Entrar com `admin`, entrar na cidade com a Murael, voltar à tela de seleção (Home) → a lista aparece.
+- [x] Selecionar a Murael e apertar Start → entra na cidade de novo, sem precisar de Go back e novo login.
+- [x] Repetir uma segunda vez → também entra.
+Resultado do operador (26/10/2026): testado e resolvido (voltar à seleção e entrar de novo funcionou).
 Limites conhecidos: nenhum.
 
 ## Como relatar
