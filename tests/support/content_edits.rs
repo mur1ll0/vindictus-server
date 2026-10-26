@@ -119,28 +119,52 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
         Err(AdminError::NotFound)
     ));
 
-    // Only an admin publishes; the pending edits become version 1.
+    // Only an admin publishes; the pending edits become version 1 with a restart in 5
+    // minutes. While it is scheduled no other publish; cancelling is audited once.
+    let maintenance = vindictus_server::infrastructure::maintenance::Maintenance::default();
     assert!(matches!(
-        content_admin::publish(&pool, &actor(&gm, "gm")).await,
+        content_admin::publish(&pool, &actor(&gm, "gm"), Some(&maintenance), 5).await,
         Err(AdminError::Forbidden)
     ));
-    assert_eq!(
-        content_admin::publish(&pool, &actor(&chefe, "loja do Ferghus"))
-            .await
-            .unwrap(),
-        1
-    );
     assert!(matches!(
-        content_admin::publish(&pool, &actor(&chefe, "vazio")).await,
-        Err(AdminError::Unchanged(_))
+        content_admin::publish(&pool, &actor(&chefe, "longo"), Some(&maintenance), 61).await,
+        Err(AdminError::InvalidInput)
+    ));
+    let (version, plan) = content_admin::publish(
+        &pool,
+        &actor(&chefe, "loja do Ferghus"),
+        Some(&maintenance),
+        5,
+    )
+    .await
+    .unwrap();
+    let plan = plan.unwrap();
+    assert_eq!((version, plan.version, plan.delay_seconds), (1, 1, 300));
+    assert!(matches!(
+        content_admin::publish(&pool, &actor(&chefe, "outra"), Some(&maintenance), 0).await,
+        Err(AdminError::Unchanged("manutencao"))
+    ));
+    let cancel = actor(&chefe, "adiar");
+    content_admin::cancel_maintenance(&pool, &cancel, &maintenance)
+        .await
+        .unwrap();
+    assert!(maintenance.current().is_none());
+    assert!(matches!(
+        content_admin::cancel_maintenance(&pool, &cancel, &maintenance).await,
+        Err(AdminError::NotFound)
+    ));
+    assert!(matches!(
+        content_admin::publish(&pool, &actor(&chefe, "vazio"), Some(&maintenance), 0).await,
+        Err(AdminError::Unchanged("sem_pendentes"))
     ));
     // A later edit of the same row (version 2) wins in the cumulative overlay; a removal too.
     edit("shop_row", "FERGHUS_Shop#124", row(5000), Uuid::new_v4()).await;
     edit("shop_row_remove", "FERGHUS_Shop#3", None, Uuid::new_v4()).await;
     assert_eq!(
-        content_admin::publish(&pool, &actor(&chefe, "preço novo"))
+        content_admin::publish(&pool, &actor(&chefe, "preço novo"), None, 0)
             .await
-            .unwrap(),
+            .unwrap()
+            .0,
         2
     );
     let overlay = content_edits::overlay(&pool).await.unwrap();
@@ -158,6 +182,10 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
         rows.iter().find(|r| r["Order"] == 3).unwrap()["Remove"],
         true
     );
+    // The game server applies the same overlay, bounds checked, when it starts.
+    let loaded = content_edits::loaded_overlay(&pool).await.unwrap();
+    assert_eq!((loaded.version, loaded.shop_rows.len()), (2, 2));
+    assert_eq!(loaded.cash_prices.get("HAIR"), Some(&900));
     assert!(content_edits::mark_applied(&pool, 2).await.unwrap());
     assert!(!content_edits::mark_applied(&pool, 2).await.unwrap());
     let (edits, versions) = content_admin::edits(&pool, &gm).await.unwrap();

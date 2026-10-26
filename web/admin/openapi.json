@@ -897,18 +897,62 @@
         }
       }
     },
-    "/api/content/publish": {
+    "/api/content/maintenance/cancel": {
       "post": {
         "tags": [
           "content"
         ],
-        "summary": "Publish the pending edits as the next version (admin); apply it on the host with\nscripts/content/apply-content-edits.ps1.",
-        "operationId": "publish",
+        "summary": "Cancel the scheduled maintenance (admin); the version stays published.",
+        "operationId": "cancel_maintenance",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/Reasoned"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/publish": {
+      "post": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Publish the pending edits as the next version (admin) and schedule the maintenance: every\nplayer gets the original NoticeShutDownMessage countdown, is disconnected at the end, and\nthe game restarts with the version.",
+        "operationId": "publish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Publish"
               }
             }
           },
@@ -921,6 +965,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Published"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -2118,6 +2172,17 @@
             },
             "description": "Pending first, then the latest."
           },
+          "maintenance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Plan",
+                "description": "The scheduled restart, if any."
+              }
+            ]
+          },
           "versions": {
             "type": "array",
             "items": {
@@ -2439,6 +2504,40 @@
           }
         }
       },
+      "Plan": {
+        "type": "object",
+        "required": [
+          "id",
+          "delay_seconds",
+          "version",
+          "requested_by",
+          "remaining_seconds"
+        ],
+        "properties": {
+          "delay_seconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "remaining_seconds": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Seconds left when read."
+          },
+          "requested_by": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The content version the restart applies."
+          }
+        }
+      },
       "ProgressionChange": {
         "type": "object",
         "required": [
@@ -2608,12 +2707,45 @@
           }
         }
       },
+      "Publish": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "minutes"
+        ],
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Minutes until the restart that applies the version (0–60; 0 = now)."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
       "Published": {
         "type": "object",
         "required": [
           "version"
         ],
         "properties": {
+          "maintenance": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Plan",
+                "description": "The scheduled restart (absent when the panel runs without the game)."
+              }
+            ]
+          },
           "version": {
             "type": "integer",
             "format": "int64"

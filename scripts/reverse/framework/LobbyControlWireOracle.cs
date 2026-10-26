@@ -14,6 +14,7 @@ class LobbyControlWireOracle {
    object fields=null;
    if(decoded is PingMessage)fields=new{tag=((PingMessage)(object)decoded).Tag};
    if(decoded is PongMessage)fields=new{tag=((PongMessage)(object)decoded).Tag};
+   if(decoded is NoticeShutDownMessage)fields=new{delay=((NoticeShutDownMessage)(object)decoded).Delay};
    if(decoded is NGSecurityMessage){var v=(NGSecurityMessage)(object)decoded;fields=new{data=v.message==null?null:v.message.Select(b=>(int)b).ToArray(),checksum=v.checkSum};}
    if(decoded is SystemMessage){var v=(SystemMessage)(object)decoded;fields=new{category=v.Category,text_present=v.Message!=null,format=v.Message==null?null:v.Message.Format,parameters=v.Message==null?null:v.Message.Parameters};}
    if(decoded is CafeLoginMessage){var v=(CafeLoginMessage)(object)decoded;var t=typeof(CafeLoginMessage);var flags=System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance;fields=new{home=(int)t.GetField("HomeCafeRemainTime",flags).GetValue(v),account=(int)t.GetField("AccountHomeCafeRemainTime",flags).GetValue(v),cafe=(int)t.GetField("CafeType",flags).GetValue(v)};}
@@ -22,6 +23,7 @@ class LobbyControlWireOracle {
  }
  static void Main(){var cases=new List<object>();var tags=new[]{int.MinValue,-1,0,1,int.MaxValue};
  Cases("ping",521,new PingMessage[]{null}.Concat(tags.Select(t=>new PingMessage(t))),cases);Cases("pong",523,new PongMessage[]{null}.Concat(tags.Select(t=>new PongMessage(t))),cases);
+ Cases("notice_shutdown",505,new NoticeShutDownMessage[]{null}.Concat(tags.Select(t=>new NoticeShutDownMessage{Delay=t})),cases);
  Cases("cafe",236,new CafeLoginMessage[]{null,new CafeLoginMessage(0,0,4)}.Concat(tags.Select(t=>new CafeLoginMessage(t,~t,t^0x55aa55aa))),cases);
  var texts=new HeroesString[]{null,new HeroesString(null),new HeroesString(""),new HeroesString("GameUI_Heroes_SecondPassword_Locked"),new HeroesString("GameUI_Heroes_DormantAccount_Alarm_Text"),new HeroesString("Lab-É-λ-😀"),new HeroesString("format",(string[])null),new HeroesString("format",new[]{"one","two"}),new HeroesString("format",new string[]{null,"","λ"})};
  var system=new List<SystemMessage>{null};foreach(byte c in new byte[]{0,1,2,3,4,5,6,7,8,9,10,255})foreach(var h in texts)system.Add(new SystemMessage((SystemMessageCategory)c,h));Cases("system",602,system,cases);

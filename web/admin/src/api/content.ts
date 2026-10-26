@@ -45,10 +45,15 @@ export async function withdrawEdit(id: number, operation_id: string, reason: str
   if (!response.ok) fail(response, error);
 }
 
-export async function publish(operation_id: string, reason: string) {
-  const { data, error, response } = await api.POST('/api/content/publish', { body: { operation_id, reason } });
+export async function publish(operation_id: string, reason: string, minutes: number) {
+  const { data, error, response } = await api.POST('/api/content/publish', { body: { operation_id, reason, minutes } });
   if (!data) fail(response, error);
   return data;
+}
+
+export async function cancelMaintenance(operation_id: string, reason: string) {
+  const { error, response } = await api.POST('/api/content/maintenance/cancel', { body: { operation_id, reason } });
+  if (!response.ok) fail(response, error);
 }
 
 export const KIND_LABEL: Record<string, string> = {

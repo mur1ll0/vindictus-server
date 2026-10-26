@@ -187,6 +187,14 @@ impl Assets {
         self.npc.as_ref().and_then(|n| n.mission.as_ref())
     }
     pub fn read(path: &Path) -> Result<Self, MinimumError> {
+        Self::read_with_overlay(path, &crate::domain::content_overlay::Overlay::default())
+    }
+    /// The assets with the published panel content edits over the exported shops and cash
+    /// shop prices (B4.4c: a published version takes effect when the server starts).
+    pub fn read_with_overlay(
+        path: &Path,
+        overlay: &crate::domain::content_overlay::Overlay,
+    ) -> Result<Self, MinimumError> {
         let mut bytes = Zeroizing::new(Vec::new());
         open(path)?
             .take(16385)
@@ -271,7 +279,9 @@ impl Assets {
             assets = assets.with_economy(super::item_economy::Profile::read(open(&path)?)?)?;
         }
         if let Some(path) = f.npc_scripts {
-            assets = assets.with_npc_scripts(super::npc_scripts::Profile::read(open(&path)?)?)?;
+            let mut profile = super::npc_scripts::Profile::read(open(&path)?)?;
+            profile.shop_rows = overlay.apply_shop_rows(std::mem::take(&mut profile.shop_rows));
+            assets = assets.with_npc_scripts(profile)?;
         }
         if let Some(path) = f.enhance {
             assets = assets.with_enhance(super::item_enhance::Profile::read(open(&path)?)?)?;
@@ -280,7 +290,9 @@ impl Assets {
             assets = assets.with_random_item(super::random_item::Profile::read(open(&path)?)?)?;
         }
         if let Some(path) = f.cash_shop {
-            assets = assets.with_cash_shop(super::cash_shop::Profile::read(open(&path)?)?)?;
+            assets = assets.with_cash_shop(
+                super::cash_shop::Profile::read(open(&path)?)?.with_overlay(overlay),
+            )?;
         }
         Ok(assets)
     }

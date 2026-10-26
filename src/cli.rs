@@ -13,6 +13,8 @@ pub struct Cli {
     pub command: Command,
 }
 
+// Parsed once at start; the lab-frontend flags make it the largest variant.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Serve HTTP operational endpoints. Does not start a game protocol.
@@ -58,6 +60,13 @@ pub enum Command {
         /// Exported icons directory (icons/item/*.png).
         #[arg(long, requires = "admin_listen")]
         admin_icons_dir: Option<std::path::PathBuf>,
+        /// Write the cash shop ShopList.aspx (published prices included) at start.
+        #[arg(long)]
+        shop_list_output: Option<std::path::PathBuf>,
+        /// Write the published content overlay (content-edits.json) at start, for the client
+        /// launcher that updates the client copy.
+        #[arg(long)]
+        content_edits_output: Option<std::path::PathBuf>,
     },
     /// Give, change or remove (`none`) the panel role of an existing account; audited.
     AccountSetRole {

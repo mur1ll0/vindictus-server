@@ -1,7 +1,8 @@
 //! NPC shops and cash shop prices on the panel (B4.4). The views read the content the game
 //! loaded; edits are validated against it, stay pending until an admin publishes a version,
-//! and reach the game when the host script applies the version (exporters, client copy,
-//! game restart). GM and admin create and withdraw edits; only an admin publishes.
+//! and reach the game when it restarts: publishing schedules a maintenance that warns the
+//! players, disconnects them at the end and restarts the server with the version (B4.4c).
+//! GM and admin create and withdraw edits; only an admin publishes or cancels.
 use super::admin_session::AdminError;
 use crate::{
     domain::admin::{AuditReason, Permission},
@@ -9,6 +10,7 @@ use crate::{
         admin_characters::EnglishNames,
         admin_store::{AuditRecord, SessionAccount},
         content_edits::{self, ContentEdit, ContentVersion, EditOutcome},
+        maintenance::{Maintenance, MaintenanceError, Plan},
         minimum_assets::Assets,
     },
 };
@@ -19,6 +21,8 @@ use uuid::Uuid;
 
 pub const MAX_PRICE: i64 = 2_000_000_000;
 pub const MAX_CASH_PRICE: i64 = 1_000_000;
+/// The longest maintenance notice the panel schedules.
+pub const MAX_RESTART_MINUTES: i32 = 60;
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ShopNpcView {
@@ -356,18 +360,71 @@ pub async fn withdraw(pool: &PgPool, actor: &Actor<'_>, id: i64) -> Result<(), A
 }
 
 /// Publish the pending edits as the next version (admin).
-pub async fn publish(pool: &PgPool, actor: &Actor<'_>) -> Result<i64, AdminError> {
+/// Publish the pending edits as the next version and schedule the restart that applies it
+/// in `minutes` (0 = now). Without a game runtime the version stays to be applied.
+pub async fn publish(
+    pool: &PgPool,
+    actor: &Actor<'_>,
+    maintenance: Option<&Maintenance>,
+    minutes: i32,
+) -> Result<(i64, Option<Plan>), AdminError> {
     require(actor.session, Permission::Administer)?;
     let reason = AuditReason::parse(actor.reason).ok_or(AdminError::InvalidInput)?;
-    outcome(
-        content_edits::publish(
-            pool,
-            actor.session.account_id,
-            reason.as_str(),
-            audit(actor, &reason, "content.publish", "content", "version"),
-        )
-        .await?,
-    )
+    if !(0..=MAX_RESTART_MINUTES).contains(&minutes) {
+        return Err(AdminError::InvalidInput);
+    }
+    if maintenance.is_some_and(|m| m.current().is_some()) {
+        return Err(AdminError::Unchanged("manutencao"));
+    }
+    let mut record = audit(actor, &reason, "content.publish", "content", "version");
+    record.after = Some(serde_json::json!({ "restart_minutes": minutes }).to_string());
+    let version = outcome(
+        content_edits::publish(pool, actor.session.account_id, reason.as_str(), record).await?,
+    )?;
+    let plan = match maintenance {
+        Some(m) => {
+            let v = i32::try_from(version).map_err(|_| AdminError::InvalidInput)?;
+            match m.schedule(minutes * 60, v, &actor.session.username) {
+                Ok(plan) => Some(plan),
+                // Another publish scheduled first; its restart loads every published version.
+                Err(MaintenanceError::Busy) => m.current(),
+                Err(MaintenanceError::Delay) => return Err(AdminError::InvalidInput),
+            }
+        }
+        None => None,
+    };
+    Ok((version, plan))
+}
+
+/// Cancel the scheduled maintenance (Delay -1 of the original operation); audited.
+pub async fn cancel_maintenance(
+    pool: &PgPool,
+    actor: &Actor<'_>,
+    maintenance: &Maintenance,
+) -> Result<(), AdminError> {
+    require(actor.session, Permission::Administer)?;
+    let reason = AuditReason::parse(actor.reason).ok_or(AdminError::InvalidInput)?;
+    let current = maintenance.current().ok_or(AdminError::NotFound)?;
+    let target = current.version.to_string();
+    let mut record = audit(
+        actor,
+        &reason,
+        "content.maintenance_cancel",
+        "content",
+        &target,
+    );
+    record.before =
+        Some(serde_json::json!({ "remaining_seconds": current.remaining_seconds }).to_string());
+    let mut tx = pool.begin().await?;
+    match crate::infrastructure::admin_store::insert_audit(&mut tx, &record).await {
+        Ok(()) => tx.commit().await?,
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            return Err(AdminError::RepeatedOperation);
+        }
+        Err(e) => return Err(e.into()),
+    }
+    maintenance.cancel();
+    Ok(())
 }
 
 pub async fn edits(

@@ -23,6 +23,7 @@ fn kind(v: &str) -> Kind {
         "system" => Kind::System,
         "ng" => Kind::Ng,
         "cafe" => Kind::Cafe,
+        "notice_shutdown" => Kind::NoticeShutDown,
         _ => panic!("fixture kind"),
     }
 }
@@ -34,6 +35,7 @@ fn message<'a>(c: &'a Value, data: &'a [u8]) -> Option<Message<'a>> {
     Some(match kind(c["kind"].as_str().unwrap()) {
         Kind::Ping => Message::Ping(f["tag"].as_i64().unwrap() as i32),
         Kind::Pong => Message::Pong(f["tag"].as_i64().unwrap() as i32),
+        Kind::NoticeShutDown => Message::NoticeShutDown(f["delay"].as_i64().unwrap() as i32),
         Kind::Cafe => Message::Cafe {
             home: f["home"].as_i64().unwrap() as i32,
             account: f["account"].as_i64().unwrap() as i32,
@@ -66,7 +68,7 @@ fn message<'a>(c: &'a Value, data: &'a [u8]) -> Option<Message<'a>> {
 fn five_control_messages_match_original_fields_bytes_and_stateful_cipher_in_all_envelopes() {
     let f = fixture();
     for p in f["profiles"].as_array().unwrap() {
-        assert_eq!(p["cases"].as_array().unwrap().len(), 441);
+        assert_eq!(p["cases"].as_array().unwrap().len(), 459);
         let mut sender =
             LegacySender::with_profile(CipherProfile::VindictusFrontend, 123456, 16384).unwrap();
         let mut receiver = LegacyReceiver::with_profile(CipherProfile::VindictusFrontend, 16384);
@@ -105,7 +107,14 @@ fn five_control_messages_match_original_fields_bytes_and_stateful_cipher_in_all_
 }
 #[test]
 fn control_categories_guids_and_source_failure_literal_match_original_metadata() {
-    for k in [Kind::Ping, Kind::Pong, Kind::System, Kind::Ng, Kind::Cafe] {
+    for k in [
+        Kind::Ping,
+        Kind::Pong,
+        Kind::System,
+        Kind::Ng,
+        Kind::Cafe,
+        Kind::NoticeShutDown,
+    ] {
         assert!(
             REGISTERED_CLASSES
                 .iter()

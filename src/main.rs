@@ -321,6 +321,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
         admin_item_names,
         admin_panel_catalog,
         admin_icons_dir,
+        shop_list_output,
+        content_edits_output,
         ..
     } = &cli.command
     {
@@ -347,8 +349,16 @@ async fn run(cli: Cli) -> Result<(), Error> {
         let pool = postgres::pool(&config)?;
         postgres::check_ready(&pool).await?;
         let mut runtime = lab_frontend::Runtime::new(profile, content)?.with_name_check(name_proof);
+        // Published panel content edits take effect here (B4.4c).
+        use vindictus_server::infrastructure::content_edits;
+        let overlay = content_edits::loaded_overlay(&pool)
+            .await
+            .map_err(|_| Error::Configuration("invalid published content edits".into()))?;
         if let Some(path) = minimum_creation_assets {
-            let assets = vindictus_server::infrastructure::minimum_assets::Assets::read(path)
+            let assets =
+                vindictus_server::infrastructure::minimum_assets::Assets::read_with_overlay(
+                    path, &overlay,
+                )
                 .map_err(|_| {
                     Error::Configuration("invalid private minimum creation assets".into())
                 })?;
@@ -370,6 +380,29 @@ async fn run(cli: Cli) -> Result<(), Error> {
         }
         let runtime = std::sync::Arc::new(runtime);
         let listener = tokio::net::TcpListener::bind(lab_peer::listen_addr(runtime.bind())).await?;
+        // The cash shop product list and the overlay the client launcher applies to its copy,
+        // written next to what serves them; then the loaded version counts as applied.
+        if let (Some(output), Some(assets)) = (shop_list_output, runtime.minimum_assets()) {
+            let list = assets
+                .cash_shop_list(SHOP_LIST_PER_CATEGORY)
+                .ok_or_else(|| Error::Configuration("cash shop assets not exported".into()))?;
+            write_atomic(output, list.as_bytes())?;
+        }
+        if let Some(output) = content_edits_output {
+            let value = content_edits::overlay(&pool)
+                .await
+                .map_err(|_| Error::Configuration("content edits unavailable".into()))?;
+            write_atomic(output, value.to_string().as_bytes())?;
+        }
+        if overlay.version > 0 {
+            content_edits::mark_applied(&pool, overlay.version)
+                .await
+                .map_err(|_| Error::Configuration("content version not recorded".into()))?;
+        }
+        tracing::info!(
+            content_version = overlay.version,
+            "published content edits loaded"
+        );
         let channel_listener = match runtime.channel() {
             Some((bind, channel)) => Some((
                 tokio::net::TcpListener::bind(lab_peer::listen_addr(bind)).await?,
@@ -452,6 +485,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
             let front = lab_frontend::run(listener, runtime.clone(), pool.clone(), async move {
                 let _ = front_signal.changed().await;
             });
+            let maintenance = maintenance_stop(runtime.clone());
             let city = vindictus_server::infrastructure::channel_server::run(
                 channel_listener,
                 channel,
@@ -460,14 +494,22 @@ async fn run(cli: Cli) -> Result<(), Error> {
                     let _ = channel_signal.changed().await;
                 },
             );
-            tokio::pin!(front, city);
+            tokio::pin!(front, city, maintenance);
             tokio::select! {
                 () = shutdown() => { let _ = stop.send(true); let (f,c) = tokio::join!(front, city); f.and(c) }
+                () = &mut maintenance => { let _ = stop.send(true); let (f,c) = tokio::join!(front, city); f.and(c) }
                 result = &mut front => { let _ = stop.send(true); result.and(city.await) }
                 result = &mut city => { let _ = stop.send(true); result.and(front.await) }
             }
         } else {
-            lab_frontend::run(listener, runtime.clone(), pool.clone(), shutdown()).await
+            let maintenance = maintenance_stop(runtime.clone());
+            lab_frontend::run(listener, runtime.clone(), pool.clone(), async move {
+                tokio::select! {
+                    () = shutdown() => {}
+                    () = maintenance => {}
+                }
+            })
+            .await
         };
         if let Some(task) = relay_task {
             task.abort();
@@ -1095,6 +1137,28 @@ async fn run(cli: Cli) -> Result<(), Error> {
     }
     pool.close().await;
     Ok(())
+}
+
+/// Products per category of the laboratory ShopList.aspx (lab-export-shop-list's default).
+const SHOP_LIST_PER_CATEGORY: usize = 10;
+
+fn write_atomic(output: &std::path::Path, bytes: &[u8]) -> Result<(), Error> {
+    let partial = output.with_extension("partial");
+    std::fs::write(&partial, bytes)
+        .and_then(|()| std::fs::rename(&partial, output))
+        .map_err(|_| Error::Configuration("content output not written".into()))
+}
+
+/// The scheduled maintenance's end: the frontend stops, every connection saves and closes,
+/// and the process exits; the container restart policy starts it with the new version.
+async fn maintenance_stop(
+    runtime: std::sync::Arc<vindictus_server::infrastructure::lab_frontend::Runtime>,
+) {
+    let plan = runtime.maintenance().wait_for_shutdown().await;
+    tracing::info!(
+        version = plan.version,
+        "scheduled maintenance reached; stopping to apply the content version"
+    );
 }
 
 async fn shutdown() {

@@ -12,6 +12,9 @@ pub enum Kind {
     System,
     Ng,
     Cafe,
+    /// NoticeShutDownMessage: the server stops in `Delay` seconds (FrontendServiceCore
+    /// ShutDownProcessor).
+    NoticeShutDown,
 }
 impl Kind {
     pub fn category(self) -> i32 {
@@ -21,6 +24,7 @@ impl Kind {
             Self::System => 602,
             Self::Ng => 16,
             Self::Cafe => 236,
+            Self::NoticeShutDown => 505,
         }
     }
     pub fn type_id(self) -> Uuid {
@@ -30,6 +34,7 @@ impl Kind {
             Self::System => 0xe3fb23ddbce03c81b40416e93f7bea38,
             Self::Ng => 0x5ee15fa278083ab28dd2caa46efd8124,
             Self::Cafe => 0x3c438b534b8739819ef1e164d6632266,
+            Self::NoticeShutDown => 0x88cb090bcdc1367c9397698aabbb3e8a,
         })
     }
 }
@@ -47,6 +52,7 @@ pub enum Message<'a> {
     },
     Ping(i32),
     Pong(i32),
+    NoticeShutDown(i32),
     System {
         category: u8,
         text: Option<HeroesText<'a>>,
@@ -64,6 +70,7 @@ impl Message<'_> {
             Self::System { .. } => Kind::System,
             Self::Ng { .. } => Kind::Ng,
             Self::Cafe { .. } => Kind::Cafe,
+            Self::NoticeShutDown(_) => Kind::NoticeShutDown,
         }
     }
 }
@@ -95,7 +102,9 @@ pub fn encode(
     }
     w.append(&[1])?;
     match m {
-        Message::Ping(tag) | Message::Pong(tag) => w.append(&tag.to_be_bytes())?,
+        Message::Ping(tag) | Message::Pong(tag) | Message::NoticeShutDown(tag) => {
+            w.append(&tag.to_be_bytes())?
+        }
         Message::Cafe {
             home,
             account,
@@ -147,6 +156,7 @@ pub fn decode(
         Some(match kind {
             Kind::Ping => Message::Ping(i32::from_be_bytes(r.fixed()?)),
             Kind::Pong => Message::Pong(i32::from_be_bytes(r.fixed()?)),
+            Kind::NoticeShutDown => Message::NoticeShutDown(i32::from_be_bytes(r.fixed()?)),
             Kind::Cafe => Message::Cafe {
                 home: i32::from_be_bytes(r.fixed()?),
                 account: i32::from_be_bytes(r.fixed()?),

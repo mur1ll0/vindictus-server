@@ -68,6 +68,9 @@ if($MinimumCreationAssetsFile){
  if($taskAssetsRules.Count-lt1-or@($taskAssetsRules|Where-Object{$_.IdentityReference-ne$sid-and$_.IdentityReference-ne$system}).Count-ne0){throw 'Private assets configuration ACL is not protected'}
  $taskRuntimeArguments+=@('--minimum-creation-assets',('"'+$taskAssets+'"'))
 }
+# Published content (B4.4c): ShopList.aspx for the bootstrap HTTP and the overlay for the client launcher.
+$taskState=Join-Path $project '.cache/content-state';[void](New-Item -ItemType Directory -Force $taskState)
+$taskRuntimeArguments+=@('--shop-list-output',('"'+(Join-Path $project '.cache/client-bootstrap/en-eu-x-gm/ShopList.aspx')+'"'),'--content-edits-output',('"'+(Join-Path $taskState 'content-edits.json')+'"'))
 # Admin panel (B4): loopback listener; serves web/admin/dist when it was built.
 if($AdminPort-gt0){
  $taskRuntimeArguments+=@('--admin-listen',('127.0.0.1:'+$AdminPort))

@@ -1,12 +1,14 @@
-//! NPC shop and cash shop routes (B4.4): the loaded content, pending edits, versions and
-//! publishing. A published version reaches the game through scripts/content/
-//! apply-content-edits.ps1 on the host.
+//! NPC shop and cash shop routes (B4.4): the loaded content, pending edits, versions,
+//! publishing and the maintenance that restarts the game with a published version.
 use super::{AdminState, Authenticated, Refusal};
 use crate::{
     application::content_admin::{
         self, Actor, CashCategoryView, EditRequest, ShopRowView, ShopSummary,
     },
-    infrastructure::content_edits::{ContentEdit, ContentVersion},
+    infrastructure::{
+        content_edits::{ContentEdit, ContentVersion},
+        maintenance::Plan,
+    },
 };
 use axum::{
     Json,
@@ -70,6 +72,8 @@ pub(super) struct ContentState {
     /// Pending first, then the latest.
     edits: Vec<ContentEdit>,
     versions: Vec<ContentVersion>,
+    /// The scheduled restart, if any.
+    maintenance: Option<Plan>,
 }
 
 #[utoipa::path(get, path = "/api/content",
@@ -79,7 +83,15 @@ pub(super) async fn content_state(
     auth: Authenticated,
 ) -> Result<Json<ContentState>, Refusal> {
     let (edits, versions) = content_admin::edits(state.auth.pool(), &auth.session).await?;
-    Ok(Json(ContentState { edits, versions }))
+    let maintenance = state
+        .runtime
+        .as_ref()
+        .and_then(|r| r.maintenance().current());
+    Ok(Json(ContentState {
+        edits,
+        versions,
+        maintenance,
+    }))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -144,20 +156,31 @@ pub(super) async fn withdraw(
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
+#[derive(Deserialize, ToSchema)]
+pub(super) struct Publish {
+    operation_id: Uuid,
+    reason: String,
+    /// Minutes until the restart that applies the version (0–60; 0 = now).
+    minutes: i32,
+}
+
 #[derive(Serialize, ToSchema)]
 pub(super) struct Published {
     version: i64,
+    /// The scheduled restart (absent when the panel runs without the game).
+    maintenance: Option<Plan>,
 }
 
-/// Publish the pending edits as the next version (admin); apply it on the host with
-/// scripts/content/apply-content-edits.ps1.
-#[utoipa::path(post, path = "/api/content/publish", request_body = Reasoned,
-    responses((status = 200, body = Published), (status = 403, body = super::ApiError),
-              (status = 409, body = super::ApiError)))]
+/// Publish the pending edits as the next version (admin) and schedule the maintenance: every
+/// player gets the original NoticeShutDownMessage countdown, is disconnected at the end, and
+/// the game restarts with the version.
+#[utoipa::path(post, path = "/api/content/publish", request_body = Publish,
+    responses((status = 200, body = Published), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 409, body = super::ApiError)))]
 pub(super) async fn publish(
     State(state): State<AdminState>,
     auth: Authenticated,
-    Json(body): Json<Reasoned>,
+    Json(body): Json<Publish>,
 ) -> Result<Json<Published>, Refusal> {
     let actor = Actor {
         session: &auth.session,
@@ -165,8 +188,35 @@ pub(super) async fn publish(
         operation_id: body.operation_id,
         reason: &body.reason,
     };
-    let version = content_admin::publish(state.auth.pool(), &actor).await?;
-    Ok(Json(Published { version }))
+    let maintenance = state.runtime.as_ref().map(|r| r.maintenance());
+    let (version, maintenance) =
+        content_admin::publish(state.auth.pool(), &actor, maintenance, body.minutes).await?;
+    Ok(Json(Published {
+        version,
+        maintenance,
+    }))
+}
+
+/// Cancel the scheduled maintenance (admin); the version stays published.
+#[utoipa::path(post, path = "/api/content/maintenance/cancel", request_body = Reasoned,
+    responses((status = 204), (status = 403, body = super::ApiError), (status = 404, body = super::ApiError)))]
+pub(super) async fn cancel_maintenance(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Json(body): Json<Reasoned>,
+) -> Result<axum::http::StatusCode, Refusal> {
+    let actor = Actor {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+        reason: &body.reason,
+    };
+    let runtime = state
+        .runtime
+        .as_ref()
+        .ok_or(crate::application::admin_session::AdminError::NotFound)?;
+    content_admin::cancel_maintenance(state.auth.pool(), &actor, runtime.maintenance()).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
 /// Item icon of the client (PNG exported by export_panel_catalog.py), for the panel's lists.

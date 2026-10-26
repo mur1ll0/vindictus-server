@@ -76,7 +76,7 @@ Pré-condição: containers recompilados depois de 26/10/2026; binário nativo c
 - [ ] Abrir o cliente, entrar com `admin`, ir ao Ferghus → Enhancement Elixir por 3.000 e o item novo por 100; comprar um de cada → o ouro cai certo e os itens entram no inventário.
 - [ ] Abrir o Depot → a categoria editada com o preço novo.
 - [ ] (Desfazer) Clicar no item novo → Remover esta linha → publicar → aplicar de novo → o item some da loja do Ferghus.
-Limites conhecidos: edições só chegam ao jogo pelo script do host, que reinicia o servidor do jogo (quem estiver online cai); só lojas existentes; linhas com limite de compra aparecem "limitado" e continuam fora do que o laboratório vende; os produtos VIP por duração seguem a própria regra de preço.
+Limites conhecidos: edições só chegavam ao jogo pelo script do host (substituído pelo fluxo automático do B4.4c, que continua aceitando o script como alternativa manual); só lojas existentes; linhas com limite de compra aparecem "limitado" e continuam fora do que o laboratório vende; os produtos VIP por duração seguem a própria regra de preço.
 
 ### FX-relist — Voltar à seleção de personagens e entrar de novo
 Pré-condição: containers recompilados depois de 26/10/2026.
@@ -94,6 +94,18 @@ Pré-condição: containers recompilados depois de 26/10/2026 com `.cache/privat
 - [ ] Ficha da Murael → Inventário → abas Bolsa 1…, Quest, Cash… com a contagem; buscar um item → as abas com resultado ficam destacadas com `n/total` e a lista diz em quais abas está.
 - [ ] Dar item → a busca do catálogo mostra os ícones.
 Limites conhecidos: reordenar e arrastar itens pelo painel ainda não existem; ícones só de itens (não de skills/efeitos).
+
+### B4.4c — Publicar com manutenção agendada e aplicação automática
+Pré-condição: containers recompilados depois de 26/10/2026; abrir o cliente pelo `.cache/play-client/start-lab.bat` (atualiza a cópia do cliente com a versão publicada e abre o jogo como o `start.bat`).
+- [ ] Entrar no jogo com `admin` e ficar na cidade com a Murael.
+- [ ] No painel, Lojas de NPC → Ferghus → mudar o preço de um item (ex.: Enhancement Elixir) → Conteúdo → Publicar versão → o modal pede os minutos (5 por padrão); colocar 1 e publicar.
+- [ ] Conteúdo mostra "Manutenção agendada: reinício em 0:59…" com a contagem; Auditoria registra a publicação com `restart_minutes`.
+- [ ] No jogo: aparece o aviso de desligamento do servidor (60 s) e depois 45, 30, 15, 10 e 5 s (o texto é do próprio cliente; anotar como aparece).
+- [ ] No fim do prazo o jogo desconecta (anotar a mensagem). O painel fica fora por alguns segundos e volta; a versão aparece "aplicada".
+- [ ] Fechar o cliente, abrir pelo `start-lab.bat`, entrar → o Ferghus vende pelo preço novo (no diálogo da loja e na cobrança).
+- [ ] (Cancelar) Publicar outra edição com 5 minutos → Cancelar manutenção → a contagem some, ninguém é desconectado; a versão fica "aplicada no próximo reinício".
+- [ ] (Imediato) Publicar com 0 minutos → aviso de 0 s e desconexão imediata; o servidor volta com a versão.
+Limites conhecidos: o aviso é só o NoticeShutDownMessage do original (sem anúncio de texto, que o original só mandava em esperas de 10 minutos ou mais); a cópia do cliente só muda ao abrir pelo `start-lab.bat` (o `start.bat` original abre sem a atualização); cancelar não desfaz a versão publicada.
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

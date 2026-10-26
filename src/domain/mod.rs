@@ -19,6 +19,7 @@ pub mod passport;
 pub mod user_login_return;
 
 pub mod character_data;
+pub mod content_overlay;
 pub mod dormant_item;
 pub mod feature_policy;
 

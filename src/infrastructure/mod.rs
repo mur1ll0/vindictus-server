@@ -5,6 +5,7 @@ pub mod admin_progression;
 pub mod admin_store;
 pub mod content_edits;
 pub mod game_links;
+pub mod maintenance;
 pub mod postgres;
 
 pub mod frontend;

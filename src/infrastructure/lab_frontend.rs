@@ -104,6 +104,7 @@ pub struct Runtime {
     channel: Option<(std::net::SocketAddr, Arc<super::channel_server::Runtime>)>,
     relay: Option<super::relay::Relay>,
     web_shop: super::lab_web_shop::Sessions,
+    maintenance: super::maintenance::Maintenance,
 }
 impl Runtime {
     pub fn new(
@@ -142,6 +143,7 @@ impl Runtime {
             channel: None,
             relay: None,
             web_shop: super::lab_web_shop::Sessions::default(),
+            maintenance: super::maintenance::Maintenance::default(),
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
@@ -180,6 +182,10 @@ impl Runtime {
             creation,
         });
         Ok(self)
+    }
+    /// Scheduled maintenance: the notices every connection sends and the frontend stop.
+    pub fn maintenance(&self) -> &super::maintenance::Maintenance {
+        &self.maintenance
     }
     /// Characters selected in live connections, the authority of the in-game web shop.
     pub fn web_shop(&self) -> super::lab_web_shop::Sessions {
@@ -3888,6 +3894,7 @@ pub async fn connection(
     let peer =
         super::lab_peer::effective_peer(stream.peer_addr()?.ip()).ok_or(RuntimeError::Profile)?;
     let mut state = Connection::new(&runtime, peer);
+    let mut notices = runtime.maintenance().notices();
     let result=async {
   let b=uuid::Uuid::new_v4().into_bytes();let salt=u32::from_be_bytes([b[0],b[1],b[2],b[3]])&0x7fffffff;
   // The pinned original config sets NGM_Disable=1. The laboratory replaces the NISMS cash
@@ -3912,6 +3919,15 @@ pub async fn connection(
     _=tokio::time::sleep_until(timer.unwrap_or(deadline)),if timer.is_some()&&state.close_at.is_none()=>{state.mission_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(effects.unwrap_or(deadline)),if effects.is_some()&&state.close_at.is_none()=>{state.effect_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(daily.unwrap_or(deadline)),if daily.is_some()&&state.close_at.is_none()=>{state.daily_items(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    notice=notices.recv()=>{
+     // ShutDownProcessor.SendNoticeShutDownMessage: every client, NoticeShutDownMessage{Delay}.
+     match notice{
+      Ok(delay)=>{let body=ctl::encode(ControlKind::NoticeShutDown,Some(&ControlMessage::NoticeShutDown(delay)),DEFAULT_MAX_BODY).map_err(|_|RuntimeError::Message)?;send(&mut stream,&mut sender,ControlKind::NoticeShutDown.category(),&body).await?;}
+      Err(tokio::sync::broadcast::error::RecvError::Lagged(_))=>{}
+      Err(tokio::sync::broadcast::error::RecvError::Closed)=>return Ok(()),
+     }
+     continue;
+    }
     value=stream.read(&mut buffer[..])=>value?,
    };
    if count==0{return if receiver.buffered_len()==0{Ok(())}else{Err(RuntimeError::Message)}}

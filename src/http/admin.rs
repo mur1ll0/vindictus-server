@@ -114,6 +114,7 @@ impl AdminState {
         content::create_edit,
         content::withdraw,
         content::publish,
+        content::cancel_maintenance,
         content::item_icon
     ),
     components(schemas(
@@ -153,7 +154,9 @@ impl AdminState {
         content::NewEdit,
         content::Created,
         content::Reasoned,
-        content::Published
+        content::Publish,
+        content::Published,
+        crate::infrastructure::maintenance::Plan
     ))
 )]
 pub struct ApiDoc;
@@ -203,6 +206,10 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/content/edits", post(content::create_edit))
         .route("/api/content/edits/{id}/withdraw", post(content::withdraw))
         .route("/api/content/publish", post(content::publish))
+        .route(
+            "/api/content/maintenance/cancel",
+            post(content::cancel_maintenance),
+        )
         .route(
             "/api/characters/{cid}/progression",
             post(characters::progression),
@@ -351,6 +358,9 @@ impl IntoResponse for Refusal {
                             "Nível alvo inválido: precisa ser maior que o atual e até o nível máximo."
                         }
                         "sem_pendentes" => "Não há edições pendentes para publicar.",
+                        "manutencao" => {
+                            "Já há uma manutenção agendada; cancele-a ou espere o reinício."
+                        }
                         "efeito" => {
                             "O jogo recusou o efeito: tipo/nível inexistente, efeito do cliente ou que não pode substituir o atual."
                         }

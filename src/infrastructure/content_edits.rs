@@ -235,7 +235,18 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
     }))
 }
 
-/// Host script: the version it exported is now applied.
+/// The overlay as the game server applies it at start, bounds checked.
+pub async fn loaded_overlay(
+    pool: &PgPool,
+) -> Result<crate::domain::content_overlay::Overlay, sqlx::Error> {
+    let value = overlay(pool).await?;
+    serde_json::from_value::<crate::domain::content_overlay::Overlay>(value)
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))?
+        .validate()
+        .map_err(|e| sqlx::Error::Decode(Box::new(e)))
+}
+
+/// The game server loaded (or the host script exported) this version: it is applied.
 pub async fn mark_applied(pool: &PgPool, version: i32) -> Result<bool, sqlx::Error> {
     Ok(sqlx::query(
         "UPDATE content_versions SET applied_at = now() WHERE version <= $1 AND applied_at IS NULL",

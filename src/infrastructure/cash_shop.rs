@@ -259,6 +259,22 @@ impl Profile {
         Ok(p)
     }
 
+    /// Category and default prices with the published panel edits (B4.4).
+    pub fn with_overlay(mut self, overlay: &crate::domain::content_overlay::Overlay) -> Self {
+        for (category, price) in &overlay.cash_prices {
+            match self.prices.iter_mut().find(|p| &p.category == category) {
+                Some(p) => p.price = *price,
+                None => self.prices.push(Price {
+                    category: category.clone(),
+                    price: *price,
+                }),
+            }
+        }
+        if let Some(price) = overlay.cash_default {
+            self.default_price = price;
+        }
+        self
+    }
     pub fn bind(&self, catalog: &Catalog) -> Result<Contents, MinimumError> {
         if self.database_sha256 != catalog.manifest.database_sha256
             || self.config_sha256 != catalog.manifest.config_sha256

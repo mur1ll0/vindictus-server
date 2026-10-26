@@ -109,3 +109,29 @@ async fn runtime_shutdown_drains_open_connection_and_incomplete_stream_is_reject
     assert!(task.await.unwrap().is_err());
     assert_eq!(r.active_count().unwrap(), 0);
 }
+#[tokio::test]
+async fn scheduled_maintenance_sends_notice_shutdown_to_every_connection() {
+    let r = runtime();
+    let (mut first, task, stop, mut rx, _tx) = open(r.clone(), no_database()).await;
+    let (mut second, other, other_stop, mut other_rx, _other_tx) =
+        open(r.clone(), no_database()).await;
+    // ShutDownProcessor with Delay 0: NoticeShutDownMessage{Delay = 0}, then the stop.
+    let driver = {
+        let r = r.clone();
+        tokio::spawn(async move { r.maintenance().wait_for_shutdown().await })
+    };
+    let plan = r.maintenance().schedule(0, 3, "admin").unwrap();
+    assert_eq!(driver.await.unwrap(), plan);
+    for (client, receiver) in [(&mut first, &mut rx), (&mut second, &mut other_rx)] {
+        let frame = read(client, receiver).await;
+        assert_eq!(frame.category_id, Kind::NoticeShutDown.category());
+        assert!(
+            ctl::decode(Kind::NoticeShutDown, &frame.body, DEFAULT_MAX_BODY).unwrap()
+                == Some(Message::NoticeShutDown(0))
+        );
+    }
+    stop.send(true).unwrap();
+    other_stop.send(true).unwrap();
+    assert!(task.await.unwrap().is_ok());
+    assert!(other.await.unwrap().is_ok());
+}

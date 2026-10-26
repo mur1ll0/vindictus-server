@@ -72,7 +72,10 @@ services:
 
   # Game laboratory: frontend 27015, city channel 27003, mission relay 27005, web shop 27080 and
   # admin panel 27090, published only on the host loopback. Private content and the protected runtime profile stay on the
-  # host (.cache) and are mounted read-only; nothing private enters the image.
+  # host (.cache) and are mounted read-only; nothing private enters the image. At start it writes
+  # the cash shop ShopList.aspx (published prices) for the bootstrap HTTP and the published content
+  # overlay for the client launcher; a scheduled maintenance exits it and the restart policy
+  # starts it again with the published version (B4.4c).
   game:
     <<: *app
     entrypoint: [/bin/sh, -c]
@@ -84,6 +87,8 @@ services:
         --admin-listen 127.0.0.1:27090 --admin-ui-dir /app/admin-ui
         --admin-item-names /content/item-names.json
         --admin-panel-catalog /content/panel-catalog.json --admin-icons-dir /content/icons
+        --shop-list-output /shop-list/ShopList.aspx
+        --content-edits-output /content-state/content-edits.json
         < /run/secrets/lab_runtime_profile
     environment:
       <<: *app-environment
@@ -91,6 +96,8 @@ services:
     volumes:
       - ./.cache/private-content:/content:ro
       - ./docker/lab/minimum-creation-assets.json:/lab/minimum-creation-assets.json:ro
+      - ./.cache/client-bootstrap/en-eu-x-gm:/shop-list
+      - ./.cache/content-state:/content-state
     secrets: [lab_runtime_profile]
     depends_on:
       postgres:

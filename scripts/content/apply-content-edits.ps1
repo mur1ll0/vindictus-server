@@ -1,4 +1,6 @@
 #requires -Version 7.4
+# Manual alternative (B4.4): since B4.4c the game server applies a published version when the
+# panel's scheduled maintenance restarts it, and start-lab.bat updates the client copy.
 # Apply the published admin panel content edits (B4.4) on the host:
 #  1. export the cumulative overlay from PostgreSQL (.cache/private-content/content-edits.json);
 #  2. re-run the content exporters that read it (npc-scripts.json, cash-shop.json);

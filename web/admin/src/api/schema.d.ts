@@ -242,6 +242,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/content/maintenance/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel the scheduled maintenance (admin); the version stays published. */
+        post: operations["cancel_maintenance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/content/publish": {
         parameters: {
             query?: never;
@@ -252,8 +269,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Publish the pending edits as the next version (admin); apply it on the host with
-         *     scripts/content/apply-content-edits.ps1.
+         * Publish the pending edits as the next version (admin) and schedule the maintenance: every
+         *     player gets the original NoticeShutDownMessage countdown, is disconnected at the end, and
+         *     the game restarts with the version.
          */
         post: operations["publish"];
         delete?: never;
@@ -699,6 +717,7 @@ export interface components {
         ContentState: {
             /** @description Pending first, then the latest. */
             edits: components["schemas"]["ContentEdit"][];
+            maintenance?: null | components["schemas"]["Plan"];
             versions: components["schemas"]["ContentVersion"][];
         };
         ContentVersion: {
@@ -806,6 +825,23 @@ export interface components {
              */
             new_password: string;
         };
+        Plan: {
+            /** Format: int32 */
+            delay_seconds: number;
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int32
+             * @description Seconds left when read.
+             */
+            remaining_seconds: number;
+            requested_by: string;
+            /**
+             * Format: int32
+             * @description The content version the restart applies.
+             */
+            version: number;
+        };
         ProgressionChange: {
             change: components["schemas"]["ProgressionKind"];
             /** Format: uuid */
@@ -850,7 +886,18 @@ export interface components {
             /** @description Level, EXP, AP, acquired titles and status effects before the change. */
             before: Record<string, never>;
         };
+        Publish: {
+            /**
+             * Format: int32
+             * @description Minutes until the restart that applies the version (0–60; 0 = now).
+             */
+            minutes: number;
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
+        };
         Published: {
+            maintenance?: null | components["schemas"]["Plan"];
             /** Format: int64 */
             version: number;
         };
@@ -1565,7 +1612,7 @@ export interface operations {
             };
         };
     };
-    publish: {
+    cancel_maintenance: {
         parameters: {
             query?: never;
             header?: never;
@@ -1578,12 +1625,57 @@ export interface operations {
             };
         };
         responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Publish"];
+            };
+        };
+        responses: {
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Published"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
             403: {
