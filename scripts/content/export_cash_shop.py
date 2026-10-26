@@ -9,6 +9,7 @@ of their features, and the client's english_eu item names and descriptions
 (HEROES_ITEM_NAME_/HEROES_ITEM_DESC_<CLASS> of heroes_text_english_eu.txt) shown by the
 in-game cash shop; a class whose EU text is still Korean (never released there) has none."""
 import argparse, contextlib, json, pathlib, re, sqlite3
+import content_edits
 from export_item_catalog import read_package as catalog_read, digest
 from export_npc_scripts import region_features
 from export_reward_policy import feature_atoms
@@ -93,13 +94,13 @@ def status_effect(r):
                 kind=kind, stat_adder=sorted([k, v] for k, v in adder.items()))
 
 
-def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED):
+def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED, edits=content_edits.EMPTY):
     package = catalog_read(database, config)
     entries = localized_entries(localized_path)
     manifest = package['manifest']
     prices = json.loads(prices_path.read_text(encoding='utf-8'))
-    default = prices['default']
-    table = prices['categories']
+    # Published panel edits (content-edits.json) over the versioned prices.
+    default, table = content_edits.apply_prices(prices['default'], prices['categories'], edits)
     if type(default) is not int or default <= 0 or any(
             type(v) is not int or v <= 0 or not text(k) for k, v in table.items()):
         raise ValueError('Cash shop price table')
@@ -186,7 +187,7 @@ def main():
     output = pathlib.Path(args.output).resolve()
     if output.parent != (ROOT / '.cache/private-content').resolve():
         raise ValueError('Private output outside ACL cache')
-    package = read_package(base / 'heroesContents.db3', base / 'ServiceCore.dll.config')
+    package = read_package(base / 'heroesContents.db3', base / 'ServiceCore.dll.config', edits=content_edits.load())
     output.write_text(json.dumps(package, ensure_ascii=True, separators=(',', ':')), encoding='utf-8', newline='\n')
     print('Cash shop catalog exported: %d class categories, %d english names, %d prices; values private'
           % (len(package['categories']), sum(n is not None for n in package['names']), len(package['prices'])))

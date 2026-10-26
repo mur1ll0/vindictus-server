@@ -4,6 +4,9 @@ import { homeOf, sessionQuery } from '@/api/session';
 import { Layout } from '@/components/Layout';
 import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
+import { CashShopPage } from '@/pages/CashShop';
+import { ContentPage } from '@/pages/Content';
+import { ShopsPage } from '@/pages/Shops';
 import { CharacterPage } from '@/pages/Character';
 import { LoginPage } from '@/pages/Login';
 import { MyAccountPage } from '@/pages/MyAccount';
@@ -56,6 +59,24 @@ const auditRoute = createRoute({
   beforeLoad: staffOnly,
   component: AuditPage,
 });
+const shopsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/lojas',
+  beforeLoad: staffOnly,
+  component: ShopsPage,
+});
+const cashShopRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/cash-shop',
+  beforeLoad: staffOnly,
+  component: CashShopPage,
+});
+const contentRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/conteudo',
+  beforeLoad: staffOnly,
+  component: ContentPage,
+});
 /** Character sheet: the server answers only for staff or the character's own account. */
 const characterRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -72,7 +93,16 @@ export function makeRouter(queryClient: QueryClient) {
   return createRouter({
     routeTree: root.addChildren([
       loginRoute,
-      shellRoute.addChildren([indexRoute, accountsRoute, auditRoute, characterRoute, myAccountRoute]),
+      shellRoute.addChildren([
+        indexRoute,
+        accountsRoute,
+        shopsRoute,
+        cashShopRoute,
+        contentRoute,
+        auditRoute,
+        characterRoute,
+        myAccountRoute,
+      ]),
     ]),
     context: { queryClient },
   });

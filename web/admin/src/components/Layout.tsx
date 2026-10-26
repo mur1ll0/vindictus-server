@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
-import { History, LogOut, Moon, Shield, Sun, UserRound, Users } from 'lucide-react';
+import { FileStack, Gem, History, LogOut, Moon, Shield, Store, Sun, UserRound, Users } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { logout, sessionQuery } from '@/api/session';
 import { roleLabel } from '@/components/forms';
@@ -12,12 +12,18 @@ type Item = { to: string; label: string; icon: ReactNode };
 
 const STAFF: Item[] = [
   { to: '/contas', label: 'Contas', icon: <Users /> },
+  { to: '/lojas', label: 'Lojas de NPC', icon: <Store /> },
+  { to: '/cash-shop', label: 'Cash shop', icon: <Gem /> },
+  { to: '/conteudo', label: 'Conteúdo', icon: <FileStack /> },
   { to: '/auditoria', label: 'Auditoria', icon: <History /> },
 ];
 const OWN: Item[] = [{ to: '/minha-conta', label: 'Minha conta', icon: <UserRound /> }];
 
 export const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/contas': { title: 'Contas', subtitle: 'No jogo, digite o login no ID (senha em branco); a senha protege o painel' },
+  '/lojas': { title: 'Lojas de NPC', subtitle: 'O que cada NPC vende; edições entram por versão publicada' },
+  '/cash-shop': { title: 'Cash shop', subtitle: 'Preços por categoria do Depot' },
+  '/conteudo': { title: 'Conteúdo', subtitle: 'Edições pendentes, versões publicadas e aplicação no host' },
   '/auditoria': { title: 'Auditoria', subtitle: 'Toda entrada e toda mudança, com quem, quando e por quê' },
   '/minha-conta': { title: 'Minha conta', subtitle: 'Seus dados, seus personagens e sua senha' },
 };

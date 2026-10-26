@@ -1,6 +1,7 @@
 """Readonly NPC script projection: NpcTalkInfo.xml defaults, every StoryLineInfo XML and
 its row, as compact element trees with XElement.Load(LoadOptions.None) text semantics."""
 import argparse, contextlib, hashlib, json, pathlib, re, sqlite3, xml.etree.ElementTree as ET
+import content_edits
 import xml.etree.ElementTree
 import content_overrides as overrides
 from export_item_catalog import read_package as catalog_read, digest
@@ -57,7 +58,7 @@ def lab_additions():
     return json.loads(ADDITIONS.read_text(encoding='utf-8'))
 
 
-def read_package(base, database, config):
+def read_package(base, database, config, edits=content_edits.EMPTY):
     catalog = catalog_read(database, config)
     hasher = hashlib.sha256()
     index = base / 'NpcTalkInfo.xml'
@@ -141,6 +142,8 @@ def read_package(base, database, config):
             if (row['ShopID'], row['Order']) in keys: raise ValueError('ShopInfo addition overlaps an original row')
             keys.add((row['ShopID'], row['Order']))
             shops.append(row)
+        # Published panel edits (content-edits.json) after the laboratory additions.
+        shops = content_edits.apply_shop_rows(shops, edits)
     def int32(v):
         if type(v) is not int or not -(2**31) <= v < 2**31: raise ValueError('Repair Int32')
         return v
@@ -349,7 +352,8 @@ if __name__ == '__main__':
     project = pathlib.Path(__file__).resolve().parents[2]; server = project.parent / 'ServidorVindictus/Server/zh-tw-x-gm'
     output = pathlib.Path(args.output).resolve(); allowed = (project / '.cache/private-content').resolve()
     if not output.is_relative_to(allowed): raise ValueError('Private output path outside ACL cache')
-    package = read_package(server / 'Data/XML', server / 'Bin/heroesContents.db3', server / 'Bin/ServiceCore.dll.config')
+    package = read_package(server / 'Data/XML', server / 'Bin/heroesContents.db3', server / 'Bin/ServiceCore.dll.config',
+                           content_edits.load())
     data = json.dumps(package, ensure_ascii=True, separators=(',', ':'))
     if len(data.encode('utf-8')) > 64 * 1024 * 1024: raise ValueError('Private export size bound')
     output.write_text(data, encoding='utf-8', newline='\n')

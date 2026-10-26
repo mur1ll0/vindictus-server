@@ -40,6 +40,26 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
         self.assertEqual(self.count(), 1)
         self.assertTrue((self.root / 'sql/heroes.db3.pre-lab-additions').exists())
 
+    def test_panel_edits_change_and_remove_rows_and_undo_with_the_backup(self):
+        with closing(sqlite3.connect(self.db)) as db:
+            db.execute("INSERT INTO ShopInfo(ShopID,[Order],ItemClass,Count,PriceItemClass,PriceCount,CharacterBind,"
+                       "RestrictionPeriodDay,RestrictionCount) VALUES('FERGHUS_Shop',1,'longsword',1,'gold',100,'False',0,0)")
+            db.commit()
+        edits = {'format_version': 1, 'version': 2, 'cash_prices': {}, 'cash_default': None, 'shop_rows': [
+            {'ShopID': 'FERGHUS_Shop', 'Order': 1, 'Remove': True},
+            {'ShopID': 'FERGHUS_Shop', 'Order': 124, 'ItemClass': 'enhance_elixir', 'Count': 2, 'PriceItemClass': 'gold', 'PriceCount': 3000},
+        ]}
+        self.assertTrue(apply(self.root, True, self.additions, edits)['changed'])
+        with closing(sqlite3.connect(self.db)) as db:
+            rows = db.execute('SELECT [Order],Count,PriceCount FROM ShopInfo ORDER BY [Order]').fetchall()
+        self.assertEqual(rows, [(124, 2, 3000)])
+        self.assertFalse(apply(self.root, True, self.additions, edits)['changed'])
+        # Without the edits the original row and the addition come back from the backup.
+        apply(self.root, True, self.additions)
+        with closing(sqlite3.connect(self.db)) as db:
+            rows = db.execute('SELECT [Order],PriceCount FROM ShopInfo ORDER BY [Order]').fetchall()
+        self.assertEqual(rows, [(1, 100), (124, 4000)])
+
     def test_an_order_used_by_another_item_is_refused(self):
         with closing(sqlite3.connect(self.db)) as db:
             db.execute("INSERT INTO ShopInfo(ShopID,[Order],ItemClass) VALUES('FERGHUS_Shop',124,'other')")

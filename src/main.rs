@@ -728,6 +728,28 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 "Account created: {id}. Game login: ask a play code (scripts/dev/play.ps1 or the panel's /jogar page)."
             );
         }
+        Command::ContentEditsExport { output } => {
+            postgres::check_ready(&pool).await?;
+            let overlay = vindictus_server::infrastructure::content_edits::overlay(&pool).await?;
+            std::fs::write(
+                &output,
+                serde_json::to_vec(&overlay).map_err(|_| Error::Configuration("overlay".into()))?,
+            )?;
+            println!(
+                "{}",
+                serde_json::json!({"version": overlay["version"], "shop_rows": overlay["shop_rows"].as_array().map_or(0, Vec::len)})
+            );
+        }
+        Command::ContentEditsApplied { version } => {
+            postgres::check_ready(&pool).await?;
+            let marked =
+                vindictus_server::infrastructure::content_edits::mark_applied(&pool, version)
+                    .await?;
+            println!(
+                "{}",
+                serde_json::json!({"version": version, "marked": marked})
+            );
+        }
         Command::AccountLinkGame {
             username,
             game_name,

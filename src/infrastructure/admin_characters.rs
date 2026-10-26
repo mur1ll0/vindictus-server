@@ -484,3 +484,10 @@ impl EnglishNames {
         found
     }
 }
+
+impl EnglishNames {
+    /// The English name of an item class, if the client localization has one.
+    pub fn item_name(&self, class: &str) -> Option<String> {
+        self.item(class).0
+    }
+}

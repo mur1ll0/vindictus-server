@@ -105,6 +105,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cash-shop/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cash shop categories with product counts and prices. */
+        get: operations["cash_categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{cid}": {
         parameters: {
             query?: never;
@@ -170,6 +187,75 @@ export interface paths {
         put?: never;
         /** EXP, target level, AP, title or status effect; the character must be offline. */
         post: operations["progression"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["content_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content/edits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A pending edit, checked against the loaded content. */
+        post: operations["create_edit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content/edits/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/content/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish the pending edits as the next version (admin); apply it on the host with
+         *     scripts/content/apply-content-edits.ps1.
+         */
+        post: operations["publish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -314,6 +400,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/shops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** NPC shops of the loaded content, with their row counts. */
+        get: operations["shops"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shops/{shop_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The rows of one NPC shop as the game sells them. */
+        get: operations["shop"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/status-effects": {
         parameters: {
             query?: never;
@@ -378,6 +498,17 @@ export interface components {
             role?: string | null;
             target_id?: string | null;
             target_kind?: string | null;
+        };
+        CashCategoryView: {
+            category: string;
+            /** Format: int32 */
+            max_price: number;
+            /**
+             * Format: int32
+             * @description Lowest and highest product price of the category (cash).
+             */
+            min_price: number;
+            products: number;
         };
         CashChange: {
             /**
@@ -527,6 +658,40 @@ export interface components {
             /** Format: int32 */
             title_id: number;
         };
+        ContentEdit: {
+            /** @description UTC, RFC 3339. */
+            created_at: string;
+            created_by?: string | null;
+            /** Format: int64 */
+            id: number;
+            /** @description shop_row, shop_row_remove, cash_price or cash_default. */
+            kind: string;
+            reason: string;
+            /** @description pending, published or withdrawn. */
+            state: string;
+            /** @description "<ShopID>#<Order>", the category, or "default". */
+            target: string;
+            /** @description JSON text of the new values (none for a removal). */
+            value?: string | null;
+            /** Format: int32 */
+            version?: number | null;
+        };
+        ContentState: {
+            /** @description Pending first, then the latest. */
+            edits: components["schemas"]["ContentEdit"][];
+            versions: components["schemas"]["ContentVersion"][];
+        };
+        ContentVersion: {
+            /** @description When the host script applied it (exporters, client copy, game restart). */
+            applied_at?: string | null;
+            /** Format: int64 */
+            edits: number;
+            published_at: string;
+            published_by?: string | null;
+            reason: string;
+            /** Format: int32 */
+            version: number;
+        };
         CreateAccount: {
             /** Format: uuid */
             operation_id: string;
@@ -543,6 +708,40 @@ export interface components {
             reason: string;
             /** @description 3–24 letters, digits or underscore (fits the game's account name). */
             username: string;
+        };
+        Created: {
+            /** Format: int64 */
+            id: number;
+        };
+        EditRequest: {
+            /** Format: int32 */
+            count: number;
+            item_class: string;
+            /** @enum {string} */
+            kind: "shop_row";
+            /** Format: int32 */
+            order: number;
+            /** Format: int64 */
+            price_count: number;
+            price_item_class: string;
+            shop_id: string;
+        } | {
+            /** @enum {string} */
+            kind: "shop_row_remove";
+            /** Format: int32 */
+            order: number;
+            shop_id: string;
+        } | {
+            category: string;
+            /** @enum {string} */
+            kind: "cash_price";
+            /** Format: int64 */
+            price: number;
+        } | {
+            /** @enum {string} */
+            kind: "cash_default";
+            /** Format: int64 */
+            price: number;
         };
         /** @enum {string} */
         ItemAction: "give" | "remove";
@@ -571,6 +770,12 @@ export interface components {
             /** Format: password */
             password: string;
             username: string;
+        };
+        NewEdit: {
+            edit: components["schemas"]["EditRequest"];
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
         };
         OwnPassword: {
             /** Format: password */
@@ -625,6 +830,15 @@ export interface components {
             /** @description Level, EXP, AP, acquired titles and status effects before the change. */
             before: Record<string, never>;
         };
+        Published: {
+            /** Format: int64 */
+            version: number;
+        };
+        Reasoned: {
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
+        };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
             csrf_token: string;
@@ -657,6 +871,28 @@ export interface components {
             /** Format: uuid */
             operation_id: string;
             reason: string;
+        };
+        ShopRowView: {
+            character_bind: boolean;
+            /** Format: int32 */
+            count: number;
+            feature?: string | null;
+            item_class: string;
+            item_name?: string | null;
+            /** Format: int32 */
+            order: number;
+            /**
+             * Format: int32
+             * @description Effective price (the game's PriceCalc of PriceCount).
+             */
+            price_count: number;
+            price_item_class: string;
+            /** @description Rows with a purchase limit are not sold by the laboratory yet. */
+            restricted: boolean;
+        };
+        ShopSummary: {
+            rows: number;
+            shop_id: string;
         };
     };
     responses: never;
@@ -983,6 +1219,33 @@ export interface operations {
             };
         };
     };
+    cash_categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashCategoryView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     sheet: {
         parameters: {
             query?: never;
@@ -1139,6 +1402,150 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    content_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentState"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    create_edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewEdit"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Created"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Reasoned"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Reasoned"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Published"];
                 };
             };
             403: {
@@ -1433,6 +1840,62 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    shops: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShopSummary"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    shop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShopRowView"][];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

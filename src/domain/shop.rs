@@ -39,6 +39,10 @@ impl Shops {
         }
         Some(Self { rows: out })
     }
+    /// Every row, by (lower-case ShopID, Order).
+    pub fn all(&self) -> impl Iterator<Item = &ShopRow> {
+        self.rows.values()
+    }
     /// GetShopRetrictCountInfo: every row of a shop (case-insensitive ShopID).
     pub fn rows_of(&self, shop_id: &str) -> impl Iterator<Item = &ShopRow> {
         let lower = shop_id.to_lowercase();

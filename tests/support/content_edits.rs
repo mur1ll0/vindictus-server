@@ -1,0 +1,175 @@
+//! Content edits (B4.4) against PostgreSQL: pending → published versions, withdrawal, the
+//! cumulative overlay (a later edit of a target wins), the applied mark, repeated operation
+//! ids and who may publish. Part of the postgres test target; needs TEST_DATABASE_URL.
+use super::admin_panel::isolated_pool;
+use uuid::Uuid;
+use vindictus_server::{
+    application::{
+        accounts::create_account,
+        admin_session::{AdminError, PanelAuth, set_role_from_cli},
+        content_admin::{self, Actor},
+    },
+    domain::{Username, admin::PanelRole},
+    infrastructure::{
+        admin_store::AuditRecord,
+        content_edits::{self, EditOutcome},
+    },
+};
+use zeroize::Zeroizing;
+
+const PASSWORD: &str = "senha de teste do painel";
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
+    let (admin_pool, pool, schema) = isolated_pool().await;
+    for (name, role) in [("Chefe", PanelRole::Admin), ("Ajudante", PanelRole::Gm)] {
+        create_account(
+            &pool,
+            Username::parse(name).unwrap(),
+            Zeroizing::new(PASSWORD.as_bytes().to_vec()),
+        )
+        .await
+        .unwrap();
+        set_role_from_cli(&pool, name, Some(role), "papel")
+            .await
+            .unwrap();
+    }
+    let auth = PanelAuth::new(pool.clone());
+    let chefe = auth
+        .login("chefe", Zeroizing::new(PASSWORD.as_bytes().to_vec()), None)
+        .await
+        .unwrap()
+        .session;
+    let gm = auth
+        .login(
+            "ajudante",
+            Zeroizing::new(PASSWORD.as_bytes().to_vec()),
+            None,
+        )
+        .await
+        .unwrap()
+        .session;
+    let audit = |op: Uuid| AuditRecord {
+        account_id: Some(gm.account_id),
+        actor_name: Some("Ajudante"),
+        role: gm.role,
+        operation_id: Some(op),
+        action: "content.edit",
+        target_kind: Some("content"),
+        target_id: Some("x"),
+        reason: None,
+        before: None,
+        after: None,
+        refused: false,
+        peer: None,
+    };
+    let edit =
+        |kind: &'static str, target: &'static str, value: Option<serde_json::Value>, op: Uuid| {
+            let pool = pool.clone();
+            let author = gm.account_id;
+            let record = audit(op);
+            async move {
+                content_edits::create(&pool, kind, target, value.as_ref(), author, "teste", record)
+                    .await
+                    .unwrap()
+            }
+        };
+    let row = |price: i64| {
+        Some(
+            serde_json::json!({"ItemClass":"enhance_elixir","Count":1,"PriceItemClass":"gold","PriceCount":price}),
+        )
+    };
+    let first = Uuid::new_v4();
+    let EditOutcome::Done(a) = edit("shop_row", "FERGHUS_Shop#124", row(3000), first).await else {
+        panic!()
+    };
+    assert_eq!(
+        edit("shop_row", "FERGHUS_Shop#124", row(9), first).await,
+        EditOutcome::Repeated
+    );
+    edit(
+        "cash_price",
+        "HAIR",
+        Some(serde_json::json!({"price": 900})),
+        Uuid::new_v4(),
+    )
+    .await;
+    let EditOutcome::Done(withdrawn) = edit(
+        "cash_default",
+        "default",
+        Some(serde_json::json!({"price": 1})),
+        Uuid::new_v4(),
+    )
+    .await
+    else {
+        panic!()
+    };
+    let actor = |session, reason| Actor {
+        session,
+        peer: None,
+        operation_id: Uuid::new_v4(),
+        reason,
+    };
+    content_admin::withdraw(&pool, &actor(&gm, "engano"), withdrawn)
+        .await
+        .unwrap();
+    assert!(matches!(
+        content_admin::withdraw(&pool, &actor(&gm, "de novo"), withdrawn).await,
+        Err(AdminError::NotFound)
+    ));
+
+    // Only an admin publishes; the pending edits become version 1.
+    assert!(matches!(
+        content_admin::publish(&pool, &actor(&gm, "gm")).await,
+        Err(AdminError::Forbidden)
+    ));
+    assert_eq!(
+        content_admin::publish(&pool, &actor(&chefe, "loja do Ferghus"))
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(matches!(
+        content_admin::publish(&pool, &actor(&chefe, "vazio")).await,
+        Err(AdminError::Unchanged(_))
+    ));
+    // A later edit of the same row (version 2) wins in the cumulative overlay; a removal too.
+    edit("shop_row", "FERGHUS_Shop#124", row(5000), Uuid::new_v4()).await;
+    edit("shop_row_remove", "FERGHUS_Shop#3", None, Uuid::new_v4()).await;
+    assert_eq!(
+        content_admin::publish(&pool, &actor(&chefe, "preço novo"))
+            .await
+            .unwrap(),
+        2
+    );
+    let overlay = content_edits::overlay(&pool).await.unwrap();
+    assert_eq!(overlay["version"], 2);
+    assert_eq!(overlay["cash_prices"]["HAIR"], 900);
+    assert!(overlay["cash_default"].is_null());
+    let rows = overlay["shop_rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    let elixir = rows.iter().find(|r| r["Order"] == 124).unwrap();
+    assert_eq!(
+        (elixir["ShopID"].as_str(), elixir["PriceCount"].as_i64()),
+        (Some("FERGHUS_Shop"), Some(5000))
+    );
+    assert_eq!(
+        rows.iter().find(|r| r["Order"] == 3).unwrap()["Remove"],
+        true
+    );
+    assert!(content_edits::mark_applied(&pool, 2).await.unwrap());
+    assert!(!content_edits::mark_applied(&pool, 2).await.unwrap());
+    let (edits, versions) = content_admin::edits(&pool, &gm).await.unwrap();
+    assert_eq!(versions.len(), 2);
+    assert!(versions.iter().all(|v| v.applied_at.is_some()));
+    assert_eq!(edits.iter().filter(|e| e.state == "withdrawn").count(), 1);
+    assert_eq!(edits.iter().find(|e| e.id == a).unwrap().version, Some(1));
+
+    pool.close().await;
+    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
+    admin_pool.close().await;
+}

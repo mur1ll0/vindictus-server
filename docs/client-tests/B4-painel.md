@@ -65,6 +65,19 @@ Pré-condição: containers recompilados depois de 26/10/2026; a Murael **fora d
 Resultado do operador (26/10/2026): subir até o nível 20 e dar 50.000 de EXP pelo painel funcionaram e apareceram no jogo; AP, efeito, título e recusa online não relatados.
 Limites conhecidos: só com a personagem fora do jogo; skills não mudam pelo painel ainda; títulos pelo ID (sem nome).
 
+### B4.4 — Lojas de NPC e cash shop pelo painel
+Pré-condição: containers recompilados depois de 26/10/2026; binário nativo compilado (`cargo build --locked`) para o script do host; cliente fechado na hora de aplicar.
+- [ ] Como `admin`, Lojas de NPC → filtrar "ferghus" → abrir a loja → as linhas aparecem com o nome em inglês e o preço que o jogo cobra (Enhancement Elixir por 4.000).
+- [ ] Clicar no Enhancement Elixir → mudar o preço para 3.000 com motivo → Conteúdo mostra 1 pendente.
+- [ ] Na mesma loja, Adicionar linha → buscar um item (ex.: "potion") → preço 100 → Conteúdo mostra 2 pendentes.
+- [ ] Cash shop → escolher uma categoria (ex.: HAIR) → preço novo → 3 pendentes.
+- [ ] Conteúdo → Publicar versão (motivo) → v1 "a aplicar".
+- [ ] No host: `pwsh scripts/content/apply-content-edits.ps1` → termina com "Content edits applied up to version 1"; Conteúdo mostra v1 "aplicada".
+- [ ] Abrir o cliente, entrar com `admin`, ir ao Ferghus → Enhancement Elixir por 3.000 e o item novo por 100; comprar um de cada → o ouro cai certo e os itens entram no inventário.
+- [ ] Abrir o Depot → a categoria editada com o preço novo.
+- [ ] (Desfazer) Clicar no item novo → Remover esta linha → publicar → aplicar de novo → o item some da loja do Ferghus.
+Limites conhecidos: edições só chegam ao jogo pelo script do host, que reinicia o servidor do jogo (quem estiver online cai); só lojas existentes; linhas com limite de compra aparecem "limitado" e continuam fora do que o laboratório vende; os produtos VIP por duração seguem a própria regra de preço.
+
 ### FX-relist — Voltar à seleção de personagens e entrar de novo
 Pré-condição: containers recompilados depois de 26/10/2026.
 - [x] Entrar com `admin`, entrar na cidade com a Murael, voltar à tela de seleção (Home) → a lista aparece.

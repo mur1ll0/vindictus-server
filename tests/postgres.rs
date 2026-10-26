@@ -1622,3 +1622,6 @@ mod admin_accounts;
 
 #[path = "support/admin_characters.rs"]
 mod admin_characters;
+
+#[path = "support/content_edits.rs"]
+mod content_edits;

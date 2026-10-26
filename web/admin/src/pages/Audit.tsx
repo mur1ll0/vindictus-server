@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Ban, Gem, KeyRound, PackagePlus, Trash2, TrendingUp, Link2, LogIn, LogOut, RefreshCw, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
+import { Ban, FileStack, Gem, KeyRound, PackagePlus, Trash2, TrendingUp, Undo2, Upload, Link2, LogIn, LogOut, RefreshCw, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { api, type AuditEntry, fail } from '@/api/client';
 import { errorText, roleLabel } from '@/components/forms';
@@ -22,6 +22,9 @@ const ACTIONS: Record<string, { label: string; icon: ReactNode }> = {
   'character.item_remove': { label: 'Item removido do personagem', icon: <Trash2 /> },
   'character.cash': { label: 'Cash da conta ajustado', icon: <Gem /> },
   'character.progression': { label: 'Progressão do personagem', icon: <TrendingUp /> },
+  'content.edit': { label: 'Edição de conteúdo', icon: <FileStack /> },
+  'content.withdraw': { label: 'Edição de conteúdo retirada', icon: <Undo2 /> },
+  'content.publish': { label: 'Versão de conteúdo publicada', icon: <Upload /> },
 };
 
 async function page(beforeId: number | undefined): Promise<AuditEntry[]> {

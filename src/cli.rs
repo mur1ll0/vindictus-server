@@ -63,6 +63,17 @@ pub enum Command {
         #[arg(long)]
         reason: String,
     },
+    /// Write the cumulative overlay of the published content edits (B4.4) for the content
+    /// exporters; prints the version.
+    ContentEditsExport {
+        #[arg(long)]
+        output: std::path::PathBuf,
+    },
+    /// Record that the host applied the content edits up to this version.
+    ContentEditsApplied {
+        #[arg(long)]
+        version: i32,
+    },
     /// Write the panel OpenAPI document (web/admin/openapi.json); no database or listener.
     ExportOpenapi {
         #[arg(long)]

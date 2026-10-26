@@ -148,6 +148,19 @@ fn open(p: &Path) -> Result<std::fs::File, MinimumError> {
         .map_err(MinimumError::from)
 }
 impl Assets {
+    /// The effective NPC shops (ShopInfo after PriceCalc), when the NPC scripts are loaded.
+    pub fn shops(&self) -> Option<&crate::domain::shop::Shops> {
+        self.shops.as_ref()
+    }
+    /// The cash shop catalog, when loaded.
+    pub fn cash_shop(&self) -> Option<&super::cash_shop::Contents> {
+        self.cash_shop.as_ref()
+    }
+    /// Whether the item catalog has this ItemClass.
+    pub fn has_item_class(&self, class: &str) -> bool {
+        let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        self.stats_index.class(Some(&key)).is_some()
+    }
     /// CharacterContents.StatusEffectGroupInfo of the cash-shop profile, when loaded.
     pub fn status_effects(&self) -> Option<&crate::domain::status_effect::Contents> {
         self.cash_shop

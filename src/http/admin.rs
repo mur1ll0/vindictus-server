@@ -28,6 +28,7 @@ use zeroize::Zeroizing;
 
 mod accounts;
 mod characters;
+mod content;
 
 pub const COOKIE: &str = "vindictus_admin";
 pub const CSRF_HEADER: &str = "x-csrf-token";
@@ -97,7 +98,14 @@ impl AdminState {
         characters::adjust_cash,
         characters::catalog,
         characters::progression,
-        characters::effects_catalog
+        characters::effects_catalog,
+        content::shops,
+        content::shop,
+        content::cash_categories,
+        content::content_state,
+        content::create_edit,
+        content::withdraw,
+        content::publish
     ),
     components(schemas(
         LoginRequest,
@@ -124,7 +132,18 @@ impl AdminState {
         crate::infrastructure::admin_characters::CatalogItem,
         crate::infrastructure::admin_characters::CatalogEffect,
         crate::application::admin_character_edits::ProgressionResult,
-        characters::ProgressionChange
+        characters::ProgressionChange,
+        crate::application::content_admin::ShopSummary,
+        crate::application::content_admin::ShopRowView,
+        crate::application::content_admin::CashCategoryView,
+        crate::application::content_admin::EditRequest,
+        crate::infrastructure::content_edits::ContentEdit,
+        crate::infrastructure::content_edits::ContentVersion,
+        content::ContentState,
+        content::NewEdit,
+        content::Created,
+        content::Reasoned,
+        content::Published
     ))
 )]
 pub struct ApiDoc;
@@ -167,6 +186,13 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/characters/{cid}/cash", post(characters::adjust_cash))
         .route("/api/items", get(characters::catalog))
         .route("/api/status-effects", get(characters::effects_catalog))
+        .route("/api/shops", get(content::shops))
+        .route("/api/shops/{shop_id}", get(content::shop))
+        .route("/api/cash-shop/categories", get(content::cash_categories))
+        .route("/api/content", get(content::content_state))
+        .route("/api/content/edits", post(content::create_edit))
+        .route("/api/content/edits/{id}/withdraw", post(content::withdraw))
+        .route("/api/content/publish", post(content::publish))
         .route(
             "/api/characters/{cid}/progression",
             post(characters::progression),
@@ -309,6 +335,7 @@ impl IntoResponse for Refusal {
                         "nivel" => {
                             "Nível alvo inválido: precisa ser maior que o atual e até o nível máximo."
                         }
+                        "sem_pendentes" => "Não há edições pendentes para publicar.",
                         "efeito" => {
                             "O jogo recusou o efeito: tipo/nível inexistente, efeito do cliente ou que não pode substituir o atual."
                         }
