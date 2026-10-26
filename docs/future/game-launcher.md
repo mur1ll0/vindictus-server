@@ -62,6 +62,7 @@ Fazer sempre na cópia de laboratório, nunca no original.
 - **Próximo teste possível:** o L0-d depende do índice. Sem console, as saídas são:
   - observar com o Process Monitor (Sysinternals, exige baixar com aprovação do operador) qual arquivo o cliente lê logo depois de carregar o `FileSystem_Stdio.dll`;
   - ou renomear `E608DF10….hfs` na cópia de laboratório: se o cliente deixar de achar arquivos que estão em pacotes, ele é o índice.
+- **Índice confirmado (L0-a', 26/10/2026):** com `E608DF10F284E19AB75FD7D0D8AE9CCF87831041.hfs` renomeado (`l0-test.ps1 index-off`), o cliente parou na abertura com `Can't find background image 'materials/console/s3_game_start_widescreen.vtf'` e fechou. O log em `Documents` termina em `DrawStartupGraphic::PlayStartupVideos`. Sem o índice, nada de dentro dos `.hfs` é achado, e `materials/` não aceita soltos. Logo, **esse arquivo é o índice**; o pacote foi restaurado (`index-on`). Falta para o L0-d a cifra dele: a chave por arquivo vem do código em `.vmp0`. Caminhos possíveis: capturar a sequência em execução (depurador ou leitura da memória do processo depois de carregado, decisão do operador) ou descobrir de que depende a chave comparando vários pacotes com conteúdo conhecido.
 
 Se o L0-d passar, o launcher distribui `.hfs` novos e o índice regravado, como o pw-universal regrava entradas do `.pck`. Se falhar, modelos e scripts novos dependem de mudar o binário ou o `GameInfo.txt` (seção 2.3), uma decisão à parte.
 
