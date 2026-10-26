@@ -117,6 +117,14 @@ Gate B4: suíte completa e uso real do painel para criar uma conta, ajustar a Fi
 - **Sistemas restantes:** PvP/arena/ranking, guildas, trade, correio completo, eventos/UserCare, pets, títulos/achievements, leilão/mercado, cash shop e cosméticos.
 - **Paridade e aceite final:** M23/M24 do `MIGRATION.md`.
 
+## Recursos futuros do painel
+
+Planejados em 26/10/2026, só como documentação. Não mudam a ordem dos blocos B0–B5. Cada um alimenta o relatório de viabilidade do B4.7 e traz a própria evidência e as próprias hipóteses.
+
+- [Editor de itens](future/item-editor.md): criar, clonar, editar e remover itens (equipamento, roupa e consumível; ícone e modelo 3D com Blender 5.1). Primeiro objetivo: inner armors novos para todas as classes. Vem **depois do B4.5** (taxas do servidor). A etapa I1/I2 usa só conteúdo; ícones, textos e modelos dependem do launcher.
+- [Launcher do jogo](future/game-launcher.md): baixar, atualizar só o que mudou (manifesto assinado e objetos por hash, no modelo do pw-universal) e substituir o `start-lab.bat`. O teste L0 (arquivos soltos × `.hfs`) é um checkpoint de cliente que pode rodar a qualquer momento. L1–L3 vêm depois do B4 e antes de qualquer etapa que mude assets do cliente.
+- [Editor de fases](future/stage-editor.md): quest, dificuldades, setores, spawns, boss e drops pelo mesmo ciclo de edições e manutenção do B4.4c. Vem depois do editor de itens (os drops referenciam itens). Fases com BSP novo ficam como estudo à parte.
+
 ## Regras de cada etapa
 
 - Usar fonte recuperada e fixtures/oracles para fio/comportamento; primeiro verificar o que já existe no domínio/banco.
