@@ -1495,4 +1495,5 @@ B4.2d — login do jogo pelo login da conta (26/10/2026).
 - Textos do painel ajustados (o login vale para o jogo; a senha protege o painel).
 - Testes: TCP `actual_tcp_account_login_enters_its_game_name_and_claimed_or_disabled_are_refused` (substitui o teste só de recusa) e regressões `actual_tcp_scoped_login_password_reconnect_duplicate_and_cleanup_persist`, `actual_tcp_unmarked_user_refusal_has_no_effects_or_origin_and_releases_reservation`; clippy; `npm run build`. Logs: `.cache/verification/b42d-*.log`.
 - Cliente: entrada B4.2-L em `docs/client-tests/B4-painel.md`.
-- Próxima ação retomável: depois da confirmação B4.2-L no cliente, B4.3b — mudanças em personagem pelo painel (dar/remover/mover item com atributos, ouro, cash), com o personagem offline.
+- Aceite no cliente (operador, 26/10/2026): B4.2-L passou nas quatro linhas (`admin` entrou na Fiona Murael; `lab169_a` recusado; `teste_b4` criado no painel, entrou no jogo e criou personagem; desativado não entrou).
+- Próxima ação retomável: B4.3b — mudanças em personagem pelo painel (dar/remover/mover item com atributos, ouro, cash), com o personagem offline.

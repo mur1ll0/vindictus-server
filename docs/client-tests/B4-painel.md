@@ -23,10 +23,11 @@ Resultado: com ID `admin` e senha em branco ou `admin`, a mensagem de login cheg
 
 ### B4.2-L — Entrar no jogo com o login da conta
 Pré-condição: containers recompilados depois de 26/10/2026; cliente fechado.
-- [ ] Abrir o cliente pelo `start.bat` da `.cache/play-client`, Start Game, digitar `admin` no ID (senha em branco ou qualquer uma) → pede a segunda senha de sempre e lista a Fiona Murael; entrar na cidade → personagem, inventário e ouro como antes.
-- [ ] Sair e tentar `lab169_a` no ID → recusado ("Premium Open"): o nome pertence à conta `admin`.
-- [ ] No painel, criar ou usar `teste_b4`, entrar no jogo digitando `teste_b4` → lobby vazio; criar uma Fiona; no painel, Minha conta de `teste_b4` mostra a personagem.
-- [ ] Desativar `teste_b4` no painel (como `admin`) e tentar entrar no jogo com `teste_b4` → recusado.
+- [x] Abrir o cliente pelo `start.bat` da `.cache/play-client`, Start Game, digitar `admin` no ID (senha em branco ou qualquer uma) → pede a segunda senha de sempre e lista a Fiona Murael; entrar na cidade → personagem, inventário e ouro como antes.
+- [x] Sair e tentar `lab169_a` no ID → recusado ("Premium Open"): o nome pertence à conta `admin`.
+- [x] No painel, criar ou usar `teste_b4`, entrar no jogo digitando `teste_b4` → lobby vazio; criar uma Fiona; no painel, Minha conta de `teste_b4` mostra a personagem.
+- [x] Desativar `teste_b4` no painel (como `admin`) e tentar entrar no jogo com `teste_b4` → recusado.
+Resultado do operador (26/10/2026): as quatro linhas passaram (admin entrou na Murael; lab169_a recusado; teste_b4 criado, entrou e criou personagem; desativado não entrou).
 Limites conhecidos: a senha da conta não protege o jogo (o cliente não a envia); a proteção do jogo é a segunda senha. Um launcher futuro pode mudar isso.
 
 ### B4.3a — Personagens no painel (só leitura)
