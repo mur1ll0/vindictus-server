@@ -244,3 +244,131 @@ async fn admin_accounts_permissions_and_audit() {
         .expect("cleanup");
     admin_pool.close().await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn play_codes_are_single_use_expire_and_follow_the_game_link() {
+    use vindictus_server::{
+        application::{accounts::create_account_with, admin_session::link_game_from_cli},
+        domain::{MIN_LAB_SHORT_PASSWORD, admin::PlayCode},
+        infrastructure::play_codes,
+    };
+    let (admin_pool, pool, schema) = isolated_pool().await;
+    // The operator's laboratory short-password option (5 bytes) for this one account.
+    create_account_with(
+        &pool,
+        Username::parse("admin").expect("name"),
+        secret("admin"),
+        MIN_LAB_SHORT_PASSWORD,
+    )
+    .await
+    .expect("short password account");
+    assert!(
+        create_account(
+            &pool,
+            Username::parse("curta").expect("name"),
+            secret("admin")
+        )
+        .await
+        .is_err()
+    );
+    let auth = PanelAuth::new(pool.clone());
+    assert!(matches!(
+        auth.issue_play_code("admin", secret("errada"), None).await,
+        Err(AdminError::InvalidCredentials)
+    ));
+    let first = auth
+        .issue_play_code("admin", secret("admin"), None)
+        .await
+        .expect("code");
+    let second = auth
+        .issue_play_code("admin", secret("admin"), None)
+        .await
+        .expect("code");
+    // A new code replaces the earlier one; a code works once.
+    assert_eq!(
+        play_codes::redeem(&pool, &first.digest())
+            .await
+            .expect("redeem"),
+        None
+    );
+    assert_eq!(
+        play_codes::redeem(&pool, &second.digest())
+            .await
+            .expect("redeem")
+            .as_deref(),
+        Some("admin")
+    );
+    assert_eq!(
+        play_codes::redeem(&pool, &second.digest())
+            .await
+            .expect("redeem"),
+        None
+    );
+
+    link_game_from_cli(&pool, "admin", "lab169_a", "manter a Fiona do laboratório")
+        .await
+        .expect("link");
+    assert!(
+        play_codes::claimed(&pool, "lab169_a")
+            .await
+            .expect("claimed")
+    );
+    assert!(!play_codes::claimed(&pool, "admin").await.expect("claimed"));
+    let linked = auth
+        .issue_play_code("admin", secret("admin"), None)
+        .await
+        .expect("code");
+    assert_eq!(
+        play_codes::redeem(&pool, &linked.digest())
+            .await
+            .expect("redeem")
+            .as_deref(),
+        Some("lab169_a")
+    );
+    // One account per game name, including another account's own login.
+    create_account(
+        &pool,
+        Username::parse("Lab169_A").expect("name"),
+        secret(PASSWORD),
+    )
+    .await
+    .expect_err("claimed by admin");
+
+    let expired = auth
+        .issue_play_code("admin", secret("admin"), None)
+        .await
+        .expect("code");
+    sqlx::query("UPDATE game_play_codes SET expires_at = created_at + interval '1 microsecond', created_at = created_at - interval '1 hour'")
+        .execute(&pool)
+        .await
+        .expect("expire");
+    assert_eq!(
+        play_codes::redeem(&pool, &expired.digest())
+            .await
+            .expect("redeem"),
+        None
+    );
+    let disabled = auth
+        .issue_play_code("admin", secret("admin"), None)
+        .await
+        .expect("code");
+    sqlx::query("UPDATE accounts SET status = 'disabled'")
+        .execute(&pool)
+        .await
+        .expect("disable");
+    assert_eq!(
+        play_codes::redeem(&pool, &disabled.digest())
+            .await
+            .expect("redeem"),
+        None
+    );
+    assert!(PlayCode::parse(disabled.as_str()).is_some());
+
+    pool.close().await;
+    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+        .execute(&admin_pool)
+        .await
+        .expect("cleanup");
+    admin_pool.close().await;
+}

@@ -1,6 +1,7 @@
 //! Persistence adapters for operational accounts and the partial legacy game model.
 pub mod admin_accounts;
 pub mod admin_store;
+pub mod play_codes;
 pub mod postgres;
 
 pub mod frontend;

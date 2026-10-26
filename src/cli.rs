@@ -1,4 +1,4 @@
-use crate::{domain::validate_password, error::Error};
+use crate::error::Error;
 use clap::{Parser, Subcommand};
 use std::{io::Read, path::PathBuf};
 use zeroize::Zeroizing;
@@ -322,11 +322,29 @@ pub enum Command {
         /// Required: password is read from stdin, never command-line arguments.
         #[arg(long, required = true)]
         password_stdin: bool,
+        /// Laboratory only (operator decision 2026-10-25): accept a password of 5 or more
+        /// bytes instead of 12. Insecure outside a loopback laboratory.
+        #[arg(long)]
+        lab_short_password: bool,
+    },
+    /// Make an account enter an existing game user (NexonID), keeping its characters; the
+    /// game name alone (allowlist passport) then no longer logs in. Audited.
+    AccountLinkGame {
+        #[arg(long)]
+        username: String,
+        #[arg(long)]
+        game_name: String,
+        #[arg(long)]
+        reason: String,
     },
 }
 
 /// Read at most 131 bytes. A final LF/CRLF supports redirected files and pipes.
 pub fn read_password(reader: impl Read) -> Result<Zeroizing<Vec<u8>>, Error> {
+    read_password_with(reader, crate::domain::MIN_PASSWORD)
+}
+
+pub fn read_password_with(reader: impl Read, minimum: usize) -> Result<Zeroizing<Vec<u8>>, Error> {
     let mut password = Zeroizing::new(Vec::new());
     reader
         .take(131)
@@ -338,6 +356,6 @@ pub fn read_password(reader: impl Read) -> Result<Zeroizing<Vec<u8>>, Error> {
             password.pop();
         }
     }
-    validate_password(&password)?;
+    crate::domain::validate_password_with(&password, minimum)?;
     Ok(password)
 }

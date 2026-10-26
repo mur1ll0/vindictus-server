@@ -101,6 +101,38 @@ impl SessionToken {
     }
 }
 
+/// Symbols of a play code: no 0/O or 1/I, so it can be typed from the screen.
+const CODE_ALPHABET: &[u8; 32] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+pub const CODE_LEN: usize = 12;
+
+/// One-time code typed in the client's ID field in place of a passport (60 random bits).
+/// Not Debug: it is a credential until redeemed.
+pub struct PlayCode(Zeroizing<String>);
+
+impl PlayCode {
+    pub fn generate() -> Self {
+        let mut bytes = Zeroizing::new([0u8; CODE_LEN]);
+        OsRng.fill_bytes(bytes.as_mut());
+        let text = bytes
+            .iter()
+            .map(|b| char::from(CODE_ALPHABET[usize::from(b & 31)]))
+            .collect();
+        Self(Zeroizing::new(text))
+    }
+    /// Exactly 12 symbols of the alphabet, in any case (the client may change it).
+    pub fn parse(value: &str) -> Option<Self> {
+        let upper = value.to_ascii_uppercase();
+        (upper.len() == CODE_LEN && upper.bytes().all(|b| CODE_ALPHABET.contains(&b)))
+            .then(|| Self(Zeroizing::new(upper)))
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+    pub fn digest(&self) -> [u8; 32] {
+        Sha256::digest(self.0.as_bytes()).into()
+    }
+}
+
 fn hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut text = String::with_capacity(bytes.len() * 2);
@@ -145,6 +177,17 @@ mod tests {
         assert!(AuditReason::parse("a\nb").is_none());
         assert!(AuditReason::parse(&"é".repeat(500)).is_some());
         assert!(AuditReason::parse(&"é".repeat(501)).is_none());
+    }
+
+    #[test]
+    fn play_codes_are_typable_and_case_insensitive() {
+        let code = PlayCode::generate();
+        assert_eq!(code.as_str().len(), CODE_LEN);
+        let lower = PlayCode::parse(&code.as_str().to_ascii_lowercase()).expect("any case");
+        assert_eq!(lower.digest(), code.digest());
+        assert!(PlayCode::parse("lab169_a").is_none());
+        assert!(PlayCode::parse("ABCDEFGHJKL0").is_none());
+        assert!(PlayCode::parse("ABCDEFGHJKLMN").is_none());
     }
 
     #[test]

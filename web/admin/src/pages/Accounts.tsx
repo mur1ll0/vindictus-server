@@ -162,7 +162,10 @@ export function AccountsPage() {
           <tbody>
             {query.data?.map((row) => (
               <tr key={row.username} className="border-b border-border align-top last:border-0">
-                <td className="px-4 py-2 font-medium">{row.username}</td>
+                <td className="px-4 py-2 font-medium">
+                  {row.username}
+                  {row.game_name && <span className="block text-xs text-muted">no jogo: {row.game_name}</span>}
+                </td>
                 <td className="px-4 py-2">{roleLabel(row.panel_role)}</td>
                 <td className="px-4 py-2">
                   {row.status === 'active' ? 'Ativa' : <span className="text-danger">Desativada</span>}

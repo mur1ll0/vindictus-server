@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
 import { LoginPage } from '@/pages/Login';
+import { PlayPage } from '@/pages/Play';
 
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', gm: 'GM', leitura: 'Leitura' };
 
@@ -72,6 +73,7 @@ function Shell() {
 const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({ component: Outlet });
 
 const loginRoute = createRoute({ getParentRoute: () => root, path: '/login', component: LoginPage });
+const playRoute = createRoute({ getParentRoute: () => root, path: '/jogar', component: PlayPage });
 
 const shellRoute = createRoute({
   getParentRoute: () => root,
@@ -92,7 +94,7 @@ const auditRoute = createRoute({
 
 export function makeRouter(queryClient: QueryClient) {
   return createRouter({
-    routeTree: root.addChildren([loginRoute, shellRoute.addChildren([accountsRoute, auditRoute])]),
+    routeTree: root.addChildren([loginRoute, playRoute, shellRoute.addChildren([accountsRoute, auditRoute])]),
     context: { queryClient },
   });
 }

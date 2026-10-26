@@ -4,11 +4,12 @@
 use crate::{
     domain::{
         Username,
-        admin::{AuditReason, PanelRole, SessionToken},
+        admin::{AuditReason, PanelRole, PlayCode, SessionToken},
         hash_password, verify_password,
     },
-    infrastructure::admin_store::{
-        self, AuditEntry, AuditFilter, AuditRecord, RoleChange, SessionAccount,
+    infrastructure::{
+        admin_store::{self, AuditEntry, AuditFilter, AuditRecord, RoleChange, SessionAccount},
+        play_codes,
     },
 };
 use sqlx::PgPool;
@@ -35,6 +36,8 @@ const MAX_KEYS: usize = 4096;
 /// Concurrent Argon2 verifications (memory-hard: about 19 MiB each).
 const VERIFIERS: usize = 2;
 pub const MAX_AUDIT_PAGE: i64 = 200;
+/// Time to type the play code in the client after asking for it.
+pub const PLAY_CODE_SECONDS: u64 = 5 * 60;
 
 #[derive(Debug, Error)]
 pub enum AdminError {
@@ -140,12 +143,17 @@ impl PanelAuth {
             .map_err(|_| AdminError::Busy)
     }
 
-    pub async fn login(
+    /// Check login and password under the throttle and lockout. A refusal is audited as
+    /// `action`; a success is not (the caller audits it with its own change). `need_role`:
+    /// the panel needs a role, the game does not.
+    async fn authenticate(
         &self,
         username: &str,
         password: Zeroizing<Vec<u8>>,
         peer: Option<IpAddr>,
-    ) -> Result<LoginGranted, AdminError> {
+        action: &'static str,
+        need_role: bool,
+    ) -> Result<admin_store::LoginAccount, AdminError> {
         let now = Instant::now();
         let name = Username::parse(username).ok();
         let peer_key = format!(
@@ -173,7 +181,7 @@ impl PanelAuth {
             actor_name,
             role,
             operation_id: None,
-            action: "session.login",
+            action,
             target_kind: None,
             target_id: None,
             reason: None,
@@ -193,55 +201,88 @@ impl PanelAuth {
             .await?;
             return Err(AdminError::InvalidCredentials);
         };
-        let audit_name = Some(account.username.as_str());
-        match (matched, account.role, account.locked) {
-            (true, Some(role), false) => {
-                let token = SessionToken::generate();
-                admin_store::open_session(
-                    &self.pool,
-                    account.id,
-                    &token.digest(),
-                    SESSION_SECONDS as f64,
-                    IDLE_SECONDS as f64,
-                    &AuditRecord {
-                        refused: false,
-                        ..refused(Some(account.id), audit_name, Some(role))
-                    },
-                )
-                .await?;
-                Ok(LoginGranted {
-                    token,
-                    session: SessionAccount {
-                        account_id: account.id,
-                        username: account.username.clone(),
-                        role,
-                    },
-                })
-            }
-            // A right password of an account without a role or while locked is not a failure.
-            (true, role, _) => {
-                admin_store::record_failure(
-                    &self.pool,
-                    None,
-                    &refused(Some(account.id), audit_name, role),
-                    MAX_FAILURES,
-                    LOCK_SECONDS as f64,
-                )
-                .await?;
-                Err(AdminError::InvalidCredentials)
-            }
-            (false, role, _) => {
-                admin_store::record_failure(
-                    &self.pool,
-                    Some(account.id),
-                    &refused(Some(account.id), audit_name, role),
-                    MAX_FAILURES,
-                    LOCK_SECONDS as f64,
-                )
-                .await?;
-                Err(AdminError::InvalidCredentials)
-            }
+        let audit = refused(
+            Some(account.id),
+            Some(account.username.as_str()),
+            account.role,
+        );
+        if !matched {
+            admin_store::record_failure(
+                &self.pool,
+                Some(account.id),
+                &audit,
+                MAX_FAILURES,
+                LOCK_SECONDS as f64,
+            )
+            .await?;
+            return Err(AdminError::InvalidCredentials);
         }
+        // A right password without the needed role or while locked is not a failure.
+        if account.locked || (need_role && account.role.is_none()) {
+            admin_store::record_failure(
+                &self.pool,
+                None,
+                &audit,
+                MAX_FAILURES,
+                LOCK_SECONDS as f64,
+            )
+            .await?;
+            return Err(AdminError::InvalidCredentials);
+        }
+        Ok(account)
+    }
+
+    pub async fn login(
+        &self,
+        username: &str,
+        password: Zeroizing<Vec<u8>>,
+        peer: Option<IpAddr>,
+    ) -> Result<LoginGranted, AdminError> {
+        let account = self
+            .authenticate(username, password, peer, "session.login", true)
+            .await?;
+        let role = account.role.ok_or(AdminError::InvalidCredentials)?;
+        let token = SessionToken::generate();
+        admin_store::open_session(
+            &self.pool,
+            account.id,
+            &token.digest(),
+            SESSION_SECONDS as f64,
+            IDLE_SECONDS as f64,
+            &success(&account, Some(role), "session.login", peer),
+        )
+        .await?;
+        Ok(LoginGranted {
+            token,
+            session: SessionAccount {
+                account_id: account.id,
+                username: account.username,
+                role,
+            },
+        })
+    }
+
+    /// Game login, step one: the account's login and password give a one-time code to type
+    /// in the client's ID field (no panel role needed).
+    pub async fn issue_play_code(
+        &self,
+        username: &str,
+        password: Zeroizing<Vec<u8>>,
+        peer: Option<IpAddr>,
+    ) -> Result<PlayCode, AdminError> {
+        let account = self
+            .authenticate(username, password, peer, "play.code", false)
+            .await?;
+        let code = PlayCode::generate();
+        play_codes::issue(
+            &self.pool,
+            account.id,
+            &code.digest(),
+            PLAY_CODE_SECONDS as f64,
+            &success(&account, account.role, "play.code", peer),
+        )
+        .await?;
+        Ok(code)
     }
 
     pub async fn authorize(&self, token: &SessionToken) -> Result<SessionAccount, AdminError> {
@@ -279,6 +320,28 @@ impl PanelAuth {
     }
 }
 
+fn success<'a>(
+    account: &'a admin_store::LoginAccount,
+    role: Option<PanelRole>,
+    action: &'static str,
+    peer: Option<IpAddr>,
+) -> AuditRecord<'a> {
+    AuditRecord {
+        account_id: Some(account.id),
+        actor_name: Some(&account.username),
+        role,
+        operation_id: None,
+        action,
+        target_kind: None,
+        target_id: None,
+        reason: None,
+        before: None,
+        after: None,
+        refused: false,
+        peer,
+    }
+}
+
 pub async fn audit_page(
     pool: &PgPool,
     mut filter: AuditFilter,
@@ -309,5 +372,29 @@ pub async fn set_role_from_cli(
         RoleChange::LastAdmin => Err(AdminError::LastAdmin),
         RoleChange::RepeatedOperation => Err(AdminError::RepeatedOperation),
         change => Ok(change),
+    }
+}
+
+/// Operator CLI: the account enters an existing game user (keeps its characters).
+pub async fn link_game_from_cli(
+    pool: &PgPool,
+    username: &str,
+    game_name: &str,
+    reason: &str,
+) -> Result<(), AdminError> {
+    let name = Username::parse(username).map_err(|_| AdminError::InvalidInput)?;
+    let reason = AuditReason::parse(reason).ok_or(AdminError::InvalidInput)?;
+    if game_name.is_empty()
+        || game_name.len() > 24
+        || !game_name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_')
+    {
+        return Err(AdminError::InvalidInput);
+    }
+    match play_codes::link_game(pool, name.normalized(), game_name, &reason).await? {
+        play_codes::LinkChange::Done => Ok(()),
+        play_codes::LinkChange::NoAccount => Err(AdminError::NotFound),
+        play_codes::LinkChange::Claimed => Err(AdminError::Exists),
     }
 }

@@ -1,7 +1,7 @@
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
 use vindictus_server::{
-    cli::{Cli, Command, read_password},
+    cli::{Cli, Command},
     config::Config,
     domain::Username,
     error::Error,
@@ -463,9 +463,20 @@ async fn run(cli: Cli) -> Result<(), Error> {
         return Ok(());
     }
     let credentials = match &cli.command {
-        Command::CreateAccount { username, .. } => Some((
+        Command::CreateAccount {
+            username,
+            lab_short_password,
+            ..
+        } => Some((
             Username::parse(username)?,
-            read_password(std::io::stdin().lock())?,
+            vindictus_server::cli::read_password_with(
+                std::io::stdin().lock(),
+                if *lab_short_password {
+                    vindictus_server::domain::MIN_LAB_SHORT_PASSWORD
+                } else {
+                    vindictus_server::domain::MIN_PASSWORD
+                },
+            )?,
         )),
         _ => None,
     };
@@ -689,13 +700,37 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 serde_json::json!({"credited":amount,"balance":balance,"client_visible_after":"opening the cash shop"})
             );
         }
-        Command::CreateAccount { .. } => {
+        Command::CreateAccount {
+            lab_short_password, ..
+        } => {
             let (username, password) = credentials.ok_or(Error::PasswordInput)?;
-            let id =
-                vindictus_server::application::accounts::create_account(&pool, username, password)
-                    .await?;
+            let minimum = if lab_short_password {
+                vindictus_server::domain::MIN_LAB_SHORT_PASSWORD
+            } else {
+                vindictus_server::domain::MIN_PASSWORD
+            };
+            let id = vindictus_server::application::accounts::create_account_with(
+                &pool, username, password, minimum,
+            )
+            .await?;
             println!(
-                "Foundation account created: {id}. Game-client authentication is not implemented."
+                "Account created: {id}. Game login: ask a play code (scripts/dev/play.ps1 or the panel's /jogar page)."
+            );
+        }
+        Command::AccountLinkGame {
+            username,
+            game_name,
+            reason,
+        } => {
+            postgres::check_ready(&pool).await?;
+            vindictus_server::application::admin_session::link_game_from_cli(
+                &pool, &username, &game_name, &reason,
+            )
+            .await
+            .map_err(|e| Error::Configuration(format!("game link refused: {e}")))?;
+            println!(
+                "{}",
+                serde_json::json!({"username": username, "game_name": game_name})
             );
         }
         Command::ImportCharacters { verify_only, .. } => {

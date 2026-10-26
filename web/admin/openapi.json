@@ -420,6 +420,55 @@
         }
       }
     },
+    "/api/play/code": {
+      "post": {
+        "tags": [],
+        "summary": "Game login, step one: any active account (no panel role needed) trades its login and\npassword for a one-time code. Same throttle and lockout as the panel login.",
+        "operationId": "play_code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayCodeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/session": {
       "get": {
         "tags": [],
@@ -550,13 +599,20 @@
             "type": "string",
             "description": "UTC, RFC 3339."
           },
+          "game_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game account name it enters when not its own login (an existing game user)."
+          },
           "game_uid": {
             "type": [
               "integer",
               "null"
             ],
             "format": "int32",
-            "description": "Game user created at the first game login (same name), if any."
+            "description": "Game user of its game name, created at the first game login, if any."
           },
           "locked": {
             "type": "boolean",
@@ -718,6 +774,24 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "PlayCodeResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "expires_in_seconds"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Type it in the ID field of the game's login screen (password field empty)."
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },

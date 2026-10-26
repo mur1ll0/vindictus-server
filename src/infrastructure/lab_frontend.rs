@@ -11,10 +11,10 @@ use crate::{
         user_login::UserLoginOutcome,
     },
     domain::{
-        legacy_user_data::SqlDateTime2, login_effects::EffectClockSamples,
-        login_policy::ApplicationClockSamples, passport::LoginRejection,
-        second_password::ClockSamples, user_login_composition::TokenProfile,
-        user_login_return::UserLoginReturn,
+        admin::PlayCode, game_user::LegacyNameKey, legacy_user_data::SqlDateTime2,
+        login_effects::EffectClockSamples, login_policy::ApplicationClockSamples,
+        passport::LoginRejection, second_password::ClockSamples,
+        user_login_composition::TokenProfile, user_login_return::UserLoginReturn,
     },
     error::Error,
     infrastructure::{
@@ -356,6 +356,16 @@ async fn failure(
     );
     send(stream, sender, LOGIN_FAIL_MESSAGE_CATEGORY, &bytes).await
 }
+/// Lowercase account-name key of an allowlist passport (the recovered NexonID derivation).
+fn unclaimed_name_key(
+    passport: Option<&str>,
+    options: crate::protocol::identity::LabIdentityOptions,
+) -> Option<String> {
+    let identity = crate::protocol::identity::derive_lab_identity(passport, options).ok()?;
+    LegacyNameKey::parse(&identity.nexon_id)
+        .ok()
+        .map(|key| key.as_str().to_owned())
+}
 /// ServiceCore.EndPointNetwork.LogOutMessage (fieldless).
 const LOG_OUT_CATEGORY: i32 = 493;
 const LOG_OUT_TYPE_ID: uuid::Uuid = uuid::Uuid::from_u128(0x312f4152_ab0d_3ac2_99fa_fffa1e3f7e5e);
@@ -480,8 +490,31 @@ impl Connection {
         let message = decode_login_ingress(category, body, DEFAULT_MAX_BODY)
             .map_err(|_| RuntimeError::Message)?
             .ok_or(RuntimeError::Message)?;
-        // Passport allowlist is a local restriction, checked before reservation or any SQL effect.
-        if !runtime.profile.permits(message.passport) {
+        // B4.2: a one-time play code (the account checked its password on the panel listener)
+        // stands for the account's game name. Otherwise the local allowlist, checked before
+        // reservation, applies only to names no account has claimed: such a name needs the
+        // account's password. Neither path reserves a session or touches game state on refusal.
+        let redeemed = match message.passport.and_then(PlayCode::parse) {
+            Some(code) => match super::play_codes::redeem(pool, &code.digest()).await {
+                Ok(Some(name)) => Some(Zeroizing::new(name)),
+                Ok(None) | Err(_) => None,
+            },
+            None => None,
+        };
+        let passport = match &redeemed {
+            Some(name) => Some(name.as_str()),
+            None => message.passport,
+        };
+        let admitted = if redeemed.is_some() {
+            true
+        } else {
+            runtime.profile.permits(passport)
+                && match unclaimed_name_key(passport, runtime.profile.identity_options()) {
+                    Some(key) => matches!(super::play_codes::claimed(pool, &key).await, Ok(false)),
+                    None => false,
+                }
+        };
+        if !admitted {
             failure(
                 stream,
                 sender,
@@ -501,13 +534,10 @@ impl Connection {
             allow_cheat: false,
             is_online: true,
         };
-        if let Err(error) = self.frontend.admit_lab(
-            token,
-            Instant::now(),
-            message.passport,
-            self.peer,
-            &admission,
-        ) {
+        if let Err(error) =
+            self.frontend
+                .admit_lab(token, Instant::now(), passport, self.peer, &admission)
+        {
             let reason = match error {
                 SessionError::Rejected(r) => r as i32,
                 _ => 0,

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { type FormEvent, useState } from 'react';
 import { ApiFailure } from '@/api/client';
 import { login, sessionQuery } from '@/api/session';
@@ -67,6 +67,11 @@ export function LoginPage() {
             {mutation.isPending ? 'Entrando…' : 'Entrar'}
           </Button>
         </form>
+        <p className="mt-6 text-center text-sm">
+          <Link to="/jogar" className="text-muted hover:text-fg">
+            Gerar código para entrar no jogo
+          </Link>
+        </p>
       </Card>
     </main>
   );

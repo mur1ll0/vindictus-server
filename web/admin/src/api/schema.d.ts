@@ -88,6 +88,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/play/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Game login, step one: any active account (no panel role needed) trades its login and
+         *     password for a one-time code. Same throttle and lockout as the panel login.
+         */
+        post: operations["play_code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/session": {
         parameters: {
             query?: never;
@@ -147,9 +167,11 @@ export interface components {
             characters: number;
             /** @description UTC, RFC 3339. */
             created_at: string;
+            /** @description Game account name it enters when not its own login (an existing game user). */
+            game_name?: string | null;
             /**
              * Format: int32
-             * @description Game user created at the first game login (same name), if any.
+             * @description Game user of its game name, created at the first game login, if any.
              */
             game_uid?: number | null;
             /** @description Panel login locked after consecutive wrong passwords. */
@@ -205,6 +227,12 @@ export interface components {
             /** Format: password */
             password: string;
             username: string;
+        };
+        PlayCodeResponse: {
+            /** @description Type it in the ID field of the game's login screen (password field empty). */
+            code: string;
+            /** Format: int64 */
+            expires_in_seconds: number;
         };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
@@ -515,6 +543,45 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    play_code: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayCodeResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

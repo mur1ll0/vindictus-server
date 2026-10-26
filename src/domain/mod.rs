@@ -1,6 +1,9 @@
 //! Foundation account invariants, independent of legacy credential formats.
 mod account;
-pub use account::{Username, hash_password, validate_password, verify_password};
+pub use account::{
+    MIN_LAB_SHORT_PASSWORD, MIN_PASSWORD, Username, hash_password, hash_password_with,
+    validate_password, validate_password_with, verify_password,
+};
 
 pub mod admin;
 

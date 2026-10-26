@@ -56,6 +56,7 @@ impl AdminState {
     ),
     paths(
         login,
+        play_code,
         session,
         logout,
         audit,
@@ -67,6 +68,7 @@ impl AdminState {
     ),
     components(schemas(
         LoginRequest,
+        PlayCodeResponse,
         SessionResponse,
         AuditEntry,
         ApiError,
@@ -91,6 +93,7 @@ pub fn openapi_json() -> String {
 pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
     let api = Router::new()
         .route("/api/session/login", post(login))
+        .route("/api/play/code", post(play_code))
         .route("/api/session", get(session))
         .route("/api/session/logout", post(logout))
         .route("/api/audit", get(audit))
@@ -375,6 +378,36 @@ async fn login(
         csrf_token: granted.token.csrf(),
     };
     Ok(([(header::SET_COOKIE, cookie)], Json(body)).into_response())
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct PlayCodeResponse {
+    /// Type it in the ID field of the game's login screen (password field empty).
+    code: String,
+    expires_in_seconds: u64,
+}
+
+/// Game login, step one: any active account (no panel role needed) trades its login and
+/// password for a one-time code. Same throttle and lockout as the panel login.
+#[utoipa::path(post, path = "/api/play/code", request_body = LoginRequest,
+    responses((status = 200, body = PlayCodeResponse), (status = 401, body = ApiError),
+              (status = 429, body = ApiError)))]
+async fn play_code(
+    State(state): State<AdminState>,
+    ConnectInfoOpt(peer): ConnectInfoOpt,
+    headers: HeaderMap,
+    Json(request): Json<LoginRequest>,
+) -> Result<Json<PlayCodeResponse>, Refusal> {
+    check_origin(&headers)?;
+    let password = Zeroizing::new(request.password.as_bytes().to_vec());
+    let code = state
+        .auth
+        .issue_play_code(&request.username, password, peer)
+        .await?;
+    Ok(Json(PlayCodeResponse {
+        code: code.as_str().to_owned(),
+        expires_in_seconds: admin_session::PLAY_CODE_SECONDS,
+    }))
 }
 
 /// The current session, with its CSRF token.

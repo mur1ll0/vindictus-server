@@ -33,8 +33,17 @@ impl Username {
     }
 }
 
+pub const MIN_PASSWORD: usize = 12;
+/// Operator decision (2026-10-25): one laboratory account (`admin`) may use a short password,
+/// only through the explicit CLI option; the listeners are loopback-only.
+pub const MIN_LAB_SHORT_PASSWORD: usize = 5;
+
 pub fn validate_password(password: &[u8]) -> Result<(), Error> {
-    if !(12..=128).contains(&password.len())
+    validate_password_with(password, MIN_PASSWORD)
+}
+
+pub fn validate_password_with(password: &[u8], minimum: usize) -> Result<(), Error> {
+    if !(minimum..=128).contains(&password.len())
         || password.iter().any(|b| matches!(b, 0 | b'\r' | b'\n'))
     {
         return Err(Error::InvalidPassword);
@@ -45,7 +54,11 @@ pub fn validate_password(password: &[u8]) -> Result<(), Error> {
 /// Hash an independent preservation account password as an Argon2id PHC string.
 /// This does not implement the legacy Vindictus credential format.
 pub fn hash_password(password: &[u8]) -> Result<String, Error> {
-    validate_password(password)?;
+    hash_password_with(password, MIN_PASSWORD)
+}
+
+pub fn hash_password_with(password: &[u8], minimum: usize) -> Result<String, Error> {
+    validate_password_with(password, minimum)?;
     let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
         .hash_password(password, &salt)

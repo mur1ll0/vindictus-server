@@ -774,3 +774,95 @@ async fn actual_tcp_name_check_uses_source_dialog_and_name_change_result_before_
     assert!(task.await.unwrap().is_ok());
     cleanup_game_pool(admin, pool, schema).await;
 }
+/// B4.2: a play code issued for the account's login and password logs in once as the
+/// account's game name; a reused code and an allowlist name claimed by an account are refused
+/// without a reservation or game state.
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn actual_tcp_play_code_logs_in_once_and_claimed_allowlist_name_is_refused() {
+    use vindictus_server::{
+        application::{
+            accounts::create_account,
+            admin_session::{PanelAuth, link_game_from_cli},
+        },
+        domain::{Username, passport::LoginRejection},
+    };
+    let (admin, pool, schema) = isolated_game_pool().await;
+    let secret = |v: &str| zeroize::Zeroizing::new(v.as_bytes().to_vec());
+    create_account(
+        &pool,
+        Username::parse("Code_User").unwrap(),
+        secret("senha de teste do jogo"),
+    )
+    .await
+    .unwrap();
+    let code = PanelAuth::new(pool.clone())
+        .issue_play_code("code_user", secret("senha de teste do jogo"), None)
+        .await
+        .unwrap();
+    let r = runtime();
+    let refused = |reason| assert_eq!(reason, LoginRejection::PermissionFailed as i32);
+
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    // Typed in lower case: the client may change the case of its ID field.
+    client
+        .write_all(&login(&code.as_str().to_ascii_lowercase(), &mut tx))
+        .await
+        .unwrap();
+    let q = lobby(&mut client, &mut rx).await;
+    assert!(q.first && !q.has_password);
+    let name: String = sqlx::query_scalar(
+        "SELECT u.name FROM game_users u JOIN game_lab_account_origins o ON o.uid = u.id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(name, "Code_User");
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client
+        .write_all(&login(code.as_str(), &mut tx))
+        .await
+        .unwrap();
+    let f = read(&mut client, &mut rx).await;
+    refused(
+        decode_login_failure(&f.body, DEFAULT_MAX_BODY)
+            .unwrap()
+            .unwrap()
+            .reason,
+    );
+    drop(client);
+    let _ = task.await;
+
+    // The allowlisted name logs in without a password until an account claims it.
+    link_game_from_cli(
+        &pool,
+        "code_user",
+        PASSPORT,
+        "conta ligada ao usuário de laboratório",
+    )
+    .await
+    .unwrap();
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
+    let f = read(&mut client, &mut rx).await;
+    refused(
+        decode_login_failure(&f.body, DEFAULT_MAX_BODY)
+            .unwrap()
+            .unwrap()
+            .reason,
+    );
+    drop(client);
+    let _ = task.await;
+    assert_eq!(r.active_count().unwrap(), 0);
+    assert_eq!(
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM game_users")
+            .fetch_one(&pool)
+            .await
+            .unwrap(),
+        1
+    );
+    cleanup_game_pool(admin, pool, schema).await;
+}

@@ -10,6 +10,8 @@ use uuid::Uuid;
 #[derive(Clone, Debug, serde::Serialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct AccountSummary {
     pub username: String,
+    /// Game account name it enters when not its own login (an existing game user).
+    pub game_name: Option<String>,
     /// admin, gm, leitura or null (no panel access).
     pub panel_role: Option<String>,
     /// active or disabled.
@@ -18,7 +20,7 @@ pub struct AccountSummary {
     pub locked: bool,
     /// UTC, RFC 3339.
     pub created_at: String,
-    /// Game user created at the first game login (same name), if any.
+    /// Game user of its game name, created at the first game login, if any.
     pub game_uid: Option<i32>,
     pub characters: i64,
 }
@@ -54,13 +56,13 @@ pub async fn list(
     limit: i64,
 ) -> Result<Vec<AccountSummary>, sqlx::Error> {
     sqlx::query_as(
-        "SELECT a.username, a.panel_role, a.status,
+        "SELECT a.username, a.game_name, a.panel_role, a.status,
                 COALESCE(a.locked_until > now(), false) AS locked,
                 to_char(a.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
                 u.id AS game_uid,
                 (SELECT count(*) FROM game_character_info c WHERE c.uid = u.id) AS characters
          FROM accounts a
-         LEFT JOIN game_users u ON u.name_key = a.normalized_name
+         LEFT JOIN game_users u ON u.name_key = lower(COALESCE(a.game_name, a.username))
          WHERE ($1::text IS NULL OR a.normalized_name LIKE '%' || $1 || '%')
            AND ($2::text IS NULL OR a.normalized_name > $2)
          ORDER BY a.normalized_name
@@ -157,7 +159,7 @@ pub async fn create(
     let mut tx = pool.begin().await?;
     let inserted = sqlx::query(
         "INSERT INTO accounts (id, username, normalized_name, password_hash, panel_role)
-         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (normalized_name) DO NOTHING",
+         VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING",
     )
     .bind(Uuid::new_v4())
     .bind(username.display())

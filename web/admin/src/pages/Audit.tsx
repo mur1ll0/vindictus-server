@@ -12,6 +12,8 @@ const ACTIONS: Record<string, string> = {
   'account.create': 'Conta criada',
   'account.password': 'Senha trocada',
   'account.status': 'Conta ativada/desativada',
+  'account.game_link': 'Conta ligada a usuário do jogo',
+  'play.code': 'Código de jogo',
 };
 
 async function page(beforeId: number | undefined): Promise<AuditEntry[]> {
