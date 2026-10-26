@@ -112,7 +112,6 @@ pub(super) async fn content_state(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct NewEdit {
     operation_id: Uuid,
-    reason: String,
     edit: EditRequest,
 }
 
@@ -134,7 +133,6 @@ pub(super) async fn create_edit(
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     let id = content_admin::create_edit(
         state.auth.pool(),
@@ -147,25 +145,23 @@ pub(super) async fn create_edit(
 }
 
 #[derive(Deserialize, ToSchema)]
-pub(super) struct Reasoned {
+pub(super) struct Operation {
     operation_id: Uuid,
-    reason: String,
 }
 
 #[utoipa::path(post, path = "/api/content/edits/{id}/withdraw", params(("id" = i64, Path)),
-    request_body = Reasoned,
+    request_body = Operation,
     responses((status = 204), (status = 404, body = super::ApiError)))]
 pub(super) async fn withdraw(
     State(state): State<AdminState>,
     auth: Authenticated,
     Path(id): Path<i64>,
-    Json(body): Json<Reasoned>,
+    Json(body): Json<Operation>,
 ) -> Result<axum::http::StatusCode, Refusal> {
     let actor = Actor {
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     content_admin::withdraw(state.auth.pool(), &actor, id).await?;
     Ok(axum::http::StatusCode::NO_CONTENT)
@@ -174,7 +170,6 @@ pub(super) async fn withdraw(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct Publish {
     operation_id: Uuid,
-    reason: String,
     /// Minutes until the restart that applies the version (0–60; 0 = now).
     minutes: i32,
 }
@@ -201,7 +196,6 @@ pub(super) async fn publish(
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     let maintenance = state.runtime.as_ref().map(|r| r.maintenance());
     let (version, maintenance) =
@@ -213,18 +207,17 @@ pub(super) async fn publish(
 }
 
 /// Cancel the scheduled maintenance (admin); the version stays published.
-#[utoipa::path(post, path = "/api/content/maintenance/cancel", request_body = Reasoned,
+#[utoipa::path(post, path = "/api/content/maintenance/cancel", request_body = Operation,
     responses((status = 204), (status = 403, body = super::ApiError), (status = 404, body = super::ApiError)))]
 pub(super) async fn cancel_maintenance(
     State(state): State<AdminState>,
     auth: Authenticated,
-    Json(body): Json<Reasoned>,
+    Json(body): Json<Operation>,
 ) -> Result<axum::http::StatusCode, Refusal> {
     let actor = Actor {
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     let runtime = state
         .runtime

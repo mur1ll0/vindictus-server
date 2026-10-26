@@ -256,11 +256,17 @@ mod tests {
             let mut value = serde_json::json!({
                 "format_version": 1, "version": 1, "shop_rows": [], "cash_prices": {}, "cash_default": null
             });
-            value.as_object_mut().unwrap().extend(bad.as_object().unwrap().clone());
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(bad.as_object().unwrap().clone());
             let overlay: Overlay = serde_json::from_value(value).unwrap();
             assert_eq!(overlay.validate(), Err(OverlayError));
         }
-        assert_eq!(enhance_target("LONGSWORD_LVL1#12"), Some(("LONGSWORD_LVL1", 12)));
+        assert_eq!(
+            enhance_target("LONGSWORD_LVL1#12"),
+            Some(("LONGSWORD_LVL1", 12))
+        );
     }
 
     #[test]

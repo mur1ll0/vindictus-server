@@ -71,8 +71,8 @@ function RowModal({
           danger
           onCancel={() => setRemoving(false)}
           onDone={onDone}
-          onSubmit={async (operationId, reason) => {
-            await createEdit(operationId, reason, { kind: 'shop_row_remove', shop_id: shopId, order: row.order });
+          onSubmit={async (operationId) => {
+            await createEdit(operationId, { kind: 'shop_row_remove', shop_id: shopId, order: row.order });
           }}
         >
           <p className="text-sm text-muted">A linha some da loja quando a versão for aplicada.</p>
@@ -82,8 +82,8 @@ function RowModal({
           submitLabel={row ? 'Salvar mudança' : 'Adicionar linha'}
           onCancel={onClose}
           onDone={onDone}
-          onSubmit={async (operationId, reason) => {
-            await createEdit(operationId, reason, {
+          onSubmit={async (operationId) => {
+            await createEdit(operationId, {
               kind: 'shop_row',
               shop_id: shopId,
               order,

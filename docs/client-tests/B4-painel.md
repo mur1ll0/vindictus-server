@@ -11,7 +11,7 @@ Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4
 Pré-condição: containers no ar.
 - [ ] Abrir `http://127.0.0.1:27090`, aba Entrar, `admin` e a senha → abre em Contas, com barra lateral (Administração: Contas, Auditoria; Conta: Minha conta) e "admin · Admin" no topo.
 - [ ] Contas mostra cartões (avatar, login, UID e personagens, crachás de papel e situação); o cartão `admin` diz "jogo: lab169_a", "UID 952894723 · 1 personagem(ns)".
-- [ ] Clicar num cartão → modal com os dados (papel, situação, criada, nome no jogo, UID, personagens) e os botões Papel, Senha e Desativar/Ativar; cada botão abre o formulário com motivo; Voltar retorna aos dados.
+- [ ] Clicar num cartão → modal com os dados (papel, situação, criada, nome no jogo, UID, personagens) e os botões Papel, Senha e Desativar/Ativar; cada botão abre o formulário; Voltar retorna aos dados.
 - [ ] Botão de tema (sol/lua) alterna claro/escuro e a escolha continua ao recarregar.
 - [ ] Sair → aba "Criar conta": criar `teste_b4` (senha de 12+ caracteres, repetida) → entra direto em Minha conta, com o papel "Jogador" e só o item "Minha conta" na barra lateral; abrir `http://127.0.0.1:27090/contas` → volta para Minha conta.
 - [ ] Minha conta → Trocar senha (senha atual errada → recusa; certa → volta para o login com "Senha trocada"); entrar com a senha nova.
@@ -68,10 +68,10 @@ Limites conhecidos: só com a personagem fora do jogo; skills não mudam pelo pa
 ### B4.4 — Lojas de NPC e cash shop pelo painel
 Pré-condição: containers recompilados depois de 26/10/2026; binário nativo compilado (`cargo build --locked`) para o script do host; cliente fechado na hora de aplicar.
 - [ ] Como `admin`, Lojas de NPC → filtrar "ferghus" → abrir a loja → as linhas aparecem com o nome em inglês e o preço que o jogo cobra (Enhancement Elixir por 4.000).
-- [ ] Clicar no Enhancement Elixir → mudar o preço para 3.000 com motivo → Conteúdo mostra 1 pendente.
+- [ ] Clicar no Enhancement Elixir → mudar o preço para 3.000 → Conteúdo mostra 1 pendente.
 - [ ] Na mesma loja, Adicionar linha → buscar um item (ex.: "potion") → preço 100 → Conteúdo mostra 2 pendentes.
 - [ ] Cash shop → escolher uma categoria (ex.: HAIR) → preço novo → 3 pendentes.
-- [ ] Conteúdo → Publicar versão (motivo) → v1 "a aplicar".
+- [ ] Conteúdo → Publicar versão → v1 "a aplicar".
 - [ ] No host: `pwsh scripts/content/apply-content-edits.ps1` → termina com "Content edits applied up to version 1"; Conteúdo mostra v1 "aplicada".
 - [ ] Abrir o cliente, entrar com `admin`, ir ao Ferghus → Enhancement Elixir por 3.000 e o item novo por 100; comprar um de cada → o ouro cai certo e os itens entram no inventário.
 - [ ] Abrir o Depot → a categoria editada com o preço novo.
@@ -114,10 +114,10 @@ Pré-condição: containers recompilados depois de 26/10/2026; a Murael fora do 
 - [ ] Arrastar um item sobre outro diferente → trocam de lugar.
 - [ ] Arrastar uma pilha sobre outra do mesmo item (ex.: duas pilhas de poção) → juntam até o limite da pilha.
 - [ ] Arrastar um item para a aba de outra bolsa (se houver) → vai para o primeiro espaço livre dela.
-- [ ] Organizar → Todas as bolsas → motivo → "N item(ns) mudaram de lugar"; de novo → "O inventário já está organizado.".
+- [ ] Organizar → Todas as bolsas → "N item(ns) mudaram de lugar"; de novo → "O inventário já está organizado.".
 - [ ] Entrar no jogo com a Murael → os itens estão nos mesmos espaços que o painel mostrou.
 - [ ] Com a Murael dentro do jogo, arrastar ou Organizar → "O personagem está no jogo…" e nada muda.
-Limites conhecidos: itens vestidos ocupam espaços da bolsa (ícone de camisa), não são arrastados e não recebem itens soltos; só bolsas (Cash e Quest só pelo Organizar); arrastar usa o motivo fixo "Movido arrastando no painel".
+Limites conhecidos: itens vestidos ocupam espaços da bolsa (ícone de camisa), não são arrastados e não recebem itens soltos; só bolsas (Cash e Quest só pelo Organizar).
 
 ### B4.4e — Ícone com a cor do item e tooltip como no jogo
 Pré-condição: containers recompilados depois de 26/10/2026 com `py -3.13 scripts/content/export_panel_catalog.py --output .cache/private-content/panel-catalog.json` (catálogo com os dados do tooltip e os ícones de fundo). Só painel; para comparar, abrir o mesmo item no jogo.
@@ -130,13 +130,21 @@ Limites conhecidos: a mistura das cores da máscara é uma aproximação do clie
 
 ### B4.5 — Taxas, drops por fase e chances de Enhance/Enchant pelo painel
 Pré-condição: containers recompilados depois de 26/10/2026 (migração 0047); cliente aberto pelo `.cache/play-client/start-lab.bat`.
-- [ ] Ajustes de jogo → Taxas: as 7 taxas aparecem com o valor carregado (100% = original). Mudar "EXP das missões (combate)" para 200 com motivo → Conteúdo mostra 1 pendente "Taxa do FeatureMatrix".
+- [ ] Ajustes de jogo → Taxas: as 7 taxas aparecem com o valor carregado (100% = original). Mudar "EXP das missões (combate)" para 200 → Conteúdo mostra 1 pendente "Taxa do FeatureMatrix".
 - [ ] Drops por fase: buscar uma fase que você joga (nome em inglês) → mudar mínimo/máximo (ex.: 3–5) → pendente.
 - [ ] Enhance: a chance de cada nível (+1…). Mudar o +5 para 100% → pendente.
 - [ ] Enchant: buscar um encantamento que você tem (ex.: o nome do pergaminho) → mudar a chance mínima/máxima → pendente.
 - [ ] Conteúdo → Publicar versão com 1 minuto → aviso, reinício; Ajustes de jogo mostra os valores novos.
 - [ ] Fechar o cliente e abrir pelo `start-lab.bat`. Jogar a fase ajustada: a EXP do resultado dobra e mais monstros deixam drop; Enhance +5 numa peça +4 → sucesso e a janela mostra a chance nova; o minijogo do encantamento mostra a chance nova.
 Limites conhecidos: valores fora dos limites são recusados (taxas 0–10000%, drops 0–100, chances 0–100%); o Enhance é por nível (vale para todos os equipamentos naquele nível, como o EnhanceServerInfo do servidor); o cliente só mostra os valores novos depois de abrir pelo `start-lab.bat`.
+
+### B4.4f — Sessão estável e mudanças sem motivo
+Pré-condição: containers recompilados depois de 26/10/2026 (migração 0048).
+- [ ] Entrar no painel, abrir a ficha da Murael e clicar em cada item do menu (Contas, Lojas de NPC, Cash shop, Ajustes de jogo, Conteúdo, Auditoria, Minha conta) → nenhum volta ao login.
+- [ ] Deixar o painel parado mais de 30 minutos (a sessão expira), clicar num item do menu → volta ao login; entrar de novo e repetir o clique em outras telas → continua logado.
+- [ ] Dar ouro, mudar um preço, organizar o inventário e publicar uma versão → nenhum formulário pede motivo.
+- [ ] Auditoria → as entradas mostram quem fez, o quê (antes → depois) e quando, sem motivo. Conteúdo → edições e versões sem motivo.
+Limites conhecidos: entradas antigas da auditoria perderam o motivo (a coluna foi removida).
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

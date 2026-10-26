@@ -31,9 +31,7 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
         )
         .await
         .unwrap();
-        set_role_from_cli(&pool, name, Some(role), "papel")
-            .await
-            .unwrap();
+        set_role_from_cli(&pool, name, Some(role)).await.unwrap();
     }
     let auth = PanelAuth::new(pool.clone());
     let chefe = auth
@@ -58,7 +56,6 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
         action: "content.edit",
         target_kind: Some("content"),
         target_id: Some("x"),
-        reason: None,
         before: None,
         after: None,
         refused: false,
@@ -70,7 +67,7 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
             let author = gm.account_id;
             let record = audit(op);
             async move {
-                content_edits::create(&pool, kind, target, value.as_ref(), author, "teste", record)
+                content_edits::create(&pool, kind, target, value.as_ref(), author, record)
                     .await
                     .unwrap()
             }
@@ -105,17 +102,16 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
     else {
         panic!()
     };
-    let actor = |session, reason| Actor {
+    let actor = |session| Actor {
         session,
         peer: None,
         operation_id: Uuid::new_v4(),
-        reason,
     };
-    content_admin::withdraw(&pool, &actor(&gm, "engano"), withdrawn)
+    content_admin::withdraw(&pool, &actor(&gm), withdrawn)
         .await
         .unwrap();
     assert!(matches!(
-        content_admin::withdraw(&pool, &actor(&gm, "de novo"), withdrawn).await,
+        content_admin::withdraw(&pool, &actor(&gm), withdrawn).await,
         Err(AdminError::NotFound)
     ));
 
@@ -123,28 +119,23 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
     // minutes. While it is scheduled no other publish; cancelling is audited once.
     let maintenance = vindictus_server::infrastructure::maintenance::Maintenance::default();
     assert!(matches!(
-        content_admin::publish(&pool, &actor(&gm, "gm"), Some(&maintenance), 5).await,
+        content_admin::publish(&pool, &actor(&gm), Some(&maintenance), 5).await,
         Err(AdminError::Forbidden)
     ));
     assert!(matches!(
-        content_admin::publish(&pool, &actor(&chefe, "longo"), Some(&maintenance), 61).await,
+        content_admin::publish(&pool, &actor(&chefe), Some(&maintenance), 61).await,
         Err(AdminError::InvalidInput)
     ));
-    let (version, plan) = content_admin::publish(
-        &pool,
-        &actor(&chefe, "loja do Ferghus"),
-        Some(&maintenance),
-        5,
-    )
-    .await
-    .unwrap();
+    let (version, plan) = content_admin::publish(&pool, &actor(&chefe), Some(&maintenance), 5)
+        .await
+        .unwrap();
     let plan = plan.unwrap();
     assert_eq!((version, plan.version, plan.delay_seconds), (1, 1, 300));
     assert!(matches!(
-        content_admin::publish(&pool, &actor(&chefe, "outra"), Some(&maintenance), 0).await,
+        content_admin::publish(&pool, &actor(&chefe), Some(&maintenance), 0).await,
         Err(AdminError::Unchanged("manutencao"))
     ));
-    let cancel = actor(&chefe, "adiar");
+    let cancel = actor(&chefe);
     content_admin::cancel_maintenance(&pool, &cancel, &maintenance)
         .await
         .unwrap();
@@ -154,14 +145,14 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
         Err(AdminError::NotFound)
     ));
     assert!(matches!(
-        content_admin::publish(&pool, &actor(&chefe, "vazio"), Some(&maintenance), 0).await,
+        content_admin::publish(&pool, &actor(&chefe), Some(&maintenance), 0).await,
         Err(AdminError::Unchanged("sem_pendentes"))
     ));
     // A later edit of the same row (version 2) wins in the cumulative overlay; a removal too.
     edit("shop_row", "FERGHUS_Shop#124", row(5000), Uuid::new_v4()).await;
     edit("shop_row_remove", "FERGHUS_Shop#3", None, Uuid::new_v4()).await;
     assert_eq!(
-        content_admin::publish(&pool, &actor(&chefe, "preço novo"), None, 0)
+        content_admin::publish(&pool, &actor(&chefe), None, 0)
             .await
             .unwrap()
             .0,
@@ -231,7 +222,7 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
     )
     .await;
     assert_eq!(
-        content_admin::publish(&pool, &actor(&chefe, "taxas"), None, 0)
+        content_admin::publish(&pool, &actor(&chefe), None, 0)
             .await
             .unwrap()
             .0,

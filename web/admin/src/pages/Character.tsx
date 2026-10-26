@@ -139,7 +139,6 @@ function ItemModal({
   );
 }
 
-const DRAG_REASON = 'Movido arrastando no painel';
 const SORTABLE = (c: number) => isBag(c) || c === 100 || c === 103;
 
 function SlotCell({
@@ -228,7 +227,7 @@ function SortModal({ cid, current, onClose, onDone }: { cid: string; current: nu
           submitLabel="Organizar"
           onCancel={onClose}
           onDone={onDone}
-          onSubmit={async (op, reason) => setMoved(await sortInventory(cid, target, op, reason))}
+          onSubmit={async (op) => setMoved(await sortInventory(cid, target, op))}
         >
           <div role="radiogroup" className="grid gap-1 rounded-lg bg-raised p-1 text-sm">
             {options.map((o) => (
@@ -284,7 +283,7 @@ function Inventory({ sheet, canManage, onChanged }: { sheet: CharacterSheet; can
     setBusy(true);
     setMoveError(null);
     try {
-      await moveItem(cid, item.id, storage, slot, crypto.randomUUID(), DRAG_REASON);
+      await moveItem(cid, item.id, storage, slot, crypto.randomUUID());
       onChanged();
     } catch (e) {
       setMoveError(e);

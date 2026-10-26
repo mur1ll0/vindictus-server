@@ -1009,7 +1009,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Reasoned"
+                "$ref": "#/components/schemas/Operation"
               }
             }
           },
@@ -1043,7 +1043,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Reasoned"
+                "$ref": "#/components/schemas/Operation"
               }
             }
           },
@@ -1798,12 +1798,6 @@
               "null"
             ]
           },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "role": {
             "type": [
               "string",
@@ -1855,7 +1849,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "delta"
         ],
         "properties": {
@@ -1867,9 +1860,6 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
           }
         }
       },
@@ -2287,8 +2277,7 @@
           "kind",
           "target",
           "state",
-          "created_at",
-          "reason"
+          "created_at"
         ],
         "properties": {
           "created_at": {
@@ -2308,9 +2297,6 @@
           "kind": {
             "type": "string",
             "description": "shop_row, shop_row_remove, cash_price or cash_default."
-          },
-          "reason": {
-            "type": "string"
           },
           "state": {
             "type": "string",
@@ -2374,7 +2360,6 @@
         "required": [
           "version",
           "published_at",
-          "reason",
           "edits"
         ],
         "properties": {
@@ -2398,9 +2383,6 @@
               "null"
             ]
           },
-          "reason": {
-            "type": "string"
-          },
           "version": {
             "type": "integer",
             "format": "int32"
@@ -2411,7 +2393,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "username",
           "password"
         ],
@@ -2432,9 +2413,6 @@
             "type": "string",
             "format": "password",
             "description": "12–128 bytes."
-          },
-          "reason": {
-            "type": "string"
           },
           "username": {
             "type": "string",
@@ -2753,16 +2731,12 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "target"
         ],
         "properties": {
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
           },
           "target": {
             "type": "integer",
@@ -2807,7 +2781,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "item",
           "count",
           "action"
@@ -2828,9 +2801,6 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
           }
         }
       },
@@ -2838,7 +2808,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "item",
           "storage",
           "slot"
@@ -2851,9 +2820,6 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
           },
           "slot": {
             "type": "integer",
@@ -3027,7 +2993,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "edit"
         ],
         "properties": {
@@ -3037,9 +3002,18 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
+          }
+        }
+      },
+      "Operation": {
+        "type": "object",
+        "required": [
+          "operation_id"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -3099,7 +3073,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "change"
         ],
         "properties": {
@@ -3109,9 +3082,6 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
           }
         }
       },
@@ -3268,7 +3238,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "minutes"
         ],
         "properties": {
@@ -3280,9 +3249,6 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
           }
         }
       },
@@ -3336,22 +3302,6 @@
           }
         }
       },
-      "Reasoned": {
-        "type": "object",
-        "required": [
-          "operation_id",
-          "reason"
-        ],
-        "properties": {
-          "operation_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
-          }
-        }
-      },
       "SessionResponse": {
         "type": "object",
         "required": [
@@ -3380,7 +3330,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "password"
         ],
         "properties": {
@@ -3391,17 +3340,13 @@
           "password": {
             "type": "string",
             "format": "password"
-          },
-          "reason": {
-            "type": "string"
           }
         }
       },
       "SetRole": {
         "type": "object",
         "required": [
-          "operation_id",
-          "reason"
+          "operation_id"
         ],
         "properties": {
           "operation_id": {
@@ -3415,9 +3360,6 @@
             ],
             "description": "admin, gm, leitura or null to remove panel access.",
             "example": "leitura"
-          },
-          "reason": {
-            "type": "string"
           }
         }
       },
@@ -3425,7 +3367,6 @@
         "type": "object",
         "required": [
           "operation_id",
-          "reason",
           "active"
         ],
         "properties": {
@@ -3435,9 +3376,6 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
-          },
-          "reason": {
-            "type": "string"
           }
         }
       },

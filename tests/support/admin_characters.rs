@@ -32,7 +32,7 @@ async fn character_sheet_for_owner_and_staff_only() {
         .await
         .expect("account");
     }
-    set_role_from_cli(&pool, "equipe", Some(PanelRole::Leitura), "leitura")
+    set_role_from_cli(&pool, "equipe", Some(PanelRole::Leitura))
         .await
         .expect("role");
     sqlx::raw_sql(
@@ -171,7 +171,6 @@ async fn character_sheet_for_owner_and_staff_only() {
         session,
         peer: None,
         operation_id: uuid::Uuid::new_v4(),
-        reason: "teste",
     };
     for session in [&owner, &staff] {
         assert!(matches!(
@@ -179,7 +178,7 @@ async fn character_sheet_for_owner_and_staff_only() {
             Err(AdminError::Forbidden)
         ));
     }
-    set_role_from_cli(&pool, "equipe", Some(PanelRole::Gm), "gm")
+    set_role_from_cli(&pool, "equipe", Some(PanelRole::Gm))
         .await
         .expect("gm");
     let gm = login("equipe").await;
@@ -187,7 +186,7 @@ async fn character_sheet_for_owner_and_staff_only() {
         change_item(&pool, None, &edit(&gm), "9001", "gold", 1, true).await,
         Err(AdminError::ContentUnavailable)
     ));
-    set_role_from_cli(&pool, "dono", Some(PanelRole::Leitura), "leitura")
+    set_role_from_cli(&pool, "dono", Some(PanelRole::Leitura))
         .await
         .expect("role");
     assert!(matches!(

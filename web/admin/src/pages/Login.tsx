@@ -29,6 +29,8 @@ export function LoginPage() {
     onSuccess: (session) => {
       setPassword('');
       setConfirm('');
+      // Data and errors of an earlier session do not carry over.
+      queryClient.clear();
       queryClient.setQueryData(sessionQuery.queryKey, session);
       void navigate({ to: homeOf(session) });
     },

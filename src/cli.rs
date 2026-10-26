@@ -74,9 +74,6 @@ pub enum Command {
         username: String,
         #[arg(long, value_parser = ["admin", "gm", "leitura", "none"])]
         role: String,
-        /// Mandatory audit reason.
-        #[arg(long)]
-        reason: String,
     },
     /// Write the cumulative overlay of the published content edits (B4.4) for the content
     /// exporters; prints the version.
@@ -363,8 +360,6 @@ pub enum Command {
         username: String,
         #[arg(long)]
         game_name: String,
-        #[arg(long)]
-        reason: String,
     },
 }
 

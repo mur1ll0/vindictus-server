@@ -91,14 +91,9 @@ async fn admin_panel_login_session_roles_and_audit() {
         .await
         .expect("login without role");
     assert_eq!(player.session.role, None);
-    set_role_from_cli(
-        &pool,
-        "Painel_Admin",
-        Some(PanelRole::Admin),
-        "primeiro admin",
-    )
-    .await
-    .expect("role");
+    set_role_from_cli(&pool, "Painel_Admin", Some(PanelRole::Admin))
+        .await
+        .expect("role");
     assert!(matches!(
         auth.login("painel_admin", secret("senha errada demais"), peer)
             .await,
@@ -116,17 +111,17 @@ async fn admin_panel_login_session_roles_and_audit() {
 
     // The last admin cannot be demoted; with a second admin it can.
     assert!(matches!(
-        set_role_from_cli(&pool, "painel_admin", Some(PanelRole::Gm), "rebaixar").await,
+        set_role_from_cli(&pool, "painel_admin", Some(PanelRole::Gm)).await,
         Err(AdminError::LastAdmin)
     ));
-    set_role_from_cli(&pool, "painel_gm", Some(PanelRole::Gm), "gm")
+    set_role_from_cli(&pool, "painel_gm", Some(PanelRole::Gm))
         .await
         .expect("gm");
     // Removing the role keeps the session, without panel permissions from the next request.
-    set_role_from_cli(&pool, "painel_gm", Some(PanelRole::Admin), "segundo admin")
+    set_role_from_cli(&pool, "painel_gm", Some(PanelRole::Admin))
         .await
         .expect("admin");
-    set_role_from_cli(&pool, "painel_admin", None, "sem painel")
+    set_role_from_cli(&pool, "painel_admin", None)
         .await
         .expect("removed");
     assert_eq!(
@@ -262,7 +257,7 @@ async fn admin_panel_login_session_roles_and_audit() {
     assert_eq!(count("account.role", "ok"), 4);
     assert_eq!(count("session.login", "refused"), 2 + MAX_FAILURES as usize);
     for statement in [
-        "UPDATE admin_audit_events SET reason = 'x'",
+        "UPDATE admin_audit_events SET action = 'x'",
         "DELETE FROM admin_audit_events",
         "TRUNCATE admin_audit_events",
     ] {

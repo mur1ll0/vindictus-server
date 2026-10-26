@@ -18,9 +18,11 @@ const queryClient = new QueryClient({
   },
 });
 const router = makeRouter(queryClient);
-// An ended session anywhere sends the user back to the login page.
+// An ended session anywhere sends the user back to the login page. Only a fresh failure
+// counts: a query keeps the error of an earlier, expired session until it refetches.
 queryClient.getQueryCache().subscribe((event) => {
-  const error = event.query.state.error;
+  if (event.type !== 'updated' || event.action.type !== 'error') return;
+  const error = event.action.error;
   if (error instanceof ApiFailure && error.code === 'sessao_encerrada') {
     queryClient.setQueryData(['session'], null);
     void router.navigate({ to: '/login' });

@@ -1,7 +1,6 @@
 //! Game names (NexonID) claimed by accounts (B4.2). A claimed name no longer logs in to the game
 //! by its passport alone; an account can enter an existing game user, keeping its characters.
 use super::admin_store::{self, AuditRecord};
-use crate::domain::admin::AuditReason;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -29,7 +28,6 @@ pub async fn link_game(
     pool: &PgPool,
     normalized: &str,
     game_name: &str,
-    reason: &AuditReason,
 ) -> Result<LinkChange, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let current: Option<(Uuid, Option<String>)> =
@@ -60,7 +58,6 @@ pub async fn link_game(
             action: "account.game_link",
             target_kind: Some("account"),
             target_id: Some(normalized),
-            reason: Some(reason),
             before: Some(serde_json::json!({ "game_name": before }).to_string()),
             after: Some(serde_json::json!({ "game_name": game_name }).to_string()),
             refused: false,

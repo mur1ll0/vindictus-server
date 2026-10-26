@@ -20,7 +20,6 @@ pub struct ContentEdit {
     pub created_by: Option<String>,
     /// UTC, RFC 3339.
     pub created_at: String,
-    pub reason: String,
 }
 
 #[derive(Clone, Debug, Serialize, sqlx::FromRow, utoipa::ToSchema)]
@@ -28,7 +27,6 @@ pub struct ContentVersion {
     pub version: i32,
     pub published_by: Option<String>,
     pub published_at: String,
-    pub reason: String,
     /// When the host script applied it (exporters, client copy, game restart).
     pub applied_at: Option<String>,
     pub edits: i64,
@@ -63,19 +61,17 @@ pub async fn create(
     target: &str,
     value: Option<&serde_json::Value>,
     author: Uuid,
-    reason: &str,
     mut audit: AuditRecord<'_>,
 ) -> Result<EditOutcome, sqlx::Error> {
     let mut tx = pool.begin().await?;
     let id: i64 = sqlx::query_scalar(
-        "INSERT INTO content_edits (kind, target, value, created_by, reason)
-         VALUES ($1, $2, $3::jsonb, $4, $5) RETURNING id",
+        "INSERT INTO content_edits (kind, target, value, created_by)
+         VALUES ($1, $2, $3::jsonb, $4) RETURNING id",
     )
     .bind(kind)
     .bind(target)
     .bind(value.map(|v| v.to_string()))
     .bind(author)
-    .bind(reason)
     .fetch_one(&mut *tx)
     .await?;
     audit.after = Some(
@@ -111,7 +107,6 @@ pub async fn withdraw(
 pub async fn publish(
     pool: &PgPool,
     author: Uuid,
-    reason: &str,
     mut audit: AuditRecord<'_>,
 ) -> Result<EditOutcome, sqlx::Error> {
     let mut tx = pool.begin().await?;
@@ -129,10 +124,9 @@ pub async fn publish(
         sqlx::query_scalar("SELECT COALESCE(max(version), 0) + 1 FROM content_versions")
             .fetch_one(&mut *tx)
             .await?;
-    sqlx::query("INSERT INTO content_versions (version, published_by, reason) VALUES ($1, $2, $3)")
+    sqlx::query("INSERT INTO content_versions (version, published_by) VALUES ($1, $2)")
         .bind(version)
         .bind(author)
-        .bind(reason)
         .execute(&mut *tx)
         .await?;
     sqlx::query(
@@ -149,8 +143,7 @@ pub async fn list(pool: &PgPool, limit: i64) -> Result<Vec<ContentEdit>, sqlx::E
     sqlx::query_as(
         "SELECT e.id, e.kind, e.target, e.value::text AS value, e.state, e.version,
                 a.username AS created_by,
-                to_char(e.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
-                e.reason
+                to_char(e.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at
          FROM content_edits e LEFT JOIN accounts a ON a.id = e.created_by
          ORDER BY (e.state = 'pending') DESC, e.id DESC
          LIMIT $1",
@@ -164,7 +157,6 @@ pub async fn versions(pool: &PgPool, limit: i64) -> Result<Vec<ContentVersion>, 
     sqlx::query_as(
         "SELECT v.version, a.username AS published_by,
                 to_char(v.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS published_at,
-                v.reason,
                 to_char(v.applied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS applied_at,
                 (SELECT count(*) FROM content_edits e WHERE e.version = v.version) AS edits
          FROM content_versions v LEFT JOIN accounts a ON a.id = v.published_by

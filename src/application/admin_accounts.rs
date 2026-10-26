@@ -5,7 +5,7 @@ use super::admin_session::AdminError;
 use crate::{
     domain::{
         Username,
-        admin::{AuditReason, PanelRole, Permission},
+        admin::{PanelRole, Permission},
         hash_password,
     },
     infrastructure::{
@@ -28,7 +28,6 @@ pub struct Request<'a> {
     pub session: &'a SessionAccount,
     pub peer: Option<IpAddr>,
     pub operation_id: Uuid,
-    pub reason: &'a str,
 }
 
 fn require(session: &SessionAccount, permission: Permission) -> Result<(), AdminError> {
@@ -37,10 +36,6 @@ fn require(session: &SessionAccount, permission: Permission) -> Result<(), Admin
     } else {
         Err(AdminError::Forbidden)
     }
-}
-
-fn reason(value: &str) -> Result<AuditReason, AdminError> {
-    AuditReason::parse(value).ok_or(AdminError::InvalidInput)
 }
 
 fn outcome(change: AccountChange) -> Result<(), AdminError> {
@@ -112,13 +107,11 @@ pub async fn create(
     if name.display().len() > MAX_PLAYABLE_NAME {
         return Err(AdminError::InvalidInput);
     }
-    let reason = reason(request.reason)?;
     let hash = hash(password).await?;
     let actor = Actor {
         session: request.session,
         peer: request.peer,
         operation_id: request.operation_id,
-        reason: &reason,
     };
     outcome(admin_accounts::create(pool, &name, &hash, role, &actor).await?)
 }
@@ -131,12 +124,10 @@ pub async fn set_role(
 ) -> Result<(), AdminError> {
     require(request.session, Permission::Administer)?;
     let name = Username::parse(username).map_err(|_| AdminError::NotFound)?;
-    let reason = reason(request.reason)?;
     match admin_store::set_role(
         pool,
         name.normalized(),
         role,
-        &reason,
         Some((request.session, request.peer, request.operation_id)),
     )
     .await?
@@ -156,7 +147,6 @@ pub async fn set_password(
 ) -> Result<(), AdminError> {
     require(request.session, Permission::Manage)?;
     let name = Username::parse(username).map_err(|_| AdminError::NotFound)?;
-    let reason = reason(request.reason)?;
     let hash = hash(password).await?;
     let (tx, target) = admin_accounts::lock_target(pool, name.normalized()).await?;
     let target = target.ok_or(AdminError::NotFound)?;
@@ -165,7 +155,6 @@ pub async fn set_password(
         session: request.session,
         peer: request.peer,
         operation_id: request.operation_id,
-        reason: &reason,
     };
     outcome(admin_accounts::set_password(tx, &target, &hash, &actor).await?)
 }
@@ -178,7 +167,6 @@ pub async fn set_status(
 ) -> Result<(), AdminError> {
     require(request.session, Permission::Manage)?;
     let name = Username::parse(username).map_err(|_| AdminError::NotFound)?;
-    let reason = reason(request.reason)?;
     let (mut tx, target) = admin_accounts::lock_target(pool, name.normalized()).await?;
     let target = target.ok_or(AdminError::NotFound)?;
     if target.id == request.session.account_id {
@@ -195,7 +183,6 @@ pub async fn set_status(
         session: request.session,
         peer: request.peer,
         operation_id: request.operation_id,
-        reason: &reason,
     };
     outcome(admin_accounts::set_status(tx, &target, active, &actor).await?)
 }

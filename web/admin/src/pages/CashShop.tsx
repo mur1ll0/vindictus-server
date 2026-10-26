@@ -24,11 +24,10 @@ function PriceModal({ category, onClose, onDone }: { category: CashCategory | 'd
         submitLabel="Salvar preço"
         onCancel={onClose}
         onDone={onDone}
-        onSubmit={async (operationId, reason) => {
+        onSubmit={async (operationId) => {
           const value = Number(price);
           await createEdit(
             operationId,
-            reason,
             category === 'default' ? { kind: 'cash_default', price: value } : { kind: 'cash_price', category: category.category, price: value },
           );
         }}

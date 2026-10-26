@@ -164,7 +164,7 @@ impl AdminState {
         content::ContentState,
         content::NewEdit,
         content::Created,
-        content::Reasoned,
+        content::Operation,
         content::Publish,
         content::Published,
         crate::infrastructure::maintenance::Plan

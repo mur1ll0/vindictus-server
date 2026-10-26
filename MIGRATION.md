@@ -1584,3 +1584,11 @@ B4.5 — taxas do FeatureMatrix, drops por fase e chances de Enhance/Enchant pel
 - Cliente: entrada B4.5 em `docs/client-tests/B4-painel.md`; `docs/content-tuning.md` registra o que o painel já edita.
 - Próxima ação retomável: B4.6 — mapas e canais (somente leitura); depois B4.7 (relatório de extensões; os planos de editor de fases, launcher e editor de itens estão em `docs/future/`) e o gate do B4.
 
+B4.4f — sessão do painel estável e mudanças sem motivo (26/10/2026, pedido do operador).
+- Sessão: depois de uma sessão expirada, as consultas guardavam o erro `sessao_encerrada`; ao abrir de novo uma tela que usava uma delas, o painel lia o erro antigo e voltava ao login com a sessão nova válida (auditoria: login às 21:37:49 e outro às 21:37:55). Agora só uma falha nova (`updated`/`error`) leva ao login, e entrar limpa o cache das consultas.
+- Motivo removido: `AuditReason` e o campo `reason` saem do domínio, das requisições HTTP (contas, personagem, conteúdo, manutenção), da CLI (`account-set-role`, `account-link-game`, `scripts/dev/account-set-role.ps1`) e do formulário comum do painel; migração `0048_drop_audit_reasons.sql` remove a coluna de `admin_audit_events`, `content_edits` e `content_versions`. A auditoria guarda quem (conta, papel, origem), o quê (ação, alvo, antes/depois, operation_id) e quando.
+- Testes: unitários `domain::admin` (2), `tests/admin_http.rs` (4, OpenAPI regenerado), PostgreSQL `admin_ panel_ content_edits actual_tcp_account_login` (9), clippy `-D warnings`, `tsc` e `npm run build`. Logs: `.cache/verification/reason-*.log`.
+- Docker recompilado (migração 0048 aplicada; as três colunas removidas). No painel real: ficha da Murael e as sete telas do menu sem voltar ao login; sessão apagada no servidor → volta ao login; ao entrar de novo, Ajustes, Conteúdo e Auditoria seguem logados; formulário de Ouro sem motivo.
+- Cliente: entrada B4.4f em `docs/client-tests/B4-painel.md` (painel; jogo não necessário).
+- Próxima ação retomável: B4.6 — mapas e canais (somente leitura); depois B4.7 e o gate do B4.
+

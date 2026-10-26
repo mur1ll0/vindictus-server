@@ -1,6 +1,6 @@
 //! Administration panel persistence: sessions, lockout and the append-only audit log.
 //! Times are computed by PostgreSQL (`now()`); the binary has no timestamp decoder.
-use crate::domain::admin::{AuditReason, PanelRole};
+use crate::domain::admin::PanelRole;
 use sqlx::{PgPool, Postgres, Transaction};
 use std::net::IpAddr;
 use uuid::Uuid;
@@ -32,7 +32,6 @@ pub struct AuditRecord<'a> {
     pub action: &'a str,
     pub target_kind: Option<&'a str>,
     pub target_id: Option<&'a str>,
-    pub reason: Option<&'a AuditReason>,
     pub before: Option<String>,
     pub after: Option<String>,
     pub refused: bool,
@@ -49,7 +48,6 @@ pub struct AuditEntry {
     pub action: String,
     pub target_kind: Option<String>,
     pub target_id: Option<String>,
-    pub reason: Option<String>,
     /// JSON text of the state before the change.
     pub before: Option<String>,
     /// JSON text of the state after the change.
@@ -104,8 +102,8 @@ pub async fn insert_audit(
     sqlx::query(
         "INSERT INTO admin_audit_events
             (account_id, actor_name, role, operation_id, action, target_kind, target_id,
-             reason, before, after, outcome, peer)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12::inet)",
+             before, after, outcome, peer)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11::inet)",
     )
     .bind(record.account_id)
     .bind(record.actor_name)
@@ -114,7 +112,6 @@ pub async fn insert_audit(
     .bind(record.action)
     .bind(record.target_kind)
     .bind(record.target_id)
-    .bind(record.reason.map(AuditReason::as_str))
     .bind(record.before.as_deref())
     .bind(record.after.as_deref())
     .bind(if record.refused { "refused" } else { "ok" })
@@ -242,7 +239,7 @@ pub async fn audit_page(
     sqlx::query_as(
         "SELECT id,
                 to_char(at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') AS at,
-                actor_name, role, action, target_kind, target_id, reason,
+                actor_name, role, action, target_kind, target_id,
                 before::text AS before, after::text AS after, outcome, host(peer) AS peer
          FROM admin_audit_events
          WHERE ($1::bigint IS NULL OR id < $1)
@@ -278,7 +275,6 @@ pub async fn set_role(
     pool: &PgPool,
     normalized: &str,
     new_role: Option<PanelRole>,
-    reason: &AuditReason,
     actor: Option<(&SessionAccount, Option<IpAddr>, Uuid)>,
 ) -> Result<RoleChange, sqlx::Error> {
     let mut tx = pool.begin().await?;
@@ -319,7 +315,6 @@ pub async fn set_role(
             action: "account.role",
             target_kind: Some("account"),
             target_id: Some(&target_id),
-            reason: Some(reason),
             before: Some(json(before)),
             after: Some(json(new_role)),
             refused: false,

@@ -696,17 +696,13 @@ async fn run(cli: Cli) -> Result<(), Error> {
         | Command::LabExportShopList { .. }
         | Command::ExportOpenapi { .. }
         | Command::LabFrontend { .. } => {}
-        Command::AccountSetRole {
-            username,
-            role,
-            reason,
-        } => {
+        Command::AccountSetRole { username, role } => {
             use vindictus_server::{
                 application::admin_session::set_role_from_cli, domain::admin::PanelRole,
             };
             postgres::check_ready(&pool).await?;
             let role = PanelRole::parse(&role);
-            set_role_from_cli(&pool, &username, role, &reason)
+            set_role_from_cli(&pool, &username, role)
                 .await
                 .map_err(|e| Error::Configuration(format!("role change refused: {e}")))?;
             println!(
@@ -806,11 +802,10 @@ async fn run(cli: Cli) -> Result<(), Error> {
         Command::AccountLinkGame {
             username,
             game_name,
-            reason,
         } => {
             postgres::check_ready(&pool).await?;
             vindictus_server::application::admin_session::link_game_from_cli(
-                &pool, &username, &game_name, &reason,
+                &pool, &username, &game_name,
             )
             .await
             .map_err(|e| Error::Configuration(format!("game link refused: {e}")))?;

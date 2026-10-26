@@ -1600,7 +1600,6 @@ async fn minimum_sort_compacts_a_bag_and_sort_all_fills_bags_in_order() {
 #[ignore = "requires disposable PostgreSQL"]
 async fn panel_move_and_sort_offline_audited_once() {
     use vindictus_server::{
-        domain::admin::AuditReason,
         infrastructure::{
             admin_store::AuditRecord,
             minimum_move::{self, Outcome, PanelStop},
@@ -1616,7 +1615,6 @@ async fn panel_move_and_sort_offline_audited_once() {
         .await
         .unwrap()
         .unwrap();
-    let reason = AuditReason::parse("teste do painel").unwrap();
     let record = |operation: u128, action: &'static str| AuditRecord {
         account_id: None,
         actor_name: None,
@@ -1625,7 +1623,6 @@ async fn panel_move_and_sort_offline_audited_once() {
         action,
         target_kind: Some("character"),
         target_id: Some("1"),
-        reason: Some(&reason),
         before: None,
         after: None,
         refused: false,
@@ -7074,19 +7071,15 @@ async fn minimum_hot_spring_potion_sets_the_channel_buff_and_gives_its_effect() 
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
 async fn panel_item_and_cash_changes_are_audited_once_and_refuse_online() {
-    use vindictus_server::{
-        domain::admin::AuditReason,
-        infrastructure::{
-            admin_store::AuditRecord,
-            minimum_cash_shop::{self, PanelCashOutcome},
-            minimum_give::{PanelItemChange, PanelItemOutcome},
-        },
+    use vindictus_server::infrastructure::{
+        admin_store::AuditRecord,
+        minimum_cash_shop::{self, PanelCashOutcome},
+        minimum_give::{PanelItemChange, PanelItemOutcome},
     };
     let (a, p, s) = isolated_game_pool().await;
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
     let assets = assets(0);
-    let reason = AuditReason::parse("teste do painel").unwrap();
     let record = |operation: u128, action: &'static str| AuditRecord {
         account_id: None,
         actor_name: None,
@@ -7095,7 +7088,6 @@ async fn panel_item_and_cash_changes_are_audited_once_and_refuse_online() {
         action,
         target_kind: Some("character"),
         target_id: Some("1"),
-        reason: Some(&reason),
         before: None,
         after: None,
         refused: false,
@@ -7196,7 +7188,7 @@ async fn panel_item_and_cash_changes_are_audited_once_and_refuse_online() {
 #[ignore = "requires disposable PostgreSQL"]
 async fn panel_progression_levels_gives_ap_and_title_once_offline() {
     use vindictus_server::{
-        domain::{admin::AuditReason, character_stats::Arithmetic},
+        domain::character_stats::Arithmetic,
         infrastructure::{
             admin_progression::{self, PanelGrowth, PanelGrowthOutcome},
             admin_store::AuditRecord,
@@ -7249,11 +7241,9 @@ async fn panel_progression_levels_gives_ap_and_title_once_offline() {
         },
         journal: 0,
     };
-    let reason = AuditReason::parse("teste do painel").unwrap();
     let run = |growth, operation: u128| {
         let p = p.clone();
         let assets = &assets;
-        let reason = &reason;
         async move {
             admin_progression::panel_change(
                 &p,
@@ -7270,7 +7260,6 @@ async fn panel_progression_levels_gives_ap_and_title_once_offline() {
                     action: "character.progression",
                     target_kind: Some("character"),
                     target_id: Some("1"),
-                    reason: Some(reason),
                     before: None,
                     after: None,
                     refused: false,

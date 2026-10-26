@@ -32,7 +32,7 @@ async fn admin_accounts_permissions_and_audit() {
     )
     .await
     .expect("account");
-    set_role_from_cli(&pool, "chefe", Some(PanelRole::Admin), "primeiro admin")
+    set_role_from_cli(&pool, "chefe", Some(PanelRole::Admin))
         .await
         .expect("admin");
     let auth = PanelAuth::new(pool.clone());
@@ -41,16 +41,15 @@ async fn admin_accounts_permissions_and_audit() {
         .await
         .expect("login")
         .session;
-    let ask = |session, reason| Request {
+    let ask = |session| Request {
         session,
         peer,
         operation_id: Uuid::new_v4(),
-        reason,
     };
 
     admin_accounts::create(
         &pool,
-        &ask(&admin, "gm"),
+        &ask(&admin),
         "Ajudante",
         secret(PASSWORD),
         Some(PanelRole::Gm),
@@ -67,7 +66,7 @@ async fn admin_accounts_permissions_and_audit() {
     assert!(matches!(
         admin_accounts::create(
             &pool,
-            &ask(&gm_session, "x"),
+            &ask(&gm_session),
             "Outro_Gm",
             secret(PASSWORD),
             Some(PanelRole::Gm)
@@ -75,7 +74,7 @@ async fn admin_accounts_permissions_and_audit() {
         .await,
         Err(AdminError::Forbidden)
     ));
-    let repeated = ask(&gm_session, "jogador");
+    let repeated = ask(&gm_session);
     admin_accounts::create(&pool, &repeated, "Jogador_1", secret(PASSWORD), None)
         .await
         .expect("player");
@@ -86,7 +85,7 @@ async fn admin_accounts_permissions_and_audit() {
     assert!(matches!(
         admin_accounts::create(
             &pool,
-            &ask(&gm_session, "x"),
+            &ask(&gm_session),
             "JOGADOR_1",
             secret(PASSWORD),
             None
@@ -97,19 +96,8 @@ async fn admin_accounts_permissions_and_audit() {
     assert!(matches!(
         admin_accounts::create(
             &pool,
-            &ask(&gm_session, "x"),
+            &ask(&gm_session),
             &"n".repeat(25),
-            secret(PASSWORD),
-            None
-        )
-        .await,
-        Err(AdminError::InvalidInput)
-    ));
-    assert!(matches!(
-        admin_accounts::create(
-            &pool,
-            &ask(&gm_session, "  "),
-            "Jogador_3",
             secret(PASSWORD),
             None
         )
@@ -119,7 +107,7 @@ async fn admin_accounts_permissions_and_audit() {
     assert!(matches!(
         admin_accounts::set_role(
             &pool,
-            &ask(&gm_session, "x"),
+            &ask(&gm_session),
             "jogador_1",
             Some(PanelRole::Leitura)
         )
@@ -129,7 +117,7 @@ async fn admin_accounts_permissions_and_audit() {
     assert!(matches!(
         admin_accounts::set_password(
             &pool,
-            &ask(&gm_session, "x"),
+            &ask(&gm_session),
             "chefe",
             secret("outra senha qualquer")
         )
@@ -138,29 +126,29 @@ async fn admin_accounts_permissions_and_audit() {
     ));
     admin_accounts::set_password(
         &pool,
-        &ask(&gm_session, "pedido do jogador"),
+        &ask(&gm_session),
         "jogador_1",
         secret("senha nova do jogador"),
     )
     .await
     .expect("player password");
     assert!(matches!(
-        admin_accounts::set_status(&pool, &ask(&gm_session, "x"), "chefe", false).await,
+        admin_accounts::set_status(&pool, &ask(&gm_session), "chefe", false).await,
         Err(AdminError::Forbidden)
     ));
     assert!(matches!(
-        admin_accounts::set_status(&pool, &ask(&admin, "x"), "chefe", false).await,
+        admin_accounts::set_status(&pool, &ask(&admin), "chefe", false).await,
         Err(AdminError::InvalidInput)
     ));
     assert!(matches!(
-        admin_accounts::set_status(&pool, &ask(&admin, "x"), "ninguem", false).await,
+        admin_accounts::set_status(&pool, &ask(&admin), "ninguem", false).await,
         Err(AdminError::NotFound)
     ));
 
     // An admin resets the GM's password: the GM's session ends. Disabling refuses the login.
     admin_accounts::set_password(
         &pool,
-        &ask(&admin, "troca"),
+        &ask(&admin),
         "ajudante",
         secret("senha nova do ajudante"),
     )
@@ -174,7 +162,7 @@ async fn admin_accounts_permissions_and_audit() {
         .login("ajudante", secret("senha nova do ajudante"), peer)
         .await
         .expect("new password");
-    admin_accounts::set_status(&pool, &ask(&admin, "afastado"), "ajudante", false)
+    admin_accounts::set_status(&pool, &ask(&admin), "ajudante", false)
         .await
         .expect("disable");
     assert!(matches!(
@@ -186,17 +174,12 @@ async fn admin_accounts_permissions_and_audit() {
             .await,
         Err(AdminError::InvalidCredentials)
     ));
-    admin_accounts::set_status(&pool, &ask(&admin, "voltou"), "ajudante", true)
+    admin_accounts::set_status(&pool, &ask(&admin), "ajudante", true)
         .await
         .expect("enable");
-    admin_accounts::set_role(
-        &pool,
-        &ask(&admin, "promovido"),
-        "jogador_1",
-        Some(PanelRole::Leitura),
-    )
-    .await
-    .expect("role");
+    admin_accounts::set_role(&pool, &ask(&admin), "jogador_1", Some(PanelRole::Leitura))
+        .await
+        .expect("role");
 
     let listed = admin_accounts::list(&pool, Some("JOGADOR"), None, 50)
         .await
@@ -235,7 +218,6 @@ async fn admin_accounts_permissions_and_audit() {
         .find(|e| e.action == "account.create" && e.target_id.as_deref() == Some("jogador_1"))
         .expect("create row");
     assert_eq!(created.actor_name.as_deref(), Some("Ajudante"));
-    assert_eq!(created.reason.as_deref(), Some("jogador"));
 
     pool.close().await;
     sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
@@ -299,7 +281,6 @@ async fn registration_own_password_short_lab_password_and_game_link() {
                 session: &joined.session,
                 peer,
                 operation_id: Uuid::new_v4(),
-                reason: "x"
             },
             "Alguem",
             secret(PASSWORD),
@@ -354,7 +335,7 @@ async fn registration_own_password_short_lab_password_and_game_link() {
         .await
         .is_err()
     );
-    link_game_from_cli(&pool, "admin", "lab169_a", "manter a Fiona do laboratório")
+    link_game_from_cli(&pool, "admin", "lab169_a")
         .await
         .expect("link");
     assert!(
@@ -387,8 +368,7 @@ async fn registration_own_password_short_lab_password_and_game_link() {
             .count(),
         1
     );
-    assert!(audit.iter().any(|e| e.action == "account.password"
-        && e.reason.as_deref() == Some("troca pelo próprio usuário")));
+    assert!(audit.iter().any(|e| e.action == "account.password"));
 
     pool.close().await;
     sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))

@@ -794,14 +794,7 @@ async fn actual_tcp_account_login_enters_its_game_name_and_claimed_or_disabled_a
         .await
         .unwrap();
     }
-    link_game_from_cli(
-        &pool,
-        "dono",
-        PASSPORT,
-        "conta ligada ao usuário de laboratório",
-    )
-    .await
-    .unwrap();
+    link_game_from_cli(&pool, "dono", PASSPORT).await.unwrap();
     sqlx::query("UPDATE accounts SET status = 'disabled' WHERE normalized_name = 'parado'")
         .execute(&pool)
         .await

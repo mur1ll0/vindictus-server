@@ -70,19 +70,19 @@ export async function characterSheet(cid: string): Promise<CharacterSheet> {
 }
 
 /** MoveInventoryItem with the game's SwapSlot; the character must be offline. */
-export async function moveItem(cid: string, item: string, storage: number, slot: number, operation_id: string, reason: string) {
+export async function moveItem(cid: string, item: string, storage: number, slot: number, operation_id: string) {
   const { error, response } = await api.POST('/api/characters/{cid}/inventory/move', {
     params: { path: { cid } },
-    body: { operation_id, reason, item, storage, slot },
+    body: { operation_id, item, storage, slot },
   });
   if (!response.ok) fail(response, error);
 }
 
 /** SortInventory: -1 every bag, one bag, 100 cash or 103 quest. */
-export async function sortInventory(cid: string, target: number, operation_id: string, reason: string) {
+export async function sortInventory(cid: string, target: number, operation_id: string) {
   const { data, error, response } = await api.POST('/api/characters/{cid}/inventory/sort', {
     params: { path: { cid } },
-    body: { operation_id, reason, target },
+    body: { operation_id, target },
   });
   if (!data) fail(response, error);
   return data.moved;

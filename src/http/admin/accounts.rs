@@ -1,5 +1,5 @@
 //! Account administration routes (B4.2). Every change carries an `operation_id` (a UUID the
-//! page creates per submission) and a mandatory reason, both recorded in the audit.
+//! page creates per submission), recorded in the audit with who, what and when.
 use super::{AdminState, Authenticated, Refusal};
 use crate::{
     application::admin_accounts::{self, Request},
@@ -48,19 +48,17 @@ pub(super) async fn list(
     ))
 }
 
-fn request<'a>(auth: &'a Authenticated, operation_id: Uuid, reason: &'a str) -> Request<'a> {
+fn request<'a>(auth: &'a Authenticated, operation_id: Uuid) -> Request<'a> {
     Request {
         session: &auth.session,
         peer: auth.peer,
         operation_id,
-        reason,
     }
 }
 
 #[derive(Deserialize, ToSchema)]
 pub(super) struct CreateAccount {
     operation_id: Uuid,
-    reason: String,
     /// 3–24 letters, digits or underscore (fits the game's account name).
     username: String,
     /// 12–128 bytes.
@@ -82,7 +80,7 @@ pub(super) async fn create(
     let password = Zeroizing::new(body.password.as_bytes().to_vec());
     admin_accounts::create(
         state.auth.pool(),
-        &request(&auth, body.operation_id, &body.reason),
+        &request(&auth, body.operation_id),
         &body.username,
         password,
         body.panel_role,
@@ -94,7 +92,6 @@ pub(super) async fn create(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct SetRole {
     operation_id: Uuid,
-    reason: String,
     /// admin, gm, leitura or null to remove panel access.
     #[schema(value_type = Option<String>, example = "leitura")]
     panel_role: Option<PanelRole>,
@@ -112,7 +109,7 @@ pub(super) async fn set_role(
 ) -> Result<StatusCode, Refusal> {
     admin_accounts::set_role(
         state.auth.pool(),
-        &request(&auth, body.operation_id, &body.reason),
+        &request(&auth, body.operation_id),
         &username,
         body.panel_role,
     )
@@ -123,7 +120,6 @@ pub(super) async fn set_role(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct SetPassword {
     operation_id: Uuid,
-    reason: String,
     #[schema(value_type = String, format = Password)]
     password: Zeroizing<String>,
 }
@@ -142,7 +138,7 @@ pub(super) async fn set_password(
     let password = Zeroizing::new(body.password.as_bytes().to_vec());
     admin_accounts::set_password(
         state.auth.pool(),
-        &request(&auth, body.operation_id, &body.reason),
+        &request(&auth, body.operation_id),
         &username,
         password,
     )
@@ -153,7 +149,6 @@ pub(super) async fn set_password(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct SetStatus {
     operation_id: Uuid,
-    reason: String,
     active: bool,
 }
 
@@ -170,7 +165,7 @@ pub(super) async fn set_status(
 ) -> Result<StatusCode, Refusal> {
     admin_accounts::set_status(
         state.auth.pool(),
-        &request(&auth, body.operation_id, &body.reason),
+        &request(&auth, body.operation_id),
         &username,
         body.active,
     )

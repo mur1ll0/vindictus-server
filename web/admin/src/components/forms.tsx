@@ -17,8 +17,7 @@ export function errorText(error: unknown) {
   return error ? 'Falha de conexão.' : '';
 }
 
-/** Form of one audited change: the caller's fields, a mandatory reason and one operation id
- * per form, so a double submit is refused by the server instead of applied twice. */
+/** Form of one audited change: the caller's fields and one operation id per form, so a double submit is refused by the server instead of applied twice. */
 export function ActionForm({
   submitLabel,
   danger,
@@ -30,13 +29,12 @@ export function ActionForm({
   submitLabel: string;
   danger?: boolean;
   children?: ReactNode;
-  onSubmit: (operationId: string, reason: string) => Promise<void>;
+  onSubmit: (operationId: string) => Promise<void>;
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const [reason, setReason] = useState('');
   const [operationId] = useState(() => crypto.randomUUID());
-  const mutation = useMutation({ mutationFn: () => onSubmit(operationId, reason), onSuccess: onDone });
+  const mutation = useMutation({ mutationFn: () => onSubmit(operationId), onSuccess: onDone });
   const submit = (event: FormEvent) => {
     event.preventDefault();
     mutation.mutate();
@@ -44,16 +42,6 @@ export function ActionForm({
   return (
     <form onSubmit={submit} className="space-y-4">
       {children}
-      <div className="space-y-1.5">
-        <Label htmlFor="action-reason">Motivo (fica na auditoria)</Label>
-        <Input
-          id="action-reason"
-          required
-          maxLength={500}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-      </div>
       <p role="alert" aria-live="polite" className="min-h-5 text-sm text-danger">
         {errorText(mutation.error)}
       </p>

@@ -2,7 +2,7 @@
 //! same transaction; a repeated `operation_id` violates the audit's unique key and rolls the
 //! whole change back.
 use super::admin_store::{self, AuditRecord, SessionAccount};
-use crate::domain::admin::{AuditReason, PanelRole};
+use crate::domain::admin::PanelRole;
 use sqlx::{PgPool, Postgres, Transaction};
 use std::net::IpAddr;
 use uuid::Uuid;
@@ -46,7 +46,6 @@ pub struct Actor<'a> {
     pub session: &'a SessionAccount,
     pub peer: Option<IpAddr>,
     pub operation_id: Uuid,
-    pub reason: &'a AuditReason,
 }
 
 const SUMMARY: &str = "SELECT a.username, a.game_name, a.panel_role, a.status,
@@ -133,7 +132,6 @@ pub async fn register(
             action: "account.register",
             target_kind: Some("account"),
             target_id: Some(username.normalized()),
-            reason: None,
             before: None,
             after: Some(
                 serde_json::json!({ "username": username.display(), "panel_role": null, "status": "active" })
@@ -198,7 +196,6 @@ fn audit<'a>(
         action,
         target_kind: Some("account"),
         target_id: Some(target_id),
-        reason: Some(actor.reason),
         before: before.map(|v| v.to_string()),
         after: after.map(|v| v.to_string()),
         refused: false,

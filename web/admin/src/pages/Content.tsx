@@ -80,7 +80,7 @@ export function ContentPage() {
         <p className="font-mono text-sm">{e.target}</p>
         <p className="rounded-md bg-raised px-2 py-1 font-mono text-xs break-all">{describe(e.value)}</p>
         <p className="text-sm text-muted">
-          {e.created_by} · {e.reason}
+          {e.created_by}
         </p>
       </div>
       {e.state === 'pending' && canEdit && (
@@ -168,7 +168,6 @@ export function ContentPage() {
                 <p className="mt-1 text-sm text-muted">
                   {v.published_by} · {new Date(v.published_at).toLocaleString('pt-BR')}
                 </p>
-                <p className="text-sm">{v.reason}</p>
               </li>
             ))}
           </ul>
@@ -187,7 +186,7 @@ export function ContentPage() {
             submitLabel={Number(minutes) === 0 ? 'Publicar e reiniciar agora' : 'Publicar e agendar'}
             onCancel={() => setAction(null)}
             onDone={done}
-            onSubmit={async (op, reason) => void (await publish(op, reason, Number(minutes)))}
+            onSubmit={async (op) => void (await publish(op, Number(minutes)))}
           >
             <div className="space-y-1.5">
               <Label htmlFor="minutes">Minutos até reiniciar o servidor (0 = agora)</Label>
@@ -209,12 +208,12 @@ export function ContentPage() {
       )}
       {action === 'cancel' && (
         <Modal open title="Cancelar manutenção" subtitle="A versão continua publicada e entra no próximo reinício." onClose={() => setAction(null)}>
-          <ActionForm submitLabel="Cancelar manutenção" danger onCancel={() => setAction(null)} onDone={done} onSubmit={(op, reason) => cancelMaintenance(op, reason)} />
+          <ActionForm submitLabel="Cancelar manutenção" danger onCancel={() => setAction(null)} onDone={done} onSubmit={(op) => cancelMaintenance(op)} />
         </Modal>
       )}
       {action && action !== 'publish' && action !== 'cancel' && (
         <Modal open title="Retirar edição" subtitle={`${KIND_LABEL[action.kind] ?? action.kind} · ${action.target}`} onClose={() => setAction(null)}>
-          <ActionForm submitLabel="Retirar" danger onCancel={() => setAction(null)} onDone={done} onSubmit={(op, reason) => withdrawEdit(action.id, op, reason)} />
+          <ActionForm submitLabel="Retirar" danger onCancel={() => setAction(null)} onDone={done} onSubmit={(op) => withdrawEdit(action.id, op)} />
         </Modal>
       )}
     </section>

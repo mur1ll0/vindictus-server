@@ -26,7 +26,7 @@ export const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/cash-shop': { title: 'Cash shop', subtitle: 'Preços por categoria do Depot' },
   '/ajustes': { title: 'Ajustes de jogo', subtitle: 'Taxas de EXP/ouro/AP, drops por fase e chances de Enhance/Enchant' },
   '/conteudo': { title: 'Conteúdo', subtitle: 'Edições pendentes, versões publicadas e manutenção' },
-  '/auditoria': { title: 'Auditoria', subtitle: 'Toda entrada e toda mudança, com quem, quando e por quê' },
+  '/auditoria': { title: 'Auditoria', subtitle: 'Toda entrada e toda mudança, com quem, o quê e quando' },
   '/minha-conta': { title: 'Minha conta', subtitle: 'Seus dados, seus personagens e sua senha' },
 };
 

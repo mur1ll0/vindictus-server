@@ -46,24 +46,6 @@ impl PanelRole {
     }
 }
 
-pub const MAX_REASON_CHARS: usize = 500;
-
-/// Mandatory reason of an audited change: trimmed, 1–500 characters, no control characters.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AuditReason(String);
-
-impl AuditReason {
-    pub fn parse(value: &str) -> Option<Self> {
-        let value = value.trim();
-        let count = value.chars().count();
-        ((1..=MAX_REASON_CHARS).contains(&count) && !value.chars().any(char::is_control))
-            .then(|| Self(value.to_owned()))
-    }
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 pub const TOKEN_BYTES: usize = 32;
 const CSRF_DOMAIN: &[u8] = b"vindictus-admin-csrf\0";
 
@@ -133,18 +115,6 @@ mod tests {
         assert!(PanelRole::Admin.allows(Permission::Administer));
         assert_eq!(PanelRole::parse("gm"), Some(PanelRole::Gm));
         assert_eq!(PanelRole::parse("GM"), None);
-    }
-
-    #[test]
-    fn reasons_are_bounded_and_trimmed() {
-        assert_eq!(
-            AuditReason::parse("  teste  ").map(|r| r.0),
-            Some("teste".into())
-        );
-        assert!(AuditReason::parse("   ").is_none());
-        assert!(AuditReason::parse("a\nb").is_none());
-        assert!(AuditReason::parse(&"é".repeat(500)).is_some());
-        assert!(AuditReason::parse(&"é".repeat(501)).is_none());
     }
 
     #[test]

@@ -80,8 +80,8 @@ export function GiveItemModal({ cid, onClose, onDone }: { cid: string; onClose: 
         submitLabel="Dar item"
         onCancel={onClose}
         onDone={onDone}
-        onSubmit={async (operation_id, reason) => {
-          await changeItem(cid, { operation_id, reason, item, count: Number(count), action: 'give' });
+        onSubmit={async (operation_id) => {
+          await changeItem(cid, { operation_id, item, count: Number(count), action: 'give' });
         }}
       >
         <div className="space-y-1.5">
@@ -131,8 +131,8 @@ export function GoldModal({ cid, current, onClose, onDone }: { cid: string; curr
         danger={!give}
         onCancel={onClose}
         onDone={onDone}
-        onSubmit={async (operation_id, reason) => {
-          await changeItem(cid, { operation_id, reason, item: 'gold', count: Number(amount), action: give ? 'give' : 'remove' });
+        onSubmit={async (operation_id) => {
+          await changeItem(cid, { operation_id, item: 'gold', count: Number(amount), action: give ? 'give' : 'remove' });
         }}
       >
         <Direction give={give} onChange={setGive} labels={['Dar', 'Remover']} />
@@ -158,9 +158,9 @@ export function CashModal({ cid, current, onClose, onDone }: { cid: string; curr
         danger={!give}
         onCancel={onClose}
         onDone={onDone}
-        onSubmit={async (operation_id, reason) => {
+        onSubmit={async (operation_id) => {
           const value = Number(amount);
-          await changeCash(cid, { operation_id, reason, delta: give ? value : -value });
+          await changeCash(cid, { operation_id, delta: give ? value : -value });
         }}
       >
         <Direction give={give} onChange={setGive} labels={['Creditar', 'Debitar']} />
@@ -179,8 +179,8 @@ export function RemoveItemForm({ cid, item, onCancel, onDone }: { cid: string; i
       danger
       onCancel={onCancel}
       onDone={onDone}
-      onSubmit={async (operation_id, reason) => {
-        await changeItem(cid, { operation_id, reason, item: item.class, count: Number(count), action: 'remove' });
+      onSubmit={async (operation_id) => {
+        await changeItem(cid, { operation_id, item: item.class, count: Number(count), action: 'remove' });
       }}
     >
       <p className="text-sm text-muted">

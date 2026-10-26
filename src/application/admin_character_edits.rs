@@ -6,7 +6,7 @@
 //! needs an admin, unless it is the actor's own. Every change is audited in its transaction.
 use super::admin_session::AdminError;
 use crate::{
-    domain::admin::{AuditReason, PanelRole, Permission},
+    domain::admin::{PanelRole, Permission},
     infrastructure::{
         admin_characters,
         admin_store::{AuditRecord, SessionAccount},
@@ -31,7 +31,6 @@ pub struct Change<'a> {
     pub session: &'a SessionAccount,
     pub peer: Option<IpAddr>,
     pub operation_id: Uuid,
-    pub reason: &'a str,
 }
 
 #[derive(Debug, serde::Serialize, utoipa::ToSchema)]
@@ -64,12 +63,7 @@ async fn authorize(pool: &PgPool, session: &SessionAccount, cid: i64) -> Result<
     Ok(owner.uid)
 }
 
-fn audit<'a>(
-    change: &'a Change<'a>,
-    reason: &'a AuditReason,
-    action: &'static str,
-    target: &'a str,
-) -> AuditRecord<'a> {
+fn audit<'a>(change: &'a Change<'a>, action: &'static str, target: &'a str) -> AuditRecord<'a> {
     AuditRecord {
         account_id: Some(change.session.account_id),
         actor_name: Some(&change.session.username),
@@ -78,7 +72,6 @@ fn audit<'a>(
         action,
         target_kind: Some("character"),
         target_id: Some(target),
-        reason: Some(reason),
         before: None,
         after: None,
         refused: false,
@@ -97,7 +90,6 @@ pub async fn change_item(
     count: i32,
     give: bool,
 ) -> Result<ChangeResult, AdminError> {
-    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
     let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
     if !(1..=MAX_COUNT).contains(&count) || item.is_empty() || item.len() > 512 {
         return Err(AdminError::InvalidInput);
@@ -116,7 +108,7 @@ pub async fn change_item(
         kind,
         count,
         PANEL_SERVICE_ID,
-        audit(change, &reason, action, cid),
+        audit(change, action, cid),
     )
     .await
     .map_err(minimum)?;
@@ -146,12 +138,11 @@ pub async fn move_item(
     storage: u8,
     slot: i32,
 ) -> Result<(), AdminError> {
-    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
     let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
     let item_id: i64 = item.parse().map_err(|_| AdminError::InvalidInput)?;
     authorize(pool, change.session, cid_value).await?;
     let assets = assets.ok_or(AdminError::ContentUnavailable)?;
-    let mut record = audit(change, &reason, "character.item_move", cid);
+    let mut record = audit(change, "character.item_move", cid);
     record.after =
         Some(serde_json::json!({ "item": item, "storage": storage, "slot": slot }).to_string());
     let request = crate::protocol::inventory::Move {
@@ -181,14 +172,13 @@ pub async fn sort_inventory(
     cid: &str,
     target: i32,
 ) -> Result<usize, AdminError> {
-    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
     let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
     if !matches!(target, -1..=8 | 100 | 103) {
         return Err(AdminError::InvalidInput);
     }
     authorize(pool, change.session, cid_value).await?;
     let assets = assets.ok_or(AdminError::ContentUnavailable)?;
-    let mut record = audit(change, &reason, "character.inventory_sort", cid);
+    let mut record = audit(change, "character.inventory_sort", cid);
     record.after = Some(serde_json::json!({ "target": target }).to_string());
     match minimum_sort::panel_sort(pool, assets, cid_value, target, &record)
         .await
@@ -207,20 +197,14 @@ pub async fn adjust_cash(
     cid: &str,
     delta: i32,
 ) -> Result<ChangeResult, AdminError> {
-    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
     let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
     if delta == 0 || delta.unsigned_abs() > MAX_COUNT as u32 {
         return Err(AdminError::InvalidInput);
     }
     let uid = authorize(pool, change.session, cid_value).await?;
-    match minimum_cash_shop::panel_adjust(
-        pool,
-        uid,
-        delta,
-        audit(change, &reason, "character.cash", cid),
-    )
-    .await
-    .map_err(minimum)?
+    match minimum_cash_shop::panel_adjust(pool, uid, delta, audit(change, "character.cash", cid))
+        .await
+        .map_err(minimum)?
     {
         PanelCashOutcome::Applied { before, after } => Ok(ChangeResult { before, after }),
         PanelCashOutcome::NotEnough => Err(AdminError::NotEnough),
@@ -246,7 +230,6 @@ pub async fn change_progression(
     growth: crate::infrastructure::admin_progression::PanelGrowth<'_>,
 ) -> Result<ProgressionResult, AdminError> {
     use crate::infrastructure::{admin_progression, minimum_item_logs};
-    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
     let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
     authorize(pool, change.session, cid_value).await?;
     let runtime = runtime.ok_or(AdminError::ContentUnavailable)?;
@@ -265,7 +248,7 @@ pub async fn change_progression(
         growth,
         ctx,
         PANEL_SERVICE_ID,
-        audit(change, &reason, "character.progression", cid),
+        audit(change, "character.progression", cid),
     )
     .await
     .map_err(minimum)?

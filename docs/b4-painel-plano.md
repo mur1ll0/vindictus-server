@@ -94,9 +94,9 @@ Custo aceito: o painel cai quando o `game` reinicia (por exemplo, ao aplicar con
 
 | Camada | Módulo novo | Conteúdo |
 |---|---|---|
-| domain | `domain/admin.rs` | `Role` (Admin, Gm, Leitura) e permissões por ação, `OperatorName`, `AuditReason` (1–500 caracteres, obrigatório em mudanças), `OperationId` (idempotência), `PassportPolicy` (D1). |
+| domain | `domain/admin.rs` | `Role` (Admin, Gm, Leitura) e permissões por ação, `OperatorName`, `OperationId` (idempotência), `PassportPolicy` (D1). |
 | domain | `domain/content_edit.rs` | `TuningPoint` (tabela, colunas-chave, coluna, tipo, faixa válida, consumidores servidor/cliente), gerado da lista de `scripts/content/content_overrides.py` e de `docs/content-tuning.md`; `EditSet` com versões. |
-| application | `application/admin/{session,accounts,characters,shops,content,audit}.rs` | Casos de uso. Cada mutação recebe operador, motivo e `OperationId`, chama as funções de infraestrutura que o jogo já usa e grava a auditoria na mesma transação. |
+| application | `application/admin/{session,accounts,characters,shops,content,audit}.rs` | Casos de uso. Cada mutação recebe operador e `OperationId`, chama as funções de infraestrutura que o jogo já usa e grava a auditoria na mesma transação. |
 | application | `application/passport_authority.rs` | Porta `PassportAuthority` usada pelo login. |
 | infrastructure | `admin_store.rs`, `play_sessions.rs`, `content_edits.rs`, `admin_live.rs` | SQL preparado; `admin_live` é a fachada sobre o `Runtime` (sessão viva, desconectar). Variantes `*_in_tx` das funções existentes (`minimum_give::lab_grant`, `minimum_cash_shop::credit` etc.), para a auditoria entrar na mesma transação. As regras de domínio continuam as mesmas. |
 | http | `http/admin/{mod,auth,csrf,limits,routes/*}.rs` | Router axum, extratores `RequireRole<R>`, cookie, CSRF, limite de corpo (8 KiB padrão), timeout, OpenAPI. |
@@ -152,7 +152,7 @@ Entrega com o personagem online (mensagens de atualização enviadas pela sessã
 
 ### 2.8 Frontend
 
-React 19 + TypeScript + Vite; TanStack Router (rotas tipadas) e TanStack Query (cache e invalidação depois das mutações); shadcn/ui (Radix + Tailwind) para formulários, tabelas e diálogos acessíveis; formulários com `react-hook-form` + `zod`. Telas, tomando o pw-universal como referência de organização: Entrar · Contas (lista, criar, detalhe com passports, sessões, bloqueio, histórico) · Personagens (resumo, inventário por armazenamento, dar/remover/mover, ouro, cash, progressão) · Itens (catálogo com nome e descrição em inglês) · Lojas (NPC e cash shop) · Ajustes (tuning) · Conteúdo (versões e aplicação) · Auditoria · Papéis. Toda mutação abre um diálogo com o motivo obrigatório e mostra antes/depois.
+React 19 + TypeScript + Vite; TanStack Router (rotas tipadas) e TanStack Query (cache e invalidação depois das mutações); shadcn/ui (Radix + Tailwind) para formulários, tabelas e diálogos acessíveis; formulários com `react-hook-form` + `zod`. Telas, tomando o pw-universal como referência de organização: Entrar · Contas (lista, criar, detalhe com passports, sessões, bloqueio, histórico) · Personagens (resumo, inventário por armazenamento, dar/remover/mover, ouro, cash, progressão) · Itens (catálogo com nome e descrição em inglês) · Lojas (NPC e cash shop) · Ajustes (tuning) · Conteúdo (versões e aplicação) · Auditoria · Papéis. Toda mutação abre um diálogo e a auditoria guarda quem, o quê (antes/depois) e quando; sem motivo digitado (decisão do operador, 26/10/2026).
 
 Testes (D7, decisão do operador): sem e2e e sem suíte de frontend. O operador testa o painel manualmente. O servidor tem só os testes unitários e PostgreSQL necessários para as regras novas (autenticação, autorização, auditoria, tokens, recusas). `tsc --noEmit` e o build do Vite já validam os tipos gerados do OpenAPI.
 
@@ -170,7 +170,7 @@ Cada passo tem testes focados (alvos Rust afetados e testes PostgreSQL filtrados
 ### B4.1 — Login de admin e auditoria
 - Migração `0042_admin_panel.sql` (feita): colunas de papel e bloqueio em `accounts`; `admin_sessions` e `admin_audit_events` (+ trigger só-acréscimo; `operation_id` único serve à idempotência). CLI e script `account-set-role`. Listener `--admin-listen`. Rotas `POST /api/session/login`, `GET /api/session`, `POST /api/session/logout`, `GET /api/audit`. OpenAPI e teste de divergência.
 - SPA mínima: Entrar, layout, Auditoria. Instalação do `web/admin` (Vite, Router, Query, shadcn/ui).
-- Testes: Rust (domínio de papéis/motivo, parse de cookie/CSRF, `RequireRole`); PostgreSQL `admin_login_*` (senha errada conta tentativas, bloqueio, expiração, sessão invalidada ao trocar a senha, CSRF ausente recusado, Leitura recusada em POST, UPDATE/DELETE de auditoria recusados, `operation_id` repetido)..
+- Testes: Rust (domínio de papéis, parse de cookie/CSRF, `RequireRole`); PostgreSQL `admin_login_*` (senha errada conta tentativas, bloqueio, expiração, sessão invalidada ao trocar a senha, CSRF ausente recusado, Leitura recusada em POST, UPDATE/DELETE de auditoria recusados, `operation_id` repetido)..
 - Cliente: não necessário.
 
 ### B4.2 — Conta jogável com login e senha

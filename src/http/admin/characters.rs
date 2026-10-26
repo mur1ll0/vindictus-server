@@ -78,7 +78,6 @@ pub(super) enum ItemAction {
 #[derive(Deserialize, ToSchema)]
 pub(super) struct ItemChange {
     operation_id: Uuid,
-    reason: String,
     /// give: an ItemClassEx (`gold`, `longsword[ENHANCE:6]`); remove: a plain class.
     item: String,
     /// 1 to 1 000 000 000.
@@ -102,7 +101,6 @@ pub(super) async fn change_item(
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     Ok(Json(
         admin_character_edits::change_item(
@@ -125,7 +123,6 @@ pub(super) async fn change_item(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct CashChange {
     operation_id: Uuid,
-    reason: String,
     /// Positive credits, negative debits; never below zero.
     delta: i32,
 }
@@ -145,7 +142,6 @@ pub(super) async fn adjust_cash(
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     Ok(Json(
         admin_character_edits::adjust_cash(state.auth.pool(), &change, &cid, body.delta).await?,
@@ -179,7 +175,6 @@ pub(super) async fn catalog(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct ItemMove {
     operation_id: Uuid,
-    reason: String,
     /// Item ID (64-bit, as text).
     item: String,
     /// Bag collection (0–8).
@@ -203,7 +198,6 @@ pub(super) async fn move_item(
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     admin_character_edits::move_item(
         state.auth.pool(),
@@ -225,7 +219,6 @@ pub(super) async fn move_item(
 #[derive(Deserialize, ToSchema)]
 pub(super) struct InventorySort {
     operation_id: Uuid,
-    reason: String,
     /// -1 every bag, 0–8 one bag, 100 cash, 103 quest.
     target: i32,
 }
@@ -251,7 +244,6 @@ pub(super) async fn sort_inventory(
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     let moved = admin_character_edits::sort_inventory(
         state.auth.pool(),
@@ -301,7 +293,6 @@ pub(super) enum ProgressionKind {
 #[derive(Deserialize, ToSchema)]
 pub(super) struct ProgressionChange {
     operation_id: Uuid,
-    reason: String,
     change: ProgressionKind,
 }
 
@@ -322,7 +313,6 @@ pub(super) async fn progression(
         session: &auth.session,
         peer: auth.peer,
         operation_id: body.operation_id,
-        reason: &body.reason,
     };
     let growth = match &body.change {
         ProgressionKind::Exp { amount } => PanelGrowth::Exp(*amount),

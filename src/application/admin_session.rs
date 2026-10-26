@@ -6,7 +6,7 @@
 use crate::{
     domain::{
         Username,
-        admin::{AuditReason, PanelRole, SessionToken},
+        admin::{PanelRole, SessionToken},
         hash_password, verify_password,
     },
     infrastructure::{
@@ -206,7 +206,6 @@ impl PanelAuth {
             action,
             target_kind: None,
             target_id: None,
-            reason: None,
             before: None,
             after: None,
             refused: true,
@@ -351,13 +350,10 @@ impl PanelAuth {
         let name = Username::parse(&session.username).map_err(|_| AdminError::NotFound)?;
         let (tx, target) = admin_accounts::lock_target(&self.pool, name.normalized()).await?;
         let target = target.ok_or(AdminError::NotFound)?;
-        let reason =
-            AuditReason::parse("troca pelo próprio usuário").ok_or(AdminError::InvalidInput)?;
         let actor = Actor {
             session,
             peer,
             operation_id: uuid::Uuid::new_v4(),
-            reason: &reason,
         };
         match admin_accounts::set_password(tx, &target, &hash, &actor).await? {
             admin_accounts::AccountChange::Done => Ok(()),
@@ -388,7 +384,6 @@ impl PanelAuth {
                 action: "session.logout",
                 target_kind: None,
                 target_id: None,
-                reason: None,
                 before: None,
                 after: None,
                 refused: false,
@@ -414,7 +409,6 @@ fn success<'a>(
         action,
         target_kind: None,
         target_id: None,
-        reason: None,
         before: None,
         after: None,
         refused: false,
@@ -453,11 +447,9 @@ pub async fn set_role_from_cli(
     pool: &PgPool,
     username: &str,
     role: Option<PanelRole>,
-    reason: &str,
 ) -> Result<RoleChange, AdminError> {
     let name = Username::parse(username).map_err(|_| AdminError::InvalidInput)?;
-    let reason = AuditReason::parse(reason).ok_or(AdminError::InvalidInput)?;
-    match admin_store::set_role(pool, name.normalized(), role, &reason, None).await? {
+    match admin_store::set_role(pool, name.normalized(), role, None).await? {
         RoleChange::NoAccount => Err(AdminError::NotFound),
         RoleChange::LastAdmin => Err(AdminError::LastAdmin),
         RoleChange::RepeatedOperation => Err(AdminError::RepeatedOperation),
@@ -470,10 +462,8 @@ pub async fn link_game_from_cli(
     pool: &PgPool,
     username: &str,
     game_name: &str,
-    reason: &str,
 ) -> Result<(), AdminError> {
     let name = Username::parse(username).map_err(|_| AdminError::InvalidInput)?;
-    let reason = AuditReason::parse(reason).ok_or(AdminError::InvalidInput)?;
     if game_name.is_empty()
         || game_name.len() > 24
         || !game_name
@@ -482,7 +472,7 @@ pub async fn link_game_from_cli(
     {
         return Err(AdminError::InvalidInput);
     }
-    match game_links::link_game(pool, name.normalized(), game_name, &reason).await? {
+    match game_links::link_game(pool, name.normalized(), game_name).await? {
         game_links::LinkChange::Done => Ok(()),
         game_links::LinkChange::NoAccount => Err(AdminError::NotFound),
         game_links::LinkChange::Claimed => Err(AdminError::Exists),

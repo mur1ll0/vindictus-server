@@ -48,8 +48,8 @@ function EditModal({ edit, onClose, onDone }: { edit: Edit; onClose: () => void;
         submitLabel="Salvar ajuste"
         onCancel={onClose}
         onDone={onDone}
-        onSubmit={async (operationId, reason) => {
-          await createEdit(operationId, reason, edit.build(values.map(Number)));
+        onSubmit={async (operationId) => {
+          await createEdit(operationId, edit.build(values.map(Number)));
         }}
       >
         <div className="grid grid-cols-2 gap-3">

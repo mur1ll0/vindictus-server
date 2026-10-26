@@ -5,7 +5,7 @@
 //! GM and admin create and withdraw edits; only an admin publishes or cancels.
 use super::admin_session::AdminError;
 use crate::{
-    domain::admin::{AuditReason, Permission},
+    domain::admin::Permission,
     infrastructure::{
         admin_characters::EnglishNames,
         admin_store::{AuditRecord, SessionAccount},
@@ -164,7 +164,6 @@ pub struct Actor<'a> {
     pub session: &'a SessionAccount,
     pub peer: Option<IpAddr>,
     pub operation_id: Uuid,
-    pub reason: &'a str,
 }
 
 fn require(session: &SessionAccount, permission: Permission) -> Result<(), AdminError> {
@@ -177,7 +176,6 @@ fn require(session: &SessionAccount, permission: Permission) -> Result<(), Admin
 
 fn audit<'a>(
     actor: &'a Actor<'a>,
-    reason: &'a AuditReason,
     action: &'static str,
     target_kind: &'static str,
     target: &'a str,
@@ -190,7 +188,6 @@ fn audit<'a>(
         action,
         target_kind: Some(target_kind),
         target_id: Some(target),
-        reason: Some(reason),
         before: None,
         after: None,
         refused: false,
@@ -515,7 +512,6 @@ pub async fn create_edit(
     edit: &EditRequest,
 ) -> Result<i64, AdminError> {
     require(actor.session, Permission::Manage)?;
-    let reason = AuditReason::parse(actor.reason).ok_or(AdminError::InvalidInput)?;
     let assets = assets.ok_or(AdminError::ContentUnavailable)?;
     let (kind, target, value) = validate(assets, edit)?;
     outcome(
@@ -525,8 +521,7 @@ pub async fn create_edit(
             &target,
             value.as_ref(),
             actor.session.account_id,
-            reason.as_str(),
-            audit(actor, &reason, "content.edit", "content", &target),
+            audit(actor, "content.edit", "content", &target),
         )
         .await?,
     )
@@ -534,13 +529,12 @@ pub async fn create_edit(
 
 pub async fn withdraw(pool: &PgPool, actor: &Actor<'_>, id: i64) -> Result<(), AdminError> {
     require(actor.session, Permission::Manage)?;
-    let reason = AuditReason::parse(actor.reason).ok_or(AdminError::InvalidInput)?;
     let target = id.to_string();
     outcome(
         content_edits::withdraw(
             pool,
             id,
-            audit(actor, &reason, "content.withdraw", "content", &target),
+            audit(actor, "content.withdraw", "content", &target),
         )
         .await?,
     )
@@ -556,18 +550,15 @@ pub async fn publish(
     minutes: i32,
 ) -> Result<(i64, Option<Plan>), AdminError> {
     require(actor.session, Permission::Administer)?;
-    let reason = AuditReason::parse(actor.reason).ok_or(AdminError::InvalidInput)?;
     if !(0..=MAX_RESTART_MINUTES).contains(&minutes) {
         return Err(AdminError::InvalidInput);
     }
     if maintenance.is_some_and(|m| m.current().is_some()) {
         return Err(AdminError::Unchanged("manutencao"));
     }
-    let mut record = audit(actor, &reason, "content.publish", "content", "version");
+    let mut record = audit(actor, "content.publish", "content", "version");
     record.after = Some(serde_json::json!({ "restart_minutes": minutes }).to_string());
-    let version = outcome(
-        content_edits::publish(pool, actor.session.account_id, reason.as_str(), record).await?,
-    )?;
+    let version = outcome(content_edits::publish(pool, actor.session.account_id, record).await?)?;
     let plan = match maintenance {
         Some(m) => {
             let v = i32::try_from(version).map_err(|_| AdminError::InvalidInput)?;
@@ -590,16 +581,9 @@ pub async fn cancel_maintenance(
     maintenance: &Maintenance,
 ) -> Result<(), AdminError> {
     require(actor.session, Permission::Administer)?;
-    let reason = AuditReason::parse(actor.reason).ok_or(AdminError::InvalidInput)?;
     let current = maintenance.current().ok_or(AdminError::NotFound)?;
     let target = current.version.to_string();
-    let mut record = audit(
-        actor,
-        &reason,
-        "content.maintenance_cancel",
-        "content",
-        &target,
-    );
+    let mut record = audit(actor, "content.maintenance_cancel", "content", &target);
     record.before =
         Some(serde_json::json!({ "remaining_seconds": current.remaining_seconds }).to_string());
     let mut tx = pool.begin().await?;

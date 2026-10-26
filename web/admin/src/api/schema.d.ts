@@ -583,7 +583,6 @@ export interface components {
             id: number;
             outcome: string;
             peer?: string | null;
-            reason?: string | null;
             role?: string | null;
             target_id?: string | null;
             target_kind?: string | null;
@@ -607,7 +606,6 @@ export interface components {
             delta: number;
             /** Format: uuid */
             operation_id: string;
-            reason: string;
         };
         CatalogEffect: {
             /**
@@ -762,7 +760,6 @@ export interface components {
             id: number;
             /** @description shop_row, shop_row_remove, cash_price or cash_default. */
             kind: string;
-            reason: string;
             /** @description pending, published or withdrawn. */
             state: string;
             /** @description "<ShopID>#<Order>", the category, or "default". */
@@ -785,7 +782,6 @@ export interface components {
             edits: number;
             published_at: string;
             published_by?: string | null;
-            reason: string;
             /** Format: int32 */
             version: number;
         };
@@ -802,7 +798,6 @@ export interface components {
              * @description 12–128 bytes.
              */
             password: string;
-            reason: string;
             /** @description 3–24 letters, digits or underscore (fits the game's account name). */
             username: string;
         };
@@ -896,7 +891,6 @@ export interface components {
         InventorySort: {
             /** Format: uuid */
             operation_id: string;
-            reason: string;
             /**
              * Format: int32
              * @description -1 every bag, 0–8 one bag, 100 cash, 103 quest.
@@ -924,14 +918,12 @@ export interface components {
             item: string;
             /** Format: uuid */
             operation_id: string;
-            reason: string;
         };
         ItemMove: {
             /** @description Item ID (64-bit, as text). */
             item: string;
             /** Format: uuid */
             operation_id: string;
-            reason: string;
             /**
              * Format: int32
              * @description Slot 0–47.
@@ -992,7 +984,10 @@ export interface components {
             edit: components["schemas"]["EditRequest"];
             /** Format: uuid */
             operation_id: string;
-            reason: string;
+        };
+        Operation: {
+            /** Format: uuid */
+            operation_id: string;
         };
         OwnPassword: {
             /** Format: password */
@@ -1024,7 +1019,6 @@ export interface components {
             change: components["schemas"]["ProgressionKind"];
             /** Format: uuid */
             operation_id: string;
-            reason: string;
         };
         ProgressionKind: {
             /** Format: int64 */
@@ -1072,7 +1066,6 @@ export interface components {
             minutes: number;
             /** Format: uuid */
             operation_id: string;
-            reason: string;
         };
         Published: {
             maintenance?: null | components["schemas"]["Plan"];
@@ -1086,11 +1079,6 @@ export interface components {
             min: number;
             quest: string;
             title?: string | null;
-        };
-        Reasoned: {
-            /** Format: uuid */
-            operation_id: string;
-            reason: string;
         };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
@@ -1107,7 +1095,6 @@ export interface components {
             operation_id: string;
             /** Format: password */
             password: string;
-            reason: string;
         };
         SetRole: {
             /** Format: uuid */
@@ -1117,13 +1104,11 @@ export interface components {
              * @example leitura
              */
             panel_role?: string | null;
-            reason: string;
         };
         SetStatus: {
             active: boolean;
             /** Format: uuid */
             operation_id: string;
-            reason: string;
         };
         ShopNpcView: {
             /** @description English name of the NPC, when the client has one. */
@@ -1902,7 +1887,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Reasoned"];
+                "application/json": components["schemas"]["Operation"];
             };
         };
         responses: {
@@ -1931,7 +1916,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Reasoned"];
+                "application/json": components["schemas"]["Operation"];
             };
         };
         responses: {

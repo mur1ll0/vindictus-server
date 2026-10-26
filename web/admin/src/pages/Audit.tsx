@@ -72,7 +72,6 @@ function Entry({ row }: { row: AuditEntry }) {
           {row.actor_name ? `${row.actor_name} (${roleLabel(row.role)})` : 'CLI do operador / login desconhecido'}
           {row.peer && ` · ${row.peer}`}
         </p>
-        {row.reason && <p className="text-sm">Motivo: {row.reason}</p>}
         {(row.before || row.after) && (
           <p className="rounded-md bg-raised px-2 py-1 font-mono text-xs break-all">
             {describe(row.before)} → {describe(row.after)}

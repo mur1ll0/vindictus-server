@@ -31,28 +31,28 @@ export async function contentState() {
   return data;
 }
 
-export async function createEdit(operation_id: string, reason: string, edit: EditRequest) {
-  const { data, error, response } = await api.POST('/api/content/edits', { body: { operation_id, reason, edit } });
+export async function createEdit(operation_id: string, edit: EditRequest) {
+  const { data, error, response } = await api.POST('/api/content/edits', { body: { operation_id, edit } });
   if (!data) fail(response, error);
   return data;
 }
 
-export async function withdrawEdit(id: number, operation_id: string, reason: string) {
+export async function withdrawEdit(id: number, operation_id: string) {
   const { error, response } = await api.POST('/api/content/edits/{id}/withdraw', {
     params: { path: { id } },
-    body: { operation_id, reason },
+    body: { operation_id },
   });
   if (!response.ok) fail(response, error);
 }
 
-export async function publish(operation_id: string, reason: string, minutes: number) {
-  const { data, error, response } = await api.POST('/api/content/publish', { body: { operation_id, reason, minutes } });
+export async function publish(operation_id: string, minutes: number) {
+  const { data, error, response } = await api.POST('/api/content/publish', { body: { operation_id, minutes } });
   if (!data) fail(response, error);
   return data;
 }
 
-export async function cancelMaintenance(operation_id: string, reason: string) {
-  const { error, response } = await api.POST('/api/content/maintenance/cancel', { body: { operation_id, reason } });
+export async function cancelMaintenance(operation_id: string) {
+  const { error, response } = await api.POST('/api/content/maintenance/cancel', { body: { operation_id } });
   if (!response.ok) fail(response, error);
 }
 

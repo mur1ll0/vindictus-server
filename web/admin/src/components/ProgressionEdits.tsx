@@ -23,10 +23,10 @@ const MODES: { id: Mode; label: string }[] = [
 const OFFLINE_NOTE =
   'A personagem precisa estar fora do jogo. Segue as regras do jogo: subir de nível dá os títulos e abre as histórias do nível, que aparecem na próxima seleção.';
 
-export async function changeProgression(cid: string, operation_id: string, reason: string, change: Kind) {
+export async function changeProgression(cid: string, operation_id: string, change: Kind) {
   const { data, error, response } = await api.POST('/api/characters/{cid}/progression', {
     params: { path: { cid } },
-    body: { operation_id, reason, change },
+    body: { operation_id, change },
   });
   if (!data) fail(response, error);
   return data;
@@ -139,8 +139,8 @@ export function ProgressionModal({
         submitLabel="Aplicar"
         onCancel={onClose}
         onDone={onDone}
-        onSubmit={async (operationId, reason) => {
-          await changeProgression(cid, operationId, reason, change());
+        onSubmit={async (operationId) => {
+          await changeProgression(cid, operationId, change());
         }}
       >
         {mode === 'level' && (
@@ -218,8 +218,8 @@ export function RemoveEffectModal({
         danger
         onCancel={onClose}
         onDone={onDone}
-        onSubmit={async (operationId, reason) => {
-          await changeProgression(cid, operationId, reason, { kind: 'remove_effect', effect: effect.kind });
+        onSubmit={async (operationId) => {
+          await changeProgression(cid, operationId, { kind: 'remove_effect', effect: effect.kind });
         }}
       >
         <p className="font-mono text-sm">{effect.kind}</p>

@@ -154,8 +154,8 @@ function AccountModal({
           submitLabel="Salvar papel"
           onCancel={() => setAction('details')}
           onDone={done}
-          onSubmit={(operation_id, reason) =>
-            check(api.POST('/api/accounts/{username}/role', { ...path, body: { operation_id, reason, panel_role: role || null } }))
+          onSubmit={(operation_id) =>
+            check(api.POST('/api/accounts/{username}/role', { ...path, body: { operation_id, panel_role: role || null } }))
           }
         >
           <RoleSelect value={role} onChange={setRole} />
@@ -166,9 +166,9 @@ function AccountModal({
           submitLabel="Trocar senha"
           onCancel={() => setAction('details')}
           onDone={done}
-          onSubmit={async (operation_id, reason) => {
+          onSubmit={async (operation_id) => {
             mismatch(password, confirm);
-            await check(api.POST('/api/accounts/{username}/password', { ...path, body: { operation_id, reason, password } }));
+            await check(api.POST('/api/accounts/{username}/password', { ...path, body: { operation_id, password } }));
           }}
         >
           <p className="text-sm text-muted">As sessões do painel dessa conta são encerradas.</p>
@@ -181,8 +181,8 @@ function AccountModal({
           danger={active}
           onCancel={() => setAction('details')}
           onDone={done}
-          onSubmit={(operation_id, reason) =>
-            check(api.POST('/api/accounts/{username}/status', { ...path, body: { operation_id, reason, active: !active } }))
+          onSubmit={(operation_id) =>
+            check(api.POST('/api/accounts/{username}/status', { ...path, body: { operation_id, active: !active } }))
           }
         >
           <p className="text-sm text-muted">
@@ -210,9 +210,9 @@ function CreateModal({ isAdmin, onClose, onChanged }: { isAdmin: boolean; onClos
           onChanged();
           onClose();
         }}
-        onSubmit={async (operation_id, reason) => {
+        onSubmit={async (operation_id) => {
           mismatch(password, confirm);
-          await check(api.POST('/api/accounts', { body: { operation_id, reason, username, password, panel_role: role || null } }));
+          await check(api.POST('/api/accounts', { body: { operation_id, username, password, panel_role: role || null } }));
         }}
       >
         <div className="space-y-1.5">
