@@ -92,7 +92,10 @@ impl From<Error> for RuntimeError {
 }
 /// Validate dependencies before connecting storage/binding. No external flag is disabled here.
 struct MinimumRuntime {
-    assets: Arc<super::minimum_assets::Assets>,
+    /// Swapped whole when the panel applies a tuning live (B4.5b).
+    assets: Arc<super::minimum_assets::LiveAssets>,
+    /// The assets profile, re-read with the new overlay on a live tuning.
+    source: std::path::PathBuf,
     creation: crate::application::creation_lifecycle::CreationRuntime,
 }
 pub struct Runtime {
@@ -105,6 +108,7 @@ pub struct Runtime {
     relay: Option<super::relay::Relay>,
     web_shop: super::lab_web_shop::Sessions,
     maintenance: super::maintenance::Maintenance,
+    content_output: Option<std::path::PathBuf>,
 }
 impl Runtime {
     pub fn new(
@@ -144,6 +148,7 @@ impl Runtime {
             relay: None,
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
+            content_output: None,
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
@@ -159,6 +164,7 @@ impl Runtime {
         mut self,
         pool: PgPool,
         assets: super::minimum_assets::Assets,
+        source: &std::path::Path,
         proof_file: &std::path::Path,
     ) -> Result<Self, RuntimeError> {
         let creation = crate::application::creation_lifecycle::CreationRuntime::new(
@@ -178,10 +184,38 @@ impl Runtime {
         self.relay = assets.relay.map(super::relay::Relay::new);
         let assets = assets.with_item_arithmetic(self.stat_arithmetic());
         self.minimum = Some(MinimumRuntime {
-            assets: Arc::new(assets),
+            assets: Arc::new(super::minimum_assets::LiveAssets::new(assets)),
+            source: source.to_path_buf(),
             creation,
         });
         Ok(self)
+    }
+    /// Live tuning (B4.5b): re-read the assets profile with `overlay` and swap it in. Messages
+    /// already running keep the snapshot they took; the next ones use the new values.
+    pub async fn reload_assets(
+        &self,
+        overlay: crate::domain::content_overlay::Overlay,
+    ) -> Result<(), RuntimeError> {
+        let minimum = self.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let source = minimum.source.clone();
+        let arithmetic = self.stat_arithmetic();
+        let assets = tokio::task::spawn_blocking(move || {
+            super::minimum_assets::Assets::read_with_overlay(&source, &overlay)
+                .map(|a| a.with_item_arithmetic(arithmetic))
+        })
+        .await
+        .map_err(|_| RuntimeError::Operation)?
+        .map_err(|_| RuntimeError::Profile)?;
+        minimum.assets.replace(assets);
+        Ok(())
+    }
+    /// Where the overlay for the client launcher is written (`--content-edits-output`).
+    pub fn with_content_output(mut self, path: Option<std::path::PathBuf>) -> Self {
+        self.content_output = path;
+        self
+    }
+    pub fn content_output(&self) -> Option<&std::path::Path> {
+        self.content_output.as_deref()
     }
     /// Scheduled maintenance: the notices every connection sends and the frontend stop.
     pub fn maintenance(&self) -> &super::maintenance::Maintenance {
@@ -191,9 +225,13 @@ impl Runtime {
     pub fn web_shop(&self) -> super::lab_web_shop::Sessions {
         self.web_shop.clone()
     }
+    /// The swappable contents, for a service that outlives one snapshot (the web shop).
+    pub fn live_assets(&self) -> Option<Arc<super::minimum_assets::LiveAssets>> {
+        self.minimum.as_ref().map(|m| Arc::clone(&m.assets))
+    }
     /// The minimum creation assets, when configured.
     pub fn minimum_assets(&self) -> Option<Arc<super::minimum_assets::Assets>> {
-        self.minimum.as_ref().map(|m| m.assets.clone())
+        self.minimum.as_ref().map(|m| m.assets.current())
     }
     /// The level-up chain's runtime values for a change made outside a connection (the
     /// admin panel, B4.3c), with `journal` as the title log's journal.
@@ -244,6 +282,7 @@ impl Runtime {
                 .map_err(|_| RuntimeError::Operation)?;
         if present {
             let m = self.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+            let assets = m.assets.current();
             let config = self.minimum_header()?;
             return super::minimum_character_list::query(
                 pool,
@@ -252,10 +291,10 @@ impl Runtime {
                     name: &id.nexon_id,
                     revision,
                 },
-                &m.assets.initializer,
-                m.assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
+                &assets.initializer,
+                assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
                 config,
-                m.assets
+                assets
                     .initializer
                     .policy()
                     .get_integer("DeleteCharacterDelay")?,
@@ -844,7 +883,8 @@ impl Connection {
             .minimum
             .as_ref()
             .ok_or(RuntimeError::Profile)?
-            .assets;
+            .assets
+            .current();
         let packets = match message {
             Message::AcceptQuest(accept) => {
                 if self.mission.is_some() {
@@ -1278,7 +1318,8 @@ impl Connection {
             .minimum
             .as_ref()
             .ok_or(RuntimeError::Profile)?
-            .assets;
+            .assets
+            .current();
         // TitleGoalTracker → InformMicroplayEvent → Titles.Proceed, event by event.
         if state.title_events.is_empty() {
             return Ok(Vec::new());
@@ -1343,7 +1384,8 @@ impl Connection {
             .minimum
             .as_ref()
             .ok_or(RuntimeError::Profile)?
-            .assets;
+            .assets
+            .current();
         let ctx = super::minimum_mission_finish::FinishContext {
             contents: assets.mission().ok_or(RuntimeError::Profile)?,
             policy: assets.npc_policy().ok_or(RuntimeError::Profile)?,
@@ -1370,7 +1412,8 @@ impl Connection {
         else {
             return;
         };
-        let Some(shop) = minimum.assets.cash_shop.as_ref() else {
+        let assets = minimum.assets.current();
+        let Some(shop) = assets.cash_shop.as_ref() else {
             return;
         };
         let Ok(mut tx) = pool.begin().await else {
@@ -1419,7 +1462,8 @@ impl Connection {
             .minimum
             .as_ref()
             .ok_or(RuntimeError::Profile)?
-            .assets;
+            .assets
+            .current();
         match super::minimum_status_effect::expire_due(
             pool,
             &owner,
@@ -1468,7 +1512,7 @@ impl Connection {
                 .revision(),
         };
         let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
-        let assets = &minimum.assets;
+        let assets = &minimum.assets.current();
         let ids = minimum
             .creation
             .entity_ids(32)
@@ -1528,7 +1572,7 @@ impl Connection {
                 .revision(),
         };
         let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
-        let assets = &minimum.assets;
+        let assets = &minimum.assets.current();
         let ctx = super::minimum_mission_finish::FinishContext {
             contents: assets.mission().ok_or(RuntimeError::Profile)?,
             policy: assets.npc_policy().ok_or(RuntimeError::Profile)?,
@@ -1652,7 +1696,8 @@ impl Connection {
                             .minimum
                             .as_ref()
                             .ok_or(RuntimeError::Profile)?
-                            .assets;
+                            .assets
+                            .current();
                         let selected = super::minimum_selection::select(
                             pool,
                             &owner,
@@ -1888,7 +1933,8 @@ impl Connection {
                     .minimum
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
-                    .assets;
+                    .assets
+                    .current();
                 let packet = super::minimum_inventory::query(pool, &owner, assets, selected.cid)
                     .await
                     .map_err(|_| RuntimeError::Operation)?;
@@ -1939,7 +1985,8 @@ impl Connection {
                     .minimum
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
-                    .assets;
+                    .assets
+                    .current();
                 let started = std::time::Instant::now();
                 match super::minimum_move::move_item(
                     pool,
@@ -2017,7 +2064,8 @@ impl Connection {
                     .minimum
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
-                    .assets;
+                    .assets
+                    .current();
                 match super::minimum_quickslot::equip_bundle(
                     pool,
                     &owner,
@@ -2138,7 +2186,8 @@ impl Connection {
                         .minimum
                         .as_ref()
                         .ok_or(RuntimeError::Profile)?
-                        .assets;
+                        .assets
+                        .current();
                     let packets = match message {
                         Message::QueryCashShopProductList => {
                             super::minimum_cash_shop::product_list(assets)
@@ -2191,7 +2240,8 @@ impl Connection {
                     .minimum
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
-                    .assets;
+                    .assets
+                    .current();
                 match message {
                     Message::QueryAp => {
                         match super::minimum_ap::query(
@@ -3160,7 +3210,8 @@ impl Connection {
                     .minimum
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
-                    .assets;
+                    .assets
+                    .current();
                 let started = std::time::Instant::now();
                 let outcome = super::minimum_equip::equip(
                     pool,
@@ -3249,7 +3300,8 @@ impl Connection {
                     .minimum
                     .as_ref()
                     .ok_or(RuntimeError::Profile)?
-                    .assets;
+                    .assets
+                    .current();
                 match super::minimum_costume::hide_costume(
                     pool,
                     &owner,
@@ -3319,7 +3371,7 @@ impl Connection {
                         .revision(),
                 };
                 let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
-                let assets = &minimum.assets;
+                let assets = &minimum.assets.current();
                 let log = runtime.item_log_context(assets)?;
                 let ids = minimum
                     .creation
@@ -3441,7 +3493,7 @@ impl Connection {
                         .revision(),
                 };
                 let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
-                let assets = &minimum.assets;
+                let assets = &minimum.assets.current();
                 let ids = minimum
                     .creation
                     .entity_ids(8)
@@ -3513,7 +3565,7 @@ impl Connection {
                         .revision(),
                 };
                 let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
-                let assets = &minimum.assets;
+                let assets = &minimum.assets.current();
                 let ids = minimum
                     .creation
                     .entity_ids(2)
@@ -3590,7 +3642,7 @@ impl Connection {
                         .revision(),
                 };
                 let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
-                let assets = &minimum.assets;
+                let assets = &minimum.assets.current();
                 // Enhance_Ferghus_v2 selects EnhanceItemByData; EnhanceItem is not migrated.
                 let by_data = assets
                     .enhance
@@ -3668,6 +3720,7 @@ impl Connection {
                 let bytes = wire::encode(Kind::Create, Some(&message), DEFAULT_MAX_BODY)
                     .map_err(|_| RuntimeError::Message)?;
                 let m = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+                let assets = m.assets.current();
                 let revision = self
                     .password
                     .as_ref()
@@ -3681,12 +3734,11 @@ impl Connection {
                         crate::application::creation_lifecycle::MinimumRequest {
                             revision,
                             name,
-                            assets: Arc::clone(&m.assets),
+                            assets: Arc::clone(&assets),
                             body: bytes,
                             offset: runtime.profile.civil_offset_seconds(),
                             config: runtime.minimum_header()?,
-                            delete_delay: m
-                                .assets
+                            delete_delay: assets
                                 .initializer
                                 .policy()
                                 .get_integer("DeleteCharacterDelay")?,

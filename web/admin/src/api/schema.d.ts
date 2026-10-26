@@ -533,7 +533,11 @@ export interface paths {
          */
         get: operations["tuning"];
         put?: never;
-        post?: never;
+        /**
+         * Save tuning values (admin, B4.5b): published as their own version and loaded by the game
+         *     at once, without a restart.
+         */
+        post: operations["save_tuning"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1170,6 +1174,27 @@ export interface components {
             label: string;
             /** Format: int32 */
             value: number;
+        };
+        /** @description What a tuning save did (B4.5b). */
+        TuningApplied: {
+            /**
+             * @description Enhance/Enchant chances also show in the client's own windows: its copy takes them
+             *     when opened through start-lab.bat.
+             */
+            client_refresh: boolean;
+            /**
+             * @description The game took the values now, without a restart. When false the version stays
+             *     published and the next restart applies it.
+             */
+            live: boolean;
+            /** Format: int64 */
+            version: number;
+        };
+        TuningSave: {
+            /** @description feature, quest_drop, enhance_ratio or enchant_ratio edits (1–300). */
+            edits: components["schemas"]["EditRequest"][];
+            /** Format: uuid */
+            operation_id: string;
         };
         /** @description The tunable values the game loaded (published versions included). */
         TuningView: {
@@ -2415,6 +2440,69 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    save_tuning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TuningSave"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningApplied"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

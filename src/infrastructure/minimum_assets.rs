@@ -51,6 +51,29 @@ struct Files {
     #[serde(default)]
     cash_shop: Option<PathBuf>,
 }
+/// The loaded assets as one swappable value: a reader takes a snapshot, a live tuning
+/// (B4.5b) replaces it whole.
+pub struct LiveAssets(std::sync::RwLock<std::sync::Arc<Assets>>);
+
+impl LiveAssets {
+    pub fn new(assets: Assets) -> Self {
+        Self(std::sync::RwLock::new(std::sync::Arc::new(assets)))
+    }
+    pub fn current(&self) -> std::sync::Arc<Assets> {
+        match self.0.read() {
+            Ok(guard) => std::sync::Arc::clone(&guard),
+            Err(poisoned) => std::sync::Arc::clone(&poisoned.into_inner()),
+        }
+    }
+    pub fn replace(&self, assets: Assets) {
+        let next = std::sync::Arc::new(assets);
+        match self.0.write() {
+            Ok(mut guard) => *guard = next,
+            Err(poisoned) => *poisoned.into_inner() = next,
+        }
+    }
+}
+
 pub struct Assets {
     pub(super) equipment: Option<super::equipment_profile::Profile>,
     /// Skill contents with features evaluated against `catalog`.

@@ -139,6 +139,76 @@ pub async fn publish(
     finish(tx, &audit, i64::from(version)).await
 }
 
+/// A live tuning (B4.5b): the edits enter already published, as their own next version,
+/// without touching other pending edits.
+pub async fn publish_now(
+    pool: &PgPool,
+    author: Uuid,
+    edits: &[(&str, String, Option<serde_json::Value>)],
+    mut audit: AuditRecord<'_>,
+) -> Result<EditOutcome, sqlx::Error> {
+    if edits.is_empty() {
+        return Ok(EditOutcome::Nothing);
+    }
+    let mut tx = pool.begin().await?;
+    sqlx::query("LOCK TABLE content_versions IN SHARE ROW EXCLUSIVE MODE")
+        .execute(&mut *tx)
+        .await?;
+    let version: i32 =
+        sqlx::query_scalar("SELECT COALESCE(max(version), 0) + 1 FROM content_versions")
+            .fetch_one(&mut *tx)
+            .await?;
+    sqlx::query("INSERT INTO content_versions (version, published_by) VALUES ($1, $2)")
+        .bind(version)
+        .bind(author)
+        .execute(&mut *tx)
+        .await?;
+    let mut superseded = 0;
+    for (kind, target, value) in edits {
+        // A pending edit of the same value would undo this one when published later.
+        superseded += sqlx::query(
+            "UPDATE content_edits SET state = 'withdrawn'
+             WHERE state = 'pending' AND kind = $1 AND target = $2",
+        )
+        .bind(kind)
+        .bind(target)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        sqlx::query(
+            "INSERT INTO content_edits (kind, target, value, created_by, state, version)
+             VALUES ($1, $2, $3::jsonb, $4, 'published', $5)",
+        )
+        .bind(kind)
+        .bind(target)
+        .bind(value.as_ref().map(|v| v.to_string()))
+        .bind(author)
+        .bind(version)
+        .execute(&mut *tx)
+        .await?;
+    }
+    let listed: Vec<_> = edits
+        .iter()
+        .map(|(kind, target, value)| {
+            serde_json::json!({ "kind": kind, "target": target, "value": value })
+        })
+        .collect();
+    audit.after = Some(
+        serde_json::json!({ "version": version, "edits": listed, "withdrawn_pending": superseded })
+            .to_string(),
+    );
+    finish(tx, &audit, i64::from(version)).await
+}
+
+/// The game took this one version live (B4.5b).
+pub async fn mark_version_applied(pool: &PgPool, version: i32) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE content_versions SET applied_at = now() WHERE version = $1")
+        .bind(version)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn list(pool: &PgPool, limit: i64) -> Result<Vec<ContentEdit>, sqlx::Error> {
     sqlx::query_as(
         "SELECT e.id, e.kind, e.target, e.value::text AS value, e.state, e.version,

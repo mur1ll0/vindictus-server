@@ -8,7 +8,7 @@
 //! character selected in a live connection of this process can buy, for its own account.
 use super::{
     character_lobby::UserKey,
-    minimum_assets::Assets,
+    minimum_assets::LiveAssets,
     minimum_cash_shop::{self, Purchased},
 };
 use crate::protocol::inventory::CashShopPurchase;
@@ -76,10 +76,11 @@ impl Sessions {
 struct Shop {
     sessions: Sessions,
     pool: PgPool,
-    assets: Arc<Assets>,
+    /// The game's current contents (a live tuning swaps them).
+    assets: Arc<LiveAssets>,
 }
 
-pub fn router(sessions: Sessions, pool: PgPool, assets: Arc<Assets>) -> Router {
+pub fn router(sessions: Sessions, pool: PgPool, assets: Arc<LiveAssets>) -> Router {
     Router::new()
         .route("/Purchase.aspx", get(purchase))
         .with_state(Shop {
@@ -94,7 +95,7 @@ pub async fn serve(
     listener: tokio::net::TcpListener,
     sessions: Sessions,
     pool: PgPool,
-    assets: Arc<Assets>,
+    assets: Arc<LiveAssets>,
 ) {
     let app = router(sessions, pool, assets).into_make_service_with_connect_info::<SocketAddr>();
     if axum::serve(listener, app).await.is_err() {
@@ -151,7 +152,7 @@ async fn purchase(
     let code = match minimum_cash_shop::purchase_order(
         &shop.pool,
         &key,
-        &shop.assets,
+        &shop.assets.current(),
         cid,
         &request,
     )

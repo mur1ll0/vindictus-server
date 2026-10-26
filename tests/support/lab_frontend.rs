@@ -82,7 +82,12 @@ async fn minimum_flow_equipment(with_channel: bool, with_equipment: bool) {
     let runtime = Runtime::new(profile(&c, false), c)
         .unwrap()
         .with_name_check(Some(proof))
-        .with_minimum_creation(pool.clone(), assets, &path)
+        .with_minimum_creation(
+            pool.clone(),
+            assets,
+            std::path::Path::new("in-memory-assets"),
+            &path,
+        )
         .unwrap();
     std::fs::remove_file(path).unwrap();
     let r = std::sync::Arc::new(runtime);

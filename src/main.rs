@@ -373,12 +373,14 @@ async fn run(cli: Cli) -> Result<(), Error> {
             runtime = runtime.with_minimum_creation(
                 pool.clone(),
                 assets,
+                path,
                 name_proof_file.as_deref().ok_or_else(|| {
                     Error::Configuration("minimum creation requires name proof".into())
                 })?,
             )?;
         }
-        let runtime = std::sync::Arc::new(runtime);
+        let runtime =
+            std::sync::Arc::new(runtime.with_content_output(content_edits_output.clone()));
         let listener = tokio::net::TcpListener::bind(lab_peer::listen_addr(runtime.bind())).await?;
         // The cash shop product list and the overlay the client launcher applies to its copy,
         // written next to what serves them; then the loaded version counts as applied.
@@ -422,7 +424,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
             None => None,
         };
         // In-game cash shop purchases (ingame_cashshop_purchaseURL): served like the relay.
-        let web_shop_task = match runtime.minimum_assets() {
+        let web_shop_task = match runtime.live_assets() {
             Some(assets) => {
                 use vindictus_server::infrastructure::lab_web_shop;
                 let web_listener =

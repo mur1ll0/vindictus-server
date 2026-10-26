@@ -574,6 +574,84 @@ pub async fn publish(
     Ok((version, plan))
 }
 
+/// What a tuning save did (B4.5b).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct TuningApplied {
+    pub version: i64,
+    /// The game took the values now, without a restart. When false the version stays
+    /// published and the next restart applies it.
+    pub live: bool,
+    /// Enhance/Enchant chances also show in the client's own windows: its copy takes them
+    /// when opened through start-lab.bat.
+    pub client_refresh: bool,
+}
+
+pub const MAX_TUNING_EDITS: usize = 300;
+
+/// Save tuning values (admin): FeatureMatrix rates, quest drop counts, Enhance and Enchant
+/// chances are read by the server when used, so they publish as their own version and the
+/// game reloads its contents at once. Shop and cash edits keep the pending/maintenance cycle.
+pub async fn apply_tuning(
+    pool: &PgPool,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+    actor: &Actor<'_>,
+    edits: &[EditRequest],
+) -> Result<TuningApplied, AdminError> {
+    require(actor.session, Permission::Administer)?;
+    let runtime = runtime.ok_or(AdminError::ContentUnavailable)?;
+    let assets = runtime
+        .minimum_assets()
+        .ok_or(AdminError::ContentUnavailable)?;
+    if edits.is_empty() || edits.len() > MAX_TUNING_EDITS {
+        return Err(AdminError::InvalidInput);
+    }
+    let mut rows = Vec::with_capacity(edits.len());
+    let mut client_refresh = false;
+    for edit in edits {
+        match edit {
+            EditRequest::Feature { .. } | EditRequest::QuestDrop { .. } => {}
+            EditRequest::EnhanceRatio { .. } | EditRequest::EnchantRatio { .. } => {
+                client_refresh = true;
+            }
+            _ => return Err(AdminError::InvalidInput),
+        }
+        rows.push(validate(&assets, edit)?);
+    }
+    drop(assets);
+    let record = audit(actor, "content.tuning", "content", "tuning");
+    let version =
+        outcome(content_edits::publish_now(pool, actor.session.account_id, &rows, record).await?)?;
+    let overlay = content_edits::loaded_overlay(pool).await?;
+    let live = match runtime.reload_assets(overlay).await {
+        Ok(()) => {
+            let v = i32::try_from(version).map_err(|_| AdminError::InvalidInput)?;
+            content_edits::mark_version_applied(pool, v).await?;
+            if let Some(path) = runtime.content_output() {
+                let value = content_edits::overlay(pool).await?;
+                if let Err(e) = write_atomic(path, value.to_string().as_bytes()).await {
+                    tracing::warn!(error = %e, "content edits for the client launcher not written");
+                }
+            }
+            true
+        }
+        Err(e) => {
+            tracing::warn!(error = ?e, version, "live tuning not loaded; the next restart applies it");
+            false
+        }
+    };
+    Ok(TuningApplied {
+        version,
+        live,
+        client_refresh,
+    })
+}
+
+async fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let partial = path.with_extension("partial");
+    tokio::fs::write(&partial, bytes).await?;
+    tokio::fs::rename(&partial, path).await
+}
+
 /// Cancel the scheduled maintenance (Delay -1 of the original operation); audited.
 pub async fn cancel_maintenance(
     pool: &PgPool,

@@ -234,6 +234,62 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
     assert_eq!(loaded.enhance_ratios.get("5#5"), Some(&0.9));
     assert_eq!(loaded.enchant_ratios.get("simple"), Some(&[40, 80]));
 
+    // B4.5b: a live tuning enters published as its own version; pending edits stay pending
+    // and a repeated operation is refused.
+    edit(
+        "feature",
+        "GoldRate_Story",
+        Some(serde_json::json!({"value": 150})),
+        Uuid::new_v4(),
+    )
+    .await;
+    let op = Uuid::new_v4();
+    let rows = [(
+        "feature",
+        "ExpRate_Combat".to_owned(),
+        Some(serde_json::json!({"value": 500})),
+    )];
+    assert_eq!(
+        content_edits::publish_now(&pool, chefe.account_id, &rows, audit(op))
+            .await
+            .unwrap(),
+        content_edits::EditOutcome::Done(4)
+    );
+    assert_eq!(
+        content_edits::publish_now(&pool, chefe.account_id, &rows, audit(op))
+            .await
+            .unwrap(),
+        content_edits::EditOutcome::Repeated
+    );
+    let loaded = content_edits::loaded_overlay(&pool).await.unwrap();
+    assert_eq!(loaded.features.get("ExpRate_Combat"), Some(&500));
+    assert_eq!(loaded.features.get("GoldRate_Story"), None);
+    let pending: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM content_edits WHERE state = 'pending'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(pending, 1);
+    // Saving the same value live withdraws its pending edit, so a later publish keeps it.
+    let rows = [(
+        "feature",
+        "GoldRate_Story".to_owned(),
+        Some(serde_json::json!({"value": 120})),
+    )];
+    assert_eq!(
+        content_edits::publish_now(&pool, chefe.account_id, &rows, audit(Uuid::new_v4()))
+            .await
+            .unwrap(),
+        content_edits::EditOutcome::Done(5)
+    );
+    let pending: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM content_edits WHERE state = 'pending'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(pending, 0);
+    content_edits::mark_version_applied(&pool, 4).await.unwrap();
+
     pool.close().await;
     sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
         .execute(&admin_pool)

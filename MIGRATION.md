@@ -1592,3 +1592,14 @@ B4.4f — sessão do painel estável e mudanças sem motivo (26/10/2026, pedido 
 - Cliente: entrada B4.4f em `docs/client-tests/B4-painel.md` (painel; jogo não necessário).
 - Próxima ação retomável: B4.6 — mapas e canais (somente leitura); depois B4.7 e o gate do B4.
 
+B4.5b — Ajustes de jogo na própria tela, aplicados sem reiniciar (26/10/2026, pedido do operador).
+- Problema relatado: salvar uma taxa "não fazia nada" — criava uma edição pendente (só valia depois de publicar e reiniciar) e a tela mostrava o valor carregado.
+- Servidor: o conteúdo do jogo fica em `minimum_assets::LiveAssets` (troca inteira; cada mensagem usa uma cópia do momento). `Runtime::reload_assets` relê o perfil de conteúdo com a sobreposição publicada (`spawn_blocking`) e troca; `POST /api/tuning` (admin) valida as edições de ajuste (taxas, drops, Enhance, Enchant), grava-as já publicadas como versão própria (`content_edits::publish_now`; outras pendentes ficam, a pendente do mesmo valor é retirada para uma publicação posterior não desfazer o ajuste; operação repetida recusada), recarrega o jogo, marca a versão aplicada e regrava o `content-edits.json` do `start-lab.bat`. Se a recarga falhar, a versão fica para o próximo reinício. Lojas e cash shop seguem no ciclo pendente → publicação → manutenção.
+- A loja web do jogo (`lab_web_shop`) passou a ler o conteúdo atual a cada compra (`Runtime::live_assets`) em vez de guardar a cópia da partida.
+- Painel: valores editados na própria caixa, barra fixa Salvar/Descartar com a contagem, "Atual → novo" na caixa alterada, validação de limites e mínimo ≤ máximo; aviso dos ajustes pendentes do ciclo antigo com "Pendente: atual → novo" e link para Conteúdo; resultado do salvamento (aplicado agora, ou no próximo reinício; Enhance/Enchant aparecem no cliente ao abrir pelo `start-lab.bat`).
+- Testes: PostgreSQL `content_edits` (versão própria publicada, pendente de outro valor preservada, pendente do mesmo valor retirada, operação repetida), `panel_`, `actual_tcp_account_login` (6); `tests/lab_frontend.rs` (5), `tests/admin_http.rs` (4, OpenAPI regenerado), clippy, `npm run build`. Logs: `.cache/verification/live-*.log`.
+- Docker recompilado. No painel real: "AP das histórias" 100% → 120% → Salvar → "Aplicado no jogo agora (versão 3), sem reiniciar", a caixa lê 120% do jogo, a versão ficou aplicada em ~1,7 s e o `content-edits.json` foi regravado; voltado para 100% (versões 4–9 do mesmo teste). Os dois ajustes pendentes do operador (EXP 150%, ouro 170%) aparecem como "Pendente: 100% → …" e não foram alterados.
+- Memória do `game`: 271 MiB na partida, ~525 e ~725 MiB depois da primeira e da segunda recarga, +20 MiB na terceira (a glibc reaproveita a cópia liberada; não é vazamento). `MALLOC_ARENA_MAX=2` foi testado e não mudou o pico (revertido).
+- Cliente: entrada B4.5b em `docs/client-tests/B4-painel.md`.
+- Próxima ação retomável: B4.6 — mapas e canais (somente leitura); depois B4.7 e o gate do B4.
+

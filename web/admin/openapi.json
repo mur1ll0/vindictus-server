@@ -1674,6 +1674,85 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Save tuning values (admin, B4.5b): published as their own version and loaded by the game\nat once, without a restart.",
+        "operationId": "save_tuning",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TuningSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuningApplied"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -3570,6 +3649,49 @@
           "value": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "TuningApplied": {
+        "type": "object",
+        "description": "What a tuning save did (B4.5b).",
+        "required": [
+          "version",
+          "live",
+          "client_refresh"
+        ],
+        "properties": {
+          "client_refresh": {
+            "type": "boolean",
+            "description": "Enhance/Enchant chances also show in the client's own windows: its copy takes them\nwhen opened through start-lab.bat."
+          },
+          "live": {
+            "type": "boolean",
+            "description": "The game took the values now, without a restart. When false the version stays\npublished and the next restart applies it."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TuningSave": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "edits"
+        ],
+        "properties": {
+          "edits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditRequest"
+            },
+            "description": "feature, quest_drop, enhance_ratio or enchant_ratio edits (1–300)."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

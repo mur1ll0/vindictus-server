@@ -138,6 +138,17 @@ Pré-condição: containers recompilados depois de 26/10/2026 (migração 0047);
 - [ ] Fechar o cliente e abrir pelo `start-lab.bat`. Jogar a fase ajustada: a EXP do resultado dobra e mais monstros deixam drop; Enhance +5 numa peça +4 → sucesso e a janela mostra a chance nova; o minijogo do encantamento mostra a chance nova.
 Limites conhecidos: valores fora dos limites são recusados (taxas 0–10000%, drops 0–100, chances 0–100%); o Enhance é por nível (vale para todos os equipamentos naquele nível, como o EnhanceServerInfo do servidor); o cliente só mostra os valores novos depois de abrir pelo `start-lab.bat`.
 
+### B4.5b — Ajustes de jogo editados na própria tela, aplicados sem reiniciar
+Pré-condição: containers recompilados depois de 26/10/2026; personagem no jogo, de preferência.
+- [ ] Ajustes de jogo → Taxas: mudar "EXP das missões (combate)" para 200 na própria caixa → a caixa fica destacada com "Atual 100% → novo 200%" e aparece a barra "1 alteração(ões)" com Salvar/Descartar.
+- [ ] Salvar → aviso verde "Aplicado no jogo agora (versão N), sem reiniciar"; a caixa mostra 200%. Conteúdo → versões mostra a versão N "aplicada"; Auditoria mostra "content.tuning".
+- [ ] Sem sair do jogo: terminar uma missão → a EXP do resultado dobra (comparar com antes).
+- [ ] Enhance: mudar o +5 para 100% e salvar → aviso diz que o servidor já usa a chance nova e que a janela do cliente mostra o valor depois de abrir pelo `start-lab.bat`. Tentar o +5 sem reabrir o cliente → sucesso.
+- [ ] Mudar um mínimo para mais que o máximo (drops ou enchant) → a barra mostra o erro e Salvar fica desabilitado; Descartar volta os valores.
+- [ ] Se houver ajustes pendentes do ciclo antigo: aviso no topo com o número de pendentes e, na caixa, "Pendente: 100% → 200%; publique a versão em Conteúdo para valer".
+- [ ] Salvar aqui um valor que tinha pendente → a pendente some (retirada) e o valor salvo vale na hora.
+Limites conhecidos: só admin salva; recarregar o conteúdo leva ~2 s e a memória do jogo sobe de ~270 MiB para ~750 MiB nas primeiras recargas e estabiliza; mensagens que já estavam em andamento terminam com os valores antigos.
+
 ### B4.4f — Sessão estável e mudanças sem motivo
 Pré-condição: containers recompilados depois de 26/10/2026 (migração 0048).
 - [ ] Entrar no painel, abrir a ficha da Murael e clicar em cada item do menu (Contas, Lojas de NPC, Cash shop, Ajustes de jogo, Conteúdo, Auditoria, Minha conta) → nenhum volta ao login.

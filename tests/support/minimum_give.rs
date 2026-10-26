@@ -6585,7 +6585,9 @@ Line &lt;two&gt;.</product_desc>"
         listener,
         sessions.clone(),
         p.clone(),
-        std::sync::Arc::new(assets),
+        std::sync::Arc::new(
+            vindictus_server::infrastructure::minimum_assets::LiveAssets::new(assets),
+        ),
     ));
     let get = |query: String| async move {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};

@@ -82,6 +82,40 @@ pub(super) async fn tuning(
     )?))
 }
 
+#[derive(Deserialize, ToSchema)]
+pub(super) struct TuningSave {
+    operation_id: Uuid,
+    /// feature, quest_drop, enhance_ratio or enchant_ratio edits (1–300).
+    edits: Vec<EditRequest>,
+}
+
+/// Save tuning values (admin, B4.5b): published as their own version and loaded by the game
+/// at once, without a restart.
+#[utoipa::path(post, path = "/api/tuning", request_body = TuningSave,
+    responses((status = 200, body = content_admin::TuningApplied), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 404, body = super::ApiError),
+              (status = 409, body = super::ApiError), (status = 503, body = super::ApiError)))]
+pub(super) async fn save_tuning(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Json(body): Json<TuningSave>,
+) -> Result<Json<content_admin::TuningApplied>, Refusal> {
+    let actor = Actor {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+    };
+    Ok(Json(
+        content_admin::apply_tuning(
+            state.auth.pool(),
+            state.runtime.as_deref(),
+            &actor,
+            &body.edits,
+        )
+        .await?,
+    ))
+}
+
 #[derive(Serialize, ToSchema)]
 pub(super) struct ContentState {
     /// Pending first, then the latest.
