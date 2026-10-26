@@ -29,11 +29,11 @@ Levantado no conteúdo do servidor `ServidorVindictus/Server/zh-tw-x-gm/Bin/hero
 | `ItemClassExtraInfo` (6), `DefaultItemInfo` (80) | — | **não** | só servidor: dados extras e itens iniciais por classe |
 | `ShopInfo`, `Cashshop_*`, `CraftShopInfo`, `ManufactureRecipeInfo`, `MonsterDropItemInfo`, `RandomItemV2*` | — | parte | onde o item é vendido, fabricado ou dropado (já editáveis ou planejados: B4.4, B4.5, [editor de fases](stage-editor.md)) |
 
-`ClassRestriction` é uma máscara de bits, conferida nos inner armors por prefixo: Lann (`lethita`) 1, Fiona 2, Evie (`evy`) 4, Karok (`kalok`) 8, Kai (`kay`) 16, Vella 32, Hurk 64, Lynn 128, Arisha 256, Hagie 512, Delia 1024. 2047 = as 11 classes. 909 classes têm `Category='INNERARMOR'` (arisha 93, delia 89, evy 111, fiona 113, hagie 48, hurk 37, kalok 68, kay 69, lethita 82, lynn 86, vella 93, `innerfree` 3, `cash` 17).
+`ClassRestriction` é uma máscara de bits, conferida nos inner armors por prefixo: Lann (`lethita`) 1, Fiona 2, Evie (`evy`) 4, Karok (`kalok`) 8, Kai (`kay`) 16, Vella 32, Hurk 64, Lynn 128, Arisha 256, Hagie 512, Delia 1024. 2047 = as 11 classes do conteúdo. O cliente 1.69, porém, só conhece **10** classes: a tabela do `client.dll` (`0x38cafd50`, com o limite `cmp eax, 0xa` em `0x3879ec68`) traz Lethita, Fiona, Evy, Kalok, Kay, Vella, Hurk, Lynn, Arisha e Hagie. Itens de Delia existem no banco, mas a classe não existe neste cliente (coerente com `CHARACTER_COUNT = 10` em `docs/b4-painel-plano.md`). Inner armors novos "para todas as classes" significam as 10. 909 classes têm `Category='INNERARMOR'` (arisha 93, delia 89, evy 111, fiona 113, hagie 48, hurk 37, kalok 68, kay 69, lethita 82, lynn 86, vella 93, `innerfree` 3, `cash` 17).
 
 ### 1.2 Cliente: scripts, ícones, textos e modelos
 
-- **Item → modelo:** `scripts/player_costume.txt` (57.633 linhas, KeyValues, no HFS de `scripts`) tem as seções `base`, `inner_armor`, `face`, `hair`, `upper_body`, `lower_body`, `head`, `foot`, `hand`, `rear`, `tail`, `motion` e `common_motion`. Em `inner_armor` há um bloco por classe (`default` e `color1..3`) e as entradas numeradas, uma por `CostumeType`, cada uma com `category` (corpo: `female` 307, `male` 193, `giant` 70, `tall` 59), `label` e `normal` (o `.mdl`). Exemplo conferido: `fiona_inner_armor03` → `EquipItemInfo.CostumeType` 12 → `"12" { "category" "female" "label" "6" "normal" "models/player/fiona/fiona_inner_armor03.mdl" }`. O `CostumeType` dos inner armors vai de −1 a 90.375 (400 valores distintos). As entradas 10–14 servem a Fiona e a Evie (`InnerArmorTypeInfo` `fiona_innerarmor01…05`), então a numeração é global (**hipótese** de que o cliente filtra pelo `category` do corpo da classe).
+- **Item → modelo:** `scripts/player_costume.txt` (57.633 linhas, KeyValues, no HFS de `scripts`) tem as seções `base`, `inner_armor`, `face`, `hair`, `upper_body`, `lower_body`, `head`, `foot`, `hand`, `rear`, `tail`, `motion` e `common_motion`. Em `inner_armor` há um bloco por classe (`default` e `color1..3`) e as entradas numeradas, uma por `CostumeType`, cada uma com `category` (corpo: `female` 307, `male` 193, `giant` 70, `tall` 59), `label` e `normal` (o `.mdl`). Exemplo conferido: `fiona_inner_armor03` → `EquipItemInfo.CostumeType` 12 → `"12" { "category" "female" "label" "6" "normal" "models/player/fiona/fiona_inner_armor03.mdl" }`. O `CostumeType` dos inner armors vai de −1 a 90.375 (400 valores distintos). As entradas 10–14 servem a Fiona e a Evie (`InnerArmorTypeInfo` `fiona_innerarmor01…05`): a numeração é global por seção. O parser no `client.dll` foi lido (seção 5): 12 seções reconhecidas (`base`, `inner_armor`, `face`, `hair`, `upper_body`, `lower_body`, `head`, `foot`, `hand`, `rear`, `motion`, `common_motion`; a seção `tail` do arquivo não está na lista do 1.69), blocos de classe só para 10 nomes e categorias `None`/`Male`/`Female`/`Giant`/`Tall`.
 - **Consumíveis no cliente:** `scripts/item_data.txt` (6.491 linhas) define o comportamento ao usar, por exemplo `life_potion_lvl1 { type health_potion; hp 500; pre_sequence potion_begin; can_double_up 1 … }`. Tipos mais comuns: `spskill_base_status_effect` 118, `status_effect_potion` 70, `town_visual_effect` 29, `artifact_status_effect` 20, `health_potion` 5. `scripts/useitem.txt` (51 linhas) liga itens usáveis a comandos de console (`use_item_extrastorage {0}`, `cc_enter_dyeshop_cash`…).
 - **Ícones:** `scaleform/item_icon/<ItemClassInfo.Icon>.tga`. O `scripts/content/export_panel_catalog.py` já os converte para PNG em `.cache/private-content/icons/item` para o painel.
 - **Textos:** `HEROES_ITEM_NAME_<CLASSE>` e `HEROES_ITEM_DESC_<CLASSE>` em `resource/localized_text/english_eu/heroes_text_english_eu.txt` (lido por `export_cash_shop.py` e `export_item_catalog.py`).
@@ -52,7 +52,7 @@ Levantado no conteúdo do servidor `ServidorVindictus/Server/zh-tw-x-gm/Bin/hero
 | Comum a todos | ID (`ItemClass`), nome e descrição (texto), ícone, `Category`/`TradeCategory`/`Sub`, `Rarity`, `Level`, `RequiredLevel`, `ClassRestriction` (caixas por classe), `MaxStack`, `Price`/`SellPrice`, `ExpireIn`, `Bind`/`TradeOnBind`, `Unique`, `UseInTown`/`UseInQuest`, `Feature` (`ItemClassInfo`) | sim: o cliente tem `ItemClassInfo` |
 | Equipamento | `EquipItemInfo` completo (atributos e estatísticas, `MaxDurability`, `EnhanceType`, `QualityType`, `Enchantable`, `Synthesizable`), cor padrão (`ColorOverride`, `DyeableParts`, `color1..3` do script), `CostumeType` → modelo por corpo (`player_costume.txt`), materiais de reparo, conjunto (`SetItemInfo`), venda em loja (ShopInfo, B4.4), receita (`ManufactureRecipeInfo`) e drop | sim (tabelas, script, modelo, ícone) |
 | Roupa / fashion / inner armor | o mesmo do equipamento com `EquipClass='CUSTOMIZE'` e categoria `INNERARMOR` ou parte de avatar; `CustomizeItemInfo` (salão), `InnerArmorTypeInfo` (criação), `AvatarSetBonusInfo` | sim |
-| Consumível | `FoodInfo` (efeito, nível, duração, compartilhar), `StatusEffectGroupInfo` (o que faz: `Effect1..3` e `ServerEffect1..3` com argumentos), `ItemEffectInfo`, `MicroPlayEffectInfo` (missão), bloco em `item_data.txt` (tipo, `hp`, animações, regras de dose dupla) e `useitem.txt` quando o uso abre uma tela ou comando | sim: o efeito visível e a animação são do cliente |
+| Consumível | `FoodInfo` (efeito, nível, duração, compartilhar), `StatusEffectGroupInfo` (o que faz: `Effect1..3` e `ServerEffect1..3` com argumentos), `ItemEffectInfo`, `MicroPlayEffectInfo` (missão), bloco em `item_data.txt` (tipo, `hp`, animações, regras de dose dupla) e `useitem.txt` quando o uso abre uma tela ou comando | sim: o efeito visível e a animação são do cliente. Os 26 valores de `type` usados no `item_data.txt` (`health_potion`, `status_effect_potion`, `repair_kit`…) estão como texto no `bin/server.dll` do cliente (a parte host da engine) e não no `client.dll`: são classes C++ fixas. Um consumível novo escolhe um `type` existente e ajusta os parâmetros; um comportamento novo exige mudar o binário |
 
 Regras gerais: um item novo só é publicado quando existir no servidor **e** no cliente na mesma versão (o item desconhecido no cliente é **hipótese** de quebra de inventário). Remover um item é recusado enquanto houver instâncias em inventários, lojas, receitas ou drops; o editor lista as referências e oferece "retirar de venda/drop" em vez de apagar.
 
@@ -64,23 +64,23 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
 
 1. **Servidor (`heroesContents`, sobreposição):** linha nova em `ItemClassInfo` (`Category='INNERARMOR'`, `TradeCategory='EQUIPMENT'`, `TradeCategorySub='CUSTOMIZE'`, `Icon`, `ClassRestriction` da classe-alvo, `Price`) e em `EquipItemInfo` (`EquipClass='CUSTOMIZE'`, `CostumeType` de um inner armor existente daquela classe, estatísticas, `Dyeable`, `ColorOverride`).
 2. **Cliente (`heroes.db3`):** as mesmas linhas, pelo mesmo caminho do B4.5 (start-lab hoje, launcher depois).
-3. **Texto:** `HEROES_ITEM_NAME_/DESC_<CLASSE>` novos. Exige distribuir o `heroes_text_english_eu.txt` alterado: arquivo de HFS, depende do teste L0-a/L0-d do [launcher](game-launcher.md). Antes disso, o item aparece sem nome (**hipótese**).
-4. **Ícone:** reusar um `.tga` existente (só a coluna `Icon`) ou um novo (L0-a/L0-c).
+3. **Texto:** `HEROES_ITEM_NAME_/DESC_<CLASSE>` novos. Exige distribuir o `heroes_text_english_eu.txt` alterado. Ele está no índice HFS, mas `resource/` não é prefixo bloqueado: desativar o HFS de `resource` e soltar a pasta inteira funciona pelo código (o mesmo truque já usado no `scaleform/`, ver [launcher](game-launcher.md) seção 2.2); o teste L0-b confirma. Antes disso, o item aparece sem nome (**hipótese**).
+4. **Ícone:** reusar um `.tga` existente (só a coluna `Icon`) ou um novo com nome novo em `scaleform/item_icon/`, solto (fora do índice e fora dos prefixos bloqueados; teste L0-c).
 5. **Entrega:** loja (B4.4), cash shop, painel "dar item" (B4.3), criação de personagem (`InnerArmorTypeInfo` + `DefaultItemInfo`, mexe na criação, decisão à parte).
 6. **Teste:** dar o item pelo painel, vestir, conferir modelo, cor e estatísticas; relogar.
 
 ### 3.2 Corte 2, modelo novo por classe (I3–I5)
 
-Para cada uma das 11 classes (corpo e esqueleto próprios em `models/player/<classe>/`):
+Para cada uma das 10 classes do cliente (corpo e esqueleto próprios em `models/player/<classe>/`):
 
 1. Modelar no Blender sobre o esqueleto da classe, importado do `.mdl` do corpo (ex.: `models/player/fiona/fiona.mdl`) e do inner armor existente, para herdar ossos, pesos e proporções.
 2. Exportar `.mdl`/`.vvd`/`.vtx`/`.phy` v44 + a variante `_broken`, se o jogo a exigir para inner armor (**hipótese**: o `_broken` aparece em armaduras comuns), e as texturas `.vtf`/`.vmt` com os nomes que o `.mdl` referencia.
-3. Entrada nova em `player_costume.txt` → `inner_armor` → `"<CostumeType novo>" { category <corpo>; label …; normal "models/player/<classe>/<novo>.mdl" }`, com um número livre (o editor reserva uma faixa própria, por exemplo ≥ 100.000, acima do maior atual, 90.375).
+3. Entrada nova em `player_costume.txt` → `inner_armor` → `"<CostumeType novo>" { category <corpo>; label …; normal "models/player/<classe>/<novo>.mdl" }`, com um número livre (o editor reserva uma faixa própria, por exemplo ≥ 100.000, acima do maior atual, 90.375). O parser guarda o número (`atoi`) num vetor dinâmico por seção, procurado por igualdade; não há teto fixo no código lido, e um número repetido é tratado à parte (seção 5).
 4. Linhas de `ItemClassInfo`/`EquipItemInfo` com esse `CostumeType`, no servidor e no cliente.
-5. Distribuição: modelo, texturas, `player_costume.txt` e texto pelo launcher (soltos, se o L0 provar a sobreposição; senão, HFS refeito).
+5. Distribuição: modelo, texturas e `player_costume.txt` ficam em `models/`, `materials/` e `scripts/`, prefixos que o cliente **só** lê de pacote. Precisam de `.hfs` refeito ou novo **com o índice HFS regravado** (formato recuperado em [game-launcher.md](game-launcher.md) seção 2.2; viabilidade decidida pelo teste L0-d). O texto pode ir solto (item 3 do corte 1).
 6. Opcional: oferecer na criação (`InnerArmorTypeInfo`), que hoje só cobre Lann, Fiona e Evie.
 
-Custo estimado: conteúdo baixo; asset alto (11 modelos com rig de corpo diferente); servidor baixo (o catálogo já é dirigido por conteúdo); binário do cliente nenhum, se o `CostumeType` alto for aceito (**hipótese**: limite de número ou tamanho da tabela no `client.dll`, ver seção 5).
+Custo estimado: conteúdo baixo; asset alto (10 modelos com rig de corpo diferente); servidor baixo (o catálogo já é dirigido por conteúdo); binário do cliente nenhum, se o L0-d aceitar o índice regravado. Se recusar, o corte 2 depende de mudar o binário ou o `GameInfo.txt`.
 
 ## 4. Modelos 3D: visualização no painel e Blender 5.1
 
@@ -109,16 +109,18 @@ Para o Vindictus:
 
 ## 5. Engenharia reversa com REA (pedido do operador, 26/10/2026)
 
-Pontual, dentro da regra de 24/10 contra análise completa das DLLs do cliente:
+O operador autorizou abrir o `FileSystem_Stdio.dll` e o `client.dll` no REA. O `FileSystem_Stdio.dll` foi descompilado (resultado em [game-launcher.md](game-launcher.md) seção 2.2). No `client.dll` original (`Vindictus1.69EN/…/bin/client.dll`, SHA-256 `b284ba719047556b…`, somente leitura), a análise automática completa do Ghidra pelo REA passou do limite de 330 s por chamada e foi cancelada. Por isso a leitura foi pontual: strings, referências `imm32` e desmontagem com o capstone de `scripts/client/.deps`, sem executar nada. Resultados:
 
-- **`client.dll` (14,7 MB):** só busca de strings e descompilação das funções que leem `player_costume.txt` (`inner_armor`, `category`, `normal`, `label`) e `item_data.txt`. Responderia ao maior `CostumeType` aceito, ao filtro por corpo e ao que acontece com um `ItemClass` desconhecido. Precisa de autorização do operador para abrir a DLL no REA sem análise automática completa.
-- **Nada disso substitui o teste no cliente:** para o corte 1 basta o L0 do launcher e um item clonado. O REA entra se um teste falhar sem explicação.
+- **Parser do `player_costume.txt`** (`0x38882f65` em diante): carrega o KeyValues; cada seção vira um índice de 0 a 11 pela tabela de nomes (`base` … `common_motion`); dentro dela, a chave que é um dos 10 nomes de classe vira bloco de classe (`default`, `default_ex`, `town`, `event_file_name`, `event_file_name_xe`, `color1..3`); a chave que começa com dígito vira entrada (`atoi`) de 0x74 bytes com `normal`, `broken`, `normal_sub_type`/`broken_sub_type` (variantes `%s01.mdl`…`%s%02d.mdl`, até 10, conferidas no sistema de arquivos `GAME`), `label`, `category` (índice na tabela `None`, `Male`, `Female`, `Giant`, `Tall`; ausente = −1), `hide_normal`, `hide_broken`, `onepiece`, `hide_rear`, `skin` e `body`. O número fica em `+0x30` da entrada; a entrada é acrescentada a um vetor dinâmico da seção depois de uma busca linear por número igual. **Sem teto fixo de `CostumeType`** no código lido.
+- **Classes:** 10, com limite explícito (seção 1.1). Delia não existe neste cliente.
+- **Consumíveis:** os tipos do `item_data.txt` estão no `server.dll` do cliente, não no `client.dll` (seção 2).
+- **Ainda não lido:** o que o cliente faz com um `ItemClass` ausente do próprio `heroes.db3` (o corte 1 o evita publicando os dois lados juntos) e a tabela que liga `EquipItemInfo.CostumeType` à entrada do script.
 - O REA não lê o launcher do Windictus (proteção de metadados, ver [game-launcher.md](game-launcher.md)).
 
 ## 6. Riscos
 
 - Itens novos sem a linha correspondente no cliente: tooltip vazio ou recusa (**hipótese**). Mitigação: publicação conjunta pelo launcher.
-- Texto e ícone vivem em HFS; sem a sobreposição de soltos (L0-a), cada mudança exige refazer HFS.
+- Modelos, materiais e scripts só entram por pacote com o índice HFS regravado, e o código que lê o índice está protegido com VMProtect (L0-d decide). Texto e ícone novo têm caminho solto.
 - Escrever `.mdl` v44 corretamente é o maior risco técnico. O corte 1 (sem modelo novo) entrega valor sem ele.
 - Remoção de item com instâncias vivas: sempre recusada.
 - Assets novos são do operador. Os originais do jogo nunca entram no Git (AGENTS.md).
@@ -131,5 +133,5 @@ Pontual, dentro da regra de 24/10 contra análise completa das DLLs do cliente:
 | I2 | criar, clonar e editar itens no conteúdo (servidor + `heroes.db3` do cliente), com modelo existente: corte 1 dos inner armors | inner armor clonado com estatísticas e cor novas, vestido e relogado |
 | I3 | textos e ícones novos distribuídos (depende de L0 e L3 do launcher) | nome e ícone novos no inventário |
 | I4 | leitor `.mdl` v44 → glTF no servidor e visualizador no painel | não necessário |
-| I5 | importar GLB, gerar `.mdl` v44 e entrada no `player_costume.txt`; extensão Blender 5.1 | inner armor com modelo novo em uma classe, depois nas 11 |
+| I5 | importar GLB, gerar `.mdl` v44 e entrada no `player_costume.txt`; extensão Blender 5.1 | inner armor com modelo novo em uma classe, depois nas 10 (depende do L0-d do launcher) |
 | I6 | consumíveis: efeito (`FoodInfo`/`StatusEffectGroupInfo`) e `item_data.txt` | poção nova usada na cidade e na missão |

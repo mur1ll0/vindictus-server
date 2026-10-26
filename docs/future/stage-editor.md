@@ -59,7 +59,7 @@ O servidor monta o que o host recebe. `initialize_entity` (`src/domain/mission.r
 | B — servidor + `heroes.db3` do cliente | `QuestInfo` (nome, nível, NPC, quadro, membros), `QuestDifficultyInfo`, `QuestGoalInfo`, `MonsterInfo` exibido, quest nova que reusa BSPs existentes | sobreposição + a mesma célula na cópia do cliente (hoje `start-lab.bat`; depois o launcher) | médio; cliente e servidor precisam estar na mesma versão |
 | C — assets novos | BSP novo ou alterado (geometria, cais, gatilhos fixos), `.ain` novo, monstro novo (modelo, `npc_variations.txt`), texto novo | pacote `.hfs` refeito ou arquivo solto distribuído pelo launcher | alto: compilar BSP compatível com a engine do cliente, sem SDK oficial; ver [game-launcher.md](game-launcher.md) sobre arquivos soltos |
 
-Quest nova com BSPs existentes (classe B) é o caminho realista para "criar fases". BSP novo (classe C) vira uma investigação separada: formato do BSP do Vindictus, versão do `vbsp`, `.ain` e lightmaps. Fica fora do primeiro corte.
+Quest nova com BSPs existentes (classe B) é o caminho realista para "criar fases". BSP novo (classe C) vira uma investigação separada: formato do BSP do Vindictus, versão do `vbsp`, `.ain` e lightmaps. A distribuição não é o obstáculo: `maps/` pode ir solto (seção 6). Monstro novo exige pacote HFS com o índice regravado. Fica fora do primeiro corte.
 
 ## 3. Requisitos do editor
 
@@ -104,12 +104,12 @@ Quest nova com BSPs existentes (classe B) é o caminho realista para "criar fase
 
 ## 6. Engenharia reversa com REA (pedido do operador, 26/10/2026)
 
-O REA serve para confirmar hipóteses pontuais, não para analisar o binário inteiro: a regra do AGENTS.md de 24/10/2026 proíbe a análise completa das DLLs do cliente por carga da máquina. Pontos úteis para este editor:
+O operador autorizou o REA no `FileSystem_Stdio.dll` e no `client.dll` (26/10/2026). Resultados que afetam este editor:
 
-- **`bin/server.dll` do cliente (16,3 MB):** é a parte "servidor" da engine Source que roda no host. Uma busca de strings (`npc_template_maker`, `TemplateName`, `EntityString`) e a descompilação só das funções que as referenciam diriam se o host usa as entidades enviadas pelo servidor (hipótese do 1.1). Isso exige a autorização do operador para abrir a DLL no REA de forma limitada, sem a análise automática completa.
+- **Mapas novos podem ir soltos** pelo código do sistema de arquivos: `maps/` não é prefixo bloqueado, e um BSP fora do índice HFS é buscado nas pastas soltas. Há ainda um redirecionamento `maps\<nome>.bsp` → `maps\<nome>\<nome>.bsp`, controlado por uma variável de console (`use_packfile_to_load_map`, **hipótese** do nome). Ver [game-launcher.md](game-launcher.md) seção 2.2. Isso torna a classe C (BSP novo) uma questão de ferramenta de compilação, não de distribuição.
+- **Monstros novos não:** `models/`, `materials/` e `scripts/` (onde ficam `npc_variations.txt` e os modelos) só são lidos de pacote, com o índice HFS regravado (teste L0-d do launcher).
+- **Spawns no host:** `npc_template_maker` (3 ocorrências), `TemplateName` (2) e `MapEntity_ParseAllEntities` estão no `bin/server.dll` do cliente, a parte host da engine Source; o `client.dll` não os contém. A hipótese do 1.1 continua aberta. O próximo passo é descompilar só o chamador de `MapEntity_ParseAllEntities` no `server.dll` (de onde vem o texto de entidades: lump do BSP ou mensagem do servidor). A análise completa do `client.dll` estourou o limite de 330 s por chamada do REA, e o `server.dll` (16,3 MB) deve se comportar igual: usar a desmontagem pontual (capstone) ou o teste do 1.1 no cliente, que é mais barato.
 - **Formato do `.bsp`:** a leitura da *entity lump* e do cabeçalho pode ser feita por script sobre o arquivo extraído, sem REA.
-
-Nada disso foi executado nesta etapa.
 
 ## 7. Etapas propostas
 

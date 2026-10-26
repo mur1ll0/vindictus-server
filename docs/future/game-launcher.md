@@ -25,24 +25,35 @@ Encaixe no roteiro: o L0 (teste de arquivos soltos) pode rodar a qualquer moment
    - `cfg/` (5 arquivos), `maps/graphs/*.ain`, `sound/`, `media/` também ficam soltos.
 6. **Windictus 2023 (somente leitura):** `C:\Windictus 2023` ainda tem 3.596 `.hfs`, mais uma pasta `data/` com 25.484 arquivos soltos (`data/maps/01a.bsp`, `data/models/armor/2016_summer/…mdl`, `data/materials`, `data/scaleform`, `data/scripts`). O `GameInfo.txt` dele tem os mesmos caminhos de busca, sem `data`, e o `FileSystem_Stdio.dll` tem as mesmas strings de HFS. **Hipótese:** o `data/` é montado por binários modificados ou pelo próprio launcher deles. Esse launcher (`Windictus.exe`, .NET, 167.936 bytes) confere a integridade de cada arquivo: o `WindictusLauncherLog.txt` mostra `The following file is corrupted: nexon_api.dll / heroes_text_english_eu.txt / Windictus.exe`. O REA (`inspect_managed_artifact`) não leu os metadados: `Duplicate metadata stream #GUID` é uma proteção anti-descompilação deliberada, e o `VMProtectSDK32.dll` está na pasta.
 
-### 2.2 Conclusão
+### 2.2 Como o cliente abre um arquivo (engenharia reversa, 26/10/2026)
 
-- **Comprovado:** o cliente 1.69 lê arquivos soltos da raiz para caminhos que **não** estão em nenhum HFS (scaleform, `sql/heroes.db3`, cfg). Arquivos novos, como ícones, modelos e scripts em caminhos novos, podem ser distribuídos soltos.
-- **Não comprovado:** se um arquivo solto **sobrepõe** o mesmo caminho dentro de um HFS (por exemplo `scripts/player_costume.txt` ou `scaleform/item_icon/<x>.tga`). A ordem padrão da Source varia por versão, e o "lazy mount" por índice pode até ignorar o solto.
-- **O motor exige os HFS?** Sim para o que só existe neles. A cópia sem a pasta `hfs/` não foi testada e não é necessária: o launcher distribui os HFS originais como arquivos opacos e acrescenta os soltos.
+Com a autorização do operador, o `bin/FileSystem_Stdio.dll` da cópia (SHA-256 `8b3bf91b6ac1…`) foi analisado no REA (Ghidra 12.1.4). Funções lidas: `CBaseFileSystem::Open` (`0x1000fb10`), busca no índice (`0x10027f30`), montagem sob demanda (`0x10025f00`), leitor do índice (`0x10028990`, `0x100288b0`), hash (`0x10056380`) e abertura em diretório × pacote (`0x1000cee0`).
 
-### 2.3 Testes de cliente (L0, checkpoint antes de implementar)
+1. **O índice HFS vem primeiro.** Para leitura, `Open` normaliza o caminho (minúsculas, `\`) e, se o índice estiver carregado, procura nele (`0x10027f30`). Achando, monta o `.hfs` sob demanda (`hfs/%s.hfs`, mensagem `Lazy-mounted: %s for %s`) e abre o arquivo pela posição e pelo tamanho gravados no índice. Só se o caminho **não** estiver no índice, ou se o pacote falhar ao montar, `Open` percorre os caminhos de busca (pastas soltas).
+2. **Prefixos bloqueados para soltos.** Se o caminho começa com `mater`, `model`, `scrip` ou `sqlit` (`materials/`, `models/`, `scripts/`, `sqlite/`), a busca de recurso só aceita caminhos de busca que são pacotes (campo `+0x10` do caminho de busca diferente de zero). Ou seja: **modelos, materiais e scripts soltos nunca são lidos**, nem como arquivo novo. Os demais (`scaleform/`, `resource/`, `maps/`, `sound/`, `sql/`, `cfg/`…) podem vir soltos quando não estiverem no índice.
+3. **Pacote que falha cai para os soltos.** Se o `.hfs` listado no índice não abre (`Can't load packfile: %s`), o nó é marcado como falho e `Open` segue para os caminhos de busca. É exatamente o que quem montou o 1.69 EN fez: `hfs/RENOMEADo_9FB527B373DCBD159552ADD1710487A724237AF9.hfs` (presente também no original somente leitura) contém `AchievementDialog.gfx`, `ArenaDialog.gfx` e as outras telas do `scaleform/`; renomeado, ele não monta, e o cliente usa as 453 telas soltas da raiz.
+4. **Formato do índice** (parser em código normal): o arquivo do índice é um registro HF (`48 46 01 02`), cujo conteúdo começa com o cabeçalho `HFI\x01` (`0x01494648`) de 0x14 bytes, com a contagem de pacotes (u16) e a contagem de arquivos. Depois vêm uma entrada de 0x14 bytes por pacote (os 20 bytes viram o nome hexadecimal do `.hfs`, portanto o nome é **gravado** no índice, não calculado do caminho) e uma tabela de 16 bytes por arquivo, ordenada pelo hash (busca binária): hash `u32` (`h = 0xAAAAAAAA; h = h*33 + tolower(c)` sobre o caminho), primeiro e último caractere em minúsculas, índice do pacote (u16), posição e tamanho dentro do pacote. Uma árvore de diretórios (nós de 0x1c bytes) confirma que o caminho pertence ao pacote.
+5. **Onde fica o índice:** desconhecido. A função que escolhe o arquivo e chama o leitor (`Loading index file: %s`) fica na seção `.vmp0` (VMProtect, 202.752 bytes), virtualizada; a descompilação ali não é confiável. O índice é um arquivo HF, mas nenhum dos 2.681 `.hfs` é ele (todos estão no `summary.txt` como pastas de conteúdo). **Hipótese:** está embutido ou é baixado/gerado pelo código protegido. Com `-dev`, a mensagem `Loading index file: <caminho>` deve aparecer no console do jogo: é o jeito mais barato de descobrir.
+
+### 2.3 Conclusão
+
+- **Comprovado (código):** soltos substituem o conteúdo de um HFS só quando aquele HFS deixa de montar (renomeado ou removido) **e** o caminho não começa por `materials/`, `models/`, `scripts/` ou `sqlite/`. A técnica "desativar o HFS e soltar a pasta inteira" vale para `scaleform/` (já em uso), `resource/` (textos), `maps/`, `sound/` e semelhantes. Ícones novos (`scaleform/item_icon/<nome novo>.tga`) não estão no índice e podem ir soltos sem desativar nada.
+- **Comprovado (código):** `scripts/player_costume.txt`, `scripts/item_data.txt`, `models/…` e `materials/…`, sejam alterados ou novos, **só** entram por pacote. Como a posição e o tamanho de cada arquivo estão no índice, refazer um `.hfs` com conteúdo diferente exige **regravar o índice**. O formato é conhecido (item 4), mas onde ele fica e se o código protegido confere a integridade não.
+- **Alternativa por binário:** os `.hfs` `Base_hl2.hfs`/`Base_platform.hfs` são pacotes de caminho de busca (a busca bloqueada os aceita). **Hipótese:** um pacote HF a mais registrado como caminho de busca (o que o Windictus parece fazer com `data/`) passaria nos prefixos bloqueados; exigiria mudar o `GameInfo.txt` ou o binário, e precisa de teste.
+- **O motor exige os HFS?** Sim: tudo que está no índice é lido dos pacotes. O launcher distribui os HFS originais como arquivos opacos e acrescenta os soltos; o que for `models/`/`scripts/`/`materials/` vai em pacote.
+
+### 2.4 Testes de cliente (L0, checkpoint antes de implementar)
 
 Fazer sempre na cópia de laboratório, nunca no original.
 
 | Teste | Passo | Resultado que decide |
 |---|---|---|
-| L0-a sobreposição | copiar `scaleform/item_icon/<ícone do Elixir>.tga` (hoje dentro de HFS) solto na raiz, com outra imagem | o ícone muda na loja → soltos sobrepõem HFS |
-| L0-b script | `scripts/useitem.txt` solto com uma entrada alterada | o comportamento muda → scripts podem ser editados soltos |
-| L0-c modelo novo | uma pasta nova `models/player/fiona/…mdl` solta (cópia renomeada de um modelo existente) referenciada por uma entrada nova de `player_costume.txt` | o personagem veste → editor de itens sem refazer HFS |
-| L0-d HFS refeito | extrair, alterar e refazer um `.hfs` com o `vZipFlip` | o cliente carrega → plano B, se L0-a falhar |
+| L0-a índice | abrir o jogo com `-dev`, abrir o console e procurar `Loading index file:` | caminho do índice → permite regravá-lo (item 4) |
+| L0-b texto solto | desativar (renomear) o HFS de `resource` e soltar a pasta `resource/` extraída com um nome de item alterado | o nome muda → textos editáveis soltos |
+| L0-c ícone novo | `scaleform/item_icon/<nome novo>.tga` solto e `ItemClassInfo.Icon` apontando para ele | o ícone aparece → ícones novos sem pacote |
+| L0-d índice regravado | com o caminho do L0-a, gerar um índice com um `.hfs` novo contendo um `player_costume.txt` alterado | o cliente aceita → modelos e scripts novos viáveis; se recusar, a proteção confere o índice |
 
-Se o L0-a falhar, o launcher passa a regravar o arquivo dentro do HFS refeito (plano B), como o pw-universal faz com o `.pck`.
+Se o L0-d passar, o launcher distribui `.hfs` novos e o índice regravado, como o pw-universal regrava entradas do `.pck`. Se falhar, modelos e scripts novos dependem de mudar o binário ou o `GameInfo.txt` (seção 2.3), uma decisão à parte.
 
 ## 3. Referência: pw-universal-server (projeto do operador)
 
@@ -63,7 +74,7 @@ Lido em `F:\Python_C_Projects\PWSource1.5.3\pw-universal-server` (somente leitur
 - **Pacotes:** `hfs/` é a maior parte e muda raramente. Proposta: pacotes `.tar.zst` por grupo (por exemplo `hfs-0` … `hfs-N` por faixa de nome, `bin`, `scaleform`, `raiz`), porque 2.681 pacotes de uma pasta só seriam pequenos demais. Os HFS já são armazenados ofuscados e comprimem pouco (**hipótese**; medir no L1).
 - **Objetos por versão de conteúdo:** cada versão publicada do painel (B4.4c) que toca o cliente gera uma versão do cliente com:
   - `sql/heroes.db3` completo, gerado no servidor a partir do original + `lab_content_additions.json` + sobreposição publicada (a mesma lógica de `apply_lab_content_additions.py`, migrada para o servidor). Tem 18.198.528 bytes; com zstd e baixado só quando muda, é aceitável. Delta binário (`zstd --patch-from`) é uma otimização posterior;
-  - arquivos soltos novos ou alterados (ícones, modelos, scripts e textos do editor de itens e do editor de fases);
+  - arquivos soltos novos ou alterados fora dos prefixos bloqueados (ícones novos, textos de `resource/` com o HFS dele desativado, mapas) e, depois do L0-d, `.hfs` novos com o índice regravado para `models/`, `materials/` e `scripts/` (seção 2.3);
   - o `EndPoint` certo para o servidor em `FeatureMatrix.EndPoints`, gravado no `heroes.db3` publicado, em vez do preparador manual (`prepare_lab_client.py`).
 - **Ligação com a versão de conteúdo do servidor:** o `versao.json` leva a versão de conteúdo e a `minima`. A publicação com manutenção (B4.4c) só termina quando o pacote do cliente da mesma versão existir. **Hipótese:** o protocolo não leva a versão de conteúdo; quem impede jogar com conteúdo velho é o launcher (versão mínima). Uma checagem no servidor exigiria um campo novo, fora do protocolo recuperado.
 
@@ -90,20 +101,20 @@ Durante a transição, o `start-lab.bat` continua como alternativa de laboratór
 ## 5. Riscos e decisões do operador
 
 - Distribuir o cliente original é distribuir assets proprietários: o servidor de arquivos é local ou privado, e nada disso entra no Git (AGENTS.md).
-- O formato e o nome do HFS não estão documentados no projeto, e o HFSExtract é ferramenta de terceiros. Usar só para leitura até o L0-d.
+- O índice é lido por código protegido com VMProtect; regravá-lo pode ser recusado por uma checagem que não se vê estaticamente (L0-d decide). O HFSExtract é ferramenta de terceiros: usar só para leitura até o L0-d.
 - Antivírus e SmartScreen com executável novo sem assinatura de código: decidir se o operador assina o launcher.
 - Decisões: pacotes por grupo × por pasta; o que sai da versão 0; se o launcher faz login (depende de T1/T2 do B4); onde fica a chave privada.
 
 ## 6. Engenharia reversa com REA (pedido do operador, 26/10/2026)
 
-- **Feito nesta etapa:** `inspect_managed_artifact` no `Windictus.exe`. A proteção dos metadados .NET impede ler o launcher do Windictus; o modelo dele fica só pelo log de integridade.
-- **Útil e pontual (precisa de autorização):** no `FileSystem_Stdio.dll` (958 KB, pequeno, mas uma DLL do cliente, coberta pela regra de 24/10 contra análise completa), descompilar só as funções que referenciam `Lazy-mounted: %s for %s` e `Loading index file: %s`. Isso mostraria a ordem solto × HFS, de onde vem o índice e como o nome do pacote é calculado, e permitiria criar pacotes `.hfs` para pastas novas. O teste L0 de cliente responde à mesma pergunta sem REA e deve vir primeiro.
+- `inspect_managed_artifact` no `Windictus.exe`: a proteção dos metadados .NET impede ler o launcher do Windictus; o modelo dele fica só pelo log de integridade.
+- `FileSystem_Stdio.dll` (autorizado pelo operador em 26/10/2026): resultado na seção 2.2. Limite: a parte em `.vmp0` (VMProtect), que escolhe o arquivo do índice e monta a lista de pacotes, não é legível estaticamente. O próximo passo é o L0-a (console com `-dev`), não mais análise estática.
 
 ## 7. Etapas propostas
 
 | Etapa | Entrega | Cliente |
 |---|---|---|
-| L0 | testes L0-a…d na cópia de laboratório | checkpoint de cliente |
+| L0 | testes L0-a…d na cópia de laboratório (seção 2.4) | checkpoint de cliente |
 | L1 | importação da versão 0, pacotes, manifesto assinado e HTTP de arquivos (com medição de tamanho e tempo) | não necessário |
 | L2 | launcher: instalar, verificar, reparar e jogar | instalar numa pasta limpa e jogar |
 | L3 | versão de cliente gerada a cada publicação de conteúdo que toca o cliente (`heroes.db3` gerado no servidor, EndPoint), no lugar do `start-lab.bat` | preço novo de loja visto depois de atualizar pelo launcher |
