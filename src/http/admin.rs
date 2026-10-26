@@ -27,6 +27,7 @@ use utoipa::{IntoParams, OpenApi, ToSchema};
 use zeroize::Zeroizing;
 
 mod accounts;
+mod characters;
 
 pub const COOKIE: &str = "vindictus_admin";
 pub const CSRF_HEADER: &str = "x-csrf-token";
@@ -36,6 +37,7 @@ const MAX_BODY: usize = 8 * 1024;
 pub struct AdminState {
     auth: PanelAuth,
     secure_cookie: bool,
+    names: std::sync::Arc<crate::infrastructure::admin_characters::EnglishNames>,
 }
 
 impl AdminState {
@@ -44,7 +46,16 @@ impl AdminState {
         Self {
             auth,
             secure_cookie,
+            names: std::sync::Arc::default(),
         }
+    }
+    /// English item/skill/status names (scripts/content/export_item_names.py).
+    pub fn with_names(
+        mut self,
+        names: crate::infrastructure::admin_characters::EnglishNames,
+    ) -> Self {
+        self.names = std::sync::Arc::new(names);
+        self
     }
 }
 
@@ -66,7 +77,10 @@ impl AdminState {
         accounts::create,
         accounts::set_role,
         accounts::set_password,
-        accounts::set_status
+        accounts::set_status,
+        characters::of_account,
+        characters::mine,
+        characters::sheet
     ),
     components(schemas(
         LoginRequest,
@@ -78,7 +92,15 @@ impl AdminState {
         accounts::CreateAccount,
         accounts::SetRole,
         accounts::SetPassword,
-        accounts::SetStatus
+        accounts::SetStatus,
+        crate::infrastructure::admin_characters::CharacterSummary,
+        crate::infrastructure::admin_characters::CharacterSheet,
+        crate::infrastructure::admin_characters::CharacterStats,
+        crate::infrastructure::admin_characters::CharacterItem,
+        crate::infrastructure::admin_characters::ItemAttribute,
+        crate::infrastructure::admin_characters::CharacterSkill,
+        crate::infrastructure::admin_characters::CharacterStatusEffect,
+        crate::infrastructure::admin_characters::CharacterTitle
     ))
 )]
 pub struct ApiDoc;
@@ -111,6 +133,12 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             "/api/accounts/{username}/status",
             post(accounts::set_status),
         )
+        .route(
+            "/api/accounts/{username}/characters",
+            get(characters::of_account),
+        )
+        .route("/api/me/characters", get(characters::mine))
+        .route("/api/characters/{cid}", get(characters::sheet))
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-store"),

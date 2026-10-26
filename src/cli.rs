@@ -49,6 +49,9 @@ pub enum Command {
         /// Mark the panel cookie Secure (only behind HTTPS).
         #[arg(long, requires = "admin_listen")]
         admin_secure_cookie: bool,
+        /// English item/skill/status names for the panel (scripts/content/export_item_names.py).
+        #[arg(long, requires = "admin_listen")]
+        admin_item_names: Option<std::path::PathBuf>,
     },
     /// Give, change or remove (`none`) the panel role of an existing account; audited.
     AccountSetRole {

@@ -71,3 +71,24 @@ pub async fn link_game(
     tx.commit().await?;
     Ok(LinkChange::Done)
 }
+
+/// Lower-case game name key an account enters (its game_name, else its login).
+pub async fn account_key(pool: &PgPool, account: Uuid) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar("SELECT lower(COALESCE(game_name, username)) FROM accounts WHERE id = $1")
+        .bind(account)
+        .fetch_optional(pool)
+        .await
+}
+
+/// The same by the account's normalized login.
+pub async fn account_key_by_name(
+    pool: &PgPool,
+    normalized: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT lower(COALESCE(game_name, username)) FROM accounts WHERE normalized_name = $1",
+    )
+    .bind(normalized)
+    .fetch_optional(pool)
+    .await
+}

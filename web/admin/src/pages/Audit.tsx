@@ -17,6 +17,7 @@ const ACTIONS: Record<string, { label: string; icon: ReactNode }> = {
   'account.password': { label: 'Senha trocada', icon: <KeyRound /> },
   'account.status': { label: 'Conta ativada/desativada', icon: <Ban /> },
   'account.game_link': { label: 'Conta ligada a usuário do jogo', icon: <Link2 /> },
+  'play.code': { label: 'Código de jogo (recurso retirado)', icon: <KeyRound /> },
 };
 
 async function page(beforeId: number | undefined): Promise<AuditEntry[]> {

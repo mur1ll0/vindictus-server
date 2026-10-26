@@ -318,6 +318,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         admin_listen,
         admin_ui_dir,
         admin_secure_cookie,
+        admin_item_names,
         ..
     } = &cli.command
     {
@@ -414,10 +415,19 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 let admin_listener =
                     tokio::net::TcpListener::bind(lab_peer::listen_addr(*bind)).await?;
                 tracing::info!(address=%admin_listener.local_addr()?, "admin panel listening");
-                let app = admin::router(
-                    admin::AdminState::new(PanelAuth::new(pool.clone()), *admin_secure_cookie),
-                    admin_ui_dir.as_deref(),
-                );
+                let mut state =
+                    admin::AdminState::new(PanelAuth::new(pool.clone()), *admin_secure_cookie);
+                if let Some(path) = admin_item_names {
+                    let names =
+                        vindictus_server::infrastructure::admin_characters::EnglishNames::read(
+                            std::fs::File::open(path)?,
+                        )
+                        .map_err(|_| {
+                            Error::Configuration("invalid admin English names file".into())
+                        })?;
+                    state = state.with_names(names);
+                }
+                let app = admin::router(state, admin_ui_dir.as_deref());
                 Some(tokio::spawn(admin::serve(admin_listener, app)))
             }
             None => None,

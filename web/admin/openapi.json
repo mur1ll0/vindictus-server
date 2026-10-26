@@ -131,6 +131,60 @@
         }
       }
     },
+    "/api/accounts/{username}/characters": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Characters of an account's game user (staff).",
+        "operationId": "of_account",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterSummary"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/accounts/{username}/password": {
       "post": {
         "tags": [
@@ -420,6 +474,47 @@
         }
       }
     },
+    "/api/characters/{cid}": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "One character: sheet, inventory with attributes, skills, status effects and titles.",
+        "operationId": "sheet",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CharacterSheet"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [],
@@ -432,6 +527,40 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccountSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/characters": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "The session's own characters (any account).",
+        "operationId": "mine",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CharacterSummary"
+                  }
                 }
               }
             }
@@ -817,6 +946,312 @@
           }
         }
       },
+      "CharacterItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "class",
+          "count",
+          "collection",
+          "slot",
+          "tradable",
+          "attributes"
+        ],
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemAttribute"
+            }
+          },
+          "class": {
+            "type": "string"
+          },
+          "collection": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0–8 bags, 100 cash, 101 account (gold), 102 restore, 103 story."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "durability_lost": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "equipped_part": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Equipped body part (game_equippables.part), when worn."
+          },
+          "expires_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Expiry as Unix seconds."
+          },
+          "id": {
+            "type": "string",
+            "description": "Item ID (64-bit, as text)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slot": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tradable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CharacterSheet": {
+        "type": "object",
+        "required": [
+          "summary",
+          "owner",
+          "gold",
+          "stats",
+          "items",
+          "skills",
+          "status_effects",
+          "titles"
+        ],
+        "properties": {
+          "gold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CharacterItem"
+            }
+          },
+          "owner": {
+            "type": "string",
+            "description": "Login (game account name) of the owner."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CharacterSkill"
+            }
+          },
+          "stats": {
+            "$ref": "#/components/schemas/CharacterStats"
+          },
+          "status_effects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CharacterStatusEffect"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CharacterSummary"
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CharacterTitle"
+            }
+          }
+        }
+      },
+      "CharacterSkill": {
+        "type": "object",
+        "required": [
+          "skill",
+          "rank",
+          "locked"
+        ],
+        "properties": {
+          "locked": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skill": {
+            "type": "string"
+          }
+        }
+      },
+      "CharacterStats": {
+        "type": "object",
+        "required": [
+          "str",
+          "dex",
+          "int",
+          "will",
+          "luck",
+          "hp",
+          "stamina",
+          "total_used_ap",
+          "play_time"
+        ],
+        "properties": {
+          "dex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "int": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "luck": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "play_time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seconds played."
+          },
+          "stamina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "str": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total_used_ap": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "will": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CharacterStatusEffect": {
+        "type": "object",
+        "required": [
+          "kind",
+          "level"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Expiry as Unix seconds; none for effects without a time limit."
+          },
+          "kind": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CharacterSummary": {
+        "type": "object",
+        "required": [
+          "cid",
+          "name",
+          "class",
+          "level",
+          "exp",
+          "ap",
+          "connected",
+          "deleting"
+        ],
+        "properties": {
+          "ap": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cid": {
+            "type": "string",
+            "description": "Character ID (a 64-bit number, as text for JavaScript)."
+          },
+          "class": {
+            "type": "integer",
+            "format": "int32",
+            "description": "BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,\n7 Lynn, 8 Arisha, 9 Hagie."
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "deleting": {
+            "type": "boolean",
+            "description": "Marked for deletion."
+          },
+          "exp": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CharacterTitle": {
+        "type": "object",
+        "required": [
+          "title_id",
+          "acquired",
+          "selected"
+        ],
+        "properties": {
+          "acquired": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "title_id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "CreateAccount": {
         "type": "object",
         "required": [
@@ -849,6 +1284,31 @@
           "username": {
             "type": "string",
             "description": "3–24 letters, digits or underscore (fits the game's account name)."
+          }
+        }
+      },
+      "ItemAttribute": {
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "arg",
+          "arg2"
+        ],
+        "properties": {
+          "arg": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "arg2": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
           }
         }
       },

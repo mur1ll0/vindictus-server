@@ -73,6 +73,8 @@ if($AdminPort-gt0){
  $taskRuntimeArguments+=@('--admin-listen',('127.0.0.1:'+$AdminPort))
  $taskUi=Join-Path $project 'web/admin/dist'
  if(Test-Path -LiteralPath (Join-Path $taskUi 'index.html')){$taskRuntimeArguments+=@('--admin-ui-dir',('"'+$taskUi+'"'))}
+ $taskNames=Join-Path $project '.cache/private-content/item-names.json'
+ if(Test-Path -LiteralPath $taskNames){$taskRuntimeArguments+=@('--admin-item-names',('"'+$taskNames+'"'))}
 }
 $process=Start-Process -FilePath $exe -ArgumentList $taskRuntimeArguments -WorkingDirectory $project -WindowStyle Hidden -Environment @{DATABASE_URL=$url;DATABASE_URL_FILE=$null;DB_MAX_CONNECTIONS='8';RUST_LOG='info'} -RedirectStandardInput $stdinCopy -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
 $settings.Clear();$url=$null

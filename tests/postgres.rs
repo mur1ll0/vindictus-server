@@ -1619,3 +1619,6 @@ mod admin_panel;
 
 #[path = "support/admin_accounts.rs"]
 mod admin_accounts;
+
+#[path = "support/admin_characters.rs"]
+mod admin_characters;

@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/{username}/characters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Characters of an account's game user (staff). */
+        get: operations["of_account"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{username}/password": {
         parameters: {
             query?: never;
@@ -88,6 +105,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{cid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One character: sheet, inventory with attributes, skills, status effects and titles. */
+        get: operations["sheet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -97,6 +131,23 @@ export interface paths {
         };
         /** The logged-in account's own data (any account, with or without a panel role). */
         get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/characters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The session's own characters (any account). */
+        get: operations["mine"];
         put?: never;
         post?: never;
         delete?: never;
@@ -240,6 +291,115 @@ export interface components {
             target_id?: string | null;
             target_kind?: string | null;
         };
+        CharacterItem: {
+            attributes: components["schemas"]["ItemAttribute"][];
+            class: string;
+            /**
+             * Format: int32
+             * @description 0–8 bags, 100 cash, 101 account (gold), 102 restore, 103 story.
+             */
+            collection: number;
+            /** Format: int32 */
+            count: number;
+            description?: string | null;
+            /** Format: int32 */
+            durability_lost?: number | null;
+            /**
+             * Format: int32
+             * @description Equipped body part (game_equippables.part), when worn.
+             */
+            equipped_part?: number | null;
+            /**
+             * Format: int64
+             * @description Expiry as Unix seconds.
+             */
+            expires_at?: number | null;
+            /** @description Item ID (64-bit, as text). */
+            id: string;
+            name?: string | null;
+            /** Format: int32 */
+            slot: number;
+            tradable: boolean;
+        };
+        CharacterSheet: {
+            /** Format: int64 */
+            gold: number;
+            items: components["schemas"]["CharacterItem"][];
+            /** @description Login (game account name) of the owner. */
+            owner: string;
+            skills: components["schemas"]["CharacterSkill"][];
+            stats: components["schemas"]["CharacterStats"];
+            status_effects: components["schemas"]["CharacterStatusEffect"][];
+            summary: components["schemas"]["CharacterSummary"];
+            titles: components["schemas"]["CharacterTitle"][];
+        };
+        CharacterSkill: {
+            locked: boolean;
+            name?: string | null;
+            /** Format: int32 */
+            rank: number;
+            skill: string;
+        };
+        CharacterStats: {
+            /** Format: int32 */
+            dex: number;
+            /** Format: int32 */
+            hp: number;
+            /** Format: int32 */
+            int: number;
+            /** Format: int32 */
+            luck: number;
+            /**
+             * Format: int64
+             * @description Seconds played.
+             */
+            play_time: number;
+            /** Format: int32 */
+            stamina: number;
+            /** Format: int32 */
+            str: number;
+            /** Format: int32 */
+            total_used_ap: number;
+            /** Format: int32 */
+            will: number;
+        };
+        CharacterStatusEffect: {
+            /**
+             * Format: int64
+             * @description Expiry as Unix seconds; none for effects without a time limit.
+             */
+            expires_at?: number | null;
+            kind: string;
+            /** Format: int32 */
+            level: number;
+            name?: string | null;
+        };
+        CharacterSummary: {
+            /** Format: int32 */
+            ap: number;
+            /** @description Character ID (a 64-bit number, as text for JavaScript). */
+            cid: string;
+            /**
+             * Format: int32
+             * @description BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,
+             *     7 Lynn, 8 Arisha, 9 Hagie.
+             */
+            class: number;
+            connected: boolean;
+            /** @description Marked for deletion. */
+            deleting: boolean;
+            /** Format: int64 */
+            exp: number;
+            /** Format: int32 */
+            level: number;
+            name: string;
+        };
+        CharacterTitle: {
+            acquired: boolean;
+            selected: boolean;
+            /** Format: int32 */
+            title_id: number;
+        };
         CreateAccount: {
             /** Format: uuid */
             operation_id: string;
@@ -256,6 +416,14 @@ export interface components {
             reason: string;
             /** @description 3–24 letters, digits or underscore (fits the game's account name). */
             username: string;
+        };
+        ItemAttribute: {
+            /** Format: int32 */
+            arg: number;
+            /** Format: int32 */
+            arg2: number;
+            name: string;
+            value: string;
         };
         LoginRequest: {
             /** Format: password */
@@ -391,6 +559,43 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    of_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterSummary"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -592,6 +797,35 @@ export interface operations {
             };
         };
     };
+    sheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterSheet"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -607,6 +841,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AccountSummary"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterSummary"][];
                 };
             };
             401: {

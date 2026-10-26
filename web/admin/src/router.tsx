@@ -4,6 +4,7 @@ import { homeOf, sessionQuery } from '@/api/session';
 import { Layout } from '@/components/Layout';
 import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
+import { CharacterPage } from '@/pages/Character';
 import { LoginPage } from '@/pages/Login';
 import { MyAccountPage } from '@/pages/MyAccount';
 
@@ -55,6 +56,12 @@ const auditRoute = createRoute({
   beforeLoad: staffOnly,
   component: AuditPage,
 });
+/** Character sheet: the server answers only for staff or the character's own account. */
+const characterRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/personagens/$cid',
+  component: CharacterPage,
+});
 const myAccountRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/minha-conta',
@@ -65,7 +72,7 @@ export function makeRouter(queryClient: QueryClient) {
   return createRouter({
     routeTree: root.addChildren([
       loginRoute,
-      shellRoute.addChildren([indexRoute, accountsRoute, auditRoute, myAccountRoute]),
+      shellRoute.addChildren([indexRoute, accountsRoute, auditRoute, characterRoute, myAccountRoute]),
     ]),
     context: { queryClient },
   });

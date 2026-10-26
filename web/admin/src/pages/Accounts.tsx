@@ -2,7 +2,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ban, CircleCheck, KeyRound, Lock, Plus, Search, ShieldCheck } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { api, type components, fail, type Role } from '@/api/client';
+import { accountCharacters } from '@/api/characters';
 import { sessionQuery } from '@/api/session';
+import { CharacterCards } from '@/components/CharacterCards';
 import { Avatar } from '@/components/Avatar';
 import { ActionForm, errorText, PasswordFields, RoleSelect, roleLabel } from '@/components/forms';
 import { Modal } from '@/components/Modal';
@@ -83,6 +85,10 @@ function AccountModal({
   onChanged: () => void;
 }) {
   const [action, setAction] = useState<Action>('details');
+  const characters = useQuery({
+    queryKey: ['accounts', account.username, 'characters'],
+    queryFn: () => accountCharacters(account.username),
+  });
   const [role, setRole] = useState<Role | ''>((account.panel_role as Role | null) ?? '');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -111,6 +117,13 @@ function AccountModal({
             <Stat label="Nome no jogo">{account.game_name ?? account.username}</Stat>
             <Stat label="UID">{account.game_uid ?? '—'}</Stat>
             <Stat label="Personagens">{account.characters}</Stat>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Personagens</p>
+            <CharacterCards
+              characters={characters.data ?? []}
+              empty={characters.isPending ? 'Carregando…' : 'Nenhum personagem.'}
+            />
           </div>
           {account.locked && (
             <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">

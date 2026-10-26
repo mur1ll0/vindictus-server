@@ -25,5 +25,15 @@ Pré-condição: cliente fechado; containers no ar (a imagem já registra o tama
 Resultado esperado: com os dois horários, comparo no log `laboratory UserLogin field lengths` se algum campo muda para 17 com a senha. Se mudar, o próximo passo valida a senha da conta na própria tela de login do jogo e segue para a segunda senha; se não mudar, o cliente não envia a senha e a decisão volta para você.
 Limites conhecidos: até esse passo, `lab169_a` (agora da conta `admin`) não entra no jogo sem a validação da senha.
 
+### B4.3a — Personagens no painel (só leitura)
+Pré-condição: containers recompilados com `item-names.json` exportado (`py -3.13 scripts/content/export_item_names.py --output .cache/private-content/item-names.json`).
+- [ ] Como `admin`, Contas → cartão `admin` → o modal mostra "Personagens" com o cartão da Murael (Fiona · nível 20).
+- [ ] Clicar na Murael → ficha com classe, nível, ouro igual ao do jogo, EXP, AP, atributos e tempo de jogo.
+- [ ] Aba Inventário → itens agrupados por Bolsa 1, Bolsa 2…, Cash, Conta (ouro), com nomes em inglês iguais aos do tooltip do jogo; o equipamento vestido tem o crachá "vestido"; um item melhorado/encantado mostra "atributo(s)" e, no modal, `classe[ENHANCE:…]`.
+- [ ] Filtrar por "sword" (ou outra parte do nome) → só os itens que batem.
+- [ ] Abas Skills (nomes em inglês e rank), Efeitos (VIP/termas, se houver, com validade) e Títulos (IDs, o selecionado marcado).
+- [ ] Como `teste_b4` (sem papel): Minha conta → "Meus personagens" mostra só os dele; abrir no navegador `http://127.0.0.1:27090/personagens/<CID da Murael>` → "Não encontrado".
+Limites conhecidos: somente leitura (dar/remover itens é o B4.3b); títulos aparecem pelo ID; nomes coreanos não traduzidos no cliente EU aparecem pela classe.
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

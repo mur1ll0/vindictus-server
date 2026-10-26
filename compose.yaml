@@ -82,6 +82,7 @@ services:
         --name-proof-file /content/character-name-proof.json
         --minimum-creation-assets /lab/minimum-creation-assets.json
         --admin-listen 127.0.0.1:27090 --admin-ui-dir /app/admin-ui
+        --admin-item-names /content/item-names.json
         < /run/secrets/lab_runtime_profile
     environment:
       <<: *app-environment

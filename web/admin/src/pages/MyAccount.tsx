@@ -3,7 +3,9 @@ import { useNavigate } from '@tanstack/react-router';
 import { KeyRound } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
 import { api, fail } from '@/api/client';
+import { myCharacters } from '@/api/characters';
 import { Avatar } from '@/components/Avatar';
+import { CharacterCards } from '@/components/CharacterCards';
 import { errorText, PasswordFields, roleLabel } from '@/components/forms';
 import { Modal } from '@/components/Modal';
 import { Stat } from '@/components/Stat';
@@ -83,6 +85,7 @@ function PasswordModal({ onClose }: { onClose: () => void }) {
 
 export function MyAccountPage() {
   const query = useQuery({ queryKey: ['me'], queryFn: me });
+  const characters = useQuery({ queryKey: ['me', 'characters'], queryFn: myCharacters });
   const [changing, setChanging] = useState(false);
   const account = query.data;
   if (!account) {
@@ -114,9 +117,10 @@ export function MyAccountPage() {
           <Stat label="Papel no painel">{roleLabel(account.panel_role)}</Stat>
         </div>
       </Card>
-      <p className="text-sm text-muted">
-        Os personagens e itens da conta aparecerão aqui na próxima etapa do painel.
-      </p>
+      <Card>
+        <h2 className="mb-3 font-semibold">Meus personagens</h2>
+        <CharacterCards characters={characters.data ?? []} empty={characters.isPending ? 'Carregando…' : 'Nenhum personagem ainda: entre no jogo e crie um.'} />
+      </Card>
       {changing && <PasswordModal onClose={() => setChanging(false)} />}
     </section>
   );

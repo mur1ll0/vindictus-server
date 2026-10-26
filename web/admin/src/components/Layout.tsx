@@ -19,7 +19,7 @@ const OWN: Item[] = [{ to: '/minha-conta', label: 'Minha conta', icon: <UserRoun
 export const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/contas': { title: 'Contas', subtitle: 'Login e senha valem para o painel e para o jogo' },
   '/auditoria': { title: 'Auditoria', subtitle: 'Toda entrada e toda mudança, com quem, quando e por quê' },
-  '/minha-conta': { title: 'Minha conta', subtitle: 'Seus dados e sua senha' },
+  '/minha-conta': { title: 'Minha conta', subtitle: 'Seus dados, seus personagens e sua senha' },
 };
 
 function Section({ label, items }: { label: string; items: Item[] }) {
@@ -60,7 +60,11 @@ export function Layout() {
     setTheme(next);
   };
   const staff = Boolean(session?.role);
-  const heading = TITLES[path] ?? { title: 'Painel', subtitle: '' };
+  const heading =
+    TITLES[path] ??
+    (path.startsWith('/personagens/')
+      ? { title: 'Personagem', subtitle: 'Ficha, inventário, skills, efeitos e títulos (somente leitura)' }
+      : { title: 'Painel', subtitle: '' });
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-60 shrink-0 flex-col gap-6 border-r border-border bg-surface px-3 py-5 md:flex">
