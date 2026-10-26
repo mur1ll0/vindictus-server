@@ -18,12 +18,16 @@ Pré-condição: containers no ar.
 - [ ] Entrar de novo como `admin` → Auditoria em cartões: o cadastro de `teste_b4`, a troca de senha ("troca pelo próprio usuário") e as entradas no painel, com quem, quando, IP e antes → depois.
 Limites conhecidos: personagens e itens da conta ainda não aparecem (B4.3); entrar no jogo com a conta depende do diagnóstico abaixo.
 
-### B4.2-D — Diagnóstico: a senha da tela de login do jogo chega ao servidor?
-Pré-condição: cliente fechado; containers no ar (a imagem já registra o tamanho de cada campo da mensagem de login, nunca o conteúdo).
-- [ ] Abrir o cliente pelo `start.bat` da `.cache/play-client`, Start Game, digitar `admin` no ID e, na senha, exatamente `senhadiagnostico1` (17 caracteres) → por enquanto o login é recusado (esperado). Anotar o horário (hh:mm).
-- [ ] Repetir com o ID `admin` e a senha em branco → também recusado. Anotar o horário.
-Resultado esperado: com os dois horários, comparo no log `laboratory UserLogin field lengths` se algum campo muda para 17 com a senha. Se mudar, o próximo passo valida a senha da conta na própria tela de login do jogo e segue para a segunda senha; se não mudar, o cliente não envia a senha e a decisão volta para você.
-Limites conhecidos: até esse passo, `lab169_a` (agora da conta `admin`) não entra no jogo sem a validação da senha.
+### B4.2-D — Diagnóstico da senha da tela de login (feito em 26/10/2026)
+Resultado: com ID `admin` e senha em branco ou `admin`, a mensagem de login chegou idêntica (passport de 5 caracteres; NexonID 0, HwID 0, MachineID 16, UpToDateInfo 0). O cliente não envia a senha. Decisão do operador: login sem senha no jogo.
+
+### B4.2-L — Entrar no jogo com o login da conta
+Pré-condição: containers recompilados depois de 26/10/2026; cliente fechado.
+- [ ] Abrir o cliente pelo `start.bat` da `.cache/play-client`, Start Game, digitar `admin` no ID (senha em branco ou qualquer uma) → pede a segunda senha de sempre e lista a Fiona Murael; entrar na cidade → personagem, inventário e ouro como antes.
+- [ ] Sair e tentar `lab169_a` no ID → recusado ("Premium Open"): o nome pertence à conta `admin`.
+- [ ] No painel, criar ou usar `teste_b4`, entrar no jogo digitando `teste_b4` → lobby vazio; criar uma Fiona; no painel, Minha conta de `teste_b4` mostra a personagem.
+- [ ] Desativar `teste_b4` no painel (como `admin`) e tentar entrar no jogo com `teste_b4` → recusado.
+Limites conhecidos: a senha da conta não protege o jogo (o cliente não a envia); a proteção do jogo é a segunda senha. Um launcher futuro pode mudar isso.
 
 ### B4.3a — Personagens no painel (só leitura)
 Pré-condição: containers recompilados com `item-names.json` exportado (`py -3.13 scripts/content/export_item_names.py --output .cache/private-content/item-names.json`).

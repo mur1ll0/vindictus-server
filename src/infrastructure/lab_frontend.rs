@@ -490,30 +490,34 @@ impl Connection {
         let message = decode_login_ingress(category, body, DEFAULT_MAX_BODY)
             .map_err(|_| RuntimeError::Message)?
             .ok_or(RuntimeError::Message)?;
-        // B4 diagnostic (operator test of 2026-10-26): does the login screen's password field
-        // reach the server in any UserLogin field? Lengths only; no field content is logged.
-        let length = |v: Option<&str>| v.map_or(-1, |s| s.chars().count() as i64);
-        tracing::info!(
-            passport_len = length(message.passport),
-            nexon_id_len = length(message.nexon_id),
-            nexon_id_equals_passport =
-                message.nexon_id.is_some() && message.nexon_id == message.passport,
-            hw_id_len = length(message.hw_id),
-            machine_id_len = message.machine_id.map_or(-1, |m| m.len() as i64),
-            up_to_date_info_len = length(message.up_to_date_info),
-            game_room_client = message.game_room_client,
-            is_character_select_skipped = message.is_character_select_skipped,
-            "laboratory UserLogin field lengths"
-        );
-        // The local allowlist, checked before reservation, applies only to names no account
-        // has claimed (B4.2): a claimed name needs the account's password. A refusal reserves
-        // no session and touches no game state.
-        let passport = message.passport;
-        let admitted = runtime.profile.permits(passport)
-            && match unclaimed_name_key(passport, runtime.profile.identity_options()) {
-                Some(key) => matches!(super::game_links::claimed(pool, &key).await, Ok(false)),
-                None => false,
-            };
+        // B4.2 (operator decision 2026-10-26): the client never sends its password field (the
+        // UserLogin lengths were identical with and without one), so the ID typed is the login
+        // of an active account, which enters that account's game name; the password protects
+        // the panel and the second password the characters. Otherwise the local allowlist
+        // applies, only to names no account has claimed. Checked before reservation: a refusal
+        // reserves no session and touches no game state.
+        let account_game = match message
+            .passport
+            .and_then(|p| crate::domain::Username::parse(p).ok())
+        {
+            Some(name) => super::game_links::game_name_for_login(pool, name.normalized())
+                .await
+                .ok()
+                .flatten()
+                .map(Zeroizing::new),
+            None => None,
+        };
+        let passport = account_game
+            .as_ref()
+            .map_or(message.passport, |g| Some(g.as_str()));
+        let admitted = account_game.is_some()
+            || (runtime.profile.permits(passport)
+                && match unclaimed_name_key(passport, runtime.profile.identity_options()) {
+                    Some(key) => {
+                        matches!(super::game_links::claimed(pool, &key).await, Ok(false))
+                    }
+                    None => false,
+                });
         if !admitted {
             failure(
                 stream,

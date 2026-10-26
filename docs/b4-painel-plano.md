@@ -58,6 +58,8 @@ launcher (scripts/dev/play.ps1 ou página /jogar do painel)
 
 Resultado (25/10/2026): T1 entrou com uma senha qualquer (a senha é ignorada); T2 mostrou "Erro [Auth] SSO" e fechou. Implementado o código de uso único digitado no campo ID (B4.2b); a conta `admin` foi ligada ao usuário de jogo `lab169_a` (Fiona Murael) com `account-link-game`.
 
+Resultado do B4.2-D (26/10/2026): o cliente não envia a senha da tela de login (mensagens idênticas com e sem senha). Decisão do operador: o jogo aceita o login de uma conta ativa digitado no ID, sem senha, e entra no nome de jogo da conta; a senha protege o painel e a segunda senha os personagens; um launcher pode mudar isso no futuro.
+
 Revisão de 26/10/2026 (decisão do operador): o código de jogo foi retirado por ser considerado inseguro. O jogo deve usar a própria tela de login do cliente (Start Game → ID e senha → seleção de personagens → segunda senha) e, no futuro, um launcher que já entra logado. O diagnóstico B4.2-D (`docs/client-tests/B4-painel.md`) verifica se a senha da tela chega em algum campo do `UserLoginMessage`. Toda conta ativa entra no painel; sem papel, vê só os próprios dados e troca a senha; há cadastro aberto na tela de login.
 
 ### 1.3b Detalhes da conta (válidos nas duas variantes)

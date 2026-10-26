@@ -17,7 +17,7 @@ const STAFF: Item[] = [
 const OWN: Item[] = [{ to: '/minha-conta', label: 'Minha conta', icon: <UserRound /> }];
 
 export const TITLES: Record<string, { title: string; subtitle: string }> = {
-  '/contas': { title: 'Contas', subtitle: 'Login e senha valem para o painel e para o jogo' },
+  '/contas': { title: 'Contas', subtitle: 'No jogo, digite o login no ID (senha em branco); a senha protege o painel' },
   '/auditoria': { title: 'Auditoria', subtitle: 'Toda entrada e toda mudança, com quem, quando e por quê' },
   '/minha-conta': { title: 'Minha conta', subtitle: 'Seus dados, seus personagens e sua senha' },
 };

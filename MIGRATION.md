@@ -1488,5 +1488,11 @@ B4.3a — personagens no painel, só leitura (26/10/2026).
 - Testes: Python `test_export_item_names` (1); PostgreSQL `character_sheet_for_owner_and_staff_only` (dono e equipe leem; outra conta recebe "não encontrado" e não lista contas alheias; ouro, nome em inglês, peça vestida, durabilidade, atributo ENHANCE:6, skill, efeito, título selecionado) e regressões `admin_*`/`registration_own_*`; `tests/admin_http.rs` (4); clippy; `npm run build`. Logs: `.cache/verification/b43-*.log`.
 - Cliente: entrada B4.3a em `docs/client-tests/B4-painel.md`.
 - Verificação real (Docker recompilado, 26/10/2026): ficha da Murael aberta no painel com ouro 291.549, 100 itens com nomes em inglês, peças vestidas, item com atributo, 27 skills, 2 efeitos e 31 títulos.
-- Parada (AGENTS, caso 2): o B4.3b muda personagens e precisa ser conferido entrando no jogo, o que depende do diagnóstico B4.2-D (validação da senha no login do jogo).
-- Próxima ação retomável: B4.3b — mudanças em personagem pelo painel (dar/remover/mover item com atributos, ouro, cash), com o personagem offline. A validação da senha no login do jogo espera o resultado do B4.2-D.
+
+B4.2d — login do jogo pelo login da conta (26/10/2026).
+- Diagnóstico B4.2-D no cliente (log `laboratory UserLogin field lengths`, 03:13–03:15 UTC): com ID `admin` e senha em branco ou `admin`, passport 5, NexonID 0, HwID 0, MachineID 16, UpToDateInfo 0 em todas as tentativas. O cliente não envia a senha; a recusa "We are currently in the Premium Open period" é o texto do cliente para `PermissionFailed`.
+- Decisão do operador: login sem senha no jogo. O `lab_frontend` aceita no ID o login de uma conta ativa (sem diferença de maiúsculas) e entra no nome de jogo dela (`game_links::game_name_for_login`); `admin` entra em `lab169_a` (Fiona Murael). Conta desativada e nome reivindicado digitado direto (`lab169_a`) são recusados antes de reservar sessão; a lista estática continua para nomes sem conta. O registro de tamanhos de campo foi retirado.
+- Textos do painel ajustados (o login vale para o jogo; a senha protege o painel).
+- Testes: TCP `actual_tcp_account_login_enters_its_game_name_and_claimed_or_disabled_are_refused` (substitui o teste só de recusa) e regressões `actual_tcp_scoped_login_password_reconnect_duplicate_and_cleanup_persist`, `actual_tcp_unmarked_user_refusal_has_no_effects_or_origin_and_releases_reservation`; clippy; `npm run build`. Logs: `.cache/verification/b42d-*.log`.
+- Cliente: entrada B4.2-L em `docs/client-tests/B4-painel.md`.
+- Próxima ação retomável: depois da confirmação B4.2-L no cliente, B4.3b — mudanças em personagem pelo painel (dar/remover/mover item com atributos, ouro, cash), com o personagem offline.

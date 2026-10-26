@@ -774,23 +774,26 @@ async fn actual_tcp_name_check_uses_source_dialog_and_name_change_result_before_
     assert!(task.await.unwrap().is_ok());
     cleanup_game_pool(admin, pool, schema).await;
 }
-/// B4.2: an allowlist name claimed by an account no longer logs in by its passport alone, and
-/// the refusal reserves no session and creates no game user.
+/// B4.2: the login of an active account typed in the ID field enters the account's game name
+/// (no password: the client does not send it); the allowlist name an account claimed and a
+/// disabled account are refused without a reservation or game state.
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
-async fn actual_tcp_allowlist_name_claimed_by_an_account_is_refused() {
+async fn actual_tcp_account_login_enters_its_game_name_and_claimed_or_disabled_are_refused() {
     use vindictus_server::{
         application::{accounts::create_account, admin_session::link_game_from_cli},
         domain::{Username, passport::LoginRejection},
     };
     let (admin, pool, schema) = isolated_game_pool().await;
-    create_account(
-        &pool,
-        Username::parse("Dono").unwrap(),
-        zeroize::Zeroizing::new(b"senha de teste do jogo".to_vec()),
-    )
-    .await
-    .unwrap();
+    for name in ["Dono", "Parado"] {
+        create_account(
+            &pool,
+            Username::parse(name).unwrap(),
+            zeroize::Zeroizing::new(b"senha de teste do jogo".to_vec()),
+        )
+        .await
+        .unwrap();
+    }
     link_game_from_cli(
         &pool,
         "dono",
@@ -799,20 +802,25 @@ async fn actual_tcp_allowlist_name_claimed_by_an_account_is_refused() {
     )
     .await
     .unwrap();
+    sqlx::query("UPDATE accounts SET status = 'disabled' WHERE normalized_name = 'parado'")
+        .execute(&pool)
+        .await
+        .unwrap();
     let r = runtime();
-    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
-    client.write_all(&login(PASSPORT, &mut tx)).await.unwrap();
-    let f = read(&mut client, &mut rx).await;
-    assert_eq!(
-        decode_login_failure(&f.body, DEFAULT_MAX_BODY)
-            .unwrap()
-            .unwrap()
-            .reason,
-        LoginRejection::PermissionFailed as i32
-    );
-    drop(client);
-    let _ = task.await;
-    assert_eq!(r.active_count().unwrap(), 0);
+    let refused = |reason| assert_eq!(reason, LoginRejection::PermissionFailed as i32);
+    for typed in [PASSPORT, "parado"] {
+        let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+        client.write_all(&login(typed, &mut tx)).await.unwrap();
+        let f = read(&mut client, &mut rx).await;
+        refused(
+            decode_login_failure(&f.body, DEFAULT_MAX_BODY)
+                .unwrap()
+                .unwrap()
+                .reason,
+        );
+        drop(client);
+        let _ = task.await;
+    }
     assert_eq!(
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM game_users")
             .fetch_one(&pool)
@@ -820,5 +828,18 @@ async fn actual_tcp_allowlist_name_claimed_by_an_account_is_refused() {
             .unwrap(),
         0
     );
+    // The account's login (any case) enters its game name: the user is created at first login.
+    let (mut client, task, _stop, mut rx, mut tx) = open(r.clone(), pool.clone()).await;
+    client.write_all(&login("DONO", &mut tx)).await.unwrap();
+    let q = lobby(&mut client, &mut rx).await;
+    assert!(q.first && !q.has_password);
+    let name: String = sqlx::query_scalar("SELECT name FROM game_users")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(name, PASSPORT);
+    client.shutdown().await.unwrap();
+    assert!(task.await.unwrap().is_ok());
+    assert_eq!(r.active_count().unwrap(), 0);
     cleanup_game_pool(admin, pool, schema).await;
 }

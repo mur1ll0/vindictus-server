@@ -92,3 +92,18 @@ pub async fn account_key_by_name(
     .fetch_optional(pool)
     .await
 }
+
+/// Game login (B4.2): the game name an active account enters when its login is typed in the
+/// client's ID field.
+pub async fn game_name_for_login(
+    pool: &PgPool,
+    normalized: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT COALESCE(game_name, username) FROM accounts
+         WHERE normalized_name = $1 AND status = 'active'",
+    )
+    .bind(normalized)
+    .fetch_optional(pool)
+    .await
+}

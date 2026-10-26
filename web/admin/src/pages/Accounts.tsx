@@ -187,7 +187,7 @@ function AccountModal({
         >
           <p className="text-sm text-muted">
             {active
-              ? 'A conta deixa de entrar no painel e perde as sessões abertas.'
+              ? 'A conta deixa de entrar no painel e no jogo e perde as sessões abertas do painel.'
               : 'A conta volta a poder entrar.'}
           </p>
         </ActionForm>
@@ -202,7 +202,7 @@ function CreateModal({ isAdmin, onClose, onChanged }: { isAdmin: boolean; onClos
   const [confirm, setConfirm] = useState('');
   const [role, setRole] = useState<Role | ''>('');
   return (
-    <Modal open title="Nova conta" subtitle="Login e senha valem para o painel e para o jogo." icon={<Avatar name={username || '+'} />} onClose={onClose}>
+    <Modal open title="Nova conta" subtitle="No jogo, o login entra pelo campo ID; a senha protege o painel." icon={<Avatar name={username || '+'} />} onClose={onClose}>
       <ActionForm
         submitLabel="Criar conta"
         onCancel={onClose}

@@ -109,7 +109,7 @@ export function LoginPage() {
           </Button>
           {mode === 'register' && (
             <p className="text-xs text-muted">
-              A conta nova vê só os próprios dados. Login e senha valem também para o jogo.
+              A conta nova vê só os próprios dados. No jogo, digite o login no campo ID e deixe a senha em branco.
             </p>
           )}
         </form>
