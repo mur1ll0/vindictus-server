@@ -7065,3 +7065,162 @@ async fn panel_item_and_cash_changes_are_audited_once_and_refuse_online() {
     );
     cleanup_game_pool(a, p, s).await;
 }
+/// B4.3c: the panel's progression changes run the game's GiveExp/GiveAP/AcquireTitle in one
+/// transaction with the audit, refuse online characters and report "no change".
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn panel_progression_levels_gives_ap_and_title_once_offline() {
+    use vindictus_server::{
+        domain::{admin::AuditReason, character_stats::Arithmetic},
+        infrastructure::{
+            admin_progression::{self, PanelGrowth, PanelGrowthOutcome},
+            admin_store::AuditRecord,
+            character_lobby::QueryConfig,
+            minimum_growth::GrowthContext,
+            minimum_quest::QuestClock,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    // A character played before (selection and story login prepare its state); then offline.
+    {
+        use vindictus_server::infrastructure::{minimum_selection, minimum_story};
+        let owner = super::initial_inventory::key();
+        let config = QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        };
+        minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+        minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+            .await
+            .unwrap();
+        // As the game's story reward test: the opened storyline at its second phase.
+        sqlx::query("UPDATE game_story_progress SET phase_utf16=$1 WHERE cid=1")
+            .bind(utf16("p2"))
+            .execute(&p)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE game_character_info SET is_connected=false WHERE id=1")
+            .execute(&p)
+            .await
+            .unwrap();
+    }
+    let ctx = GrowthContext {
+        clock: QuestClock {
+            arithmetic: Arithmetic::FrameworkX64,
+            civil_offset_seconds: 0,
+        },
+        arithmetic: Arithmetic::FrameworkX64,
+        config: QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        journal: 0,
+    };
+    let reason = AuditReason::parse("teste do painel").unwrap();
+    let run = |growth, operation: u128| {
+        let p = p.clone();
+        let assets = &assets;
+        let reason = &reason;
+        async move {
+            admin_progression::panel_change(
+                &p,
+                assets,
+                1,
+                growth,
+                ctx,
+                65533,
+                AuditRecord {
+                    account_id: None,
+                    actor_name: None,
+                    role: None,
+                    operation_id: Some(uuid::Uuid::from_u128(operation)),
+                    action: "character.progression",
+                    target_kind: Some("character"),
+                    target_id: Some("1"),
+                    reason: Some(reason),
+                    before: None,
+                    after: None,
+                    refused: false,
+                    peer: None,
+                },
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let level = || async {
+        sqlx::query_as::<_, (i32, i64, i32)>(
+            "SELECT level, exp, ap FROM game_character_info WHERE id=1",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let start = level().await;
+    assert_eq!(start.0, 1);
+    // Target level 2: the EXP of the level table, through the level-up chain.
+    assert!(matches!(
+        run(PanelGrowth::Level(2), 1).await,
+        PanelGrowthOutcome::Applied { .. }
+    ));
+    assert_eq!(level().await.0, 2);
+    assert!(matches!(
+        run(PanelGrowth::Level(2), 2).await,
+        PanelGrowthOutcome::Unchanged("nivel")
+    ));
+    assert!(matches!(
+        run(PanelGrowth::Exp(10), 3).await,
+        PanelGrowthOutcome::Applied { .. }
+    ));
+    assert!(level().await.1 > 0);
+    // The same operation id again applies nothing.
+    let before = level().await;
+    assert!(matches!(
+        run(PanelGrowth::Exp(10), 3).await,
+        PanelGrowthOutcome::Repeated
+    ));
+    assert_eq!(level().await, before);
+    match run(PanelGrowth::Ap(5), 4).await {
+        PanelGrowthOutcome::Applied { .. } => assert!(level().await.2 > before.2),
+        PanelGrowthOutcome::Unchanged(_) => {}
+        other => panic!("{other:?}"),
+    }
+    assert!(matches!(
+        run(PanelGrowth::Title(410019), 5).await,
+        PanelGrowthOutcome::Applied { .. }
+    ));
+    let acquired: bool =
+        sqlx::query_scalar("SELECT acquired FROM game_titles WHERE cid=1 AND title_id=410019")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert!(acquired);
+    assert!(matches!(
+        run(PanelGrowth::Title(410019), 6).await,
+        PanelGrowthOutcome::Unchanged(_)
+    ));
+    sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        run(PanelGrowth::Exp(1), 7).await,
+        PanelGrowthOutcome::Online
+    ));
+    let audited: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM admin_audit_events WHERE action='character.progression'",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert!((3..=4).contains(&audited));
+    cleanup_game_pool(a, p, s).await;
+}

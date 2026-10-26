@@ -44,6 +44,10 @@ impl Info {
 pub struct Contents(BTreeMap<(String, i32), Info>);
 
 impl Contents {
+    /// Every effect row (Type, Level order).
+    pub fn infos(&self) -> impl Iterator<Item = &Info> {
+        self.0.values()
+    }
     pub fn new(rows: impl IntoIterator<Item = Info>) -> Option<Self> {
         let mut map = BTreeMap::new();
         for info in rows {

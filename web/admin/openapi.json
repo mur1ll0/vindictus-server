@@ -657,6 +657,77 @@
         }
       }
     },
+    "/api/characters/{cid}/progression": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "EXP, target level, AP, title or status effect; the character must be offline.",
+        "operationId": "progression",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressionChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/items": {
       "get": {
         "tags": [
@@ -994,6 +1065,61 @@
           }
         }
       }
+    },
+    "/api/status-effects": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Status effects of the content (Type, level, English name), for the panel's picker.",
+        "operationId": "effects_catalog",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "2–64 characters of the class or the English name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogEffect"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1162,6 +1288,37 @@
           },
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "CatalogEffect": {
+        "type": "object",
+        "required": [
+          "kind",
+          "level"
+        ],
+        "properties": {
+          "duration": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Duration in seconds, when the effect has one."
+          },
+          "kind": {
+            "type": "string",
+            "description": "StatusEffectGroupInfo Type."
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1645,6 +1802,175 @@
             "type": "string",
             "format": "password",
             "description": "12–128 bytes."
+          }
+        }
+      },
+      "ProgressionChange": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "reason",
+          "change"
+        ],
+        "properties": {
+          "change": {
+            "$ref": "#/components/schemas/ProgressionKind"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ProgressionKind": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "EXP through the game's GiveExp (levels up on the way).",
+            "required": [
+              "amount",
+              "kind"
+            ],
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "exp"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Reach this level (the EXP the level table requires).",
+            "required": [
+              "level",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "level"
+                ]
+              },
+              "level": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "AP through GiveAP (capped like the game).",
+            "required": [
+              "amount",
+              "kind"
+            ],
+            "properties": {
+              "amount": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "ap"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Acquire a title by its ID.",
+            "required": [
+              "title_id",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "title"
+                ]
+              },
+              "title_id": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Add a status effect by Type and level; seconds null = the effect's own duration.",
+            "required": [
+              "effect",
+              "level",
+              "kind"
+            ],
+            "properties": {
+              "effect": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "add_effect"
+                ]
+              },
+              "level": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "seconds": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "effect",
+              "kind"
+            ],
+            "properties": {
+              "effect": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "remove_effect"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ProgressionResult": {
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "properties": {
+          "after": {
+            "type": "object"
+          },
+          "before": {
+            "type": "object",
+            "description": "Level, EXP, AP, acquired titles and status effects before the change."
           }
         }
       },

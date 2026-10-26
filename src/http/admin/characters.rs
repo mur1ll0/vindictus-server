@@ -96,7 +96,11 @@ pub(super) async fn change_item(
     Ok(Json(
         admin_character_edits::change_item(
             state.auth.pool(),
-            state.assets.as_deref(),
+            state
+                .runtime
+                .as_ref()
+                .and_then(|r| r.minimum_assets())
+                .as_deref(),
             &change,
             &cid,
             &body.item,
@@ -159,4 +163,107 @@ pub(super) async fn catalog(
         return Err(crate::application::admin_session::AdminError::InvalidInput.into());
     }
     Ok(Json(state.names.search_items(term, 50)))
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub(super) enum ProgressionKind {
+    /// EXP through the game's GiveExp (levels up on the way).
+    Exp {
+        amount: i64,
+    },
+    /// Reach this level (the EXP the level table requires).
+    Level {
+        level: i32,
+    },
+    /// AP through GiveAP (capped like the game).
+    Ap {
+        amount: i32,
+    },
+    /// Acquire a title by its ID.
+    Title {
+        title_id: i32,
+    },
+    /// Add a status effect by Type and level; seconds null = the effect's own duration.
+    AddEffect {
+        effect: String,
+        level: i32,
+        seconds: Option<i32>,
+    },
+    RemoveEffect {
+        effect: String,
+    },
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct ProgressionChange {
+    operation_id: Uuid,
+    reason: String,
+    change: ProgressionKind,
+}
+
+/// EXP, target level, AP, title or status effect; the character must be offline.
+#[utoipa::path(post, path = "/api/characters/{cid}/progression", params(("cid" = String, Path)),
+    request_body = ProgressionChange,
+    responses((status = 200, body = crate::application::admin_character_edits::ProgressionResult),
+              (status = 400, body = super::ApiError), (status = 403, body = super::ApiError),
+              (status = 409, body = super::ApiError)))]
+pub(super) async fn progression(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+    Json(body): Json<ProgressionChange>,
+) -> Result<Json<crate::application::admin_character_edits::ProgressionResult>, Refusal> {
+    use crate::infrastructure::admin_progression::PanelGrowth;
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+        reason: &body.reason,
+    };
+    let growth = match &body.change {
+        ProgressionKind::Exp { amount } => PanelGrowth::Exp(*amount),
+        ProgressionKind::Level { level } => PanelGrowth::Level(*level),
+        ProgressionKind::Ap { amount } => PanelGrowth::Ap(*amount),
+        ProgressionKind::Title { title_id } => PanelGrowth::Title(*title_id),
+        ProgressionKind::AddEffect {
+            effect,
+            level,
+            seconds,
+        } => PanelGrowth::Effect(effect, Some((*level, *seconds))),
+        ProgressionKind::RemoveEffect { effect } => PanelGrowth::Effect(effect, None),
+    };
+    Ok(Json(
+        admin_character_edits::change_progression(
+            state.auth.pool(),
+            state.runtime.as_deref(),
+            &change,
+            &cid,
+            growth,
+        )
+        .await?,
+    ))
+}
+
+/// Status effects of the content (Type, level, English name), for the panel's picker.
+#[utoipa::path(get, path = "/api/status-effects", params(CatalogQuery),
+    responses((status = 200, body = Vec<crate::infrastructure::admin_characters::CatalogEffect>),
+              (status = 400, body = super::ApiError), (status = 403, body = super::ApiError)))]
+pub(super) async fn effects_catalog(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    axum::extract::Query(query): axum::extract::Query<CatalogQuery>,
+) -> Result<Json<Vec<crate::infrastructure::admin_characters::CatalogEffect>>, Refusal> {
+    auth.require(crate::domain::admin::Permission::Read)?;
+    let term = query.search.trim();
+    if !(2..=64).contains(&term.chars().count()) {
+        return Err(crate::application::admin_session::AdminError::InvalidInput.into());
+    }
+    let Some(assets) = state.runtime.as_ref().and_then(|r| r.minimum_assets()) else {
+        return Err(crate::application::admin_session::AdminError::ContentUnavailable.into());
+    };
+    let Some(contents) = assets.status_effects() else {
+        return Err(crate::application::admin_session::AdminError::ContentUnavailable.into());
+    };
+    Ok(Json(state.names.search_effects(contents, term, 50)))
 }

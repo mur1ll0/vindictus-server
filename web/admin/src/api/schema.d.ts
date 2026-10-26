@@ -159,6 +159,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{cid}/progression": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** EXP, target level, AP, title or status effect; the character must be offline. */
+        post: operations["progression"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -297,6 +314,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/status-effects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status effects of the content (Type, level, English name), for the panel's picker. */
+        get: operations["effects_catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -354,6 +388,18 @@ export interface components {
             /** Format: uuid */
             operation_id: string;
             reason: string;
+        };
+        CatalogEffect: {
+            /**
+             * Format: int32
+             * @description Duration in seconds, when the effect has one.
+             */
+            duration?: number | null;
+            /** @description StatusEffectGroupInfo Type. */
+            kind: string;
+            /** Format: int32 */
+            level: number;
+            name?: string | null;
         };
         CatalogItem: {
             /** @description Item class as the game writes it (lower case). */
@@ -534,6 +580,50 @@ export interface components {
              * @description 12–128 bytes.
              */
             new_password: string;
+        };
+        ProgressionChange: {
+            change: components["schemas"]["ProgressionKind"];
+            /** Format: uuid */
+            operation_id: string;
+            reason: string;
+        };
+        ProgressionKind: {
+            /** Format: int64 */
+            amount: number;
+            /** @enum {string} */
+            kind: "exp";
+        } | {
+            /** @enum {string} */
+            kind: "level";
+            /** Format: int32 */
+            level: number;
+        } | {
+            /** Format: int32 */
+            amount: number;
+            /** @enum {string} */
+            kind: "ap";
+        } | {
+            /** @enum {string} */
+            kind: "title";
+            /** Format: int32 */
+            title_id: number;
+        } | {
+            effect: string;
+            /** @enum {string} */
+            kind: "add_effect";
+            /** Format: int32 */
+            level: number;
+            /** Format: int32 */
+            seconds?: number | null;
+        } | {
+            effect: string;
+            /** @enum {string} */
+            kind: "remove_effect";
+        };
+        ProgressionResult: {
+            after: Record<string, never>;
+            /** @description Level, EXP, AP, acquired titles and status effects before the change. */
+            before: Record<string, never>;
         };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
@@ -1020,6 +1110,55 @@ export interface operations {
             };
         };
     };
+    progression: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressionChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressionResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     catalog: {
         parameters: {
             query: {
@@ -1294,6 +1433,44 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    effects_catalog: {
+        parameters: {
+            query: {
+                /** @description 2–64 characters of the class or the English name. */
+                search: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogEffect"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

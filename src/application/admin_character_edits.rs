@@ -152,3 +152,54 @@ pub async fn adjust_cash(
         PanelCashOutcome::Repeated => Err(AdminError::RepeatedOperation),
     }
 }
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ProgressionResult {
+    /// Level, EXP, AP, acquired titles and status effects before the change.
+    #[schema(value_type = Object)]
+    pub before: serde_json::Value,
+    #[schema(value_type = Object)]
+    pub after: serde_json::Value,
+}
+
+/// EXP, target level, AP, title or status effect (B4.3c), offline, through the game's rules.
+pub async fn change_progression(
+    pool: &PgPool,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+    change: &Change<'_>,
+    cid: &str,
+    growth: crate::infrastructure::admin_progression::PanelGrowth<'_>,
+) -> Result<ProgressionResult, AdminError> {
+    use crate::infrastructure::{admin_progression, minimum_item_logs};
+    let reason = AuditReason::parse(change.reason).ok_or(AdminError::InvalidInput)?;
+    let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
+    authorize(pool, change.session, cid_value).await?;
+    let runtime = runtime.ok_or(AdminError::ContentUnavailable)?;
+    let assets = runtime
+        .minimum_assets()
+        .ok_or(AdminError::ContentUnavailable)?;
+    let flags = minimum_item_logs::flags(&assets).map_err(minimum)?;
+    let journal = minimum_item_logs::operation_journal(pool, flags).await;
+    let ctx = runtime
+        .growth_context(journal)
+        .map_err(|_| AdminError::ContentUnavailable)?;
+    match admin_progression::panel_change(
+        pool,
+        &assets,
+        cid_value,
+        growth,
+        ctx,
+        PANEL_SERVICE_ID,
+        audit(change, &reason, "character.progression", cid),
+    )
+    .await
+    .map_err(minimum)?
+    {
+        admin_progression::PanelGrowthOutcome::Applied { before, after } => {
+            Ok(ProgressionResult { before, after })
+        }
+        admin_progression::PanelGrowthOutcome::Unchanged(why) => Err(AdminError::Unchanged(why)),
+        admin_progression::PanelGrowthOutcome::Online => Err(AdminError::Online),
+        admin_progression::PanelGrowthOutcome::Repeated => Err(AdminError::RepeatedOperation),
+    }
+}

@@ -53,6 +53,17 @@ Pré-condição: containers recompilados depois de 26/10/2026; a Murael **fora d
 Resultado do operador (26/10/2026): dar 2 itens e dar ouro pelo painel funcionaram; as demais linhas não foram relatadas.
 Limites conhecidos: itens e ouro só com o personagem fora do jogo; remover tira a quantidade da classe na ordem do jogo (DestroyItem), não um item escolhido; itens com atributos ou que expiram podem ser recusados na remoção; só Fiona de laboratório inicializada é editável; mover itens entre bolsas ainda não existe.
 
+### B4.3c — Progressão pelo painel (nível/EXP, AP, título, efeitos)
+Pré-condição: containers recompilados depois de 26/10/2026; a Murael **fora do jogo**.
+- [ ] Como `admin`, ficha da Murael → Progressão → Nível → subir até o nível atual + 1, com motivo → a ficha mostra o nível novo; Auditoria mostra "Progressão do personagem" com nível/EXP antes → depois.
+- [ ] Progressão → AP → dar 10 → o AP da ficha sobe (ou o painel avisa que o jogo não mudou nada, se já estiver no limite).
+- [ ] Progressão → Efeito → buscar "vip" → escolher um VIP/VVIP → duração 7 (dias) → aparece na aba Efeitos com a validade.
+- [ ] Aba Efeitos → Remover o efeito → some.
+- [ ] Progressão → Título → um ID conhecido (aba Títulos) ainda não conquistado → aparece como conquistado.
+- [ ] Entrar no jogo com `admin` → nível novo na seleção e na cidade; histórias do nível novo no diário; AP, título e efeito (ícone VIP) presentes.
+- [ ] Com a Murael dentro do jogo, tentar Progressão → "O personagem está no jogo…".
+Limites conhecidos: só com a personagem fora do jogo; skills não mudam pelo painel ainda; títulos pelo ID (sem nome).
+
 ### FX-relist — Voltar à seleção de personagens e entrar de novo
 Pré-condição: containers recompilados depois de 26/10/2026.
 - [ ] Entrar com `admin`, entrar na cidade com a Murael, voltar à tela de seleção (Home) → a lista aparece.

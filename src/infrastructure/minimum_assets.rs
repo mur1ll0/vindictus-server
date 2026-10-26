@@ -148,6 +148,12 @@ fn open(p: &Path) -> Result<std::fs::File, MinimumError> {
         .map_err(MinimumError::from)
 }
 impl Assets {
+    /// CharacterContents.StatusEffectGroupInfo of the cash-shop profile, when loaded.
+    pub fn status_effects(&self) -> Option<&crate::domain::status_effect::Contents> {
+        self.cash_shop
+            .as_ref()
+            .map(|c| &c.customize().status_effects)
+    }
     /// FeatureMatrix values of the NPC script profile.
     pub fn npc_policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
         self.npc.as_ref().map(|n| &n.policy)

@@ -734,7 +734,8 @@ pub async fn talk(
 pub const TALK_ENTITY_IDS: usize = 512;
 
 /// StoryImpl.NotifyLevelUp: open the storylines auto-given at levels (last, cur]; when
-/// any opened, SyncStoryProgress (StoryLines, NpcList).
+/// any opened, SyncStoryProgress (StoryLines, NpcList). The character may be offline (admin
+/// panel level up).
 pub(super) async fn level_up(
     tx: &mut Transaction<'_, Postgres>,
     assets: &Assets,
@@ -745,7 +746,15 @@ pub(super) async fn level_up(
     ids: &mut (dyn Iterator<Item = i64> + Send),
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let npc = assets.npc.as_ref().ok_or_else(fail)?;
-    let c = character(tx, cid).await?;
+    // The hint category only. A selected character's session calls this connected; the admin
+    // panel (operator decision 2026-10-26) calls it offline, and the opened storylines are
+    // stored for the next selection.
+    let hint: i16 =
+        sqlx::query_scalar("SELECT hint_category FROM game_story_entries WHERE cid=$1 FOR UPDATE")
+            .bind(cid)
+            .fetch_optional(&mut **tx)
+            .await?
+            .ok_or_else(fail)?;
     let mut rows = progress(tx, cid).await?;
     let opened = npc
         .scripts
@@ -766,7 +775,7 @@ pub(super) async fn level_up(
     }
     rows.extend(opened);
     Ok(vec![
-        story_lines_packet(npc, &rows, c.hint)?,
+        story_lines_packet(npc, &rows, hint)?,
         npc_list_packet(&npc.scripts, &npc.policy, &rows)?,
     ])
 }

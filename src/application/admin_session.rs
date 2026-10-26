@@ -80,6 +80,9 @@ pub enum AdminError {
     ContentUnavailable,
     #[error("not enough balance")]
     NotEnough,
+    /// The game's rules made no change; the reason key for the message.
+    #[error("no change: {0}")]
+    Unchanged(&'static str),
     #[error("panel storage unavailable")]
     Unavailable(#[from] sqlx::Error),
 }

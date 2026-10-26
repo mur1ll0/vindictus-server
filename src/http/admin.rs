@@ -38,7 +38,9 @@ pub struct AdminState {
     auth: PanelAuth,
     secure_cookie: bool,
     names: std::sync::Arc<crate::infrastructure::admin_characters::EnglishNames>,
-    assets: Option<std::sync::Arc<crate::infrastructure::minimum_assets::Assets>>,
+    /// The game's runtime: item content and the level-up chain's values (and, in B5, the
+    /// live sessions).
+    runtime: Option<std::sync::Arc<crate::infrastructure::lab_frontend::Runtime>>,
 }
 
 impl AdminState {
@@ -48,16 +50,16 @@ impl AdminState {
             auth,
             secure_cookie,
             names: std::sync::Arc::default(),
-            assets: None,
+            runtime: None,
         }
     }
     /// English item/skill/status names (scripts/content/export_item_names.py).
-    /// The game's item content, needed to give and remove items.
-    pub fn with_assets(
+    /// The game's runtime, needed to change items and progression.
+    pub fn with_runtime(
         mut self,
-        assets: std::sync::Arc<crate::infrastructure::minimum_assets::Assets>,
+        runtime: std::sync::Arc<crate::infrastructure::lab_frontend::Runtime>,
     ) -> Self {
-        self.assets = Some(assets);
+        self.runtime = Some(runtime);
         self
     }
     pub fn with_names(
@@ -93,7 +95,9 @@ impl AdminState {
         characters::sheet,
         characters::change_item,
         characters::adjust_cash,
-        characters::catalog
+        characters::catalog,
+        characters::progression,
+        characters::effects_catalog
     ),
     components(schemas(
         LoginRequest,
@@ -117,7 +121,10 @@ impl AdminState {
         crate::application::admin_character_edits::ChangeResult,
         characters::ItemChange,
         characters::CashChange,
-        crate::infrastructure::admin_characters::CatalogItem
+        crate::infrastructure::admin_characters::CatalogItem,
+        crate::infrastructure::admin_characters::CatalogEffect,
+        crate::application::admin_character_edits::ProgressionResult,
+        characters::ProgressionChange
     ))
 )]
 pub struct ApiDoc;
@@ -159,6 +166,11 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/characters/{cid}/items", post(characters::change_item))
         .route("/api/characters/{cid}/cash", post(characters::adjust_cash))
         .route("/api/items", get(characters::catalog))
+        .route("/api/status-effects", get(characters::effects_catalog))
+        .route(
+            "/api/characters/{cid}/progression",
+            post(characters::progression),
+        )
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-store"),
@@ -289,6 +301,21 @@ impl IntoResponse for Refusal {
                     StatusCode::SERVICE_UNAVAILABLE,
                     "conteudo_indisponivel",
                     "O conteúdo de itens do servidor não está carregado.",
+                ),
+                AdminError::Unchanged(why) => (
+                    StatusCode::CONFLICT,
+                    "sem_mudanca",
+                    match why {
+                        "nivel" => {
+                            "Nível alvo inválido: precisa ser maior que o atual e até o nível máximo."
+                        }
+                        "efeito" => {
+                            "O jogo recusou o efeito: tipo/nível inexistente, efeito do cliente ou que não pode substituir o atual."
+                        }
+                        _ => {
+                            "O jogo não fez nenhuma mudança (por exemplo, nível máximo, título já obtido ou AP no limite)."
+                        }
+                    },
                 ),
                 AdminError::NotEnough => (
                     StatusCode::CONFLICT,

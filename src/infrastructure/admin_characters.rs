@@ -443,3 +443,44 @@ impl EnglishNames {
         found
     }
 }
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct CatalogEffect {
+    /// StatusEffectGroupInfo Type.
+    pub kind: String,
+    pub level: i32,
+    pub name: Option<String>,
+    /// Duration in seconds, when the effect has one.
+    pub duration: Option<i32>,
+}
+
+impl EnglishNames {
+    /// Status effects of the content whose Type or English name contains `term`.
+    pub fn search_effects(
+        &self,
+        contents: &crate::domain::status_effect::Contents,
+        term: &str,
+        limit: usize,
+    ) -> Vec<CatalogEffect> {
+        let term = term.to_lowercase();
+        let mut found: Vec<CatalogEffect> = contents
+            .infos()
+            .filter_map(|info| {
+                let name = self.status(&info.type_name);
+                let matches = info.type_name.to_lowercase().contains(&term)
+                    || name
+                        .as_ref()
+                        .is_some_and(|n| n.to_lowercase().contains(&term));
+                matches.then(|| CatalogEffect {
+                    kind: info.type_name.clone(),
+                    level: info.level,
+                    name,
+                    duration: info.duration,
+                })
+            })
+            .collect();
+        found.sort_by(|a, b| a.kind.cmp(&b.kind).then(a.level.cmp(&b.level)));
+        found.truncate(limit);
+        found
+    }
+}

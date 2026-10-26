@@ -189,6 +189,19 @@ impl Runtime {
     pub fn minimum_assets(&self) -> Option<Arc<super::minimum_assets::Assets>> {
         self.minimum.as_ref().map(|m| m.assets.clone())
     }
+    /// The level-up chain's runtime values for a change made outside a connection (the
+    /// admin panel, B4.3c), with `journal` as the title log's journal.
+    pub fn growth_context(
+        &self,
+        journal: i64,
+    ) -> Result<super::minimum_growth::GrowthContext, RuntimeError> {
+        Ok(super::minimum_growth::GrowthContext {
+            clock: self.quest_clock(),
+            arithmetic: self.stat_arithmetic(),
+            config: self.minimum_header()?,
+            journal,
+        })
+    }
     /// The RelayServer of mission entry, when the assets configure one.
     pub fn relay(&self) -> Option<super::relay::Relay> {
         self.relay.clone()

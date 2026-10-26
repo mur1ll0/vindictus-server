@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { ArrowLeft, Clock, Coins, Gem, PackagePlus, Search, Shirt, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, Coins, Gem, PackagePlus, Search, Shirt, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
   type CharacterItem,
@@ -14,6 +14,7 @@ import {
 import { sessionQuery } from '@/api/session';
 import { Avatar } from '@/components/Avatar';
 import { CashModal, GiveItemModal, GoldModal, RemoveItemForm } from '@/components/CharacterEdits';
+import { ProgressionModal, RemoveEffectModal } from '@/components/ProgressionEdits';
 import { Button } from '@/components/ui/button';
 import { errorText } from '@/components/forms';
 import { Modal } from '@/components/Modal';
@@ -198,7 +199,8 @@ export function CharacterPage() {
   const { cid } = useParams({ strict: false }) as { cid: string };
   const query = useQuery({ queryKey: ['character', cid], queryFn: () => characterSheet(cid) });
   const [tab, setTab] = useState<Tab>('items');
-  const [edit, setEdit] = useState<'item' | 'gold' | 'cash' | null>(null);
+  const [edit, setEdit] = useState<'item' | 'gold' | 'cash' | 'progression' | null>(null);
+  const [removeEffect, setRemoveEffect] = useState<{ kind: string; name?: string | null } | null>(null);
   const queryClient = useQueryClient();
   const { data: session } = useQuery(sessionQuery);
   const canManage = session?.role === 'admin' || session?.role === 'gm';
@@ -249,8 +251,11 @@ export function CharacterPage() {
             <Button variant="outline" onClick={() => setEdit('cash')}>
               <Gem /> Cash
             </Button>
+            <Button variant="outline" onClick={() => setEdit('progression')}>
+              <TrendingUp /> Progressão
+            </Button>
             {s.connected && (
-              <span className="self-center text-sm text-danger">Online: itens e ouro só mudam com o personagem fora do jogo.</span>
+              <span className="self-center text-sm text-danger">Online: itens, ouro e progressão só mudam com a personagem fora do jogo.</span>
             )}
           </div>
         )}
@@ -286,6 +291,20 @@ export function CharacterPage() {
       {edit === 'item' && <GiveItemModal cid={s.cid} onClose={() => setEdit(null)} onDone={changed} />}
       {edit === 'gold' && <GoldModal cid={s.cid} current={sheet.gold} onClose={() => setEdit(null)} onDone={changed} />}
       {edit === 'cash' && <CashModal cid={s.cid} current={sheet.cash} onClose={() => setEdit(null)} onDone={changed} />}
+      {edit === 'progression' && (
+        <ProgressionModal cid={s.cid} level={s.level} onClose={() => setEdit(null)} onDone={changed} />
+      )}
+      {removeEffect && (
+        <RemoveEffectModal
+          cid={s.cid}
+          effect={removeEffect}
+          onClose={() => setRemoveEffect(null)}
+          onDone={() => {
+            setRemoveEffect(null);
+            changed();
+          }}
+        />
+      )}
       {tab === 'skills' && (
         <SimpleList
           empty="Nenhuma skill."
@@ -296,6 +315,15 @@ export function CharacterPage() {
             badge: k.locked ? 'bloqueada' : `rank ${k.rank}`,
           }))}
         />
+      )}
+      {tab === 'effects' && canManage && sheet.status_effects.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {sheet.status_effects.map((e, i) => (
+            <Button key={`${e.kind}-${i}`} variant="danger" size="sm" onClick={() => setRemoveEffect(e)}>
+              <Trash2 /> Remover {e.name ?? e.kind}
+            </Button>
+          ))}
+        </div>
       )}
       {tab === 'effects' && (
         <SimpleList

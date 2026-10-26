@@ -427,9 +427,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
                         })?;
                     state = state.with_names(names);
                 }
-                if let Some(assets) = runtime.minimum_assets() {
-                    state = state.with_assets(assets);
-                }
+                state = state.with_runtime(runtime.clone());
                 let app = admin::router(state, admin_ui_dir.as_deref());
                 Some(tokio::spawn(admin::serve(admin_listener, app)))
             }
