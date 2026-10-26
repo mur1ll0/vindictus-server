@@ -26,13 +26,14 @@ O script abre os bancos SQLite com `mode=ro` e `PRAGMA query_only=ON`, compara h
 
 ## Clientes de referência
 
-Três instalações são usadas para comparar comportamento e arquivos. Todas são evidência somente leitura; nada é executado nem alterado nelas por scripts deste projeto.
+Quatro instalações são usadas para comparar comportamento e arquivos. Todas são evidência somente leitura; nada é executado nem alterado nelas por scripts deste projeto.
 
 | Caminho | O que é | Uso |
 |---|---|---|
 | `../Vindictus1.69EN/Vindictus EU/en-EU` | cliente 1.69 EN original (`CurrentInfo.txt` de 2016-07-11) | origem da cópia de laboratório |
 | `.cache/play-client` | cópia completa do 1.69 EN preparada por `scripts/client/prepare_lab_client.py` (uma célula do banco SQLite do cliente alterada) | cliente usado nos testes contra este servidor |
 | `C:\Windictus 2023` | cliente do servidor privado Windictus que o operador jogava (versão mais nova, `Windictus.exe` como launcher) | referência de comportamento e de arquivos do jogo funcionando; comparação de binários e recursos |
+| `F:\Games\vindictus\appdata\en-US` | cliente NA oficial da Nexon, baixado pelo operador em 26/10/2026 e atualizado com os arquivos mais recentes (`CurrentInfo.txt` de 2026-10-15; 9.221 `.hfs`; `bin/` e `bin_x64/`) | fonte futura, via REA ou extração, dos arquivos das classes que faltam no 1.69 EN (por exemplo, Delia), sempre com uma decisão explícita antes de copiar algo para a cópia de laboratório |
 
 Comparação de 23/10/2026 (tamanho e SHA-256 truncado):
 

@@ -53,6 +53,16 @@ Fazer sempre na cópia de laboratório, nunca no original.
 | L0-c ícone novo | `scaleform/item_icon/<nome novo>.tga` solto e `ItemClassInfo.Icon` apontando para ele | o ícone aparece → ícones novos sem pacote |
 | L0-d índice regravado | com o caminho do L0-a, gerar um índice com um `.hfs` novo contendo um `player_costume.txt` alterado | o cliente aceita → modelos e scripts novos viáveis; se recusar, a proteção confere o índice |
 
+**Resultados de 26/10/2026** (script `.cache/play-client/l0-test.ps1`, com `prepare`, `start`, `report` e `restore`; o cliente foi restaurado depois):
+
+- **L0-b passou.** Com os pacotes `0FABE22A…` (`localized_text/english`) e `5A7E0CE7…` (`localized_text/english_eu`) renomeados, os textos soltos em `resource/localized_text/<idioma>/heroes_text_<idioma>.txt` (UTF-16 LE com BOM) foram lidos. O título "Select Character" virou `L0B-OK`, e o cliente abriu e logou normalmente. O botão "Start Game" não mudou: a tela usa outra chave ou um texto gravado no `.gfx` (**hipótese**). Textos são, portanto, editáveis sem pacote.
+- **L0-a falhou.** Com `-dev -console -condebug`, nenhuma tecla abre o console e nenhum `console.log` é gravado. O caminho do índice segue desconhecido.
+- **Candidato a índice (análise estática):** `hfs/E608DF10F284E19AB75FD7D0D8AE9CCF87831041.hfs` (1.748.398 bytes). O HFSExtract não o abre (`CANNOT LOAD`). Ele tem um único registro `HF 01 02`, sem o fim `HF 05 06`, e é isso que o leitor do índice (`0x10028990`) espera: lê 0x0e bytes, confere `0x02014648` e decifra o resto. O tamanho comporta cerca de 105 mil entradas de 16 bytes. **Hipótese** até decifrar.
+- **Cifra:** o leitor usa `EncryptedReader` (vtable `0x100986a4`, leitura em `0x10020420`). Ele aplica um XOR por byte com uma sequência gerada em `0x10028b90`, que salta para `.vmp0` (VMProtect). A sequência tirada do pacote de textos (texto conhecido contra cifrado) não decifra o candidato, logo a chave muda por arquivo. Recuperá-la estaticamente exigiria desvirtualizar o VMProtect.
+- **Próximo teste possível:** o L0-d depende do índice. Sem console, as saídas são:
+  - observar com o Process Monitor (Sysinternals, exige baixar com aprovação do operador) qual arquivo o cliente lê logo depois de carregar o `FileSystem_Stdio.dll`;
+  - ou renomear `E608DF10….hfs` na cópia de laboratório: se o cliente deixar de achar arquivos que estão em pacotes, ele é o índice.
+
 Se o L0-d passar, o launcher distribui `.hfs` novos e o índice regravado, como o pw-universal regrava entradas do `.pck`. Se falhar, modelos e scripts novos dependem de mudar o binário ou o `GameInfo.txt` (seção 2.3), uma decisão à parte.
 
 ## 3. Referência: pw-universal-server (projeto do operador)
@@ -108,7 +118,7 @@ Durante a transição, o `start-lab.bat` continua como alternativa de laboratór
 ## 6. Engenharia reversa com REA (pedido do operador, 26/10/2026)
 
 - `inspect_managed_artifact` no `Windictus.exe`: a proteção dos metadados .NET impede ler o launcher do Windictus; o modelo dele fica só pelo log de integridade.
-- `FileSystem_Stdio.dll` (autorizado pelo operador em 26/10/2026): resultado na seção 2.2. Limite: a parte em `.vmp0` (VMProtect), que escolhe o arquivo do índice e monta a lista de pacotes, não é legível estaticamente. O próximo passo é o L0-a (console com `-dev`), não mais análise estática.
+- `FileSystem_Stdio.dll` (autorizado pelo operador em 26/10/2026): resultado na seção 2.2. Limite: a parte em `.vmp0` (VMProtect), que escolhe o arquivo do índice e monta a lista de pacotes, não é legível estaticamente. O L0-a (console) falhou; o candidato a índice e a cifra estão na seção 2.4.
 
 ## 7. Etapas propostas
 
