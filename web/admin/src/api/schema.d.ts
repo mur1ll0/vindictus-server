@@ -639,11 +639,15 @@ export interface components {
             expires_at?: number | null;
             /** @description Icon file (GET /api/icons/item/{icon}). */
             icon?: string | null;
+            /** @description Icon drawn under `icon` (ItemClassInfo.IconBG). */
+            icon_bg?: string | null;
             /** @description Item ID (64-bit, as text). */
             id: string;
             name?: string | null;
             /** Format: int32 */
             slot: number;
+            /** @description What the game's item tooltip shows (stats, enchants, durability, requirements...). */
+            tooltip: components["schemas"]["ItemTooltip"];
             tradable: boolean;
         };
         CharacterSheet: {
@@ -866,6 +870,46 @@ export interface components {
              */
             storage: number;
         };
+        ItemTooltip: {
+            /** @description The category text (Weapon, Pants, Consumable, ...) or the raw Category. */
+            category?: string | null;
+            /** @description The item's three colors (game_equippables), 0xRRGGBB. */
+            colors?: number[] | null;
+            /** @description Level, class and skill requirements; `ok` when this character meets them. */
+            constraints: components["schemas"]["TooltipLine"][];
+            /** @description Current and maximum (EquipmentDurability, game units). */
+            durability?: number[] | null;
+            /** @description The icon is a dye mask (EquipItemInfo.ColorOverride). */
+            dye_mask: boolean;
+            dyeable: boolean;
+            enchantable: boolean;
+            enchants: components["schemas"]["TooltipEnchant"][];
+            /** Format: int32 */
+            enhance_level: number;
+            /**
+             * Format: int32
+             * @description QUALITY attribute (craft quality, 0–5 stars).
+             */
+            quality?: number | null;
+            /**
+             * Format: int32
+             * @description ItemClassInfo.Rarity and its client name (Regular, Beginners, ..., Rare).
+             */
+            rarity?: number | null;
+            rarity_name?: string | null;
+            /** Format: int64 */
+            sell_price?: number | null;
+            /** @description Set bonuses by pieces (`ok` once that many pieces are equipped). */
+            set_bonuses: components["schemas"]["TooltipLine"][];
+            set_name?: string | null;
+            /** @description Item.Stat in ItemStatInfo order; empty for items without stats. */
+            stats: components["schemas"]["TooltipStat"][];
+            /** @description Trade/bind texts of setItemTrade. */
+            trade: string[];
+            unique: boolean;
+            /** @description GameUI_Heroes_Item_Tooltip_Weight: Item.Stat Weight / 1000 and the base weight. */
+            weight?: string | null;
+        };
         LoginRequest: {
             /** Format: password */
             password: string;
@@ -1043,6 +1087,23 @@ export interface components {
         Sorted: {
             /** @description Items that changed place. */
             moved: number;
+        };
+        TooltipEnchant: {
+            lines: components["schemas"]["TooltipLine"][];
+            name: string;
+            prefix: boolean;
+            /** Format: int32 */
+            rank?: number | null;
+        };
+        TooltipLine: {
+            ok: boolean;
+            text: string;
+        };
+        TooltipStat: {
+            key: string;
+            label: string;
+            /** Format: int32 */
+            value: number;
         };
     };
     responses: never;

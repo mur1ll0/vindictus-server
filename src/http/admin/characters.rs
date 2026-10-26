@@ -53,7 +53,18 @@ pub(super) async fn sheet(
     Path(cid): Path<String>,
 ) -> Result<Json<CharacterSheet>, Refusal> {
     Ok(Json(
-        admin_characters::sheet(state.auth.pool(), &state.names, &auth.session, &cid).await?,
+        admin_characters::sheet(
+            state.auth.pool(),
+            &state.names,
+            state
+                .runtime
+                .as_ref()
+                .and_then(|r| r.minimum_assets())
+                .as_deref(),
+            &auth.session,
+            &cid,
+        )
+        .await?,
     ))
 }
 

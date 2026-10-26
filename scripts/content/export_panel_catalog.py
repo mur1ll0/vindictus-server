@@ -5,8 +5,17 @@ names, and the icon of each item class, for the shop and inventory screens. Read
   with `<open_shop>SHOP</open_shop>` inside; an empty `<open_shop>` opens the NPC's default
   `<NPC>_Shop`. The location prefix names the place (t01 Colhen, rochest, morvan, event, ...).
 - Names: HEROES_NPC_<ID> and GAMEUI_HEROES_NPCDESCRIPTION_<ID> of the client's english_eu text.
-- Icons: ItemClassInfo.Icon of the server content; the client's scaleform/item_icon/<Icon>.tga
-  converted to PNG under .cache/private-content/icons/item (game assets, never committed)."""
+- Icons: ItemClassInfo.Icon (and IconBG, drawn under it) of the server content; the client's
+  scaleform/item_icon/<Icon>.tga converted to PNG under .cache/private-content/icons/item (game
+  assets, never committed). Equipment icons are dye masks: red, green and blue mark the parts
+  painted with the item's color 1, 2 and 3.
+- Tooltip (B4.4e): the static fields the client's ItemToolTip.gfx shows (setBaseInfo, setStats,
+  addConstraint, setItemTrade, setCondition, setSetInfo) from ItemClassInfo, EquipItemInfo and
+  SetItemInfo, and the client's own texts for them (GameUI_Heroes_ItemToolTip*, ItemStat,
+  EnchantStat, EnchantCondition, Attribute prefix/suffix names, ItemConstraint, set names).
+- Name aliases: a class whose english_eu text was never translated (Korean) takes the English
+  name and description of another class with the same icon (the same design for another
+  character class, e.g. fiona_noluck_inner_devilhunter → delia_inner_devilhunter)."""
 import argparse, contextlib, json, pathlib, re, sqlite3
 import xml.etree.ElementTree as ET
 from export_cash_shop import LOCALIZED, UNTRANSLATED
@@ -17,6 +26,18 @@ SERVER = ROOT.parent / 'ServidorVindictus/Server/zh-tw-x-gm'
 CLIENT = ROOT.parent / 'Vindictus1.69EN/Vindictus EU/en-EU/hfs_extracted'
 OUTPUT_ROOT = ROOT / '.cache/private-content'
 NAME = re.compile(r'^\s*"((?:HEROES_NPC|GAMEUI_HEROES_NPCDESCRIPTION)_[^"]+)"\s+"(.*)"\s*$', re.M)
+# Client texts of the item tooltip, keyed like the client (upper case).
+TOOLTIP = re.compile(r'^\s*"((?:GAMEUI_HEROES_ITEM_?TOOLTIP|GAMEUI_HEROES_ITEMSTAT|GAMEUI_HEROES_ENCHANTSTAT|'
+                     r'GAMEUI_HEROES_ENCHANTCONDITION|GAMEUI_HEROES_ATTRIBUTE_(?:PREFIX|SUFFIX)|GAMEUI_HEROES_ITEMCONSTRAINT|'
+                     r'HEROES_SET_ITEM|HEROES_ITEM_SETITEM)[^"]*)"\s+"(.*)"\s*$', re.M | re.I)
+ITEM_TEXT = re.compile(r'^\s*"(HEROES_ITEM_(?:NAME|DESC)_[^"]+)"\s+"(.*)"\s*$', re.M)
+# ItemClassInfo / EquipItemInfo columns the tooltip shows (short key in the catalog).
+CLASS_FIELDS = [('Rarity', 'r'), ('Category', 'c'), ('SellPrice', 'sp'), ('Price', 'p'), ('RequiredLevel', 'rl'),
+                ('RequiredSkill', 'rs'), ('RequiredSkillRank', 'rr'), ('ClassRestriction', 'cr'), ('Unique', 'u'),
+                ('MaxAntiBind', 'ab'), ('TradeRestirction', 'tr'), ('Bind', 'b'), ('ExpireIn', 'ex'), ('IconBG', 'bg'),
+                ('Level', 'lv'), ('MaxStack', 'ms')]
+EQUIP_FIELDS = [('EquipClass', 'ec'), ('MaxDurability', 'md'), ('Weight', 'w'), ('ColorOverride', 'co'),
+                ('Enchantable', 'en'), ('Dyeable', 'dy'), ('Synthesizable', 'sy'), ('EnhanceType', 'et')]
 ICON = re.compile(r'^[A-Za-z0-9_]{1,96}$')
 # Location prefix → place shown by the panel.
 PLACES = [('t01', 'Colhen'), ('rochest', 'Rocheste'), ('morvan', 'Malina (Morvan)'), ('field1', 'Campos'),
@@ -56,8 +77,12 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
     if len(data) > 64 * 1024 * 1024 or data[:2] != b'\xff\xfe':
         raise ValueError('Localized text must be bounded UTF-16LE')
     # The localization writes line breaks as the two characters "\n".
-    texts = {k: v.replace('\\n', '\n') for k, v in NAME.findall(data.decode('utf-16'))
+    decoded = data.decode('utf-16')
+    texts = {k: v.replace('\\n', '\n') for k, v in NAME.findall(decoded)
              if not UNTRANSLATED.search(v) and len(v) <= 512}
+    tooltip_text = {k.upper(): v.replace('\\n', '\n') for k, v in TOOLTIP.findall(decoded)
+                    if not UNTRANSLATED.search(v) and len(v) <= 1024}
+    item_text = {k.upper(): v for k, v in ITEM_TEXT.findall(decoded)}
     with contextlib.closing(sqlite3.connect(pathlib.Path(database).resolve().as_uri() + '?mode=ro', uri=True)) as db:
         db.execute('PRAGMA query_only=ON')
         shop_ids = {r[0].lower(): r[0] for r in db.execute('SELECT DISTINCT ShopID FROM ShopInfo') if r[0]}
@@ -65,6 +90,8 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
         for item, icon in db.execute('SELECT ItemClass, Icon FROM ItemClassInfo'):
             if item and icon and ICON.match(icon) and ICON.match(item):
                 icons.setdefault(item.upper(), icon.lower())
+        info = item_info(db)
+    aliases = name_aliases(icons, item_text)
     shops, npcs = {}, {}
     for npc, location, shop in npc_shops(pathlib.Path(xml_root)):
         real = shop_ids.get(shop.lower())
@@ -78,7 +105,57 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
         entries.sort(key=lambda e: (e['place'], e['npc']))
     return dict(format_version=1, source='npc-talk-xml+heroes_text_english_eu', localized_sha256=digest(localized),
                 database_sha256=digest(database), shops=dict(sorted(shops.items())), npcs=dict(sorted(npcs.items())),
-                item_icons=dict(sorted(icons.items())))
+                item_icons=dict(sorted(icons.items())), item_info=dict(sorted(info.items())),
+                item_aliases=dict(sorted(aliases.items())), tooltip_text=dict(sorted(tooltip_text.items())))
+
+
+def columns(db, table):
+    return {r[1] for r in db.execute('PRAGMA table_info([%s])' % table)}
+
+
+def item_info(db):
+    """Class (upper case) → the tooltip's static fields; defaults (None, 0, '') left out."""
+    def pick(row, fields):
+        out = {}
+        for (_, key), value in zip(fields, row):
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            if isinstance(value, str) and value.lower() in ('true', 'false'):
+                value = int(value.lower() == 'true')
+            if value not in (None, '', 0):
+                out[key] = value
+        return out
+    have = columns(db, 'ItemClassInfo')
+    fields = [f for f in CLASS_FIELDS if f[0] in have]
+    info = {}
+    if fields:
+        for row in db.execute('SELECT ItemClass,' + ','.join('[%s]' % f for f, _ in fields) + ' FROM ItemClassInfo'):
+            if row[0] and ICON.match(row[0]):
+                info.setdefault(row[0].upper(), pick(row[1:], fields))
+    have = columns(db, 'EquipItemInfo')
+    fields = [f for f in EQUIP_FIELDS if f[0] in have]
+    if fields:
+        for row in db.execute('SELECT ItemClass,' + ','.join('[%s]' % f for f, _ in fields) + ' FROM EquipItemInfo'):
+            if row[0] and row[0].upper() in info:
+                for key, value in pick(row[1:], fields).items():
+                    info[row[0].upper()].setdefault(key, value)
+    if {'ItemClass', 'SetID'} <= columns(db, 'SetItemInfo'):
+        for item, set_id in db.execute('SELECT ItemClass, SetID FROM SetItemInfo'):
+            if item and set_id and item.upper() in info:
+                info[item.upper()].setdefault('set', set_id)
+    return info
+
+
+def name_aliases(icons, item_text):
+    """Classes without an English name → a class with the same icon that has one."""
+    def english(cls):
+        name = item_text.get('HEROES_ITEM_NAME_' + cls)
+        return name is not None and len(name) <= 256 and not UNTRANSLATED.search(name)
+    by_icon = {}
+    for cls, icon in sorted(icons.items()):
+        if english(cls):
+            by_icon.setdefault(icon, cls)
+    return {cls: by_icon[icon] for cls, icon in icons.items() if not english(cls) and icon in by_icon}
 
 
 def convert_icons(icons, source=CLIENT / 'scaleform/item_icon', target=OUTPUT_ROOT / 'icons/item'):
@@ -86,7 +163,7 @@ def convert_icons(icons, source=CLIENT / 'scaleform/item_icon', target=OUTPUT_RO
     from PIL import Image
     target.mkdir(parents=True, exist_ok=True)
     done = missing = 0
-    for icon in sorted(set(icons.values())):
+    for icon in sorted(set(icons)):
         out = target / (icon + '.png')
         if out.exists():
             done += 1
@@ -111,9 +188,13 @@ def main():
         raise ValueError('Private output outside ACL cache')
     package = read_package()
     output.write_text(json.dumps(package, ensure_ascii=True, separators=(',', ':')), encoding='utf-8', newline='\n')
-    icons = (0, 0) if args.no_icons else convert_icons(package['item_icons'])
-    print('Panel catalog exported: %d shops with NPCs, %d NPCs, %d item icons (%d PNG, %d missing)'
-          % (len(package['shops']), len(package['npcs']), len(package['item_icons']), icons[0], icons[1]))
+    wanted = set(package['item_icons'].values()) | {i['bg'].lower() for i in package['item_info'].values()
+                                                     if isinstance(i.get('bg'), str) and ICON.match(i['bg'])}
+    icons = (0, 0) if args.no_icons else convert_icons(wanted)
+    print('Panel catalog exported: %d shops with NPCs, %d NPCs, %d item icons (%d PNG, %d missing), '
+          '%d tooltip classes, %d name aliases, %d tooltip texts'
+          % (len(package['shops']), len(package['npcs']), len(package['item_icons']), icons[0], icons[1],
+             len(package['item_info']), len(package['item_aliases']), len(package['tooltip_text'])))
 
 
 if __name__ == '__main__':

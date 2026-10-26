@@ -3,6 +3,7 @@ pub mod admin_accounts;
 pub mod admin_characters;
 pub mod admin_progression;
 pub mod admin_store;
+pub mod admin_tooltip;
 pub mod content_edits;
 pub mod game_links;
 pub mod maintenance;

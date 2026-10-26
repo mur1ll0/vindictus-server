@@ -46,6 +46,7 @@ pub async fn mine(
 pub async fn sheet(
     pool: &PgPool,
     names: &EnglishNames,
+    assets: Option<&crate::infrastructure::minimum_assets::Assets>,
     session: &SessionAccount,
     cid: &str,
 ) -> Result<CharacterSheet, AdminError> {
@@ -57,7 +58,7 @@ pub async fn sheet(
             return Err(AdminError::NotFound);
         }
     }
-    admin_characters::sheet(pool, names, cid)
+    admin_characters::sheet(pool, names, assets, cid)
         .await?
         .ok_or(AdminError::NotFound)
 }

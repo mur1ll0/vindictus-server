@@ -119,5 +119,14 @@ Pré-condição: containers recompilados depois de 26/10/2026; a Murael fora do 
 - [ ] Com a Murael dentro do jogo, arrastar ou Organizar → "O personagem está no jogo…" e nada muda.
 Limites conhecidos: itens vestidos ocupam espaços da bolsa (ícone de camisa), não são arrastados e não recebem itens soltos; só bolsas (Cash e Quest só pelo Organizar); arrastar usa o motivo fixo "Movido arrastando no painel".
 
+### B4.4e — Ícone com a cor do item e tooltip como no jogo
+Pré-condição: containers recompilados depois de 26/10/2026 com `py -3.13 scripts/content/export_panel_catalog.py --output .cache/private-content/panel-catalog.json` (catálogo com os dados do tooltip e os ícones de fundo). Só painel; para comparar, abrir o mesmo item no jogo.
+- [ ] Ficha da Murael → Inventário: a espada, o escudo e as peças de armadura aparecem com as cores que têm no jogo (não o vermelho/verde/azul da máscara).
+- [ ] O inner armor (`fiona_noluck_inner_devilhunter`) mostra o nome e a descrição em inglês ("Crescent Moon Inner Armor") e o ícone sobre o corpo (IconBG).
+- [ ] Passar o mouse sobre a espada → caixa com ícone, nome com +refino/encantamentos, categoria e raridade, ATT e demais estatísticas, encantamentos com as linhas ativas, durabilidade, requisitos (nível, classe, skill; em vermelho os não atendidos), descrição, conjunto, cores, troca/vínculo, peso e preço de venda. Comparar com o tooltip do jogo e anotar o que difere.
+- [ ] Passar o mouse sobre uma poção → nome, categoria "Consumable", descrição completa, quantidade.
+- [ ] Clicar num item → o modal mostra a mesma caixa.
+Limites conhecidos: a mistura das cores da máscara é uma aproximação do cliente; as cores de raridade são aproximadas; o efeito de uso de consumíveis aparece só pela descrição do item; durabilidade mostrada como valor do jogo / 100.
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

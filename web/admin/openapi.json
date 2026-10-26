@@ -1923,6 +1923,7 @@
         "required": [
           "id",
           "class",
+          "tooltip",
           "count",
           "collection",
           "slot",
@@ -1984,6 +1985,13 @@
             ],
             "description": "Icon file (GET /api/icons/item/{icon})."
           },
+          "icon_bg": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Icon drawn under `icon` (ItemClassInfo.IconBG)."
+          },
           "id": {
             "type": "string",
             "description": "Item ID (64-bit, as text)."
@@ -1997,6 +2005,10 @@
           "slot": {
             "type": "integer",
             "format": "int32"
+          },
+          "tooltip": {
+            "$ref": "#/components/schemas/ItemTooltip",
+            "description": "What the game's item tooltip shows (stats, enchants, durability, requirements...)."
           },
           "tradable": {
             "type": "boolean"
@@ -2641,6 +2653,145 @@
           }
         }
       },
+      "ItemTooltip": {
+        "type": "object",
+        "required": [
+          "unique",
+          "stats",
+          "enhance_level",
+          "enchants",
+          "constraints",
+          "trade",
+          "set_bonuses",
+          "dye_mask",
+          "dyeable",
+          "enchantable"
+        ],
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The category text (Weapon, Pants, Consumable, ...) or the raw Category."
+          },
+          "colors": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "The item's three colors (game_equippables), 0xRRGGBB."
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TooltipLine"
+            },
+            "description": "Level, class and skill requirements; `ok` when this character meets them."
+          },
+          "durability": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Current and maximum (EquipmentDurability, game units)."
+          },
+          "dye_mask": {
+            "type": "boolean",
+            "description": "The icon is a dye mask (EquipItemInfo.ColorOverride)."
+          },
+          "dyeable": {
+            "type": "boolean"
+          },
+          "enchantable": {
+            "type": "boolean"
+          },
+          "enchants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TooltipEnchant"
+            }
+          },
+          "enhance_level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "quality": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "QUALITY attribute (craft quality, 0–5 stars)."
+          },
+          "rarity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "ItemClassInfo.Rarity and its client name (Regular, Beginners, ..., Rare)."
+          },
+          "rarity_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sell_price": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "set_bonuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TooltipLine"
+            },
+            "description": "Set bonuses by pieces (`ok` once that many pieces are equipped)."
+          },
+          "set_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TooltipStat"
+            },
+            "description": "Item.Stat in ItemStatInfo order; empty for items without stats."
+          },
+          "trade": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Trade/bind texts of setItemTrade."
+          },
+          "unique": {
+            "type": "boolean"
+          },
+          "weight": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "GameUI_Heroes_Item_Tooltip_Weight: Item.Stat Weight / 1000 and the base weight."
+          }
+        }
+      },
       "LoginRequest": {
         "type": "object",
         "required": [
@@ -3175,6 +3326,70 @@
             "type": "integer",
             "description": "Items that changed place.",
             "minimum": 0
+          }
+        }
+      },
+      "TooltipEnchant": {
+        "type": "object",
+        "required": [
+          "prefix",
+          "name",
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TooltipLine"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "boolean"
+          },
+          "rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TooltipLine": {
+        "type": "object",
+        "required": [
+          "text",
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "TooltipStat": {
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       }

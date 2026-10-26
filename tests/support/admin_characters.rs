@@ -107,7 +107,7 @@ async fn character_sheet_for_owner_and_staff_only() {
             .is_empty()
     );
 
-    let sheet = admin_characters::sheet(&pool, &names, &owner, "9001")
+    let sheet = admin_characters::sheet(&pool, &names, None, &owner, "9001")
         .await
         .expect("sheet");
     assert_eq!(
@@ -142,7 +142,7 @@ async fn character_sheet_for_owner_and_staff_only() {
 
     // Another account cannot read it, nor list other accounts; staff can.
     assert!(matches!(
-        admin_characters::sheet(&pool, &names, &other, "9001").await,
+        admin_characters::sheet(&pool, &names, None, &other, "9001").await,
         Err(AdminError::NotFound)
     ));
     assert!(matches!(
@@ -156,11 +156,11 @@ async fn character_sheet_for_owner_and_staff_only() {
             .len(),
         1
     );
-    admin_characters::sheet(&pool, &names, &staff, "9001")
+    admin_characters::sheet(&pool, &names, None, &staff, "9001")
         .await
         .expect("staff sheet");
     assert!(matches!(
-        admin_characters::sheet(&pool, &names, &staff, "x").await,
+        admin_characters::sheet(&pool, &names, None, &staff, "x").await,
         Err(AdminError::NotFound)
     ));
 

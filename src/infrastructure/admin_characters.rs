@@ -45,6 +45,15 @@ struct PanelCatalog {
     /// Item class (upper case) → icon file name (icons/item/<icon>.png).
     #[serde(default)]
     item_icons: HashMap<String, String>,
+    /// Item class (upper case) → the tooltip's static fields (short keys, B4.4e).
+    #[serde(default)]
+    item_info: HashMap<String, HashMap<String, serde_json::Value>>,
+    /// Item class without English text → a class with the same icon that has it.
+    #[serde(default)]
+    item_aliases: HashMap<String, String>,
+    /// The client's tooltip texts (upper-case keys).
+    #[serde(default)]
+    tooltip_text: HashMap<String, String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -94,9 +103,38 @@ impl EnglishNames {
             .cloned()
     }
     fn item(&self, class: &str) -> (Option<String>, Option<String>) {
+        let key = base_class(class).to_ascii_uppercase();
+        // Never translated (Korean): the same design of another class (same icon).
         self.items
-            .get(&base_class(class).to_ascii_uppercase())
+            .get(&key)
+            .or_else(|| {
+                self.catalog
+                    .item_aliases
+                    .get(&key)
+                    .and_then(|alias| self.items.get(alias))
+            })
             .map_or((None, None), |(n, d)| (Some(n.clone()), d.clone()))
+    }
+    pub(super) fn item_info(&self, class: &str) -> Option<&HashMap<String, serde_json::Value>> {
+        self.catalog
+            .item_info
+            .get(&base_class(class).to_ascii_uppercase())
+    }
+    pub(super) fn text(&self, key: &str) -> Option<String> {
+        self.catalog
+            .tooltip_text
+            .get(&key.to_ascii_uppercase())
+            .cloned()
+    }
+    pub(super) fn skill_name(&self, key: &str) -> Option<String> {
+        self.skill(key)
+    }
+    /// IconBG drawn under the icon (inner armor body, for example).
+    pub fn item_icon_bg(&self, class: &str) -> Option<String> {
+        self.item_info(class)
+            .and_then(|i| i.get("bg"))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_ascii_lowercase)
     }
     fn skill(&self, key: &str) -> Option<String> {
         self.skills.get(&key.to_ascii_uppercase()).cloned()
@@ -158,6 +196,10 @@ pub struct CharacterItem {
     pub description: Option<String>,
     /// Icon file (GET /api/icons/item/{icon}).
     pub icon: Option<String>,
+    /// Icon drawn under `icon` (ItemClassInfo.IconBG).
+    pub icon_bg: Option<String>,
+    /// What the game's item tooltip shows (stats, enchants, durability, requirements...).
+    pub tooltip: crate::infrastructure::admin_tooltip::ItemTooltip,
     pub count: i32,
     /// 0–8 bags, 100 cash, 101 account (gold), 102 restore, 103 story.
     pub collection: i16,
@@ -277,11 +319,14 @@ type ItemRow = (
     bool,
     Option<i16>,
     Option<i32>,
+    Option<i32>,
+    Option<[i32; 3]>,
 );
 
 pub async fn sheet(
     pool: &PgPool,
     names: &EnglishNames,
+    assets: Option<&super::minimum_assets::Assets>,
     cid: i64,
 ) -> Result<Option<CharacterSheet>, sqlx::Error> {
     // One snapshot for every part of the sheet.
@@ -311,7 +356,8 @@ pub async fn sheet(
     .await?;
     let items: Vec<ItemRow> = sqlx::query_as(
         "SELECT i.id, i.item_class_utf16, i.count, i.collection, i.slot, i.expire_ticks,
-                i.tradable, e.part, e.reduced_durability
+                i.tradable, e.part, e.reduced_durability, e.max_durability_bonus,
+                CASE WHEN e.id IS NULL THEN NULL ELSE ARRAY[e.color1, e.color2, e.color3] END
          FROM game_items i LEFT JOIN game_equippables e ON e.id = i.id
          WHERE i.owner_id = $1 ORDER BY i.collection, i.slot, i.id LIMIT $2",
     )
@@ -350,6 +396,11 @@ pub async fn sheet(
     .bind(MAX_ROWS)
     .fetch_all(&mut *tx)
     .await?;
+    // The enchant conditions read the owner's level, class, skills and titles.
+    let context = match assets {
+        Some(_) => super::minimum_item_stat::context(&mut tx, cid).await.ok(),
+        None => None,
+    };
     let cash: Option<i32> = sqlx::query_scalar(
         "SELECT b.balance FROM game_cash_balances b JOIN game_character_info c ON c.uid = b.uid WHERE c.id = $1",
     )
@@ -369,18 +420,33 @@ pub async fn sheet(
         });
     }
     let mut gold = 0;
-    let items = items
+    let holder = context.as_ref().map(|c| (c, row.3, i32::from(row.2)));
+    let mut items: Vec<CharacterItem> = items
         .into_iter()
         .map(
-            |(id, class, count, collection, slot, expire, tradable, part, lost)| {
+            |(id, class, count, collection, slot, expire, tradable, part, lost, bonus, colors)| {
                 let class = utf16(&class);
                 if collection == 101 && class == "gold" {
                     gold += i64::from(count);
                 }
                 let (name, description) = names.item(&class);
                 let icon = names.item_icon(&class);
+                let attributes = by_item.remove(&id).unwrap_or_default();
+                let tooltip = super::admin_tooltip::build(
+                    names,
+                    assets,
+                    holder,
+                    &super::admin_tooltip::Input {
+                        class: &class,
+                        attributes: &attributes,
+                        tradable,
+                        equippable: colors.map(|c| (lost.unwrap_or(0), bonus.unwrap_or(0), c)),
+                    },
+                );
                 CharacterItem {
                     icon,
+                    icon_bg: names.item_icon_bg(&class),
+                    tooltip,
                     id: id.to_string(),
                     name,
                     description,
@@ -391,12 +457,24 @@ pub async fn sheet(
                     durability_lost: lost,
                     expires_at: unix(expire),
                     tradable,
-                    attributes: by_item.remove(&id).unwrap_or_default(),
+                    attributes,
                     class,
                 }
             },
         )
         .collect();
+    // setSetInfo: the pieces of each set this character wears.
+    let mut worn: HashMap<String, usize> = HashMap::new();
+    for item in items.iter().filter(|i| i.equipped_part.is_some()) {
+        if let Some(set) = super::admin_tooltip::set_of(names, &item.class) {
+            *worn.entry(set).or_default() += 1;
+        }
+    }
+    for item in &mut items {
+        if let Some(set) = super::admin_tooltip::set_of(names, &item.class) {
+            super::admin_tooltip::mark_set(&mut item.tooltip, worn.get(&set).copied().unwrap_or(0));
+        }
+    }
     let (str, dex, int, will, luck, hp, stamina, total_used_ap, play_time, selected) = stats;
     Ok(Some(CharacterSheet {
         summary: summary(row),

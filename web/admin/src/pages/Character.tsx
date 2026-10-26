@@ -18,6 +18,7 @@ import {
 import { sessionQuery } from '@/api/session';
 import { Avatar } from '@/components/Avatar';
 import { ItemIcon } from '@/components/ItemIcon';
+import { ItemTooltipBox, itemColors, itemTitle, WithItemTooltip } from '@/components/ItemTooltip';
 import { CashModal, GiveItemModal, GoldModal, RemoveItemForm } from '@/components/CharacterEdits';
 import { ProgressionModal, RemoveEffectModal } from '@/components/ProgressionEdits';
 import { Button } from '@/components/ui/button';
@@ -44,15 +45,16 @@ function classEx(item: CharacterItem) {
 
 function ItemCard({ item, onOpen }: { item: CharacterItem; onOpen: () => void }) {
   return (
+    <WithItemTooltip item={item}>
     <button
       type="button"
       onClick={onOpen}
       className="flex w-full flex-col gap-2 rounded-xl border border-border bg-surface p-3 text-left transition-colors hover:border-accent/70"
     >
       <div className="flex items-start gap-3">
-        <ItemIcon icon={item.icon} />
+        <ItemIcon icon={item.icon} bg={item.icon_bg} colors={itemColors(item)} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{item.name ?? item.class}</p>
+          <p className="truncate text-sm font-semibold">{itemTitle(item)}</p>
           <p className="truncate font-mono text-xs text-muted">
             espaço {item.slot} · {item.class}
           </p>
@@ -78,6 +80,7 @@ function ItemCard({ item, onOpen }: { item: CharacterItem; onOpen: () => void })
         {!item.tradable && <Badge>vinculado</Badge>}
       </div>
     </button>
+    </WithItemTooltip>
   );
 }
 
@@ -96,7 +99,7 @@ function ItemModal({
 }) {
   const [removing, setRemoving] = useState(false);
   return (
-    <Modal open title={item.name ?? item.class} subtitle={item.class} onClose={onClose}>
+    <Modal open title={itemTitle(item)} subtitle={item.class} onClose={onClose} width="max-w-2xl">
       {removing ? (
         <RemoveItemForm
           cid={cid}
@@ -109,7 +112,7 @@ function ItemModal({
         />
       ) : (
       <div className="space-y-4">
-        {item.description && <p className="text-sm whitespace-pre-line text-muted">{item.description}</p>}
+        <ItemTooltipBox item={item} />
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Stat label="Quantidade">{item.count.toLocaleString('pt-BR')}</Stat>
           <Stat label="Local">{`${collectionName(item.collection)} · espaço ${item.slot}`}</Stat>
@@ -179,6 +182,7 @@ function SlotCell({
       )}
     >
       {item ? (
+        <WithItemTooltip item={item} className="size-full">
         <button
           type="button"
           draggable={draggable && item.equipped_part == null}
@@ -188,10 +192,9 @@ function SlotCell({
             onDragStart();
           }}
           onClick={onOpen}
-          title={`${item.name ?? item.class} · espaço ${slot}${item.count > 1 ? ` · ×${item.count}` : ''}`}
           className={cn('flex size-full items-center justify-center rounded-lg hover:ring-2 hover:ring-accent/60', draggable && 'cursor-grab')}
         >
-          <ItemIcon icon={item.icon} />
+          <ItemIcon icon={item.icon} bg={item.icon_bg} colors={itemColors(item)} />
           {item.count > 1 && (
             <span className="absolute right-1 bottom-0.5 text-[11px] font-semibold text-fg [text-shadow:0_0_3px_var(--color-surface)]">
               {item.count.toLocaleString('pt-BR')}
@@ -199,6 +202,7 @@ function SlotCell({
           )}
           {item.equipped_part != null && <Shirt className="absolute top-1 left-1 size-3 text-accent" />}
         </button>
+        </WithItemTooltip>
       ) : (
         <span className="text-[10px] text-muted/50">{slot}</span>
       )}
