@@ -49,30 +49,103 @@ pub struct Actor<'a> {
     pub reason: &'a AuditReason,
 }
 
+const SUMMARY: &str = "SELECT a.username, a.game_name, a.panel_role, a.status,
+        COALESCE(a.locked_until > now(), false) AS locked,
+        to_char(a.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
+        u.id AS game_uid,
+        (SELECT count(*) FROM game_character_info c WHERE c.uid = u.id) AS characters
+    FROM accounts a
+    LEFT JOIN game_users u ON u.name_key = lower(COALESCE(a.game_name, a.username))";
+
 pub async fn list(
     pool: &PgPool,
     search: Option<&str>,
     after: Option<&str>,
     limit: i64,
 ) -> Result<Vec<AccountSummary>, sqlx::Error> {
-    sqlx::query_as(
-        "SELECT a.username, a.game_name, a.panel_role, a.status,
-                COALESCE(a.locked_until > now(), false) AS locked,
-                to_char(a.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at,
-                u.id AS game_uid,
-                (SELECT count(*) FROM game_character_info c WHERE c.uid = u.id) AS characters
-         FROM accounts a
-         LEFT JOIN game_users u ON u.name_key = lower(COALESCE(a.game_name, a.username))
+    sqlx::query_as(&format!(
+        "{SUMMARY}
          WHERE ($1::text IS NULL OR a.normalized_name LIKE '%' || $1 || '%')
            AND ($2::text IS NULL OR a.normalized_name > $2)
          ORDER BY a.normalized_name
-         LIMIT $3",
-    )
+         LIMIT $3"
+    ))
     .bind(search)
     .bind(after)
     .bind(limit)
     .fetch_all(pool)
     .await
+}
+
+pub async fn summary(pool: &PgPool, account: Uuid) -> Result<Option<AccountSummary>, sqlx::Error> {
+    sqlx::query_as(&format!("{SUMMARY} WHERE a.id = $1"))
+        .bind(account)
+        .fetch_optional(pool)
+        .await
+}
+
+pub enum Registration {
+    Created(Uuid),
+    Exists,
+}
+
+/// Open registration: a new account without a panel role and its first session, audited as
+/// the account itself.
+pub async fn register(
+    pool: &PgPool,
+    username: &crate::domain::Username,
+    password_hash: &str,
+    token_sha256: &[u8; 32],
+    session_seconds: f64,
+    peer: Option<IpAddr>,
+) -> Result<Registration, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let id: Option<Uuid> = sqlx::query_scalar(
+        "INSERT INTO accounts (id, username, normalized_name, password_hash)
+         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id",
+    )
+    .bind(Uuid::new_v4())
+    .bind(username.display())
+    .bind(username.normalized())
+    .bind(password_hash)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(id) = id else {
+        return Ok(Registration::Exists);
+    };
+    sqlx::query(
+        "INSERT INTO admin_sessions (token_sha256, account_id, password_changed_at, expires_at)
+         SELECT $1, id, password_changed_at, now() + make_interval(secs => $3)
+         FROM accounts WHERE id = $2",
+    )
+    .bind(token_sha256.as_slice())
+    .bind(id)
+    .bind(session_seconds)
+    .execute(&mut *tx)
+    .await?;
+    admin_store::insert_audit(
+        &mut tx,
+        &AuditRecord {
+            account_id: Some(id),
+            actor_name: Some(username.display()),
+            role: None,
+            operation_id: None,
+            action: "account.register",
+            target_kind: Some("account"),
+            target_id: Some(username.normalized()),
+            reason: None,
+            before: None,
+            after: Some(
+                serde_json::json!({ "username": username.display(), "panel_role": null, "status": "active" })
+                    .to_string(),
+            ),
+            refused: false,
+            peer,
+        },
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Registration::Created(id))
 }
 
 async fn target(
@@ -120,7 +193,7 @@ fn audit<'a>(
     AuditRecord {
         account_id: Some(actor.session.account_id),
         actor_name: Some(&actor.session.username),
-        role: Some(actor.session.role),
+        role: actor.session.role,
         operation_id: Some(actor.operation_id),
         action,
         target_kind: Some("account"),

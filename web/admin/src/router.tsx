@@ -1,100 +1,72 @@
-import { type QueryClient, useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import {
-  createRootRouteWithContext,
-  createRoute,
-  createRouter,
-  Link,
-  Outlet,
-  redirect,
-  useNavigate,
-} from '@tanstack/react-router';
-import type { Role } from '@/api/client';
-import { logout, sessionQuery } from '@/api/session';
-import { Button } from '@/components/ui/button';
+import type { QueryClient } from '@tanstack/react-query';
+import { createRootRouteWithContext, createRoute, createRouter, Outlet, redirect } from '@tanstack/react-router';
+import { homeOf, sessionQuery } from '@/api/session';
+import { Layout } from '@/components/Layout';
 import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
 import { LoginPage } from '@/pages/Login';
-import { PlayPage } from '@/pages/Play';
+import { MyAccountPage } from '@/pages/MyAccount';
 
-const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', gm: 'GM', leitura: 'Leitura' };
+type Context = { queryClient: QueryClient };
 
-function Shell() {
-  const { data: session } = useSuspenseQuery(sessionQuery);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const exit = useMutation({
-    mutationFn: logout,
-    onSettled: () => {
-      queryClient.clear();
-      void navigate({ to: '/login' });
-    },
-  });
-  return (
-    <div className="min-h-screen">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <nav className="flex items-center gap-4 text-sm">
-            <span className="font-semibold">Painel Vindictus</span>
-            {[
-              { to: '/', label: 'Contas' },
-              { to: '/auditoria', label: 'Auditoria' },
-            ].map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="text-muted hover:text-fg"
-                activeProps={{ className: 'font-medium text-fg' }}
-                activeOptions={{ exact: true }}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-3 text-sm">
-            <span>
-              {session?.username}{' '}
-              <span className="text-muted">
-                ({session ? (ROLE_LABEL[session.role as Role] ?? session.role) : ''})
-              </span>
-            </span>
-            <Button variant="outline" size="sm" disabled={exit.isPending} onClick={() => exit.mutate()}>
-              Sair
-            </Button>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">
-        <Outlet />
-      </main>
-    </div>
-  );
-}
+const root = createRootRouteWithContext<Context>()({ component: Outlet });
 
-const root = createRootRouteWithContext<{ queryClient: QueryClient }>()({ component: Outlet });
-
-const loginRoute = createRoute({ getParentRoute: () => root, path: '/login', component: LoginPage });
-const playRoute = createRoute({ getParentRoute: () => root, path: '/jogar', component: PlayPage });
+const loginRoute = createRoute({
+  getParentRoute: () => root,
+  path: '/login',
+  validateSearch: (search: Record<string, unknown>): { aviso?: string } =>
+    typeof search.aviso === 'string' ? { aviso: search.aviso } : {},
+  component: LoginPage,
+});
 
 const shellRoute = createRoute({
   getParentRoute: () => root,
   id: 'shell',
-  component: Shell,
+  component: Layout,
   beforeLoad: async ({ context }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery);
     if (!session) throw redirect({ to: '/login' });
+    return { session };
   },
 });
 
-const accountsRoute = createRoute({ getParentRoute: () => shellRoute, path: '/', component: AccountsPage });
+const indexRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/',
+  beforeLoad: ({ context }) => {
+    throw redirect({ to: homeOf(context.session) });
+  },
+});
+
+/** Administration pages need a panel role; an account without one goes to its own data. */
+function staffOnly({ context }: { context: { session: { role?: string | null } } }) {
+  if (!context.session.role) throw redirect({ to: '/minha-conta' });
+}
+
+const accountsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/contas',
+  beforeLoad: staffOnly,
+  component: AccountsPage,
+});
 const auditRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/auditoria',
+  beforeLoad: staffOnly,
   component: AuditPage,
+});
+const myAccountRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/minha-conta',
+  component: MyAccountPage,
 });
 
 export function makeRouter(queryClient: QueryClient) {
   return createRouter({
-    routeTree: root.addChildren([loginRoute, playRoute, shellRoute.addChildren([accountsRoute, auditRoute])]),
+    routeTree: root.addChildren([
+      loginRoute,
+      shellRoute.addChildren([indexRoute, accountsRoute, auditRoute, myAccountRoute]),
+    ]),
     context: { queryClient },
   });
 }

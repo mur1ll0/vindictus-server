@@ -58,6 +58,8 @@ launcher (scripts/dev/play.ps1 ou página /jogar do painel)
 
 Resultado (25/10/2026): T1 entrou com uma senha qualquer (a senha é ignorada); T2 mostrou "Erro [Auth] SSO" e fechou. Implementado o código de uso único digitado no campo ID (B4.2b); a conta `admin` foi ligada ao usuário de jogo `lab169_a` (Fiona Murael) com `account-link-game`.
 
+Revisão de 26/10/2026 (decisão do operador): o código de jogo foi retirado por ser considerado inseguro. O jogo deve usar a própria tela de login do cliente (Start Game → ID e senha → seleção de personagens → segunda senha) e, no futuro, um launcher que já entra logado. O diagnóstico B4.2-D (`docs/client-tests/B4-painel.md`) verifica se a senha da tela chega em algum campo do `UserLoginMessage`. Toda conta ativa entra no painel; sem papel, vê só os próprios dados e troca a senha; há cadastro aberto na tela de login.
+
 ### 1.3b Detalhes da conta (válidos nas duas variantes)
 
 - **Criar conta (painel):** `create_playable_account(username, senha)`. O username segue `[A-Za-z0-9_]{3,24}`, para caber inteiro no `NexonID`. A senha é guardada com argon2id na tabela `accounts` (já existente; o formato atual é 3–32 caracteres, então o limite cai para 24). O caso de uso deriva `NexonSN` e `name_key` com o mesmo `derive_lab_identity` e recusa colisão (hash de 32 bits) ou nome já usado em `game_users` ou nas tabelas que o `prepare_scoped_lab_user` confere como órfãs ("escolha outro nome"). Conta e auditoria vão na mesma transação. O usuário do jogo continua nascendo no primeiro login.

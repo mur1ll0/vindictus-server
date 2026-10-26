@@ -32,7 +32,7 @@ pub struct Request<'a> {
 }
 
 fn require(session: &SessionAccount, permission: Permission) -> Result<(), AdminError> {
-    if session.role.allows(permission) {
+    if session.role.is_some_and(|r| r.allows(permission)) {
         Ok(())
     } else {
         Err(AdminError::Forbidden)

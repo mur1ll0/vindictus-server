@@ -3,8 +3,11 @@ import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ApiFailure } from '@/api/client';
+import { initialTheme } from '@/lib/theme';
 import { makeRouter } from '@/router';
 import './index.css';
+
+document.documentElement.dataset.theme = initialTheme();
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -85,11 +85,12 @@ async fn admin_panel_login_session_roles_and_audit() {
     let peer = Some("127.0.0.1".parse().expect("ip"));
     let auth = PanelAuth::new(pool.clone());
 
-    // No role yet: the right password still has no panel access.
-    assert!(matches!(
-        auth.login("painel_admin", secret(PASSWORD), peer).await,
-        Err(AdminError::InvalidCredentials)
-    ));
+    // No role yet: the account logs in, but only sees its own data.
+    let player = auth
+        .login("painel_admin", secret(PASSWORD), peer)
+        .await
+        .expect("login without role");
+    assert_eq!(player.session.role, None);
     set_role_from_cli(
         &pool,
         "Painel_Admin",
@@ -107,7 +108,7 @@ async fn admin_panel_login_session_roles_and_audit() {
         .login("PAINEL_ADMIN", secret(PASSWORD), peer)
         .await
         .expect("login");
-    assert_eq!(granted.session.role, PanelRole::Admin);
+    assert_eq!(granted.session.role, Some(PanelRole::Admin));
     assert_eq!(
         auth.authorize(&granted.token).await.expect("session"),
         granted.session
@@ -121,17 +122,17 @@ async fn admin_panel_login_session_roles_and_audit() {
     set_role_from_cli(&pool, "painel_gm", Some(PanelRole::Gm), "gm")
         .await
         .expect("gm");
-    // Removing the role ends the session at the next request.
+    // Removing the role keeps the session, without panel permissions from the next request.
     set_role_from_cli(&pool, "painel_gm", Some(PanelRole::Admin), "segundo admin")
         .await
         .expect("admin");
     set_role_from_cli(&pool, "painel_admin", None, "sem painel")
         .await
         .expect("removed");
-    assert!(matches!(
-        auth.authorize(&granted.token).await,
-        Err(AdminError::Unauthenticated)
-    ));
+    assert_eq!(
+        auth.authorize(&granted.token).await.expect("session").role,
+        None
+    );
     // A password change ends the sessions opened before it.
     let second = auth
         .login("painel_gm", secret(PASSWORD), peer)
@@ -257,9 +258,9 @@ async fn admin_panel_login_session_roles_and_audit() {
             .filter(|(a, o)| a == action && o == outcome)
             .count()
     };
-    assert_eq!(count("session.login", "ok"), 3);
+    assert_eq!(count("session.login", "ok"), 4);
     assert_eq!(count("account.role", "ok"), 4);
-    assert_eq!(count("session.login", "refused"), 3 + MAX_FAILURES as usize);
+    assert_eq!(count("session.login", "refused"), 2 + MAX_FAILURES as usize);
     for statement in [
         "UPDATE admin_audit_events SET reason = 'x'",
         "DELETE FROM admin_audit_events",

@@ -247,14 +247,96 @@ async fn admin_accounts_permissions_and_audit() {
 
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
-async fn play_codes_are_single_use_expire_and_follow_the_game_link() {
+async fn registration_own_password_short_lab_password_and_game_link() {
     use vindictus_server::{
-        application::{accounts::create_account_with, admin_session::link_game_from_cli},
-        domain::{MIN_LAB_SHORT_PASSWORD, admin::PlayCode},
-        infrastructure::play_codes,
+        application::{
+            accounts::create_account_with,
+            admin_session::{link_game_from_cli, my_account},
+        },
+        domain::MIN_LAB_SHORT_PASSWORD,
+        infrastructure::game_links,
     };
     let (admin_pool, pool, schema) = isolated_pool().await;
-    // The operator's laboratory short-password option (5 bytes) for this one account.
+    let peer = Some("127.0.0.1".parse().expect("ip"));
+    let auth = PanelAuth::new(pool.clone());
+
+    // Open registration: a logged-in account without a panel role.
+    let joined = auth
+        .register("Novato", secret(PASSWORD), peer)
+        .await
+        .expect("register");
+    assert_eq!(joined.session.role, None);
+    assert_eq!(
+        auth.authorize(&joined.token)
+            .await
+            .expect("session")
+            .username,
+        "Novato"
+    );
+    let mine = my_account(&pool, &joined.session).await.expect("me");
+    assert_eq!(
+        (mine.username.as_str(), mine.panel_role.as_deref()),
+        ("Novato", None)
+    );
+    assert!(matches!(
+        auth.register("NOVATO", secret(PASSWORD), peer).await,
+        Err(AdminError::Exists)
+    ));
+    assert!(matches!(
+        auth.register("curto", secret("curta"), peer).await,
+        Err(AdminError::InvalidInput)
+    ));
+    // Three registrations per peer in the window (the refused ones count too).
+    assert!(matches!(
+        auth.register("Outro", secret(PASSWORD), peer).await,
+        Err(AdminError::RateLimited)
+    ));
+    // Without a role the account cannot use the administration.
+    assert!(matches!(
+        admin_accounts::create(
+            &pool,
+            &Request {
+                session: &joined.session,
+                peer,
+                operation_id: Uuid::new_v4(),
+                reason: "x"
+            },
+            "Alguem",
+            secret(PASSWORD),
+            None
+        )
+        .await,
+        Err(AdminError::Forbidden)
+    ));
+
+    // Own password: the current one is checked; afterwards every session of the account ends.
+    assert!(matches!(
+        auth.change_own_password(
+            &joined.session,
+            secret("errada errada"),
+            secret("nova senha do novato"),
+            peer
+        )
+        .await,
+        Err(AdminError::InvalidCredentials)
+    ));
+    auth.change_own_password(
+        &joined.session,
+        secret(PASSWORD),
+        secret("nova senha do novato"),
+        peer,
+    )
+    .await
+    .expect("own password");
+    assert!(matches!(
+        auth.authorize(&joined.token).await,
+        Err(AdminError::Unauthenticated)
+    ));
+    auth.login("novato", secret("nova senha do novato"), peer)
+        .await
+        .expect("new password");
+
+    // The operator's laboratory short-password option (5 bytes) for one account only.
     create_account_with(
         &pool,
         Username::parse("admin").expect("name"),
@@ -272,60 +354,15 @@ async fn play_codes_are_single_use_expire_and_follow_the_game_link() {
         .await
         .is_err()
     );
-    let auth = PanelAuth::new(pool.clone());
-    assert!(matches!(
-        auth.issue_play_code("admin", secret("errada"), None).await,
-        Err(AdminError::InvalidCredentials)
-    ));
-    let first = auth
-        .issue_play_code("admin", secret("admin"), None)
-        .await
-        .expect("code");
-    let second = auth
-        .issue_play_code("admin", secret("admin"), None)
-        .await
-        .expect("code");
-    // A new code replaces the earlier one; a code works once.
-    assert_eq!(
-        play_codes::redeem(&pool, &first.digest())
-            .await
-            .expect("redeem"),
-        None
-    );
-    assert_eq!(
-        play_codes::redeem(&pool, &second.digest())
-            .await
-            .expect("redeem")
-            .as_deref(),
-        Some("admin")
-    );
-    assert_eq!(
-        play_codes::redeem(&pool, &second.digest())
-            .await
-            .expect("redeem"),
-        None
-    );
-
     link_game_from_cli(&pool, "admin", "lab169_a", "manter a Fiona do laboratório")
         .await
         .expect("link");
     assert!(
-        play_codes::claimed(&pool, "lab169_a")
+        game_links::claimed(&pool, "lab169_a")
             .await
             .expect("claimed")
     );
-    assert!(!play_codes::claimed(&pool, "admin").await.expect("claimed"));
-    let linked = auth
-        .issue_play_code("admin", secret("admin"), None)
-        .await
-        .expect("code");
-    assert_eq!(
-        play_codes::redeem(&pool, &linked.digest())
-            .await
-            .expect("redeem")
-            .as_deref(),
-        Some("lab169_a")
-    );
+    assert!(!game_links::claimed(&pool, "admin").await.expect("claimed"));
     // One account per game name, including another account's own login.
     create_account(
         &pool,
@@ -334,36 +371,24 @@ async fn play_codes_are_single_use_expire_and_follow_the_game_link() {
     )
     .await
     .expect_err("claimed by admin");
-
-    let expired = auth
-        .issue_play_code("admin", secret("admin"), None)
-        .await
-        .expect("code");
-    sqlx::query("UPDATE game_play_codes SET expires_at = created_at + interval '1 microsecond', created_at = created_at - interval '1 hour'")
-        .execute(&pool)
-        .await
-        .expect("expire");
+    let audit = audit_page(
+        &pool,
+        AuditFilter {
+            limit: 200,
+            ..AuditFilter::default()
+        },
+    )
+    .await
+    .expect("audit");
     assert_eq!(
-        play_codes::redeem(&pool, &expired.digest())
-            .await
-            .expect("redeem"),
-        None
+        audit
+            .iter()
+            .filter(|e| e.action == "account.register")
+            .count(),
+        1
     );
-    let disabled = auth
-        .issue_play_code("admin", secret("admin"), None)
-        .await
-        .expect("code");
-    sqlx::query("UPDATE accounts SET status = 'disabled'")
-        .execute(&pool)
-        .await
-        .expect("disable");
-    assert_eq!(
-        play_codes::redeem(&pool, &disabled.digest())
-            .await
-            .expect("redeem"),
-        None
-    );
-    assert!(PlayCode::parse(disabled.as_str()).is_some());
+    assert!(audit.iter().any(|e| e.action == "account.password"
+        && e.reason.as_deref() == Some("troca pelo próprio usuário")));
 
     pool.close().await;
     sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))

@@ -19,7 +19,8 @@ pub struct LoginAccount {
 pub struct SessionAccount {
     pub account_id: Uuid,
     pub username: String,
-    pub role: PanelRole,
+    /// None: an account without a panel role, which only sees its own data.
+    pub role: Option<PanelRole>,
 }
 
 /// One audit row to append. `before`/`after` are JSON texts.
@@ -197,7 +198,7 @@ pub async fn touch_session(
          WHERE s.token_sha256 = $1 AND a.id = s.account_id
            AND s.expires_at > now()
            AND s.last_seen_at > now() - make_interval(secs => $2)
-           AND a.panel_role IS NOT NULL AND a.status = 'active'
+           AND a.status = 'active'
            AND a.password_changed_at = s.password_changed_at
          RETURNING a.id, a.username, a.panel_role",
     )
@@ -209,7 +210,7 @@ pub async fn touch_session(
         Ok(SessionAccount {
             account_id,
             username,
-            role: role(r)?.ok_or_else(|| sqlx::Error::Decode("panel role".into()))?,
+            role: role(r)?,
         })
     })
     .transpose()
@@ -313,7 +314,7 @@ pub async fn set_role(
         &AuditRecord {
             account_id: actor.map(|(a, _, _)| a.account_id),
             actor_name: actor.map(|(a, _, _)| a.username.as_str()),
-            role: actor.map(|(a, _, _)| a.role),
+            role: actor.and_then(|(a, _, _)| a.role),
             operation_id: actor.map(|(_, _, o)| o),
             action: "account.role",
             target_kind: Some("account"),

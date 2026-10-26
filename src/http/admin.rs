@@ -56,7 +56,9 @@ impl AdminState {
     ),
     paths(
         login,
-        play_code,
+        register,
+        me,
+        my_password,
         session,
         logout,
         audit,
@@ -68,7 +70,7 @@ impl AdminState {
     ),
     components(schemas(
         LoginRequest,
-        PlayCodeResponse,
+        OwnPassword,
         SessionResponse,
         AuditEntry,
         ApiError,
@@ -93,7 +95,9 @@ pub fn openapi_json() -> String {
 pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
     let api = Router::new()
         .route("/api/session/login", post(login))
-        .route("/api/play/code", post(play_code))
+        .route("/api/session/register", post(register))
+        .route("/api/me", get(me))
+        .route("/api/me/password", post(my_password))
         .route("/api/session", get(session))
         .route("/api/session/logout", post(logout))
         .route("/api/audit", get(audit))
@@ -289,7 +293,7 @@ pub struct Authenticated {
 
 impl Authenticated {
     fn require(&self, permission: Permission) -> Result<(), Refusal> {
-        if self.session.role.allows(permission) {
+        if self.session.role.is_some_and(|r| r.allows(permission)) {
             Ok(())
         } else {
             Err(AdminError::Forbidden.into())
@@ -340,8 +344,9 @@ pub struct LoginRequest {
 #[derive(Serialize, ToSchema)]
 pub struct SessionResponse {
     username: String,
-    #[schema(value_type = String, example = "admin")]
-    role: crate::domain::admin::PanelRole,
+    /// admin, gm, leitura, or null for an account that only sees its own data.
+    #[schema(value_type = Option<String>, example = "admin")]
+    role: Option<crate::domain::admin::PanelRole>,
     /// Send back in the X-CSRF-Token header of every POST/PUT/DELETE.
     csrf_token: String,
 }
@@ -367,8 +372,32 @@ async fn login(
     check_origin(&headers)?;
     let password = Zeroizing::new(request.password.as_bytes().to_vec());
     let granted = state.auth.login(&request.username, password, peer).await?;
+    Ok(granted_response(&state, granted))
+}
+
+/// Open registration: a new account without a panel role, logged in like a login. It only
+/// sees its own data; an admin gives roles.
+#[utoipa::path(post, path = "/api/session/register", request_body = LoginRequest,
+    responses((status = 200, body = SessionResponse), (status = 400, body = ApiError),
+              (status = 409, body = ApiError), (status = 429, body = ApiError)))]
+async fn register(
+    State(state): State<AdminState>,
+    ConnectInfoOpt(peer): ConnectInfoOpt,
+    headers: HeaderMap,
+    Json(request): Json<LoginRequest>,
+) -> Result<Response, Refusal> {
+    check_origin(&headers)?;
+    let password = Zeroizing::new(request.password.as_bytes().to_vec());
+    let granted = state
+        .auth
+        .register(&request.username, password, peer)
+        .await?;
+    Ok(granted_response(&state, granted))
+}
+
+fn granted_response(state: &AdminState, granted: admin_session::LoginGranted) -> Response {
     let cookie = session_cookie(
-        &state,
+        state,
         granted.token.as_str(),
         admin_session::SESSION_SECONDS,
     );
@@ -377,37 +406,54 @@ async fn login(
         role: granted.session.role,
         csrf_token: granted.token.csrf(),
     };
-    Ok(([(header::SET_COOKIE, cookie)], Json(body)).into_response())
+    ([(header::SET_COOKIE, cookie)], Json(body)).into_response()
 }
 
-#[derive(Serialize, ToSchema)]
-pub struct PlayCodeResponse {
-    /// Type it in the ID field of the game's login screen (password field empty).
-    code: String,
-    expires_in_seconds: u64,
-}
-
-/// Game login, step one: any active account (no panel role needed) trades its login and
-/// password for a one-time code. Same throttle and lockout as the panel login.
-#[utoipa::path(post, path = "/api/play/code", request_body = LoginRequest,
-    responses((status = 200, body = PlayCodeResponse), (status = 401, body = ApiError),
-              (status = 429, body = ApiError)))]
-async fn play_code(
+/// The logged-in account's own data (any account, with or without a panel role).
+#[utoipa::path(get, path = "/api/me",
+    responses((status = 200, body = crate::infrastructure::admin_accounts::AccountSummary),
+              (status = 401, body = ApiError)))]
+async fn me(
     State(state): State<AdminState>,
-    ConnectInfoOpt(peer): ConnectInfoOpt,
-    headers: HeaderMap,
-    Json(request): Json<LoginRequest>,
-) -> Result<Json<PlayCodeResponse>, Refusal> {
-    check_origin(&headers)?;
-    let password = Zeroizing::new(request.password.as_bytes().to_vec());
-    let code = state
+    auth: Authenticated,
+) -> Result<Json<crate::infrastructure::admin_accounts::AccountSummary>, Refusal> {
+    Ok(Json(
+        admin_session::my_account(state.auth.pool(), &auth.session).await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct OwnPassword {
+    #[schema(value_type = String, format = Password)]
+    current_password: Zeroizing<String>,
+    /// 12–128 bytes.
+    #[schema(value_type = String, format = Password)]
+    new_password: Zeroizing<String>,
+}
+
+/// Change the account's own password; every session of the account ends (log in again).
+#[utoipa::path(post, path = "/api/me/password", request_body = OwnPassword,
+    responses((status = 204), (status = 400, body = ApiError), (status = 401, body = ApiError),
+              (status = 429, body = ApiError)))]
+async fn my_password(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Json(body): Json<OwnPassword>,
+) -> Result<Response, Refusal> {
+    state
         .auth
-        .issue_play_code(&request.username, password, peer)
+        .change_own_password(
+            &auth.session,
+            Zeroizing::new(body.current_password.as_bytes().to_vec()),
+            Zeroizing::new(body.new_password.as_bytes().to_vec()),
+            auth.peer,
+        )
         .await?;
-    Ok(Json(PlayCodeResponse {
-        code: code.as_str().to_owned(),
-        expires_in_seconds: admin_session::PLAY_CODE_SECONDS,
-    }))
+    Ok((
+        StatusCode::NO_CONTENT,
+        [(header::SET_COOKIE, session_cookie(&state, "", 0))],
+    )
+        .into_response())
 }
 
 /// The current session, with its CSRF token.

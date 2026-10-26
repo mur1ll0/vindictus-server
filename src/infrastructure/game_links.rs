@@ -1,52 +1,9 @@
-//! One-time play codes (B4.2): issued to an account after its password is checked, redeemed
-//! once by the laboratory frontend in place of the passport.
+//! Game names (NexonID) claimed by accounts (B4.2). A claimed name no longer logs in to the game
+//! by its passport alone; an account can enter an existing game user, keeping its characters.
 use super::admin_store::{self, AuditRecord};
 use crate::domain::admin::AuditReason;
 use sqlx::PgPool;
 use uuid::Uuid;
-
-/// Issue a code. Earlier unredeemed codes of the account stop working: one valid code each.
-pub async fn issue(
-    pool: &PgPool,
-    account: Uuid,
-    code_sha256: &[u8; 32],
-    ttl_seconds: f64,
-    audit: &AuditRecord<'_>,
-) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
-    sqlx::query(
-        "DELETE FROM game_play_codes
-         WHERE account_id = $1 OR expires_at <= now() OR redeemed_at <= now() - interval '1 day'",
-    )
-    .bind(account)
-    .execute(&mut *tx)
-    .await?;
-    sqlx::query(
-        "INSERT INTO game_play_codes (code_sha256, account_id, expires_at)
-         VALUES ($1, $2, now() + make_interval(secs => $3))",
-    )
-    .bind(code_sha256.as_slice())
-    .bind(account)
-    .bind(ttl_seconds)
-    .execute(&mut *tx)
-    .await?;
-    admin_store::insert_audit(&mut tx, audit).await?;
-    tx.commit().await
-}
-
-/// Use a code: the game account name (NexonID) of its active account, at most once.
-pub async fn redeem(pool: &PgPool, code_sha256: &[u8; 32]) -> Result<Option<String>, sqlx::Error> {
-    sqlx::query_scalar(
-        "UPDATE game_play_codes c SET redeemed_at = now()
-         FROM accounts a
-         WHERE c.code_sha256 = $1 AND a.id = c.account_id
-           AND c.redeemed_at IS NULL AND c.expires_at > now() AND a.status = 'active'
-         RETURNING COALESCE(a.game_name, a.username)",
-    )
-    .bind(code_sha256.as_slice())
-    .fetch_optional(pool)
-    .await
-}
 
 /// Whether an account enters this game name, so its passport alone no longer logs in.
 pub async fn claimed(pool: &PgPool, name_key: &str) -> Result<bool, sqlx::Error> {

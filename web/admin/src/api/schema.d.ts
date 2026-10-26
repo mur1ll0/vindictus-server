@@ -88,7 +88,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/play/code": {
+    "/api/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The logged-in account's own data (any account, with or without a panel role). */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/password": {
         parameters: {
             query?: never;
             header?: never;
@@ -97,11 +114,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * Game login, step one: any active account (no panel role needed) trades its login and
-         *     password for a one-time code. Same throttle and lockout as the panel login.
-         */
-        post: operations["play_code"];
+        /** Change the account's own password; every session of the account ends (log in again). */
+        post: operations["my_password"];
         delete?: never;
         options?: never;
         head?: never;
@@ -152,6 +166,26 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/session/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open registration: a new account without a panel role, logged in like a login. It only
+         *     sees its own data; an admin gives roles.
+         */
+        post: operations["register"];
         delete?: never;
         options?: never;
         head?: never;
@@ -228,17 +262,23 @@ export interface components {
             password: string;
             username: string;
         };
-        PlayCodeResponse: {
-            /** @description Type it in the ID field of the game's login screen (password field empty). */
-            code: string;
-            /** Format: int64 */
-            expires_in_seconds: number;
+        OwnPassword: {
+            /** Format: password */
+            current_password: string;
+            /**
+             * Format: password
+             * @description 12–128 bytes.
+             */
+            new_password: string;
         };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
             csrf_token: string;
-            /** @example admin */
-            role: string;
+            /**
+             * @description admin, gm, leitura, or null for an account that only sees its own data.
+             * @example admin
+             */
+            role?: string | null;
             username: string;
         };
         SetPassword: {
@@ -552,7 +592,34 @@ export interface operations {
             };
         };
     };
-    play_code: {
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSummary"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    my_password: {
         parameters: {
             query?: never;
             header?: never;
@@ -561,16 +628,22 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["LoginRequest"];
+                "application/json": components["schemas"]["OwnPassword"];
             };
         };
         responses: {
-            200: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PlayCodeResponse"];
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
             401: {
@@ -681,6 +754,53 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

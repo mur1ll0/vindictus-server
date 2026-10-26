@@ -1,32 +1,59 @@
 @import "tailwindcss";
 
-/* Theme tokens: light by default, dark when the system asks for it. */
+/* Theme tokens. Light by default; dark from the system, or forced by the header toggle
+   (data-theme on <html>). */
 @theme {
-  --color-bg: oklch(0.985 0.002 250);
+  --color-bg: oklch(0.975 0.004 255);
   --color-surface: oklch(1 0 0);
+  --color-raised: oklch(0.955 0.006 255);
   --color-fg: oklch(0.22 0.02 255);
-  --color-muted: oklch(0.52 0.02 255);
+  --color-muted: oklch(0.5 0.02 255);
   --color-border: oklch(0.9 0.01 255);
-  --color-accent: oklch(0.52 0.15 255);
-  --color-accent-fg: oklch(0.99 0 0);
+  --color-accent: oklch(0.72 0.14 75);
+  --color-accent-fg: oklch(0.2 0.03 75);
+  --color-accent-soft: oklch(0.95 0.05 80);
   --color-danger: oklch(0.55 0.19 25);
+  --color-danger-soft: oklch(0.95 0.04 25);
+  --color-ok: oklch(0.55 0.13 155);
+  --color-ok-soft: oklch(0.95 0.04 155);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: oklch(0.18 0.01 255);
-    --color-surface: oklch(0.22 0.012 255);
-    --color-fg: oklch(0.94 0.01 255);
-    --color-muted: oklch(0.7 0.015 255);
-    --color-border: oklch(0.32 0.015 255);
-    --color-accent: oklch(0.68 0.14 255);
-    --color-accent-fg: oklch(0.16 0.01 255);
+@layer base {
+  :root[data-theme="dark"] {
+    --color-bg: oklch(0.17 0.012 255);
+    --color-surface: oklch(0.21 0.014 255);
+    --color-raised: oklch(0.25 0.016 255);
+    --color-fg: oklch(0.94 0.008 255);
+    --color-muted: oklch(0.68 0.015 255);
+    --color-border: oklch(0.31 0.016 255);
+    --color-accent: oklch(0.8 0.13 80);
+    --color-accent-fg: oklch(0.2 0.03 75);
+    --color-accent-soft: oklch(0.32 0.05 80);
     --color-danger: oklch(0.7 0.17 25);
+    --color-danger-soft: oklch(0.3 0.06 25);
+    --color-ok: oklch(0.75 0.13 155);
+    --color-ok-soft: oklch(0.3 0.05 155);
   }
-}
-
-body {
-  background: var(--color-bg);
-  color: var(--color-fg);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-bg: oklch(0.17 0.012 255);
+      --color-surface: oklch(0.21 0.014 255);
+      --color-raised: oklch(0.25 0.016 255);
+      --color-fg: oklch(0.94 0.008 255);
+      --color-muted: oklch(0.68 0.015 255);
+      --color-border: oklch(0.31 0.016 255);
+      --color-accent: oklch(0.8 0.13 80);
+      --color-accent-fg: oklch(0.2 0.03 75);
+      --color-accent-soft: oklch(0.32 0.05 80);
+      --color-danger: oklch(0.7 0.17 25);
+      --color-danger-soft: oklch(0.3 0.06 25);
+      --color-ok: oklch(0.75 0.13 155);
+      --color-ok-soft: oklch(0.3 0.05 155);
+    }
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
 }

@@ -1,15 +1,18 @@
-//! Administration panel login, sessions and audit queries (B4.1).
+//! Administration panel login, registration, sessions and audit queries (B4.1, B4.2).
 //! Panel policy (limits, lockout, session lifetime), not a recovered game rule. The panel login
 //! is the game account's login and password; the in-game second password is never asked here.
+//! Every active account logs in: without a panel role it only sees its own account (operator
+//! decision 2026-10-26), with a role it administers.
 use crate::{
     domain::{
         Username,
-        admin::{AuditReason, PanelRole, PlayCode, SessionToken},
+        admin::{AuditReason, PanelRole, SessionToken},
         hash_password, verify_password,
     },
     infrastructure::{
+        admin_accounts::{self, AccountSummary, Actor, Registration},
         admin_store::{self, AuditEntry, AuditFilter, AuditRecord, RoleChange, SessionAccount},
-        play_codes,
+        game_links,
     },
 };
 use sqlx::PgPool;
@@ -36,8 +39,9 @@ const MAX_KEYS: usize = 4096;
 /// Concurrent Argon2 verifications (memory-hard: about 19 MiB each).
 const VERIFIERS: usize = 2;
 pub const MAX_AUDIT_PAGE: i64 = 200;
-/// Time to type the play code in the client after asking for it.
-pub const PLAY_CODE_SECONDS: u64 = 5 * 60;
+/// New accounts per peer and window on the open registration of the login page.
+const REGISTRATIONS_PER_PEER: u32 = 3;
+const REGISTRATION_WINDOW: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Error)]
 pub enum AdminError {
@@ -72,15 +76,18 @@ struct Throttle(Mutex<HashMap<String, (Instant, u32)>>);
 
 impl Throttle {
     fn admit(&self, key: String, limit: u32, now: Instant) -> bool {
+        self.admit_in(key, limit, WINDOW, now)
+    }
+    fn admit_in(&self, key: String, limit: u32, window: Duration, now: Instant) -> bool {
         let mut map = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         if map.len() >= MAX_KEYS {
-            map.retain(|_, (start, _)| now.duration_since(*start) < WINDOW);
+            map.retain(|_, (start, _)| now.duration_since(*start) < REGISTRATION_WINDOW);
             if map.len() >= MAX_KEYS && !map.contains_key(&key) {
                 return false;
             }
         }
         let entry = map.entry(key).or_insert((now, 0));
-        if now.duration_since(entry.0) >= WINDOW {
+        if now.duration_since(entry.0) >= window {
             *entry = (now, 0);
         }
         entry.1 += 1;
@@ -144,15 +151,13 @@ impl PanelAuth {
     }
 
     /// Check login and password under the throttle and lockout. A refusal is audited as
-    /// `action`; a success is not (the caller audits it with its own change). `need_role`:
-    /// the panel needs a role, the game does not.
+    /// `action`; a success is not (the caller audits it with its own change).
     async fn authenticate(
         &self,
         username: &str,
         password: Zeroizing<Vec<u8>>,
         peer: Option<IpAddr>,
         action: &'static str,
-        need_role: bool,
     ) -> Result<admin_store::LoginAccount, AdminError> {
         let now = Instant::now();
         let name = Username::parse(username).ok();
@@ -217,8 +222,8 @@ impl PanelAuth {
             .await?;
             return Err(AdminError::InvalidCredentials);
         }
-        // A right password without the needed role or while locked is not a failure.
-        if account.locked || (need_role && account.role.is_none()) {
+        // A right password while locked or disabled is not a failure.
+        if account.locked {
             admin_store::record_failure(
                 &self.pool,
                 None,
@@ -239,9 +244,8 @@ impl PanelAuth {
         peer: Option<IpAddr>,
     ) -> Result<LoginGranted, AdminError> {
         let account = self
-            .authenticate(username, password, peer, "session.login", true)
+            .authenticate(username, password, peer, "session.login")
             .await?;
-        let role = account.role.ok_or(AdminError::InvalidCredentials)?;
         let token = SessionToken::generate();
         admin_store::open_session(
             &self.pool,
@@ -249,7 +253,7 @@ impl PanelAuth {
             &token.digest(),
             SESSION_SECONDS as f64,
             IDLE_SECONDS as f64,
-            &success(&account, Some(role), "session.login", peer),
+            &success(&account, account.role, "session.login", peer),
         )
         .await?;
         Ok(LoginGranted {
@@ -257,32 +261,91 @@ impl PanelAuth {
             session: SessionAccount {
                 account_id: account.id,
                 username: account.username,
-                role,
+                role: account.role,
             },
         })
     }
 
-    /// Game login, step one: the account's login and password give a one-time code to type
-    /// in the client's ID field (no panel role needed).
-    pub async fn issue_play_code(
+    /// Open registration of the login page: a new account without a panel role, logged in.
+    pub async fn register(
         &self,
         username: &str,
         password: Zeroizing<Vec<u8>>,
         peer: Option<IpAddr>,
-    ) -> Result<PlayCode, AdminError> {
-        let account = self
-            .authenticate(username, password, peer, "play.code", false)
-            .await?;
-        let code = PlayCode::generate();
-        play_codes::issue(
+    ) -> Result<LoginGranted, AdminError> {
+        let key = format!(
+            "register:{}",
+            peer.map_or_else(|| "-".into(), |p| p.to_string())
+        );
+        if !self.throttle.admit_in(
+            key,
+            REGISTRATIONS_PER_PEER,
+            REGISTRATION_WINDOW,
+            Instant::now(),
+        ) {
+            return Err(AdminError::RateLimited);
+        }
+        let name = Username::parse(username).map_err(|_| AdminError::InvalidInput)?;
+        if name.display().len() > super::admin_accounts::MAX_PLAYABLE_NAME {
+            return Err(AdminError::InvalidInput);
+        }
+        let hash = tokio::task::spawn_blocking(move || hash_password(&password))
+            .await
+            .map_err(|_| AdminError::Busy)?
+            .map_err(|_| AdminError::InvalidInput)?;
+        let token = SessionToken::generate();
+        match admin_accounts::register(
             &self.pool,
-            account.id,
-            &code.digest(),
-            PLAY_CODE_SECONDS as f64,
-            &success(&account, account.role, "play.code", peer),
+            &name,
+            &hash,
+            &token.digest(),
+            SESSION_SECONDS as f64,
+            peer,
         )
-        .await?;
-        Ok(code)
+        .await?
+        {
+            Registration::Created(account_id) => Ok(LoginGranted {
+                token,
+                session: SessionAccount {
+                    account_id,
+                    username: name.display().to_owned(),
+                    role: None,
+                },
+            }),
+            Registration::Exists => Err(AdminError::Exists),
+        }
+    }
+
+    /// The account's own password, after checking the current one (same throttle and
+    /// lockout). Its sessions end, this one included.
+    pub async fn change_own_password(
+        &self,
+        session: &SessionAccount,
+        current: Zeroizing<Vec<u8>>,
+        new: Zeroizing<Vec<u8>>,
+        peer: Option<IpAddr>,
+    ) -> Result<(), AdminError> {
+        self.authenticate(&session.username, current, peer, "account.password")
+            .await?;
+        let hash = tokio::task::spawn_blocking(move || hash_password(&new))
+            .await
+            .map_err(|_| AdminError::Busy)?
+            .map_err(|_| AdminError::InvalidInput)?;
+        let name = Username::parse(&session.username).map_err(|_| AdminError::NotFound)?;
+        let (tx, target) = admin_accounts::lock_target(&self.pool, name.normalized()).await?;
+        let target = target.ok_or(AdminError::NotFound)?;
+        let reason =
+            AuditReason::parse("troca pelo próprio usuário").ok_or(AdminError::InvalidInput)?;
+        let actor = Actor {
+            session,
+            peer,
+            operation_id: uuid::Uuid::new_v4(),
+            reason: &reason,
+        };
+        match admin_accounts::set_password(tx, &target, &hash, &actor).await? {
+            admin_accounts::AccountChange::Done => Ok(()),
+            _ => Err(AdminError::RepeatedOperation),
+        }
     }
 
     pub async fn authorize(&self, token: &SessionToken) -> Result<SessionAccount, AdminError> {
@@ -303,7 +366,7 @@ impl PanelAuth {
             &AuditRecord {
                 account_id: Some(session.account_id),
                 actor_name: Some(&session.username),
-                role: Some(session.role),
+                role: session.role,
                 operation_id: None,
                 action: "session.logout",
                 target_kind: None,
@@ -340,6 +403,16 @@ fn success<'a>(
         refused: false,
         peer,
     }
+}
+
+/// The session's own account.
+pub async fn my_account(
+    pool: &PgPool,
+    session: &SessionAccount,
+) -> Result<AccountSummary, AdminError> {
+    admin_accounts::summary(pool, session.account_id)
+        .await?
+        .ok_or(AdminError::Unauthenticated)
 }
 
 pub async fn audit_page(
@@ -392,9 +465,9 @@ pub async fn link_game_from_cli(
     {
         return Err(AdminError::InvalidInput);
     }
-    match play_codes::link_game(pool, name.normalized(), game_name, &reason).await? {
-        play_codes::LinkChange::Done => Ok(()),
-        play_codes::LinkChange::NoAccount => Err(AdminError::NotFound),
-        play_codes::LinkChange::Claimed => Err(AdminError::Exists),
+    match game_links::link_game(pool, name.normalized(), game_name, &reason).await? {
+        game_links::LinkChange::Done => Ok(()),
+        game_links::LinkChange::NoAccount => Err(AdminError::NotFound),
+        game_links::LinkChange::Claimed => Err(AdminError::Exists),
     }
 }

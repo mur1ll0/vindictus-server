@@ -1,19 +1,22 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { Ban, KeyRound, Link2, LogIn, LogOut, RefreshCw, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { api, type AuditEntry, fail } from '@/api/client';
+import { errorText, roleLabel } from '@/components/forms';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 
 const PAGE = 50;
 
-const ACTIONS: Record<string, string> = {
-  'session.login': 'Entrada no painel',
-  'session.logout': 'Saída do painel',
-  'account.role': 'Papel da conta',
-  'account.create': 'Conta criada',
-  'account.password': 'Senha trocada',
-  'account.status': 'Conta ativada/desativada',
-  'account.game_link': 'Conta ligada a usuário do jogo',
-  'play.code': 'Código de jogo',
+const ACTIONS: Record<string, { label: string; icon: ReactNode }> = {
+  'session.login': { label: 'Entrada no painel', icon: <LogIn /> },
+  'session.logout': { label: 'Saída do painel', icon: <LogOut /> },
+  'account.register': { label: 'Cadastro pela tela de login', icon: <UserPlus /> },
+  'account.create': { label: 'Conta criada', icon: <UserPlus /> },
+  'account.role': { label: 'Papel da conta', icon: <ShieldCheck /> },
+  'account.password': { label: 'Senha trocada', icon: <KeyRound /> },
+  'account.status': { label: 'Conta ativada/desativada', icon: <Ban /> },
+  'account.game_link': { label: 'Conta ligada a usuário do jogo', icon: <Link2 /> },
 };
 
 async function page(beforeId: number | undefined): Promise<AuditEntry[]> {
@@ -24,8 +27,49 @@ async function page(beforeId: number | undefined): Promise<AuditEntry[]> {
   return data;
 }
 
-function when(at: string) {
-  return new Date(at).toLocaleString('pt-BR');
+/** JSON of the audit row as readable "key: value" text. */
+function describe(json?: string | null) {
+  if (!json) return '—';
+  try {
+    const value = JSON.parse(json) as Record<string, unknown>;
+    return Object.entries(value)
+      .map(([k, v]) => `${k}: ${v ?? '—'}`)
+      .join(', ');
+  } catch {
+    return json;
+  }
+}
+
+function Entry({ row }: { row: AuditEntry }) {
+  const action = ACTIONS[row.action] ?? { label: row.action, icon: <UserRound /> };
+  const refused = row.outcome !== 'ok';
+  return (
+    <li className="flex gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm">
+      <span
+        className={`flex size-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4 ${refused ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-fg'}`}
+      >
+        {action.icon}
+      </span>
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">{action.label}</span>
+          {refused ? <Badge tone="danger">recusado</Badge> : <Badge tone="ok">ok</Badge>}
+          {row.target_id && <Badge>{`${row.target_kind}: ${row.target_id}`}</Badge>}
+          <span className="ml-auto text-xs text-muted">{new Date(row.at).toLocaleString('pt-BR')}</span>
+        </div>
+        <p className="text-sm text-muted">
+          {row.actor_name ? `${row.actor_name} (${roleLabel(row.role)})` : 'CLI do operador / login desconhecido'}
+          {row.peer && ` · ${row.peer}`}
+        </p>
+        {row.reason && <p className="text-sm">Motivo: {row.reason}</p>}
+        {(row.before || row.after) && (
+          <p className="rounded-md bg-raised px-2 py-1 font-mono text-xs break-all">
+            {describe(row.before)} → {describe(row.after)}
+          </p>
+        )}
+      </div>
+    </li>
+  );
 }
 
 export function AuditPage() {
@@ -38,67 +82,24 @@ export function AuditPage() {
   const rows = query.data?.pages.flat() ?? [];
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Auditoria</h2>
+      <div className="flex justify-end">
         <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
-          Atualizar
+          <RefreshCw /> Atualizar
         </Button>
       </div>
-      <Card className="overflow-x-auto p-0">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-border text-muted">
-            <tr>
-              <th className="px-4 py-2 font-medium">Quando</th>
-              <th className="px-4 py-2 font-medium">Quem</th>
-              <th className="px-4 py-2 font-medium">Ação</th>
-              <th className="px-4 py-2 font-medium">Alvo</th>
-              <th className="px-4 py-2 font-medium">Motivo</th>
-              <th className="px-4 py-2 font-medium">Antes → depois</th>
-              <th className="px-4 py-2 font-medium">Resultado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-border align-top last:border-0">
-                <td className="whitespace-nowrap px-4 py-2">{when(row.at)}</td>
-                <td className="px-4 py-2">
-                  {row.actor_name ?? <span className="text-muted">CLI / desconhecido</span>}
-                  {row.role && <span className="ml-1 text-xs text-muted">({row.role})</span>}
-                </td>
-                <td className="px-4 py-2">{ACTIONS[row.action] ?? row.action}</td>
-                <td className="px-4 py-2">
-                  {row.target_id ? `${row.target_kind}: ${row.target_id}` : '—'}
-                </td>
-                <td className="px-4 py-2">{row.reason ?? '—'}</td>
-                <td className="px-4 py-2 font-mono text-xs">
-                  {row.before || row.after ? `${row.before ?? '—'} → ${row.after ?? '—'}` : '—'}
-                </td>
-                <td className={row.outcome === 'ok' ? 'px-4 py-2' : 'px-4 py-2 text-danger'}>
-                  {row.outcome === 'ok' ? 'ok' : 'recusado'}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && !query.isPending && (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-muted">
-                  Nenhum evento.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </Card>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <Entry key={row.id} row={row} />
+        ))}
+      </ul>
+      {rows.length === 0 && !query.isPending && <p className="text-sm text-muted">Nenhum evento.</p>}
       {query.error && (
         <p role="alert" className="text-sm text-danger">
-          {query.error.message}
+          {errorText(query.error)}
         </p>
       )}
       {query.hasNextPage && (
-        <Button
-          variant="outline"
-          disabled={query.isFetchingNextPage}
-          onClick={() => void query.fetchNextPage()}
-        >
+        <Button variant="outline" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>
           Carregar mais
         </Button>
       )}

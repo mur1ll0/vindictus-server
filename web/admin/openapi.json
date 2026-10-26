@@ -420,28 +420,60 @@
         }
       }
     },
-    "/api/play/code": {
-      "post": {
+    "/api/me": {
+      "get": {
         "tags": [],
-        "summary": "Game login, step one: any active account (no panel role needed) trades its login and\npassword for a one-time code. Same throttle and lockout as the panel login.",
-        "operationId": "play_code",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          },
-          "required": true
-        },
+        "summary": "The logged-in account's own data (any account, with or without a panel role).",
+        "operationId": "me",
         "responses": {
           "200": {
             "description": "",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PlayCodeResponse"
+                  "$ref": "#/components/schemas/AccountSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/password": {
+      "post": {
+        "tags": [],
+        "summary": "Change the account's own password; every session of the account ends (log in again).",
+        "operationId": "my_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnPassword"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
                 }
               }
             }
@@ -566,6 +598,65 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session/register": {
+      "post": {
+        "tags": [],
+        "summary": "Open registration: a new account without a panel role, logged in like a login. It only\nsees its own data; an admin gives roles.",
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "",
             "content": {
               "application/json": {
@@ -777,21 +868,21 @@
           }
         }
       },
-      "PlayCodeResponse": {
+      "OwnPassword": {
         "type": "object",
         "required": [
-          "code",
-          "expires_in_seconds"
+          "current_password",
+          "new_password"
         ],
         "properties": {
-          "code": {
+          "current_password": {
             "type": "string",
-            "description": "Type it in the ID field of the game's login screen (password field empty)."
+            "format": "password"
           },
-          "expires_in_seconds": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
+          "new_password": {
+            "type": "string",
+            "format": "password",
+            "description": "12–128 bytes."
           }
         }
       },
@@ -799,7 +890,6 @@
         "type": "object",
         "required": [
           "username",
-          "role",
           "csrf_token"
         ],
         "properties": {
@@ -808,7 +898,11 @@
             "description": "Send back in the X-CSRF-Token header of every POST/PUT/DELETE."
           },
           "role": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "admin, gm, leitura, or null for an account that only sees its own data.",
             "example": "admin"
           },
           "username": {
