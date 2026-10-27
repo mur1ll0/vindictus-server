@@ -38,7 +38,7 @@ Com a autorização do operador, o `bin/FileSystem_Stdio.dll` da cópia (SHA-256
 ### 2.3 Conclusão
 
 - **Comprovado (código):** soltos substituem o conteúdo de um HFS só quando aquele HFS deixa de montar (renomeado ou removido) **e** o caminho não começa por `materials/`, `models/`, `scripts/` ou `sqlite/`. A técnica "desativar o HFS e soltar a pasta inteira" vale para `scaleform/` (já em uso), `resource/` (textos), `maps/`, `sound/` e semelhantes. Ícones novos (`scaleform/item_icon/<nome novo>.tga`) não estão no índice e podem ir soltos sem desativar nada.
-- **Comprovado (código):** `scripts/player_costume.txt`, `scripts/item_data.txt`, `models/…` e `materials/…`, sejam alterados ou novos, **só** entram por pacote. Como a posição e o tamanho de cada arquivo estão no índice, refazer um `.hfs` com conteúdo diferente exige **regravar o índice**. O índice já foi localizado, decifrado e recodificado (item 4); falta o L0-d mostrar se o código protegido confere a integridade dele.
+- **Comprovado (código):** `scripts/player_costume.txt`, `scripts/item_data.txt`, `models/…` e `materials/…`, sejam alterados ou novos, **só** entram por pacote. Como a posição e o tamanho de cada arquivo estão no índice, refazer um `.hfs` com conteúdo diferente exige **regravar o índice**. O índice já foi localizado, decifrado e recodificado (item 4); o L0-d mostrou que o cliente aceita um índice regravado (seção 2.4).
 - **Alternativa por binário:** os `.hfs` `Base_hl2.hfs`/`Base_platform.hfs` são pacotes de caminho de busca (a busca bloqueada os aceita). **Hipótese:** um pacote HF a mais registrado como caminho de busca (o que o Windictus parece fazer com `data/`) passaria nos prefixos bloqueados; exigiria mudar o `GameInfo.txt` ou o binário, e precisa de teste.
 - **O motor exige os HFS?** Sim: tudo que está no índice é lido dos pacotes. O launcher distribui os HFS originais como arquivos opacos e acrescenta os soltos; o que for `models/`/`scripts/`/`materials/` vai em pacote.
 
@@ -64,7 +64,11 @@ Fazer sempre na cópia de laboratório, nunca no original.
 
 - **Codec e L0-d preparado:** `.cache/play-client/l0-hfs-index.py` decodifica e recodifica o índice. Recodificar sem mudanças gera um arquivo **idêntico byte a byte** ao original (zlib nível 9), e o comando `drop` remove entradas pelo nome. O `l0-test.ps1 index-edit` regrava o índice sem as entradas de `heroes_text_english.txt` e `heroes_text_english_eu.txt`, sem renomear nenhum pacote, e solta os textos com `L0B-OK`; `index-original` desfaz. Se o cliente aceitar e mostrar `L0B-OK`, o código protegido não confere a integridade do índice. Falta ainda a cifra dos **dados** dos pacotes, que é outra e muda por arquivo, para criar `.hfs` novos (o `vZipFlip_HFS` do operador já faz a conversão).
 
-Se o L0-d passar, o launcher distribui `.hfs` novos e o índice regravado, como o pw-universal regrava entradas do `.pck`. Se falhar, modelos e scripts novos dependem de mudar o binário ou o `GameInfo.txt` (seção 2.3), uma decisão à parte.
+- **L0-d passou (26/10/2026).** Com o índice regravado pelo `index-edit` e nenhum pacote renomeado, o cliente abriu e mostrou `L0B-OK` no lugar de "Select Character". O código protegido **não** confere a integridade do índice; o cliente segue o índice que recebe. O operador restaurou com `index-original`, e o índice da cópia voltou a ter o SHA-256 do original (`c63a8a4531bdf2ab…`). Consequências:
+  - tirar entradas do índice libera qualquer caminho fora dos prefixos bloqueados para arquivo solto, sem desativar pacotes inteiros;
+  - acrescentar pacotes e apontar entradas para eles fica viável no índice. Falta a cifra dos **dados** dos pacotes para gerar `.hfs` novos com `models/`, `materials/` e `scripts/` (próximo passo: decifrar um pacote conhecido ou validar o `vZipFlip_HFS`).
+
+Com o L0-d aprovado, o launcher distribui `.hfs` novos e o índice regravado, como o pw-universal regrava entradas do `.pck`. Se falhar, modelos e scripts novos dependem de mudar o binário ou o `GameInfo.txt` (seção 2.3), uma decisão à parte.
 
 ## 3. Referência: pw-universal-server (projeto do operador)
 
