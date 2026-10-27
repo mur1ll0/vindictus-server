@@ -103,7 +103,7 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
   - a prévia renderizada no Blender mostra o modelo em postura de referência, com texturas;
   - o servidor reexportou os 13 arquivos (12.383 linhas de equipamento) e reiniciou saudável.
 - **Testes:** `tools/blender/vindictus/tests/test_formats.py` (5 testes, com o Python do Blender). As suítes `scripts/client` (33) e `scripts/content` (65) passam. O teste de integração do `hfs.py` passou a usar o índice original de `lab-backup/` quando os itens de laboratório estão aplicados.
-- **Teste no cliente (pendente):** dar `fiona_inner_lab` à Fiona pelo painel, vestir, conferir o babado inflado e as listras na cor do item, e relogar.
+- **Teste no cliente: passou (27/10/2026).** O operador deu `fiona_inner_lab` à Fiona pelo painel. O inner aparece com o babado inflado e as listras, e continua depois de relogar. Ficou comprovado o ciclo completo: kit tirado dos pacotes, edição no Blender 5.1 com o add-on, exportação por troca de malha (VVD/VTX gerados por nós, VTF sem compressão), item novo e pacotes novos no cliente.
 - **Ainda não feito:**
   - animações: ficam nos modelos de animação do personagem;
   - visualizador 3D e botão exportar no painel;
