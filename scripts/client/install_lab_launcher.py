@@ -1,5 +1,6 @@
 """Write start-lab.bat in a COPY of the client (B4.4c), the laboratory launcher: before starting
-the client like start.bat, it applies the published admin panel content edits to the copy's
+the client like start.bat, it re-exports the server's items when the item editor published a change
+(scripts/content/refresh_item_content.py, which restarts the game container), and it applies the published admin panel content edits to the copy's
 ShopInfo (the game server writes the overlay to .cache/content-state/content-edits.json when it
 starts), as the original launcher patched the client before the game. The copy's start.bat is
 left as the original."""
@@ -17,11 +18,18 @@ START = 'start vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4'
 
 def launcher(project: Path = ROOT, edits: Path = EDITS) -> str:
     script = project / 'scripts/client/apply_lab_content_additions.py'
+    refresh = project / 'scripts/content/refresh_item_content.py'
     return '\r\n'.join([
         '@echo off',
-        'rem Laboratory launcher (scripts/client/install_lab_launcher.py): updates this copy with the',
-        'rem published panel content, then starts the client like start.bat.',
+        'rem Laboratory launcher (scripts/client/install_lab_launcher.py): brings the game server item',
+        'rem exports up to the published item editor edits, updates this copy with the published panel',
+        'rem content, then starts the client like start.bat.',
         'cd /d "%~dp0"',
+        f'py -3.13 "{refresh}" > "%~dp0start-lab-items.log" 2>&1',
+        'if errorlevel 1 (',
+        '  echo Could not refresh the server item content; see start-lab-items.log. The server keeps its last items.',
+        '  pause',
+        ')',
         f'py -3.13 "{script}" --client-copy "%~dp0." --apply --edits "{edits}" > "%~dp0start-lab.log" 2>&1',
         'if errorlevel 1 (',
         '  echo Could not update the client content; see start-lab.log. The client starts without it.',

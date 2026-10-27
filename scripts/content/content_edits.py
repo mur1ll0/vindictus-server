@@ -2,7 +2,8 @@
 writes them to .cache/private-content/content-edits.json: ShopInfo rows to add, change or
 remove, and cash shop prices. Applied after the original rows and lab_content_additions.json,
 by export_npc_scripts.py, export_cash_shop.py and scripts/client/apply_lab_content_additions.py.
-A missing file is an empty overlay."""
+The item editor's parts (items, item_overrides, hidden_items, removed_items) are read by
+content_additions.py. A missing file is an empty overlay."""
 import json, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -59,7 +60,8 @@ def load(path=EDITS):
 
 
 def apply_shop_rows(rows, overlay):
-    """ShopInfo dict rows with the overlay: remove, change the sold fields, or add a row."""
+    """ShopInfo dict rows with the overlay: remove, change the sold fields, or add a row. Items the
+    item editor hid (hidden_items) leave every shop."""
     out = list(rows)
     index = {(r['ShopID'], r['Order']): i for i, r in enumerate(out)}
     removed = set()
@@ -78,7 +80,8 @@ def apply_shop_rows(rows, overlay):
             out.append({'ShopID': e['ShopID'], 'Order': e['Order'], **fields, 'AppearQuestID': None,
                         'CharacterBind': False, 'ID': None, 'RestrictionResetTime': None,
                         'RestrictionPeriodDay': 0, 'RestrictionCount': 0, 'Feature': None})
-    return [r for i, r in enumerate(out) if i not in removed]
+    hidden = set(overlay.get('hidden_items', []))
+    return [r for i, r in enumerate(out) if i not in removed and r['ItemClass'] not in hidden]
 
 
 def apply_prices(default, table, overlay):

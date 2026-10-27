@@ -47,6 +47,9 @@ class ApplyLabHfsTest(unittest.TestCase):
 
     def test_text_and_costume_helpers(self):
         self.assertIn('"NEW"\t"x"', with_tokens(TEXT, {'NEW': 'x'}).decode('utf-16'))
+        # A renamed base item keeps one line, the new one.
+        renamed = with_tokens(TEXT, {'OLD': 'renamed'}).decode('utf-16')
+        self.assertEqual((renamed.count('"OLD"'), '"OLD"\t"renamed"' in renamed), (1, True))
         text = with_costumes(COSTUME, ITEMS[0]['costumes'])
         self.assertLess(text.index(b'"9100"'), text.index(b'"hair"'))
         with self.assertRaises(Exception):

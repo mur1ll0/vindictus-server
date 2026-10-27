@@ -13,6 +13,9 @@ names, and the icon of each item class, for the shop and inventory screens. Read
   addConstraint, setItemTrade, setCondition, setSetInfo) from ItemClassInfo, EquipItemInfo and
   SetItemInfo, and the client's own texts for them (GameUI_Heroes_ItemToolTip*, ItemStat,
   EnchantStat, EnchantCondition, Attribute prefix/suffix names, ItemConstraint, set names).
+- Item editor (docs/future/item-editor.md, cut 2): the editable columns of every item
+  (content_additions.EDITABLE, first row), its origin (base, added, or base edited by the panel),
+  whether the panel hid it, and the definition of added items, for the panel's item form.
 - Name aliases: a class whose english_eu text was never translated (Korean) takes the English
   name and description of another class with the same icon (the same design for another
   character class, e.g. fiona_noluck_inner_devilhunter → delia_inner_devilhunter)."""
@@ -75,7 +78,8 @@ def npc_shops(xml_root):
     return found
 
 
-def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesContents.db3', localized=LOCALIZED):
+def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesContents.db3', localized=LOCALIZED,
+                 panel=None):
     data = localized.read_bytes()
     if len(data) > 64 * 1024 * 1024 or data[:2] != b'\xff\xfe':
         raise ValueError('Localized text must be bounded UTF-16LE')
@@ -96,6 +100,12 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
             if item and icon and ICON.match(icon) and ICON.match(item):
                 icons.setdefault(item.upper(), icon.lower())
         info = item_info(db)
+        if panel is None:
+            server = pathlib.Path(database).resolve() == content_additions.SERVER_DATABASE.resolve()
+            panel = (content_additions.load(), content_additions.panel_edits()) if server else ([], None)
+        added, edits = panel
+        edits = content_additions.panel_edits(edits or {})
+        editor = item_edit(db, added, edits['item_overrides'], edits['hidden_items'])
     aliases = name_aliases(icons, item_text)
     shops, npcs = {}, {}
     for npc, location, shop in npc_shops(pathlib.Path(xml_root)):
@@ -111,7 +121,8 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
     return dict(format_version=1, source='npc-talk-xml+heroes_text_english_eu', localized_sha256=digest(localized),
                 database_sha256=digest(database), shops=dict(sorted(shops.items())), npcs=dict(sorted(npcs.items())),
                 item_icons=dict(sorted(icons.items())), item_info=dict(sorted(info.items())),
-                item_aliases=dict(sorted(aliases.items())), tooltip_text=dict(sorted(tooltip_text.items())),
+                item_aliases=dict(sorted(aliases.items())), item_edit=dict(sorted(editor.items())),
+                tooltip_text=dict(sorted(tooltip_text.items())),
                 quest_titles=dict(sorted(quest_titles.items())))
 
 
@@ -150,6 +161,37 @@ def item_info(db):
             if item and set_id and item.upper() in info:
                 info[item.upper()].setdefault('set', set_id)
     return info
+
+
+def item_edit(db, added=(), overrides=None, hidden=()):
+    """Class (upper case) → the item editor's view: f = editable columns of the item's first row of
+    each table (None, 0 and '' left out), o = origin (b base, a added, e base edited by the panel),
+    h = 1 when hidden, d = the definition of an added item (template, set, text, costumes, assets)."""
+    out, seen = {}, set()
+    for table, wanted in content_additions.EDITABLE.items():
+        fields = [f for f in wanted if f in columns(db, table)]
+        if not fields:
+            continue
+        for row in db.execute('SELECT ItemClass,' + ','.join('[%s]' % f for f in fields) + ' FROM [%s]' % table):
+            if not row[0] or not ICON.match(row[0]) or (row[0], table) in seen:
+                continue
+            seen.add((row[0], table))
+            entry = out.setdefault(row[0].upper(), {'o': 'b', 'f': {}})
+            for field, value in zip(fields, row[1:]):
+                if isinstance(value, float) and value.is_integer():
+                    value = int(value)
+                if value not in (None, '', 0):
+                    entry['f'][field] = value
+    for name in overrides or {}:
+        if name.upper() in out:
+            out[name.upper()]['o'] = 'e'
+    for item in added:
+        if item['ItemClass'].upper() in out:
+            out[item['ItemClass'].upper()].update(o='a', d=item)
+    for name in hidden:
+        if name.upper() in out:
+            out[name.upper()]['h'] = 1
+    return out
 
 
 def name_aliases(icons, item_text):

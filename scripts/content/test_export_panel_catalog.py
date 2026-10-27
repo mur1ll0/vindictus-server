@@ -43,6 +43,9 @@ class PanelCatalogTests(unittest.TestCase):
         self.assertEqual(package['quest_titles'], {'QUEST_A': 'Stage A'})
         self.assertEqual(package['item_info']['FIONA_NOLUCK_INNER_X'],
                          {'r': 1, 'c': 'INNERARMOR', 'bg': 'fiona_inner', 'w': 24, 'dy': 1})
+        self.assertEqual(package['item_edit']['FIONA_NOLUCK_INNER_X'],
+                         {'o': 'b', 'f': {'Icon': 'fiona_inner_x', 'Category': 'INNERARMOR', 'Rarity': 1,
+                                          'Weight': 24, 'Dyeable': 'True'}})
         self.assertEqual(package['tooltip_text'], {'GAMEUI_HEROES_ITEMSTAT_ATK': 'ATT', 'GAMEUI_HEROES_ITEMTOOLTIP_RARITY_5': 'Rare'})
         self.assertEqual((place('morvan.inn'), place('event.pinkrabbit'), place('')), ('Malina (Morvan)', 'Eventos', 'Outros'))
 

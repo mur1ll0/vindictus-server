@@ -25,12 +25,14 @@ def localized_entries(path):
     return dict(ENTRY.findall(data.decode('utf-16')))
 
 
-def read_package(localized_path=LOCALIZED, additions=None):
-    # The laboratory items' text (item_additions.json) is what the client copy gets too; it goes
-    # with the client's own localization only.
+def read_package(localized_path=LOCALIZED, additions=None, overrides=None):
+    # The laboratory and panel items' text (item_additions.json, the item editor's overlay) is what
+    # the client copy gets too; it goes with the client's own localization only.
     if additions is None:
         additions = content_additions.load() if localized_path == LOCALIZED else []
-    entries = {**localized_entries(localized_path), **content_additions.text_entries(additions)}
+    if overrides is None:
+        overrides = content_additions.load_overrides() if localized_path == LOCALIZED else {}
+    entries = {**localized_entries(localized_path), **content_additions.text_entries(additions, overrides)}
     package = dict(format_version=1, source='heroes_text_english_eu', localized_sha256=digest(localized_path))
     for kind, prefix in PREFIXES.items():
         names = {}

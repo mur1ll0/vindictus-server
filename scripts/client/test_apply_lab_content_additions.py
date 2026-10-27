@@ -60,6 +60,14 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
             rows = db.execute('SELECT [Order],PriceCount FROM ShopInfo ORDER BY [Order]').fetchall()
         self.assertEqual(rows, [(1, 100), (124, 4000)])
 
+    def test_hidden_items_leave_the_shops_until_shown_again(self):
+        edits = {'format_version': 1, 'version': 3, 'cash_prices': {}, 'cash_default': None, 'shop_rows': [],
+                 'hidden_items': ['enhance_elixir']}
+        apply(self.root, True, self.additions, edits, items=[])
+        self.assertEqual(self.count(), 0)
+        apply(self.root, True, self.additions, items=[])
+        self.assertEqual(self.count(), 1)
+
     def test_an_order_used_by_another_item_is_refused(self):
         with closing(sqlite3.connect(self.db)) as db:
             db.execute("INSERT INTO ShopInfo(ShopID,[Order],ItemClass) VALUES('FERGHUS_Shop',124,'other')")

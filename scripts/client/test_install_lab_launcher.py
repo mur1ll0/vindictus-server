@@ -18,6 +18,7 @@ class InstallLabLauncherTest(unittest.TestCase):
             self.assertFalse(install(root, Path('C:/lab'), Path('C:/lab/edits.json'))['changed'])
             text = (root / 'start-lab.bat').read_bytes().decode('ascii')
             self.assertIn('--apply --edits', text)
+            self.assertLess(text.index('refresh_item_content.py'), text.index('apply_lab_content_additions.py'))
             self.assertTrue(text.rstrip().endswith('-noupdate -threads 4'))
             self.assertEqual((root / 'start.bat').read_bytes(), b'start vindictus.exe\r\n')
 

@@ -1699,3 +1699,12 @@ B4.N2 — Evy 0xCF02, causa lida no log (27/10/2026).
 - Verificação: `docker compose restart game` (arquivo montado, sem rebuild): saudável, sem avisos. Log `.cache/verification/body-x64-restart.log`.
 - Cliente: repetir B4.N2 (Evy na conta `admin`, Hagie).
 - Próxima ação retomável: o operador cria a Evy e a Hagie; se falhar, ler o `reason` em `docker compose logs game`.
+
+Editor de itens, passo 1 — camada de conteúdo do painel (27/10/2026, pedido do operador).
+- `scripts/content/content_additions.py` lê, além do `item_additions.json`, a parte de itens da sobreposição publicada (`.cache/content-state/content-edits.json`): `items` (adicionados pelo painel; substituem o item do arquivo com a mesma classe), `item_overrides` (itens base: só as colunas de `EDITABLE`, trocadas no lugar numa cópia TEMP da tabela, na mesma ordem e contagem), `hidden_items` (as linhas ficam; o item sai das lojas de NPC por `content_edits.apply_shop_rows`) e `removed_items`. `set_id` põe o item adicionado num conjunto (`SetItemInfo`). O `heroesContents.db3` continua intocado e com o mesmo hash.
+- Cliente (`apply_lab_content_additions.py`): sobreposições aplicadas sobre as células originais do backup (desfazer volta ao original), itens removidos saem da cópia (`heroes.db3.lab-items.json`), texto de item base renomeado substitui a linha antiga, caminhos de asset repetidos entre itens são recusados.
+- `export_panel_catalog.py` exporta `item_edit` (colunas editáveis, origem, oculto, definição dos adicionados) para o formulário do painel; `export_item_names.py` inclui os textos sobrepostos.
+- `scripts/content/refresh_item_content.py`: no host (o contêiner não tem Python e monta o conteúdo só para leitura), valida a sobreposição, reexporta os 13 arquivos de item com argumentos fixos, grava o selo `.cache/private-content/item-content.json` (versão e digest) e reinicia o `game`; com falha, devolve o backup e reinicia de novo. O `start-lab.bat` (gerado por `install_lab_launcher.py`) o chama antes de atualizar a cópia do cliente.
+- Verificação: `py -3.13 -m unittest discover` em `scripts/content` (71, 0 falhas) e `scripts/client` (OK); `refresh_item_content.py --check` valida a sobreposição real (3 itens). Logs `.cache/verification/item-editor-py-*.log`.
+- Cliente: não necessário neste passo (entrada do roteiro no passo do painel).
+- Próxima ação: passo 2, API Rust do editor (listar, criar, clonar, editar, ocultar, remover, kit) e tela no painel.

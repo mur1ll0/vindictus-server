@@ -62,8 +62,12 @@ ASSETS = Path(__file__).resolve().parents[2] / '.cache/private-assets'
 
 
 def with_tokens(text: bytes, entries: dict[str, str]) -> bytes:
-    """The localization file (UTF-16 LE with BOM) with the entries first in its Tokens block."""
+    """The localization file (UTF-16 LE with BOM) with the entries first in its Tokens block; an
+    existing line of the same key (a base item the panel renamed) is dropped."""
     decoded = text.decode('utf-16')
+    if entries:
+        existing = re.compile(r'^[ \t]*"(?:%s)"[ \t]+"[^\r\n]*"\r?\n' % '|'.join(map(re.escape, entries)), re.M | re.I)
+        decoded = existing.sub('', decoded)
     tokens = decoded.index('"Tokens"')
     opening = decoded.index('{\r\n', tokens) + 3
     lines = ''.join('\t\t"%s"\t"%s"\r\n' % (key, value) for key, value in sorted(entries.items()))
@@ -92,6 +96,7 @@ def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[
     """New packs for the items' asset files, by pack name: a folder the index already knows gets its next
     part, a new folder part 0. Files go in as .comp, as the game stores models and materials."""
     folders: dict[str, list] = {}
+    seen: dict[str, str] = {}
     for item in items:
         if not item.get('assets'):
             continue
@@ -100,6 +105,9 @@ def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[
             raise PreparationError(f'Missing asset folder {item["assets"]}.')
         # Game files only: a kit (scripts/client/model_kit.py) also has kit.json at its root.
         for path in sorted(p for p in root.rglob('*') if p.is_file() and p.parent != root):
+            game_path = path.relative_to(root).as_posix().lower()
+            if seen.setdefault(game_path, item['ItemClass']) != item['ItemClass']:
+                raise PreparationError(f'{game_path} is in the assets of {seen[game_path]} and {item["ItemClass"]}.')
             folder = path.parent.relative_to(root).as_posix().lower()
             folders.setdefault(folder, []).append(hfs.Entry(path.name.lower() + '.comp', hfs.comp_wrap(path.read_bytes()), hfs.DEFAULT_ATTR))
     packs = {}
@@ -111,7 +119,8 @@ def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[
     return packs
 
 
-def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_changes: bool, assets: Path = ASSETS) -> dict:
+def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_changes: bool, assets: Path = ASSETS,
+              overrides: dict | None = None) -> dict:
     """Rebuilds the English text packs (item text) and the scripts pack (player_costume.txt entries) from their
     backups, adds packs for the items' asset files and points the HFS index at them (docs/future/
     game-launcher.md, L0-e to L0-g). Without items, the original packs and index come back."""
@@ -125,9 +134,9 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     scripts = client_copy / 'hfs' / (hfs.pack_name(SCRIPTS_FOLDER) + '.hfs')
     originals = {path: backup_dir / path.name for path in [index, scripts] + [p for p, _ in texts]}
     previously_added = json.loads(added_list.read_text(encoding='utf-8')) if added_list.exists() else []
-    entries = content_additions.text_entries(items)
+    entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
-    if not items and not any(b.exists() for b in originals.values()) and not previously_added:
+    if not items and not entries and not any(b.exists() for b in originals.values()) and not previously_added:
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
         backup_dir.mkdir(exist_ok=True)
@@ -166,7 +175,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         for path in stale:
             path.unlink(missing_ok=True)
         added_list.write_text(json.dumps(sorted(p.name for p in new_packs)), encoding='utf-8')
-    return {'hfs': 'applied' if items else 'restored', 'text_tokens': len(entries), 'costumes': len(costumes),
+    return {'hfs': 'applied' if items or entries else 'restored', 'text_tokens': len(entries), 'costumes': len(costumes),
             'new_packs': sorted(p.name for p in new_packs), 'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
 
 
@@ -178,6 +187,8 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
     rows = json.loads(additions.read_text(encoding='utf-8')).get('ShopInfo', [])
     edits = content_edits.EMPTY if edits is None else edits
     backup = database.with_name('heroes.db3.pre-lab-additions')
+    # What the last run wrote for the item editor (added classes and overridden base classes).
+    written = database.with_name('heroes.db3.lab-items.json')
     with closing(sqlite3.connect(database)) as db:
         current = rows_of(db)
         if backup.exists():
@@ -189,18 +200,29 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
         plan = {'mode': 'apply' if apply_changes else 'dry-run', 'database': str(database),
                 'shop_rows_missing': len(missing_rows(db, rows)), 'shop_rows': len(rows),
                 'edits_version': edits.get('version', 0), 'changed': current != target}
-        items = content_additions.load() if items is None else items
+        items = content_additions.load(edits=edits) if items is None else items
+        overrides = content_additions.load_overrides(edits)
+        previous = json.loads(written.read_text(encoding='utf-8')) if written.exists() else {}
         plan['items'] = len(items)
-        if apply_changes and items and not backup.exists():
+        plan['item_overrides'] = len(overrides)
+        if apply_changes and (items or overrides) and not backup.exists():
             with closing(sqlite3.connect(backup)) as copy:
                 db.backup(copy)
         if apply_changes:
             # B4.5 tuning cells; already-applied values change nothing.
             with db:
                 plan['tuning_cells'] = content_edits.apply_client_tuning(db, edits)
-            # Item editor cut 1: added items replace their earlier copies.
-            with db:
-                plan['item_rows'] = content_additions.apply_client(db, items)
+            # Item editor: added items replace their earlier copies, removed ones leave, and base
+            # items take their overrides over the original cells.
+            original = sqlite3.connect(backup.resolve().as_uri() + '?mode=ro', uri=True) if backup.exists() else None
+            try:
+                with db:
+                    plan['item_rows'] = content_additions.apply_client(db, items, overrides, original, previous)
+            finally:
+                if original is not None:
+                    original.close()
+            written.write_text(json.dumps({'added': sorted(i['ItemClass'] for i in items),
+                                           'overridden': sorted(overrides)}), encoding='utf-8')
         if apply_changes and current != target:
             if not backup.exists():
                 with closing(sqlite3.connect(backup)) as copy:
@@ -211,7 +233,7 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
                                ','.join('?' * len(SHOP_COLUMNS)) + ')', [tuple(r[c] for c in SHOP_COLUMNS) for r in target])
             plan['backup'] = str(backup)
     keystream = client_copy / 'hfs-keystream.bin' if keystream is None else keystream
-    plan.update(apply_hfs(client_copy, items, keystream, apply_changes))
+    plan.update(apply_hfs(client_copy, items, keystream, apply_changes, overrides=overrides))
     return plan
 
 
@@ -224,7 +246,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         print(json.dumps(apply(args.client_copy, args.apply, edits=content_edits.load(args.edits))))
-    except PreparationError as error:
+    except (PreparationError, ValueError) as error:
         print(json.dumps({'applied': False, 'error': str(error)}))
         return 2
     return 0
