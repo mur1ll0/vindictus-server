@@ -10,6 +10,7 @@ pub mod world_admin;
 pub mod frontend_session;
 pub mod game_users;
 pub mod item_catalog_inspection;
+pub mod item_editor;
 pub mod lab_login;
 pub mod login_policy;
 pub mod login_rewards;

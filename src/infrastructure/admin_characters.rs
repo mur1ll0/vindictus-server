@@ -57,6 +57,25 @@ struct PanelCatalog {
     /// QuestID (upper case) → English title (HEROES_QUEST_TITLE_<ID>).
     #[serde(default)]
     quest_titles: HashMap<String, String>,
+    /// Item class (upper case) → the item editor's view (export_panel_catalog.item_edit).
+    #[serde(default)]
+    item_edit: HashMap<String, EditorEntry>,
+}
+
+/// An item as the item editor sees it in the exported content.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct EditorEntry {
+    /// b = base, a = added (item_additions.json or the panel), e = base edited by the panel.
+    #[serde(rename = "o", default)]
+    pub origin: String,
+    /// Editable columns of the item's first rows (missing = 0 or empty).
+    #[serde(rename = "f", default)]
+    pub fields: serde_json::Map<String, serde_json::Value>,
+    #[serde(rename = "h", default)]
+    pub hidden: u8,
+    /// Definition of an added item (template, set, text, costumes, assets, set_id).
+    #[serde(rename = "d", default)]
+    pub definition: Option<serde_json::Value>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -604,14 +623,20 @@ pub struct CatalogItem {
 }
 
 impl EnglishNames {
-    /// Items whose class or English name contains `term` (case-insensitive), by name.
+    /// Items whose class or English name contains `term` (case-insensitive), by name. Items
+    /// the item editor hid are left out.
     pub fn search_items(&self, term: &str, limit: usize) -> Vec<CatalogItem> {
         let term = term.to_lowercase();
         let mut found: Vec<CatalogItem> = self
             .items
             .iter()
             .filter(|(class, (name, _))| {
-                class.to_lowercase().contains(&term) || name.to_lowercase().contains(&term)
+                (class.to_lowercase().contains(&term) || name.to_lowercase().contains(&term))
+                    && self
+                        .catalog
+                        .item_edit
+                        .get(*class)
+                        .is_none_or(|e| e.hidden != 1)
             })
             .map(|(class, (name, description))| CatalogItem {
                 icon: self.catalog.item_icons.get(class).cloned(),
@@ -668,8 +693,113 @@ impl EnglishNames {
 }
 
 impl EnglishNames {
+    /// The item editor's view of an exported item.
+    pub fn editor_item(&self, class: &str) -> Option<&EditorEntry> {
+        self.catalog.item_edit.get(&class.to_ascii_uppercase())
+    }
+    /// Every exported item (upper-case class) with its editor view.
+    pub fn editor_items(&self) -> impl Iterator<Item = (&String, &EditorEntry)> {
+        self.catalog.item_edit.iter()
+    }
+    /// An icon some item of the content uses (scaleform/item_icon/<icon>.tga in the client).
+    pub fn known_icon(&self, icon: &str) -> bool {
+        self.catalog
+            .item_icons
+            .values()
+            .any(|i| i.eq_ignore_ascii_case(icon))
+    }
+    /// Equipment set IDs of the content (SetItemInfo).
+    pub fn set_ids(&self) -> std::collections::BTreeSet<String> {
+        self.catalog
+            .item_info
+            .values()
+            .filter_map(|i| i.get("set")?.as_str().map(str::to_owned))
+            .collect()
+    }
+    /// The equipment set of an item, if any.
+    pub fn item_set(&self, class: &str) -> Option<String> {
+        self.item_info(class)?
+            .get("set")?
+            .as_str()
+            .map(str::to_owned)
+    }
+    /// English description of an item.
+    pub fn item_description(&self, class: &str) -> Option<String> {
+        self.item(class).1
+    }
+
     /// The English name of an item class, if the client localization has one.
     pub fn item_name(&self, class: &str) -> Option<String> {
         self.item(class).0
     }
+}
+
+/// Who owns an item class (item editor): its items, the characters holding them, and the
+/// queued deliveries not processed yet.
+#[derive(Debug, Default, Serialize, utoipa::ToSchema)]
+pub struct ItemUsage {
+    /// Items of the class in every storage (bags, equipment, shared storage).
+    pub total: i64,
+    /// Queued deliveries (mail, rewards) of the class not processed yet.
+    pub queued: i64,
+    /// Characters holding the most of them (up to 50).
+    pub characters: Vec<ItemHolder>,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ItemHolder {
+    /// Character ID (64-bit, as text).
+    pub cid: String,
+    pub name: String,
+    pub count: i64,
+}
+
+fn utf16_bytes(text: &str) -> Vec<u8> {
+    text.encode_utf16().flat_map(u16::to_le_bytes).collect()
+}
+
+pub async fn item_usage(pool: &PgPool, class: &str) -> Result<ItemUsage, sqlx::Error> {
+    let key = utf16_bytes(class);
+    let prefix = utf16_bytes(&format!("{class}["));
+    let mut tx = pool.begin().await?;
+    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        .execute(&mut *tx)
+        .await?;
+    let total: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM game_items WHERE item_class_utf16 = $1")
+            .bind(&key)
+            .fetch_one(&mut *tx)
+            .await?;
+    let queued: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM game_queued_items WHERE NOT processed
+           AND (item_class_ex_utf16 = $1
+                OR substring(item_class_ex_utf16 FROM 1 FOR octet_length($2)) = $2)",
+    )
+    .bind(&key)
+    .bind(&prefix)
+    .fetch_one(&mut *tx)
+    .await?;
+    let holders: Vec<(i64, Option<Vec<u8>>, i64)> = sqlx::query_as(
+        "SELECT i.owner_id, c.name_utf16, count(*)
+         FROM game_items i JOIN game_character_info c ON c.id = i.owner_id
+         WHERE i.item_class_utf16 = $1
+         GROUP BY i.owner_id, c.name_utf16
+         ORDER BY count(*) DESC, i.owner_id LIMIT 50",
+    )
+    .bind(&key)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(ItemUsage {
+        total,
+        queued,
+        characters: holders
+            .into_iter()
+            .map(|(cid, name, count)| ItemHolder {
+                cid: cid.to_string(),
+                name: name.as_deref().map(utf16).unwrap_or_default(),
+                count,
+            })
+            .collect(),
+    })
 }

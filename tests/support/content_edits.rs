@@ -297,3 +297,224 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
         .unwrap();
     admin_pool.close().await;
 }
+
+/// Item editor (docs/future/item-editor.md, cut 2): a new item from a base template, a base
+/// override with only what changed, hide, the refusals, publishing and the overlay's item parts.
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn item_editor_edits_reach_the_overlay() {
+    use vindictus_server::{
+        application::item_editor::{self, ItemDraft, Sources},
+        infrastructure::admin_characters::EnglishNames,
+    };
+    let (admin_pool, pool, schema) = isolated_pool().await;
+    create_account(
+        &pool,
+        Username::parse("Chefe").unwrap(),
+        Zeroizing::new(PASSWORD.as_bytes().to_vec()),
+    )
+    .await
+    .unwrap();
+    set_role_from_cli(&pool, "Chefe", Some(PanelRole::Admin))
+        .await
+        .unwrap();
+    let chefe = PanelAuth::new(pool.clone())
+        .login("chefe", Zeroizing::new(PASSWORD.as_bytes().to_vec()), None)
+        .await
+        .unwrap()
+        .session;
+    let names = EnglishNames::read(
+        serde_json::json!({"items": {"FIONA_INNER_FRINGE_SOCKS": ["Frilled Inner Armor", "Socks"]}})
+            .to_string()
+            .as_bytes(),
+    )
+    .unwrap()
+    .with_catalog(
+        serde_json::json!({
+            "item_icons": {"FIONA_INNER_FRINGE_SOCKS": "fiona_inner_fringe_socks"},
+            "item_info": {"FIONA_INNER_FRINGE_SOCKS": {"c": "INNERARMOR", "set": "fiona_set"}},
+            "item_edit": {
+                "FIONA_INNER_FRINGE_SOCKS": {"o": "b", "f": {"Icon": "fiona_inner_fringe_socks",
+                    "Category": "INNERARMOR", "CostumeType": 24, "DEF": 10}},
+                "FIONA_INNER_LAB": {"o": "a", "f": {"Category": "INNERARMOR", "CostumeType": 9101},
+                    "d": {"ItemClass": "fiona_inner_lab", "template": "fiona_inner_fringe_socks"}}
+            }
+        })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    let sources = Sources {
+        names: &names,
+        client: None,
+        assets: None,
+    };
+    let actor = |op| Actor {
+        session: &chefe,
+        peer: None,
+        operation_id: op,
+    };
+    let draft = |class: &str, template: Option<&str>, fields: serde_json::Value| ItemDraft {
+        item_class: class.into(),
+        template: template.map(str::to_owned),
+        name: "Lab Inner".into(),
+        description: Some("Panel item".into()),
+        fields: fields.as_object().unwrap().clone(),
+        set_id: None,
+        kit: None,
+        body: None,
+    };
+    // New item from a base template.
+    let saved = item_editor::save(
+        &pool,
+        &actor(Uuid::new_v4()),
+        &sources,
+        &draft(
+            "fiona_inner_new",
+            Some("fiona_inner_fringe_socks"),
+            serde_json::json!({"DEF": 40, "Icon": "fiona_inner_fringe_socks"}),
+        ),
+    )
+    .await
+    .unwrap();
+    assert_eq!(saved.kind, "item");
+    // Refusals: an existing class, a template that is an added item, a column outside the
+    // editor, an unknown icon, removing a base item.
+    for (bad, why) in [
+        (
+            draft(
+                "fiona_inner_lab",
+                Some("fiona_inner_fringe_socks"),
+                serde_json::json!({}),
+            ),
+            "exists",
+        ),
+        (
+            draft(
+                "fiona_inner_x",
+                Some("fiona_inner_lab"),
+                serde_json::json!({}),
+            ),
+            "template",
+        ),
+        (
+            draft(
+                "fiona_inner_y",
+                Some("fiona_inner_fringe_socks"),
+                serde_json::json!({"Feature": "x"}),
+            ),
+            "column",
+        ),
+        (
+            draft(
+                "fiona_inner_z",
+                Some("fiona_inner_fringe_socks"),
+                serde_json::json!({"Icon": "nope"}),
+            ),
+            "icon",
+        ),
+    ] {
+        let refused = item_editor::save(&pool, &actor(Uuid::new_v4()), &sources, &bad).await;
+        assert!(
+            matches!(
+                refused,
+                Err(AdminError::InvalidInput | AdminError::Unchanged(_))
+            ),
+            "{why}"
+        );
+    }
+    assert!(matches!(
+        item_editor::remove(
+            &pool,
+            &actor(Uuid::new_v4()),
+            &names,
+            "fiona_inner_fringe_socks"
+        )
+        .await,
+        Err(AdminError::Unchanged("item_base"))
+    ));
+    // Base item: only the changed column and the new name go into the override.
+    let mut base = draft(
+        "fiona_inner_fringe_socks",
+        None,
+        serde_json::json!({"DEF": 15, "CostumeType": 24, "Category": "INNERARMOR", "Icon": "fiona_inner_fringe_socks"}),
+    );
+    base.set_id = Some("fiona_set".into());
+    base.description = Some("Socks".into());
+    assert_eq!(
+        item_editor::save(&pool, &actor(Uuid::new_v4()), &sources, &base)
+            .await
+            .unwrap()
+            .kind,
+        "item_override"
+    );
+    item_editor::hide(
+        &pool,
+        &actor(Uuid::new_v4()),
+        &names,
+        "fiona_inner_lab",
+        true,
+    )
+    .await
+    .unwrap();
+    item_editor::remove(&pool, &actor(Uuid::new_v4()), &names, "fiona_inner_lab")
+        .await
+        .unwrap();
+    let listed = item_editor::list(&pool, &chefe, &names, "", Some("pending"))
+        .await
+        .unwrap();
+    assert_eq!(listed.len(), 2);
+    assert!(
+        listed
+            .iter()
+            .any(|i| i.item_class == "fiona_inner_new" && !i.exported)
+    );
+
+    let (version, _) = content_admin::publish(&pool, &actor(Uuid::new_v4()), None, 0)
+        .await
+        .unwrap();
+    assert_eq!(
+        i64::from(content_edits::latest_item_version(&pool).await.unwrap()),
+        version
+    );
+    let overlay = content_edits::overlay(&pool).await.unwrap();
+    assert_eq!(overlay["items"][0]["ItemClass"], "fiona_inner_new");
+    assert_eq!(overlay["items"][0]["template"], "fiona_inner_fringe_socks");
+    assert_eq!(overlay["items"][0]["set"]["EquipItemInfo"]["DEF"], 40);
+    assert_eq!(
+        overlay["item_overrides"]["fiona_inner_fringe_socks"],
+        serde_json::json!({"set": {"EquipItemInfo": {"DEF": 15}}, "text": {"name": "Lab Inner"}})
+    );
+    // Removing also drops the hidden mark of the same item.
+    assert_eq!(overlay["hidden_items"], serde_json::json!([]));
+    assert_eq!(
+        overlay["removed_items"],
+        serde_json::json!(["fiona_inner_lab"])
+    );
+    content_edits::loaded_overlay(&pool).await.unwrap();
+    let detail = item_editor::detail(&pool, &chefe, &names, "fiona_inner_new")
+        .await
+        .unwrap();
+    assert_eq!((detail.origin.as_str(), detail.usage.total), ("added", 0));
+    // Restoring the base item publishes as an empty override: the overlay drops it.
+    item_editor::restore(
+        &pool,
+        &actor(Uuid::new_v4()),
+        &names,
+        "fiona_inner_fringe_socks",
+    )
+    .await
+    .unwrap();
+    content_admin::publish(&pool, &actor(Uuid::new_v4()), None, 0)
+        .await
+        .unwrap();
+    let overlay = content_edits::overlay(&pool).await.unwrap();
+    assert_eq!(overlay["item_overrides"], serde_json::json!({}));
+
+    pool.close().await;
+    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
+    admin_pool.close().await;
+}

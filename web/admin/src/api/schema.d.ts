@@ -331,6 +331,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/item-editor/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Items of the content and of the item edits, by name (up to 200). */
+        get: operations["item_editor_list"];
+        put?: never;
+        /**
+         * Save the item form: a new item (from a template, or a clone), an added item's change, or a
+         *     base item's override. The edit stays pending until a version is published.
+         */
+        post: operations["item_editor_save"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/item-editor/items/{item_class}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One item: editable columns, definition of an added item, its edits and who owns it. */
+        get: operations["item_editor_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/item-editor/items/{item_class}/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hide an item (or show it again): it leaves the NPC shops and the give list; owned items stay. */
+        post: operations["item_editor_hide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/item-editor/items/{item_class}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove an added item (refused while a character owns one). */
+        post: operations["item_editor_remove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/item-editor/items/{item_class}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give a base item its original columns and text back. */
+        post: operations["item_editor_restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/item-editor/kits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a model kit (the Blender add-on's zip: kit.json, models/ and materials/ files; up to
+         *     64 MiB). The same zip always gets the same asset id.
+         */
+        post: operations["item_editor_upload_kit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/item-editor/kits/{assets}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A stored kit as a zip, for the form's 3D preview before the client copy has it. */
+        get: operations["item_editor_kit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/item-editor/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Published item version against the server's exports (re-exported by the host). */
+        get: operations["item_editor_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -887,6 +1030,20 @@ export interface components {
             /** Format: int64 */
             id: number;
         };
+        DraftSaved: {
+            /**
+             * Format: int64
+             * @description CostumeType given to the kit's model.
+             */
+            costume_type?: number | null;
+            /**
+             * Format: int64
+             * @description The pending content edit.
+             */
+            edit: number;
+            /** @description item (added item) or item_override (base item). */
+            kind: string;
+        };
         EditRequest: {
             /** Format: int32 */
             count: number;
@@ -947,6 +1104,39 @@ export interface components {
             /** Format: int32 */
             min: number;
         };
+        EditorItemDetail: {
+            /**
+             * @description Added items: the definition the content applies (template, set, text, costumes, assets,
+             *     set_id), the newest one, pending or published.
+             */
+            definition?: Record<string, never> | null;
+            description?: string | null;
+            /** @description Item edits of this class not withdrawn (pending and published), oldest first. */
+            edits: components["schemas"]["ContentEdit"][];
+            exported: boolean;
+            /** @description Editable columns (ItemClassInfo and EquipItemInfo) as exported; missing = 0 or empty. */
+            fields: Record<string, never>;
+            hidden: boolean;
+            icon?: string | null;
+            item_class: string;
+            name?: string | null;
+            origin: string;
+            set_id?: string | null;
+            usage: components["schemas"]["ItemUsage"];
+        };
+        EditorItemSummary: {
+            category?: string | null;
+            /** @description The server's exports have the item (false for an added item not re-exported yet). */
+            exported: boolean;
+            hidden: boolean;
+            icon?: string | null;
+            item_class: string;
+            name?: string | null;
+            /** @description base, added or edited (a base item with a panel override). */
+            origin: string;
+            /** @description An item edit of this class waits to be published. */
+            pending: boolean;
+        };
         EnchantRatioView: {
             class: string;
             /** Format: int32 */
@@ -974,6 +1164,11 @@ export interface components {
             /** Format: int32 */
             id: number;
             members: number;
+        };
+        HideItem: {
+            hidden: boolean;
+            /** Format: uuid */
+            operation_id: string;
         };
         InventorySort: {
             /** Format: uuid */
@@ -1006,6 +1201,62 @@ export interface components {
             /** Format: uuid */
             operation_id: string;
         };
+        ItemContentStatus: {
+            /**
+             * Format: int32
+             * @description Version the host last re-exported the server's items for (refresh_item_content.py).
+             */
+            exported_version?: number | null;
+            /**
+             * Format: int32
+             * @description Newest published version with an item edit (0 = none).
+             */
+            published_version: number;
+            /**
+             * @description The server runs the published items; when false, run start-lab.bat (or
+             *     scripts/content/refresh_item_content.py) on the host.
+             */
+            up_to_date: boolean;
+        };
+        /** @description The item form (new, clone or edit). */
+        ItemDraft: {
+            /**
+             * @description Body of the model's player_costume.txt entry (male, female, giant, tall); default: the
+             *     template's.
+             */
+            body?: string | null;
+            description?: string | null;
+            /** @description Editable columns (domain::item_editor::EDITABLE) → value. */
+            fields: Record<string, never>;
+            item_class: string;
+            /**
+             * @description A kit uploaded with POST /api/item-editor/kits: the item gets this model under a new
+             *     CostumeType.
+             */
+            kit?: string | null;
+            name: string;
+            /** @description Equipment set (SetItemInfo SetID) of an added item. */
+            set_id?: string | null;
+            /**
+             * @description New items: the base item whose rows it copies (a clone of an added item uses that
+             *     item's template).
+             */
+            template?: string | null;
+        };
+        ItemEditCreated: {
+            /**
+             * Format: int64
+             * @description The pending content edit.
+             */
+            edit: number;
+        };
+        ItemHolder: {
+            /** @description Character ID (64-bit, as text). */
+            cid: string;
+            /** Format: int64 */
+            count: number;
+            name: string;
+        };
         /** @description The model of an item: its player_costume.txt entry (by Category and CostumeType). */
         ItemModel: {
             category?: string | null;
@@ -1031,6 +1282,10 @@ export interface components {
              * @description Bag collection (0–8).
              */
             storage: number;
+        };
+        ItemOperation: {
+            /** Format: uuid */
+            operation_id: string;
         };
         ItemTooltip: {
             /** @description The category text (Weapon, Pants, Consumable, ...) or the raw Category. */
@@ -1071,6 +1326,24 @@ export interface components {
             unique: boolean;
             /** @description GameUI_Heroes_Item_Tooltip_Weight: Item.Stat Weight / 1000 and the base weight. */
             weight?: string | null;
+        };
+        /**
+         * @description Who owns an item class (item editor): its items, the characters holding them, and the
+         *     queued deliveries not processed yet.
+         */
+        ItemUsage: {
+            /** @description Characters holding the most of them (up to 50). */
+            characters: components["schemas"]["ItemHolder"][];
+            /**
+             * Format: int64
+             * @description Queued deliveries (mail, rewards) of the class not processed yet.
+             */
+            queued: number;
+            /**
+             * Format: int64
+             * @description Items of the class in every storage (bags, equipment, shared storage).
+             */
+            total: number;
         };
         LoginRequest: {
             /** Format: password */
@@ -1203,6 +1476,11 @@ export interface components {
             groups: components["schemas"]["GroupView"][];
             waiting: number;
         };
+        SaveItem: {
+            draft: components["schemas"]["ItemDraft"];
+            /** Format: uuid */
+            operation_id: string;
+        };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
             csrf_token: string;
@@ -1276,6 +1554,14 @@ export interface components {
         Sorted: {
             /** @description Items that changed place. */
             moved: number;
+        };
+        StoredKit: {
+            /** @description Asset folder id (`kit_<16 hex of the zip's SHA-256>`). */
+            assets: string;
+            /** @description Game paths of every file. */
+            files: string[];
+            /** @description Game path of the studio model. */
+            model: string;
         };
         TooltipEnchant: {
             lines: components["schemas"]["TooltipLine"][];
@@ -2164,6 +2450,354 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_list: {
+        parameters: {
+            query?: {
+                /** @description Class or English name (2–64 characters; optional with a filter). */
+                search?: string;
+                /** @description added, edited, hidden or pending. */
+                filter?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditorItemSummary"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveItem"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSaved"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_class: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EditorItemDetail"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_hide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_class: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HideItem"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemEditCreated"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_class: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemOperation"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemEditCreated"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_class: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ItemOperation"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemEditCreated"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_upload_kit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/zip": number[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredKit"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_kit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assets: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemContentStatus"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

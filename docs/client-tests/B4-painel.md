@@ -18,6 +18,7 @@ Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4
 6. **Ajustes ao vivo:** B4.5b (mudar a EXP das missões, terminar uma missão sem sair do jogo).
 7. **Lojas, cash shop e versão publicada:** B4.4b, B4.4 e B4.5 (editar uma loja de NPC, um preço do cash shop e uma taxa pendente), depois B4.4c (publicar com manutenção, deixar o jogo reiniciar, abrir pelo `start-lab.bat` e conferir a loja e o preço novos).
 8. **Fim:** relogar com a Murael e o personagem novo e conferir o que as entradas listam como preservado; Auditoria deve ter uma linha para cada mudança feita.
+9. **Editor de itens (depois do B4, opcional na mesma sessão):** I2 com a Fiona fora do jogo: criar, clonar com kit, editar, ocultar e remover; publicar; abrir pelo `start-lab.bat`; dar os itens e conferir no jogo; relogar.
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.3b-2`), o que foi feito, o que apareceu na tela (texto da mensagem do painel ou do jogo; captura se possível) e o horário aproximado (hh:mm). Os horários são comparados com `docker compose logs game` e com a Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo (ex.: "missão não alcançada").
@@ -198,6 +199,22 @@ Pré-condição: `game` recompilado depois do commit da Hagie (27/10/2026). A co
 - [ ] Create → **Hagie**, nome novo → aparece na lista sem 0xAA04; no jogo, 10000 de ouro na carteira, além dos itens iniciais dela.
 - [ ] Opcional: uma classe de cada (Lann, Karok, Kai, Vella, Lynn, Arisha) → cada uma cria e entra na cidade.
 Limites conhecidos: títulos de preset e stats por nível usam a classe certa, mas só a Fiona foi exercitada em combate/missão até agora.
+
+### I2 — Editor de itens no painel (criar, clonar, editar, ocultar, remover)
+Pré-condição: imagens recompiladas depois do commit do editor de itens (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, `docker compose up -d --wait`); login no painel com papel `admin` (publicar exige admin; criar e editar, `gm`); uma Fiona de laboratório offline. Para o modelo novo, um kit exportado pelo add-on do Blender com nomes de modelo e materiais novos (ex.: `fiona_inner_lab2.mdl`). Cliente fechado.
+- [ ] Painel → **Editor de itens** → buscar `fiona_inner` → a lista mostra os itens base e as adições (`fiona_inner_fringe`, `fiona_inner_zero`, `fiona_inner_lab` com a marca "adição"); escolher um → ficha com campos, quem tem o item e a prévia 3D do modelo.
+- [ ] **Novo item** → ItemClass `fiona_inner_ed1`, item-modelo `fiona_inner_fringe_socks` → Carregar → nome "Editor Inner One", DEF 77, só Fiona marcada → Criar item → aviso de edição pendente; a lista (filtro Pendentes) mostra o item "ainda não exportado".
+- [ ] Escolher `fiona_inner_lab` → **Clonar** → ItemClass `fiona_inner_ed2`, nome "Editor Inner Two", anexar o kit novo (.zip) → a prévia mostra o modelo do kit → Criar item → resposta com o CostumeType novo (9102 ou o próximo livre).
+- [ ] Escolher `fiona_inner_fringe` → **Editar** → DEF 55 e descrição nova → Salvar edição.
+- [ ] Escolher um item base qualquer de loja (ex.: o Enhancement Elixir da loja do Ferghus) → **Ocultar** → o aviso diz que os itens dos personagens continuam funcionando.
+- [ ] Escolher `fiona_inner_zero` → **Remover** → se a Fiona tiver o item, a remoção é recusada com a mensagem de item em uso (os personagens aparecem na ficha); sem ninguém com o item, a remoção fica pendente.
+- [ ] Conteúdo → **Publicar** (0 minutos) → o jogo reinicia; o Editor de itens mostra o aviso "o servidor exportou até ..." enquanto a reexportação não rodar.
+- [ ] Fechar o cliente e abrir pelo `start-lab.bat` → ele reexporta os itens do servidor e reinicia o `game` (1 a 3 minutos; log em `start-lab-items.log`), depois atualiza a cópia do cliente → o aviso some do Editor de itens.
+- [ ] Painel → dar `fiona_inner_ed1`, `fiona_inner_ed2` e `fiona_inner_fringe` à Fiona → no jogo, cada um aparece na bolsa com o nome em inglês e o ícone do modelo; o tooltip mostra a DEF editada (77, a do clone e 55); vestir: `ed1` com o modelo do `fiona_inner_fringe_socks`, `ed2` com o modelo do kit.
+- [ ] Loja do Ferghus → o item ocultado não aparece mais; um que a Fiona já tinha continua na bolsa e funciona.
+- [ ] Relogar → os itens novos continuam na bolsa e vestidos, com nome, ícone, modelo e estatísticas.
+- [ ] Painel → `fiona_inner_fringe` → **Restaurar original** → publicar → `start-lab.bat` → o tooltip volta à DEF original.
+Limites conhecidos: o ícone é escolhido entre os ícones existentes (ícone novo depende do launcher); um item base não muda de conjunto nem ganha modelo novo (só pode apontar outro CostumeType existente); a remoção é recusada enquanto algum personagem tiver o item; a distribuição a outros jogadores é o launcher (fora deste roteiro).
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

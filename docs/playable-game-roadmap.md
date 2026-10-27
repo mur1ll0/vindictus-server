@@ -122,7 +122,7 @@ Gate B4: suíte completa e uso real do painel para criar uma conta, ajustar a Fi
 
 Planejados em 26/10/2026, só como documentação. Não mudam a ordem dos blocos B0–B5. Cada um alimenta o relatório de viabilidade do B4.7 e traz a própria evidência e as próprias hipóteses.
 
-- [Editor de itens](future/item-editor.md): criar, clonar, editar e remover itens (equipamento, roupa e consumível; ícone e modelo 3D com Blender 5.1). Primeiro objetivo: inner armors novos para todas as classes. Vem **depois do B4.5** (taxas do servidor). A etapa I1/I2 usa só conteúdo; ícones, textos e modelos dependem do launcher.
+- [Editor de itens](future/item-editor.md): criar, clonar, editar e remover itens (equipamento, roupa e consumível; ícone e modelo 3D com Blender 5.1). Primeiro objetivo: inner armors novos para todas as classes. Vem **depois do B4.5** (taxas do servidor). A etapa I1/I2 usa só conteúdo; ícones, textos e modelos dependem do launcher. **27/10/2026:** corte 1 aceito no cliente e editor no painel implementado (criar, clonar, editar, ocultar, remover, kit 3D; seção 3.3), com teste no cliente pendente (roteiro B4, entrada I2).
 - [Launcher do jogo](future/game-launcher.md): baixar, atualizar só o que mudou (manifesto assinado e objetos por hash, no modelo do pw-universal) e substituir o `start-lab.bat`. O teste L0 (arquivos soltos × `.hfs`) é um checkpoint de cliente que pode rodar a qualquer momento. L1–L3 vêm depois do B4 e antes de qualquer etapa que mude assets do cliente.
 - [Editor de fases](future/stage-editor.md): quest, dificuldades, setores, spawns, boss e drops pelo mesmo ciclo de edições e manutenção do B4.4c. Vem depois do editor de itens (os drops referenciam itens). Fases com BSP novo ficam como estudo à parte.
 

@@ -11,6 +11,7 @@ import { ContentPage } from '@/pages/Content';
 import { ShopsPage } from '@/pages/Shops';
 import { CharacterPage } from '@/pages/Character';
 import { LoginPage } from '@/pages/Login';
+import { ItemEditorPage } from '@/pages/ItemEditor';
 import { ModelsPage } from '@/pages/Models';
 import { MyAccountPage } from '@/pages/MyAccount';
 
@@ -92,6 +93,12 @@ const modelsRoute = createRoute({
   beforeLoad: staffOnly,
   component: ModelsPage,
 });
+const itemsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/itens',
+  beforeLoad: staffOnly,
+  component: ItemEditorPage,
+});
 const worldRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/mapas',
@@ -121,6 +128,7 @@ export function makeRouter(queryClient: QueryClient) {
         cashShopRoute,
         tuningRoute,
         contentRoute,
+        itemsRoute,
         modelsRoute,
         worldRoute,
         auditRoute,

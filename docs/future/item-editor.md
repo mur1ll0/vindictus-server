@@ -1,6 +1,6 @@
 # Editor de itens (recurso futuro do painel)
 
-Status: planejamento (26/10/2026). Nada implementado. Objetivo: criar, clonar, editar e remover itens com campos por tipo (equipamento, roupa/fashion, consumível), incluindo ícone e modelo 3D com visualização no painel e ida e volta pelo Blender. **Primeiro grande objetivo: inner armors novos para todas as classes.** O que não foi verificado aparece marcado como **hipótese**.
+Status: corte 1 e editor no painel (corte 2, seção 3.3) implementados em 27/10/2026; teste do editor no cliente pendente. Objetivo: criar, clonar, editar e remover itens com campos por tipo (equipamento, roupa/fashion, consumível), incluindo ícone e modelo 3D com visualização no painel e ida e volta pelo Blender. **Primeiro grande objetivo: inner armors novos para todas as classes.** O que não foi verificado aparece marcado como **hipótese**.
 
 Encaixe no roteiro: depois do **B4.5** (taxas do servidor: o editor de itens reaproveita os tipos de edição, a sobreposição e a aplicação no cliente que o B4.5 cria para `ItemClassInfo`). A etapa I1 (só conteúdo SQLite) pode começar logo depois do B4.5. Ícones e modelos (I3 em diante) dependem do [launcher](game-launcher.md) (L0 e L3) para chegar ao cliente. Ver "Recursos futuros do painel" em [playable-game-roadmap.md](../playable-game-roadmap.md).
 
@@ -140,6 +140,43 @@ Para cada uma das 10 classes do cliente (corpo e esqueleto próprios em `models/
 6. Opcional: oferecer na criação (`InnerArmorTypeInfo`), que hoje só cobre Lann, Fiona e Evie.
 
 Custo estimado: conteúdo baixo; asset alto (10 modelos com rig de corpo diferente); servidor baixo (o catálogo já é dirigido por conteúdo); binário do cliente nenhum, se o L0-d aceitar o índice regravado. Se recusar, o corte 2 depende de mudar o binário ou o `GameInfo.txt`.
+
+### 3.3 Corte 2: editor de itens no painel (27/10/2026)
+
+Implementa criar, clonar, editar, ocultar e remover itens pelo painel (`/itens`, "Editor de itens"), sobre o caminho do corte 1.
+
+**Armazenamento: edições de conteúdo no PostgreSQL, não o `item_additions.json`.** O painel roda no contêiner `game`, que não tem Python e monta `.cache/private-content` só para leitura; o `item_additions.json` é um arquivo versionado no Git. As mudanças do painel viram edições de conteúdo (migração `0049`, tipos `item`, `item_override`, `item_hide` e `item_remove`), com autor, auditoria, estado pendente e versão publicada, no mesmo ciclo das lojas e taxas (B4.4/B4.5). O `item_additions.json` continua como a camada versionada de laboratório; um item do painel com a mesma classe o substitui, e `item_remove` o tira.
+
+**Sobreposição publicada** (`content_edits::overlay`, gravada pelo `game` em `.cache/content-state/content-edits.json`):
+
+| Parte | Origem | Efeito no servidor e no cliente |
+|---|---|---|
+| `items` | `item` (último por classe) | linhas do item-modelo com `ItemClass` trocado e as colunas do formulário, `set_id` (`SetItemInfo`), texto, entrada do `player_costume.txt` e pacote dos assets do kit |
+| `item_overrides` | `item_override` de item base | só as colunas de `EDITABLE` e o texto; uma sobreposição vazia ("Restaurar original") a tira |
+| `hidden_items` | `item_hide` | as linhas ficam (os itens dos personagens continuam funcionando); o item sai das lojas de NPC (`apply_shop_rows`, em Rust e em Python) e da busca de "dar item" do painel |
+| `removed_items` | `item_remove` de item adicionado | o item sai do conteúdo; recusado enquanto houver itens ou entregas pendentes dele |
+
+**Camada de sobreposição dos itens base:** o `heroesContents.db3` continua intocado. Em `content_additions.install`, uma tabela com sobreposição vira uma cópia TEMP na mesma ordem, com as células trocadas por `UPDATE`, e a `TEMP VIEW` lê essa cópia seguida das linhas adicionadas. Contagem e posição das linhas não mudam, então as conferências de ordem entre exportações continuam valendo e os 18 exportadores não mudaram. Um item adicionado clonado de um base editado copia as células editadas. No cliente, `apply_client` regrava as células a partir do backup `heroes.db3.pre-lab-additions` (desfazer volta ao original) e apaga as adições removidas (lista em `heroes.db3.lab-items.json`). O texto renomeado de um item base substitui a linha antiga do pacote de texto.
+
+**Colunas editáveis** (`src/domain/item_editor.rs` e `content_additions.EDITABLE`, a mesma lista): `ItemClassInfo` `Icon`, `Category`, `TradeCategory`, `TradeCategorySub`, `Rarity`, `Level`, `RequiredLevel`, `ClassRestriction` (caixas das 10 classes do cliente), `MaxStack`, `Price`, `SellPrice`, `ExpireIn`; `EquipItemInfo` `CostumeType`, `MaxDurability`, `ATK`, `ATK_Speed`, `Critical`, `Balance`, `MATK`, `DEF`, `Res_Critical`, `STR`, `DEX`, `INT`, `WILL`, `LUCK`, `HP`, `STAMINA`, `Weight`, `Dyeable`. Cada uma tem limite e tipo; o ícone precisa ser um já usado por algum item.
+
+**Kit e CostumeType:** `POST /api/item-editor/kits` aceita o zip do add-on (até 64 MiB, 512 arquivos, 256 MiB descompactados; sem compressão ou deflate, CRC conferido; só `models/` e `materials/` com `.mdl/.vvd/.vtx/.phy/.vtf/.vmt`, sem `..`, e `kit.json` com o modelo). O servidor grava em `.cache/private-assets/kit_<16 hex do SHA-256>` (montado gravável no `game`; o mesmo zip cai na mesma pasta). Ao salvar, cada arquivo do kit que já existir na cópia do cliente é recusado, exceto os do kit anterior do mesmo item. O `CostumeType` novo é o primeiro livre a partir de 9100 na seção do `player_costume.txt` da categoria, contando as entradas do cliente, os itens exportados da mesma seção e as adições pendentes e publicadas. Uma edição com kit novo mantém o número anterior do item. O corpo da entrada vem do formulário ou da entrada do item-modelo.
+
+**Publicação e versão carregada:** um admin publica em Conteúdo, como as lojas. O `game` reinicia, grava a sobreposição e só marca a versão como aplicada se o selo `.cache/private-content/item-content.json` cobrir a versão de itens mais nova. Caso contrário, registra um aviso, e o Editor de itens mostra "o servidor exportou até ...". No host, `scripts/content/refresh_item_content.py`, chamado pelo `start-lab.bat` antes de atualizar a cópia do cliente, faz o seguinte:
+1. valida a sobreposição;
+2. compara o digest dos itens com o selo;
+3. reexporta os 13 arquivos com a lista fixa de exportadores e argumentos;
+4. grava o selo e reinicia o `game`.
+
+Se algo falhar, ele devolve o backup e reinicia de novo. Nenhum dado da sobreposição vira comando.
+
+**Prévia 3D:** o formulário usa o visualizador existente com o kit escolhido (lido no navegador antes do envio), com o kit guardado (`GET /api/item-editor/kits/{assets}`) ou com o modelo do item pelo `player_costume.txt` da cópia.
+
+**Quem tem o item:** `item_usage` conta `game_items` (com índice novo em `item_class_utf16`) e as entregas não processadas de `game_queued_items`, e lista até 50 personagens. Decisão aplicada, que segue a regra da seção 2: ocultar mantém os itens dos personagens funcionando, e remover só vale para itens adicionados sem nenhuma instância.
+
+**Limites:** ícone novo (arquivo `.tga`) e distribuição a jogadores dependem do launcher. Itens base não ganham modelo novo nem mudam de conjunto. Consumíveis (`FoodInfo`, `item_data.txt`) ficam para o I6. O formulário edita só a primeira linha de cada tabela, e a mudança vale para todas as linhas do item (as variantes de `Feature`). A remoção confere inventários e entregas, mas não linhas de loja, receitas nem drops: retire antes a linha de loja de um item adicionado que esteja à venda.
+
+**Verificado:** `scripts/content` (71) e `scripts/client` em Python; testes de unidade Rust (`domain::item_editor`, `item_kits`, `content_overlay`); `admin_http` com o OpenAPI regenerado; teste PostgreSQL `item_editor_edits_reach_the_overlay`; `tsc` e build do painel. **Pendente:** teste no cliente (roteiro `docs/client-tests/B4-painel.md`, entrada I2).
 
 ## 4. Modelos 3D: visualização no painel e Blender 5.1
 

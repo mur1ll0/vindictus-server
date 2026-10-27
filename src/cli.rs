@@ -66,6 +66,15 @@ pub enum Command {
         /// The 4096-byte HFS pack keystream (scripts/client/hfs.py keystream), never versioned.
         #[arg(long, requires = "admin_client_dir")]
         admin_client_keystream: Option<std::path::PathBuf>,
+        /// Item editor: private assets folder (.cache/private-assets) where uploaded model kits
+        /// are kept; never versioned.
+        #[arg(long, requires = "admin_listen")]
+        admin_private_assets: Option<std::path::PathBuf>,
+        /// Item editor: the host's item export stamp (.cache/private-content/item-content.json,
+        /// scripts/content/refresh_item_content.py). A published item version newer than it
+        /// is not recorded as applied at start.
+        #[arg(long)]
+        item_content_stamp: Option<std::path::PathBuf>,
         /// Write the cash shop ShopList.aspx (published prices included) at start.
         #[arg(long)]
         shop_list_output: Option<std::path::PathBuf>,

@@ -65,4 +65,8 @@ export const KIND_LABEL: Record<string, string> = {
   quest_drop: 'Drops da fase',
   enhance_ratio: 'Chance de Enhance',
   enchant_ratio: 'Chance de Enchant',
+  item: 'Item adicionado (criar/editar)',
+  item_override: 'Item base (sobreposição)',
+  item_hide: 'Item (ocultar/mostrar)',
+  item_remove: 'Item adicionado (remover)',
 };

@@ -1174,6 +1174,490 @@
         }
       }
     },
+    "/api/item-editor/items": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Items of the content and of the item edits, by name (up to 200).",
+        "operationId": "item_editor_list",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Class or English name (2–64 characters; optional with a filter).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "description": "added, edited, hidden or pending.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EditorItemSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Save the item form: a new item (from a template, or a clone), an added item's change, or a\nbase item's override. The edit stays pending until a version is published.",
+        "operationId": "item_editor_save",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/item-editor/items/{item_class}": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "One item: editable columns, definition of an added item, its edits and who owns it.",
+        "operationId": "item_editor_detail",
+        "parameters": [
+          {
+            "name": "item_class",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorItemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/item-editor/items/{item_class}/hide": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Hide an item (or show it again): it leaves the NPC shops and the give list; owned items stay.",
+        "operationId": "item_editor_hide",
+        "parameters": [
+          {
+            "name": "item_class",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HideItem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemEditCreated"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/item-editor/items/{item_class}/remove": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Remove an added item (refused while a character owns one).",
+        "operationId": "item_editor_remove",
+        "parameters": [
+          {
+            "name": "item_class",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemOperation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemEditCreated"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/item-editor/items/{item_class}/restore": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Give a base item its original columns and text back.",
+        "operationId": "item_editor_restore",
+        "parameters": [
+          {
+            "name": "item_class",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemOperation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemEditCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/item-editor/kits": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Upload a model kit (the Blender add-on's zip: kit.json, models/ and materials/ files; up to\n64 MiB). The same zip always gets the same asset id.",
+        "operationId": "item_editor_upload_kit",
+        "requestBody": {
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredKit"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": ""
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/item-editor/kits/{assets}": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "A stored kit as a zip, for the form's 3D preview before the client copy has it.",
+        "operationId": "item_editor_kit",
+        "parameters": [
+          {
+            "name": "assets",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/item-editor/status": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Published item version against the server's exports (re-exported by the host).",
+        "operationId": "item_editor_status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemContentStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/items": {
       "get": {
         "tags": [
@@ -2675,6 +3159,32 @@
           }
         }
       },
+      "DraftSaved": {
+        "type": "object",
+        "required": [
+          "edit",
+          "kind"
+        ],
+        "properties": {
+          "costume_type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "CostumeType given to the kit's model."
+          },
+          "edit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The pending content edit."
+          },
+          "kind": {
+            "type": "string",
+            "description": "item (added item) or item_override (base item)."
+          }
+        }
+      },
       "EditRequest": {
         "oneOf": [
           {
@@ -2897,6 +3407,125 @@
           }
         ]
       },
+      "EditorItemDetail": {
+        "type": "object",
+        "required": [
+          "item_class",
+          "origin",
+          "hidden",
+          "exported",
+          "fields",
+          "edits",
+          "usage"
+        ],
+        "properties": {
+          "definition": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Added items: the definition the content applies (template, set, text, costumes, assets,\nset_id), the newest one, pending or published."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "edits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContentEdit"
+            },
+            "description": "Item edits of this class not withdrawn (pending and published), oldest first."
+          },
+          "exported": {
+            "type": "boolean"
+          },
+          "fields": {
+            "type": "object",
+            "description": "Editable columns (ItemClassInfo and EquipItemInfo) as exported; missing = 0 or empty."
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "item_class": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "set_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ItemUsage"
+          }
+        }
+      },
+      "EditorItemSummary": {
+        "type": "object",
+        "required": [
+          "item_class",
+          "origin",
+          "hidden",
+          "pending",
+          "exported"
+        ],
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exported": {
+            "type": "boolean",
+            "description": "The server's exports have the item (false for an added item not re-exported yet)."
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "item_class": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "description": "base, added or edited (a base item with a panel override)."
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "An item edit of this class waits to be published."
+          }
+        }
+      },
       "EnchantRatioView": {
         "type": "object",
         "required": [
@@ -2987,6 +3616,22 @@
           }
         }
       },
+      "HideItem": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "hidden"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "InventorySort": {
         "type": "object",
         "required": [
@@ -3064,6 +3709,121 @@
           }
         }
       },
+      "ItemContentStatus": {
+        "type": "object",
+        "required": [
+          "published_version",
+          "up_to_date"
+        ],
+        "properties": {
+          "exported_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Version the host last re-exported the server's items for (refresh_item_content.py)."
+          },
+          "published_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Newest published version with an item edit (0 = none)."
+          },
+          "up_to_date": {
+            "type": "boolean",
+            "description": "The server runs the published items; when false, run start-lab.bat (or\nscripts/content/refresh_item_content.py) on the host."
+          }
+        }
+      },
+      "ItemDraft": {
+        "type": "object",
+        "description": "The item form (new, clone or edit).",
+        "required": [
+          "item_class",
+          "name",
+          "fields"
+        ],
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Body of the model's player_costume.txt entry (male, female, giant, tall); default: the\ntemplate's."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fields": {
+            "type": "object",
+            "description": "Editable columns (domain::item_editor::EDITABLE) → value."
+          },
+          "item_class": {
+            "type": "string"
+          },
+          "kit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A kit uploaded with POST /api/item-editor/kits: the item gets this model under a new\nCostumeType."
+          },
+          "name": {
+            "type": "string"
+          },
+          "set_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Equipment set (SetItemInfo SetID) of an added item."
+          },
+          "template": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New items: the base item whose rows it copies (a clone of an added item uses that\nitem's template)."
+          }
+        }
+      },
+      "ItemEditCreated": {
+        "type": "object",
+        "required": [
+          "edit"
+        ],
+        "properties": {
+          "edit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The pending content edit."
+          }
+        }
+      },
+      "ItemHolder": {
+        "type": "object",
+        "required": [
+          "cid",
+          "name",
+          "count"
+        ],
+        "properties": {
+          "cid": {
+            "type": "string",
+            "description": "Character ID (64-bit, as text)."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ItemModel": {
         "type": "object",
         "description": "The model of an item: its player_costume.txt entry (by Category and CostumeType).",
@@ -3129,6 +3889,18 @@
             "format": "int32",
             "description": "Bag collection (0–8).",
             "minimum": 0
+          }
+        }
+      },
+      "ItemOperation": {
+        "type": "object",
+        "required": [
+          "operation_id"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -3268,6 +4040,34 @@
               "null"
             ],
             "description": "GameUI_Heroes_Item_Tooltip_Weight: Item.Stat Weight / 1000 and the base weight."
+          }
+        }
+      },
+      "ItemUsage": {
+        "type": "object",
+        "description": "Who owns an item class (item editor): its items, the characters holding them, and the\nqueued deliveries not processed yet.",
+        "required": [
+          "total",
+          "queued",
+          "characters"
+        ],
+        "properties": {
+          "characters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemHolder"
+            },
+            "description": "Characters holding the most of them (up to 50)."
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Queued deliveries (mail, rewards) of the class not processed yet."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items of the class in every storage (bags, equipment, shared storage)."
           }
         }
       },
@@ -3693,6 +4493,22 @@
           }
         }
       },
+      "SaveItem": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "draft"
+        ],
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/ItemDraft"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "SessionResponse": {
         "type": "object",
         "required": [
@@ -3897,6 +4713,31 @@
             "type": "integer",
             "description": "Items that changed place.",
             "minimum": 0
+          }
+        }
+      },
+      "StoredKit": {
+        "type": "object",
+        "required": [
+          "assets",
+          "model",
+          "files"
+        ],
+        "properties": {
+          "assets": {
+            "type": "string",
+            "description": "Asset folder id (`kit_<16 hex of the zip's SHA-256>`)."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Game paths of every file."
+          },
+          "model": {
+            "type": "string",
+            "description": "Game path of the studio model."
           }
         }
       },

@@ -324,6 +324,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
         admin_icons_dir,
         admin_client_dir,
         admin_client_keystream,
+        admin_private_assets,
+        item_content_stamp,
         shop_list_output,
         content_edits_output,
         ..
@@ -399,7 +401,23 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 .map_err(|_| Error::Configuration("content edits unavailable".into()))?;
             write_atomic(output, value.to_string().as_bytes())?;
         }
-        if overlay.version > 0 {
+        // Item edits reach the game through the host's re-export: a version with items newer
+        // than the exports stays to be applied (the panel shows it).
+        let item_version = content_edits::latest_item_version(&pool)
+            .await
+            .map_err(|_| Error::Configuration("content edits unavailable".into()))?;
+        let exported = vindictus_server::application::item_editor::exported_version(
+            item_content_stamp.as_deref(),
+        )
+        .await
+        .unwrap_or(0);
+        if item_version > exported {
+            tracing::warn!(
+                item_version,
+                exported,
+                "published item edits not re-exported yet; run start-lab.bat or scripts/content/refresh_item_content.py on the host"
+            );
+        } else if overlay.version > 0 {
             content_edits::mark_applied(&pool, overlay.version)
                 .await
                 .map_err(|_| Error::Configuration("content version not recorded".into()))?;
@@ -488,6 +506,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
                     })?;
                     state = state.with_client(files);
                 }
+                state = state
+                    .with_item_editor(admin_private_assets.clone(), item_content_stamp.clone());
                 let app = admin::router(state, admin_ui_dir.as_deref());
                 Some(tokio::spawn(admin::serve(admin_listener, app)))
             }

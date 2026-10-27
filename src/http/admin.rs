@@ -29,6 +29,7 @@ use zeroize::Zeroizing;
 mod accounts;
 mod characters;
 mod content;
+mod items;
 mod models;
 mod world;
 
@@ -48,6 +49,10 @@ pub struct AdminState {
     icons_dir: Option<std::sync::Arc<std::path::PathBuf>>,
     /// The client copy's files (HFS packs), for model kits.
     client: Option<std::sync::Arc<crate::infrastructure::client_files::ClientFiles>>,
+    /// Private assets folder (.cache/private-assets) where the item editor keeps kits.
+    private_assets: Option<std::sync::Arc<std::path::PathBuf>>,
+    /// The host's item export stamp (.cache/private-content/item-content.json).
+    item_stamp: Option<std::sync::Arc<std::path::PathBuf>>,
 }
 
 impl AdminState {
@@ -60,7 +65,19 @@ impl AdminState {
             runtime: None,
             icons_dir: None,
             client: None,
+            private_assets: None,
+            item_stamp: None,
         }
+    }
+    /// Item editor: where uploaded kits are kept and the host's item export stamp.
+    pub fn with_item_editor(
+        mut self,
+        private_assets: Option<std::path::PathBuf>,
+        item_stamp: Option<std::path::PathBuf>,
+    ) -> Self {
+        self.private_assets = private_assets.map(std::sync::Arc::new);
+        self.item_stamp = item_stamp.map(std::sync::Arc::new);
+        self
     }
     /// English item/skill/status names (scripts/content/export_item_names.py).
     /// Directory of the exported icons (icons/item/<icon>.png).
@@ -132,10 +149,31 @@ impl AdminState {
         content::item_icon,
         models::kit,
         models::item_model,
+        items::list,
+        items::detail,
+        items::save,
+        items::hide,
+        items::remove,
+        items::restore,
+        items::upload_kit,
+        items::kit,
+        items::status,
         world::world
     ),
     components(schemas(
         models::ItemModel,
+        items::SaveItem,
+        items::HideItem,
+        items::ItemOperation,
+        items::ItemEditCreated,
+        crate::application::item_editor::EditorItemSummary,
+        crate::application::item_editor::EditorItemDetail,
+        crate::application::item_editor::ItemDraft,
+        crate::application::item_editor::DraftSaved,
+        crate::application::item_editor::ItemContentStatus,
+        crate::infrastructure::admin_characters::ItemUsage,
+        crate::infrastructure::admin_characters::ItemHolder,
+        crate::infrastructure::item_kits::StoredKit,
         LoginRequest,
         OwnPassword,
         SessionResponse,
@@ -252,6 +290,21 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         )
         .route("/api/content", get(content::content_state))
         .route("/api/world", get(world::world))
+        .route("/api/item-editor/items", get(items::list).post(items::save))
+        .route("/api/item-editor/items/{item_class}", get(items::detail))
+        .route(
+            "/api/item-editor/items/{item_class}/hide",
+            post(items::hide),
+        )
+        .route(
+            "/api/item-editor/items/{item_class}/remove",
+            post(items::remove),
+        )
+        .route(
+            "/api/item-editor/items/{item_class}/restore",
+            post(items::restore),
+        )
+        .route("/api/item-editor/status", get(items::status))
         .route("/api/content/edits", post(content::create_edit))
         .route("/api/content/edits/{id}/withdraw", post(content::withdraw))
         .route("/api/content/publish", post(content::publish))
@@ -279,7 +332,23 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/models/kit", get(models::kit))
         .route("/api/items/{item_class}/model", get(models::item_model))
         .with_state(state.clone());
-    let api = icons.merge(api);
+    // Model kits: up to 64 MiB, with time to receive and check them.
+    let kits = Router::new()
+        .route("/api/item-editor/kits", post(items::upload_kit))
+        .route("/api/item-editor/kits/{assets}", get(items::kit))
+        .layer(SetResponseHeaderLayer::overriding(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("no-store"),
+        ))
+        .layer(DefaultBodyLimit::max(
+            crate::infrastructure::item_kits::MAX_KIT_BYTES,
+        ))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(120),
+        ))
+        .with_state(state.clone());
+    let api = icons.merge(kits).merge(api);
     let app = match ui_dir {
         Some(dir) => api
             .fallback_service(ServeDir::new(dir).fallback(ServeFile::new(dir.join("index.html")))),
@@ -394,7 +463,7 @@ impl IntoResponse for Refusal {
                 AdminError::NotEditable => (
                     StatusCode::BAD_REQUEST,
                     "fora_do_perfil",
-                    "Item inválido, ou personagem fora do perfil editável (Fiona de laboratório inicializada).",
+                    "O jogo recusou a mudança: item inválido para essa operação, ou personagem fora do perfil do laboratório (o motivo fica no log do servidor).",
                 ),
                 AdminError::ContentUnavailable => (
                     StatusCode::SERVICE_UNAVAILABLE,
@@ -414,6 +483,24 @@ impl IntoResponse for Refusal {
                         "manutencao" => {
                             "Já há uma manutenção agendada; cancele-a ou espere o reinício."
                         }
+                        "item_em_uso" => {
+                            "Há personagens ou entregas com este item. Retire os itens deles ou oculte o item em vez de removê-lo."
+                        }
+                        "item_base" => {
+                            "Itens base não são removidos: oculte o item ou restaure os valores originais."
+                        }
+                        "item_existente" => "Já existe um item com essa classe.",
+                        "item_igual" => "Nada mudou em relação ao item atual.",
+                        "kit_invalido" => {
+                            "Kit inválido: precisa ser o zip do add-on (kit.json, só models/ e materials/, sem caminhos fora deles, até 64 MiB)."
+                        }
+                        "kit_colide" => {
+                            "Um arquivo do kit já existe no cliente. Exporte o modelo e os materiais com nomes novos no add-on."
+                        }
+                        "modelo_sem_secao" => {
+                            "A categoria do item não tem modelo de roupa no player_costume.txt (use inner, avatar ou armadura)."
+                        }
+                        "sem_costume_type" => "Não há CostumeType livre na faixa do editor.",
                         "efeito" => {
                             "O jogo recusou o efeito: tipo/nível inexistente, efeito do cliente ou que não pode substituir o atual."
                         }

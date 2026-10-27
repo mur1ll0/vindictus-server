@@ -25,6 +25,10 @@ pub struct Overlay {
     /// EnchantInfo Min/MaxSuccessRatio (percent) by EnchantClass.
     #[serde(default)]
     pub enchant_ratios: BTreeMap<String, [i32; 2]>,
+    /// Item editor: items hidden by the panel leave every NPC shop (their rows and the items
+    /// characters own stay). The other item parts reach the game through the host's re-export.
+    #[serde(default)]
+    pub hidden_items: Vec<String>,
 }
 
 /// The FeatureMatrix rates the panel tunes (percent; 100 = the original value).
@@ -107,8 +111,15 @@ impl Overlay {
                 .enchant_ratios
                 .iter()
                 .all(|(k, [min, max])| text(k, 128) && (0..=*max).contains(min) && *max <= 100);
+        let hidden_ok = self.hidden_items.len() <= 2000
+            && self.hidden_items.iter().all(|c| {
+                text(c, 64)
+                    && c.bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+            });
         if self.format_version == 1
             && self.version >= 0
+            && hidden_ok
             && self.shop_rows.len() <= 100_000
             && self.cash_prices.len() <= 1024
             && rows_ok
@@ -192,7 +203,15 @@ impl Overlay {
                 }
             }
         }
-        out.into_iter().flatten().collect()
+        out.into_iter()
+            .flatten()
+            .filter(|r| {
+                !self
+                    .hidden_items
+                    .iter()
+                    .any(|h| h.eq_ignore_ascii_case(&r.item_class))
+            })
+            .collect()
     }
 }
 
@@ -236,6 +255,13 @@ mod tests {
         assert_eq!((once[1].order, once[1].feature.as_deref()), (9, None));
         let twice = overlay.apply_shop_rows(once.clone());
         assert_eq!(once, twice);
+        let hidden = Overlay {
+            hidden_items: vec!["elixir".into()],
+            ..overlay
+        };
+        let shown = hidden.validate().unwrap().apply_shop_rows(twice);
+        assert_eq!(shown.len(), 1);
+        assert_eq!(shown[0].item_class, "potion");
     }
 
     #[test]

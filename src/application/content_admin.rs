@@ -166,7 +166,7 @@ pub struct Actor<'a> {
     pub operation_id: Uuid,
 }
 
-fn require(session: &SessionAccount, permission: Permission) -> Result<(), AdminError> {
+pub(crate) fn require(session: &SessionAccount, permission: Permission) -> Result<(), AdminError> {
     if session.role.is_some_and(|r| r.allows(permission)) {
         Ok(())
     } else {
@@ -174,7 +174,7 @@ fn require(session: &SessionAccount, permission: Permission) -> Result<(), Admin
     }
 }
 
-fn audit<'a>(
+pub(crate) fn audit<'a>(
     actor: &'a Actor<'a>,
     action: &'static str,
     target_kind: &'static str,
@@ -195,7 +195,7 @@ fn audit<'a>(
     }
 }
 
-fn outcome(outcome: EditOutcome) -> Result<i64, AdminError> {
+pub(crate) fn outcome(outcome: EditOutcome) -> Result<i64, AdminError> {
     match outcome {
         EditOutcome::Done(v) => Ok(v),
         EditOutcome::NotFound => Err(AdminError::NotFound),

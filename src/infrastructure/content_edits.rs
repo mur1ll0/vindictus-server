@@ -254,6 +254,11 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
     let mut quest_drops = std::collections::BTreeMap::new();
     let mut enhance_ratios = std::collections::BTreeMap::new();
     let mut enchant_ratios = std::collections::BTreeMap::new();
+    // Item editor: added items by class, base overrides, hidden and removed classes.
+    let mut items = std::collections::BTreeMap::new();
+    let mut item_overrides = std::collections::BTreeMap::new();
+    let mut hidden_items = std::collections::BTreeSet::new();
+    let mut removed_items = std::collections::BTreeSet::new();
     let mut version = 0;
     for (kind, target, value, v) in rows {
         version = version.max(v);
@@ -286,6 +291,38 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
             "enchant_ratio" => {
                 enchant_ratios.insert(target, serde_json::json!([value["min"], value["max"]]));
             }
+            "item" => {
+                removed_items.remove(&target);
+                let mut item = value;
+                item["ItemClass"] = serde_json::json!(target);
+                items.insert(target, item);
+            }
+            "item_remove" => {
+                items.remove(&target);
+                hidden_items.remove(&target);
+                removed_items.insert(target);
+            }
+            "item_override" => {
+                // An override without changes gives the item its original values back.
+                let empty = ["set", "text"].iter().all(|k| {
+                    value
+                        .get(k)
+                        .and_then(serde_json::Value::as_object)
+                        .is_none_or(serde_json::Map::is_empty)
+                });
+                if empty {
+                    item_overrides.remove(&target);
+                } else {
+                    item_overrides.insert(target, value);
+                }
+            }
+            "item_hide" => {
+                if value["hidden"].as_bool() == Some(true) {
+                    hidden_items.insert(target);
+                } else {
+                    hidden_items.remove(&target);
+                }
+            }
             _ => {}
         }
     }
@@ -315,7 +352,42 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
         "quest_drops": quest_drops,
         "enhance_ratios": enhance_ratios,
         "enchant_ratios": enchant_ratios,
+        "items": items.into_values().collect::<Vec<_>>(),
+        "item_overrides": item_overrides,
+        "hidden_items": hidden_items,
+        "removed_items": removed_items,
     }))
+}
+
+/// The newest published version with an item editor edit (0 = none): the host re-exports the
+/// server's items up to it (scripts/content/refresh_item_content.py).
+pub async fn latest_item_version(pool: &PgPool) -> Result<i32, sqlx::Error> {
+    let version: Option<i32> = sqlx::query_scalar(
+        "SELECT max(version) FROM content_edits WHERE state = 'published' AND kind = ANY($1)",
+    )
+    .bind(&ITEM_KINDS[..])
+    .fetch_one(pool)
+    .await?;
+    Ok(version.unwrap_or(0))
+}
+
+/// Item editor edit kinds (migration 0049).
+pub const ITEM_KINDS: [&str; 4] = ["item", "item_override", "item_hide", "item_remove"];
+
+/// Pending and published item editor edits, oldest first (bounded).
+pub async fn item_edits(pool: &PgPool, limit: i64) -> Result<Vec<ContentEdit>, sqlx::Error> {
+    sqlx::query_as(
+        "SELECT e.id, e.kind, e.target, e.value::text AS value, e.state, e.version,
+                a.username AS created_by,
+                to_char(e.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at
+         FROM content_edits e LEFT JOIN accounts a ON a.id = e.created_by
+         WHERE e.kind = ANY($1) AND e.state IN ('pending', 'published')
+         ORDER BY e.id LIMIT $2",
+    )
+    .bind(&ITEM_KINDS[..])
+    .bind(limit)
+    .fetch_all(pool)
+    .await
 }
 
 /// The overlay as the game server applies it at start, bounds checked.
