@@ -12,3 +12,6 @@ tags = ["Import-Export"]
 
 [permissions]
 files = "Read model kits and write edited kits"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "/tests/", ".*"]

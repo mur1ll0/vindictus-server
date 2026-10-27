@@ -10,8 +10,9 @@ Plano do editor de itens: [docs/future/item-editor.md](../../docs/future/item-ed
 
 ## Instalar
 
-1. Compacte a pasta `tools/blender/vindictus` num `.zip`, com a pasta dentro.
-2. No Blender 5.1, abra *Edit → Preferences → Get Extensions → Install from Disk* e escolha o zip.
+1. Gere o pacote com o próprio Blender, que valida o manifesto e deixa fora os testes e os caches:
+   `"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" --command extension build --source-dir tools/blender/vindictus --output-dir .cache/blender-addon`
+2. No Blender 5.1, abra *Edit → Preferences → Get Extensions*. No menu ⌄ do canto superior direito, escolha *Install from Disk* e selecione `.cache/blender-addon/vindictus-0.1.0.zip`.
 
 Para desenvolver, também dá para ligar a pasta em `%APPDATA%\Blender Foundation\Blender\5.1\extensions\user_default\vindictus`.
 
