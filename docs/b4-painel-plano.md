@@ -220,16 +220,27 @@ Cada passo tem testes focados (alvos Rust afetados e testes PostgreSQL filtrados
 
 ## 4. Pontos de extensão (desenhados, não implementados)
 
-| Módulo futuro | Contrato previsto | Dependência |
-|---|---|---|
-| Quests | `TuningPoint`s de `QuestInfo`/`QuestGoalInfo`/`QuestRewardInfo` + "dar/completar quest" por `minimum_quest::give` | ciclo de conteúdo do B4.4 |
-| Bosses | edições de `MonsterInfo` (HP/EXP/dificuldade) por fase | relatório B4.7 |
-| Missões | rotação/TodayMission quando o sistema for migrado | sistema ainda não migrado |
-| Drops | `MonsterDropItemInfo`, `PropItemWeightInfo`, `NamedProp*` como edições de linha | ciclo de conteúdo |
-| Mapas | estado por canal quando houver mais de um canal (B5) | B5 |
-| Entrega online | caixa de comandos por conexão na fachada `admin_live` | B5 (mesmo ponto de broadcast) |
+Registrados no B4.8 (27/10/2026) com as conclusões do B4.7 (`docs/extension-feasibility.md`) e dos planos de `docs/future/`. Nenhum contrato abaixo tem código. Cada um entra no mesmo esqueleto do B4:
+- uma rota OpenAPI nova;
+- um caso de uso em `application/` com a verificação de papel (`Permission`) e a auditoria (quem, o quê e quando);
+- um tipo de edição em `content_edits`, com validação de limites e de alvo;
+- uma das duas formas de aplicar:
+  - **ao vivo** (`publish_now` + `Runtime::reload_assets`, como no B4.5b), quando o servidor lê o valor na hora de usar e o cliente não guarda cópia;
+  - **por versão** (pendente → publicação → manutenção, como no B4.4), quando o cliente também precisa da mudança no `heroes.db3` ou num asset.
 
-Cada um entra como uma rota OpenAPI nova, um caso de uso em `application/admin/` e um `TuningPoint`/tipo de edição. Auth, auditoria e ciclo de aplicação não mudam.
+| Módulo futuro | Contrato previsto | Aplicação | Dependência |
+|---|---|---|---|
+| Quests | tipos `quest_info`, `quest_goal` e `quest_reward` (alvo `QuestInfo.ID`; campos de nível, tempo, drops e recompensa com os limites recuperados), mais "dar/completar quest" por personagem via `minimum_quest::give` | por versão (o quadro do cliente lê `QuestInfo`) | ciclo do B4.4 e linha igual no cliente |
+| Bosses e monstros | tipo `monster_info` (alvo `Identifier`; HP1–HP5, `Exp`, `ATK`, `DEF`, `Critical` e `Difficulty` dentro de faixas) | ao vivo no servidor (EXP e recompensa); por versão quando a barra de HP do cliente depender do banco do cliente (hipótese do B4.7, seção 6) | relatório B4.7 |
+| Drops | tipos `monster_drop`, `prop_drop` e `named_prop` (linhas de `MonsterDropItemInfo`, `PropItemWeightInfo` e `NamedProp*`; item precisa existir no catálogo) | ao vivo | ciclo de conteúdo |
+| Itens | `item_class` (criar, clonar ou editar `ItemClassInfo`/`EquipItemInfo`/stats) e os assets (texto, ícone, modelo) pelo pacote HFS | por versão, com o launcher entregando o banco e os pacotes do cliente | `docs/future/item-editor.md` (I1–I6) e `game-launcher.md` |
+| Fases | `stage_sector` (conteúdo de setor e entidades com BSP existente) | por versão | `docs/future/stage-editor.md`, depois do B5 |
+| Variante de classe | `class_variant` (marcador no `class-initial.json`/initializer: aparência, itens iniciais, skills e títulos de uma das 10 classes) e a escolha na criação | por versão (a criação do cliente só oferece as 10) | B4.7, seção 7.5; investigação da Delia (`docs/future/new-classes.md`) |
+| Missões | rotação/TodayMission quando o sistema for migrado | — | sistema ainda não migrado |
+| Mapas e canais | estado e controles por canal quando houver mais de um canal; a leitura do B4.6 (`GET /api/world`) é a base | ao vivo | B5 |
+| Entrega online | caixa de comandos por conexão na fachada `admin_live`, pelo mesmo ponto de broadcast do canal (`channel_server::Runtime::broadcast_from`) | ao vivo | B5 |
+
+Auth, auditoria e os dois ciclos de aplicação não mudam: um módulo novo só acrescenta o tipo de edição, a validação e a leitura do valor no servidor.
 
 ## 5. Ferramentas substituídas
 

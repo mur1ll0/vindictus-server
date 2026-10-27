@@ -1,11 +1,26 @@
 # Roteiro de testes no cliente — B4 painel de administração
 
-Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4-painel-plano.md`. Entradas acrescentadas a cada passo com efeito no cliente; o topo é completado no gate do B4.
+Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4-painel-plano.md`. Gate fechado em 27/10/2026 (resultado no `MIGRATION.md`). Algumas entradas já foram testadas pelo operador (marcadas com [x]); as demais seguem a ordem abaixo.
 
 ## Preparação
-1. Runtime no Docker recompilado (`docker compose ps` mostra `game` e `server` saudáveis). Se o código mudou depois disso: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait` (o serviço `migrate` aplica as migrações).
-2. Painel: `http://127.0.0.1:27090` (só no próprio computador).
-3. Conta de administração criada a pedido do operador: login `admin`, papel admin, ligada ao usuário de jogo `lab169_a` (Fiona Murael, nível 20).
+1. Runtime no Docker recompilado no gate (27/10/2026): `docker compose ps` mostra `game` e `server` saudáveis. Se o código mudou depois disso: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait` (o serviço `migrate` aplica as migrações até a 0048).
+2. Painel: `http://127.0.0.1:27090` (só no próprio computador). Conta de administração `admin` (papel admin), ligada ao usuário de jogo `lab169_a` (Fiona Murael, nível 20).
+3. Cliente: abrir sempre pelo `.cache/play-client/start-lab.bat` (atualiza a cópia do cliente com a versão de conteúdo publicada e abre o jogo como o `start.bat`). No ID, digite o login da conta; a senha fica em branco e a segunda senha continua a mesma.
+4. Conteúdo privado exportado: `.cache/private-content/item-names.json` e `panel-catalog.json` com `icons/` (comandos nas pré-condições do B4.3a e do B4.4e).
+5. Antes de começar, anote no painel, em Conteúdo, a última versão publicada; edições de teste antigas ficam pendentes até serem publicadas ou retiradas.
+
+## Ordem de gameplay (uma sessão)
+1. **Painel, contas e sessão:** B4.2 e B4.4f (entrar, navegar pelo menu inteiro sem voltar ao login, cadastro de `teste_b4`, troca de senha).
+2. **Login no jogo e personagens novos:** B4.2-L (se quiser repetir), B4.N1 e B4.N2 (com `teste_b4`: Check do nome, criar uma Evy ou outra classe e entrar na cidade). Sair para a seleção: FX-relist.
+3. **Leitura do personagem:** com a Murael fora do jogo, B4.3a e B4.4e (ficha, inventário, tooltip).
+4. **Mudanças no personagem:** B4.3b, B4.3c e B4.4d (dar e remover itens, ouro, cash, progressão, arrastar e organizar); entrar no jogo e conferir.
+5. **Mapas e canais com alguém no jogo:** com a Murael na cidade, B4.6 (lista do canal, conexões); entrar numa missão e voltar.
+6. **Ajustes ao vivo:** B4.5b (mudar a EXP das missões, terminar uma missão sem sair do jogo).
+7. **Lojas, cash shop e versão publicada:** B4.4b, B4.4 e B4.5 (editar uma loja de NPC, um preço do cash shop e uma taxa pendente), depois B4.4c (publicar com manutenção, deixar o jogo reiniciar, abrir pelo `start-lab.bat` e conferir a loja e o preço novos).
+8. **Fim:** relogar com a Murael e o personagem novo e conferir o que as entradas listam como preservado; Auditoria deve ter uma linha para cada mudança feita.
+
+## Como relatar
+Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.3b-2`), o que foi feito, o que apareceu na tela (texto da mensagem do painel ou do jogo; captura se possível) e o horário aproximado (hh:mm). Os horários são comparados com `docker compose logs game` e com a Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo (ex.: "missão não alcançada").
 
 ### B4.2 — Contas no painel (cartões, modal, cadastro, conta própria)
 Pré-condição: containers no ar.
