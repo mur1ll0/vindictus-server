@@ -18,9 +18,10 @@ Para desenvolver, também dá para ligar a pasta em `%APPDATA%\Blender Foundatio
 
 ## Usar
 
-- **Gerar um kit a partir do cliente** (o painel vai oferecer isso como botão):
+- **Pegar um kit:** no painel, página **Modelos 3D**, botão **Exportar kit (.zip)**. Sem o painel:
   `py -3.13 scripts/client/model_kit.py --client-copy .cache/play-client --keystream .cache/play-client/hfs-keystream.bin models/player/fiona/fiona_inner_fringe.mdl <pasta do kit>`
-- **Importar:** *File → Import → Vindictus Kit (kit.json)*. Escolha o que importar (malha, texturas, esqueleto), a escala e o destino.
+- **Importar:** *File → Import → Vindictus Kit (.zip / kit.json)*. Escolha direto o `.zip` do painel, sem extrair, ou o `kit.json` de um kit já extraído. Depois escolha o que importar (malha, texturas, esqueleto), a escala e o destino.
+  - O zip é extraído na pasta de dados do add-on (`extensions\.user\user_default\vindictus\kits\<nome>-<hash>`) e fica guardado, porque a exportação relê as texturas originais do kit. Importar o mesmo zip de novo reaproveita a pasta.
   - O destino pode ser objetos novos, substituir a malha do objeto ativo ou somar à malha do objeto ativo.
   - Cada material vira um material do Blender com a textura base e o mapa de normais.
   - Os pesos viram grupos de vértices com o nome dos ossos, e a malha recebe um modificador Armature.
