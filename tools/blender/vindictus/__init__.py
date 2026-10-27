@@ -9,13 +9,33 @@ from . import blender_io
 from .formats import kit as kit_format
 
 
+def kit_root(path: str) -> str:
+    """The kit folder of a picked file: kit.json's folder, or a zip (the panel's "Exportar kit") extracted
+    into the add-on's user folder. Exports read the kit's original textures, so the folder stays."""
+    import hashlib
+    from pathlib import Path
+    picked = Path(path)
+    if picked.suffix.lower() != '.zip':
+        return str(picked.parent)
+    digest = hashlib.sha1(picked.read_bytes()).hexdigest()[:8]
+    try:
+        base = Path(bpy.utils.extension_path_user(__package__, path='kits', create=True))
+    except (ValueError, RuntimeError):
+        base = picked.parent  # loaded outside the extension system (development)
+    # Short folder names: material paths inside a kit are long and Windows paths stop at 260 characters.
+    folder = base / f'{picked.stem[:16]}-{digest}'
+    if not (folder / 'kit.json').is_file():
+        kit_format.extract_zip(picked, folder)
+    return str(folder)
+
+
 class VINDICTUS_OT_import_kit(bpy.types.Operator, ImportHelper):
-    """Import a Vindictus model kit (kit.json in a kit folder)"""
+    """Import a Vindictus model kit: the panel's .zip or a kit.json in a kit folder"""
     bl_idname = 'vindictus.import_kit'
     bl_label = 'Import Vindictus Kit'
     bl_options = {'REGISTER', 'UNDO'}
-    filename_ext = '.json'
-    filter_glob: StringProperty(default='kit.json', options={'HIDDEN'})
+    filename_ext = '.zip'
+    filter_glob: StringProperty(default='*.zip;kit.json', options={'HIDDEN'})
     import_mesh: BoolProperty(name='Mesh', default=True)
     import_textures: BoolProperty(name='Textures', default=True)
     import_skeleton: BoolProperty(name='Skeleton', default=True)
@@ -26,11 +46,11 @@ class VINDICTUS_OT_import_kit(bpy.types.Operator, ImportHelper):
     scale: FloatProperty(name='Scale', default=1.0, min=0.0001, description='Blender units per game unit')
 
     def execute(self, context):
-        from pathlib import Path
+        import zipfile
         try:
-            blender_io.import_kit(str(Path(self.filepath).parent), self.import_mesh, self.import_textures,
+            blender_io.import_kit(kit_root(self.filepath), self.import_mesh, self.import_textures,
                                   self.import_skeleton, self.mode, self.scale, context.active_object)
-        except (kit_format.KitError, ValueError, OSError) as error:
+        except (kit_format.KitError, zipfile.BadZipFile, ValueError, OSError) as error:
             self.report({'ERROR'}, str(error))
             return {'CANCELLED'}
         return {'FINISHED'}
@@ -59,7 +79,7 @@ class VINDICTUS_OT_export_kit(bpy.types.Operator):
 
 
 def menu_import(self, context):
-    self.layout.operator(VINDICTUS_OT_import_kit.bl_idname, text='Vindictus Kit (kit.json)')
+    self.layout.operator(VINDICTUS_OT_import_kit.bl_idname, text='Vindictus Kit (.zip / kit.json)')
 
 
 def menu_export(self, context):

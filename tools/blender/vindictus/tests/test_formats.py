@@ -51,6 +51,27 @@ class VtfTest(unittest.TestCase):
         self.assertEqual(tuple(image[0, 0]), (0, 0, 255, 255))
 
 
+class ZipTest(unittest.TestCase):
+    def test_kit_zip_extracts_inside_its_folder_only(self):
+        import tempfile
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / 'good.zip'
+            with zipfile.ZipFile(good, 'w') as z:
+                z.writestr('kit.json', '{"model": "models/a.mdl"}')
+                z.writestr('Models/A.mdl', b'IDST')
+            root = kit.extract_zip(good, Path(tmp) / 'out')
+            self.assertEqual((root / 'models/a.mdl').read_bytes(), b'IDST')
+            for name, content in (('bad.zip', {'models/a.mdl': b''}), ('evil.zip', {'kit.json': b'{}', '../x.txt': b''})):
+                path = Path(tmp) / name
+                with zipfile.ZipFile(path, 'w') as z:
+                    for entry, data in content.items():
+                        z.writestr(entry, data)
+                with self.assertRaises(kit.KitError):
+                    kit.extract_zip(path, Path(tmp) / name.replace('.zip', ''))
+            self.assertFalse((Path(tmp) / 'x.txt').exists())
+
+
 @unittest.skipUnless((LAB_KIT / 'kit.json').is_file(), 'laboratory kit not present')
 class KitRoundTripTest(unittest.TestCase):
     def test_saved_kit_reads_back_the_same_geometry(self):

@@ -47,6 +47,31 @@ class Kit:
     materials: list[Material]
 
 
+MAX_ZIP_FILES = 512
+MAX_ZIP_BYTES = 512 * 1024 * 1024
+
+
+def extract_zip(zip_path: Path, folder: Path) -> Path:
+    """Extracts a kit zip (the panel's "Exportar kit") into `folder` and returns the kit root.
+    Only game paths inside the folder are written; the zip must have a kit.json."""
+    import zipfile
+    folder = Path(folder).resolve()
+    with zipfile.ZipFile(zip_path) as archive:
+        entries = [e for e in archive.infolist() if not e.is_dir()]
+        if len(entries) > MAX_ZIP_FILES or sum(e.file_size for e in entries) > MAX_ZIP_BYTES:
+            raise KitError('The kit zip is too large.')
+        names = {e.filename.replace('\\', '/').lower(): e for e in entries}
+        if 'kit.json' not in names:
+            raise KitError('The zip is not a model kit (no kit.json).')
+        for name, entry in names.items():
+            target = (folder / name).resolve()
+            if not target.is_relative_to(folder) or name.startswith('/') or '..' in name.split('/'):
+                raise KitError(f'Unsafe path in the kit zip: {entry.filename}')
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(archive.read(entry))
+    return folder
+
+
 def _norm(path: str) -> str:
     return path.replace('\\', '/').lower().strip('/')
 
