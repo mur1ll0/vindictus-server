@@ -40,7 +40,11 @@ pub fn model_path(path: &str) -> Result<String, KitError> {
         && path
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'/'));
-    if ok { Ok(path) } else { Err(KitError::InvalidPath) }
+    if ok {
+        Ok(path)
+    } else {
+        Err(KitError::InvalidPath)
+    }
 }
 
 fn i32_at(data: &[u8], at: usize) -> Result<i32, KitError> {
@@ -56,7 +60,11 @@ fn offset(value: i32) -> Result<usize, KitError> {
 
 fn cstring(data: &[u8], at: usize) -> Result<String, KitError> {
     let rest = data.get(at..).ok_or(KitError::Malformed)?;
-    let end = rest.iter().take(MAX_PATH + 1).position(|&b| b == 0).ok_or(KitError::Malformed)?;
+    let end = rest
+        .iter()
+        .take(MAX_PATH + 1)
+        .position(|&b| b == 0)
+        .ok_or(KitError::Malformed)?;
     Ok(String::from_utf8_lossy(&rest[..end]).into_owned())
 }
 
@@ -75,7 +83,11 @@ pub fn model_materials(mdl: &[u8]) -> Result<(Vec<String>, Vec<String>), KitErro
         .map(|i| {
             let at = texture_index + 64 * i;
             let relative = i32_at(mdl, at)?;
-            cstring(mdl, at.checked_add_signed(relative as isize).ok_or(KitError::Malformed)?)
+            cstring(
+                mdl,
+                at.checked_add_signed(relative as isize)
+                    .ok_or(KitError::Malformed)?,
+            )
         })
         .collect::<Result<Vec<_>, _>>()?;
     let folders = (0..num_cd)
@@ -87,7 +99,9 @@ pub fn model_materials(mdl: &[u8]) -> Result<(Vec<String>, Vec<String>), KitErro
 fn game_path(prefix: &str, path: &str, suffix: &str) -> String {
     format!(
         "{prefix}{}{suffix}",
-        path.replace('\\', "/").to_ascii_lowercase().trim_matches('/')
+        path.replace('\\', "/")
+            .to_ascii_lowercase()
+            .trim_matches('/')
     )
 }
 
@@ -111,7 +125,9 @@ pub fn build(files: &ClientFiles, model: &str) -> Result<Vec<(String, Vec<u8>)>,
         let mut found = false;
         for folder in &folders {
             let vmt_path = game_path("materials/", &format!("{folder}{texture}"), ".vmt");
-            let Some(vmt) = files.read(&vmt_path)? else { continue };
+            let Some(vmt) = files.read(&vmt_path)? else {
+                continue;
+            };
             let text = String::from_utf8_lossy(&vmt).into_owned();
             out.push((vmt_path, vmt));
             for capture in params.captures_iter(&text) {
@@ -211,7 +227,9 @@ pub fn costume_model(text: &[u8], section: &str, key: i64) -> Option<String> {
     let at = body.find(&entry)?;
     let block = &body[at..];
     let block = &block[..block.find("\n\t}").unwrap_or(block.len())];
-    let line = block.lines().find(|l| l.trim_start().starts_with("\"normal\""))?;
+    let line = block
+        .lines()
+        .find(|l| l.trim_start().starts_with("\"normal\""))?;
     let value = line.split('"').nth(3)?;
     model_path(value).ok()
 }
@@ -222,8 +240,16 @@ mod tests {
 
     #[test]
     fn model_paths_are_bounded_game_paths() {
-        assert_eq!(model_path("Models\\Player\\Fiona\\X.mdl").ok().as_deref(), Some("models/player/fiona/x.mdl"));
-        for bad in ["models/../x.mdl", "materials/x.vmt", "models/x.mdl;rm", "models//x.mdl"] {
+        assert_eq!(
+            model_path("Models\\Player\\Fiona\\X.mdl").ok().as_deref(),
+            Some("models/player/fiona/x.mdl")
+        );
+        for bad in [
+            "models/../x.mdl",
+            "materials/x.vmt",
+            "models/x.mdl;rm",
+            "models//x.mdl",
+        ] {
             assert!(model_path(bad).is_err(), "{bad}");
         }
     }
@@ -231,16 +257,25 @@ mod tests {
     #[test]
     fn costume_entries_resolve_to_their_normal_model() {
         let text = b"// c\r\n\"base\"\r\n{\r\n\t\"16\"\r\n\t{\r\n\t\t\"normal\"\t\"models/b.mdl\"\r\n\t}\r\n}\r\n\"inner_armor\"\r\n{\r\n\t\"16\"\r\n\t{\r\n\t\t\"category\"\t\"female\"\r\n\t\t\"normal\"\t\"models/player/fiona/fiona_inner_fringe.mdl\"\r\n\t}\r\n}\r\n";
-        assert_eq!(costume_model(text, "inner_armor", 16).as_deref(), Some("models/player/fiona/fiona_inner_fringe.mdl"));
+        assert_eq!(
+            costume_model(text, "inner_armor", 16).as_deref(),
+            Some("models/player/fiona/fiona_inner_fringe.mdl")
+        );
         assert_eq!(costume_model(text, "inner_armor", 17), None);
         assert_eq!(costume_section("AVATAR_TUNIC"), Some("upper_body"));
     }
 
     #[test]
     fn stored_zip_has_one_entry_per_file() {
-        let zipped = zip(&[("a.txt".into(), b"hello".to_vec()), ("b/c.bin".into(), vec![1, 2, 3])]);
+        let zipped = zip(&[
+            ("a.txt".into(), b"hello".to_vec()),
+            ("b/c.bin".into(), vec![1, 2, 3]),
+        ]);
         assert_eq!(&zipped[..4], b"PK\x03\x04");
         assert_eq!(&zipped[zipped.len() - 22..zipped.len() - 18], b"PK\x05\x06");
-        assert_eq!(u16::from_le_bytes([zipped[zipped.len() - 12], zipped[zipped.len() - 11]]), 2);
+        assert_eq!(
+            u16::from_le_bytes([zipped[zipped.len() - 12], zipped[zipped.len() - 11]]),
+            2
+        );
     }
 }

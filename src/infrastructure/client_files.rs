@@ -114,7 +114,10 @@ impl ClientFiles {
             return Err(ClientFilesError::Malformed);
         }
         let raw = std::fs::read(root.join(INDEX))?;
-        let mut stream = raw.get(INDEX_HEAD..).ok_or(ClientFilesError::Malformed)?.to_vec();
+        let mut stream = raw
+            .get(INDEX_HEAD..)
+            .ok_or(ClientFilesError::Malformed)?
+            .to_vec();
         for (i, b) in stream.iter_mut().enumerate() {
             *b ^= INDEX_KEY[i & 3];
         }
@@ -160,7 +163,11 @@ impl ClientFiles {
             return Ok(None);
         }
         let (folder, name) = path.rsplit_once('/').unwrap_or(("", path));
-        let candidates = self.entries.get(&name_key(name)).map(Vec::as_slice).unwrap_or(&[]);
+        let candidates = self
+            .entries
+            .get(&name_key(name))
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         if !candidates.is_empty() {
             let folder_packs: Vec<String> = (0..MAX_PARTS).map(|p| pack_name(folder, p)).collect();
             for &(pack, at, size) in candidates {
@@ -173,7 +180,8 @@ impl ClientFiles {
                 if size > MAX_FILE {
                     return Err(ClientFilesError::Bound);
                 }
-                let mut file = std::fs::File::open(self.root.join("hfs").join(format!("{pack_id}.hfs")))?;
+                let mut file =
+                    std::fs::File::open(self.root.join("hfs").join(format!("{pack_id}.hfs")))?;
                 file.seek(SeekFrom::Start(u64::from(at)))?;
                 let mut data = vec![0u8; size as usize];
                 file.read_exact(&mut data)?;
@@ -183,7 +191,10 @@ impl ClientFiles {
                     if expected > MAX_FILE {
                         return Err(ClientFilesError::Bound);
                     }
-                    let plain = inflate(data.get(8..).ok_or(ClientFilesError::Malformed)?, u64::from(expected))?;
+                    let plain = inflate(
+                        data.get(8..).ok_or(ClientFilesError::Malformed)?,
+                        u64::from(expected),
+                    )?;
                     if plain.len() != expected as usize {
                         return Err(ClientFilesError::Malformed);
                     }
@@ -210,8 +221,14 @@ mod tests {
 
     #[test]
     fn pack_names_match_the_client() {
-        assert_eq!(pack_name("models/armor/kingdom", 0), "0000AA13EFACC8399BA8F63B23986D12A7697817");
-        assert_eq!(pack_name("scripts", 0), "763FD8F12D3D013194261D98B4AEF0FB0F6FBA1B");
+        assert_eq!(
+            pack_name("models/armor/kingdom", 0),
+            "0000AA13EFACC8399BA8F63B23986D12A7697817"
+        );
+        assert_eq!(
+            pack_name("scripts", 0),
+            "763FD8F12D3D013194261D98B4AEF0FB0F6FBA1B"
+        );
     }
 
     #[test]

@@ -54,19 +54,32 @@ pub(super) async fn kit(
     auth.require(Permission::Manage)?;
     let files = state.client.clone().ok_or(AdminError::NotFound)?;
     let model = model_kit::model_path(&query.model).map_err(refusal)?;
-    let name = model.rsplit('/').next().unwrap_or("model").trim_end_matches(".mdl").to_owned();
-    let zipped = tokio::task::spawn_blocking(move || model_kit::build(&files, &model).map(|f| model_kit::zip(&f)))
-        .await
-        .map_err(|_| AdminError::NotFound)?
-        .map_err(refusal)?;
+    let name = model
+        .rsplit('/')
+        .next()
+        .unwrap_or("model")
+        .trim_end_matches(".mdl")
+        .to_owned();
+    let zipped = tokio::task::spawn_blocking(move || {
+        model_kit::build(&files, &model).map(|f| model_kit::zip(&f))
+    })
+    .await
+    .map_err(|_| AdminError::NotFound)?
+    .map_err(refusal)?;
     Ok((
         [
-            (axum::http::header::CONTENT_TYPE, "application/zip".to_owned()),
+            (
+                axum::http::header::CONTENT_TYPE,
+                "application/zip".to_owned(),
+            ),
             (
                 axum::http::header::CONTENT_DISPOSITION,
                 format!("attachment; filename=\"{name}.zip\""),
             ),
-            (axum::http::header::CACHE_CONTROL, "private, no-store".to_owned()),
+            (
+                axum::http::header::CACHE_CONTROL,
+                "private, no-store".to_owned(),
+            ),
         ],
         zipped,
     )
@@ -84,7 +97,9 @@ pub(super) async fn item_model(
     auth.require(Permission::Manage)?;
     let valid = !item_class.is_empty()
         && item_class.len() <= 96
-        && item_class.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+        && item_class
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_');
     if !valid {
         return Err(AdminError::InvalidInput.into());
     }
