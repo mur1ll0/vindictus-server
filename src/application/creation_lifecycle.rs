@@ -370,7 +370,7 @@ where
             return true;
         }
     };
-    let lease = CreationCleanupLease::issued_after_base(&owner.key(), base.cid);
+    let lease = CreationCleanupLease::issued_after_base(&owner.key(), &name, base.cid);
     let mut callbacks = CreationCallbacks::default();
     if reply.is_closed() || *shutdown.borrow() {
         return compensate(&inner, &lease, &mut callbacks, true).await;
@@ -492,7 +492,7 @@ async fn worker_minimum(
             return true;
         }
     };
-    let lease = CreationCleanupLease::issued_after_base(&owner.key(), base.cid);
+    let lease = CreationCleanupLease::issued_after_base(&owner.key(), &name, base.cid);
     let mut callbacks = CreationCallbacks::default();
     if reply.is_closed() || *shutdown.borrow() {
         return compensate(&inner, &lease, &mut callbacks, true).await;

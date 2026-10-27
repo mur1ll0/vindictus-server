@@ -129,7 +129,7 @@ where
         return Ok(reject(name_result(result), -1));
     }
     // Explicit finite-profile refusal for old matching deleted names: no arbitrary cleanup CID.
-    effects::require_empty_cleanup_candidate(pool, &r.owner, r.proof).await?;
+    effects::require_empty_cleanup_candidate(pool, &r.owner, r.proof, r.name).await?;
     let sn = admission::serial_with_clock(pool, key(&r.owner), settings.server_code, &mut utc)
         .await?
         .serial;

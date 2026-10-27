@@ -157,5 +157,14 @@ Pré-condição: containers recompilados depois de 26/10/2026 (migração 0048).
 - [ ] Auditoria → as entradas mostram quem fez, o quê (antes → depois) e quando, sem motivo. Conteúdo → edições e versões sem motivo.
 Limites conhecidos: entradas antigas da auditoria perderam o motivo (a coluna foi removida).
 
+### B4.N1 — Nome livre na criação
+Pré-condição: containers recompilados depois do commit do nome livre (27/10/2026); cliente aberto pelo `start.bat` da `.cache/play-client`.
+- [ ] Entrar com uma conta que tenha espaço livre (ex.: `teste_b4`), Create, digitar um nome novo só com letras (ex.: `Lucanor`) e clicar Check → diálogo "That name is available and can be used".
+- [ ] Digitar o nome de uma personagem existente com outra caixa (ex.: `MURAEL`) e clicar Check → diálogo de nome já em uso.
+- [ ] Digitar `A1` (fora da regra: só letras e um `_`) e clicar Check → diálogo de nome inválido.
+- [ ] Criar uma Fiona com o nome novo → aparece na lista; sair e entrar de novo → continua lá.
+- [ ] Tentar criar outra personagem com o mesmo nome (em qualquer caixa) → "Failed to create a character" com o erro de nome duplicado, sem 0xAA04.
+Limites conhecidos: não há mais filtro de nomes proibidos nem lista de nomes reservados medida; só a regra de formato e os nomes já gravados bloqueiam. Outras classes ainda respondem 0xAA04 até a entrada de classes.
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

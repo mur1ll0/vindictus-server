@@ -101,6 +101,7 @@ async fn matching(
     tx: &mut Transaction<'_, Postgres>,
     key: &UserKey<'_>,
     proof: &NameProof,
+    name: &str,
 ) -> Result<Vec<i64>, CreationEffectsError> {
     let rows: Vec<(i64, Option<SourceBytes>)> =
         sqlx::query_as("SELECT id,name_utf16 FROM game_character_info WHERE uid=$1 LIMIT 1001")
@@ -111,13 +112,10 @@ async fn matching(
         return Err(CreationEffectsError::Profile);
     }
     let mut ids = Vec::new();
-    for (id, name) in rows {
-        if let Some(name) = name {
-            let bytes = Zeroizing::new(name.into_bytes());
-            if proof
-                .equals(&bytes)
-                .map_err(|_| CreationEffectsError::Profile)?
-            {
+    for (id, stored) in rows {
+        if let Some(stored) = stored {
+            let bytes = Zeroizing::new(stored.into_bytes());
+            if proof.equals(name, &bytes) {
                 ids.push(id)
             }
         }
@@ -129,10 +127,11 @@ pub async fn require_empty_cleanup_candidate(
     pool: &PgPool,
     key: &UserKey<'_>,
     proof: &NameProof,
+    name: &str,
 ) -> Result<(), CreationEffectsError> {
     tokio::time::timeout(Duration::from_secs(10), async {
         let mut tx = owned(pool, key).await?;
-        if !matching(&mut tx, key, proof).await?.is_empty() {
+        if !matching(&mut tx, key, proof, name).await?.is_empty() {
             return Err(CreationEffectsError::Profile);
         }
         tx.commit().await?;
@@ -161,7 +160,7 @@ pub async fn cleanup(
         sqlx::query("LOCK TABLE game_character_info IN SHARE ROW EXCLUSIVE MODE")
             .execute(&mut *tx)
             .await?;
-        let ids = matching(&mut tx, key, proof).await?;
+        let ids = matching(&mut tx, key, proof, name).await?;
         if ids.len() > 1 {
             return Err(CreationEffectsError::Profile);
         }
@@ -186,13 +185,15 @@ pub async fn cleanup(
 pub(crate) struct CreationCleanupLease {
     uid: i32,
     owner: Zeroizing<String>,
+    name: Zeroizing<String>,
     cid: i64,
 }
 impl CreationCleanupLease {
-    pub(crate) fn issued_after_base(key: &UserKey<'_>, cid: i64) -> Self {
+    pub(crate) fn issued_after_base(key: &UserKey<'_>, name: &str, cid: i64) -> Self {
         Self {
             uid: key.uid,
             owner: Zeroizing::new(key.name.to_owned()),
+            name: Zeroizing::new(name.to_owned()),
             cid,
         }
     }
@@ -238,7 +239,7 @@ pub(crate) async fn cleanup_attempt(
             name: &lease.owner,
             revision: 0,
         };
-        let ids = matching(&mut tx, &key, proof).await?;
+        let ids = matching(&mut tx, &key, proof, &lease.name).await?;
         if ids.len() > 1 || ids.first().is_some_and(|id| *id != lease.cid) {
             return Err(CreationEffectsError::Profile);
         }

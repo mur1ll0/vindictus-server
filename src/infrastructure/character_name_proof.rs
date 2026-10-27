@@ -1,5 +1,7 @@
-//! A finite, private comparison proof for one explicitly measured lab name.
-//! Unknown requested/stored values are refused, never classified as available.
+//! The private naming profile: the recovered name rule and retention values.
+//! Any name that passes the rule is free; it is unavailable only while another stored name is the
+//! same under SQL_Latin1_General_CP1_CI_AS (operator decision, 26/10/2026). The proof's measured
+//! equalities stay as the oracle of that comparison.
 use super::{
     reward_policy::RewardPolicyPackage,
     user_export::{PrivateText, hex},
@@ -8,7 +10,7 @@ use crate::domain::character_name::NameRule;
 use serde::Deserialize;
 use std::io::Read;
 use thiserror::Error;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 #[derive(Debug, Error, PartialEq, Eq)]
 #[error("character naming proof is invalid or outside its measured profile; values omitted")]
 pub struct NameProofError;
@@ -32,20 +34,18 @@ struct Raw {
     repeating: i32,
     protect_period: i32,
     japanese: bool,
-    forbidden: bool,
+    /// The measured candidate's ForbiddenName result; free names do not use it.
+    #[serde(rename = "forbidden")]
+    _forbidden: bool,
     forbidden_filtered_rows: usize,
     forbidden_cultures: usize,
     sql_collation: String,
     references: Vec<Reference>,
 }
 pub struct NameProof {
-    candidate: Zeroizing<String>,
-    candidate_bytes: Zeroizing<Vec<u8>>,
-    references: Vec<(Zeroizing<Vec<u8>>, bool)>,
     rule: NameRule,
     pub(crate) protect_period: i32,
     pub(crate) japanese: bool,
-    pub(crate) forbidden: bool,
 }
 impl NameProof {
     pub fn read(reader: impl Read, content: &RewardPolicyPackage) -> Result<Self, NameProofError> {
@@ -82,7 +82,6 @@ impl NameProof {
         {
             return Err(NameProofError);
         }
-        let candidate = Zeroizing::new(raw.candidate.0.clone());
         let candidate_bytes = Zeroizing::new(
             units
                 .iter()
@@ -106,44 +105,66 @@ impl NameProof {
             {
                 return Err(NameProofError);
             }
+            if same_name(&raw.candidate.0, &bytes) != row.equal {
+                return Err(NameProofError);
+            }
             references.push((bytes, row.equal));
         }
         Ok(Self {
-            candidate,
-            candidate_bytes,
-            references,
             rule,
             protect_period: raw.protect_period,
             japanese: raw.japanese,
-            forbidden: raw.forbidden,
         })
     }
-    /// Invalid format can be decided for all inputs; valid inputs must be the measured candidate.
+    /// The recovered name rule; every name that passes it may be checked against stored names.
     pub(crate) fn valid_request(&self, name: Option<&str>) -> Result<bool, NameProofError> {
         let units = name.map(|s| Zeroizing::new(s.encode_utf16().collect::<Vec<_>>()));
-        if !self
-            .rule
+        self.rule
             .check_valid_name(units.as_deref().map(|u| u.as_slice()))
-            .map_err(|_| NameProofError)?
-        {
-            return Ok(false);
-        }
-        if name != Some(self.candidate.as_str()) {
-            return Err(NameProofError);
-        }
-        Ok(true)
+            .map_err(|_| NameProofError)
     }
-    pub(crate) fn equals(&self, value: &[u8]) -> Result<bool, NameProofError> {
-        if value == self.candidate_bytes.as_slice() {
-            return Ok(true);
+    /// SQL `=` under SQL_Latin1_General_CP1_CI_AS for a stored UTF-16LE name.
+    pub(crate) fn equals(&self, name: &str, stored: &[u8]) -> bool {
+        same_name(name, stored)
+    }
+    /// Ordinal equality (List.Contains), as the own reservation list compares.
+    pub(crate) fn ordinal(&self, name: &str, stored: &[u8]) -> bool {
+        stored.len() == name.encode_utf16().count() * 2
+            && name
+                .encode_utf16()
+                .zip(stored.as_chunks::<2>().0)
+                .all(|(u, b)| u.to_le_bytes() == *b)
+    }
+}
+/// Trailing spaces are padding and ASCII letters compare without case. The name rule admits only
+/// ASCII letters and `_`, so every other unit must match exactly. Agrees with all measured SQL
+/// equalities (8 synthetic, 49 original).
+fn same_name(name: &str, stored: &[u8]) -> bool {
+    if !stored.len().is_multiple_of(2) {
+        return false;
+    }
+    let trim = |units: &mut Vec<u16>| {
+        while units.last() == Some(&0x20) {
+            units.pop();
         }
-        self.references
-            .iter()
-            .find(|(b, _)| b.as_slice() == value)
-            .map(|(_, eq)| *eq)
-            .ok_or(NameProofError)
-    }
-    pub(crate) fn ordinal_candidate(&self, value: &[u8]) -> bool {
-        value == self.candidate_bytes.as_slice()
-    }
+    };
+    let mut left = name.encode_utf16().collect::<Vec<_>>();
+    let mut right = stored
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|b| u16::from_le_bytes(*b))
+        .collect::<Vec<_>>();
+    trim(&mut left);
+    trim(&mut right);
+    let same = left.len() == right.len()
+        && left.iter().zip(&right).all(|(a, b)| {
+            a == b
+                || (*a < 0x80
+                    && *b < 0x80
+                    && (*a as u8).eq_ignore_ascii_case(&(*b as u8)))
+        });
+    left.zeroize();
+    right.zeroize();
+    same
 }

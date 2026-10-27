@@ -731,7 +731,7 @@ async fn actual_tcp_name_check_uses_source_dialog_and_name_change_result_before_
             );
         }
     }
-    // An unmeasured valid name receives no manufactured availability result; Query is a barrier.
+    // Free names (26/10/2026): a new valid name gets the source's available dialog.
     let body = setup::encode(
         SKind::Check,
         Some(&SMessage::Check {
@@ -742,10 +742,18 @@ async fn actual_tcp_name_check_uses_source_dialog_and_name_change_result_before_
     )
     .unwrap();
     send(&mut client, &mut tx, SKind::Check.category(), &body).await;
-    let query = setup::encode(SKind::Query, Some(&SMessage::Query), DEFAULT_MAX_BODY).unwrap();
-    send(&mut client, &mut tx, SKind::Query.category(), &query).await;
     let frame = read(&mut client, &mut rx).await;
-    assert_eq!(frame.category_id, SKind::Reserved.category());
+    assert_eq!(frame.category_id, CKind::System.category());
+    assert!(
+        ctl::decode(CKind::System, &frame.body, DEFAULT_MAX_BODY).unwrap()
+            == Some(CMessage::System {
+                category: 4,
+                text: Some(ctl::HeroesText {
+                    format: Some("GameUI_Heroes_Create_Character_ValidName"),
+                    parameters: Some(Vec::new())
+                })
+            })
+    );
     sqlx::query("INSERT INTO game_character_name_logs(id,old_character_name_utf16,new_character_name_utf16) VALUES(1,$1,$2)").bind("Murael".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>()).bind("OtherName".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<_>>()).execute(&pool).await.unwrap();
     let body = setup::encode(
         SKind::Check,

@@ -166,7 +166,7 @@ async fn creation_base_refuses_unmarked_owner_revision_and_unmeasured_features_t
             ..request(1, 1)
         },
         CreationCoreRequest {
-            name: "OtherName",
+            name: "A!",
             ..request(1, 1)
         },
     ] {

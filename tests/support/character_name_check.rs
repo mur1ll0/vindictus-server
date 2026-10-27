@@ -6,7 +6,6 @@ use vindictus_server::{
     infrastructure::{
         character_lobby::UserKey,
         character_name_check::{self as storage, NameCheckError, NameCheckResult as R},
-        character_name_proof::NameProof,
     },
 };
 fn utf16(s: &str) -> Vec<u8> {
@@ -45,10 +44,13 @@ async fn name_check_queries_real_state_and_preserves_reserved_consumption_before
         storage::check(&pool, key(), &proof, None).await,
         Err(NameCheckError::Profile)
     ));
-    assert!(matches!(
-        storage::check(&pool, key(), &proof, Some("OtherName")).await,
-        Err(NameCheckError::Profile)
-    ));
+    // Free names (26/10/2026): any name passing the rule is available until stored.
+    assert_eq!(
+        storage::check(&pool, key(), &proof, Some("OtherName"))
+            .await
+            .unwrap(),
+        R::Success
+    );
     sqlx::query("INSERT INTO game_reserved_names(row_id,nexon_id_utf16,nexon_sn,character_name_utf16,created) VALUES(1,$1,-99,$2,false)").bind(utf16("Other")).bind(utf16("Murael")).execute(&pool).await.unwrap();
     assert_eq!(
         storage::check(&pool, key(), &proof, Some("Murael"))
@@ -98,6 +100,21 @@ async fn name_check_queries_real_state_and_preserves_reserved_consumption_before
             .await
             .unwrap(),
         R::DuplicatedName
+    );
+    // Stored names block case-insensitively, as SQL_Latin1_General_CP1_CI_AS compares.
+    for other in ["othername", "OTHERNAME"] {
+        assert_eq!(
+            storage::check(&pool, key(), &proof, Some(other))
+                .await
+                .unwrap(),
+            R::DuplicatedName
+        );
+    }
+    assert_eq!(
+        storage::check(&pool, key(), &proof, Some("Hurkname"))
+            .await
+            .unwrap(),
+        R::Success
     );
     assert!(
         sqlx::query_scalar::<_, bool>("SELECT created FROM game_reserved_names")
@@ -153,31 +170,11 @@ async fn name_check_queries_real_state_and_preserves_reserved_consumption_before
             .unwrap(),
         R::Success
     );
-    let mut forbidden = common::value(&content);
-    forbidden["forbidden"] = serde_json::json!(true);
-    let forbidden =
-        NameProof::read(serde_json::to_vec(&forbidden).unwrap().as_slice(), &content).unwrap();
-    sqlx::query("UPDATE game_reserved_names SET created=false")
-        .execute(&pool)
-        .await
-        .unwrap();
-    assert_eq!(
-        storage::check(&pool, key(), &forbidden, Some("Murael"))
-            .await
-            .unwrap(),
-        R::ForbiddenName
-    );
-    assert!(
-        !sqlx::query_scalar::<_, bool>("SELECT created FROM game_reserved_names")
-            .fetch_one(&pool)
-            .await
-            .unwrap()
-    );
     cleanup_game_pool(admin, pool, schema).await;
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
-async fn name_check_refuses_wrong_owner_revision_unknown_values_and_cancelled_reservation_lock() {
+async fn name_check_refuses_wrong_owner_revision_and_cancelled_reservation_lock() {
     let (admin, pool, schema) = isolated_game_pool().await;
     let content = common::content();
     let proof = common::proof(&content);
@@ -201,10 +198,13 @@ async fn name_check_refuses_wrong_owner_revision_unknown_values_and_cancelled_re
         ));
     }
     sqlx::query("INSERT INTO game_reserved_names(row_id,nexon_id_utf16,nexon_sn,character_name_utf16,created) VALUES(1,$1,31,$2,false)").bind(utf16("Owner")).bind(utf16("Unmeasured")).execute(&pool).await.unwrap();
-    assert!(matches!(
-        storage::check(&pool, key(), &proof, Some("Murael")).await,
-        Err(NameCheckError::Profile)
-    ));
+    // Another reserved name does not block this one.
+    assert_eq!(
+        storage::check(&pool, key(), &proof, Some("Murael"))
+            .await
+            .unwrap(),
+        R::Success
+    );
     sqlx::query("UPDATE game_reserved_names SET character_name_utf16=$1")
         .bind(utf16("Murael"))
         .execute(&pool)

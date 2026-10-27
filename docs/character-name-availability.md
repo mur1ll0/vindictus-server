@@ -17,3 +17,5 @@ Criação, defaults/aparência/itens/habilidades/Summary/CID/SN, seleção/Playe
 Gate final223Rust/78PostgreSQLexecutados/19Python,0falhas/avisos; Docker e preservação passaram. [Evidência sanitizada](evidence/auth/character-name-availability.json). Teste real no cliente ainda pendente.
 
 Aceite real subsequente: operador confirmou o diálogo That name is available and can be used para Murael no cliente1.69EN. [Observação sanitizada](evidence/auth/character-name-check-client.json). Isso verifica apenas o Check normal, não criação/troca de nome/cidade.
+
+Decisão do operador (26/10/2026) — nome livre: qualquer nome que passe a regra recuperada (`^[a-zA-Z]{2,}_?[a-zA-Z]{2,}$`, 20 bytes) pode ser verificado e criado; só bloqueiam os nomes já gravados (CharacterInfo com a mesma retenção de apagados, reservas pendentes e histórico de troca). A igualdade segue SQL_Latin1_General_CP1_CI_AS: espaços finais ignorados e letras ASCII sem caixa. Ela concorda com todas as igualdades medidas (8 sintéticas e 49 originais); a leitura da prova recusa o arquivo se alguma discordar. O filtro ForbiddenName deixou de ser aplicado (a flag medida valia só para o candidato).

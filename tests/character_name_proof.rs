@@ -34,6 +34,13 @@ fn finite_name_proof_reads_measured_synthetic_values_and_refuses_profile_or_refe
         )
         .is_err()
     );
+    // The CI_AS comparison must agree with every measured equality.
+    let mut disagree = valid.clone();
+    disagree["references"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({"source_table":"MeasuredSynthetic","utf16_hex":"4d0075005200610045006c00","equal":false}));
+    assert!(NameProof::read(serde_json::to_vec(&disagree).unwrap().as_slice(), &content).is_err());
     let mut malformed = valid.clone();
     malformed["references"][1]["utf16_hex"] = serde_json::json!("410");
     assert!(NameProof::read(serde_json::to_vec(&malformed).unwrap().as_slice(), &content).is_err());

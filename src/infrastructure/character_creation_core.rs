@@ -87,7 +87,7 @@ async fn create_owned(
     if !synthetic {
         return Err(CreationCoreError::Ownership);
     }
-    // Serialize the finite measured name check with insertion. There is no source unique name/SN key.
+    // Serialize the name check with insertion. There is no source unique name/SN key.
     // This is a target concurrency guard, not a claim of SQL Server NOLOCK equivalence.
     sqlx::query("LOCK TABLE game_character_info IN SHARE ROW EXCLUSIVE MODE")
         .execute(&mut *tx)
@@ -108,10 +108,7 @@ async fn create_owned(
     }
     for name in names {
         let bytes = Zeroizing::new(name.into_bytes());
-        if proof
-            .equals(&bytes)
-            .map_err(|_| CreationCoreError::Profile)?
-        {
+        if proof.equals(r.name, &bytes) {
             tx.rollback().await?;
             return Ok(CreationCoreResult::DuplicateNameOrSn);
         }

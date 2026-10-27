@@ -114,12 +114,11 @@ async fn check_owned(
     name: Option<&str>,
     logging: bool,
 ) -> Result<NameCheckResult, NameCheckError> {
+    // Free names (operator decision, 26/10/2026): the rule, then only stored names block.
     if !proof.valid_request(name)? {
         return Ok(NameCheckResult::InvalidName);
     }
-    if proof.forbidden {
-        return Ok(NameCheckResult::ForbiddenName);
-    }
+    let name = name.ok_or(NameCheckError::Profile)?;
     let owner = LegacyNameKey::parse(key.name).map_err(|_| NameCheckError::Ownership)?;
     let mut tx = owned(pool, &key).await?;
     // Source FirstOrDefault has no ordering or owner filter. Do not invent either.
@@ -132,14 +131,14 @@ async fn check_owned(
     for (id, account, stored) in rows {
         let account = Zeroizing::new(account.into_bytes());
         let stored = Zeroizing::new(stored.into_bytes());
-        if first.is_none() && proof.equals(&stored)? {
+        if first.is_none() && proof.equals(name, &stored) {
             first = Some(id)
         }
         if account_key(&account)
             .map_err(|_| NameCheckError::Profile)?
             .as_slice()
             == owner.as_str().as_bytes()
-            && proof.ordinal_candidate(&stored)
+            && proof.ordinal(name, &stored)
         {
             own_ordinal = true
         }
@@ -164,7 +163,7 @@ async fn check_owned(
     let mut recent = false;
     for (stored, status, deleted) in rows {
         let stored = Zeroizing::new(stored.into_bytes());
-        if !proof.equals(&stored)? {
+        if !proof.equals(name, &stored) {
             continue;
         }
         if status != 1 {
@@ -199,7 +198,7 @@ async fn check_owned(
     let mut dates = Vec::new();
     for (stored, date) in rows {
         let stored = Zeroizing::new(stored.into_bytes());
-        if proof.equals(&stored)? {
+        if proof.equals(name, &stored) {
             dates.push(SqlDateTime::from_units300(date).map_err(|_| NameCheckError::Profile)?);
         }
     }
@@ -219,7 +218,7 @@ async fn check_owned(
         super::character_creation_ledger::changed_name_check(
             pool,
             &key,
-            name.ok_or(NameCheckError::Profile)?,
+            name,
             proof.protect_period,
         )
         .await?;
