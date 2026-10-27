@@ -172,16 +172,17 @@ Pré-condição: containers recompilados depois do commit do nome livre (27/10/2
 - [ ] Digitar `A1` (fora da regra: só letras e um `_`) e clicar Check → diálogo de nome inválido.
 - [ ] Criar uma Fiona com o nome novo → aparece na lista; sair e entrar de novo → continua lá.
 - [ ] Tentar criar outra personagem com o mesmo nome (em qualquer caixa) → "Failed to create a character" com o erro de nome duplicado, sem 0xAA04.
-Limites conhecidos: não há mais filtro de nomes proibidos nem lista de nomes reservados medida; só a regra de formato e os nomes já gravados bloqueiam. Outras classes ainda respondem 0xAA04 até a entrada de classes.
+Limites conhecidos: não há mais filtro de nomes proibidos nem lista de nomes reservados medida; só a regra de formato e os nomes já gravados bloqueiam. 
 
 ### B4.N2 — Criar personagem de qualquer classe
-Pré-condição: containers recompilados depois do commit das classes (27/10/2026); uma conta sem personagem (ex.: `teste_b4`, ou outra criada no painel), porque a lista do laboratório ainda mostra só um personagem por conta.
+Pré-condição: `game` recompilado depois do commit da Hagie (27/10/2026). A conta pode já ter personagens (ex.: `admin` com a Murael): a lista mostra todos.
 - [ ] Create → escolher **Evy**, nome novo (ex.: `Lucanor`), Check → disponível; Create → a Evy aparece na lista com a roupa interna dela, sem 0xAA04.
 - [ ] Entrar no jogo com a Evy → cidade carrega; inventário com os itens iniciais da Evy (arma de mago, não o escudo da Fiona); janela de skills com as skills iniciais da Evy e a skill ativa no slot de SP.
 - [ ] Sair, voltar ao lobby → a Evy continua na lista (relogin).
-- [ ] Repetir com **Hurk** em outra conta (ou apagar a Evy e criar o Hurk): criação, cidade, inventário e skills iniciais do Hurk.
-- [ ] Opcional: uma classe de cada (Lann, Karok, Kai, Vella, Lynn, Arisha, Hagie) → cada uma cria e entra na cidade.
-Limites conhecidos: ainda um personagem por conta na lista do laboratório; títulos de preset e stats por nível usam a classe certa, mas só a Fiona foi exercitada em combate/missão até agora.
+- [ ] Repetir com **Hurk**: criação, cidade, inventário e skills iniciais do Hurk.
+- [ ] Create → **Hagie**, nome novo → aparece na lista sem 0xAA04; no jogo, 10000 de ouro na carteira, além dos itens iniciais dela.
+- [ ] Opcional: uma classe de cada (Lann, Karok, Kai, Vella, Lynn, Arisha) → cada uma cria e entra na cidade.
+Limites conhecidos: títulos de preset e stats por nível usam a classe certa, mas só a Fiona foi exercitada em combate/missão até agora.
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

@@ -42,18 +42,7 @@ fn every_class_has_initializer_items_and_inner_armor() {
     );
     let bound_stats = stats.bind(&catalog).unwrap();
     let bound_colors = colors.bind(&catalog).unwrap();
-    // Hagie (9) starts with an item in a storage the initial inventory does not recover yet.
-    assert!(
-        inventory
-            .requests(
-                9,
-                &catalog,
-                &stats.bind(&catalog).unwrap(),
-                &colors.bind(&catalog).unwrap()
-            )
-            .is_ok()
-    );
-    for class in 0..=8u8 {
+    for class in 0..=9u8 {
         let requests = inventory
             .requests(class, &catalog, &bound_stats, &bound_colors)
             .unwrap_or_else(|e| panic!("class {class} requests: {e}"));

@@ -208,3 +208,77 @@ fn late_equipment_count_failure_consumes_id_and_no_color_draws_while_profile_bou
         ColorRandom::from_seed(17).next(1000000).unwrap()
     );
 }
+#[test]
+fn account_storage_item_binds_first_at_account_location_with_one_stack() {
+    let base = stat(0);
+    let keys = ["gold", "potion"].map(|n| {
+        n.encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>()
+    });
+    fn request<'a>(
+        key: &'a [u8],
+        base: &'a ItemStat,
+        storage: u8,
+        count: i32,
+        max_stack: i32,
+    ) -> InitialRequest<'a> {
+        InitialRequest {
+            class: key,
+            count,
+            max_stack,
+            unique: 0,
+            storage,
+            expire_in: None,
+            equipment: false,
+            base,
+            materials: [None; 3],
+            gold: storage == 3,
+        }
+    }
+    let rows = compose(
+        &[
+            request(&keys[1], &base, 1, 20, 100),
+            request(&keys[0], &base, 3, 10000, 2100000000),
+        ],
+        1,
+        &Materials::default(),
+        &mut ColorRandom::from_seed(0),
+        30000,
+        0,
+        &mut Clock { calls: 0 },
+    )
+    .unwrap();
+    let placed = rows
+        .items()
+        .iter()
+        .map(|r| {
+            (
+                r.class() == keys[0].as_slice(),
+                r.count(),
+                r.location().collection,
+                r.location().slot,
+                r.checksum().is_some(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        placed,
+        [(true, 10000, 101, -1, true), (false, 20, 0, 0, false)]
+    );
+    // AccountStorage keeps a single item per class: no second stack.
+    let mut clock = Clock { calls: 0 };
+    assert!(matches!(
+        compose(
+            &[request(&keys[0], &base, 3, 101, 100)],
+            1,
+            &Materials::default(),
+            &mut ColorRandom::from_seed(0),
+            30000,
+            0,
+            &mut clock,
+        ),
+        Err(InventoryError::Storage)
+    ));
+    assert_eq!(clock.calls, 0);
+}

@@ -166,7 +166,7 @@ pub trait InventoryClock {
     }
 }
 /// Requests are the already Feature-selected, AddOrIncrease-grouped dictionary.
-/// Empty source storages are Cash100 and default Bag0/1/6. No attributes, deletes,
+/// Empty source storages are Account101, Cash100 and default Bag0/1/6. No attributes, deletes,
 /// existing stacks, expanded bags or arbitrary source profiles are inferred here.
 /// Allocator and RNG retain consumed state on a late failure, as source Undo does.
 pub fn compose(
@@ -191,7 +191,8 @@ pub fn compose(
         {
             return Err(InventoryError::Bound);
         }
-        if !matches!(r.storage, 1 | 2) {
+        // AccountStorage holds one item per class at ItemLocation(101, -1).
+        if !matches!(r.storage, 1..=3) || (r.storage == 3 && r.count > r.max_stack) {
             return Err(InventoryError::Storage);
         }
         if (bundle_exceed > 0 && r.count / r.max_stack > bundle_exceed)
@@ -209,16 +210,21 @@ pub fn compose(
             left -= count;
         }
     }
-    // StoragePriorityOrder binds Cash first, then Bag, retaining source class order.
+    // StoragePriorityOrder binds Account, Cash, then Bag, retaining source class order.
     let mut placed = Vec::with_capacity(virtuals.len());
     let mut cash = 0;
     let mut bag = 0;
-    for storage in [2, 1] {
+    for storage in [3, 2, 1] {
         for &(r, count) in &virtuals {
             if r.storage != storage {
                 continue;
             }
-            let location = if storage == 2 {
+            let location = if storage == 3 {
+                ItemLocation {
+                    collection: 101,
+                    slot: -1,
+                }
+            } else if storage == 2 {
                 let slot = cash;
                 cash += 1;
                 ItemLocation {
