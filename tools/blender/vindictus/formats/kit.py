@@ -72,6 +72,17 @@ def extract_zip(zip_path: Path, folder: Path) -> Path:
     return folder
 
 
+def zip_folder(folder: Path, zip_path: Path) -> None:
+    """A kit folder as a stored zip (the panel's "Exportar kit" format: forward slashes, kit.json)."""
+    import zipfile
+    folder = Path(folder)
+    if not (folder / 'kit.json').is_file():
+        raise KitError('The folder is not a model kit (no kit.json).')
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as archive:
+        for path in sorted(p for p in folder.rglob('*') if p.is_file()):
+            archive.write(path, path.relative_to(folder).as_posix())
+
+
 def _norm(path: str) -> str:
     return path.replace('\\', '/').lower().strip('/')
 

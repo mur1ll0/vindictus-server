@@ -3,7 +3,7 @@ scripts/client/model_kit.py) as armature, weighted meshes and textured materials
 an edited kit that the server turns into a new item (docs/future/item-editor.md)."""
 import bpy
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, StringProperty
-from bpy_extras.io_utils import ImportHelper
+from bpy_extras.io_utils import ExportHelper, ImportHelper
 
 from . import blender_io
 from .formats import kit as kit_format
@@ -35,7 +35,9 @@ class VINDICTUS_OT_import_kit(bpy.types.Operator, ImportHelper):
     bl_label = 'Import Vindictus Kit'
     bl_options = {'REGISTER', 'UNDO'}
     filename_ext = '.zip'
-    filter_glob: StringProperty(default='*.zip;kit.json', options={'HIDDEN'})
+    # Both a .zip and a kit.json are valid picks: do not append '.zip' to the chosen name.
+    check_extension = False
+    filter_glob: StringProperty(default='*.zip;*.json', options={'HIDDEN'})
     import_mesh: BoolProperty(name='Mesh', default=True)
     import_textures: BoolProperty(name='Textures', default=True)
     import_skeleton: BoolProperty(name='Skeleton', default=True)
@@ -56,25 +58,25 @@ class VINDICTUS_OT_import_kit(bpy.types.Operator, ImportHelper):
         return {'FINISHED'}
 
 
-class VINDICTUS_OT_export_kit(bpy.types.Operator):
-    """Export the selected Vindictus meshes as a new model kit"""
+class VINDICTUS_OT_export_kit(bpy.types.Operator, ExportHelper):
+    """Export the selected Vindictus meshes as a new model kit (.zip, the panel's format)"""
     bl_idname = 'vindictus.export_kit'
     bl_label = 'Export Vindictus Kit'
-    directory: StringProperty(subtype='DIR_PATH')
+    filename_ext = '.zip'
+    filter_glob: StringProperty(default='*.zip', options={'HIDDEN'})
     model_path: StringProperty(name='Model', default='models/player/fiona/fiona_inner_new.mdl',
                                description='Game path of the new model (models/....mdl)')
 
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
-
     def execute(self, context):
+        import tempfile
         try:
-            files = blender_io.export_kit(context.selected_objects, self.directory, self.model_path)
+            with tempfile.TemporaryDirectory() as folder:
+                files = blender_io.export_kit(context.selected_objects, folder, self.model_path)
+                kit_format.zip_folder(folder, self.filepath)
         except (kit_format.KitError, ValueError, OSError) as error:
             self.report({'ERROR'}, str(error))
             return {'CANCELLED'}
-        self.report({'INFO'}, f'Exported {len(files)} files')
+        self.report({'INFO'}, f'Exported {len(files)} files to {self.filepath}')
         return {'FINISHED'}
 
 
@@ -83,7 +85,7 @@ def menu_import(self, context):
 
 
 def menu_export(self, context):
-    self.layout.operator(VINDICTUS_OT_export_kit.bl_idname, text='Vindictus Kit')
+    self.layout.operator(VINDICTUS_OT_export_kit.bl_idname, text='Vindictus Kit (.zip)')
 
 
 CLASSES = (VINDICTUS_OT_import_kit, VINDICTUS_OT_export_kit)

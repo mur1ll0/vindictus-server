@@ -71,6 +71,21 @@ class ZipTest(unittest.TestCase):
                     kit.extract_zip(path, Path(tmp) / name.replace('.zip', ''))
             self.assertFalse((Path(tmp) / 'x.txt').exists())
 
+    def test_exported_folder_zips_stored_with_forward_slashes(self):
+        import tempfile
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'kit'
+            (folder / 'models/player').mkdir(parents=True)
+            (folder / 'kit.json').write_text('{"model": "models/player/a.mdl"}')
+            (folder / 'models/player/a.mdl').write_bytes(b'IDST')
+            kit.zip_folder(folder, Path(tmp) / 'a.zip')
+            with zipfile.ZipFile(Path(tmp) / 'a.zip') as z:
+                self.assertEqual(sorted(i.filename for i in z.infolist()), ['kit.json', 'models/player/a.mdl'])
+                self.assertTrue(all(i.compress_type == zipfile.ZIP_STORED for i in z.infolist()))
+            back = kit.extract_zip(Path(tmp) / 'a.zip', Path(tmp) / 'back')
+            self.assertEqual((back / 'models/player/a.mdl').read_bytes(), b'IDST')
+
 
 @unittest.skipUnless((LAB_KIT / 'kit.json').is_file(), 'laboratory kit not present')
 class KitRoundTripTest(unittest.TestCase):

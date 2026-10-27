@@ -26,7 +26,7 @@ Para desenvolver, também dá para ligar a pasta em `%APPDATA%\Blender Foundatio
   - Cada material vira um material do Blender com a textura base e o mapa de normais.
   - Os pesos viram grupos de vértices com o nome dos ossos, e a malha recebe um modificador Armature.
 - **Editar:** mova vértices, pinte pesos ou edite as imagens importadas. Uma imagem cujos pixels mudarem é gravada de novo como VTF; as outras são copiadas sem mudança.
-- **Exportar:** selecione as malhas importadas e use *File → Export → Vindictus Kit*. Escolha a pasta e o caminho do modelo novo (`models/player/fiona/fiona_inner_lab.mdl`).
+- **Exportar:** selecione as malhas importadas e use *File → Export → Vindictus Kit (.zip)*. Escolha o arquivo `.zip` e o caminho do modelo novo (`models/player/fiona/fiona_inner_lab.mdl`). O zip tem o mesmo formato do painel (sem compressão, com `kit.json`), então pode ser reimportado no Blender ou aberto no visualizador.
   - O kit novo leva os materiais para `materials/models/<pasta do modelo>/<nome>/`.
   - Para virar item, o kit vai em `.cache/private-assets/<nome>`, com uma entrada em `scripts/content/item_additions.json` (exemplo: `fiona_inner_lab`).
 
