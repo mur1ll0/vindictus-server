@@ -1780,3 +1780,16 @@ Caminho C, etapa C1 — `heroes.db3` do NA em claro e comparação com o 1.69 (2
 - Lacunas: possíveis escritas do `tier0.dll` no registro (não verificadas); as camadas de cliente da Delia ficam para o C2.
 - Cliente: não necessário.
 - C1 concluído. Próxima ação: C2, medir camada por camada o que a Delia precisa no 1.69 (modelos e animações, interface de criação, leitura pontual do `client.dll` 1.69 para a classe 10).
+
+Caminho C, etapa C2 — o que a Delia precisa no 1.69 e o limite de 10 classes (27/10/2026, pedido do operador; sem mudança de código).
+- Comandos: leitura pontual do `client.dll` e do `server.dll` 1.69 originais (capstone, strings, referências, RTTI e comparação de vtables) e contagem de assets em `.cache/play-client/hfs_extracted`. Scripts no scratchpad; nada do NA nem do cliente no Git.
+- Evidência (seção 8 de `docs/future/new-classes.md`):
+  - dados e assets da Delia já presentes no 1.69;
+  - tabelas fixas de 10 classes no `client.dll` (`0x38cafd50`, limite em `0x3879ec68`) e no `server.dll` (`0x40d0cdf8`, `0x40d140dc`);
+  - entidades por classe finas (11 a 31 de 452 métodos trocados);
+  - nenhum código de `BastardSword`; 5 condições de estado de ação sem implementação;
+  - criação desenrolada por classe.
+- Conclusão: a Delia precisa de código nativo, mas como extensão de tabelas e clonagem de entidade, não como escrita do zero; o critério de fracasso do caminho C não se aplica. Decisão do operador pendente sobre fazer os patches.
+- Lacunas: outros usos do índice de classe com limite 10; tela de seleção Scaleform; serviço de classes habilitadas.
+- Cliente: o primeiro passo proposto (personagem de laboratório com classe 10, sem patch) ainda não foi feito nem testado.
+- Próxima ação: decisão do operador; depois, C3 (mais de 10 classes) ou o passo 8.5.

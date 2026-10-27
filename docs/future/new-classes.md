@@ -246,3 +246,78 @@ Consultas só leitura; logs em `.cache/verification/c1-db-*.log`.
   - código nativo do `client.dll` 1.69 para a classe 10.
 
   A Miri e as segundas armas exigem dados novos (tabelas, tipo de arma) além dos assets.
+
+## 8. Caminho C, etapa C2: o que a Delia precisa no 1.69 e como tirar o limite de 10 classes (27/10/2026)
+
+Leitura pontual, sem análise completa:
+- `client.dll` 1.69 original, SHA-256 `b284ba719047556b…`, base `0x38000000`;
+- `server.dll` do cliente, base `0x40000000`.
+
+Ferramentas: capstone de `scripts/client/.deps`, busca de strings, referências `imm32` e RTTI. A cópia de laboratório do `client.dll` (`314272ec…`) já tem os patches do projeto e não foi usada como referência.
+
+### 8.1 Camadas
+
+| Camada | Estado no 1.69 | Evidência |
+|---|---|---|
+| Dados de servidor (`heroes.db3`) | **presentes**: classe 10, bit 1024, 196 itens, 304 ranks e 512 argumentos de skill, `BASTARDSWORD` | seção 7.10 |
+| Assets do cliente | **presentes**:<br>• `models/player/delia` (146);<br>• `_anim/female/delia` (13 arquivos, o mesmo número da Hagie);<br>• `models/weapon/bastardsword`;<br>• `effects/player/delia` (61);<br>• `player_action_state_delia(_ex).txt`, `expression_table_delia*.txt`;<br>• `csf/bodyshape_delia_default.fig`;<br>• vídeos `NewCharacter_Delia.usm` e 20 vídeos de skill;<br>• ícones | `.cache/play-client/hfs_extracted` |
+| Tabela de classes | **10 entradas fixas, nos dois DLLs** | ver abaixo |
+| Entidade do jogador | **ausente**: não existe `C_HeroesPlayerDelia` nem `CHeroesPlayerDelia` | RTTI |
+| Arma | **ausente**: nenhuma ocorrência de `bastard` no `client.dll` nem no `server.dll` | strings |
+| Mecânica (estados de ação) | **quase toda em script**; faltam 5 condições nativas | ver abaixo |
+| Criação e seleção | **código desenrolado por classe**; a Delia não tem ramo | ver abaixo |
+
+### 8.2 Onde está o limite de 10 classes
+
+- **`client.dll`:**
+  - pares (nome, tipo de corpo) em `0x38cafd50`: Lethita 1, Fiona 2, Evy 2, Kalok 3, Kay 1, Vella 2, Hurk 4…;
+  - acessor sem limite em `0x3879ec50` (11 chamadas);
+  - acessor do tipo de corpo com `cmp eax, 0xa` em `0x3879ec60` (2 chamadas).
+- **`server.dll` do cliente** (simulação local da batalha):
+  - a mesma tabela de pares em `0x40d0cdf8`;
+  - uma lista só de nomes em `0x40d140dc`.
+- **Entidades:** cada classe tem sua subclasse de jogador nos dois DLLs, mas elas são finas. Contra os 452 métodos da base `C_HeroesPlayer`:
+
+  | Classe | Métodos trocados |
+  |---|---|
+  | Lethita, Fiona | 11 |
+  | Vella | 14 |
+  | Hagie | 15 |
+  | Hurk | 17 |
+  | Lynn | 19 |
+  | Arisha | 20 (+1 novo) |
+  | Kalok | 24 |
+  | Kay | 24 (+3 novos) |
+  | Evy | 31 |
+
+  O comportamento comum fica na base; o próprio de cada classe, nos scripts de estado de ação.
+- **Criação de personagem:**
+  - sequências desenroladas por classe, com strings fixas: `CsfChanged.create_<classe>`, `trial_<classe>N` (`0x384a3976`…), `SelectHagie`, `trigger_select_hagie`, `npc_hagie`;
+  - fundo `map_background game_create_character[_vin]_<classe>` (`0x388e8fa6`), escolhido conforme um serviço que responde por nome se a classe está habilitada (`[0x38cd2f90]` método `+0x18`).
+  - O NA trocou isso por cenas genéricas: só Arisha, Hagie e Lynn têm mapa próprio entre 28 classes.
+- **Mecânica:**
+  - o script da Delia usa 5 condições sem implementação nos DLLs do 1.69: `As_Cond_Can_Armor_Purge`, `As_Cond_Delia_SPSkill3_Activated`, `AS_Cond_Delia_Guard`, `AS_Cond_Delia_Guard_Hit`, `AS_Cond_Delia_Special_Hold_Skill`;
+  - o script da Hagie usa só condições existentes.
+
+### 8.3 Conclusão do C2 (critério de fracasso)
+
+A Delia precisa de código nativo, mas não escrito do zero. Ninguém escreve uma classe e uma arma inteiras; o trabalho é estender tabelas e clonar entidades, com pequenos trechos novos:
+
+1. **Tabelas de classe:** realocar as três tabelas para uma área nova com N entradas e trocar as poucas referências e os limites `0xa`. Falta enumerar todos os outros usos do índice de classe com limite 10, partindo das 13 chamadas dos acessores.
+2. **Entidade:** registrar `player_delia` e `DT_HeroesPlayerDelia` nos dois DLLs como cópia da entidade de uma classe próxima (Fiona ou Lethita, 11 métodos próprios), com a mesma tabela de rede.
+3. **Arma:** apontar `BASTARDSWORD` para uma entidade de arma existente (`C_WeaponGreatSword`/`LongSword`), com o modelo do 1.69.
+4. **Mecânica:** implementar as 5 condições em código novo, ou reescrever os trechos do script que as usam com condições existentes. A segunda opção é só dados, mas perde a guarda, o *armor purge* e a SP3 originais.
+5. **Criação e seleção:** um ramo novo para a classe 10 nas sequências da criação (câmera, gatilho, vídeo, figura) e o botão na interface Scaleform da criação, reempacotada com `scripts/client/hfs.py`.
+6. **Servidor do projeto:** `CHARACTER_COUNT = 10` e as validações de classe passam a aceitar N; o bit 2048 em diante fica para a 12ª classe.
+
+Os passos 1 a 3 e 5 são edição de binário na cópia de laboratório (tabelas, registro e saltos para código novo); o 4 pode ser só de dados. A Miri e as segundas armas (`DRAKER`, `TEIDE`, `BLUTE`) somam assets do NA (a decisão de cópia é do operador), dados novos e uma entidade de arma cada.
+
+### 8.4 Lacunas do C2
+
+- Usos do índice de classe sem os acessores (vetores de 10 posições, `cmp …, 0xa`), a enumerar a partir das 13 chamadas e das referências às duas tabelas do `server.dll`.
+- A tela de seleção (Scaleform) e o serviço de classes habilitadas não foram abertos.
+- Se partes da criação estão no `.vmp0` do `client.dll` (`0x62600` bytes): as funções vistas estão todas no `.text`.
+
+### 8.5 Primeiro passo implementável, com teste no cliente
+
+Sem patch de binário: no banco de laboratório, uma personagem de teste passa a classe 10 (cópia de uma Fiona, com itens da Delia). O operador entra e observa a seleção, a cidade e uma batalha curta. O resultado (queda, pose T, modelo errado ou funciona) mostra qual camada falha primeiro e ordena os patches.
