@@ -9,7 +9,7 @@
   "initializer_reference": "/content/fiona-initializer-reference-pairs.json",
   "entity_service_id": 7,
   "color_seed": 17,
-  "body_arithmetic": "unambiguous-only",
+  "body_arithmetic": "measured-x64",
   "map_partition_dir": "/content/map-partition",
   "channel_bind": "127.0.0.1:27003",
   "equipment": "/content/normal-equipment-profile-v4.json",

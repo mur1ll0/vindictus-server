@@ -1692,3 +1692,10 @@ Caminho C, etapa C1 — HFS do NA aberto, segunda camada pendente (27/10/2026, c
 - O critério de fracasso do C1 deixou de valer para os pacotes; a comparação do `heroes.db3` (Delia, Miri, segundas armas) continua bloqueada.
 - Cliente: não necessário.
 - Próxima ação retomável: leitura pontual da vtable `0x10241fc4` do `FileSystem_Stdio.dll` do NA até a rotina de cifra do `.db3`. Se ela estiver no `.vmp0`, decisão do operador sobre o carregador isolado. Em paralelo, o C2 pode comparar os assets da Delia (`models/player/delia` do 1.69 e do NA), que já estão legíveis.
+
+B4.N2 — Evy 0xCF02, causa lida no log (27/10/2026).
+- `docker compose logs game` (18:05 UTC): stage `inventory-or-appearance`, reason `appearance preparation failed ...: body shape requires an explicit recovered arithmetic profile` (`Error::AppearanceArithmetic`). O body shape enviado pela tela tem valores cujo arredondamento difere entre Framework x86 e x64, e o laboratório usava `body_arithmetic: "unambiguous-only"`, que recusa esses valores.
+- Mudança: `docker/lab/minimum-creation-assets.json` passa a `"measured-x64"`, a mesma arquitetura declarada pelo perfil do frontend do laboratório (`framework_architecture: x64`), que a seleção, os stats e o AP já usam desde M15.1c.2. Nenhuma mudança de código: `minimum_assets` já aceitava o perfil medido, e `Costume::body(.., FrameworkX64)` é coberto por `tests/fiona_appearance.rs`.
+- Verificação: `docker compose restart game` (arquivo montado, sem rebuild): saudável, sem avisos. Log `.cache/verification/body-x64-restart.log`.
+- Cliente: repetir B4.N2 (Evy na conta `admin`, Hagie).
+- Próxima ação retomável: o operador cria a Evy e a Hagie; se falhar, ler o `reason` em `docker compose logs game`.
