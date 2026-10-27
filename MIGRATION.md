@@ -1603,3 +1603,12 @@ B4.5b — Ajustes de jogo na própria tela, aplicados sem reiniciar (26/10/2026,
 - Cliente: entrada B4.5b em `docs/client-tests/B4-painel.md`.
 - Próxima ação retomável: B4.6 — mapas e canais (somente leitura); depois B4.7 e o gate do B4.
 
+
+Diagnóstico — Check de nome e Create falhando no laboratório (26/10/2026, sem mudança de código).
+- Relato do operador: depois da recriação do `game` (26/10 20:17), Check do nome sem resposta e Create com 0xAA04 para Evy e Hurk.
+- Causa: não é regressão do 8547ab3 nem da imagem. O caminho de nome e de criação continua no perfil finito de M13.3d.2c.2b.2/M15.1b: `NameProof::valid_request` aceita só o candidato medido (o nome da Fiona do `lab169_a`); qualquer outro nome válido devolve `NameProofError` → `NameCheckError::Profile` (o Check só registra o aviso e não responde) e `run_minimum_admitted` exige `character_class == 1` (Fiona) antes de qualquer acesso ao banco → `CreationRunError::Profile` → `InitCharacterFailed` (13 = 0xAA04 no cliente). Os assets de criação montados (`docker/lab/minimum-creation-assets.json`) só têm inventário/aparência/initializer da Fiona.
+- Evidência: log do `game` (`.cache/verification/game-create-diag.log`): 4 avisos de Check e 3 Create com `result: 13` entre 00:26 e 00:39 UTC; PostgreSQL: 50 linhas em `game_character_info`, a única criada pelo laboratório é a Fiona de 20/10/2026 (único "creation completed" nos logs em `.cache/verification`, 2026-10-20T02:00:45Z). O candidato medido já existe, então hoje nenhuma criação é possível no laboratório, para nenhuma conta. A anotação de B4.2-L ("teste_b4 … criou personagem") não tem linha correspondente no banco.
+- Avisos `minimum daily item procedure failed … Conflict` vêm do DailyItemController no login da Fiona (procedimento capturado e pulado, como na fonte) e não participam da criação.
+- Parada (AGENTS.md, item 3): ampliar a criação é decisão de escopo do operador — (a) nome livre exige a regra geral recuperada (formato, ForbiddenName 768 linhas, igualdade SQL_Latin1_General_CP1_CI_AS contra nomes guardados, histórico) no lugar da prova finita; (b) outras classes exigem extrair e medir inventário inicial, aparência, initializer, skills e stats de cada classe (só a Fiona existe hoje).
+- Cliente: não necessário até a decisão; a entrada "Check do nome + criar Evy" será escrita com o passo que habilitar nome livre e a classe.
+- Próxima ação retomável: operador decide se a criação com nome livre e outras classes entra agora (antes de B4.6) ou depois; até lá B4.6 — mapas e canais.
