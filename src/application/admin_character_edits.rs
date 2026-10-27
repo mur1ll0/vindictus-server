@@ -42,7 +42,18 @@ pub struct ChangeResult {
 fn minimum(error: MinimumError) -> AdminError {
     match error {
         MinimumError::Database(e) => AdminError::Unavailable(e),
-        _ => AdminError::NotEditable,
+        other => {
+            // The error chain is fixed text: it names the refusing rule, not the request.
+            let mut reason = other.to_string();
+            let mut source = std::error::Error::source(&other);
+            while let Some(inner) = source {
+                reason.push_str(": ");
+                reason.push_str(&inner.to_string());
+                source = inner.source();
+            }
+            tracing::warn!(reason, "panel character change refused");
+            AdminError::NotEditable
+        }
     }
 }
 

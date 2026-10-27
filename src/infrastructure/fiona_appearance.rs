@@ -132,6 +132,11 @@ pub struct Profile {
 fn fail() -> Error {
     Error::FionaAppearanceProfile
 }
+/// A creation-time refusal: logs which recovered rule refused (a fixed label, no values).
+fn refuse(check: &'static str) -> Error {
+    tracing::warn!(check, "creation appearance refused");
+    fail()
+}
 fn expression(s: &Option<String>) -> Result<(), Error> {
     if s.as_ref().is_some_and(|v| v.len() > 512) {
         Err(fail())
@@ -417,11 +422,11 @@ impl Profile {
                 .class_inners
                 .get(&class)
                 .map(|(i, c)| (i, *c))
-                .ok_or_else(fail)?,
+                .ok_or_else(|| refuse("inner-armor"))?,
         };
-        let inputs = template.items.as_ref().ok_or_else(fail)?;
+        let inputs = template.items.as_ref().ok_or_else(|| refuse("items"))?;
         if inputs.len() > 256 || template.body_shape.as_ref().is_some_and(|v| v.len() > 256) {
-            return Err(fail());
+            return Err(refuse("items"));
         }
         let items = item_catalog_inspection::catalog(catalog)?;
         let equipment = items.equipment().collect::<BTreeMap<_, _>>();
@@ -472,10 +477,10 @@ impl Profile {
         let selected = inputs
             .iter()
             .map(|i| {
-                let i = i.as_ref().ok_or_else(fail)?;
-                let name = i.item_class.ok_or_else(fail)?;
+                let i = i.as_ref().ok_or_else(|| refuse("items"))?;
+                let name = i.item_class.ok_or_else(|| refuse("items"))?;
                 if name.encode_utf16().count() > 50 {
-                    return Err(fail());
+                    return Err(refuse("items"));
                 }
                 Ok((text(name), i.colors))
             })
@@ -485,23 +490,29 @@ impl Profile {
             .map(|(k, c)| (k.as_slice(), *c))
             .chain(std::iter::once((inner.as_bytes(), inner_colors)))
         {
-            let item = items.get(Some(key)).ok_or_else(fail)?;
-            let cash = *custom.get(key).ok_or_else(fail)?;
+            let item = items.get(Some(key)).ok_or_else(|| refuse("item-catalog"))?;
+            let cash = *custom
+                .get(key)
+                .ok_or_else(|| refuse("item-not-offered-in-region"))?;
             if cash || !item.binding.equippable {
-                return Err(fail());
+                return Err(refuse("item-cash-or-not-equippable"));
             }
-            let category = inventory.category(item.source_index).ok_or_else(fail)?;
+            let category = inventory
+                .category(item.source_index)
+                .ok_or_else(|| refuse("item-category"))?;
             let matching = self
                 .parts
                 .iter()
                 .filter(|p| p.key.as_ref().is_some_and(|k| k.as_bytes() == category))
                 .collect::<Vec<_>>();
             if matching.len() != 1 {
-                return Err(fail());
+                return Err(refuse("item-part"));
             }
             let part = matching[0];
-            let costume_part = part.costume.ok_or_else(fail)?;
-            let names = materials.get(Some(key)).ok_or_else(fail)?;
+            let costume_part = part.costume.ok_or_else(|| refuse("item-part"))?;
+            let names = materials
+                .get(Some(key))
+                .ok_or_else(|| refuse("item-materials"))?;
             for (name, color) in names.into_iter().zip(chosen) {
                 if let Some(name) = name {
                     let key = name
@@ -514,14 +525,14 @@ impl Profile {
                         .copied()
                         .unwrap_or(false)
                     {
-                        return Err(fail());
+                        return Err(refuse("cash-item-color"));
                     }
                 }
             }
             let serial = self
                 .equips
-                .get(*equipment.get(key).ok_or_else(fail)?)
-                .ok_or_else(fail)?
+                .get(*equipment.get(key).ok_or_else(|| refuse("item-equipment"))?)
+                .ok_or_else(|| refuse("item-equipment"))?
                 .serial;
             if costume_part != -1 {
                 // ToBaseCostumeInfo sets Durability=-1 and IsAvatar=false: ToCostume Gloss=255.
@@ -541,7 +552,7 @@ impl Profile {
         if !color_map.contains_key(&(skin.as_slice(), template.skin_color))
             || !color_map.contains_key(&(eye.as_slice(), template.eye_color))
         {
-            return Err(fail());
+            return Err(refuse("skin-or-eye-color"));
         }
         set.set(Costume {
             is_base: true,
@@ -572,7 +583,7 @@ impl Profile {
         if let Some(values) = &template.body_shape {
             for (i, &(key, bits)) in values.iter().enumerate() {
                 if values[..i].iter().any(|(k, _)| *k == key) {
-                    return Err(fail());
+                    return Err(refuse("body-shape-duplicate"));
                 }
                 let value = f32::from_bits(bits);
                 let costume = if let Some(profile) = arithmetic {

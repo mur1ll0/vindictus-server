@@ -108,9 +108,68 @@ fn every_class_has_initializer_items_and_inner_armor() {
             .prepare(&template, &inventory, &catalog, &colors, None)
             .unwrap_or_else(|e| panic!("class {class} appearance: {e}"));
         // Each non-cash customization item the creation screen offers, one at a time.
-        if let Ok(list) = std::fs::read_to_string(".cache/private-content/evy-custom-items.txt") {
+        // The creation screen's defaults together: first free item of each category.
+        if let Ok(list) =
+            std::fs::read_to_string(".cache/private-content/default-items-by-class.txt")
+        {
+            let names = list
+                .lines()
+                .filter_map(|l| l.strip_prefix(&format!("{class}	")))
+                .collect::<Vec<_>>();
+            let together = vindictus_server::protocol::character_creation::Template {
+                items: Some(
+                    names
+                        .iter()
+                        .map(|n| {
+                            Some(
+                                vindictus_server::protocol::character_creation::CustomizeItem {
+                                    item_class: Some(n),
+                                    category: None,
+                                    colors: [0, 0, 0],
+                                    duration: 0,
+                                    price: None,
+                                    coupon: 0,
+                                },
+                            )
+                        })
+                        .collect(),
+                ),
+                character_class: class,
+                skin_color: skin,
+                shineness: 0,
+                eye_color: eye,
+                height: 0,
+                bust: 0,
+                painting_x: 0,
+                painting_y: 0,
+                painting_rotation: 0,
+                painting_size: 0,
+                body_shape: None,
+            };
+            println!(
+                "class {class} defaults {:?}: {:?}",
+                names,
+                appearance
+                    .prepare(&together, &inventory, &catalog, &colors, None)
+                    .map(|c| c.len())
+                    .map_err(|e| e.to_string())
+            );
+        }
+        // Lines: class, item class, category, feature (CustomizeItemInfo, IsCash False).
+        if let Ok(list) =
+            std::fs::read_to_string(".cache/private-content/custom-items-by-class.txt")
+        {
             let mut failed = 0;
-            for name in list.lines().filter(|l| !l.is_empty()) {
+            let mut seen = std::collections::BTreeSet::new();
+            for name in list.lines().filter_map(|l| {
+                let mut f = l.split('\t');
+                (f.next() == Some(&class.to_string()))
+                    .then(|| f.next())
+                    .flatten()
+            }) {
+                if !seen.insert(name) {
+                    continue;
+                }
                 let one = vindictus_server::protocol::character_creation::Template {
                     items: Some(vec![Some(
                         vindictus_server::protocol::character_creation::CustomizeItem {
@@ -139,9 +198,7 @@ fn every_class_has_initializer_items_and_inner_armor() {
                     .is_err()
                 {
                     failed += 1;
-                    if class == 2 {
-                        println!("class {class} refuses {name}");
-                    }
+                    println!("class {class} refuses {name}");
                 }
             }
             println!("class {class} refused items {failed}");
