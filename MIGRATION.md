@@ -1831,3 +1831,10 @@ Progressão até um nível — P0–P3, primeiro corte (27/10/2026, pedido do op
 - Verificação: `cargo test --lib progression_plan` (2); `admin_http` (4, OpenAPI regenerado e `npm run gen:api`); PostgreSQL filtrado `panel_` (6, inclusive o novo `panel_reach_level_completes_the_plan_quests_once_offline`); `npm run build`; rustfmt. Logs `.cache/verification/p-*.log`.
 - Cliente: entrada P3 em `docs/client-tests/B4-painel.md`. Não testado no cliente; a conclusão de histórias e a forja dependem desse resultado (AGENTS.md, item 2).
 - Próxima ação: fechamento do grupo (clippy, reexportação do catálogo com as categorias, Docker e smoke); depois, sessão do operador pelos roteiros P2 e P3.
+
+Fechamento do grupo busca/refino/progressão (27/10/2026).
+- `cargo clippy --locked --lib --bins --test admin_http --test postgres -- -D warnings` (0 avisos) e `cargo fmt --check` (limpo).
+- Reexportação real: `py -3.13 scripts/content/refresh_item_content.py --force --no-restart` (30 s; versão 10, 3 itens): `panel-catalog.json` com `trade_categories` (17 categorias) e `tc`/`ts` nos 18.862 itens.
+- Docker: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` (exit 0) e `docker compose up -d --wait` (exit 0; `migrate` saiu; `game` e `server` saudáveis; "published content edits loaded" versão 10). Smoke: `/api/items/categories`, `/api/items/catalog`, `/api/characters/{cid}/items/{item}/upgrade` e `/api/characters/{cid}/progression/plan` respondem 401 sem sessão; o painel (`/`) responde 200. Logs `.cache/verification/group-*.log`.
+- Cliente: entradas P2 e P3 de `docs/client-tests/B4-painel.md`, pendentes.
+- Parada (AGENTS.md, item 2): concluir histórias e mexer em ofícios depende do resultado do roteiro P3 no cliente. Próxima ação retomável: sessão do operador pelos roteiros P2 e P3.
