@@ -470,6 +470,14 @@ fn map_partition_parser_topology_and_channel_match_framework_oracle() {
 
     let topology = Topology::from_maps(&maps);
     assert_eq!(topology.build_results(), expected_build.as_slice());
+    // B4.6: each partition of a built map reports that map.
+    for (map, (_, built)) in maps.iter().zip(&expected_build) {
+        if *built {
+            for pid in map.partitions() {
+                assert_eq!(topology.partition_region(*pid), Some(map.bsp()));
+            }
+        }
+    }
 
     for n in profile["neighbors"].as_array().unwrap() {
         let pid: i64 = n["pid"].as_str().unwrap().parse().unwrap();
@@ -547,6 +555,15 @@ fn map_partition_parser_topology_and_channel_match_framework_oracle() {
             7 => channel.leave(1002),
             _ => unreachable!(),
         };
+        // B4.6: the panel's member view follows enter/leave.
+        match idx {
+            1 => assert_eq!(
+                channel.members(),
+                vec![(1001, p_colhen1), (1002, p_colhen2)]
+            ),
+            7 => assert!(channel.members().is_empty()),
+            _ => {}
+        }
         for (cid, key) in [(1001_i64, "cam1"), (1002_i64, "cam2")] {
             let expected: Vec<OutgoingPacket> = step[key]
                 .as_array()

@@ -26,6 +26,7 @@ const ACTIONS: Record<string, { label: string; icon: ReactNode }> = {
   'content.withdraw': { label: 'Edição de conteúdo retirada', icon: <Undo2 /> },
   'character.item_move': { label: 'Item movido no inventário', icon: <PackagePlus /> },
   'character.inventory_sort': { label: 'Inventário organizado', icon: <RefreshCw /> },
+  'content.tuning': { label: 'Ajuste de jogo aplicado', icon: <TrendingUp /> },
   'content.publish': { label: 'Versão de conteúdo publicada', icon: <Upload /> },
   'content.maintenance_cancel': { label: 'Manutenção cancelada', icon: <TimerReset /> },
 };

@@ -1628,3 +1628,11 @@ B4.N2 — Criação de todas as classes (27/10/2026).
 - Cliente: entradas B4.N1 (nome livre) e B4.N2 (classes) em `docs/client-tests/B4-painel.md`.
 - Limites: a lista do laboratório continua com um personagem por conta (`minimum_character_list::query`); combate/missão só foram exercitados com a Fiona.
 - Próxima ação retomável: teste no cliente de B4.N1/B4.N2 (Check do nome e criação de uma Evy); depois B4.6 — mapas e canais.
+
+B4.6 — Mapas e canais, somente leitura (27/10/2026).
+- Servidor: `GET /api/world` (qualquer papel do painel, `application::world_admin`) monta a visão do canal 1 (`channel_server::Runtime::snapshot`: membros com CID, partição e mapa da partição via `Topology::partition_region`, tickets ainda entrando, mapas montados e o resultado de cada `Map.Build`), do relay (`Relay::snapshot`: clientes conectados, registros aguardando, grupos P2P das missões e membros), das portas (login, canal, relay, loja web), das conexões vivas do frontend e da versão de conteúdo (`Assets::content_version`, gravada pela sobreposição na carga e na recarga ao vivo, contra a última publicada). Nomes de personagem e conta vêm de `admin_characters::names_of`. Nenhum controle novo: o laboratório tem um canal só.
+- Painel: página "Mapas e canais" (`/mapas`, equipe), atualizada a cada 5 s, com o aviso quando há versão publicada ainda não carregada; a auditoria passou a nomear `content.tuning`.
+- Também: `client_files.rs` usa `as_chunks::<16>()` (lint novo do clippy 1.98 que bloqueava `--all-targets -D warnings`).
+- Testes: `tests/minimum_map.rs` (4; novos: mapa de cada partição montada e membros do canal ao entrar/sair), `tests/admin_http.rs` (2, OpenAPI regenerado), clippy `--all-targets -D warnings`, `npm run build`. Docker recompilado (`COMPOSE_PARALLEL_LIMIT=1`), `GET /api/world` real: portas 27015/27003/27005/27080, 8 mapas (o `t03_partition` não monta porque as partições já são do `t03_destroyed_partition`, como no `Map.Build` recuperado), versão carregada 10 = publicada 10. Logs: `.cache/verification/world-*.log`.
+- Cliente: entrada B4.6 em `docs/client-tests/B4-painel.md` (verificação no painel durante a sessão de jogo).
+- Próxima ação retomável: B4.7 — relatório de viabilidade das extensões (`docs/extension-feasibility.md`); depois B4.8 e o gate do B4.

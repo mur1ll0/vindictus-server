@@ -122,6 +122,40 @@ impl Runtime {
     pub async fn member_count(&self) -> usize {
         self.state.lock().await.channel.member_count()
     }
+    /// Read-only view of the channel for the admin panel (B4.6).
+    pub async fn snapshot(&self) -> ChannelSnapshot {
+        let state = self.state.lock().await;
+        let topology = state.channel.topology();
+        ChannelSnapshot {
+            members: state
+                .channel
+                .members()
+                .into_iter()
+                .map(|(cid, partition)| ChannelMember {
+                    cid,
+                    partition,
+                    region: topology.partition_region(partition).map(str::to_owned),
+                })
+                .collect(),
+            entering: state.pending.len(),
+            maps: topology.build_results().to_vec(),
+        }
+    }
+}
+
+/// A character in the channel and the partition it stands in.
+pub struct ChannelMember {
+    pub cid: i64,
+    pub partition: i64,
+    /// The map (bsp) of that partition.
+    pub region: Option<String>,
+}
+pub struct ChannelSnapshot {
+    pub members: Vec<ChannelMember>,
+    /// Tickets issued by the frontend whose connection has not identified yet.
+    pub entering: usize,
+    /// The maps built into the channel and whether each built.
+    pub maps: Vec<(String, bool)>,
 }
 impl State {
     fn broadcast(&mut self, packets: BTreeMap<i64, Vec<OutgoingPacket>>) {

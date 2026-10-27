@@ -6,6 +6,7 @@ import { AccountsPage } from '@/pages/Accounts';
 import { AuditPage } from '@/pages/Audit';
 import { CashShopPage } from '@/pages/CashShop';
 import { TuningPage } from '@/pages/Tuning';
+import { WorldPage } from '@/pages/World';
 import { ContentPage } from '@/pages/Content';
 import { ShopsPage } from '@/pages/Shops';
 import { CharacterPage } from '@/pages/Character';
@@ -91,6 +92,12 @@ const modelsRoute = createRoute({
   beforeLoad: staffOnly,
   component: ModelsPage,
 });
+const worldRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/mapas',
+  beforeLoad: staffOnly,
+  component: WorldPage,
+});
 /** Character sheet: the server answers only for staff or the character's own account. */
 const characterRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -115,6 +122,7 @@ export function makeRouter(queryClient: QueryClient) {
         tuningRoute,
         contentRoute,
         modelsRoute,
+        worldRoute,
         auditRoute,
         characterRoute,
         myAccountRoute,

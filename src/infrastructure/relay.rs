@@ -83,6 +83,15 @@ impl State {
     }
 }
 
+pub struct RelaySnapshot {
+    /// Clients connected to the relay.
+    pub connected: usize,
+    /// Registrations waiting for their connection.
+    pub waiting: usize,
+    /// P2P groups (missions in progress) and their member counts.
+    pub groups: Vec<(i32, usize)>,
+}
+
 #[derive(Clone)]
 pub struct Relay {
     state: Arc<Mutex<State>>,
@@ -203,6 +212,18 @@ impl Relay {
     /// P2PGroup.Leave / Close.
     pub fn close_group(&self, group: i32) {
         lock(&self.state).groups.remove(&group);
+    }
+    /// Read-only view for the admin panel (B4.6).
+    pub fn snapshot(&self) -> RelaySnapshot {
+        let s = lock(&self.state);
+        let mut groups: Vec<(i32, usize)> =
+            s.groups.iter().map(|(id, g)| (*id, g.members.len())).collect();
+        groups.sort_unstable();
+        RelaySnapshot {
+            connected: s.clients.values().filter(|c| c.connected).count(),
+            waiting: s.waiting.len(),
+            groups,
+        }
     }
 
     /// Accepts relay connections until the listener fails.

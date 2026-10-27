@@ -581,6 +581,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/world": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The laboratory's channel, its members, the mission relay, the ports and the content
+         *     version loaded by the game.
+         */
+        get: operations["world"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -672,6 +692,15 @@ export interface components {
             after: number;
             /** Format: int64 */
             before: number;
+        };
+        ChannelView: {
+            /** @description Characters with a channel ticket whose connection has not identified yet. */
+            entering: number;
+            /** Format: int32 */
+            id: number;
+            /** @description Maps built into the channel and whether each one built. */
+            maps: components["schemas"]["MapView"][];
+            members: components["schemas"]["MemberView"][];
         };
         CharacterItem: {
             attributes: components["schemas"]["ItemAttribute"][];
@@ -826,6 +855,18 @@ export interface components {
             /** Format: int32 */
             version: number;
         };
+        ContentVersionView: {
+            /**
+             * Format: int32
+             * @description Version applied over the contents the game has in memory (0: none).
+             */
+            loaded?: number | null;
+            /**
+             * Format: int32
+             * @description Newest published version.
+             */
+            published?: number | null;
+        };
         CreateAccount: {
             /** Format: uuid */
             operation_id: string;
@@ -929,6 +970,11 @@ export interface components {
             /** Format: int32 */
             value: number;
         };
+        GroupView: {
+            /** Format: int32 */
+            id: number;
+            members: number;
+        };
         InventorySort: {
             /** Format: uuid */
             operation_id: string;
@@ -1031,6 +1077,21 @@ export interface components {
             password: string;
             username: string;
         };
+        MapView: {
+            built: boolean;
+            name: string;
+        };
+        MemberView: {
+            /** @description Game account of the character. */
+            account?: string | null;
+            /** Format: int64 */
+            cid: number;
+            /** @description Map (bsp) of the partition. */
+            map?: string | null;
+            name?: string | null;
+            /** Format: int64 */
+            partition: number;
+        };
         NewEdit: {
             edit: components["schemas"]["EditRequest"];
             /** Format: uuid */
@@ -1065,6 +1126,11 @@ export interface components {
              * @description The content version the restart applies.
              */
             version: number;
+        };
+        PortView: {
+            address: string;
+            /** @description frontend, channel, relay or web_shop. */
+            service: string;
         };
         ProgressionChange: {
             change: components["schemas"]["ProgressionKind"];
@@ -1130,6 +1196,12 @@ export interface components {
             min: number;
             quest: string;
             title?: string | null;
+        };
+        RelayView: {
+            connected: number;
+            /** @description Missions in progress (P2P groups) and their member counts. */
+            groups: components["schemas"]["GroupView"][];
+            waiting: number;
         };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
@@ -1249,6 +1321,15 @@ export interface components {
             enhance: components["schemas"]["EnhanceRatioView"][];
             features: components["schemas"]["FeatureView"][];
             quests: components["schemas"]["QuestDropView"][];
+        };
+        WorldView: {
+            channel?: null | components["schemas"]["ChannelView"];
+            /** @description Live frontend connections (login, character list, town). */
+            connections: number;
+            content: components["schemas"]["ContentVersionView"];
+            /** @description Game ports, in the order the client meets them. */
+            ports: components["schemas"]["PortView"][];
+            relay?: null | components["schemas"]["RelayView"];
         };
     };
     responses: never;
@@ -2609,6 +2690,33 @@ export interface operations {
                 };
             };
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    world: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldView"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

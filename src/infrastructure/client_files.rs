@@ -137,7 +137,7 @@ impl ClientFiles {
             .collect::<Option<Vec<_>>>()
             .ok_or(ClientFilesError::Malformed)?;
         let mut entries: HashMap<[u8; 6], Vec<(u16, u32, u32)>> = HashMap::new();
-        for e in plain[table..].chunks_exact(16) {
+        for e in plain[table..].as_chunks::<16>().0 {
             let key: [u8; 6] = e[..6].try_into().map_err(|_| ClientFilesError::Malformed)?;
             let pack = u16_at(e, 6).ok_or(ClientFilesError::Malformed)?;
             let at = u32_at(e, 8).ok_or(ClientFilesError::Malformed)?;

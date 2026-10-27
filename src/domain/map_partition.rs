@@ -144,6 +144,8 @@ struct PartitionMeta {
 pub struct Topology {
     partitions: HashMap<i64, PartitionMeta>,
     build_results: Vec<(String, bool)>,
+    /// Region (bsp) name by region index.
+    region_names: Vec<String>,
 }
 
 impl Topology {
@@ -265,10 +267,23 @@ impl Topology {
             }
         }
 
+        let mut region_names = vec![String::new(); regions.len()];
+        for (name, idx) in region_by_name {
+            if let Some(slot) = region_names.get_mut(idx) {
+                *slot = name;
+            }
+        }
         Self {
             partitions,
             build_results,
+            region_names,
         }
+    }
+
+    /// The region (bsp) holding `partition_id`.
+    pub fn partition_region(&self, partition_id: i64) -> Option<&str> {
+        let meta = self.partitions.get(&partition_id)?;
+        self.region_names.get(meta.region_index).map(String::as_str)
     }
 
     pub fn build_results(&self) -> &[(String, bool)] {
@@ -372,6 +387,21 @@ impl Channel {
 
     pub fn member_count(&self) -> usize {
         self.players.len()
+    }
+
+    /// Members as (CID, current partition), by CID.
+    pub fn members(&self) -> Vec<(i64, i64)> {
+        let mut out: Vec<(i64, i64)> = self
+            .players
+            .iter()
+            .map(|(cid, p)| (*cid, p.cur_partition))
+            .collect();
+        out.sort_unstable();
+        out
+    }
+
+    pub fn topology(&self) -> &Topology {
+        &self.topology
     }
 
     fn encode_look(cid: i64, summary_bytes: &[u8]) -> Result<OutgoingPacket, MapPartitionError> {

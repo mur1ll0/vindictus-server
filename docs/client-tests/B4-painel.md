@@ -138,6 +138,14 @@ Pré-condição: containers recompilados depois de 26/10/2026 (migração 0047);
 - [ ] Fechar o cliente e abrir pelo `start-lab.bat`. Jogar a fase ajustada: a EXP do resultado dobra e mais monstros deixam drop; Enhance +5 numa peça +4 → sucesso e a janela mostra a chance nova; o minijogo do encantamento mostra a chance nova.
 Limites conhecidos: valores fora dos limites são recusados (taxas 0–10000%, drops 0–100, chances 0–100%); o Enhance é por nível (vale para todos os equipamentos naquele nível, como o EnhanceServerInfo do servidor); o cliente só mostra os valores novos depois de abrir pelo `start-lab.bat`.
 
+### B4.6 — Mapas e canais (somente leitura)
+Pré-condição: containers recompilados depois de 27/10/2026.
+- [ ] Painel → Mapas e canais sem ninguém no jogo → "Ninguém no canal agora", portas do login, canal, relay e loja web, mapas do canal e versão de conteúdo carregada igual à última publicada.
+- [ ] Entrar na cidade com um personagem → em até 5 s ele aparece no canal 1 com a conta, o mapa e a partição; "Conexões no jogo" sobe.
+- [ ] Entrar numa missão → "Missões em andamento" mostra 1 e o relay mostra o grupo; voltar para a cidade → o grupo some.
+- [ ] Sair do jogo → o personagem sai da lista.
+Limites conhecidos: o laboratório tem um canal só, então não há controle de canal; a página atualiza a cada 5 segundos.
+
 ### B4.5b — Ajustes de jogo editados na própria tela, aplicados sem reiniciar
 Pré-condição: containers recompilados depois de 26/10/2026; personagem no jogo, de preferência.
 - [ ] Ajustes de jogo → Taxas: mudar "EXP das missões (combate)" para 200 na própria caixa → a caixa fica destacada com "Atual 100% → novo 200%" e aparece a barra "1 alteração(ões)" com Salvar/Descartar.

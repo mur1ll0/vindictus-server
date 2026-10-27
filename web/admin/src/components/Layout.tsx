@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
-import { Box, FileStack, Gem, History, LogOut, Moon, Shield, SlidersHorizontal, Store, Sun, UserRound, Users } from 'lucide-react';
+import { Box, FileStack, Gem, History, LogOut, Map as MapIcon, Moon, Shield, SlidersHorizontal, Store, Sun, UserRound, Users } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { logout, sessionQuery } from '@/api/session';
 import { roleLabel } from '@/components/forms';
@@ -17,6 +17,7 @@ const STAFF: Item[] = [
   { to: '/ajustes', label: 'Ajustes de jogo', icon: <SlidersHorizontal /> },
   { to: '/conteudo', label: 'Conteúdo', icon: <FileStack /> },
   { to: '/modelos', label: 'Modelos 3D', icon: <Box /> },
+  { to: '/mapas', label: 'Mapas e canais', icon: <MapIcon /> },
   { to: '/auditoria', label: 'Auditoria', icon: <History /> },
 ];
 const OWN: Item[] = [{ to: '/minha-conta', label: 'Minha conta', icon: <UserRound /> }];
@@ -28,6 +29,7 @@ export const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/ajustes': { title: 'Ajustes de jogo', subtitle: 'Taxas de EXP/ouro/AP, drops por fase e chances de Enhance/Enchant' },
   '/conteudo': { title: 'Conteúdo', subtitle: 'Edições pendentes, versões publicadas e manutenção' },
   '/modelos': { title: 'Modelos 3D', subtitle: 'Visualize o modelo de um item e exporte o kit para o add-on do Blender' },
+  '/mapas': { title: 'Mapas e canais', subtitle: 'Canal 1, quem está nele, relay, portas e versão de conteúdo carregada' },
   '/auditoria': { title: 'Auditoria', subtitle: 'Toda entrada e toda mudança, com quem, o quê e quando' },
   '/minha-conta': { title: 'Minha conta', subtitle: 'Seus dados, seus personagens e sua senha' },
 };

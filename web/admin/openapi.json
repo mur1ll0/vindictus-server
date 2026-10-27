@@ -1833,6 +1833,37 @@
           }
         }
       }
+    },
+    "/api/world": {
+      "get": {
+        "tags": [
+          "world"
+        ],
+        "summary": "The laboratory's channel, its members, the mission relay, the ports and the content\nversion loaded by the game.",
+        "operationId": "world",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2094,6 +2125,39 @@
           "before": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "ChannelView": {
+        "type": "object",
+        "required": [
+          "id",
+          "members",
+          "entering",
+          "maps"
+        ],
+        "properties": {
+          "entering": {
+            "type": "integer",
+            "description": "Characters with a channel ticket whose connection has not identified yet.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MapView"
+            },
+            "description": "Maps built into the channel and whether each one built."
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemberView"
+            }
           }
         }
       },
@@ -2547,6 +2611,27 @@
           }
         }
       },
+      "ContentVersionView": {
+        "type": "object",
+        "properties": {
+          "loaded": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Version applied over the contents the game has in memory (0: none)."
+          },
+          "published": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Newest published version."
+          }
+        }
+      },
       "CreateAccount": {
         "type": "object",
         "required": [
@@ -2885,6 +2970,23 @@
           }
         }
       },
+      "GroupView": {
+        "type": "object",
+        "required": [
+          "id",
+          "members"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "members": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "InventorySort": {
         "type": "object",
         "required": [
@@ -3185,6 +3287,58 @@
           }
         }
       },
+      "MapView": {
+        "type": "object",
+        "required": [
+          "name",
+          "built"
+        ],
+        "properties": {
+          "built": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "MemberView": {
+        "type": "object",
+        "required": [
+          "cid",
+          "partition"
+        ],
+        "properties": {
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game account of the character."
+          },
+          "cid": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "map": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Map (bsp) of the partition."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "partition": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "NewEdit": {
         "type": "object",
         "required": [
@@ -3262,6 +3416,22 @@
             "type": "integer",
             "format": "int32",
             "description": "The content version the restart applies."
+          }
+        }
+      },
+      "PortView": {
+        "type": "object",
+        "required": [
+          "service",
+          "address"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string",
+            "description": "frontend, channel, relay or web_shop."
           }
         }
       },
@@ -3495,6 +3665,31 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "RelayView": {
+        "type": "object",
+        "required": [
+          "connected",
+          "waiting",
+          "groups"
+        ],
+        "properties": {
+          "connected": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupView"
+            },
+            "description": "Missions in progress (P2P groups) and their member counts."
+          },
+          "waiting": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -3845,6 +4040,52 @@
             "items": {
               "$ref": "#/components/schemas/QuestDropView"
             }
+          }
+        }
+      },
+      "WorldView": {
+        "type": "object",
+        "required": [
+          "ports",
+          "connections",
+          "content"
+        ],
+        "properties": {
+          "channel": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelView",
+                "description": "The one laboratory channel, when the content configures it."
+              }
+            ]
+          },
+          "connections": {
+            "type": "integer",
+            "description": "Live frontend connections (login, character list, town).",
+            "minimum": 0
+          },
+          "content": {
+            "$ref": "#/components/schemas/ContentVersionView"
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortView"
+            },
+            "description": "Game ports, in the order the client meets them."
+          },
+          "relay": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RelayView"
+              }
+            ]
           }
         }
       }

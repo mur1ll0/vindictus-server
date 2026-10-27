@@ -139,6 +139,8 @@ pub struct Assets {
     pub channel: Option<(std::net::SocketAddr, crate::domain::map_partition::Topology)>,
     /// RelayServer endpoint (loopback laboratory).
     pub relay: Option<std::net::SocketAddr>,
+    /// The published content version applied over these assets (0: none).
+    pub content_version: i32,
 }
 /// Already parsed, source-bound packages; construction still validates all bindings.
 pub struct Parts {
@@ -358,6 +360,7 @@ impl Assets {
             (None, None) => {}
             _ => return Err(MinimumError::Conflict),
         }
+        assets.content_version = overlay.version;
         match f.relay_bind {
             Some(bind) if bind.ip().is_loopback() && bind.port() != 0 => assets.relay = Some(bind),
             None => {}
@@ -446,6 +449,7 @@ impl Assets {
             random: Mutex::new(ColorRandom::from_seed(parts.color_seed)),
             channel: None,
             relay: None,
+            content_version: 0,
         };
         out.initializer.bind(&out.catalog)?;
         out.inventory.bind(&out.catalog)?;

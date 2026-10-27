@@ -319,6 +319,23 @@ pub async fn list(pool: &PgPool, name_key: &str) -> Result<Vec<CharacterSummary>
     Ok(rows.into_iter().map(summary).collect())
 }
 
+/// Character and game account names of `cids` (live channel members, B4.6).
+pub async fn names_of(
+    pool: &PgPool,
+    cids: &[i64],
+) -> Result<Vec<(i64, String, String)>, sqlx::Error> {
+    let rows: Vec<(i64, Option<Vec<u8>>, String)> = sqlx::query_as(
+        "SELECT c.id, c.name_utf16, u.name FROM game_character_info c JOIN game_users u ON u.id = c.uid WHERE c.id = ANY($1)",
+    )
+    .bind(cids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(cid, name, account)| (cid, name.map(|n| utf16(&n)).unwrap_or_default(), account))
+        .collect())
+}
+
 /// Lower-case name key of the character's game user, to check who may read it.
 pub async fn owner_key(pool: &PgPool, cid: i64) -> Result<Option<String>, sqlx::Error> {
     sqlx::query_scalar(

@@ -30,6 +30,7 @@ mod accounts;
 mod characters;
 mod content;
 mod models;
+mod world;
 
 pub const COOKIE: &str = "vindictus_admin";
 pub const CSRF_HEADER: &str = "x-csrf-token";
@@ -130,7 +131,8 @@ impl AdminState {
         content::cancel_maintenance,
         content::item_icon,
         models::kit,
-        models::item_model
+        models::item_model,
+        world::world
     ),
     components(schemas(
         models::ItemModel,
@@ -177,6 +179,14 @@ impl AdminState {
         crate::infrastructure::content_edits::ContentEdit,
         crate::infrastructure::content_edits::ContentVersion,
         content::ContentState,
+        crate::application::world_admin::WorldView,
+        crate::application::world_admin::PortView,
+        crate::application::world_admin::ChannelView,
+        crate::application::world_admin::MemberView,
+        crate::application::world_admin::MapView,
+        crate::application::world_admin::RelayView,
+        crate::application::world_admin::GroupView,
+        crate::application::world_admin::ContentVersionView,
         content::NewEdit,
         content::Created,
         content::Operation,
@@ -241,6 +251,7 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             get(content::tuning).post(content::save_tuning),
         )
         .route("/api/content", get(content::content_state))
+        .route("/api/world", get(world::world))
         .route("/api/content/edits", post(content::create_edit))
         .route("/api/content/edits/{id}/withdraw", post(content::withdraw))
         .route("/api/content/publish", post(content::publish))
