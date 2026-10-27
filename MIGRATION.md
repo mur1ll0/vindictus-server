@@ -1685,3 +1685,10 @@ Caminho C, etapa C1 — leitura do cliente NA (27/10/2026, pedido do operador; s
 - Conclusão: critério de fracasso do caminho C atingido no C1; C2 e C3 não iniciados. Plano do caminho B apresentado ao operador e não iniciado.
 - Cliente: não necessário.
 - Próxima ação retomável: decisão do operador entre o caminho B, o C2 só com o 1.69 (sem os dados do NA) e encerrar o caminho C; sem essa decisão, a sessão de gameplay do roteiro do B4 e depois o B5.
+
+Caminho C, etapa C1 — HFS do NA aberto, segunda camada pendente (27/10/2026, continuação; sem mudança de código).
+- O operador indicou `NPCodex/hfs-extract` (o "HFS Extractor v4" do Kudv). O código-fonte (commit `8c065ca`) foi clonado em `.cache/hfs-extract-v4-src`, revisado (sem rede nem chamadas nativas; caminhos sanitizados; MD5 por arquivo) e compilado; o binário da release não foi usado.
+- Evidência: `--list` no NA com 9.220 pacotes, 355.640 arquivos e 0 falhas (`.cache/verification/c1-na-list.tsv`). Extraídos para `.cache/na-extract` (1,4 GB): `heroes.db3`, 3.156 arquivos da Delia, `createcharacter_*`, `bastardsword` e os vídeos de criação. Os modelos, texturas, sons e `.csf` vêm em claro. O `heroes.db3` e os `scripts/*.txt` têm uma segunda cifra, aplicada pelo `FileSystem_Stdio.dll` na leitura (comparação com `.db3`/`scripts`/`sqlite`/`resource\localized_text` perto de `0x100ed27a`; fluxo com vtable `0x10241fc4`). Detalhes em `docs/future/new-classes.md`, seções 7.6 e 7.7. A hipótese anterior de AES em ECB foi corrigida (é ChaCha20 só no primeiro KB).
+- O critério de fracasso do C1 deixou de valer para os pacotes; a comparação do `heroes.db3` (Delia, Miri, segundas armas) continua bloqueada.
+- Cliente: não necessário.
+- Próxima ação retomável: leitura pontual da vtable `0x10241fc4` do `FileSystem_Stdio.dll` do NA até a rotina de cifra do `.db3`. Se ela estiver no `.vmp0`, decisão do operador sobre o carregador isolado. Em paralelo, o C2 pode comparar os assets da Delia (`models/player/delia` do 1.69 e do NA), que já estão legíveis.

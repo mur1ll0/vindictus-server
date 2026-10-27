@@ -97,7 +97,9 @@ Custo: um projeto novo, de vários blocos, com o maior risco técnico de todos o
 - O que há na pasta `models/player/delia` do 1.69 (não aberta).
 - Os nomes das segundas armas do Hurk e da Lynn, que dependem do banco do NA.
 
-## 7. Caminho C, etapa C1: leitura do NA (27/10/2026) — fracasso
+## 7. Caminho C, etapa C1: leitura do NA (27/10/2026)
+
+> **Atualização (mesmo dia):** o extrator `NPCodex/hfs-extract` v0.3.0, indicado pelo operador, abre os pacotes do NA (seção 7.6). As seções 7.1 a 7.5 registram a primeira tentativa. A hipótese de AES em ECB da seção 7.2 estava errada: o formato v4 usa ChaCha20 só no primeiro KB de cada arquivo, e os blocos repetidos vêm da parte que fica em claro.
 
 Pedido do operador: decifrar os pacotes do NA só para leitura, com ferramentas públicas revisadas. Nenhum arquivo do NA foi extraído, copiado ou executado. Os downloads, o programa de teste e os logs ficaram em `.cache`, que é ignorada pelo Git.
 
@@ -139,3 +141,31 @@ A maior parte do C2 não depende do NA:
 - a leitura pontual da tabela de classes e do caminho da Hagie no `client.dll` 1.69.
 
 Só a comparação de assets e de linhas com o NA fica perdida. Retomar o C2 assim é decisão do operador.
+
+### 7.6 HFS v4 aberto com o `NPCodex/hfs-extract`
+
+- **Ferramenta:** `github.com/NPCodex/hfs-extract`, commit `8c065ca` (15/10/2026, MIT), indicada pelo operador como o "HFS Extractor v4" do Kudv. O código-fonte foi clonado em `.cache/hfs-extract-v4-src`; o zip binário da release não foi baixado.
+- **Revisão:**
+  - C# .NET 8, sem rede, processos, registro ou chamadas nativas.
+  - O CLI recusa caminhos absolutos, `..`, nomes reservados e links simbólicos, e não sobrescreve sem `--overwrite`.
+  - O leitor limita contagens e faixas ao tamanho do arquivo e confere o MD5 de cada arquivo extraído.
+  - Compilado do código-fonte.
+- **Formato (documentado em `docs/HFS-v4.md` do repositório):** versão 4; segredo de 13 caracteres gravado no próprio pacote; ChaCha20 com chaves derivadas do nome do pacote e do segredo, mascaradas por uma constante de 32 bytes; só os primeiros 1.024 bytes de cada arquivo cifrados, o resto zlib em claro.
+- **Resultado no NA (`--list`, só leitura):** 9.220 pacotes, 355.640 arquivos, 101,8 GB descomprimidos, 0 falhas (`.cache/verification/c1-na-list.tsv`). O `FileSystem_Stdio.dll` do NA medido tem o SHA-256 `b81f29ad…cf7c`.
+- **Extraído para `.cache/na-extract`** (1,4 GB, ignorado pelo Git, 0 falhas reais):
+  - `sqlite/heroes.db3`;
+  - os 3.156 arquivos com "delia" no caminho: 154 em `models/player/delia`, animações `_anim/female/delia`, efeitos, sons e `scaleform/video/skill`;
+  - os `csf/createcharacter_*` das 32 classes, `models/weapon/bastardsword` e os vídeos de `scaleform/video/createcharacter`;
+  - 16 avisos de "arquivo já existe" pela sobreposição dos filtros.
+- **Em claro (formato Source conhecido):** `.mdl` (`IDST`), `.vtf`, `.vvd`/`.vtx`, `.wav`, `.csf` e as listas de animação `_anim/*.txt`. Os assets da Delia, do Bastardsword e da criação de personagem do NA estão legíveis.
+
+### 7.7 Segunda camada: `heroes.db3` e scripts
+
+- **O que chega cifrado:** o `heroes.db3` extraído passa no MD5 do pacote, mas não é SQLite (entropia 7,97; 103.789.569 bytes = 101.357 páginas de 1.024 + 1 byte). Os `scripts/**/*.txt` (por exemplo, `expression_table_delia.txt`) também chegam cifrados. O `resource/heroes_english.txt` vem em claro.
+- **Onde fica a decisão:** no `FileSystem_Stdio.dll` do NA, a abertura de arquivo (função perto de `0x100ed27a`, leitura pontual com o capstone de `scripts/client/.deps`) compara:
+  - a extensão com `.db3` e `.bsp`;
+  - o início do caminho com `scripts` (7), `sqlite` (6) e `resource\localized_text` (23).
+- **Hipótese:** nesses casos, conforme um sinalizador do pacote (`[obj+0x48]+0xa6`), o arquivo é envolvido num fluxo próprio (vtable `0x10241fc4`, com 10 métodos), que decifra na leitura. Os métodos medidos são pequenos e só delegam (indireções); a rotina de cifra em si não foi achada, e pode estar no `.vmp0`.
+- **Pesquisa pública:** nada sobre a cifra do `heroes.db3`. O artigo do Falkrian (20/09/2026), base do extrator, cobre só o HFS.
+- **Consequência para o C1:** os assets da Delia estão legíveis, mas a comparação de tabelas entre o NA e o 1.69 (Delia, Miri, segundas armas) continua bloqueada pela segunda camada.
+- **Próximo passo possível:** continuar a leitura pontual da vtable `0x10241fc4` até a rotina de cifra. Se ela estiver virtualizada, o caminho seria o carregador isolado do DLL (seção 7.2), que pede decisão do operador.
