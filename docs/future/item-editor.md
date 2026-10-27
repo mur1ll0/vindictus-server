@@ -77,7 +77,7 @@ Para cada uma das 10 classes do cliente (corpo e esqueleto próprios em `models/
 2. Exportar `.mdl`/`.vvd`/`.vtx`/`.phy` v44 + a variante `_broken`, se o jogo a exigir para inner armor (**hipótese**: o `_broken` aparece em armaduras comuns), e as texturas `.vtf`/`.vmt` com os nomes que o `.mdl` referencia.
 3. Entrada nova em `player_costume.txt` → `inner_armor` → `"<CostumeType novo>" { category <corpo>; label …; normal "models/player/<classe>/<novo>.mdl" }`, com um número livre (o editor reserva uma faixa própria, por exemplo ≥ 100.000, acima do maior atual, 90.375). O parser guarda o número (`atoi`) num vetor dinâmico por seção, procurado por igualdade; não há teto fixo no código lido, e um número repetido é tratado à parte (seção 5).
 4. Linhas de `ItemClassInfo`/`EquipItemInfo` com esse `CostumeType`, no servidor e no cliente.
-5. Distribuição: modelo, texturas e `player_costume.txt` ficam em `models/`, `materials/` e `scripts/`, prefixos que o cliente **só** lê de pacote. Precisam de `.hfs` refeito ou novo **com o índice HFS regravado** (formato recuperado em [game-launcher.md](game-launcher.md) seção 2.2; viabilidade decidida pelo teste L0-d). O texto pode ir solto (item 3 do corte 1).
+5. Distribuição: modelo, texturas e `player_costume.txt` ficam em `models/`, `materials/` e `scripts/`, prefixos que o cliente **só** lê de pacote. Precisam de `.hfs` refeito ou novo **com o índice HFS regravado** (formato recuperado em [game-launcher.md](game-launcher.md) seção 2.2; viabilidade decidida pelo teste L0-d). O texto pode ir solto (item 3 do corte 1). **Atualização de 26/10/2026 (L0-d, L0-e e L0-f do launcher):** o cliente aceita índice regravado e pacotes refeitos pelo codec, inclusive o de scripts com o `player_costume.txt` alterado. Restrição: cada arquivo tem de estar no pacote da sua pasta, e o nome do pacote de uma pasta **nova** vem de um hash protegido ainda desconhecido. Por isso, os modelos novos vão em pastas que já existem (por exemplo, `models/player/<classe>/`, refazendo o pacote dela) até esse hash ser descoberto.
 6. Opcional: oferecer na criação (`InnerArmorTypeInfo`), que hoje só cobre Lann, Fiona e Evie.
 
 Custo estimado: conteúdo baixo; asset alto (10 modelos com rig de corpo diferente); servidor baixo (o catálogo já é dirigido por conteúdo); binário do cliente nenhum, se o L0-d aceitar o índice regravado. Se recusar, o corte 2 depende de mudar o binário ou o `GameInfo.txt`.
@@ -120,7 +120,7 @@ O operador autorizou abrir o `FileSystem_Stdio.dll` e o `client.dll` no REA. O `
 ## 6. Riscos
 
 - Itens novos sem a linha correspondente no cliente: tooltip vazio ou recusa (**hipótese**). Mitigação: publicação conjunta pelo launcher.
-- Modelos, materiais e scripts só entram por pacote com o índice HFS regravado, e o código que lê o índice está protegido com VMProtect (L0-d decide). Texto e ícone novo têm caminho solto.
+- Modelos, materiais e scripts só entram por pacote com o índice HFS regravado, e o código que lê o índice está protegido com VMProtect (L0-d decide). Texto e ícone novo têm caminho solto. **Resolvido em 26/10/2026:** o L0-d, o L0-e e o L0-f passaram (`docs/future/game-launcher.md`, seção 2.4); falta só o hash do nome das pastas novas.
 - Escrever `.mdl` v44 corretamente é o maior risco técnico. O corte 1 (sem modelo novo) entrega valor sem ele.
 - Remoção de item com instâncias vivas: sempre recusada.
 - Assets novos são do operador. Os originais do jogo nunca entram no Git (AGENTS.md).
