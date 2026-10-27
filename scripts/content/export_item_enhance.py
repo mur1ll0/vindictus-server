@@ -12,6 +12,7 @@ SuccessRatio comes from the original content (content_overrides). REAL columns a
 exported as the Single the server's System.Data.SQLite reads (REAL -> DbType.Single;
 text cells are converted by SQLite itself)."""
 import argparse, contextlib, json, pathlib, sqlite3, struct
+import content_additions
 import content_overrides as overrides
 from export_item_catalog import read_package as catalog_read, digest
 from export_npc_scripts import region_features
@@ -55,7 +56,7 @@ def boolean(v):
 def read_package(database, config):
     package = catalog_read(database, config)
     manifest = package['manifest']
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON')
         db.row_factory = sqlite3.Row
 

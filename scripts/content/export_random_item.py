@@ -5,6 +5,7 @@ region values of the features they read. Float cells are exported as the Double 
 System.Data.SQLite reads (text cells are converted by SQLite itself). The tables are the
 same in the original content."""
 import argparse, contextlib, json, pathlib, sqlite3, struct
+import content_additions
 from export_item_catalog import read_package as catalog_read, digest
 from export_npc_scripts import region_features
 from export_reward_policy import feature_atoms
@@ -34,7 +35,7 @@ def integer(v, low=-(2**31), high=2**31, nullable=False):
 def read_package(database, config):
     package = catalog_read(database, config)
     manifest = package['manifest']
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON')
         db.row_factory = sqlite3.Row
 

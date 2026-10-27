@@ -1,5 +1,6 @@
 """Readonly title-goal constructor projection;raw values remain in protected cache."""
 import argparse,contextlib,hashlib,json,pathlib,sqlite3
+import content_additions
 from export_item_catalog import digest
 
 def project(database,initializer,source_root):
@@ -11,7 +12,7 @@ def project(database,initializer,source_root):
  ids=sorted(r['title_id']for r in initial['presets']if r['class_restriction']&2)
  if len(ids)>4096 or len(ids)!=len(set(ids)):raise ValueError('Title preset scope')
  selected=set(ids);goals={i:[]for i in ids};seen=set()
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   for r in db.execute('SELECT ID,TitleID FROM TitleGoalInfo'):
    if type(r['ID'])is not int or type(r['TitleID'])is not int:raise ValueError('Title goal integer shape')

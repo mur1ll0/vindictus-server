@@ -1,5 +1,6 @@
 """Read-only SELECT-* catalog projection; raw content stays in an ACL-protected cache."""
 import argparse,contextlib,hashlib,json,pathlib,re,sqlite3,xml.etree.ElementTree as ET
+import content_additions
 from export_reward_policy import feature_atoms
 import content_overrides as overrides
 
@@ -11,7 +12,7 @@ def read_package(database,config):
  if pathlib.PureWindowsPath(settings['heroesContentsDB3']).name!=database.name:raise ValueError('Content profile filename mismatch')
  game_code=int(settings['GameCode'])
  if not -(2**31)<=game_code<2**31:raise ValueError('GameCode outside source integer')
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True)) as db:
+ with contextlib.closing(content_additions.connect(database)) as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   columns=[r[1] for r in db.execute('PRAGMA table_info(FeatureMatrix)')];game_map={}
   for row in db.execute("SELECT * FROM FeatureMatrix WHERE Feature='GameCode'"):

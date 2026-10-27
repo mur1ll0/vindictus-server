@@ -1,5 +1,6 @@
 """Readonly ItemClassInfo economy columns bound by row position to the item catalog projection."""
 import argparse, contextlib, json, pathlib, sqlite3
+import content_additions
 from export_item_catalog import read_package as catalog_read, digest
 import content_overrides as overrides
 
@@ -18,7 +19,7 @@ def read_package(database, config):
         if type(v) is not int or not -(2**31) <= v < 2**31:
             raise ValueError('Economy Int32 type/range')
         return v
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         # Same SELECT * provider order as the catalog projection; rows bind by position.
         rows = []

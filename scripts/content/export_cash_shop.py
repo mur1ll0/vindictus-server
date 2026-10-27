@@ -9,6 +9,7 @@ of their features, and the client's english_eu item names and descriptions
 (HEROES_ITEM_NAME_/HEROES_ITEM_DESC_<CLASS> of heroes_text_english_eu.txt) shown by the
 in-game cash shop; a class whose EU text is still Korean (never released there) has none."""
 import argparse, contextlib, json, pathlib, re, sqlite3
+import content_additions
 import content_edits
 from export_item_catalog import read_package as catalog_read, digest
 from export_npc_scripts import region_features
@@ -108,7 +109,7 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED,
     if any(not text(k) or not v or any(type(d) is not int or not 0 < d <= 3650 for d in v)
            for k, v in value_products.items()):
         raise ValueError('Cash shop VALUE products')
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON')
         db.row_factory = sqlite3.Row
         categories = []

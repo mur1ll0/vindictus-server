@@ -1,0 +1,33 @@
+{
+  "_comment": "Laboratory items added on top of heroesContents (server exports, through content_additions.connect) and the client copy (scripts/client/apply_lab_content_additions.py: heroes.db3 rows, English text packs, player_costume.txt entries and packs of the files in .cache/private-assets/<assets>, which are never versioned). Each item copies every row of its template in content_additions.TABLES, with ItemClass replaced and the 'set' columns changed. Item editor (docs/future/item-editor.md, section 3): fiona_inner_fringe uses the unused inner armor entry 16 (fiona_inner_fringe.mdl) and its existing icon (cut 1); fiona_inner_zero adds entry 9100 with a model supplied by the operator (MDL version 48, the 1.69 models are 44).",
+  "items": [
+    {
+      "ItemClass": "fiona_inner_fringe",
+      "template": "fiona_inner_fringe_socks",
+      "set": {
+        "ItemClassInfo": {"Icon": "fiona_inner_fringe"},
+        "EquipItemInfo": {"CostumeType": 16}
+      },
+      "text": {
+        "name": "Frilled Inner Armor",
+        "desc": "A frilled set of inner armor without the stockings. Laboratory item (item editor cut 1)."
+      }
+    },
+    {
+      "ItemClass": "fiona_inner_zero",
+      "template": "fiona_inner_fringe_socks",
+      "set": {
+        "ItemClassInfo": {"Icon": "fiona_inner_fringe_socks"},
+        "EquipItemInfo": {"CostumeType": 9100}
+      },
+      "costumes": [
+        {"section": "inner_armor", "key": "9100", "category": "female", "normal": "models/player/fiona/fiona_inner_zero.mdl"}
+      ],
+      "assets": "inner_zero",
+      "text": {
+        "name": "Inner Zero",
+        "desc": "Laboratory inner armor with a model supplied by the operator (item editor cut 2 test)."
+      }
+    }
+  ]
+}

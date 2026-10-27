@@ -1,5 +1,6 @@
 """Read-only normal-Fiona appearance subset, aligned to existing catalog snapshots."""
 import argparse,contextlib,json,pathlib,re,sqlite3
+import content_additions
 from export_item_catalog import read_package as catalog_read,digest
 import export_reward_policy as reward
 MANIFEST_PATH=pathlib.Path(__file__).resolve().parents[2]/'src/domain/fiona_gear_sources.json'
@@ -42,7 +43,7 @@ def read_package(database,config,implementation,gear_sources):
    if len(result)>=50000:raise ValueError('Appearance row bound')
    result.append(dict(zip(cols,row)))
   return result
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   equips=[]
   for i,r in enumerate(rows(db,'EquipItemInfo')):
@@ -54,7 +55,7 @@ def read_package(database,config,implementation,gear_sources):
   if column_types.get('IsConsumable')!='bit' or column_types.get('IsExpandedSlot')!='bit':raise ValueError('EquipPartInfo boolean declared type changed')
   parts=[dict(consumable=bit(r['IsConsumable']),expanded_slot=bit(r['IsExpandedSlot']),category_utf16=text(r['ItemCategory']),equip_part=integer(r['EquipPartNum']),costume_part=None if r['CostumePartNum']is None else integer(r['CostumePartNum']),decoration=r['CostumeCategory']=='Decoration')for r in rows(db,'EquipPartInfo')]
  if len(wanted)>256:raise ValueError('Appearance feature subset bound')
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   columns={r[1]for r in db.execute('PRAGMA table_info(FeatureMatrix)')}
   def load(tag):

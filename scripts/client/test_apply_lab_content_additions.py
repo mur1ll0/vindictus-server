@@ -33,10 +33,10 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
             return db.execute("SELECT count(*) FROM ShopInfo WHERE ItemClass='enhance_elixir'").fetchone()[0]
 
     def test_dry_run_changes_nothing_and_apply_is_idempotent(self):
-        self.assertEqual(apply(self.root, False, self.additions)['shop_rows_missing'], 1)
+        self.assertEqual(apply(self.root, False, self.additions, items=[])['shop_rows_missing'], 1)
         self.assertEqual(self.count(), 0)
-        apply(self.root, True, self.additions)
-        apply(self.root, True, self.additions)
+        apply(self.root, True, self.additions, items=[])
+        apply(self.root, True, self.additions, items=[])
         self.assertEqual(self.count(), 1)
         self.assertTrue((self.root / 'sql/heroes.db3.pre-lab-additions').exists())
 
@@ -49,13 +49,13 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
             {'ShopID': 'FERGHUS_Shop', 'Order': 1, 'Remove': True},
             {'ShopID': 'FERGHUS_Shop', 'Order': 124, 'ItemClass': 'enhance_elixir', 'Count': 2, 'PriceItemClass': 'gold', 'PriceCount': 3000},
         ]}
-        self.assertTrue(apply(self.root, True, self.additions, edits)['changed'])
+        self.assertTrue(apply(self.root, True, self.additions, edits, items=[])['changed'])
         with closing(sqlite3.connect(self.db)) as db:
             rows = db.execute('SELECT [Order],Count,PriceCount FROM ShopInfo ORDER BY [Order]').fetchall()
         self.assertEqual(rows, [(124, 2, 3000)])
-        self.assertFalse(apply(self.root, True, self.additions, edits)['changed'])
+        self.assertFalse(apply(self.root, True, self.additions, edits, items=[])['changed'])
         # Without the edits the original row and the addition come back from the backup.
-        apply(self.root, True, self.additions)
+        apply(self.root, True, self.additions, items=[])
         with closing(sqlite3.connect(self.db)) as db:
             rows = db.execute('SELECT [Order],PriceCount FROM ShopInfo ORDER BY [Order]').fetchall()
         self.assertEqual(rows, [(1, 100), (124, 4000)])
@@ -65,7 +65,7 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
             db.execute("INSERT INTO ShopInfo(ShopID,[Order],ItemClass) VALUES('FERGHUS_Shop',124,'other')")
             db.commit()
         with self.assertRaises(PreparationError):
-            apply(self.root, True, self.additions)
+            apply(self.root, True, self.additions, items=[])
 
 
 if __name__ == '__main__':

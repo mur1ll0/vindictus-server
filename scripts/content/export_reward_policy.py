@@ -1,5 +1,6 @@
 """Read-only, bounded export of the recovered dormant reward content subset."""
 import contextlib, argparse, hashlib, json, pathlib, re, sqlite3, xml.etree.ElementTree as ET
+import content_additions
 KEYS = ['CurrentVer','OverrideSetting','DormantAccount','DormantAccount_ver2','DormantAccountInterval','DormantNewAccountInterval','friend_loyalty_system','friend_loyalty_return_interval','NGM_disable','PassportImmigrator','NotifyBanReason','IPLockTime','SecondPassword','EssentialSecondPassword','SecondPasswordClear','SecondPassword_UsingSHA','SecondPassword_IP_Limit','MaxCharacterSlot','UserCareSystem','DisableInGameCheat','DisableCharacterSlotCheat','PurchaseSlot','PremiumSlot','MaxCharacterSlotWithPurchase','CombatRejoinSystem','HomeCafeBonus','CafeBonus','CashShop','FraudDetector','NexonGameSecurity','XignCode','OldNexonIDProtect','DisableLogging','AsynchronousLogging','HackshieldOff','koKR','enEU','zhCN','CheckUpToDate']
 COLUMNS = ['RewardItemClass','Num','MinLevel','MaxLevel','Feature']
 # Framework String.Trim whitespace; split before trim and retain literal one-part expressions.
@@ -23,7 +24,7 @@ def read_package(database, config, additional_keys=()):
     game_code=int(settings['GameCode']); server_code=int(settings['ServerCode'])
     if any(not -(2**31)<=value<2**31 for value in (game_code,server_code)):raise ValueError('Invalid configured integer')
     if pathlib.PureWindowsPath(settings['heroesContentsDB3']).name != database.name: raise ValueError('Configured content filename differs')
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True)) as conn:
+    with contextlib.closing(content_additions.connect(database)) as conn:
         conn.execute('PRAGMA query_only=ON');conn.execute('BEGIN')
         columns=[r[1] for r in conn.execute('PRAGMA table_info(FeatureMatrix)')]
         game_map={}

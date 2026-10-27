@@ -17,6 +17,7 @@ names, and the icon of each item class, for the shop and inventory screens. Read
   name and description of another class with the same icon (the same design for another
   character class, e.g. fiona_noluck_inner_devilhunter → delia_inner_devilhunter)."""
 import argparse, contextlib, json, pathlib, re, sqlite3
+import content_additions
 import xml.etree.ElementTree as ET
 from export_cash_shop import LOCALIZED, UNTRANSLATED
 from export_item_catalog import digest
@@ -87,7 +88,7 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
     item_text = {k.upper(): v for k, v in ITEM_TEXT.findall(decoded)}
     quest_titles = {k.upper(): v for k, v in QUEST_TITLE.findall(decoded)
                     if KEYLIKE.match(k) and not UNTRANSLATED.search(v) and len(v) <= 256}
-    with contextlib.closing(sqlite3.connect(pathlib.Path(database).resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON')
         shop_ids = {r[0].lower(): r[0] for r in db.execute('SELECT DISTINCT ShopID FROM ShopInfo') if r[0]}
         icons = {}

@@ -1,5 +1,6 @@
 """Read-only RGB material sidecar aligned to the existing catalog provider order."""
 import argparse,contextlib,json,pathlib,re,sqlite3,xml.etree.ElementTree as ET
+import content_additions
 from export_item_catalog import read_package as read_catalog,digest
 def read_package(database,config):
  catalog=read_catalog(database,config);manifest=catalog['manifest']
@@ -15,7 +16,7 @@ def read_package(database,config):
   if v is None:return None
   if not isinstance(v,str)or len(v.encode('utf-16-le',errors='surrogatepass'))>512:raise ValueError('Material text bound/type')
   return v.encode('utf-16-le',errors='surrogatepass').hex()
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   cursor=db.execute('Select * From [EquipItemInfo]');columns=[c[0]for c in cursor.description]
   for index,row in enumerate(cursor):

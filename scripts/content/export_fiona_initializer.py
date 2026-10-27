@@ -1,5 +1,6 @@
 """Readonly, source-bound normal first-Fiona initialization projection. Values stay private."""
 import argparse,contextlib,datetime,hashlib,json,pathlib,re,sqlite3,math,struct
+import content_additions
 from export_item_catalog import digest
 import export_reward_policy as reward
 SOURCE_FILES={
@@ -62,7 +63,7 @@ def read_package(database,config,source_dir,state_file,character_class=1):
  def feature(v):
   if v is not None and(not isinstance(v,str)or not v.isascii()or len(v)>512):raise ValueError('Initializer feature bound')
   atoms=reward.feature_atoms(v);wanted.update(atoms);enabled_keys.update(atoms);return v
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   classes=list(db.execute('SELECT * FROM CharacterClassInfo'));class_keys=[(r['Identifier'],r['Level'])for r in classes]
   if len(class_keys)!=len(set(class_keys)):raise ValueError('Class dictionary ambiguous')

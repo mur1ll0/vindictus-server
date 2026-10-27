@@ -1,6 +1,7 @@
 """Readonly NPC script projection: NpcTalkInfo.xml defaults, every StoryLineInfo XML and
 its row, as compact element trees with XElement.Load(LoadOptions.None) text semantics."""
 import argparse, contextlib, hashlib, json, pathlib, re, sqlite3, xml.etree.ElementTree as ET
+import content_additions
 import content_edits
 import xml.etree.ElementTree
 import content_overrides as overrides
@@ -92,7 +93,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
         if v is not None and not isinstance(v, str): raise ValueError('StoryLineInfo text')
         return v
     storylines = []
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         for r in overrides.select(db, 'StoryLineInfo'):
             info = {k: text(r[k]) for k in ('StoryLineID', 'StoryLineName', 'XmlPath', 'Npc', 'Category', 'Stage', 'RewardItem', 'RewardSkill', 'Episode', 'Feature')}
@@ -112,7 +113,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
         if v is not None and not isinstance(v, str): raise ValueError('ShopInfo text')
         return v
     shops = []
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         coerced_shop = 0
         for r in db.execute('Select * From [ShopInfo]'):
@@ -148,7 +149,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
         if type(v) is not int or not -(2**31) <= v < 2**31: raise ValueError('Repair Int32')
         return v
     repair = {}
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         repair['enhance'] = [[int32(r['EnhanceLevel']), int32(r['Point'])] for r in db.execute('Select * From [RepairEnhanceInfo]')]
         repair['quality'] = [[int32(r['Quality']), int32(r['Point'])] for r in db.execute('Select * From [RepairQualityInfo]')]
@@ -165,7 +166,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
         return None if v is None else int32(v)
     # QuestContents.Load tables in provider order (Select * From [Table]).
     quests = {}
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         quests['quests'] = [{'ID': nullable_text(r['ID']), 'AutoGiveLevel': int32(r['AutoGiveLevel']), 'QuestSet': int32(r['QuestSet']),
                              'ServiceCoin': int32(r['ServiceCoin']), 'MaxMemberCount': int32(r['MaxMemberCount']),
@@ -184,7 +185,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     # CharacterContents.Load: CharacterClassInfo (BaseCharacter 1 = Fiona) and LevelUpExpInfo,
     # both filtered by Feature at load; provider order.
     progression = {}
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         progression['class_stats'] = [[int32(r['Level']), int32(r['BaseSTR']), int32(r['BaseDEX']), int32(r['BaseINT']), int32(r['BaseWILL']), int32(r['BaseHP']), int32(r['BaseSTAMINA']), nullable_text(r['Feature'])]
                                       for r in db.execute('Select * From [CharacterClassInfo]') if r['Identifier'] == 1]
@@ -207,7 +208,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     # (refused), Entity/EntityAttribute of the quest sectors (provider order),
     # NamedPropItemInfo entity names and QuestSettingsInfo/QuestSettingsConditionInfo.
     mission = {}
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         mission['quests'] = [[nullable_text(r['ID']), int32(r['Level']), int32(r['TimeLimit']), int32(r['DropItemCountMin']), int32(r['DropItemCountMax']),
                               flag(r['HuntingQuest']), nullable_int32(r['InitGameTime']), nullable_int32(r['SectorMoveGameTime']), int32(r['GatheringRockMax']),
@@ -334,7 +335,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
         wanted |= feature_atoms(s['info']['Feature'] or '')
         if s['tree'] is not None: condition_atoms(s['tree'], wanted)
     if len(wanted) > 1024 or any(not k.isascii() or not k or len(k) > 256 for k in wanted): raise ValueError('Feature subset bound')
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN')
         values = region_features(db, config)
     features = [{'key': k, 'value': values.get(k)} for k in sorted(wanted)]

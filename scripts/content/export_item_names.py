@@ -6,6 +6,7 @@ HEROES_STATUS_NAME_<TYPE>, with the key in upper case. Text the EU localization 
 import argparse, json, pathlib, re
 from export_cash_shop import LOCALIZED, UNTRANSLATED
 from export_item_catalog import digest
+import content_additions
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 KEY = re.compile(r'^[A-Z0-9_]{1,96}$')
@@ -24,8 +25,12 @@ def localized_entries(path):
     return dict(ENTRY.findall(data.decode('utf-16')))
 
 
-def read_package(localized_path=LOCALIZED):
-    entries = localized_entries(localized_path)
+def read_package(localized_path=LOCALIZED, additions=None):
+    # The laboratory items' text (item_additions.json) is what the client copy gets too; it goes
+    # with the client's own localization only.
+    if additions is None:
+        additions = content_additions.load() if localized_path == LOCALIZED else []
+    entries = {**localized_entries(localized_path), **content_additions.text_entries(additions)}
     package = dict(format_version=1, source='heroes_text_english_eu', localized_sha256=digest(localized_path))
     for kind, prefix in PREFIXES.items():
         names = {}

@@ -56,7 +56,12 @@ def load_keystream(path: Path) -> bytes:
 
 
 def xor_at(ks: bytes, pos: int, data: bytes) -> bytes:
-    return bytes(b ^ ks[(pos + i) & 4095] for i, b in enumerate(data))
+    if not data:
+        return b''
+    # One big-integer XOR instead of a per-byte loop: text packs are ~35 MB.
+    start = pos & (KEYSTREAM_SIZE - 1)
+    stream = (ks * ((start + len(data)) // KEYSTREAM_SIZE + 1))[start:start + len(data)]
+    return (int.from_bytes(data, 'little') ^ int.from_bytes(stream, 'little')).to_bytes(len(data), 'little')
 
 
 def comp_candidates(plain: bytes) -> list[bytes]:

@@ -76,6 +76,20 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
 - **Desenho proposto:** uma camada de linhas adicionadas, como a `lab_content_additions.json` já usada nas lojas. As mesmas linhas de `ItemClassInfo`/`EquipItemInfo` são acrescentadas no fim da projeção de cada exportador de item (catálogo, estatísticas, cores, economia, perfil de equipamento, catálogo do painel e nomes), mantendo o hash do banco de origem. No cliente, `apply_lab_content_additions.py` grava as linhas no `heroes.db3`, o texto entra pelo pacote refeito (`scripts/client/hfs.py`) e o ícone vai solto.
 - **Pendente:** decidir o momento. A camada toca exportadores compartilhados, e em 26/10/2026 outra sessão corrigia a criação de personagem e o Check de nome (com mudanças em `export_fiona_initializer.py` e em `src/`).
 
+**Implementação de laboratório (26/10/2026):**
+
+- **Servidor:** `scripts/content/content_additions.py` abre o `heroesContents.db3` do servidor só para leitura e põe na frente de `ItemClassInfo`, `EquipItemInfo`, `CustomizeDefaultInfo` e `CustomizePriceInfo` uma `TEMP VIEW` com as linhas originais seguidas das adicionadas. As adicionadas copiam todas as linhas do item-modelo, com `ItemClass` trocado e as colunas de `set` alteradas. Os 18 exportadores usam `content_additions.connect`: o arquivo e o hash do banco não mudam, e todas as projeções ganham as mesmas linhas no fim. Reexportados 13 arquivos (`item-catalog`, `item-stats`, `item-colors`, `item-economy`, `item-enhance`, `npc-scripts`, `random-item`, `cash-shop`, `item-names`, `panel-catalog`, `normal-equipment-profile-v4`, `fiona-appearance-inventory` e `fiona-inventory`). A comparação com os anteriores mostrou só acréscimos. Os dois últimos são obrigatórios: o servidor confere que a aparência e o inventário têm o tamanho do catálogo (sem eles, `invalid private minimum creation assets`). Backup dos anteriores em `.cache/private-content-items-backup`.
+- **Itens (`scripts/content/item_additions.json`):**
+  - `fiona_inner_fringe` (corte 1): `CostumeType` 16 (`fiona_inner_fringe.mdl`, modelo e ícone já existentes) e texto novo.
+  - `fiona_inner_zero` (teste do corte 2): `CostumeType` 9100 e entrada nova no `inner_armor` do `player_costume.txt`. O modelo e as texturas foram fornecidos pelo operador e ficam em `.cache/private-assets/inner_zero`, fora do Git. O modelo vai num pacote novo, parte 14 de `models/player/fiona`, e as texturas na pasta nova `materials/models/player/fiona/fiona_inner_zero`. **Atenção:** o `.mdl` é da versão 48, e os 16.802 modelos do 1.69 são da 44. VVD v4, VTX v7 e VTF 7.2 são iguais aos do 1.69. Se o motor recusar a v48, o modelo não aparece; nesse caso, a próxima etapa é converter o cabeçalho ou recompilar para v44.
+- **Cliente:** `scripts/client/apply_lab_content_additions.py --apply` (também rodado pelo `start-lab.bat`) grava as linhas no `sql/heroes.db3`. Ele refaz, a partir de `lab-backup/`, os pacotes de texto em inglês (nome e descrição) e o de scripts (`player_costume.txt`), cria os pacotes dos arquivos do item e sincroniza o índice HFS (`scripts/client/hfs.py`, cujo XOR passou a ser feito por inteiro grande: 2,5 s para tudo). Sem itens, ele volta aos originais e apaga os pacotes criados. A tabela de 4.096 bytes fica em `<cópia>/hfs-keystream.bin`, fora do Git.
+- **Testes:** `scripts/content/test_content_additions.py` (5) e `scripts/client/test_apply_lab_hfs.py` (3), com bancos e pacotes sintéticos. As suítes `scripts/content` (65) e `scripts/client` passam.
+- **Teste no cliente (pendente):**
+  1. Pelo painel, dar `fiona_inner_fringe` e `fiona_inner_zero` à Fiona.
+  2. No jogo, conferir o nome e o ícone na bolsa.
+  3. Vestir cada um e conferir o modelo: o fringe deve aparecer sem meias; o zero, com o modelo novo.
+  4. Relogar e conferir que continuam lá.
+
 ### 3.2 Corte 2, modelo novo por classe (I3–I5)
 
 Para cada uma das 10 classes do cliente (corpo e esqueleto próprios em `models/player/<classe>/`):

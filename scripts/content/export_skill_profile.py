@@ -1,5 +1,6 @@
 """Readonly, source-bound skill rank/constraint metadata for an explicit skill subset."""
 import argparse, contextlib, json, pathlib, sqlite3
+import content_additions
 from export_item_catalog import read_package as catalog_read, digest
 from export_npc_scripts import region_features
 from export_reward_policy import feature_atoms
@@ -33,7 +34,7 @@ def read_package(database, config, selected):
         if v in (0, 1): return bool(v)
         if v in ('True', 'False'): return v == 'True'
         raise ValueError('Skill bool type')
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.row_factory = sqlite3.Row
         # GetTable reads the provider row order; ToDouble*Dictionary keeps the last
         # duplicate, so every selected row is exported in that order.
@@ -57,7 +58,7 @@ def read_package(database, config, selected):
     atoms = set()
     for r in ranks: atoms |= feature_atoms(r['feature'] or '')
     if len(atoms) > 256 or any(not k.isascii() or not k or len(k) > 256 for k in atoms): raise ValueError('Skill feature subset bound')
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         values = region_features(db, config)
     features = [dict(key=k, value=values.get(k)) for k in sorted(atoms)]
     if any(f['value'] is not None and (not isinstance(f['value'], str) or len(f['value']) > 256) for f in features):

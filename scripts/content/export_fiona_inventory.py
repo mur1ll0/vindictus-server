@@ -1,5 +1,6 @@
 """Read-only finite normal-Fiona inventory profile; raw data stays in private cache."""
 import argparse,contextlib,json,pathlib,re,sqlite3
+import content_additions
 from export_item_catalog import read_package as catalog_read,digest
 import export_reward_policy as reward
 EXTRA=['BundleExceed','MaxDurabilityLimit','CheckEquipItemInfoVaild','AvatarSynthesis_V2','ingame_cashshop_tircoin_system']
@@ -19,7 +20,7 @@ def read_package(database,config,constants):
  def integer(v):
   if type(v)is not int or not -(2**31)<=v<2**31:raise ValueError('Profile integer bound')
   return v
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   cur=db.execute('SELECT * FROM ItemClassInfo');cols=[c[0]for c in cur.description]
   for index,row in enumerate(cur):

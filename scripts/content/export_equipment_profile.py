@@ -1,6 +1,7 @@
 """Readonly, source-bound normal-equipment metadata for an explicit class subset or for
 every ItemClassInfo class (items obtained in play, such as mission drops)."""
 import argparse, contextlib, json, pathlib, sqlite3
+import content_additions
 from export_item_catalog import read_package as catalog_read, digest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -8,7 +9,7 @@ MANIFEST = ROOT / 'src/domain/equipped_gear_sources.json'
 
 def all_classes(database):
     """Every non-null ItemClassInfo.ItemClass, UTF-16LE hex, first occurrence order."""
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         seen = {}
         for (value,) in db.execute('SELECT ItemClass FROM ItemClassInfo'):
             if isinstance(value, str):
@@ -38,7 +39,7 @@ def read_package(database, config, selected, limit=4096):
         if type(v) is not int or not -(2**31) <= v < 2**31:
             raise ValueError('Equipment Int32 type/range')
         return v
-    with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro', uri=True)) as db:
+    with contextlib.closing(content_additions.connect(database)) as db:
         db.row_factory = sqlite3.Row
         classes=[]; equips=[]
         for i, row in enumerate(db.execute('SELECT * FROM ItemClassInfo')):

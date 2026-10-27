@@ -6,6 +6,7 @@ switch and the CharacterClassInfo rows GetCharacterStats reads. FeatureMatrix va
 request feature travel with the file so they are evaluated in the loaded region.
 """
 import argparse,contextlib,json,pathlib,re,sqlite3
+import content_additions
 from export_item_catalog import digest
 import export_reward_policy as reward
 CLASSES=range(10)
@@ -29,7 +30,7 @@ def inners(implementation):
 def read_package(database,config,implementation):
  before=(digest(database),digest(config),digest(implementation))
  inner=inners(implementation);wanted=set();classes=[]
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   defaults=list(db.execute('SELECT CharacterClass,ItemClass,ItemNum,Feature FROM DefaultItemInfo'))
   stats=list(db.execute('SELECT Identifier,Level,Feature,BaseSTR,BaseDEX,BaseINT,BaseWILL,BaseHP,BaseSTAMINA FROM CharacterClassInfo'))

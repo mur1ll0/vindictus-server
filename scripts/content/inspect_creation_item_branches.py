@@ -4,11 +4,12 @@ raw variable/category row is counted even if disabled. Extra customization grant
 are outside this report. No item names, categories or numeric stats are emitted.
 """
 import contextlib,json,pathlib,sqlite3
+import content_additions
 from export_item_catalog import digest
 
 def inspect(database,config):
  before=(digest(database),digest(config))
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   requests=[]
   for row in db.execute('SELECT ItemClass FROM DefaultItemInfo WHERE CharacterClass IN(1,255)'):

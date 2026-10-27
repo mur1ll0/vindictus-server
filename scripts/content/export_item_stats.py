@@ -1,5 +1,6 @@
 """Read-only equipment stats sidecar; same snapshot and row order as the catalog projection."""
 import argparse,contextlib,json,pathlib,sqlite3,struct
+import content_additions
 from export_item_catalog import read_package as read_catalog,digest
 STATS=['STR','DEX','INT','LUCK','WILL','HP','STAMINA','ATK','DEF','MATK','ATK_Speed','Critical','Balance','Res_Critical','PVP_ATK','PVP_MATK','PVP_DEF','TOWN_SPEED']
 def read_package(database,config):
@@ -7,7 +8,7 @@ def read_package(database,config):
  def integer(v):
   if type(v)is not int or not -(2**31)<=v<2**31:raise ValueError('Equipment stat integer type/range')
   return v
- with contextlib.closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True))as db:
+ with contextlib.closing(content_additions.connect(database))as db:
   db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   cursor=db.execute('Select * From [EquipItemInfo]');cols=[c[0]for c in cursor.description]
   if not set(STATS+['MaxDurability','Weight','ArmorHP']).issubset(cols):raise ValueError('Missing equipment stat columns')
