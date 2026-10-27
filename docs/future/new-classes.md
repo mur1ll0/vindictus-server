@@ -96,3 +96,46 @@ Custo: um projeto novo, de vários blocos, com o maior risco técnico de todos o
 - O tamanho da diferença de protocolo entre o 1.69 e o NA (só hipótese).
 - O que há na pasta `models/player/delia` do 1.69 (não aberta).
 - Os nomes das segundas armas do Hurk e da Lynn, que dependem do banco do NA.
+
+## 7. Caminho C, etapa C1: leitura do NA (27/10/2026) — fracasso
+
+Pedido do operador: decifrar os pacotes do NA só para leitura, com ferramentas públicas revisadas. Nenhum arquivo do NA foi extraído, copiado ou executado. Os downloads, o programa de teste e os logs ficaram em `.cache`, que é ignorada pelo Git.
+
+### 7.1 Ferramentas testadas
+
+| Ferramenta | Origem | O que é | Resultado no NA |
+|---|---|---|---|
+| HFSExtract 0.2.1 ("HFS 2 Hotfix 1", 07/04/2022) | `github.com/yretenai/HFSExtract` (hoje `neptuwunium/HFSExtract`, arquivado), branch `HFS-v2`, clonado em `.cache/hfsextract-src` | C#, cerca de 600 linhas, só cálculo (sem rede, processos ou registro). A classe `HFSSerpent` é, na verdade, uma cifra de fluxo da família SNOW/Sosemanuk. A chave do cabeçalho, da tabela e de cada arquivo vem do nome `<SHA1>_%05d.hfs` e da constante `MBHEROES!@0u9`. O CLI original não valida o cabeçalho decifrado e grava caminhos do pacote sem sanitizar, por isso não foi executado. | Cabeçalho inválido nos 11 pacotes testados (`checksum ≠ count + version`, contagens negativas ou na casa dos bilhões) |
+| HFSTest (último push em 15/05/2023) | `github.com/DStarxing/HFSTest`, baixado com autorização do operador em `.cache/hfstest-src` (7 arquivos de código) | Mesmo código do HFS v2, com uma tentativa de descobrir a constante do formato "novo" de 2023 por força bruta (`MBHEROES00000`) | Sem efeito: a chave do cabeçalho só usa os 16 primeiros bytes da chave, que vêm do nome do arquivo, então a constante não muda o cabeçalho; resultado idêntico |
+
+O programa de teste próprio (`.cache/hfs-probe`, .NET 8, só leitura) compila apenas as classes de cifra do HFSExtract. Além da posição esperada, ele procurou um cabeçalho válido em cada uma das 4.096 primeiras posições de 6 pacotes: nenhum acerto.
+
+### 7.2 O que o formato atual mostra (medição pontual, sem análise completa)
+
+- **Pacotes:** tamanhos múltiplos de 1.024; entropia por bloco de 4 KB entre 7,81 e 7,95, o esperado para dados cifrados.
+- **Blocos repetidos:** há blocos de 16 bytes repetidos, alinhados, em 4 de 5 pacotes amostrados (até 1.007 repetições num pacote). Em fluxo aleatório isso é impossível. **Hipótese:** cifra de bloco de 128 bits em modo ECB, ou com o mesmo IV por bloco; texto claro igual (preenchimento, zeros) gera cifrado igual. É coerente com o AES do Crypto++ e com o relato do ResHax (pacotes recifrados em 2025).
+- **`FileSystem_Stdio.dll` do NA** (3,4 MB; seção `.vmp0` de 580 KB, compilado em `Z:\187B\global\HeroesCode\…\filesystem_stdio_heroes`):
+  - **Strings de pacote:** `hfs\%s.hfs`, `Failed to LoadPknSync Package_Exception`, a mensagem de erro com SHA-256 por arquivo, e os tipos `Lambda::PackageHeader`, `PackageHeader2` e `PackageHeader3`.
+  - **Crypto++:** filtros autenticados (`AuthenticatedDecryptionFilter`), modos de bloco, assinaturas DSA/ECDSA e uma chave pública EC em hexadecimal (`0x24b5f8`, 210 caracteres; serve para verificar assinatura, não para decifrar).
+  - **Ofuscação:** 199 nomes de classe do Crypto++ estão ofuscados (`.?AV<aleatório>@@@CryptoPP@@`).
+  - **Chave:** nenhuma chave simétrica ou constante de derivação em claro, ao contrário do formato v2 (`MBHEROES!@0u9`).
+- **Conclusão:** recuperar a chave exigiria engenharia reversa do código protegido por VMProtect (estática profunda) ou execução do DLL do NA para observar a chave (emulador ou depurador). As duas coisas estão fora da autorização atual.
+
+### 7.3 Outras pistas públicas não usadas
+
+- **"HFS Extractor v4", de Kudv (RaGEZONE):** diz abrir o formato atual dos clientes TW e US. O tópico pede cadastro (HTTP 403 sem login) e, pelo que a listagem mostra, distribui um executável. Executável sem fonte não pode ser revisado, por isso não foi baixado.
+- **ZenHAX, tópico 9175:** trata da recifragem de 2021 (resolvida pelo HFS v2), não da de 2025.
+
+### 7.4 Critério de fracasso
+
+O C1 não decifrou os pacotes do NA com nenhuma ferramenta revisada. Pelo critério do pedido, o caminho C para aqui. O C2 e o C3 não foram iniciados. O plano do caminho B (seção 4.B) foi apresentado ao operador, sem ser iniciado.
+
+### 7.5 O que continua possível sem ler o NA
+
+A maior parte do C2 não depende do NA:
+- o conteúdo da Delia no 1.69;
+- a pasta `models/player/delia` do 1.69;
+- as guardas do servidor Rust;
+- a leitura pontual da tabela de classes e do caminho da Hagie no `client.dll` 1.69.
+
+Só a comparação de assets e de linhas com o NA fica perdida. Retomar o C2 assim é decisão do operador.

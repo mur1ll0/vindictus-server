@@ -1677,3 +1677,11 @@ B4.8 — Pontos de extensão e gate do B4 (27/10/2026).
   - Smoke Docker (`scripts/dev/smoke-docker.ps1`): exit 0 (migrate, readiness, criação por stdin, duplicata recusada, usuário sem superuser, persistência após reiniciar PostgreSQL e server). `game` e `server` saudáveis e o painel responde. Imagens compiladas no B4.6 (`COMPOSE_PARALLEL_LIMIT=1`); depois disso só mudaram formatação, documentos e testes, então não foram recompiladas.
 - Cliente: roteiro `docs/client-tests/B4-painel.md` completo (preparação, ordem de gameplay, como relatar); B4.2-L aceito pelo operador em 26/10/2026, as demais entradas aguardam a sessão.
 - Próxima ação retomável: sessão de gameplay do operador pelo roteiro do B4; em paralelo, a investigação do caminho C (Delia a partir do cliente NA, `docs/future/new-classes.md`) numa sessão própria. Depois, B5.
+
+Caminho C, etapa C1 — leitura do cliente NA (27/10/2026, pedido do operador; sem mudança de código) — fracasso.
+- Ferramentas: HFSExtract 0.2.1 (código-fonte do GitHub, branch `HFS-v2`, revisado: só cálculo, cifra de fluxo SNOW/Sosemanuk com chave derivada do nome do pacote) e HFSTest (DStarxing, código-fonte de 2023, baixado com autorização do operador; tenta a constante `MBHEROES00000`). Um programa de teste próprio, só leitura (`.cache/hfs-probe`), usa as classes de cifra delas sem o CLI original, que grava caminhos sem sanitizar.
+- Evidência: cabeçalho v2 inválido nos 11 pacotes testados do NA e nenhum cabeçalho válido nas 4.096 primeiras posições de 6 pacotes. Blocos de 16 bytes repetidos em 4 de 5 pacotes (**hipótese:** AES em ECB). O `FileSystem_Stdio.dll` do NA tem `PackageHeader2/3`, Crypto++ com 199 nomes de classe ofuscados e VMProtect, e nenhuma chave em claro. Logs: `.cache/verification/c1-*.log`. Detalhes em `docs/future/new-classes.md`, seção 7.
+- Pista não usada: "HFS Extractor v4" (Kudv, RaGEZONE), atrás de cadastro e distribuído como executável sem fonte.
+- Conclusão: critério de fracasso do caminho C atingido no C1; C2 e C3 não iniciados. Plano do caminho B apresentado ao operador e não iniciado.
+- Cliente: não necessário.
+- Próxima ação retomável: decisão do operador entre o caminho B, o C2 só com o 1.69 (sem os dados do NA) e encerrar o caminho C; sem essa decisão, a sessão de gameplay do roteiro do B4 e depois o B5.
