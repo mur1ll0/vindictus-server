@@ -60,18 +60,21 @@ pub async fn query(
     delete_delay: i32,
     mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
 ) -> Result<Zeroizing<Vec<u8>>, MinimumError> {
-    let ids: Vec<i64> = sqlx::query_scalar(
-        "SELECT id FROM game_character_info WHERE uid=$1 ORDER BY character_sn LIMIT 2",
-    )
-    .bind(owner.uid)
-    .fetch_all(pool)
-    .await?;
-    if ids.len() != 1 {
-        return Err(MinimumError::Conflict);
+    let ids = characters(pool, owner).await?;
+    let first = *ids.first().ok_or(MinimumError::Conflict)?;
+    let mut tx = state::owned_first_fiona(pool, owner, first).await?;
+    for cid in &ids[1..] {
+        // Same ownership lock for every listed character.
+        let owned: Option<i64> = sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 9 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE")
+            .bind(cid)
+            .bind(owner.uid)
+            .fetch_optional(&mut *tx)
+            .await?;
+        if owned.is_none() {
+            return Err(MinimumError::Conflict);
+        }
     }
-    let cid = ids[0];
-    let mut tx = state::owned_first_fiona(pool, owner, cid).await?;
-    let bytes = load(
+    let bytes = load_many(
         &mut tx,
         owner,
         profiles,
@@ -79,11 +82,27 @@ pub async fn query(
         config,
         delete_delay,
         &mut utc,
-        cid,
+        &ids,
     )
     .await?;
     tx.commit().await?;
     Ok(bytes)
+}
+/// The account's characters in list order (CharacterSN), bounded by the slot maximum.
+pub(super) async fn characters(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+) -> Result<Vec<i64>, MinimumError> {
+    let ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM game_character_info WHERE uid=$1 ORDER BY character_sn LIMIT 17",
+    )
+    .bind(owner.uid)
+    .fetch_all(pool)
+    .await?;
+    if ids.is_empty() || ids.len() > 16 {
+        return Err(MinimumError::Conflict);
+    }
+    Ok(ids)
 }
 /// Builds the summary while the caller retains ownership and character locks.
 #[allow(clippy::too_many_arguments)]
@@ -94,9 +113,100 @@ pub(super) async fn load(
     progression: Option<&crate::domain::progression::Progression>,
     config: QueryConfig,
     delete_delay: i32,
-    mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
+    utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
     cid: i64,
 ) -> Result<Zeroizing<Vec<u8>>, MinimumError> {
+    load_many(
+        tx,
+        owner,
+        profiles,
+        progression,
+        config,
+        delete_delay,
+        utc,
+        &[cid],
+    )
+    .await
+}
+/// The texts a summary borrows: name, quote and free title.
+type Texts = [Option<Zeroizing<String>>; 3];
+#[allow(clippy::too_many_arguments)]
+async fn load_many(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    profiles: Initializers<'_>,
+    progression: Option<&crate::domain::progression::Progression>,
+    config: QueryConfig,
+    delete_delay: i32,
+    mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
+    cids: &[i64],
+) -> Result<Zeroizing<Vec<u8>>, MinimumError> {
+    let mut texts: Vec<Texts> = Vec::with_capacity(cids.len());
+    let mut summaries: Vec<Summary<'static>> = Vec::with_capacity(cids.len());
+    for &cid in cids {
+        let (t, summary) = entry(
+            tx,
+            owner,
+            profiles,
+            progression,
+            delete_delay,
+            &mut utc,
+            cid,
+        )
+        .await?;
+        texts.push(t);
+        summaries.push(summary);
+    }
+    let (purchased, premium, prologue, preset) = character_lobby::filled_header(
+        tx,
+        owner.uid,
+        QueryConfig {
+            max_free: config.max_free,
+            care_clock: config.care_clock,
+        },
+    )
+    .await
+    .map_err(|_| MinimumError::Conflict)?;
+    let characters = texts
+        .iter()
+        .zip(summaries)
+        .map(|([name, quote, free_title], s)| {
+            Some(Summary {
+                character_id: name.as_deref().map(|s| s.as_str()),
+                quote: quote.as_deref().map(|s| s.as_str()),
+                free_title_name: free_title.as_deref().map(|s| s.as_str()),
+                ..s
+            })
+        })
+        .collect::<Vec<_>>();
+    let states = vec![0; characters.len()];
+    let bytes = character_list::encode(
+        Some(&character_list::Message {
+            characters: Some(characters),
+            max_free: config.max_free,
+            max_purchased: purchased,
+            max_premium: premium,
+            prologue_played: u8::from(prologue),
+            preset_used: preset,
+            // CharacterList.OnEnter adds one None (0) state per character even
+            // with CombatRejoinSystem disabled. The native lobby indexes by row.
+            party_states: Some(states),
+        }),
+        DEFAULT_MAX_BODY,
+    )
+    .map_err(|_| MinimumError::Conflict)?;
+    Ok(bytes)
+}
+/// One character's summary; its texts are returned apart and borrowed by the caller.
+async fn entry(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
+    profiles: Initializers<'_>,
+    progression: Option<&crate::domain::progression::Progression>,
+    delete_delay: i32,
+    utc: &mut impl FnMut() -> Result<SqlDateTime2, MinimumError>,
+    cid: i64,
+) -> Result<(Texts, Summary<'static>), MinimumError> {
     let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
     // The marker records the initializer of the character's class.
     let profile = match &marker {
@@ -120,29 +230,19 @@ pub(super) async fn load(
         .transpose()
         .and_then(|d| d.map(|d| d.framework_date_time()).transpose())
         .map_err(|_| MinimumError::Conflict)?;
-    let wait = delete_wait(delete_delay, delete, &mut utc)?;
+    let wait = delete_wait(delete_delay, delete, &mut *utc)?;
     let micro:Option<(i32,i32)>=sqlx::query_as("SELECT daily_micro_play_count,daily_free_play_count FROM game_micro_play_status WHERE cid=$1").bind(cid).fetch_optional(&mut **tx).await?;
     let (daily, free) = micro.unwrap_or((0, 0));
     let set = super::character_costumes::load_for_constructor(tx, cid)
         .await
         .map_err(|_| MinimumError::Conflict)?;
     let costume = lobby_costume::project(&set).map_err(|_| MinimumError::Conflict)?;
-    let (purchased, premium, prologue, preset) = character_lobby::filled_header(
-        tx,
-        owner.uid,
-        QueryConfig {
-            max_free: config.max_free,
-            care_clock: config.care_clock,
-        },
-    )
-    .await
-    .map_err(|_| MinimumError::Conflict)?;
     // Optional guild/pet/event/arena services are explicitly deferred by this native profile.
     // These are initial native fields,not a general projection of existing legacy characters.
     let summary = Summary {
         cid,
         nexon_sn: owner.uid,
-        character_id: name.as_deref().map(|s| s.as_str()),
+        character_id: None,
         character_sn: info.try_get("character_sn")?,
         base_character: u8::try_from(info.try_get::<i16, _>("class")?)
             .map_err(|_| MinimumError::Conflict)?,
@@ -162,7 +262,7 @@ pub(super) async fn load(
         costume: Some(costume),
         daily_micro_play_count: daily,
         daily_free_play_count: free,
-        quote: quote.as_deref().map(|s| s.as_str()),
+        quote: None,
         total_used_ap: info.try_get("total_used_ap")?,
         guild_id: 0,
         guild_name: Some(""),
@@ -182,26 +282,11 @@ pub(super) async fn load(
         free_match_win_count: info.try_get("free_match_win_count")?,
         free_match_lose_count: info.try_get("free_match_lose_count")?,
         is_event_jumping: false,
-        free_title_name: free_title.as_deref().map(|s| s.as_str()),
+        free_title_name: None,
         pattern: 0,
         arena_win_count: 0,
         arena_lose_count: 0,
         arena_successive_win_count: 0,
     };
-    let bytes = character_list::encode(
-        Some(&character_list::Message {
-            characters: Some(vec![Some(summary)]),
-            max_free: config.max_free,
-            max_purchased: purchased,
-            max_premium: premium,
-            prologue_played: u8::from(prologue),
-            preset_used: preset,
-            // CharacterList.OnEnter adds one None (0) state per character even
-            // with CombatRejoinSystem disabled. The native lobby indexes by row.
-            party_states: Some(vec![0]),
-        }),
-        DEFAULT_MAX_BODY,
-    )
-    .map_err(|_| MinimumError::Conflict)?;
-    Ok(bytes)
+    Ok(([name, quote, free_title], summary))
 }

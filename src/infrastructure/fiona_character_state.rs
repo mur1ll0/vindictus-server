@@ -517,16 +517,8 @@ pub(crate) async fn owned_first_fiona<'p>(
     if owned.is_none() {
         return Err(StateError::Ownership);
     }
-    let others: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM game_character_info WHERE uid=$1 AND id<>$2)",
-    )
-    .bind(key.uid)
-    .bind(cid)
-    .fetch_one(&mut *tx)
-    .await?;
-    if others {
-        return Err(StateError::Profile);
-    }
+    // Other characters of the account are allowed: every lab character carries its own
+    // initialization marker, and account-wide state is checked where it is shared.
     Ok(tx)
 }
 /// Original MissionBook constructor precedes Stats. The clear time is the recovered

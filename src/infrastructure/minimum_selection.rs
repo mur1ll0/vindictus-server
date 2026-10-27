@@ -52,19 +52,12 @@ pub async fn select(
     config: QueryConfig,
     arithmetic: Arithmetic,
 ) -> Result<Selected, MinimumError> {
-    if index != 0 {
-        return Err(MinimumError::Conflict);
-    }
-    let ids: Vec<i64> = sqlx::query_scalar(
-        "SELECT id FROM game_character_info WHERE uid=$1 ORDER BY character_sn LIMIT 2",
-    )
-    .bind(owner.uid)
-    .fetch_all(pool)
-    .await?;
-    if ids.len() != 1 {
-        return Err(MinimumError::Conflict);
-    }
-    let cid = ids[0];
+    // The list row the client chose (CharacterSN order, as the list sends it).
+    let ids = super::minimum_character_list::characters(pool, owner).await?;
+    let cid = *usize::try_from(index)
+        .ok()
+        .and_then(|i| ids.get(i))
+        .ok_or(MinimumError::Conflict)?;
     let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
     let row = sqlx::query(
         "SELECT dirty,region_code,map_state_info,is_connected,level,class::integer AS class FROM game_character_info WHERE id=$1",

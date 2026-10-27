@@ -65,11 +65,14 @@ pub(super) fn assets() -> Arc<Assets> {
     )
 }
 pub(super) fn body() -> zeroize::Zeroizing<Vec<u8>> {
+    body_named("Murael")
+}
+pub(super) fn body_named(name: &str) -> zeroize::Zeroizing<Vec<u8>> {
     let i = fixture::AppearanceInputs::new();
     wire::encode(
         Kind::Create,
         Some(&Message::Create {
-            name: Some("Murael"),
+            name: Some(name),
             template: Some(i.template),
             preset: false,
             premium: false,
@@ -412,6 +415,36 @@ async fn minimum_lifecycle_create_returns_list_and_compensates_late_failure_befo
         decoded.characters.unwrap()[0].as_ref().unwrap().cid,
         created.cid
     );
+    // A second character of the same account: the list returns both, in CharacterSN order.
+    let outcome = runtime
+        .run_minimum_admitted(
+            &session,
+            MinimumRequest {
+                name: "Lucanor",
+                body: body_named("Lucanor"),
+                ..request()
+            },
+        )
+        .await;
+    let second = match outcome {
+        Ok(MinimumOutcome::Created(c)) => c,
+        Ok(MinimumOutcome::Rejected(r)) => panic!("second create rejected {r:?}"),
+        Ok(MinimumOutcome::InitializationFailed(r)) => panic!("second create failed {r:?}"),
+        Err(e) => panic!("second create error {e}"),
+    };
+    let decoded = character_list::decode(&second.body, DEFAULT_MAX_BODY)
+        .unwrap()
+        .unwrap();
+    let names = decoded
+        .characters
+        .unwrap()
+        .into_iter()
+        .map(|c| c.unwrap().character_id.map(str::to_owned))
+        .collect::<Vec<_>>();
+    assert_eq!(names.len(), 2);
+    assert!(names.contains(&Some("Murael".to_owned())));
+    assert!(names.contains(&Some("Lucanor".to_owned())));
+    assert_eq!(decoded.party_states.as_deref(), Some([0, 0].as_slice()));
     runtime.shutdown().await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }
