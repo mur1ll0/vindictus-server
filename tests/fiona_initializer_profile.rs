@@ -65,9 +65,6 @@ fn private_profile_rejects_changed_evidence_and_unsupported_effects() {
     x["implementations"]["stats"] = json!("0".repeat(64));
     cases.push(x);
     let mut x = v.clone();
-    x["skills"][0]["constraints"] = json!([{"id_utf16":"4100","rank":1}]);
-    cases.push(x);
-    let mut x = v.clone();
     x["skills"][0]["status_effect_types"] = json!(["synthetic-effect", null, null]);
     cases.push(x);
     let mut x = v.clone();
@@ -97,6 +94,54 @@ fn private_profile_rejects_changed_evidence_and_unsupported_effects() {
     for (i, x) in cases.iter().enumerate() {
         assert!(read(x).is_err(), "case {i}");
     }
+}
+#[test]
+fn default_skills_follow_constraint_passed_for_the_profile_class() {
+    // GiveSkill skips a skill whose ConstraintPassed fails; creation continues.
+    let mut v = synthetic();
+    v["skills"][0]["constraints"] = json!([{"id_utf16":"4100","rank":1}]);
+    assert!(read(&v).unwrap().skills().is_empty());
+    let second = |constraint_rank: i32| {
+        let mut s = synthetic()["skills"][0].clone();
+        s["id_utf16"] = json!("42007a00");
+        s["constraints"] = json!([{"id_utf16":"530079006e00","rank":constraint_rank}]);
+        s
+    };
+    for (rank, given) in [(2, 2), (3, 1)] {
+        let mut v = synthetic();
+        v["skills"].as_array_mut().unwrap().push(second(rank));
+        assert_eq!(read(&v).unwrap().skills().len(), given, "rank {rank}");
+    }
+    // Already_Learnt: the same SkillID twice is given once.
+    let mut v = synthetic();
+    let again = v["skills"][0].clone();
+    v["skills"].as_array_mut().unwrap().push(again);
+    assert_eq!(read(&v).unwrap().skills().len(), 1);
+    // LevelConstraint above level 1.
+    let mut v = synthetic();
+    v["skills"][0]["level_constraint"] = json!(2);
+    assert!(read(&v).unwrap().skills().is_empty());
+    // An active skill (UseType != 0) is given and goes to an empty SP slot.
+    let mut v = synthetic();
+    v["skills"][0]["use_type"] = json!(1);
+    let p = read(&v).unwrap();
+    assert!(p.skills()[0].active());
+    assert_eq!(p.character_class(), 1);
+    // Another BaseCharacter uses its own class bit for skills and presets.
+    let mut v = synthetic();
+    v["character_class"] = json!(2);
+    let p = read(&v).unwrap();
+    assert_eq!(p.character_class(), 2);
+    assert!(p.skills().is_empty());
+    assert!(p.preset_ids().is_empty());
+    v["skills"][0]["class_restriction"] = json!(4);
+    v["presets"][1]["class_restriction"] = json!(4);
+    v["title_info"][1]["class_restriction"] = json!(4);
+    let p = read(&v).unwrap();
+    assert_eq!(p.skills().len(), 1);
+    assert_eq!(p.preset_ids(), [18]);
+    v["character_class"] = json!(10);
+    assert!(read(&v).is_err());
 }
 #[test]
 fn recorded_comparisons_are_bounded_conflict_checked_and_instance_local() {

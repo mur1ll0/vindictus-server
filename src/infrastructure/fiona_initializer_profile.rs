@@ -56,10 +56,8 @@ struct Title {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Constraint {
-    #[serde(rename = "id_utf16")]
-    _id_utf16: PrivateText,
-    #[serde(rename = "rank")]
-    _rank: i32,
+    id_utf16: PrivateText,
+    rank: i32,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -106,6 +104,9 @@ struct Attendance {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Export {
+    /// BaseCharacter of the profile; the first exports (Fiona) carry none.
+    #[serde(default = "fiona")]
+    character_class: u8,
     format_version: u32,
     source: String,
     database_sha256: String,
@@ -121,6 +122,9 @@ struct Export {
     title_info: Vec<Title>,
     skills: Vec<Skill>,
     attendance: Vec<Attendance>,
+}
+fn fiona() -> u8 {
+    1
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -158,6 +162,8 @@ pub struct InitialSkill {
     arguments: Vec<crate::domain::skill_runtime::Argument>,
     item_callback: bool,
     stat_callback: bool,
+    /// SkillInfo.IsActiveSkill (UseType != 0): GiveSkill sets it to an empty SP slot.
+    active: bool,
 }
 impl InitialSkill {
     pub fn key(&self) -> &[u8] {
@@ -178,8 +184,12 @@ impl InitialSkill {
     pub fn stat_callback(&self) -> bool {
         self.stat_callback
     }
+    pub fn active(&self) -> bool {
+        self.active
+    }
 }
 pub struct Profile {
+    class: u8,
     fingerprint: [u8; 32],
     db: String,
     config: String,
@@ -350,22 +360,21 @@ impl Profile {
         if effective != initial {
             return Err(fail());
         }
+        if r.character_class > 9 {
+            return Err(fail());
+        }
+        // IsAvailableClass / ClassRestriction bit of this BaseCharacter.
+        let class_bit = 1_i32 << r.character_class;
         let presets = effective
             .into_iter()
-            .filter_map(|(id, class)| ((class & 2) != 0).then_some(id))
+            .filter_map(|(id, class)| ((class & class_bit) != 0).then_some(id))
             .collect();
         let mut seen = BTreeSet::new();
         let mut skills = Vec::new();
         for s in r.skills {
             let name = LegacyBytes::<50, true>::from_bytes(user_export::hex(s.id_utf16, 100)?)?;
             if name.as_bytes().is_empty()
-                || !seen.insert(name.as_bytes().to_vec())
                 || s.rank.checked_add(1).is_none()
-                || s.use_type != 0
-                || (s.class_restriction & 2) == 0
-                || s.level_constraint > 1
-                || !policy.is_enabled(s.rank_feature.as_deref())?
-                || !s.constraints.is_empty()
                 || s.status_effect_types.iter().any(Option::is_some)
                 || s.meditation
                 || s.argument_rows > 4096
@@ -374,6 +383,28 @@ impl Profile {
                 || s.next_rank.as_ref().is_some_and(|n| n.require_unlock)
             {
                 return Err(fail());
+            }
+            // CreateCharacterProcessor → GiveSkill: ConstraintPassed (rank feature, class, level 1,
+            // required ranks of the skills given so far), then Already_Learnt. A refused
+            // default skill is skipped with a warning in the source, never a creation failure.
+            let mut required = Vec::with_capacity(s.constraints.len());
+            for c in s.constraints {
+                required.push((user_export::hex(c.id_utf16, 100)?, c.rank));
+            }
+            let constraints_passed = required.iter().all(|(id, rank)| {
+                skills
+                    .iter()
+                    .find(|k: &&InitialSkill| k.key.as_bytes() == id.as_slice())
+                    .map_or(0, |k| k.rank)
+                    >= *rank
+            });
+            if !policy.is_enabled(s.rank_feature.as_deref())?
+                || (s.class_restriction & class_bit) == 0
+                || s.level_constraint > 1
+                || !constraints_passed
+                || !seen.insert(name.as_bytes().to_vec())
+            {
+                continue;
             }
             let required_ap = s
                 .next_rank
@@ -395,6 +426,7 @@ impl Profile {
                 required_ap,
                 item_callback: s.item_callback,
                 stat_callback: s.stat_callback,
+                active: s.use_type != 0,
             });
         }
         let mut attendance = BTreeMap::new();
@@ -419,6 +451,7 @@ impl Profile {
             BaseLoad::from_bits(u64::from_str_radix(&r.base_load_bits, 16).map_err(|_| fail())?)
                 .map_err(|_| fail())?;
         Ok(Self {
+            class: r.character_class,
             fingerprint: Sha256::digest(&*data).into(),
             db: r.database_sha256,
             config: r.config_sha256,
@@ -439,6 +472,10 @@ impl Profile {
             return Err(fail());
         };
         Ok(())
+    }
+    /// The BaseCharacter this profile initializes.
+    pub fn character_class(&self) -> u8 {
+        self.class
     }
     pub fn fingerprint(&self) -> &[u8; 32] {
         &self.fingerprint
@@ -500,5 +537,26 @@ impl Profile {
             }
         }
         Ok(())
+    }
+}
+/// The initializer profiles by BaseCharacter: the Fiona one and the other exported classes.
+#[derive(Clone, Copy)]
+pub struct Initializers<'a> {
+    pub fiona: &'a Profile,
+    pub others: &'a BTreeMap<u8, Profile>,
+}
+impl<'a> Initializers<'a> {
+    pub fn get(&self, class: u8) -> Option<&'a Profile> {
+        if class == self.fiona.class {
+            Some(self.fiona)
+        } else {
+            self.others.get(&class)
+        }
+    }
+    /// The profile an initialization marker recorded.
+    pub fn by_fingerprint(&self, fingerprint: &[u8]) -> Option<&'a Profile> {
+        std::iter::once(self.fiona)
+            .chain(self.others.values())
+            .find(|p| p.fingerprint.as_slice() == fingerprint)
     }
 }

@@ -72,13 +72,18 @@ struct Request {
     key: Option<LegacyBytes<1024, true>>,
     num: i32,
     feature: Option<String>,
+    /// Already evaluated in the class-initial region (other classes); `None` uses `policy`.
+    enabled: Option<bool>,
 }
 pub struct Profile {
     db: String,
     config: String,
     pub policy: FeaturePolicy,
     classes: Vec<Class>,
+    /// DefaultItemInfo for BaseCharacter 1 (and 255).
     requests: Vec<Request>,
+    /// DefaultItemInfo of the other classes (class-initial contents).
+    class_requests: BTreeMap<u8, Vec<Request>>,
     variables: Vec<Option<LegacyBytes<1024, true>>>,
     gold: LegacyBytes<1024, true>,
     tircoin: LegacyBytes<1024, true>,
@@ -135,6 +140,7 @@ impl Profile {
                     key: item_catalog::opaque(r.item_utf16)?,
                     num: r.num,
                     feature: r.feature,
+                    enabled: None,
                 })
             })
             .collect::<Result<Vec<_>, Error>>()?;
@@ -166,6 +172,7 @@ impl Profile {
             config: raw.config_sha256,
             classes,
             requests,
+            class_requests: BTreeMap::new(),
             variables,
             gold,
             tircoin,
@@ -212,16 +219,46 @@ impl Profile {
         }
         Ok(())
     }
+    /// The initial requests of another BaseCharacter (class-initial contents).
+    pub fn add_class(&mut self, class: u8, requests: Vec<super::class_initial::ClassRequest>) {
+        self.class_requests.insert(
+            class,
+            requests
+                .into_iter()
+                .map(|r| Request {
+                    key: r.key,
+                    num: r.num,
+                    feature: None,
+                    enabled: Some(r.enabled),
+                })
+                .collect(),
+        );
+    }
+    pub fn has_class(&self, class: u8) -> bool {
+        class == 1 || self.class_requests.contains_key(&class)
+    }
     pub fn requests<'a>(
         &'a self,
+        class: u8,
         catalog: &'a Catalog,
         stats: &'a StatsCatalog<'a>,
         colors: &'a ColorCatalog<'a>,
     ) -> Result<Vec<InitialRequest<'a>>, Error> {
         self.bind(catalog)?;
+        let list = if class == 1 {
+            &self.requests
+        } else {
+            self.class_requests
+                .get(&class)
+                .ok_or(Error::FionaInventoryProfile)?
+        };
         let mut grouped: Vec<(usize, i32)> = Vec::new();
-        for (i, r) in self.requests.iter().enumerate() {
-            if !self.policy.is_enabled(r.feature.as_deref())? {
+        for (i, r) in list.iter().enumerate() {
+            let enabled = match r.enabled {
+                Some(enabled) => enabled,
+                None => self.policy.is_enabled(r.feature.as_deref())?,
+            };
+            if !enabled {
                 continue;
             }
             let key = r
@@ -229,9 +266,10 @@ impl Profile {
                 .as_ref()
                 .ok_or(Error::FionaInventoryProfile)?
                 .as_bytes();
-            if let Some((_, count)) = grouped.iter_mut().find(|(j, _)| {
-                self.requests[*j].key.as_ref().map(LegacyBytes::as_bytes) == Some(key)
-            }) {
+            if let Some((_, count)) = grouped
+                .iter_mut()
+                .find(|(j, _)| list[*j].key.as_ref().map(LegacyBytes::as_bytes) == Some(key))
+            {
                 *count = count.wrapping_add(r.num);
             } else {
                 grouped.push((i, r.num));
@@ -244,7 +282,7 @@ impl Profile {
         grouped
             .into_iter()
             .map(|(i, count)| {
-                let key = self.requests[i]
+                let key = list[i]
                     .key
                     .as_ref()
                     .ok_or(Error::FionaInventoryProfile)?

@@ -237,9 +237,11 @@ impl CreationRuntime {
         else {
             return Err(CreationRunError::Profile);
         };
-        if request_name != name || template.character_class != 1 {
+        // BaseCharacter with every initial content exported (initializer, items, INNERARMOR).
+        if request_name != name || !assets.supports_class(template.character_class) {
             return Err(CreationRunError::Profile);
         }
+        let class = template.character_class;
         let identity = session.accepted_identity()?;
         if session.accepted_permissions()?.has_cheat() || name.len() > 256 {
             return Err(CreationRunError::Profile);
@@ -266,6 +268,7 @@ impl CreationRuntime {
                 name,
                 tx,
                 MinimumJob {
+                    class,
                     assets,
                     body,
                     offset,
@@ -352,6 +355,7 @@ where
                 owner: owner.key(),
                 proof: &inner.proof,
                 name: &name,
+                class: 1,
             },
             &settings,
             &mut state.authority,
@@ -448,6 +452,7 @@ async fn worker_minimum(
     job: MinimumJob,
 ) -> bool {
     let MinimumJob {
+        class,
         assets,
         body,
         offset,
@@ -474,6 +479,7 @@ async fn worker_minimum(
                 owner: owner.key(),
                 proof: &inner.proof,
                 name: &name,
+                class,
             },
             &settings,
             &mut state.authority,
@@ -616,6 +622,7 @@ pub struct MinimumRequest<'a> {
     pub delete_delay: i32,
 }
 struct MinimumJob {
+    class: u8,
     assets: Arc<crate::infrastructure::minimum_assets::Assets>,
     body: Zeroizing<Vec<u8>>,
     offset: i32,

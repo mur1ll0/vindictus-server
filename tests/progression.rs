@@ -90,13 +90,13 @@ fn give_exp_follows_the_source_loop_level_table_and_max_level() {
     let g = capped.give_exp(0, 1, 5000).unwrap();
     assert_eq!((g.level, g.exp, g.level_up_exp), (2, 0, 1148));
     // GetCharacterStats falls back to level 1 for a missing class row.
-    assert_eq!(p.class_stats(4), p.class_stats(1));
+    assert_eq!(p.class_stats(1, 4), p.class_stats(1, 1));
 }
 
 #[test]
 fn level_up_stat_increase_and_titles_follow_the_source_order() {
     let p = Progression::load(tables(), &policy("90")).unwrap();
-    let increase = p.stat_increase(1, 3).unwrap();
+    let increase = p.stat_increase(1, 1, 3).unwrap();
     assert_eq!(increase.len(), STAT_NAMES.len());
     let get = |k: &str| increase.iter().find(|(n, _)| n == k).unwrap().1;
     assert_eq!(

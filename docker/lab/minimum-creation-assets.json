@@ -19,5 +19,53 @@
   "enhance": "/content/item-enhance.json",
   "relay_bind": "127.0.0.1:27005",
   "random_item": "/content/random-item.json",
-  "cash_shop": "/content/cash-shop.json"
+  "cash_shop": "/content/cash-shop.json",
+  "class_initial": "/content/class-initial.json",
+  "class_initializers": [
+    {
+      "character_class": 0,
+      "initializer": "/content/class-0-initializer.json",
+      "initializer_reference": "/content/class-0-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 2,
+      "initializer": "/content/class-2-initializer.json",
+      "initializer_reference": "/content/class-2-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 3,
+      "initializer": "/content/class-3-initializer.json",
+      "initializer_reference": "/content/class-3-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 4,
+      "initializer": "/content/class-4-initializer.json",
+      "initializer_reference": "/content/class-4-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 5,
+      "initializer": "/content/class-5-initializer.json",
+      "initializer_reference": "/content/class-5-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 6,
+      "initializer": "/content/class-6-initializer.json",
+      "initializer_reference": "/content/class-6-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 7,
+      "initializer": "/content/class-7-initializer.json",
+      "initializer_reference": "/content/class-7-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 8,
+      "initializer": "/content/class-8-initializer.json",
+      "initializer_reference": "/content/class-8-initializer-reference-pairs.json"
+    },
+    {
+      "character_class": 9,
+      "initializer": "/content/class-9-initializer.json",
+      "initializer_reference": "/content/class-9-initializer-reference-pairs.json"
+    }
+  ]
 }

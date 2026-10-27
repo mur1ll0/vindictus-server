@@ -226,6 +226,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
         };
         let inventory = fiona::compose(
             fiona::Inputs {
+                class: 1,
                 profile: &profile,
                 catalog: &catalog,
                 stats: &stats,

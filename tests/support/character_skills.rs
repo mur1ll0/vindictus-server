@@ -254,7 +254,7 @@ async fn initial_sp_slot_requires_bootstrap_owner_revision_origin_and_normal_fio
         Err(E::Ownership)
     ));
     sqlx::query("INSERT INTO game_lab_account_origins(uid,name_key,profile_fingerprint) SELECT id,name_key,$1 FROM game_users WHERE id=31").bind(vec![0u8;32]).execute(&p).await.unwrap();
-    for change in ["class=2", "level=2", "use_preset=true"] {
+    for change in ["class=10", "level=2", "use_preset=true"] {
         sqlx::query(&format!(
             "UPDATE game_character_info SET {change} WHERE id=1"
         ))
@@ -358,7 +358,7 @@ async fn base_stats_write_all_seven_fields_guard_ownership_and_replay_without_re
         Err(BaseStatError::Ownership)
     ));
     sqlx::query("INSERT INTO game_lab_account_origins(uid,name_key,profile_fingerprint) SELECT id,name_key,$1 FROM game_users WHERE id=31").bind(vec![0u8;32]).execute(&p).await.unwrap();
-    for change in ["class=2", "level=2", "use_preset=true"] {
+    for change in ["class=10", "level=2", "use_preset=true"] {
         sqlx::query(&format!(
             "UPDATE game_character_info SET {change} WHERE id=1"
         ))

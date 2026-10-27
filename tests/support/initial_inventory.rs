@@ -199,7 +199,8 @@ async fn initial_inventory_refuses_uninitialized_wrong_owner_revision_origin_cla
         db::save(&p, &key(), &batch(2)).await,
         Err(E::Ownership)
     ));
-    sqlx::query("UPDATE game_character_info SET class=2 WHERE id=1")
+    // Outside the CustomizeCharacter switch (BaseCharacter 0-9).
+    sqlx::query("UPDATE game_character_info SET class=10 WHERE id=1")
         .execute(&p)
         .await
         .unwrap();

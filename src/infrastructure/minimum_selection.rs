@@ -203,7 +203,13 @@ pub(super) async fn skill_cache(
     .bind(cid)
     .fetch_all(&mut **tx)
     .await?;
-    let initial = assets.initializer.skills();
+    let class: i16 = sqlx::query_scalar("SELECT class FROM game_character_info WHERE id=$1")
+        .bind(cid)
+        .fetch_one(&mut **tx)
+        .await?;
+    let initial = assets
+        .initializer_for(u8::try_from(class).map_err(|_| MinimumError::Conflict)?)?
+        .skills();
     if skills.len() < initial.len() || skills.len() > 4096 {
         return Err(MinimumError::Conflict);
     }
@@ -418,7 +424,7 @@ pub(super) async fn view(
     let bytes = super::minimum_character_list::load(
         tx,
         owner,
-        &assets.initializer,
+        assets.initializers(),
         assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
         config,
         assets

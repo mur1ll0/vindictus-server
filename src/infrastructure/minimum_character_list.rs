@@ -2,7 +2,7 @@
 use super::{
     character_lobby::{self, QueryConfig, UserKey},
     fiona_character_state as state,
-    fiona_initializer_profile::Profile,
+    fiona_initializer_profile::Initializers,
     minimum_character::MinimumError,
 };
 use crate::{
@@ -54,7 +54,7 @@ pub fn delete_wait(
 pub async fn query(
     pool: &PgPool,
     owner: &UserKey<'_>,
-    profile: &Profile,
+    profiles: Initializers<'_>,
     progression: Option<&crate::domain::progression::Progression>,
     config: QueryConfig,
     delete_delay: i32,
@@ -74,7 +74,7 @@ pub async fn query(
     let bytes = load(
         &mut tx,
         owner,
-        profile,
+        profiles,
         progression,
         config,
         delete_delay,
@@ -90,7 +90,7 @@ pub async fn query(
 pub(super) async fn load(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     owner: &UserKey<'_>,
-    profile: &Profile,
+    profiles: Initializers<'_>,
     progression: Option<&crate::domain::progression::Progression>,
     config: QueryConfig,
     delete_delay: i32,
@@ -98,9 +98,13 @@ pub(super) async fn load(
     cid: i64,
 ) -> Result<Zeroizing<Vec<u8>>, MinimumError> {
     let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
-    if marker != Some((owner.uid, profile.fingerprint().to_vec(), true)) {
-        return Err(MinimumError::Conflict);
-    }
+    // The marker records the initializer of the character's class.
+    let profile = match &marker {
+        Some((uid, fingerprint, true)) if *uid == owner.uid => profiles
+            .by_fingerprint(fingerprint)
+            .ok_or(MinimumError::Conflict)?,
+        _ => return Err(MinimumError::Conflict),
+    };
     super::character_vocation::load_first(tx, cid)
         .await
         .map_err(|_| MinimumError::Conflict)?;

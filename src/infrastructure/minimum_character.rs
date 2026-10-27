@@ -104,6 +104,7 @@ pub async fn initialize(
     let _base =
         fiona_managers::initialize(pool, owner, cid, initializer, appearance.catalog).await?;
     let inv_inputs = fiona_inventory::Inputs {
+        class: initializer.character_class(),
         profile: appearance.inventory,
         catalog: appearance.catalog,
         stats,

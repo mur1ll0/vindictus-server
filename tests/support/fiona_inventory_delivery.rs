@@ -59,6 +59,23 @@ pub(super) fn profile_with_base(shared: bool, base: [i32; 6]) -> Profile {
     }
     profile_fixture::read(&v).unwrap()
 }
+/// The synthetic initializer of another BaseCharacter: its skill has that class bit and is
+/// active (UseType 1).
+pub(super) fn profile_for_class(class: u8) -> Profile {
+    let mut v = profile_fixture::synthetic();
+    v["character_class"] = json!(class);
+    v["skills"][0]["class_restriction"] = json!(1_i32 << class);
+    v["skills"][0]["use_type"] = json!(1);
+    v["features"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"key":"DeleteCharacterDelay","value":"123"}));
+    v["state_sha256"] = json!(format!(
+        "{:x}",
+        Sha256::digest(serde_json::to_vec(&snapshot()).unwrap())
+    ));
+    profile_fixture::read(&v).unwrap()
+}
 async fn setup(p: &PgPool) {
     fixture::setup(p, true).await;
     state::preserve(
@@ -549,7 +566,7 @@ async fn fiona_customization_requires_preserved_identity_before_costume_write() 
 async fn fiona_customization_rechecks_revision_and_first_fiona_after_inventory_commit() {
     for mutation in [
         "UPDATE game_users SET service_id=service_id WHERE id=31",
-        "UPDATE game_character_info SET class=2 WHERE id=1",
+        "UPDATE game_character_info SET class=10 WHERE id=1",
     ] {
         let (a, p, s) = isolated_game_pool().await;
         appearance_setup(&p, true).await;

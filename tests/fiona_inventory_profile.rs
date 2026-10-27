@@ -29,6 +29,7 @@ fn composition_binds_all_sources_groups_defaults_and_shares_character_item_autho
     let old = authority.allocate(now).unwrap().entity_time.ticks();
     let batch = fiona_inventory::compose(
         Inputs {
+            class: 1,
             profile: &p,
             catalog: &c,
             stats: &s,
@@ -108,7 +109,7 @@ fn profile_refuses_missing_unknown_misaligned_and_unrecovered_rules() {
     assert!(
         read(&v)
             .unwrap()
-            .requests(&cat, &bound_s, &bound_h)
+            .requests(1, &cat, &bound_s, &bound_h)
             .is_err()
     );
     let mut v = p.clone();
@@ -116,7 +117,7 @@ fn profile_refuses_missing_unknown_misaligned_and_unrecovered_rules() {
     assert!(
         read(&v)
             .unwrap()
-            .requests(&cat, &bound_s, &bound_h)
+            .requests(1, &cat, &bound_s, &bound_h)
             .is_err()
     );
     let mut v = p.clone();
@@ -124,7 +125,7 @@ fn profile_refuses_missing_unknown_misaligned_and_unrecovered_rules() {
     assert!(
         read(&v)
             .unwrap()
-            .requests(&cat, &bound_s, &bound_h)
+            .requests(1, &cat, &bound_s, &bound_h)
             .is_err()
     );
     let mut v = p.clone();

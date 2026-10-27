@@ -808,6 +808,7 @@ fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
             "quest_a",
             1,
             150,
+            1,
             (&mut [], "npc_gnoll normal"),
             &mut Script::default(),
         )
@@ -827,6 +828,7 @@ fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
             "quest_a",
             1,
             150,
+            1,
             (&mut [], "npc_gnoll normal"),
             &mut rare_roll,
         )
@@ -1352,6 +1354,7 @@ fn story_drops_follow_the_story_phase_and_drop_story_cores() {
             "quest_a",
             1,
             100,
+            1,
             (&mut data, "npc_gnoll normal"),
             &mut Script::default(),
         )
@@ -1375,6 +1378,7 @@ fn story_drops_follow_the_story_phase_and_drop_story_cores() {
             "quest_a",
             1,
             100,
+            1,
             (&mut data, "npc_gnoll normal"),
             &mut Script::default(),
         )

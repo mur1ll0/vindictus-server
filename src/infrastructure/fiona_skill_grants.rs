@@ -20,6 +20,7 @@ pub struct Grant {
     arguments: Vec<crate::domain::skill_runtime::Argument>,
     item_callback: bool,
     stat_callback: bool,
+    active: bool,
 }
 impl Grant {
     pub fn id(&self) -> i64 {
@@ -78,6 +79,7 @@ pub fn prepare_checked(
             arguments: skill.arguments().to_vec(),
             item_callback: skill.item_callback(),
             stat_callback: skill.stat_callback(),
+            active: skill.active(),
         });
     }
     Ok(Prepared {
@@ -166,7 +168,10 @@ async fn save_inner(
     crate::domain::skill_multicast::after_grant(&mut context.cache,crate::domain::skill_multicast::Grant{key:row.key(),rank:row.rank(),required_ap:row.required_ap(),arguments:row.arguments(),item_skill:row.item_callback(),stat_skill:row.stat_callback()},runtime).map_err(|_|StateError::Profile)?;
    }else{callback(row)?}
   }
-  for row in &prepared.rows{sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,$4,0,0)").bind(row.id).bind(cid).bind(row.name.as_slice()).bind(row.rank).execute(&mut *tx).await?;}
+  for row in &prepared.rows{sqlx::query("INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) VALUES($1,$2,$3,$4,0,0)").bind(row.id).bind(cid).bind(row.name.as_slice()).bind(row.rank).execute(&mut *tx).await?;
+   // GiveSkill → SetSpSkillToEmptySlot for an active skill: the first SPSkill without SkillID.
+   if row.active{sqlx::query("UPDATE game_sp_skills SET skill_utf16=$2 WHERE row_id=(SELECT row_id FROM game_sp_skills WHERE cid=$1 AND skill_utf16 IS NULL ORDER BY row_id LIMIT 1)").bind(cid).bind(row.name.as_slice()).execute(&mut *tx).await?;}
+  }
   tx.commit().await?;Ok(Outcome{inserted:prepared.rows.len(),logs_written:written,logs_failed:failed,runtime_callbacks_required:fresh.is_none()&&!prepared.rows.is_empty(),source_operation_failed:false})
  }).await.map_err(|_|StateError::Timeout)?
 }

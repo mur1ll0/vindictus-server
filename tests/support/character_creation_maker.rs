@@ -58,6 +58,7 @@ async fn base(p: &sqlx::PgPool) -> i64 {
             owner: key(),
             proof: &proof,
             name: "Murael",
+            class: 1,
         },
         &settings(),
         &mut a,
@@ -84,6 +85,7 @@ async fn normal_maker_persists_base_dormant_then_uid_name_cleanup_with_cascades(
             owner: key(),
             proof: &proof,
             name: "Murael",
+            class: 1,
         },
         &settings(),
         &mut authority,
@@ -179,7 +181,8 @@ async fn maker_rejection_order_and_negative_sql_result_keep_original_outputs_and
                 NormalFionaRequest {
                     owner: key(),
                     proof: &proof,
-                    name: "!"
+                    name: "!",
+                    class: 1,
                 },
                 &cfg,
                 &mut authority,
@@ -230,6 +233,7 @@ async fn maker_rejection_order_and_negative_sql_result_keep_original_outputs_and
             owner: key(),
             proof: &proof,
             name: "Murael",
+            class: 1,
         },
         &settings(),
         &mut authority,
@@ -340,7 +344,8 @@ async fn creation_effects_scope_ambiguous_cleanup_and_cancellation_never_delete_
             NormalFionaRequest {
                 owner: key(),
                 proof: &proof,
-                name: "Murael"
+                name: "Murael",
+                class: 1,
             },
             &settings(),
             &mut authority,
@@ -400,7 +405,8 @@ async fn creation_effects_scope_ambiguous_cleanup_and_cancellation_never_delete_
                     ..key()
                 },
                 proof: &proof,
-                name: "Murael"
+                name: "Murael",
+                class: 1,
             },
             &settings(),
             &mut authority,

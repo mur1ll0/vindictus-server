@@ -68,6 +68,8 @@ pub struct NormalFionaRequest<'a> {
     pub owner: UserKey<'a>,
     pub proof: &'a NameProof,
     pub name: &'a str,
+    /// BaseCharacter of the template.
+    pub class: u8,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BaseOutcome {
@@ -142,7 +144,7 @@ where
             cid,
             character_sn: sn,
             name: r.name,
-            class: 1,
+            class: r.class,
             use_preset: false,
         },
     )

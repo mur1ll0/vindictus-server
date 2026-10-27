@@ -1674,12 +1674,13 @@ impl MissionContents {
         Ok(())
     }
 
-    /// MonsterDropTableInstance.PickItem for the Fiona (BaseCharacter 1): absolute rows
+    /// MonsterDropTableInstance.PickItem for the player's BaseCharacter: absolute rows
     /// roll out of 1,000,000 first, then the relational weights; required-class rows need
     /// the class restriction bit; unique rows are picked once per table instance.
     fn pick_drop(
         &self,
         rows: &[&DropRow],
+        base_character: u8,
         unique_got: &mut Vec<String>,
         random: &mut dyn MissionRandom,
     ) -> Option<String> {
@@ -1695,7 +1696,7 @@ impl MissionContents {
                 let Some((_, restriction)) = self.drop_classes.get(item_class(class_ex)) else {
                     continue;
                 };
-                if (1 << 1) & restriction == 0 {
+                if 1_i32.wrapping_shl(u32::from(base_character)) & restriction == 0 {
                     continue;
                 }
             }
@@ -1755,6 +1756,7 @@ impl MissionContents {
         quest: &str,
         difficulty: i32,
         luck: i32,
+        base_character: u8,
         story: (&mut [StoryDropData], &str),
         random: &mut dyn MissionRandom,
     ) -> Result<Vec<(i32, bool)>, MissionError> {
@@ -1782,14 +1784,14 @@ impl MissionContents {
         let mut additional = Vec::new();
         for order in 0..drop_item.max(0) {
             let text = match &rows {
-                Some(rows) => self.pick_drop(rows, &mut unique_got, random),
+                Some(rows) => self.pick_drop(rows, base_character, &mut unique_got, random),
                 None => Some("javelin_lvl0".to_owned()),
             };
             add(&mut items, EVIL_CORE, text);
             if self.lucky_roll(order, is_boss, luck, random) {
                 // The original dereferences the null table here.
                 let rows = rows.as_ref().ok_or(MissionError::Content)?;
-                let gold = self.pick_drop(rows, &mut unique_got, random);
+                let gold = self.pick_drop(rows, base_character, &mut unique_got, random);
                 let rare = gold.as_deref().is_some_and(|g| self.is_rare_core(g));
                 add(&mut items, BASIC_GOLD_CORE, gold);
                 additional.push((BASIC_GOLD_CORE, rare));

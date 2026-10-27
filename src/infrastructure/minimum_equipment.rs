@@ -92,7 +92,10 @@ pub(super) async fn load(
     cid: i64,
 ) -> Result<Loaded, MinimumError> {
     let marker:Option<(i32,Vec<u8>,bool)>=sqlx::query_as("SELECT uid,profile_sha256,initialized FROM game_minimum_character_initialization WHERE cid=$1 FOR SHARE").bind(cid).fetch_optional(&mut **tx).await?;
-    if marker != Some((owner.uid, assets.initializer.fingerprint().to_vec(), true)) {
+    // The marker records the initializer of the character's class.
+    if !marker.is_some_and(|(uid, fingerprint, done)| {
+        done && uid == owner.uid && assets.initializers().by_fingerprint(&fingerprint).is_some()
+    }) {
         return Err(fail());
     }
     sqlx::query("LOCK TABLE game_items,game_item_attributes,game_equippables,game_item_storage_status IN SHARE MODE").execute(&mut **tx).await?;

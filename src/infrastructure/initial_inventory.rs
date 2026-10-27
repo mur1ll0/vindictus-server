@@ -76,7 +76,7 @@ async fn save_inner(
   let synthetic:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_lab_account_origins WHERE uid=$1 AND name_key=$2)").bind(key.uid).bind(owner.as_str()).fetch_one(&mut *tx).await?;
   if actual!=Some((owner.as_str().to_owned(),key.revision))||!synthetic{return Err(InventoryWriteError::Ownership);}
   sqlx::query("LOCK TABLE game_character_info IN ROW EXCLUSIVE MODE").execute(&mut *tx).await?;
-  let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class=1 FOR UPDATE").bind(inventory.owner()).bind(key.uid).fetch_optional(&mut *tx).await?;
+  let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 9 FOR UPDATE").bind(inventory.owner()).bind(key.uid).fetch_optional(&mut *tx).await?;
   if owned.is_none(){return Err(InventoryWriteError::Ownership);}
   let collection:Option<i64>=sqlx::query_scalar("SELECT owner_id FROM game_item_collections WHERE owner_id=$1 FOR UPDATE").bind(inventory.owner()).fetch_optional(&mut *tx).await?;
   if collection.is_none(){return Err(InventoryWriteError::Conflict);}

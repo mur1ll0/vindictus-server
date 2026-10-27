@@ -110,7 +110,10 @@ async fn minimum_create_persists_inventory_appearance_skills_and_filled_list() {
     let bytes = list::query(
         &p,
         &initial_inventory::key(),
-        &fixture::profile(false),
+        vindictus_server::infrastructure::fiona_initializer_profile::Initializers {
+            fiona: &fixture::profile(false),
+            others: &Default::default(),
+        },
         None,
         config(),
         1440,
@@ -149,6 +152,124 @@ async fn minimum_create_persists_inventory_appearance_skills_and_filled_list() {
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_create_other_class_uses_its_initializer_items_inner_and_sp_slot() {
+    use vindictus_server::{
+        domain::legacy_user_data::LegacyBytes,
+        infrastructure::{class_initial::ClassRequest, fiona_initializer_profile::Initializers},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    setup(&p).await;
+    sqlx::query("UPDATE game_character_info SET class=2 WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    let utf16 = |s: &str| {
+        s.encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>()
+    };
+    let mut i = fixture::AppearanceInputs::new();
+    i.template.character_class = 2;
+    // Class 2's DefaultItemInfo: one enabled stack, one row whose feature is off.
+    i.inventory.add_class(
+        2,
+        vec![
+            ClassRequest {
+                key: Some(LegacyBytes::from_bytes(utf16("synthetic_cash")).unwrap()),
+                num: 4,
+                enabled: true,
+            },
+            ClassRequest {
+                key: Some(LegacyBytes::from_bytes(utf16("synthetic_bag")).unwrap()),
+                num: 1,
+                enabled: false,
+            },
+        ],
+    );
+    i.profile.add_class(
+        2,
+        LegacyBytes::from_bytes(utf16("synthetic_bag")).unwrap(),
+        [1, 2, 3],
+    );
+    let evie = fixture::profile_for_class(2);
+    let result = minimum::initialize(
+        &p,
+        &initial_inventory::key(),
+        1,
+        minimum::Inputs {
+            initializer: &evie,
+            appearance: i.request(),
+            stats: &i.stats,
+        },
+        &mut EntityAuthority::new(77),
+        &mut ColorRandom::from_seed(17),
+        minimum::Clock {
+            utc: &mut || Ok(now()),
+            civil: &mut || Ok(now()),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!((result.items(), result.skills()), (1, 1));
+    let items: (i64, i64) =
+        sqlx::query_as("SELECT count(*),sum(count)::BIGINT FROM game_items WHERE owner_id=1")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(items, (1, 4));
+    // SetSpSkillToEmptySlot: the active default skill fills SP slot 0.
+    let slot: Option<Vec<u8>> =
+        sqlx::query_scalar("SELECT skill_utf16 FROM game_sp_skills WHERE cid=1 AND slot_id=0")
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(slot.as_deref(), Some(utf16("Syn").as_slice()));
+    // The list reads the marker of the class-2 initializer.
+    let fiona = fixture::profile(false);
+    let others = std::collections::BTreeMap::from([(2, evie)]);
+    let bytes = list::query(
+        &p,
+        &initial_inventory::key(),
+        Initializers {
+            fiona: &fiona,
+            others: &others,
+        },
+        None,
+        config(),
+        1440,
+        || Ok(now()),
+    )
+    .await
+    .unwrap();
+    let summary = character_list::decode(&bytes, DEFAULT_MAX_BODY)
+        .unwrap()
+        .unwrap()
+        .characters
+        .unwrap()
+        .pop()
+        .unwrap()
+        .unwrap();
+    assert_eq!((summary.base_character, summary.level), (2, 1));
+    assert!(
+        list::query(
+            &p,
+            &initial_inventory::key(),
+            Initializers {
+                fiona: &fiona,
+                others: &Default::default(),
+            },
+            None,
+            config(),
+            1440,
+            || Ok(now()),
+        )
+        .await
+        .is_err()
+    );
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_list_refuses_partial_unmarked_and_stale_owner() {
     let (a, p, s) = isolated_game_pool().await;
     setup(&p).await;
@@ -156,7 +277,10 @@ async fn minimum_list_refuses_partial_unmarked_and_stale_owner() {
         list::query(
             &p,
             &initial_inventory::key(),
-            &fixture::profile(false),
+            vindictus_server::infrastructure::fiona_initializer_profile::Initializers {
+                fiona: &fixture::profile(false),
+                others: &Default::default(),
+            },
             None,
             config(),
             0,
@@ -174,7 +298,10 @@ async fn minimum_list_refuses_partial_unmarked_and_stale_owner() {
         list::query(
             &p,
             &initial_inventory::key(),
-            &fixture::profile(false),
+            vindictus_server::infrastructure::fiona_initializer_profile::Initializers {
+                fiona: &fixture::profile(false),
+                others: &Default::default(),
+            },
             None,
             config(),
             0,
@@ -188,7 +315,10 @@ async fn minimum_list_refuses_partial_unmarked_and_stale_owner() {
         list::query(
             &p,
             &initial_inventory::key(),
-            &fixture::profile(false),
+            vindictus_server::infrastructure::fiona_initializer_profile::Initializers {
+                fiona: &fixture::profile(false),
+                others: &Default::default(),
+            },
             None,
             config(),
             0,
@@ -218,7 +348,10 @@ async fn minimum_late_failure_keeps_marker_partial_and_requires_compensation() {
         list::query(
             &p,
             &initial_inventory::key(),
-            &fixture::profile(false),
+            vindictus_server::infrastructure::fiona_initializer_profile::Initializers {
+                fiona: &fixture::profile(false),
+                others: &Default::default(),
+            },
             None,
             config(),
             0,

@@ -227,7 +227,7 @@ pub async fn initialize_sp_slot(
   let origin:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_lab_account_origins WHERE uid=$1 AND name_key=$2)").bind(key.uid).bind(owner.as_str()).fetch_one(&mut *tx).await?;
   if user!=Some((owner.as_str().to_owned(),key.revision))||!origin{return Err(SkillError::Ownership)}
   sqlx::query("LOCK TABLE game_character_info IN ROW EXCLUSIVE MODE").execute(&mut *tx).await?;
-  let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class=1 AND level=1 AND NOT use_preset FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
+  let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 9 AND level=1 AND NOT use_preset FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
   if owned.is_none(){return Err(SkillError::Ownership)}
   sqlx::query("LOCK TABLE game_sp_skills IN ROW EXCLUSIVE MODE").execute(&mut *tx).await?;
   let stored:Vec<StoredSlot>=sqlx::query_as("SELECT row_id,cid,slot_id,skill_utf16 FROM game_sp_skills WHERE cid=$1 ORDER BY row_id LIMIT 1025 FOR UPDATE").bind(cid).fetch_all(&mut *tx).await?;

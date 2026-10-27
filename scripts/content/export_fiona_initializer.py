@@ -40,7 +40,8 @@ def date_ticks(value):
  year,month,day=(int(m[i])for i in(1,2,3));hour,minute,second=(int(m[i]or 0)for i in(4,5,6))
  dt=datetime.datetime(year,month,day,hour,minute,second)
  return str((dt.toordinal()-1)*864000000000+(hour*3600+minute*60+second)*10000000+int((m[7]or'').ljust(7,'0')))
-def read_package(database,config,source_dir,state_file):
+def read_package(database,config,source_dir,state_file,character_class=1):
+ if type(character_class)is not int or not 0<=character_class<=9:raise ValueError('Character class outside the CustomizeCharacter switch')
  initial_db=digest(database);initial_config=digest(config);initial_state=digest(state_file)
  if state_file.stat().st_size>64*1024*1024:raise ValueError('Character state snapshot bound')
  state=json.loads(state_file.read_text(encoding='utf-8-sig'))
@@ -65,8 +66,8 @@ def read_package(database,config,source_dir,state_file):
   db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   classes=list(db.execute('SELECT * FROM CharacterClassInfo'));class_keys=[(r['Identifier'],r['Level'])for r in classes]
   if len(class_keys)!=len(set(class_keys)):raise ValueError('Class dictionary ambiguous')
-  selected=[r for r in classes if r['Identifier']==1 and r['Level']==1]
-  if len(selected)!=1 or selected[0]['Feature']is not None:raise ValueError('First-Fiona class source changed')
+  selected=[r for r in classes if r['Identifier']==character_class and r['Level']==1]
+  if len(selected)!=1 or selected[0]['Feature']is not None:raise ValueError('First-character class source changed')
   r=selected[0];basis=[integer(r[k])for k in('BaseSTR','BaseDEX','BaseINT','BaseWILL','BaseHP','BaseSTAMINA')]
   load_rows=list(db.execute('SELECT Character,Level,BaseCharacterLoadWeight FROM CharacterBaseLoadInfo'))
   load_keys=set();medium_base=-1.0
@@ -75,7 +76,7 @@ def read_package(database,config,source_dir,state_file):
    if not 0<=character<=255 or (character,level)in load_keys:raise ValueError('Base load dictionary profile')
    load_keys.add((character,level))
    if type(value)not in(int,float)or not math.isfinite(float(value)):raise ValueError('Base load finite Double provider profile')
-   if (character,level)==(1,1):medium_base=float(value)
+   if (character,level)==(character_class,1):medium_base=float(value)
   base_load_bits=format(struct.unpack('<Q',struct.pack('<d',medium_base))[0],'016x')
   levels=list(db.execute('SELECT * FROM LevelUpExpInfo'));level_keys=[r['Level']for r in levels]
   if len(level_keys)!=len(set(level_keys)):raise ValueError('Level dictionary ambiguous')
@@ -84,7 +85,7 @@ def read_package(database,config,source_dir,state_file):
   if len(titles)!=len(set(r['ID']for r in titles)):raise ValueError('Title dictionary ambiguous')
   titles=[dict(title_id=integer(r['ID']),auto_give_level=None if r['AutoGiveLevel']is None else integer(r['AutoGiveLevel']),class_restriction=integer(r['ClassRestriction']),feature=feature(r['Feature']))for r in titles if r['AutoGiveLevel']==1 or r['ID']in preset_ids]
   if len(titles)>4096:raise ValueError('Title projection bound')
-  for default in db.execute('SELECT * FROM DefaultSkillInfo WHERE CharacterClass IN(1,255)'):
+  for default in db.execute('SELECT * FROM DefaultSkillInfo WHERE CharacterClass IN(?,255)',(character_class,)):
    key=default['SkillID'];rank=integer(default['Rank']);infos=list(db.execute('SELECT ClassRestriction,UseType FROM SkillInfo WHERE SkillID=?',(key,)))
    if len(infos)!=1:raise ValueError('SkillInfo lookup ambiguous')
    ranks=list(db.execute('SELECT * FROM SkillRankInfo WHERE SkillID=? AND Rank IN(?,?)',(key,rank,rank+1)))
@@ -103,15 +104,16 @@ def read_package(database,config,source_dir,state_file):
  package=reward.read_package(database,config,additional_keys=wanted)
  if package['manifest']['database_sha256']!=initial_db or package['manifest']['config_sha256']!=initial_config or digest(state_file)!=initial_state:raise ValueError('Initializer source snapshot changed during read')
  if before!={k:digest(v)for k,v in files.items()}:raise ValueError('Initializer implementation changed during read')
- return dict(format_version=1,source='heroesContents.first-fiona-initializer',database_sha256=package['manifest']['database_sha256'],config_sha256=package['manifest']['config_sha256'],state_sha256=digest(state_file),implementations=before,features=package['features'],enabled_keys=sorted(enabled_keys),base_stats=basis,base_load_bits=base_load_bits,levels=levels,presets=presets,title_info=titles,skills=rows,attendance=attendance)
+ extra={}if character_class==1 else{'character_class':character_class}
+ return dict(**extra,format_version=1,source='heroesContents.first-fiona-initializer',database_sha256=package['manifest']['database_sha256'],config_sha256=package['manifest']['config_sha256'],state_sha256=digest(state_file),implementations=before,features=package['features'],enabled_keys=sorted(enabled_keys),base_stats=basis,base_load_bits=base_load_bits,levels=levels,presets=presets,title_info=titles,skills=rows,attendance=attendance)
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--state',required=True);args=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--output',required=True);p.add_argument('--state',required=True);p.add_argument('--character-class',type=int,default=1);args=p.parse_args()
  root=pathlib.Path.cwd();out=pathlib.Path(args.output).resolve();private=(root/'.cache/private-content').resolve()
  if not out.is_relative_to(private):raise ValueError('Initializer output outside private ACL cache')
  state=pathlib.Path(args.state).resolve()
  if not state.is_relative_to((root/'.cache/private-character-state').resolve()):raise ValueError('State snapshot outside private ACL cache')
  base=root.parent/'ServidorVindictus/Server/zh-tw-x-gm/Bin';src=root/'legacy/decompiled/PlayerService-f23d8b9df77c'
- data=read_package(base/'heroesContents.db3',base/'ServiceCore.dll.config',src,state)
+ data=read_package(base/'heroesContents.db3',base/'ServiceCore.dll.config',src,state,args.character_class)
  raw=json.dumps(data,ensure_ascii=True,separators=(',',':'))
  if len(raw.encode())>16*1024*1024:raise ValueError('Initializer JSON bound')
  out.write_text(raw,encoding='utf-8',newline='\n')

@@ -53,7 +53,8 @@ async fn create_owned(
     proof: &NameProof,
     r: CreationCoreRequest<'_>,
 ) -> Result<CreationCoreResult, CreationCoreError> {
-    if r.class != 1
+    // BaseCharacter of the CustomizeCharacter switch; the caller checked its contents.
+    if r.class > 9
         || r.use_preset
         || !proof
             .valid_request(Some(r.name))

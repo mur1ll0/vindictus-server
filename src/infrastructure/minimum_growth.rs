@@ -114,7 +114,8 @@ async fn level_up(
     let progression = npc.progression.as_ref().ok_or_else(fail)?;
     let (from, to) = (growth.previous_level, growth.level);
     // LevelUpMessage(Level, GetCharacterStats(new) − GetCharacterStats(old)).
-    let increase = progression.stat_increase(from, to).ok_or_else(fail)?;
+    let base = u8::try_from(class).map_err(|_| fail())?;
+    let increase = progression.stat_increase(base, from, to).ok_or_else(fail)?;
     let rows: Vec<(&str, i32)> = increase.iter().map(|(k, v)| (k.as_str(), *v)).collect();
     packets.push(map_packet(&minimum_map::Message::LevelUp {
         level: to,
@@ -258,12 +259,13 @@ pub(super) async fn base_stats(
             .and_then(|p| p.title_stats(&own, &account, class, level))
             .ok_or_else(fail)?
     };
+    let base_character = u8::try_from(class).map_err(|_| fail())?;
     let base = if level == 1 {
-        assets.initializer.base_stats(titles)
+        assets.initializer_for(base_character)?.base_stats(titles)
     } else {
         crate::domain::character_base_stats::BaseStats::compose(
             progression
-                .and_then(|p| p.class_stats(level))
+                .and_then(|p| p.class_stats(base_character, level))
                 .ok_or_else(fail)?,
             titles,
         )

@@ -133,7 +133,10 @@ pub struct Proceeded {
 #[derive(Clone, Debug)]
 pub struct Progression {
     /// characterClassInfo (Identifier 1): STR, DEX, INT, WILL, HP, STAMINA per level.
+    /// CharacterClassInfo of BaseCharacter 1 (the exported progression).
     class_stats: BTreeMap<i32, [i32; 6]>,
+    /// CharacterClassInfo of the other classes (class-initial contents).
+    other_class_stats: BTreeMap<u8, BTreeMap<i32, [i32; 6]>>,
     /// levelUpExpDic: Level → RequiredExp.
     level_exp: BTreeMap<i32, i32>,
     /// FeatureMatrix.GetInteger("MaxLevel").
@@ -302,6 +305,7 @@ impl Progression {
         }
         Ok(Self {
             class_stats,
+            other_class_stats: BTreeMap::new(),
             level_exp,
             max_level,
             titles,
@@ -368,12 +372,20 @@ impl Progression {
     pub fn level_exp(&self, level: i32) -> Option<i32> {
         self.level_exp.get(&level).copied()
     }
+    /// CharacterClassInfo rows of another BaseCharacter.
+    pub fn set_class_stats(&mut self, class: u8, rows: BTreeMap<i32, [i32; 6]>) {
+        if class != 1 {
+            self.other_class_stats.insert(class, rows);
+        }
+    }
     /// GetCharacterStats(class, level): the level row, else level 1.
-    pub fn class_stats(&self, level: i32) -> Option<[i32; 6]> {
-        self.class_stats
-            .get(&level)
-            .or_else(|| self.class_stats.get(&1))
-            .copied()
+    pub fn class_stats(&self, class: u8, level: i32) -> Option<[i32; 6]> {
+        let rows = if class == 1 {
+            &self.class_stats
+        } else {
+            self.other_class_stats.get(&class)?
+        };
+        rows.get(&level).or_else(|| rows.get(&1)).copied()
     }
     /// CharacterEntity.GiveExp(exp) (no E3/PAX zeroing: both events are disabled in the
     /// admitted region). None is the early MaxLevel return without changes.
@@ -699,8 +711,8 @@ impl Progression {
     }
     /// LevelUpMessage.StatIncreased: GetCharacterStats(new) − GetCharacterStats(old) over
     /// every CharacterStats key (LUCK is 100 on both sides).
-    pub fn stat_increase(&self, from: i32, to: i32) -> Option<Vec<(String, i32)>> {
-        let (a, b) = (self.class_stats(to)?, self.class_stats(from)?);
+    pub fn stat_increase(&self, class: u8, from: i32, to: i32) -> Option<Vec<(String, i32)>> {
+        let (a, b) = (self.class_stats(class, to)?, self.class_stats(class, from)?);
         let value = |name: &str| match name {
             "STR" => a[0].wrapping_sub(b[0]),
             "DEX" => a[1].wrapping_sub(b[1]),

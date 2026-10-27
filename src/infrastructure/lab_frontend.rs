@@ -291,7 +291,7 @@ impl Runtime {
                     name: &id.nexon_id,
                     revision,
                 },
-                &assets.initializer,
+                assets.initializers(),
                 assets.npc.as_ref().and_then(|n| n.progression.as_ref()),
                 config,
                 assets

@@ -50,6 +50,19 @@ struct Files {
     random_item: Option<PathBuf>,
     #[serde(default)]
     cash_shop: Option<PathBuf>,
+    /// Per-class DefaultItemInfo, INNERARMOR and CharacterClassInfo (other classes).
+    #[serde(default)]
+    class_initial: Option<PathBuf>,
+    /// Initializer profiles of the other classes.
+    #[serde(default)]
+    class_initializers: Vec<ClassFiles>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClassFiles {
+    character_class: u8,
+    initializer: PathBuf,
+    initializer_reference: PathBuf,
 }
 /// The loaded assets as one swappable value: a reader takes a snapshot, a live tuning
 /// (B4.5b) replaces it whole.
@@ -79,7 +92,11 @@ pub struct Assets {
     /// Skill contents with features evaluated against `catalog`.
     pub(super) skills:
         Option<std::collections::BTreeMap<String, crate::domain::skill_list::SkillContent>>,
+    /// The Fiona initializer; its FeatureMatrix also serves class-independent policy.
     pub initializer: fiona_initializer_profile::Profile,
+    /// Initializer profiles of the other classes that can be created.
+    pub(super) class_initializers:
+        std::collections::BTreeMap<u8, fiona_initializer_profile::Profile>,
     pub(super) catalog: item_catalog::Package,
     pub(super) stats: item_stats::Package,
     /// `stats` bound to `catalog` once; lookups must not rebind per request.
@@ -171,6 +188,26 @@ fn open(p: &Path) -> Result<std::fs::File, MinimumError> {
         .map_err(MinimumError::from)
 }
 impl Assets {
+    /// The initializer profiles by BaseCharacter.
+    pub fn initializers(&self) -> fiona_initializer_profile::Initializers<'_> {
+        fiona_initializer_profile::Initializers {
+            fiona: &self.initializer,
+            others: &self.class_initializers,
+        }
+    }
+    /// The initializer profile of a BaseCharacter.
+    pub fn initializer_for(
+        &self,
+        class: u8,
+    ) -> Result<&fiona_initializer_profile::Profile, MinimumError> {
+        self.initializers().get(class).ok_or(MinimumError::Conflict)
+    }
+    /// Whether CreateCharacter has every initial content of this BaseCharacter.
+    pub fn supports_class(&self, class: u8) -> bool {
+        self.initializers().get(class).is_some()
+            && self.inventory.has_class(class)
+            && self.appearance.has_class(class)
+    }
     /// The effective NPC shops (ShopInfo after PriceCalc), when the NPC scripts are loaded.
     pub fn shops(&self) -> Option<&crate::domain::shop::Shops> {
         self.shops.as_ref()
@@ -254,6 +291,37 @@ impl Assets {
             arithmetic,
             color_seed: f.color_seed,
         })?;
+        let mut class_stats = Vec::new();
+        if let Some(path) = &f.class_initial {
+            let package = super::class_initial::Package::read(open(path)?)?;
+            package.bind(&assets.catalog)?;
+            for (class, initial) in package.classes {
+                if class == 1 {
+                    continue;
+                }
+                assets.inventory.add_class(class, initial.requests);
+                assets
+                    .appearance
+                    .add_class(class, initial.inner, initial.inner_colors);
+                class_stats.push((class, initial.class_stats));
+            }
+        }
+        for c in &f.class_initializers {
+            let profile = fiona_initializer_profile::Profile::read(
+                open(&c.initializer)?,
+                open(&c.initializer_reference)?,
+            )?;
+            profile.bind(&assets.catalog)?;
+            if c.character_class == 1
+                || profile.character_class() != c.character_class
+                || assets
+                    .class_initializers
+                    .insert(c.character_class, profile)
+                    .is_some()
+            {
+                return Err(MinimumError::Conflict);
+            }
+        }
         match (f.map_partition_dir, f.channel_bind) {
             (Some(dir), Some(bind)) if bind.ip().is_loopback() => {
                 let mut paths = std::fs::read_dir(dir)
@@ -317,6 +385,11 @@ impl Assets {
                     mission.set_drop_counts(quest, *min, *max);
                 }
             }
+            if let Some(progression) = profile.progression.as_mut() {
+                for (class, rows) in std::mem::take(&mut class_stats) {
+                    progression.set_class_stats(class, rows);
+                }
+            }
             assets = assets.with_npc_scripts(profile)?;
         }
         if let Some(path) = f.enhance {
@@ -362,6 +435,7 @@ impl Assets {
             shops: None,
             equip_class: Default::default(),
             initializer: parts.initializer,
+            class_initializers: std::collections::BTreeMap::new(),
             catalog: parts.catalog,
             stats: parts.stats,
             colors: parts.colors,
@@ -512,6 +586,7 @@ impl Assets {
         else {
             return Err(MinimumError::Conflict);
         };
+        let initializer = self.initializer_for(template.character_class)?;
         let mut random = self.random.lock().await;
         let mut utc = || super::lab_clock::utc_now().map_err(|_| Error::LegacyClockOverflow);
         let mut civil =
@@ -521,7 +596,7 @@ impl Assets {
             owner,
             cid,
             minimum_character::Inputs {
-                initializer: &self.initializer,
+                initializer,
                 appearance: super::fiona_customization::Appearance {
                     profile: &self.appearance,
                     inventory: &self.inventory,
@@ -546,7 +621,7 @@ impl Assets {
         let body = super::minimum_character_list::query(
             pool,
             owner,
-            &self.initializer,
+            self.initializers(),
             self.npc.as_ref().and_then(|n| n.progression.as_ref()),
             config,
             delay,

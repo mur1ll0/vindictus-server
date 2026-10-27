@@ -30,6 +30,8 @@ impl<F: FnMut() -> Result<SqlDateTime2, ItemTimeError>> InventoryClock for Clock
     }
 }
 pub struct Inputs<'a> {
+    /// BaseCharacter whose DefaultItemInfo is delivered.
+    pub class: u8,
     pub profile: &'a Profile,
     pub catalog: &'a Catalog,
     pub stats: &'a Stats,
@@ -44,7 +46,9 @@ pub fn compose(
 ) -> Result<PreparedInventory, Error> {
     let stats = inputs.stats.bind(inputs.catalog)?;
     let colors = inputs.colors.bind(inputs.catalog)?;
-    let requests = inputs.profile.requests(inputs.catalog, &stats, &colors)?;
+    let requests = inputs
+        .profile
+        .requests(inputs.class, inputs.catalog, &stats, &colors)?;
     let (maximum, bundle) = inputs.profile.limits()?;
     let mut clock = Clock { authority, utc };
     Ok(initial_inventory::compose(
@@ -154,7 +158,9 @@ pub fn prepare_delivery(
 ) -> Result<super::inventory_delivery::Prepared, Error> {
     let stats = inputs.stats.bind(inputs.catalog)?;
     let colors = inputs.colors.bind(inputs.catalog)?;
-    let requests = inputs.profile.requests(inputs.catalog, &stats, &colors)?;
+    let requests = inputs
+        .profile
+        .requests(inputs.class, inputs.catalog, &stats, &colors)?;
     let (maximum, bundle) = inputs.profile.limits()?;
     Ok(super::inventory_delivery::prepare(
         super::inventory_delivery::Inputs {

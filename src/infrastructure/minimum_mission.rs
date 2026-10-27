@@ -524,6 +524,8 @@ pub struct Mission {
     pub boss_killed: Vec<String>,
     /// MicroPlayer.Luck (Stats LUCK; no platinum, bless stone or dormant bonus).
     pub luck: i32,
+    /// MicroPlayer.BaseCharacter: required-class drops need its class bit.
+    pub base_character: u8,
     /// MicroPlayer.StoryDropData (QueryPlayerInfo → StoryEntity.QueryStoryDropData).
     pub story_drops: Vec<domain::StoryDropData>,
     /// BattleInventory: part → (ItemClass, BringNum, UsedNum, DraftNum).
@@ -749,6 +751,7 @@ pub async fn accept_quest(
         title_events: Vec::new(),
         boss_killed: Vec::new(),
         luck: 0,
+        base_character: 1,
         story_drops: Vec::new(),
         consumables: Vec::new(),
         combat_record: None,
@@ -805,6 +808,11 @@ pub async fn accept_quest(
         .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
         .map_or(0, |(_, v)| *v);
     mission.luck = luck;
+    let class: i16 = sqlx::query_scalar("SELECT class FROM game_character_info WHERE id=$1")
+        .bind(cid)
+        .fetch_one(pool)
+        .await?;
+    mission.base_character = u8::try_from(class).map_err(|_| MinimumError::Conflict)?;
     mission.story_drops = story_drop_data(pool, contents, cid, &mission.quest).await?;
     mission.consumables = member
         .join
@@ -1058,6 +1066,7 @@ pub fn monster_killed(
                     &mission.quest,
                     difficulty,
                     mission.luck,
+                    mission.base_character,
                     (&mut mission.story_drops, monster_type),
                     random,
                 )

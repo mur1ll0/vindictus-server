@@ -159,10 +159,7 @@ fn same_name(name: &str, stored: &[u8]) -> bool {
     trim(&mut right);
     let same = left.len() == right.len()
         && left.iter().zip(&right).all(|(a, b)| {
-            a == b
-                || (*a < 0x80
-                    && *b < 0x80
-                    && (*a as u8).eq_ignore_ascii_case(&(*b as u8)))
+            a == b || (*a < 0x80 && *b < 0x80 && (*a as u8).eq_ignore_ascii_case(&(*b as u8)))
         });
     left.zeroize();
     right.zeroize();

@@ -57,7 +57,7 @@ pub async fn initialize(
   let origin:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_lab_account_origins WHERE uid=$1 AND name_key=$2)").bind(key.uid).bind(owner.as_str()).fetch_one(&mut *tx).await?;
   if user!=Some((owner.as_str().to_owned(),key.revision))||!origin{return Err(BaseStatError::Ownership)}
   sqlx::query("LOCK TABLE game_character_info IN ROW EXCLUSIVE MODE").execute(&mut *tx).await?;
-  let stored:Option<Stored>=sqlx::query_as("SELECT dirty,str,dex,int,will,luck,hp,stamina FROM game_character_info WHERE id=$1 AND uid=$2 AND class=1 AND level=1 AND NOT use_preset FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
+  let stored:Option<Stored>=sqlx::query_as("SELECT dirty,str,dex,int,will,luck,hp,stamina FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 9 AND level=1 AND NOT use_preset FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
   let row=stored.ok_or(BaseStatError::Ownership)?;
   if !row.dirty&&row.values()==*stats.values(){tx.commit().await?;return Ok(0)}
   if !row.dirty||row.values()!=[0;7]{return Err(BaseStatError::Conflict)}

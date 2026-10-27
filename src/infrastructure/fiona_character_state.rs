@@ -513,7 +513,7 @@ pub(crate) async fn owned_first_fiona<'p>(
     sqlx::query("LOCK TABLE game_character_info IN ROW EXCLUSIVE MODE")
         .execute(&mut *tx)
         .await?;
-    let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class=1 AND level>=1 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
+    let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 9 AND level>=1 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
     if owned.is_none() {
         return Err(StateError::Ownership);
     }
@@ -577,7 +577,7 @@ pub async fn initialize_micro(
   tx.commit().await?;Ok(changed)
  }).await.map_err(|_|StateError::Timeout)?
 }
-/// Prepared IDs must match the preserved, source-validated preset for class bit 1<<1.
+/// Prepared IDs must match the preserved, source-validated preset for the character's class bit.
 /// Returned IDs are newly given titles whose original GiveTitle log is still required.
 pub async fn seed_title_presets(
     pool: &PgPool,
@@ -591,7 +591,7 @@ pub async fn seed_title_presets(
     tokio::time::timeout(Duration::from_secs(15),async{
   let mut tx=owned_first_fiona(pool,key,cid).await?;
   sqlx::query("LOCK TABLE game_titles,game_title_goal_progress,game_title_presets IN ROW EXCLUSIVE MODE").execute(&mut *tx).await?;
-  let ids:Vec<i32>=sqlx::query_scalar("SELECT title_id FROM game_title_presets WHERE (class_restriction & 2)<>0 ORDER BY title_id LIMIT 4097 FOR SHARE").fetch_all(&mut *tx).await?;
+  let ids:Vec<i32>=sqlx::query_scalar("SELECT title_id FROM game_title_presets WHERE (class_restriction & (1<<(SELECT class FROM game_character_info WHERE id=$1)))<>0 ORDER BY title_id LIMIT 4097 FOR SHARE").bind(cid).fetch_all(&mut *tx).await?;
   if ids!=prepared_ids{return Err(StateError::Profile)}
   let progress:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_title_goal_progress WHERE cid=$1)").bind(cid).fetch_one(&mut *tx).await?;
   if progress{return Err(StateError::Conflict)}

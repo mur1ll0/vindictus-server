@@ -126,6 +126,8 @@ pub struct Profile {
     parts: Vec<Part>,
     inner: LegacyBytes<1024, true>,
     inner_colors: [i32; 3],
+    /// The CustomizeCharacter INNERARMOR request of the other classes (class-initial contents).
+    class_inners: BTreeMap<u8, (LegacyBytes<1024, true>, [i32; 3])>,
 }
 fn fail() -> Error {
     Error::FionaAppearanceProfile
@@ -260,7 +262,15 @@ impl Profile {
             parts,
             inner: item_catalog::opaque(Some(r.inner_item_utf16))?.ok_or_else(fail)?,
             inner_colors: r.inner_colors,
+            class_inners: BTreeMap::new(),
         })
+    }
+    pub fn has_class(&self, class: u8) -> bool {
+        class == 1 || self.class_inners.contains_key(&class)
+    }
+    /// The INNERARMOR request of another BaseCharacter.
+    pub fn add_class(&mut self, class: u8, inner: LegacyBytes<1024, true>, colors: [i32; 3]) {
+        self.class_inners.insert(class, (inner, colors));
     }
     pub fn bind(&self, catalog: &Catalog) -> Result<(), Error> {
         if !self
@@ -400,9 +410,15 @@ impl Profile {
     ) -> Result<Vec<Costume>, Error> {
         self.bind(catalog)?;
         inventory.bind(catalog)?;
-        if template.character_class != 1 {
-            return Err(fail());
-        }
+        // CustomizeCharacter switch(BaseCharacter): the class's INNERARMOR request.
+        let (inner, inner_colors) = match template.character_class {
+            1 => (&self.inner, self.inner_colors),
+            class => self
+                .class_inners
+                .get(&class)
+                .map(|(i, c)| (i, *c))
+                .ok_or_else(fail)?,
+        };
         let inputs = template.items.as_ref().ok_or_else(fail)?;
         if inputs.len() > 256 || template.body_shape.as_ref().is_some_and(|v| v.len() > 256) {
             return Err(fail());
@@ -467,7 +483,7 @@ impl Profile {
         for (key, chosen) in selected
             .iter()
             .map(|(k, c)| (k.as_slice(), *c))
-            .chain(std::iter::once((self.inner.as_bytes(), self.inner_colors)))
+            .chain(std::iter::once((inner.as_bytes(), inner_colors)))
         {
             let item = items.get(Some(key)).ok_or_else(fail)?;
             let cash = *custom.get(key).ok_or_else(fail)?;
