@@ -26,6 +26,9 @@ pub struct EnglishNames {
     /// item icons. Loaded with `with_catalog`.
     #[serde(skip)]
     catalog: PanelCatalog,
+    /// The catalog's items by marketplace category, built by `with_catalog`.
+    #[serde(skip)]
+    picker: super::admin_item_search::ItemIndex,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -60,6 +63,9 @@ struct PanelCatalog {
     /// Item class (upper case) → the item editor's view (export_panel_catalog.item_edit).
     #[serde(default)]
     item_edit: HashMap<String, EditorEntry>,
+    /// Marketplace categories (MainCategoryInfo/SubCategoryInfo order, client names).
+    #[serde(default)]
+    trade_categories: Vec<super::admin_item_search::TradeCategory>,
 }
 
 /// An item as the item editor sees it in the exported content.
@@ -105,7 +111,52 @@ impl EnglishNames {
             return Err(NamesError);
         }
         self.catalog = serde_json::from_slice(&bytes).map_err(|_| NamesError)?;
+        self.picker = self.picker_index();
         Ok(self)
+    }
+    /// Every item of the tooltip info or the names, with its marketplace category.
+    fn picker_index(&self) -> super::admin_item_search::ItemIndex {
+        let mut classes: Vec<&String> = self.catalog.item_info.keys().collect();
+        classes.extend(
+            self.items
+                .keys()
+                .filter(|c| !self.catalog.item_info.contains_key(*c)),
+        );
+        super::admin_item_search::ItemIndex::new(classes.into_iter().map(|class| {
+            let info = self.catalog.item_info.get(class);
+            let text = |key: &str| info.and_then(|i| i.get(key)?.as_str().map(str::to_owned));
+            let int = |key: &str| {
+                info.and_then(|i| i.get(key)?.as_i64())
+                    .and_then(|v| i32::try_from(v).ok())
+            };
+            let item = super::admin_item_search::PickerItem {
+                class: class.to_ascii_lowercase(),
+                name: self.item(class).0,
+                icon: self.catalog.item_icons.get(class).cloned(),
+                category: text("tc"),
+                sub: text("ts"),
+                required_level: int("rl"),
+                rarity: int("r"),
+                class_restriction: int("cr"),
+            };
+            let hidden = self
+                .catalog
+                .item_edit
+                .get(class)
+                .is_some_and(|e| e.hidden == 1);
+            (item, hidden)
+        }))
+    }
+    /// The item picker's page (see `admin_item_search::ItemIndex::search`).
+    pub fn pick_items(
+        &self,
+        filter: &super::admin_item_search::Filter<'_>,
+    ) -> Result<super::admin_item_search::Page, super::admin_item_search::InvalidFilter> {
+        self.picker.search(filter)
+    }
+    /// The marketplace category tree of the catalog.
+    pub fn trade_categories(&self) -> &[super::admin_item_search::TradeCategory] {
+        &self.catalog.trade_categories
     }
     /// The NPCs that open a shop (by the shop ID as the content writes it).
     pub fn shop_npcs(&self, shop_id: &str) -> Vec<ShopNpc> {

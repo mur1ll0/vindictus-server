@@ -460,7 +460,7 @@ async fn item_editor_edits_reach_the_overlay() {
     item_editor::remove(&pool, &actor(Uuid::new_v4()), &names, "fiona_inner_lab")
         .await
         .unwrap();
-    let listed = item_editor::list(&pool, &chefe, &names, "", Some("pending"))
+    let listed = item_editor::list(&pool, &chefe, &names, "", Some("pending"), (None, None))
         .await
         .unwrap();
     assert_eq!(listed.len(), 2);

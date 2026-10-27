@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Search, Store, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { api, type components, fail } from '@/api/client';
 import { createEdit, type ShopRow, type ShopSummary, shop, shops } from '@/api/content';
 import { ItemIcon } from '@/components/ItemIcon';
+import { ItemClassField } from '@/components/ItemPicker';
 import { sessionQuery } from '@/api/session';
 import { ActionForm, errorText } from '@/components/forms';
 import { Modal } from '@/components/Modal';
@@ -13,16 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
-type CatalogItem = components['schemas']['CatalogItem'];
-
 const PENDING_NOTE =
   'A edição fica pendente; um admin publica a versão em Conteúdo e ela chega ao jogo pelo scripts/content/apply-content-edits.ps1.';
-
-async function catalog(search: string): Promise<CatalogItem[]> {
-  const { data, error, response } = await api.GET('/api/items', { params: { query: { search } } });
-  if (!data) fail(response, error);
-  return data;
-}
 
 function NumberField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (v: string) => void }) {
   return (
@@ -49,12 +41,9 @@ function RowModal({
 }) {
   const [removing, setRemoving] = useState(false);
   const [item, setItem] = useState(row?.item_class ?? '');
-  const [search, setSearch] = useState('');
   const [count, setCount] = useState(String(row?.count ?? 1));
   const [priceItem, setPriceItem] = useState(row?.price_item_class ?? 'gold');
   const [price, setPrice] = useState(String(row?.price_count ?? ''));
-  const term = search.trim();
-  const found = useQuery({ queryKey: ['items', term], queryFn: () => catalog(term), enabled: !row && term.length >= 2 });
   const order = row?.order ?? nextOrder;
   return (
     <Modal
@@ -94,46 +83,19 @@ function RowModal({
             });
           }}
         >
-          {!row && (
-            <div className="space-y-1.5">
-              <Label htmlFor="shop-catalog">Buscar item no catálogo</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
-                <Input id="shop-catalog" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-              </div>
-              {term.length >= 2 && (
-                <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-border p-1">
-                  {(found.data ?? []).map((c) => (
-                    <li key={c.class}>
-                      <button
-                        type="button"
-                        onClick={() => setItem(c.class)}
-                        className={cn('w-full rounded-md px-2 py-1 text-left hover:bg-raised', item === c.class && 'bg-raised')}
-                      >
-                        <span className="flex items-center gap-2">
-                          <ItemIcon icon={c.icon} size="sm" />
-                          <span className="text-sm font-medium">{c.name}</span>
-                          <span className="font-mono text-xs text-muted">{c.class}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label htmlFor="shop-item">Item (classe)</Label>
-            <Input id="shop-item" required className="font-mono" value={item} onChange={(e) => setItem(e.target.value.trim())} readOnly={!!row} />
-          </div>
+          <ItemClassField id="shop-item" label="Item (classe)" required value={item} onChange={(value) => setItem(value)} readOnly={!!row} pickTitle="Item da loja" />
           <div className="grid grid-cols-2 gap-2">
             <NumberField id="shop-count" label="Quantidade" value={count} onChange={setCount} />
             <NumberField id="shop-price" label="Preço" value={price} onChange={setPrice} />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="shop-price-item">Moeda (gold ou classe de item)</Label>
-            <Input id="shop-price-item" required className="font-mono" value={priceItem} onChange={(e) => setPriceItem(e.target.value.trim())} />
-          </div>
+          <ItemClassField
+            id="shop-price-item"
+            label="Moeda (gold ou classe de item)"
+            required
+            value={priceItem}
+            onChange={(value) => setPriceItem(value)}
+            pickTitle="Moeda da loja"
+          />
           {row && (
             <Button type="button" variant="danger" onClick={() => setRemoving(true)}>
               <Trash2 /> Remover esta linha

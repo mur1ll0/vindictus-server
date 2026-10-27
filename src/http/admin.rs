@@ -134,6 +134,8 @@ impl AdminState {
         characters::sort_inventory,
         characters::adjust_cash,
         characters::catalog,
+        characters::picker,
+        characters::trade_categories,
         characters::progression,
         characters::effects_catalog,
         content::shops,
@@ -199,6 +201,10 @@ impl AdminState {
         characters::Sorted,
         characters::CashChange,
         crate::infrastructure::admin_characters::CatalogItem,
+        crate::infrastructure::admin_item_search::Page,
+        crate::infrastructure::admin_item_search::PickerItem,
+        crate::infrastructure::admin_item_search::TradeCategory,
+        crate::infrastructure::admin_item_search::TradeSubCategory,
         crate::infrastructure::admin_characters::CatalogEffect,
         crate::application::admin_character_edits::ProgressionResult,
         characters::ProgressionChange,
@@ -280,6 +286,8 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         )
         .route("/api/characters/{cid}/cash", post(characters::adjust_cash))
         .route("/api/items", get(characters::catalog))
+        .route("/api/items/catalog", get(characters::picker))
+        .route("/api/items/categories", get(characters::trade_categories))
         .route("/api/status-effects", get(characters::effects_catalog))
         .route("/api/shops", get(content::shops))
         .route("/api/shops/{shop_id}", get(content::shop))

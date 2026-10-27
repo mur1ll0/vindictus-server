@@ -206,10 +206,13 @@ pub async fn list(
     names: &EnglishNames,
     term: &str,
     filter: Option<&str>,
+    trade: (Option<&str>, Option<&str>),
 ) -> Result<Vec<EditorItemSummary>, AdminError> {
     require(session, Permission::Manage)?;
     let term = term.trim().to_lowercase();
-    if term.chars().count() > 64 || (filter.is_none() && term.chars().count() < 2) {
+    if term.chars().count() > 64
+        || (filter.is_none() && trade.0.is_none() && term.chars().count() < 2)
+    {
         return Err(AdminError::InvalidInput);
     }
     if !matches!(
@@ -269,7 +272,11 @@ pub async fn list(
                 .name
                 .as_ref()
                 .is_some_and(|n| n.to_lowercase().contains(&term));
-        if wanted && matches {
+        // Marketplace category (TradeCategory/TradeCategorySub of the exported row).
+        let field = |key: &str| entry.and_then(|e| e.fields.get(key)?.as_str());
+        let in_trade = trade.0.is_none_or(|c| field("TradeCategory") == Some(c))
+            && trade.1.is_none_or(|s| field("TradeCategorySub") == Some(s));
+        if wanted && matches && in_trade {
             found.push(item);
         }
     }

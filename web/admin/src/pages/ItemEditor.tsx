@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Copy, Eye, EyeOff, PackagePlus, Pencil, RotateCcw, Search, Trash2, Upload } from 'lucide-react';
+import { Copy, Eye, EyeOff, LayoutGrid, PackagePlus, Pencil, RotateCcw, Search, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, fail } from '@/api/client';
 import { KIND_LABEL } from '@/api/content';
@@ -23,6 +23,7 @@ import {
 } from '@/api/items';
 import { ActionForm, errorText } from '@/components/forms';
 import { ItemIcon } from '@/components/ItemIcon';
+import { ItemPickerModal, useTradeCategories } from '@/components/ItemPicker';
 import { Modal } from '@/components/Modal';
 import { ModelViewer } from '@/components/ModelViewer';
 import { Badge } from '@/components/ui/badge';
@@ -106,6 +107,7 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
   const [itemClass, setItemClass] = useState(editing ? (source?.item_class ?? '') : '');
   // A clone of an added item copies that item's own template.
   const [template, setTemplate] = useState(mode.kind === 'clone' ? String(definition?.template ?? source?.item_class ?? '') : '');
+  const [pickTemplate, setPickTemplate] = useState(false);
   const [name, setName] = useState(source?.name ?? String((definition?.text as Record<string, string> | undefined)?.name ?? ''));
   const [description, setDescription] = useState(source?.description ?? '');
   const [fields, setFields] = useState<Fields>(() => (source ? fieldsOf(source) : {}));
@@ -196,7 +198,20 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
                     <Button type="button" variant="outline" size="sm" disabled={!template || loadTemplate.isPending} onClick={() => loadTemplate.mutate(template)}>
                       Carregar
                     </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setPickTemplate(true)}>
+                      <LayoutGrid /> Catálogo
+                    </Button>
                   </div>
+                  {pickTemplate && (
+                    <ItemPickerModal
+                      title="Item-modelo"
+                      onPick={(item) => {
+                        setTemplate(item.class);
+                        loadTemplate.mutate(item.class);
+                      }}
+                      onClose={() => setPickTemplate(false)}
+                    />
+                  )}
                   {loadTemplate.error && <p className="text-xs text-danger">{errorText(loadTemplate.error)}</p>}
                   {templateDetail && templateDetail.origin === 'added' && (
                     <p className="text-xs text-danger">O modelo precisa ser um item base; para copiar uma adição use Clonar nela.</p>
@@ -429,6 +444,9 @@ export function ItemEditorPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('');
+  const [category, setCategory] = useState('');
+  const [sub, setSub] = useState('');
+  const categories = useTradeCategories();
   const [picked, setPicked] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -436,9 +454,9 @@ export function ItemEditorPage() {
   const term = search.trim();
   const status = useQuery({ queryKey: ['item-editor-status'], queryFn: itemStatus });
   const list = useQuery({
-    queryKey: ['item-editor', term, filter],
-    queryFn: () => editorItems(term, filter),
-    enabled: term.length >= 2 || filter !== '',
+    queryKey: ['item-editor', term, filter, category, sub],
+    queryFn: () => editorItems(term, filter, category, sub),
+    enabled: term.length >= 2 || filter !== '' || category !== '',
   });
   const detail = useQuery({ queryKey: ['item-editor-item', picked], queryFn: () => editorItem(picked ?? ''), enabled: !!picked });
   useEffect(() => setMode(null), [picked]);
@@ -473,6 +491,38 @@ export function ItemEditorPage() {
                 {label}
               </Button>
             ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              aria-label="Categoria do marketplace"
+              className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setSub('');
+              }}
+            >
+              <option value="">Todas as categorias</option>
+              {(categories.data ?? []).map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Subcategoria"
+              className="h-8 rounded-md border border-border bg-surface px-2 text-sm"
+              value={sub}
+              disabled={!category}
+              onChange={(e) => setSub(e.target.value)}
+            >
+              <option value="">Todas</option>
+              {(categories.data?.find((c) => c.code === category)?.subs ?? []).map((s) => (
+                <option key={s.code} value={s.code}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
           <Button size="sm" variant="outline" onClick={() => setMode({ kind: 'new' })}>
             <PackagePlus /> Novo item

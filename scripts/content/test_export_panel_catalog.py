@@ -1,6 +1,6 @@
 import contextlib, pathlib, sqlite3, tempfile, unittest
 
-from export_panel_catalog import place, read_package
+from export_panel_catalog import place, read_package, trade_name
 
 
 class PanelCatalogTests(unittest.TestCase):
@@ -16,11 +16,23 @@ class PanelCatalogTests(unittest.TestCase):
             with contextlib.closing(sqlite3.connect(db)) as c:
                 c.execute('CREATE TABLE ShopInfo(ShopID TEXT)')
                 c.executemany('INSERT INTO ShopInfo VALUES(?)', [('FERGHUS_Shop',), ('ARTHYEN_SHOP',)])
-                c.execute('CREATE TABLE ItemClassInfo(ItemClass TEXT, Icon TEXT, Rarity INT, Category TEXT, IconBG TEXT)')
-                c.executemany('INSERT INTO ItemClassInfo VALUES(?,?,?,?,?)', [
-                    ('enhance_elixir', 'Enhance_Elixir', 1, 'MATERIAL', None), ('bad', 'a/b', 0, None, None),
-                    ('fiona_noluck_inner_x', 'fiona_inner_x', 1, 'INNERARMOR', 'fiona_inner'),
-                    ('delia_inner_x', 'fiona_inner_x', 1, 'INNERARMOR', 'evy_inner')])
+                c.execute('CREATE TABLE ItemClassInfo(ItemClass TEXT, Icon TEXT, Rarity INT, Category TEXT, IconBG TEXT,'
+                          ' TradeCategory TEXT, TradeCategorySub TEXT)')
+                c.executemany('INSERT INTO ItemClassInfo VALUES(?,?,?,?,?,?,?)', [
+                    ('enhance_elixir', 'Enhance_Elixir', 1, 'MATERIAL', None, 'MATERIAL', 'MATERIAL_ENHANCE'),
+                    ('bad', 'a/b', 0, None, None, None, None),
+                    ('fiona_noluck_inner_x', 'fiona_inner_x', 1, 'INNERARMOR', 'fiona_inner', 'EQUIPMENT', 'CUSTOMIZE'),
+                    ('delia_inner_x', 'fiona_inner_x', 1, 'INNERARMOR', 'evy_inner', 'EQUIPMENT', 'CUSTOMIZE'),
+                    ('plate_helm', 'plate_helm', 2, 'HELM', None, 'PLATEARMOR', 'PLATEARMOR_HELM'),
+                    ('plate_odd', 'plate_odd', 2, 'TUNIC', None, 'PLATEARMOR', 'HEAVYARMOR_TUNIC'),
+                    ('pillar_a', 'pillar_a', 2, 'WEAPON', None, 'WEAPON', 'PILLAR'),
+                    ('longsword_a', 'longsword_a', 2, 'WEAPON', None, 'WEAPON', 'LONGSWORD')])
+                c.execute('CREATE TABLE MainCategoryInfo(Name TEXT, Feature TEXT)')
+                c.executemany('INSERT INTO MainCategoryInfo VALUES(?,NULL)', [('PLATEARMOR',), ('WEAPON',), ('MATERIAL',)])
+                c.execute('CREATE TABLE SubCategoryInfo(MainCategoryName TEXT, Name TEXT, Feature TEXT)')
+                c.executemany('INSERT INTO SubCategoryInfo VALUES(?,?,NULL)', [
+                    ('PLATEARMOR', 'HELM'), ('PLATEARMOR', 'TUNIC'), ('WEAPON', 'LONGSWORD'), ('WEAPON', 'PILLAR'),
+                    ('MATERIAL', 'MATERIAL_ENHANCE')])
                 c.execute('CREATE TABLE EquipItemInfo(ItemClass TEXT, MaxDurability INT, Weight REAL, Dyeable TEXT)')
                 c.execute("INSERT INTO EquipItemInfo VALUES('fiona_noluck_inner_x', 0, 24.0, 'True')")
                 c.commit()
@@ -29,7 +41,13 @@ class PanelCatalogTests(unittest.TestCase):
                      '"HEROES_NPC_ARTHYEN" "한글"', '"HEROES_ITEM_NAME_FIONA_NOLUCK_INNER_X" "한글"',
                      '"HEROES_ITEM_NAME_DELIA_INNER_X" "Crescent Moon Inner Armor"',
                      '"GAMEUI_HEROES_ItemStat_ATK" "ATT"', '"GAMEUI_HEROES_ITEMTOOLTIP_RARITY_5" "Rare"',
-                     '"HEROES_QUEST_TITLE_quest_a" "Stage A"']
+                     '"HEROES_QUEST_TITLE_quest_a" "Stage A"', '"HEROES_ITEM_TRADECATEGORY_NAME_WEAPON" "Weapon"',
+                     '"HEROES_ITEM_TRADECATEGORY_NAME_LONGSWORD" "Longsword"', '"HEROES_ITEM_TRADECATEGORY_NAME_PILLAR" "Pillar"',
+                     '"HEROES_ITEM_TRADECATEGORY_NAME_PLATEARMOR" "Plate Armor"', '"HEROES_ITEM_TRADECATEGORY_NAME_HELM" "Helm"',
+                     '"HEROES_ITEM_TRADECATEGORY_NAME_TUNIC" "Tunic"', '"HEROES_ITEM_TRADECATEGORY_NAME_HEAVYARMOR" "Heavy Armor"',
+                     '"HEROES_ITEM_TRADECATEGORY_NAME_MATERIAL" "Material"',
+                     '"HEROES_ITEM_TRADECATEGORY_NAME_MATERIAL_ENHANCE" "Enhance"',
+                     '"HEROES_ITEM_TRADECATEGORY_NAME_CUSTOMIZE" "Customization"', '"HEROES_ITEM_TRADECATEGORY_NAME_AVATAR" "아바타"']
             text.write_bytes(b'\xff\xfe' + '\r\n'.join(lines).encode('utf-16-le'))
             package = read_package(root / 'xml', db, text)
         self.assertEqual(package['shops']['FERGHUS_Shop'], [{'npc': 'FERGHUS', 'location': 't01_bs', 'place': 'Colhen'}])
@@ -42,9 +60,21 @@ class PanelCatalogTests(unittest.TestCase):
         self.assertEqual(package['item_aliases'], {'FIONA_NOLUCK_INNER_X': 'DELIA_INNER_X'})
         self.assertEqual(package['quest_titles'], {'QUEST_A': 'Stage A'})
         self.assertEqual(package['item_info']['FIONA_NOLUCK_INNER_X'],
-                         {'r': 1, 'c': 'INNERARMOR', 'bg': 'fiona_inner', 'w': 24, 'dy': 1})
+                         {'r': 1, 'c': 'INNERARMOR', 'bg': 'fiona_inner', 'w': 24, 'dy': 1, 'tc': 'EQUIPMENT',
+                          'ts': 'CUSTOMIZE'})
+        # Table order, armor subcategories joined with their category, pairs outside the tables last.
+        self.assertEqual(package['trade_categories'], [
+            {'code': 'PLATEARMOR', 'name': 'Plate Armor', 'subs': [
+                {'code': 'PLATEARMOR_HELM', 'name': 'Helm', 'count': 1},
+                {'code': 'HEAVYARMOR_TUNIC', 'name': 'Heavy Armor: Tunic', 'count': 1}]},
+            {'code': 'WEAPON', 'name': 'Weapon', 'subs': [
+                {'code': 'LONGSWORD', 'name': 'Longsword', 'count': 1}, {'code': 'PILLAR', 'name': 'Pillar', 'count': 1}]},
+            {'code': 'MATERIAL', 'name': 'Material', 'subs': [{'code': 'MATERIAL_ENHANCE', 'name': 'Enhance', 'count': 1}]},
+            {'code': 'EQUIPMENT', 'name': 'Equipment', 'subs': [{'code': 'CUSTOMIZE', 'name': 'Customization', 'count': 2}]}])
+        self.assertEqual((trade_name('AVATAR', {}), trade_name('AVATAR_HELM', {'HELM': 'Helm'})), ('Avatar', 'Avatar: Helm'))
         self.assertEqual(package['item_edit']['FIONA_NOLUCK_INNER_X'],
                          {'o': 'b', 'f': {'Icon': 'fiona_inner_x', 'Category': 'INNERARMOR', 'Rarity': 1,
+                                          'TradeCategory': 'EQUIPMENT', 'TradeCategorySub': 'CUSTOMIZE',
                                           'Weight': 24, 'Dyeable': 'True'}})
         self.assertEqual(package['tooltip_text'], {'GAMEUI_HEROES_ITEMSTAT_ATK': 'ATT', 'GAMEUI_HEROES_ITEMTOOLTIP_RARITY_5': 'Rare'})
         self.assertEqual((place('morvan.inn'), place('event.pinkrabbit'), place('')), ('Malina (Morvan)', 'Eventos', 'Outros'))

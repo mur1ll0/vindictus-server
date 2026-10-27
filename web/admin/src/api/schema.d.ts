@@ -491,6 +491,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/items/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Item picker: the catalog by marketplace category, filtered and paginated (staff). */
+        get: operations["picker"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/items/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The game's marketplace categories with the client's English names (staff). */
+        get: operations["trade_categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items/{item_class}/model": {
         parameters: {
             query?: never;
@@ -1389,6 +1423,34 @@ export interface components {
              */
             new_password: string;
         };
+        Page: {
+            items: components["schemas"]["PickerItem"][];
+            page: number;
+            per_page: number;
+            /** @description Items matching the filters (all pages). */
+            total: number;
+        };
+        /** @description One item as the picker lists it. */
+        PickerItem: {
+            category?: string | null;
+            /** @description Item class as the game writes it (lower case). */
+            class: string;
+            /**
+             * Format: int32
+             * @description ItemClassInfo.ClassRestriction bit mask (bit = character class; missing = none).
+             */
+            class_restriction?: number | null;
+            icon?: string | null;
+            name?: string | null;
+            /** Format: int32 */
+            rarity?: number | null;
+            /**
+             * Format: int32
+             * @description ItemClassInfo.RequiredLevel (missing = none).
+             */
+            required_level?: number | null;
+            sub?: string | null;
+        };
         Plan: {
             /** Format: int32 */
             delay_seconds: number;
@@ -1585,6 +1647,24 @@ export interface components {
             label: string;
             /** Format: int32 */
             value: number;
+        };
+        /** @description One marketplace category and its subcategories, in the content's order. */
+        TradeCategory: {
+            /** @description TradeCategory (WEAPON, PLATEARMOR...). */
+            code: string;
+            /** @description The client's English name. */
+            name: string;
+            subs: components["schemas"]["TradeSubCategory"][];
+        };
+        TradeSubCategory: {
+            /** @description TradeCategorySub as the items carry it (LONGSWORD, PLATEARMOR_HELM...). */
+            code: string;
+            /**
+             * Format: int32
+             * @description Items of the export in this subcategory (hidden ones included).
+             */
+            count: number;
+            name: string;
         };
         /** @description What a tuning save did (B4.5b). */
         TuningApplied: {
@@ -2472,6 +2552,10 @@ export interface operations {
                 search?: string;
                 /** @description added, edited, hidden or pending. */
                 filter?: string;
+                /** @description TradeCategory (WEAPON, PLATEARMOR...); the search is optional with it. */
+                category?: string;
+                /** @description TradeCategorySub (LONGSWORD, PLATEARMOR_HELM...). */
+                sub?: string;
             };
             header?: never;
             path?: never;
@@ -2839,6 +2923,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    picker: {
+        parameters: {
+            query?: {
+                /** @description Class or English name (up to 64 characters; 2+ without a category). */
+                search?: string;
+                /** @description TradeCategory (WEAPON, PLATEARMOR...). */
+                category?: string;
+                /** @description TradeCategorySub (LONGSWORD, PLATEARMOR_HELM...). */
+                sub?: string;
+                /** @description Character class (0–31) the item's ClassRestriction must admit. */
+                class?: number;
+                min_level?: number;
+                max_level?: number;
+                rarity?: number;
+                /** @description Include items the item editor hid. */
+                hidden?: boolean;
+                /** @description 1-based page (default 1). */
+                page?: number;
+                /** @description 1–100 (default 30). */
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    trade_categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradeCategory"][];
                 };
             };
             403: {

@@ -32,6 +32,10 @@ pub(super) struct ListQuery {
     search: String,
     /// added, edited, hidden or pending.
     filter: Option<String>,
+    /// TradeCategory (WEAPON, PLATEARMOR...); the search is optional with it.
+    category: Option<String>,
+    /// TradeCategorySub (LONGSWORD, PLATEARMOR_HELM...).
+    sub: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -84,6 +88,7 @@ pub(super) async fn list(
             &state.names,
             &query.search,
             query.filter.as_deref(),
+            (query.category.as_deref(), query.sub.as_deref()),
         )
         .await?,
     ))

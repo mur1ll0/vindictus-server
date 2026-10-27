@@ -533,7 +533,7 @@ export function CharacterPage() {
         ))}
       </div>
       {tab === 'items' && <Inventory sheet={sheet} canManage={canManage} onChanged={changed} />}
-      {edit === 'item' && <GiveItemModal cid={s.cid} onClose={() => setEdit(null)} onDone={changed} />}
+      {edit === 'item' && <GiveItemModal cid={s.cid} characterClass={s.class} onClose={() => setEdit(null)} onDone={changed} />}
       {edit === 'gold' && <GoldModal cid={s.cid} current={sheet.gold} onClose={() => setEdit(null)} onDone={changed} />}
       {edit === 'cash' && <CashModal cid={s.cid} current={sheet.cash} onClose={() => setEdit(null)} onDone={changed} />}
       {edit === 'progression' && (

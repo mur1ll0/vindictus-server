@@ -1,17 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
-import { Coins, Gem, PackagePlus, Search } from 'lucide-react';
+import { Coins, Gem, PackagePlus } from 'lucide-react';
 import { useState } from 'react';
 import { type CharacterItem, gold } from '@/api/characters';
 import { api, type components, fail } from '@/api/client';
 import { ActionForm } from '@/components/forms';
-import { ItemIcon } from '@/components/ItemIcon';
+import { ItemClassField } from '@/components/ItemPicker';
 import { Modal } from '@/components/Modal';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 type Result = components['schemas']['ChangeResult'];
-type CatalogItem = components['schemas']['CatalogItem'];
 
 async function changeItem(cid: string, body: components['schemas']['ItemChange']): Promise<Result> {
   const { data, error, response } = await api.POST('/api/characters/{cid}/items', { params: { path: { cid } }, body });
@@ -21,12 +19,6 @@ async function changeItem(cid: string, body: components['schemas']['ItemChange']
 
 async function changeCash(cid: string, body: components['schemas']['CashChange']): Promise<Result> {
   const { data, error, response } = await api.POST('/api/characters/{cid}/cash', { params: { path: { cid } }, body });
-  if (!data) fail(response, error);
-  return data;
-}
-
-async function catalog(search: string): Promise<CatalogItem[]> {
-  const { data, error, response } = await api.GET('/api/items', { params: { query: { search } } });
   if (!data) fail(response, error);
   return data;
 }
@@ -68,12 +60,19 @@ function Direction({ give, onChange, labels }: { give: boolean; onChange: (v: bo
 
 const OFFLINE_NOTE = 'O personagem precisa estar fora do jogo; a mudança aparece ao selecioná-lo de novo.';
 
-export function GiveItemModal({ cid, onClose, onDone }: { cid: string; onClose: () => void; onDone: () => void }) {
-  const [search, setSearch] = useState('');
+export function GiveItemModal({
+  cid,
+  characterClass,
+  onClose,
+  onDone,
+}: {
+  cid: string;
+  characterClass?: number;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const [item, setItem] = useState('');
   const [count, setCount] = useState('1');
-  const term = search.trim();
-  const found = useQuery({ queryKey: ['items', term], queryFn: () => catalog(term), enabled: term.length >= 2 });
   return (
     <Modal open title="Dar item" subtitle={OFFLINE_NOTE} icon={<PackagePlus className="size-5 text-muted" />} onClose={onClose} width="max-w-xl">
       <ActionForm
@@ -84,37 +83,15 @@ export function GiveItemModal({ cid, onClose, onDone }: { cid: string; onClose: 
           await changeItem(cid, { operation_id, item, count: Number(count), action: 'give' });
         }}
       >
-        <div className="space-y-1.5">
-          <Label htmlFor="catalog">Buscar no catálogo (nome em inglês ou classe)</Label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
-            <Input id="catalog" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
-          {term.length >= 2 && (
-            <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-border p-1">
-              {(found.data ?? []).map((c) => (
-                <li key={c.class}>
-                  <button
-                    type="button"
-                    onClick={() => setItem(c.class)}
-                    className={cn('w-full rounded-md px-2 py-1 text-left hover:bg-raised', item === c.class && 'bg-raised')}
-                  >
-                    <span className="flex items-center gap-2">
-                      <ItemIcon icon={c.icon} size="sm" />
-                      <span className="text-sm font-medium">{c.name}</span>
-                      <span className="font-mono text-xs text-muted">{c.class}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {found.data?.length === 0 && <li className="px-2 py-1 text-sm text-muted">Nada encontrado.</li>}
-            </ul>
-          )}
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="item">Item (classe, com atributos opcionais: classe[ENHANCE:6])</Label>
-          <Input id="item" required maxLength={512} className="font-mono" value={item} onChange={(e) => setItem(e.target.value.trim())} />
-        </div>
+        <ItemClassField
+          id="item"
+          label="Item (classe, com atributos opcionais: classe[ENHANCE:6])"
+          required
+          value={item}
+          onChange={(value) => setItem(value)}
+          characterClass={characterClass}
+          pickTitle="Item a dar"
+        />
         <Amount value={count} onChange={setCount} />
       </ActionForm>
     </Modal>

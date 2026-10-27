@@ -7,9 +7,9 @@ export type StoredKit = components['schemas']['StoredKit'];
 export type Fields = Record<string, string | number>;
 export type Draft = Omit<components['schemas']['ItemDraft'], 'fields'> & { fields: Fields };
 
-export async function editorItems(search: string, filter?: string): Promise<EditorItem[]> {
+export async function editorItems(search: string, filter?: string, category?: string, sub?: string): Promise<EditorItem[]> {
   const { data, error, response } = await api.GET('/api/item-editor/items', {
-    params: { query: { search, filter: filter || undefined } },
+    params: { query: { search, filter: filter || undefined, category: category || undefined, sub: sub || undefined } },
   });
   if (!data) fail(response, error);
   return data;

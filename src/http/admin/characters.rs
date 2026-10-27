@@ -172,6 +172,69 @@ pub(super) async fn catalog(
     Ok(Json(state.names.search_items(term, 50)))
 }
 
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct PickerQuery {
+    /// Class or English name (up to 64 characters; 2+ without a category).
+    #[serde(default)]
+    search: String,
+    /// TradeCategory (WEAPON, PLATEARMOR...).
+    category: Option<String>,
+    /// TradeCategorySub (LONGSWORD, PLATEARMOR_HELM...).
+    sub: Option<String>,
+    /// Character class (0–31) the item's ClassRestriction must admit.
+    class: Option<u8>,
+    min_level: Option<i32>,
+    max_level: Option<i32>,
+    rarity: Option<i32>,
+    /// Include items the item editor hid.
+    #[serde(default)]
+    hidden: bool,
+    /// 1-based page (default 1).
+    page: Option<usize>,
+    /// 1–100 (default 30).
+    per_page: Option<usize>,
+}
+
+/// Item picker: the catalog by marketplace category, filtered and paginated (staff).
+#[utoipa::path(get, path = "/api/items/catalog", params(PickerQuery),
+    responses((status = 200, body = crate::infrastructure::admin_item_search::Page),
+              (status = 400, body = super::ApiError), (status = 403, body = super::ApiError)))]
+pub(super) async fn picker(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    axum::extract::Query(query): axum::extract::Query<PickerQuery>,
+) -> Result<Json<crate::infrastructure::admin_item_search::Page>, Refusal> {
+    auth.require(crate::domain::admin::Permission::Read)?;
+    let filter = crate::infrastructure::admin_item_search::Filter {
+        term: &query.search,
+        category: query.category.as_deref(),
+        sub: query.sub.as_deref(),
+        class: query.class,
+        min_level: query.min_level,
+        max_level: query.max_level,
+        rarity: query.rarity,
+        include_hidden: query.hidden,
+        page: query.page.unwrap_or(1),
+        per_page: query.per_page.unwrap_or(30),
+    };
+    Ok(Json(state.names.pick_items(&filter).map_err(|_| {
+        crate::application::admin_session::AdminError::InvalidInput
+    })?))
+}
+
+/// The game's marketplace categories with the client's English names (staff).
+#[utoipa::path(get, path = "/api/items/categories",
+    responses((status = 200, body = Vec<crate::infrastructure::admin_item_search::TradeCategory>),
+              (status = 403, body = super::ApiError)))]
+pub(super) async fn trade_categories(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+) -> Result<Json<Vec<crate::infrastructure::admin_item_search::TradeCategory>>, Refusal> {
+    auth.require(crate::domain::admin::Permission::Read)?;
+    Ok(Json(state.names.trade_categories().to_vec()))
+}
+
 #[derive(Deserialize, ToSchema)]
 pub(super) struct ItemMove {
     operation_id: Uuid,

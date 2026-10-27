@@ -16,6 +16,11 @@ names, and the icon of each item class, for the shop and inventory screens. Read
 - Item editor (docs/future/item-editor.md, cut 2): the editable columns of every item
   (content_additions.EDITABLE, first row), its origin (base, added, or base edited by the panel),
   whether the panel hid it, and the definition of added items, for the panel's item form.
+- Marketplace categories: ItemClassInfo.TradeCategory/TradeCategorySub of every item (tc/ts in
+  item_info) and the tree in the order of MainCategoryInfo/SubCategoryInfo (armor subcategories
+  are stored as HELM but items carry PLATEARMOR_HELM), named by the client's
+  HEROES_ITEM_TRADECATEGORY_NAME_* texts. Pairs outside the tables follow at the end of their
+  category; untranslated (Korean) names take a fixed English name.
 - Name aliases: a class whose english_eu text was never translated (Korean) takes the English
   name and description of another class with the same icon (the same design for another
   character class, e.g. fiona_noluck_inner_devilhunter → delia_inner_devilhunter)."""
@@ -35,12 +40,15 @@ TOOLTIP = re.compile(r'^\s*"((?:GAMEUI_HEROES_ITEM_?TOOLTIP|GAMEUI_HEROES_ITEMST
                      r'GAMEUI_HEROES_ENCHANTCONDITION|GAMEUI_HEROES_ATTRIBUTE_(?:PREFIX|SUFFIX)|GAMEUI_HEROES_ITEMCONSTRAINT|'
                      r'HEROES_SET_ITEM|HEROES_ITEM_SETITEM)[^"]*)"\s+"(.*)"\s*$', re.M | re.I)
 QUEST_TITLE = re.compile(r'^\s*"HEROES_QUEST_TITLE_([^"]+)"\s+"(.*)"\s*$', re.M | re.I)
+TRADE_NAME = re.compile(r'^\s*"HEROES_ITEM_TRADECATEGORY_NAME_([^"]+)"\s+"(.*)"\s*$', re.M | re.I)
+# Trade categories whose english_eu text is Korean.
+TRADE_FALLBACK = {'AVATAR': 'Avatar', 'REAR': 'Back', 'REAR_WING': 'Wings', 'TAIL': 'Tail'}
 ITEM_TEXT = re.compile(r'^\s*"(HEROES_ITEM_(?:NAME|DESC)_[^"]+)"\s+"(.*)"\s*$', re.M)
 # ItemClassInfo / EquipItemInfo columns the tooltip shows (short key in the catalog).
 CLASS_FIELDS = [('Rarity', 'r'), ('Category', 'c'), ('SellPrice', 'sp'), ('Price', 'p'), ('RequiredLevel', 'rl'),
                 ('RequiredSkill', 'rs'), ('RequiredSkillRank', 'rr'), ('ClassRestriction', 'cr'), ('Unique', 'u'),
                 ('MaxAntiBind', 'ab'), ('TradeRestirction', 'tr'), ('Bind', 'b'), ('ExpireIn', 'ex'), ('IconBG', 'bg'),
-                ('Level', 'lv'), ('MaxStack', 'ms')]
+                ('Level', 'lv'), ('MaxStack', 'ms'), ('TradeCategory', 'tc'), ('TradeCategorySub', 'ts')]
 EQUIP_FIELDS = [('EquipClass', 'ec'), ('CostumeType', 'ct'), ('MaxDurability', 'md'), ('Weight', 'w'), ('ColorOverride', 'co'),
                 ('Enchantable', 'en'), ('Dyeable', 'dy'), ('Synthesizable', 'sy'), ('EnhanceType', 'et')]
 ICON = re.compile(r'^[A-Za-z0-9_]{1,96}$')
@@ -90,6 +98,8 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
     tooltip_text = {k.upper(): v.replace('\\n', '\n') for k, v in TOOLTIP.findall(decoded)
                     if not UNTRANSLATED.search(v) and len(v) <= 1024}
     item_text = {k.upper(): v for k, v in ITEM_TEXT.findall(decoded)}
+    trade_names = {k.upper(): v.strip() for k, v in TRADE_NAME.findall(decoded)
+                   if not UNTRANSLATED.search(v) and v.strip() and len(v) <= 128}
     quest_titles = {k.upper(): v for k, v in QUEST_TITLE.findall(decoded)
                     if KEYLIKE.match(k) and not UNTRANSLATED.search(v) and len(v) <= 256}
     with contextlib.closing(content_additions.connect(database)) as db:
@@ -106,6 +116,7 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
         added, edits = panel
         edits = content_additions.panel_edits(edits or {})
         editor = item_edit(db, added, edits['item_overrides'], edits['hidden_items'])
+        trade = trade_categories(db, info, trade_names)
     aliases = name_aliases(icons, item_text)
     shops, npcs = {}, {}
     for npc, location, shop in npc_shops(pathlib.Path(xml_root)):
@@ -122,7 +133,7 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
                 database_sha256=digest(database), shops=dict(sorted(shops.items())), npcs=dict(sorted(npcs.items())),
                 item_icons=dict(sorted(icons.items())), item_info=dict(sorted(info.items())),
                 item_aliases=dict(sorted(aliases.items())), item_edit=dict(sorted(editor.items())),
-                tooltip_text=dict(sorted(tooltip_text.items())),
+                tooltip_text=dict(sorted(tooltip_text.items())), trade_categories=trade,
                 quest_titles=dict(sorted(quest_titles.items())))
 
 
@@ -161,6 +172,58 @@ def item_info(db):
             if item and set_id and item.upper() in info:
                 info[item.upper()].setdefault('set', set_id)
     return info
+
+
+def trade_name(code, names):
+    """The client's name of a trade category code; a compound code without its own text joins the
+    names of its parts (PLATEARMOR_TUNIC → "Plate Armor: Tunic")."""
+    if code in names:
+        return names[code]
+    if code in TRADE_FALLBACK:
+        return TRADE_FALLBACK[code]
+    head, _, tail = code.partition('_')
+    if tail in names:
+        prefix = names.get(head) or TRADE_FALLBACK.get(head)
+        return prefix + ': ' + names[tail] if prefix else names[tail]
+    return code.replace('_', ' ').title()
+
+
+def sub_name(main, code, names):
+    """Inside its own category, PLATEARMOR_HELM is just "Helm"."""
+    tail = code[len(main) + 1:] if code.startswith(main + '_') else None
+    if code not in names and tail in names:
+        return names[tail]
+    return trade_name(code, names)
+
+
+def trade_categories(db, info, names):
+    """[{code, name, subs: [{code, name, count}]}]: every (tc, ts) pair of item_info, in the order of
+    MainCategoryInfo and SubCategoryInfo; pairs outside the tables follow, by code."""
+    pairs = {}
+    for entry in info.values():
+        main, sub = entry.get('tc'), entry.get('ts')
+        if isinstance(main, str) and isinstance(sub, str):
+            pairs.setdefault(main, {}).setdefault(sub, 0)
+            pairs[main][sub] += 1
+    mains, subs = [], {}
+    if {'Name'} <= columns(db, 'MainCategoryInfo'):
+        mains = [r[0] for r in db.execute('SELECT Name FROM MainCategoryInfo') if r[0]]
+    if {'MainCategoryName', 'Name'} <= columns(db, 'SubCategoryInfo'):
+        for main, sub in db.execute('SELECT MainCategoryName, Name FROM SubCategoryInfo'):
+            if main and sub:
+                subs.setdefault(main, []).append(sub)
+    tree = []
+    for main in [m for m in mains if m in pairs] + sorted(set(pairs) - set(mains)):
+        order = []
+        for sub in subs.get(main, []):
+            # Armor subcategories are HELM in the table and PLATEARMOR_HELM on the items.
+            for code in (sub, main + '_' + sub):
+                if code in pairs[main] and code not in order:
+                    order.append(code)
+        order += sorted(set(pairs[main]) - set(order))
+        tree.append({'code': main, 'name': trade_name(main, names), 'subs': [
+            {'code': code, 'name': sub_name(main, code, names), 'count': pairs[main][code]} for code in order]})
+    return tree
 
 
 def item_edit(db, added=(), overrides=None, hidden=()):

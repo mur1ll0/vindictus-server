@@ -1,8 +1,8 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Box, Download, Search } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { Box, Download, LayoutGrid } from 'lucide-react';
 import { useState } from 'react';
 import { api, type components, fail } from '@/api/client';
-import { ItemIcon } from '@/components/ItemIcon';
+import { ItemPickerModal } from '@/components/ItemPicker';
 import { ModelViewer } from '@/components/ModelViewer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,15 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type PreviewModel, readKit, unzipStored } from '@/lib/vindictusModel';
 
-type CatalogItem = components['schemas']['CatalogItem'];
 type ItemModel = components['schemas']['ItemModel'];
 type Loaded = { path: string; zip: Blob; model: PreviewModel };
-
-async function catalog(search: string): Promise<CatalogItem[]> {
-  const { data, error, response } = await api.GET('/api/items', { params: { query: { search } } });
-  if (!data) fail(response, error);
-  return data;
-}
 
 async function itemModel(itemClass: string): Promise<ItemModel> {
   const { data, error, response } = await api.GET('/api/items/{item_class}/model', {
@@ -48,13 +41,11 @@ function save(loaded: Loaded) {
 }
 
 export function ModelsPage() {
-  const [search, setSearch] = useState('');
+  const [picking, setPicking] = useState(false);
   const [path, setPath] = useState('');
   const [picked, setPicked] = useState<ItemModel | null>(null);
   const [showBones, setShowBones] = useState(false);
   const [wireframe, setWireframe] = useState(false);
-  const term = search.trim();
-  const found = useQuery({ queryKey: ['items', term], queryFn: () => catalog(term), enabled: term.length >= 2 });
   const kit = useMutation({ mutationFn: loadKit });
   const pick = useMutation({
     mutationFn: itemModel,
@@ -75,29 +66,13 @@ export function ModelsPage() {
       <div className="space-y-4">
         <Card>
           <div className="space-y-1.5">
-            <Label htmlFor="model-search">Item</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted" />
-              <Input id="model-search" className="pl-8" placeholder="Nome ou classe (2+ letras)" value={search} onChange={(e) => setSearch(e.target.value)} />
-            </div>
+            <Label>Item</Label>
+            <Button variant="outline" className="w-full" onClick={() => setPicking(true)}>
+              <LayoutGrid /> Escolher no catálogo
+            </Button>
+            {picked && <p className="truncate font-mono text-xs text-muted">{picked.item_class}</p>}
           </div>
-          <ul className="mt-3 max-h-80 space-y-1 overflow-y-auto">
-            {(found.data ?? []).slice(0, 50).map((item) => (
-              <li key={item.class}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/40"
-                  onClick={() => pick.mutate(item.class)}
-                >
-                  <ItemIcon icon={item.icon} size="sm" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm">{item.name}</span>
-                    <span className="block truncate font-mono text-xs text-muted">{item.class}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          {picking && <ItemPickerModal title="Item do modelo" onPick={(item) => pick.mutate(item.class)} onClose={() => setPicking(false)} />}
           {picked && !picked.model && (
             <p className="mt-2 text-sm text-muted">
               {picked.item_class}: sem modelo resolvível ({picked.category ?? 'sem categoria'}). Roupas, armaduras, armas e escudos são resolvidos; cabelos e acessórios não;

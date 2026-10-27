@@ -1199,6 +1199,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "TradeCategory (WEAPON, PLATEARMOR...); the search is optional with it.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sub",
+            "in": "query",
+            "description": "TradeCategorySub (LONGSWORD, PLATEARMOR_HELM...).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1696,6 +1714,177 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/catalog": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Item picker: the catalog by marketplace category, filtered and paginated (staff).",
+        "operationId": "picker",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Class or English name (up to 64 characters; 2+ without a category).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "TradeCategory (WEAPON, PLATEARMOR...).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sub",
+            "in": "query",
+            "description": "TradeCategorySub (LONGSWORD, PLATEARMOR_HELM...).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "class",
+            "in": "query",
+            "description": "Character class (0–31) the item's ClassRestriction must admit.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "min_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "max_level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "rarity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "hidden",
+            "in": "query",
+            "description": "Include items the item editor hid.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "1-based page (default 1).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "1–100 (default 30).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/categories": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "The game's marketplace categories with the client's English names (staff).",
+        "operationId": "trade_categories",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TradeCategory"
+                  }
                 }
               }
             }
@@ -4185,6 +4374,96 @@
           }
         }
       },
+      "Page": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "per_page"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PickerItem"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "per_page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "description": "Items matching the filters (all pages).",
+            "minimum": 0
+          }
+        }
+      },
+      "PickerItem": {
+        "type": "object",
+        "description": "One item as the picker lists it.",
+        "required": [
+          "class"
+        ],
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "class": {
+            "type": "string",
+            "description": "Item class as the game writes it (lower case)."
+          },
+          "class_restriction": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "ItemClassInfo.ClassRestriction bit mask (bit = character class; missing = none)."
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rarity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "required_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "ItemClassInfo.RequiredLevel (missing = none)."
+          },
+          "sub": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Plan": {
         "type": "object",
         "required": [
@@ -4802,6 +5081,54 @@
           "value": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "TradeCategory": {
+        "type": "object",
+        "description": "One marketplace category and its subcategories, in the content's order.",
+        "required": [
+          "code",
+          "name",
+          "subs"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "TradeCategory (WEAPON, PLATEARMOR...)."
+          },
+          "name": {
+            "type": "string",
+            "description": "The client's English name."
+          },
+          "subs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TradeSubCategory"
+            }
+          }
+        }
+      },
+      "TradeSubCategory": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "count"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "TradeCategorySub as the items carry it (LONGSWORD, PLATEARMOR_HELM...)."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Items of the export in this subcategory (hidden ones included).",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
