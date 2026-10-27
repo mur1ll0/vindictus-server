@@ -279,7 +279,7 @@ pub struct CharacterSummary {
     pub deleting: bool,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, Serialize, utoipa::ToSchema)]
 pub struct ItemAttribute {
     pub name: String,
     pub value: String,

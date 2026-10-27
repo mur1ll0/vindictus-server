@@ -19,6 +19,7 @@ import { sessionQuery } from '@/api/session';
 import { Avatar } from '@/components/Avatar';
 import { ItemIcon } from '@/components/ItemIcon';
 import { ItemTooltipBox, itemColors, itemTitle, WithItemTooltip } from '@/components/ItemTooltip';
+import { ItemUpgradeForm } from '@/components/ItemUpgrade';
 import { CashModal, GiveItemModal, GoldModal, RemoveItemForm } from '@/components/CharacterEdits';
 import { ProgressionModal, RemoveEffectModal } from '@/components/ProgressionEdits';
 import { Button } from '@/components/ui/button';
@@ -98,9 +99,20 @@ function ItemModal({
   onChanged: () => void;
 }) {
   const [removing, setRemoving] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
   return (
-    <Modal open title={itemTitle(item)} subtitle={item.class} onClose={onClose} width="max-w-2xl">
-      {removing ? (
+    <Modal open title={itemTitle(item)} subtitle={item.class} onClose={onClose} width={upgrading ? 'max-w-4xl' : 'max-w-2xl'}>
+      {upgrading ? (
+        <ItemUpgradeForm
+          cid={cid}
+          item={item}
+          onCancel={() => setUpgrading(false)}
+          onDone={() => {
+            onChanged();
+            onClose();
+          }}
+        />
+      ) : removing ? (
         <RemoveItemForm
           cid={cid}
           item={item}
@@ -129,9 +141,16 @@ function ItemModal({
         )}
         <p className="text-xs text-muted">ID do item: {item.id}</p>
         {canManage && (
-          <Button variant="danger" onClick={() => setRemoving(true)}>
-            <Trash2 /> Remover
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {item.durability_lost != null && (
+              <Button variant="outline" onClick={() => setUpgrading(true)}>
+                <Sparkles /> Refino e scrolls
+              </Button>
+            )}
+            <Button variant="danger" onClick={() => setRemoving(true)}>
+              <Trash2 /> Remover
+            </Button>
+          </div>
         )}
       </div>
       )}

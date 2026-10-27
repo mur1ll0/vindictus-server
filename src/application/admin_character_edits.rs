@@ -8,7 +8,7 @@ use super::admin_session::AdminError;
 use crate::{
     domain::admin::{PanelRole, Permission},
     infrastructure::{
-        admin_characters,
+        admin_characters, admin_item_upgrade,
         admin_store::{AuditRecord, SessionAccount},
         minimum_assets::Assets,
         minimum_cash_shop::{self, PanelCashOutcome},
@@ -126,6 +126,7 @@ pub async fn change_item(
     match outcome {
         PanelItemOutcome::Applied { before, after } => Ok(ChangeResult { before, after }),
         PanelItemOutcome::Refused(e) => Err(AdminError::ItemRefused(e.to_string())),
+        PanelItemOutcome::Attributes(r) => Err(AdminError::ItemRefused(r.name().to_owned())),
         PanelItemOutcome::Online => Err(AdminError::Online),
         PanelItemOutcome::Repeated => Err(AdminError::RepeatedOperation),
     }
@@ -270,5 +271,100 @@ pub async fn change_progression(
         admin_progression::PanelGrowthOutcome::Unchanged(why) => Err(AdminError::Unchanged(why)),
         admin_progression::PanelGrowthOutcome::Online => Err(AdminError::Online),
         admin_progression::PanelGrowthOutcome::Repeated => Err(AdminError::RepeatedOperation),
+    }
+}
+
+/// Enhance level and enchants one equipment item of the character accepts (staff).
+pub async fn item_upgrade_options(
+    pool: &PgPool,
+    names: &crate::infrastructure::admin_characters::EnglishNames,
+    assets: Option<&Assets>,
+    session: &SessionAccount,
+    cid: &str,
+    item: &str,
+) -> Result<admin_item_upgrade::UpgradeOptions, AdminError> {
+    let (cid, item) = ids(cid, item)?;
+    authorize(pool, session, cid).await?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    upgraded(
+        admin_item_upgrade::options(pool, names, assets, cid, item)
+            .await
+            .map_err(minimum)?,
+    )
+}
+
+/// Before/after tooltips of an Enhance/enchant change, without writing (staff).
+pub async fn preview_item_upgrade(
+    pool: &PgPool,
+    names: &crate::infrastructure::admin_characters::EnglishNames,
+    assets: Option<&Assets>,
+    session: &SessionAccount,
+    cid: &str,
+    item: &str,
+    upgrade: &admin_item_upgrade::Upgrade,
+) -> Result<admin_item_upgrade::UpgradePreview, AdminError> {
+    let (cid, item) = ids(cid, item)?;
+    authorize(pool, session, cid).await?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    upgraded(
+        admin_item_upgrade::preview(pool, names, assets, cid, item, upgrade)
+            .await
+            .map_err(minimum)?,
+    )
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct UpgradeResult {
+    /// ENHANCE, PREFIX and SUFFIX (with Arg) and tradable, before and after (JSON text).
+    pub before: String,
+    pub after: String,
+}
+
+/// Write the Enhance level and enchants of an offline character's item, audited.
+pub async fn upgrade_item(
+    pool: &PgPool,
+    assets: Option<&Assets>,
+    change: &Change<'_>,
+    cid: &str,
+    item: &str,
+    upgrade: &admin_item_upgrade::Upgrade,
+) -> Result<UpgradeResult, AdminError> {
+    let (cid_value, item) = ids(cid, item)?;
+    authorize(pool, change.session, cid_value).await?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    let (before, after) = upgraded(
+        admin_item_upgrade::apply(
+            pool,
+            assets,
+            cid_value,
+            item,
+            upgrade,
+            audit(change, "character.item_upgrade", cid),
+        )
+        .await
+        .map_err(minimum)?,
+    )?;
+    Ok(UpgradeResult { before, after })
+}
+
+fn ids(cid: &str, item: &str) -> Result<(i64, i64), AdminError> {
+    Ok((
+        cid.parse().map_err(|_| AdminError::NotFound)?,
+        item.parse().map_err(|_| AdminError::NotFound)?,
+    ))
+}
+
+fn upgraded<T>(outcome: admin_item_upgrade::Outcome<T>) -> Result<T, AdminError> {
+    use admin_item_upgrade::Outcome;
+    match outcome {
+        Outcome::Done(value) => Ok(value),
+        Outcome::NotFound => Err(AdminError::NotFound),
+        Outcome::Refused(r) => {
+            tracing::warn!(check = r.name(), "panel item upgrade refused");
+            Err(AdminError::ItemRefused(r.name().to_owned()))
+        }
+        Outcome::Unchanged => Err(AdminError::Unchanged("sem_mudanca")),
+        Outcome::Online => Err(AdminError::Online),
+        Outcome::Repeated => Err(AdminError::RepeatedOperation),
     }
 }

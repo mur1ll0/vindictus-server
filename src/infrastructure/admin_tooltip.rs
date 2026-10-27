@@ -409,6 +409,45 @@ pub(super) fn build(
 }
 
 /// The set of a class, for the equipped-piece count.
+/// The client's name of an enchant and its stat lines (each with its condition), for the
+/// panel's enchant choice; the lines are not judged against an owner.
+pub(super) fn enchant_text(
+    names: &EnglishNames,
+    assets: &Assets,
+    enchant: &str,
+    prefix: bool,
+) -> (String, Vec<String>) {
+    let class = enchant.to_ascii_uppercase();
+    let slot = if prefix { "PREFIX" } else { "SUFFIX" };
+    let lines = assets
+        .enhance
+        .as_ref()
+        .and_then(|c| c.enchant_stats(enchant))
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|r| {
+                    let stat =
+                        names.text(&format!("GAMEUI_HEROES_ENCHANTSTAT_{class}_{}", r.order))?;
+                    let condition = names
+                        .text(&format!(
+                            "GAMEUI_HEROES_ENCHANTCONDITION_{class}_{}",
+                            r.order
+                        ))
+                        .filter(|c| !c.is_empty());
+                    Some(match condition {
+                        Some(c) => format!("{} ({})", format(&stat, &[]), format(&c, &[])),
+                        None => format(&stat, &[]),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let name = names
+        .text(&format!("GAMEUI_HEROES_ATTRIBUTE_{slot}_{class}"))
+        .unwrap_or_else(|| enchant.to_owned());
+    (name, lines)
+}
+
 pub(super) fn set_of(names: &EnglishNames, class: &str) -> Option<String> {
     names
         .item_info(class)

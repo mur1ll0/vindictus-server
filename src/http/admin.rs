@@ -136,6 +136,9 @@ impl AdminState {
         characters::catalog,
         characters::picker,
         characters::trade_categories,
+        characters::upgrade_options,
+        characters::upgrade_preview,
+        characters::upgrade_item,
         characters::progression,
         characters::effects_catalog,
         content::shops,
@@ -205,6 +208,13 @@ impl AdminState {
         crate::infrastructure::admin_item_search::PickerItem,
         crate::infrastructure::admin_item_search::TradeCategory,
         crate::infrastructure::admin_item_search::TradeSubCategory,
+        crate::infrastructure::admin_item_upgrade::UpgradeOptions,
+        crate::infrastructure::admin_item_upgrade::EnchantOption,
+        crate::infrastructure::admin_item_upgrade::UpgradePreview,
+        crate::application::admin_character_edits::UpgradeResult,
+        characters::EnchantChoice,
+        characters::UpgradeValues,
+        characters::UpgradeChange,
         crate::infrastructure::admin_characters::CatalogEffect,
         crate::application::admin_character_edits::ProgressionResult,
         characters::ProgressionChange,
@@ -285,6 +295,14 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             post(characters::sort_inventory),
         )
         .route("/api/characters/{cid}/cash", post(characters::adjust_cash))
+        .route(
+            "/api/characters/{cid}/items/{item}/upgrade",
+            get(characters::upgrade_options).post(characters::upgrade_item),
+        )
+        .route(
+            "/api/characters/{cid}/items/{item}/upgrade/preview",
+            post(characters::upgrade_preview),
+        )
         .route("/api/items", get(characters::catalog))
         .route("/api/items/catalog", get(characters::picker))
         .route("/api/items/categories", get(characters::trade_categories))
@@ -551,6 +569,15 @@ fn item_refusal(name: &str) -> &'static str {
         "GiveItemFail_ExceedBundleCount" => "A quantidade passa do limite de pilhas do inventário.",
         "GiveItemFail_UniqueConstraint" => "Item único: o personagem já tem um.",
         "GiveItemFail_NoEmptySlot" => "Sem espaço livre no inventário.",
+        "no-enhance" => "Este item não tem refino (EnhanceType).",
+        "enhance-level" => "Nível de refino fora dos níveis do tipo do item.",
+        "enhance-value" => "O refino precisa ser um número.",
+        "not-enchantable" => "Este item não aceita encantamento.",
+        "unknown-enchant" => "Encantamento inexistente no conteúdo.",
+        "wrong-slot" => "Esse encantamento é do outro lado (prefixo/sufixo).",
+        "not-available" => "Esse encantamento não serve para este item (restrição do scroll).",
+        "timed-enchant" => "Encantamentos temporários não são editados pelo painel.",
+        "enchant-argument" => "Valor do encantamento fora da faixa do scroll.",
         _ => {
             "Pedido fora do que o servidor já migrou (por exemplo, item com atributos ou que expira)."
         }

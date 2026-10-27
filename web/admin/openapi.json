@@ -826,6 +826,241 @@
         }
       }
     },
+    "/api/characters/{cid}/items/{item}/upgrade": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Enhance levels and enchants one equipment item accepts, with its tooltip (staff).",
+        "operationId": "upgrade_options",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradeOptions"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Set the Enhance level and enchants of an offline character's equipment item (audited).",
+        "operationId": "upgrade_item",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpgradeChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/characters/{cid}/items/{item}/upgrade/preview": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Before/after tooltips of an Enhance/enchant change; nothing is written (staff).",
+        "operationId": "upgrade_preview",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpgradeValues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpgradePreview"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/characters/{cid}/progression": {
       "post": {
         "tags": [
@@ -3715,6 +3950,64 @@
           }
         }
       },
+      "EnchantChoice": {
+        "type": "object",
+        "required": [
+          "class"
+        ],
+        "properties": {
+          "arg": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Arg within the enchant's MinArgValue..=MaxArgValue (0 for most)."
+          },
+          "class": {
+            "type": "string",
+            "description": "EnchantClass."
+          }
+        }
+      },
+      "EnchantOption": {
+        "type": "object",
+        "description": "One enchant the item accepts, with the client's texts.",
+        "required": [
+          "class",
+          "name",
+          "rank",
+          "min_arg",
+          "max_arg",
+          "lines"
+        ],
+        "properties": {
+          "class": {
+            "type": "string",
+            "description": "EnchantClass."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The stat lines (with their conditions) as the tooltip shows them."
+          },
+          "max_arg": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "min_arg": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "description": "EnchantLevel (1 = rank F … 6 = A, 7–9 = ranks 9–7)."
+          }
+        }
+      },
       "EnchantRatioView": {
         "type": "object",
         "required": [
@@ -5208,6 +5501,155 @@
             "items": {
               "$ref": "#/components/schemas/QuestDropView"
             }
+          }
+        }
+      },
+      "UpgradeChange": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UpgradeValues"
+          },
+          {
+            "type": "object",
+            "required": [
+              "operation_id"
+            ],
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        ]
+      },
+      "UpgradeOptions": {
+        "type": "object",
+        "required": [
+          "item_class",
+          "enhance_max",
+          "enhance",
+          "enchantable",
+          "prefix_arg",
+          "suffix_arg",
+          "prefixes",
+          "suffixes",
+          "tooltip"
+        ],
+        "properties": {
+          "enchantable": {
+            "type": "boolean"
+          },
+          "enhance": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "enhance_max": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Largest Enhance level of the item's type; 0 without refining."
+          },
+          "item_class": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prefix_arg": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "prefixes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnchantOption"
+            }
+          },
+          "suffix": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "suffix_arg": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "suffixes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnchantOption"
+            }
+          },
+          "tooltip": {
+            "$ref": "#/components/schemas/ItemTooltip"
+          }
+        }
+      },
+      "UpgradePreview": {
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "properties": {
+          "after": {
+            "$ref": "#/components/schemas/ItemTooltip"
+          },
+          "before": {
+            "$ref": "#/components/schemas/ItemTooltip"
+          }
+        }
+      },
+      "UpgradeResult": {
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string",
+            "description": "ENHANCE, PREFIX and SUFFIX (with Arg) and tradable, before and after (JSON text)."
+          }
+        }
+      },
+      "UpgradeValues": {
+        "type": "object",
+        "required": [
+          "enhance"
+        ],
+        "properties": {
+          "enhance": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Enhance level (0 removes it)."
+          },
+          "prefix": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EnchantChoice"
+              }
+            ]
+          },
+          "suffix": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EnchantChoice"
+              }
+            ]
           }
         }
       },

@@ -681,6 +681,8 @@ pub enum PanelItemOutcome {
         after: i64,
     },
     Refused(GiveError),
+    /// ENHANCE/PREFIX/SUFFIX values the game could not produce for the class.
+    Attributes(crate::domain::item_upgrade::Refusal),
     /// The character is in a live session: its inventory belongs to the connection.
     Online,
     /// The audit's operation id was already used: nothing applied.
@@ -710,6 +712,13 @@ pub async fn panel_change(
     let destroy = matches!(change, PanelItemChange::Destroy(_));
     if class.is_empty() || class.len() > 50 || (destroy && class != text) {
         return Err(MinimumError::Conflict);
+    }
+    // Enhance and enchants only with the values the game could produce for the class.
+    if !destroy
+        && let Err(refusal) = super::admin_item_upgrade::check_give(assets, &class, &attributes)
+    {
+        tracing::warn!(check = refusal.name(), "panel item attributes refused");
+        return Ok(PanelItemOutcome::Attributes(refusal));
     }
     let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
     let user: Option<(i32, String, i64)> = sqlx::query_as(

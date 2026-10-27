@@ -7221,6 +7221,195 @@ async fn panel_item_and_cash_changes_are_audited_once_and_refuse_online() {
     );
     cleanup_game_pool(a, p, s).await;
 }
+/// Panel Enhance/enchant editor: the values the game could produce for the class (in the
+/// give request too), written offline with one audit row, binding like the game, and refused
+/// online, for another slot, above the type's levels or for an unknown item.
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn panel_item_upgrade_writes_valid_enhance_and_enchants_offline() {
+    use vindictus_server::{
+        domain::{character_stats::Arithmetic, item_upgrade::Refusal},
+        infrastructure::{
+            admin_characters::EnglishNames,
+            admin_item_upgrade::{self, Outcome, Upgrade},
+            admin_store::AuditRecord,
+            minimum_give::{PanelItemChange, PanelItemOutcome},
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let (mut catalog, _, _, _) = appearance_fixture::fixtures();
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("synthetic_gold"),"feature":null,"max_stack":2100000000,"storage":3,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":appearance_fixture::key("enchant_scroll"),"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_enhance(processor_profile(&catalog))
+        .unwrap()
+        .with_item_arithmetic(Arithmetic::FrameworkX64);
+    let record = |operation: u128| AuditRecord {
+        account_id: None,
+        actor_name: None,
+        role: None,
+        operation_id: Some(uuid::Uuid::from_u128(operation)),
+        action: "character.item_upgrade",
+        target_kind: Some("character"),
+        target_id: Some("1"),
+        before: None,
+        after: None,
+        refused: false,
+        peer: None,
+    };
+    // The give request: the type has levels 1–3, keen is a prefix, doom a suffix.
+    let give = |text: &'static str, operation| {
+        let p = p.clone();
+        let assets = &assets;
+        async move {
+            minimum_give::panel_change(
+                &p,
+                assets,
+                1,
+                PanelItemChange::Give(text),
+                1,
+                65533,
+                record(operation),
+            )
+            .await
+            .unwrap()
+        }
+    };
+    assert!(matches!(
+        give("synthetic_bag[ENHANCE:4]", 1).await,
+        PanelItemOutcome::Attributes(Refusal::EnhanceLevel)
+    ));
+    assert!(matches!(
+        give("synthetic_bag[SUFFIX:keen]", 2).await,
+        PanelItemOutcome::Attributes(Refusal::WrongSlot)
+    ));
+    assert!(matches!(
+        give("synthetic_bag[ENHANCE:2,PREFIX:keen]", 3).await,
+        PanelItemOutcome::Applied { .. }
+    ));
+
+    let bag: i64 = sqlx::query_scalar(
+        "SELECT i.id FROM game_items i WHERE i.owner_id=1 AND i.item_class_utf16=$1
+         AND NOT EXISTS (SELECT 1 FROM game_item_attributes a WHERE a.item_id=i.id) ORDER BY i.id LIMIT 1",
+    )
+    .bind(utf16("synthetic_bag"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    let upgrade = |enhance, prefix: Option<&str>, suffix: Option<&str>| Upgrade {
+        enhance,
+        prefix: prefix.map(|c| (c.to_owned(), 0)),
+        suffix: suffix.map(|c| (c.to_owned(), 0)),
+    };
+    let apply = |item, values: Upgrade, operation| {
+        let p = p.clone();
+        let assets = &assets;
+        async move {
+            admin_item_upgrade::apply(&p, assets, 1, item, &values, record(operation))
+                .await
+                .unwrap()
+        }
+    };
+    assert!(matches!(
+        apply(bag, upgrade(4, None, None), 10).await,
+        Outcome::Refused(Refusal::EnhanceLevel)
+    ));
+    assert!(matches!(
+        apply(bag, upgrade(1, Some("doom"), None), 11).await,
+        Outcome::Refused(Refusal::WrongSlot)
+    ));
+    assert!(matches!(
+        apply(-1, upgrade(1, None, None), 12).await,
+        Outcome::NotFound
+    ));
+    let names = EnglishNames::default();
+    let shown = admin_item_upgrade::preview(
+        &p,
+        &names,
+        &assets,
+        1,
+        bag,
+        &upgrade(3, Some("keen"), Some("doom")),
+    )
+    .await
+    .unwrap();
+    let Outcome::Done(shown) = shown else {
+        panic!("preview refused")
+    };
+    assert_eq!(
+        (shown.before.enhance_level, shown.after.enhance_level),
+        (0, 3)
+    );
+    assert_eq!(shown.after.enchants.len(), 2);
+
+    assert!(matches!(
+        apply(bag, upgrade(3, Some("keen"), Some("doom")), 13).await,
+        Outcome::Done(_)
+    ));
+    let stored: Vec<(Vec<u8>, Vec<u8>)> = sqlx::query_as(
+        "SELECT attribute_bytes, value_bytes FROM game_item_attributes WHERE item_id=$1 ORDER BY attribute_bytes",
+    )
+    .bind(bag)
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(
+        stored,
+        [
+            (b"ENHANCE".to_vec(), b"3".to_vec()),
+            (b"PREFIX".to_vec(), b"keen".to_vec()),
+            (b"SUFFIX".to_vec(), b"doom".to_vec())
+        ]
+    );
+    // doom is EnchantLevel 7: the game binds the item.
+    let tradable: bool = sqlx::query_scalar("SELECT tradable FROM game_items WHERE id=$1")
+        .bind(bag)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert!(!tradable);
+    // Same values: nothing to do; another value with the used operation id: repeated.
+    assert!(matches!(
+        apply(bag, upgrade(3, Some("keen"), Some("doom")), 14).await,
+        Outcome::Unchanged
+    ));
+    assert!(matches!(
+        apply(bag, upgrade(1, None, None), 13).await,
+        Outcome::Repeated
+    ));
+    // Removing everything leaves no attribute rows.
+    assert!(matches!(
+        apply(bag, upgrade(0, None, None), 15).await,
+        Outcome::Done(_)
+    ));
+    let left: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM game_item_attributes WHERE item_id=$1")
+            .bind(bag)
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    assert_eq!(left, 0);
+    sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert!(matches!(
+        apply(bag, upgrade(1, None, None), 16).await,
+        Outcome::Online
+    ));
+    let audited: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM admin_audit_events WHERE action='character.item_upgrade'",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    // The give (operation 3) and the two writes.
+    assert_eq!(audited, 3);
+    cleanup_game_pool(a, p, s).await;
+}
 /// B4.3c: the panel's progression changes run the game's GiveExp/GiveAP/AcquireTitle in one
 /// transaction with the audit, refuse online characters and report "no change".
 #[tokio::test]

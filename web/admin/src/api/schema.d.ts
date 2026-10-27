@@ -210,6 +210,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{cid}/items/{item}/upgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Enhance levels and enchants one equipment item accepts, with its tooltip (staff). */
+        get: operations["upgrade_options"];
+        put?: never;
+        /** Set the Enhance level and enchants of an offline character's equipment item (audited). */
+        post: operations["upgrade_item"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{cid}/items/{item}/upgrade/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Before/after tooltips of an Enhance/enchant change; nothing is written (staff). */
+        post: operations["upgrade_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{cid}/progression": {
         parameters: {
             query?: never;
@@ -1174,6 +1209,32 @@ export interface components {
             /** @description An item edit of this class waits to be published. */
             pending: boolean;
         };
+        EnchantChoice: {
+            /**
+             * Format: int32
+             * @description Arg within the enchant's MinArgValue..=MaxArgValue (0 for most).
+             */
+            arg?: number;
+            /** @description EnchantClass. */
+            class: string;
+        };
+        /** @description One enchant the item accepts, with the client's texts. */
+        EnchantOption: {
+            /** @description EnchantClass. */
+            class: string;
+            /** @description The stat lines (with their conditions) as the tooltip shows them. */
+            lines: string[];
+            /** Format: int32 */
+            max_arg: number;
+            /** Format: int32 */
+            min_arg: number;
+            name: string;
+            /**
+             * Format: int32
+             * @description EnchantLevel (1 = rank F … 6 = A, 7–9 = ranks 9–7).
+             */
+            rank: number;
+        };
         EnchantRatioView: {
             class: string;
             /** Format: int32 */
@@ -1693,6 +1754,48 @@ export interface components {
             enhance: components["schemas"]["EnhanceRatioView"][];
             features: components["schemas"]["FeatureView"][];
             quests: components["schemas"]["QuestDropView"][];
+        };
+        UpgradeChange: components["schemas"]["UpgradeValues"] & {
+            /** Format: uuid */
+            operation_id: string;
+        };
+        UpgradeOptions: {
+            enchantable: boolean;
+            /** Format: int32 */
+            enhance: number;
+            /**
+             * Format: int32
+             * @description Largest Enhance level of the item's type; 0 without refining.
+             */
+            enhance_max: number;
+            item_class: string;
+            prefix?: string | null;
+            /** Format: int32 */
+            prefix_arg: number;
+            prefixes: components["schemas"]["EnchantOption"][];
+            suffix?: string | null;
+            /** Format: int32 */
+            suffix_arg: number;
+            suffixes: components["schemas"]["EnchantOption"][];
+            tooltip: components["schemas"]["ItemTooltip"];
+        };
+        UpgradePreview: {
+            after: components["schemas"]["ItemTooltip"];
+            before: components["schemas"]["ItemTooltip"];
+        };
+        UpgradeResult: {
+            after: string;
+            /** @description ENHANCE, PREFIX and SUFFIX (with Arg) and tradable, before and after (JSON text). */
+            before: string;
+        };
+        UpgradeValues: {
+            /**
+             * Format: int32
+             * @description Enhance level (0 removes it).
+             */
+            enhance: number;
+            prefix?: null | components["schemas"]["EnchantChoice"];
+            suffix?: null | components["schemas"]["EnchantChoice"];
         };
         WorldView: {
             channel?: null | components["schemas"]["ChannelView"];
@@ -2261,6 +2364,160 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    upgrade_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpgradeOptions"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    upgrade_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpgradeChange"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpgradeResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    upgrade_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+                item: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpgradeValues"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpgradePreview"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

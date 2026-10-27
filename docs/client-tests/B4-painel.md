@@ -20,6 +20,17 @@ Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4
 8. **Fim:** relogar com a Murael e o personagem novo e conferir o que as entradas listam como preservado; Auditoria deve ter uma linha para cada mudança feita.
 9. **Editor de itens (depois do B4, opcional na mesma sessão):** I2 com a Fiona fora do jogo: criar, clonar com kit, editar, ocultar e remover; publicar; abrir pelo `start-lab.bat`; dar os itens e conferir no jogo; relogar.
 
+### P2 — Busca por categoria, refino e scrolls de um item pelo painel
+Pré-condição: imagens recompiladas e catálogo reexportado depois dos commits da busca por categoria e do editor de refino (`py -3.13 scripts/content/refresh_item_content.py`, depois `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait`); login no painel como `gm` ou `admin`; uma Fiona de laboratório offline com uma espada longa (ex.: `longsword_swordwind`) na bolsa. Cliente fechado.
+- [ ] Ficha → **Dar item** → **Catálogo** → Weapon → Longsword → a lista mostra só espadas longas, paginada, com o filtro de classe já na Fiona; escolher uma → a classe vai para o campo.
+- [ ] Ainda em Dar item, digitar `longsword_swordwind[ENHANCE:20]` → recusa "Nível de refino fora dos níveis do tipo do item"; `longsword_swordwind[PREFIX:protected]` → recusa "não serve para este item".
+- [ ] Clicar na espada da bolsa → **Refino e scrolls** → refino +10, um prefixo e um sufixo de rank A (filtro "a") → a prévia mostra o tooltip antes → depois (ATK maior, "+10", nomes do prefixo e do sufixo) → Aplicar.
+- [ ] Entrar no jogo com a Fiona → a espada aparece como "+10 <prefixo> <nome> <sufixo>"; o tooltip do jogo mostra o mesmo ATK, rank e linhas da prévia do painel; o brilho de refino aparece ao equipar; equipar e desequipar sem erro.
+- [ ] Sair; no painel, mudar só o sufixo para um de rank 7–9 → aplicar → no jogo o item aparece como intransferível (como um enchant real desse rank).
+- [ ] Repetir com uma peça de armadura de placas (ex.: elmo): os scrolls oferecidos respeitam a restrição (`(HEAVY_ARMOR,PLATE_ARMOR)&(HELM,PANTS)` aparece; os de arma não).
+- [ ] Lojas → uma loja → **Adicionar linha** → **Catálogo** para o item e para a moeda; Modelos 3D → **Escolher no catálogo**; Editor de itens → seletores de categoria e **Catálogo** do item-modelo.
+Limites conhecidos: encantamentos temporários (Duration) não aparecem; a escolha do `Arg` só existe para scrolls com faixa; a durabilidade não muda.
+
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.3b-2`), o que foi feito, o que apareceu na tela (texto da mensagem do painel ou do jogo; captura se possível) e o horário aproximado (hh:mm). Os horários são comparados com `docker compose logs game` e com a Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo (ex.: "missão não alcançada").
 

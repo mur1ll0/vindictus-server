@@ -423,3 +423,118 @@ pub(super) async fn effects_catalog(
     };
     Ok(Json(state.names.search_effects(contents, term, 50)))
 }
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct EnchantChoice {
+    /// EnchantClass.
+    class: String,
+    /// Arg within the enchant's MinArgValue..=MaxArgValue (0 for most).
+    #[serde(default)]
+    arg: i32,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct UpgradeValues {
+    /// Enhance level (0 removes it).
+    enhance: i32,
+    prefix: Option<EnchantChoice>,
+    suffix: Option<EnchantChoice>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct UpgradeChange {
+    operation_id: Uuid,
+    #[serde(flatten)]
+    values: UpgradeValues,
+}
+
+fn upgrade_of(v: UpgradeValues) -> crate::infrastructure::admin_item_upgrade::Upgrade {
+    crate::infrastructure::admin_item_upgrade::Upgrade {
+        enhance: v.enhance,
+        prefix: v.prefix.map(|c| (c.class, c.arg)),
+        suffix: v.suffix.map(|c| (c.class, c.arg)),
+    }
+}
+
+/// Enhance levels and enchants one equipment item accepts, with its tooltip (staff).
+#[utoipa::path(get, path = "/api/characters/{cid}/items/{item}/upgrade",
+    params(("cid" = String, Path), ("item" = String, Path)),
+    responses((status = 200, body = crate::infrastructure::admin_item_upgrade::UpgradeOptions),
+              (status = 403, body = super::ApiError), (status = 404, body = super::ApiError),
+              (status = 409, body = super::ApiError)))]
+pub(super) async fn upgrade_options(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path((cid, item)): Path<(String, String)>,
+) -> Result<Json<crate::infrastructure::admin_item_upgrade::UpgradeOptions>, Refusal> {
+    let assets = state.runtime.as_ref().and_then(|r| r.minimum_assets());
+    Ok(Json(
+        admin_character_edits::item_upgrade_options(
+            state.auth.pool(),
+            &state.names,
+            assets.as_deref(),
+            &auth.session,
+            &cid,
+            &item,
+        )
+        .await?,
+    ))
+}
+
+/// Before/after tooltips of an Enhance/enchant change; nothing is written (staff).
+#[utoipa::path(post, path = "/api/characters/{cid}/items/{item}/upgrade/preview",
+    params(("cid" = String, Path), ("item" = String, Path)), request_body = UpgradeValues,
+    responses((status = 200, body = crate::infrastructure::admin_item_upgrade::UpgradePreview),
+              (status = 403, body = super::ApiError), (status = 404, body = super::ApiError),
+              (status = 409, body = super::ApiError)))]
+pub(super) async fn upgrade_preview(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path((cid, item)): Path<(String, String)>,
+    Json(body): Json<UpgradeValues>,
+) -> Result<Json<crate::infrastructure::admin_item_upgrade::UpgradePreview>, Refusal> {
+    let assets = state.runtime.as_ref().and_then(|r| r.minimum_assets());
+    Ok(Json(
+        admin_character_edits::preview_item_upgrade(
+            state.auth.pool(),
+            &state.names,
+            assets.as_deref(),
+            &auth.session,
+            &cid,
+            &item,
+            &upgrade_of(body),
+        )
+        .await?,
+    ))
+}
+
+/// Set the Enhance level and enchants of an offline character's equipment item (audited).
+#[utoipa::path(post, path = "/api/characters/{cid}/items/{item}/upgrade",
+    params(("cid" = String, Path), ("item" = String, Path)), request_body = UpgradeChange,
+    responses((status = 200, body = admin_character_edits::UpgradeResult),
+              (status = 400, body = super::ApiError), (status = 403, body = super::ApiError),
+              (status = 404, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn upgrade_item(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path((cid, item)): Path<(String, String)>,
+    Json(body): Json<UpgradeChange>,
+) -> Result<Json<admin_character_edits::UpgradeResult>, Refusal> {
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+    };
+    let assets = state.runtime.as_ref().and_then(|r| r.minimum_assets());
+    Ok(Json(
+        admin_character_edits::upgrade_item(
+            state.auth.pool(),
+            assets.as_deref(),
+            &change,
+            &cid,
+            &item,
+            &upgrade_of(body.values),
+        )
+        .await?,
+    ))
+}
