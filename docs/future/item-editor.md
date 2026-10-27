@@ -84,11 +84,9 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
   - `fiona_inner_zero` (teste do corte 2): `CostumeType` 9100 e entrada nova no `inner_armor` do `player_costume.txt`. O modelo e as texturas foram fornecidos pelo operador e ficam em `.cache/private-assets/inner_zero`, fora do Git. O modelo vai num pacote novo, parte 14 de `models/player/fiona`, e as texturas na pasta nova `materials/models/player/fiona/fiona_inner_zero`. **Atenção:** o `.mdl` é da versão 48, e os 16.802 modelos do 1.69 são da 44. VVD v4, VTX v7 e VTF 7.2 são iguais aos do 1.69. Se o motor recusar a v48, o modelo não aparece; nesse caso, a próxima etapa é converter o cabeçalho ou recompilar para v44.
 - **Cliente:** `scripts/client/apply_lab_content_additions.py --apply` (também rodado pelo `start-lab.bat`) grava as linhas no `sql/heroes.db3`. Ele refaz, a partir de `lab-backup/`, os pacotes de texto em inglês (nome e descrição) e o de scripts (`player_costume.txt`), cria os pacotes dos arquivos do item e sincroniza o índice HFS (`scripts/client/hfs.py`, cujo XOR passou a ser feito por inteiro grande: 2,5 s para tudo). Sem itens, ele volta aos originais e apaga os pacotes criados. A tabela de 4.096 bytes fica em `<cópia>/hfs-keystream.bin`, fora do Git.
 - **Testes:** `scripts/content/test_content_additions.py` (5) e `scripts/client/test_apply_lab_hfs.py` (3), com bancos e pacotes sintéticos. As suítes `scripts/content` (65) e `scripts/client` passam.
-- **Teste no cliente (pendente):**
-  1. Pelo painel, dar `fiona_inner_fringe` e `fiona_inner_zero` à Fiona.
-  2. No jogo, conferir o nome e o ícone na bolsa.
-  3. Vestir cada um e conferir o modelo: o fringe deve aparecer sem meias; o zero, com o modelo novo.
-  4. Relogar e conferir que continuam lá.
+- **Teste no cliente: passou (26/10/2026).** O operador deu `fiona_inner_fringe` e `fiona_inner_zero` à Fiona pelo painel. Os dois aparecem na bolsa com nome e ícone, vestem com o modelo certo e continuam depois de relogar. Consequências:
+  - **o corte 1 está comprovado de ponta a ponta:** item novo no servidor e no cliente, texto novo em pacote refeito, ícone existente, criado pelo painel e persistido;
+  - **o motor 1.69 aceita MDL v48**, junto com texturas em pasta nova e entrada nova no `player_costume.txt`. Modelos de clientes mais novos (por exemplo, o NA em `F:\Gamesindictus`) podem entrar sem conversão para v44, o que reduz o risco do corte 2 e dos monstros novos. Falta testar um modelo **compilado por nós** (Blender → `studiomdl`).
 
 ### 3.2 Corte 2, modelo novo por classe (I3–I5)
 
