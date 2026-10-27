@@ -193,3 +193,56 @@ Só a comparação de assets e de linhas com o NA fica perdida. Retomar o C2 ass
   1. **Leitura tolerante do banco parcialmente decifrado:** um leitor próprio de páginas e registros que pula as células ruins e busca as tabelas e linhas da Delia, Miri e segundas armas. Não pede nova autorização; lacuna de cerca de 5% das linhas, a marcar como incerta.
   2. **Carregador isolado do DLL de 32 bits:** em processo próprio e sem rede, chamar a abertura e leitura do `FileSystem_Stdio.dll` para obter o `heroes.db3` em claro. Executa código proprietário protegido pelo VMProtect, que pode ter anti-depuração; exige decisão explícita.
   3. **Sem o banco:** comparar só pelos scripts decifrados, pelo `heroes_english.txt` e pelos dados do 1.69.
+
+### 7.9 `heroes.db3` do NA em claro pelo carregador isolado (27/10/2026, autorizado pelo operador)
+
+- **Autorização:** o operador autorizou no chat o carregador isolado do `FileSystem_Stdio.dll` de 32 bits, em processo próprio, sem rede e sem os servidores da Nexon, só para ler o `heroes.db3`.
+- **Carregador:** um programa C++ próprio, compilado com o MSVC x86, com fonte e binário em `.cache/na-loader-src` (ignorado pelo Git). Ele:
+  - carrega o DLL e as dependências (`tier0.dll`, `vstdlib.dll`) direto de `F:\Games\vindictus\appdata\en-US\bin`, sem copiar nem alterar nada;
+  - roda em `.cache/na-loader-run`, onde uma junção `hfs` aponta para a pasta `hfs` do NA. A biblioteca HFS procura `hfs\*.hfs` relativo à pasta atual, então as leituras vão ao NA e qualquer escrita fica no `.cache`.
+- **Sequência recuperada por leitura pontual (vtable `VFileSystem017` em `0x10243c64`):**
+  1. `fs[95](true)` liga o modo HFS (`[fs+0xa5]`);
+  2. `fs[3]` `Init` cria o gerenciador de HFS (`0x101007e0`, vtable `0x10244240`, global `0x102b44d8`) e liga `[fs+0xa6]`, o sinalizador que o `Open` consulta para decifrar;
+  3. o método `[9]` do gerenciador o habilita (`[+0x44]`);
+  4. `fs[11]` `AddSearchPath(appdata\en-US, "GAME", tail)`;
+  5. em `VBaseFileSystem011`, `[2]` `Open`, `[0]` `Read` e `[3]` `Close`.
+
+  Não foi preciso o `Connect`: o `HRInterface001`, que vem do `engine.dll`/`client.dll`, não foi carregado. Sem os passos 1 e 3, `Open` devolve nulo.
+- **Isolamento observado:**
+  - o processo do carregador não teve nenhum *endpoint* TCP/UDP, conferido durante cada execução;
+  - nenhuma DLL de rede foi importada pelo `FileSystem_Stdio.dll`; o `tier0.dll` importa 5 funções do `WS2_32`, que não foram usadas de forma visível;
+  - nenhum arquivo foi criado na pasta de execução.
+  - Não verificado: possíveis escritas do `tier0.dll` no registro.
+- **Resultado:** `.cache/na-db/heroes-plain.db3`, 103.789.568 bytes (101.357 páginas de 1.024), SHA-256 `8eb596f807df67b0…`, `pragma quick_check` = ok, 495 tabelas. A chave estatística da seção 7.8 fica obsoleta.
+
+### 7.10 Comparação NA × 1.69 (`heroes.db3`)
+
+Consultas só leitura; logs em `.cache/verification/c1-db-*.log`.
+
+- **Estrutura:**
+  - 495 tabelas no NA e 151 no 1.69: 144 em comum, 351 só no NA e 7 só no 1.69;
+  - `ItemClassInfo.ClassRestriction`: no 1.69 é máscara de bits (`2047` = 11 classes); no NA é texto com nomes e expressões (`all`, `female`, `delia`, `female(!delia)`). O NA lista 28 personagens (`Emotion.RequiredClass`).
+- **Delia:** já existe no 1.69 como classe de bit `1024` (classe 10).
+
+  | Tabela (filtro por nome) | NA | 1.69 |
+  |---|---|---|
+  | `ItemClassInfo` | 419 | 196 (187 com `ClassRestriction` = 1024) |
+  | `EquipItemInfo` | 298 | 170 |
+  | `CustomizeItemInfo` | 798 | 455 |
+  | `CustomizePriceInfo` | 2.743 | 1.253 |
+  | `SkillRankInfo` | 304 | 304 |
+  | `SkillArgumentInfo` | 512 | 512 |
+
+  A arma é `BASTARDSWORD` (124 itens no NA, 62 no 1.69). As habilidades têm a mesma contagem nas duas versões; a diferença está em itens, roupas e customização posteriores.
+- **Miri:** ausente no 1.69 (0 itens, 0 habilidades). No NA: 1.022 itens, 304 ranks de habilidade, arma `DRAKER` (77 itens), sem nenhum `DRAKER` no 1.69.
+- **Segundas armas** (`EquipSharingCharacterWeaponType`, só no NA):
+  - Hurk: `GREATSWORD` → `TEIDE`;
+  - Lynn: `BATTLEGLAIVE` → `BLUTE`.
+
+  No NA há 94 `TEIDE` e 72 `BLUTE`; no 1.69, nenhuma ocorrência de `teide` ou `blute` em qualquer tabela. As primeiras armas existem nas duas (`GREATSWORD` 162/107, `BATTLEGLAIVE` 154/99).
+- **Consequência para o C2:** a Delia é o caso mais barato, porque os dados de classe, habilidade e arma já estão no 1.69. Falta medir as camadas de cliente:
+  - modelos e animações (`models/player/delia` do NA extraídos);
+  - interface de criação;
+  - código nativo do `client.dll` 1.69 para a classe 10.
+
+  A Miri e as segundas armas exigem dados novos (tabelas, tipo de arma) além dos assets.

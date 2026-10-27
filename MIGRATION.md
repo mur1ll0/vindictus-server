@@ -1771,3 +1771,12 @@ Caminho C, etapa C1 — segunda camada do NA medida; parada no `.vmp0` (27/10/20
 - Lacunas: chave exata do `.db3`; comparação de tabelas NA × 1.69 (Delia, Miri, segundas armas). Detalhes e opções em `docs/future/new-classes.md`, seção 7.8.
 - Cliente: não necessário.
 - Parada (regra do operador: rotina no `.vmp0`). Próxima ação retomável: decisão entre leitura tolerante do banco parcial, carregador isolado do DLL ou comparação sem o banco; depois, fechar o C1 e seguir para o C2.
+
+Caminho C, etapa C1 — `heroes.db3` do NA em claro e comparação com o 1.69 (27/10/2026, carregador isolado autorizado pelo operador; sem mudança de código no repositório).
+- Comandos: carregador C++ próprio (MSVC x86) em `.cache/na-loader-src`, executado em `.cache/na-loader-run` com a junção `hfs` para o NA; sequência `fs[95](true)` → `Init` → gerenciador HFS `[9]` → `AddSearchPath` → `Open`/`Read`. Consultas SQLite só leitura. Logs `.cache/verification/c1-loader-*.log`, `c1-db-*.log`.
+- Evidência: `.cache/na-db/heroes-plain.db3` com 103.789.568 bytes, `quick_check` ok, 495 tabelas; nenhum *endpoint* de rede no processo; nenhum arquivo criado na pasta de execução. Comparação na seção 7.10 de `docs/future/new-classes.md`:
+  - a Delia já existe no 1.69 (bit 1024, habilidades iguais, `BASTARDSWORD`);
+  - a Miri (`DRAKER`) e as segundas armas `TEIDE` (Hurk) e `BLUTE` (Lynn) não existem no 1.69.
+- Lacunas: possíveis escritas do `tier0.dll` no registro (não verificadas); as camadas de cliente da Delia ficam para o C2.
+- Cliente: não necessário.
+- C1 concluído. Próxima ação: C2, medir camada por camada o que a Delia precisa no 1.69 (modelos e animações, interface de criação, leitura pontual do `client.dll` 1.69 para a classe 10).
