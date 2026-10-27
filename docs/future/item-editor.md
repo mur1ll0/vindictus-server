@@ -86,7 +86,7 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
 - **Testes:** `scripts/content/test_content_additions.py` (5) e `scripts/client/test_apply_lab_hfs.py` (3), com bancos e pacotes sintéticos. As suítes `scripts/content` (65) e `scripts/client` passam.
 - **Teste no cliente: passou (26/10/2026).** O operador deu `fiona_inner_fringe` e `fiona_inner_zero` à Fiona pelo painel. Os dois aparecem na bolsa com nome e ícone, vestem com o modelo certo e continuam depois de relogar. Consequências:
   - **o corte 1 está comprovado de ponta a ponta:** item novo no servidor e no cliente, texto novo em pacote refeito, ícone existente, criado pelo painel e persistido;
-  - **o motor 1.69 aceita MDL v48**, junto com texturas em pasta nova e entrada nova no `player_costume.txt`. Modelos de clientes mais novos (por exemplo, o NA em `F:\Gamesindictus`) podem entrar sem conversão para v44, o que reduz o risco do corte 2 e dos monstros novos. Falta testar um modelo **compilado por nós** (Blender → `studiomdl`).
+  - **o motor 1.69 aceita MDL v48**, junto com texturas em pasta nova e entrada nova no `player_costume.txt`. Modelos de clientes mais novos (por exemplo, o NA em `F:\Games\vindictus`) podem entrar sem conversão para v44, o que reduz o risco do corte 2 e dos monstros novos. Falta testar um modelo **compilado por nós** (Blender → `studiomdl`).
 
 ### 3.2 Corte 2, modelo novo por classe (I3–I5)
 
