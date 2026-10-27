@@ -216,8 +216,11 @@ impl Relay {
     /// Read-only view for the admin panel (B4.6).
     pub fn snapshot(&self) -> RelaySnapshot {
         let s = lock(&self.state);
-        let mut groups: Vec<(i32, usize)> =
-            s.groups.iter().map(|(id, g)| (*id, g.members.len())).collect();
+        let mut groups: Vec<(i32, usize)> = s
+            .groups
+            .iter()
+            .map(|(id, g)| (*id, g.members.len()))
+            .collect();
         groups.sort_unstable();
         RelaySnapshot {
             connected: s.clients.values().filter(|c| c.connected).count(),
