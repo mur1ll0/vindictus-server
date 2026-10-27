@@ -60,6 +60,12 @@ pub enum Command {
         /// Exported icons directory (icons/item/*.png).
         #[arg(long, requires = "admin_listen")]
         admin_icons_dir: Option<std::path::PathBuf>,
+        /// Read-only client copy (its hfs/ packs), for the panel's model viewer and kits.
+        #[arg(long, requires = "admin_client_keystream")]
+        admin_client_dir: Option<std::path::PathBuf>,
+        /// The 4096-byte HFS pack keystream (scripts/client/hfs.py keystream), never versioned.
+        #[arg(long, requires = "admin_client_dir")]
+        admin_client_keystream: Option<std::path::PathBuf>,
         /// Write the cash shop ShopList.aspx (published prices included) at start.
         #[arg(long)]
         shop_list_output: Option<std::path::PathBuf>,

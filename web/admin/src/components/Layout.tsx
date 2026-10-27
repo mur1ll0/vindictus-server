@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
-import { FileStack, Gem, History, LogOut, Moon, Shield, SlidersHorizontal, Store, Sun, UserRound, Users } from 'lucide-react';
+import { Box, FileStack, Gem, History, LogOut, Moon, Shield, SlidersHorizontal, Store, Sun, UserRound, Users } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { logout, sessionQuery } from '@/api/session';
 import { roleLabel } from '@/components/forms';
@@ -16,6 +16,7 @@ const STAFF: Item[] = [
   { to: '/cash-shop', label: 'Cash shop', icon: <Gem /> },
   { to: '/ajustes', label: 'Ajustes de jogo', icon: <SlidersHorizontal /> },
   { to: '/conteudo', label: 'Conteúdo', icon: <FileStack /> },
+  { to: '/modelos', label: 'Modelos 3D', icon: <Box /> },
   { to: '/auditoria', label: 'Auditoria', icon: <History /> },
 ];
 const OWN: Item[] = [{ to: '/minha-conta', label: 'Minha conta', icon: <UserRound /> }];
@@ -26,6 +27,7 @@ export const TITLES: Record<string, { title: string; subtitle: string }> = {
   '/cash-shop': { title: 'Cash shop', subtitle: 'Preços por categoria do Depot' },
   '/ajustes': { title: 'Ajustes de jogo', subtitle: 'Taxas de EXP/ouro/AP, drops por fase e chances de Enhance/Enchant' },
   '/conteudo': { title: 'Conteúdo', subtitle: 'Edições pendentes, versões publicadas e manutenção' },
+  '/modelos': { title: 'Modelos 3D', subtitle: 'Visualize o modelo de um item e exporte o kit para o add-on do Blender' },
   '/auditoria': { title: 'Auditoria', subtitle: 'Toda entrada e toda mudança, com quem, o quê e quando' },
   '/minha-conta': { title: 'Minha conta', subtitle: 'Seus dados, seus personagens e sua senha' },
 };

@@ -110,6 +110,24 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
   - ossos novos;
   - mudar o número de materiais em relação ao modelo-base.
 
+**Visualizador 3D e exportação de kit no painel (27/10/2026):**
+
+- **Servidor:**
+  - `src/infrastructure/client_files.rs` lê arquivos do cliente pelo índice HFS (a mesma lógica do `hfs.py`, em Rust, com leitura limitada).
+  - `src/infrastructure/model_kit.rs` monta o kit (modelo, VVD, VTX, materiais e texturas, `kit.json`) como zip sem compressão, e resolve item → modelo pelo `player_costume.txt`. As seções são `inner_armor`, `upper_body`, `lower_body`, `hand`, `foot` e `head`, inclusive das categorias `AVATAR_*`.
+  - Endpoints: `GET /api/models/kit?model=` e `GET /api/items/{item_class}/model`, os dois com permissão `Manage`.
+  - O contêiner `game` monta `.cache/play-client` só para leitura em `/client` (`--admin-client-dir`, `--admin-client-keystream`). O `export_panel_catalog.py` passou a exportar o `CostumeType` (`ct`).
+- **Painel:** a página **Modelos 3D** (`/modelos`) busca um item ou aceita um caminho de modelo.
+  - O navegador lê o kit (`web/admin/src/lib/vindictusModel.ts`: zip, MDL v44/v48, VVD, VTX, VTF DXT1/3/5) e o desenha com three.js, com órbita, ossos e wireframe.
+  - **Exportar kit (.zip)** salva o arquivo para o add-on do Blender.
+- **Limites:** armas e cabelos ainda não são resolvidos pelo item (use o caminho); o visualizador mostra o nível de detalhe 0 sem animação.
+- **Verificado:**
+  - `tests/model_kit.rs` (com `--ignored`, contra a cópia de laboratório): o kit do `fiona_inner_fringe` gerado em Rust é idêntico byte a byte ao do `model_kit.py`, e o `CostumeType` 9101 resolve para `fiona_inner_lab.mdl`;
+  - o leitor TypeScript do visualizador, rodado no Node 24 sobre o zip do `fiona_inner_lab`, leu as 3 malhas (índices válidos), as 3 texturas e os 75 ossos;
+  - `cargo test --test admin_http` passa, com o `openapi.json` regenerado;
+  - o painel compila (`npm run build`), e o Docker foi reconstruído e subiu saudável.
+- **Teste no painel (pendente, do operador):** a criação de uma conta de teste com papel `gm` foi bloqueada pela permissão automática da sessão, então a tela logada não foi aberta nesta sessão.
+
 ### 3.2 Corte 2, modelo novo por classe (I3–I5)
 
 Para cada uma das 10 classes do cliente (corpo e esqueleto próprios em `models/player/<classe>/`):

@@ -38,7 +38,7 @@ CLASS_FIELDS = [('Rarity', 'r'), ('Category', 'c'), ('SellPrice', 'sp'), ('Price
                 ('RequiredSkill', 'rs'), ('RequiredSkillRank', 'rr'), ('ClassRestriction', 'cr'), ('Unique', 'u'),
                 ('MaxAntiBind', 'ab'), ('TradeRestirction', 'tr'), ('Bind', 'b'), ('ExpireIn', 'ex'), ('IconBG', 'bg'),
                 ('Level', 'lv'), ('MaxStack', 'ms')]
-EQUIP_FIELDS = [('EquipClass', 'ec'), ('MaxDurability', 'md'), ('Weight', 'w'), ('ColorOverride', 'co'),
+EQUIP_FIELDS = [('EquipClass', 'ec'), ('CostumeType', 'ct'), ('MaxDurability', 'md'), ('Weight', 'w'), ('ColorOverride', 'co'),
                 ('Enchantable', 'en'), ('Dyeable', 'dy'), ('Synthesizable', 'sy'), ('EnhanceType', 'et')]
 ICON = re.compile(r'^[A-Za-z0-9_]{1,96}$')
 KEYLIKE = re.compile(r'^[A-Za-z0-9_]{1,128}$')

@@ -322,6 +322,8 @@ async fn run(cli: Cli) -> Result<(), Error> {
         admin_item_names,
         admin_panel_catalog,
         admin_icons_dir,
+        admin_client_dir,
+        admin_client_keystream,
         shop_list_output,
         content_edits_output,
         ..
@@ -474,6 +476,11 @@ async fn run(cli: Cli) -> Result<(), Error> {
                     state = state.with_runtime(runtime.clone());
                     if let Some(dir) = admin_icons_dir {
                         state = state.with_icons(dir.clone());
+                    }
+                    if let (Some(dir), Some(keystream)) = (admin_client_dir, admin_client_keystream) {
+                        let files = vindictus_server::infrastructure::client_files::ClientFiles::open(dir, keystream)
+                            .map_err(|_| Error::Configuration("invalid admin client copy or keystream".into()))?;
+                        state = state.with_client(files);
                     }
                     let app = admin::router(state, admin_ui_dir.as_deref());
                     Some(tokio::spawn(admin::serve(admin_listener, app)))

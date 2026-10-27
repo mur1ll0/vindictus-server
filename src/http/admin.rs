@@ -29,6 +29,7 @@ use zeroize::Zeroizing;
 mod accounts;
 mod characters;
 mod content;
+mod models;
 
 pub const COOKIE: &str = "vindictus_admin";
 pub const CSRF_HEADER: &str = "x-csrf-token";
@@ -44,6 +45,8 @@ pub struct AdminState {
     runtime: Option<std::sync::Arc<crate::infrastructure::lab_frontend::Runtime>>,
     /// Exported client icons (PNG), served to the panel.
     icons_dir: Option<std::sync::Arc<std::path::PathBuf>>,
+    /// The client copy's files (HFS packs), for model kits.
+    client: Option<std::sync::Arc<crate::infrastructure::client_files::ClientFiles>>,
 }
 
 impl AdminState {
@@ -55,12 +58,18 @@ impl AdminState {
             names: std::sync::Arc::default(),
             runtime: None,
             icons_dir: None,
+            client: None,
         }
     }
     /// English item/skill/status names (scripts/content/export_item_names.py).
     /// Directory of the exported icons (icons/item/<icon>.png).
     pub fn with_icons(mut self, dir: std::path::PathBuf) -> Self {
         self.icons_dir = Some(std::sync::Arc::new(dir));
+        self
+    }
+    /// The client copy (scripts/client/hfs.py layout), for the model viewer and kits.
+    pub fn with_client(mut self, files: crate::infrastructure::client_files::ClientFiles) -> Self {
+        self.client = Some(std::sync::Arc::new(files));
         self
     }
     /// The game's runtime, needed to change items and progression.
@@ -119,9 +128,12 @@ impl AdminState {
         content::withdraw,
         content::publish,
         content::cancel_maintenance,
-        content::item_icon
+        content::item_icon,
+        models::kit,
+        models::item_model
     ),
     components(schemas(
+        models::ItemModel,
         LoginRequest,
         OwnPassword,
         SessionResponse,
@@ -253,6 +265,8 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
     // Icons may be cached by the browser (the API is no-store).
     let icons = Router::new()
         .route("/api/icons/item/{icon}", get(content::item_icon))
+        .route("/api/models/kit", get(models::kit))
+        .route("/api/items/{item_class}/model", get(models::item_model))
         .with_state(state.clone());
     let api = icons.merge(api);
     let app = match ui_dir {

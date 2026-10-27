@@ -1229,6 +1229,47 @@
         }
       }
     },
+    "/api/items/{item_class}/model": {
+      "get": {
+        "tags": [
+          "models"
+        ],
+        "summary": "The costume model of an item, resolved through player_costume.txt.",
+        "operationId": "item_model",
+        "parameters": [
+          {
+            "name": "item_class",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemModel"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [],
@@ -1332,6 +1373,44 @@
             }
           },
           "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/kit": {
+      "get": {
+        "tags": [
+          "models"
+        ],
+        "summary": "A model kit (stored zip: model, vertex and optimized model files, materials, textures and\nkit.json) for the viewer and the Blender add-on.",
+        "operationId": "kit",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "path",
+            "description": "Game path of the studio model (`models/player/fiona/fiona_inner_fringe.mdl`).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -2880,6 +2959,44 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "ItemModel": {
+        "type": "object",
+        "description": "The model of an item: its player_costume.txt entry (by Category and CostumeType).",
+        "required": [
+          "item_class"
+        ],
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "costume_type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "item_class": {
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`None` when the item has no costume model the panel can resolve (weapons, hair...)."
+          },
+          "section": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

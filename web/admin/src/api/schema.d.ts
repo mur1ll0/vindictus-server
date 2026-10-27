@@ -348,6 +348,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/items/{item_class}/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The costume model of an item, resolved through player_costume.txt. */
+        get: operations["item_model"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -393,6 +410,26 @@ export interface paths {
         put?: never;
         /** Change the account's own password; every session of the account ends (log in again). */
         post: operations["my_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/kit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A model kit (stored zip: model, vertex and optimized model files, materials, textures and
+         *     kit.json) for the viewer and the Blender add-on.
+         */
+        get: operations["kit"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -922,6 +959,16 @@ export interface components {
             item: string;
             /** Format: uuid */
             operation_id: string;
+        };
+        /** @description The model of an item: its player_costume.txt entry (by Category and CostumeType). */
+        ItemModel: {
+            category?: string | null;
+            /** Format: int64 */
+            costume_type?: number | null;
+            item_class: string;
+            /** @description `None` when the item has no costume model the panel can resolve (weapons, hair...). */
+            model?: string | null;
+            section?: string | null;
         };
         ItemMove: {
             /** @description Item ID (64-bit, as text). */
@@ -2083,6 +2130,35 @@ export interface operations {
             };
         };
     };
+    item_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_class: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemModel"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -2173,6 +2249,36 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    kit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Game path of the studio model (`models/player/fiona/fiona_inner_fringe.mdl`). */
+                model: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

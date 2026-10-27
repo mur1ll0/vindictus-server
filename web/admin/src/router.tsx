@@ -10,6 +10,7 @@ import { ContentPage } from '@/pages/Content';
 import { ShopsPage } from '@/pages/Shops';
 import { CharacterPage } from '@/pages/Character';
 import { LoginPage } from '@/pages/Login';
+import { ModelsPage } from '@/pages/Models';
 import { MyAccountPage } from '@/pages/MyAccount';
 
 type Context = { queryClient: QueryClient };
@@ -84,6 +85,12 @@ const contentRoute = createRoute({
   beforeLoad: staffOnly,
   component: ContentPage,
 });
+const modelsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/modelos',
+  beforeLoad: staffOnly,
+  component: ModelsPage,
+});
 /** Character sheet: the server answers only for staff or the character's own account. */
 const characterRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -107,6 +114,7 @@ export function makeRouter(queryClient: QueryClient) {
         cashShopRoute,
         tuningRoute,
         contentRoute,
+        modelsRoute,
         auditRoute,
         characterRoute,
         myAccountRoute,

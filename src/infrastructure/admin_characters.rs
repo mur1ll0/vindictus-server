@@ -118,6 +118,14 @@ impl EnglishNames {
             })
             .map_or((None, None), |(n, d)| (Some(n.clone()), d.clone()))
     }
+    /// Category (`c`) and CostumeType (`ct`) of an item, for its model in player_costume.txt.
+    pub fn item_costume(&self, class: &str) -> Option<(String, i64)> {
+        let info = self.item_info(class)?;
+        Some((
+            info.get("c")?.as_str()?.to_owned(),
+            info.get("ct")?.as_i64()?,
+        ))
+    }
     pub(super) fn item_info(&self, class: &str) -> Option<&HashMap<String, serde_json::Value>> {
         self.catalog
             .item_info

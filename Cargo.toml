@@ -10,11 +10,14 @@ description = "Preservation research foundation; legacy game protocol migration 
 argon2 = "0.5.3"
 axum = "0.8.6"
 clap = { version = "4.5.48", features = ["derive"] }
+crc32fast = "1"
+flate2 = "1"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 regex = { version = "1.11", default-features = false, features = ["std", "unicode-case", "unicode-perl"] }
 rsa = "0.9.10"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+sha1 = "0.10.7"
 sha2 = "0.10.9"
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "migrate", "macros", "uuid"] }
 thiserror = "2.0.17"
