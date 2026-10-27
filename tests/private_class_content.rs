@@ -90,6 +90,12 @@ fn every_class_has_initializer_items_and_inner_armor() {
             .map(|r| r.location().collection)
             .collect();
         println!("class {class} collections {collections:?}");
+        // CustomizeCharacter admits the new inventory into the empty Gear first.
+        appearance
+            .initial_gear(&catalog)
+            .unwrap()
+            .admit_new_inventory(&composed)
+            .unwrap_or_else(|_| panic!("class {class} gear admission"));
         let template = vindictus_server::protocol::character_creation::Template {
             character_class: class,
             items: Some(Vec::new()),

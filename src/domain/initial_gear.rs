@@ -83,7 +83,10 @@ impl Projection {
     pub fn admit_new_inventory(&self, inventory: &PreparedInventory) -> Result<(), GearError> {
         if inventory.items().len() > 4096
             || inventory.items().iter().any(|r| {
-                !matches!(r.location().collection, 0 | 1 | 6 | 100) || r.location().slot < 0
+                // AccountStorage (101, -1) holds an unequipped item such as gold.
+                let l = r.location();
+                !(matches!(l.collection, 0 | 1 | 6 | 100) && l.slot >= 0
+                    || l.collection == 101 && l.slot == -1)
             })
         {
             return Err(GearError);

@@ -529,6 +529,10 @@ impl IntoResponse for Refusal {
                 }
             },
         };
+        // The code is a fixed label; request values and the message's details stay out.
+        if code != "sessao_encerrada" {
+            tracing::warn!(code, status = status.as_u16(), "panel request refused");
+        }
         (status, Json(ApiError { code, message })).into_response()
     }
 }

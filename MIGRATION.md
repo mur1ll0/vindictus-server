@@ -1732,3 +1732,10 @@ Editor de itens — fechamento do grupo (27/10/2026).
 - Smoke: `/api/item-editor/status` e `/api/item-editor/items` respondem 401 sem sessão; `/itens` é servido; `/private-assets` é gravável no `game`; o selo `/content/item-content.json` está montado. `start-lab.bat` da cópia regenerado (`install_lab_launcher.py`) com a reexportação antes da atualização do cliente.
 - Cliente: entrada I2 do roteiro `docs/client-tests/B4-painel.md`, pendente (a tela logada não foi aberta nesta sessão).
 - Próxima ação retomável: sessão do operador pelo roteiro I2; depois, B5.
+
+B4.N2 — Hagie: ouro da conta recusado pelo Gear inicial (27/10/2026).
+- Log (19:39 UTC): a mesma recusa genérica, sem nenhuma linha `creation appearance refused`, então a falha vinha de antes de `prepare`. `fiona_customization::customize` chama `Projection::admit_new_inventory` e converte a recusa em `FionaAppearanceProfile`. A admissão só aceitava as coleções 0/1/6/100 com slot ≥ 0, e o ouro inicial da Hagie fica em AccountStorage (101, -1).
+- Mudança: `initial_gear::admit_new_inventory` também admite (101, -1), um item não equipado, sem efeito no Gear vazio. `private_class_content` admite no Gear o inventário composto de cada classe, o que agora cobre o caso da Hagie.
+- Painel: nenhuma mudança auditada nem recusa no log depois do login das 19:30. A operação repetida terminou num ramo de erro que não era registrado (offline, entrada, permissão, não encontrado). Agora toda resposta de erro do painel registra `panel request refused` com `code` e `status` fixos (exceto sessão encerrada).
+- Testes: `private_class_content -- --include-ignored` (classes 0–9, incluindo a admissão no Gear), `fiona_appearance` (8). Docker do `game` recompilado (build 0, up 0, saudável). Logs `.cache/verification/hagie-gear*.log`.
+- Próxima ação retomável: o operador cria a Hagie; se o painel recusar de novo, ler `panel request refused` / `panel character change refused` em `docker compose logs game`.
