@@ -61,11 +61,6 @@
       "character_class": 8,
       "initializer": "/content/class-8-initializer.json",
       "initializer_reference": "/content/class-8-initializer-reference-pairs.json"
-    },
-    {
-      "character_class": 9,
-      "initializer": "/content/class-9-initializer.json",
-      "initializer_reference": "/content/class-9-initializer-reference-pairs.json"
     }
   ]
 }

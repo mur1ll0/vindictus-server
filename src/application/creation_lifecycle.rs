@@ -558,6 +558,14 @@ async fn worker_minimum(
                     crate::infrastructure::minimum_character::MinimumError::Customization(crate::infrastructure::fiona_customization::CustomizationError::Inventory(_) | crate::infrastructure::fiona_customization::CustomizationError::Appearance(_))=>InitializationFailure::CustomizeOperationFailed,
                     _=>InitializationFailure::InitCharacterFailed,
                 };
+                // The error chain's texts are fixed messages without request values.
+                let mut reason = error.to_string();
+                let mut source = std::error::Error::source(&error);
+                while let Some(inner) = source {
+                    reason.push_str(": ");
+                    reason.push_str(&inner.to_string());
+                    source = inner.source();
+                }
                 let stage = match error {
                     crate::infrastructure::minimum_character::MinimumError::State(_) => "state",
                     crate::infrastructure::minimum_character::MinimumError::Managers(_) => {
@@ -578,6 +586,7 @@ async fn worker_minimum(
                 };
                 tracing::warn!(
                     stage,
+                    reason,
                     "native minimum creation failed; compensation required"
                 );
                 result

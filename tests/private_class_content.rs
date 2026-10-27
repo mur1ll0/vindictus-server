@@ -29,9 +29,31 @@ fn every_class_has_initializer_items_and_inner_armor() {
             appearance.add_class(class, initial.inner, initial.inner_colors);
         }
     }
+    // The first non-cash skin and eye colors of the region (the defaults the client offers).
+    let (skin, eye) = (
+        std::env::var("LAB_SKIN")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
+        std::env::var("LAB_EYE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0),
+    );
     let bound_stats = stats.bind(&catalog).unwrap();
     let bound_colors = colors.bind(&catalog).unwrap();
-    for class in 0..=9u8 {
+    // Hagie (9) starts with an item in a storage the initial inventory does not recover yet.
+    assert!(
+        inventory
+            .requests(
+                9,
+                &catalog,
+                &stats.bind(&catalog).unwrap(),
+                &colors.bind(&catalog).unwrap()
+            )
+            .is_ok()
+    );
+    for class in 0..=8u8 {
         let requests = inventory
             .requests(class, &catalog, &bound_stats, &bound_colors)
             .unwrap_or_else(|e| panic!("class {class} requests: {e}"));
@@ -51,6 +73,90 @@ fn every_class_has_initializer_items_and_inner_armor() {
         .unwrap_or_else(|e| panic!("class {class} initializer: {e}"));
         profile.bind(&catalog).unwrap();
         assert_eq!(profile.character_class(), class);
+        // The inventory CreateCharacter delivers and the appearance with no chosen item.
+        let mut authority =
+            vindictus_server::application::character_creation::EntityAuthority::new(17);
+        let mut random = vindictus_server::domain::item_colors::ColorRandom::from_seed(0);
+        let mut utc = || {
+            vindictus_server::domain::legacy_user_data::SqlDateTime2::from_ticks(638448480000000000)
+                .map_err(|_| vindictus_server::domain::item_time::ItemTimeError::Clock)
+        };
+        let composed = vindictus_server::application::fiona_inventory::compose(
+            vindictus_server::application::fiona_inventory::Inputs {
+                class,
+                profile: &inventory,
+                catalog: &catalog,
+                stats: &stats,
+                colors: &colors,
+            },
+            1,
+            &mut authority,
+            &mut random,
+            &mut utc,
+        )
+        .unwrap_or_else(|e| panic!("class {class} inventory: {e}"));
+        let collections: std::collections::BTreeSet<_> = composed
+            .items()
+            .iter()
+            .map(|r| r.location().collection)
+            .collect();
+        println!("class {class} collections {collections:?}");
+        let template = vindictus_server::protocol::character_creation::Template {
+            character_class: class,
+            items: Some(Vec::new()),
+            skin_color: skin,
+            shineness: 0,
+            eye_color: eye,
+            height: 0,
+            bust: 0,
+            painting_x: 0,
+            painting_y: 0,
+            painting_rotation: 0,
+            painting_size: 0,
+            body_shape: None,
+        };
+        appearance
+            .prepare(&template, &inventory, &catalog, &colors, None)
+            .unwrap_or_else(|e| panic!("class {class} appearance: {e}"));
+        // Each non-cash customization item the creation screen offers, one at a time.
+        if let Ok(list) = std::fs::read_to_string(".cache/private-content/evy-custom-items.txt") {
+            let mut failed = 0;
+            for name in list.lines().filter(|l| !l.is_empty()) {
+                let one = vindictus_server::protocol::character_creation::Template {
+                    items: Some(vec![Some(
+                        vindictus_server::protocol::character_creation::CustomizeItem {
+                            item_class: Some(name),
+                            category: None,
+                            colors: [0, 0, 0],
+                            duration: 0,
+                            price: None,
+                            coupon: 0,
+                        },
+                    )]),
+                    character_class: class,
+                    skin_color: skin,
+                    shineness: 0,
+                    eye_color: eye,
+                    height: 0,
+                    bust: 0,
+                    painting_x: 0,
+                    painting_y: 0,
+                    painting_rotation: 0,
+                    painting_size: 0,
+                    body_shape: None,
+                };
+                if appearance
+                    .prepare(&one, &inventory, &catalog, &colors, None)
+                    .is_err()
+                {
+                    failed += 1;
+                    if class == 2 {
+                        println!("class {class} refuses {name}");
+                    }
+                }
+            }
+            println!("class {class} refused items {failed}");
+        }
         println!(
             "class {class}: {} item groups, {} default skills ({} active), {} presets",
             requests.len(),
