@@ -169,3 +169,27 @@ Só a comparação de assets e de linhas com o NA fica perdida. Retomar o C2 ass
 - **Pesquisa pública:** nada sobre a cifra do `heroes.db3`. O artigo do Falkrian (20/09/2026), base do extrator, cobre só o HFS.
 - **Consequência para o C1:** os assets da Delia estão legíveis, mas a comparação de tabelas entre o NA e o 1.69 (Delia, Miri, segundas armas) continua bloqueada pela segunda camada.
 - **Próximo passo possível:** continuar a leitura pontual da vtable `0x10241fc4` até a rotina de cifra. Se ela estiver virtualizada, o caminho seria o carregador isolado do DLL (seção 7.2), que pede decisão do operador.
+
+### 7.8 Segunda camada medida: chave periódica, rotina no `.vmp0` (27/10/2026)
+
+- **Formato:** cada arquivo tem 1 byte de prefixo; o resto é XOR com uma chave de 4.096 bytes que se repete (índice = posição no corpo mod 4.096).
+- **Scripts:** todos usam a mesma chave, recuperada inteira pela estatística do texto. O `player_costume.txt` decifra limpo (3 MB, comentários coreanos em CP949), assim como os outros `scripts/*` da Delia.
+- **`heroes.db3`:** usa outra chave, sem relação simples (deslocamento ou XOR) com a dos scripts. Recuperação estatística, em ordem:
+  - byte mais comum;
+  - máxima verossimilhança com histogramas do `heroes.db3` 1.69;
+  - EM nas 4 classes de página;
+  - restrições de estrutura do SQLite.
+- **Resultado no `heroes.db3`:** cabeçalho, tipos de página e ponteiros de célula coerentes; 939.693 células legíveis e 48.900 ruins (cerca de 5%). O SQLite ainda responde "database disk image is malformed". Duas passadas de refinamento não mudaram nada:
+  - nos inícios de célula ruins, 1.784 posições e 0 trocas aceitas;
+  - nos ponteiros filhos das páginas internas, a melhor chave valida 4 de 83 filhos (ruído).
+- **Código:**
+  - os métodos da vtable `0x10241fc4` só delegam;
+  - a máscara `& 0xfff` no `.text` aparece só no AES do Crypto++ (verificação de aliasing em `0x1018d0f5`) e no CRT (`0x101c89fa`);
+  - há 4 ocorrências no `.vmp0` (`0x102cfa0c`, `0x102eef78`, `0x102f83e1`, `0x102ffc68`);
+  - nenhuma janela de 8 bytes das duas chaves recuperadas aparece nos DLLs de 32 e 64 bits, então a chave é gerada em tempo de execução, não uma tabela fixa;
+  - o `bin_x64/FileSystem_Stdio.dll` também tem `.vmp0` (1,05 MB).
+- **Conclusão:** a geração da chave do `.db3` não está no código legível; o indício aponta para o `.vmp0`. Pela regra desta etapa, a leitura de código para aqui e aguarda a decisão do operador.
+- **Opções:**
+  1. **Leitura tolerante do banco parcialmente decifrado:** um leitor próprio de páginas e registros que pula as células ruins e busca as tabelas e linhas da Delia, Miri e segundas armas. Não pede nova autorização; lacuna de cerca de 5% das linhas, a marcar como incerta.
+  2. **Carregador isolado do DLL de 32 bits:** em processo próprio e sem rede, chamar a abertura e leitura do `FileSystem_Stdio.dll` para obter o `heroes.db3` em claro. Executa código proprietário protegido pelo VMProtect, que pode ter anti-depuração; exige decisão explícita.
+  3. **Sem o banco:** comparar só pelos scripts decifrados, pelo `heroes_english.txt` e pelos dados do 1.69.

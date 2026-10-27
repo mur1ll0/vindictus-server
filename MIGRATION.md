@@ -1764,3 +1764,10 @@ Estudo de viabilidade — progressão até um nível, refino/scrolls e busca por
 - Ordem recomendada: busca paginada por categoria (C1–C3), editor de Enhance/Enchant com prévia (E1–E4), progressão até o nível (P0–P4).
 - Cliente: não necessário (estudo). Nenhum código de produção alterado; sem Docker nem gate.
 - Próxima ação: decisão do operador sobre a implementação e a ordem.
+
+Caminho C, etapa C1 — segunda camada do NA medida; parada no `.vmp0` (27/10/2026, continuação; sem mudança de código).
+- Comandos: scripts Python próprios no scratchpad (estatística da chave, `fixcell`, `fixint`, busca de máscara e de chave nos DLLs) e capstone de `scripts/client/.deps` para leitura pontual. Logs `.cache/verification/c1-db-*.log`, `c1-fs-*.log`. Nada do NA entra no Git.
+- Evidência: chave XOR periódica de 4.096 bytes com 1 byte de prefixo. Os scripts decifram limpos (chave única). No `heroes.db3`, a chave tem cerca de 95% das células coerentes (939.693/48.900), mas o SQLite ainda o recusa; os refinamentos de célula (0 de 1.784 trocas) e de página interna (4/83) não melhoraram. A máscara `& 0xfff` no `.text` é só do Crypto++/CRT; há 4 no `.vmp0`. A chave não é tabela fixa nos DLLs de 32 e 64 bits, que têm `.vmp0`.
+- Lacunas: chave exata do `.db3`; comparação de tabelas NA × 1.69 (Delia, Miri, segundas armas). Detalhes e opções em `docs/future/new-classes.md`, seção 7.8.
+- Cliente: não necessário.
+- Parada (regra do operador: rotina no `.vmp0`). Próxima ação retomável: decisão entre leitura tolerante do banco parcial, carregador isolado do DLL ou comparação sem o banco; depois, fechar o C1 e seguir para o C2.
