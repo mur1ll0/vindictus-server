@@ -318,6 +318,31 @@ impl Runtime {
             .map_err(|_| RuntimeError::Operation)?,
         ))
     }
+    /// Item editor removals (B4 item editor, content overlay `removed_items`): every item of
+    /// those classes leaves its owners, unequipped first. Run at start, before connections.
+    pub async fn purge_removed_items(
+        &self,
+        pool: &sqlx::PgPool,
+        classes: &[String],
+    ) -> Result<Vec<(String, super::minimum_equip::Purged)>, RuntimeError> {
+        let Some(assets) = self.minimum_assets() else {
+            return Ok(Vec::new());
+        };
+        let mut done = Vec::new();
+        for class in classes {
+            let purged = super::minimum_equip::purge_class(
+                pool,
+                &assets,
+                class,
+                self.minimum_header()?,
+                self.stat_arithmetic(),
+            )
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+            done.push((class.clone(), purged));
+        }
+        Ok(done)
+    }
     fn minimum_header(&self) -> Result<super::character_lobby::QueryConfig, RuntimeError> {
         Ok(super::character_lobby::QueryConfig {
             max_free: self.content.policy.get_integer("MaxCharacterSlot")?,

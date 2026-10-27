@@ -53,11 +53,66 @@ fn items_resolve_to_their_costume_models() {
         .expect("read")
         .expect("player_costume.txt");
     assert_eq!(
-        model_kit::costume_model(&text, "inner_armor", 16).as_deref(),
+        model_kit::ModelScript::Costume("inner_armor")
+            .model(&text, 16)
+            .as_deref(),
         Some("models/player/fiona/fiona_inner_fringe.mdl")
     );
     assert_eq!(
-        model_kit::costume_model(&text, "inner_armor", 9101).as_deref(),
+        model_kit::ModelScript::Costume("inner_armor")
+            .model(&text, 9101)
+            .as_deref(),
         Some("models/player/fiona/fiona_inner_lab.mdl")
     );
+}
+
+#[test]
+#[ignore = "needs the laboratory client copy"]
+fn weapons_and_shields_resolve_and_build_the_python_kits() {
+    let files = lab();
+    let longsword = model_kit::ModelScript::of("WEAPON", Some("LONGSWORD")).expect("weapon");
+    let weapon = files
+        .read(&longsword.file())
+        .expect("read")
+        .expect("weapon script");
+    assert_eq!(longsword.keys(&weapon).len(), 72);
+    assert_eq!(
+        longsword.model(&weapon, 1).as_deref(),
+        Some("models/weapon/longsword/longsword_swordwind.mdl")
+    );
+    let shields = model_kit::ModelScript::of("LARGESHIELD", Some("LARGESHIELD")).expect("shield");
+    let text = files
+        .read(&shields.file())
+        .expect("read")
+        .expect("shields.txt");
+    assert_eq!(shields.keys(&text).len(), 76);
+    assert_eq!(
+        shields.model(&text, 15).as_deref(),
+        Some("models/weapon/largeshield/largeshield_kite.mdl")
+    );
+    assert_eq!(
+        shields.model(&text, 2).as_deref(),
+        Some("models/weapon/shield/shield_swordwind.mdl")
+    );
+    // Same files as scripts/client/model_kit.py (.cache/kits/weapons, made before the test).
+    for model in [
+        "models/weapon/longsword/longsword_swordwind.mdl",
+        "models/weapon/largeshield/largeshield_kite.mdl",
+        "models/weapon/shield/shield_swordwind.mdl",
+    ] {
+        let kit = model_kit::build(&files, model).expect("kit");
+        let name = model.rsplit('/').next().unwrap().trim_end_matches(".mdl");
+        let python = Path::new(".cache/kits/weapons").join(name);
+        if python.is_dir() {
+            for (path, data) in &kit {
+                if path != "kit.json" {
+                    assert_eq!(
+                        &std::fs::read(python.join(path)).expect(path),
+                        data,
+                        "{path}"
+                    );
+                }
+            }
+        }
+    }
 }

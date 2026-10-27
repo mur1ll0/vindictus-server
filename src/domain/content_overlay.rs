@@ -29,6 +29,10 @@ pub struct Overlay {
     /// characters own stay). The other item parts reach the game through the host's re-export.
     #[serde(default)]
     pub hidden_items: Vec<String>,
+    /// Item editor: added items the panel removed. Every item of these classes leaves the
+    /// characters when the game starts (unequipped first).
+    #[serde(default)]
+    pub removed_items: Vec<String>,
 }
 
 /// The FeatureMatrix rates the panel tunes (percent; 100 = the original value).
@@ -111,12 +115,16 @@ impl Overlay {
                 .enchant_ratios
                 .iter()
                 .all(|(k, [min, max])| text(k, 128) && (0..=*max).contains(min) && *max <= 100);
-        let hidden_ok = self.hidden_items.len() <= 2000
-            && self.hidden_items.iter().all(|c| {
-                text(c, 64)
-                    && c.bytes()
-                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
-            });
+        let hidden_ok = self.hidden_items.len() + self.removed_items.len() <= 4000
+            && self
+                .hidden_items
+                .iter()
+                .chain(&self.removed_items)
+                .all(|c| {
+                    text(c, 64)
+                        && c.bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                });
         if self.format_version == 1
             && self.version >= 0
             && hidden_ok

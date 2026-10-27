@@ -4,7 +4,9 @@ through the index (scripts/client/hfs.py), in the game's folder layout:
   <kit>/materials/<cdmaterials folder>/<texture>.vmt and the .vtf files those materials name
 The Blender add-on (tools/blender/vindictus) imports a kit and exports an edited one; the admin panel
 will hand kits out (docs/future/item-editor.md).
-  model_kit.py --client-copy <client> --keystream <file> <models/....mdl> <out kit folder>"""
+  model_kit.py --client-copy <client> --keystream <file> <models/....mdl> <out kit folder>
+  model_kit.py --folder <loose files in the game layout> <models/....mdl> <out kit folder> [--zip <kit.zip>]
+The zip (stored, forward slashes, kit.json) is what the panel's item editor accepts as a new model."""
 from __future__ import annotations
 import argparse
 import json
@@ -53,6 +55,29 @@ class ClientFiles:
             return hfs.comp_unwrap(data) if data[:4] == hfs.COMP else data
         loose = self.client / path
         return loose.read_bytes() if loose.is_file() else None
+
+
+class FolderFiles:
+    """Reads loose files laid out like the game (models/..., materials/...), for example a model
+    supplied outside the client."""
+
+    def __init__(self, root: Path):
+        self.root = root.resolve()
+
+    def read(self, path: str) -> bytes | None:
+        path = path.replace('\\', '/').lower().strip('/')
+        if '..' in path.split('/'):
+            return None
+        target = (self.root / path).resolve()
+        return target.read_bytes() if target.is_relative_to(self.root) and target.is_file() else None
+
+
+def zip_kit(folder: Path, zip_path: Path) -> None:
+    """A kit folder as a stored zip with forward slashes and lower-case game paths."""
+    import zipfile
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_STORED) as archive:
+        for path in sorted(p for p in folder.rglob('*') if p.is_file()):
+            archive.write(path, path.relative_to(folder).as_posix().lower())
 
 
 def model_materials(mdl: bytes) -> tuple[list[str], list[str]]:
@@ -114,13 +139,20 @@ def make_kit(files: ClientFiles, model: str, out: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--client-copy', type=Path, required=True)
-    parser.add_argument('--keystream', type=Path, required=True)
+    parser.add_argument('--client-copy', type=Path)
+    parser.add_argument('--keystream', type=Path)
+    parser.add_argument('--folder', type=Path, help='loose files in the game layout instead of the client packs')
+    parser.add_argument('--zip', type=Path, help='also write the kit as a stored zip for the panel')
     parser.add_argument('model')
     parser.add_argument('out', type=Path)
     args = parser.parse_args()
+    if not args.folder and not (args.client_copy and args.keystream):
+        parser.error('--folder or --client-copy with --keystream is required')
     try:
-        manifest = make_kit(ClientFiles(args.client_copy, args.keystream), args.model, args.out)
+        files = FolderFiles(args.folder) if args.folder else ClientFiles(args.client_copy, args.keystream)
+        manifest = make_kit(files, args.model, args.out)
+        if args.zip:
+            zip_kit(args.out, args.zip)
     except (KitError, hfs.HfsError) as error:
         print(json.dumps({'error': str(error)}))
         return 2

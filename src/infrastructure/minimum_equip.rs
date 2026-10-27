@@ -567,3 +567,138 @@ pub(super) async fn refresh_gear(
         equipment_info: view.equipment,
     })
 }
+
+/// What `purge_class` removed.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Purged {
+    pub characters: u64,
+    pub items: u64,
+    pub unequipped: u64,
+    pub shared: u64,
+    pub queued: u64,
+}
+
+/// Item editor removal (docs/future/item-editor.md, section 3.3): every item of a class the
+/// panel removed leaves the game. An equipped one is unequipped first and the Gear refreshed
+/// (EquipmentInfo/costumes, as MoveToBuybackStorage does before a destroy), then the item, its
+/// Equippable row and attributes are deleted; shared storage items and unprocessed queued
+/// deliveries of the class go too. Run when the game starts, before any connection.
+pub async fn purge_class(
+    pool: &PgPool,
+    assets: &Assets,
+    class: &str,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<Purged, MinimumError> {
+    let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let mut purged = Purged::default();
+    let owners: Vec<(i64, i32, String, i64)> = sqlx::query_as(
+        "SELECT DISTINCT i.owner_id, u.id, u.name, u.local_revision
+         FROM game_items i JOIN game_character_info c ON c.id = i.owner_id
+         JOIN game_users u ON u.id = c.uid
+         WHERE i.item_class_utf16 = $1 ORDER BY i.owner_id LIMIT 100000",
+    )
+    .bind(&key)
+    .fetch_all(pool)
+    .await?;
+    for (cid, uid, name, revision) in owners {
+        let owner = UserKey {
+            uid,
+            name: &name,
+            revision,
+        };
+        // With the Gear refreshed; a character whose look cannot be rebuilt still loses the
+        // item (its look follows at its next equipment change).
+        let (items, unequipped) =
+            match purge_owner(pool, assets, &owner, cid, &key, Some((config, arithmetic))).await {
+                Ok(done) => done,
+                Err(e) => {
+                    tracing::warn!(cid, error = ?e, "removed item: gear not refreshed");
+                    purge_owner(pool, assets, &owner, cid, &key, None).await?
+                }
+            };
+        purged.characters += 1;
+        purged.items += items;
+        purged.unequipped += unequipped;
+    }
+    let mut tx = pool.begin().await?;
+    let shared: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM game_items WHERE item_class_utf16 = $1 AND owner_id IS NULL FOR UPDATE",
+    )
+    .bind(&key)
+    .fetch_all(&mut *tx)
+    .await?;
+    delete_items(&mut tx, &shared).await?;
+    sqlx::query("DELETE FROM game_shared_items WHERE id = ANY($1)")
+        .bind(&shared)
+        .execute(&mut *tx)
+        .await?;
+    purged.shared = shared.len() as u64;
+    let prefix: Vec<u8> = format!("{class}[")
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    purged.queued = sqlx::query(
+        "DELETE FROM game_queued_items WHERE NOT processed
+           AND (item_class_ex_utf16 = $1
+                OR substring(item_class_ex_utf16 FROM 1 FOR octet_length($2)) = $2)",
+    )
+    .bind(&key)
+    .bind(&prefix)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+    tx.commit().await?;
+    Ok(purged)
+}
+
+async fn delete_items(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    ids: &[i64],
+) -> Result<(), MinimumError> {
+    for table in [
+        "DELETE FROM game_item_attributes WHERE item_id = ANY($1)",
+        "DELETE FROM game_equippables WHERE id = ANY($1)",
+        "DELETE FROM game_items WHERE id = ANY($1)",
+    ] {
+        sqlx::query(table).bind(ids).execute(&mut **tx).await?;
+    }
+    Ok(())
+}
+
+async fn purge_owner(
+    pool: &PgPool,
+    assets: &Assets,
+    owner: &UserKey<'_>,
+    cid: i64,
+    key: &[u8],
+    gear: Option<(QueryConfig, Arithmetic)>,
+) -> Result<(u64, u64), MinimumError> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("LOCK TABLE game_items,game_equippables IN SHARE ROW EXCLUSIVE MODE")
+        .execute(&mut *tx)
+        .await?;
+    let rows: Vec<(i64, Option<i16>)> = sqlx::query_as(
+        "SELECT i.id, e.part FROM game_items i LEFT JOIN game_equippables e ON e.id = i.id
+         WHERE i.owner_id = $1 AND i.item_class_utf16 = $2 ORDER BY i.id",
+    )
+    .bind(cid)
+    .bind(key)
+    .fetch_all(&mut *tx)
+    .await?;
+    let ids: Vec<i64> = rows.iter().map(|(id, _)| *id).collect();
+    let equipped = rows.iter().filter(|(_, part)| part.is_some()).count() as u64;
+    // Gear.Unequip(part) before the item leaves.
+    sqlx::query("UPDATE game_equippables SET part = NULL WHERE id = ANY($1) AND part IS NOT NULL")
+        .bind(&ids)
+        .execute(&mut *tx)
+        .await?;
+    delete_items(&mut tx, &ids).await?;
+    if equipped > 0
+        && let Some((config, arithmetic)) = gear
+    {
+        refresh_gear(&mut tx, owner, assets, cid, config, arithmetic).await?;
+    }
+    tx.commit().await?;
+    Ok((ids.len() as u64, equipped))
+}

@@ -386,6 +386,32 @@ async fn run(cli: Cli) -> Result<(), Error> {
         }
         let runtime =
             std::sync::Arc::new(runtime.with_content_output(content_edits_output.clone()));
+        // Item editor: published removals take the removed items away from every character
+        // (unequipped first) before anyone connects.
+        match runtime
+            .purge_removed_items(&pool, &overlay.removed_items)
+            .await
+        {
+            Ok(done) => {
+                for (class, purged) in done
+                    .iter()
+                    .filter(|(_, p)| p.items + p.shared + p.queued > 0)
+                {
+                    tracing::info!(
+                        item_class = %class,
+                        characters = purged.characters,
+                        items = purged.items,
+                        unequipped = purged.unequipped,
+                        shared = purged.shared,
+                        queued = purged.queued,
+                        "removed item taken from its owners"
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "removed items not purged; retried at the next start")
+            }
+        }
         let listener = tokio::net::TcpListener::bind(lab_peer::listen_addr(runtime.bind())).await?;
         // The cash shop product list and the overlay the client launcher applies to its copy,
         // written next to what serves them; then the loaded version counts as applied.

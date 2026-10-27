@@ -1,5 +1,5 @@
 //! Item editor of the admin panel (docs/future/item-editor.md, cut 2): the columns it edits, their
-//! bounds, item text, the CostumeType of a new model and the player_costume.txt entries it reads.
+//! bounds, item text and the CostumeType range of a new clothing model.
 //! The same column list is `EDITABLE` in scripts/content/content_additions.py, which applies the
 //! published edits to the server exports and the client copy.
 use std::collections::BTreeSet;
@@ -130,40 +130,6 @@ pub fn text(value: &str, limit: usize) -> Result<(), DraftError> {
     ok.then_some(()).ok_or(DraftError::Text)
 }
 
-/// Entry numbers of one section of player_costume.txt (`"<section>" { "<n>" { ... } }`).
-pub fn costume_keys(text: &[u8], section: &str) -> BTreeSet<i64> {
-    let Some(body) = section_body(text, section) else {
-        return BTreeSet::new();
-    };
-    body.lines()
-        .filter(|l| l.starts_with("\t\"") && !l.starts_with("\t\t"))
-        .filter_map(|l| l.trim().trim_matches('"').parse().ok())
-        .collect()
-}
-
-/// The `category` (body) of an entry, when the section has it.
-pub fn costume_body(text: &[u8], section: &str, key: i64) -> Option<String> {
-    let body = section_body(text, section)?;
-    let entry = format!("\n\t\"{key}\"");
-    let at = body.find(&entry)?;
-    let block = &body[at..];
-    let block = &block[..block.find("\n\t}").unwrap_or(block.len())];
-    let line = block
-        .lines()
-        .find(|l| l.trim_start().starts_with("\"category\""))?;
-    let value = line.split('"').nth(3)?.to_ascii_lowercase();
-    BODIES.contains(&value.as_str()).then_some(value)
-}
-
-fn section_body(text: &[u8], section: &str) -> Option<String> {
-    let text = String::from_utf8_lossy(text).replace("\r\n", "\n");
-    let header = format!("\n\"{section}\"");
-    let start = text.find(&header)?;
-    let rest = &text[start + header.len()..];
-    let end = rest.find("\n\"").unwrap_or(rest.len());
-    Some(rest[..end].to_owned())
-}
-
 /// The first free CostumeType of the editor's range.
 pub fn allocate_costume_type(used: &BTreeSet<i64>) -> Option<i64> {
     (FIRST_COSTUME_TYPE..=LAST_COSTUME_TYPE).find(|k| !used.contains(k))
@@ -213,20 +179,14 @@ mod tests {
     }
 
     #[test]
-    fn costume_keys_bodies_and_allocation() {
-        let text = b"\"base\"\r\n{\r\n\t\"9100\"\r\n\t{\r\n\t}\r\n}\r\n\"inner_armor\"\r\n{\r\n\t\"fiona\"\r\n\t{\r\n\t\t\"default\"\t\"x\"\r\n\t}\r\n\t\"16\"\r\n\t{\r\n\t\t\"category\"\t\"female\"\r\n\t\t\"normal\"\t\"models/a.mdl\"\r\n\t}\r\n\t\"9100\"\r\n\t{\r\n\t\t\"category\"\t\"Female\"\r\n\t}\r\n}\r\n";
-        let keys = costume_keys(text, "inner_armor");
-        assert_eq!(keys, BTreeSet::from([16, 9100]));
+    fn costume_types_start_at_the_editor_range() {
         assert_eq!(
-            costume_body(text, "inner_armor", 16).as_deref(),
-            Some("female")
+            allocate_costume_type(&BTreeSet::from([16, 9100])),
+            Some(9101)
         );
         assert_eq!(
-            costume_body(text, "inner_armor", 9100).as_deref(),
-            Some("female")
+            allocate_costume_type(&BTreeSet::new()),
+            Some(FIRST_COSTUME_TYPE)
         );
-        assert_eq!(costume_body(text, "inner_armor", 17), None);
-        assert_eq!(allocate_costume_type(&keys), Some(9101));
-        assert_eq!(costume_keys(text, "hair"), BTreeSet::new());
     }
 }

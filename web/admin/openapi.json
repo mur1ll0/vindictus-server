@@ -1718,7 +1718,7 @@
         "tags": [
           "models"
         ],
-        "summary": "The costume model of an item, resolved through player_costume.txt.",
+        "summary": "The model of an item, resolved through player_costume.txt, the weapon scripts or\nshields.txt.",
         "operationId": "item_model",
         "parameters": [
           {
@@ -3826,7 +3826,7 @@
       },
       "ItemModel": {
         "type": "object",
-        "description": "The model of an item: its player_costume.txt entry (by Category and CostumeType).",
+        "description": "The model of an item: its entry (by CostumeType) in player_costume.txt, the weapon script\nof its EquipClass or shields.txt.",
         "required": [
           "item_class"
         ],
@@ -3852,7 +3852,7 @@
               "string",
               "null"
             ],
-            "description": "`None` when the item has no costume model the panel can resolve (weapons, hair...)."
+            "description": "`None` when the item has no model the panel can resolve (hair, accessories...)."
           },
           "section": {
             "type": [

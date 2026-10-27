@@ -145,6 +145,17 @@ class ContentAdditionsTest(unittest.TestCase):
             self.assertEqual(db.execute("SELECT CostumeType FROM EquipItemInfo WHERE ItemClass='old_inner'").fetchall(), [(24,), (24,)])
             self.assertEqual(db.execute("SELECT count(*) FROM ItemClassInfo WHERE ItemClass='new_inner'").fetchone(), (0,))
 
+    def test_weapon_and_shield_costumes_need_no_body(self):
+        path = pathlib.Path(self.temp.name) / 'items.json'
+        weapon = {**ITEMS[0], 'costumes': [{'section': 'weapon_longsword', 'key': '10007',
+                                            'normal': 'models/weapon/longsword/new.mdl'}]}
+        path.write_text(json.dumps({'items': [weapon]}), encoding='utf-8')
+        self.assertEqual(additions.load(path)[0]['costumes'][0]['section'], 'weapon_longsword')
+        inner = {**ITEMS[0], 'costumes': [{'section': 'inner_armor', 'key': '9102', 'normal': 'models/player/evy/new.mdl'}]}
+        path.write_text(json.dumps({'items': [inner]}), encoding='utf-8')
+        with self.assertRaises(ValueError):
+            additions.load(path)
+
     def test_digest_follows_the_item_content(self):
         self.assertEqual(additions.digest(ITEMS, {}), additions.digest(json.loads(json.dumps(ITEMS)), {}))
         self.assertNotEqual(additions.digest(ITEMS, {}), additions.digest(ITEMS, {'a': {'set': {}}}))

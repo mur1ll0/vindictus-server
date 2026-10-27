@@ -970,3 +970,76 @@ async fn minimum_enhanced_equipment_projects_item_stat_effect_and_durability() {
     );
     cleanup_game_pool(a, p, s).await;
 }
+/// Item editor removal: an item of a removed class equipped through the game is unequipped
+/// (Gear and costumes back to the base look) and deleted with its Equippable row; a second run
+/// finds nothing.
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn removed_item_class_is_unequipped_and_deleted_from_its_owner() {
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = assets();
+    let owner = super::initial_inventory::key();
+    let id: i64 = sqlx::query_scalar("SELECT min(id)FROM game_equippables")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let base_costumes = costumes(&p).await;
+    assert!(matches!(
+        equip(&p, &owner, &assets, id, 1).await,
+        Ok(minimum_equip::Outcome::Applied { .. })
+    ));
+    assert_ne!(costumes(&p).await, base_costumes);
+    // The game stopped: nobody is connected when the removal loads.
+    sqlx::query("UPDATE game_character_info SET is_connected=false")
+        .execute(&p)
+        .await
+        .unwrap();
+    let class_utf16: Vec<u8> =
+        sqlx::query_scalar("SELECT item_class_utf16 FROM game_items WHERE id=$1")
+            .bind(id)
+            .fetch_one(&p)
+            .await
+            .unwrap();
+    let class = String::from_utf16(
+        &class_utf16
+            .chunks(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+    let held: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items WHERE item_class_utf16=$1")
+        .bind(&class_utf16)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let purged =
+        minimum_equip::purge_class(&p, &assets, &class, config(), Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+    assert_eq!(
+        (purged.characters, purged.items, purged.unequipped),
+        (1, held as u64, 1)
+    );
+    let left: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM game_items WHERE item_class_utf16=$1)
+              + (SELECT count(*) FROM game_equippables WHERE id=$2)",
+    )
+    .bind(&class_utf16)
+    .bind(id)
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+    // The Gear was rebuilt without the item: the base look again.
+    assert_eq!(costumes(&p).await, base_costumes);
+    let again = minimum_equip::purge_class(&p, &assets, &class, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    assert_eq!(again, minimum_equip::Purged::default());
+    cleanup_game_pool(a, p, s).await;
+}

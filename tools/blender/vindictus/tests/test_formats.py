@@ -100,5 +100,26 @@ class KitRoundTripTest(unittest.TestCase):
             self.assertEqual((a.positions, a.uvs, a.triangles), (b.positions, b.uvs, b.triangles))
 
 
+# Weapon, shield and other-class kits (scripts/client/model_kit.py into .cache/kits; never versioned).
+OTHER_KITS = sorted(p.parent for p in (Path(__file__).resolve().parents[4] / '.cache/kits').glob('*/*/kit.json'))
+
+
+@unittest.skipUnless(OTHER_KITS, 'weapon and shield kits not present')
+class OtherKitsRoundTripTest(unittest.TestCase):
+    def test_weapons_shields_and_other_bodies_read_back_the_same_geometry(self):
+        import tempfile
+        for folder in OTHER_KITS:
+            with self.subTest(kit=folder.name):
+                source = kit.load(folder)
+                target = source.model_path.rsplit('/', 1)[0] + '/round_trip.mdl'
+                with tempfile.TemporaryDirectory() as out:
+                    kit.save(source, Path(out), target, source.models)
+                    back = kit.load(Path(out))
+                self.assertEqual(len(back.models), len(source.models))
+                for model_a, model_b in zip(source.models, back.models):
+                    for a, b in zip(model_a, model_b):
+                        self.assertEqual((a.positions, a.uvs, a.triangles), (b.positions, b.uvs, b.triangles))
+
+
 if __name__ == '__main__':
     unittest.main()

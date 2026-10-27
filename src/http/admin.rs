@@ -483,9 +483,6 @@ impl IntoResponse for Refusal {
                         "manutencao" => {
                             "Já há uma manutenção agendada; cancele-a ou espere o reinício."
                         }
-                        "item_em_uso" => {
-                            "Há personagens ou entregas com este item. Retire os itens deles ou oculte o item em vez de removê-lo."
-                        }
                         "item_base" => {
                             "Itens base não são removidos: oculte o item ou restaure os valores originais."
                         }

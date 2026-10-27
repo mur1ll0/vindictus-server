@@ -498,7 +498,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The costume model of an item, resolved through player_costume.txt. */
+        /**
+         * The model of an item, resolved through player_costume.txt, the weapon scripts or
+         *     shields.txt.
+         */
         get: operations["item_model"];
         put?: never;
         post?: never;
@@ -1257,13 +1260,16 @@ export interface components {
             count: number;
             name: string;
         };
-        /** @description The model of an item: its player_costume.txt entry (by Category and CostumeType). */
+        /**
+         * @description The model of an item: its entry (by CostumeType) in player_costume.txt, the weapon script
+         *     of its EquipClass or shields.txt.
+         */
         ItemModel: {
             category?: string | null;
             /** Format: int64 */
             costume_type?: number | null;
             item_class: string;
-            /** @description `None` when the item has no costume model the panel can resolve (weapons, hair...). */
+            /** @description `None` when the item has no model the panel can resolve (hair, accessories...). */
             model?: string | null;
             section?: string | null;
         };

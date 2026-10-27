@@ -100,7 +100,7 @@ export function ModelsPage() {
           </ul>
           {picked && !picked.model && (
             <p className="mt-2 text-sm text-muted">
-              {picked.item_class}: sem modelo de traje resolvível ({picked.category ?? 'sem categoria'}). Armas e cabelos ainda não são resolvidos;
+              {picked.item_class}: sem modelo resolvível ({picked.category ?? 'sem categoria'}). Roupas, armaduras, armas e escudos são resolvidos; cabelos e acessórios não;
               use o caminho do modelo abaixo.
             </p>
           )}

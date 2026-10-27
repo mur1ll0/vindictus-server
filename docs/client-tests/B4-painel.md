@@ -207,14 +207,18 @@ Pré-condição: imagens recompiladas depois do commit do editor de itens (`COMP
 - [ ] Escolher `fiona_inner_lab` → **Clonar** → ItemClass `fiona_inner_ed2`, nome "Editor Inner Two", anexar o kit novo (.zip) → a prévia mostra o modelo do kit → Criar item → resposta com o CostumeType novo (9102 ou o próximo livre).
 - [ ] Escolher `fiona_inner_fringe` → **Editar** → DEF 55 e descrição nova → Salvar edição.
 - [ ] Escolher um item base qualquer de loja (ex.: o Enhancement Elixir da loja do Ferghus) → **Ocultar** → o aviso diz que os itens dos personagens continuam funcionando.
-- [ ] Escolher `fiona_inner_zero` → **Remover** → se a Fiona tiver o item, a remoção é recusada com a mensagem de item em uso (os personagens aparecem na ficha); sem ninguém com o item, a remoção fica pendente.
+- [ ] Escolher `fiona_inner_zero` → a prévia 3D mostra o modelo do inner_zero (antes: "modelo não encontrado").
+- [ ] Escolher uma espada (ex.: `longsword_swordwind`) e um escudo (ex.: `largeshield_kite`) → a prévia 3D mostra o modelo; em Modelos 3D, "Exportar kit" baixa o zip; importar no Blender (File → Import → Vindictus Kit), exportar com nome novo (ex.: `models/weapon/longsword/longsword_lab.mdl`) → o zip exportado é aceito ao **Clonar** a espada com o kit (CostumeType seguinte ao último das espadas, 10007 ou mais).
+- [ ] **Novo item** para a Evy: item-modelo um inner da Evy (ex.: um `evy_inner_*` base), só Evy marcada, kit `evy_inner_zero.zip` (pasta `inner_zero_kits` da Área de Trabalho), corpo female → Criar item.
+- [ ] Dar à Fiona um item adicionado de teste (ex.: `fiona_inner_ed1`), vesti-lo, sair do jogo; no painel, **Remover** esse item → a confirmação avisa que ele será desequipado e apagado de quem o tem.
 - [ ] Conteúdo → **Publicar** (0 minutos) → o jogo reinicia; o Editor de itens mostra o aviso "o servidor exportou até ..." enquanto a reexportação não rodar.
 - [ ] Fechar o cliente e abrir pelo `start-lab.bat` → ele reexporta os itens do servidor e reinicia o `game` (1 a 3 minutos; log em `start-lab-items.log`), depois atualiza a cópia do cliente → o aviso some do Editor de itens.
 - [ ] Painel → dar `fiona_inner_ed1`, `fiona_inner_ed2` e `fiona_inner_fringe` à Fiona → no jogo, cada um aparece na bolsa com o nome em inglês e o ícone do modelo; o tooltip mostra a DEF editada (77, a do clone e 55); vestir: `ed1` com o modelo do `fiona_inner_fringe_socks`, `ed2` com o modelo do kit.
 - [ ] Loja do Ferghus → o item ocultado não aparece mais; um que a Fiona já tinha continua na bolsa e funciona.
-- [ ] Relogar → os itens novos continuam na bolsa e vestidos, com nome, ícone, modelo e estatísticas.
+- [ ] Relogar → os itens novos continuam na bolsa e vestidos, com nome, ícone, modelo e estatísticas; a espada clonada aparece na mão com o modelo do kit; a Evy veste o inner novo.
+- [ ] O item removido sumiu da bolsa e do corpo da Fiona, sem erro ao entrar; o log do `game` registra "removed item taken from its owners".
 - [ ] Painel → `fiona_inner_fringe` → **Restaurar original** → publicar → `start-lab.bat` → o tooltip volta à DEF original.
-Limites conhecidos: o ícone é escolhido entre os ícones existentes (ícone novo depende do launcher); um item base não muda de conjunto nem ganha modelo novo (só pode apontar outro CostumeType existente); a remoção é recusada enquanto algum personagem tiver o item; a distribuição a outros jogadores é o launcher (fora deste roteiro).
+Limites conhecidos: o ícone é escolhido entre os ícones existentes (ícone novo depende do launcher); um item base não muda de conjunto nem ganha modelo novo (só pode apontar outro CostumeType existente); a remoção apaga o item de todos os personagens quando o jogo carrega a publicação (não confere lojas, receitas e drops); a distribuição a outros jogadores é o launcher (fora deste roteiro).
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

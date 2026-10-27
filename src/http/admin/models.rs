@@ -20,14 +20,15 @@ pub(super) struct KitQuery {
     model: String,
 }
 
-/// The model of an item: its player_costume.txt entry (by Category and CostumeType).
+/// The model of an item: its entry (by CostumeType) in player_costume.txt, the weapon script
+/// of its EquipClass or shields.txt.
 #[derive(Serialize, ToSchema)]
 pub(super) struct ItemModel {
     item_class: String,
     category: Option<String>,
     costume_type: Option<i64>,
     section: Option<String>,
-    /// `None` when the item has no costume model the panel can resolve (weapons, hair...).
+    /// `None` when the item has no model the panel can resolve (hair, accessories...).
     model: Option<String>,
 }
 
@@ -86,7 +87,8 @@ pub(super) async fn kit(
         .into_response())
 }
 
-/// The costume model of an item, resolved through player_costume.txt.
+/// The model of an item, resolved through player_costume.txt, the weapon scripts or
+/// shields.txt.
 #[utoipa::path(get, path = "/api/items/{item_class}/model", params(("item_class" = String, Path)),
     responses((status = 200, body = ItemModel), (status = 404, body = super::ApiError)))]
 pub(super) async fn item_model(
@@ -106,14 +108,18 @@ pub(super) async fn item_model(
     let files = state.client.clone().ok_or(AdminError::NotFound)?;
     let costume = state.names.item_costume(&item_class);
     let (category, costume_type) = costume.clone().unzip();
-    let section = category.as_deref().and_then(model_kit::costume_section);
-    let model = match (section, costume_type) {
-        (Some(section), Some(key)) => tokio::task::spawn_blocking(move || {
+    let equip_class = state.names.item_equip_class(&item_class);
+    let script = category
+        .as_deref()
+        .and_then(|c| model_kit::ModelScript::of(c, equip_class.as_deref()));
+    let section = script.as_ref().map(model_kit::ModelScript::section);
+    let model = match (script, costume_type) {
+        (Some(script), Some(key)) => tokio::task::spawn_blocking(move || {
             files
-                .read("scripts/player_costume.txt")
+                .read(&script.file())
                 .ok()
                 .flatten()
-                .and_then(|text| model_kit::costume_model(&text, section, key))
+                .and_then(|text| script.model(&text, key))
         })
         .await
         .map_err(|_| AdminError::NotFound)?,
@@ -123,7 +129,7 @@ pub(super) async fn item_model(
         item_class: item_class.to_ascii_lowercase(),
         category,
         costume_type,
-        section: section.map(str::to_owned),
+        section,
         model,
     }))
 }

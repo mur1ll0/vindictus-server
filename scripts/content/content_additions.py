@@ -47,6 +47,11 @@ MODEL = re.compile(r'^models/[a-z0-9_/]{1,200}\.mdl$')
 ASSET = re.compile(r'^[a-z0-9_]{1,64}$')
 
 
+def costume_section(section: str) -> bool:
+    """A player_costume.txt section (with a body category), not a weapon_<class> or shields entry."""
+    return not (section.startswith('weapon_') or section == 'shields')
+
+
 def _check_text(item: dict) -> None:
     text = item.get('text', {})
     if not isinstance(text, dict):
@@ -70,7 +75,8 @@ def _check_item(item: dict) -> None:
     for costume in item.get('costumes', []):
         if not (isinstance(costume, dict) and SECTION.match(str(costume.get('section'))) and
                 str(costume.get('key')).isdigit() and len(str(costume.get('key'))) <= 9 and
-                costume.get('category') in CATEGORIES and MODEL.match(str(costume.get('normal')))):
+                (costume.get('category') in CATEGORIES or not costume_section(costume['section'])) and
+                MODEL.match(str(costume.get('normal')))):
             raise ValueError('Added costume needs section, numeric key, category and a models/....mdl path')
     if 'assets' in item and not ASSET.match(str(item['assets'])):
         raise ValueError(f'Added item assets must match {ASSET.pattern}')

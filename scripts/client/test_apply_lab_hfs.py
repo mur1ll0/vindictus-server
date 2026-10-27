@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 
 import hfs
-from apply_lab_content_additions import INDEX, SCRIPTS_FOLDER, TEXT_FOLDERS, apply_hfs, with_costumes, with_tokens
+from apply_lab_content_additions import (INDEX, SCRIPTS_FOLDER, TEXT_FOLDERS, apply_hfs, kv_blocks, script_of, with_costumes,
+                                         with_script_entries, with_tokens)
 
 # Synthetic keystream and client files: the real ones are game content and are never versioned.
 KS = bytes(random.Random(7).randrange(256) for _ in range(4096))
@@ -54,6 +55,24 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.assertLess(text.index(b'"9100"'), text.index(b'"hair"'))
         with self.assertRaises(Exception):
             with_costumes(text, ITEMS[0]['costumes'])
+
+    def test_weapon_and_shield_entries_go_in_their_model_blocks(self):
+        weapon = (b'// LongSword\r\nWeaponData\r\n{\r\n\t"playermodel"\t"models/weapon/a.mdl"\r\n\t"SubTypeInfoOverride"\r\n'
+                  b'\t{\r\n\t\t// "5" { not a block\r\n\t\t"1"\r\n\t\t{\r\n\t\t\t"playermodel"\t"models/weapon/b.mdl"\r\n\t\t}\r\n'
+                  b'\t}\r\n\t"ActTable"\r\n\t{\r\n\t\t"9" "x"\r\n\t}\r\n}\r\n')
+        entry = {'section': 'weapon_longsword', 'key': '2', 'normal': 'models/weapon/longsword/new.mdl'}
+        text = with_script_entries(weapon, [entry], 'weapon')
+        block = kv_blocks(text)[('weapondata', 'subtypeinfooverride')]
+        self.assertEqual(block[2], {'1', '2'})
+        self.assertLess(text.index(b'"2"'), text.index(b'"ActTable"'))
+        self.assertEqual(text.count(b'models/weapon/longsword/new.mdl'), 2)
+        with self.assertRaises(Exception):
+            with_script_entries(text, [entry], 'weapon')
+        shields = b'"Fiona"\r\n{\r\n\t"normal_paladin_subtype_id"\t"23"\r\n\t"0"\r\n\t{\r\n\t\t"normal"\t"models/weapon/shield/a.mdl"\r\n\t}\r\n}\r\n'
+        text = with_script_entries(shields, [{**entry, 'section': 'shields', 'key': '1'}], 'shields')
+        self.assertEqual(kv_blocks(text)[('fiona',)][2], {'0', '1'})
+        self.assertEqual((script_of('weapon_staff'), script_of('shields'), script_of('inner_armor')),
+                         ('weapon_staff.txt.comp', 'shields.txt.comp', 'player_costume.txt.comp'))
 
     def test_dry_run_writes_nothing(self):
         plan = self.run_apply(ITEMS, apply_changes=False)

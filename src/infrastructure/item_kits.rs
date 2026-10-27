@@ -242,17 +242,25 @@ pub fn store(root: &Path, bytes: &[u8]) -> Result<StoredKit, KitError> {
     written.map(|()| stored)
 }
 
-/// A stored kit: its model and game files.
+/// A stored kit: its model and game files. A folder without kit.json (laboratory assets copied
+/// before the editor, such as `inner_zero`) has its only studio model as the model.
 pub fn stored(root: &Path, assets: &str) -> Result<StoredKit, KitError> {
     if !valid_assets(assets) {
         return Err(KitError::Missing);
     }
     let folder = root.join(assets);
-    let manifest = std::fs::read(folder.join(MANIFEST)).map_err(|_| KitError::Missing)?;
-    let model = serde_json::from_slice::<serde_json::Value>(&manifest)
-        .ok()
-        .and_then(|v| v.get("model")?.as_str().map(str::to_owned))
-        .ok_or(KitError::Manifest)?;
+    if !folder.is_dir() {
+        return Err(KitError::Missing);
+    }
+    let model = match std::fs::read(folder.join(MANIFEST)) {
+        Ok(manifest) => Some(
+            serde_json::from_slice::<serde_json::Value>(&manifest)
+                .ok()
+                .and_then(|v| v.get("model")?.as_str().map(str::to_owned))
+                .ok_or(KitError::Manifest)?,
+        ),
+        Err(_) => None,
+    };
     let mut files = Vec::new();
     let mut pending: Vec<PathBuf> = vec![folder.clone()];
     while let Some(dir) = pending.pop() {
@@ -275,6 +283,16 @@ pub fn stored(root: &Path, assets: &str) -> Result<StoredKit, KitError> {
         }
     }
     files.sort();
+    let model = match model {
+        Some(model) => model,
+        None => {
+            let mut models = files.iter().filter(|f| f.ends_with(".mdl"));
+            match (models.next(), models.next()) {
+                (Some(only), None) => only.clone(),
+                _ => return Err(KitError::Manifest),
+            }
+        }
+    };
     Ok(StoredKit {
         assets: assets.to_owned(),
         model,
@@ -311,6 +329,9 @@ mod tests {
         assert_eq!(store(&root, &bytes).unwrap(), kept);
         assert_eq!(stored(&root, &kept.assets).unwrap(), kept);
         assert!(kept.assets.starts_with("kit_") && kept.assets.len() == 20);
+        // Without kit.json the folder's only model is the model.
+        std::fs::remove_file(root.join(&kept.assets).join("kit.json")).unwrap();
+        assert_eq!(stored(&root, &kept.assets).unwrap().model, kept.model);
         std::fs::remove_dir_all(&root).unwrap();
     }
 

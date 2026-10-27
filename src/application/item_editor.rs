@@ -7,7 +7,8 @@
 //! - base items take an override of their editable columns and text (`item_override`);
 //! - any item can be hidden (`item_hide`): it leaves the NPC shops and the give list, and the
 //!   items characters own keep working;
-//! - only added items are removed (`item_remove`), and never while a character owns one.
+//! - only added items are removed (`item_remove`); when the removal loads, the game takes every
+//!   item of the class from its owners (unequipped first) and drops queued deliveries.
 use super::{
     admin_session::AdminError,
     content_admin::{Actor, audit, outcome, require},
@@ -25,7 +26,7 @@ use crate::{
         client_files::ClientFiles,
         content_edits::{self, ContentEdit},
         item_kits::{self, StoredKit},
-        model_kit,
+        model_kit::ModelScript,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -37,7 +38,6 @@ use std::{
     sync::Arc,
 };
 
-const COSTUMES: &str = "scripts/player_costume.txt";
 const MAX_LISTED: usize = 200;
 const MAX_ITEM_EDITS: i64 = 5000;
 
@@ -351,26 +351,27 @@ fn text_of(draft: &ItemDraft) -> Result<Map<String, Value>, AdminError> {
     Ok(text)
 }
 
-/// CostumeTypes in use in a player_costume.txt section: the client's entries, every exported
-/// item whose category maps to the section, and every added item's costume entries.
+/// CostumeTypes in use in a model script: the client's entries, every exported item whose model
+/// the script holds, and every added item's entries for it.
 fn used_costume_types(
     names: &EnglishNames,
     edits: &[ContentEdit],
-    costumes: Option<&[u8]>,
-    section: &str,
+    text: Option<&[u8]>,
+    script: &ModelScript,
 ) -> BTreeSet<i64> {
-    let mut used = costumes
-        .map(|t| item_editor::costume_keys(t, section))
-        .unwrap_or_default();
-    for (_, entry) in names.editor_items() {
+    let section = script.section();
+    let mut used = text.map(|t| script.keys(t)).unwrap_or_default();
+    for (class, entry) in names.editor_items() {
         let category = entry.fields.get("Category").and_then(Value::as_str);
-        if category.and_then(model_kit::costume_section) == Some(section)
+        let same =
+            category.and_then(|c| ModelScript::of(c, names.item_equip_class(class).as_deref()));
+        if same.as_ref() == Some(script)
             && let Some(key) = entry.fields.get("CostumeType").and_then(Value::as_i64)
         {
             used.insert(key);
         }
         if let Some(definition) = &entry.definition {
-            used.extend(costume_keys_of(definition, section));
+            used.extend(costume_keys_of(definition, &section));
         }
     }
     for edit in edits.iter().filter(|e| e.kind == "item") {
@@ -379,7 +380,7 @@ fn used_costume_types(
             .as_deref()
             .and_then(|v| serde_json::from_str(v).ok())
         {
-            used.extend(costume_keys_of(&definition, section));
+            used.extend(costume_keys_of(&definition, &section));
         }
     }
     used
@@ -397,19 +398,33 @@ fn costume_keys_of(definition: &Value, section: &str) -> Vec<i64> {
         .unwrap_or_default()
 }
 
-async fn read_costumes(client: Arc<ClientFiles>) -> Result<Option<Vec<u8>>, AdminError> {
-    tokio::task::spawn_blocking(move || client.read(COSTUMES).ok().flatten())
+/// A free CostumeType: clothes and armor from the editor's range (from 9100, as the first lab
+/// items proved in the client), weapons and shields right after their script's last number.
+fn allocate(script: &ModelScript, used: &BTreeSet<i64>) -> Option<i64> {
+    if script.costume_range() {
+        item_editor::allocate_costume_type(used)
+    } else {
+        let next = used.iter().next_back().map_or(0, |k| k + 1);
+        (next <= item_editor::LAST_COSTUME_TYPE).then_some(next)
+    }
+}
+
+async fn read_script(
+    client: Arc<ClientFiles>,
+    file: String,
+) -> Result<Option<Vec<u8>>, AdminError> {
+    tokio::task::spawn_blocking(move || client.read(&file).ok().flatten())
         .await
         .map_err(|_| AdminError::ContentUnavailable)
 }
 
-/// The new model's costume entry, assets and CostumeType for a kit.
+/// The new model's script entry, assets and CostumeType for a kit.
 #[allow(clippy::too_many_arguments)]
 async fn kit_costume(
     sources: &Sources<'_>,
     edits: &[ContentEdit],
     kit: &str,
-    category: &str,
+    script: Option<ModelScript>,
     template_costume: Option<i64>,
     previous: Option<&Value>,
     body: Option<&str>,
@@ -420,8 +435,8 @@ async fn kit_costume(
         .clone()
         .ok_or(AdminError::ContentUnavailable)?;
     let stored: StoredKit = item_kits::stored(root, kit).map_err(|_| AdminError::InvalidInput)?;
-    let section =
-        model_kit::costume_section(category).ok_or(AdminError::Unchanged("modelo_sem_secao"))?;
+    let script = script.ok_or(AdminError::Unchanged("modelo_sem_secao"))?;
+    let section = script.section();
     // The item's earlier kit may already be in the client copy under the same paths.
     let earlier: BTreeSet<String> = previous
         .and_then(|p| p["assets"].as_str())
@@ -440,33 +455,39 @@ async fn kit_costume(
     if collides {
         return Err(AdminError::Unchanged("kit_colide"));
     }
-    let text = read_costumes(client).await?;
+    let text = read_script(client, script.file()).await?;
     let earlier_entry = previous
         .and_then(|p| p["costumes"].as_array())
-        .and_then(|list| list.iter().find(|c| c["section"].as_str() == Some(section)));
+        .and_then(|list| {
+            list.iter()
+                .find(|c| c["section"].as_str() == Some(section.as_str()))
+        });
     let key = match earlier_entry.and_then(|c| c["key"].as_str()?.parse::<i64>().ok()) {
         Some(key) => key,
-        None => item_editor::allocate_costume_type(&used_costume_types(
-            sources.names,
-            edits,
-            text.as_deref(),
-            section,
-        ))
+        None => allocate(
+            &script,
+            &used_costume_types(sources.names, edits, text.as_deref(), &script),
+        )
         .ok_or(AdminError::Unchanged("sem_costume_type"))?,
     };
-    let body = match body {
-        Some(b) if BODIES.contains(&b) => b.to_owned(),
-        Some(_) => return Err(AdminError::InvalidInput),
-        None => earlier_entry
-            .and_then(|c| c["category"].as_str().map(str::to_owned))
-            .or_else(|| item_editor::costume_body(text.as_deref()?, section, template_costume?))
-            .ok_or(AdminError::InvalidInput)?,
-    };
-    Ok((
-        json!([{ "section": section, "key": key.to_string(), "category": body, "normal": stored.model }]),
-        stored.assets,
-        key,
-    ))
+    let mut entry = json!({ "section": section, "key": key.to_string(), "normal": stored.model });
+    // Only player_costume.txt entries have a body.
+    if script.costume_range() {
+        let body = match body {
+            Some(b) if BODIES.contains(&b) => b.to_owned(),
+            Some(_) => return Err(AdminError::InvalidInput),
+            None => earlier_entry
+                .and_then(|c| c["category"].as_str().map(str::to_owned))
+                .or_else(|| {
+                    let body = script.value(text.as_deref()?, template_costume?, "category")?;
+                    let body = body.to_ascii_lowercase();
+                    BODIES.contains(&body.as_str()).then_some(body)
+                })
+                .ok_or(AdminError::InvalidInput)?,
+        };
+        entry["category"] = json!(body);
+    }
+    Ok((json!([entry]), stored.assets, key))
 }
 
 pub async fn save(
@@ -584,11 +605,13 @@ pub async fn save(
                     .fields
                     .get("CostumeType")
                     .and_then(Value::as_i64);
+                let script =
+                    ModelScript::of(&category, names.item_equip_class(&template).as_deref());
                 let (costumes, assets, key) = kit_costume(
                     sources,
                     &edits,
                     kit,
-                    &category,
+                    script,
                     template_costume,
                     previous.as_ref(),
                     draft.body.as_deref(),
@@ -661,7 +684,8 @@ pub async fn hide(
     )
 }
 
-/// Remove an added item; refused while a character owns one or a delivery of it is queued.
+/// Remove an added item. When the published removal loads (game start), every item of the class
+/// leaves its owners: an equipped one is unequipped first; queued deliveries go too.
 pub async fn remove(
     pool: &PgPool,
     actor: &Actor<'_>,
@@ -675,10 +699,6 @@ pub async fn remove(
         Known::Added(_) => {}
         Known::Base(_) => return Err(AdminError::Unchanged("item_base")),
         Known::Unknown => return Err(AdminError::NotFound),
-    }
-    let usage = admin_characters::item_usage(pool, class).await?;
-    if usage.total > 0 || usage.queued > 0 {
-        return Err(AdminError::Unchanged("item_em_uso"));
     }
     outcome(
         content_edits::create(

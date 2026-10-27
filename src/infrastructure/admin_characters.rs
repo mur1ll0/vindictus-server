@@ -145,6 +145,13 @@ impl EnglishNames {
             info.get("ct")?.as_i64()?,
         ))
     }
+    /// EquipItemInfo.EquipClass (`ec`): the weapon or shield script of the model.
+    pub fn item_equip_class(&self, class: &str) -> Option<String> {
+        self.item_info(class)?
+            .get("ec")?
+            .as_str()
+            .map(str::to_owned)
+    }
     pub(super) fn item_info(&self, class: &str) -> Option<&HashMap<String, serde_json::Value>> {
         self.catalog
             .item_info

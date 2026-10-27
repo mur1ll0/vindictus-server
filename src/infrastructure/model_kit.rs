@@ -3,6 +3,7 @@
 //! (`<model>.mdl`, `.vvd`, `.dx90.vtx`, `.dx80.vtx`, `.sw.vtx`, the `.vmt` materials and their
 //! `.vtf` textures, `kit.json`). Same content as scripts/client/model_kit.py.
 use super::client_files::{ClientFiles, ClientFilesError};
+use std::collections::BTreeSet;
 use thiserror::Error;
 
 const MODEL_SUFFIXES: [(&str, bool); 5] = [
@@ -214,24 +215,201 @@ pub fn costume_section(category: &str) -> Option<&'static str> {
     })
 }
 
-/// The `normal` model of entry `key` in `section` of player_costume.txt.
-pub fn costume_model(text: &[u8], section: &str, key: i64) -> Option<String> {
-    let text = String::from_utf8_lossy(text);
-    let header = format!("\n\"{section}\"");
-    let start = text.find(&header)?;
-    let next = text[start + header.len()..]
-        .find("\n\"")
-        .map_or(text.len(), |i| start + header.len() + i);
-    let body = &text[start..next];
-    let entry = format!("\n\t\"{key}\"");
-    let at = body.find(&entry)?;
-    let block = &body[at..];
-    let block = &block[..block.find("\n\t}").unwrap_or(block.len())];
-    let line = block
-        .lines()
-        .find(|l| l.trim_start().starts_with("\"normal\""))?;
-    let value = line.split('"').nth(3)?;
-    model_path(value).ok()
+/// Where the client finds the model of an item: player_costume.txt for clothes and armor,
+/// scripts/weapon_<EquipClass>.txt (`WeaponData` → `SubTypeInfoOverride`, `playermodel`) for
+/// weapons and scripts/shields.txt (`Fiona`, `normal`) for shields and large shields. The entry
+/// number is EquipItemInfo.CostumeType in all of them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ModelScript {
+    Costume(&'static str),
+    Weapon(String),
+    Shield,
+}
+
+impl ModelScript {
+    /// The script of an item from its Category and EquipClass.
+    pub fn of(category: &str, equip_class: Option<&str>) -> Option<Self> {
+        if let Some(section) = costume_section(category) {
+            return Some(Self::Costume(section));
+        }
+        let class = equip_class?.to_ascii_lowercase();
+        match class.as_str() {
+            "shield" | "largeshield" => Some(Self::Shield),
+            _ if category == "WEAPON"
+                && (1..=32).contains(&class.len())
+                && class.bytes().all(|b| b.is_ascii_lowercase()) =>
+            {
+                Some(Self::Weapon(class))
+            }
+            _ => None,
+        }
+    }
+    /// The name the item editor writes in an added item's costume entry (`section`).
+    pub fn section(&self) -> String {
+        match self {
+            Self::Costume(section) => (*section).to_owned(),
+            Self::Weapon(class) => format!("weapon_{class}"),
+            Self::Shield => "shields".to_owned(),
+        }
+    }
+    pub fn file(&self) -> String {
+        match self {
+            Self::Costume(_) => "scripts/player_costume.txt".to_owned(),
+            Self::Weapon(class) => format!("scripts/weapon_{class}.txt"),
+            Self::Shield => "scripts/shields.txt".to_owned(),
+        }
+    }
+    /// Clothes and armor take CostumeType numbers from the editor's own range; weapon and shield
+    /// numbers continue their script's numbering.
+    pub fn costume_range(&self) -> bool {
+        matches!(self, Self::Costume(_))
+    }
+    fn path(&self) -> Vec<&str> {
+        match self {
+            Self::Costume(section) => vec![section],
+            Self::Weapon(_) => vec!["WeaponData", "SubTypeInfoOverride"],
+            Self::Shield => vec!["Fiona"],
+        }
+    }
+    fn field(&self) -> &'static str {
+        match self {
+            Self::Weapon(_) => "playermodel",
+            _ => "normal",
+        }
+    }
+    /// Entry numbers of the script's block.
+    pub fn keys(&self, text: &[u8]) -> BTreeSet<i64> {
+        self.entries(text)
+            .into_iter()
+            .filter_map(|(k, _)| k.parse().ok())
+            .collect()
+    }
+    /// The model of entry `key`.
+    pub fn model(&self, text: &[u8], key: i64) -> Option<String> {
+        let value = self.value(text, key, self.field())?;
+        model_path(&value).ok()
+    }
+    /// A field of entry `key` (for example the body `category` of a costume).
+    pub fn value(&self, text: &[u8], key: i64, field: &str) -> Option<String> {
+        let wanted = key.to_string();
+        self.entries(text)
+            .into_iter()
+            .find(|(k, _)| *k == wanted)?
+            .1
+            .into_iter()
+            .find(|(f, _)| f.eq_ignore_ascii_case(field))
+            .map(|(_, v)| v)
+    }
+    fn entries(&self, text: &[u8]) -> Vec<(String, Vec<(String, String)>)> {
+        let text = String::from_utf8_lossy(text);
+        let tree = keyvalues(&text);
+        let mut node = &tree;
+        for key in self.path() {
+            let child = node.iter().find_map(|(k, v)| match v {
+                KeyValue::Block(child) if k.eq_ignore_ascii_case(key) => Some(child),
+                _ => None,
+            });
+            let Some(child) = child else {
+                return Vec::new();
+            };
+            node = child;
+        }
+        node.iter()
+            .filter_map(|(k, v)| match v {
+                KeyValue::Block(fields) => Some((
+                    k.clone(),
+                    fields
+                        .iter()
+                        .filter_map(|(f, v)| match v {
+                            KeyValue::Text(t) => Some((f.clone(), t.clone())),
+                            KeyValue::Block(_) => None,
+                        })
+                        .collect(),
+                )),
+                KeyValue::Text(_) => None,
+            })
+            .collect()
+    }
+}
+
+/// A KeyValues node: text or a block of pairs.
+#[derive(Debug, PartialEq, Eq)]
+enum KeyValue {
+    Text(String),
+    Block(Vec<(String, KeyValue)>),
+}
+
+const MAX_KV_DEPTH: usize = 32;
+
+/// Valve KeyValues as the client scripts write them: quoted or bare tokens, braces, `//`
+/// comments and `[$WIN32]` conditions (ignored). Malformed trailing input is dropped.
+fn keyvalues(text: &str) -> Vec<(String, KeyValue)> {
+    let mut tokens: Vec<String> = Vec::new();
+    let mut chars = text.char_indices().peekable();
+    while let Some((at, c)) = chars.next() {
+        match c {
+            c if c.is_whitespace() => {}
+            '/' if text[at..].starts_with("//") => {
+                while chars.next_if(|(_, c)| *c != '\n').is_some() {}
+            }
+            '{' | '}' => tokens.push(c.to_string()),
+            '"' => {
+                let mut token = String::from("\"");
+                for (_, c) in chars.by_ref() {
+                    if c == '"' {
+                        break;
+                    }
+                    token.push(c);
+                }
+                tokens.push(token);
+            }
+            _ => {
+                let mut token = c.to_string();
+                while let Some((_, c)) =
+                    chars.next_if(|(_, c)| !c.is_whitespace() && !matches!(c, '{' | '}' | '"'))
+                {
+                    token.push(c);
+                }
+                tokens.push(token);
+            }
+        }
+    }
+    let mut at = 0;
+    kv_block(&tokens, &mut at, 0)
+}
+
+fn kv_block(tokens: &[String], at: &mut usize, depth: usize) -> Vec<(String, KeyValue)> {
+    let mut pairs = Vec::new();
+    while let Some(token) = tokens.get(*at) {
+        *at += 1;
+        if token == "}" {
+            break;
+        }
+        if token == "{" || token.starts_with('[') {
+            continue;
+        }
+        let key = token.trim_start_matches('"').to_owned();
+        match tokens.get(*at).map(String::as_str) {
+            Some("{") => {
+                *at += 1;
+                let child = if depth < MAX_KV_DEPTH {
+                    kv_block(tokens, at, depth + 1)
+                } else {
+                    Vec::new()
+                };
+                pairs.push((key, KeyValue::Block(child)));
+            }
+            Some("}") | None => {}
+            Some(value) => {
+                *at += 1;
+                pairs.push((
+                    key,
+                    KeyValue::Text(value.trim_start_matches('"').to_owned()),
+                ));
+            }
+        }
+    }
+    pairs
 }
 
 #[cfg(test)]
@@ -258,11 +436,39 @@ mod tests {
     fn costume_entries_resolve_to_their_normal_model() {
         let text = b"// c\r\n\"base\"\r\n{\r\n\t\"16\"\r\n\t{\r\n\t\t\"normal\"\t\"models/b.mdl\"\r\n\t}\r\n}\r\n\"inner_armor\"\r\n{\r\n\t\"16\"\r\n\t{\r\n\t\t\"category\"\t\"female\"\r\n\t\t\"normal\"\t\"models/player/fiona/fiona_inner_fringe.mdl\"\r\n\t}\r\n}\r\n";
         assert_eq!(
-            costume_model(text, "inner_armor", 16).as_deref(),
+            ModelScript::Costume("inner_armor")
+                .model(text, 16)
+                .as_deref(),
             Some("models/player/fiona/fiona_inner_fringe.mdl")
         );
-        assert_eq!(costume_model(text, "inner_armor", 17), None);
+        assert_eq!(ModelScript::Costume("inner_armor").model(text, 17), None);
         assert_eq!(costume_section("AVATAR_TUNIC"), Some("upper_body"));
+    }
+
+    #[test]
+    fn weapon_and_shield_entries_resolve_through_their_scripts() {
+        let weapon = b"// LongSword\r\nWeaponData\r\n{\r\n\t\"playermodel\"\t\"models/weapon/longsword/gladius.mdl\"\r\n\t\"SubTypeInfoOverride\"\r\n\t{\r\n\t\t// comment { not a block\r\n\t\t\"1\"\r\n\t\t{\r\n\t\t\t\"viewmodel\"\t\"models/weapon/longsword/longsword_swordwind.mdl\"\r\n\t\t\t\"playermodel\"\t\"models/weapon/longsword/longsword_swordwind.mdl\"\r\n\t\t}\r\n\t\t// \"5\" removed\r\n\t\t\"6\" { \"playermodel\" \"models/weapon/longsword/x.mdl\" [$WIN32] }\r\n\t}\r\n}\r\n";
+        let script = ModelScript::of("WEAPON", Some("LONGSWORD")).unwrap();
+        assert_eq!(script.file(), "scripts/weapon_longsword.txt");
+        assert_eq!(script.keys(weapon), BTreeSet::from([1, 6]));
+        assert_eq!(
+            script.model(weapon, 1).as_deref(),
+            Some("models/weapon/longsword/longsword_swordwind.mdl")
+        );
+        let shields = b"\"Fiona\"\r\n{\r\n\t\"normal_paladin_subtype_id\"\t\"23\"\r\n\t\"15\"\r\n\t{\r\n\t\t\"normal\"\t\"models/weapon/largeshield/largeshield_kite.mdl\"\r\n\t}\r\n}\r\n";
+        let shield = ModelScript::of("LARGESHIELD", Some("LARGESHIELD")).unwrap();
+        assert_eq!(
+            (shield.section(), shield.keys(shields)),
+            ("shields".to_owned(), BTreeSet::from([15]))
+        );
+        assert_eq!(
+            shield.model(shields, 15).as_deref(),
+            Some("models/weapon/largeshield/largeshield_kite.mdl")
+        );
+        let inner = ModelScript::of("INNERARMOR", Some("CUSTOMIZE")).unwrap();
+        assert_eq!(inner, ModelScript::Costume("inner_armor"));
+        assert_eq!(ModelScript::of("HAIR", Some("CUSTOMIZE")), None);
+        assert_eq!(ModelScript::of("NECKLACE", Some("Necklace")), None);
     }
 
     #[test]

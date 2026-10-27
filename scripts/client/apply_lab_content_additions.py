@@ -74,6 +74,77 @@ def with_tokens(text: bytes, entries: dict[str, str]) -> bytes:
     return (decoded[:opening] + lines + decoded[opening:]).encode('utf-16')
 
 
+def kv_blocks(text: bytes) -> dict[tuple[str, ...], tuple[int, int, set[str]]]:
+    """Every KeyValues block of a client script by its key path (lower case): the offsets of its
+    braces and the keys of its child blocks. Quoted or bare tokens, `//` comments."""
+    blocks, stack, pending, at = {}, [], None, 0
+    while at < len(text):
+        c = text[at:at + 1]
+        if c in b' \t\r\n':
+            at += 1
+        elif text.startswith(b'//', at):
+            end = text.find(b'\n', at)
+            at = len(text) if end < 0 else end
+        elif c == b'{':
+            path = tuple(p for p, _, _ in stack) + ((pending or '').lower(),)
+            if stack:
+                stack[-1][2].add((pending or '').lower())
+            stack.append(((pending or '').lower(), at, set()))
+            pending = None
+            at += 1
+        elif c == b'}':
+            if stack:
+                name, opening, children = stack.pop()
+                blocks.setdefault(tuple(p for p, _, _ in stack) + (name,), (opening, at, children))
+            pending = None
+            at += 1
+        else:
+            if c == b'"':
+                end = text.find(b'"', at + 1)
+                end = len(text) if end < 0 else end
+                token, at = text[at + 1:end], end + 1
+            else:
+                end = at
+                while end < len(text) and text[end:end + 1] not in b' \t\r\n{}"':
+                    end += 1
+                token, at = text[at:end], end
+            # A key followed by a value resets; a key followed by '{' names the block; a
+            # condition such as [$WIN32] changes nothing.
+            if not token.startswith(b'['):
+                pending = None if pending is not None else token.decode('latin-1')
+    return blocks
+
+
+# Entry blocks the client reads models from (docs/future/item-editor.md, section 3.3).
+SCRIPT_ENTRIES = {'weapon': (('weapondata', 'subtypeinfooverride'), ('viewmodel', 'playermodel')),
+                  'shields': (('fiona',), ('normal', 'broken'))}
+
+
+def script_of(section: str) -> str:
+    """The scripts pack file of a costume entry."""
+    if section.startswith('weapon_'):
+        return section + '.txt.comp'
+    if section == 'shields':
+        return 'shields.txt.comp'
+    return 'player_costume.txt.comp'
+
+
+def with_script_entries(text: bytes, costumes: list[dict], kind: str) -> bytes:
+    """A weapon script or shields.txt with an entry per costume (key: CostumeType) in its model block."""
+    path, fields = SCRIPT_ENTRIES[kind]
+    for costume in costumes:
+        block = kv_blocks(text).get(path)
+        if block is None:
+            raise PreparationError(f'The {costume["section"]} script has no {"/".join(path)} block.')
+        opening, closing, children = block
+        if costume['key'] in children:
+            raise PreparationError(f'The {costume["section"]} script already has entry {costume["key"]}.')
+        lines = ''.join('\t\t\t"%s"\t"%s"\r\n' % (f, costume['normal']) for f in fields)
+        entry = ('\r\n\t\t"%s"\r\n\t\t{\r\n%s\t\t}\r\n\t' % (costume['key'], lines)).encode('ascii')
+        text = text[:closing] + entry + text[closing:]
+    return text
+
+
 def with_costumes(text: bytes, costumes: list[dict]) -> bytes:
     """player_costume.txt with the entries appended to their sections (each: section, key, category, normal)."""
     for costume in costumes:
@@ -153,8 +224,22 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
             wanted[path] = hfs.build_pack(pack, ks)
             rebuilt.append((path.name, wanted[path]))
     if costumes:
-        pack = [hfs.Entry(e.name, hfs.comp_wrap(with_costumes(hfs.comp_unwrap(e.data), costumes))
-                          if e.name == 'player_costume.txt.comp' else e.data, e.attr) for e in hfs.read_pack(source[scripts], ks)]
+        by_file: dict[str, list[dict]] = {}
+        for costume in costumes:
+            by_file.setdefault(script_of(costume['section']), []).append(costume)
+        pack = []
+        for e in hfs.read_pack(source[scripts], ks):
+            entries = by_file.pop(e.name, None)
+            if entries:
+                plain = hfs.comp_unwrap(e.data)
+                if e.name == 'player_costume.txt.comp':
+                    plain = with_costumes(plain, entries)
+                else:
+                    plain = with_script_entries(plain, entries, 'shields' if e.name == 'shields.txt.comp' else 'weapon')
+                e = hfs.Entry(e.name, hfs.comp_wrap(plain), e.attr)
+            pack.append(e)
+        if by_file:
+            raise PreparationError(f'The scripts pack has no {sorted(by_file)[0]}.')
         wanted[scripts] = hfs.build_pack(pack, ks)
         rebuilt.append((scripts.name, wanted[scripts]))
     plain = hfs.decode_index(source[index])

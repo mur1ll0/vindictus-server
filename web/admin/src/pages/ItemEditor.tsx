@@ -59,7 +59,13 @@ async function kitFromUrl(url: string): Promise<PreviewModel> {
 
 /** The model of an item for the preview: its stored kit, or its costume model in the client copy. */
 async function previewOf(itemClass: string, assets?: string | null): Promise<PreviewModel | null> {
-  if (assets) return kitFromUrl(`/api/item-editor/kits/${encodeURIComponent(assets)}`);
+  if (assets) {
+    try {
+      return await kitFromUrl(`/api/item-editor/kits/${encodeURIComponent(assets)}`);
+    } catch {
+      // The client copy has the model too once start-lab.bat packed it.
+    }
+  }
   const { data, error, response } = await api.GET('/api/items/{item_class}/model', { params: { path: { item_class: itemClass } } });
   if (!data) fail(response, error);
   return data.model ? kitFromUrl(`/api/models/kit?model=${encodeURIComponent(data.model)}`) : null;
@@ -269,7 +275,7 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
                 </div>
                 {kitFile && (
                   <div className="space-y-1">
-                    <Label htmlFor="body">Corpo da entrada no player_costume.txt</Label>
+                    <Label htmlFor="body">Corpo (só roupas e armaduras)</Label>
                     <select id="body" className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm" value={body} onChange={(e) => setBody(e.target.value)}>
                       <option value="">o do item-modelo</option>
                       {BODIES.map((b) => (
@@ -279,7 +285,7 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
                       ))}
                     </select>
                     <p className="text-xs text-muted">
-                      O servidor guarda o kit, dá um CostumeType livre (a partir de 9100) e cria a entrada do player_costume.txt.
+                      O servidor guarda o kit e dá um CostumeType livre: roupas e armaduras a partir de 9100, no player_costume.txt; armas e escudos logo depois do último número do script da arma (weapon_{"<classe>"}.txt) ou do shields.txt. Armas e escudos ignoram o corpo.
                     </p>
                   </div>
                 )}
@@ -364,7 +370,7 @@ function Detail({ item, onAction, onForm }: { item: EditorDetail; onAction: (p: 
           <p className="text-muted">
             {item.usage.total} no jogo, {item.usage.queued} em entregas pendentes.{' '}
             {item.origin === 'added'
-              ? 'Remover é recusado enquanto houver algum; ocultar mantém os itens dos personagens funcionando.'
+              ? 'Ao remover, quando a publicação for carregada o jogo desequipa e apaga o item de todos que o têm, e descarta as entregas pendentes; ocultar mantém os itens funcionando.'
               : 'Ocultar mantém os itens dos personagens funcionando; itens base nunca são apagados.'}
           </p>
           <ul className="space-y-0.5">
@@ -414,7 +420,7 @@ const ACTION_TEXT: Record<Pending['kind'], { title: string; submit: string; text
   remove: {
     title: 'Remover item adicionado',
     submit: 'Remover',
-    text: 'O item sai do conteúdo do servidor e da cópia do cliente na próxima publicação. É recusado enquanto algum personagem tiver o item.',
+    text: 'O item sai do conteúdo do servidor e da cópia do cliente na próxima publicação. Quando o jogo carregar a publicação, todos os personagens perdem o item: se estiver vestido, é desequipado e depois apagado; entregas pendentes dele são descartadas.',
   },
   restore: { title: 'Restaurar item base', submit: 'Restaurar', text: 'Os valores e o texto originais do item voltam na próxima publicação.' },
 };
@@ -536,7 +542,7 @@ export function ItemEditorPage() {
             <p className="text-sm">{ACTION_TEXT[pending.kind].text}</p>
             {pending.item.usage.total + pending.item.usage.queued > 0 && (
               <p className="text-sm text-danger">
-                {pending.item.usage.total} itens no jogo e {pending.item.usage.queued} entregas pendentes com esta classe.
+                {pending.item.usage.total} itens no jogo e {pending.item.usage.queued} entregas pendentes com esta classe{pending.kind === 'remove' ? ' serão apagados.' : '.'}
               </p>
             )}
           </ActionForm>
