@@ -203,6 +203,7 @@ async fn project(
     let stats = &assets.stats_index;
     let mut slots = Vec::with_capacity(rows.len());
     let mut positions = BTreeSet::new();
+    let mut account_classes = BTreeSet::new();
     // StorageSetting: collection 103 is the StoryStorage only with StoryTabInInventory.
     let story_tab = assets
         .catalog
@@ -225,7 +226,12 @@ async fn project(
             || (account != (row.slot == -1))
             || (!account && row.slot < 0)
             || ((bag || story) && row.slot >= 48)
-            || !positions.insert((row.collection, row.slot))
+            // AccountStorage keys its items by class at the shared AccountLocation.
+            || !if account {
+                account_classes.insert(row.item_class_utf16.clone())
+            } else {
+                positions.insert((row.collection, row.slot))
+            }
         {
             return Err(MinimumError::Conflict);
         }

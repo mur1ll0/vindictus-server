@@ -48,6 +48,27 @@ fn assets_with_classes(
     scroll_class: &str,
     scroll_use_in_town: i32,
 ) -> Assets {
+    assets_from(
+        cash_unique,
+        cash_use_in_town,
+        cash_level,
+        appearance,
+        scroll_class,
+        scroll_use_in_town,
+        false,
+    )
+}
+/// `assets_with_classes`; `stamp` adds a second AccountStorage class (row 4).
+#[allow(clippy::too_many_arguments)]
+fn assets_from(
+    cash_unique: i32,
+    cash_use_in_town: i32,
+    cash_level: i32,
+    appearance: Option<Value>,
+    scroll_class: &str,
+    scroll_use_in_town: i32,
+    stamp: bool,
+) -> Assets {
     let mut i = super::fiona_inventory_delivery::AppearanceInputs::new();
     if let Some(v) = appearance {
         i.profile = vindictus_server::infrastructure::fiona_appearance::Profile::read(
@@ -63,7 +84,13 @@ fn assets_with_classes(
     let scroll = appearance_fixture::key(scroll_class);
     profile["classes"].as_array_mut().unwrap().push(json!({"source_index":3,"item_utf16":scroll,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
     catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":scroll,"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
-    catalog["manifest"]["class_rows"] = json!(4);
+    // A second AccountStorage class: the account holds one item per class.
+    if stamp {
+        let stamp = appearance_fixture::key("synthetic_stamp");
+        profile["classes"].as_array_mut().unwrap().push(json!({"source_index":4,"item_utf16":stamp,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
+        catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":stamp,"feature":null,"max_stack":70,"storage":3,"bind":null,"trade_on_bind":null}));
+    }
+    catalog["manifest"]["class_rows"] = json!(if stamp { 5 } else { 4 });
     let rows: Vec<Value> = catalog["classes"]
         .as_array()
         .unwrap()
@@ -116,7 +143,7 @@ async fn minimum_give_grants_gold_stacks_and_refuses_without_partial_writes() {
     let (a, p, s) = isolated_game_pool().await;
     minimum_character::setup(&p).await;
     minimum_character::initialize(&p).await.unwrap();
-    let assets = assets(0);
+    let assets = assets_from(0, 0, 0, None, "enchant_scroll", 0, true);
     let owner = super::initial_inventory::key();
     let grant =
         |class: &'static str, count| minimum_give::lab_grant(&p, &assets, None, class, count, 9);
@@ -131,6 +158,16 @@ async fn minimum_give_grants_gold_stacks_and_refuses_without_partial_writes() {
     assert_eq!(gold.len(), 1);
     let (id, _, count, collection, slot, checksum) = gold[0].clone();
     assert_eq!((count, collection, slot), (1750, 101, -1));
+    // Another AccountStorage class shares the AccountLocation (as the daily stamps do).
+    assert_eq!(grant("synthetic_stamp", 60).await.unwrap(), Ok(1));
+    assert_eq!(grant("synthetic_stamp", 10).await.unwrap(), Ok(1));
+    let account: Vec<(i16, i32, i32)> = items(&p)
+        .await
+        .into_iter()
+        .filter(|r| r.3 == 101)
+        .map(|r| (r.3, r.4, r.2))
+        .collect();
+    assert_eq!(account, [(101, -1, 1750), (101, -1, 70)]);
     let units: Vec<u16> = "synthetic_gold".encode_utf16().collect();
     assert_eq!(
         checksum,

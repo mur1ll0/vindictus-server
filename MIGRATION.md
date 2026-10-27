@@ -1739,3 +1739,10 @@ B4.N2 — Hagie: ouro da conta recusado pelo Gear inicial (27/10/2026).
 - Painel: nenhuma mudança auditada nem recusa no log depois do login das 19:30. A operação repetida terminou num ramo de erro que não era registrado (offline, entrada, permissão, não encontrado). Agora toda resposta de erro do painel registra `panel request refused` com `code` e `status` fixos (exceto sessão encerrada).
 - Testes: `private_class_content -- --include-ignored` (classes 0–9, incluindo a admissão no Gear), `fiona_appearance` (8). Docker do `game` recompilado (build 0, up 0, saudável). Logs `.cache/verification/hagie-gear*.log`.
 - Próxima ação retomável: o operador cria a Hagie; se o painel recusar de novo, ler `panel request refused` / `panel character change refused` em `docker compose logs game`.
+
+B4.N2 — Hagie e Evy confirmadas no cliente; item diário de conta (27/10/2026).
+- Cliente: a Hagie criou e o painel funcionou (operador). Log do `game` na última hora: nenhuma recusa de criação nem do painel; só `minimum daily item procedure failed` (processos 51, 115 e 154, `Conflict`), que dão `honor_stamp_limit`, `trophy_sportsday_limit` e `slayer_stamp_limit`, todos de Storage=3 (AccountStorage).
+- Causa: `minimum_inventory` exigia posição única `(collection, slot)`. O AccountStorage guarda um item por classe na mesma AccountLocation (101, -1), então uma personagem com ouro na conta recusava o segundo item de conta. O banco do laboratório tem 51 personagens com vários itens em (101, -1), entre importadas e de laboratório.
+- Mudança: na coleção 101 a unicidade é por classe de item; nas outras coleções continua por posição.
+- Testes: PostgreSQL `minimum_give::` (43; o teste do ouro usa um fixture com uma segunda classe de AccountStorage e confere ouro e selo juntos em (101, -1)). Logs `.cache/verification/account*-*.log`.
+- Docker: o build falhou num erro TypeScript de `web/admin/src/pages/ItemEditor.tsx`, que a outra sessão está editando agora; o `game` em execução ainda é a imagem anterior. Próxima ação: recompilar o `game` quando a outra sessão terminar e conferir que os avisos de item diário somem.
