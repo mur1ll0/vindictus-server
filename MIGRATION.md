@@ -1816,3 +1816,8 @@ Editor de refino e scrolls de um item — E1–E4 (27/10/2026, pedido do operado
 - Verificação: `cargo test --lib item_upgrade` (3); `admin_http` (4, OpenAPI regenerado e `npm run gen:api`); PostgreSQL filtrado (`panel_item_upgrade_writes_valid_enhance_and_enchants_offline` novo, `panel_item_and_cash_changes_are_audited_once_and_refuse_online`, `minimum_enchant_session_applies_a_prefix_and_destroys_into_restore`: 3, 0 falhas); `npm run build`; rustfmt. Logs `.cache/verification/e-*.log`.
 - Cliente: entrada P2 em `docs/client-tests/B4-painel.md` (busca por categoria, recusas do dar item, refino +10 com prefixo/sufixo de rank A, tooltip do jogo igual à prévia, vínculo do rank 7–9, armadura com restrição `&`). Não testado no cliente.
 - Próxima ação: P0, conferir se o `npc-scripts.json` traz os comandos de recompensa por história para o plano de progressão.
+- Atualização (27/10/2026, 22:5x UTC): o operador criou a Fiona `DeliaLab` (cid 639287373299843079) na conta `admin`/`lab169_a`. Feito:
+  - `lab-give-item.ps1` com `bastardsword_chieftain_restoration` e `delia_china_inner` (os dois `granted`);
+  - `lab-set-class.ps1 -Name DeliaLab -Class 10` (`class 1 -> 10`).
+- Imagem `vindictus-server:local` compilada a partir de um *worktree* limpo do commit `f3a1874`, sem o trabalho não commitado da outra sessão; migrações copiadas do diretório principal, cujos arquivos antigos têm CRLF e são os bytes que o banco registrou. `docker compose up -d --no-build --wait` (exit 0; `migrate` 0; `game` e `server` saudáveis; início sem erro nem aviso). Logs `.cache/verification/c2t-*.log`.
+- Pronto para o roteiro `docs/client-tests/C2-delia.md` a partir da D2 (D0 e D1 feitas). Para desfazer: `scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
