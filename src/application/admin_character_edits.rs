@@ -368,3 +368,68 @@ fn upgraded<T>(outcome: admin_item_upgrade::Outcome<T>) -> Result<T, AdminError>
         Outcome::Repeated => Err(AdminError::RepeatedOperation),
     }
 }
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct PlanQuestView {
+    pub id: String,
+    /// English stage name (HEROES_QUEST_TITLE_<ID>).
+    pub title: Option<String>,
+    pub level: i32,
+    pub difficulty: i32,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct PlanSkipView {
+    pub id: String,
+    pub title: Option<String>,
+    /// feature, special, no_mission, difficulty or requirement.
+    pub reason: String,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ReachPlan {
+    pub level: i32,
+    pub quests: Vec<PlanQuestView>,
+    pub skipped: Vec<PlanSkipView>,
+}
+
+/// The quests "reach a level" would complete for the character (staff, read only).
+pub async fn reach_plan(
+    pool: &PgPool,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+    names: &crate::infrastructure::admin_characters::EnglishNames,
+    session: &SessionAccount,
+    cid: &str,
+    level: i32,
+) -> Result<ReachPlan, AdminError> {
+    let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
+    authorize(pool, session, cid_value).await?;
+    let assets = runtime
+        .ok_or(AdminError::ContentUnavailable)?
+        .minimum_assets()
+        .ok_or(AdminError::ContentUnavailable)?;
+    let plan = crate::infrastructure::admin_progression::reach_plan(&assets, level)
+        .ok_or(AdminError::InvalidInput)?;
+    Ok(ReachPlan {
+        level: plan.level,
+        quests: plan
+            .quests
+            .into_iter()
+            .map(|q| PlanQuestView {
+                title: names.quest_title(&q.id),
+                id: q.id,
+                level: q.level,
+                difficulty: q.difficulty,
+            })
+            .collect(),
+        skipped: plan
+            .skipped
+            .into_iter()
+            .map(|s| PlanSkipView {
+                title: names.quest_title(&s.id),
+                id: s.id,
+                reason: s.reason.to_owned(),
+            })
+            .collect(),
+    })
+}

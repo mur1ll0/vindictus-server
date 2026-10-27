@@ -262,6 +262,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{cid}/progression/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The mission quests "reach a level" would complete, and the ones it leaves out (staff). */
+        get: operations["progression_plan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/content": {
         parameters: {
             query?: never;
@@ -1529,6 +1546,21 @@ export interface components {
              */
             version: number;
         };
+        PlanQuestView: {
+            /** Format: int32 */
+            difficulty: number;
+            id: string;
+            /** Format: int32 */
+            level: number;
+            /** @description English stage name (HEROES_QUEST_TITLE_<ID>). */
+            title?: string | null;
+        };
+        PlanSkipView: {
+            id: string;
+            /** @description feature, special, no_mission, difficulty or requirement. */
+            reason: string;
+            title?: string | null;
+        };
         PortView: {
             address: string;
             /** @description frontend, channel, relay or web_shop. */
@@ -1547,6 +1579,11 @@ export interface components {
         } | {
             /** @enum {string} */
             kind: "level";
+            /** Format: int32 */
+            level: number;
+        } | {
+            /** @enum {string} */
+            kind: "reach";
             /** Format: int32 */
             level: number;
         } | {
@@ -1598,6 +1635,12 @@ export interface components {
             min: number;
             quest: string;
             title?: string | null;
+        };
+        ReachPlan: {
+            /** Format: int32 */
+            level: number;
+            quests: components["schemas"]["PlanQuestView"][];
+            skipped: components["schemas"]["PlanSkipView"][];
         };
         RelayView: {
             connected: number;
@@ -2575,6 +2618,46 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    progression_plan: {
+        parameters: {
+            query: {
+                /** @description Target level (1 to the level table's maximum). */
+                level: number;
+            };
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReachPlan"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

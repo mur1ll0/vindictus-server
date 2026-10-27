@@ -360,6 +360,18 @@ impl QuestContents {
     pub fn info(&self, id: &str) -> Option<&QuestInfo> {
         self.index.get(id).and_then(|&i| self.quests.get(i))
     }
+    /// Every QuestInfo row in provider order.
+    pub fn quests(&self) -> &[QuestInfo] {
+        &self.quests
+    }
+    /// Feature-enabled QuestDifficultyInfo of a quest: (Difficulty, MinLevel).
+    pub fn difficulties_of(&self, id: &str) -> &[(i32, i32)] {
+        self.difficulties.get(id).map_or(&[], Vec::as_slice)
+    }
+    /// QuestConstraintInfo of a quest: (RequiredQuestID, RequiredStatus).
+    pub fn constraints_of(&self, id: &str) -> &[(String, i32)] {
+        self.constraints.get(id).map_or(&[], Vec::as_slice)
+    }
     fn goals_of(&self, id: &str) -> &[Goal] {
         self.goals.get(id).map_or(&[], Vec::as_slice)
     }
@@ -1042,6 +1054,53 @@ impl QuestOwner {
         let q = &mut self.quests[index];
         q.clear_count = q.clear_count.wrapping_add(1);
         q.status = status;
+        true
+    }
+}
+
+impl QuestOwner {
+    /// The panel's "reach a level" (docs/future/painel-personagem-e-busca.md, section 1): the
+    /// game's success path for `quest` at `difficulty` without a mission. GiveQuest (revealed),
+    /// UpdateQuest with the heaviest goals until their weight reaches 100 (the main goal),
+    /// no clear time, then UpdateQuestStatus and one play. A quest already at 100 or more is
+    /// left as it is; false when the quest is unknown.
+    pub fn complete_for_panel(
+        &mut self,
+        contents: &QuestContents,
+        quest: &str,
+        difficulty: i32,
+        now: i64,
+    ) -> bool {
+        if self.progress_of(quest) >= 100 {
+            return false;
+        }
+        if self.give_quest(contents, quest, true).0 != GiveQuest::Success {
+            return false;
+        }
+        let mut goals: Vec<&Goal> = contents.goals_of(quest).iter().collect();
+        goals.sort_by(|a, b| b.weight.cmp(&a.weight).then(a.id.cmp(&b.id)));
+        let mut picked = Vec::new();
+        let mut weight = 0_i32;
+        for goal in goals {
+            if weight >= 100 {
+                break;
+            }
+            weight = weight.saturating_add(goal.weight);
+            picked.push((goal.id, now));
+        }
+        self.update_quest(
+            contents,
+            quest,
+            &picked,
+            (difficulty, 1, i32::MAX, 0, 0),
+            now,
+            &|_, _, _, _, _| false,
+        );
+        self.update_quest_status(contents, quest);
+        if let Some(q) = self.quests.iter_mut().find(|q| q.quest == quest) {
+            q.play_count = q.play_count.max(1);
+            q.last_play = now;
+        }
         true
     }
 }

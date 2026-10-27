@@ -1,8 +1,10 @@
 //! Character progression from the admin panel (B4.3c): EXP (the game's GiveExp with the
 //! level-up chain), a target level (the EXP that reaches it), AP (GiveAP, capped like the
 //! game), a title (Titles.AcquireTitle) and status effects (StatusEffectManager add/remove,
-//! for example VIP). Same transaction as the game's own changes, for an offline initialized
-//! laboratory Fiona; the panel's audit row commits with the change.
+//! for example VIP), and "reach a level" (the level plus the mission quests of
+//! `domain::progression_plan`, completed by the game's own QuestOwner success path). Same
+//! transaction as the game's own changes, for an offline initialized laboratory Fiona; the
+//! panel's audit row commits with the change.
 use super::{
     admin_store::{self, AuditRecord},
     character_lobby::UserKey,
@@ -17,6 +19,8 @@ pub enum PanelGrowth<'a> {
     Exp(i64),
     /// Reach this level from the current one (the EXP the level table requires).
     Level(i32),
+    /// Reach this level (when above the current one) and complete the plan's quests.
+    Reach(i32),
     Ap(i32),
     Title(i32),
     /// Add (`Some(level, seconds)`, seconds None = the effect's own duration) or remove
@@ -45,16 +49,18 @@ async fn snapshot(
     tx: &mut Transaction<'_, Postgres>,
     cid: i64,
 ) -> Result<serde_json::Value, sqlx::Error> {
-    let (level, exp, ap, titles, effects): (i32, i64, i32, i64, Vec<String>) = sqlx::query_as(
-        "SELECT c.level, c.exp, c.ap,
+    let (level, exp, ap, titles, quests, effects): (i32, i64, i32, i64, i64, Vec<String>) =
+        sqlx::query_as(
+            "SELECT c.level, c.exp, c.ap,
                 (SELECT count(*) FROM game_titles t WHERE t.cid = c.id AND t.acquired),
+                (SELECT count(*) FROM game_quests q WHERE q.owner_id = c.id AND q.clear_count > 0),
                 ARRAY(SELECT encode(e.type_utf16, 'hex') || ':' || e.level
                       FROM game_status_effects e WHERE e.cid = c.id ORDER BY e.row_id)
          FROM game_character_info c WHERE c.id = $1",
-    )
-    .bind(cid)
-    .fetch_one(&mut **tx)
-    .await?;
+        )
+        .bind(cid)
+        .fetch_one(&mut **tx)
+        .await?;
     // Effect types are stored as UTF-16LE; show them as text.
     let effects: Vec<String> = effects
         .iter()
@@ -73,7 +79,7 @@ async fn snapshot(
         })
         .collect();
     Ok(serde_json::json!({
-        "level": level, "exp": exp, "ap": ap, "titles": titles, "effects": effects
+        "level": level, "exp": exp, "ap": ap, "titles": titles, "quests": quests, "effects": effects
     }))
 }
 
@@ -92,6 +98,46 @@ fn exp_to(assets: &Assets, level: i32, exp: i64, target: i32) -> Option<i64> {
     (1..=i64::from(i32::MAX))
         .contains(&needed)
         .then_some(needed)
+}
+
+/// The content's facts of every quest for the plan.
+fn quest_facts(assets: &Assets) -> Option<Vec<crate::domain::progression_plan::QuestFacts>> {
+    let npc = assets.npc.as_ref()?;
+    let contents = npc.quests.as_ref()?;
+    let mission = npc.mission.as_ref()?;
+    contents
+        .quests()
+        .iter()
+        .map(|q| {
+            let level = mission.quest_level(&q.id);
+            Some(crate::domain::progression_plan::QuestFacts {
+                id: q.id.clone(),
+                level: level.map(|l| l.0),
+                quest_set: q.quest_set,
+                hunting: level.is_some_and(|l| l.1),
+                enabled: npc.policy.is_enabled(q.feature.as_deref()).ok()?,
+                difficulties: contents.difficulties_of(&q.id).to_vec(),
+                requires: contents
+                    .constraints_of(&q.id)
+                    .iter()
+                    .map(|(r, _)| r.clone())
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
+/// The quests "reach a level" would complete; None without the quest contents or above
+/// the level table.
+pub fn reach_plan(assets: &Assets, level: i32) -> Option<crate::domain::progression_plan::Plan> {
+    let max = assets.npc.as_ref()?.progression.as_ref()?.max_level();
+    if !(1..=max).contains(&level) {
+        return None;
+    }
+    Some(crate::domain::progression_plan::plan(
+        level,
+        &quest_facts(assets)?,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -154,6 +200,40 @@ pub async fn panel_change(
                 }
                 None => Some("nivel"),
             }
+        }
+        PanelGrowth::Reach(target) => {
+            let level = before["level"].as_i64().unwrap_or(0) as i32;
+            let exp = before["exp"].as_i64().unwrap_or(0);
+            let plan = reach_plan(assets, target).ok_or_else(fail)?;
+            if target < level {
+                return Ok(PanelGrowthOutcome::Unchanged("nivel"));
+            }
+            if target > level {
+                let exp = exp_to(assets, level, exp, target).ok_or_else(fail)?;
+                super::minimum_growth::give_reward(
+                    &mut tx, &owner, assets, cid, exp, 0, ctx, &mut ids,
+                )
+                .await?;
+            }
+            let contents = assets
+                .npc
+                .as_ref()
+                .and_then(|n| n.quests.as_ref())
+                .ok_or_else(fail)?;
+            let original = super::minimum_quest::load(&mut tx, cid, contents).await?;
+            let mut quests = original.clone();
+            quests.init_status(contents);
+            // LastPlayTime/LastClearTime in SQL datetime units (1/300 s since 1900).
+            let now: i64 = sqlx::query_scalar(
+                "SELECT floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT",
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            for q in &plan.quests {
+                quests.complete_for_panel(contents, &q.id, q.difficulty, now);
+            }
+            super::minimum_quest::save(&mut tx, cid, &original, &quests, &mut ids).await?;
+            None
         }
         PanelGrowth::Ap(ap) => {
             if !(1..=i32::MAX).contains(&ap) {

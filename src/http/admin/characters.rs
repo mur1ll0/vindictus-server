@@ -334,6 +334,10 @@ pub(super) enum ProgressionKind {
     Level {
         level: i32,
     },
+    /// Reach this level and complete the mission quests up to it (see the plan).
+    Reach {
+        level: i32,
+    },
     /// AP through GiveAP (capped like the game).
     Ap {
         amount: i32,
@@ -380,6 +384,7 @@ pub(super) async fn progression(
     let growth = match &body.change {
         ProgressionKind::Exp { amount } => PanelGrowth::Exp(*amount),
         ProgressionKind::Level { level } => PanelGrowth::Level(*level),
+        ProgressionKind::Reach { level } => PanelGrowth::Reach(*level),
         ProgressionKind::Ap { amount } => PanelGrowth::Ap(*amount),
         ProgressionKind::Title { title_id } => PanelGrowth::Title(*title_id),
         ProgressionKind::AddEffect {
@@ -396,6 +401,37 @@ pub(super) async fn progression(
             &change,
             &cid,
             growth,
+        )
+        .await?,
+    ))
+}
+
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct PlanQuery {
+    /// Target level (1 to the level table's maximum).
+    level: i32,
+}
+
+/// The mission quests "reach a level" would complete, and the ones it leaves out (staff).
+#[utoipa::path(get, path = "/api/characters/{cid}/progression/plan",
+    params(("cid" = String, Path), PlanQuery),
+    responses((status = 200, body = admin_character_edits::ReachPlan),
+              (status = 400, body = super::ApiError), (status = 403, body = super::ApiError)))]
+pub(super) async fn progression_plan(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<PlanQuery>,
+) -> Result<Json<admin_character_edits::ReachPlan>, Refusal> {
+    Ok(Json(
+        admin_character_edits::reach_plan(
+            state.auth.pool(),
+            state.runtime.as_deref(),
+            &state.names,
+            &auth.session,
+            &cid,
+            query.level,
         )
         .await?,
     ))

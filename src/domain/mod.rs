@@ -126,6 +126,7 @@ pub mod item_constraint;
 pub mod item_stack;
 
 pub mod progression;
+pub mod progression_plan;
 pub mod quest;
 pub mod quick_slot;
 pub mod random_item;

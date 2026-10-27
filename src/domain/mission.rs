@@ -1336,6 +1336,11 @@ impl MissionContents {
             None => false,
         }
     }
+    /// QuestInfo.Level and HuntingQuest of a mission quest.
+    pub fn quest_level(&self, quest: &str) -> Option<(i32, bool)> {
+        self.quests.get(quest).map(|e| (e.row.1, e.row.5))
+    }
+
     pub fn quest_ids(&self) -> impl Iterator<Item = &str> {
         self.builders.keys().map(String::as_str)
     }

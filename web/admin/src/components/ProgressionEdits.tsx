@@ -10,9 +10,11 @@ import { cn } from '@/lib/utils';
 
 type Kind = components['schemas']['ProgressionKind'];
 type CatalogEffect = components['schemas']['CatalogEffect'];
-type Mode = 'level' | 'exp' | 'ap' | 'title' | 'effect';
+type Mode = 'reach' | 'level' | 'exp' | 'ap' | 'title' | 'effect';
+type ReachPlan = components['schemas']['ReachPlan'];
 
 const MODES: { id: Mode; label: string }[] = [
+  { id: 'reach', label: 'Até o nível' },
   { id: 'level', label: 'Nível' },
   { id: 'exp', label: 'EXP' },
   { id: 'ap', label: 'AP' },
@@ -30,6 +32,60 @@ export async function changeProgression(cid: string, operation_id: string, chang
   });
   if (!data) fail(response, error);
   return data;
+}
+
+async function reachPlan(cid: string, level: number): Promise<ReachPlan> {
+  const { data, error, response } = await api.GET('/api/characters/{cid}/progression/plan', {
+    params: { path: { cid }, query: { level } },
+  });
+  if (!data) fail(response, error);
+  return data;
+}
+
+const SKIP_REASON: Record<string, string> = {
+  feature: 'desligada nesta região',
+  special: 'quadro especial (teste, PvP, caça)',
+  no_mission: 'sem dados de missão',
+  difficulty: 'nenhuma dificuldade abre neste nível',
+  requirement: 'depende de quest fora do plano',
+};
+
+/** The quests "reach a level" would complete, before applying. */
+function ReachPlanView({ cid, level }: { cid: string; level: number }) {
+  const plan = useQuery({ queryKey: ['reach-plan', cid, level], queryFn: () => reachPlan(cid, level), enabled: level >= 1 });
+  if (level < 1) return null;
+  if (plan.error) return <p className="text-sm text-danger">{String(plan.error.message)}</p>;
+  if (!plan.data) return <p className="text-sm text-muted">Calculando o plano…</p>;
+  return (
+    <div className="space-y-2 text-sm">
+      <p>
+        {plan.data.quests.length} quest(s) de missão concluída(s) até o nível {plan.data.level}. As histórias não são concluídas: elas avançam ao falar com os
+        NPCs, porque leem as quests concluídas. Recompensas de EXP, ouro e itens das quests não são dadas.
+      </p>
+      <ul className="max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-border p-2">
+        {plan.data.quests.map((q) => (
+          <li key={q.id} className="flex justify-between gap-2">
+            <span className="truncate">{q.title ?? q.id}</span>
+            <span className="shrink-0 font-mono text-xs text-muted">
+              nv {q.level} · dif. {q.difficulty}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {plan.data.skipped.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-muted">{plan.data.skipped.length} quest(s) até o nível ficam de fora</summary>
+          <ul className="mt-1 max-h-32 space-y-0.5 overflow-y-auto text-xs text-muted">
+            {plan.data.skipped.map((q) => (
+              <li key={q.id}>
+                {q.title ?? q.id}: {SKIP_REASON[q.reason] ?? q.reason}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
 }
 
 async function effects(search: string): Promise<CatalogEffect[]> {
@@ -83,7 +139,7 @@ export function ProgressionModal({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [mode, setMode] = useState<Mode>('level');
+  const [mode, setMode] = useState<Mode>('reach');
   const [value, setValue] = useState('');
   const [search, setSearch] = useState('');
   const [effect, setEffect] = useState<CatalogEffect | null>(null);
@@ -97,6 +153,8 @@ export function ProgressionModal({
   const change = (): Kind => {
     const n = Number(value);
     switch (mode) {
+      case 'reach':
+        return { kind: 'reach', level: n };
       case 'level':
         return { kind: 'level', level: n };
       case 'exp':
@@ -117,7 +175,7 @@ export function ProgressionModal({
   };
   return (
     <Modal open title="Progressão" subtitle={OFFLINE_NOTE} icon={<TrendingUp className="size-5 text-muted" />} onClose={onClose} width="max-w-xl">
-      <div role="tablist" className="mb-4 grid grid-cols-5 rounded-lg bg-raised p-1 text-sm">
+      <div role="tablist" className="mb-4 grid grid-cols-6 rounded-lg bg-raised p-1 text-sm">
         {MODES.map((m) => (
           <button
             key={m.id}
@@ -143,6 +201,12 @@ export function ProgressionModal({
           await changeProgression(cid, operationId, change());
         }}
       >
+        {mode === 'reach' && (
+          <>
+            <Number_ id="reach-level" label={`Nível alvo (atual ${level}; pode ser o atual para só concluir as quests)`} value={value} onChange={setValue} />
+            <ReachPlanView cid={cid} level={Number(value) || 0} />
+          </>
+        )}
         {mode === 'level' && (
           <Number_ id="target-level" label={`Subir até o nível (atual ${level})`} value={value} onChange={setValue} />
         )}

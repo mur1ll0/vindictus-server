@@ -140,6 +140,7 @@ impl AdminState {
         characters::upgrade_preview,
         characters::upgrade_item,
         characters::progression,
+        characters::progression_plan,
         characters::effects_catalog,
         content::shops,
         content::shop,
@@ -217,6 +218,9 @@ impl AdminState {
         characters::UpgradeChange,
         crate::infrastructure::admin_characters::CatalogEffect,
         crate::application::admin_character_edits::ProgressionResult,
+        crate::application::admin_character_edits::ReachPlan,
+        crate::application::admin_character_edits::PlanQuestView,
+        crate::application::admin_character_edits::PlanSkipView,
         characters::ProgressionChange,
         crate::application::content_admin::ShopSummary,
         crate::application::content_admin::ShopNpcView,
@@ -341,6 +345,10 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route(
             "/api/characters/{cid}/progression",
             post(characters::progression),
+        )
+        .route(
+            "/api/characters/{cid}/progression/plan",
+            get(characters::progression_plan),
         )
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,

@@ -7410,6 +7410,156 @@ async fn panel_item_upgrade_writes_valid_enhance_and_enchants_offline() {
     assert_eq!(audited, 3);
     cleanup_game_pool(a, p, s).await;
 }
+/// "Reach a level": the level, then the plan's mission quests through the game's success
+/// path (goal achieved at the difficulty bit, clear count, status), once, offline.
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn panel_reach_level_completes_the_plan_quests_once_offline() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            admin_progression::{self, PanelGrowth, PanelGrowthOutcome},
+            admin_store::AuditRecord,
+            character_lobby::QueryConfig,
+            minimum_growth::GrowthContext,
+            minimum_quest::QuestClock,
+        },
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    // A character played before (selection and story login prepare its state); then offline.
+    {
+        use vindictus_server::infrastructure::{minimum_selection, minimum_story};
+        let owner = super::initial_inventory::key();
+        let config = QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        };
+        minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+            .await
+            .unwrap();
+        minimum_story::login(&p, &owner, &assets, 1, vec![910_000_000_000_000_001])
+            .await
+            .unwrap();
+        // As the game's story reward test: the opened storyline at its second phase.
+        sqlx::query("UPDATE game_story_progress SET phase_utf16=$1 WHERE cid=1")
+            .bind(utf16("p2"))
+            .execute(&p)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE game_character_info SET is_connected=false WHERE id=1")
+            .execute(&p)
+            .await
+            .unwrap();
+    }
+    let ctx = GrowthContext {
+        clock: QuestClock {
+            arithmetic: Arithmetic::FrameworkX64,
+            civil_offset_seconds: 0,
+        },
+        arithmetic: Arithmetic::FrameworkX64,
+        config: QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        journal: 0,
+    };
+    let run = |growth, operation: u128| {
+        let p = p.clone();
+        let assets = &assets;
+        async move {
+            admin_progression::panel_change(
+                &p,
+                assets,
+                1,
+                growth,
+                ctx,
+                65533,
+                AuditRecord {
+                    account_id: None,
+                    actor_name: None,
+                    role: None,
+                    operation_id: Some(uuid::Uuid::from_u128(operation)),
+                    action: "character.progression",
+                    target_kind: Some("character"),
+                    target_id: Some("1"),
+                    before: None,
+                    after: None,
+                    refused: false,
+                    peer: None,
+                },
+            )
+            .await
+            .unwrap()
+        }
+    };
+    let plan = admin_progression::reach_plan(&assets, 2).expect("plan");
+    let ids: Vec<_> = plan
+        .quests
+        .iter()
+        .map(|q| (q.id.as_str(), q.difficulty))
+        .collect();
+    assert_eq!(
+        ids,
+        [("quest_gnoll_watchman", 2), ("quest_gnoll_shadowfang", 2)]
+    );
+    assert!(
+        plan.skipped
+            .iter()
+            .any(|s| s.id == "quest_story" && s.reason == "no_mission")
+    );
+    // Level 1 only: shadowfang (level 2) waits.
+    let low = admin_progression::reach_plan(&assets, 1).expect("plan");
+    assert_eq!(low.quests.len(), 1);
+    assert!(admin_progression::reach_plan(&assets, 99).is_none());
+
+    let PanelGrowthOutcome::Applied { before, after } = run(PanelGrowth::Reach(2), 1).await else {
+        panic!("reach refused")
+    };
+    assert_eq!(
+        (before["level"].as_i64(), after["level"].as_i64()),
+        (Some(1), Some(2))
+    );
+    assert_eq!(after["quests"].as_i64(), Some(2));
+    let quest = |id: &'static str| {
+        let p = p.clone();
+        async move {
+            sqlx::query_as::<_, (i32, i32, i32, i32)>(
+                "SELECT revealed, status, clear_count, play_count FROM game_quests WHERE owner_id=1 AND quest_utf16=$1",
+            )
+            .bind(utf16(id))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(quest("quest_gnoll_watchman").await, (1, 100, 1, 1));
+    // No goal in the fixture: cleared once, progress 0.
+    assert_eq!(quest("quest_gnoll_shadowfang").await, (1, 0, 1, 1));
+    let goal: (i32, i16) = sqlx::query_as(
+        "SELECT status, clear_count FROM game_quest_goal_achievements WHERE owner_id=1 AND goal_id=10010",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    // Difficulty 2: bit 1 << 2.
+    assert_eq!(goal, (4, 1));
+    // Again: nothing to do; below the current level: refused.
+    assert!(matches!(
+        run(PanelGrowth::Reach(2), 2).await,
+        PanelGrowthOutcome::Unchanged("sem_mudanca")
+    ));
+    assert!(matches!(
+        run(PanelGrowth::Reach(1), 3).await,
+        PanelGrowthOutcome::Unchanged("nivel")
+    ));
+    cleanup_game_pool(a, p, s).await;
+}
 /// B4.3c: the panel's progression changes run the game's GiveExp/GiveAP/AcquireTitle in one
 /// transaction with the audit, refuse online characters and report "no change".
 #[tokio::test]

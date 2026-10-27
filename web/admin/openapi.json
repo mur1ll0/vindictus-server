@@ -1132,6 +1132,67 @@
         }
       }
     },
+    "/api/characters/{cid}/progression/plan": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "The mission quests \"reach a level\" would complete, and the ones it leaves out (staff).",
+        "operationId": "progression_plan",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "description": "Target level (1 to the level table's maximum).",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReachPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/content": {
       "get": {
         "tags": [
@@ -4791,6 +4852,56 @@
           }
         }
       },
+      "PlanQuestView": {
+        "type": "object",
+        "required": [
+          "id",
+          "level",
+          "difficulty"
+        ],
+        "properties": {
+          "difficulty": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "English stage name (HEROES_QUEST_TITLE_<ID>)."
+          }
+        }
+      },
+      "PlanSkipView": {
+        "type": "object",
+        "required": [
+          "id",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "feature, special, no_mission, difficulty or requirement."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PortView": {
         "type": "object",
         "required": [
@@ -4857,6 +4968,26 @@
                 "type": "string",
                 "enum": [
                   "level"
+                ]
+              },
+              "level": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Reach this level and complete the mission quests up to it (see the plan).",
+            "required": [
+              "level",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "reach"
                 ]
               },
               "level": {
@@ -5037,6 +5168,32 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "ReachPlan": {
+        "type": "object",
+        "required": [
+          "level",
+          "quests",
+          "skipped"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "quests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanQuestView"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanSkipView"
+            }
           }
         }
       },
