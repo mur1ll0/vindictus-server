@@ -513,7 +513,7 @@ pub(crate) async fn owned_first_fiona<'p>(
     sqlx::query("LOCK TABLE game_character_info IN ROW EXCLUSIVE MODE")
         .execute(&mut *tx)
         .await?;
-    let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 9 AND level>=1 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
+    let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 10 AND level>=1 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
     if owned.is_none() {
         return Err(StateError::Ownership);
     }

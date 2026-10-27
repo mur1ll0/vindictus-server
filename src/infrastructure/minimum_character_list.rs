@@ -64,8 +64,8 @@ pub async fn query(
     let first = *ids.first().ok_or(MinimumError::Conflict)?;
     let mut tx = state::owned_first_fiona(pool, owner, first).await?;
     for cid in &ids[1..] {
-        // Same ownership lock for every listed character.
-        let owned: Option<i64> = sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 9 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE")
+        // Same ownership lock for every listed character; class 10 (Delia) is listed for client tests.
+        let owned: Option<i64> = sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 10 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE")
             .bind(cid)
             .bind(owner.uid)
             .fetch_optional(&mut *tx)

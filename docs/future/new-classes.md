@@ -321,3 +321,12 @@ Os passos 1 a 3 e 5 são edição de binário na cópia de laboratório (tabelas
 ### 8.5 Primeiro passo implementável, com teste no cliente
 
 Sem patch de binário: no banco de laboratório, uma personagem de teste passa a classe 10 (cópia de uma Fiona, com itens da Delia). O operador entra e observa a seleção, a cidade e uma batalha curta. O resultado (queda, pose T, modelo errado ou funciona) mostra qual camada falha primeiro e ordena os patches.
+
+### 8.6 Preparação do teste sem patch (27/10/2026)
+
+- **Servidor:** a lista de personagens (`minimum_character_list`) e a trava de login (`owned_first_fiona`) aceitam `class` de 0 a 10. Antes, uma personagem de classe 10 fazia a lista da conta inteira ser recusada (`Conflict`).
+  - A criação continua de 0 a 9 (`character_creation_core`, `class_initial`, `fiona_initializer_profile`), porque a classe 10 não tem `DefaultItemInfo` e o cliente não a oferece.
+  - As máscaras de `ClassRestriction` já eram genéricas (`1 << class`), então itens da Delia (bit 1024) servem para a classe 10 sem mudança.
+- **O que fica como na referência:** a maestria de `BASTARDSWORD` e o nome da classe 10 no `Cond_class`. A referência C# 1.69 não tem nenhum dos dois; o enum `BaseCharacter` vai até 9, e `ToString()` de 10 dá `"10"`.
+- **Ferramenta:** `scripts/dev/lab-set-class.ps1 -Name <nome> -Class <0..10>` troca a classe de uma personagem fora do jogo, pelo nome único, e imprime a classe anterior para desfazer.
+- **Roteiro:** `docs/client-tests/C2-delia.md` (D0 a D5).

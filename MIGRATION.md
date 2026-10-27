@@ -1793,3 +1793,9 @@ Caminho C, etapa C2 — o que a Delia precisa no 1.69 e o limite de 10 classes (
 - Lacunas: outros usos do índice de classe com limite 10; tela de seleção Scaleform; serviço de classes habilitadas.
 - Cliente: o primeiro passo proposto (personagem de laboratório com classe 10, sem patch) ainda não foi feito nem testado.
 - Próxima ação: decisão do operador; depois, C3 (mais de 10 classes) ou o passo 8.5.
+
+Caminho C, etapa C2 — preparação do teste da classe 10 sem patch no cliente (27/10/2026, pedido do operador).
+- Mudança: a lista de personagens e a trava de login do servidor aceitam a classe 10 (antes, uma personagem de classe 10 fazia a lista da conta ser recusada). A criação continua limitada a 0–9. Mais o script `scripts/dev/lab-set-class.ps1`, que troca e desfaz a classe de uma personagem fora do jogo, e o roteiro `docs/client-tests/C2-delia.md` (D0–D5: criar uma Fiona `DeliaLab`, dar `bastardsword_chieftain_restoration` e `delia_china_inner`, trocar para a classe 10, seleção, cidade, missão, desfazer).
+- Verificação: a biblioteca compila (`cargo test --lib`, log `.cache/verification/c2t-lib.log`); o script recusou sem alterar nada um nome inexistente ("changed 0"). Teste PostgreSQL da lista com classe 10: não executado. Docker: não recompilado, porque outra sessão tem mudanças não commitadas em `src/` (painel, busca de itens) que entrariam na imagem.
+- Cliente: roteiro C2-delia pendente; precisa do `game` recompilado com este commit.
+- Próxima ação: recompilar o `game` quando a outra sessão terminar; depois, sessão do operador pelo roteiro; com o resultado, ordenar os patches do C2.
