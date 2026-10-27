@@ -229,13 +229,13 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
             by_file.setdefault(script_of(costume['section']), []).append(costume)
         pack = []
         for e in hfs.read_pack(source[scripts], ks):
-            entries = by_file.pop(e.name, None)
-            if entries:
+            rows = by_file.pop(e.name, None)
+            if rows:
                 plain = hfs.comp_unwrap(e.data)
                 if e.name == 'player_costume.txt.comp':
-                    plain = with_costumes(plain, entries)
+                    plain = with_costumes(plain, rows)
                 else:
-                    plain = with_script_entries(plain, entries, 'shields' if e.name == 'shields.txt.comp' else 'weapon')
+                    plain = with_script_entries(plain, rows, 'shields' if e.name == 'shields.txt.comp' else 'weapon')
                 e = hfs.Entry(e.name, hfs.comp_wrap(plain), e.attr)
             pack.append(e)
         if by_file:
