@@ -69,6 +69,13 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
 5. **Entrega:** loja (B4.4), cash shop, painel "dar item" (B4.3), criação de personagem (`InnerArmorTypeInfo` + `DefaultItemInfo`, mexe na criação, decisão à parte).
 6. **Teste:** dar o item pelo painel, vestir, conferir modelo, cor e estatísticas; relogar.
 
+**Levantamento de 26/10/2026 para executar o corte 1:**
+
+- **Item candidato:** o `player_costume.txt` tem a entrada 16 da Fiona (`fiona_inner_fringe.mdl`, modelo presente no índice), mas nenhum item a usa. Só existe `fiona_inner_fringe_socks` (CostumeType 24). Um item novo `fiona_inner_fringe` com `CostumeType` 16 usa esse modelo **sem mudar o `player_costume.txt`**. As tabelas que um inner ocupa no servidor são `ItemClassInfo` (1 linha), `EquipItemInfo` (2 linhas) e, para customização, `CustomizeDefaultInfo` e `CustomizePriceInfo`.
+- **Restrição do servidor:** ele não lê o `heroesContents.db3`, e sim os arquivos exportados por `scripts/content/export_*.py`. Esses exportadores fazem `SELECT *` no banco original, conferem que a ordem das linhas bate entre eles (por exemplo, `export_item_stats` contra `export_item_catalog`) e gravam o hash do banco. O servidor recusa exportações de hashes diferentes, e isso inclui a prova de nomes (`character_name_proof`, gerada por oráculo). Logo, trocar o banco por uma cópia aumentada obriga a reexportar tudo e refazer a prova.
+- **Desenho proposto:** uma camada de linhas adicionadas, como a `lab_content_additions.json` já usada nas lojas. As mesmas linhas de `ItemClassInfo`/`EquipItemInfo` são acrescentadas no fim da projeção de cada exportador de item (catálogo, estatísticas, cores, economia, perfil de equipamento, catálogo do painel e nomes), mantendo o hash do banco de origem. No cliente, `apply_lab_content_additions.py` grava as linhas no `heroes.db3`, o texto entra pelo pacote refeito (`scripts/client/hfs.py`) e o ícone vai solto.
+- **Pendente:** decidir o momento. A camada toca exportadores compartilhados, e em 26/10/2026 outra sessão corrigia a criação de personagem e o Check de nome (com mudanças em `export_fiona_initializer.py` e em `src/`).
+
 ### 3.2 Corte 2, modelo novo por classe (I3–I5)
 
 Para cada uma das 10 classes do cliente (corpo e esqueleto próprios em `models/player/<classe>/`):
