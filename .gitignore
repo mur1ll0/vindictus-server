@@ -25,7 +25,9 @@ Thumbs.db
 /Client/
 Vindictus1.69EN/
 ServidorVindictus/
-Tools/
+/Tools/
+# The versioned tools/ (Blender add-on) matches "/Tools/" when git ignores case.
+!/tools/
 TutorialRagezone/
 *.bak
 *.db3

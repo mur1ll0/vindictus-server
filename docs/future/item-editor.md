@@ -88,6 +88,28 @@ Reaproveita modelos que já existem, com estatísticas, cores, nome e ícone nov
   - **o corte 1 está comprovado de ponta a ponta:** item novo no servidor e no cliente, texto novo em pacote refeito, ícone existente, criado pelo painel e persistido;
   - **o motor 1.69 aceita MDL v48**, junto com texturas em pasta nova e entrada nova no `player_costume.txt`. Modelos de clientes mais novos (por exemplo, o NA em `F:\Games\vindictus`) podem entrar sem conversão para v44, o que reduz o risco do corte 2 e dos monstros novos. Falta testar um modelo **compilado por nós** (Blender → `studiomdl`).
 
+**Add-on do Blender e primeiro item editado (27/10/2026):**
+
+- **Add-on versionado:** `tools/blender/vindictus` (extensão do Blender 5.1; instalação e uso em `tools/blender/README.md`).
+  - Lê e grava MDL v44/v48, VVD v4, VTX v7 (pele por hardware, paletas de até 53 ossos) e VTF 7.2 (DXT1/3/5 e formatos sem compressão na leitura; BGRA8888 com mipmaps na gravação).
+  - A importação cria o esqueleto, a malha com pesos, as normais e os materiais com textura, e oferece escolher malha, texturas e esqueleto, além de criar objetos novos, substituir ou somar à malha ativa.
+  - A exportação troca a malha sobre o modelo-base do kit, porque não há `studiomdl` na máquina.
+- **Kits:** `scripts/client/model_kit.py` gera um kit (modelo e materiais) direto dos pacotes do cliente, pelo índice HFS. É a rotina do futuro botão "exportar" do visualizador 3D do painel.
+- **Item editado:** `fiona_inner_fringe` foi importado no Blender 5.1 (sem interface). O babado (malhas 1 e 2, 1.030 vértices) foi inflado 1,2 unidade ao longo das normais, e a máscara de tingimento recebeu listras diagonais com R e G trocados. O resultado foi exportado como `models/player/fiona/fiona_inner_lab.mdl`, com os materiais em `materials/models/player/fiona/fiona_inner_lab/`. Kit em `.cache/private-assets/inner_lab` e cena em `.cache/private-assets/fiona_inner_lab.blend`, os dois fora do Git.
+- **Item novo:** `fiona_inner_lab` ("Lab Frilled Inner Armor"), com `CostumeType` 9101 e entrada 9101 no `player_costume.txt`. O modelo entra na parte 14 de `models/player/fiona`, junto com o `fiona_inner_zero`.
+- **Conferido fora do cliente:**
+  - a releitura do kit exportado mostra os mesmos triângulos, ossos válidos e até 3 pesos por vértice;
+  - a contagem de vértices caiu porque o VVD do jogo guarda vértices usados só pelos níveis de detalhe menores;
+  - a prévia renderizada no Blender mostra o modelo em postura de referência, com texturas;
+  - o servidor reexportou os 13 arquivos (12.383 linhas de equipamento) e reiniciou saudável.
+- **Testes:** `tools/blender/vindictus/tests/test_formats.py` (5 testes, com o Python do Blender). As suítes `scripts/client` (33) e `scripts/content` (65) passam. O teste de integração do `hfs.py` passou a usar o índice original de `lab-backup/` quando os itens de laboratório estão aplicados.
+- **Teste no cliente (pendente):** dar `fiona_inner_lab` à Fiona pelo painel, vestir, conferir o babado inflado e as listras na cor do item, e relogar.
+- **Ainda não feito:**
+  - animações: ficam nos modelos de animação do personagem;
+  - visualizador 3D e botão exportar no painel;
+  - ossos novos;
+  - mudar o número de materiais em relação ao modelo-base.
+
 ### 3.2 Corte 2, modelo novo por classe (I3–I5)
 
 Para cada uma das 10 classes do cliente (corpo e esqueleto próprios em `models/player/<classe>/`):

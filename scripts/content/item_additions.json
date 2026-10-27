@@ -28,6 +28,22 @@
         "name": "Inner Zero",
         "desc": "Laboratory inner armor with a model supplied by the operator (item editor cut 2 test)."
       }
+    },
+    {
+      "ItemClass": "fiona_inner_lab",
+      "template": "fiona_inner_fringe_socks",
+      "set": {
+        "ItemClassInfo": {"Icon": "fiona_inner_fringe"},
+        "EquipItemInfo": {"CostumeType": 9101}
+      },
+      "costumes": [
+        {"section": "inner_armor", "key": "9101", "category": "female", "normal": "models/player/fiona/fiona_inner_lab.mdl"}
+      ],
+      "assets": "inner_lab",
+      "text": {
+        "name": "Lab Frilled Inner Armor",
+        "desc": "Edited in Blender with the Vindictus add-on: inflated frill and a striped dye mask (item editor test)."
+      }
     }
   ]
 }

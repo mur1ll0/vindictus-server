@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "vindictus"
+version = "0.1.0"
+name = "Vindictus Model Kits"
+tagline = "Import and export Vindictus 1.69 model kits"
+maintainer = "Murillo Andre Maleski"
+type = "add-on"
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+tags = ["Import-Export"]
+
+[permissions]
+files = "Read model kits and write edited kits"

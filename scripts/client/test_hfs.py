@@ -113,10 +113,15 @@ class LabClientTest(unittest.TestCase):
 
     def test_real_index_and_packs_re_encode_byte_for_byte(self):
         ks = hfs.load_keystream(LAB / 'l0-hfs-keystream.bin')
-        raw = (LAB / 'hfs/E608DF10F284E19AB75FD7D0D8AE9CCF87831041.hfs').read_bytes()
+        # With laboratory items applied (apply_lab_content_additions.py), the original index and the packs
+        # it rebuilt are in lab-backup/; sample only packs the laboratory never touched.
+        backup = LAB / 'lab-backup'
+        original = backup / 'E608DF10F284E19AB75FD7D0D8AE9CCF87831041.hfs'
+        raw = (original if original.is_file() else LAB / 'hfs/E608DF10F284E19AB75FD7D0D8AE9CCF87831041.hfs').read_bytes()
         plain = hfs.decode_index(raw)
         self.assertEqual(hfs.encode_index(plain, raw[:hfs.INDEX_HEAD]), raw)
-        packs = [n for n in hfs.index_packs(plain) if (LAB / f'hfs/{n}.hfs').is_file()][::400]
+        packs = [n for n in hfs.index_packs(plain)
+                 if (LAB / f'hfs/{n}.hfs').is_file() and not (backup / f'{n}.hfs').is_file()][::400]
         self.assertTrue(packs)
         for name in packs:
             pack = (LAB / f'hfs/{name}.hfs').read_bytes()

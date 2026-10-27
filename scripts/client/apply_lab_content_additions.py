@@ -98,7 +98,8 @@ def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[
         root = (assets / item['assets']).resolve()
         if not root.is_relative_to(assets.resolve()) or not root.is_dir():
             raise PreparationError(f'Missing asset folder {item["assets"]}.')
-        for path in sorted(p for p in root.rglob('*') if p.is_file()):
+        # Game files only: a kit (scripts/client/model_kit.py) also has kit.json at its root.
+        for path in sorted(p for p in root.rglob('*') if p.is_file() and p.parent != root):
             folder = path.parent.relative_to(root).as_posix().lower()
             folders.setdefault(folder, []).append(hfs.Entry(path.name.lower() + '.comp', hfs.comp_wrap(path.read_bytes()), hfs.DEFAULT_ATTR))
     packs = {}
