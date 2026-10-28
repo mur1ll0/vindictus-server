@@ -144,6 +144,7 @@ def main() -> int:
     threads: dict[int, int] = {}
     event = ctypes.create_string_buffer(DEBUG_EVENT_SIZE)
     hits, deadline, armed = 0, time.time() + args.seconds, False
+    stepping: set[int] = set()
     try:
         while time.time() < deadline and hits < args.hits:
             if not kernel32.WaitForDebugEvent(event, 500):
@@ -173,6 +174,11 @@ def main() -> int:
                     context = Context()
                     kernel32.Wow64GetThreadContext(threads[tid], context.raw)
                     dr6 = context['Dr6']
+                    if tid in stepping and not dr6 & 0xF:
+                        stepping.discard(tid)  # the stepped instruction ran: re-arm this thread
+                        set_breakpoints(threads[tid], addresses)
+                        kernel32.ContinueDebugEvent(pid, tid, status)
+                        continue
                     which = [hex(addresses[i]) for i in range(len(addresses)) if dr6 & (1 << i)]
                     if EXECUTE:
                         hits += 1
@@ -186,8 +192,20 @@ def main() -> int:
                                 text = ''
                             if len(text) > 3 and text.isprintable():
                                 say(f'  {k.lower()} -> {text[:120]!r}')
+                        try:  # the call's first stack arguments and the object in ecx
+                            args_ = struct.unpack('<4I', game.read(context['Esp'] + 4, 16))
+                            say('  args ' + ' '.join(f'{a:#x}' for a in args_))
+                            this = struct.unpack('<40I', game.read(context['Ecx'], 0xA0))
+                            say('  this ' + ' '.join(f'{a:x}' for a in this))
+                        except Exception as error:
+                            say(f'  args/this unreadable: {error}')
+                        # Step over: RF is not honoured for these WOW64 threads (D16 re-hit the same
+                        # instruction and stalled the render thread), so disarm this thread, single-step
+                        # (TF) and re-arm on the trap that follows.
                         context['Dr6'] = 0
-                        context['EFlags'] = context['EFlags'] | 0x10000  # RF: run this instruction once
+                        context['Dr7'] = 0
+                        context['EFlags'] = context['EFlags'] | 0x100
+                        stepping.add(tid)
                         kernel32.Wow64SetThreadContext(threads[tid], context.raw)
                         kernel32.ContinueDebugEvent(pid, tid, status)
                         continue
@@ -229,6 +247,21 @@ def main() -> int:
     finally:
         for handle in threads.values():
             clear_breakpoints(handle)
+        # A thread stopped mid-step still has TF set: take its trap before detaching, or the
+        # single-step exception reaches the game with no debugger and kills it.
+        drain = time.time() + 5
+        while stepping and time.time() < drain:
+            if not kernel32.WaitForDebugEvent(event, 200):
+                continue
+            code, pid, tid = struct.unpack_from('<III', event, 0)
+            status = DBG_CONTINUE
+            if code == EXCEPTION_DEBUG_EVENT:
+                exception = struct.unpack_from('<I', event, 16)[0]
+                if exception in SINGLE_STEP:
+                    stepping.discard(tid)
+                elif exception not in BREAKPOINT:
+                    status = DBG_EXCEPTION_NOT_HANDLED
+            kernel32.ContinueDebugEvent(pid, tid, status)
         kernel32.DebugActiveProcessStop(game.pid)
         say(f'detached after {hits} hit(s)')
         OUTPUT.parent.mkdir(parents=True, exist_ok=True)
