@@ -37,6 +37,19 @@ DELIA_SLOTS = {
     'server.dll': [0, 9, 10, 11, 12, 13, 28, 29, 73, 78, 137, 240, 241, 334, 390, 434, 435, 466, 469, 504,
                    517, 615, 624, 627, 628, 631, 657, 677, 694, 697, 699, 725, 729, 730, 731, 736, 748],
 }
+# Manual review of the weak pairs (section 8.12 of docs/future/new-classes.md):
+# (dll, x64 slot) -> (1.69 slot or None, confidence, reason).
+REVIEW = {
+    ('client.dll', 31): (31, 'high', 'same strings Player.Common.Critical_Hit / Player.Kay.SuddenFlinch'),
+    ('client.dll', 380): (334, 'high', 'same strings TiredRun / TiredIdleBegin / TiredIdleEnd'),
+    ('client.dll', 487): (429, 'high', 'class state setter; 1.69 overriders (Fiona, Evy, Kalok, Arisha) are a subset of NA'),
+    ('client.dll', 489): (430, 'high', 'class state getter; same overriders as 487'),
+    ('server.dll', 697): (618, 'high', 'class state setter; 1.69 overriders are a subset of NA'),
+    ('server.dll', 699): (619, 'high', 'class state getter; same overriders as 697'),
+    ('server.dll', 435): (None, 'NA-only', 'base is a 2-instruction stub, 1.69 387 has 47 instructions'),
+    ('server.dll', 504): (None, 'NA-only', 'bodies differ around 501..505; no stable pair'),
+    ('server.dll', 628): (None, 'NA-only', '53 instructions against a 4-instruction stub'),
+}
 # A class vtable overriding more slots than this is a different object sharing the method.
 MAX_OVERRIDES = 120
 
@@ -121,9 +134,10 @@ class Image32:
 
 
 def signature64(image, rva):
+    # Linear sweep: MSVC splits large functions into several exception-table
+    # chunks, so the first chunk's end is not the end of the method.
     strings, floats, end = [], [], 0
-    stop = image.functions.get(rva, rva + 0x2000)
-    for instruction in image.md.disasm(bytes(image.data[rva:stop]), image.base + rva):
+    for instruction in image.md.disasm(bytes(image.data[rva:rva + 0x3000]), image.base + rva):
         if instruction.mnemonic == 'int3':
             break
         target = image.rip_target(instruction)
@@ -134,7 +148,9 @@ def signature64(image, rva):
             elif 'ss' in instruction.mnemonic:
                 floats.append(round(struct.unpack_from('<f', image.data, target)[0], 4))
         if instruction.mnemonic.startswith('j') and instruction.op_str.startswith('0x'):
-            end = max(end, int(instruction.op_str, 16))
+            target = int(instruction.op_str, 16)
+            if instruction.address < target < instruction.address + 0x3000:
+                end = max(end, target)
         if instruction.mnemonic == 'ret' and instruction.address >= end:
             break
         if instruction.mnemonic == 'jmp' and instruction.address >= end and not instruction.op_str.startswith('0x'):
@@ -294,7 +310,11 @@ def main():
         delia = []
         for slot in DELIA_SLOTS[dll]:
             old_slot, value = pairs.get(slot, (None, None))
-            delia.append({'x64': slot, '1.69': old_slot, 'score': value, 'confidence': confidence(value)})
+            row = {'x64': slot, '1.69': old_slot, 'score': value, 'confidence': confidence(value)}
+            if (dll, slot) in REVIEW:
+                reviewed, level, reason = REVIEW[(dll, slot)]
+                row.update({'1.69': reviewed, 'confidence': level, 'review': reason})
+            delia.append(row)
         report[dll] = {
             'x64_sha256': sha256(x64_dir / dll),
             '169_sha256': digest,

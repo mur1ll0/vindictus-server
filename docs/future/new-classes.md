@@ -455,3 +455,55 @@ Ferramenta de patch: seguir o modelo de `scripts/client/patch_shop_list_limit.py
   - `0xaf3380` (habilidade segurada em `OnDataChanged`) e `0x235200` (início do voo do alvo);
   - corpo completo dos *slots* 517 e 731 do servidor (agarrar, `UPDATE_CHARGE_SMASH_EFFECT`);
   - quem chama, na base do NA, os métodos que não existem no 1.69.
+
+### 8.12 Passo 2, terceira parte: capacidade das condições, revisão dos pares e plano do patch da entidade (28/10/2026)
+
+- **Capacidade das condições:**
+  - NA: as condições ficam num *bitset* do estado de animação (`+0x1b8`), com limite 231 (`cmp edx, 0xe7`) nas funções de ligar e desligar (`0x19c5a0`, `0x18a2b0`). A consulta (`0x18d7e0`) não confere limite.
+  - 1.69: o mesmo esquema, com limite 121 (`cmp ecx, 0x79`) em quatro funções por DLL: cliente `0x7de3fb`, `0x7de44b`, `0x7de55b`, `0x7de5bb`; servidor `0x7e63cb`, `0x7e641b`, `0x7e647b`, `0x7e64db`. Os dois laços que percorrem todas as condições (cliente `0x7eac79`, servidor `0x7eed09`) imprimem a lista e não guardam nada.
+  - Um `CBitVec` de 121 bits ocupa 4 *dwords* (128 bits). Os ids 121 a 125 devem caber sem mover campos, trocando só os 4 limites; isso foi deduzido do limite, não do *layout* do objeto, e precisa de confirmação no cliente.
+  - O registro `nome → id` usa dois mapas (cliente `0x38fab1d8` e `0x38fab1f4`). Os 5 nomes da Delia precisam de código novo que os insira, com ids 121 a 125 (`condition::PROPOSED_V169`).
+- **Revisão dos pares fracos.** As assinaturas x64 eram cortadas no primeiro pedaço da tabela de exceções (o MSVC divide funções grandes); com varredura linear, o script ficou mais confiável. Revisão manual registrada em `REVIEW` no script:
+  - **confirmados:**
+    - cliente 31 ↔ 31 (mesmas strings `Player.Common.Critical_Hit`);
+    - cliente 380 ↔ 334 (`TiredRun`, `TiredIdleBegin`, `TiredIdleEnd`);
+    - cliente 487/489 ↔ 429/430 e servidor 697/699 ↔ 618/619: o par "estado da classe" (gravar/ler). As classes que o trocam no 1.69 (Fiona, Evy, Kalok, Arisha) estão contidas nas do NA, que o trocam em quase todas. A guarda da Delia usa esse par existente; não é um método novo;
+  - **recusados** (passam a só NA): servidor 435 (*stub* de 2 instruções contra 47), 504 e 628 (corpos sem correspondência);
+  - **continuam fracos:** servidor 390 ↔ 346 (compartilham só `scripts/action_table_NPC.txt`) e 730 ↔ 641 (só posição).
+  - Resultado: cliente 20 de 26 com par (12 altos, 8 médios); servidor 25 de 37 (16 altos, 7 médios, 2 baixos).
+- **Quem chama os métodos só do NA:** métodos da base que existem no 1.69 e são o ponto de entrada no porte (`layout::na_only_callers`):
+
+| DLL | Método só do NA | Chamado pela base x64 | Mesmo *slot* no 1.69 |
+|---|---|---|---|
+| cliente | 470 (pula a base durante a guarda) | 469 | 413 |
+| cliente | 485 (89 / *slot* 349) | 484 | 427 (par fraco) |
+| servidor | 677 | 453 | 400 |
+| servidor | 694 | 693 | 614 |
+| servidor | 729 (segurar alvo), 731 | 624 e 730 | 563 e 641 |
+
+  Os *slots* 330/331 (cliente) e 434 (servidor), que decidem se o golpe é bloqueado, aparecem em dezenas de chamadas indiretas sem dono identificado; a Delia os usa dentro das próprias trocas (416 no cliente, 615 no servidor), que existem no 1.69.
+- **O que o 1.69 não tem:** nenhum dos comandos de script (`SET_GUARD_LATCH_ATTEN`, `ENABLE_RAGDOLL_LAUNCH`, `START_SPECIAL_HOLD_SKILL`, `DASH_TO_TARGET`), nem o comando `request_release_launch_ragdoll`, nem `weapon_bastardsword`, `skill_delia_strong_attack_delay`, `UPDATE_CHARGE_SMASH_EFFECT`, `holdskill_on_immune` ou as classes `DeliaRagdollLaunch`/`DeliaSpecialHoldSkillController`. Tudo é código novo nos dois DLLs. `GuardBegin` existe nas duas versões.
+
+**Plano do patch da entidade da Delia** (cópia de laboratório; cada etapa com patcher verificado por hash e teste no cliente):
+
+1. **E1 — entidade mínima:** registrar `player_delia` e `DT_HeroesPlayerDelia` nos dois DLLs, numa seção nova. A vtable é uma cópia da base do 1.69, com só o nome da classe (*slots* 13/16 no cliente, 9/11 no servidor), a figura do corpo (264) e as constantes 0,88/0,96 (177/178 no cliente, 221/222 no servidor). O objeto tem o tamanho da base do 1.69 e as tabelas de rede herdam as da base. **Teste:** entrar com a `DeliaLab` (classe 10). Esperado: a cidade carrega sem a queda em `server.dll`, com o modelo da Delia. Resolve a queda registrada no D3.
+2. **E2 — arma:** estado `weapon_bastardsword` no servidor (*slot* 586 do 1.69) e a entidade de arma do cliente para `BASTARDSWORD`, sobre uma arma existente. **Teste:** a arma aparece na mão e o ataque básico funciona.
+3. **E3 — condições e guarda:**
+   - limites 0x79 → 0x7e e os 5 nomes registrados;
+   - campos em rede (armadura removível, SP3, contador de golpes bloqueados);
+   - `OnDataChanged` (vtable secundária, *slot* 5);
+   - guarda pelo par 429/430 (cliente) e 618/619 (servidor);
+   - golpe bloqueado no 367 (cliente) e no 555 (servidor);
+   - `SET_GUARD_LATCH_ATTEN` no tratador de eventos (368).
+   
+   **Teste:** a guarda da Delia bloqueia dano e mostra a reação de golpe bloqueado.
+4. **E4 — habilidade segurada e lançamento de *ragdoll*:**
+   - cliente: alcance e gesto no *think* (334), eventos no 368, lançamento no 308/84;
+   - servidor: o comando `request_release_launch_ragdoll` e as classes auxiliares, ainda não lidas.
+   
+   **Teste:** habilidade segurada num alvo e lançamento de um NPC comum (não a Seiren).
+5. **E5 — ataque forte e restos:**
+   - servidor: ataque forte (*buff* `skill_delia_strong_attack_delay`, 1,5 s) e o agarrar (563/641);
+   - cliente: mensagens de falha (419), inclinação ao correr (334), métodos só do NA pelos chamadores da tabela acima (413, 427, 400, 614).
+
+Antes do E1 falta ler o registro de fábrica e de tabela de rede do 1.69 (como `player_hagie` e `DT_HeroesPlayerHagie` são instalados), para reproduzir o mesmo formato.

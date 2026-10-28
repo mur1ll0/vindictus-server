@@ -1929,3 +1929,16 @@ Caminho C, etapa C2 — passo 2, segunda parte: condições da Delia, auxiliares
 - Verificação: `python -I scripts/reverse/na_x64_to_169_vtables.py` (hashes das quatro DLLs conferidos; log `.cache/verification/na-x64-to-169.log`); `cargo test --manifest-path tools/na-delia-reference/Cargo.toml` (37, 0 falhas); `cargo clippy … --all-targets -- -D warnings` (0).
 - Cliente: não necessário (leitura e código de referência; nada mudou na cópia de laboratório).
 - Próxima ação: medir a capacidade das condições no 1.69 (ids acima de 120), conferir os pares de baixa confiança e achar, na base do NA, quem chama os métodos que não existem no 1.69; com isso, escrever o plano do patch da entidade da Delia na cópia de laboratório.
+
+Caminho C, etapa C2 — passo 2, terceira parte: capacidade das condições, revisão dos pares e plano do patch da entidade (28/10/2026, continuação pedida pelo operador).
+- Mudança: `scripts/reverse/na_x64_to_169_vtables.py` com varredura linear no x64 (as funções grandes têm vários pedaços na tabela de exceções) e revisão manual `REVIEW`; crate `tools/na-delia-reference` com `condition::{na,v169}::LIMIT`, `PROPOSED_V169` e `layout::na_only_callers`; tabelas `layout::port` regeradas do JSON revisado.
+- Evidência (seção 8.12 de `docs/future/new-classes.md`):
+  - limite das condições: NA 231 (`0xe7`), 1.69 121 (`0x79`), em 4 funções por DLL;
+  - ids 121–125 devem caber nos 4 *dwords* (dedução pelo limite, a confirmar no cliente);
+  - pares fracos revistos: 6 confirmados (inclusive o par "estado da classe" usado pela guarda) e 3 recusados;
+  - métodos só do NA alcançáveis pelos *slots* 413/427 (cliente) e 400/614/563/641 (servidor) do 1.69;
+  - nenhum comando ou classe auxiliar da Delia existe no 1.69.
+- Verificação: `python -I scripts/reverse/na_x64_to_169_vtables.py` (exit 0; log `.cache/verification/na-x64-to-169.log`); `cargo test --manifest-path tools/na-delia-reference/Cargo.toml` (38, 0 falhas); `cargo clippy … -D warnings` (0).
+- Cliente: não necessário (leitura e plano).
+- Parada: o plano E1–E5 muda os DLLs da cópia de laboratório e cada etapa precisa de teste no cliente. A ordem e o escopo do E1 (entidade mínima) são decisão do operador.
+- Próxima ação: com o aceite, ler como o 1.69 instala `player_hagie`/`DT_HeroesPlayerHagie` e escrever o patcher do E1 com teste D8 no roteiro `docs/client-tests/C2-delia.md`.

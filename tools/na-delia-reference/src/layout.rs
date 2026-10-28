@@ -63,7 +63,7 @@ pub mod port {
         (16, Some((16, High))),
         (17, Some((17, Medium))),
         (29, Some((29, High))),
-        (31, Some((31, Low))),
+        (31, Some((31, High))),
         (83, Some((84, High))),
         (190, Some((177, High))),
         (191, Some((178, High))),
@@ -73,15 +73,15 @@ pub mod port {
         (331, None),
         (349, None),
         (351, Some((308, Medium))),
-        (380, Some((334, Low))),
+        (380, Some((334, High))),
         (416, Some((367, Medium))),
         (419, Some((368, High))),
         (455, Some((401, High))),
         (470, None),
-        (476, Some((419, Low))),
+        (476, Some((419, Medium))),
         (485, None),
-        (487, Some((429, Low))),
-        (489, Some((430, Low))),
+        (487, Some((429, High))),
+        (489, Some((430, High))),
         (516, None),
     ];
 
@@ -93,9 +93,9 @@ pub mod port {
         (11, Some((11, High))),
         (12, Some((12, Medium))),
         (13, Some((13, Medium))),
-        (28, Some((26, Low))),
+        (28, Some((26, High))),
         (29, Some((27, High))),
-        (73, Some((70, High))),
+        (73, Some((70, Medium))),
         (78, Some((75, High))),
         (137, Some((125, High))),
         (240, Some((221, High))),
@@ -103,22 +103,22 @@ pub mod port {
         (334, Some((293, Medium))),
         (390, Some((346, Low))),
         (434, None),
-        (435, Some((387, Low))),
+        (435, None),
         (466, Some((414, High))),
         (469, Some((417, Medium))),
-        (504, Some((447, Low))),
-        (517, Some((460, Medium))),
+        (504, None),
+        (517, Some((460, High))),
         (615, Some((555, High))),
         (624, Some((563, High))),
         (627, None),
-        (628, Some((565, Low))),
+        (628, None),
         (631, None),
         (657, Some((586, High))),
         (677, None),
         (694, None),
-        (697, Some((618, Medium))),
-        (699, Some((619, Low))),
-        (725, Some((638, Medium))),
+        (697, Some((618, High))),
+        (699, Some((619, High))),
+        (725, Some((638, High))),
         (729, None),
         (730, Some((641, Low))),
         (731, None),
@@ -151,5 +151,26 @@ pub mod server {
     pub const OVERRIDES: [usize; 37] = [
         0, 9, 10, 11, 12, 13, 28, 29, 73, 78, 137, 240, 241, 334, 390, 434, 435, 466, 469, 504,
         517, 615, 624, 627, 628, 631, 657, 677, 694, 697, 699, 725, 729, 730, 731, 736, 748,
+    ];
+}
+
+/// Base methods of the NA x64 build that call a Delia method missing from 1.69:
+/// `(NA-only slot, calling base slot in x64, same calling slot in 1.69)`.
+/// These 1.69 slots are where the port has to reach the missing behaviour.
+pub mod na_only_callers {
+    pub const CLIENT: [(usize, usize, usize); 2] = [
+        // Slot 470 (base call skipped while guarding) is called by base 469.
+        (470, 469, 413),
+        // Slot 485 (89 / slot 349) is called by base 484 (low-confidence pair).
+        (485, 484, 427),
+    ];
+
+    pub const SERVER: [(usize, usize, usize); 6] = [
+        (677, 453, 400),
+        (694, 693, 614),
+        (729, 624, 563),
+        (731, 624, 563),
+        (729, 730, 641),
+        (731, 730, 641),
     ];
 }
