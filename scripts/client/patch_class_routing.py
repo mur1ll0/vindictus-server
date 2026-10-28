@@ -82,6 +82,22 @@ MATCH = {
     'client.dll': (0x3885FB93, 0x38860993, 0x38860C1D, 0x38022280),
     'server.dll': (0x407CCBA3, 0x407CD8A3, 0x407CDB2D, 0x400CEB80),
 }
+# "Is this class allowed" accessors over the item's per-class bools (+0x198, 11 entries, filled
+# by engine.dll; see patch_engine_class_flags.py): a `switch` on classes 0-9 returning
+# flags[class], so class 10 got false ("Cannot be equipped", D8e). Each head jumps to a stub that
+# returns flags[class] for classes 0-10 and keeps the default (false) above. Entries: (VA of
+# `cmp reg, 9`, original bytes replaced by the jump, class register, item base: 'ecx' (this) or
+# 'stack' ([esp + 4]), default VA, bytes popped by `ret`). The rest of the old head, including its
+# relocated jump-table address, stays in place as dead code.
+FLAG_CHECKS = {
+    'client.dll': (
+        (0x382D4C34, '83f8097761', 'eax', 'ecx', 0x382D4C9A, 4),
+        (0x388F9C86, '83f9090f87', 'ecx', 'stack', 0x388F9D15, 8),
+    ),
+    'server.dll': (
+        (0x402682E8, '83f9090f87', 'ecx', 'stack', 0x40268377, 4),
+    ),
+}
 MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
 MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
 md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
@@ -248,6 +264,24 @@ def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
             'pick': f'{pick:#x} -> {pick_stub:#x}', 'loop': f'{loop:#x} classes 0-{DELIA}'}
 
 
+def flag_check(layout: Layout, edits: list, va: int, old: str, register: str, base: str,
+               default: int, pop: int) -> str:
+    """One FLAG_CHECKS stub: cmp reg, DELIA; ja default; al = flags[reg]; ret pop."""
+    reg = {'eax': 0, 'ecx': 1}[register]
+    layout.pad()
+    stub = layout.here()
+    layout.body += bytes((0x83, 0xF8 | reg, DELIA))
+    layout.body += b'\x0f\x87' + struct.pack('<i', default - (layout.here() + 6))
+    if base == 'ecx':
+        layout.body += bytes((0x8A, 0x84, (reg << 3) | 1)) + struct.pack('<I', 0x198)  # mov al, [ecx + reg + 0x198]
+    else:
+        layout.body += b'\x8b\x44\x24\x04'  # mov eax, [esp + 4]
+        layout.body += bytes((0x8A, 0x84, (reg << 3) | 0)) + struct.pack('<I', 0x198)  # mov al, [eax + reg + 0x198]
+    layout.body += b'\xc2' + struct.pack('<H', pop)
+    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
+    return f'{va:#x} -> {stub:#x}'
+
+
 def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
@@ -334,6 +368,7 @@ def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
         edits.append((va, b'\x83\xf8\x0a', bytes((0x83, 0xF8, PET))))
     if name in MATCH:
         report['match_table'] = match_table(image, layout, edits, relocs, *MATCH[name])
+    report['flag_checks'] = [flag_check(layout, edits, *entry) for entry in FLAG_CHECKS.get(name, ())]
 
     for va, old, new in edits:
         o = image.offset(va)

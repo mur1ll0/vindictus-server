@@ -2018,3 +2018,11 @@ Passo 7 (28/10/2026): classe 10 nas restrições de item do `engine.dll`.
 - Verificação: `python -m unittest test_patch_engine_class_flags` (2, 0 falhas; `engine-flags-tests.log`); aplicado: `engine.dll` `a3add974…` → `44281475…` (`engine-flags-apply.log`, backup `*.pre-classflags.bak`).
 - Cliente: D8e em `docs/client-tests/C2-delia.md`, pendente (inclui não regressão de outra classe).
 - Parada (regra 2): equipar e a visibilidade dependem do D8e; a janela de habilidades e o E1 vêm depois.
+- D8e (cliente): Hagie sem regressão; Delia continua recusada e invisível. DLLs carregados conferidos pelo minidump (`bin\engine.dll` etc.).
+
+Passo 8 (28/10/2026): acessores de classe dos itens no `client.dll` e no `server.dll`.
+- Causa: `client.dll` `0x382d4c30` e `0x388f9c80`, e `server.dll` `0x402682e0`, leem o vetor de classes do item por `switch` de 0 a 9 (seção 8.14).
+- Mudança: `FLAG_CHECKS`/`flag_check` em `patch_class_routing.py` e teste novo.
+- Verificação: `python -m unittest test_patch_class_routing` (7, 0 falhas; `routing-tests-flags.log`); reaplicado (`class-routing-apply-d8f.log`): `client.dll` `d1a1571c…`, `server.dll` `d094ee11…`; *stubs* desmontados e conferidos.
+- Cliente: D8f em `docs/client-tests/C2-delia.md`, pendente.
+- Parada (regra 2): equipar e a visibilidade dependem do D8f.

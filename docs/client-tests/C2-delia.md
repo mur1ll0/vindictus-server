@@ -146,3 +146,14 @@ Pré-condição: `scripts/client/patch_engine_class_flags.py --client-copy .cach
 - [ ] `F7` → anotar se a animação roda.
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se cair: horário e endereço do `Report Error`. Reverter o `engine.dll`: copiar `engine.dll.a3add9742f7fa03c.pre-classflags.bak` sobre `bin/engine.dll`.
+
+Resultado do D8e (28/10/2026): **não regressão ok** (Hagie desequipou e equipou um item). `DeliaLab` continua invisível e a `Bastard Sword` e a *inner* continuam "Cannot be equipped". Os DLLs carregados eram os certos (`bin/engine.dll` `44281475…`; o minidump lista `bin\engine.dll`, `bin\client.dll` e `bin\server.dll`; o `start-lab.bat` não troca DLLs). A recusa estava em outro ponto: o `client.dll` lê o vetor por `switch` de 0 a 9.
+
+### D8f — Acessores de classe dos itens no `client.dll` e no `server.dll`
+Pré-condição: patch de roteamento com `FLAG_CHECKS` (`client.dll` `a9591d3a…` → `d1a1571c…`, `server.dll` `af43431e…` → `d094ee11…`) e o `engine.dll` do D8e (`44281475…`); `docker compose up -d --wait` saudável; abrir pelo `start-lab.bat` (nada mais a rodar).
+- [ ] Não regressão: entrar com a Hagie, desequipar e equipar um item.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [ ] Inventário: `Bastard Sword` e *inner* da Delia sem "Cannot be equipped"; equipar as duas.
+- [ ] Anotar se a personagem aparece depois de equipar a *inner* e se o `F7` anima.
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.

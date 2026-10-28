@@ -99,6 +99,22 @@ class LabCopyTest(unittest.TestCase):
                 self.assertEqual(code[-1].mnemonic, 'jmp')
                 self.assertEqual(int(code[-1].op_str, 16), va + size)
 
+    def test_class_flag_checks_admit_class_ten(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            self.assertEqual(len(report['flag_checks']), len(routing.FLAG_CHECKS[name]))
+            for va, _, register, base, default, pop in routing.FLAG_CHECKS[name]:
+                jump = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
+                stub = int(jump.op_str, 16)
+                code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+                    bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)))
+                text = [f'{x.mnemonic} {x.op_str}' for x in code]
+                self.assertEqual(text[0], f'cmp {register}, 0xa')
+                self.assertEqual(text[1], f'ja {default:#x}')
+                item = 'ecx' if base == 'ecx' else 'eax'
+                self.assertIn(f'mov al, byte ptr [{item} + {register} + 0x198]', text)
+                self.assertEqual(text[-1], f'ret {pop}')
+
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)
