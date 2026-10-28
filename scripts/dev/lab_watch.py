@@ -9,8 +9,10 @@ Observed (D8o): the attach and detach went through, but the client aborted short
 ("Microsoft Visual C++ Runtime Library: Runtime Error ... terminate it in an unusual way"), most
 likely the anti-cheat reacting to the debugger. Expect to restart the client after each use.
 
-Usage: python -s -E scripts/dev/lab_watch.py ADDRESS [ADDRESS ...] [--hits N] [--seconds S]
-Output: printed and written to .cache/lab-memory/watch.txt.
+Usage: python -s -E scripts/dev/lab_watch.py EXPR [EXPR ...] [--hits N] [--seconds S]
+EXPR is an address or a lab_memory expression (`[[0x40cb3740]+0x14]+0x3418`); `EXPR*N` watches N
+consecutive dwords (at most four in all).
+Output: printed and written to .cache/lab-memory/watch.txt as it happens.
 """
 from __future__ import annotations
 import argparse
@@ -98,13 +100,20 @@ def main() -> int:
     parser.add_argument('--hits', type=int, default=8)
     parser.add_argument('--seconds', type=int, default=120)
     args = parser.parse_args()
-    addresses = [int(a, 0) for a in args.addresses][:4]
     game = lab_memory.Game()  # read handle for the stack; attaching needs the same elevation
+    addresses = []
+    for text in args.addresses:
+        expression, _, count = text.partition('*')
+        start = game.eval(expression)
+        addresses += [start + 4 * i for i in range(int(count or 1))]
+    addresses = addresses[:4]
     log = []
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
 
     def say(text: str) -> None:
         print(text)
         log.append(text)
+        OUTPUT.write_text(''.join(line + '\n' for line in log), encoding='utf-8')
 
     if not kernel32.DebugActiveProcess(game.pid):
         say(f'DebugActiveProcess({game.pid}) failed: error {ctypes.get_last_error()}')
