@@ -183,6 +183,25 @@ pub(super) async fn final_int(
         .map_err(|_| MinimumError::Conflict)?;
     Ok(stats.stats.get(character_stats::Field::Int))
 }
+/// The initializer that created the character, from its initialization marker. The class
+/// row can name a class without an initializer (class 10 in the Delia client test).
+pub(super) async fn creating_initializer<'a>(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    assets: &'a Assets,
+    cid: i64,
+) -> Result<&'a super::fiona_initializer_profile::Profile, MinimumError> {
+    let fingerprint: Vec<u8> = sqlx::query_scalar(
+        "SELECT profile_sha256 FROM game_minimum_character_initialization WHERE cid=$1 AND initialized FOR SHARE",
+    )
+    .bind(cid)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(MinimumError::Conflict)?;
+    assets
+        .initializers()
+        .by_fingerprint(&fingerprint)
+        .ok_or(MinimumError::Conflict)
+}
 /// Skill runtime cache of the initialized first Fiona: the initializer's skills come
 /// first (in row order), followed by skills learned later (LearnNewSkill).
 pub(super) async fn skill_cache(
@@ -196,13 +215,7 @@ pub(super) async fn skill_cache(
     .bind(cid)
     .fetch_all(&mut **tx)
     .await?;
-    let class: i16 = sqlx::query_scalar("SELECT class FROM game_character_info WHERE id=$1")
-        .bind(cid)
-        .fetch_one(&mut **tx)
-        .await?;
-    let initial = assets
-        .initializer_for(u8::try_from(class).map_err(|_| MinimumError::Conflict)?)?
-        .skills();
+    let initial = creating_initializer(tx, assets, cid).await?.skills();
     if skills.len() < initial.len() || skills.len() > 4096 {
         return Err(MinimumError::Conflict);
     }

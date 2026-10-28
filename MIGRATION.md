@@ -1844,3 +1844,10 @@ Ajustes do operador na busca por catálogo (27/10/2026).
 - Editor de itens: botão **Catálogo** ao lado da busca, que abre o modal (com os itens ocultos) e abre a ficha do item escolhido.
 - Verificação: `cargo test --lib admin_item_search` (3), `admin_http` (4, OpenAPI regenerado e `npm run gen:api`), `npm run build`. Logs `.cache/verification/t-*.log`. Não conferido visualmente no navegador (o login do painel é do operador).
 - Cliente: não necessário (só painel).
+
+Caminho C, etapa C2 — primeira sessão do teste da classe 10 e correção da seleção (28/10/2026 UTC).
+- Cliente (operador): na seleção, a `DeliaLab` aparece com o retrato da Delia e o modelo 3D em pose T, sem rosto e com a textura do inner errada, sem queda. Ao entrar: "disconnected from server". Detalhes em `docs/client-tests/C2-delia.md`, seção "Resultado".
+- Causa da desconexão (log do `game`, 00:00:47 UTC): `minimum_selection::skill_cache` buscava o *initializer* pela classe (`initializer_for(10)`), que não existe → `Conflict`. Correção: `creating_initializer` usa o perfil registrado no marcador `game_minimum_character_initialization` (o mesmo que a lista já usa), no cache de skills e nos atributos de nível 1 (`minimum_growth::base_stats`). Para personagens normais o resultado é o mesmo, porque a classe não muda.
+- Achado à parte: a `SelectOrdersChangeMessage` (categoria 489) não tem tratamento. O servidor original grava `CharacterOrderSet` por personagem e reenvia a lista; a coluna `order_num` já existe. Por isso, depois de mover os slots, a entrada levou à `Teste` (Hagie).
+- Verificação: `cargo check --lib` ok; PostgreSQL filtrado `selection growth level_up` (5, 0 falhas; log `.cache/verification/c2t-pg-selection.log`).
+- Próxima ação: recompilar o `game` e repetir a D3; implementar a troca de slots (categoria 489).

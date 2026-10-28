@@ -52,3 +52,10 @@ Pré-condição: D3 na cidade.
 Pré-condição: personagem fora do jogo (feche o cliente se ele travou). Se a D4 equipou os itens da Delia, desequipe-os no jogo antes de sair; se não der (queda), relate e não rode o comando, que a limpeza é feita do lado do servidor.
 - [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1` → `class 10 -> 1`.
 - [ ] Abrir o cliente: `DeliaLab` aparece como Fiona e entra na cidade. Os itens da Delia ficam no inventário (não equipáveis pela Fiona).
+
+## Resultado da sessão de 27/10/2026 (operador, 20:55–21:01 local; servidor 23:55–00:01 UTC)
+- **D0/D1:** Fiona `DeliaLab` criada pelo operador; itens dados e classe trocada por mim (`MIGRATION.md`). Ela não tinha entrado na cidade antes da troca.
+- **D2 (seleção):** `DeliaLab` aparece com o retrato certo da Delia, mas o modelo 3D fica em pose T, sem rosto, e com a textura do inner errada. O cliente não caiu. Leitura: o retrato vem do conteúdo (classe 10 existe nos dados) e o modelo vem do código de classe do cliente, que não conhece a classe 10 (seção 8.2).
+- **Troca de slot:** o operador moveu a ordem dos slots antes de entrar; o servidor recebeu a `SelectOrdersChangeMessage` (categoria 489) sem tratamento, não gravou a ordem, e a entrada pelo slot levou à personagem `Teste` (Hagie). Defeito do servidor, independente da Delia.
+- **D3 (entrar):** "You have been disconnected from server". Causa no servidor, antes de o cliente receber a entrada: a seleção montava o cache de skills pelo *initializer* da classe (`initializer_for(10)`), que não existe, e respondia `Conflict` (log `laboratory frontend connection closed`, 00:00:47 UTC). Corrigido: o *initializer* passa a vir do marcador de inicialização da personagem (o da Fiona que a criou), na seleção e nos atributos de nível 1.
+- **Pendente:** repetir a D3 com a correção; D4 e D5.

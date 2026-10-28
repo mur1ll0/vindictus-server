@@ -261,7 +261,9 @@ pub(super) async fn base_stats(
     };
     let base_character = u8::try_from(class).map_err(|_| fail())?;
     let base = if level == 1 {
-        assets.initializer_for(base_character)?.base_stats(titles)
+        super::minimum_selection::creating_initializer(tx, assets, cid)
+            .await?
+            .base_stats(titles)
     } else {
         crate::domain::character_base_stats::BaseStats::compose(
             progression
