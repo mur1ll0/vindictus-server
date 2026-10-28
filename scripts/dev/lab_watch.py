@@ -65,7 +65,10 @@ class Context:
         struct.pack_into('<I', self.raw, self.OFFSETS[name], value & 0xFFFFFFFF)
 
 
-EXECUTE = False  # --exec: break before the instruction at each address instead of on writes
+# --exec: break before the instruction at each address instead of on writes. UNRELIABLE on the
+# game (D16): the hit thread's context changes (RF, or Dr7 = 0 with TF) are not applied at the
+# exception, the breakpoint re-fires and the client crashes after detach. Use write breakpoints.
+EXECUTE = False
 
 
 def set_breakpoints(thread: int, addresses: list[int]) -> bool:
