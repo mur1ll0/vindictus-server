@@ -276,3 +276,15 @@ Pré-condição: **jogo fechado** antes de aplicar (já aplicado: `client.dll` `
 - [ ] Entrar na cidade com a `DeliaLab` → corpo e animações como no D8v.
 - [ ] Abrir a janela de habilidades (SP) → anotar se aparece alguma habilidade (o `CLASS_NAME` ainda não foi conferido no cliente).
 Resultado esperado: seleção sem o defeito; cidade igual ao D8v.
+
+Resultado do D9 (28/10/2026): Hagie sem regressão (seleção e cidade). `DeliaLab`: cidade sem defeito; **a seleção continua com o defeito da barriga à coxa**; janela de habilidades vazia; a criação não oferece a Delia (barra V4 de 10 classes).
+
+### D10 — Roupa-base e habilidades iniciais da Delia na `DeliaLab`
+Causa provável (dados, não DLL): a `DeliaLab` foi criada como Fiona e guardava a roupa-base da Fiona (*inner* 10, cabelo 2001, sobrancelha 0; a Delia, pelo `csf/create_delia.csf`, usa 1002, 6036, 8000) e as habilidades iniciais da Fiona (`skill_fiona_shield_mastery`, `skill_fiona_guard`), que a janela da classe 10 não mostra. A seleção monta o modelo pela roupa-base da lista de personagens; a cidade, pela montagem do servidor local.
+Mudança: `lab-set-class.ps1` agora troca também as habilidades iniciais (pela `DefaultSkillInfo`; a da Delia, que o 1.69 não tem, é `skill_delia_bastard_mastery` + `skill_delia_guard`, escolha de laboratório) e a roupa-base que ainda está no padrão da classe antiga. Já aplicado na `DeliaLab` (classe 10; 2 habilidades e 3 partes trocadas). DLLs iguais ao D9.
+Pré-condição: servidor no ar; abrir pelo `start-lab.bat`.
+- [ ] Seleção: a `DeliaLab` → anotar se o defeito da barriga à coxa (pernas brancas da *inner*) sumiu e se cabelo/sobrancelha são os da Delia.
+- [ ] Cidade com a `DeliaLab` → corpo e animações como antes.
+- [ ] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
+- [ ] (Opcional) com a `Bastard Sword` equipada, usar o *guard* → anotar o que acontece.
+Resultado esperado: seleção sem defeito; duas habilidades da Delia na janela.

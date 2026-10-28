@@ -2144,3 +2144,11 @@ Passo 22 (28/10/2026): E1 da Delia por tabela (escolha do operador: "Yes, table-
 - Cliente: D9 em `docs/client-tests/C2-delia.md`, pendente.
 - Falta para a Miri (registro): conteúdo, figura e constantes dela; os *flags* de item param na classe 10 (seria preciso aumentar o `bool[11]` do `engine.dll`); *slots* do servidor (221/222) não tratados.
 - Próxima ação: resultado do D9 (seleção sem defeito); depois janela de habilidades vazia, E2 (`BASTARDSWORD`) e a roupa *inner* padrão da Delia (servidor `0x40815a70` dá 20, deveria ser 21).
+- D9 (cliente): Hagie sem regressão; Delia certa na cidade, mas a seleção continua com o defeito; janela de habilidades vazia; a criação não mostra a Delia.
+
+Passo 23 (28/10/2026): roupa-base e habilidades iniciais seguem a classe na troca de laboratório.
+- Evidência (PostgreSQL, somente leitura): a `DeliaLab` tinha a roupa-base da Fiona (`game_costumes` tipo 0 chave 1 = *inner* 10, tipo 0 chave 3 = cabelo 2001, tipo 1 chave 0 = sobrancelha 0; as Hagies têm 8001/8001/10001, o padrão do `csf/create_hagie.csf`) e as habilidades `skill_fiona_shield_mastery`/`skill_fiona_guard`. O `csf/create_delia.csf` dá 1002/6036/8000 (iguais aos da Lynn). A `FeatureMatrix` liga `Delia` em `EN-EU-X-GM` 3.09.00 (o perfil do laboratório), então a feature não esconde as habilidades. As chaves de forma do corpo (tipo 3) também são da Fiona (0, 15–25, 40; Hagie 52–65, 105); ficam como estão até o resultado do D10.
+- Mudança: `scripts/dev/lab-set-class.ps1` troca, na mesma transação, as habilidades iniciais da classe antiga pelas da nova (mesma linha; a Delia usa `skill_delia_bastard_mastery` + `skill_delia_guard`, escolha de laboratório porque o 1.69 não tem `DefaultSkillInfo` da classe 10) e as três partes da roupa-base que ainda estão no padrão da classe antiga. A volta (`-Class 1`) desfaz.
+- Aplicado: `DeliaLab` 10 → 1 → 10 (2 habilidades, 3 partes). Cliente: D10 pendente.
+- Criação da Delia: decisão do operador. A barra V4 tem 10 classes fixas; a grade S3 do 1.69 lista a Delia, mas o mapa só tem 9 atores (D6 travou); a grade de 28 classes do NA pede o filme do NA e código nativo novo no `client.dll` (seção 8.8).
+- Próxima ação: resultado do D10; depois a escolha da criação e E2 (`BASTARDSWORD`).
