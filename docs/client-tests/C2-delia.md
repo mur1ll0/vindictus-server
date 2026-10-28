@@ -243,3 +243,8 @@ Pré-condição: **jogo fechado** antes de aplicar (os DLLs carregados não pode
 - [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
 - [ ] Entrar na cidade → anotar se o corpo aparece.
 - [ ] Com o jogo aberto, eu rodo `lab_memory.py` (o leitor elevado precisa ser iniciado de novo; aprovar o UAC) e confiro o índice de modelo da entidade.
+
+Resultado do D8m (28/10/2026): **sem mudança** (invisível na cidade; coxa da *inner* com defeito na seleção). Memória:
+- os modelos da Delia foram pré-carregados (vários `pc_delia_face01/02.mdl` no *heap*), então a pré-carga não era a falta;
+- os campos do cliente pelo `RecvProp`: `m_nModelIndex` em `+0xb0` (16 bits; o `+0x84` usado antes era outro campo), `m_fEffects` `+0x7c`, `m_nRenderMode` `+0x80`, `m_nRenderFX` `+0x5c`, `m_clrRender` `+0x60`. A Delia tem modelo válido (290 na cópia do D8k, 294 agora; a Fiona 491) e os mesmos valores de desenho que a Fiona (efeitos 0, modo 0, cor branca opaca);
+- o que continua diferente: os oito códigos de roupa do servidor (`+0x3418`, `parte*100000 + índice`) ficam `-1` para a Delia, inclusive cabelo e *inner*, que a Fiona resolve.
