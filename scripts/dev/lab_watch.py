@@ -99,6 +99,9 @@ def main() -> int:
     parser.add_argument('addresses', nargs='+')
     parser.add_argument('--hits', type=int, default=8)
     parser.add_argument('--seconds', type=int, default=120)
+    parser.add_argument('--follow', help='a pointer slot (EXPR) whose writes move the watch: the first '
+                        'address watches the slot, the others are --then offsets from the new pointer')
+    parser.add_argument('--then', default='0', help='OFFSET*N from the followed pointer (N <= 3)')
     args = parser.parse_args()
     game = lab_memory.Game()  # read handle for the stack; attaching needs the same elevation
     addresses = []
@@ -106,6 +109,13 @@ def main() -> int:
         expression, _, count = text.partition('*')
         start = game.eval(expression)
         addresses += [start + 4 * i for i in range(int(count or 1))]
+    follow = None
+    if args.follow:
+        follow = game.eval(args.follow)
+        offset, _, count = args.then.partition('*')
+        offset, count = int(offset, 0), min(int(count or 1), 3)
+        target = game.dword(follow) & 0xFFFFFFFF
+        addresses = [follow] + [target + offset + 4 * i for i in range(count)]
     addresses = addresses[:4]
     log = []
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +164,18 @@ def main() -> int:
                     kernel32.Wow64GetThreadContext(threads[tid], context.raw)
                     dr6 = context['Dr6']
                     which = [hex(addresses[i]) for i in range(len(addresses)) if dr6 & (1 << i)]
+                    if follow is not None and dr6 & 1:
+                        target = game.dword(follow) & 0xFFFFFFFF
+                        if target:
+                            addresses[1:] = [target + offset + 4 * i for i in range(count)]
+                            done = sum(set_breakpoints(h, addresses) for h in threads.values())
+                            say(f'slot {follow:#x} now {target:#x} ({lab_memory.class_name(game, target)}); '
+                                f'watching {", ".join(hex(a) for a in addresses[1:])} on {done} threads')
+                        else:
+                            context['Dr6'] = 0  # slot cleared: keep the old watch, just acknowledge
+                            kernel32.Wow64SetThreadContext(threads[tid], context.raw)
+                        kernel32.ContinueDebugEvent(pid, tid, status)
+                        continue
                     hits += 1
                     say(f'hit {hits}: thread {tid} wrote {", ".join(which) or "?"}; '
                         f'after {describe(game, game.mods, context["Eip"])}')
