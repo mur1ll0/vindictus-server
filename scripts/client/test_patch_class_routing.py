@@ -266,6 +266,17 @@ class LabCopyTest(unittest.TestCase):
             self.assertEqual(routing.read_string(image, self.entry(image, table, 9)), 'Hagie' if expected == 'Delia' else 'H')
             self.assertEqual(routing.read_string(image, self.entry(image, table, routing.DELIA)), expected)
 
+    def test_body_shape_borrows_the_shape_class(self):
+        image, report = self.plan('client.dll')
+        for va, old, register in routing.SHAPE_CLASS['client.dll']:
+            code = self.stub_code(image, va)
+            text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            shape = routing.OLD_CLASSES.index(routing.EXTRA_CLASSES[0].shape_of)
+            self.assertEqual(text[:3][0], f'cmp {register}, 0xa')
+            self.assertIn(f'mov {register}, {shape}', text)
+            self.assertIn(f'cmp {register}, 9', text)
+            self.assertEqual(text[-1], f'jmp {va + len(bytes.fromhex(old)):#x}')
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

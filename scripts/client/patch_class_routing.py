@@ -54,6 +54,7 @@ class ExtraClass:
     figure: str                     # body figure (client entity slot 264)
     constants: tuple[float, float]  # client entity slots 177/178 (NA values)
     faces: int                      # models/player/<key>/pc_<key>_faceNN.mdl
+    shape_of: str = 'lynn'          # older class whose body-shape slot it borrows (SHAPE_CLASS)
 
     @property
     def name(self) -> str:
@@ -218,6 +219,14 @@ COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 # test, as does 0x385a5ed0 (`cmp eax, 9`, a scan of `cmp reg, 9; ja` before `shl reg, cl`, D13); the
 # bound becomes the last extra class (the mask is read as 16 bits, enough for class 15).
 CLASS_BITS = {'client.dll': (0x3835DF6E, 0x38372D03, 0x385A6763)}
+# Body-shape manager (csf/bodyshape_min/max_<class>.fig, the .bsh sliders): the two per-entity
+# entry points (0x38760650 loads, 0x387606b0 applies) take the class from the entity and skip
+# above 9 (`cmp reg, 9; ja`), because the manager keeps four groups of 10 per-class maps and flags
+# at +0x460. Character select is the only screen that blends body shapes, and Delia's lower-body
+# skin rendered white there (D12-D15). Experiment (D15): an extra class borrows the slot of an
+# older class (`shape_of`) instead of skipping; the manager's own storage is unchanged.
+# Entries: (VA of `cmp reg, 9; ja`, its bytes, register).
+SHAPE_CLASS = {'client.dll': ((0x3876066F, '83fe097733', 'esi'), (0x387606DE, '83fb090f87dc020000', 'ebx'))}
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -632,6 +641,28 @@ def costume(image: Image, layout: Layout, edits: list, relocs: set[int],
             'accessors': stubs}
 
 
+def shape_class(layout: Layout, edits: list, va: int, old: str, register: str) -> str:
+    """SHAPE_CLASS stub: an extra class becomes its `shape_of` class, then the original bound."""
+    reg = {'eax': 0, 'ecx': 1, 'edx': 2, 'ebx': 3, 'esi': 6, 'edi': 7}[register]
+    replaced = bytes.fromhex(old)
+    ins = list(md.disasm(replaced, va))
+    if len(ins) != 2 or ins[1].mnemonic != 'ja':
+        raise PreparationError(f'Unexpected body-shape bound at {va:#x}; nothing is patched.')
+    skip = int(ins[1].op_str, 16)
+    layout.pad()
+    stub = layout.here()
+    for extra in EXTRA_CLASSES:
+        layout.body += bytes((0x83, 0xF8 | reg, extra.index))
+        other = layout.forward(b'\x0f\x85')
+        layout.body += bytes((0xB8 | reg,)) + struct.pack('<I', OLD_CLASSES.index(extra.shape_of))
+        layout.land(other)
+    layout.body += replaced[:3]
+    layout.to(b'\x0f\x87', skip)
+    layout.to(b'\xe9', va + len(replaced))
+    edits.append((va, replaced, b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90' * (len(replaced) - 5)))
+    return f'{va:#x} -> {stub:#x}'
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -887,6 +918,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name in EVENT_FILE:
         shadows = {int(i): int(a, 16) for i, a in report['costume']['shadows'].items()}
         report['event_file'] = event_file(layout, edits, shadows, *EVENT_FILE[name])
+    report['shape_class'] = [shape_class(layout, edits, *entry) for entry in SHAPE_CLASS.get(name, ())]
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':

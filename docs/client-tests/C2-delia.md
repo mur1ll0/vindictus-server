@@ -342,3 +342,14 @@ Resultado do D14 (28/10/2026), pelas capturas do operador:
 - **Seleção:** a Delia sentada tem as coxas brancas e brilhantes; a Evy na mesma pose não. Com outra *inner* (`delia_inner_cutecat`), tudo da barriga para baixo fica branco, com o desenho da *inner* por cima; braços, tronco e rosto normais. Na cidade as mesmas pernas têm pele normal. Não é forma do corpo nem modelo: é o sombreamento da pele da parte de baixo só na seleção. As *inners* usam o mesmo material de pele da Evy (`fiona_skin_body01`). O `delia_base.mdl` (laboratório e NA) cita `fiona_skin_body01_lod` numa pasta sem esse material, como o `hagie_base.mdl` (`lethita_skin_body01`), sem efeito na Hagie. O código do sombreamento SSS (`$sss_color`/`$sss_enable`, `client.dll` `0x386bb050`, `0x386bccc0`, `0x386c2370`) é por material; nenhuma tabela por classe achada ainda.
 - **Arma:** com a `Bastard Sword` equipada aparecem duas espadas, uma na mão e uma nas costas; o certo é só nas costas (o 1.69 não tem o tipo de arma `BASTARDSWORD`; E2).
 - **Inventário:** dica "Bastard Sword, Weapon", **"Cannot be equipped"** em vermelho; as armaduras-base aparecem vermelhas.
+
+### D15 — Pele branca da seleção: experimentos
+Descartados (o operador viu a pele ainda branca em cada um, 28/10/2026):
+- cores de pele/rosto (roupa-base chave 2) trocadas pelas do `create_delia.csf` (devolvidas depois);
+- figura padrão desligada (`csf/default_delia.bsh` solto no laboratório com `bodyshape_null.fig` e chave 106 = 0; desfeito);
+- material `fiona_skin_body01_lod` copiado para a pasta da Delia (o `delia_base.mdl` o procura lá; desfeito);
+- a pintura do corpo (tipo 2) da Tsuko (Evy, normal) é igual à da `DeliaLab`.
+Achado: o gerenciador de forma do corpo do cliente (`0x387602b0` carrega, `0x38760650`/`0x387606b0` são as entradas por entidade) **pula a classe acima de 9** (`cmp reg, 9; ja`) e guarda 4 grupos de 10 mapas por classe e *flags* em `+0x460`. A seleção é a única tela que mistura formas do corpo. Experimento: `SHAPE_CLASS` faz a classe 10 usar a vaga da Lynn (7) nessas duas entradas, sem mudar o armazenamento. Aplicado: `client.dll` `ae521dec…`.
+- [ ] Seleção: a `DeliaLab` → anotar se a barriga e as pernas deixam de ficar brancas.
+- [ ] Não regressão: Hagie e Tsuko (Evy) na seleção.
+Resultado esperado: se a pele ficar normal, a causa é o gerenciador pular a classe 10, e o próximo passo é dar à Delia mapas próprios.

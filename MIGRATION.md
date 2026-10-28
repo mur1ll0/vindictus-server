@@ -2191,3 +2191,9 @@ Ajustes do operador no editor de itens e na publicação (28/10/2026).
 - CostumeType: seletor com as entradas do script de modelo da categoria (`player_costume.txt`, script da arma ou `shields.txt`), o modelo, o corpo e até 5 itens que usam cada número. Rota `GET /api/item-editor/costumes?category=&item=` (`Permission::Manage`; o `item` dá a EquipClass das armas). `EnglishNames::items_by_costume`. Números usados por itens mas ausentes do script também entram.
 - Verificação: `admin_http` (4, OpenAPI regenerado e `npm run gen:api`), clippy `-D warnings` (lib, bins, admin_http), `cargo fmt --check`, `npm run build`; Docker do `game` recompilado (build 0, up 0, saudável); `/api/item-editor/costumes` responde 401 sem sessão. Logs `.cache/verification/u-*.log`. Não conferido visualmente no navegador (o login do painel é do operador).
 - Cliente: não necessário (só painel).
+
+Passo 28 (28/10/2026): pele branca da Delia na seleção (escolha do operador: "Selection skin first").
+- Descartados no cliente: cores de pele (chave 2), figura padrão (`.bsh` solto e chave 106 = 0), material `_lod` ausente na pasta da Delia; dados iguais aos da Tsuko (Evy). Tudo desfeito.
+- Achado: o gerenciador de forma do corpo (`client.dll` `0x387602b0`, entradas `0x38760650`/`0x387606b0` via `0x3875dbb0`, a classe da entidade da seleção em `+0x2200`) pula classe > 9; tem 4 grupos de 10 mapas por classe (passo `0x1c`) e *flags* em `+0x460`.
+- Experimento: `SHAPE_CLASS` (classe extra → vaga de `shape_of`, Lynn) + teste. `python -m unittest test_patch_class_routing` (20, 0 falhas; `d15-routing-tests.log`). Aplicado (`class-routing-apply-d15.log`): `client.dll` `ae521dec…`.
+- Próxima ação: resultado do D15; se confirmar, mapas próprios da Delia no gerenciador.
