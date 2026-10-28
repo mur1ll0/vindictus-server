@@ -59,3 +59,9 @@ Pré-condição: personagem fora do jogo (feche o cliente se ele travou). Se a D
 - **Troca de slot:** o operador moveu a ordem dos slots antes de entrar; o servidor recebeu a `SelectOrdersChangeMessage` (categoria 489) sem tratamento, não gravou a ordem, e a entrada pelo slot levou à personagem `Teste` (Hagie). Defeito do servidor, independente da Delia.
 - **D3 (entrar):** "You have been disconnected from server". Causa no servidor, antes de o cliente receber a entrada: a seleção montava o cache de skills pelo *initializer* da classe (`initializer_for(10)`), que não existe, e respondia `Conflict` (log `laboratory frontend connection closed`, 00:00:47 UTC). Corrigido: o *initializer* passa a vir do marcador de inicialização da personagem (o da Fiona que a criou), na seleção e nos atributos de nível 1.
 - **Pendente:** repetir a D3 com a correção; D4 e D5.
+
+## Resultado da segunda sessão (27/10/2026, 21:48–21:49 local)
+- **D3 (entrar), com a correção da seleção:** o servidor aceitou a entrada; o cliente carregou a cidade (`t01`), conectou `DeliaLab` e caiu logo após `joined team "Paladin"`, ao criar a entidade do jogador: `EXCEPTION_ACCESS_VIOLATION` em `server.dll` (`0x408b4700`, um *getter* `mov eax,[ecx+0x1c]` chamado com objeto inválido). O `server.dll` da cópia é idêntico ao original (`d7727e18…`).
+- **Leitura:** é a camada nativa medida na seção 8.2 de `docs/future/new-classes.md`. A simulação local da cidade não tem tabela nem entidade para a classe 10 (`CHeroesPlayerDelia` não existe; tabela de 10 classes em `0x40d0cdf8`), e o objeto da classe não é criado. Sem patch do cliente, a classe 10 para aqui.
+- **Ordem dos patches que o teste confirma:** (1) tabela de classes e entidade do jogador no `server.dll` e no `client.dll`; (2) modelo da seleção (pose T, sem rosto); (3) arma e condições de estado de ação.
+- D4 não executada (sem cidade). D5 (desfazer) disponível: `scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
