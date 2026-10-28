@@ -2010,3 +2010,11 @@ Passo 6 (28/10/2026): D8c e modelos de animação da Delia no servidor local.
 - Cliente: D8d em `docs/client-tests/C2-delia.md`, pendente.
 - Parada (regra 2): saber se as animações e o corpo aparecem com as tabelas novas decide o que o E1 precisa trocar (vtable da entidade ou só tabelas). A recusa de equipar não foi localizada pela mensagem (o texto não está nos recursos da cópia); próxima busca pelo código que compara `ClassRestriction`.
 - Próxima ação: com o D8d, (a) se o corpo aparecer, localizar a recusa de equipar e a janela de habilidades; (b) se continuar invisível, E1 (`player_delia` com a classe de rede da base) e a pré-carga do corpo. A grade de 32 classes vem depois do E1 (contrato nativo da seção 8.8).
+
+Passo 7 (28/10/2026): classe 10 nas restrições de item do `engine.dll`.
+- Cliente (D8d): sem mudança visível (invisível, `F7` trava).
+- Causa achada: o *setter* `0x42245110` do `engine.dll` desdobra `ClassRestriction` em 11 `bool` (`item+0x198`..`+0x1a2`) mas só lê os bits 0–9; toda arma e roupa nega a Delia ("Cannot be equipped"), e o corpo vem da *inner armor* (seção 8.14).
+- Mudança: `scripts/client/patch_engine_class_flags.py` + `test_patch_engine_class_flags.py` (reescrita no lugar de 32 bytes; sem seção nova).
+- Verificação: `python -m unittest test_patch_engine_class_flags` (2, 0 falhas; `engine-flags-tests.log`); aplicado: `engine.dll` `a3add974…` → `44281475…` (`engine-flags-apply.log`, backup `*.pre-classflags.bak`).
+- Cliente: D8e em `docs/client-tests/C2-delia.md`, pendente (inclui não regressão de outra classe).
+- Parada (regra 2): equipar e a visibilidade dependem do D8e; a janela de habilidades e o E1 vêm depois.

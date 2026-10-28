@@ -134,3 +134,15 @@ Pré-condição: patch com as tabelas de animação (`server.dll` `af43431e…` 
 - [ ] Entrar no Mercenary Outpost (animação de batalha) → anotar se anda/ataca com animação.
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak`.
+
+Resultado do D8d (28/10/2026): **sem mudança visível.** A `DeliaLab` continua invisível na cidade e trava no `F7`.
+
+### D8e — Itens com a classe 10 no `engine.dll`
+Pré-condição: `scripts/client/patch_engine_class_flags.py --client-copy .cache/play-client --apply` (`engine.dll` `a3add974…` → `44281475…`, cópia `engine.dll.a3add9742f7fa03c.pre-classflags.bak`); `client.dll` `75f08dcc…` e `server.dll` `f83dd892…` como no D8d; `docker compose up -d --wait` saudável; abrir pelo `start-lab.bat`.
+- [ ] Antes: entrar com uma personagem de outra classe e equipar/desequipar um item → sem regressão (o *setter* foi reescrito para as classes 8 e 9 também).
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [ ] Inventário: a `Bastard Sword` e a *inner* da Delia **não** mostram mais "Cannot be equipped". Equipar as duas.
+- [ ] Anotar se a personagem aparece na cidade depois de equipar a *inner* (o corpo vem da *inner armor*).
+- [ ] `F7` → anotar se a animação roda.
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se cair: horário e endereço do `Report Error`. Reverter o `engine.dll`: copiar `engine.dll.a3add9742f7fa03c.pre-classflags.bak` sobre `bin/engine.dll`.
