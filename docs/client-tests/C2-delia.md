@@ -197,3 +197,14 @@ Pré-condição: patch com `COSTUME` (`client.dll` `a9591d3a…` → `97cacae0�
 - [ ] Sair do jogo; anotar se apareceu `lab_console.log` na pasta `.cache/play-client` (ou `bip/`).
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
+
+Resultado do D8i (28/10/2026): **avanço na seleção.** A seleção mostra o modelo 3D da Delia com a animação dela sentada; a *inner* padrão tem defeito nas pernas (falta de malha ou textura) e muda ao trocar a *inner*, com o mesmo defeito. Na cidade a personagem continua invisível e a arma continua "Cannot be equipped". O `lab_memory.py` não anexou: o `Vindictus.exe` roda como administrador e o terminal não (erro 5 do Windows); a ferramenta agora diz isso.
+
+### D8j — Leitura de memória com o jogo aberto (terminal de administrador)
+Pré-condição: DLLs do D8i, sem mudança.
+- [ ] Abrir pelo `start-lab.bat`, entrar na cidade com a `DeliaLab` (classe 10).
+- [ ] Num **terminal aberto como administrador**, na pasta do projeto, rodar e copiar a saída:
+  - `python -s -E scripts/dev/lab_memory.py modules`
+  - `python -s -E scripts/dev/lab_memory.py costume 10`
+  - `python -s -E scripts/dev/lab_memory.py costume 9`
+- [ ] Anotar se apareceu `lab_console.log` em `.cache/play-client` ou `bip/` depois de sair.

@@ -33,6 +33,7 @@ REPORT = ROOT / '.cache/play-client/bin/class-routing.json'
 MODULES = ('client.dll', 'server.dll', 'engine.dll')
 PREFERRED = {'client.dll': 0x38000000, 'server.dll': 0x40000000, 'engine.dll': 0x42000000}
 MAX_READ = 0x1000
+GAME_EXES = ('vindictus.exe', 'heroes.exe')
 # Costume manager layout (scripts/client/patch_class_routing.py, COSTUME).
 SLOTS = ['base', 'inner_armor', 'face', 'hair', 'upper_body', 'lower_body', 'head', 'foot', 'hand',
          'rear', 'tail', 'motion']
@@ -92,17 +93,39 @@ def modules(pid: int) -> dict[str, tuple[int, int, str]]:
     return out
 
 
+def elevated(pid: int) -> bool | None:
+    """Whether a process runs elevated (None when its token cannot be read)."""
+    advapi32 = ctypes.WinDLL('advapi32', use_last_error=True)
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return None
+    token, value, size = wt.HANDLE(), wt.DWORD(), wt.DWORD()
+    try:
+        if not advapi32.OpenProcessToken(handle, 0x0008, ctypes.byref(token)):  # TOKEN_QUERY
+            return None
+        advapi32.GetTokenInformation(token, 20, ctypes.byref(value), 4, ctypes.byref(size))  # TokenElevation
+        kernel32.CloseHandle(token)
+        return bool(value.value)
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 class Game:
     def __init__(self):
         found = [(pid, name, modules(pid)) for pid, name in processes()]
-        found = [f for f in found if 'client.dll' in f[2]]
-        if not found:
-            raise InspectError('No running process has client.dll loaded; start the client first.')
-        self.pid, self.name, self.mods = found[0]
+        loaded = [f for f in found if 'client.dll' in f[2]]
+        # Without access, the module list is empty: fall back to the game's executable name.
+        named = [f for f in found if f[1].lower() in GAME_EXES]
+        if not loaded and not named:
+            raise InspectError('The game is not running; start the client first.')
+        self.pid, self.name, self.mods = (loaded or named)[0]
         self.handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, self.pid)
         if not self.handle:
-            raise InspectError(f'OpenProcess({self.pid}) failed: error {ctypes.get_last_error()} '
-                               '(the anti-cheat may deny read access).')
+            error = ctypes.get_last_error()
+            if error == 5 and elevated(self.pid) and not elevated(kernel32.GetCurrentProcessId()):
+                raise InspectError(f'{self.name} ({self.pid}) runs as administrator; run this tool from an '
+                                   'administrator terminal.')
+            raise InspectError(f'OpenProcess({self.pid}) failed: error {error} (the anti-cheat may deny read access).')
         self.symbols = load_symbols(self.mods)
 
     def read(self, address: int, size: int) -> bytes:
