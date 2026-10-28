@@ -1882,3 +1882,10 @@ Caminho C, etapa C2 — sessão da D6 e *rollback* da grade S3 (28/10/2026, 01:4
 - Causa da grade: o mapa `s3_game_create_character.bsp` do 1.69 tem atores, câmeras e gatilhos `cc_create_character_*` só para 9 classes (Lethita a Arisha; sem Hagie nem Delia). O do NA é idêntico (1.135.268 bytes, as mesmas 9 classes). A criação S3 do 1.69 é uma versão antiga e não lançada (feature NULL em todas as regiões); a criação de 28 classes do NA não usa esse mapa.
 - Ação: desfeito o envio de `S3_CharacterCreation` (código e teste do commit 8305d80); a criação volta à barra V4. Os achados da seção 8.7 continuam válidos, com esta correção.
 - Pendências: implementar a `DeleteCharacterMessage` (original: `CharacterList` + `DeleteCharacterProcessor`/`DeleteCharacterCancelProcessor`) e a troca de slots (categoria 489). A criação com mais de 10 classes precisa de outra cena: a do NA (a localizar) ou a barra V4 estendida.
+- Exclusão de personagem (diagnóstico, original lido em `CharacterList.cs` 664–750, `DeleteCharacterProcessor`, `CharacterMaker.DeleteCharacter`/`DeleteCharacterCancel`, `CharacterProcessing`):
+  - `DeleteCharacterMessage {Name, CharacterSN}` → com `CashShop` ligada, consulta o inventário de cash (`Fail_RemainCashItems` se houver item da personagem) → `UseSecondPassword` → `DeleteCharacter`;
+  - com `DeleteCharacterDelay` 0: estado 0→1 (`Success_Deleted`); com atraso: 0→2 (`Success_Deleting`), e 2→1 depois do prazo (`Fail_NeedMoreWaiting` com o tempo restante antes disso);
+  - resposta `DeleteCharacterResultMessage {CharacterSN, Result, RemainTimeSec}` e volta ao estado `CharacterList`, que reenvia a lista;
+  - cancelamento por `DeleteCharacterCancelMessage` (2→0).
+  - No servidor do projeto, a trava da lista (`minimum_character_list`) exige `status=0` para todas as personagens, então o estado 2 precisa entrar junto.
+- Próxima ação: implementar exclusão, cancelamento e troca de slots (categorias 451, cancelamento e 489) com *fixtures* recuperadas e testes PostgreSQL; depois, retomar a criação com mais de 10 classes (localizar a cena de criação do NA).
