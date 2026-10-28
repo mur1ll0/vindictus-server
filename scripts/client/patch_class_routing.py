@@ -225,10 +225,15 @@ def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
                   b'\xe9' + struct.pack('<i', lookup_stub - (lookup + 5)) + b'\x90' * (len(MATCH_LOOKUP) - 5)))
 
     # MatchingActionStateSkill: the loop's class is at [esp + 0x28]; class 10 fills Delia's map (ebp).
+    # The loop also keeps &map->m_Elements at [esp + 0x10] and reads it again after an insert
+    # (client 0x38860b4a, server 0x407cda5a; D8c crashed there), so class 10 points it at her map
+    # too. The loop ends after class 10, so the `add [esp + 0x10], 0x1c` that follows is harmless.
     layout.pad()
     pick_stub = layout.here()
-    layout.body += b'\x83\x7c\x24\x28\x0a' + b'\x7c\x07' + b'\xbd'
+    layout.body += b'\x83\x7c\x24\x28\x0a' + b'\x7c\x0f' + b'\xbd'
     layout.pointer(delia_map)
+    layout.body += b'\xc7\x44\x24\x10'
+    layout.pointer(delia_map + 4)
     layout.body += b'\xeb\x07' + MATCH_PICK
     layout.body += b'\xe9' + struct.pack('<i', pick + len(MATCH_PICK) - (layout.here() + 5))
     edits.append((pick, MATCH_PICK, b'\xe9' + struct.pack('<i', pick_stub - (pick + 5)) + b'\x90' * 2))

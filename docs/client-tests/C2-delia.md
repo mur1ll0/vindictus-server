@@ -113,7 +113,7 @@ Resultado do D8b (28/10/2026, cliente, patch com `GATES`): **avançou, com duas 
 - Servidor Rust sem aviso nem erro (`.cache/verification/d8b-run-game.log`).
 
 ### D8c — Classe 10 com o 11º mapa da `SkillActionStateMatchTable`
-Pré-condição: patch de roteamento com `MATCH` aplicado sobre a `.hcls` (28/10/2026: `client.dll` `a9591d3a…` → `75874fe4…`, `server.dll` `af43431e…` → `8265556f…`); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo. Abrir pelo `start-lab.bat`.
+Pré-condição: patch de roteamento com `MATCH` aplicado sobre a `.hcls` (28/10/2026, 2ª versão: `client.dll` `a9591d3a…` → `75f08dcc…`, `server.dll` `af43431e…` → `d2f93765…`); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo. Abrir pelo `start-lab.bat`.
 - [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
 - [ ] Entrar na cidade → esperado como no D8b (personagem invisível, itens "Cannot be equipped" e janela de habilidades vazia continuam abertos).
 - [ ] `F7` (emote) → esperado: **sem** a queda em `client.dll` `0x38a5df98`.
@@ -121,3 +121,5 @@ Pré-condição: patch de roteamento com `MATCH` aplicado sobre a `.hcls` (28/10
 - [ ] Voltar à seleção e sair → sem queda.
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se cair: anotar horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
+
+Execução de 28/10/2026 13:11 (1ª versão, `75874fe4…`/`8265556f…`): **falhou antes do menu.** Queda em `server.dll` `0x407cda68` ao montar a tabela (`MatchingActionStateSkill` no construtor). O laço lê o mapa também por `[esp+0x10]` depois de inserir (`0x407cda5a`; cliente `0x38860b4a`), e o *stub* só trocava `ebp`. Corrigido na 2ª versão (o *stub* da classe 10 aponta `[esp+0x10]` para o mapa da Delia + 4).

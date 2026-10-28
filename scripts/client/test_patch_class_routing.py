@@ -92,7 +92,10 @@ class LabCopyTest(unittest.TestCase):
                 stub = int(jump.op_str, 16)
                 code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
                     bytes(image.data[image.offset(stub):image.offset(stub) + 64]), stub)))
-                self.assertIn(f'mov {register}, {delia_map:#x}', [f'{x.mnemonic} {x.op_str}' for x in code])
+                text = [f'{x.mnemonic} {x.op_str}' for x in code]
+                self.assertIn(f'mov {register}, {delia_map:#x}', text)
+                if register == 'ebp':
+                    self.assertIn(f'mov dword ptr [esp + 0x10], {delia_map + 4:#x}', text)
                 self.assertEqual(code[-1].mnemonic, 'jmp')
                 self.assertEqual(int(code[-1].op_str, 16), va + size)
 

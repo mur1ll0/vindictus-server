@@ -2000,3 +2000,4 @@ Passo 5 (28/10/2026): 11º mapa da `SkillActionStateMatchTable` para a Delia (de
 - Cliente: D8c em `docs/client-tests/C2-delia.md`, pendente.
 - Parada (regra 2 do `AGENTS.md`): o próximo ponto (modelo invisível, recusa de equipar, janela de habilidades) depende de confirmar no cliente que emote e Mercenary Outpost não caem mais.
 - Próxima ação: com o D8c, localizar a recusa de equipar (`ClassRestriction` 1024 já permite) e a janela de habilidades por classe; depois E1 para o modelo.
+- D8c, 13:11 (cliente): queda antes do menu em `server.dll` `0x407cda68` (minidump `.cache/d8/d8c.mdmp`): o laço de preenchimento relê o mapa por `[esp+0x10]`, que o *stub* não trocava. Correção: o *stub* da classe 10 grava também `[esp+0x10]` = mapa da Delia + 4; teste atualizado (`routing-tests-match2.log`, 6, 0 falhas). Reaplicado sobre os `*.pre-routing.bak`: `client.dll` `75f08dcc…`, `server.dll` `d2f93765…` (`class-routing-apply-d8c2.log`). D8c pendente de novo.
