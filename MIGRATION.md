@@ -2052,3 +2052,9 @@ Passo 10 (28/10/2026): coluna de roupa da Delia e ferramentas de inspeção.
 - Próxima ação: com a saída do D8j (coluna da Delia no cliente e no servidor), decidir entre o carregamento do servidor e a entidade (E1).
 - D8j (memória do jogo aberto, terminal de administrador): a coluna de roupa da Delia está carregada no cliente e no servidor, no mesmo padrão da Hagie (base 10, rosto 100, animação 100/101, cidade 102). Descartado o carregamento de roupa como causa da invisibilidade na cidade. O índice 10 das partes é a animação (`lab_memory.py` corrigido).
 - Parada (regra 3): o que resta na cidade é a entidade. Um teste de diagnóstico barato (o *fallback* `player` de `0x40371314` passar a `player_fiona`, só para a classe sem entidade) mostraria se a entidade da classe é o que falta, mas contraria a decisão do operador de não clonar a Fiona (seção 8.9); a escolha entre esse teste e ir direto ao E1 é do operador.
+
+Passo 11 (28/10/2026): diagnóstico com a entidade da Fiona (escolha do operador: "Vamos fazer esse teste simples com a Fiona-entity primeiro").
+- Mudança: opção `--fallback-entity player_fiona` em `patch_class_routing.py` (desligada por padrão): o *fallback* de `0x40371314` passa a empurrar `"player_fiona"` (`0x40ba0780`); teste novo.
+- Verificação: `test_fallback_entity_is_opt_in` (0 falhas; `routing-tests-d8k.log`); aplicado com a opção (`class-routing-apply-d8k.log`): `client.dll` `97cacae0…` (igual), `server.dll` `45c7a082…`; `0x40371314: push "player_fiona"` conferido.
+- Cliente: D8k em `docs/client-tests/C2-delia.md`, pendente; o roteiro manda voltar ao patch sem a opção no fim.
+- Parada (regra 2): o resultado decide o E1.

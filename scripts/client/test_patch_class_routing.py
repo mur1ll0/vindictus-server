@@ -165,6 +165,16 @@ class LabCopyTest(unittest.TestCase):
                 self.assertIn(f'mov ecx, {shadow:#x}', text)
                 self.assertEqual(text[-1], f'jmp {va + len(bytes.fromhex(old)):#x}')
 
+    def test_fallback_entity_is_opt_in(self):
+        data = source('server.dll')
+        _, plain = routing.plan_dll('server.dll', data)
+        self.assertNotIn('fallback_entity', plain)
+        image, report = routing.plan_dll('server.dll', data, 'player_fiona')
+        image = Image(image)
+        push = next(self.md.disasm(bytes(image.data[image.offset(routing.FALLBACK_PUSH):
+                                                     image.offset(routing.FALLBACK_PUSH) + 5]), routing.FALLBACK_PUSH))
+        self.assertEqual(routing.read_string(image, int(push.op_str, 16)), 'player_fiona')
+
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)

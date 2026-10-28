@@ -141,6 +141,12 @@ COSTUME = {
 }
 COSTUME_BLOCK = bytes.fromhex('8b4424148d4c9b1e')  # mov eax, [esp + 0x14]; lea ecx, [ebx + ebx*4 + 0x1e]
 COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
+# Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
+# no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
+# --fallback-entity swaps that string for an existing class factory, so a class without its own
+# entity (only Delia) gets that class's entity. Off by default; not the Delia entity design.
+FALLBACK_PUSH = 0x40371314
+FALLBACK_ENTITIES = ('player_fiona',)
 DELIA_MOTIONS = [text for va, text in TABLES['server.dll'] if text and '_motion' in text]
 MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
 MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
@@ -448,7 +454,26 @@ def costume(image: Image, layout: Layout, edits: list, relocs: set[int],
             'accessors': stubs}
 
 
-def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
+def fallback_entity(image: Image, edits: list, factory: str) -> str:
+    """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
+    if factory not in FALLBACK_ENTITIES:
+        raise PreparationError(f'Fallback entity must be one of {FALLBACK_ENTITIES}.')
+    o = image.offset(FALLBACK_PUSH)
+    old = bytes(image.data[o:o + 5])
+    if old[0] != 0x68 or read_string(image, struct.unpack_from('<I', old, 1)[0]) != 'player':
+        raise PreparationError(f'Unexpected fallback at {FALLBACK_PUSH:#x}; nothing is patched.')
+    found = image.data.find(factory.encode('ascii') + b'\0')
+    for section, _, vaddr, rsize, raw in image.sections():
+        if raw <= found < raw + rsize and image.data[found - 1] == 0:
+            address = image.base + vaddr + found - raw
+            break
+    else:
+        raise PreparationError(f'No {factory!r} string in the image.')
+    edits.append((FALLBACK_PUSH, old, b'h' + struct.pack('<I', address)))
+    return f'{FALLBACK_PUSH:#x}: "player" -> "{factory}" ({address:#x})'
+
+
+def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes, dict]:
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
         raise PreparationError(f'{name} already has .hrte; restore the pre-routing backup to patch again.')
@@ -540,6 +565,8 @@ def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
         report['precache'] = precache(layout, edits, *PRECACHE[name])
     if name in COSTUME:
         report['costume'] = costume(image, layout, edits, relocs, *COSTUME[name])
+    if fallback and name == 'server.dll':
+        report['fallback_entity'] = fallback_entity(image, edits, fallback)
 
     for va, old, new in edits:
         o = image.offset(va)
@@ -590,14 +617,14 @@ def _text_contains(self: Image, va: int) -> bool:
 Image.text_contains = _text_contains
 
 
-def patch(client_copy: Path, apply: bool = False) -> dict:
+def patch(client_copy: Path, apply: bool = False, fallback: str | None = None) -> dict:
     plan = {'mode': 'apply' if apply else 'dry-run', 'pet': PET, 'dlls': []}
     for name, prefix in EXPECTED.items():
         dll = reject_original(client_copy / 'bin' / name)
         data = dll.read_bytes()
         if not digest(data).startswith(prefix):
             raise PreparationError(f'{name}: expected the .hcls copy {prefix}…, found {digest(data)[:16]}.')
-        image, report = plan_dll(name, data)
+        image, report = plan_dll(name, data, fallback)
         backup = dll.with_name(f'{name}.{digest(data)[:16]}.pre-routing.bak')
         plan['dlls'].append({'dll': str(dll), 'before_sha256': digest(data), 'after_sha256': digest(image),
                              'backup': str(backup), **report})
@@ -617,9 +644,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--client-copy', type=Path, required=True)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--fallback-entity', choices=FALLBACK_ENTITIES,
+                        help='diagnostic: entity for a class without its own (default: the base player)')
     args = parser.parse_args()
     try:
-        print(json.dumps(patch(args.client_copy, args.apply), indent=1))
+        print(json.dumps(patch(args.client_copy, args.apply, args.fallback_entity), indent=1))
     except PreparationError as error:
         print(json.dumps({'patched': False, 'error': str(error)}))
         return 2

@@ -210,3 +210,14 @@ Pré-condição: DLLs do D8i, sem mudança.
 - [ ] Anotar se apareceu `lab_console.log` em `.cache/play-client` ou `bip/` depois de sair.
 
 Resultado do D8j (28/10/2026, terminal de administrador): os três módulos nos endereços preferidos (`client.dll` `0x38000000`, `server.dll` `0x40000000`, `engine.dll` `0x42000000`). A coluna da Delia foi carregada igual no cliente e no servidor, no mesmo padrão da Hagie: base 10 (Hagie 9), rosto 100 (90), animação 100/101 e cidade 102 (90/91 e 92); as outras partes -1 nas duas classes. O carregamento da roupa está certo; o que falta na cidade não é dado de roupa.
+
+### D8k — Diagnóstico: entidade da Fiona para a classe sem entidade (temporário)
+Escolha do operador (28/10/2026): teste de diagnóstico, não o desenho da entidade da Delia (seção 8.9). Pré-condição: `patch_class_routing.py --apply --fallback-entity player_fiona` (`client.dll` `97cacae0…`, sem mudança; `server.dll` `af43431e…` → `45c7a082…`; `0x40371314` empurra `"player_fiona"` em vez de `"player"`); `engine.dll` `44281475…`; abrir pelo `start-lab.bat`.
+- [ ] Não regressão: Hagie entra na cidade normalmente (tem entidade própria, não passa pelo *fallback*).
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [ ] Entrar na cidade → anotar: o corpo da Delia aparece? Com animação? As pernas da *inner* continuam com defeito?
+- [ ] Equipar espada, armadura e *inner* → anotar o que aparece no corpo.
+- [ ] `F7` → anotar se anima.
+- [ ] Desfazer a classe: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Ao terminar o diagnóstico, voltar ao patch sem a opção: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll` e rodar `python -s -E scripts/client/patch_class_routing.py --client-copy .cache/play-client --apply`.
+- Leitura do resultado: se a Delia aparece, o que falta é a entidade da classe (E1, com os *slots* que diferem da base); se continua invisível, a causa está fora da entidade.
