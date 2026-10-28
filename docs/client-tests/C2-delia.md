@@ -79,3 +79,4 @@ Pré-condição: `client.dll` e `server.dll` da cópia de laboratório com o pat
 - [ ] Criar uma personagem de qualquer classe (barra V4) → criada; entrar na cidade com ela e com a Murael.
 - [ ] Entrar numa missão curta e voltar à cidade → sem queda.
 - [ ] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.314272ec54054ed0.pre-hcls.bak` sobre `bin/client.dll` e `bin/server.dll.d7727e182f6cdec1.pre-hcls.bak` sobre `bin/server.dll`.
+- **Resultado D7 (operador, 28/10/2026):** com os DLLs `.hcls`, a criação abre a barra V4 de 10 classes, sem a Delia (esperado: a grade S3 foi desfeita e a barra é fixa em 10), e selecionar uma classe carrega o tutorial normalmente. Sem regressão observada; a missão curta não foi relatada. O patch fica aplicado.

@@ -1912,3 +1912,4 @@ Caminho C, etapa C2 — passo 1: tabelas de classe com N entradas nos DLLs da c�
 - Medição da entidade da Delia no NA (seção 8.9 de `docs/future/new-classes.md`): fábrica `player_delia`, vtable `0x393aa098`, 28 *slots* próprios. A base do NA tem 538 métodos e `0x7c20` bytes, contra 452 e `0x4bf8` no 1.69, então o código precisa ser reescrito sobre a base do 1.69, não copiado.
 - Cliente: entrada D7 de `docs/client-tests/C2-delia.md` (não regressão), pendente.
 - Próxima ação: D7 no cliente; depois, passo 2 (ler os 28 métodos da Delia no NA e casar *slots* e *offsets* pela Hagie, que existe nas duas versões).
+- D7 (operador): criação pela barra V4 e tutorial funcionando com os DLLs `.hcls`; sem regressão observada (missão curta não relatada). Patch mantido.
