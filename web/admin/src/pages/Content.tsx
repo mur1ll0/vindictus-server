@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Clock, FileStack, TimerReset, Undo2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cancelMaintenance, type ContentEdit, contentState, KIND_LABEL, publish, withdrawEdit } from '@/api/content';
+import { itemStatus } from '@/api/items';
 import { sessionQuery } from '@/api/session';
 import { ActionForm, errorText } from '@/components/forms';
 import { Modal } from '@/components/Modal';
@@ -63,6 +64,9 @@ export function ContentPage() {
   const pending = (state.data?.edits ?? []).filter((e) => e.state === 'pending');
   const others = (state.data?.edits ?? []).filter((e) => e.state !== 'pending');
   const latest = state.data?.versions[0];
+  // Item edits also need the host re-export (the game container has no Python).
+  const items = useQuery({ queryKey: ['item-editor-status'], queryFn: itemStatus, refetchInterval: 10000 });
+  const pendingItems = pending.some((e) => e.kind.startsWith('item'));
   const done = () => {
     setAction(null);
     void queryClient.invalidateQueries({ queryKey: ['content'] });
@@ -117,6 +121,17 @@ export function ContentPage() {
           pelo <span className="font-mono">.cache/play-client/start-lab.bat</span>.
         </p>
       </Card>
+      {items.data && !items.data.up_to_date && (
+        <Card className="border-danger/40 text-sm">
+          <p className="font-medium">Itens publicados ainda não chegaram ao jogo.</p>
+          <p className="text-muted">
+            A versão {items.data.published_version} tem edições de itens, mas o servidor exportou até a {items.data.exported_version ?? 'nenhuma'}. O
+            reinício da publicação já aconteceu; o item novo só aparece quando o host reexporta: abra o jogo pelo{' '}
+            <span className="font-mono">start-lab.bat</span> (ou rode <span className="font-mono">scripts/content/refresh_item_content.py</span>), que
+            reexporta e reinicia o servidor em 1 a 3 minutos.
+          </p>
+        </Card>
+      )}
       {maintenance && (
         <Card className="border-accent/60">
           <div className="flex flex-wrap items-center gap-4">
@@ -202,6 +217,12 @@ export function ContentPage() {
                 Até 60. Todos no jogo recebem o aviso de manutenção com a contagem; no fim são desconectados (o progresso é
                 salvo) e o servidor volta com a versão em cerca de um minuto.
               </p>
+              {pendingItems && (
+                <p className="text-xs text-danger">
+                  Esta versão tem edições de itens: depois do reinício, abra o jogo pelo start-lab.bat (ou rode refresh_item_content.py) para o
+                  servidor reexportar os itens; até lá eles não aparecem no jogo.
+                </p>
+              )}
             </div>
           </ActionForm>
         </Modal>

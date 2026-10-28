@@ -273,3 +273,118 @@ pub(super) async fn status(
         .await?,
     ))
 }
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub(super) struct CostumeQuery {
+    /// ItemClassInfo.Category of the item (INNERARMOR, TUNIC, WEAPON...).
+    category: String,
+    /// An item whose EquipItemInfo.EquipClass picks the weapon or shield script (the
+    /// item-model or the edited item).
+    item: Option<String>,
+}
+
+/// One entry of the model script: what a CostumeType number means.
+#[derive(Serialize, ToSchema)]
+pub(super) struct CostumeOption {
+    costume_type: i64,
+    /// The model the client loads for it.
+    model: Option<String>,
+    /// The body (`category` of a player_costume.txt entry: fiona, female...).
+    body: Option<String>,
+    /// Items of the content using it (up to 5) and how many in all.
+    items: Vec<CostumeItem>,
+    item_count: usize,
+}
+
+#[derive(Serialize, ToSchema)]
+pub(super) struct CostumeItem {
+    class: String,
+    name: Option<String>,
+}
+
+/// The CostumeType numbers of an item category: the entries of its model script
+/// (player_costume.txt, the weapon script or shields.txt) with their models and the items using
+/// them.
+#[utoipa::path(operation_id = "item_editor_costumes", get, path = "/api/item-editor/costumes",
+    params(CostumeQuery),
+    responses((status = 200, body = Vec<CostumeOption>), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError)))]
+pub(super) async fn costumes(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Query(query): Query<CostumeQuery>,
+) -> Result<Json<Vec<CostumeOption>>, Refusal> {
+    auth.require(Permission::Manage)?;
+    let category = query.category.trim().to_ascii_uppercase();
+    if category.is_empty()
+        || category.len() > 32
+        || !category
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b == b'_')
+    {
+        return Err(AdminError::InvalidInput.into());
+    }
+    let equip_class = query
+        .item
+        .as_deref()
+        .and_then(|i| state.names.item_equip_class(i));
+    let Some(script) = model_kit::ModelScript::of(&category, equip_class.as_deref()) else {
+        return Ok(Json(Vec::new()));
+    };
+    let used = state.names.items_by_costume(&script);
+    let files = state.client.clone();
+    let lookup = script.clone();
+    let entries = tokio::task::spawn_blocking(move || {
+        let text = files.and_then(|f| f.read(&lookup.file()).ok().flatten());
+        text.map(|t| {
+            lookup
+                .keys(&t)
+                .into_iter()
+                .map(|key| {
+                    (
+                        key,
+                        lookup.model(&t, key),
+                        lookup.value(&t, key, "category"),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+    })
+    .await
+    .map_err(|_| AdminError::NotFound)?;
+    let mut rows: std::collections::BTreeMap<i64, (Option<String>, Option<String>)> = entries
+        .into_iter()
+        .map(|(key, model, body)| (key, (model, body)))
+        .collect();
+    // Numbers items use that the client script lacks (added items before the client update).
+    for key in used.keys() {
+        rows.entry(*key).or_default();
+    }
+    let mut out: Vec<CostumeOption> = rows
+        .into_iter()
+        .map(|(costume_type, (model, body))| {
+            let items = used.get(&costume_type);
+            CostumeOption {
+                costume_type,
+                model,
+                body,
+                item_count: items.map_or(0, Vec::len),
+                items: items
+                    .map(|v| {
+                        v.iter()
+                            .take(5)
+                            .map(|(class, name)| CostumeItem {
+                                class: class.clone(),
+                                name: name.clone(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            }
+        })
+        .collect();
+    out.sort_by_key(|o| o.costume_type);
+    Ok(Json(out))
+}

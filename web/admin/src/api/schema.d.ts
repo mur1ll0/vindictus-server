@@ -383,6 +383,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/item-editor/costumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The CostumeType numbers of an item category: the entries of its model script
+         *     (player_costume.txt, the weapon script or shields.txt) with their models and the items using
+         *     them.
+         */
+        get: operations["item_editor_costumes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/item-editor/items": {
         parameters: {
             query?: never;
@@ -1036,7 +1057,7 @@ export interface components {
             /**
              * Format: int32
              * @description BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,
-             *     7 Lynn, 8 Arisha, 9 Hagie.
+             *     7 Lynn, 8 Arisha, 9 Hagie, 10 Delia (laboratory; domain::character_class).
              */
             class: number;
             connected: boolean;
@@ -1098,6 +1119,22 @@ export interface components {
              * @description Newest published version.
              */
             published?: number | null;
+        };
+        CostumeItem: {
+            class: string;
+            name?: string | null;
+        };
+        /** @description One entry of the model script: what a CostumeType number means. */
+        CostumeOption: {
+            /** @description The body (`category` of a player_costume.txt entry: fiona, female...). */
+            body?: string | null;
+            /** Format: int64 */
+            costume_type: number;
+            item_count: number;
+            /** @description Items of the content using it (up to 5) and how many in all. */
+            items: components["schemas"]["CostumeItem"][];
+            /** @description The model the client loads for it. */
+            model?: string | null;
         };
         CreateAccount: {
             /** Format: uuid */
@@ -2883,6 +2920,49 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    item_editor_costumes: {
+        parameters: {
+            query: {
+                /** @description ItemClassInfo.Category of the item (INNERARMOR, TUNIC, WEAPON...). */
+                category: string;
+                /**
+                 * @description An item whose EquipItemInfo.EquipClass picks the weapon or shield script (the
+                 *     item-model or the edited item).
+                 */
+                item?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostumeOption"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

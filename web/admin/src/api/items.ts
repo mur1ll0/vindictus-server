@@ -23,6 +23,17 @@ export async function editorItem(itemClass: string): Promise<EditorDetail> {
   return data;
 }
 
+export type CostumeOption = components['schemas']['CostumeOption'];
+
+/** What each CostumeType of a category means: its model, body and the items using it. */
+export async function costumeOptions(category: string, item?: string): Promise<CostumeOption[]> {
+  const { data, error, response } = await api.GET('/api/item-editor/costumes', {
+    params: { query: { category, item: item || undefined } },
+  });
+  if (!data) fail(response, error);
+  return data;
+}
+
 export async function itemStatus(): Promise<ContentStatus> {
   const { data, error, response } = await api.GET('/api/item-editor/status');
   if (!data) fail(response, error);

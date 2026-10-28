@@ -217,6 +217,33 @@ impl EnglishNames {
             info.get("ct")?.as_i64()?,
         ))
     }
+    /// Exported items whose model lives in `script`, by CostumeType: (class, English name)
+    /// in name order.
+    pub fn items_by_costume(
+        &self,
+        script: &super::model_kit::ModelScript,
+    ) -> std::collections::BTreeMap<i64, Vec<(String, Option<String>)>> {
+        let mut out: std::collections::BTreeMap<i64, Vec<(String, Option<String>)>> =
+            std::collections::BTreeMap::new();
+        for (class, info) in &self.catalog.item_info {
+            let (Some(category), Some(costume)) = (
+                info.get("c").and_then(serde_json::Value::as_str),
+                info.get("ct").and_then(serde_json::Value::as_i64),
+            ) else {
+                continue;
+            };
+            let equip = info.get("ec").and_then(serde_json::Value::as_str);
+            if super::model_kit::ModelScript::of(category, equip).as_ref() == Some(script) {
+                out.entry(costume)
+                    .or_default()
+                    .push((class.to_ascii_lowercase(), self.item(class).0));
+            }
+        }
+        for items in out.values_mut() {
+            items.sort_by(|a, b| (a.1.is_none(), &a.1, &a.0).cmp(&(b.1.is_none(), &b.1, &b.0)));
+        }
+        out
+    }
     /// EquipItemInfo.EquipClass (`ec`): the weapon or shield script of the model.
     pub fn item_equip_class(&self, class: &str) -> Option<String> {
         self.item_info(class)?

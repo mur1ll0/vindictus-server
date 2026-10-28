@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { Copy, Eye, EyeOff, LayoutGrid, PackagePlus, Pencil, RotateCcw, Search, Trash2, Upload } from 'lucide-react';
+import { Copy, Eye, EyeOff, FileArchive, ImageIcon, LayoutGrid, PackagePlus, Pencil, RotateCcw, Search, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, fail } from '@/api/client';
 import { KIND_LABEL } from '@/api/content';
 import {
   CLASSES,
+  costumeOptions,
   type Draft,
   EQUIP_FIELDS,
   type EditorDetail,
@@ -99,6 +100,67 @@ function Preview({ model, busy, error }: { model?: PreviewModel | null; busy: bo
   );
 }
 
+/** CostumeType: the entries of the category's model script, each with its model, body and items. */
+function CostumeField({
+  category,
+  item,
+  value,
+  disabled,
+  onChange,
+}: {
+  category: string;
+  item: string;
+  value: string | number;
+  disabled: boolean;
+  onChange: (raw: string) => void;
+}) {
+  const options = useQuery({
+    queryKey: ['item-costumes', category, item],
+    queryFn: () => costumeOptions(category, item),
+    enabled: category.trim() !== '',
+    staleTime: 60_000,
+  });
+  const list = options.data ?? [];
+  const current = list.find((o) => String(o.costume_type) === String(value));
+  const label = (o: (typeof list)[number]) => {
+    const model = o.model?.split('/').pop() ?? 'sem modelo no cliente';
+    const used = o.items.map((i) => i.name ?? i.class).join(', ');
+    const more = o.item_count > o.items.length ? ` +${o.item_count - o.items.length}` : '';
+    return `${o.costume_type} — ${model}${o.body ? ` (${o.body})` : ''}${used ? ` · ${used}${more}` : ''}`;
+  };
+  return (
+    <div className="space-y-1 sm:col-span-4">
+      <Label htmlFor="f-CostumeType">CostumeType (modelo 3D que o cliente carrega)</Label>
+      {list.length > 0 ? (
+        <select
+          id="f-CostumeType"
+          className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm"
+          value={current ? String(value) : ''}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">{value === '' ? 'escolher…' : `${value} — fora do script desta categoria`}</option>
+          {list.map((o) => (
+            <option key={o.costume_type} value={o.costume_type}>
+              {label(o)}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <Input id="f-CostumeType" type="number" step={1} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      )}
+      <p className="text-xs text-muted">
+        {disabled
+          ? 'Com kit novo, o editor escolhe um CostumeType livre para o modelo do kit.'
+          : category
+            ? `Entrada do modelo em ${category.startsWith('AVATAR_') || ['INNERARMOR', 'TUNIC', 'PANTS', 'GLOVES', 'BOOTS', 'HELM'].includes(category) ? 'player_costume.txt' : 'script da arma ou do escudo'}; a lista mostra o modelo, o corpo e os itens que já usam cada número.`
+            : 'Preencha a Categoria para listar os modelos.'}
+      </p>
+      {options.error && <p className="text-xs text-danger">{errorText(options.error)}</p>}
+    </div>
+  );
+}
+
 function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: string) => void; onCancel: () => void }) {
   const source = mode.source;
   const definition = definitionOf(source);
@@ -108,6 +170,7 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
   // A clone of an added item copies that item's own template.
   const [template, setTemplate] = useState(mode.kind === 'clone' ? String(definition?.template ?? source?.item_class ?? '') : '');
   const [pickTemplate, setPickTemplate] = useState(false);
+  const [pickIcon, setPickIcon] = useState(false);
   const [name, setName] = useState(source?.name ?? String((definition?.text as Record<string, string> | undefined)?.name ?? ''));
   const [description, setDescription] = useState(source?.description ?? '');
   const [fields, setFields] = useState<Fields>(() => (source ? fieldsOf(source) : {}));
@@ -158,19 +221,28 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
     await saveItem(operationId, draft);
   };
 
-  const numberInput = ([column, label, kind]: [string, string, string]) => (
-    <div key={column} className="space-y-1">
-      <Label htmlFor={`f-${column}`}>{label}</Label>
-      <Input
-        id={`f-${column}`}
-        type={kind === 'text' ? 'text' : 'number'}
-        step={kind === 'float' ? 'any' : 1}
+  const numberInput = ([column, label, kind]: [string, string, string]) =>
+    column === 'CostumeType' ? (
+      <CostumeField
+        key={column}
+        category={typeof fields.Category === 'string' ? fields.Category : ''}
+        item={template.trim() || source?.item_class || ''}
         value={value(column)}
-        disabled={column === 'CostumeType' && !!kitFile}
-        onChange={(e) => change(column, kind, e.target.value)}
+        disabled={!!kitFile}
+        onChange={(raw) => change(column, kind, raw)}
       />
-    </div>
-  );
+    ) : (
+      <div key={column} className="space-y-1">
+        <Label htmlFor={`f-${column}`}>{label}</Label>
+        <Input
+          id={`f-${column}`}
+          type={kind === 'text' ? 'text' : 'number'}
+          step={kind === 'float' ? 'any' : 1}
+          value={value(column)}
+          onChange={(e) => change(column, kind, e.target.value)}
+        />
+      </div>
+    );
 
   return (
     <ActionForm submitLabel={editing ? 'Salvar edição' : 'Criar item'} onSubmit={submit} onCancel={onCancel} onDone={() => onDone(itemClass.trim())}>
@@ -212,6 +284,16 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
                       onClose={() => setPickTemplate(false)}
                     />
                   )}
+                  <p className="text-xs text-muted">
+                    O item novo nasce como cópia do item-modelo: todas as linhas dele no conteúdo (ItemClassInfo, EquipItemInfo e as demais tabelas), o
+                    modelo 3D (CostumeType) e o conjunto. Os campos deste formulário substituem só o que você mudar. Carregar copia os valores do modelo para os
+                    campos abaixo, para você partir deles.
+                  </p>
+                  {loadTemplate.isSuccess && templateDetail && (
+                    <p className="text-xs text-accent">
+                      Campos copiados de <span className="font-mono">{templateDetail.item_class}</span> ({templateDetail.name ?? 'sem nome'}).
+                    </p>
+                  )}
                   {loadTemplate.error && <p className="text-xs text-danger">{errorText(loadTemplate.error)}</p>}
                   {templateDetail && templateDetail.origin === 'added' && (
                     <p className="text-xs text-danger">O modelo precisa ser um item base; para copiar uma adição use Clonar nela.</p>
@@ -234,9 +316,25 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <ItemIcon icon={typeof fields.Icon === 'string' ? fields.Icon.toLowerCase() : null} />
-              <span className="text-xs text-muted">Ícone: nome de um ícone já usado por algum item (scaleform/item_icon).</span>
+              <ItemIcon icon={typeof fields.Icon === 'string' ? fields.Icon.toLowerCase() : null} size="lg" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="truncate font-mono text-xs">{typeof fields.Icon === 'string' ? fields.Icon : 'sem ícone'}</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => setPickIcon(true)}>
+                  <ImageIcon /> Escolher ícone
+                </Button>
+                <p className="text-xs text-muted">O ícone vem de um item existente (o cliente só tem os ícones de scaleform/item_icon).</p>
+              </div>
             </div>
+            {pickIcon && (
+              <ItemPickerModal
+                title="Escolher ícone (de um item)"
+                includeHidden
+                onPick={(item) => {
+                  if (item.icon) change('Icon', 'text', item.icon);
+                }}
+                onClose={() => setPickIcon(false)}
+              />
+            )}
           </Card>
           <Card className="space-y-3">
             <h3 className="text-sm font-semibold">Classes que usam</h3>
@@ -277,16 +375,37 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
               <>
                 <div className="space-y-1">
                   <Label htmlFor="kit">Kit novo (.zip do add-on, opcional)</Label>
-                  <Input
+                  <input
                     id="kit"
                     type="file"
                     accept=".zip,application/zip"
+                    className="sr-only"
                     onChange={(e) => {
                       const file = e.target.files?.[0] ?? null;
                       setKitFile(file);
                       if (file) kitPreview.mutate(file);
                     }}
                   />
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('kit')?.click()}>
+                      <FileArchive /> Escolher arquivo .zip
+                    </Button>
+                    <span className="min-w-0 truncate text-xs text-muted">{kitFile ? kitFile.name : 'nenhum arquivo'}</span>
+                    {kitFile && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setKitFile(null);
+                          const input = document.getElementById('kit') as HTMLInputElement | null;
+                          if (input) input.value = '';
+                        }}
+                      >
+                        Tirar
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {kitFile && (
                   <div className="space-y-1">

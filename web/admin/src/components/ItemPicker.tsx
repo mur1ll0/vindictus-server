@@ -240,10 +240,10 @@ export function ItemPickerModal({
                   {found.data.total} item(ns) · página {found.data.page} de {pages}
                 </span>
                 <span className="flex gap-1">
-                  <Button variant="outline" size="sm" aria-label="Página anterior" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                  <Button type="button" variant="outline" size="sm" aria-label="Página anterior" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                     <ChevronLeft />
                   </Button>
-                  <Button variant="outline" size="sm" aria-label="Próxima página" disabled={page >= pages} onClick={() => setPage(page + 1)}>
+                  <Button type="button" variant="outline" size="sm" aria-label="Próxima página" disabled={page >= pages} onClick={() => setPage(page + 1)}>
                     <ChevronRight />
                   </Button>
                 </span>

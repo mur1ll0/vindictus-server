@@ -1470,6 +1470,70 @@
         }
       }
     },
+    "/api/item-editor/costumes": {
+      "get": {
+        "tags": [
+          "items"
+        ],
+        "summary": "The CostumeType numbers of an item category: the entries of its model script\n(player_costume.txt, the weapon script or shields.txt) with their models and the items using\nthem.",
+        "operationId": "item_editor_costumes",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "description": "ItemClassInfo.Category of the item (INNERARMOR, TUNIC, WEAPON...).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "query",
+            "description": "An item whose EquipItemInfo.EquipClass picks the weapon or shield script (the\nitem-model or the edited item).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CostumeOption"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/item-editor/items": {
       "get": {
         "tags": [
@@ -3419,7 +3483,7 @@
           "class": {
             "type": "integer",
             "format": "int32",
-            "description": "BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,\n7 Lynn, 8 Arisha, 9 Hagie."
+            "description": "BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,\n7 Lynn, 8 Arisha, 9 Hagie, 10 Delia (laboratory; domain::character_class)."
           },
           "connected": {
             "type": "boolean"
@@ -3598,6 +3662,63 @@
             ],
             "format": "int32",
             "description": "Newest published version."
+          }
+        }
+      },
+      "CostumeItem": {
+        "type": "object",
+        "required": [
+          "class"
+        ],
+        "properties": {
+          "class": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CostumeOption": {
+        "type": "object",
+        "description": "One entry of the model script: what a CostumeType number means.",
+        "required": [
+          "costume_type",
+          "items",
+          "item_count"
+        ],
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The body (`category` of a player_costume.txt entry: fiona, female...)."
+          },
+          "costume_type": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "item_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostumeItem"
+            },
+            "description": "Items of the content using it (up to 5) and how many in all."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model the client loads for it."
           }
         }
       },

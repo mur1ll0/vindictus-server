@@ -164,6 +164,7 @@ impl AdminState {
         items::upload_kit,
         items::kit,
         items::status,
+        items::costumes,
         world::world
     ),
     components(schemas(
@@ -172,6 +173,8 @@ impl AdminState {
         items::HideItem,
         items::ItemOperation,
         items::ItemEditCreated,
+        items::CostumeOption,
+        items::CostumeItem,
         crate::application::item_editor::EditorItemSummary,
         crate::application::item_editor::EditorItemDetail,
         crate::application::item_editor::ItemDraft,
@@ -321,6 +324,7 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route("/api/content", get(content::content_state))
         .route("/api/world", get(world::world))
         .route("/api/item-editor/items", get(items::list).post(items::save))
+        .route("/api/item-editor/costumes", get(items::costumes))
         .route("/api/item-editor/items/{item_class}", get(items::detail))
         .route(
             "/api/item-editor/items/{item_class}/hide",
