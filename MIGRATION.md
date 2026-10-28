@@ -2058,3 +2058,6 @@ Passo 11 (28/10/2026): diagnóstico com a entidade da Fiona (escolha do operador
 - Verificação: `test_fallback_entity_is_opt_in` (0 falhas; `routing-tests-d8k.log`); aplicado com a opção (`class-routing-apply-d8k.log`): `client.dll` `97cacae0…` (igual), `server.dll` `45c7a082…`; `0x40371314: push "player_fiona"` conferido.
 - Cliente: D8k em `docs/client-tests/C2-delia.md`, pendente; o roteiro manda voltar ao patch sem a opção no fim.
 - Parada (regra 2): o resultado decide o E1.
+- D8k (cliente): sem mudança (invisível na cidade; pernas da *inner* brancas na seleção). A entidade da classe não é a causa.
+- Ferramentas: `lab_memory.py serve` (um processo elevado, aprovado uma vez pelo operador, atende pedidos em `.cache/lab-memory/` e recarrega o código a cada pedido), comandos `ptrstr`, `rtti`, `class`, `save`, `diff`. Leituras: jogador local do cliente `[[0x38c8f3f4]+0x14]`, do servidor `[[0x40cb3740]+0x14]`, ambos classe 10 com a entidade da Fiona. A coluna de roupa já estava certa (D8j).
+- Próxima ação: D8l, a mesma personagem como Fiona na cidade, e `diff` das cópias de memória para achar o campo que separa a Fiona visível da Delia invisível.

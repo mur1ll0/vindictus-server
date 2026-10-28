@@ -13,7 +13,15 @@ Usage (python -s -E scripts/dev/lab_memory.py COMMAND ...):
   symbols                     named addresses from the patch report (bin/class-routing.json)
   costume [CLASS]             costume manager column of CLASS (default 10): default and
                               default_ex part per slot and town, in the client and the server
+  ptrstr EXPR LEN [FILTER]    dwords in a range that point to printable strings
+  rtti EXPR LEN [FILTER]      dwords in a range that point to objects with an RTTI class
+  class EXPR                  RTTI class of the object at EXPR
+  save EXPR LEN NAME          raw bytes to .cache/lab-memory/NAME.bin
+  diff NAME1 NAME2            dwords that differ between two saved dumps (no game needed)
   shell                       read commands from stdin, one per line
+  serve                       run commands from .cache/lab-memory/request.txt (one per line) and
+                              write the output to response.txt, until a `quit` request or the
+                              game exits; lets a non-elevated session use one elevated reader
 
 EXPR: a number (0x...), a symbol name, `[EXPR]` (dword at EXPR) and `+`/`-` offsets,
 for example `[client.costume.real]+0xbb8`.
@@ -201,6 +209,25 @@ def load_symbols(mods: dict) -> dict[str, int]:
     return symbols
 
 
+def class_name(game: Game, address: int) -> str | None:
+    """RTTI class of the object at ADDRESS (its first dword a vtable inside a loaded module)."""
+    if not 0x10000 < address < 0x80000000:
+        return None
+    try:
+        vtable = game.dword(address) & 0xFFFFFFFF
+        if not any(base <= vtable < base + size for base, size, _ in game.mods.values()) and \
+                not any(PREFERRED[n] <= vtable < PREFERRED[n] + 0x2000000 for n in PREFERRED):
+            return None
+        locator = game.dword(vtable - 4) & 0xFFFFFFFF
+        if game.dword(locator) != 0:
+            return None
+        descriptor = game.dword(locator + 12) & 0xFFFFFFFF
+        name = game.string(descriptor + 8)
+    except Exception:  # unreadable page; the serve reload may use another error class
+        return None
+    return name if name.startswith('.?AV') else None
+
+
 def hexdump(game: Game, address: int, size: int) -> None:
     data = game.read(address, size)
     for i in range(0, len(data), 16):
@@ -256,6 +283,52 @@ def run(game: Game | None, argv: list[str]) -> None:
             print(f'{address + 4 * i:#010x}  {game.dword(address + 4 * i)}')
     elif command == 'str':
         print(repr(game.string(game.eval(args[0]))))
+    elif command == 'ptrstr':
+        # Dwords in [EXPR, EXPR+LEN) that point (directly or through one more pointer) to a
+        # printable string containing FILTER.
+        base, length = game.eval(args[0]), int(args[1], 0)
+        needle = args[2].lower() if len(args) > 2 else ''
+        for offset in range(0, length, MAX_READ):
+            data = game.read(base + offset, min(MAX_READ, length - offset))
+            for i in range(0, len(data) - 3, 4):
+                value = struct.unpack_from('<I', data, i)[0]
+                if not 0x10000 < value < 0x80000000:
+                    continue
+                # direct string, then a pointer at +0/+4/+8 of the target (model_t keeps its name
+                # as a string pointer one field in)
+                for depth, target in ((0, value), (1, 0), (1, 4), (1, 8)):
+                    try:
+                        if depth == 1:
+                            target = game.dword(value + target) & 0xFFFFFFFF
+                        text = game.string(target) if 0x10000 < target < 0x80000000 else ''
+                    except Exception:  # unreadable page; the serve reload may use another class
+                        text = ''
+                    if len(text) >= 4 and text.isprintable() and needle in text.lower():
+                        print(f'+{offset + i:#06x} {"*" * depth}{target:#010x} {text[:100]!r}')
+                        break
+    elif command == 'rtti':
+        # Dwords in [EXPR, EXPR+LEN) that point to an object with an MSVC RTTI vtable (or are
+        # one): offset, object and class name. FILTER narrows the names.
+        base, length = game.eval(args[0]), int(args[1], 0)
+        needle = args[2].lower() if len(args) > 2 else ''
+        for offset in range(0, length, MAX_READ):
+            data = game.read(base + offset, min(MAX_READ, length - offset))
+            for i in range(0, len(data) - 3, 4):
+                value = struct.unpack_from('<I', data, i)[0]
+                name = class_name(game, value)
+                if name and needle in name.lower():
+                    print(f'+{offset + i:#06x} {value:#010x} {name}')
+    elif command == 'class':
+        print(class_name(game, game.eval(args[0])) or 'no RTTI class')
+    elif command == 'save':
+        # save EXPR LEN NAME: raw bytes to .cache/lab-memory/NAME.bin, for `diff`
+        base, length, name = game.eval(args[0]), int(args[1], 0), args[2]
+        if not re.fullmatch(r'[\w-]{1,40}', name):
+            raise InspectError('NAME: 1-40 letters, digits, _ or -.')
+        data = b''.join(game.read(base + o, min(MAX_READ, length - o)) for o in range(0, length, MAX_READ))
+        CHANNEL.mkdir(parents=True, exist_ok=True)
+        (CHANNEL / f'{name}.bin').write_bytes(data)
+        print(f'saved {len(data):#x} bytes from {base:#x} to {name}.bin')
     elif command == 'symbols':
         for name, value in sorted(game.symbols.items()):
             print(f'{name:<28} {value:#010x}')
@@ -265,15 +338,84 @@ def run(game: Game | None, argv: list[str]) -> None:
         raise InspectError(f'Unknown command {command!r}; see --help.')
 
 
+CHANNEL = ROOT / '.cache/lab-memory'
+
+
+def serve(game: Game) -> None:
+    """Answer request.txt with response.txt (written atomically) until `quit` or the game exits."""
+    import contextlib
+    import io
+    import os
+    import time
+    CHANNEL.mkdir(parents=True, exist_ok=True)
+    request, response = CHANNEL / 'request.txt', CHANNEL / 'response.txt'
+    (CHANNEL / 'serving.txt').write_text(f'{game.name} {game.pid}\n', encoding='utf-8')
+    while True:
+        if not any(pid == game.pid for pid, _ in processes()):
+            break
+        if not request.is_file():
+            time.sleep(0.2)
+            continue
+        lines = request.read_text(encoding='utf-8').splitlines()
+        request.unlink()
+        # Reload this file for each request, so new commands work without another elevation.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('lab_memory_live', Path(__file__))
+        live = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(live)
+            runner, errors = live.run, (live.InspectError, InspectError, IndexError, ValueError)
+        except Exception as error:  # a broken edit must not stop the reader
+            runner, errors = run, (InspectError, IndexError, ValueError)
+            print(f'reload failed, using the loaded code: {error}', file=sys.stderr)
+        out = io.StringIO()
+        stop = False
+        for line in lines:
+            words = shlex.split(line)
+            if not words:
+                continue
+            if words[0] == 'quit':
+                stop = True
+                break
+            print(f'> {line}', file=out)
+            with contextlib.redirect_stdout(out):
+                try:
+                    runner(game, words)
+                except errors as error:
+                    print(f'error: {error}')
+        partial = response.with_suffix('.partial')
+        partial.write_text(out.getvalue(), encoding='utf-8')
+        os.replace(partial, response)
+        if stop:
+            break
+    (CHANNEL / 'serving.txt').unlink(missing_ok=True)
+
+
+def diff(first: str, second: str) -> None:
+    """Dwords that differ between two saved dumps (no game needed)."""
+    a, b = ((CHANNEL / f'{n}.bin').read_bytes() for n in (first, second))
+    for i in range(0, min(len(a), len(b)) - 3, 4):
+        x, y = struct.unpack_from('<I', a, i)[0], struct.unpack_from('<I', b, i)[0]
+        if x != y:
+            print(f'+{i:#06x}  {x:#010x} {struct.unpack_from("<i", a, i)[0]:>11}  |  '
+                  f'{y:#010x} {struct.unpack_from("<i", b, i)[0]:>11}')
+
+
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help'):
         print(__doc__)
+        return 0
+    if sys.argv[1] == 'diff':
+        diff(sys.argv[2], sys.argv[3])
         return 0
     try:
         if sys.argv[1] == 'ps':
             run(None, ['ps'])
             return 0
         game = Game()
+        if sys.argv[1] == 'serve':
+            serve(game)
+            return 0
         if sys.argv[1] == 'shell':
             print(f'attached to {game.name} ({game.pid}); empty line or "quit" ends')
             for line in sys.stdin:

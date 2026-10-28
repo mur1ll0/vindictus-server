@@ -221,3 +221,13 @@ Escolha do operador (28/10/2026): teste de diagnóstico, não o desenho da entid
 - [ ] Desfazer a classe: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Ao terminar o diagnóstico, voltar ao patch sem a opção: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll` e rodar `python -s -E scripts/client/patch_class_routing.py --client-copy .cache/play-client --apply`.
 - Leitura do resultado: se a Delia aparece, o que falta é a entidade da classe (E1, com os *slots* que diferem da base); se continua invisível, a causa está fora da entidade.
+
+Resultado do D8k (28/10/2026): **sem mudança.** Seleção: pernas da *inner* brancas, muito iluminadas (malha ou textura errada). Cidade: invisível, mesmos problemas. A entidade da classe não é a causa.
+- Memória (leitor elevado `lab_memory.py serve`, aprovado pelo operador): o jogador local do cliente está em `[[0x38c8f3f4]+0x14]` (`C_HeroesPlayerFiona`, classe 10) e o do servidor em `[[0x40cb3740]+0x14]` (`CHeroesPlayerFiona`, classe 10). Cópias salvas em `.cache/lab-memory/delia_town_client.bin` e `delia_town_server.bin` para comparar com uma Fiona visível.
+- Aparência guardada da `DeliaLab` (`game_costumes`): rosto 10 e cabelo 2001 (os da Fiona com que foi criada), *inner* 0.
+
+### D8l — Comparação de memória: a mesma personagem como Fiona
+Pré-condição: jogo aberto e o leitor elevado (`lab_memory.py serve`) rodando; DLLs do D8k.
+- [ ] Voltar à seleção de personagens (sem fechar o jogo).
+- [ ] Avisar; eu rodo `lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Entrar na cidade com a `DeliaLab` (agora Fiona) e avisar; eu salvo as mesmas cópias e comparo.
