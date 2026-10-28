@@ -257,3 +257,5 @@ Pré-condição: **jogo fechado** antes de aplicar. Patch de roteamento com `EVE
 - [ ] `F7` → anotar se o emote roda.
 - [ ] Equipar espada, armadura e *inner* → anotar o que aparece.
 - [ ] Com o jogo aberto, eu confiro na memória o caminho do arquivo de eventos (precisa aprovar o UAC do leitor).
+
+Resultado do D8n (28/10/2026): **avanço parcial.** A *inner* da Delia agora mostra "Only for Delia" na dica; a `Bastard Sword` continua "Cannot be equipped" (as armas usam outra verificação). Tudo equipa, mas nada aparece; a personagem continua invisível. Memória: o caminho do arquivo de eventos agora está certo no servidor e no cliente (`…\delia\pc_delia_motion_ex.txt`) e as 12 partes também; os oito códigos resolvidos (`+0x3418`) continuam `-1`, inclusive para *inner* 10 e cabelo 2001, que a Fiona resolve.

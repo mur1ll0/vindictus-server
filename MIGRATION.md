@@ -2094,3 +2094,5 @@ Passo 15 (28/10/2026): arquivo de eventos da animação da Delia (escolha do ope
 - Verificação: `python -m unittest test_patch_class_routing` (12, 0 falhas; `routing-tests-d8n.log`); *stub* desmontado (classe 10 → `sombra+0xbe0`/`+0xc80`; as outras → `cmp esi, 9`).
 - Aplicação pendente: o jogo estava aberto. Cliente: D8n em `docs/client-tests/C2-delia.md`.
 - Aplicado com o jogo fechado (`class-routing-apply-d8n.log`): `client.dll` `97cacae0…` (igual), `server.dll` `51473f47…`; `0x4081bb0f: jmp 0x412bba20` conferido. D8n pendente no cliente.
+- D8n (cliente + memória): o arquivo de eventos agora chega (`…\delia\pc_delia_motion_ex.txt` no servidor e no cliente), mas a Delia continua invisível; a dica da *inner* passou a "Only for Delia", a da arma não. Os oito códigos resolvidos de `+0x3418` (`parte*100000 + índice`) seguem `-1`; o código que os grava ainda não foi achado (sem deslocamento direto, pelo objeto de roupa nem pela constante 100000).
+- Próxima ação: achar quem resolve esses oito códigos (passam pelo tipo de corpo? por um nome de classe?) e a verificação de arma da dica.
