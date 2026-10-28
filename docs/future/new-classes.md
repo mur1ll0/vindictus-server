@@ -350,3 +350,29 @@ Leitura pontual do `client.dll` 1.69 e dos filmes Scaleform (AS2) dos dois clien
   
   Antes de escolher, falta medir como o filme do 1.69 monta a lista: fixa no AS2 ou vinda do C++.
 - **Correção (sessão D6, 28/10/2026):** a grade S3 do 1.69 está incompleta. O mapa `s3_game_create_character` só tem atores para 9 classes (sem Hagie nem Delia), o modelo não muda e a criação trava no cliente. O envio de `S3_CharacterCreation` foi desfeito. O mapa do NA é idêntico; a criação de 28 classes do NA usa outra cena, ainda a localizar.
+
+### 8.8 A criação em grade do NA e o plano para o 1.69 (28/10/2026)
+
+Leitura pontual do `client.dll` do NA (32 bits, base `0x38000000`). O código de criação está no `.text`, legível; o `.vmp0` não foi tocado.
+- **A grade do NA** é o mesmo `NewCharacterDialogS3` (`NewCharacterDialog_V2.gfx`), mas na versão nova do filme, que lista 28 classes. A prévia de cada classe toca `csf/createcharacter_<classe>.csf` em vez de atores no mapa. O 1.69 já tem os 11 `.csf`, inclusive o da Delia.
+- **Contrato filme ↔ `client.dll` do NA** (nomes presentes nos dois):
+  - C++ → filme: `SetNewIconCharacter`, `SetCharacterName`, `SetCharacterDescription`, `SetCharaterAttribute`, `SetCharaterIntroMovie`, `SetCharaterSkillMovie`, `SetWeaponButton`, `SetScreenSize`, `ShowCharacterInfo`, `ClearCharacterInfo`, `ClearCharacterSkillMovieInfo`;
+  - filme → C++: `OnStart`, `OnReadyCreation`, `OnStartCreation`, `OnPlayRandomVoice`, `OnStopRandomVoice`, mais o comando `Select <classe>`.
+  - O `client.dll` 1.69 conhece só `OnStart`, `SetCharacterName` e `ShowCharacterInfo`.
+- **Despachante do NA** (`0x389e06f0`…): trata `Select`, converte o nome em índice (`0x3820d9c0`) e confere `< 0x1c` (28 classes). Também chama `SetNewIconCharacter` (referência `0x389e07af`) e `SetCharaterIntroMovie` (`0x389e0efd`, `0x389e1218`). `OnStartCreation` fica em `0x38bdf541`; a feature `CharacterCreation_UI_V3` é referenciada em `0x380921d9`, `0x381e4c1b`, `0x3888c200` e `0x3888cdee`.
+
+**Plano para o 1.69** (cliente e servidor), na ordem:
+1. **Tabelas de classe com N entradas** no `client.dll` e no `server.dll` da cópia de laboratório:
+   - realocar `0x38cafd50` (client) e `0x40d0cdf8`/`0x40d140dc` (server) para uma área nova;
+   - trocar os limites `0xa` e as referências.
+   - É pré-requisito de tudo; sem efeito visível com 10 classes, e com a Delia na posição 10.
+2. **Entidade do jogador da Delia** (`player_delia` e `DT_HeroesPlayerDelia`) nos dois DLLs, como cópia da entidade da Fiona (11 métodos próprios), mais a arma `BASTARDSWORD` sobre uma entidade de arma existente. Resolve a queda do `server.dll` ao entrar na cidade.
+3. **Criação em grade:**
+   - levar o `NewCharacterDialog_V2.gfx` do NA (e as imagens que ele usa) para a cópia de laboratório; **exige decisão do operador**;
+   - implementar no `client.dll` 1.69, em código novo, o contrato acima, com a lista de classes vinda de uma tabela gerada pelo projeto (nome, descrição, `.csf`, armas). As rotinas legíveis do NA servem de referência.
+   - Ligar `CharacterCreation_UI_V3`/`S3_CharacterCreation` pelo laboratório.
+4. **Servidor:** criação da classe 10 (initializer da Delia; o 1.69 não tem `DefaultItemInfo` da classe 10, mas o banco do NA pode servir de referência), `CHARACTER_COUNT` e as travas 0–9 da criação.
+
+A alternativa de estender a barra V4 (um botão a mais e ramos fixos para a Delia) é menor para uma classe, mas não escala: cada classe nova repete o trabalho.
+
+Ferramenta de patch: seguir o modelo de `scripts/client/patch_shop_list_limit.py` (patch verificado por hash na cópia de laboratório, nunca no original).

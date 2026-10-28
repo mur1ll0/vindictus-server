@@ -1889,3 +1889,15 @@ Caminho C, etapa C2 — sessão da D6 e *rollback* da grade S3 (28/10/2026, 01:4
   - cancelamento por `DeleteCharacterCancelMessage` (2→0).
   - No servidor do projeto, a trava da lista (`minimum_character_list`) exige `status=0` para todas as personagens, então o estado 2 precisa entrar junto.
 - Próxima ação: implementar exclusão, cancelamento e troca de slots (categorias 451, cancelamento e 489) com *fixtures* recuperadas e testes PostgreSQL; depois, retomar a criação com mais de 10 classes (localizar a cena de criação do NA).
+
+Caminho C, etapa C2 — a criação em grade do NA medida; plano para o 1.69 (28/10/2026, pedido do operador).
+- Exclusão e troca de slots delegadas à sessão `delete-and-slots` (a pedido do operador).
+- Evidência (seção 8.8 de `docs/future/new-classes.md`):
+  - a grade do NA é o `NewCharacterDialogS3` com o filme novo (28 classes, prévia por `csf/createcharacter_<classe>.csf`);
+  - contrato de 16 funções entre filme e `client.dll`, das quais o 1.69 conhece 3;
+  - o despachante do NA, legível no `.text`, limita as classes a 28 (`cmp eax, 0x1c`);
+  - o 1.69 já tem os 11 `.csf` de criação, inclusive o da Delia.
+- Plano em 4 passos: tabelas de classe com N entradas nos dois DLLs; entidade da Delia; criação em grade com o filme do NA e o contrato implementado no `client.dll` 1.69; criação da classe 10 no servidor.
+- Parada: decisões do operador sobre o caminho (grade do NA ou barra V4 estendida) e sobre copiar o filme do NA para a cópia de laboratório.
+- Cliente: não necessário (medição).
+- Próxima ação: com a decisão, passo 1 (tabelas de classe com N entradas), com teste de não regressão no cliente.
