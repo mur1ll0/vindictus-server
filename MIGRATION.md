@@ -1942,3 +1942,12 @@ Caminho C, etapa C2 — passo 2, terceira parte: capacidade das condições, rev
 - Cliente: não necessário (leitura e plano).
 - Parada: o plano E1–E5 muda os DLLs da cópia de laboratório e cada etapa precisa de teste no cliente. A ordem e o escopo do E1 (entidade mínima) são decisão do operador.
 - Próxima ação: com o aceite, ler como o 1.69 instala `player_hagie`/`DT_HeroesPlayerHagie` e escrever o patcher do E1 com teste D8 no roteiro `docs/client-tests/C2-delia.md`.
+
+Extração completa do cliente NA para `F:\Games\vindictus\hfsExtracted` (28/10/2026, pedido do operador; fora do Git).
+- HFS v4: `HFSExtract.CLI` (NPCodex) em todos os 9.220 pacotes → 355.640 arquivos, 101,8 GB, 0 falhas.
+- Segunda camada:
+  - 594 arquivos de `scripts` decifrados com a chave periódica recuperada no C1 (índice = posição no arquivo; o byte 0 é o prefixo);
+  - os outros 361 (79 de `scripts` e 282 de `resource/localized_text`, com outras chaves) lidos pelo carregador isolado em modo lote (`batch`, autorizado pelo operador; sem *endpoint* de rede; tamanho = cifrado − 1; texto ou UTF-16 validado antes de substituir);
+  - `sqlite/heroes.db3` substituído pela cópia em claro (`8eb596f8…`, `quick_check` ok, 495 tabelas).
+  - Resultado: 673 arquivos de texto, 282 UTF-16 e 3 vazios; nenhum ainda cifrado.
+- Logs `.cache/verification/na-full-extract.log`, `na-layer2-*.log`. O carregador (`.cache/na-loader-src`) continua só no `.cache`.
