@@ -290,7 +290,7 @@ pub struct CharacterSummary {
     pub cid: String,
     pub name: String,
     /// BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,
-    /// 7 Lynn, 8 Arisha, 9 Hagie.
+    /// 7 Lynn, 8 Arisha, 9 Hagie, 10 Delia (laboratory; domain::character_class).
     pub class: i16,
     pub level: i32,
     pub exp: i64,

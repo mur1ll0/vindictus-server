@@ -6,7 +6,7 @@ use super::{
     user_export::{PrivateText, nullable},
 };
 use crate::{
-    domain::{feature_policy::FeaturePolicy, legacy_user_data::LegacyBytes},
+    domain::{character_class, feature_policy::FeaturePolicy, legacy_user_data::LegacyBytes},
     error::Error,
 };
 use serde::Deserialize;
@@ -88,14 +88,17 @@ impl Package {
             || !hash(&raw.config_sha256)
             || !hash(&raw.implementation_sha256)
             || raw.features.len() > 256
-            || raw.classes.len() > 10
+            || raw.classes.len() > character_class::NAMES.len()
         {
             return Err(fail());
         }
         let policy = FeaturePolicy::new(raw.features.into_iter().map(|f| (f.key, f.value)))?;
         let mut classes = BTreeMap::new();
         for c in raw.classes {
-            if c.character_class > 9 || c.requests.len() > 4096 || c.class_stats.len() > 4096 {
+            if !character_class::is_class(c.character_class)
+                || c.requests.len() > 4096
+                || c.class_stats.len() > 4096
+            {
                 return Err(fail());
             }
             let requests = c

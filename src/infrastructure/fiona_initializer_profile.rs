@@ -360,7 +360,7 @@ impl Profile {
         if effective != initial {
             return Err(fail());
         }
-        if r.character_class > 9 {
+        if !crate::domain::character_class::is_class(r.character_class) {
             return Err(fail());
         }
         // IsAvailableClass / ClassRestriction bit of this BaseCharacter.

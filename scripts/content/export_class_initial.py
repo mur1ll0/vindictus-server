@@ -1,6 +1,7 @@
 """Read-only per-class initial contents for character creation; values stay in the private cache.
 
-For each BaseCharacter of the CustomizeCharacter switch (0-9): the DefaultItemInfo requests the
+For each BaseCharacter of the CustomizeCharacter switch (0-9) and each laboratory class of
+class_additions.json (Delia, 10; its rows come through content_additions): the DefaultItemInfo requests the
 inventory delivers (CharacterClass == class or 255, table order), the INNERARMOR request of the
 switch and the CharacterClassInfo rows GetCharacterStats reads. FeatureMatrix values of every
 request feature travel with the file so they are evaluated in the loaded region.
@@ -26,6 +27,8 @@ def inners(implementation):
   if c in found:break
   found[c]=dict(inner_item_utf16=text(m.group(2)),inner_colors=[int(m.group(i))for i in(3,4,5)])
  if sorted(found)!=list(CLASSES):raise ValueError('CustomizeCharacter switch changed')
+ for c in content_additions.load_classes():
+  found[c['character_class']]=dict(inner_item_utf16=text(c['inner']['item']),inner_colors=c['inner']['colors'])
  return found
 def read_package(database,config,implementation):
  before=(digest(database),digest(config),digest(implementation))
@@ -34,7 +37,7 @@ def read_package(database,config,implementation):
   db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
   defaults=list(db.execute('SELECT CharacterClass,ItemClass,ItemNum,Feature FROM DefaultItemInfo'))
   stats=list(db.execute('SELECT Identifier,Level,Feature,BaseSTR,BaseDEX,BaseINT,BaseWILL,BaseHP,BaseSTAMINA FROM CharacterClassInfo'))
-  for c in CLASSES:
+  for c in sorted(inner):
    requests=[]
    for r in defaults:
     if r['CharacterClass']in(c,255):

@@ -33,6 +33,9 @@ class ContentAdditionsTest(unittest.TestCase):
         patcher = mock.patch.object(additions, 'EDITS', pathlib.Path(self.temp.name) / 'no-edits.json')
         patcher.start()
         self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(additions, 'CLASS_ADDITIONS', pathlib.Path(self.temp.name) / 'no-classes.json')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -50,6 +53,44 @@ class ContentAdditionsTest(unittest.TestCase):
         self.assertEqual(classes[-1], ('new_inner', 'old'))
         self.assertEqual(prices, [])
         self.assertEqual(self.database.read_bytes(), before)
+
+    def test_added_classes_append_creation_rows(self):
+        with closing(sqlite3.connect(self.database)) as db:
+            db.execute('CREATE TABLE DefaultItemInfo(ID INT, CharacterClass INT, ItemClass TEXT, ItemNum INT, Feature TEXT)')
+            db.execute('CREATE TABLE DefaultSkillInfo(ID INT, CharacterClass INT, SkillID TEXT, Rank INT)')
+            db.execute("INSERT INTO DefaultItemInfo VALUES(98, 9, 'phantomdagger_newbie', 1, NULL)")
+            db.execute("INSERT INTO DefaultSkillInfo VALUES(23, 9, 'skill_hagie_magic_mastery', 1)")
+            db.commit()
+        path = pathlib.Path(self.temp.name) / 'classes.json'
+        path.write_text(json.dumps({'classes': [{
+            'character_class': 10, 'name': 'Delia', 'default_items': [['gold', 10000], ['bastardsword_newbie', 1]],
+            'default_skills': [['skill_delia_bastard_mastery', 1]],
+            'inner': {'item': 'delia_inner_free', 'colors': [1, 2, 3]}}]}), encoding='utf-8')
+        before = self.database.read_bytes()
+        with mock.patch.object(additions, 'SERVER_DATABASE', self.database),                 mock.patch.object(additions, 'CLASS_ADDITIONS', path), mock.patch.object(additions, 'load', return_value=[]):
+            with closing(additions.connect(self.database)) as db:
+                items = db.execute('SELECT * FROM DefaultItemInfo').fetchall()
+                skills = db.execute('SELECT * FROM DefaultSkillInfo').fetchall()
+        self.assertEqual(items, [(98, 9, 'phantomdagger_newbie', 1, None), (99, 10, 'gold', 10000, None),
+                                 (100, 10, 'bastardsword_newbie', 1, None)])
+        self.assertEqual(skills, [(23, 9, 'skill_hagie_magic_mastery', 1), (24, 10, 'skill_delia_bastard_mastery', 1)])
+        self.assertEqual(self.database.read_bytes(), before)
+
+    def test_added_classes_are_validated(self):
+        path = pathlib.Path(self.temp.name) / 'classes.json'
+        inner = {'item': 'delia_inner_free', 'colors': [1, 2, 3]}
+        for bad in ({'character_class': 9, 'name': 'Hagie', 'inner': inner},
+                    {'character_class': 32, 'name': 'X', 'inner': inner},
+                    {'character_class': 10, 'name': 'Delia', 'inner': {'item': 'x', 'colors': [1]}},
+                    {'character_class': 10, 'name': 'Delia', 'inner': inner, 'default_items': [['gold', 0]]}):
+            path.write_text(json.dumps({'classes': [bad]}), encoding='utf-8')
+            with self.assertRaises(ValueError):
+                additions.load_classes(path)
+        self.assertEqual(additions.load_classes(pathlib.Path(self.temp.name) / 'missing.json'), [])
+
+    def test_the_versioned_class_file_is_valid(self):
+        classes = additions.load_classes(pathlib.Path(additions.__file__).resolve().parent / 'class_additions.json')
+        self.assertEqual([(c['character_class'], c['name']) for c in classes], [(10, 'Delia')])
 
     def test_other_databases_are_opened_plain(self):
         with mock.patch.object(additions, 'load', return_value=ITEMS):

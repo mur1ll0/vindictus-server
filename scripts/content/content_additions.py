@@ -29,6 +29,9 @@ EDITS = ROOT / '.cache/content-state/content-edits.json'
 SERVER_DATABASE = ROOT.parent / 'ServidorVindictus/Server/zh-tw-x-gm/Bin/heroesContents.db3'
 TABLES = ('ItemClassInfo', 'EquipItemInfo', 'CustomizeDefaultInfo', 'CustomizePriceInfo')
 SET_TABLE = 'SetItemInfo'
+CLASS_ADDITIONS = pathlib.Path(__file__).resolve().parent / 'class_additions.json'
+# BaseCharacter values: 5-bit m_iClass and int ClassRestriction masks (docs/future/new-classes.md 8.13).
+CLASS_LIMIT = 32
 # Columns the item editor changes (the Rust panel validates the same list, src/domain/item_editor.rs).
 EDITABLE = {
     'ItemClassInfo': ('Icon', 'Category', 'TradeCategory', 'TradeCategorySub', 'Rarity', 'Level', 'RequiredLevel',
@@ -213,19 +216,68 @@ def install(db: sqlite3.Connection, items: list[dict], overrides: dict[str, dict
     db.commit()
 
 
+def load_classes(path: pathlib.Path | None = None) -> list[dict]:
+    """class_additions.json: creation rows of classes outside the 1.69 CustomizeCharacter switch."""
+    path = CLASS_ADDITIONS if path is None else path
+    classes = json.loads(path.read_text(encoding='utf-8')).get('classes', []) if path.is_file() else []
+    seen = set()
+    for c in classes:
+        number = c.get('character_class') if isinstance(c, dict) else None
+        inner = c.get('inner', {}) if isinstance(c, dict) else {}
+        if (type(number) is not int or not 10 <= number < CLASS_LIMIT or number in seen
+                or not isinstance(c.get('name'), str) or not c['name'].isalpha()
+                or not isinstance(inner, dict) or not ITEM_CLASS.match(str(inner.get('item')))
+                or not (isinstance(inner.get('colors'), list) and len(inner['colors']) == 3
+                        and all(type(v) is int for v in inner['colors']))):
+            raise ValueError('Added class needs a class number 10-31, a name and an inner armor')
+        for key, count in c.get('default_items', []) + c.get('default_skills', []):
+            if not ITEM_CLASS.match(str(key)) or type(count) is not int or not 0 < count < 2**31:
+                raise ValueError('Added class rows need a class name and a positive count')
+        seen.add(number)
+    return classes
+
+
+def install_classes(db: sqlite3.Connection, classes: list[dict]) -> None:
+    """DefaultItemInfo and DefaultSkillInfo with the added classes' rows after the original ones."""
+    for table, key, rows_key in (('DefaultItemInfo', 'ItemClass', 'default_items'),
+                                 ('DefaultSkillInfo', 'SkillID', 'default_skills')):
+        if table in [r[0] for r in db.execute("SELECT name FROM temp.sqlite_master WHERE type='view'")]:
+            raise ValueError(f'{table} already has an overlay')
+        db.execute(f'CREATE TEMP TABLE [_added_{table}] AS SELECT * FROM main.[{table}] WHERE 0')
+        columns = [r[1] for r in db.execute(f'PRAGMA main.table_info([{table}])')]
+        identifier = db.execute(f'SELECT coalesce(max(ID), 0) FROM main.[{table}]').fetchone()[0]
+        for c in classes:
+            for name, count in c.get(rows_key, []):
+                if db.execute(f'SELECT 1 FROM main.[{table}] WHERE CharacterClass=? AND [{key}]=?',
+                              (c['character_class'], name)).fetchone():
+                    raise ValueError(f'{table} already has {name} for class {c["character_class"]}')
+                identifier += 1
+                values = {'ID': identifier, 'CharacterClass': c['character_class'], key: name,
+                          'ItemNum': count, 'Rank': count, 'Feature': None}
+                db.execute(f'INSERT INTO temp.[_added_{table}] VALUES({",".join("?" * len(columns))})',
+                           [values[col] for col in columns])
+        db.execute(f'CREATE TEMP VIEW [{table}] AS SELECT * FROM main.[{table}] UNION ALL '
+                   f'SELECT * FROM temp.[_added_{table}]')
+    db.commit()
+
+
 def connect(database: pathlib.Path | str) -> sqlite3.Connection:
-    """Read-only connection; the server content database also sees the added and edited items."""
+    """Read-only connection; the server content database also sees the added and edited items
+    and the added classes' creation rows."""
     path = pathlib.Path(database).resolve()
     db = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
     if path == SERVER_DATABASE.resolve():
         items = load()
         overrides = load_overrides()
-        if items or overrides:
-            try:
+        classes = load_classes()
+        try:
+            if items or overrides:
                 install(db, items, overrides)
-            except Exception:
-                db.close()
-                raise
+            if classes:
+                install_classes(db, classes)
+        except Exception:
+            db.close()
+            raise
     return db
 
 

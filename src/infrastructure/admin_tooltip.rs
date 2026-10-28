@@ -36,8 +36,8 @@ const STAT_ORDER: [&str; 22] = [
     "TOWN_SPEED",
 ];
 /// BaseCharacter in value order, with the English class names.
-const CLASSES: [&str; 10] = [
-    "Lann", "Fiona", "Evie", "Karok", "Kai", "Vella", "Hurk", "Lynn", "Arisha", "Hagie",
+const CLASSES: [&str; 11] = [
+    "Lann", "Fiona", "Evie", "Karok", "Kai", "Vella", "Hurk", "Lynn", "Arisha", "Hagie", "Delia",
 ];
 
 #[derive(Clone, Debug, Default, Serialize, utoipa::ToSchema)]

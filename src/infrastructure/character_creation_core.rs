@@ -53,8 +53,8 @@ async fn create_owned(
     proof: &NameProof,
     r: CreationCoreRequest<'_>,
 ) -> Result<CreationCoreResult, CreationCoreError> {
-    // BaseCharacter of the CustomizeCharacter switch; the caller checked its contents.
-    if r.class > 9
+    // A named BaseCharacter; the caller checked its contents (Assets::supports_class).
+    if !crate::domain::character_class::is_class(r.class)
         || r.use_preset
         || !proof
             .valid_request(Some(r.name))

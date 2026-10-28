@@ -42,7 +42,8 @@ def date_ticks(value):
  dt=datetime.datetime(year,month,day,hour,minute,second)
  return str((dt.toordinal()-1)*864000000000+(hour*3600+minute*60+second)*10000000+int((m[7]or'').ljust(7,'0')))
 def read_package(database,config,source_dir,state_file,character_class=1):
- if type(character_class)is not int or not 0<=character_class<=9:raise ValueError('Character class outside the CustomizeCharacter switch')
+ added={c['character_class']for c in content_additions.load_classes()}
+ if type(character_class)is not int or not(0<=character_class<=9 or character_class in added):raise ValueError('Character class outside the CustomizeCharacter switch and the laboratory classes')
  initial_db=digest(database);initial_config=digest(config);initial_state=digest(state_file)
  if state_file.stat().st_size>64*1024*1024:raise ValueError('Character state snapshot bound')
  state=json.loads(state_file.read_text(encoding='utf-8-sig'))

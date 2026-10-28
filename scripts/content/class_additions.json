@@ -1,0 +1,21 @@
+{
+  "_comment": "Laboratory creation rows of classes the 1.69 server content does not create (docs/future/new-classes.md 8.13). heroesContents.db3 has CharacterClassInfo and CharacterBaseLoadInfo for Delia (class 10) but no DefaultItemInfo, DefaultSkillInfo or INNERARMOR case. These rows follow Hagie, the last class of the 1.69 switch: the same consumables and gold, the class's newbie weapon, its weapon mastery at rank 1 (LevelConstraint 8, so GiveSkill skips it at level 1 as it skips Hagie's) and the class's free inner armor with the default colours of the free inners (Evy, Arisha). They are a laboratory choice, not recovered NA data; content_additions.connect appends them to the two tables, after the original rows.",
+  "classes": [
+    {
+      "character_class": 10,
+      "name": "Delia",
+      "default_items": [
+        ["life_potion_lvl0", 20],
+        ["phoenix_feather_lvl0", 4],
+        ["repair_kit_lvl0", 10],
+        ["gold", 10000],
+        ["javelin_lvl0", 14],
+        ["bastardsword_newbie", 1]
+      ],
+      "default_skills": [
+        ["skill_delia_bastard_mastery", 1]
+      ],
+      "inner": {"item": "delia_inner_free", "colors": [13158600, 13158600, 13158600]}
+    }
+  ]
+}
