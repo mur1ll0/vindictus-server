@@ -2173,3 +2173,4 @@ Passo 26 (28/10/2026): figura padrão da Delia na forma do corpo; nome da classe
 - Verificação: `python -m unittest test_patch_class_routing` (19, 0 falhas; `d13-routing-tests.log`). Aplicação do patch e da troca pendentes (jogo aberto).
 - Comparação NA × laboratório dos arquivos da Delia: `.cache/verification/d13-delia-na-vs-lab.txt` (485 no laboratório, todos no NA, 107 diferentes; malhas principais iguais, animações e cabeçalhos `.mdl` atualizados no NA).
 - Próxima ação: com o jogo fechado, aplicar o patch e `lab-set-class.ps1 -Name DeliaLab -Class 1` e `-Class 10`; depois o D13.
+- Aplicado com o jogo fechado (`class-routing-apply-d13.log`): `client.dll` `4fb46646…`, `server.dll` `e6f1b67b…`. `DeliaLab` 10 → 1 → 10: roupa-base da Delia e 12 linhas de forma do corpo (conjunto da Delia + 106 = 1000). Cliente: D13 pendente.

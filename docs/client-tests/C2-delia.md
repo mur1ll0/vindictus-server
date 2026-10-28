@@ -319,7 +319,7 @@ Memória (leitor elevado; `heapdword` novo no `lab_memory.py`, entidades só do 
 Causas:
 - **seleção:** a seleção aplica a forma do corpo guardada; a Delia criada no jogo guarda a figura padrão dela na chave 106 = 1000 (`csf/bodyshape_fig_list.txt` 106 = `bodyshape_delia_default.fig`; `csf/default_delia.bsh` marca essa figura `isDefaultFigure`, razão 1,0), como a Hagie guarda a 105. A `DeliaLab` (criada como Fiona) tinha as chaves da Fiona e não a 106. Na cidade a forma não é aplicada, por isso a cidade está certa. Mudança: `lab-set-class.ps1` troca o conjunto de chaves da classe antiga pelo da nova (Delia: 18, 19, 20, 24, 25, 40, 71–75 em 0 e 106 = 1000);
 - **janela de habilidades:** `client.dll` `0x388e6ac0`/`0x388e6ae0` devolvem o nome/inicial da classe por tabelas de 10 (`0x38cb6d24`/`0x38cb6d4c`) e texto vazio acima de 9; o `SkillDialog.setClassInfo` recebia vazio para a Delia (o filme `SkillDialog.gfx` do 1.69 tem os quadros `Weapon_1st_Delia`). Mudança: `TABLES['client.dll']` + `CLASS_STRING_BOUNDS` (tabelas de 32 com "Delia"/"D", limite → 10).
-Pré-condição: **jogo fechado**; eu aplico o patch e rodo `lab-set-class.ps1` (10 → 1 → 10) na `DeliaLab`; abrir pelo `start-lab.bat`.
+Pré-condição: já aplicado (`client.dll` `4fb46646…`, `server.dll` `e6f1b67b…`; `DeliaLab` 10 → 1 → 10 com 12 linhas de forma do corpo); abrir pelo `start-lab.bat`.
 - [ ] Seleção: a `DeliaLab` → anotar se o defeito da barriga e da perna sumiu.
 - [ ] Cidade → janela de habilidades → anotar se as habilidades ficam em posições separadas.
 - [ ] Não regressão: Hagie na seleção, na cidade e na janela de habilidades.
