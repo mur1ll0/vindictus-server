@@ -432,6 +432,74 @@ def run(game: Game | None, argv: list[str]) -> None:
                         return
                     at = chunk.find(needle, at + 1)
         print(f'{found} found')
+    elif command == 'studios':
+        # studios [FILTER] [MAX]: every studiohdr_t ('IDST' + version 44..49) in readable memory
+        needle = args[0].lower() if args else ''
+        limit = int(args[1], 0) if len(args) > 1 else 200
+        found = 0
+        for start, size in regions(game):
+            for offset in range(0, size, 0x10000):
+                try:
+                    chunk = read_block(game.handle, start + offset, min(0x10000 + 0x50, size - offset))
+                except Exception:
+                    break
+                at = chunk.find(b'IDST')
+                while at != -1 and at < 0x10000:
+                    if at + 0x50 <= len(chunk) and 44 <= struct.unpack_from('<i', chunk, at + 4)[0] <= 49:
+                        name = chunk[at + 0xC:at + 0x4C].split(b'\0')[0].decode('latin1')
+                        if needle in name.lower():
+                            print(f'{start + offset + at:#010x} {name}')
+                            found += 1
+                            if found >= limit:
+                                return
+                    at = chunk.find(b'IDST', at + 4)
+        print(f'{found} found')
+    elif command == 'studio':
+        # studio EXPR: a studiohdr_t in memory ('IDST'): name, textures, skin families and the
+        # material of every mesh of every body part model
+        base = game.eval(args[0])
+        head = game.read(base, 0xF0)
+        if head[:4] != b'IDST':
+            raise InspectError(f'No IDST header at {base:#x}.')
+        name = head[0xC:0x4C].split(b'\0')[0].decode('latin1')
+        u = lambda o: struct.unpack_from('<i', head, o)[0]
+        print(f'{name!r} version {u(4)} length {u(0x4C):#x} flags {u(0x98):#x} bones {u(0x9C)}')
+        textures = []
+        for i in range(min(u(0xCC), 128)):
+            at = base + u(0xD0) + 64 * i
+            textures.append(game.string(at + game.dword(at)))
+        cds = [game.string(base + game.dword(base + u(0xD8) + 4 * i)) for i in range(min(u(0xD4), 32))]
+        print('cdtextures', cds)
+        print('textures', list(enumerate(textures)))
+        if len(args) > 1 and args[1] == 'bones':
+            # mstudiobone_t (0xd8 bytes): name, parent, ..., flags +0xa0, proctype +0xa4
+            for i in range(min(u(0x9C), 256)):
+                bone = base + u(0xA0) + 0xD8 * i
+                raw = game.read(bone, 0xD8)
+                nameoff, parent = struct.unpack_from('<ii', raw, 0)
+                flags, proctype = struct.unpack_from('<ii', raw, 0xA0)
+                scale = struct.unpack_from('<3f', raw, 0x48)
+                print(f'  bone {i:3d} {game.string(bone + nameoff)!r:40} parent {parent:3d} flags {flags:#x} proc {proctype} posscale {scale}')
+        if len(args) > 2 and args[1] == 'seq':
+            # mstudioseqdesc_t (0xd4 bytes): label +4, activity name +8 (offsets from the desc)
+            for i in [int(x, 0) for x in args[2].split(',')]:
+                desc = base + u(0xC0) + 0xD4 * i
+                label, activity = struct.unpack('<ii', game.read(desc + 4, 8))
+                print(f'  seq {i} {game.string(desc + label)!r} activity {game.string(desc + activity)!r}')
+        refs, families = u(0xDC), u(0xE0)
+        table = game.read(base + u(0xE4), 2 * refs * families) if refs * families <= 4096 else b''
+        for f in range(min(families, 16)):
+            print(f'skin {f}', list(struct.unpack_from(f'<{refs}h', table, 2 * refs * f)) if table else '?')
+        for b in range(min(u(0xE8), 64)):
+            part = base + u(0xEC) + 16 * b
+            pname, count, _, index = struct.unpack('<iiii', game.read(part, 16))
+            print(f'bodypart {b} {game.string(part + pname)!r} models {count}')
+            for m in range(min(count, 32)):
+                model = part + index + 0x94 * m
+                raw = game.read(model, 0x94)
+                meshes, meshindex = struct.unpack_from('<ii', raw, 0x48)
+                mats = [game.dword(model + meshindex + 0x74 * k) for k in range(min(meshes, 64))]
+                print(f'  model {m} {raw[:64].split(chr(0).encode())[0].decode("latin1")!r} meshes {meshes} materials {mats}')
     elif command == 'heapdword':
         # heapdword VALUE [MAX]: 4-aligned addresses outside the game DLLs holding VALUE (objects
         # by their vtable, for example client-only entities that the entity list does not hold)

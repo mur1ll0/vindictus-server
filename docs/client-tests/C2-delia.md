@@ -356,3 +356,13 @@ Resultado esperado: se a pele ficar normal, a causa é o gerenciador pular a cla
 
 Resultado do D15 (28/10/2026): **sem mudança** com o `SHAPE_CLASS` (Delia → vaga da Lynn); Evy (Tsuko) e Fiona (Murael) certas na mesma tela. Nova captura com a *inner* 90035 (`fiona_innerarmor_jpn_15.mdl`, biquíni): a faixa branca vai da cintura até o meio da coxa, com borda recortada, por baixo do biquíni. O operador confirma: na cidade o modelo fica perfeito; só a seleção mostra a faixa.
 Memória (seleção): as entidades da Delia, Evy e Fiona diferem só na sequência de animação (`+0x6a0`); o modelo composto é `CoStUmE_10/0_90035/0_100/0_6036/…/0_102/…` (o mesmo nome que a cidade monta). Descartados também: parte padrão de calça (a Delia não tem), `delia_base` (sem `.vvd`, não desenha), `.cloth` (só esferas de colisão), ossos de `.jiggle` (iguais aos da Lynn), materiais do rosto e da animação (todos presentes).
+
+### D16 — Rastreio ao vivo da faixa branca (seleção)
+Memória (leitor elevado; comandos novos `studios FILTRO` e `studio ENDEREÇO [bones|seq N,…]` no `lab_memory.py`):
+- não há modelo composto único: a roupa é desenhada pelas partes; `delia_base.mdl` não tem malhas; a *inner* 90035 é `fiona_innerarmor_jpn_15.mdl` (malhas: pele `fiona_skin_body01`, metal, tecido). A faixa branca e os braços normais são **a mesma malha e o mesmo material**, então a diferença é por vértice (ossos/animação), não por material;
+- as bases mescladas da Evy e da Fiona mostram a mesma tabela de ossos estendida: não é diferença da Delia;
+- o *proxy* de pele (`0x386bb050`, `$sss_color`/`$composite_map`, decalque da pintura do corpo) recebe da entidade os mesmos valores da Evy;
+- a seleção toca a família "descanso" da cidade: na Delia a sequência 43 é `town_idle2restb` (`ACT_TOWN_IDLE_TO_REST_B`) de `pc_delia_town_motion.mdl`; o NA refez esse modelo (4,6 MB → 6,7 MB) e o `pc_delia_town.txt` (26 KB → 117 KB).
+Hipótese: as animações de descanso do 1.69 da Delia deformam pelve e coxas; a cidade normalmente toca parada/caminhada, por isso parece certa.
+- [ ] Na cidade, com a `DeliaLab` parada (sem mexer) até ela entrar na pose de descanso (sentar/relaxar): anotar se a faixa branca aparece.
+Resultado esperado: se aparecer na cidade, a causa é a animação de descanso (dados), não o código da seleção.
