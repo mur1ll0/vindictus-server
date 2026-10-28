@@ -2152,3 +2152,9 @@ Passo 23 (28/10/2026): roupa-base e habilidades iniciais seguem a classe na troc
 - Aplicado: `DeliaLab` 10 → 1 → 10 (2 habilidades, 3 partes). Cliente: D10 pendente.
 - Criação da Delia: decisão do operador. A barra V4 tem 10 classes fixas; a grade S3 do 1.69 lista a Delia, mas o mapa só tem 9 atores (D6 travou); a grade de 28 classes do NA pede o filme do NA e código nativo novo no `client.dll` (seção 8.8).
 - Próxima ação: resultado do D10; depois a escolha da criação e E2 (`BASTARDSWORD`).
+- D10 (cliente): cabelo da Delia na seleção, defeito da barriga/perna continua; ao entrar, desconexão. Log: `laboratory frontend connection closed` depois da seleção (`.cache/verification/d10-compose.log`); `minimum_selection::skill_cache` recusa linhas iniciais que não sejam as do inicializador de criação (Fiona).
+
+Passo 24 (28/10/2026): habilidades da classe nova acrescentadas, não renomeadas; forma do corpo da Fiona retirada da `DeliaLab`.
+- Mudança: `lab-set-class.ps1` insere as habilidades iniciais da classe nova que faltam (rank 1, id em *ticks* UTC como `MakeEntityID`), depois das linhas do inicializador; o perfil `skill-profile-v5.json` do servidor tem as 19 da Delia. A `DeliaLab` foi devolvida (10 → 1, nomes da Fiona de volta) e trocada de novo (1 → 10: 2 habilidades acrescentadas, 3 partes de roupa).
+- Experimento: 12 linhas de forma do corpo (tipo 3) da `DeliaLab` retiradas, cópia em `.cache/verification/d11-delialab-bodyshape-backup.txt`.
+- Cliente: D11 pendente. Próxima ação: resultado do D11.

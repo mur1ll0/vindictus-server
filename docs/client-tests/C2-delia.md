@@ -288,3 +288,15 @@ Pré-condição: servidor no ar; abrir pelo `start-lab.bat`.
 - [ ] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
 - [ ] (Opcional) com a `Bastard Sword` equipada, usar o *guard* → anotar o que acontece.
 Resultado esperado: seleção sem defeito; duas habilidades da Delia na janela.
+
+Resultado do D10 (28/10/2026): o cabelo da `DeliaLab` mudou para o da Delia na seleção, mas o defeito da barriga e da perna continua. Ao entrar no jogo: **desconectado**. Log do `game` (`.cache/verification/d10-compose.log`): `laboratory frontend connection closed` logo depois da seleção; a falha é do `minimum_selection::select`, que exige que as primeiras linhas de habilidade sejam as do inicializador que criou a personagem (a Fiona). Renomear essas linhas para as da Delia fez a carga recusar a personagem.
+
+### D11 — Entrada com as habilidades da Delia acrescentadas; seleção sem forma de corpo da Fiona
+Mudanças:
+- `lab-set-class.ps1` não renomeia mais as habilidades: as linhas da Fiona voltaram, e as iniciais da Delia (`skill_delia_bastard_mastery`, `skill_delia_guard`, rank 1) foram **acrescentadas** como habilidades aprendidas (estão no perfil de habilidades do servidor). A roupa-base continua a da Delia.
+- Experimento da seleção: as 12 linhas de forma do corpo (tipo 3, chaves da Fiona 0, 15–20, 22–25, 40) foram retiradas da `DeliaLab`; cópia em `.cache/verification/d11-delialab-bodyshape-backup.txt` para devolver. A figura (D9) não é a causa: o defeito existia antes e depois dela.
+Pré-condição: servidor no ar; DLLs iguais ao D9; abrir pelo `start-lab.bat`.
+- [ ] Seleção: a `DeliaLab` → anotar se o defeito da barriga e da perna sumiu.
+- [ ] Entrar no jogo → anotar se entra (sem desconexão) e se o corpo está certo na cidade.
+- [ ] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
+Resultado esperado: entra na cidade; duas habilidades da Delia; seleção sem defeito se a forma do corpo era a causa.
