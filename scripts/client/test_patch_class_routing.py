@@ -1,3 +1,4 @@
+import itertools
 import pathlib
 import re
 import struct
@@ -11,6 +12,12 @@ import patch_class_routing as routing  # noqa: E402
 from patch_class_table import Image  # noqa: E402
 
 LAB = pathlib.Path(__file__).resolve().parents[2] / '.cache/play-client/bin'
+
+
+def source(name):
+    """The .hcls copy the patch starts from: the pre-routing backup once the lab copy is patched."""
+    backup = LAB / f'{name}.{routing.EXPECTED[name]}.pre-routing.bak'
+    return (backup if backup.is_file() else LAB / name).read_bytes()
 
 
 class NamesTest(unittest.TestCase):
@@ -29,7 +36,7 @@ class LabCopyTest(unittest.TestCase):
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 
     def plan(self, name):
-        data = (LAB / name).read_bytes()
+        data = source(name)
         image, report = routing.plan_dll(name, data)
         return Image(image), report
 
@@ -53,7 +60,7 @@ class LabCopyTest(unittest.TestCase):
                 self.assertTrue(any(s and 'delia' in s.lower() for s in strings), switch)
                 self.assertFalse(any(s and 'hagie' in s.lower() for s in strings), switch)
                 if switch['pet']:
-                    original = Image((LAB / name).read_bytes())
+                    original = Image(source(name))
                     old = int(re.search(r'\+ (0x[0-9a-f]+)\]', list(self.md.disasm(
                         bytes(original.data[original.offset(cmp):original.offset(cmp) + 20]), cmp))[2].op_str).group(1), 16)
                     self.assertEqual(self.entry(image, table, routing.PET), self.entry(original, old, 10))
@@ -71,6 +78,23 @@ class LabCopyTest(unittest.TestCase):
         image, report = self.plan('client.dll')
         self.assertEqual(report['gates'], ['0x387033d7'])
         self.assertEqual(bytes(image.data[image.offset(0x387033D7):image.offset(0x387033DA)]), b'\x83\xf8\x1c')
+
+    def test_skill_match_table_sends_delia_to_an_eleventh_map(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            lookup, pick, loop, less = routing.MATCH[name]
+            delia_map = int(report['match_table']['map'], 16)
+            self.assertEqual(struct.unpack_from('<IIIIHHHHI', image.data, image.offset(delia_map)),
+                             (less, 0, 0, 0, 0xFFFF, 0, 0xFFFF, 0, 0))
+            self.assertEqual(bytes(image.data[image.offset(loop):image.offset(loop) + 3]), b'\x83\xf9\x0b')
+            for va, size, register in ((lookup, len(routing.MATCH_LOOKUP), 'edi'), (pick, len(routing.MATCH_PICK), 'ebp')):
+                jump = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
+                stub = int(jump.op_str, 16)
+                code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+                    bytes(image.data[image.offset(stub):image.offset(stub) + 64]), stub)))
+                self.assertIn(f'mov {register}, {delia_map:#x}', [f'{x.mnemonic} {x.op_str}' for x in code])
+                self.assertEqual(code[-1].mnemonic, 'jmp')
+                self.assertEqual(int(code[-1].op_str, 16), va + size)
 
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):

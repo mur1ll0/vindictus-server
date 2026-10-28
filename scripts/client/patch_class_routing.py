@@ -11,7 +11,8 @@ that have one, and reads past five 10-entry tables of the server. The patch foll
 * the five string tables of the server get 32 entries (0-9 copied, 10 Delia, 11-31 repeat entry 0
   so a later class never reads a null), and every relocated reference to them is redirected;
 * `m_iClass` is sent with log2(PET)+1 = 5 bits instead of log2(10)+1 = 4;
-* the client's local-player setup accepts classes below PET instead of below 10.
+* the client's local-player setup accepts classes below PET instead of below 10;
+* SkillActionStateMatchTable gets an 11th per-class map for Delia (the section is writable for it).
 
 Requires the `.hcls` patch (patch_class_table.py), whose relocation directory moves again into
 `.hrte`, with one more block for the new pointers. The unpatched copy is kept next to each file.
@@ -66,6 +67,17 @@ BITS = {'server.dll': 0x405368C5}
 # 0x387033b0), which builds the command object at +0x437c that the movement code reads every
 # frame. Class 10 crashed at 0x387da6b0 in client test D8. The bound becomes PET.
 GATES = {'client.dll': (0x387033D7,)}
+# SkillActionStateMatchTable keeps one action-state map (a 0x1c-byte CUtlMap) per class at
+# this + class*0x1c + 0x20 for classes 0-9, with the action-name map right after (+0x138), so
+# class 10 read that map and crashed (D8b: emote, Mercenary Outpost). Delia gets an 11th map in
+# .hrte: (GetSkillNamesByActionStateName index, MatchingActionStateSkill map pick, its class-loop
+# `cmp ecx, 0xa`, the maps' less function set by the constructor).
+MATCH = {
+    'client.dll': (0x3885FB93, 0x38860993, 0x38860C1D, 0x38022280),
+    'server.dll': (0x407CCBA3, 0x407CD8A3, 0x407CDB2D, 0x400CEB80),
+}
+MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
+MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
 md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 md.detail = False
 
@@ -186,6 +198,45 @@ def clone_case(image: Image, layout: Layout, start: int, end: int, relocs: set[i
     return replaced
 
 
+def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
+                lookup: int, pick: int, loop: int, less: int) -> dict:
+    """Delia's action-state map and the two stubs that reach it (MATCH)."""
+    for va, raw in ((lookup, MATCH_LOOKUP), (pick, MATCH_PICK)):
+        if any(va - 3 <= r < va + len(raw) for r in relocs):
+            raise PreparationError(f'Relocated dword inside {va:#x}; nothing is patched.')
+    if b'\xbd' + struct.pack('<I', less) not in image.data:
+        raise PreparationError(f'No `mov ebp, {less:#x}` (the maps\' less function); nothing is patched.')
+    # The map, as the constructor leaves each class map: less function, empty CUtlMemory,
+    # root and first free 0xffff, no element.
+    layout.pad()
+    delia_map = layout.here()
+    layout.pointer(less)
+    layout.body += struct.pack('<IIIHHHHI', 0, 0, 0, 0xFFFF, 0, 0xFFFF, 0, 0)
+
+    # GetSkillNamesByActionStateName: classes >= 10 use Delia's map (edi) and its base (ebx = map - 0x20,
+    # read again as ebx + 0x24); lower classes keep the original computation.
+    layout.pad()
+    lookup_stub = layout.here()
+    layout.body += MATCH_LOOKUP[:5] + b'\x83\xf8\x0a' + b'\x7c\x0a' + b'\xbf'
+    layout.pointer(delia_map)
+    layout.body += b'\x8d\x5f\xe0' + b'\xeb\x0f' + MATCH_LOOKUP[5:17] + MATCH_LOOKUP[21:24] + MATCH_LOOKUP[17:21]
+    layout.body += b'\xe9' + struct.pack('<i', lookup + len(MATCH_LOOKUP) - (layout.here() + 5))
+    edits.append((lookup, MATCH_LOOKUP,
+                  b'\xe9' + struct.pack('<i', lookup_stub - (lookup + 5)) + b'\x90' * (len(MATCH_LOOKUP) - 5)))
+
+    # MatchingActionStateSkill: the loop's class is at [esp + 0x28]; class 10 fills Delia's map (ebp).
+    layout.pad()
+    pick_stub = layout.here()
+    layout.body += b'\x83\x7c\x24\x28\x0a' + b'\x7c\x07' + b'\xbd'
+    layout.pointer(delia_map)
+    layout.body += b'\xeb\x07' + MATCH_PICK
+    layout.body += b'\xe9' + struct.pack('<i', pick + len(MATCH_PICK) - (layout.here() + 5))
+    edits.append((pick, MATCH_PICK, b'\xe9' + struct.pack('<i', pick_stub - (pick + 5)) + b'\x90' * 2))
+    edits.append((loop, b'\x83\xf9\x0a', b'\x83\xf9' + bytes((DELIA + 1,))))
+    return {'map': hex(delia_map), 'lookup': f'{lookup:#x} -> {lookup_stub:#x}',
+            'pick': f'{pick:#x} -> {pick_stub:#x}', 'loop': f'{loop:#x} classes 0-{DELIA}'}
+
+
 def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
@@ -270,6 +321,8 @@ def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     report['gates'] = [hex(va) for va in GATES.get(name, ())]
     for va in GATES.get(name, ()):
         edits.append((va, b'\x83\xf8\x0a', bytes((0x83, 0xF8, PET))))
+    if name in MATCH:
+        report['match_table'] = match_table(image, layout, edits, relocs, *MATCH[name])
 
     for va, old, new in edits:
         o = image.offset(va)
@@ -297,7 +350,7 @@ def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     raw = align(len(image.data), image.file_align)
     image.data += b'\0' * (raw - len(image.data)) + body + b'\0' * (align(len(body), image.file_align) - len(body))
     struct.pack_into('<8sIIIIIIHHI', image.data, image.table + 40 * image.count, SECTION, len(body), rva,
-                     align(len(body), image.file_align), raw, 0, 0, 0, 0, 0x60000020)  # code, read, execute
+                     align(len(body), image.file_align), raw, 0, 0, 0, 0, 0xE0000020)  # code, read, execute, write (Delia's map)
     image.count += 1
     struct.pack_into('<H', image.data, image.pe + 6, image.count)
     struct.pack_into('<I', image.data, image.opt + 56, align(rva + len(body), image.section_align))

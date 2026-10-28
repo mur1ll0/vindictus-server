@@ -111,3 +111,13 @@ Resultado do D8b (28/10/2026, cliente, patch com `GATES`): **avançou, com duas 
 - 12:57: entrar no Mercenary Outpost → queda em `server.dll` `0x40994727` (leitura de `0x20`).
 - Causa das duas (minidumps em `.cache/d8/d8b-*.mdmp`): `SkillActionStateMatchTable::GetSkillNamesByActionStateName` (cliente `0x3885fb60`, servidor `0x407ccb8b`) lê o mapa da classe em `this + classe*0x1c + 0x20`. A tabela tem 10 mapas (`+0x20` a `+0x11c`, construtor `0x38861640`); a classe 10 lê `+0x138`, que é outro campo. O arquivo `scripts/skill/skill_actionstate_match_table.txt` do 1.69 já tem 13 linhas `skill_delia_*`.
 - Servidor Rust sem aviso nem erro (`.cache/verification/d8b-run-game.log`).
+
+### D8c — Classe 10 com o 11º mapa da `SkillActionStateMatchTable`
+Pré-condição: patch de roteamento com `MATCH` aplicado sobre a `.hcls` (28/10/2026: `client.dll` `a9591d3a…` → `75874fe4…`, `server.dll` `af43431e…` → `8265556f…`); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo. Abrir pelo `start-lab.bat`.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
+- [ ] Entrar na cidade → esperado como no D8b (personagem invisível, itens "Cannot be equipped" e janela de habilidades vazia continuam abertos).
+- [ ] `F7` (emote) → esperado: **sem** a queda em `client.dll` `0x38a5df98`.
+- [ ] Entrar no Mercenary Outpost → esperado: **sem** a queda em `server.dll` `0x40994727`. Anotar se a área carrega.
+- [ ] Voltar à seleção e sair → sem queda.
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se cair: anotar horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
