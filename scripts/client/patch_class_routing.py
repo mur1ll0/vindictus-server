@@ -227,6 +227,13 @@ CLASS_BITS = {'client.dll': (0x3835DF6E, 0x38372D03, 0x385A6763)}
 # older class (`shape_of`) instead of skipping; the manager's own storage is unchanged.
 # Entries: (VA of `cmp reg, 9; ja`, its bytes, register).
 SHAPE_CLASS = {'client.dll': ((0x3876066F, '83fe097733', 'esi'), (0x387606DE, '83fb090f87dc020000', 'ebx'))}
+# Costume default tables indexed [slot][10] without a bound (`table[slot*10 + class]`): the body
+# layer default (server 0x40815490 over the table at 0x40f6494c, all -1) and its sibling, and the
+# client copies. Class 10 read the dword after the table, a pointer: the selection NPC
+# (0x40411e60) networked it as m_bodyLayerList[0] and the client drew a white body decal over the
+# hips and thighs (D12-D16). An extra class now reads its `clone_of` column.
+CLASS_DEFAULTS = {'client.dll': (0x3887CE30, 0x3887CF30), 'server.dll': (0x40815390, 0x40815490)}
+CLASS_DEFAULT_HEAD = bytes.fromhex('8b4424048b5424088d04808d04428b0481c20800')
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -663,6 +670,24 @@ def shape_class(layout: Layout, edits: list, va: int, old: str, register: str) -
     return f'{va:#x} -> {stub:#x}'
 
 
+def class_default(image: Image, layout: Layout, edits: list, va: int) -> str:
+    """CLASS_DEFAULTS stub: table[slot*10 + class] with an extra class read as its clone_of."""
+    o = image.offset(va)
+    if bytes(image.data[o:o + len(CLASS_DEFAULT_HEAD)]) != CLASS_DEFAULT_HEAD:
+        raise PreparationError(f'Unexpected default table accessor at {va:#x}; nothing is patched.')
+    layout.pad()
+    stub = layout.here()
+    layout.body += CLASS_DEFAULT_HEAD[:8]  # mov eax, [esp + 4] (slot); mov edx, [esp + 8] (class)
+    for extra in EXTRA_CLASSES:
+        layout.body += bytes((0x83, 0xFA, extra.index))
+        other = layout.forward(bytes((0x0F, 0x85)))
+        layout.body += bytes((0xBA,)) + struct.pack('<I', OLD_CLASSES.index(extra.clone_of))
+        layout.land(other)
+    layout.body += CLASS_DEFAULT_HEAD[8:]
+    edits.append((va, CLASS_DEFAULT_HEAD[:8], bytes((0xE9,)) + struct.pack('<i', stub - (va + 5)) + bytes((0x90,)) * 3))
+    return f'{va:#x} -> {stub:#x}'
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -919,6 +944,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         shadows = {int(i): int(a, 16) for i, a in report['costume']['shadows'].items()}
         report['event_file'] = event_file(layout, edits, shadows, *EVENT_FILE[name])
     report['shape_class'] = [shape_class(layout, edits, *entry) for entry in SHAPE_CLASS.get(name, ())]
+    report['class_defaults'] = [class_default(image, layout, edits, va) for va in CLASS_DEFAULTS.get(name, ())]
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':

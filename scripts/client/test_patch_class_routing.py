@@ -277,6 +277,15 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'cmp {register}, 9', text)
             self.assertEqual(text[-1], f'jmp {va + len(bytes.fromhex(old)):#x}')
 
+    def test_costume_default_tables_read_the_clone_column(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            clone = routing.OLD_CLASSES.index(routing.EXTRA_CLASSES[0].clone_of)
+            for va in routing.CLASS_DEFAULTS[name]:
+                text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, va)]
+                self.assertEqual(text[2:5], ['cmp edx, 0xa', text[3], f'mov edx, {clone}'])
+                self.assertEqual(text[-2:], ['mov eax, dword ptr [ecx + eax*4]', 'ret 8'])
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):
