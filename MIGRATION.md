@@ -2158,3 +2158,10 @@ Passo 24 (28/10/2026): habilidades da classe nova acrescentadas, não renomeadas
 - Mudança: `lab-set-class.ps1` insere as habilidades iniciais da classe nova que faltam (rank 1, id em *ticks* UTC como `MakeEntityID`), depois das linhas do inicializador; o perfil `skill-profile-v5.json` do servidor tem as 19 da Delia. A `DeliaLab` foi devolvida (10 → 1, nomes da Fiona de volta) e trocada de novo (1 → 10: 2 habilidades acrescentadas, 3 partes de roupa).
 - Experimento: 12 linhas de forma do corpo (tipo 3) da `DeliaLab` retiradas, cópia em `.cache/verification/d11-delialab-bodyshape-backup.txt`.
 - Cliente: D11 pendente. Próxima ação: resultado do D11.
+- D11 (cliente): entra na cidade (desconexão resolvida); cidade certa; seleção com o defeito; nenhuma habilidade na janela. Sem a forma do corpo o defeito não mudou; linhas devolvidas da cópia.
+
+Passo 25 (28/10/2026): janela de habilidades aceita a classe 10.
+- Causa: `client.dll` `0x38372c00` (lista da `SkillDialog`, `addBaseSkillItem`) e `0x3835df60` (`IsAvailableClass` sobre `ClassRestriction` em `+0x90`) fazem `cmp ecx, 9; ja` antes de `1 << classe` (varredura do padrão nos dois DLLs: só esses dois, no cliente; `d12-classbit-scan.txt`). O servidor Rust envia todas as habilidades; o filtro é do cliente.
+- Mudança: `CLASS_BITS` em `patch_class_routing.py` (limite → última classe extra) + teste. `python -m unittest test_patch_class_routing` (18, 0 falhas; `d12-routing-tests.log`). Aplicado (`class-routing-apply-d12.log`): `client.dll` `29ad8b1f…`, `server.dll` `e6f1b67b…`.
+- Seleção: entidade `C_NPC_PlayerForCharacterSelection` (vtable `0x38bd9b74`, *slot* 264 = base nulo); as figuras por classe de `0x387596f0`/`0x388f9f10` só valem com `BodyShapeModify` desligado. Sem causa estática; D12 compara a memória da entidade da seleção (Delia × Hagie).
+- Cliente: D12 pendente. Próxima ação: resultado do D12.

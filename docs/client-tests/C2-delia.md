@@ -300,3 +300,14 @@ Pré-condição: servidor no ar; DLLs iguais ao D9; abrir pelo `start-lab.bat`.
 - [ ] Entrar no jogo → anotar se entra (sem desconexão) e se o corpo está certo na cidade.
 - [ ] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
 Resultado esperado: entra na cidade; duas habilidades da Delia; seleção sem defeito se a forma do corpo era a causa.
+
+Resultado do D11 (28/10/2026): entrou na cidade sem desconexão; cidade com *inner* e modelo certos; a seleção continua com o defeito da barriga e da perna (cabelo da Delia certo); **nenhuma habilidade** na janela. Sem as linhas de forma do corpo o defeito ficou igual: a forma do corpo não é a causa (linhas devolvidas da cópia).
+
+### D12 — Janela de habilidades da classe 10; comparação de memória na seleção
+Causa da janela vazia (estática): a lista da janela (`client.dll` `0x38372c00`) e o `IsAvailableClass` (`0x3835df60`) testam `cmp ecx, 9; ja` antes de `1 << classe`; toda habilidade de classe acima de 9 era pulada. Mudança: `CLASS_BITS` no patch (limite → 10). Aplicado com o jogo fechado: `client.dll` `29ad8b1f…`, `server.dll` `e6f1b67b…` (igual).
+Seleção: a entidade da seleção é `C_NPC_PlayerForCharacterSelection` (o *slot* 264 dela é o da base, sem figura para nenhuma classe). A causa do defeito ainda não foi achada estaticamente; o passo abaixo compara a memória da entidade da seleção com a Delia e com uma Hagie.
+Pré-condição: servidor no ar; abrir pelo `start-lab.bat`.
+- [ ] Na seleção, com a `DeliaLab` selecionada: avisar; eu abro o leitor elevado (aprovar o UAC) e salvo a entidade da seleção.
+- [ ] Selecionar uma Hagie da mesma conta: avisar; eu salvo e comparo.
+- [ ] Entrar na cidade com a `DeliaLab` → abrir a janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard`.
+Resultado esperado: as duas habilidades da Delia na janela; a comparação aponta o campo ou modelo que difere na seleção.

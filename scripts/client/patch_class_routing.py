@@ -203,6 +203,11 @@ CLASS_NAME = {
 COSTUME_GATE = {'server.dll': 0x405465DE}
 COSTUME_BLOCK = bytes.fromhex('8b4424148d4c9b1e')  # mov eax, [esp + 0x14]; lea ecx, [ebx + ebx*4 + 0x1e]
 COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
+# Skill class checks (IsAvailableClass over SkillInfo.ClassRestriction): `cmp ecx, 9; ja` before
+# `1 << class`, so every skill of a class above 9 was skipped and Delia's skill window stayed empty
+# (D8v-D11). The helper at 0x3835df60 and the skill dialog's list (0x38372c00) inline the same
+# test; the bound becomes the last extra class (the mask is read as 16 bits, enough for class 15).
+CLASS_BITS = {'client.dll': (0x3835DF6E, 0x38372D03)}
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -860,6 +865,10 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['costume_gate'] = f'{COSTUME_GATE[name]:#x}: classes 0-{LAST}'
     if name in CLASS_NAME:
         report['class_name'] = class_name(layout, edits, *CLASS_NAME[name])
+    for va in CLASS_BITS.get(name, ()):
+        edits.append((va, b'\x83\xf9\x09', b'\x83\xf9' + bytes((LAST,))))
+    if name in CLASS_BITS:
+        report['class_bits'] = [f'{va:#x}: classes 0-{LAST}' for va in CLASS_BITS[name]]
     if name in EVENT_FILE:
         shadows = {int(i): int(a, 16) for i, a in report['costume']['shadows'].items()}
         report['event_file'] = event_file(layout, edits, shadows, *EVENT_FILE[name])

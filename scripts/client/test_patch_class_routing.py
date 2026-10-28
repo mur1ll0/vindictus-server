@@ -247,6 +247,14 @@ class LabCopyTest(unittest.TestCase):
                     self.assertEqual(routing.read_string(image, self.entry(image, moved, 11)), 'csf/create_miri.csf')
                     self.assertEqual(bytes(image.data[image.offset(routing.COSTUME_GATE[name]):][:3]), b'\x83\xf8\x0b')
 
+    def test_skill_class_checks_admit_the_extra_classes(self):
+        image, report = self.plan('client.dll')
+        for va in routing.CLASS_BITS['client.dll']:
+            head = list(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 16]), va))[:4]
+            self.assertEqual(f'{head[0].mnemonic} {head[0].op_str}', f'cmp ecx, {routing.LAST:#x}')
+            self.assertEqual(head[1].mnemonic, 'ja')
+            self.assertEqual([f'{x.mnemonic} {x.op_str}' for x in head[2:]], ['mov eax, 1', 'shl eax, cl'])
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):
