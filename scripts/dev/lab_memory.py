@@ -384,6 +384,25 @@ def run(game: Game | None, argv: list[str]) -> None:
                 if found >= limit:
                     return
                 at = chunk.find(needle, at + 4)
+    elif command == 'entities':
+        # entities [client|server] [FILTER] [MAX]: entity-list slots with their RTTI class
+        side = args[0] if args else 'client'
+        needle = args[1].lower() if len(args) > 1 else ''
+        slots = int(args[2], 0) if len(args) > 2 else 8192
+        table = {'client': 0x38C8F3F4, 'server': 0x40CB3740}[side]
+        base = (game.dword(table) & 0xFFFFFFFF) + 4  # 16-byte entries {object, serial, ...}
+        data = b''.join(read_block(game.handle, base + o, min(0x10000, slots * 16 - o))
+                        for o in range(0, slots * 16, 0x10000))
+        shown = 0
+        for index in range(len(data) // 16):
+            obj = struct.unpack_from('<I', data, index * 16)[0]
+            if not obj:
+                continue
+            name = class_name(game, obj) or '?'
+            if needle in name.lower():
+                print(f'{index:5d} {obj:#010x} {name}')
+                shown += 1
+        print(f'{shown} shown')
     elif command == 'regions':
         listed = list(regions(game))
         print(f'{len(listed)} readable regions, {sum(s for _, s in listed) // 0x100000} MiB; '
