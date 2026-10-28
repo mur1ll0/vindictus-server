@@ -259,3 +259,11 @@ Pré-condição: **jogo fechado** antes de aplicar. Patch de roteamento com `EVE
 - [ ] Com o jogo aberto, eu confiro na memória o caminho do arquivo de eventos (precisa aprovar o UAC do leitor).
 
 Resultado do D8n (28/10/2026): **avanço parcial.** A *inner* da Delia agora mostra "Only for Delia" na dica; a `Bastard Sword` continua "Cannot be equipped" (as armas usam outra verificação). Tudo equipa, mas nada aparece; a personagem continua invisível. Memória: o caminho do arquivo de eventos agora está certo no servidor e no cliente (`…\delia\pc_delia_motion_ex.txt`) e as 12 partes também; os oito códigos resolvidos (`+0x3418`) continuam `-1`, inclusive para *inner* 10 e cabelo 2001, que a Fiona resolve.
+
+### D8v — Corpo da Delia na cidade (montagem da roupa liberada no servidor local)
+Pré-condição: patch de roteamento com `COSTUME_GATE` (`server.dll` `a444b183…`, `client.dll` `09bbd443…`, `engine.dll` `44281475…`); `DeliaLab` na classe 10.
+Resultado (28/10/2026): **passou no corpo.** O modelo da Delia aparece na cidade, sem defeito no corpo, e as animações funcionam. Pendentes:
+- seleção de personagens: defeito da barriga até a coxa (provável `csf/bodyshape_delia_default.fig`, aplicado pela entidade própria da classe; E1);
+- a `Bastard Sword` aparece como duas espadas em vez de uma espada grande nas costas (o 1.69 não tem o tipo `BASTARDSWORD`; E2);
+- a janela de habilidades fica vazia.
+
