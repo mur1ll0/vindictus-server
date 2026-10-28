@@ -1989,3 +1989,4 @@ Passo 4 (28/10/2026): resultado do D8, patch revertido e causa da queda.
 - Cliente: D8 marcado como falho; D8b novo em `docs/client-tests/C2-delia.md`, pendente.
 - Parada (regra 2 e regra 3 do `AGENTS.md`): o operador pediu a reversão; reaplicar o patch com `GATES` e repetir o teste (D8b) depende da autorização dele.
 - Próxima ação: com a autorização, `python -s -E scripts/client/patch_class_routing.py --apply` e D8b; se a cidade aguentar, E1 (`player_delia`).
+- Execução de 12:21 (cliente): classe 10 com os DLLs revertidos (sem `--apply`) reproduziu a queda do D3 (`server.dll` `0x408b4700`, minidump em `.cache/d8/crash-d8b.mdmp`); o D8b continua sem execução. Servidor sem erro (`.cache/verification/d8b-game.log`); `DeliaLab` na classe 1; DLLs revertidos, a pedido do operador.

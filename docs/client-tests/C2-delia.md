@@ -102,3 +102,5 @@ Pré-condição: o operador autoriza reaplicar o patch. `python -s -E scripts/cl
 - [ ] Voltar à seleção e sair → sem queda.
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se cair: anotar o horário e o endereço do `Report Error`. Para reverter, copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
+
+Execução de 28/10/2026 12:21: **não testou o D8b.** Os DLLs estavam sem o patch de roteamento (`a9591d3a…`/`af43431e…`, o `--apply` não foi rodado), então a classe 10 caiu de novo no caminho do pet: queda do D3 em `server.dll` `0x408b4700` (retorno `0x40804b5f`, `switch` de expressões), antes de entrar no canal. Servidor sem erro (`.cache/verification/d8b-game.log`). `DeliaLab` na classe 1; DLLs continuam revertidos. Sem o passo do `--apply`, trocar a classe para 10 sempre reproduz o D3.
