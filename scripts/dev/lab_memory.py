@@ -356,6 +356,34 @@ def run(game: Game | None, argv: list[str]) -> None:
         CHANNEL.mkdir(parents=True, exist_ok=True)
         (CHANNEL / f'{name}.bin').write_bytes(data)
         print(f'saved {len(data):#x} bytes from {base:#x} to {name}.bin')
+    elif command == 'finddword':
+        # finddword VALUE MODULE [MAX]: addresses inside MODULE holding the dword VALUE, with the
+        # strings the 16 dwords before it point to (name pointers of RecvProp/SendProp entries)
+        value, module = int(args[0], 0), args[1].lower()
+        limit = int(args[2], 0) if len(args) > 2 else 20
+        base, size, _ = game.mods[module]
+        needle, found = struct.pack('<I', value & 0xFFFFFFFF), 0
+        for offset in range(0, size, 0x10000):
+            try:
+                chunk = read_block(game.handle, base + offset, min(0x10000, size - offset))
+            except Exception:
+                continue
+            at = chunk.find(needle)
+            while at != -1:
+                address = base + offset + at
+                names = []
+                for back in range(4, 0x44, 4):
+                    try:
+                        text = game.string(game.dword(address - back) & 0xFFFFFFFF)
+                    except Exception:
+                        text = ''
+                    if len(text) > 3 and text.isprintable():
+                        names.append(f'-{back:#x}:{text[:40]}')
+                print(f'{address:#010x} {" ".join(names[:3])}')
+                found += 1
+                if found >= limit:
+                    return
+                at = chunk.find(needle, at + 4)
     elif command == 'regions':
         listed = list(regions(game))
         print(f'{len(listed)} readable regions, {sum(s for _, s in listed) // 0x100000} MiB; '
