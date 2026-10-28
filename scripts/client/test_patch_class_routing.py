@@ -4,6 +4,7 @@ import re
 import struct
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / '.deps'))
 import capstone  # noqa: E402
@@ -88,10 +89,7 @@ class LabCopyTest(unittest.TestCase):
                              (less, 0, 0, 0, 0xFFFF, 0, 0xFFFF, 0, 0))
             self.assertEqual(bytes(image.data[image.offset(loop):image.offset(loop) + 3]), b'\x83\xf9\x0b')
             for va, size, register in ((lookup, len(routing.MATCH_LOOKUP), 'edi'), (pick, len(routing.MATCH_PICK), 'ebp')):
-                jump = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
-                stub = int(jump.op_str, 16)
-                code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
-                    bytes(image.data[image.offset(stub):image.offset(stub) + 64]), stub)))
+                code = self.stub_code(image, va)
                 text = [f'{x.mnemonic} {x.op_str}' for x in code]
                 self.assertIn(f'mov {register}, {delia_map:#x}', text)
                 if register == 'ebp':
@@ -203,6 +201,56 @@ class LabCopyTest(unittest.TestCase):
         push = next(self.md.disasm(bytes(image.data[image.offset(routing.FALLBACK_PUSH):
                                                      image.offset(routing.FALLBACK_PUSH) + 5]), routing.FALLBACK_PUSH))
         self.assertEqual(routing.read_string(image, int(push.op_str, 16)), 'player_fiona')
+
+    def test_player_entity_slots_dispatch_on_the_class(self):
+        image, report = self.plan('client.dll')
+        name, klass, figure_slot, constant_slots, gate = routing.ENTITY_SLOTS['client.dll']
+        table = routing.vtable(image, name)
+        original = Image(source('client.dll'))
+        for slot in (figure_slot, *constant_slots):
+            stub = self.entry(image, table, slot)
+            code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+                bytes(image.data[image.offset(stub):image.offset(stub) + 0x40]), stub)))
+            text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            self.assertEqual(text[:2], [f'mov eax, dword ptr [ecx + {klass:#x}]', 'cmp eax, 0xa'])
+            self.assertEqual(text[-1], f'jmp {self.entry(original, table, slot):#x}')
+            if slot == figure_slot:
+                self.assertIn(f'call {gate:#x}', text)
+                loaded = [int(x.op_str.split(', ')[1], 16) for x in code if x.mnemonic == 'mov' and x.op_str.startswith('eax, 0x')]
+                self.assertEqual([routing.read_string(image, v) for v in loaded], ['csf/bodyshape_delia_default.fig'])
+            else:
+                address = int(re.search(r'\[(0x[0-9a-f]+)\]', next(t for t in text if t.startswith('fld'))).group(1), 16)
+                value = struct.unpack_from('<f', image.data, image.offset(address))[0]
+                self.assertAlmostEqual(value, routing.EXTRA_CLASSES[0].constants[constant_slots.index(slot)], places=5)
+
+    def test_a_second_extra_class_gets_its_own_entries(self):
+        miri = routing.ExtraClass(11, 'miri', 'hagie', 'female', 'csf/bodyshape_miri_default.fig', (0.9, 1.0), 3)
+        with mock.patch.multiple(routing, EXTRA_CLASSES=routing.EXTRA_CLASSES + (miri,), LAST=11):
+            for name in ('client.dll', 'server.dll'):
+                image, report = self.plan(name)
+                for switch in report['switches']:
+                    case = int(switch['cases'][11], 16)
+                    self.assertIn('miri', ' '.join(s.lower() for s in switch['strings']))
+                    cmp = int(switch['cmp'], 16)
+                    head = list(self.md.disasm(bytes(image.data[image.offset(cmp):image.offset(cmp) + 20]), cmp))[:3]
+                    table = int(re.search(r'\+ (0x[0-9a-f]+)\]', head[2].op_str).group(1), 16)
+                    self.assertEqual(self.entry(image, table, 11), case)
+                self.assertEqual(len(report['match_table']['maps']), 2)
+                self.assertEqual(len(report['costume']['shadows']), 2)
+                entry, _, _ = routing.CLASS_NAME[name]
+                code = self.stub_code(image, entry)
+                pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
+                          if x.mnemonic == 'push' and x.op_str.startswith('0x')]
+                self.assertEqual(pushed, ['delia', 'miri'])
+                if name == 'server.dll':
+                    moved = int(report['tables'][0]['moved_to'], 16)
+                    self.assertEqual(routing.read_string(image, self.entry(image, moved, 11)), 'csf/create_miri.csf')
+                    self.assertEqual(bytes(image.data[image.offset(routing.COSTUME_GATE[name]):][:3]), b'\x83\xf8\x0b')
+
+    def test_extra_classes_must_be_contiguous(self):
+        miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
+        with self.assertRaises(routing.PreparationError):
+            routing.check_classes(routing.EXTRA_CLASSES + (miri,))
 
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):

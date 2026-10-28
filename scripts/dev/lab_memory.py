@@ -202,7 +202,7 @@ def load_symbols(mods: dict) -> dict[str, int]:
         costume = dll.get('costume')
         if costume:
             symbols[f'{prefix}.costume.shadow'] = int(costume['shadow'], 16) + delta
-            symbols[f'{prefix}.costume.real'] = int(costume['shadow'], 16) + 0x1000 + delta
+            symbols[f'{prefix}.costume.real'] = int(costume.get('real', hex(int(costume['shadow'], 16) + 0x1000)), 16) + delta
         match = dll.get('match_table')
         if match:
             symbols[f'{prefix}.match.delia_map'] = int(match['map'], 16) + delta

@@ -267,3 +267,12 @@ Resultado (28/10/2026): **passou no corpo.** O modelo da Delia aparece na cidade
 - a `Bastard Sword` aparece como duas espadas em vez de uma espada grande nas costas (o 1.69 não tem o tipo `BASTARDSWORD`; E2);
 - a janela de habilidades fica vazia.
 
+
+### D9 — E1: figura do corpo e constantes da Delia (tabela de classes extras)
+Mudança: `patch_class_routing.py` passou a ler a tabela `EXTRA_CLASSES` (Delia = 10; a Miri será mais uma linha). Novo `ENTITY_SLOTS`: na vtable de `C_HeroesPlayer` (a entidade que a Delia usa), o *slot* 264 devolve `csf/bodyshape_delia_default.fig` pela mesma trava da Hagie (`0x3870d1d0`) e os *slots* 177/178 devolvem 0,88/0,96 (valores do NA); as outras classes rodam o original.
+Pré-condição: **jogo fechado** antes de aplicar (já aplicado: `client.dll` `a47c4aac…`, `server.dll` `e6f1b67b…`, `engine.dll` `44281475…`); `DeliaLab` na classe 10; abrir pelo `start-lab.bat`.
+- [ ] Seleção de personagens: olhar a `DeliaLab` → anotar se o defeito da barriga até a coxa sumiu.
+- [ ] Não regressão: Hagie na seleção e na cidade sem mudança.
+- [ ] Entrar na cidade com a `DeliaLab` → corpo e animações como no D8v.
+- [ ] Abrir a janela de habilidades (SP) → anotar se aparece alguma habilidade (o `CLASS_NAME` ainda não foi conferido no cliente).
+Resultado esperado: seleção sem o defeito; cidade igual ao D8v.

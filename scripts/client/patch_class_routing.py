@@ -1,4 +1,7 @@
-"""Route class 10 (Delia) to her files in COPIES of client.dll and server.dll. Dry-run by default.
+"""Route the classes the 1.69 lacks (EXTRA_CLASSES: Delia, 10) to their files in COPIES of client.dll
+and server.dll. Dry-run by default. Every per-class patch reads EXTRA_CLASSES, so a later class is
+one more table entry; only the item class flags (FLAG_CHECKS, TOOLTIPS) stop at class 10, the last
+of engine.dll's 11 item flags.
 
 docs/future/new-classes.md 8.13 lists where the 1.69 DLLs stop at nine classes. Without this
 patch class 10 falls to the default case of the per-class switches, is the pet in the switches
@@ -24,6 +27,7 @@ import os
 import re
 import struct
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / '.deps'))
@@ -34,8 +38,35 @@ from prepare_lab_client import PreparationError, reject_original  # noqa: E402
 
 SECTION = b'.hrte\0\0\0'
 PET = 28
-DELIA = 10
 TABLE_SIZE = 32
+# Classes 0-9 of the 1.69, in m_iClass order.
+OLD_CLASSES = ('lethita', 'fiona', 'evy', 'kalok', 'kay', 'vella', 'hurk', 'lynn', 'arisha', 'hagie')
+
+
+@dataclass(frozen=True)
+class ExtraClass:
+    """A class the 1.69 DLLs do not know. Every per-class patch below reads this table, so a new
+    class (Miri next) is one more entry plus its content files."""
+    index: int                      # m_iClass, contiguous from 10 and below PET
+    key: str                        # lowercase name in the scripts and paths ("delia")
+    clone_of: str                   # older class whose switch cases are copied with names renamed
+    body: str                       # skeleton folder under models/player/_anim
+    figure: str                     # body figure (client entity slot 264)
+    constants: tuple[float, float]  # client entity slots 177/178 (NA values)
+    faces: int                      # models/player/<key>/pc_<key>_faceNN.mdl
+
+    @property
+    def name(self) -> str:
+        return self.key.capitalize()
+
+
+EXTRA_CLASSES = (
+    ExtraClass(10, 'delia', 'hagie', 'female', 'csf/bodyshape_delia_default.fig', (0.88, 0.96), 3),
+)
+# Class 10 is the only extra class with an item "usable by" flag (engine.dll keeps bool[11] per
+# item; patch_engine_class_flags.py), so FLAG_CHECKS and TOOLTIPS stay on her.
+DELIA = 10
+LAST = max(c.index for c in EXTRA_CLASSES)
 EXPECTED = {'client.dll': 'a9591d3a44a2b538', 'server.dll': 'af43431e78666783'}
 # Switches: (VA of `cmp reg, imm8`, original bound, whether case 10 is the pet).
 SWITCHES = {
@@ -51,22 +82,32 @@ SWITCHES = {
         (0x407CEB22, 10, True),   # skill keyword tables
     ),
 }
-# Server string tables indexed by m_iClass without a bound: (VA, Delia entry or None).
+# Server string tables indexed by m_iClass without a bound: (VA, entry template or None), filled
+# per extra class from {key}, {Name} and {body}.
 TABLES = {
     'server.dll': (
-        (0x40CF9E64, 'csf/create_delia.csf'),
-        (0x40CF9E3C, 'csf/prologue_delia.csf'),
-        (0x40CF968C, 'Player.Delia.'),
-        (0x40CFA0B0, 'csf/costume_default_delia.csf'),
+        (0x40CF9E64, 'csf/create_{key}.csf'),
+        (0x40CF9E3C, 'csf/prologue_{key}.csf'),
+        (0x40CF968C, 'Player.{Name}.'),
+        (0x40CFA0B0, 'csf/costume_default_{key}.csf'),
         (0x40CFA0D8, None),  # PvP costume: Hagie's entry is null too
         # Animation models read by [class*4 + table] at 0x4040ff6c (town), 0x4040ffa9 (battle) and
         # 0x4040ff91 (ExtremeMode). Class 10 read the next table (a male skeleton) and, in
         # ExtremeMode, a non-pointer; D8c froze on the emote.
-        (0x40CF1F80, 'models/player/_anim/female/delia/pc_delia_town_motion.mdl'),
-        (0x40CF1FA8, 'models/player/_anim/female/delia/pc_delia_battle_motion.mdl'),
-        (0x40CF1FD0, 'models/player/_anim/female/delia/pc_delia_battle_motion_ex.mdl'),
+        (0x40CF1F80, 'models/player/_anim/{body}/{key}/pc_{key}_town_motion.mdl'),
+        (0x40CF1FA8, 'models/player/_anim/{body}/{key}/pc_{key}_battle_motion.mdl'),
+        (0x40CF1FD0, 'models/player/_anim/{body}/{key}/pc_{key}_battle_motion_ex.mdl'),
     ),
 }
+# The client entity every extra class gets (the server falls back to "player", CHeroesPlayer)
+# and the methods its own class entity overrides in the NA:
+# * slot 264 returns the body figure (csf/bodyshape_<class>_default.fig). Hagie's (0x3870d1d0)
+#   returns hers unless BodyShapeModify is on and the game state is not 0x1f; the base returns
+#   none, and Delia's body was deformed from the belly to the thighs at character select (D8v);
+# * slots 177/178 return two float constants (base 0.9/1.1, Hagie 0.91/0.99, NA Delia 0.88/0.96).
+# Each slot of that vtable points at a dispatcher on m_iClass (+0x18ec): an extra class gets
+# Hagie's figure gate with its own figure and its constants; the others run the original.
+ENTITY_SLOTS = {'client.dll': ('C_HeroesPlayer', 0x18EC, 264, (177, 178), 0x3870D1D0)}
 # `push 0xa` whose log2 sizes the m_iClass SendProp (0x405368c3..0x405368c7).
 BITS = {'server.dll': 0x405368C5}
 # `cmp eax, 0xa; jge` that skips the whole local-player setup (C_HeroesPlayer vtable +0xac,
@@ -168,12 +209,29 @@ COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 # entity (only Delia) gets that class's entity. Off by default; not the Delia entity design.
 FALLBACK_PUSH = 0x40371314
 FALLBACK_ENTITIES = ('player_fiona',)
-DELIA_MOTIONS = [text for va, text in TABLES['server.dll'] if text and '_motion' in text]
-# Her base body and faces (player_costume.txt "base" 10 and "face" 100 + %02d): her town entity
-# had model index -1 while a Fiona in the same entity had 13 (D8l memory diff).
-DELIA_MODELS = ['models/player/delia/delia_base.mdl'] + [
-    f'models/player/delia/pc_delia_face{n:02d}.mdl' for n in (1, 2, 3)]
-DELIA_PRECACHE = DELIA_MOTIONS + DELIA_MODELS
+
+
+def filled(template: str | None, extra: ExtraClass) -> str | None:
+    return template.format(key=extra.key, Name=extra.name, body=extra.body) if template else None
+
+
+def precache_models(extra: ExtraClass) -> list[str]:
+    """Motion models, then the base body and faces (player_costume.txt "base" and "face"): Delia's
+    town entity had model index -1 while a Fiona in the same entity had 13 (D8l memory diff)."""
+    motions = [filled(text, extra) for _, text in TABLES['server.dll'] if text and '_motion' in text]
+    return motions + [f'models/player/{extra.key}/{extra.key}_base.mdl'] + [
+        f'models/player/{extra.key}/pc_{extra.key}_face{n:02d}.mdl' for n in range(1, extra.faces + 1)]
+
+
+def check_classes(classes: tuple[ExtraClass, ...]) -> None:
+    """The stubs assume contiguous indices from 10 below the pet, and class 10 first (FLAG_CHECKS)."""
+    if [c.index for c in classes] != list(range(10, 10 + len(classes))) or classes[-1].index >= PET:
+        raise PreparationError('Extra classes must be numbered 10, 11, ... below the pet.')
+    if len({c.key for c in classes}) != len(classes) or any(c.clone_of not in OLD_CLASSES for c in classes):
+        raise PreparationError('Extra classes need distinct keys and an older class to clone.')
+
+
+DELIA_PRECACHE = precache_models(EXTRA_CLASSES[0])
 MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
 MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
 md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
@@ -201,6 +259,18 @@ class Layout:
     def pointer(self, value: int) -> None:
         self.pointers.append(len(self.body))
         self.body += struct.pack('<I', value)
+
+    def to(self, opcode: bytes, target: int) -> None:
+        """A jump or call (opcode bytes then rel32) to a known address."""
+        self.body += opcode + struct.pack('<i', target - (self.here() + len(opcode) + 4))
+
+    def forward(self, opcode: bytes) -> int:
+        """A jump to a later point of this stub; land() fills it in."""
+        self.body += opcode + bytes(4)
+        return len(self.body) - 4
+
+    def land(self, at: int) -> None:
+        struct.pack_into('<i', self.body, at, len(self.body) - (at + 4))
 
 
 def relocations(image: Image) -> set[int]:
@@ -230,9 +300,14 @@ def read_string(image: Image, va: int) -> str | None:
     return raw.decode('ascii') if end > o and all(32 <= c < 127 for c in raw) else None
 
 
+def rename(text: str, old: str, new: str) -> str:
+    """Replace a class name keeping its case (hagie/Hagie/HAGIE)."""
+    return re.sub(old, lambda m: new if m.group().islower() else new.upper() if m.group().isupper()
+                  else new.capitalize(), text, flags=re.IGNORECASE)
+
+
 def delia(text: str) -> str:
-    return re.sub('hagie', lambda m: 'delia' if m.group() == 'hagie' else 'Delia' if m.group() == 'Hagie'
-                  else 'DELIA', text, flags=re.IGNORECASE)
+    return rename(text, 'hagie', 'delia')
 
 
 def switch_parts(image: Image, va: int, bound: int) -> tuple[str, int, int, int]:
@@ -252,8 +327,10 @@ def switch_parts(image: Image, va: int, bound: int) -> tuple[str, int, int, int]
     return register, int(ins[1].op_str, 16), int(found.group(2), 16), ins[2].address + 3
 
 
-def clone_case(image: Image, layout: Layout, start: int, end: int, relocs: set[int]) -> list[str]:
-    """Copy the Hagie case [start, end) into the layout with Delia strings; returns the strings."""
+def clone_case(image: Image, layout: Layout, start: int, end: int, relocs: set[int],
+               old: str = 'hagie', new: str = 'delia') -> list[str]:
+    """Copy the case [start, end) of class `old` into the layout with the strings of class `new`
+    (already in the layout); returns the strings."""
     code = bytes(image.data[image.offset(start):image.offset(end)])
     replaced, last, inner, placed = [], None, [], {}
     for ins in md.disasm(code, start):
@@ -279,9 +356,9 @@ def clone_case(image: Image, layout: Layout, start: int, end: int, relocs: set[i
             for i in fields:
                 value = struct.unpack_from('<I', raw, i)[0]
                 text = read_string(image, value)
-                if text and 'hagie' in text.lower():
-                    struct.pack_into('<I', out, i, layout.strings[delia(text)])
-                    replaced.append(delia(text))
+                if text and old in text.lower():
+                    struct.pack_into('<I', out, i, layout.strings[rename(text, old, new)])
+                    replaced.append(rename(text, old, new))
             base = len(layout.body)
             layout.body += out
             for i in fields:
@@ -298,46 +375,76 @@ def clone_case(image: Image, layout: Layout, start: int, end: int, relocs: set[i
 
 def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
                 lookup: int, pick: int, loop: int, less: int) -> dict:
-    """Delia's action-state map and the two stubs that reach it (MATCH)."""
+    """An action-state map per extra class and the two stubs that reach them (MATCH)."""
     for va, raw in ((lookup, MATCH_LOOKUP), (pick, MATCH_PICK)):
         if any(va - 3 <= r < va + len(raw) for r in relocs):
             raise PreparationError(f'Relocated dword inside {va:#x}; nothing is patched.')
     if b'\xbd' + struct.pack('<I', less) not in image.data:
         raise PreparationError(f'No `mov ebp, {less:#x}` (the maps\' less function); nothing is patched.')
-    # The map, as the constructor leaves each class map: less function, empty CUtlMemory,
+    # The maps, as the constructor leaves each class map: less function, empty CUtlMemory,
     # root and first free 0xffff, no element.
     layout.pad()
-    delia_map = layout.here()
-    layout.pointer(less)
-    layout.body += struct.pack('<IIIHHHHI', 0, 0, 0, 0xFFFF, 0, 0xFFFF, 0, 0)
+    maps = {}
+    for extra in EXTRA_CLASSES:
+        maps[extra.index] = layout.here()
+        layout.pointer(less)
+        layout.body += struct.pack('<IIIHHHHI', 0, 0, 0, 0xFFFF, 0, 0xFFFF, 0, 0)
 
-    # GetSkillNamesByActionStateName: classes >= 10 use Delia's map (edi) and its base (ebx = map - 0x20,
-    # read again as ebx + 0x24); lower classes keep the original computation.
+    # GetSkillNamesByActionStateName: an extra class uses its map (edi) and base (ebx = map - 0x20,
+    # read again as ebx + 0x24); any other class >= 10 the first extra map; lower classes keep the
+    # original computation.
     layout.pad()
     lookup_stub = layout.here()
-    layout.body += MATCH_LOOKUP[:5] + b'\x83\xf8\x0a' + b'\x7c\x0a' + b'\xbf'
-    layout.pointer(delia_map)
-    layout.body += b'\x8d\x5f\xe0' + b'\xeb\x0f' + MATCH_LOOKUP[5:17] + MATCH_LOOKUP[21:24] + MATCH_LOOKUP[17:21]
-    layout.body += b'\xe9' + struct.pack('<i', lookup + len(MATCH_LOOKUP) - (layout.here() + 5))
+    layout.body += MATCH_LOOKUP[:5]
+    found = []
+    for index, address in maps.items():
+        layout.body += b'\x83\xf8' + bytes((index,))
+        other = layout.forward(b'\x0f\x85')
+        layout.body += b'\xbf'
+        layout.pointer(address)
+        found.append(layout.forward(b'\xe9'))
+        layout.land(other)
+    layout.body += b'\x83\xf8\x0a'
+    low = layout.forward(b'\x0f\x8c')
+    layout.body += b'\xbf'
+    layout.pointer(maps[EXTRA_CLASSES[0].index])
+    for at in found:
+        layout.land(at)
+    layout.body += b'\x8d\x5f\xe0'
+    done = layout.forward(b'\xe9')
+    layout.land(low)
+    layout.body += MATCH_LOOKUP[5:17] + MATCH_LOOKUP[21:24]
+    layout.land(done)
+    layout.body += MATCH_LOOKUP[17:21]  # lea edx, [esp + 0x10], for every class
+    layout.to(b'\xe9', lookup + len(MATCH_LOOKUP))
     edits.append((lookup, MATCH_LOOKUP,
                   b'\xe9' + struct.pack('<i', lookup_stub - (lookup + 5)) + b'\x90' * (len(MATCH_LOOKUP) - 5)))
 
-    # MatchingActionStateSkill: the loop's class is at [esp + 0x28]; class 10 fills Delia's map (ebp).
+    # MatchingActionStateSkill: the loop's class is at [esp + 0x28]; an extra class fills its map (ebp).
     # The loop also keeps &map->m_Elements at [esp + 0x10] and reads it again after an insert
-    # (client 0x38860b4a, server 0x407cda5a; D8c crashed there), so class 10 points it at her map
-    # too. The loop ends after class 10, so the `add [esp + 0x10], 0x1c` that follows is harmless.
+    # (client 0x38860b4a, server 0x407cda5a; D8c crashed there), so an extra class points it at its
+    # map too; the `add [esp + 0x10], 0x1c` that follows is overwritten by the next extra class.
     layout.pad()
     pick_stub = layout.here()
-    layout.body += b'\x83\x7c\x24\x28\x0a' + b'\x7c\x0f' + b'\xbd'
-    layout.pointer(delia_map)
-    layout.body += b'\xc7\x44\x24\x10'
-    layout.pointer(delia_map + 4)
-    layout.body += b'\xeb\x07' + MATCH_PICK
-    layout.body += b'\xe9' + struct.pack('<i', pick + len(MATCH_PICK) - (layout.here() + 5))
+    found = []
+    for index, address in maps.items():
+        layout.body += b'\x83\x7c\x24\x28' + bytes((index,))
+        other = layout.forward(b'\x0f\x85')
+        layout.body += b'\xbd'
+        layout.pointer(address)
+        layout.body += b'\xc7\x44\x24\x10'
+        layout.pointer(address + 4)
+        found.append(layout.forward(b'\xe9'))
+        layout.land(other)
+    layout.body += MATCH_PICK
+    for at in found:
+        layout.land(at)
+    layout.to(b'\xe9', pick + len(MATCH_PICK))
     edits.append((pick, MATCH_PICK, b'\xe9' + struct.pack('<i', pick_stub - (pick + 5)) + b'\x90' * 2))
-    edits.append((loop, b'\x83\xf9\x0a', b'\x83\xf9' + bytes((DELIA + 1,))))
-    return {'map': hex(delia_map), 'lookup': f'{lookup:#x} -> {lookup_stub:#x}',
-            'pick': f'{pick:#x} -> {pick_stub:#x}', 'loop': f'{loop:#x} classes 0-{DELIA}'}
+    edits.append((loop, b'\x83\xf9\x0a', b'\x83\xf9' + bytes((LAST + 1,))))
+    return {'map': hex(maps[EXTRA_CLASSES[0].index]), 'maps': {i: hex(a) for i, a in maps.items()},
+            'lookup': f'{lookup:#x} -> {lookup_stub:#x}', 'pick': f'{pick:#x} -> {pick_stub:#x}',
+            'loop': f'{loop:#x} classes 0-{LAST}'}
 
 
 def flag_check(layout: Layout, edits: list, va: int, old: str, register: str, base: str,
@@ -360,12 +467,12 @@ def flag_check(layout: Layout, edits: list, va: int, old: str, register: str, ba
 
 def tooltip(image: Image, layout: Layout, edits: list, relocs: set[int],
             start: int, end: int, join: int, old: str) -> str:
-    """One TOOLTIPS stub: the Hagie block for flag 10 and #GameUI_Delia, then the join."""
+    """One TOOLTIPS stub: the Hagie block for flag 10 and #GameUI_<class 10>, then the join."""
     replaced = bytes.fromhex(old)
     if any(join - 3 <= r < join + len(replaced) for r in relocs):
         raise PreparationError(f'Relocated dword inside the join {join:#x}; nothing is patched.')
     layout.pad()
-    name = layout.string('#GameUI_Delia')
+    name = layout.string(f'#GameUI_{EXTRA_CLASSES[0].name}')
     layout.pad()
     stub = layout.here()
     skips, flags, named = [], 0, False
@@ -402,9 +509,10 @@ def tooltip(image: Image, layout: Layout, edits: list, relocs: set[int],
 
 
 def precache(layout: Layout, edits: list, entry: int, old: str, precache_model: int) -> str:
-    """The PRECACHE stub: PrecacheModel(path, 0) for each Delia model, then the entry."""
+    """The PRECACHE stub: PrecacheModel(path, 0) for each model of the extra classes, then the entry."""
+    models = [text for extra in EXTRA_CLASSES for text in precache_models(extra)]
     layout.pad()
-    addresses = [layout.string(text) for text in DELIA_PRECACHE]  # strings before the code
+    addresses = [layout.string(text) for text in models]  # strings before the code
     layout.pad()
     stub = layout.here()
     for address in addresses:
@@ -414,12 +522,12 @@ def precache(layout: Layout, edits: list, entry: int, old: str, precache_model: 
     replaced = bytes.fromhex(old)
     layout.body += replaced + b'\xe9' + struct.pack('<i', entry + len(replaced) - (layout.here() + len(replaced) + 5))
     edits.append((entry, replaced, b'\xe9' + struct.pack('<i', stub - (entry + 5))))
-    return f'{entry:#x} -> {stub:#x} ({len(DELIA_PRECACHE)} models)'
+    return f'{entry:#x} -> {stub:#x} ({len(models)} models)'
 
 
 def costume(image: Image, layout: Layout, edits: list, relocs: set[int],
             bound: int, block: int, after: int, accessors: tuple) -> dict:
-    """COSTUME: Delia's shadow costume object, the loader hooks and the accessor stubs."""
+    """COSTUME: a shadow costume object per extra class, the loader hooks and the accessor stubs."""
     for va, size in [(bound, 3), (block, len(COSTUME_BLOCK)), (after, 7)] + [(v, len(bytes.fromhex(o))) for v, o, _ in accessors]:
         if any(va - 3 <= r < va + size for r in relocs):
             raise PreparationError(f'Relocated dword inside {va:#x}; nothing is patched.')
@@ -428,56 +536,84 @@ def costume(image: Image, layout: Layout, edits: list, relocs: set[int],
         raise PreparationError(f'Unexpected bytes at {after:#x}; nothing is patched.')
     call = after + 7 + struct.unpack_from('<i', image.data, o + 3)[0]
 
-    # The shadow, as the loader's initialisation leaves a column: default and default_ex parts and
+    # The shadows, as the loader's initialisation leaves a column: default and default_ex parts and
     # town -1, colours and flags 0, empty strings (zeroed CUtlString). Then the saved real object.
     layout.pad()
-    shadow = layout.here()
-    body = bytearray(COSTUME_SIZE)
-    for part in range(12):
-        struct.pack_into('<i', body, 0xF0 + part * 40, -1)
-        struct.pack_into('<i', body, 0x2D0 + part * 40, -1)
-    struct.pack_into('<i', body, 0xBB8, -1)
-    layout.body += body
+    shadows = {}
+    for extra in EXTRA_CLASSES:
+        shadows[extra.index] = layout.here()
+        body = bytearray(COSTUME_SIZE)
+        for part in range(12):
+            struct.pack_into('<i', body, 0xF0 + part * 40, -1)
+            struct.pack_into('<i', body, 0x2D0 + part * 40, -1)
+        struct.pack_into('<i', body, 0xBB8, -1)
+        layout.body += body
     real = layout.here()
     layout.body += bytes(4)
 
-    # Loader: a section named like class 10 runs the class block on the shadow as class 0.
+    # Loader: a section named like an extra class runs the class block on its shadow as class 0.
     layout.pad()
     block_stub = layout.here()
-    layout.body += b'\x83\xfe' + bytes((DELIA,)) + b'\x75\x13' + b'\x8b\x44\x24\x14' + b'\xa3'
-    layout.pointer(real)
-    layout.body += b'\xc7\x44\x24\x14'
-    layout.pointer(shadow)
-    layout.body += b'\x33\xf6' + COSTUME_BLOCK
-    layout.body += b'\xe9' + struct.pack('<i', block + len(COSTUME_BLOCK) - (layout.here() + 5))
+    found = []
+    for index, shadow in shadows.items():
+        layout.body += b'\x83\xfe' + bytes((index,))
+        other = layout.forward(b'\x0f\x85')
+        layout.body += b'\x8b\x44\x24\x14' + b'\xa3'
+        layout.pointer(real)
+        layout.body += b'\xc7\x44\x24\x14'
+        layout.pointer(shadow)
+        layout.body += b'\x33\xf6'
+        found.append(layout.forward(b'\xe9'))
+        layout.land(other)
+    for at in found:
+        layout.land(at)
+    layout.body += COSTUME_BLOCK
+    layout.to(b'\xe9', block + len(COSTUME_BLOCK))
     edits.append((block, COSTUME_BLOCK, b'\xe9' + struct.pack('<i', block_stub - (block + 5)) + b'\x90' * 3))
-    edits.append((bound, b'\x83\xfe\x09', b'\x83\xfe' + bytes((DELIA,))))
+    edits.append((bound, b'\x83\xfe\x09', b'\x83\xfe' + bytes((LAST,))))
 
-    # Next section: put the real object back once the shadow was used.
+    # Next section: put the real object back once a shadow was used.
     layout.pad()
     after_stub = layout.here()
-    layout.body += b'\x81\x7c\x24\x14'
-    layout.pointer(shadow)
-    layout.body += b'\x75\x0b' + b'\x50' + b'\xa1'
+    found = []
+    for shadow in shadows.values():
+        layout.body += b'\x81\x7c\x24\x14'
+        layout.pointer(shadow)
+        found.append(layout.forward(b'\x0f\x84'))
+    keep = layout.forward(b'\xe9')
+    for at in found:
+        layout.land(at)
+    layout.body += b'\x50' + b'\xa1'
     layout.pointer(real)
-    layout.body += b'\x89\x44\x24\x18' + b'\x58' + b'\x8b\xcf'
-    layout.body += b'\xe8' + struct.pack('<i', call - (layout.here() + 5))
-    layout.body += b'\xe9' + struct.pack('<i', after + 7 - (layout.here() + 5))
+    layout.body += b'\x89\x44\x24\x18' + b'\x58'
+    layout.land(keep)
+    layout.body += b'\x8b\xcf'
+    layout.to(b'\xe8', call)
+    layout.to(b'\xe9', after + 7)
     edits.append((after, bytes(image.data[o:o + 7]), b'\xe9' + struct.pack('<i', after_stub - (after + 5)) + b'\x90' * 2))
 
-    # Accessors: class 10 reads the shadow as class 0.
+    # Accessors: an extra class reads its shadow as class 0.
     stubs = []
     for va, old, at in accessors:
         replaced = bytes.fromhex(old)
         layout.pad()
         stub = layout.here()
-        layout.body += b'\x83\x7c\x24' + bytes((at, DELIA)) + b'\x75\x0d'
-        layout.body += b'\xc7\x44\x24' + bytes((at,)) + bytes(4) + b'\xb9'
-        layout.pointer(shadow)
-        layout.body += replaced + b'\xe9' + struct.pack('<i', va + len(replaced) - (layout.here() + len(replaced) + 5))
+        found = []
+        for index, shadow in shadows.items():
+            layout.body += b'\x83\x7c\x24' + bytes((at, index))
+            other = layout.forward(b'\x0f\x85')
+            layout.body += b'\xc7\x44\x24' + bytes((at,)) + bytes(4) + b'\xb9'
+            layout.pointer(shadow)
+            found.append(layout.forward(b'\xe9'))
+            layout.land(other)
+        for at_ in found:
+            layout.land(at_)
+        layout.body += replaced
+        layout.to(b'\xe9', va + len(replaced))
         edits.append((va, replaced, b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90' * (len(replaced) - 5)))
         stubs.append(f'{va:#x} -> {stub:#x}')
-    return {'shadow': hex(shadow), 'block': f'{block:#x} -> {block_stub:#x}', 'next': f'{after:#x} -> {after_stub:#x}',
+    return {'shadow': hex(shadows[EXTRA_CLASSES[0].index]), 'shadows': {i: hex(a) for i, a in shadows.items()},
+            'real': hex(real), 'block': f'{block:#x} -> {block_stub:#x}', 'next': f'{after:#x} -> {after_stub:#x}',
             'accessors': stubs}
 
 
@@ -501,33 +637,43 @@ def fallback_entity(image: Image, edits: list, factory: str) -> str:
 
 
 def class_name(layout: Layout, edits: list, entry: int, old: str, compare: int) -> str:
-    """CLASS_NAME stub: "delia" -> DELIA, anything else -> the original lookup."""
+    """CLASS_NAME stub: an extra class key -> its index, anything else -> the original lookup."""
     layout.pad()
-    name = layout.string('delia')
+    names = {extra.index: layout.string(extra.key) for extra in EXTRA_CLASSES}
     layout.pad()
     stub = layout.here()
-    layout.body += b'\x8b\x44\x24\x04' + b'\x85\xc0' + b'\x74\x18' + b'\x68'  # mov eax,[esp+4]; test; je orig
-    layout.pointer(name)
-    layout.body += b'\x50' + b'\xe8' + struct.pack('<i', compare - (layout.here() + 1 + 5))
-    layout.body += b'\x83\xc4\x08' + b'\x85\xc0' + b'\x75\x06' + b'\xb8' + struct.pack('<I', DELIA) + b'\xc3'
+    layout.body += b'\x8b\x44\x24\x04' + b'\x85\xc0'  # mov eax, [esp + 4]; test eax, eax; je orig
+    null = layout.forward(b'\x0f\x84')
+    for index, name in names.items():
+        layout.body += b'\x68'
+        layout.pointer(name)
+        layout.body += b'\xff\x74\x24\x08'  # push [esp + 8] (the name argument)
+        layout.to(b'\xe8', compare)
+        layout.body += b'\x83\xc4\x08' + b'\x85\xc0' + b'\x75\x06' + b'\xb8' + struct.pack('<I', index) + b'\xc3'
+    layout.land(null)
     replaced = bytes.fromhex(old)
-    layout.body += replaced + b'\xe9' + struct.pack('<i', entry + len(replaced) - (layout.here() + len(replaced) + 5))
+    layout.body += replaced
+    layout.to(b'\xe9', entry + len(replaced))
     edits.append((entry, replaced, b'\xe9' + struct.pack('<i', stub - (entry + 5))))
     return f'{entry:#x} -> {stub:#x}'
 
 
-def event_file(layout: Layout, edits: list, shadow: int, va: int, old: str, extreme: int,
+def event_file(layout: Layout, edits: list, shadows: dict, va: int, old: str, extreme: int,
                resume: int, skip: int, keep: int) -> str:
-    """EVENT_FILE stub: class 10 takes its event path from the shadow costume column."""
+    """EVENT_FILE stub: an extra class takes its event path from its shadow costume column."""
     layout.pad()
     stub = layout.here()
-    layout.body += b'\x83\xfe' + bytes((DELIA,)) + b'\x75\x1b' + b'\x57'
-    layout.body += b'\xe8' + struct.pack('<i', extreme - (layout.here() + 5))
-    layout.body += b'\x84\xc0' + b'\x74\x07' + b'\xb9'
-    layout.pointer(shadow + 0xC80)  # event_file_name_xe, column 0
-    layout.body += b'\xeb\x05' + b'\xb9'
-    layout.pointer(shadow + 0xBE0)  # event_file_name, column 0
-    layout.body += b'\xe9' + struct.pack('<i', resume - (layout.here() + 5))
+    for index, shadow in shadows.items():
+        layout.body += b'\x83\xfe' + bytes((index,))
+        other = layout.forward(b'\x0f\x85')
+        layout.body += b'\x57'
+        layout.to(b'\xe8', extreme)
+        layout.body += b'\x84\xc0' + b'\x74\x07' + b'\xb9'
+        layout.pointer(shadow + 0xC80)  # event_file_name_xe, column 0
+        layout.body += b'\xeb\x05' + b'\xb9'
+        layout.pointer(shadow + 0xBE0)  # event_file_name, column 0
+        layout.to(b'\xe9', resume)
+        layout.land(other)
     # Other classes: the original `cmp esi, 9; ja skip`, then back to `push edi`.
     layout.body += b'\x83\xfe\x09' + b'\x0f\x87' + struct.pack('<i', skip - (layout.here() + 3 + 6))
     layout.body += b'\xe9' + struct.pack('<i', keep - (layout.here() + 5))
@@ -535,7 +681,78 @@ def event_file(layout: Layout, edits: list, shadow: int, va: int, old: str, extr
     return f'{va:#x} -> {stub:#x}'
 
 
+def file_va(image: Image, at: int) -> int:
+    for _, _, vaddr, rsize, raw in image.sections():
+        if raw <= at < raw + rsize:
+            return image.base + vaddr + at - raw
+    raise PreparationError(f'File offset {at:#x} is outside every section.')
+
+
+def vtable(image: Image, name: str) -> int:
+    """The primary vtable of class `name`, found through its RTTI (type descriptor, then the
+    complete object locator at offset 0 that the vtable's -4 entry points at)."""
+    data = bytes(image.data)
+    at = data.find(b'\0.?AV' + name.encode('ascii') + b'@@\0')
+    if at < 0:
+        raise PreparationError(f'No RTTI for {name}; nothing is patched.')
+    descriptor = file_va(image, at + 1) - 8
+    for found in re.finditer(re.escape(struct.pack('<I', descriptor)), data):
+        locator = file_va(image, found.start()) - 12
+        if struct.unpack_from('<II', data, image.offset(locator)) == (0, 0):
+            for ref in re.finditer(re.escape(struct.pack('<I', locator)), data):
+                return file_va(image, ref.start()) + 4
+    raise PreparationError(f'No primary vtable for {name}; nothing is patched.')
+
+
+def entity_slots(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, klass: int,
+                 figure_slot: int, constant_slots: tuple[int, int], figure_gate: int) -> dict:
+    """ENTITY_SLOTS: per-class dispatchers in the shared player entity's vtable."""
+    table = vtable(image, name)
+    layout.pad()
+    figures = {extra.index: layout.string(extra.figure) for extra in EXTRA_CLASSES}
+    layout.pad()
+    constants = {}
+    for extra in EXTRA_CLASSES:
+        constants[extra.index] = layout.here()
+        layout.body += struct.pack('<ff', *extra.constants)
+
+    def dispatch(slot: int, body) -> str:
+        at = table + 4 * slot
+        if at not in relocs:
+            raise PreparationError(f'{name} slot {slot} is not relocated; nothing is patched.')
+        original = struct.unpack_from('<I', image.data, image.offset(at))[0]
+        layout.pad()
+        stub = layout.here()
+        layout.body += b'\x8b\x81' + struct.pack('<I', klass)  # mov eax, [ecx + m_iClass]
+        for extra in EXTRA_CLASSES:
+            layout.body += b'\x83\xf8' + bytes((extra.index,))
+            other = layout.forward(b'\x0f\x85')
+            body(extra)
+            layout.land(other)
+        layout.to(b'\xe9', original)
+        edits.append((at, struct.pack('<I', original), struct.pack('<I', stub)))
+        return f'slot {slot} {original:#x} -> {stub:#x}'
+
+    def figure(extra: ExtraClass) -> None:
+        # The gate returns null when the figure is off; otherwise the class's own figure.
+        layout.to(b'\xe8', figure_gate)
+        layout.body += b'\x85\xc0' + b'\x74\x05' + b'\xb8'
+        layout.pointer(figures[extra.index])
+        layout.body += b'\xc3'
+
+    def constant(index: int):
+        def body(extra: ExtraClass) -> None:
+            layout.body += b'\xd9\x05'  # fld dword [constant]
+            layout.pointer(constants[extra.index] + 4 * index)
+            layout.body += b'\xc3'
+        return body
+
+    return {'vtable': hex(table), 'figure': dispatch(figure_slot, figure),
+            'constants': [dispatch(slot, constant(i)) for i, slot in enumerate(constant_slots)]}
+
+
 def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes, dict]:
+    check_classes(EXTRA_CLASSES)
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
         raise PreparationError(f'{name} already has .hrte; restore the pre-routing backup to patch again.')
@@ -547,42 +764,50 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     edits, report = [], {'switches': [], 'tables': [], 'bits': None}
 
     # Strings first, so clone_case can refer to them by address.
-    wanted = {}
+    wanted, heads = {}, {}
     for va, bound, _ in SWITCHES.get(name, ()):
         _, default, table, _ = switch_parts(image, va, bound)
-        case = struct.unpack_from('<I', image.data, image.offset(table + 4 * 9))[0]
         cases = {struct.unpack_from('<I', image.data, image.offset(table + 4 * i))[0] for i in range(bound + 1)}
-        # The Hagie case ends at the next case, the default or the join the other cases jump to
-        # (the last case usually falls through into it).
-        first = min(cases)
-        joins = {int(i.op_str, 16) for i in md.disasm(bytes(image.data[image.offset(first):image.offset(case)]), first)
-                 if i.mnemonic == 'jmp' and re.fullmatch(r'0x[0-9a-f]+', i.op_str)}
-        end = min(a for a in cases | joins | {default} if a > case)
-        wanted[va] = (case, end, default, table)
-    for text in sorted({delia(read_string(image, struct.unpack_from('<I', image.data, image.offset(a))[0]) or '')
-                        for va, (case, end, _, _) in wanted.items()
-                        for a in range(case, end - 3) if a in relocs} - {''}):
-        if 'delia' in text.lower():
-            layout.string(text)
-    for _, text in TABLES.get(name, ()):
-        if text:
-            layout.string(text)
+        heads[va] = (default, table)
+        for extra in EXTRA_CLASSES:
+            source = OLD_CLASSES.index(extra.clone_of)
+            case = struct.unpack_from('<I', image.data, image.offset(table + 4 * source))[0]
+            # The copied case ends at the next case, the default or the join the other cases jump
+            # to (the last case usually falls through into it).
+            first = min(cases)
+            joins = {int(i.op_str, 16) for i in md.disasm(bytes(image.data[image.offset(first):image.offset(case)]), first)
+                     if i.mnemonic == 'jmp' and re.fullmatch(r'0x[0-9a-f]+', i.op_str)}
+            wanted[va, extra.index] = (case, min(a for a in cases | joins | {default} if a > case))
+    texts = set()
+    for extra in EXTRA_CLASSES:
+        for va, _, _ in SWITCHES.get(name, ()):
+            case, end = wanted[va, extra.index]
+            for a in range(case, end - 3):
+                text = read_string(image, struct.unpack_from('<I', image.data, image.offset(a))[0]) if a in relocs else None
+                if text and extra.clone_of in text.lower():
+                    texts.add(rename(text, extra.clone_of, extra.key))
+        texts |= {filled(text, extra) for _, text in TABLES.get(name, ()) if text}
+    for text in sorted(texts):
+        layout.string(text)
     layout.pad()
 
     for va, bound, pet in SWITCHES.get(name, ()):
         register, _, _, disp = switch_parts(image, va, bound)
-        case, end, default, table = wanted[va]
-        stub = layout.here()
-        strings = clone_case(image, layout, case, end, relocs)
-        layout.pad()
+        default, table = heads[va]
+        stubs, strings = {}, []
+        for extra in EXTRA_CLASSES:
+            case, end = wanted[va, extra.index]
+            stubs[extra.index] = layout.here()
+            strings += clone_case(image, layout, case, end, relocs, extra.clone_of, extra.key)
+            layout.pad()
         entries = [struct.unpack_from('<I', image.data, image.offset(table + 4 * i))[0] for i in range(bound + 1)]
-        count = PET + 1 if pet else DELIA + 1
+        count = PET + 1 if pet else LAST + 1
         new_table = layout.here()
         for i in range(count):
-            if i < DELIA:
+            if i < 10:
                 layout.pointer(entries[i])
-            elif i == DELIA:
-                layout.pointer(stub)
+            elif i in stubs:
+                layout.pointer(stubs[i])
             elif pet and i == PET:
                 layout.pointer(entries[10])
             else:
@@ -590,14 +815,16 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         edits.append((va + 2, bytes((bound,)), bytes((count - 1,))))
         edits.append((disp, struct.pack('<I', table), struct.pack('<I', new_table)))
         report['switches'].append({'cmp': hex(va), 'register': register, 'bound': f'{bound} -> {count - 1}',
-                                   'pet': PET if pet else None, 'delia_case': hex(stub), 'strings': strings})
+                                   'pet': PET if pet else None, 'delia_case': hex(stubs[DELIA]),
+                                   'cases': {i: hex(a) for i, a in stubs.items()}, 'strings': strings})
 
+    extras = {extra.index: extra for extra in EXTRA_CLASSES}
     for va, text in TABLES.get(name, ()):
         entries = [struct.unpack_from('<I', image.data, image.offset(va + 4 * i))[0] for i in range(10)]
         new_table = layout.here()
         for i in range(TABLE_SIZE):
-            value = entries[i] if i < DELIA else (layout.strings[text] if i == DELIA and text else
-                                                  0 if i == DELIA else entries[0])
+            value = entries[i] if i < 10 else (
+                (layout.strings[filled(text, extras[i])] if text else 0) if i in extras else entries[0])
             if value:
                 layout.pointer(value)
             else:
@@ -611,7 +838,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
                     users.append(hex(at))
         if not users:
             raise PreparationError(f'No reference to the table at {va:#x}; nothing is patched.')
-        report['tables'].append({'table': hex(va), 'moved_to': hex(new_table), 'delia': text, 'references': users})
+        report['tables'].append({'table': hex(va), 'moved_to': hex(new_table), 'delia': filled(text, extras[DELIA]),
+                                 'references': users})
 
     if name in BITS:
         edits.append((BITS[name], b'\x6a\x0a', bytes((0x6A, PET))))
@@ -628,12 +856,15 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name in COSTUME:
         report['costume'] = costume(image, layout, edits, relocs, *COSTUME[name])
     if name in COSTUME_GATE:
-        edits.append((COSTUME_GATE[name], b'\x83\xf8\x09', b'\x83\xf8' + bytes((DELIA,))))
-        report['costume_gate'] = f'{COSTUME_GATE[name]:#x}: classes 0-{DELIA}'
+        edits.append((COSTUME_GATE[name], b'\x83\xf8\x09', b'\x83\xf8' + bytes((LAST,))))
+        report['costume_gate'] = f'{COSTUME_GATE[name]:#x}: classes 0-{LAST}'
     if name in CLASS_NAME:
         report['class_name'] = class_name(layout, edits, *CLASS_NAME[name])
     if name in EVENT_FILE:
-        report['event_file'] = event_file(layout, edits, int(report['costume']['shadow'], 16), *EVENT_FILE[name])
+        shadows = {int(i): int(a, 16) for i, a in report['costume']['shadows'].items()}
+        report['event_file'] = event_file(layout, edits, shadows, *EVENT_FILE[name])
+    if name in ENTITY_SLOTS:
+        report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':
         report['fallback_entity'] = fallback_entity(image, edits, fallback)
 
