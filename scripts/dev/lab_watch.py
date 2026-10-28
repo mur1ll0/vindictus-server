@@ -51,7 +51,8 @@ THREAD_ACCESS = 0x0008 | 0x0010 | 0x0002 | 0x0040  # GET/SET_CONTEXT, SUSPEND_RE
 class Context:
     """WOW64_CONTEXT as raw bytes with the few fields used here."""
     OFFSETS = {'Dr0': 4, 'Dr1': 8, 'Dr2': 12, 'Dr3': 16, 'Dr6': 20, 'Dr7': 24,
-               'Ebp': 180, 'Eip': 184, 'Esp': 196}
+               'Edi': 156, 'Esi': 160, 'Ebx': 164, 'Edx': 168, 'Ecx': 172, 'Eax': 176,
+               'Ebp': 180, 'Eip': 184, 'EFlags': 192, 'Esp': 196}
 
     def __init__(self):
         self.raw = ctypes.create_string_buffer(CONTEXT_SIZE)
@@ -64,6 +65,9 @@ class Context:
         struct.pack_into('<I', self.raw, self.OFFSETS[name], value & 0xFFFFFFFF)
 
 
+EXECUTE = False  # --exec: break before the instruction at each address instead of on writes
+
+
 def set_breakpoints(thread: int, addresses: list[int]) -> bool:
     context = Context()
     if not kernel32.Wow64GetThreadContext(thread, context.raw):
@@ -72,7 +76,8 @@ def set_breakpoints(thread: int, addresses: list[int]) -> bool:
     for i, address in enumerate(addresses):
         context[f'Dr{i}'] = address
         dr7 |= 1 << (2 * i)                          # local enable
-        dr7 |= (0b01 | 0b11 << 2) << (16 + 4 * i)    # break on write, 4 bytes
+        if not EXECUTE:
+            dr7 |= (0b01 | 0b11 << 2) << (16 + 4 * i)  # break on write, 4 bytes (execute: RW=00, LEN=00)
     context['Dr7'] = dr7
     context['Dr6'] = 0
     return bool(kernel32.Wow64SetThreadContext(thread, context.raw))
@@ -102,7 +107,11 @@ def main() -> int:
     parser.add_argument('--follow', help='a pointer slot (EXPR) whose writes move the watch: the first '
                         'address watches the slot, the others are --then offsets from the new pointer')
     parser.add_argument('--then', default='0', help='OFFSET*N from the followed pointer (N <= 3)')
+    parser.add_argument('--exec', action='store_true', help='execute breakpoints: log the registers '
+                        'before the instruction at each address runs')
     args = parser.parse_args()
+    global EXECUTE
+    EXECUTE = args.exec
     game = lab_memory.Game()  # read handle for the stack; attaching needs the same elevation
     addresses = []
     for text in args.addresses:
@@ -165,6 +174,23 @@ def main() -> int:
                     kernel32.Wow64GetThreadContext(threads[tid], context.raw)
                     dr6 = context['Dr6']
                     which = [hex(addresses[i]) for i in range(len(addresses)) if dr6 & (1 << i)]
+                    if EXECUTE:
+                        hits += 1
+                        regs = {r: context[r] for r in ('Eax', 'Ebx', 'Ecx', 'Edx', 'Esi', 'Edi', 'Ebp', 'Esp')}
+                        say(f'hit {hits}: thread {tid} at {describe(game, game.mods, context["Eip"])} '
+                            + ' '.join(f'{k.lower()}={v:#x}' for k, v in regs.items()))
+                        for k, v in regs.items():
+                            try:
+                                text = game.string(v) if 0x10000 < v < 0x80000000 else ''
+                            except Exception:
+                                text = ''
+                            if len(text) > 3 and text.isprintable():
+                                say(f'  {k.lower()} -> {text[:120]!r}')
+                        context['Dr6'] = 0
+                        context['EFlags'] = context['EFlags'] | 0x10000  # RF: run this instruction once
+                        kernel32.Wow64SetThreadContext(threads[tid], context.raw)
+                        kernel32.ContinueDebugEvent(pid, tid, status)
+                        continue
                     if follow is not None and dr6 & 1:
                         target = game.dword(follow) & 0xFFFFFFFF
                         if target:
