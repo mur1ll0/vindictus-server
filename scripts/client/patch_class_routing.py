@@ -139,6 +139,13 @@ COSTUME = {
         (0x40815270, '8b5424048b442408', 0xC),
     )),
 }
+# The server costume object's "event file for class" method (0x4081bae0) starts with
+# `cmp esi, 9; ja` and reads the manager's event_file_name(_xe) column inline (the manager is a
+# global, so `class*16 + 0x40f64698`/`0x40f64738`). Class 10 got no motion event file, the
+# networked path (+0x3f0, client +0x410) stayed empty and the town body was never built
+# (D8l/D8m memory). Class 10 now reads her paths from the shadow's class-0 column.
+# (VA of `cmp esi, 9; ja`, its bytes, ExtremeMode test, continuation after the address, skip.)
+EVENT_FILE = {'server.dll': (0x4081BB0F, '83fe097778', 0x408B3A70, 0x4081BB31, 0x4081BB8C, 0x4081BB14)}
 COSTUME_BLOCK = bytes.fromhex('8b4424148d4c9b1e')  # mov eax, [esp + 0x14]; lea ecx, [ebx + ebx*4 + 0x1e]
 COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
@@ -479,6 +486,25 @@ def fallback_entity(image: Image, edits: list, factory: str) -> str:
     return f'{FALLBACK_PUSH:#x}: "player" -> "{factory}" ({address:#x})'
 
 
+def event_file(layout: Layout, edits: list, shadow: int, va: int, old: str, extreme: int,
+               resume: int, skip: int, keep: int) -> str:
+    """EVENT_FILE stub: class 10 takes its event path from the shadow costume column."""
+    layout.pad()
+    stub = layout.here()
+    layout.body += b'\x83\xfe' + bytes((DELIA,)) + b'\x75\x1b' + b'\x57'
+    layout.body += b'\xe8' + struct.pack('<i', extreme - (layout.here() + 5))
+    layout.body += b'\x84\xc0' + b'\x74\x07' + b'\xb9'
+    layout.pointer(shadow + 0xC80)  # event_file_name_xe, column 0
+    layout.body += b'\xeb\x05' + b'\xb9'
+    layout.pointer(shadow + 0xBE0)  # event_file_name, column 0
+    layout.body += b'\xe9' + struct.pack('<i', resume - (layout.here() + 5))
+    # Other classes: the original `cmp esi, 9; ja skip`, then back to `push edi`.
+    layout.body += b'\x83\xfe\x09' + b'\x0f\x87' + struct.pack('<i', skip - (layout.here() + 3 + 6))
+    layout.body += b'\xe9' + struct.pack('<i', keep - (layout.here() + 5))
+    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
+    return f'{va:#x} -> {stub:#x}'
+
+
 def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes, dict]:
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
@@ -571,6 +597,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['precache'] = precache(layout, edits, *PRECACHE[name])
     if name in COSTUME:
         report['costume'] = costume(image, layout, edits, relocs, *COSTUME[name])
+    if name in EVENT_FILE:
+        report['event_file'] = event_file(layout, edits, int(report['costume']['shadow'], 16), *EVENT_FILE[name])
     if fallback and name == 'server.dll':
         report['fallback_entity'] = fallback_entity(image, edits, fallback)
 

@@ -2087,3 +2087,9 @@ Passo 14 (28/10/2026): rastreio no `client.dll` (escolha do operador: "Continue 
 - Lidos e descartados no cliente: `body_layer.txt`/`face_layer.txt` (camadas de pintura e maquiagem; a Hagie também não tem entrada); `0x38880a80` (campo `+0x23c` limitado a 9, mas vale 3 para as duas).
 - Achado lateral: `server.dll` `0x40815a70` dá a *inner* padrão por classe (Lethita 20; Fiona, Evy, Lynn, Arisha 21; Kalok 2004; Kay 3000; Vella 4010; Hurk 6014) e manda as outras (Hagie, Delia) para 20 (masculina). Correção futura: Delia → 21.
 - Parada (regra 5 do `AGENTS.md`): o rastreio estático chegou ao campo do arquivo de eventos e à montagem dos modelos das partes no cliente, sem achar quem grava. Hipótese principal: sem o arquivo de eventos, a montagem da cidade não cria o esqueleto/partes. Próximos caminhos: ler a vtable `+0x484` da base e das classes no servidor (quem devolve o arquivo de eventos por classe) ou depurador com ponto de parada de escrita no campo `+0x195c` do servidor.
+
+Passo 15 (28/10/2026): arquivo de eventos da animação da Delia (escolha do operador: "Keep tracing statically").
+- O *slot* 289 (`+0x484`) é igual em todas as classes e devolve o modelo da animação. Procurando o endereço dobrado das colunas do gerenciador global (`0x40f63ab8 + 0xbe0`/`+ 0xc80`), achou-se `0x4081bae0`: grava o arquivo de eventos no objeto de roupa e recusa classe > 9. O cliente recebe o caminho pela rede (não tem cópia dessa função).
+- Mudança: `EVENT_FILE`/`event_file` em `patch_class_routing.py` + teste.
+- Verificação: `python -m unittest test_patch_class_routing` (12, 0 falhas; `routing-tests-d8n.log`); *stub* desmontado (classe 10 → `sombra+0xbe0`/`+0xc80`; as outras → `cmp esi, 9`).
+- Aplicação pendente: o jogo estava aberto. Cliente: D8n em `docs/client-tests/C2-delia.md`.

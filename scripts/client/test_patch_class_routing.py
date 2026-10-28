@@ -165,6 +165,17 @@ class LabCopyTest(unittest.TestCase):
                 self.assertIn(f'mov ecx, {shadow:#x}', text)
                 self.assertEqual(text[-1], f'jmp {va + len(bytes.fromhex(old)):#x}')
 
+    def test_event_file_reads_delias_shadow_paths(self):
+        image, report = self.plan('server.dll')
+        va, old, extreme, resume, skip, keep = routing.EVENT_FILE['server.dll']
+        shadow = int(report['costume']['shadow'], 16)
+        text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, va)]
+        self.assertEqual(text[0], 'cmp esi, 0xa')
+        self.assertIn(f'mov ecx, {shadow + 0xC80:#x}', text)
+        self.assertIn(f'mov ecx, {shadow + 0xBE0:#x}', text)
+        self.assertIn(f'jmp {resume:#x}', text)
+        self.assertEqual(text[-3:], ['cmp esi, 9', f'ja {skip:#x}', f'jmp {keep:#x}'])
+
     def test_fallback_entity_is_opt_in(self):
         data = source('server.dll')
         _, plain = routing.plan_dll('server.dll', data)

@@ -248,3 +248,12 @@ Resultado do D8m (28/10/2026): **sem mudança** (invisível na cidade; coxa da *
 - os modelos da Delia foram pré-carregados (vários `pc_delia_face01/02.mdl` no *heap*), então a pré-carga não era a falta;
 - os campos do cliente pelo `RecvProp`: `m_nModelIndex` em `+0xb0` (16 bits; o `+0x84` usado antes era outro campo), `m_fEffects` `+0x7c`, `m_nRenderMode` `+0x80`, `m_nRenderFX` `+0x5c`, `m_clrRender` `+0x60`. A Delia tem modelo válido (290 na cópia do D8k, 294 agora; a Fiona 491) e os mesmos valores de desenho que a Fiona (efeitos 0, modo 0, cor branca opaca);
 - o que continua diferente: os oito códigos de roupa do servidor (`+0x3418`, `parte*100000 + índice`) ficam `-1` para a Delia, inclusive cabelo e *inner*, que a Fiona resolve.
+
+### D8n — Arquivo de eventos da animação da Delia no servidor local
+Causa achada (rastreio estático, seção 8.14): o método do servidor que grava o arquivo de eventos da animação no objeto de roupa (`0x4081bae0`) começa com `cmp esi, 9; ja` e lê a coluna do gerenciador por endereço fixo (`classe*16 + 0x40f64698`, ou `0x40f64738` em *ExtremeMode*). A classe 10 ficava sem arquivo de eventos; o caminho em rede (`+0x3f0`, cliente `+0x410`) ficava vazio e o corpo da cidade não era montado.
+Pré-condição: **jogo fechado** antes de aplicar. Patch de roteamento com `EVENT_FILE` (a classe 10 lê os caminhos da coluna da sombra); `engine.dll` `44281475…`; abrir pelo `start-lab.bat`.
+- [ ] Não regressão: Hagie entra na cidade normalmente.
+- [ ] `DeliaLab` na classe 10 (já está); entrar na cidade → anotar se o corpo aparece e se anda com animação.
+- [ ] `F7` → anotar se o emote roda.
+- [ ] Equipar espada, armadura e *inner* → anotar o que aparece.
+- [ ] Com o jogo aberto, eu confiro na memória o caminho do arquivo de eventos (precisa aprovar o UAC do leitor).
