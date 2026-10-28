@@ -60,20 +60,22 @@ pub async fn query(
     delete_delay: i32,
     mut utc: impl FnMut() -> Result<SqlDateTime2, MinimumError>,
 ) -> Result<Zeroizing<Vec<u8>>, MinimumError> {
-    let ids = characters(pool, owner).await?;
-    let first = *ids.first().ok_or(MinimumError::Conflict)?;
-    let mut tx = state::owned_first_fiona(pool, owner, first).await?;
-    for cid in &ids[1..] {
-        // Same ownership lock for every listed character; class 10 (Delia) is listed for client tests.
-        let owned: Option<i64> = sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 10 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE")
-            .bind(cid)
+    let mut tx = state::owned_account(pool, owner).await?;
+    let ids = listed(&mut *tx, owner).await?;
+    for c in &ids {
+        // Same ownership lock for every listed character; class 10 (Delia) is listed for client
+        // tests. Status 2 (waiting for deletion) is listed with its remaining time.
+        let owned: Option<i64> = sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 10 AND level>=1 AND NOT use_preset AND NOT is_premium AND status=$3 FOR UPDATE")
+            .bind(c.cid)
             .bind(owner.uid)
+            .bind(c.status)
             .fetch_optional(&mut *tx)
             .await?;
         if owned.is_none() {
             return Err(MinimumError::Conflict);
         }
     }
+    let ids = ids.iter().map(|c| c.cid).collect::<Vec<_>>();
     let bytes = load_many(
         &mut tx,
         owner,
@@ -88,21 +90,44 @@ pub async fn query(
     tx.commit().await?;
     Ok(bytes)
 }
-/// The account's characters in list order (CharacterSN), bounded by the slot maximum.
+/// One row of the list: CharacterInfo.IsVisible is status 0, or 2 while waiting for deletion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Listed {
+    pub cid: i64,
+    pub status: i32,
+}
+impl Listed {
+    /// CharacterSummary.IsDeleting.
+    pub fn deleting(self) -> bool {
+        self.status == 2
+    }
+}
+/// The account's visible characters in list order, bounded by the slot maximum. GetCharacters
+/// orders by COALESCE(OrderNum,255),ID; QueryCharacters keeps the IsVisible rows.
+pub(super) async fn listed(
+    executor: impl sqlx::PgExecutor<'_>,
+    owner: &UserKey<'_>,
+) -> Result<Vec<Listed>, MinimumError> {
+    let rows: Vec<(i64, i32)> = sqlx::query_as(
+        "SELECT id,status FROM game_character_info WHERE uid=$1 AND status IN (0,2) ORDER BY COALESCE(order_num,255),id LIMIT 17",
+    )
+    .bind(owner.uid)
+    .fetch_all(executor)
+    .await?;
+    if rows.len() > 16 {
+        return Err(MinimumError::Conflict);
+    }
+    Ok(rows
+        .into_iter()
+        .map(|(cid, status)| Listed { cid, status })
+        .collect())
+}
+/// The list row the client selects by index.
 pub(super) async fn characters(
     pool: &PgPool,
     owner: &UserKey<'_>,
-) -> Result<Vec<i64>, MinimumError> {
-    let ids: Vec<i64> = sqlx::query_scalar(
-        "SELECT id FROM game_character_info WHERE uid=$1 ORDER BY character_sn LIMIT 17",
-    )
-    .bind(owner.uid)
-    .fetch_all(pool)
-    .await?;
-    if ids.is_empty() || ids.len() > 16 {
-        return Err(MinimumError::Conflict);
-    }
-    Ok(ids)
+) -> Result<Vec<Listed>, MinimumError> {
+    listed(pool, owner).await
 }
 /// Builds the summary while the caller retains ownership and character locks.
 #[allow(clippy::too_many_arguments)]
@@ -220,7 +245,7 @@ async fn entry(
         .map_err(|_| MinimumError::Conflict)?;
     // CharacterDataContext's list summary passes TitleCount 0; the in-game summary
     // (minimum_selection::view) counts the acquired titles.
-    let info=sqlx::query("SELECT name_utf16,character_sn,class,level,exp,selected_title,total_used_ap,quote_utf16,is_premium,free_match_win_count,free_match_lose_count,free_title_name_utf16,delete_time_units300 FROM game_character_info WHERE id=$1 FOR SHARE").bind(cid).fetch_one(&mut **tx).await?;
+    let info=sqlx::query("SELECT name_utf16,character_sn,class,level,exp,selected_title,total_used_ap,quote_utf16,is_premium,free_match_win_count,free_match_lose_count,free_title_name_utf16,delete_time_units300,status FROM game_character_info WHERE id=$1 FOR SHARE").bind(cid).fetch_one(&mut **tx).await?;
     let name = text(info.try_get("name_utf16")?)?;
     let quote = text(info.try_get("quote_utf16")?)?;
     let free_title = text(info.try_get("free_title_name_utf16")?)?;
@@ -270,7 +295,7 @@ async fn entry(
         is_premium: info.try_get("is_premium")?,
         has_bonus_effect: false,
         is_return: false,
-        is_deleting: false,
+        is_deleting: info.try_get::<i32, _>("status")? == 2,
         delete_wait_left_sec: wait,
         is_should_name_change: false,
         vip_code: 0,
@@ -289,4 +314,17 @@ async fn entry(
         arena_successive_win_count: 0,
     };
     Ok(([name, quote, free_title], summary))
+}
+/// CharacterList SelectCharacter: true when the row at `index` is waiting for deletion
+/// (CharacterSummary.IsDeleting), which the source ignores without a response.
+pub(super) async fn deleting_at(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    index: i32,
+) -> Result<bool, MinimumError> {
+    let rows = characters(pool, owner).await?;
+    Ok(usize::try_from(index)
+        .ok()
+        .and_then(|i| rows.get(i))
+        .is_some_and(|c| c.deleting()))
 }

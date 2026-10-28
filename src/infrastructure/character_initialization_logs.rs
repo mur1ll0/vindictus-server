@@ -53,6 +53,20 @@ pub(crate) async fn skill_log(
 /// CharacterJournal and the "Login" CharacterLedger row of the day's partition. A failure
 /// leaves LogJournalID at 0, as the source catches it.
 pub async fn open_character_journal(pool: &PgPool, cid: i64) -> i64 {
+    match character_journal(pool, cid, "Login").await {
+        Some(id) => id,
+        None => {
+            tracing::warn!("character journal failed;private details suppressed");
+            0
+        }
+    }
+}
+fn utf16(text: &str) -> Vec<u8> {
+    text.encode_utf16().flat_map(u16::to_le_bytes).collect()
+}
+/// LogDataContext.AddCharacterJournal(CID, event): getCharacterJournalID, CharacterJournal and
+/// the event's CharacterLedger row of the day's partition. None when it failed.
+pub(crate) async fn character_journal(pool: &PgPool, cid: i64, event: &str) -> Option<i64> {
     let result = tokio::time::timeout(std::time::Duration::from_secs(5), async {
         let id: i64 = sqlx::query_scalar(
             "SELECT nextval('game_character_journal_id') FROM game_journal_identity WHERE kind=2",
@@ -70,18 +84,47 @@ pub async fn open_character_journal(pool: &PgPool, cid: i64) -> i64 {
             ),
         };
         sqlx::query(journal).bind(id).bind(cid).execute(pool).await?;
-        let login: Vec<u8> = "Login".encode_utf16().flat_map(u16::to_le_bytes).collect();
-        sqlx::query(ledger).bind(id).bind(login).execute(pool).await?;
+        sqlx::query(ledger)
+            .bind(id)
+            .bind(utf16(event))
+            .execute(pool)
+            .await?;
         Ok::<i64, sqlx::Error>(id)
     })
     .await;
     match result {
-        Ok(Ok(id)) => id,
-        _ => {
-            tracing::warn!("character journal failed;private details suppressed");
-            0
-        }
+        Ok(Ok(id)) => Some(id),
+        _ => None,
     }
+}
+/// LogDataContext.AddCharacterLedger(journalID, event, target, value) of the day's partition.
+pub(crate) async fn character_ledger(
+    pool: &PgPool,
+    journal: i64,
+    event: &str,
+    target: &str,
+    value: i32,
+) -> bool {
+    let result = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let q = match partition(routing_time(pool).await?) {
+            LedgerPartition::One => {
+                "INSERT INTO game_character_ledger01(journal_id,event_utf16,target_utf16,value) VALUES($1,$2,$3,$4)"
+            }
+            LedgerPartition::Two => {
+                "INSERT INTO game_character_ledger02(journal_id,event_utf16,target_utf16,value) VALUES($1,$2,$3,$4)"
+            }
+        };
+        sqlx::query(q)
+            .bind(journal)
+            .bind(utf16(event))
+            .bind(utf16(target))
+            .bind(value)
+            .execute(pool)
+            .await?;
+        Ok::<(), sqlx::Error>(())
+    })
+    .await;
+    matches!(result, Ok(Ok(())))
 }
 /// Caller holds the owned first-Fiona transaction. Separate source context commits even if Submit fails.
 pub(crate) async fn give_skill(

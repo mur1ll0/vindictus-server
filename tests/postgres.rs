@@ -1605,6 +1605,9 @@ mod mail_reference;
 #[path = "support/minimum_character.rs"]
 mod minimum_character;
 
+#[path = "support/character_delete.rs"]
+mod character_delete;
+
 #[path = "support/minimum_inventory.rs"]
 mod minimum_inventory;
 

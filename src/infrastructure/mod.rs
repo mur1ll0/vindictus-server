@@ -115,6 +115,7 @@ pub mod minimum_assets;
 pub mod minimum_beauty_shop;
 pub mod minimum_cash_shop;
 pub mod minimum_character;
+pub mod minimum_character_delete;
 pub mod minimum_character_list;
 pub mod minimum_daily_item;
 pub mod minimum_selection;
