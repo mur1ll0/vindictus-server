@@ -1951,3 +1951,15 @@ Extração completa do cliente NA para `F:\Games\vindictus\hfsExtracted` (28/10/
   - `sqlite/heroes.db3` substituído pela cópia em claro (`8eb596f8…`, `quick_check` ok, 495 tabelas).
   - Resultado: 673 arquivos de texto, 282 UTF-16 e 3 vazios; nenhum ainda cifrado.
 - Logs `.cache/verification/na-full-extract.log`, `na-layer2-*.log`. O carregador (`.cache/na-loader-src`) continua só no `.cache`.
+
+Caminho C, etapa C2 — escopo ampliado (28/10/2026, decisão do operador: mais de 10 classes, seletor em grade, Delia funcional; Miri, segundas armas e Dullahan só documentados). Passo 1: limite real e inventário.
+- Mudança: `scripts/reverse/v169_class_uses.py` (só leitura; confere os hashes `a9591d3a…`/`af43431e…` da cópia de laboratório; visita as leituras de `m_iClass` e o código das strings da Hagie); seções 8.13 e 9 de `docs/future/new-classes.md`.
+- Evidência:
+  - NA: 28 classes (`cmp ecx, 0x1b` nos acessores de nome dos dois DLLs), pet no índice 28 (`switch` de expressões e palavras-chave com `cmp …, 0x1c`), `m_iClass` em rede com `log2(28)+1 = 5` bits (0–31): é a origem do limite de 32. No 1.69 o pet é o índice 10 (`CHARACTER_COUNT`) e `m_iClass` tem 4 bits;
+  - 1.69 de laboratório: cerca de 20 limites 9 no cliente e 7 no servidor, limites 10 com pet no caso 10 (expressões, palavras-chave e vetores de 11 posições), 5 tabelas de `.csf`/sons/*costume* sem limite no servidor (a classe 10 lê a tabela seguinte);
+  - servidor Rust: travas 0–9 na criação (`character_creation_core`, `class_initial`, `fiona_initializer_profile`, exportadores) e na posse (`character_base_stats`, `character_skills`, `initial_inventory`); o servidor 1.69 não tem `DefaultItemInfo`/`DefaultSkillInfo`/*inner* da classe 10.
+  - Seletor em grade: bloqueio documentado (contrato nativo de 8.8; depende do E1).
+  - Dullahan: não existe no 1.69 nem no servidor; inventário do NA em 9.3.
+- Verificação: `python -I scripts/reverse/v169_class_uses.py` (exit 0; log `.cache/verification/v169-class-uses.log`); sondas do NA em `.cache/verification/na-class-*.log`, `na-pet-index.log`, `class-weapons-inventory.log`, `dullahan-inventory.log`.
+- Cliente: não necessário (leitura).
+- Próxima ação: no servidor Rust, centralizar as classes (Delia = 10, pet fora das classes) e liberar a criação e a posse da classe 10 com os dados de criação da Delia; depois, o patch de roteamento da classe 10 e o E1 nos DLLs de laboratório.

@@ -507,3 +507,65 @@ Ferramenta de patch: seguir o modelo de `scripts/client/patch_shop_list_limit.py
    - cliente: mensagens de falha (419), inclinação ao correr (334), métodos só do NA pelos chamadores da tabela acima (413, 427, 400, 614).
 
 Antes do E1 falta ler o registro de fábrica e de tabela de rede do 1.69 (como `player_hagie` e `DT_HeroesPlayerHagie` são instalados), para reproduzir o mesmo formato.
+
+### 8.13 Limite real de classes no NA e inventário dos limites de 10 no 1.69 e no servidor Rust (28/10/2026)
+
+Pedido do operador (28/10/2026): ampliar para mais de 10 classes no cliente e no servidor, com o seletor em grade do NA e a Delia funcional. Leitura pontual (tabelas, acessores, `m_iClass` e os `switch` por classe); nenhuma análise do binário inteiro.
+
+**Limite no NA** (`.cache/bin_x64`, hashes conferidos pelos scripts de 8.10; logs `.cache/verification/na-class-*.log`, `na-pet-index.log`):
+- tabela de pares {nome, corpo} com **28 entradas** nos dois DLLs (cliente `0x1f85aa0`, servidor `0x1675a00`, passo 16 bytes) e lista de nomes (cliente `0x1f81970`, servidor `0x166f980`);
+- acessor do nome com `cmp ecx, 0x1b; ja` (cliente `0xb4b30`, servidor `0xb80c0`): classes 0 a 27; laços de criação com `cmp ebx, 0x1b` (cliente `0x23b93e`, `0x23c94b`, `0x23d972`);
+- **o pet é o índice 28**, logo depois da última classe: `switch` das expressões (`0x202dcb`, `cmp esi, 0x1c`) e das palavras-chave de habilidade (`0x28fdd8`, `cmp eax, 0x1c`) mandam o 28 para `expression_table_pet`/`pet_skill_keyword_table`. No 1.69 o pet é o 10, que também é `CHARACTER_COUNT` do enum `BaseCharacter` do C#: o pet é sempre "o índice depois da última classe", e por isso a Delia caiu no caminho do pet;
+- **rede:** o servidor do NA envia `m_iClass` com `log2(28)+1 = 5` bits (`0x68db38`): valores 0 a 31. **É daí que vem o limite de 32**: 28 classes, o pet e 3 valores livres. O 1.69 envia com `log2(10)+1 = 4` bits (`0x408eedb0` chamado em `0x405368c7`): 0 a 15;
+- **conteúdo:** no `heroes.db3` do NA, `ClassRestriction` é texto (`fiona`, `delia,miri`, `all`, `female`…), com 28 nomes de classe. No 1.69 e no servidor Rust é a máscara `int` (`1 << classe`), que comporta 32 classes (bit 31 é o sinal, mas `wrapping_shl(c & 31)` já trata os 32).
+
+**Decisão de representação para o laboratório:** seguir o NA: classes 0 a 27 na ordem da tabela do NA (já na seção `.hcls`, com 32 posições), pet no índice depois da última classe e `m_iClass` com 5 bits. O teto é 32 (`.hcls`, máscara `int` e 5 bits); o 1.69 só tem conteúdo para as 10 classes e a Delia, e o servidor aceita só as classes com conteúdo de criação.
+
+**Inventário no 1.69 de laboratório** (`scripts/reverse/v169_class_uses.py`; JSON local `docs/evidence/client/v169-class-uses.json`; log `.cache/verification/v169-class-uses.log`). O script visita as 181 leituras de `m_iClass` de cada DLL (campo `+0x18ec` no cliente, `+0x1400` no servidor, e os *getters*) e as referências às strings da Hagie:
+
+| Tipo | Cliente | Servidor |
+|---|---|---|
+| `switch`/limite 9 (`ja` → padrão, a classe 10 não tem caso) | cerca de 20 (lista no JSON): estado de ação `0x387ed842`, eventos `0x3852e6f1`/`0x3852e7c4`, nomes em minúsculas `0x387a3ae4`, figura `0x388f9f2f`, `0x386f3bf6`, `0x38705f62`, `0x3872c978`, `0x3846a737`, `0x3848d678`, `0x38572961`, `0x38760397`… | 7: estado de ação `0x407efdbd`, `0x40539af2`, `0x402e4bc0`, `0x405465de`, `0x40608e0e`, `0x40692851`, `0x40835818` |
+| limite 10 com caso 10 = pet | expressões `0x3880401a`, palavras-chave `0x38861c22`, `0x387033d7`, `0x3888643a`/`0x3888e700` (vetor `0x38fbc6c0`, 11 posições), `0x3888ce3c`, `0x38630c96` | expressões `0x40804ac0`, palavras-chave `0x407ceb22`, `0x4081efca`/`0x408258d0` (vetor `0x40f68510`), `0x4082369c` |
+| tabela indexada sem limite (10 entradas; a classe 10 lê a tabela seguinte) | — | `.csf` de criação `0x40cf9e64` (lida em `0x405381da`), prólogo `0x40cf9e3c` (`0x405381ff`), prefixo de som `Player.<Classe>.` `0x40cf968c` (3 leituras), *costume* padrão `0x40cfa0b0` (`0x4054eedc`) e de PvP `0x40cfa0d8` (`0x4054ed1d`; só 9 nomes, sem Arisha) |
+| tabelas de classe (`.hcls`, já com 32 posições) | acessores `0x3879ec50`/`0x3879ec60` | `0x40755b40`/`0x40755b50`, `0x408b3980` |
+
+- A queda D3 (`0x408b4700`, *getter* `[ecx+0x1c]` com objeto inválido) é coerente com a fábrica: o nome da classe 10 agora é `Delia`, e `player_delia` não existe no 1.69 (E1).
+- O conteúdo do 1.69 já tem os arquivos da Delia que esses `switch` e tabelas pedem: `player_action_state_delia[_ex].txt`, `expression_table_delia[_ex|_common].txt`, `delia_skill_keyword_table.txt`, `csf/create_delia.csf`, `csf/prologue_delia.csf`, `csf/costume_default_delia.csf`, `csf/bodyshape_*_delia.fig`.
+- **Caminho do pet preservado:** o patch não reaproveita o caso 10 de pet. Em cada `switch` com pet, o limite sobe para o novo índice do pet e o caso 10 passa à Delia; os vetores de 11 posições (`0x38fbc6c0`, `0x40f68510`) mudam de lugar para a `.hcls` com 33 posições. O servidor Rust não cria pets hoje; quando criar, usará o novo índice.
+
+**Servidor Rust** (pontos com 10 classes):
+- criação: `character_creation_core.rs:57` (`class > 9`), `class_initial.rs:91/98` (até 10 classes, `> 9`), `fiona_initializer_profile.rs:363` (`> 9`), `scripts/content/export_class_initial.py` e `export_fiona_initializer.py` (`range(10)`, `0..9`);
+- persistência e verificação de posse: `character_base_stats.rs:60`, `character_skills.rs:230`, `initial_inventory.rs:79` (`class BETWEEN 0 AND 9`); `minimum_character_list.rs:68` e `fiona_character_state.rs:516` já aceitam 0 a 10;
+- regras: `npc_talk.rs:470` (`c < 10`), nomes de classe com 10 posições em `npc_script.rs:48`, `npc_talk.rs:1814`, `admin_tooltip.rs:40/326`, `admin_characters.rs:292`; editor de itens `item_editor.rs:34` (`ClassRestriction` até 4095, 12 bits);
+- já genéricos: a coluna `class` (`SMALLINT` 0–255) e as máscaras `ClassRestriction` (`wrapping_shl(class & 31)`).
+- **Dados de criação da Delia no servidor 1.69:** `CharacterClassInfo` e `CharacterBaseLoadInfo` têm a classe 10; `DefaultItemInfo`, `DefaultSkillInfo` e o `switch` `INNERARMOR` do `ItemImpl.cs` não têm. Existem os itens e as habilidades da Delia: `bastardsword_newbie`, `delia_inner_free`, `skill_delia_bastard_mastery`, `skill_delia_guard`.
+
+**Seletor em grade:** o filme do NA (`NewCharacterDialog_V2.gfx`, `c88875d7…`, igual ao extraído em 8.7) não mudou nesta extração. Continua valendo o contrato de 8.8: 11 chamadas C++ → filme e 5 tratadores filme → C++ que o `client.dll` 1.69 não tem; o mapa `s3_game_create_character` não serve. **Bloqueio documentado:** trazer a grade exige código nativo novo no `client.dll` (o despachante do NA em `0x389e06f0` é a referência) e só faz sentido depois da entidade (E1), porque nenhuma classe acima de 10 cria uma personagem jogável sem ela. Até lá, a Delia de laboratório é criada pelo servidor (comando de laboratório), não pela barra V4, que é fixa em 10 classes.
+
+## 9. Próximos passos registrados: Miri, segundas armas do Hurk e da Lynn, Dullahan (28/10/2026)
+
+Pedido do operador (28/10/2026): registrar sem implementar. Contagens do `heroes.db3` do NA (`F:\Games\vindictus\hfsExtracted\sqlite`, copiado para `.cache/na-hfs`, `8eb596f8…`) e do `heroesContents.db3` do servidor 1.69. Logs: `.cache/verification/class-weapons-inventory.log` e `dullahan-inventory.log`.
+
+### 9.1 Miri (classe 11 no NA)
+- **NA:** 1.022 itens e 19 habilidades com `miri`; arma `DRAKER` (77 itens), maestria `skill_miri_draker_mastery` (primeira arma); entrada 11 da tabela de classes (corpo 2, feminino).
+- **1.69:** nada. Nenhum item, habilidade, modelo, script de estado ou `.csf` com `miri` no servidor ou no cliente; `DRAKER` não existe em `EquipItemInfo`.
+- **O que falta trazer:** modelos, animações, efeitos, sons e scripts (`player_action_state_miri*`, `expression_table_miri*`, `miri_skill_keyword_table`) do HFS do NA (decisão de cópia do operador); as linhas de `ItemClassInfo`/`EquipItemInfo`/`SkillInfo`/`CharacterClassInfo` da Miri convertidas para o esquema 1.69 (`ClassRestriction` em texto → máscara, bit 11); a entidade `player_miri` nos dois DLLs, no mesmo modelo do E1–E5 da Delia, e uma entidade de arma `DRAKER`; dados de criação (`DefaultItemInfo`, `DefaultSkillInfo`, *inner*) como os da Delia.
+- **Pré-requisitos já prontos:** a `.hcls` tem a Miri na entrada 11; o limite de 32 classes e o pet deslocado (seção 8.13).
+
+### 9.2 Segundas armas do Hurk e da Lynn
+| Classe | Primeira arma (1.69 e NA) | Segunda arma (só NA) | Maestrias da segunda arma no NA |
+|---|---|---|---|
+| Hurk | `GREATSWORD` (162 itens no NA) | `TEIDE` (94 itens) | `skill_hurk_teide_mastery`, `skill_hurk_shooting_mastery` (`IsSecondWeapon`) |
+| Lynn | `BATTLEGLAIVE` (154) | `BLUTE` (72) | `skill_lynn_blute_mastery`, `skill_lynn_vigor_mastery`, `skill_lynn_outside_power_mastery`, `skill_lynn_internal_power_mastery` |
+- **1.69:** só a primeira arma de cada um (`skill_hurk_greatsword_mastery`, `skill_lynn_battleglaive_mastery`); `TEIDE` e `BLUTE` não existem, nem os arquivos de modelo e estado de ação.
+- **O que falta trazer:** modelos e scripts de estado de ação das segundas armas; as entidades de arma nos dois DLLs; a troca de arma (o NA tem `OnFirstWeapon`/`OnSecondWeapon` na criação e `IsFirstWeapon`/`IsSecondWeapon` em `SkillInfo`, que o 1.69 já lê); itens e habilidades convertidos; regras do servidor para a escolha da arma (o servidor 1.69 não tem o conceito de segunda arma na criação).
+
+### 9.3 Dullahan (chefe)
+- **No nosso conteúdo e servidor: não existe.** Nenhuma linha com `dullahan` em `MonsterInfo`, `ItemClassInfo` ou `QuestInfo` do servidor 1.69; nenhum arquivo no cliente 1.69 (`.cache/play-client/hfs_extracted`); nenhuma referência em `src/` ou `docs/`. Os mapas do 1.69 vão até `3_19`.
+- **No NA:**
+  - **chefe:** `npc_dullahan` (8 linhas em `MonsterInfo`): nível 95 (`general`, com variações por feature `S4EP1`/`S4EP4`), `general_competition_raid` (`PvE_Competition`) e `ancient_ds` nível 125; modelo `models/monster/dullahan` e scripts `_dullahan_attack_motion.txt`/`_dullahan_common_motion.txt`;
+  - **fases:** `quest_s3_ep7_dullahan` (nível 95, `S3CH1`), `quest_s3_ep7_dullahan_equal` e `quest_ancient_dullahan_125_ds` (nível 125); mapas `3_23.bsp`, `3_23_ds.bsp`, `3_23_ending.bsp` e as variantes `hw_s3*` que citam `npc_dullahan`;
+  - **armas para todas as classes:** uma arma `*_dullahan` por tipo, 40 tipos, entre eles `bastardsword_dullahan` (Delia), `teide_dullahan`, `blute_dullahan` e `draker_dullahan` (as armas novas de 9.1 e 9.2), além de armaduras (`PLATE_ARMOR` masculina e 25 `CLOTH`), 50 avatares e materiais de combinação (`combine_*_lv95_dullahan`, `ReforgeMaterialInfo`). No total, 209 itens com `dullahan`;
+  - **"quadro atualizado":** os tipos de arma do Dullahan cobrem as 28 classes do NA, inclusive as que o 1.69 não tem; para o 1.69 servem 18 dos 40 tipos, os que já existem em `EquipItemInfo` (`LONGSWORD`, `SHIELD`, `GREATSWORD`, `BATTLEGLAIVE`, `SCYTHE`, `PHANTOMDAGGER`, `BASTARDSWORD`, entre outros); os outros 22 dependem de classes ou armas que o 1.69 não tem.
+- **O que falta trazer, na ordem:** (1) o mapa e os scripts do chefe, com o modelo, do HFS do NA (decisão de cópia do operador); (2) `MonsterInfo`, `QuestInfo` e as tabelas de *drop* e setores das três fases, convertidas para o esquema 1.69; (3) as armas e armaduras do Dullahan das classes que o 1.69 tem, com receitas de combinação e reforja; (4) as armas das classes que ainda não existem só depois delas (9.1, 9.2). As fases dependem do B2 (missões solo); a competição (`PvE_Competition`) e as variantes `ds` dependem do multijogador (B5).
