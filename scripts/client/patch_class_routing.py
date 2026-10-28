@@ -114,6 +114,33 @@ TOOLTIPS = {
 # model failed at spawn (invisible, frozen emote; D8d-D8f). Its entry (`sub esp,0x54; push esi;
 # push edi`) jumps to a stub that first precaches her three motion models with PrecacheModel.
 PRECACHE = {'server.dll': (0x4054DE00, '83ec545657', 0x40114940)}
+# Costume manager (scripts/player_costume.txt): per-class columns of 10 (default and default_ex
+# part per slot at +0xf0/+0x2d0, colours from +0x4b0, colour flags from +0xa50, town at +0xbb8,
+# event files at +0xbe0/+0xc80). The loader (client 0x38882e30) matches a section name against
+# classes 0-9 only, so the "delia" sections (base delia_base.mdl, face, motion) were read as part
+# entries and every class-10 read landed in the next column: no body (D8b-D8g). Delia gets a
+# shadow costume object in .hrte: the loader stores her sections in its class-0 column, and each
+# accessor called with class 10 reads the shadow as class 0. The other classes' columns stay put.
+# Entries: name-match bound (`cmp esi, 9`), class block start, next-section point, accessors
+# (VA, original bytes moved to the stub, stack offset of the class argument at entry).
+COSTUME = {
+    'client.dll': (0x38882FE0, 0x3888305B, 0x38883525, (
+        (0x3887CBC0, '568b742408', 8),                 # default part (slot, class)
+        (0x3887CC60, '8b4424048b8481b80b0000', 4),     # town (class)
+        (0x3887CC70, '56578b7c240c', 4),               # event file (class)
+        (0x3887CCC0, '8b54240456', 0xC),               # colour (slot, index, class)
+        (0x3887CD10, '8b5424048b442408', 0xC),         # colour flag (slot, index, class)
+    )),
+    'server.dll': (0x4081A900, 0x4081A97B, 0x4081AE45, (
+        (0x40815120, '568b742408', 8),
+        (0x408151C0, '8b4424048b8481b80b0000', 4),
+        (0x408151D0, '56578b7c240c', 4),
+        (0x40815220, '8b54240456', 0xC),
+        (0x40815270, '8b5424048b442408', 0xC),
+    )),
+}
+COSTUME_BLOCK = bytes.fromhex('8b4424148d4c9b1e')  # mov eax, [esp + 0x14]; lea ecx, [ebx + ebx*4 + 0x1e]
+COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 DELIA_MOTIONS = [text for va, text in TABLES['server.dll'] if text and '_motion' in text]
 MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
 MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
@@ -357,6 +384,70 @@ def precache(layout: Layout, edits: list, entry: int, old: str, precache_model: 
     return f'{entry:#x} -> {stub:#x} ({len(DELIA_MOTIONS)} models)'
 
 
+def costume(image: Image, layout: Layout, edits: list, relocs: set[int],
+            bound: int, block: int, after: int, accessors: tuple) -> dict:
+    """COSTUME: Delia's shadow costume object, the loader hooks and the accessor stubs."""
+    for va, size in [(bound, 3), (block, len(COSTUME_BLOCK)), (after, 7)] + [(v, len(bytes.fromhex(o))) for v, o, _ in accessors]:
+        if any(va - 3 <= r < va + size for r in relocs):
+            raise PreparationError(f'Relocated dword inside {va:#x}; nothing is patched.')
+    o = image.offset(after)
+    if bytes(image.data[o:o + 3]) != b'\x8b\xcf\xe8':
+        raise PreparationError(f'Unexpected bytes at {after:#x}; nothing is patched.')
+    call = after + 7 + struct.unpack_from('<i', image.data, o + 3)[0]
+
+    # The shadow, as the loader's initialisation leaves a column: default and default_ex parts and
+    # town -1, colours and flags 0, empty strings (zeroed CUtlString). Then the saved real object.
+    layout.pad()
+    shadow = layout.here()
+    body = bytearray(COSTUME_SIZE)
+    for part in range(12):
+        struct.pack_into('<i', body, 0xF0 + part * 40, -1)
+        struct.pack_into('<i', body, 0x2D0 + part * 40, -1)
+    struct.pack_into('<i', body, 0xBB8, -1)
+    layout.body += body
+    real = layout.here()
+    layout.body += bytes(4)
+
+    # Loader: a section named like class 10 runs the class block on the shadow as class 0.
+    layout.pad()
+    block_stub = layout.here()
+    layout.body += b'\x83\xfe' + bytes((DELIA,)) + b'\x75\x13' + b'\x8b\x44\x24\x14' + b'\xa3'
+    layout.pointer(real)
+    layout.body += b'\xc7\x44\x24\x14'
+    layout.pointer(shadow)
+    layout.body += b'\x33\xf6' + COSTUME_BLOCK
+    layout.body += b'\xe9' + struct.pack('<i', block + len(COSTUME_BLOCK) - (layout.here() + 5))
+    edits.append((block, COSTUME_BLOCK, b'\xe9' + struct.pack('<i', block_stub - (block + 5)) + b'\x90' * 3))
+    edits.append((bound, b'\x83\xfe\x09', b'\x83\xfe' + bytes((DELIA,))))
+
+    # Next section: put the real object back once the shadow was used.
+    layout.pad()
+    after_stub = layout.here()
+    layout.body += b'\x81\x7c\x24\x14'
+    layout.pointer(shadow)
+    layout.body += b'\x75\x0b' + b'\x50' + b'\xa1'
+    layout.pointer(real)
+    layout.body += b'\x89\x44\x24\x18' + b'\x58' + b'\x8b\xcf'
+    layout.body += b'\xe8' + struct.pack('<i', call - (layout.here() + 5))
+    layout.body += b'\xe9' + struct.pack('<i', after + 7 - (layout.here() + 5))
+    edits.append((after, bytes(image.data[o:o + 7]), b'\xe9' + struct.pack('<i', after_stub - (after + 5)) + b'\x90' * 2))
+
+    # Accessors: class 10 reads the shadow as class 0.
+    stubs = []
+    for va, old, at in accessors:
+        replaced = bytes.fromhex(old)
+        layout.pad()
+        stub = layout.here()
+        layout.body += b'\x83\x7c\x24' + bytes((at, DELIA)) + b'\x75\x0d'
+        layout.body += b'\xc7\x44\x24' + bytes((at,)) + bytes(4) + b'\xb9'
+        layout.pointer(shadow)
+        layout.body += replaced + b'\xe9' + struct.pack('<i', va + len(replaced) - (layout.here() + len(replaced) + 5))
+        edits.append((va, replaced, b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90' * (len(replaced) - 5)))
+        stubs.append(f'{va:#x} -> {stub:#x}')
+    return {'shadow': hex(shadow), 'block': f'{block:#x} -> {block_stub:#x}', 'next': f'{after:#x} -> {after_stub:#x}',
+            'accessors': stubs}
+
+
 def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
@@ -447,6 +538,8 @@ def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     report['tooltips'] = [tooltip(image, layout, edits, relocs, *entry) for entry in TOOLTIPS.get(name, ())]
     if name in PRECACHE:
         report['precache'] = precache(layout, edits, *PRECACHE[name])
+    if name in COSTUME:
+        report['costume'] = costume(image, layout, edits, relocs, *COSTUME[name])
 
     for va, old, new in edits:
         o = image.offset(va)
@@ -514,6 +607,9 @@ def patch(client_copy: Path, apply: bool = False) -> dict:
             partial = dll.with_suffix('.partial')
             partial.write_bytes(image)
             os.replace(partial, dll)
+    if apply:
+        # Addresses of the applied stubs and data, read by scripts/dev/lab_memory.py.
+        (client_copy / 'bin' / 'class-routing.json').write_text(json.dumps(plan, indent=1), encoding='utf-8')
     return plan
 
 

@@ -19,7 +19,7 @@ class InstallLabLauncherTest(unittest.TestCase):
             text = (root / 'start-lab.bat').read_bytes().decode('ascii')
             self.assertIn('--apply --edits', text)
             self.assertLess(text.index('refresh_item_content.py'), text.index('apply_lab_content_additions.py'))
-            self.assertTrue(text.rstrip().endswith('-noupdate -threads 4 -condebug +developer 1'))
+            self.assertTrue(text.rstrip().endswith('-noupdate -threads 4'))
             self.assertEqual((root / 'start.bat').read_bytes(), b'start vindictus.exe\r\n')
 
     def test_refuses_a_folder_without_the_client(self):

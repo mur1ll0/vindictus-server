@@ -2039,3 +2039,11 @@ Passo 9 (28/10/2026): pré-carga dos modelos de animação da Delia e dica do it
 - Conferido: os dois `heroes.db3` (solto e empacotado) têm `ClassRestriction` 1024 nos itens da Delia; a lista de pré-carga é registrada numa lista ligada percorrida no carregamento do mapa (`0x40267520`/`0x40267540`), então o *stub* roda. As chaves `HEROES_ITEM_CONSTRAINT_CHARACTERCLASS1..N` existem nos textos, mas o `client.dll` só referencia a `…CharacterClass0`, e nenhum `.gfx` (descomprimido) referencia o prefixo: a dica efetiva vem de outro caminho, ainda não achado.
 - Parada (regra 5 do `AGENTS.md`): três correções seguidas sem efeito visível. Em vez de outra hipótese estática, `install_lab_launcher.py` passa `-condebug +developer 1`, e o console do motor (pré-cargas recusadas, modelos ausentes, classes desconhecidas) vira a evidência do próximo passo.
 - Próxima ação: com o `console.log` do D8h, corrigir o ponto que ele apontar.
+- D8h (cliente, 14:31): sem mudança; `console.log` não gerado (o `vindictus.exe` não repassa argumentos).
+
+Passo 10 (28/10/2026): coluna de roupa da Delia e ferramentas de inspeção.
+- Causa (seção 8.14): o carregador de `scripts/player_costume.txt` (cliente e servidor) só reconhece as classes 0–9; a seção `delia` (corpo-base `delia_base.mdl`, rosto, animação) nunca virou coluna de classe, e as leituras da classe 10 caíam na coluna seguinte.
+- Mudança: `COSTUME`/`costume` em `patch_class_routing.py` (objeto-sombra para a classe 10; 3 ganchos no carregador e 5 leitores por DLL); o patch grava `bin/class-routing.json`. Pedido do operador: `scripts/dev/lab_memory.py` (leitura de memória do jogo em execução) + `test_lab_memory.py`; `install_lab_launcher.py` troca o `-condebug` por `cfg/config_pendingkey_concmd.cfg`.
+- Verificação: `python -m unittest test_patch_class_routing` (10, 0 falhas; `routing-tests-d8i.log` e `routing-tests-d8i-costume.log`); `test_lab_memory` (3, 0 falhas); `test_install_lab_launcher` (0 falhas); reaplicado (`class-routing-apply-d8i.log`): `client.dll` `97cacae0…`, `server.dll` `8458f959…`.
+- Cliente: D8i em `docs/client-tests/C2-delia.md`, pendente (inclui a saída de `lab_memory.py costume 10` com o jogo aberto).
+- Parada (regra 2): corpo visível e roupa dependem do D8i; a leitura de memória confirma se a coluna da Delia foi carregada.

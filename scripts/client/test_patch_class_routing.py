@@ -143,6 +143,28 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(sum(f'call {precache_model:#x}' == f'{x.mnemonic} {x.op_str}' for x in code), 3)
         self.assertEqual(int(code[-1].op_str, 16), entry + len(bytes.fromhex(old)))
 
+    def test_costume_sends_class_ten_to_the_shadow_column(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            bound, block, after, accessors = routing.COSTUME[name]
+            shadow = int(report['costume']['shadow'], 16)
+            o = image.offset(shadow)
+            self.assertEqual(struct.unpack_from('<i', image.data, o + 0xF0)[0], -1)
+            self.assertEqual(struct.unpack_from('<i', image.data, o + 0x2D0 + 11 * 40)[0], -1)
+            self.assertEqual(struct.unpack_from('<i', image.data, o + 0xBB8)[0], -1)
+            self.assertEqual(bytes(image.data[image.offset(bound):image.offset(bound) + 3]), b'\x83\xfe\x0a')
+            text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, block)]
+            self.assertIn(f'mov dword ptr [esp + 0x14], {shadow:#x}', text)
+            self.assertEqual(text[-1], f'jmp {block + len(routing.COSTUME_BLOCK):#x}')
+            text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, after)]
+            self.assertIn(f'cmp dword ptr [esp + 0x14], {shadow:#x}', text)
+            self.assertEqual(text[-1], f'jmp {after + 7:#x}')
+            for va, old, at in accessors:
+                text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, va)]
+                self.assertEqual(text[0], f'cmp dword ptr [esp + {at:#x}], 0xa' if at > 9 else f'cmp dword ptr [esp + {at}], 0xa')
+                self.assertIn(f'mov ecx, {shadow:#x}', text)
+                self.assertEqual(text[-1], f'jmp {va + len(bytes.fromhex(old)):#x}')
+
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)

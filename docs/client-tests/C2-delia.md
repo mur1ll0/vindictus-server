@@ -180,3 +180,20 @@ Pré-condição: `start-lab.bat` reinstalado com `-condebug +developer 1` (`scri
 - [ ] Sair do jogo normalmente.
 - [ ] Avisar o horário; o `console.log` fica na cópia (`.cache/play-client`, pasta do jogo ou `bip/`).
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+
+Resultado do D8h (28/10/2026, 14:31): sem mudança no jogo; **o `console.log` não foi gerado** (o `vindictus.exe` não repassa `-condebug` ao jogo).
+
+### D8i — Coluna de roupa da Delia (`player_costume.txt`) e ferramentas de inspeção
+Pré-condição: patch com `COSTUME` (`client.dll` `a9591d3a…` → `97cacae0…`, `server.dll` `af43431e…` → `8458f959…`, relatório `bin/class-routing.json`); `engine.dll` `44281475…`; `start-lab.bat` reinstalado (sem `-condebug`; cria `cfg/config_pendingkey_concmd.cfg` com `developer 1` e `con_logfile lab_console.log`); `docker compose up -d --wait` saudável.
+- [ ] Não regressão: Hagie entra na cidade com a roupa de sempre, desequipa e equipa um item.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`; abrir pelo `start-lab.bat`.
+- [ ] Entrar na cidade → esperado: **corpo da Delia visível** (base `delia_base.mdl`, rosto e animação de cidade dela).
+- [ ] Equipar espada, armadura e *inner* → anotar o que aparece no corpo; anotar a dica dos itens.
+- [ ] `F7` → anotar se anima.
+- [ ] **Com o jogo aberto, na cidade**, rodar e copiar a saída (só leitura, não altera o jogo):
+  - `python -s -E scripts/dev/lab_memory.py modules`
+  - `python -s -E scripts/dev/lab_memory.py costume 10`
+  - `python -s -E scripts/dev/lab_memory.py costume 9`
+- [ ] Sair do jogo; anotar se apareceu `lab_console.log` na pasta `.cache/play-client` (ou `bip/`).
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.

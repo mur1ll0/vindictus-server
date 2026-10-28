@@ -13,9 +13,12 @@ from prepare_lab_client import PreparationError, reject_original
 
 ROOT = Path(__file__).resolve().parents[2]
 EDITS = ROOT / '.cache/content-state/content-edits.json'
-# -condebug (plus developer 1) writes the engine console to console.log in the copy, the only
-# place that names refused precaches, missing models and unknown entity classes (D8g).
-START = 'start vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4 -condebug +developer 1'
+START = 'start vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4'
+# The launcher drops extra arguments (-condebug had no effect in D8h). engine.dll runs
+# `exec config_pendingkey_concmd.cfg` at start; a plain one asks the console for a log file, the
+# only place that names refused precaches, missing models and unknown entity classes.
+CONSOLE_CFG = 'cfg/config_pendingkey_concmd.cfg'
+CONSOLE = 'developer 1\r\ncon_logfile lab_console.log\r\n'
 
 
 def launcher(project: Path = ROOT, edits: Path = EDITS) -> str:
@@ -52,7 +55,11 @@ def install(client_copy: Path, project: Path = ROOT, edits: Path = EDITS) -> dic
     changed = not target.exists() or target.read_bytes() != data
     if changed:
         target.write_bytes(data)
-    return {'launcher': str(target), 'changed': changed}
+    console = client_copy / CONSOLE_CFG
+    if not console.exists():
+        console.parent.mkdir(exist_ok=True)
+        console.write_bytes(CONSOLE.encode('ascii'))
+    return {'launcher': str(target), 'changed': changed, 'console_cfg': str(console)}
 
 
 def main() -> int:
