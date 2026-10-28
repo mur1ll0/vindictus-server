@@ -114,8 +114,9 @@ def main() -> int:
         follow = game.eval(args.follow)
         offset, _, count = args.then.partition('*')
         offset, count = int(offset, 0), min(int(count or 1), 3)
-        target = game.dword(follow) & 0xFFFFFFFF
-        addresses = [follow] + [target + offset + 4 * i for i in range(count)]
+        # Only the slot at first: the entity it points to now may be freed before the respawn,
+        # and writes to reused memory would use up the hit limit (D8p).
+        addresses = [follow]
     addresses = addresses[:4]
     log = []
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
@@ -174,6 +175,13 @@ def main() -> int:
                         else:
                             context['Dr6'] = 0  # slot cleared: keep the old watch, just acknowledge
                             kernel32.Wow64SetThreadContext(threads[tid], context.raw)
+                        kernel32.ContinueDebugEvent(pid, tid, status)
+                        continue
+                    if not any(b <= context['Eip'] < b + z for n, (b, z, _) in game.mods.items()
+                               if n in ('client.dll', 'server.dll', 'engine.dll')):
+                        say(f'  (write from outside the game DLLs at {context["Eip"]:#x}, not counted)')
+                        context['Dr6'] = 0
+                        kernel32.Wow64SetThreadContext(threads[tid], context.raw)
                         kernel32.ContinueDebugEvent(pid, tid, status)
                         continue
                     hits += 1
