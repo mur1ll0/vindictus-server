@@ -95,7 +95,7 @@ Limites conhecidos: a barra V4 não cria a Delia (a classe 10 é aceita pelo ser
 Resultado (28/10/2026): **falhou.** Seleção: modelo da Fiona sem rosto, em pose T. Entrada: `t01` carregou e o cliente caiu cerca de 2 s depois (`client.dll` `0x387da6b0`, `this` nulo). Causa: a preparação do jogador local (`0x387033b0`) recusa classes ≥ 10 em `0x387033d7` e não cria o objeto de comandos `+0x437c` que o movimento lê (`docs/future/new-classes.md` 8.14). Patch revertido (`client.dll` `a9591d3a…`, `server.dll` `af43431e…`); `DeliaLab` na classe 1.
 
 ### D8b — Repetir o D8 com a preparação do jogador local liberada
-Pré-condição: o operador autoriza reaplicar o patch. `python -s -E scripts/client/patch_class_routing.py --apply` sobre a cópia `.hcls` (o patch agora inclui `GATES`, `0x387033d7` com limite 28); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo.
+Pré-condição: o operador autoriza reaplicar o patch. `python -s -E scripts/client/patch_class_routing.py --apply` sobre a cópia `.hcls` (o patch agora inclui `GATES`, `0x387033d7` com limite 28); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo. Aplicado em 28/10/2026: `client.dll` `a9591d3a…` → `560f5e27…`, `server.dll` `af43431e…` → `eda9ac59…`.
 - [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
 - [ ] Seleção: anotar o modelo (a Fiona sem rosto em pose T é esperada até o E1).
 - [ ] Entrar na cidade → esperado: sem a queda em `0x387da6b0`. Andar, correr, abrir inventário e habilidades, usar um emote; anotar o modelo e as animações.
