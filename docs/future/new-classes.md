@@ -422,3 +422,36 @@ Ferramenta de patch: seguir o modelo de `scripts/client/patch_shop_list_limit.py
   - não lidos: a atualização dos 5 alvos do *ragdoll* (`0xaf39f0`), o *think* da habilidade segurada (`0xaf3670`), o resto do *slot* 615 e os *slots* 731/725/73/517 do servidor além do resumo, as classes auxiliares do servidor e as 5 condições `As_Cond_*`/`AS_Cond_Delia_*`;
   - nomes de vários *slots* da base continuam numéricos (190/191, 349/485 no cliente; 240/241, 466/694 no servidor);
   - a correspondência de cada *slot* e *offset* x64 com a base do 1.69 (32 bits, 452 *slots*) ainda não foi feita; é o próximo passo, pela Hagie.
+
+### 8.11 Passo 2, segunda parte: condições, auxiliares e mapa de *slots* x64 → 1.69 (28/10/2026)
+
+- **Condições de estado de ação:** não são código, são *flags* com nome. Cada DLL registra `nome → id` na inicialização (NA x64: cliente `0x1a5820`, servidor `0x1a26a0`, 231 nomes). As 5 da Delia são, no NA, `As_Cond_Can_Armor_Purge` 140, `As_Cond_Delia_SPSkill3_Activated` 141, `AS_Cond_Delia_Special_Hold_Skill` 142, `AS_Cond_Delia_Guard` 143 e `AS_Cond_Delia_Guard_Hit` 144.
+  - Os ids são posições na lista e mudam entre versões: `As_Cond_Can_PerfectEndurable` é 79 no NA e 76 no 1.69. O registro do 1.69 (cliente e servidor) termina em 120 e não tem nenhuma das 5.
+  - **Quem liga as condições:**
+    - servidor (`0x6e4d30`, dentro do *slot* 517): 140 quando há armadura equipada (equipamento 4 a 8) e nada bloqueia; 141 pelo estado da habilidade `+0xaea8`. Os dois valores vão para o cliente em rede (`+0xaea0` → `+0x8a90`, `+0xaeac` → `+0x8a98`);
+    - cliente (`OnDataChanged`, *slot* 5 da vtable secundária `+0x10`, `0xaf1f40`): repete 140/141 a partir da rede e, a cada golpe bloqueado novo (contador `+0x8abc`), liga 143 e 144;
+    - cliente (`0xaf3670`, *think* da habilidade segurada): 142 enquanto o alvo está ao alcance (distância² ≤ extensão XY² do alvo + 450²), com o gesto de aviso no jogador local.
+  - No golpe bloqueado (*slot* 416), o par usado é `As_Cond_Can_PerfectEndurable` → `As_Cond_Do_PerfectEndurable`.
+- **Lançamento de *ragdoll* (cliente, `+0x89b0`):** até 5 alvos. Meio segundo depois do lançamento, o jogador local que lançou testa o chão com um *hull trace* e envia ao servidor `request_release_launch_ragdoll <slot> <entidade> <x y z> <pitch yaw roll>`. Antes disso, a *ragdoll* local é levada à posição da rede, se o salto for finito e de até 1024 unidades. A Seiren (`c_npc_seiren`) nunca é lançada.
+- **Mapa de *slots* x64 → 1.69:** `scripts/reverse/na_x64_to_169_vtables.py` lê só as vtables de jogador das duas versões: no 1.69, pela RTTI; no x64, pelo método que devolve o nome da classe. O script compara 7 classes comuns por DLL, usando:
+  - o conjunto de classes que trocam cada *slot*;
+  - as strings e as constantes das trocas e da base.
+  
+  O alinhamento respeita a ordem de declaração. Resultado: 443 de 452 *slots* do cliente 1.69 e 641 de 646 do servidor pareados. A Hagie, que existe nas duas versões, confirma 12 âncoras (177↔190, 264↔301, 368↔419, 451↔515…). A tabela vai para `docs/evidence/client/na-x64-to-169-vtables.json` (local) e para `tools/na-delia-reference/src/layout.rs` (`port::CLIENT`, `port::SERVER`).
+
+| | Existem no 1.69 (alta / média / baixa) | Só no NA |
+|---|---|---|
+| Cliente (26 *slots* da Delia) | 20 (8 / 7 / 5) | 330, 331, 349, 470, 485, 516 |
+| Servidor (37) | 28 (12 / 9 / 7) | 434, 627, 631, 677, 694, 729, 731, 736, 748 |
+
+- **O que isso significa para o porte no 1.69:**
+  - as trocas com par no 1.69 entram numa cópia da vtable da entidade, no *slot* mapeado;
+  - os métodos só do NA (verificar guarda, constantes 92 e 89/92, supressão durante a guarda, vida no painel, agarrar no servidor) nunca são chamados pela base do 1.69. O comportamento precisa ir para dentro das trocas que existem, ou para pontos de chamada novos;
+  - as 5 condições precisam de ids novos acima de 120 nos dois registros do 1.69, e os scripts da Delia usam os nomes, não os ids;
+  - os pares de baixa confiança (cliente 31, 380, 476, 487/489; servidor 28, 390, 435, 504, 628, 699, 730) devem ser conferidos antes de qualquer patch.
+- **Reconstrução em Rust:** `condition` (ids das duas versões), `SpecialHoldSkill::think`, `DeliaClient::on_data_changed`, os 5 alvos do *ragdoll* (`free_slot`, `update_slot`, `take_release_request`, `should_snap`, `release_command`) e `DeliaServer::update_conditions`; 37 testes.
+- **Lacunas:**
+  - capacidade do armazenamento de condições no 1.69 (se ids acima de 120 cabem);
+  - `0xaf3380` (habilidade segurada em `OnDataChanged`) e `0x235200` (início do voo do alvo);
+  - corpo completo dos *slots* 517 e 731 do servidor (agarrar, `UPDATE_CHARGE_SMASH_EFFECT`);
+  - quem chama, na base do NA, os métodos que não existem no 1.69.

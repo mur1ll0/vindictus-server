@@ -1920,3 +1920,12 @@ Caminho C, etapa C2 — passo 2, primeira parte: entidade da Delia lida nos DLLs
 - Verificação: `python -I scripts/reverse/na_x64_delia_entity.py` (hashes conferidos; 31 e 42 *slots* trocados por Delia ou Hagie); `cargo test --manifest-path tools/na-delia-reference/Cargo.toml` (27, 0 falhas); `cargo clippy … --all-targets -- -D warnings` (0). Logs `.cache/verification/na-delia-reference-*.log`.
 - Cliente: não necessário (leitura e código de referência; nada mudou na cópia de laboratório).
 - Próxima ação: ler o que falta (`0xaf39f0`, `0xaf3670`, *slots* 615/725/731 do servidor, classes auxiliares e as 5 condições) e casar cada *slot*/*offset* x64 com a base do 1.69 pela Hagie, que existe nas duas versões.
+
+Caminho C, etapa C2 — passo 2, segunda parte: condições da Delia, auxiliares do cliente e mapa de *slots* x64 → 1.69 (28/10/2026, continuação pedida pelo operador).
+- Mudança: `scripts/reverse/na_x64_to_169_vtables.py` (só leitura; vtables de jogador das duas versões, alinhamento por classes que trocam cada *slot*, strings e constantes); crate `tools/na-delia-reference` com `condition`, `layout::port`, `SpecialHoldSkill::think`, `DeliaClient::on_data_changed`, alvos do *ragdoll* e `DeliaServer::update_conditions`.
+- Evidência (seção 8.11 de `docs/future/new-classes.md`):
+  - as 5 condições da Delia são ids 140–144 no NA; o registro do 1.69 termina em 120 sem elas, e os ids mudam entre versões (`As_Cond_Can_PerfectEndurable` 79 no NA, 76 no 1.69);
+  - 443/452 *slots* do cliente e 641/646 do servidor pareados; Hagie confirma as âncoras. Dos *slots* da Delia, 20 de 26 (cliente) e 28 de 37 (servidor) existem no 1.69; os demais só existem no NA.
+- Verificação: `python -I scripts/reverse/na_x64_to_169_vtables.py` (hashes das quatro DLLs conferidos; log `.cache/verification/na-x64-to-169.log`); `cargo test --manifest-path tools/na-delia-reference/Cargo.toml` (37, 0 falhas); `cargo clippy … --all-targets -- -D warnings` (0).
+- Cliente: não necessário (leitura e código de referência; nada mudou na cópia de laboratório).
+- Próxima ação: medir a capacidade das condições no 1.69 (ids acima de 120), conferir os pares de baixa confiança e achar, na base do NA, quem chama os métodos que não existem no 1.69; com isso, escrever o plano do patch da entidade da Delia na cópia de laboratório.

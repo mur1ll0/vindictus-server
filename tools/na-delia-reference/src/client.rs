@@ -6,6 +6,7 @@ use crate::action_event::{
     END_SPECIAL_HOLD_SKILL, KIND_RAGDOLL_LAUNCH, KIND_STATE_COMMAND, KIND_STATE_END_COMMAND,
     SET_GUARD_LATCH_ATTEN, START_SPECIAL_HOLD_SKILL, command_is,
 };
+use crate::condition::na;
 use crate::protected::ProtectedValue;
 
 pub const CLASS_NAME: &str = "C_HeroesPlayerDelia";
@@ -68,10 +69,12 @@ pub trait ClientHost {
     fn base_handle_action_event(&mut self, event: &ActionEvent) -> bool;
     /// `0xada5a0`: `C_HeroesPlayer` slot 416.
     fn base_on_take_damage(&mut self, info: &DamageInfo) -> i32;
-    /// `0x2683e0(this, id)`.
+    /// `0x2683e0(this, id)`: action-state condition `id` is raised.
     fn has_condition(&self, id: u32) -> bool;
     /// `0x26b660(this, id)`.
-    fn sub_26b660(&mut self, id: u32);
+    fn add_condition(&mut self, id: u32);
+    /// `0x2646b0(this, id)`.
+    fn remove_condition(&mut self, id: u32);
     /// `0x2696c0(info, this + 0x7748)`: the hit ignores the guard.
     fn sub_2696c0(&self, info: &DamageInfo) -> bool;
     /// `0x269370(info)`: the hit ignores the guard.
@@ -80,10 +83,19 @@ pub trait ClientHost {
     fn owner_alive(&self) -> bool;
     /// `0x3e4430`: the entity is the local player.
     fn is_local_player(&self) -> bool;
-    /// `0x148b40` and `0x3b0b00` on the owner: the hold skill can start.
-    fn can_start_special_hold(&self) -> bool;
-    /// `0x3b65c0` on the owner.
-    fn start_special_hold(&mut self);
+    /// `0x3b0b00(owner, layer 0x1f9eea0)` (with `0x148b40` resolving the model):
+    /// the "hold in range" gesture is playing.
+    fn hold_gesture_playing(&self) -> bool;
+    /// `0x3b65c0(owner, layer 0x1f9eea0)`.
+    fn stop_hold_gesture(&mut self);
+    /// `0x3a40e0(owner, layer 0x1f9eea0, sequence 0x1f9eea8, true, -1, …)`.
+    fn play_hold_gesture(&mut self);
+    /// Static flag `0x1f9eeb0` that allows the gesture.
+    fn hold_gesture_enabled(&self) -> bool;
+    /// `0x3b39b0(owner, "battle_idle_lower") > -1`.
+    fn has_battle_idle_lower(&self) -> bool;
+    /// `0x19c340(owner + 0x7748, "BattleIdle", 0)`.
+    fn set_battle_idle(&mut self);
     /// Slot 1 of the special-hold component vtable (`0xaf1dc0`).
     fn special_hold_notify(&mut self);
 }
@@ -97,6 +109,7 @@ pub struct RagdollLaunch {
     pub enabled: bool,
     /// `+0x10`, from the second parameter of `ENABLE_RAGDOLL_LAUNCH`.
     pub power: i32,
+    pub slots: [LaunchSlot; RAGDOLL_TARGETS],
 }
 
 /// Facts about the entity hit by a Delia attack (`0xaf3540`).
@@ -149,6 +162,93 @@ impl RagdollLaunch {
             && !target.blocked.iter().any(|blocked| *blocked)
             && !target.class_name.starts_with("c_npc_seiren")
     }
+
+    /// `0x2350d0`: first slot whose target handle does not resolve, or -1.
+    pub fn free_slot(&self, resolves: impl Fn(u32) -> bool) -> i32 {
+        self.slots
+            .iter()
+            .position(|slot| slot.target == INVALID_HANDLE || !resolves(slot.target))
+            .map_or(-1, |index| index as i32)
+    }
+
+    /// Body of the `0xaf39f0` loop (slot 83) when slot `index` sees a new target:
+    /// the release time resets, the target is remembered and its launch time starts.
+    pub fn update_slot(
+        &mut self,
+        index: usize,
+        target_alive: bool,
+        now: f32,
+    ) -> Option<LaunchChange> {
+        let slot = self.slots.get_mut(index)?;
+        if slot.target == slot.previous {
+            return None;
+        }
+        slot.release_requested_at = -1.0;
+        slot.previous = if target_alive {
+            slot.target
+        } else {
+            INVALID_HANDLE
+        };
+        slot.launched_at = now;
+        Some(if target_alive {
+            LaunchChange::Started
+        } else {
+            LaunchChange::Cleared
+        })
+    }
+
+    /// `0xaf2a90`: half a second after the launch, the launching local player asks
+    /// the server to release the ragdoll once a hull trace below it is clear.
+    /// Returns true when the request is sent; the slot then waits for the server.
+    pub fn take_release_request(
+        &mut self,
+        index: usize,
+        owner_is_local: bool,
+        ground_clear: bool,
+        now: f32,
+    ) -> bool {
+        let Some(slot) = self.slots.get_mut(index) else {
+            return false;
+        };
+        let due = slot.launched_at != -1.0
+            && f64::from(slot.launched_at) + RAGDOLL_RELEASE_DELAY <= f64::from(now);
+        if !due || !owner_is_local || slot.release_requested_at > -1.0 || !ground_clear {
+            return false;
+        }
+        slot.release_requested_at = now;
+        slot.launched_at = -1.0;
+        true
+    }
+
+    /// `0xaf3be0`: before a release is requested, the client ragdoll moves to the
+    /// networked position (keeping its own angles, physics slot 37) when the jump
+    /// is finite and at most 1024 units.
+    pub fn should_snap(
+        &self,
+        index: usize,
+        ragdoll_position: [f32; 3],
+        ragdoll_angles: [f32; 3],
+    ) -> bool {
+        let Some(slot) = self.slots.get(index) else {
+            return false;
+        };
+        if slot.release_requested_at > -1.0 {
+            return false;
+        }
+        let distance = ragdoll_position
+            .iter()
+            .zip(slot.position)
+            .map(|(a, b)| (a - b) * (a - b))
+            .sum::<f32>()
+            .sqrt();
+        distance.is_finite()
+            && (0.0..=RAGDOLL_SNAP_LIMIT).contains(&distance)
+            && slot
+                .position
+                .iter()
+                .chain(&ragdoll_angles)
+                .all(|v| v.is_finite())
+    }
 }
 
 /// `+0x8aa0`: special hold skill state, vtable `0x1af6ef0`.
@@ -172,8 +272,9 @@ impl SpecialHoldSkill {
         }
         match event.kind {
             KIND_STATE_COMMAND if event.is_command(START_SPECIAL_HOLD_SKILL) => {
-                if host.is_local_player() && host.can_start_special_hold() {
-                    host.start_special_hold();
+                // `active` is only set when the in-range gesture was showing.
+                if host.is_local_player() && host.hold_gesture_playing() {
+                    host.stop_hold_gesture();
                     self.active = true;
                     if self.pending_notify {
                         host.special_hold_notify();
@@ -194,6 +295,134 @@ impl SpecialHoldSkill {
             _ => false,
         }
     }
+
+    /// `0xaf3670`, from slot 380: leaves the dash, then raises
+    /// `AS_Cond_Delia_Special_Hold_Skill` while a target is in reach.
+    pub fn think(&mut self, host: &mut impl ClientHost, reach: Option<&HoldReach>) {
+        if !host.owner_alive() {
+            return;
+        }
+        if self.dash_to_target && self.pending_notify && host.has_battle_idle_lower() {
+            host.set_battle_idle();
+            host.special_hold_notify();
+            self.pending_notify = false;
+            self.dash_to_target = false;
+        }
+        let in_reach = match reach {
+            Some(reach) if !self.active => reach.in_reach(),
+            _ => {
+                host.remove_condition(na::DELIA_SPECIAL_HOLD_SKILL);
+                return;
+            }
+        };
+        if in_reach {
+            host.add_condition(na::DELIA_SPECIAL_HOLD_SKILL);
+            if host.is_local_player() && !host.hold_gesture_playing() && host.hold_gesture_enabled()
+            {
+                host.stop_hold_gesture();
+                host.play_hold_gesture();
+            }
+        } else {
+            host.remove_condition(na::DELIA_SPECIAL_HOLD_SKILL);
+            if host.is_local_player() && host.hold_gesture_playing() {
+                host.stop_hold_gesture();
+            }
+        }
+    }
+}
+
+/// Squared reach added to the target's size (`0x1af8598`: 450²).
+pub const SPECIAL_HOLD_REACH_SQ: f32 = 202_500.0;
+
+/// Owner and target (`+0x0c` handle) geometry for [`SpecialHoldSkill::think`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HoldReach {
+    /// Squared distance between the two origins (slot 9, `+0x48`).
+    pub distance_sq: f32,
+    /// Target collision bounds (`ICollideable` slot 20): squared X/Y extent.
+    pub target_extent_xy_sq: f32,
+}
+
+impl HoldReach {
+    pub fn in_reach(&self) -> bool {
+        self.target_extent_xy_sq + SPECIAL_HOLD_REACH_SQ >= self.distance_sq
+    }
+}
+
+/// Networked Delia fields read by `OnDataChanged` (secondary vtable `+0x10`, slot 5).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DeliaNetworkState {
+    /// `+0x8a90`, from server `+0xaea0`.
+    pub armor_purge_available: bool,
+    /// `+0x8a98`, from server `+0xaeac`.
+    pub sp_skill3_active: bool,
+    /// `+0x8abc`: guarded hits counted by the server.
+    pub guard_hit_count: i32,
+}
+
+/// Slots tracked by the ragdoll launch state (`0x2350d0` loops to 5).
+pub const RAGDOLL_TARGETS: usize = 5;
+/// Seconds a launched target flies before the client asks to release it
+/// (`0x192d1d8`, a double).
+pub const RAGDOLL_RELEASE_DELAY: f64 = 0.5;
+/// Largest jump the client accepts when snapping a ragdoll to the server pose
+/// (`0x19525e4`).
+pub const RAGDOLL_SNAP_LIMIT: f32 = 1024.0;
+/// Server command sent by `0xaf2a90` through `IVEngineClient` slot 101.
+pub const RELEASE_COMMAND: &str = "request_release_launch_ragdoll";
+
+/// One of the five tracked launches (`+0x14`, `+0x28`, `+0x3c`, `+0x50`,
+/// `+0x8c` and `+0xc8` arrays of the ragdoll launch state).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LaunchSlot {
+    /// Networked target handle.
+    pub target: u32,
+    /// Time the release was requested, or -1.
+    pub release_requested_at: f32,
+    /// Time the target was seen launched, or -1.
+    pub launched_at: f32,
+    /// Networked server pose of the ragdoll.
+    pub position: [f32; 3],
+    pub angles: [f32; 3],
+    /// Target handle seen on the previous update.
+    pub previous: u32,
+}
+
+impl Default for LaunchSlot {
+    fn default() -> Self {
+        Self {
+            target: INVALID_HANDLE,
+            release_requested_at: -1.0,
+            launched_at: -1.0,
+            position: [0.0; 3],
+            angles: [0.0; 3],
+            previous: INVALID_HANDLE,
+        }
+    }
+}
+
+pub const INVALID_HANDLE: u32 = u32::MAX;
+
+/// What [`RagdollLaunch::update_slot`] did for a slot whose target changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchChange {
+    /// `0x235200`: a new target started flying.
+    Started,
+    /// The previous NPC lost its launch mark (`npc + 0x4ab0 = 0`).
+    Cleared,
+}
+
+/// Text of the release request (`0xaf2d76`: `"%s %d %d %f %f %f %f %f %f"`).
+pub fn release_command(
+    slot: usize,
+    entity_index: i32,
+    origin: [f32; 3],
+    angles: [f32; 3],
+) -> String {
+    format!(
+        "{RELEASE_COMMAND} {slot} {entity_index} {:.6} {:.6} {:.6} {:.6} {:.6} {:.6}",
+        origin[0], origin[1], origin[2], angles[0], angles[1], angles[2]
+    )
 }
 
 /// Inputs of one `run_yaw`/`sprint_yaw` update (`0xaf1740`).
@@ -356,6 +585,9 @@ pub struct DeliaClient {
     pub top_panel_health: i32,
     /// `+0x8a94`.
     pub special_skill_id: i32,
+    pub network: DeliaNetworkState,
+    /// `+0x8ac0`: last `guard_hit_count` turned into conditions.
+    pub guard_hit_seen: i32,
     /// Base field `+0x8591`, set by a guarded hit.
     pub guard_blocked_hit: bool,
     /// Static `0x22f25c4`: time of the last skill-failure guide.
@@ -373,6 +605,8 @@ impl DeliaClient {
             run_yaw: RunYawPose::default(),
             top_panel_health: 0,
             special_skill_id: 0,
+            network: DeliaNetworkState::default(),
+            guard_hit_seen: 0,
             guard_blocked_hit: false,
             last_skill_fail_guide: 0.0,
         }
@@ -387,6 +621,30 @@ impl DeliaClient {
     pub fn on_spawn(&mut self, handle: u32) {
         self.ragdoll_launch.owner = handle;
         self.special_hold.owner = handle;
+    }
+
+    /// Secondary vtable `+0x10` slot 5 (`0xaf1f40`, `OnDataChanged`): after the
+    /// base, networked fields become action-state conditions. A new guarded hit
+    /// raises both guard conditions; the scripts lower them.
+    pub fn on_data_changed(&mut self, host: &mut impl ClientHost) {
+        let toggles = [
+            (na::CAN_ARMOR_PURGE, self.network.armor_purge_available),
+            (na::DELIA_SP_SKILL3_ACTIVATED, self.network.sp_skill3_active),
+        ];
+        for (condition, raised) in toggles {
+            if raised {
+                host.add_condition(condition);
+            } else {
+                host.remove_condition(condition);
+            }
+        }
+        let count = self.network.guard_hit_count;
+        if count > 0 && count != self.guard_hit_seen {
+            host.add_condition(na::DELIA_GUARD);
+            host.add_condition(na::DELIA_GUARD_HIT);
+        }
+        self.guard_hit_seen = count;
+        // Then 0xaf3380 on the special hold state (not read).
     }
 
     /// Slots 190 and 191 (`0x235140`, `0x235130`); same values on the server (240, 241).
@@ -442,8 +700,8 @@ impl DeliaClient {
             local.flags |= DAMAGE_GUARDED;
             local.field_c1 = 0;
             local.field_78 = 0;
-            if host.has_condition(0x4f) {
-                host.sub_26b660(0x50);
+            if host.has_condition(na::CAN_PERFECT_ENDURABLE) {
+                host.add_condition(na::DO_PERFECT_ENDURABLE);
             }
         }
         host.base_on_take_damage(&local)
@@ -540,8 +798,11 @@ mod tests {
         last_damage: Option<u32>,
         ignores_guard: bool,
         condition_4f: bool,
-        cleared: Vec<u32>,
+        added: Vec<u32>,
+        removed: Vec<u32>,
         notified: bool,
+        gesture_playing: bool,
+        gesture_started: bool,
     }
 
     impl ClientHost for Host {
@@ -556,8 +817,11 @@ mod tests {
         fn has_condition(&self, id: u32) -> bool {
             id == 0x4f && self.condition_4f
         }
-        fn sub_26b660(&mut self, id: u32) {
-            self.cleared.push(id);
+        fn add_condition(&mut self, id: u32) {
+            self.added.push(id);
+        }
+        fn remove_condition(&mut self, id: u32) {
+            self.removed.push(id);
         }
         fn sub_2696c0(&self, _: &DamageInfo) -> bool {
             self.ignores_guard
@@ -571,10 +835,23 @@ mod tests {
         fn is_local_player(&self) -> bool {
             true
         }
-        fn can_start_special_hold(&self) -> bool {
+        fn hold_gesture_playing(&self) -> bool {
+            self.gesture_playing
+        }
+        fn stop_hold_gesture(&mut self) {
+            self.gesture_playing = false;
+        }
+        fn play_hold_gesture(&mut self) {
+            self.gesture_playing = true;
+            self.gesture_started = true;
+        }
+        fn hold_gesture_enabled(&self) -> bool {
             true
         }
-        fn start_special_hold(&mut self) {}
+        fn has_battle_idle_lower(&self) -> bool {
+            true
+        }
+        fn set_battle_idle(&mut self) {}
         fn special_hold_notify(&mut self) {
             self.notified = true;
         }
@@ -629,6 +906,7 @@ mod tests {
             owner: 1,
             enabled: true,
             power: 1,
+            slots: Default::default(),
         };
         let target = LaunchTarget {
             is_npc: true,
@@ -646,7 +924,10 @@ mod tests {
     fn special_hold_start_flushes_pending_notify() {
         let mut delia = DeliaClient::new(0x1000);
         delia.special_hold.pending_notify = true;
-        let mut host = Host::default();
+        let mut host = Host {
+            gesture_playing: true,
+            ..Host::default()
+        };
         delia.handle_action_event(&mut host, Some(&event(0x7a, START_SPECIAL_HOLD_SKILL, &[])));
         assert!(delia.special_hold.active && host.notified && !delia.special_hold.pending_notify);
     }
@@ -669,9 +950,90 @@ mod tests {
         };
         delia.on_take_damage(&mut host, &damage(120));
         assert_eq!(
-            (host.last_damage, host.cleared.as_slice()),
-            (Some(0), &[0x50][..])
+            (host.last_damage, host.added.as_slice()),
+            (Some(0), &[na::DO_PERFECT_ENDURABLE][..])
         );
+    }
+
+    #[test]
+    fn new_guard_hit_raises_both_guard_conditions() {
+        let mut delia = DeliaClient::new(0x1000);
+        delia.network.guard_hit_count = 3;
+        let mut host = Host::default();
+        delia.on_data_changed(&mut host);
+        delia.on_data_changed(&mut host);
+        assert_eq!(host.added, vec![na::DELIA_GUARD, na::DELIA_GUARD_HIT]);
+    }
+
+    #[test]
+    fn armor_purge_flag_follows_network() {
+        let mut delia = DeliaClient::new(0x1000);
+        delia.network.armor_purge_available = true;
+        let mut host = Host::default();
+        delia.on_data_changed(&mut host);
+        assert_eq!(
+            (host.added.as_slice(), host.removed.as_slice()),
+            (
+                &[na::CAN_ARMOR_PURGE][..],
+                &[na::DELIA_SP_SKILL3_ACTIVATED][..]
+            )
+        );
+    }
+
+    #[test]
+    fn target_in_reach_raises_hold_condition_and_gesture() {
+        let mut hold = SpecialHoldSkill::default();
+        let mut host = Host::default();
+        let reach = HoldReach {
+            distance_sq: 400.0 * 400.0,
+            target_extent_xy_sq: 0.0,
+        };
+        hold.think(&mut host, Some(&reach));
+        assert!(host.added == [na::DELIA_SPECIAL_HOLD_SKILL] && host.gesture_started);
+    }
+
+    #[test]
+    fn hold_start_needs_the_reach_gesture() {
+        let mut delia = DeliaClient::new(0x1000);
+        let mut host = Host::default();
+        delia.handle_action_event(&mut host, Some(&event(0x7a, START_SPECIAL_HOLD_SKILL, &[])));
+        assert!(!delia.special_hold.active);
+    }
+
+    #[test]
+    fn release_is_requested_half_a_second_after_launch() {
+        let mut launch = RagdollLaunch::default();
+        launch.slots[2].target = 77;
+        launch.update_slot(2, true, 10.0);
+        let early = launch.take_release_request(2, true, true, 10.4);
+        let due = launch.take_release_request(2, true, true, 10.5);
+        assert_eq!(
+            (early, due, launch.slots[2].launched_at),
+            (false, true, -1.0)
+        );
+    }
+
+    #[test]
+    fn release_command_matches_printf_format() {
+        let text = release_command(1, 42, [1.0, 2.5, -3.0], [0.0, 90.0, 0.0]);
+        assert_eq!(
+            text,
+            "request_release_launch_ragdoll 1 42 1.000000 2.500000 -3.000000 0.000000 90.000000 0.000000"
+        );
+    }
+
+    #[test]
+    fn snap_rejects_far_jump() {
+        let mut launch = RagdollLaunch::default();
+        launch.slots[0].position = [0.0, 0.0, 0.0];
+        assert!(!launch.should_snap(0, [2000.0, 0.0, 0.0], [0.0; 3]));
+    }
+
+    #[test]
+    fn free_slot_skips_live_targets() {
+        let mut launch = RagdollLaunch::default();
+        launch.slots[0].target = 5;
+        assert_eq!(launch.free_slot(|handle| handle == 5), 1);
     }
 
     #[test]

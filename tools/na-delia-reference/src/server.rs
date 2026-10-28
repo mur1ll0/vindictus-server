@@ -2,6 +2,7 @@
 //! simulation (vtable `0x10f17b0`, constructor `0x6e3ae0`, factory
 //! `player_delia`, 0xaf98 bytes).
 
+use crate::condition::na;
 use crate::protected::ProtectedValue;
 
 pub const CLASS_NAME: &str = "CHeroesPlayerDelia";
@@ -92,6 +93,24 @@ pub struct DeliaServer {
     pub strong_attack_delay_end: f32,
     /// Entity held through slot 729 (`+0xa818` handle).
     pub held: Option<u32>,
+    /// `+0xaea0`, networked to client `+0x8a90`.
+    pub armor_purge_available: bool,
+    /// `+0xaeac`, networked to client `+0x8a98`.
+    pub sp_skill3_active: bool,
+}
+
+/// Inputs of the condition update (`0x6e4d30`, inlined in slot 517).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConditionInput {
+    /// `0x266ba0(this)`.
+    pub can_update_armor: bool,
+    /// Some equipment slot 4..=8 holds an item (`0x6a24c0 > 0`), or `0x187850()`.
+    pub armor_equipped: bool,
+    /// `0x7370d0(this + 0xa040)`.
+    pub purge_blocked: bool,
+    /// State of skill `+0xaea8` in the skill list `+0x96d8` (`0x29bf70`), or
+    /// `None` when the skill is not learned (`0x29c800` returns -1).
+    pub sp_skill3: Option<bool>,
 }
 
 impl DeliaServer {
@@ -107,7 +126,23 @@ impl DeliaServer {
             strong_attack_delay_active: false,
             strong_attack_delay_end: -1.0,
             held: None,
+            armor_purge_available: false,
+            sp_skill3_active: false,
         }
+    }
+
+    /// `0x6e4d30`: refreshes the two networked flags and returns the conditions
+    /// to raise (`true`) or lower: `As_Cond_Can_Armor_Purge` and
+    /// `As_Cond_Delia_SPSkill3_Activated` (`0x28f4b0` raises, `0x288090` lowers).
+    pub fn update_conditions(&mut self, input: &ConditionInput) -> [(u32, bool); 2] {
+        if input.can_update_armor {
+            self.armor_purge_available = input.armor_equipped && !input.purge_blocked;
+        }
+        self.sp_skill3_active = input.sp_skill3.unwrap_or(false);
+        [
+            (na::CAN_ARMOR_PURGE, self.armor_purge_available),
+            (na::DELIA_SP_SKILL3_ACTIVATED, self.sp_skill3_active),
+        ]
     }
 
     /// Slots 11 and 12.
@@ -367,5 +402,40 @@ mod tests {
         };
         delia.on_strong_attack_hit(&context(10.0), Some(&queued));
         assert_eq!(delia.pending_targets, vec![9]);
+    }
+
+    #[test]
+    fn armor_purge_needs_equipped_armor() {
+        let mut delia = DeliaServer::new(0);
+        delia.armor_purge_available = true;
+        let input = ConditionInput {
+            can_update_armor: true,
+            armor_equipped: false,
+            purge_blocked: false,
+            sp_skill3: Some(true),
+        };
+        assert_eq!(
+            delia.update_conditions(&input),
+            [
+                (na::CAN_ARMOR_PURGE, false),
+                (na::DELIA_SP_SKILL3_ACTIVATED, true)
+            ]
+        );
+    }
+
+    #[test]
+    fn armor_purge_is_kept_while_armor_cannot_update() {
+        let mut delia = DeliaServer::new(0);
+        delia.armor_purge_available = true;
+        let input = ConditionInput {
+            can_update_armor: false,
+            armor_equipped: false,
+            purge_blocked: true,
+            sp_skill3: None,
+        };
+        assert_eq!(
+            delia.update_conditions(&input)[0],
+            (na::CAN_ARMOR_PURGE, true)
+        );
     }
 }

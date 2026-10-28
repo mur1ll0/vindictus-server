@@ -35,6 +35,98 @@ pub mod client {
     ];
 }
 
+/// How well a NA x64 slot was paired with a 1.69 slot by
+/// `scripts/reverse/na_x64_to_169_vtables.py`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confidence {
+    /// Matching strings or constants in the overrides and the base.
+    High,
+    /// Same set of classes overriding the slot.
+    Medium,
+    /// Position between two anchors only.
+    Low,
+}
+
+/// Delia slot in the NA x64 vtable and its 1.69 counterpart; `None` means the
+/// method does not exist in the 1.69 base.
+pub type PortSlot = (usize, Option<(usize, Confidence)>);
+
+pub mod port {
+    use super::Confidence::{High, Low, Medium};
+    use super::PortSlot;
+
+    /// `C_HeroesPlayer`: 538 x64 slots against 452 in 1.69.
+    pub const CLIENT: [PortSlot; 26] = [
+        (0, Some((0, Medium))),
+        (13, Some((13, High))),
+        (15, Some((15, Medium))),
+        (16, Some((16, High))),
+        (17, Some((17, Medium))),
+        (29, Some((29, High))),
+        (31, Some((31, Low))),
+        (83, Some((84, High))),
+        (190, Some((177, High))),
+        (191, Some((178, High))),
+        (286, Some((249, Medium))),
+        (301, Some((264, Medium))),
+        (330, None),
+        (331, None),
+        (349, None),
+        (351, Some((308, Medium))),
+        (380, Some((334, Low))),
+        (416, Some((367, Medium))),
+        (419, Some((368, High))),
+        (455, Some((401, High))),
+        (470, None),
+        (476, Some((419, Low))),
+        (485, None),
+        (487, Some((429, Low))),
+        (489, Some((430, Low))),
+        (516, None),
+    ];
+
+    /// `CHeroesPlayer`: 752 x64 slots against 646 in 1.69.
+    pub const SERVER: [PortSlot; 37] = [
+        (0, Some((0, Medium))),
+        (9, Some((9, High))),
+        (10, Some((10, Medium))),
+        (11, Some((11, High))),
+        (12, Some((12, Medium))),
+        (13, Some((13, Medium))),
+        (28, Some((26, Low))),
+        (29, Some((27, High))),
+        (73, Some((70, High))),
+        (78, Some((75, High))),
+        (137, Some((125, High))),
+        (240, Some((221, High))),
+        (241, Some((222, High))),
+        (334, Some((293, Medium))),
+        (390, Some((346, Low))),
+        (434, None),
+        (435, Some((387, Low))),
+        (466, Some((414, High))),
+        (469, Some((417, Medium))),
+        (504, Some((447, Low))),
+        (517, Some((460, Medium))),
+        (615, Some((555, High))),
+        (624, Some((563, High))),
+        (627, None),
+        (628, Some((565, Low))),
+        (631, None),
+        (657, Some((586, High))),
+        (677, None),
+        (694, None),
+        (697, Some((618, Medium))),
+        (699, Some((619, Low))),
+        (725, Some((638, Medium))),
+        (729, None),
+        (730, Some((641, Low))),
+        (731, None),
+        (736, None),
+        (748, None),
+    ];
+}
+
 pub mod server {
     pub const OBJECT_SIZE: usize = 0xaf98;
     pub const VTABLE_SLOTS: usize = 752;
