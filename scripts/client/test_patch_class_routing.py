@@ -176,6 +176,11 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn(f'jmp {resume:#x}', text)
         self.assertEqual(text[-3:], ['cmp esi, 9', f'ja {skip:#x}', f'jmp {keep:#x}'])
 
+    def test_server_costume_build_admits_class_ten(self):
+        image, report = self.plan('server.dll')
+        va = routing.COSTUME_GATE['server.dll']
+        self.assertEqual(bytes(image.data[image.offset(va):image.offset(va) + 3]), b'\x83\xf8\x0a')
+
     def test_class_name_lookup_knows_delia(self):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)

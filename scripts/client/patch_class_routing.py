@@ -155,6 +155,11 @@ CLASS_NAME = {
     'client.dll': (0x389145B0, '568b742408', 0x38A5DFC6),
     'server.dll': (0x40252880, '568b742408', 0x40994755),
 }
+# The server player's costume entry (0x405465d0) starts with `cmp eax, 9; ja` on m_iClass and,
+# above 9, skips the costume build (0x40546400, which names the model "CoStUmE_<parts>...mdl")
+# and leaves the generic lethita_base.mdl: Delia's body was never built (D8u: Fiona's server
+# model name is CoStUmE_1/0_10/..., Delia's models/player/lethita/lethita_base.mdl).
+COSTUME_GATE = {'server.dll': 0x405465DE}
 COSTUME_BLOCK = bytes.fromhex('8b4424148d4c9b1e')  # mov eax, [esp + 0x14]; lea ecx, [ebx + ebx*4 + 0x1e]
 COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
@@ -622,6 +627,9 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['precache'] = precache(layout, edits, *PRECACHE[name])
     if name in COSTUME:
         report['costume'] = costume(image, layout, edits, relocs, *COSTUME[name])
+    if name in COSTUME_GATE:
+        edits.append((COSTUME_GATE[name], b'\x83\xf8\x09', b'\x83\xf8' + bytes((DELIA,))))
+        report['costume_gate'] = f'{COSTUME_GATE[name]:#x}: classes 0-{DELIA}'
     if name in CLASS_NAME:
         report['class_name'] = class_name(layout, edits, *CLASS_NAME[name])
     if name in EVENT_FILE:
