@@ -326,3 +326,14 @@ Pré-condição: já aplicado (`client.dll` `4fb46646…`, `server.dll` `e6f1b67
 Resultado esperado: seleção sem defeito; habilidades da Delia organizadas na janela.
 
 Comparação de arquivos da Delia, NA (`F:\Games\vindictus\hfsExtracted`) × cliente do laboratório (`.cache/verification/d13-delia-na-vs-lab.txt`): 485 arquivos com "delia" no laboratório, 3.156 no NA; todos os 485 existem no NA e 107 diferem. As malhas principais (`delia.vvd`, rostos `.vvd`) são iguais; mudaram cabeçalhos `.mdl` (`delia.mdl`, `delia_base.mdl`, rostos, *inners*), as animações (`pc_delia_battle_motion*.mdl`, `pc_delia_town_motion.mdl` e os `.txt` de movimento, `pc_delia_town.txt` 26 KB → 117 KB), 3 *inners* (malhas novas), texturas de 2 *inners*, scripts `create/prologue_delia.csf`, `default_delia.bsh` (o NA acrescenta a barra "waist2"), 17 vídeos de habilidade e 13 efeitos. Só no NA: 2.387 vozes de NPC, 39 vozes da Delia, roupas (`yukata_delia` e outras), 8 arquivos de `bastardsword`, `bodyshape_spine2_*_delia.fig` e figurinos `.csf`. Conclusão: a Delia do 1.69 é uma versão anterior, completa para jogar; o NA atualizou animações e modelos depois.
+
+Resultado do D13 (28/10/2026): **habilidades da Delia certas na janela.** Hagie sem regressão. A seleção continua com o defeito da barriga e da perna (mesmo com a figura padrão 106 = 1000). A `Bastard Sword` continua com o modelo errado e "Cannot be equipped"; as armaduras-base aparecem vermelhas no inventário mas equipam.
+- Armaduras vermelhas: `premium_newbie_boots/tunic/pants` têm `ClassRestriction` 2047 (inclui a classe 10); a marca vermelha vem de outra verificação, ainda não achada (as varreduras de `cmp reg, 9` antes de `1 << classe` e das escritas nos *flags* `+0x198..+0x1a2` não a mostram).
+- Mais uma verificação de habilidade por classe (`client.dll` `0x385a5ed0`, `cmp eax, 9`) entrou no `CLASS_BITS`. Aplicado com o jogo fechado: `client.dll` `b3774da7…`.
+
+### D14 — Capturas de tela para os três defeitos restantes
+Pré-condição: DLLs `b3774da7…`/`e6f1b67b…`; abrir pelo `start-lab.bat`.
+- [ ] Seleção: captura da `DeliaLab` (defeito da barriga/perna) e, se der, da mesma tela com uma Hagie.
+- [ ] Cidade, inventário: captura da dica (*tooltip*) da `Bastard Sword` e da dica de uma armadura-base vermelha (`premium_newbie_tunic`).
+- [ ] Cidade: captura da `DeliaLab` com a `Bastard Sword` equipada (modelo errado).
+Resultado esperado: as capturas mostram o texto exato da dica e a forma do defeito, para escolher onde procurar.

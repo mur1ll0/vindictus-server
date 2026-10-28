@@ -215,8 +215,9 @@ COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 # Skill class checks (IsAvailableClass over SkillInfo.ClassRestriction): `cmp ecx, 9; ja` before
 # `1 << class`, so every skill of a class above 9 was skipped and Delia's skill window stayed empty
 # (D8v-D11). The helper at 0x3835df60 and the skill dialog's list (0x38372c00) inline the same
-# test; the bound becomes the last extra class (the mask is read as 16 bits, enough for class 15).
-CLASS_BITS = {'client.dll': (0x3835DF6E, 0x38372D03)}
+# test, as does 0x385a5ed0 (`cmp eax, 9`, a scan of `cmp reg, 9; ja` before `shl reg, cl`, D13); the
+# bound becomes the last extra class (the mask is read as 16 bits, enough for class 15).
+CLASS_BITS = {'client.dll': (0x3835DF6E, 0x38372D03, 0x385A6763)}
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -877,7 +878,10 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name in CLASS_NAME:
         report['class_name'] = class_name(layout, edits, *CLASS_NAME[name])
     for va in CLASS_BITS.get(name, ()):
-        edits.append((va, b'\x83\xf9\x09', b'\x83\xf9' + bytes((LAST,))))
+        head = bytes(image.data[image.offset(va):image.offset(va) + 3])
+        if head[0] != 0x83 or head[1] & 0xF8 != 0xF8 or head[2] != 9:
+            raise PreparationError(f'Unexpected class check at {va:#x}; nothing is patched.')
+        edits.append((va, head, head[:2] + bytes((LAST,))))
     if name in CLASS_BITS:
         report['class_bits'] = [f'{va:#x}: classes 0-{LAST}' for va in CLASS_BITS[name]]
     if name in EVENT_FILE:

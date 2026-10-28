@@ -2174,3 +2174,9 @@ Passo 26 (28/10/2026): figura padrão da Delia na forma do corpo; nome da classe
 - Comparação NA × laboratório dos arquivos da Delia: `.cache/verification/d13-delia-na-vs-lab.txt` (485 no laboratório, todos no NA, 107 diferentes; malhas principais iguais, animações e cabeçalhos `.mdl` atualizados no NA).
 - Próxima ação: com o jogo fechado, aplicar o patch e `lab-set-class.ps1 -Name DeliaLab -Class 1` e `-Class 10`; depois o D13.
 - Aplicado com o jogo fechado (`class-routing-apply-d13.log`): `client.dll` `4fb46646…`, `server.dll` `e6f1b67b…`. `DeliaLab` 10 → 1 → 10: roupa-base da Delia e 12 linhas de forma do corpo (conjunto da Delia + 106 = 1000). Cliente: D13 pendente.
+- D13 (cliente): habilidades da Delia certas; Hagie sem regressão; seleção ainda com o defeito; `Bastard Sword` ainda "Cannot be equipped" e modelo errado; armaduras-base (`ClassRestriction` 2047) vermelhas no inventário, mas equipam.
+
+Passo 27 (28/10/2026): terceira verificação de habilidade por classe.
+- `client.dll` `0x385a6763` (`cmp eax, 9; ja` antes de `1 << classe` sobre `SkillInfo +0x90`, achada pela varredura ampliada `d14-classbit-scan2.txt`) entrou no `CLASS_BITS`, que agora aceita qualquer registrador. `python -m unittest test_patch_class_routing` (19, 0 falhas; `d14-routing-tests.log`). Aplicado (`class-routing-apply-d14.log`): `client.dll` `b3774da7…`.
+- A marca vermelha das armaduras não vem desse padrão nem dos *flags* de item (`d14-flag198-scan.txt`, `d14-flag-switch-scan.txt`). As duas dicas "Cannot be equipped" já leem o *flag* 10.
+- Próxima ação: D14 (capturas da seleção, das dicas e da arma) para escolher onde procurar; depois E2 (`BASTARDSWORD`).
