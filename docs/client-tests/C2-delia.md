@@ -104,3 +104,10 @@ Pré-condição: o operador autoriza reaplicar o patch. `python -s -E scripts/cl
 - [ ] Se cair: anotar o horário e o endereço do `Report Error`. Para reverter, copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
 
 Execução de 28/10/2026 12:21: **não testou o D8b.** Os DLLs estavam sem o patch de roteamento (`a9591d3a…`/`af43431e…`, o `--apply` não foi rodado), então a classe 10 caiu de novo no caminho do pet: queda do D3 em `server.dll` `0x408b4700` (retorno `0x40804b5f`, `switch` de expressões), antes de entrar no canal. Servidor sem erro (`.cache/verification/d8b-game.log`). `DeliaLab` na classe 1; DLLs continuam revertidos. Sem o passo do `--apply`, trocar a classe para 10 sempre reproduz o D3.
+
+Resultado do D8b (28/10/2026, cliente, patch com `GATES`): **avançou, com duas quedas.**
+- A cidade carrega e a personagem anda, mas **invisível** (nenhum modelo 3D); a `Bastard Sword` e a *inner* aparecem como "Cannot be equipped"; nenhuma habilidade na janela.
+- 12:54: `F7` (emote) → queda em `client.dll` `0x38a5df98` (leitura de `0x20`).
+- 12:57: entrar no Mercenary Outpost → queda em `server.dll` `0x40994727` (leitura de `0x20`).
+- Causa das duas (minidumps em `.cache/d8/d8b-*.mdmp`): `SkillActionStateMatchTable::GetSkillNamesByActionStateName` (cliente `0x3885fb60`, servidor `0x407ccb8b`) lê o mapa da classe em `this + classe*0x1c + 0x20`. A tabela tem 10 mapas (`+0x20` a `+0x11c`, construtor `0x38861640`); a classe 10 lê `+0x138`, que é outro campo. O arquivo `scripts/skill/skill_actionstate_match_table.txt` do 1.69 já tem 13 linhas `skill_delia_*`.
+- Servidor Rust sem aviso nem erro (`.cache/verification/d8b-run-game.log`).
