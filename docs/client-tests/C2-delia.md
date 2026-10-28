@@ -170,3 +170,13 @@ Pré-condição: patch de roteamento com `PRECACHE` e `TOOLTIPS` (`client.dll` `
 - [ ] `F7` → esperado: a animação roda e a personagem não trava.
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
+
+Resultado do D8g (28/10/2026, 14:23, DLLs certos: `client.dll` gravado às 14:20, `server.dll` às 14:21): **sem mudança.** Personagem invisível; dica "Cannot be equipped"; os itens são aceitos, mas nada aparece no corpo; só a arma aparece (duas espadas, paradas como em pose T).
+
+### D8h — Coleta do console do motor
+Pré-condição: `start-lab.bat` reinstalado com `-condebug +developer 1` (`scripts/client/install_lab_launcher.py`); DLLs do D8g, sem mudança.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`; abrir pelo `start-lab.bat`.
+- [ ] Entrar na cidade com a `DeliaLab`, abrir o inventário, passar o mouse na `Bastard Sword`, equipar a *inner* e apertar `F7`.
+- [ ] Sair do jogo normalmente.
+- [ ] Avisar o horário; o `console.log` fica na cópia (`.cache/play-client`, pasta do jogo ou `bip/`).
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.

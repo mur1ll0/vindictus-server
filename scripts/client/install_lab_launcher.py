@@ -13,7 +13,9 @@ from prepare_lab_client import PreparationError, reject_original
 
 ROOT = Path(__file__).resolve().parents[2]
 EDITS = ROOT / '.cache/content-state/content-edits.json'
-START = 'start vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4'
+# -condebug (plus developer 1) writes the engine console to console.log in the copy, the only
+# place that names refused precaches, missing models and unknown entity classes (D8g).
+START = 'start vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4 -condebug +developer 1'
 
 
 def launcher(project: Path = ROOT, edits: Path = EDITS) -> str:

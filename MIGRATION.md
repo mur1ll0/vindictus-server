@@ -2035,3 +2035,7 @@ Passo 9 (28/10/2026): pré-carga dos modelos de animação da Delia e dica do it
 - Verificação: `python -m unittest test_patch_class_routing` (9, 0 falhas; `routing-tests-d8g.log`); reaplicado (`class-routing-apply-d8g.log`): `client.dll` `b75ddeb2…`, `server.dll` `a25f68f1…`; *stubs* desmontados e conferidos.
 - Cliente: D8g em `docs/client-tests/C2-delia.md`, pendente.
 - Parada (regra 2): visibilidade, dica e equipamento no corpo dependem do D8g.
+- D8g (cliente, 14:23, depois do patch das 14:21): sem mudança (invisível, "Cannot be equipped", nada aparece ao equipar; só a arma aparece, em pose T).
+- Conferido: os dois `heroes.db3` (solto e empacotado) têm `ClassRestriction` 1024 nos itens da Delia; a lista de pré-carga é registrada numa lista ligada percorrida no carregamento do mapa (`0x40267520`/`0x40267540`), então o *stub* roda. As chaves `HEROES_ITEM_CONSTRAINT_CHARACTERCLASS1..N` existem nos textos, mas o `client.dll` só referencia a `…CharacterClass0`, e nenhum `.gfx` (descomprimido) referencia o prefixo: a dica efetiva vem de outro caminho, ainda não achado.
+- Parada (regra 5 do `AGENTS.md`): três correções seguidas sem efeito visível. Em vez de outra hipótese estática, `install_lab_launcher.py` passa `-condebug +developer 1`, e o console do motor (pré-cargas recusadas, modelos ausentes, classes desconhecidas) vira a evidência do próximo passo.
+- Próxima ação: com o `console.log` do D8h, corrigir o ponto que ele apontar.
