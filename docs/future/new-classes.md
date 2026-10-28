@@ -393,3 +393,32 @@ Ferramenta de patch: seguir o modelo de `scripts/client/patch_shop_list_limit.py
   2. o mesmo no `server.dll` do NA (`CHeroesPlayerDelia`, `player_delia`);
   3. registrar `player_delia`/`DT_HeroesPlayerDelia` nos DLLs da cópia, com o código reescrito numa seção nova;
   4. a arma `BastardSword` e as 5 condições de estado de ação.
+
+### 8.10 Passo 2, primeira parte: a entidade da Delia lida nos DLLs x64 do NA e reconstruída em Rust (27/10/2026)
+
+- **Pedido do operador:** engenharia reversa do `client.dll` e do `server.dll` x64 do NA (`.cache/bin_x64`, cópia idêntica de `F:\Games\vindictus\appdata\en-US\bin_x64`), em Rust e o mais parecido possível com os métodos. Escopo escolhido pelo operador: a Delia e as classes novas. A leitura é pontual (fábrica, construtor, vtables e os métodos trocados); nada do binário inteiro foi analisado e o `.vmp0` não foi tocado.
+- **Por que o x64:** tem a tabela de exceções (início e fim de cada uma das 116.048 e 92.618 funções), o que delimita os métodos sem análise de fluxo. O VMProtect moveu essa tabela para fora da seção `.pdata`; o diretório de dados 3 aponta a posição certa.
+- **Evidência reprodutível:** `scripts/reverse/na_x64_delia_entity.py` confere os hashes (`client.dll` `0be9bfa5…`, `server.dll` `9f674dba…`), refaz construtor → vtable e grava `docs/evidence/client/na-x64-delia-entity.json` (local, fora do Git como o resto de `docs/evidence/client/`) com os *slots* trocados pela Delia e pela Hagie contra a base.
+
+| | `client.dll` x64 | `server.dll` x64 |
+|---|---|---|
+| Classe | `C_HeroesPlayerDelia`, 0x8ae0 bytes | `CHeroesPlayerDelia`, 0xaf98 bytes |
+| Construtor / vtable | `0xaf1220` / `0x1af6f10` | `0x6e3ae0` / `0x10f17b0` |
+| Base (construtor / vtable) | `0xabeb50` / `0x1af1340` | `0x692630` / `0x10e89e8` |
+| *Slots* da base | 538 (igual ao NA 32 bits) | 752 |
+| *Slots* trocados pela Delia | 26 (os 28 do 32 bits menos 477 e 534, que aqui apontam para a base) | 37 |
+
+- **O que a Delia acrescenta no cliente:**
+  - **guarda:** valor protegido em `+0x8980` (célula no *heap*, semente de 64 bits e chave de 1 byte; cada escrita avança o LCG do `rand()` do MSVC e grava `valor ^ chave*0x01010101`). *Slots* 487/489 gravam e leem; 330 decide se o golpe é bloqueado; 416 zera o dano do golpe bloqueado, marca o bit 2 de `+0xbc` e chama a base; 470 só chama a base fora da guarda;
+  - **`SET_GUARD_LATCH_ATTEN`** (eventos 0x7a/0x7b do script de estado): guarda os números do comando em `+0x8ac8`, uma vez;
+  - **lançamento de *ragdoll*** (`+0x89b0`, evento 0x14a): `ENABLE_RAGDOLL_LAUNCH <força>`/`DISABLE_RAGDOLL_LAUNCH`; no acerto, marca `npc+0x4ab0` em NPCs elegíveis, exceto `c_npc_seiren`;
+  - **habilidade especial segurada** (`+0x8aa0`): `START_SPECIAL_HOLD_SKILL`, `DASH_TO_TARGET`, `END_SPECIAL_HOLD_SKILL`;
+  - **parâmetros de pose `run_yaw`/`sprint_yaw`** nas atividades `0x465`/`0x468`, com os ConVars `plr_poseparam_*` (180/55 corrida, 40/20 *sprint*) e `delia_run_direct_stabilize_count` (5);
+  - **falha da habilidade especial** (*slot* 476): mensagens `#GameUI_Heroes_delia_skill_fail_msg[_location|_transform]` e `#GameUI_Heroes_SPGauge_Lack`, no máximo uma por segundo, e o som `Effect.Campfire.failed`;
+  - figura `csf/bodyshape_delia_default.fig` (*slot* 301), vida no painel superior (*slot* 516) e constantes (0,88, 0,96, 92 e 89/92).
+- **O que a Delia acrescenta no servidor local:** a mesma guarda (`+0xad28`, *slots* 697/699, forçada a 0 quando `0x7dd5e0` responde sim; 434/435/615/677/390 usam a decisão), a arma `weapon_bastardsword` (*slot* 657, estado em rede `+0xa6c4`), o ataque forte (*slots* 730/731: armado pelo *buff* `skill_delia_strong_attack_delay` ou por 1,5 s depois do acerto anterior; lança, derruba ou enfileira o alvo e o segura pelo *slot* 729) e as classes auxiliares `DeliaRagdollLaunch`, `DeliaSpecialHoldSkillController` e `CHeroesDeliaChargeAttackTraceFilter_OnlyProp`.
+- **Reconstrução em Rust:** `tools/na-delia-reference` (crate isolado, fora do servidor e do Docker; `cargo test --manifest-path tools/na-delia-reference/Cargo.toml`, 27 testes). Cada função cita o *slot* e o RVA de origem; chamadas de engine não reconstruídas ficam atrás dos *traits* `ClientHost`/`ServerHost`, com o nome do RVA chamado.
+- **Lacunas desta parte:**
+  - não lidos: a atualização dos 5 alvos do *ragdoll* (`0xaf39f0`), o *think* da habilidade segurada (`0xaf3670`), o resto do *slot* 615 e os *slots* 731/725/73/517 do servidor além do resumo, as classes auxiliares do servidor e as 5 condições `As_Cond_*`/`AS_Cond_Delia_*`;
+  - nomes de vários *slots* da base continuam numéricos (190/191, 349/485 no cliente; 240/241, 466/694 no servidor);
+  - a correspondência de cada *slot* e *offset* x64 com a base do 1.69 (32 bits, 452 *slots*) ainda não foi feita; é o próximo passo, pela Hagie.

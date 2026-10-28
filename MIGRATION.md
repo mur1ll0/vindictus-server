@@ -1913,3 +1913,10 @@ Caminho C, etapa C2 — passo 1: tabelas de classe com N entradas nos DLLs da c�
 - Cliente: entrada D7 de `docs/client-tests/C2-delia.md` (não regressão), pendente.
 - Próxima ação: D7 no cliente; depois, passo 2 (ler os 28 métodos da Delia no NA e casar *slots* e *offsets* pela Hagie, que existe nas duas versões).
 - D7 (operador): criação pela barra V4 e tutorial funcionando com os DLLs `.hcls`; sem regressão observada (missão curta não relatada). Patch mantido.
+
+Caminho C, etapa C2 — passo 2, primeira parte: entidade da Delia lida nos DLLs x64 do NA e reconstruída em Rust (27/10/2026, pedido do operador; escopo "Delia/classes novas" escolhido por ele).
+- Mudança: `scripts/reverse/na_x64_delia_entity.py` (extrator reprodutível, só leitura, confere hashes e anchors; gera `docs/evidence/client/na-x64-delia-entity.json`, local como o resto dessa pasta); crate isolado `tools/na-delia-reference` (fora do build do servidor e do Docker) com `protected`, `action_event`, `layout`, `client` e `server`.
+- Evidência (seção 8.10 de `docs/future/new-classes.md`): cliente 538 *slots*, 26 trocados pela Delia (os 28 do 32 bits menos 477 e 534); servidor 752 *slots*, 37 trocados; valor protegido (LCG do `rand()` do MSVC) usado pela guarda; comandos de script `SET_GUARD_LATCH_ATTEN`, `ENABLE/DISABLE_RAGDOLL_LAUNCH`, `START/END_SPECIAL_HOLD_SKILL`, `DASH_TO_TARGET`; ConVars e padrões; ataque forte com 1,5 s de tolerância; `weapon_bastardsword`.
+- Verificação: `python -I scripts/reverse/na_x64_delia_entity.py` (hashes conferidos; 31 e 42 *slots* trocados por Delia ou Hagie); `cargo test --manifest-path tools/na-delia-reference/Cargo.toml` (27, 0 falhas); `cargo clippy … --all-targets -- -D warnings` (0). Logs `.cache/verification/na-delia-reference-*.log`.
+- Cliente: não necessário (leitura e código de referência; nada mudou na cópia de laboratório).
+- Próxima ação: ler o que falta (`0xaf39f0`, `0xaf3670`, *slots* 615/725/731 do servidor, classes auxiliares e as 5 condições) e casar cada *slot*/*offset* x64 com a base do 1.69 pela Hagie, que existe nas duas versões.

@@ -1,0 +1,17 @@
+[package]
+name = "na-delia-reference"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+description = "Rust reconstruction of the Delia player entity read from the NA x64 client.dll and server.dll"
+
+# Standalone: not part of the server build or its Docker context.
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
