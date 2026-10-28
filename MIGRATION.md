@@ -2068,3 +2068,4 @@ Passo 12 (28/10/2026): pré-carga do corpo-base e dos rostos da Delia.
 - Verificação: `test_precache_loads_delia_motion_models_first` e `test_every_new_pointer_is_relocated` (0 falhas; `routing-tests-d8m.log`). Aplicação pendente: o jogo estava aberto com os DLLs carregados.
 - Cliente: D8m em `docs/client-tests/C2-delia.md`.
 - Parada (regra 2): aplicar com o jogo fechado e testar.
+- Aplicado com o jogo fechado, sem `--fallback-entity` (`class-routing-apply-d8m.log`): `client.dll` `97cacae0…`, `server.dll` `6928e271…`; *stub* `0x412ba870` com os 7 modelos e `0x40371314` de volta a `"player"`, conferidos. `DeliaLab` na classe 10 para o D8m.
