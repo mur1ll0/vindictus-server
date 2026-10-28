@@ -114,6 +114,10 @@ def main():
     report = {}
     for name, prefix in EXPECTED.items():
         path = directory / name
+        # After patch_class_routing.py the measured .hcls copy is its pre-routing backup.
+        backup = directory / f'{name}.{prefix}.pre-routing.bak'
+        if backup.is_file():
+            path = backup
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if not digest.startswith(prefix):
             raise SystemExit(f'{name}: unexpected sha256 {digest[:16]} (expected {prefix})')

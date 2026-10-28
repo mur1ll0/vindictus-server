@@ -80,3 +80,14 @@ Pré-condição: `client.dll` e `server.dll` da cópia de laboratório com o pat
 - [ ] Entrar numa missão curta e voltar à cidade → sem queda.
 - [ ] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.314272ec54054ed0.pre-hcls.bak` sobre `bin/client.dll` e `bin/server.dll.d7727e182f6cdec1.pre-hcls.bak` sobre `bin/server.dll`.
 - **Resultado D7 (operador, 28/10/2026):** com os DLLs `.hcls`, a criação abre a barra V4 de 10 classes, sem a Delia (esperado: a grade S3 foi desfeita e a barra é fixa em 10), e selecionar uma classe carrega o tutorial normalmente. Sem regressão observada; a missão curta não foi relatada. O patch fica aplicado.
+
+### D8 — Classe 10 roteada para os arquivos da Delia (patch `.hrte`, sem a entidade própria)
+Pré-condição: `client.dll` e `server.dll` da cópia de laboratório com `scripts/client/patch_class_routing.py` aplicado sobre o `.hcls` (hashes `0e1b1800…` e `eda9ac59…`). O servidor local cria `player_delia` pelo nome; como a fábrica não existe no 1.69, ele usa a entidade genérica `player` (`0x403712f7`), sem a guarda nem a arma próprias da Delia (E1–E5). Runtime com `docker compose up -d --wait` saudável. Use a `DeliaLab` (Fiona) fora do jogo.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → imprime `class 1 -> 10`.
+- [ ] Abrir pelo `start-lab.bat` e ir até a seleção → a `DeliaLab` aparece? Anotar nome da classe, modelo e se o cliente fecha.
+- [ ] Entrar na cidade com a `DeliaLab` → esperado: a cidade carrega **sem** a queda do D3 (`0x408b4700` em `server.dll`). Anotar o modelo (corpo da Delia, da Fiona ou pose T), as animações ao andar e correr e se há texto `#GameUI_…` vazio.
+- [ ] Na cidade: abrir inventário e habilidades, andar, correr, usar um emote → anotar o que falha.
+- [ ] Voltar à seleção e sair → sem queda.
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.a9591d3a44a2b538.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll.af43431e78666783.pre-routing.bak` sobre `bin/server.dll` (volta ao `.hcls`, que o D7 aceitou).
+Limites conhecidos: a barra V4 não cria a Delia (a classe 10 é aceita pelo servidor, mas só a grade ou um botão novo a envia); a Delia continua com os itens da Fiona; sem guarda, ataque forte, *hold skill* e arma `BASTARDSWORD` própria (E2–E5); os demais `switch` com limite 9 (eventos, HUD, figura) caem no caso padrão.
