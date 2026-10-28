@@ -2061,3 +2061,10 @@ Passo 11 (28/10/2026): diagnóstico com a entidade da Fiona (escolha do operador
 - D8k (cliente): sem mudança (invisível na cidade; pernas da *inner* brancas na seleção). A entidade da classe não é a causa.
 - Ferramentas: `lab_memory.py serve` (um processo elevado, aprovado uma vez pelo operador, atende pedidos em `.cache/lab-memory/` e recarrega o código a cada pedido), comandos `ptrstr`, `rtti`, `class`, `save`, `diff`. Leituras: jogador local do cliente `[[0x38c8f3f4]+0x14]`, do servidor `[[0x40cb3740]+0x14]`, ambos classe 10 com a entidade da Fiona. A coluna de roupa já estava certa (D8j).
 - Próxima ação: D8l, a mesma personagem como Fiona na cidade, e `diff` das cópias de memória para achar o campo que separa a Fiona visível da Delia invisível.
+- D8l (cliente + memória): a `DeliaLab` como Fiona aparece. `diff` com a mesma entidade: índice de modelo da entidade Fiona 13, Delia -1; códigos de roupa equipada (oito, `parte*100000 + número`) Fiona preenchidos, Delia `-1`. `lab_memory.py` ganhou `find` (busca de texto na memória legível) e `regions`.
+
+Passo 12 (28/10/2026): pré-carga do corpo-base e dos rostos da Delia.
+- Mudança: `DELIA_PRECACHE` (animações + `delia_base.mdl` + `pc_delia_face01..03.mdl`) no *stub* de pré-carga; as *strings* vêm antes do código do *stub*. O diagnóstico `--fallback-entity` fica disponível, mas não é aplicado.
+- Verificação: `test_precache_loads_delia_motion_models_first` e `test_every_new_pointer_is_relocated` (0 falhas; `routing-tests-d8m.log`). Aplicação pendente: o jogo estava aberto com os DLLs carregados.
+- Cliente: D8m em `docs/client-tests/C2-delia.md`.
+- Parada (regra 2): aplicar com o jogo fechado e testar.

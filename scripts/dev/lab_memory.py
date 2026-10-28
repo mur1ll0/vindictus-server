@@ -209,6 +209,33 @@ def load_symbols(mods: dict) -> dict[str, int]:
     return symbols
 
 
+class MEMORY_BASIC_INFORMATION(ctypes.Structure):
+    _fields_ = [('BaseAddress', ctypes.c_void_p), ('AllocationBase', ctypes.c_void_p),
+                ('AllocationProtect', wt.DWORD), ('PartitionId', wt.WORD), ('RegionSize', ctypes.c_size_t),
+                ('State', wt.DWORD), ('Protect', wt.DWORD), ('Type', wt.DWORD)]
+
+
+def read_block(handle, address: int, size: int) -> bytes:
+    """ReadProcessMemory of any size (works with a Game created by an older reload)."""
+    buffer, done = ctypes.create_string_buffer(size), ctypes.c_size_t()
+    if not kernel32.ReadProcessMemory(handle, ctypes.c_void_p(address), buffer, size, ctypes.byref(done)):
+        raise InspectError(f'ReadProcessMemory({address:#x}, {size}) failed: error {ctypes.get_last_error()}.')
+    return buffer.raw[:done.value]
+
+
+def regions(game: Game):
+    """Committed, readable, non-guard regions of the 32-bit address space."""
+    info, address = MEMORY_BASIC_INFORMATION(), 0x10000
+    query = kernel32.VirtualQueryEx
+    query.argtypes = [wt.HANDLE, ctypes.c_void_p, ctypes.POINTER(MEMORY_BASIC_INFORMATION), ctypes.c_size_t]
+    while address < 0x80000000 and query(game.handle, ctypes.c_void_p(address), ctypes.byref(info), ctypes.sizeof(info)):
+        size = info.RegionSize
+        readable = info.Protect & 0xEE and not info.Protect & 0x100  # any read access, no PAGE_GUARD
+        if info.State == 0x1000 and readable:  # MEM_COMMIT
+            yield address, size
+        address += size
+
+
 def class_name(game: Game, address: int) -> str | None:
     """RTTI class of the object at ADDRESS (its first dword a vtable inside a loaded module)."""
     if not 0x10000 < address < 0x80000000:
@@ -329,6 +356,32 @@ def run(game: Game | None, argv: list[str]) -> None:
         CHANNEL.mkdir(parents=True, exist_ok=True)
         (CHANNEL / f'{name}.bin').write_bytes(data)
         print(f'saved {len(data):#x} bytes from {base:#x} to {name}.bin')
+    elif command == 'regions':
+        listed = list(regions(game))
+        print(f'{len(listed)} readable regions, {sum(s for _, s in listed) // 0x100000} MiB; '
+              f'last query error {ctypes.get_last_error()}')
+        for start, size in listed[:5]:
+            print(f'  {start:#010x} {size:#x}')
+    elif command == 'find':
+        # find TEXT [MAX]: addresses of an ASCII string in the committed, readable memory
+        needle, limit = args[0].encode('latin1'), int(args[1], 0) if len(args) > 1 else 40
+        found = 0
+        for start, size in regions(game):
+            for offset in range(0, size, 0x10000):
+                try:
+                    chunk = read_block(game.handle, start + offset, min(0x10000 + len(needle), size - offset))
+                except Exception:
+                    break
+                at = chunk.find(needle)
+                while at != -1 and at < 0x10000:
+                    address = start + offset + at
+                    owner = next((n for n, (b, s, _) in game.mods.items() if b <= address < b + s), 'heap')
+                    print(f'{address:#010x} {owner}')
+                    found += 1
+                    if found >= limit:
+                        return
+                    at = chunk.find(needle, at + 1)
+        print(f'{found} found')
     elif command == 'symbols':
         for name, value in sorted(game.symbols.items()):
             print(f'{name:<28} {value:#010x}')

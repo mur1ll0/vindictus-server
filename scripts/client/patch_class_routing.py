@@ -148,6 +148,11 @@ COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 FALLBACK_PUSH = 0x40371314
 FALLBACK_ENTITIES = ('player_fiona',)
 DELIA_MOTIONS = [text for va, text in TABLES['server.dll'] if text and '_motion' in text]
+# Her base body and faces (player_costume.txt "base" 10 and "face" 100 + %02d): her town entity
+# had model index -1 while a Fiona in the same entity had 13 (D8l memory diff).
+DELIA_MODELS = ['models/player/delia/delia_base.mdl'] + [
+    f'models/player/delia/pc_delia_face{n:02d}.mdl' for n in (1, 2, 3)]
+DELIA_PRECACHE = DELIA_MOTIONS + DELIA_MODELS
 MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
 MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
 md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
@@ -376,18 +381,19 @@ def tooltip(image: Image, layout: Layout, edits: list, relocs: set[int],
 
 
 def precache(layout: Layout, edits: list, entry: int, old: str, precache_model: int) -> str:
-    """The PRECACHE stub: PrecacheModel(path, 0) for each Delia motion model, then the entry."""
+    """The PRECACHE stub: PrecacheModel(path, 0) for each Delia model, then the entry."""
+    layout.pad()
+    addresses = [layout.string(text) for text in DELIA_PRECACHE]  # strings before the code
     layout.pad()
     stub = layout.here()
-    for text in DELIA_MOTIONS:
-        address = layout.strings[text]
+    for address in addresses:
         layout.body += b'\x6a\x00\x68'
         layout.pointer(address)
         layout.body += b'\xe8' + struct.pack('<i', precache_model - (layout.here() + 5)) + b'\x83\xc4\x08'
     replaced = bytes.fromhex(old)
     layout.body += replaced + b'\xe9' + struct.pack('<i', entry + len(replaced) - (layout.here() + len(replaced) + 5))
     edits.append((entry, replaced, b'\xe9' + struct.pack('<i', stub - (entry + 5))))
-    return f'{entry:#x} -> {stub:#x} ({len(DELIA_MOTIONS)} models)'
+    return f'{entry:#x} -> {stub:#x} ({len(DELIA_PRECACHE)} models)'
 
 
 def costume(image: Image, layout: Layout, edits: list, relocs: set[int],

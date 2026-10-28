@@ -231,3 +231,15 @@ Pré-condição: jogo aberto e o leitor elevado (`lab_memory.py serve`) rodando;
 - [ ] Voltar à seleção de personagens (sem fechar o jogo).
 - [ ] Avisar; eu rodo `lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Entrar na cidade com a `DeliaLab` (agora Fiona) e avisar; eu salvo as mesmas cópias e comparo.
+
+Resultado do D8l (28/10/2026): a mesma `DeliaLab` como Fiona aparece corretamente na cidade. Comparação de memória (`lab_memory.py diff`), mesma classe de entidade (`C_HeroesPlayerFiona`):
+- índice de modelo da entidade (cliente `+0x84`, 16 bits): Fiona 13, Delia **-1** (sem modelo); os `-1` em `+0xecc..+0xed4` (Fiona 0, 17, 18) acompanham;
+- os oito códigos de roupa equipada (servidor `+0x3418`, cliente `+0x488c`, `parte*100000 + número`, por exemplo `100130`, `700353`): Fiona com as oito peças, Delia todas `-1`;
+- a coluna de roupa já estava certa (D8j). Hipótese: o corpo-base `delia_base.mdl` e os rostos não estão na tabela de pré-carga de modelos do servidor; a seleção é só do cliente e não precisa dela.
+
+### D8m — Pré-carga do corpo-base e dos rostos da Delia
+Pré-condição: **jogo fechado** antes de aplicar (os DLLs carregados não podem ser trocados). Patch de roteamento **sem** `--fallback-entity` (o diagnóstico da Fiona sai), com `PRECACHE` incluindo `delia_base.mdl` e `pc_delia_face01..03.mdl`; `engine.dll` `44281475…`; abrir pelo `start-lab.bat`.
+- [ ] Não regressão: Hagie entra na cidade normalmente.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [ ] Entrar na cidade → anotar se o corpo aparece.
+- [ ] Com o jogo aberto, eu rodo `lab_memory.py` (o leitor elevado precisa ser iniciado de novo; aprovar o UAC) e confiro o índice de modelo da entidade.

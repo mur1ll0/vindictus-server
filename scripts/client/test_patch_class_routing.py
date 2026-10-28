@@ -139,8 +139,8 @@ class LabCopyTest(unittest.TestCase):
         code = self.stub_code(image, entry)
         pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
                   if x.mnemonic == 'push' and x.op_str.startswith('0x') and int(x.op_str, 16) > 0xFFFF]
-        self.assertEqual(pushed, routing.DELIA_MOTIONS)
-        self.assertEqual(sum(f'call {precache_model:#x}' == f'{x.mnemonic} {x.op_str}' for x in code), 3)
+        self.assertEqual(pushed, routing.DELIA_PRECACHE)
+        self.assertEqual(sum(f'call {precache_model:#x}' == f'{x.mnemonic} {x.op_str}' for x in code), len(routing.DELIA_PRECACHE))
         self.assertEqual(int(code[-1].op_str, 16), entry + len(bytes.fromhex(old)))
 
     def test_costume_sends_class_ten_to_the_shadow_column(self):
