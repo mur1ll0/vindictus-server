@@ -349,3 +349,4 @@ Leitura pontual do `client.dll` 1.69 e dos filmes Scaleform (AS2) dos dois clien
   - implementar no `client.dll` os *callbacks* do filme do NA.
   
   Antes de escolher, falta medir como o filme do 1.69 monta a lista: fixa no AS2 ou vinda do C++.
+- **Correção (sessão D6, 28/10/2026):** a grade S3 do 1.69 está incompleta. O mapa `s3_game_create_character` só tem atores para 9 classes (sem Hagie nem Delia), o modelo não muda e a criação trava no cliente. O envio de `S3_CharacterCreation` foi desfeito. O mapa do NA é idêntico; a criação de 28 classes do NA usa outra cena, ainda a localizar.

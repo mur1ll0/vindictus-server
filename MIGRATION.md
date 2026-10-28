@@ -1870,3 +1870,15 @@ Caminho C, etapa C2 — criação com mais de 10 classes: grade S3 do 1.69 ligad
   1. medir como o filme S3 monta a lista de classes;
   2. criação da classe 10 no servidor (initializer da Delia; falta `DefaultItemInfo`);
   3. patches nativos da entidade e da tabela de classes no `server.dll` e no `client.dll`, na cópia de laboratório.
+
+Caminho C, etapa C2 — sessão da D6 e *rollback* da grade S3 (28/10/2026, 01:46–01:52 UTC).
+- Cliente (operador):
+  - a grade S3 abriu com a Delia, mas o modelo 3D não muda (fica o Kalok);
+  - "Create this character" (Lynn) não fez nada e travou a tela;
+  - excluir a `DeliaLab` não fez nada.
+- Logs:
+  - cliente: mapa `s3_game_create_character` carregado sem erro;
+  - servidor: só a `DeleteCharacterMessage` (categoria 451, sem tratamento), duas vezes; nenhuma mensagem de criação chegou.
+- Causa da grade: o mapa `s3_game_create_character.bsp` do 1.69 tem atores, câmeras e gatilhos `cc_create_character_*` só para 9 classes (Lethita a Arisha; sem Hagie nem Delia). O do NA é idêntico (1.135.268 bytes, as mesmas 9 classes). A criação S3 do 1.69 é uma versão antiga e não lançada (feature NULL em todas as regiões); a criação de 28 classes do NA não usa esse mapa.
+- Ação: desfeito o envio de `S3_CharacterCreation` (código e teste do commit 8305d80); a criação volta à barra V4. Os achados da seção 8.7 continuam válidos, com esta correção.
+- Pendências: implementar a `DeleteCharacterMessage` (original: `CharacterList` + `DeleteCharacterProcessor`/`DeleteCharacterCancelProcessor`) e a troca de slots (categoria 489). A criação com mais de 10 classes precisa de outra cena: a do NA (a localizar) ou a barra V4 estendida.

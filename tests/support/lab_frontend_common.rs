@@ -110,8 +110,7 @@ pub async fn open(
     )
     .unwrap()
     .unwrap();
-    // NGM_disable from the pinned config, the laboratory cash shop overrides and the S3
-    // class grid of the character creation.
+    // NGM_disable from the pinned config and the laboratory cash shop overrides.
     let features = decoded.features.as_ref().unwrap();
     assert_eq!(
         features
@@ -128,8 +127,7 @@ pub async fn open(
             (
                 "ingame_cashshop_purchaseURL",
                 Some(vindictus_server::infrastructure::lab_web_shop::PURCHASE_URL)
-            ),
-            ("S3_CharacterCreation", Some("3.09.00"))
+            )
         ]
     );
     let sender =
