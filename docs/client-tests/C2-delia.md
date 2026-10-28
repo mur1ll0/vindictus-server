@@ -382,6 +382,6 @@ Rastreio ao vivo (leitor elevado; ponto de parada de escrita):
 - cada personagem da seleção tem um `SkinMaterialParamModifier`; só o da Delia tinha um decalque ativo (tipo 1), vindo de `CHeroesCostumeData` `+0x240` = `m_bodyLayerList[0]` (camada de pintura do corpo). Fiona, Evy e Hagie: -1. Delia: `0x4d205cb0`, o mesmo valor a cada reconstrução;
 - os personagens da seleção são NPCs do `server.dll` local (`CNPC_BaseCostumeLoadable::m_curCostumeData`, enviado em rede); o valor nasce no servidor: `0x40411e60` (montagem do NPC da seleção) usa sempre o padrão `0x40815490(slot, classe)` = `tabela[slot*10 + classe]` sobre `0x40f6494c`, **sem limite**. A tabela tem 10 vezes -1; a classe 10 lia o dword seguinte (um ponteiro). O cliente desenhava esse "número de pintura" como decalque branco na barriga e nas coxas. Na cidade o jogador só usa o padrão quando não tem valor, por isso a cidade estava certa.
 Mudança: `CLASS_DEFAULTS` no patch: os quatro acessores `[slot][10]` (servidor `0x40815390`/`0x40815490`, cliente `0x3887ce30`/`0x3887cf30`) leem a coluna da classe copiada (`clone_of`, Hagie) para uma classe extra. `python -m unittest test_patch_class_routing` (21, 0 falhas; `d16-routing-tests.log`).
-Pré-condição: **jogo fechado**; eu aplico; abrir pelo `start-lab.bat`.
+Pré-condição: aplicado (`client.dll` `8e766ed3…`, `server.dll` `46cd2c50…`); abrir pelo `start-lab.bat`.
 - [ ] Seleção: a `DeliaLab` → a faixa branca da barriga e das coxas deve sumir.
 - [ ] Não regressão: Hagie, Evy e Fiona na seleção; Delia na cidade.
