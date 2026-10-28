@@ -123,3 +123,14 @@ Pré-condição: patch de roteamento com `MATCH` aplicado sobre a `.hcls` (28/10
 - [ ] Se cair: anotar horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
 
 Execução de 28/10/2026 13:11 (1ª versão, `75874fe4…`/`8265556f…`): **falhou antes do menu.** Queda em `server.dll` `0x407cda68` ao montar a tabela (`MatchingActionStateSkill` no construtor). O laço lê o mapa também por `[esp+0x10]` depois de inserir (`0x407cda5a`; cliente `0x38860b4a`), e o *stub* só trocava `ebp`. Corrigido na 2ª versão (o *stub* da classe 10 aponta `[esp+0x10]` para o mapa da Delia + 4).
+
+Execução de 28/10/2026 (2ª versão, `75f08dcc…`/`d2f93765…`): **passou nas quedas.** A cidade carrega; `F7` não derruba o cliente, mas a personagem trava (sem animação); o Mercenary Outpost carrega. Continuam: personagem invisível, `Bastard Sword`/*inner* "Cannot be equipped", nenhuma habilidade na janela.
+
+### D8d — Modelos de animação da Delia no servidor local
+Pré-condição: patch com as tabelas de animação (`server.dll` `af43431e…` → `f83dd892…`; `client.dll` `75f08dcc…`, sem mudança); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo; abrir pelo `start-lab.bat`.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [ ] Entrar na cidade → anotar se a personagem aparece (corpo da Delia, pose T ou invisível) e se anda com animação.
+- [ ] `F7` (emote) → esperado: a animação roda e a personagem não trava. Anotar o emote.
+- [ ] Entrar no Mercenary Outpost (animação de batalha) → anotar se anda/ataca com animação.
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak`.

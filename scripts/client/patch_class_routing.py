@@ -59,6 +59,12 @@ TABLES = {
         (0x40CF968C, 'Player.Delia.'),
         (0x40CFA0B0, 'csf/costume_default_delia.csf'),
         (0x40CFA0D8, None),  # PvP costume: Hagie's entry is null too
+        # Animation models read by [class*4 + table] at 0x4040ff6c (town), 0x4040ffa9 (battle) and
+        # 0x4040ff91 (ExtremeMode). Class 10 read the next table (a male skeleton) and, in
+        # ExtremeMode, a non-pointer; D8c froze on the emote.
+        (0x40CF1F80, 'models/player/_anim/female/delia/pc_delia_town_motion.mdl'),
+        (0x40CF1FA8, 'models/player/_anim/female/delia/pc_delia_battle_motion.mdl'),
+        (0x40CF1FD0, 'models/player/_anim/female/delia/pc_delia_battle_motion_ex.mdl'),
     ),
 }
 # `push 0xa` whose log2 sizes the m_iClass SendProp (0x405368c3..0x405368c7).
