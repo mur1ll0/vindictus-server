@@ -208,3 +208,5 @@ Pré-condição: DLLs do D8i, sem mudança.
   - `python -s -E scripts/dev/lab_memory.py costume 10`
   - `python -s -E scripts/dev/lab_memory.py costume 9`
 - [ ] Anotar se apareceu `lab_console.log` em `.cache/play-client` ou `bip/` depois de sair.
+
+Resultado do D8j (28/10/2026, terminal de administrador): os três módulos nos endereços preferidos (`client.dll` `0x38000000`, `server.dll` `0x40000000`, `engine.dll` `0x42000000`). A coluna da Delia foi carregada igual no cliente e no servidor, no mesmo padrão da Hagie: base 10 (Hagie 9), rosto 100 (90), animação 100/101 e cidade 102 (90/91 e 92); as outras partes -1 nas duas classes. O carregamento da roupa está certo; o que falta na cidade não é dado de roupa.

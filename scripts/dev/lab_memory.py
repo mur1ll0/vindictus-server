@@ -35,8 +35,10 @@ PREFERRED = {'client.dll': 0x38000000, 'server.dll': 0x40000000, 'engine.dll': 0
 MAX_READ = 0x1000
 GAME_EXES = ('vindictus.exe', 'heroes.exe')
 # Costume manager layout (scripts/client/patch_class_routing.py, COSTUME).
+# Index 10 is the motion part (its default/default_ex/town are motion ids, D8j); 9 and 11 are not
+# confirmed and keep their number.
 SLOTS = ['base', 'inner_armor', 'face', 'hair', 'upper_body', 'lower_body', 'head', 'foot', 'hand',
-         'rear', 'tail', 'motion']
+         'part 9', 'motion', 'part 11']
 
 PROCESS_QUERY_INFORMATION, PROCESS_VM_READ = 0x0400, 0x0010
 TH32CS_SNAPPROCESS, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32 = 0x2, 0x8, 0x10
