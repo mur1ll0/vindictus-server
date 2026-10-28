@@ -115,6 +115,34 @@ class LabCopyTest(unittest.TestCase):
                 self.assertIn(f'mov al, byte ptr [{item} + {register} + 0x198]', text)
                 self.assertEqual(text[-1], f'ret {pop}')
 
+    def stub_code(self, image, va):
+        jump = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
+        stub = int(jump.op_str, 16)
+        return list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+            bytes(image.data[image.offset(stub):image.offset(stub) + 0x80]), stub)))
+
+    def test_tooltips_name_delia_from_flag_ten(self):
+        image, report = self.plan('client.dll')
+        self.assertEqual(len(report['tooltips']), len(routing.TOOLTIPS['client.dll']))
+        for _, _, join, old in routing.TOOLTIPS['client.dll']:
+            code = self.stub_code(image, join)
+            text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            self.assertEqual(sum('0x1a2]' in t for t in text), 2)
+            self.assertFalse(any('0x1a1]' in t for t in text))
+            pushed = [int(x.op_str, 16) for x in code if x.mnemonic == 'push' and x.op_str.startswith('0x')]
+            self.assertEqual([routing.read_string(image, v) for v in pushed], ['#GameUI_Delia'])
+            self.assertEqual(int(code[-1].op_str, 16), join + len(bytes.fromhex(old)))
+
+    def test_precache_loads_delia_motion_models_first(self):
+        image, report = self.plan('server.dll')
+        entry, old, precache_model = routing.PRECACHE['server.dll']
+        code = self.stub_code(image, entry)
+        pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
+                  if x.mnemonic == 'push' and x.op_str.startswith('0x') and int(x.op_str, 16) > 0xFFFF]
+        self.assertEqual(pushed, routing.DELIA_MOTIONS)
+        self.assertEqual(sum(f'call {precache_model:#x}' == f'{x.mnemonic} {x.op_str}' for x in code), 3)
+        self.assertEqual(int(code[-1].op_str, 16), entry + len(bytes.fromhex(old)))
+
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)

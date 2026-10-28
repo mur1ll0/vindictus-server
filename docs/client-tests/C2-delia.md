@@ -157,3 +157,16 @@ Pré-condição: patch de roteamento com `FLAG_CHECKS` (`client.dll` `a9591d3a�
 - [ ] Anotar se a personagem aparece depois de equipar a *inner* e se o `F7` anima.
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
+
+Resultado do D8f (28/10/2026): Hagie sem regressão. `DeliaLab` continua invisível; a `Bastard Sword` ainda mostra "Cannot be equipped", mas o botão direito a equipa (com a personagem "bugada"); a calça também equipa, e nada aparece.
+
+### D8g — Pré-carga dos modelos de animação da Delia e dica do item
+Pré-condição: patch de roteamento com `PRECACHE` e `TOOLTIPS` (`client.dll` `a9591d3a…` → `b75ddeb2…`, `server.dll` `af43431e…` → `a25f68f1…`) e `engine.dll` `44281475…`; `docker compose up -d --wait` saudável; abrir pelo `start-lab.bat` (nada mais a rodar).
+- [ ] Não regressão: Hagie desequipa e equipa um item; a dica de um item comum a todas as classes antigas continua sem lista de classes.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [ ] Entrar na cidade → esperado: **a personagem aparece** (esqueleto e animação da Delia) e anda com animação.
+- [ ] Dica da `Bastard Sword` e da *inner* da Delia → esperado: "Only for Delia" (não mais "Cannot be equipped").
+- [ ] Equipar espada, armadura e *inner* → esperado: aparecem no corpo.
+- [ ] `F7` → esperado: a animação roda e a personagem não trava.
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.

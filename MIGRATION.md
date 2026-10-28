@@ -2026,3 +2026,12 @@ Passo 8 (28/10/2026): acessores de classe dos itens no `client.dll` e no `server
 - Verificação: `python -m unittest test_patch_class_routing` (7, 0 falhas; `routing-tests-flags.log`); reaplicado (`class-routing-apply-d8f.log`): `client.dll` `d1a1571c…`, `server.dll` `d094ee11…`; *stubs* desmontados e conferidos.
 - Cliente: D8f em `docs/client-tests/C2-delia.md`, pendente.
 - Parada (regra 2): equipar e a visibilidade dependem do D8f.
+- D8f (cliente): Hagie sem regressão; Delia equipa pelo botão direito, mas a dica diz "Cannot be equipped" e nada aparece no corpo.
+
+Passo 9 (28/10/2026): pré-carga dos modelos de animação da Delia e dica do item.
+- Pedido do operador: no próximo teste, modelo 3D correto e espada, armadura e *inner* equipadas corretamente.
+- Causas (seção 8.14): a lista de pré-carga `0x4054de00` do `server.dll` nunca pré-carrega a animação de cidade da Delia (e limita a classe a 9 fora da cidade); a dica do item no `client.dll` lista as classes de 0 a 9 e cai em `CharacterClass0`.
+- Mudança: `PRECACHE`/`precache` e `TOOLTIPS`/`tooltip` em `patch_class_routing.py`, com dois testes novos.
+- Verificação: `python -m unittest test_patch_class_routing` (9, 0 falhas; `routing-tests-d8g.log`); reaplicado (`class-routing-apply-d8g.log`): `client.dll` `b75ddeb2…`, `server.dll` `a25f68f1…`; *stubs* desmontados e conferidos.
+- Cliente: D8g em `docs/client-tests/C2-delia.md`, pendente.
+- Parada (regra 2): visibilidade, dica e equipamento no corpo dependem do D8g.

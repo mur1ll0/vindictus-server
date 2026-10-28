@@ -98,6 +98,23 @@ FLAG_CHECKS = {
         (0x402682E8, '83f9090f87', 'ecx', 'stack', 0x40268377, 4),
     ),
 }
+# Item tooltip "usable by" lists (one block per class, Lethita..Hagie, then "#..._CharacterClass0"
+# = "Cannot be equipped" when no class matched): (Hagie block start, end, join VA, bytes the
+# jump to the stub replaces at the join). The stub runs a copy of the Hagie block reading
+# flag 10 (+0x1a2) and naming #GameUI_Delia; a Delia that is not allowed is skipped instead of
+# clearing the "every class" marker, so the lists of the ten older classes do not change.
+TOOLTIPS = {
+    'client.dll': (
+        (0x38410C19, 0x38410C55, 0x38410C5C, '33c033d266899424b4010000'),
+        (0x385B09D8, 0x385B0A12, 0x385B0A18, '8bbc24c4130000'),
+    ),
+}
+# The motion-model precache (registered at 0x40a09bd3) precaches only the ten town motions in
+# town and clamps the class to 9 elsewhere, so Delia's motion model was never precached and the
+# model failed at spawn (invisible, frozen emote; D8d-D8f). Its entry (`sub esp,0x54; push esi;
+# push edi`) jumps to a stub that first precaches her three motion models with PrecacheModel.
+PRECACHE = {'server.dll': (0x4054DE00, '83ec545657', 0x40114940)}
+DELIA_MOTIONS = [text for va, text in TABLES['server.dll'] if text and '_motion' in text]
 MATCH_LOOKUP = bytes.fromhex('0fbf4424248d0cc5000000002bc88d1c8e8d5424108d7b20')
 MATCH_PICK = bytes.fromhex('8b6c241083c5fc')
 md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
@@ -282,6 +299,64 @@ def flag_check(layout: Layout, edits: list, va: int, old: str, register: str, ba
     return f'{va:#x} -> {stub:#x}'
 
 
+def tooltip(image: Image, layout: Layout, edits: list, relocs: set[int],
+            start: int, end: int, join: int, old: str) -> str:
+    """One TOOLTIPS stub: the Hagie block for flag 10 and #GameUI_Delia, then the join."""
+    replaced = bytes.fromhex(old)
+    if any(join - 3 <= r < join + len(replaced) for r in relocs):
+        raise PreparationError(f'Relocated dword inside the join {join:#x}; nothing is patched.')
+    layout.pad()
+    name = layout.string('#GameUI_Delia')
+    layout.pad()
+    stub = layout.here()
+    skips, flags, named = [], 0, False
+    for ins in md.disasm(bytes(image.data[image.offset(start):image.offset(end)]), start):
+        raw = bytearray(image.data[image.offset(ins.address):image.offset(ins.address) + ins.size])
+        if ins.mnemonic == 'je':
+            layout.body += b'\x0f\x84'
+            skips.append(len(layout.body))
+            layout.body += bytes(4)
+        elif ins.mnemonic == 'call' and raw[0] == 0xE8:
+            layout.body += b'\xe8' + struct.pack('<i', int(ins.op_str, 16) - (layout.here() + 5))
+        elif ins.mnemonic == 'push' and ins.address + 1 in relocs:
+            if read_string(image, struct.unpack_from('<I', raw, 1)[0]) != '#GameUI_Hagie':
+                raise PreparationError(f'Unexpected string at {ins.address:#x}; nothing is patched.')
+            layout.body += b'\x68'
+            layout.pointer(name)
+            named = True
+        else:
+            if any(ins.address <= r < ins.address + ins.size for r in relocs):
+                raise PreparationError(f'Unexpected relocation at {ins.address:#x}; nothing is patched.')
+            at = raw.find(struct.pack('<I', 0x1A1))
+            if ins.mnemonic == 'cmp' and at > 0:
+                struct.pack_into('<I', raw, at, 0x1A2)
+                flags += 1
+            layout.body += raw
+    if flags != 2 or not named or len(skips) != 2:
+        raise PreparationError(f'Unexpected Hagie block at {start:#x}; nothing is patched.')
+    tail = len(layout.body)
+    for at in skips:
+        struct.pack_into('<i', layout.body, at, tail - (at + 4))
+    layout.body += replaced + b'\xe9' + struct.pack('<i', join + len(replaced) - (layout.here() + len(replaced) + 5))
+    edits.append((join, replaced, b'\xe9' + struct.pack('<i', stub - (join + 5)) + b'\x90' * (len(replaced) - 5)))
+    return f'{join:#x} -> {stub:#x}'
+
+
+def precache(layout: Layout, edits: list, entry: int, old: str, precache_model: int) -> str:
+    """The PRECACHE stub: PrecacheModel(path, 0) for each Delia motion model, then the entry."""
+    layout.pad()
+    stub = layout.here()
+    for text in DELIA_MOTIONS:
+        address = layout.strings[text]
+        layout.body += b'\x6a\x00\x68'
+        layout.pointer(address)
+        layout.body += b'\xe8' + struct.pack('<i', precache_model - (layout.here() + 5)) + b'\x83\xc4\x08'
+    replaced = bytes.fromhex(old)
+    layout.body += replaced + b'\xe9' + struct.pack('<i', entry + len(replaced) - (layout.here() + len(replaced) + 5))
+    edits.append((entry, replaced, b'\xe9' + struct.pack('<i', stub - (entry + 5))))
+    return f'{entry:#x} -> {stub:#x} ({len(DELIA_MOTIONS)} models)'
+
+
 def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     image = Image(data)
     if any(s[0] == SECTION for s in image.sections()):
@@ -369,6 +444,9 @@ def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     if name in MATCH:
         report['match_table'] = match_table(image, layout, edits, relocs, *MATCH[name])
     report['flag_checks'] = [flag_check(layout, edits, *entry) for entry in FLAG_CHECKS.get(name, ())]
+    report['tooltips'] = [tooltip(image, layout, edits, relocs, *entry) for entry in TOOLTIPS.get(name, ())]
+    if name in PRECACHE:
+        report['precache'] = precache(layout, edits, *PRECACHE[name])
 
     for va, old, new in edits:
         o = image.offset(va)
