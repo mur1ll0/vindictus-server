@@ -255,6 +255,15 @@ class LabCopyTest(unittest.TestCase):
             self.assertEqual(head[1].mnemonic, 'ja')
             self.assertEqual([f'{x.mnemonic} {x.op_str}' for x in head[2:]], ['mov eax, 1', 'shl eax, cl'])
 
+    def test_class_name_accessors_name_delia(self):
+        image, report = self.plan('client.dll')
+        for bound, expected in zip(routing.CLASS_STRING_BOUNDS['client.dll'], ('Delia', 'D')):
+            code = list(self.md.disasm(bytes(image.data[image.offset(bound - 4):image.offset(bound - 4) + 16]), bound - 4))
+            self.assertEqual(f'{code[1].mnemonic} {code[1].op_str}', f'cmp eax, {routing.LAST:#x}')
+            table = int(re.search(r'\+ (0x[0-9a-f]+)\]', code[3].op_str).group(1), 16)
+            self.assertEqual(routing.read_string(image, self.entry(image, table, 9)), 'Hagie' if expected == 'Delia' else 'H')
+            self.assertEqual(routing.read_string(image, self.entry(image, table, routing.DELIA)), expected)
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

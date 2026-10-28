@@ -311,3 +311,18 @@ Pré-condição: servidor no ar; abrir pelo `start-lab.bat`.
 - [ ] Selecionar uma Hagie da mesma conta: avisar; eu salvo e comparo.
 - [ ] Entrar na cidade com a `DeliaLab` → abrir a janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard`.
 Resultado esperado: as duas habilidades da Delia na janela; a comparação aponta o campo ou modelo que difere na seleção.
+
+Resultado do D12 (28/10/2026): as habilidades da Delia aparecem na janela, mas todas no mesmo lugar (uma sobre a outra). Seleção ainda com o defeito.
+Memória (leitor elevado; `heapdword` novo no `lab_memory.py`, entidades só do cliente): a entidade da seleção da `DeliaLab` (`C_NPC_PlayerForCharacterSelection`) e a da cidade (`C_HeroesPlayer`) têm o **mesmo** modelo, `CoStUmE_10/0_1002/0_100/0_6036/0_-1/…/0_102/0_-1/0_.mdl`, e o mesmo mapa de forma do corpo (chaves 15 e 24 da Fiona). A Hagie da seleção tem a chave 105 = 1000.
+
+### D13 — Figura padrão da Delia na seleção; posições das habilidades
+Causas:
+- **seleção:** a seleção aplica a forma do corpo guardada; a Delia criada no jogo guarda a figura padrão dela na chave 106 = 1000 (`csf/bodyshape_fig_list.txt` 106 = `bodyshape_delia_default.fig`; `csf/default_delia.bsh` marca essa figura `isDefaultFigure`, razão 1,0), como a Hagie guarda a 105. A `DeliaLab` (criada como Fiona) tinha as chaves da Fiona e não a 106. Na cidade a forma não é aplicada, por isso a cidade está certa. Mudança: `lab-set-class.ps1` troca o conjunto de chaves da classe antiga pelo da nova (Delia: 18, 19, 20, 24, 25, 40, 71–75 em 0 e 106 = 1000);
+- **janela de habilidades:** `client.dll` `0x388e6ac0`/`0x388e6ae0` devolvem o nome/inicial da classe por tabelas de 10 (`0x38cb6d24`/`0x38cb6d4c`) e texto vazio acima de 9; o `SkillDialog.setClassInfo` recebia vazio para a Delia (o filme `SkillDialog.gfx` do 1.69 tem os quadros `Weapon_1st_Delia`). Mudança: `TABLES['client.dll']` + `CLASS_STRING_BOUNDS` (tabelas de 32 com "Delia"/"D", limite → 10).
+Pré-condição: **jogo fechado**; eu aplico o patch e rodo `lab-set-class.ps1` (10 → 1 → 10) na `DeliaLab`; abrir pelo `start-lab.bat`.
+- [ ] Seleção: a `DeliaLab` → anotar se o defeito da barriga e da perna sumiu.
+- [ ] Cidade → janela de habilidades → anotar se as habilidades ficam em posições separadas.
+- [ ] Não regressão: Hagie na seleção, na cidade e na janela de habilidades.
+Resultado esperado: seleção sem defeito; habilidades da Delia organizadas na janela.
+
+Comparação de arquivos da Delia, NA (`F:\Games\vindictus\hfsExtracted`) × cliente do laboratório (`.cache/verification/d13-delia-na-vs-lab.txt`): 485 arquivos com "delia" no laboratório, 3.156 no NA; todos os 485 existem no NA e 107 diferem. As malhas principais (`delia.vvd`, rostos `.vvd`) são iguais; mudaram cabeçalhos `.mdl` (`delia.mdl`, `delia_base.mdl`, rostos, *inners*), as animações (`pc_delia_battle_motion*.mdl`, `pc_delia_town_motion.mdl` e os `.txt` de movimento, `pc_delia_town.txt` 26 KB → 117 KB), 3 *inners* (malhas novas), texturas de 2 *inners*, scripts `create/prologue_delia.csf`, `default_delia.bsh` (o NA acrescenta a barra "waist2"), 17 vídeos de habilidade e 13 efeitos. Só no NA: 2.387 vozes de NPC, 39 vozes da Delia, roupas (`yukata_delia` e outras), 8 arquivos de `bastardsword`, `bodyshape_spine2_*_delia.fig` e figurinos `.csf`. Conclusão: a Delia do 1.69 é uma versão anterior, completa para jogar; o NA atualizou animações e modelos depois.

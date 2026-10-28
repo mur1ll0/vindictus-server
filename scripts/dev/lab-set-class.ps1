@@ -10,6 +10,10 @@
 # The base costume follows too: inner armor, hair and eyebrows still at the old class's
 # csf/create_<class>.csf default take the new class's (a Fiona inner on Delia's body rendered
 # white legs at character select, D9).
+# Body shape (costume type 3) follows when both classes have a known slider set
+# (csf/bodyshape_fig_list.txt): the old set is replaced by the new one at 0, plus the new class's
+# default figure at 1000 (Hagie 105, Delia 106), as a created Hagie stores it. Character select
+# blends these; Delia with Fiona's sliders and no figure 106 was deformed from belly to thigh (D12).
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Name,[Parameter(Mandatory)][ValidateRange(0,10)][int]$Class)
 $ErrorActionPreference='Stop'
@@ -36,13 +40,16 @@ $rows=foreach($c in $defaults.Keys){for($i=0;$i-lt$defaults[$c].Count;$i++){"($c
 $looks=@{0=@(0,1002,1000);1=@(10,2001,0);2=@(10,3001,3000);3=@(2002,-1,4008);4=@(3007,5001,5001);5=@(4001,6001,6000);6=@(6013,6017,7000);7=@(1002,6036,8000);8=@(1002,6044,9005);9=@(8001,8001,10001);10=@(1002,6036,8000)}
 $parts=@(@(0,1),@(0,3),@(1,0))
 $looksRows=foreach($c in $looks.Keys){for($i=0;$i-lt3;$i++){"($c,$($parts[$i][0]),$($parts[$i][1]),$($looks[$c][$i]))"}}
+$shapes=@{1=@(0,15,16,17,18,19,20,22,23,24,25,40);9=@(52,53,54,55,56,59,60,61,62,63,64,65);10=@(18,19,20,24,25,40,71,72,73,74,75)}
+$figures=@{9=105;10=106}
+$shapeRows=foreach($c in $shapes.Keys){foreach($k in $shapes[$c]){"($c,$k,0)"};if($figures.ContainsKey($c)){"($c,$($figures[$c]),1000)"}}
 # The old class comes from the locked row; a connected character is left untouched.
-$query="WITH d(class,pos,skill) AS (VALUES $($rows-join',')), l(class,type,key,sn) AS (VALUES $($looksRows-join',')), t AS (SELECT id,class FROM game_character_info WHERE name_utf16=decode('$hex','hex') AND NOT is_connected AND status=0 AND (SELECT count(*) FROM game_character_info WHERE name_utf16=decode('$hex','hex'))=1 FOR UPDATE), s AS (INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) SELECT (extract(epoch FROM clock_timestamp())*10000000)::bigint+621355968000000000+n.pos,t.id,n.skill,1,0,0 FROM t, d n WHERE n.class=$Class AND NOT EXISTS(SELECT 1 FROM game_skills x WHERE x.cid=t.id AND x.skill_utf16=n.skill) RETURNING row_id), b AS (UPDATE game_costumes g SET costume_sn=n.sn FROM t, l o, l n WHERE g.cid=t.id AND g.is_base AND o.class=t.class AND n.class=$Class AND o.type=n.type AND o.key=n.key AND g.costume_type=o.type AND g.costume_key=o.key AND g.costume_sn=o.sn AND o.sn<>n.sn RETURNING g.row_id) UPDATE game_character_info c SET class=$Class FROM t WHERE c.id=t.id RETURNING t.id||'|'||t.class||'|'||(SELECT count(*) FROM s)||'|'||(SELECT count(*) FROM b)"
+$query="WITH d(class,pos,skill) AS (VALUES $($rows-join',')), l(class,type,key,sn) AS (VALUES $($looksRows-join',')), f(class,key,sn) AS (VALUES $($shapeRows-join',')), t AS (SELECT id,class FROM game_character_info WHERE name_utf16=decode('$hex','hex') AND NOT is_connected AND status=0 AND (SELECT count(*) FROM game_character_info WHERE name_utf16=decode('$hex','hex'))=1 FOR UPDATE), s AS (INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) SELECT (extract(epoch FROM clock_timestamp())*10000000)::bigint+621355968000000000+n.pos,t.id,n.skill,1,0,0 FROM t, d n WHERE n.class=$Class AND NOT EXISTS(SELECT 1 FROM game_skills x WHERE x.cid=t.id AND x.skill_utf16=n.skill) RETURNING row_id), b AS (UPDATE game_costumes g SET costume_sn=n.sn FROM t, l o, l n WHERE g.cid=t.id AND g.is_base AND o.class=t.class AND n.class=$Class AND o.type=n.type AND o.key=n.key AND g.costume_type=o.type AND g.costume_key=o.key AND g.costume_sn=o.sn AND o.sn<>n.sn RETURNING g.row_id), x AS (DELETE FROM game_costumes g USING t WHERE g.cid=t.id AND g.is_base AND g.costume_type=3 AND t.class<>$Class AND EXISTS(SELECT 1 FROM f WHERE f.class=$Class) AND g.costume_key IN (SELECT key FROM f WHERE f.class=t.class) AND NOT EXISTS(SELECT 1 FROM game_costumes y WHERE y.cid=t.id AND y.is_base AND y.costume_type=3 AND y.costume_key NOT IN (SELECT key FROM f WHERE f.class=t.class)) RETURNING g.row_id), y AS (INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn) SELECT nextval('game_costume_row_id'),t.id,true,3,n.key,n.sn FROM t, f n WHERE n.class=$Class AND EXISTS(SELECT 1 FROM x) RETURNING row_id) UPDATE game_character_info c SET class=$Class FROM t WHERE c.id=t.id RETURNING t.id||'|'||t.class||'|'||(SELECT count(*) FROM s)||'|'||(SELECT count(*) FROM b)||'|'||(SELECT count(*) FROM y)"
 $shell='PGPASSWORD="$APP_DATABASE_PASSWORD" psql --username "$APP_DATABASE_USER" --dbname "$POSTGRES_DB" --no-psqlrc --quiet --tuples-only --no-align --set ON_ERROR_STOP=1 --command "$1"'
 Push-Location $project
 try{$out=& docker compose exec -T postgres bash -c $shell 'lab-set-class' $query}finally{Pop-Location}
 if($LASTEXITCODE-ne0){throw 'Query failed'}
-$rows=@($out|Where-Object{$_-match'^\d+\|\d+\|\d+\|\d+$'})
+$rows=@($out|Where-Object{$_-match'^\d+\|\d+\|\d+\|\d+\|\d+$'})
 if($rows.Count-ne1){throw "Expected one offline character named $Name, changed $($rows.Count)"}
-$cid,$old,$skills,$looks=$rows[0].Split('|')
-"cid=$cid class $old -> $Class, $skills starting skill(s) added and $looks base costume part(s) changed (undo: scripts/dev/lab-set-class.ps1 -Name $Name -Class $old)"
+$cid,$old,$skills,$looks,$shape=$rows[0].Split('|')
+"cid=$cid class $old -> $Class, $skills starting skill(s) added $looks base costume part(s) changed and $shape body shape row(s) written (undo: scripts/dev/lab-set-class.ps1 -Name $Name -Class $old)"

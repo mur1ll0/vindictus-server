@@ -98,7 +98,16 @@ TABLES = {
         (0x40CF1FA8, 'models/player/_anim/{body}/{key}/pc_{key}_battle_motion.mdl'),
         (0x40CF1FD0, 'models/player/_anim/{body}/{key}/pc_{key}_battle_motion_ex.mdl'),
     ),
+    # Class name and initial read through 0x388e6ac0/0x388e6ae0 (bounded below by CLASS_STRING_BOUNDS);
+    # the skill window passes the name to SkillDialog.setClassInfo, whose movie has Delia's frames
+    # (Weapon_1st_Delia). Class 10 got an empty name and every skill icon landed on one spot (D12).
+    'client.dll': (
+        (0x38CB6D24, '{Name}'),
+        (0x38CB6D4C, '{Initial}'),
+    ),
 }
+# `cmp eax, 9` of the two client accessors above (`ja` to an empty string); the bound becomes LAST.
+CLASS_STRING_BOUNDS = {'client.dll': (0x388E6AC4, 0x388E6AE4)}
 # The client entity every extra class gets (the server falls back to "player", CHeroesPlayer)
 # and the methods its own class entity overrides in the NA:
 # * slot 264 returns the body figure (csf/bodyshape_<class>_default.fig). Hagie's (0x3870d1d0)
@@ -217,7 +226,7 @@ FALLBACK_ENTITIES = ('player_fiona',)
 
 
 def filled(template: str | None, extra: ExtraClass) -> str | None:
-    return template.format(key=extra.key, Name=extra.name, body=extra.body) if template else None
+    return template.format(key=extra.key, Name=extra.name, Initial=extra.name[0], body=extra.body) if template else None
 
 
 def precache_models(extra: ExtraClass) -> list[str]:
@@ -846,6 +855,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['tables'].append({'table': hex(va), 'moved_to': hex(new_table), 'delia': filled(text, extras[DELIA]),
                                  'references': users})
 
+    for va in CLASS_STRING_BOUNDS.get(name, ()):
+        edits.append((va, b'\x83\xf8\x09', b'\x83\xf8' + bytes((LAST,))))
     if name in BITS:
         edits.append((BITS[name], b'\x6a\x0a', bytes((0x6A, PET))))
         report['bits'] = f'm_iClass nBits log2(10)+1 -> log2({PET})+1'

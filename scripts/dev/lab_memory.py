@@ -11,6 +11,7 @@ Usage (python -s -E scripts/dev/lab_memory.py COMMAND ...):
   dword EXPR [COUNT]          signed dwords
   str EXPR                    zero-terminated ASCII string
   symbols                     named addresses from the patch report (bin/class-routing.json)
+  heapdword VALUE [MAX]       4-aligned heap addresses holding VALUE (objects by vtable)
   costume [CLASS]             costume manager column of CLASS (default 10): default and
                               default_ex part per slot and town, in the client and the server
   ptrstr EXPR LEN [FILTER]    dwords in a range that point to printable strings
@@ -322,11 +323,13 @@ def run(game: Game | None, argv: list[str]) -> None:
                 if not 0x10000 < value < 0x80000000:
                     continue
                 # direct string, then a pointer at +0/+4/+8 of the target (model_t keeps its name
-                # as a string pointer one field in)
-                for depth, target in ((0, value), (1, 0), (1, 4), (1, 8)):
+                # as a string pointer one field in), then a string inline at +4 of the target
+                for depth, target in ((0, value), (1, 0), (1, 4), (1, 8), (2, 4)):
                     try:
                         if depth == 1:
                             target = game.dword(value + target) & 0xFFFFFFFF
+                        elif depth == 2:
+                            target = value + target
                         text = game.string(target) if 0x10000 < target < 0x80000000 else ''
                     except Exception:  # unreadable page; the serve reload may use another class
                         text = ''
@@ -427,6 +430,28 @@ def run(game: Game | None, argv: list[str]) -> None:
                     found += 1
                     if found >= limit:
                         return
+                    at = chunk.find(needle, at + 1)
+        print(f'{found} found')
+    elif command == 'heapdword':
+        # heapdword VALUE [MAX]: 4-aligned addresses outside the game DLLs holding VALUE (objects
+        # by their vtable, for example client-only entities that the entity list does not hold)
+        needle, limit = struct.pack('<I', int(args[0], 0) & 0xFFFFFFFF), int(args[1], 0) if len(args) > 1 else 20
+        found = 0
+        for start, size in regions(game):
+            if any(b <= start < b + s for b, s, _ in game.mods.values()):
+                continue
+            for offset in range(0, size, 0x10000):
+                try:
+                    chunk = read_block(game.handle, start + offset, min(0x10000, size - offset))
+                except Exception:
+                    break
+                at = chunk.find(needle)
+                while at != -1:
+                    if at % 4 == 0:
+                        print(f'{start + offset + at:#010x}')
+                        found += 1
+                        if found >= limit:
+                            return
                     at = chunk.find(needle, at + 1)
         print(f'{found} found')
     elif command == 'symbols':

@@ -2165,3 +2165,11 @@ Passo 25 (28/10/2026): janela de habilidades aceita a classe 10.
 - Mudança: `CLASS_BITS` em `patch_class_routing.py` (limite → última classe extra) + teste. `python -m unittest test_patch_class_routing` (18, 0 falhas; `d12-routing-tests.log`). Aplicado (`class-routing-apply-d12.log`): `client.dll` `29ad8b1f…`, `server.dll` `e6f1b67b…`.
 - Seleção: entidade `C_NPC_PlayerForCharacterSelection` (vtable `0x38bd9b74`, *slot* 264 = base nulo); as figuras por classe de `0x387596f0`/`0x388f9f10` só valem com `BodyShapeModify` desligado. Sem causa estática; D12 compara a memória da entidade da seleção (Delia × Hagie).
 - Cliente: D12 pendente. Próxima ação: resultado do D12.
+- D12 (cliente): habilidades da Delia aparecem, todas no mesmo lugar; seleção ainda com o defeito. Memória: seleção e cidade com o mesmo modelo `CoStUmE_10/0_1002/0_100/0_6036/…/0_102/…` e a mesma forma do corpo (chaves da Fiona); a Hagie guarda a figura 105 = 1000.
+
+Passo 26 (28/10/2026): figura padrão da Delia na forma do corpo; nome da classe para a janela de habilidades.
+- Causas: (a) a seleção aplica a forma do corpo; a figura padrão da Delia é a chave 106 = 1000 (`bodyshape_fig_list.txt`, `default_delia.bsh` `isDefaultFigure`), que a `DeliaLab` não tinha; (b) `client.dll` `0x388e6ac0`/`0x388e6ae0` (nome/inicial por tabelas de 10, vazio acima de 9) alimentam `SkillDialog.setClassInfo`.
+- Mudanças: `lab-set-class.ps1` troca o conjunto de forma do corpo entre classes conhecidas (Fiona, Hagie, Delia) e grava a figura padrão; `TABLES['client.dll']` + `CLASS_STRING_BOUNDS` no patch + teste. `lab_memory.py`: `heapdword` e `ptrstr` com texto na posição +4 do alvo.
+- Verificação: `python -m unittest test_patch_class_routing` (19, 0 falhas; `d13-routing-tests.log`). Aplicação do patch e da troca pendentes (jogo aberto).
+- Comparação NA × laboratório dos arquivos da Delia: `.cache/verification/d13-delia-na-vs-lab.txt` (485 no laboratório, todos no NA, 107 diferentes; malhas principais iguais, animações e cabeçalhos `.mdl` atualizados no NA).
+- Próxima ação: com o jogo fechado, aplicar o patch e `lab-set-class.ps1 -Name DeliaLab -Class 1` e `-Class 10`; depois o D13.
