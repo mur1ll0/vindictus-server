@@ -337,3 +337,8 @@ Pré-condição: DLLs `b3774da7…`/`e6f1b67b…`; abrir pelo `start-lab.bat`.
 - [ ] Cidade, inventário: captura da dica (*tooltip*) da `Bastard Sword` e da dica de uma armadura-base vermelha (`premium_newbie_tunic`).
 - [ ] Cidade: captura da `DeliaLab` com a `Bastard Sword` equipada (modelo errado).
 Resultado esperado: as capturas mostram o texto exato da dica e a forma do defeito, para escolher onde procurar.
+
+Resultado do D14 (28/10/2026), pelas capturas do operador:
+- **Seleção:** a Delia sentada tem as coxas brancas e brilhantes; a Evy na mesma pose não. Com outra *inner* (`delia_inner_cutecat`), tudo da barriga para baixo fica branco, com o desenho da *inner* por cima; braços, tronco e rosto normais. Na cidade as mesmas pernas têm pele normal. Não é forma do corpo nem modelo: é o sombreamento da pele da parte de baixo só na seleção. As *inners* usam o mesmo material de pele da Evy (`fiona_skin_body01`). O `delia_base.mdl` (laboratório e NA) cita `fiona_skin_body01_lod` numa pasta sem esse material, como o `hagie_base.mdl` (`lethita_skin_body01`), sem efeito na Hagie. O código do sombreamento SSS (`$sss_color`/`$sss_enable`, `client.dll` `0x386bb050`, `0x386bccc0`, `0x386c2370`) é por material; nenhuma tabela por classe achada ainda.
+- **Arma:** com a `Bastard Sword` equipada aparecem duas espadas, uma na mão e uma nas costas; o certo é só nas costas (o 1.69 não tem o tipo de arma `BASTARDSWORD`; E2).
+- **Inventário:** dica "Bastard Sword, Weapon", **"Cannot be equipped"** em vermelho; as armaduras-base aparecem vermelhas.
