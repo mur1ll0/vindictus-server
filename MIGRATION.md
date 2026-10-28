@@ -2093,3 +2093,4 @@ Passo 15 (28/10/2026): arquivo de eventos da animação da Delia (escolha do ope
 - Mudança: `EVENT_FILE`/`event_file` em `patch_class_routing.py` + teste.
 - Verificação: `python -m unittest test_patch_class_routing` (12, 0 falhas; `routing-tests-d8n.log`); *stub* desmontado (classe 10 → `sombra+0xbe0`/`+0xc80`; as outras → `cmp esi, 9`).
 - Aplicação pendente: o jogo estava aberto. Cliente: D8n em `docs/client-tests/C2-delia.md`.
+- Aplicado com o jogo fechado (`class-routing-apply-d8n.log`): `client.dll` `97cacae0…` (igual), `server.dll` `51473f47…`; `0x4081bb0f: jmp 0x412bba20` conferido. D8n pendente no cliente.
