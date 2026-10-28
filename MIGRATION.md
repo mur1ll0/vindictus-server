@@ -1979,3 +1979,13 @@ Passo 3 (28/10/2026): classe 10 roteada para os arquivos da Delia nos DLLs de la
 - Cliente: entrada D8 de `docs/client-tests/C2-delia.md`, pendente.
 - Parada (regra 2 do `AGENTS.md`): o E1 (entidade `player_delia`) e o resto do roteamento dependem de saber, no cliente, se a classe 10 carrega a cidade com a entidade genérica e quais camadas falham. O seletor em grade continua bloqueado (seção 8.13) e depende do E1.
 - Próxima ação: com o resultado do D8, (a) se a cidade carregar, E1: registrar `player_delia`/`DT_HeroesPlayerDelia` sobre a base do 1.69 (ler como `player_hagie` é instalado, `e1-a1-client.log`); (b) se cair, comparar o relatório com os pontos ainda não cobertos da seção 8.14 (vetores de 11 posições, `switch` com limite 9).
+
+Passo 4 (28/10/2026): resultado do D8, patch revertido e causa da queda.
+- Cliente (D8): seleção com a Fiona sem rosto em pose T; `t01` carregou e o cliente caiu cerca de 2 s depois (`client.dll` `0x387da6b0`). O log do `game` não tem erro (`.cache/verification/d8-game.log`).
+- Reversão (pedido do operador): `bin/client.dll` e `bin/server.dll` voltaram aos `*.pre-routing.bak` (`a9591d3a…`, `af43431e…`); as cópias roteadas ficaram como `*.0e1b1800c92dc742.routing.bak` e `*.eda9ac59767a42f6.routing.bak`. `DeliaLab` na classe 1.
+- Causa (minidump copiado para `.cache/d8/`, leitura de funções isoladas): `CHeroesGameMovement` (`0x38789650`) lê `[jogador+0x437c]` sem conferir nulo; esse objeto de comandos só é criado na preparação do jogador local (`0x387033b0` → `0x388895d0`), que recusa `m_iClass >= 10` em `0x387033d7`. Os outros limites 10 do inventário só limitam o índice dos vetores de 11 posições (seção 8.14).
+- Mudança: `patch_class_routing.py` ganhou `GATES` (`0x387033d7`, `cmp eax,0xa` → `cmp eax,0x1c`), não aplicado; teste novo em `test_patch_class_routing.py`.
+- Verificação: `python -m unittest test_patch_class_routing` (5, 0 falhas; log `.cache/verification/routing-tests.log`).
+- Cliente: D8 marcado como falho; D8b novo em `docs/client-tests/C2-delia.md`, pendente.
+- Parada (regra 2 e regra 3 do `AGENTS.md`): o operador pediu a reversão; reaplicar o patch com `GATES` e repetir o teste (D8b) depende da autorização dele.
+- Próxima ação: com a autorização, `python -s -E scripts/client/patch_class_routing.py --apply` e D8b; se a cidade aguentar, E1 (`player_delia`).

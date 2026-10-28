@@ -10,7 +10,8 @@ that have one, and reads past five 10-entry tables of the server. The patch foll
   NA) and 11-27 take the default case;
 * the five string tables of the server get 32 entries (0-9 copied, 10 Delia, 11-31 repeat entry 0
   so a later class never reads a null), and every relocated reference to them is redirected;
-* `m_iClass` is sent with log2(PET)+1 = 5 bits instead of log2(10)+1 = 4.
+* `m_iClass` is sent with log2(PET)+1 = 5 bits instead of log2(10)+1 = 4;
+* the client's local-player setup accepts classes below PET instead of below 10.
 
 Requires the `.hcls` patch (patch_class_table.py), whose relocation directory moves again into
 `.hrte`, with one more block for the new pointers. The unpatched copy is kept next to each file.
@@ -61,6 +62,10 @@ TABLES = {
 }
 # `push 0xa` whose log2 sizes the m_iClass SendProp (0x405368c3..0x405368c7).
 BITS = {'server.dll': 0x405368C5}
+# `cmp eax, 0xa; jge` that skips the whole local-player setup (C_HeroesPlayer vtable +0xac,
+# 0x387033b0), which builds the command object at +0x437c that the movement code reads every
+# frame. Class 10 crashed at 0x387da6b0 in client test D8. The bound becomes PET.
+GATES = {'client.dll': (0x387033D7,)}
 md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 md.detail = False
 
@@ -262,6 +267,9 @@ def plan_dll(name: str, data: bytes) -> tuple[bytes, dict]:
     if name in BITS:
         edits.append((BITS[name], b'\x6a\x0a', bytes((0x6A, PET))))
         report['bits'] = f'm_iClass nBits log2(10)+1 -> log2({PET})+1'
+    report['gates'] = [hex(va) for va in GATES.get(name, ())]
+    for va in GATES.get(name, ()):
+        edits.append((va, b'\x83\xf8\x0a', bytes((0x83, 0xF8, PET))))
 
     for va, old, new in edits:
         o = image.offset(va)

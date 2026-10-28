@@ -91,3 +91,14 @@ Pré-condição: `client.dll` e `server.dll` da cópia de laboratório com `scri
 - [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 - [ ] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.a9591d3a44a2b538.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll.af43431e78666783.pre-routing.bak` sobre `bin/server.dll` (volta ao `.hcls`, que o D7 aceitou).
 Limites conhecidos: a barra V4 não cria a Delia (a classe 10 é aceita pelo servidor, mas só a grade ou um botão novo a envia); a Delia continua com os itens da Fiona; sem guarda, ataque forte, *hold skill* e arma `BASTARDSWORD` própria (E2–E5); os demais `switch` com limite 9 (eventos, HUD, figura) caem no caso padrão.
+
+Resultado (28/10/2026): **falhou.** Seleção: modelo da Fiona sem rosto, em pose T. Entrada: `t01` carregou e o cliente caiu cerca de 2 s depois (`client.dll` `0x387da6b0`, `this` nulo). Causa: a preparação do jogador local (`0x387033b0`) recusa classes ≥ 10 em `0x387033d7` e não cria o objeto de comandos `+0x437c` que o movimento lê (`docs/future/new-classes.md` 8.14). Patch revertido (`client.dll` `a9591d3a…`, `server.dll` `af43431e…`); `DeliaLab` na classe 1.
+
+### D8b — Repetir o D8 com a preparação do jogador local liberada
+Pré-condição: o operador autoriza reaplicar o patch. `python -s -E scripts/client/patch_class_routing.py --apply` sobre a cópia `.hcls` (o patch agora inclui `GATES`, `0x387033d7` com limite 28); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo.
+- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
+- [ ] Seleção: anotar o modelo (a Fiona sem rosto em pose T é esperada até o E1).
+- [ ] Entrar na cidade → esperado: sem a queda em `0x387da6b0`. Andar, correr, abrir inventário e habilidades, usar um emote; anotar o modelo e as animações.
+- [ ] Voltar à seleção e sair → sem queda.
+- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [ ] Se cair: anotar o horário e o endereço do `Report Error`. Para reverter, copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.

@@ -67,6 +67,11 @@ class LabCopyTest(unittest.TestCase):
             self.assertTrue(all(self.entry(image, moved, i) == self.entry(image, moved, 0) for i in range(11, 32)))
         self.assertEqual(bytes(image.data[image.offset(0x405368C5):image.offset(0x405368C5) + 2]), b'\x6a\x1c')
 
+    def test_local_player_setup_accepts_classes_below_the_pet(self):
+        image, report = self.plan('client.dll')
+        self.assertEqual(report['gates'], ['0x387033d7'])
+        self.assertEqual(bytes(image.data[image.offset(0x387033D7):image.offset(0x387033DA)]), b'\x83\xf8\x1c')
+
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)
