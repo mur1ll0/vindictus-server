@@ -385,3 +385,4 @@ Mudança: `CLASS_DEFAULTS` no patch: os quatro acessores `[slot][10]` (servidor 
 Pré-condição: aplicado (`client.dll` `8e766ed3…`, `server.dll` `46cd2c50…`); abrir pelo `start-lab.bat`.
 - [ ] Seleção: a `DeliaLab` → a faixa branca da barriga e das coxas deve sumir.
 - [ ] Não regressão: Hagie, Evy e Fiona na seleção; Delia na cidade.
+Resultado do D17 (28/10/2026): **passou.** A faixa branca sumiu da Delia na seleção (operador: "Funcionou, problema resolvido").

@@ -2205,3 +2205,4 @@ Passo 29 (28/10/2026): causa da faixa branca da Delia na seleção.
 - Mudança: `CLASS_DEFAULTS` (servidor `0x40815390`/`0x40815490`, cliente `0x3887ce30`/`0x3887cf30`: classe extra → coluna `clone_of`) + teste. 21 testes, 0 falhas (`d16-routing-tests.log`). Aplicação pendente (jogo aberto). O `SHAPE_CLASS` do passo 28 não era a causa; fica aplicado, a rever.
 - Próxima ação: aplicar com o jogo fechado; D17 no cliente.
 - Aplicado com o jogo fechado (`class-routing-apply-d17.log`): `client.dll` `8e766ed3…`, `server.dll` `46cd2c50…`. D17 no cliente pendente.
+- D17 (cliente): **passou**, a seleção mostra a Delia sem a faixa branca. Próxima ação (pedido do operador): E2, itens da Delia (`Bastard Sword` em duas espadas, "Cannot be equipped", armaduras vermelhas).
