@@ -376,3 +376,20 @@ Leitura pontual do `client.dll` do NA (32 bits, base `0x38000000`). O código de
 A alternativa de estender a barra V4 (um botão a mais e ramos fixos para a Delia) é menor para uma classe, mas não escala: cada classe nova repete o trabalho.
 
 Ferramenta de patch: seguir o modelo de `scripts/client/patch_shop_list_limit.py` (patch verificado por hash na cópia de laboratório, nunca no original).
+
+### 8.9 Passo 1 feito: tabelas de classe com N entradas; a entidade da Delia no NA (28/10/2026)
+
+- **Decisão do operador:** usar o NA como fonte (grade de criação e entidade da Delia migradas por engenharia reversa, sem clonar a Fiona). Fica autorizado copiar para a cópia de laboratório o filme de criação do NA e as imagens dele.
+- **`scripts/client/patch_class_table.py`** (simulação por padrão, `--apply`; recusa o original e confere os bytes de cada ponto):
+  - acrescenta a seção `.hcls` ao `client.dll` e ao `server.dll` da cópia, com as tabelas de pares {nome, corpo} e de nomes para 32 classes, preenchidas com as 28 da tabela do NA (`client.dll` NA `0x3958ad38`; as 10 primeiras são idênticas às do 1.69 e a Delia é corpo 2);
+  - aponta os acessores para a seção nova e sobe os limites para 11 classes (as 10 mais a Delia): `client.dll` `0x3879ec54`, `0x3879ec68`, `0x3879ec6d`; `server.dll` `0x40755b44`, `0x40755b58`, `0x40755b5d`, `0x408b3984`, `0x408b3989`;
+  - move o diretório de relocação para a seção nova, com um bloco a mais para os ponteiros dela (os DLLs não têm ASLR, mas a imagem continua relocável); zera o diretório de assinatura, que já não cobria a cópia.
+  - Hashes: `client.dll` `314272ec…` → `a9591d3a…`, `server.dll` `d7727e18…` → `af43431e…`; cópias `*.pre-hcls.bak` ao lado.
+- **A entidade da Delia no NA** (sem RTTI; achada pela fábrica `player_delia` → `C_HeroesPlayerDelia`, criação `0x3883d3d0`, construtor `0x3883cfa0`, vtable `0x393aa098`):
+  - o jogador do NA tem 538 métodos virtuais (1.69: 452) e ocupa `0x7c20` bytes (Hagie: `0x7b78` no NA, `0x4bf8` no 1.69). A base cresceu com o conteúdo posterior (níveis, segundas armas, sistemas novos), então *slots* e *offsets* não coincidem: o código do NA não pode ser copiado, precisa ser reescrito sobre a base do 1.69;
+  - a Delia troca 28 *slots* da vtable (Hagie 29): `0, 13, 15, 16, 17, 29, 31, 83, 190, 191, 286, 301, 330, 331, 349, 351, 380, 416, 419, 455, 470, 476, 477, 485, 487, 489, 516, 534`.
+- **Próximos passos da entidade:**
+  1. ler os 28 métodos e mapear cada *slot* e campo para o equivalente do 1.69, usando a Hagie como par: ela existe nas duas versões e permite casar *slots* e *offsets*;
+  2. o mesmo no `server.dll` do NA (`CHeroesPlayerDelia`, `player_delia`);
+  3. registrar `player_delia`/`DT_HeroesPlayerDelia` nos DLLs da cópia, com o código reescrito numa seção nova;
+  4. a arma `BastardSword` e as 5 condições de estado de ação.

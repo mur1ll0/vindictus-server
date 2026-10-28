@@ -72,3 +72,10 @@ Pré-condição: `game` recompilado com o commit deste passo (o servidor envia `
 - [ ] Clicar na Delia → o que aparece (modelo, vídeo, descrição, arma)?
 - [ ] Criar uma personagem de uma classe já suportada (por exemplo, Fiona `GradeLab`) → criada e entra na cidade como antes.
 - [ ] Tentar criar uma Delia → esperado: recusa do servidor (a criação aceita só 0–9). Anotar a mensagem; se o cliente cair, anotar o horário e o relatório.
+
+### D7 — Não regressão com as tabelas de classe estendidas (`.hcls`)
+Pré-condição: `client.dll` e `server.dll` da cópia de laboratório com o patch `scripts/client/patch_class_table.py` aplicado (hashes `a9591d3a…` e `af43431e…`; o `start-lab.bat` não troca esses arquivos). A `DeliaLab` é Fiona; não troque a classe.
+- [ ] Abrir pelo `start-lab.bat`, entrar até a seleção → a lista e os modelos aparecem como antes.
+- [ ] Criar uma personagem de qualquer classe (barra V4) → criada; entrar na cidade com ela e com a Murael.
+- [ ] Entrar numa missão curta e voltar à cidade → sem queda.
+- [ ] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.314272ec54054ed0.pre-hcls.bak` sobre `bin/client.dll` e `bin/server.dll.d7727e182f6cdec1.pre-hcls.bak` sobre `bin/server.dll`.

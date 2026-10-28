@@ -1901,3 +1901,14 @@ Caminho C, etapa C2 — a criação em grade do NA medida; plano para o 1.69 (28
 - Parada: decisões do operador sobre o caminho (grade do NA ou barra V4 estendida) e sobre copiar o filme do NA para a cópia de laboratório.
 - Cliente: não necessário (medição).
 - Próxima ação: com a decisão, passo 1 (tabelas de classe com N entradas), com teste de não regressão no cliente.
+
+Caminho C, etapa C2 — passo 1: tabelas de classe com N entradas nos DLLs da cópia (28/10/2026, decisão do operador: o NA é a fonte).
+- Mudança: `scripts/client/patch_class_table.py` + `test_patch_class_table.py`. Seção `.hcls` com as 28 classes da tabela do NA; acessores do `client.dll` e do `server.dll` apontados para ela; limite 11 (as 10 mais a Delia); relocação movida com um bloco a mais. Aplicado na cópia de laboratório (`client.dll` `314272ec…` → `a9591d3a…`, `server.dll` `d7727e18…` → `af43431e…`; backups `*.pre-hcls.bak`).
+- Verificação:
+  - `py -3.13 -m unittest test_patch_class_table` (4, 0 falhas);
+  - validação das imagens reais antes de gravar: desmontagem dos acessores (`lea [eax*8+0x39135000]`, `cmp eax, 0xb`…), varredura de todos os blocos de relocação (3.227 e 3.299 blocos) e leitura de `Delia` na entrada 10;
+  - segunda execução idempotente (`already_patched`).
+  - Logs `.cache/verification/c2x-*.log`.
+- Medição da entidade da Delia no NA (seção 8.9 de `docs/future/new-classes.md`): fábrica `player_delia`, vtable `0x393aa098`, 28 *slots* próprios. A base do NA tem 538 métodos e `0x7c20` bytes, contra 452 e `0x4bf8` no 1.69, então o código precisa ser reescrito sobre a base do 1.69, não copiado.
+- Cliente: entrada D7 de `docs/client-tests/C2-delia.md` (não regressão), pendente.
+- Próxima ação: D7 no cliente; depois, passo 2 (ler os 28 métodos da Delia no NA e casar *slots* e *offsets* pela Hagie, que existe nas duas versões).
