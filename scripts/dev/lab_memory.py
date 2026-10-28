@@ -11,6 +11,7 @@ Usage (python -s -E scripts/dev/lab_memory.py COMMAND ...):
   dword EXPR [COUNT]          signed dwords
   str EXPR                    zero-terminated ASCII string
   symbols                     named addresses from the patch report (bin/class-routing.json)
+  poke EXPR VALUE             laboratory experiment: write one dword (separate write handle)
   heapdword VALUE [MAX]       4-aligned heap addresses holding VALUE (objects by vtable)
   costume [CLASS]             costume manager column of CLASS (default 10): default and
                               default_ex part per slot and town, in the client and the server
@@ -432,6 +433,22 @@ def run(game: Game | None, argv: list[str]) -> None:
                         return
                     at = chunk.find(needle, at + 1)
         print(f'{found} found')
+    elif command == 'poke':
+        # poke EXPR VALUE: laboratory experiment only; writes one dword with a separate handle
+        # (the reader's own handle stays read-only) and prints the old and new values
+        address, value = game.eval(args[0]), int(args[1], 0) & 0xFFFFFFFF
+        old = game.dword(address) & 0xFFFFFFFF
+        writer = kernel32.OpenProcess(0x0008 | 0x0020, False, game.pid)  # VM_OPERATION | VM_WRITE
+        if not writer:
+            raise InspectError(f'OpenProcess for writing failed: error {ctypes.get_last_error()}.')
+        try:
+            written = ctypes.c_size_t()
+            if not kernel32.WriteProcessMemory(writer, ctypes.c_void_p(address), struct.pack('<I', value), 4,
+                                               ctypes.byref(written)):
+                raise InspectError(f'WriteProcessMemory failed: error {ctypes.get_last_error()}.')
+        finally:
+            kernel32.CloseHandle(writer)
+        print(f'{address:#010x} {old:#x} -> {game.dword(address) & 0xFFFFFFFF:#x}')
     elif command == 'studios':
         # studios [FILTER] [MAX]: every studiohdr_t ('IDST' + version 44..49) in readable memory
         needle = args[0].lower() if args else ''

@@ -366,3 +366,11 @@ Memória (leitor elevado; comandos novos `studios FILTRO` e `studio ENDEREÇO [b
 Hipótese: as animações de descanso do 1.69 da Delia deformam pelve e coxas; a cidade normalmente toca parada/caminhada, por isso parece certa.
 - [ ] Na cidade, com a `DeliaLab` parada (sem mexer) até ela entrar na pose de descanso (sentar/relaxar): anotar se a faixa branca aparece.
 Resultado esperado: se aparecer na cidade, a causa é a animação de descanso (dados), não o código da seleção.
+
+Resultado do D16 (28/10/2026): na cidade, parada até a pose de descanso, sentando e com emotes: **nenhuma faixa branca**. A animação não é a causa; o defeito é só da seleção.
+Mais rastreio ao vivo na seleção (jogo aberto, `lab_memory.py`; `poke` novo, só para experimento de laboratório):
+- a `.bsh` padrão carregada pelo cliente é a original (o `.bsh` solto do D15 nunca foi lido; aquele teste não vale);
+- classe da entidade da seleção trocada de 10 para 7 na memória: o jogo regravou 10 em seguida (experimento inconclusivo);
+- matrizes dos ossos calculadas na seleção (`+0x7b0`/`+0x82c`, 81 ossos, matrizes 3×4): escalas da Delia (0,92 geral; pelve 0,92/0,98/0,95; coxas 0,92/0,92/0,95) comparáveis às da Evy (0,95; coxas 0,95/1,05/1,05). Posição e normal dos vértices estão certas: a faixa vem da cor/textura por pixel;
+- modelos de movimento não têm malha; a pele e o *proxy* de decalque/composição (`$composite_map`, `$decal_*`, `client.dll` `0x386bb880`) são o caminho restante.
+Próximo passo: ponto de parada no *proxy* de composição (`0x386bb880`, argumento = entidade) para ler a textura composta e o fator da Delia e da Evy.
