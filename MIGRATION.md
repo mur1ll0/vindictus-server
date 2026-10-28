@@ -1854,3 +1854,19 @@ Caminho C, etapa C2 — primeira sessão do teste da classe 10 e correção da s
 - Segunda sessão (27/10/2026, 21:49 local): com a seleção corrigida, o cliente carregou `t01` e caiu no `server.dll` local ao criar o jogador da classe 10 (`EXCEPTION_ACCESS_VIOLATION` em `0x408b4700`, *getter* com objeto inválido). Confirma o limite nativo da seção 8.2; o teste sem patch termina aqui. Resultado em `docs/client-tests/C2-delia.md`.
 - Pendência anotada a pedido do operador, para depois dos testes da Delia: implementar a troca de slots da seleção (`SelectOrdersChangeMessage`, categoria 489), gravando `order_num` por personagem na ordem da lista e reenviando a lista, como `SelectOrdersChangeProcessor` + `CharacterList` do original.
 - Próxima ação: decisão do operador sobre começar os patches nativos do C2 (tabelas de classe e entidade da Delia nos dois DLLs, na cópia de laboratório) ou desfazer a `DeliaLab`.
+
+Caminho C, etapa C2 — criação com mais de 10 classes: grade S3 do 1.69 ligada pela FeatureMatrix (28/10/2026, pedido do operador).
+- `DeliaLab` desfeita pelo operador (classe 1, conferida no banco).
+- Leitura pontual:
+  - `client.dll` 1.69: a escolha entre `NewCharacterDialogS3` (grade) e `NewCharacterDialogV4` (barra) depende das features `S3_CharacterCreation` / `CharacterCreation_UI_V2` (`0x38523690`);
+  - filmes AS2: o `NewCharacterDialog_V2.gfx` do 1.69 já lista a Delia, e o do NA lista 28 classes com *callbacks* que o 1.69 não tem;
+  - FeatureMatrix do cliente: `CurrentVer` 3.09.00, `Delia` 3.09.00 (ligada), `S3_CharacterCreation` NULL.
+  
+  Detalhes em `docs/future/new-classes.md` 8.7. Filmes do NA extraídos só para leitura em `.cache/na-extract/scaleform`.
+- Mudança: o laboratório envia `S3_CharacterCreation = 3.09.00` com as outras substituições de FeatureMatrix. Nenhum patch de binário.
+- Verificação: `cargo check --lib`, `cargo test --test lab_frontend` (5, 0 falhas; a lista de features fixada no teste inclui a nova entrada).
+- Cliente: entrada D6 de `docs/client-tests/C2-delia.md`, pendente.
+- Próxima ação: sessão do operador pela D6. Com a grade confirmada:
+  1. medir como o filme S3 monta a lista de classes;
+  2. criação da classe 10 no servidor (initializer da Delia; falta `DefaultItemInfo`);
+  3. patches nativos da entidade e da tabela de classes no `server.dll` e no `client.dll`, na cópia de laboratório.

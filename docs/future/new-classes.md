@@ -330,3 +330,22 @@ Sem patch de binário: no banco de laboratório, uma personagem de teste passa a
 - **O que fica como na referência:** a maestria de `BASTARDSWORD` e o nome da classe 10 no `Cond_class`. A referência C# 1.69 não tem nenhum dos dois; o enum `BaseCharacter` vai até 9, e `ToString()` de 10 dá `"10"`.
 - **Ferramenta:** `scripts/dev/lab-set-class.ps1 -Name <nome> -Class <0..10>` troca a classe de uma personagem fora do jogo, pelo nome único, e imprime a classe anterior para desfazer.
 - **Roteiro:** `docs/client-tests/C2-delia.md` (D0 a D5).
+
+### 8.7 Criação e seleção com mais de 10 classes: o que o 1.69 já tem (28/10/2026)
+
+Leitura pontual do `client.dll` 1.69 e dos filmes Scaleform (AS2) dos dois clientes. Os filmes do NA foram extraídos só para leitura em `.cache/na-extract/scaleform`.
+- **Duas telas de criação no 1.69,** escolhidas pela FeatureMatrix em `0x38523690`:
+  - se `S3_CharacterCreation` estiver ligada, abre `NewCharacterDialogS3`, que o `UIElements.xml` mapeia para `NewCharacterDialog_V2.gfx`;
+  - senão, se `CharacterCreation_UI_V2` estiver ligada, abre `NewCharacterDialogV4`, a barra de 10 classes usada hoje.
+  - O NA usa o mesmo mapeamento. O `NewCharacterDialogS3` é a grade de classes com modelo e prévia ao lado.
+- **O `NewCharacterDialog_V2.gfx` do 1.69 já lista a Delia** (11 classes). O do NA lista 28 e usa *callbacks* que o `client.dll` 1.69 não tem: `OnFirstWeapon`, `OnSecondWeapon`, `SetCharaterIntroMovie`, `SetCharaterSkillMovie`, `SetNewIconCharacter`, `OnPlayRandomVoice` e outros. Por isso o filme do NA não serve direto no 1.69; o do 1.69 é o par do binário.
+- **Habilitação:** `FeatureMatrix` do `heroes.db3` do cliente, região `EN-EU-X-GM`, com `CurrentVer` = `3.09.00`.
+  - `S3_CharacterCreation` é NULL em todas as regiões.
+  - A feature `Delia` pede `3.09.00`, então já está ligada.
+  - A criação consulta as classes pelo nome no mesmo serviço (`Lynn`, `Arisha`, `Hagie`…).
+- **Passo feito:** o laboratório envia `S3_CharacterCreation = 3.09.00` junto com as outras substituições de FeatureMatrix (`lab_frontend.rs`), sem patch de binário. A criação de uma classe 10 ainda é recusada pelo servidor (0–9), e entrar com ela ainda derruba o `server.dll` local (seção 8.6, segunda sessão).
+- **Para passar de 11 classes** (Miri e as outras do NA), há duas saídas, e as duas pedem patch:
+  - estender o filme S3 do 1.69, com edição de AS2 e ícones novos;
+  - implementar no `client.dll` os *callbacks* do filme do NA.
+  
+  Antes de escolher, falta medir como o filme do 1.69 monta a lista: fixa no AS2 ou vinda do C++.

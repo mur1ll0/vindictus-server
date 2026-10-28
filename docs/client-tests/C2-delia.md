@@ -65,3 +65,10 @@ Pré-condição: personagem fora do jogo (feche o cliente se ele travou). Se a D
 - **Leitura:** é a camada nativa medida na seção 8.2 de `docs/future/new-classes.md`. A simulação local da cidade não tem tabela nem entidade para a classe 10 (`CHeroesPlayerDelia` não existe; tabela de 10 classes em `0x40d0cdf8`), e o objeto da classe não é criado. Sem patch do cliente, a classe 10 para aqui.
 - **Ordem dos patches que o teste confirma:** (1) tabela de classes e entidade do jogador no `server.dll` e no `client.dll`; (2) modelo da seleção (pose T, sem rosto); (3) arma e condições de estado de ação.
 - D4 não executada (sem cidade). D5 (desfazer) disponível: `scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+
+### D6 — Criação S3 (grade de classes) ligada pela FeatureMatrix
+Pré-condição: `game` recompilado com o commit deste passo (o servidor envia `S3_CharacterCreation = 3.09.00`). Não entre com a `DeliaLab` (voltou a Fiona; não troque a classe de novo).
+- [ ] Na seleção de personagem, clicar em criar personagem → abre a grade de classes (`NewCharacterDialogS3`) no lugar da barra? Anotar quantas classes aparecem, se a Delia está entre elas e se o modelo e a prévia aparecem ao clicar em cada uma.
+- [ ] Clicar na Delia → o que aparece (modelo, vídeo, descrição, arma)?
+- [ ] Criar uma personagem de uma classe já suportada (por exemplo, Fiona `GradeLab`) → criada e entra na cidade como antes.
+- [ ] Tentar criar uma Delia → esperado: recusa do servidor (a criação aceita só 0–9). Anotar a mensagem; se o cliente cair, anotar o horário e o relatório.
