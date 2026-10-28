@@ -176,6 +176,19 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn(f'jmp {resume:#x}', text)
         self.assertEqual(text[-3:], ['cmp esi, 9', f'ja {skip:#x}', f'jmp {keep:#x}'])
 
+    def test_class_name_lookup_knows_delia(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            entry, old, compare = routing.CLASS_NAME[name]
+            code = self.stub_code(image, entry)
+            text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
+                      if x.mnemonic == 'push' and x.op_str.startswith('0x')]
+            self.assertEqual(pushed, ['delia'])
+            self.assertIn(f'call {compare:#x}', text)
+            self.assertIn('mov eax, 0xa', text)
+            self.assertEqual(text[-1], f'jmp {entry + 5:#x}')
+
     def test_fallback_entity_is_opt_in(self):
         data = source('server.dll')
         _, plain = routing.plan_dll('server.dll', data)

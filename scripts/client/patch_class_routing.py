@@ -146,6 +146,15 @@ COSTUME = {
 # (D8l/D8m memory). Class 10 now reads her paths from the shadow's class-0 column.
 # (VA of `cmp esi, 9; ja`, its bytes, ExtremeMode test, continuation after the address, skip.)
 EVENT_FILE = {'server.dll': (0x4081BB0F, '83fe097778', 0x408B3A70, 0x4081BB31, 0x4081BB8C, 0x4081BB14)}
+# Class name -> class index (lethita..hagie, else -1), used by scripts/translated_spskill.txt,
+# whose "delia" section was dropped: Delia had no SP skills (the eight -1 values at server
+# +0x3418 in D8m-D8r were her SP skill slots). The entry (push esi; mov esi, [esp+8]) jumps to a
+# stub that returns DELIA for "delia" (the DLL's own case-insensitive compare) and runs the
+# original otherwise. (entry VA, its 5 bytes, compare routine.)
+CLASS_NAME = {
+    'client.dll': (0x389145B0, '568b742408', 0x38A5DFC6),
+    'server.dll': (0x40252880, '568b742408', 0x40994755),
+}
 COSTUME_BLOCK = bytes.fromhex('8b4424148d4c9b1e')  # mov eax, [esp + 0x14]; lea ecx, [ebx + ebx*4 + 0x1e]
 COSTUME_SIZE = 0x1000  # above the last per-class field (+0xc80 + 0x10)
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
@@ -486,6 +495,22 @@ def fallback_entity(image: Image, edits: list, factory: str) -> str:
     return f'{FALLBACK_PUSH:#x}: "player" -> "{factory}" ({address:#x})'
 
 
+def class_name(layout: Layout, edits: list, entry: int, old: str, compare: int) -> str:
+    """CLASS_NAME stub: "delia" -> DELIA, anything else -> the original lookup."""
+    layout.pad()
+    name = layout.string('delia')
+    layout.pad()
+    stub = layout.here()
+    layout.body += b'\x8b\x44\x24\x04' + b'\x85\xc0' + b'\x74\x18' + b'\x68'  # mov eax,[esp+4]; test; je orig
+    layout.pointer(name)
+    layout.body += b'\x50' + b'\xe8' + struct.pack('<i', compare - (layout.here() + 1 + 5))
+    layout.body += b'\x83\xc4\x08' + b'\x85\xc0' + b'\x75\x06' + b'\xb8' + struct.pack('<I', DELIA) + b'\xc3'
+    replaced = bytes.fromhex(old)
+    layout.body += replaced + b'\xe9' + struct.pack('<i', entry + len(replaced) - (layout.here() + len(replaced) + 5))
+    edits.append((entry, replaced, b'\xe9' + struct.pack('<i', stub - (entry + 5))))
+    return f'{entry:#x} -> {stub:#x}'
+
+
 def event_file(layout: Layout, edits: list, shadow: int, va: int, old: str, extreme: int,
                resume: int, skip: int, keep: int) -> str:
     """EVENT_FILE stub: class 10 takes its event path from the shadow costume column."""
@@ -597,6 +622,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['precache'] = precache(layout, edits, *PRECACHE[name])
     if name in COSTUME:
         report['costume'] = costume(image, layout, edits, relocs, *COSTUME[name])
+    if name in CLASS_NAME:
+        report['class_name'] = class_name(layout, edits, *CLASS_NAME[name])
     if name in EVENT_FILE:
         report['event_file'] = event_file(layout, edits, int(report['costume']['shadow'], 16), *EVENT_FILE[name])
     if fallback and name == 'server.dll':
