@@ -2001,3 +2001,12 @@ Passo 5 (28/10/2026): 11º mapa da `SkillActionStateMatchTable` para a Delia (de
 - Parada (regra 2 do `AGENTS.md`): o próximo ponto (modelo invisível, recusa de equipar, janela de habilidades) depende de confirmar no cliente que emote e Mercenary Outpost não caem mais.
 - Próxima ação: com o D8c, localizar a recusa de equipar (`ClassRestriction` 1024 já permite) e a janela de habilidades por classe; depois E1 para o modelo.
 - D8c, 13:11 (cliente): queda antes do menu em `server.dll` `0x407cda68` (minidump `.cache/d8/d8c.mdmp`): o laço de preenchimento relê o mapa por `[esp+0x10]`, que o *stub* não trocava. Correção: o *stub* da classe 10 grava também `[esp+0x10]` = mapa da Delia + 4; teste atualizado (`routing-tests-match2.log`, 6, 0 falhas). Reaplicado sobre os `*.pre-routing.bak`: `client.dll` `75f08dcc…`, `server.dll` `d2f93765…` (`class-routing-apply-d8c2.log`). D8c pendente de novo.
+
+Passo 6 (28/10/2026): D8c e modelos de animação da Delia no servidor local.
+- Cliente (D8c): sem quedas no emote nem no Mercenary Outpost; o emote trava a personagem; continuam invisibilidade, recusa de equipar e janela de habilidades vazia.
+- Pedido do operador: continuar até a Delia funcional e a grade de seleção atualizada para 32 personagens.
+- Mudança: três tabelas de modelo de animação do `server.dll` (`0x40cf1f80` cidade, `0x40cf1fa8` batalha, `0x40cf1fd0` *ExtremeMode*) em `TABLES`, com os arquivos da Delia (seção 8.14).
+- Verificação: `python -m unittest test_patch_class_routing` (6, 0 falhas; `routing-tests-motion.log`); reaplicado sobre os `*.pre-routing.bak` (`class-routing-apply-d8d.log`): `client.dll` `75f08dcc…` (igual), `server.dll` `f83dd892…`.
+- Cliente: D8d em `docs/client-tests/C2-delia.md`, pendente.
+- Parada (regra 2): saber se as animações e o corpo aparecem com as tabelas novas decide o que o E1 precisa trocar (vtable da entidade ou só tabelas). A recusa de equipar não foi localizada pela mensagem (o texto não está nos recursos da cópia); próxima busca pelo código que compara `ClassRestriction`.
+- Próxima ação: com o D8d, (a) se o corpo aparecer, localizar a recusa de equipar e a janela de habilidades; (b) se continuar invisível, E1 (`player_delia` com a classe de rede da base) e a pré-carga do corpo. A grade de 32 classes vem depois do E1 (contrato nativo da seção 8.8).
