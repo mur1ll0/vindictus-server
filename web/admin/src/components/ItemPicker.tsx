@@ -1,10 +1,11 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, LayoutGrid, Search } from 'lucide-react';
 import { useState } from 'react';
-import { CLASS_NAME } from '@/api/characters';
+import { type CharacterItem, CLASS_NAME } from '@/api/characters';
 import { api, type components, fail } from '@/api/client';
 import type { paths } from '@/api/schema';
 import { ItemIcon } from '@/components/ItemIcon';
+import { WithItemTooltip } from '@/components/ItemTooltip';
 import { Modal } from '@/components/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,28 @@ export function useTradeCategories() {
   return useQuery({ queryKey: ['trade-categories'], queryFn: tradeCategories, staleTime: Infinity });
 }
 
+/** The picker item as the tooltip box reads a character's item (one unit, no attributes). */
+function asItem(item: PickerItem): CharacterItem | undefined {
+  if (!item.tooltip) return undefined;
+  return {
+    id: '',
+    class: item.class,
+    name: item.name ?? null,
+    description: item.description ?? null,
+    icon: item.icon ?? null,
+    icon_bg: item.icon_bg ?? null,
+    tooltip: item.tooltip,
+    count: 1,
+    collection: 0,
+    slot: 0,
+    equipped_part: null,
+    durability_lost: null,
+    expires_at: null,
+    tradable: true,
+    attributes: [],
+  };
+}
+
 function int(value: string) {
   return value.trim() === '' ? undefined : Number(value);
 }
@@ -45,12 +68,15 @@ function int(value: string) {
 export function ItemPickerModal({
   title = 'Escolher item',
   characterClass,
+  includeHidden,
   onPick,
   onClose,
 }: {
   title?: string;
   /** Start filtered by this character class (ClassRestriction). */
   characterClass?: number;
+  /** List the items the item editor hid too. */
+  includeHidden?: boolean;
   onPick: (item: PickerItem) => void;
   onClose: () => void;
 }) {
@@ -70,6 +96,7 @@ export function ItemPickerModal({
     class: int(klass),
     min_level: int(minLevel),
     max_level: int(maxLevel),
+    hidden: includeHidden || undefined,
     page,
     per_page: PER_PAGE,
   };
@@ -185,23 +212,25 @@ export function ItemPickerModal({
               <ul className={cn('grid max-h-[52vh] gap-1 overflow-y-auto sm:grid-cols-2', found.isPlaceholderData && 'opacity-60')}>
                 {found.data.items.map((item) => (
                   <li key={item.class}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onPick(item);
-                        onClose();
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-raised"
-                    >
-                      <ItemIcon icon={item.icon} size="sm" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{item.name ?? item.class}</span>
-                        <span className="block truncate font-mono text-xs text-muted">
-                          {item.class}
-                          {item.required_level ? ` · nv ${item.required_level}` : ''}
+                    <WithItemTooltip item={asItem(item)}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPick(item);
+                          onClose();
+                        }}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-raised"
+                      >
+                        <ItemIcon icon={item.icon} bg={item.icon_bg} size="sm" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{item.name ?? item.class}</span>
+                          <span className="block truncate font-mono text-xs text-muted">
+                            {item.class}
+                            {item.required_level ? ` · nv ${item.required_level}` : ''}
+                          </span>
                         </span>
-                      </span>
-                    </button>
+                      </button>
+                    </WithItemTooltip>
                   </li>
                 ))}
                 {found.data.items.length === 0 && <li className="px-2 py-1 text-sm text-muted">Nada encontrado.</li>}

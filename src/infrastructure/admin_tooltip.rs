@@ -40,7 +40,7 @@ const CLASSES: [&str; 10] = [
     "Lann", "Fiona", "Evie", "Karok", "Kai", "Vella", "Hurk", "Lynn", "Arisha", "Hagie",
 ];
 
-#[derive(Debug, Default, Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, Default, Serialize, utoipa::ToSchema)]
 pub struct ItemTooltip {
     /// ItemClassInfo.Rarity and its client name (Regular, Beginners, ..., Rare).
     pub rarity: Option<i32>,
@@ -74,20 +74,20 @@ pub struct ItemTooltip {
     pub enchantable: bool,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, Serialize, utoipa::ToSchema)]
 pub struct TooltipStat {
     pub key: String,
     pub label: String,
     pub value: i32,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, Serialize, utoipa::ToSchema)]
 pub struct TooltipLine {
     pub text: String,
     pub ok: bool,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Clone, Debug, Serialize, utoipa::ToSchema)]
 pub struct TooltipEnchant {
     pub prefix: bool,
     pub name: String,

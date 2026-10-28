@@ -218,9 +218,13 @@ pub(super) async fn picker(
         page: query.page.unwrap_or(1),
         per_page: query.per_page.unwrap_or(30),
     };
-    Ok(Json(state.names.pick_items(&filter).map_err(|_| {
-        crate::application::admin_session::AdminError::InvalidInput
-    })?))
+    let assets = state.runtime.as_ref().and_then(|r| r.minimum_assets());
+    Ok(Json(
+        state
+            .names
+            .pick_items(&filter, assets.as_deref())
+            .map_err(|_| crate::application::admin_session::AdminError::InvalidInput)?,
+    ))
 }
 
 /// The game's marketplace categories with the client's English names (staff).

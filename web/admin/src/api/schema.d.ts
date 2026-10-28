@@ -1518,7 +1518,13 @@ export interface components {
              * @description ItemClassInfo.ClassRestriction bit mask (bit = character class; missing = none).
              */
             class_restriction?: number | null;
+            /**
+             * @description Filled for the returned page: the English description, the icon background and the
+             *     game's tooltip of the plain class (no attributes, no owner).
+             */
+            description?: string | null;
             icon?: string | null;
+            icon_bg?: string | null;
             name?: string | null;
             /** Format: int32 */
             rarity?: number | null;
@@ -1528,6 +1534,7 @@ export interface components {
              */
             required_level?: number | null;
             sub?: string | null;
+            tooltip?: null | components["schemas"]["ItemTooltip"];
         };
         Plan: {
             /** Format: int32 */

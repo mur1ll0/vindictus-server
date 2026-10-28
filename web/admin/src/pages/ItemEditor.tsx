@@ -445,6 +445,7 @@ export function ItemEditorPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('');
   const [category, setCategory] = useState('');
+  const [browsing, setBrowsing] = useState(false);
   const [sub, setSub] = useState('');
   const categories = useTradeCategories();
   const [picked, setPicked] = useState<string | null>(null);
@@ -481,10 +482,18 @@ export function ItemEditorPage() {
       )}
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
         <Card className="space-y-3">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted" />
-            <Input className="pl-8" placeholder="Nome ou classe (2+ letras)" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className="flex gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted" />
+              <Input className="pl-8" placeholder="Nome ou classe (2+ letras)" value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+            <Button type="button" variant="outline" onClick={() => setBrowsing(true)}>
+              <LayoutGrid /> Catálogo
+            </Button>
           </div>
+          {browsing && (
+            <ItemPickerModal title="Escolher item para editar" includeHidden onPick={(item) => setPicked(item.class)} onClose={() => setBrowsing(false)} />
+          )}
           <div className="flex flex-wrap gap-1">
             {FILTERS.map(([key, label]) => (
               <Button key={key} size="sm" variant={filter === key ? 'default' : 'ghost'} onClick={() => setFilter(key)}>

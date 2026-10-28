@@ -138,6 +138,9 @@ impl EnglishNames {
                 required_level: int("rl"),
                 rarity: int("r"),
                 class_restriction: int("cr"),
+                description: None,
+                icon_bg: None,
+                tooltip: None,
             };
             let hidden = self
                 .catalog
@@ -147,12 +150,30 @@ impl EnglishNames {
             (item, hidden)
         }))
     }
-    /// The item picker's page (see `admin_item_search::ItemIndex::search`).
+    /// The item picker's page (see `admin_item_search::ItemIndex::search`), each item with
+    /// its description, icon background and the tooltip of the plain class.
     pub fn pick_items(
         &self,
         filter: &super::admin_item_search::Filter<'_>,
+        assets: Option<&super::minimum_assets::Assets>,
     ) -> Result<super::admin_item_search::Page, super::admin_item_search::InvalidFilter> {
-        self.picker.search(filter)
+        let mut page = self.picker.search(filter)?;
+        for item in &mut page.items {
+            item.description = self.item(&item.class).1;
+            item.icon_bg = self.item_icon_bg(&item.class);
+            item.tooltip = Some(super::admin_tooltip::build(
+                self,
+                assets,
+                None,
+                &super::admin_tooltip::Input {
+                    class: &item.class,
+                    attributes: &[],
+                    tradable: true,
+                    equippable: None,
+                },
+            ));
+        }
+        Ok(page)
     }
     /// The marketplace category tree of the catalog.
     pub fn trade_categories(&self) -> &[super::admin_item_search::TradeCategory] {

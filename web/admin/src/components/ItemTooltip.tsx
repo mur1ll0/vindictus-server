@@ -154,6 +154,8 @@ export function ItemTooltipBox({ item }: { item: CharacterItem }) {
 /** Shows the item tooltip next to the pointer while hovering `children`. */
 export function WithItemTooltip({ item, children, className }: { item?: CharacterItem; children: ReactNode; className?: string }) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  // Inside a modal <dialog> (the top layer) the box must be drawn in the dialog itself.
+  const [host, setHost] = useState<Element>(document.body);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -166,7 +168,12 @@ export function WithItemTooltip({ item, children, className }: { item?: Characte
   return (
     <div
       className={className}
-      onMouseMove={(e) => item && setAt({ x: e.clientX, y: e.clientY })}
+      onMouseMove={(e) => {
+        if (!item) return;
+        const dialog = e.currentTarget.closest('dialog') ?? document.body;
+        if (dialog !== host) setHost(dialog);
+        setAt({ x: e.clientX, y: e.clientY });
+      }}
       onMouseLeave={() => {
         setAt(null);
         setPos(null);
@@ -184,7 +191,7 @@ export function WithItemTooltip({ item, children, className }: { item?: Characte
           >
             <ItemTooltipBox item={item} />
           </div>,
-          document.body,
+          host,
         )}
     </div>
   );

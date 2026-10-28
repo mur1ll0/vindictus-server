@@ -1838,3 +1838,9 @@ Fechamento do grupo busca/refino/progressão (27/10/2026).
 - Docker: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` (exit 0) e `docker compose up -d --wait` (exit 0; `migrate` saiu; `game` e `server` saudáveis; "published content edits loaded" versão 10). Smoke: `/api/items/categories`, `/api/items/catalog`, `/api/characters/{cid}/items/{item}/upgrade` e `/api/characters/{cid}/progression/plan` respondem 401 sem sessão; o painel (`/`) responde 200. Logs `.cache/verification/group-*.log`.
 - Cliente: entradas P2 e P3 de `docs/client-tests/B4-painel.md`, pendentes.
 - Parada (AGENTS.md, item 2): concluir histórias e mexer em ofícios depende do resultado do roteiro P3 no cliente. Próxima ação retomável: sessão do operador pelos roteiros P2 e P3.
+
+Ajustes do operador na busca por catálogo (27/10/2026).
+- O modal de catálogo mostra, ao passar o mouse num item, o mesmo tooltip do jogo da ficha do personagem: `/api/items/catalog` devolve em cada item da página a descrição, o fundo do ícone e o tooltip da classe sem atributos (`admin_tooltip::build` sem dono). `WithItemTooltip` passou a desenhar o tooltip dentro do `<dialog>` quando está num modal (antes ia para o `body`, atrás da camada do modal).
+- Editor de itens: botão **Catálogo** ao lado da busca, que abre o modal (com os itens ocultos) e abre a ficha do item escolhido.
+- Verificação: `cargo test --lib admin_item_search` (3), `admin_http` (4, OpenAPI regenerado e `npm run gen:api`), `npm run build`. Logs `.cache/verification/t-*.log`. Não conferido visualmente no navegador (o login do painel é do operador).
+- Cliente: não necessário (só painel).

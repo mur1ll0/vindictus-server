@@ -4783,7 +4783,20 @@
             "format": "int32",
             "description": "ItemClassInfo.ClassRestriction bit mask (bit = character class; missing = none)."
           },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Filled for the returned page: the English description, the icon background and the\ngame's tooltip of the plain class (no attributes, no owner)."
+          },
           "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon_bg": {
             "type": [
               "string",
               "null"
@@ -4814,6 +4827,16 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "tooltip": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ItemTooltip"
+              }
             ]
           }
         }

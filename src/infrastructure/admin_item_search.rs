@@ -40,6 +40,11 @@ pub struct PickerItem {
     pub rarity: Option<i32>,
     /// ItemClassInfo.ClassRestriction bit mask (bit = character class; missing = none).
     pub class_restriction: Option<i32>,
+    /// Filled for the returned page: the English description, the icon background and the
+    /// game's tooltip of the plain class (no attributes, no owner).
+    pub description: Option<String>,
+    pub icon_bg: Option<String>,
+    pub tooltip: Option<super::admin_tooltip::ItemTooltip>,
 }
 
 #[derive(Debug)]
@@ -196,6 +201,9 @@ mod tests {
             required_level: Some(level),
             rarity: Some(2),
             class_restriction: mask,
+            description: None,
+            icon_bg: None,
+            tooltip: None,
         }
     }
 
