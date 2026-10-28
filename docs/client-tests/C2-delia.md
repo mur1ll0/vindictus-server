@@ -353,3 +353,6 @@ Achado: o gerenciador de forma do corpo do cliente (`0x387602b0` carrega, `0x387
 - [ ] Seleção: a `DeliaLab` → anotar se a barriga e as pernas deixam de ficar brancas.
 - [ ] Não regressão: Hagie e Tsuko (Evy) na seleção.
 Resultado esperado: se a pele ficar normal, a causa é o gerenciador pular a classe 10, e o próximo passo é dar à Delia mapas próprios.
+
+Resultado do D15 (28/10/2026): **sem mudança** com o `SHAPE_CLASS` (Delia → vaga da Lynn); Evy (Tsuko) e Fiona (Murael) certas na mesma tela. Nova captura com a *inner* 90035 (`fiona_innerarmor_jpn_15.mdl`, biquíni): a faixa branca vai da cintura até o meio da coxa, com borda recortada, por baixo do biquíni. O operador confirma: na cidade o modelo fica perfeito; só a seleção mostra a faixa.
+Memória (seleção): as entidades da Delia, Evy e Fiona diferem só na sequência de animação (`+0x6a0`); o modelo composto é `CoStUmE_10/0_90035/0_100/0_6036/…/0_102/…` (o mesmo nome que a cidade monta). Descartados também: parte padrão de calça (a Delia não tem), `delia_base` (sem `.vvd`, não desenha), `.cloth` (só esferas de colisão), ossos de `.jiggle` (iguais aos da Lynn), materiais do rosto e da animação (todos presentes).
