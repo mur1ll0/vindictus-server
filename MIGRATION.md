@@ -2206,3 +2206,9 @@ Passo 29 (28/10/2026): causa da faixa branca da Delia na seleção.
 - Próxima ação: aplicar com o jogo fechado; D17 no cliente.
 - Aplicado com o jogo fechado (`class-routing-apply-d17.log`): `client.dll` `8e766ed3…`, `server.dll` `46cd2c50…`. D17 no cliente pendente.
 - D17 (cliente): **passou**, a seleção mostra a Delia sem a faixa branca. Próxima ação (pedido do operador): E2, itens da Delia (`Bastard Sword` em duas espadas, "Cannot be equipped", armaduras vermelhas).
+
+Passo 30 (28/10/2026): E2, leitura inicial da arma `BASTARDSWORD`.
+- Dados (1.69, `heroes.db3` do cliente): `bastardsword_*` têm `EquipClass` = `BASTARDSWORD`, `ClassRestriction` 1024; a adaga da Hagie tem `PHANTOMDAGGER`.
+- 1.69: os DLLs registram os tipos de arma por nome `WEAPON_*` (cliente `0x3888efd0`, mapa nome→tipo `0x38fbc610`, tipo→nome `0x38fbc62c`): `BAREHAND` 0 … `PHANTOMDAGGER` 28 (`.cache/verification/e2-client-weapontypes.txt`); não existe `WEAPON_BASTARDSWORD` nem `weapon_bastardsword`/`C_WeaponBastardSword`. O tipo desconhecido cai num tipo existente (duas espadas, como `DUALSWORD`).
+- NA (`F:\Games\vindictus\appdata\en-US\bin`, leitura pontual): `WEAPON_BASTARDSWORD` = 29 (`0x1d`, logo depois de `PHANTOMDAGGER`), entidades `C_WeaponBastardSword`/`CWeaponBastardSword` (`DT_WeaponBastardSword`), `weapon_bastardsword`, `combo_bonus_bastardsword`.
+- Decisão do operador: (A) tipo 29 registrado nos dois DLLs, com a entidade de uma arma existente (`weapon_greatsword`) e as tabelas por tipo de arma estendidas, fiel ao NA e à maestria `skill_delia_bastard_mastery`; ou (B) `BASTARDSWORD` como apelido de um tipo existente só na leitura do nome, mais rápido, sem tipo próprio.
