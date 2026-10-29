@@ -485,20 +485,37 @@ class LabCopyTest(unittest.TestCase):
             'test al, al', events[at + 6], 'mov ecx, dword ptr [edi + 0x148c]', 'mov ecx, dword ptr [ecx + 4]', 'push 0',
             'push esi', f'call {k["armor_hp_set"]:#x}'])
         self.assertTrue(events[at + 6].startswith('jne '))
-        # the worn part leaves the model: network change, then -1
+        # the worn part leaves the model: kept (+1) in the entry, network change, then -1
+        kept = routing.DELIA_KEPT_PART
         self.assertEqual(events[at + 12], f'cmp dword ptr [edi + esi*4 + {worn:#x}], -1')
-        self.assertEqual(events[at + 14:at + 20], [
+        self.assertEqual(events[at + 14:at + 23], [
+            f'mov eax, dword ptr [edi + esi*4 + {worn:#x}]', 'inc eax', f'mov dword ptr [ebx + esi*4 + {kept:#x}], eax',
             'lea ecx, [edi + 0x156c]', f'lea edx, [edi + esi*4 + {worn:#x}]', 'push edx', 'mov eax, dword ptr [ecx]',
             'call dword ptr [eax + 4]', f'mov dword ptr [edi + esi*4 + {worn:#x}], 0xffffffff'])
-        self.assertEqual(events[at + 20:at + 27], ['push 0', 'push 1', 'push esi', 'mov ecx, edi',
+        self.assertEqual(events[at + 23:at + 30], ['push 0', 'push 1', 'push esi', 'mov ecx, edi',
                                                    f'call {k["armor_state"]:#x}', 'inc esi', 'cmp esi, 9'])
+        self.assertEqual(events[at - 3:at - 1], ['mov ecx, edi', events[at - 2]])
+        self.assertEqual(events[at - 1], 'mov ebx, eax')
         # the costume object: +0x94 is its worn part per slot (0x408154b0 reads it)
         self.assertEqual(text(0x408154B0, 0x14)[3], 'mov eax, dword ptr [ecx + eax*4 + 0x94]')
         self.assertIn(f'call {k["armor_update"]:#x}', events)
         self.assertNotIn('call 0x40530ce0', events)
         self.assertNotIn(f'call {k["costume"]:#x}', events)
         at = events.index(f'call {k["armor_update"]:#x}')
-        self.assertEqual(events[at + 3], 'mov byte ptr [eax + 0x18], 1')
+        self.assertEqual(events[at + 1], 'mov byte ptr [ebx + 0x18], 1')
+        # a repair (armour state with broken 0) puts a kept part back and asks for a rebuild
+        head = next(self.md.disasm(bytes(image.data[image.offset(k['armor_state']):image.offset(k['armor_state']) + 5]),
+                                   k['armor_state']))
+        self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {effects["restore"]}')
+        restore = text(int(effects['restore'], 16), 0xa0)
+        self.assertEqual(restore[0], 'cmp byte ptr [esp + 8], 0')
+        self.assertIn(f'mov edi, dword ptr [ebx + esi*4 + {kept:#x}]', restore)
+        self.assertIn(f'mov dword ptr [ebx + esi*4 + {kept:#x}], 0', restore)
+        self.assertIn(f'cmp dword ptr [ecx + esi*4 + {worn:#x}], -1', restore)
+        self.assertIn(f'mov dword ptr [ecx + esi*4 + {worn:#x}], edi', restore)
+        self.assertIn('mov byte ptr [ebx + 0x18], 1', restore)
+        self.assertEqual(restore[-4:-1], ['mov eax, dword ptr [esp + 8]', 'push esi', 'mov esi, ecx'])
+        self.assertEqual(restore[-1], f'jmp {k["armor_state"] + 7:#x}')
         # the think rebuilds the costume once the animation events are done
         tick = text(int(effects['tick'], 16), 0x60)
         at = tick.index('cmp byte ptr [esi + 0x18], 0')

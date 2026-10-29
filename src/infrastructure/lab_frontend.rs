@@ -2128,6 +2128,29 @@ impl Connection {
                 {
                     Ok(super::minimum_quickslot::Outcome::Applied(packet)) => {
                         send(stream, sender, packet.category, &packet.body).await?;
+                        // PushQuickSlotInfoMessage → UpdateEquipmentObservable: on the ship
+                        // the MicroPlayer reloads the battle inventory for the host.
+                        if let Some(mission) = self.mission.as_deref_mut() {
+                            match super::minimum_mission::refresh_member(
+                                pool,
+                                &owner,
+                                assets,
+                                cid,
+                                mission,
+                                runtime.minimum_header()?,
+                                runtime.stat_arithmetic(),
+                            )
+                            .await
+                            {
+                                Ok(Some(member)) => {
+                                    send(stream, sender, member.category, &member.body).await?
+                                }
+                                Ok(None) => {}
+                                Err(_) => tracing::warn!(
+                                    "mission member info refresh rejected; values omitted"
+                                ),
+                            }
+                        }
                         tracing::info!("minimum quick slot saved and synchronized");
                     }
                     Ok(super::minimum_quickslot::Outcome::Refused(packet)) => {

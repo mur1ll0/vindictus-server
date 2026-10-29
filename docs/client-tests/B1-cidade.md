@@ -114,6 +114,7 @@ Pré-condição: perfil `item-economy` reexportado no formato 3 (`scripts/conten
 - [ ] Usar (clique direito/uso) a caixa Level Up (`randomitem_levelup_v2_10`) com a Fiona abaixo do nível 10 → diálogo de nível insuficiente; a caixa continua no inventário.
 - [ ] Usar uma poção de vida, pena de fênix, kit de reparo, dardo ou bomba na cidade → diálogo de item não utilizável aqui; nada é consumido.
 - [ ] Usar uma cápsula de AP (se houver) → continua funcionando como no B0 (AP aumenta, cápsula consumida).
+- [ ] Usar uma cápsula de AP com valor no item (por exemplo a AP Capsule 300, classe `capsule_ap` com atributo `VALUE` 300) → AP aumenta 300 e a cápsula é consumida (antes: "minimum item use rejected").
 Limites conhecidos: abrir caixas (sorteio RandomItemV2, itens raros e sequências) fica para o B2, quando a Fiona alcança o nível da caixa; demais usáveis (comida, pets, megafones, bônus de cafe/VIP) seguem recusados sem resposta.
 
 ### Histórias da Shayla (condições do cliente alinhadas ao servidor)

@@ -359,8 +359,12 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # CStudioHdr::pSeqdesc); the 1.69's own breaks run from damage, outside it. A purge also takes the
 # armour off the body, leaving the inner wear (operator, D23: the original shows only the inner
 # armour after Rose Crush, while a break by a hit shows the broken look): the costume's worn part
-# of the slot (+0x94[slot], networked, copied into the model name by 0x4081be60) becomes -1 until
-# the costume is rebuilt from the equipment. For an extra class each of slots 4-8 that has armour
+# of the slot (+0x94[slot], networked, copied into the model name by 0x4081be60) becomes -1 and
+# the part is kept in the entry (+0x1c + 4 * (slot - 4), part + 1). When the slot stops being broken
+# (a repair; every un-break goes through 0x40547480(slot, 0, notify)), the entry of 0x40547480
+# puts the kept part back (when the slot is still hidden) and asks the think for a rebuild
+# (operator, D23: the repair kit fixed the armour but it did not come back). For an extra class
+# each of slots 4-8 that has armour
 # (0x40814620 false) gets HP 0 (0x408144d0), its part hidden and the broken state without notify
 # (0x40547480(slot, 1, 0)), the armour status update (0x4054e160) runs once, and the rebuild is left
 # to the think (entry +0x18), after the base think has finished its animation events. The
@@ -375,10 +379,12 @@ DELIA_EFFECTS = {'server.dll': {
     'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70, 'armor': 0x148C, 'armor_none': 0x40814620,
     'armor_hp_set': 0x408144D0, 'armor_state': 0x40547480, 'armor_update': 0x4054E160, 'costume': 0x405465D0,
     'clothes': 0x156C, 'worn_part': 0x94}}
-DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x20
+DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x40
 # entry: +0 entity, +4 reserved HP, +8 restore per second, +0xc fraction, +0x10 last restore time,
 # +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due,
-# +0x18 costume rebuild due (PURGE_ALL_ARMOR)
+# +0x18 costume rebuild due (PURGE_ALL_ARMOR), +0x1c..+0x2f worn part + 1 of purged slots 4-8
+DELIA_KEPT_PART = 0x1C - 4 * 4  # + 4 * slot
+ARMOR_STATE_HEAD = bytes.fromhex('8b442408568bf1')  # mov eax, [esp+8]; push esi; mov esi, ecx
 EVENTS_HEAD = bytes.fromhex('515356578b7c2414')  # push ecx/ebx/esi/edi; mov edi, [esp+0x14]
 REGISTRAR_TAIL = bytes.fromhex('c3cccccccc')
 PLAYER_SLOTS = {'add': 0x380, 'find': 0x388, 'remove': 0x390, 'npc': 0x160, 'changed': 0x230,
@@ -1629,8 +1635,10 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.land(purge)
     b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
     b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f8c')
-    b('56 57 8bf8 8b8f' + d32(k['armor']) + '85c9'); none = fwd('0f84')  # edi = entity; armour container
-    b('be04000000')  # esi = slot 4
+    b('56 57 53 8bf8 8b8f' + d32(k['armor']) + '85c9'); none = fwd('0f84')  # edi = entity; armour container
+    b('8bcf')
+    call(find_or_add)
+    b('8bd8 be04000000')  # ebx = entry; esi = slot 4
     loop = L.here()
     b('8b8f' + d32(k['armor']) + '8b4904 56')  # ecx = armour HP; push slot
     call(k['armor_none'])
@@ -1639,6 +1647,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     call(k['armor_hp_set'])
     worn = k['clothes'] + k['worn_part']
     b('83bcb7' + d32(worn) + 'ff'); hidden = fwd('0f84')  # worn part already none
+    b('8b84b7' + d32(worn) + '40 8944b3' + bytes((DELIA_KEPT_PART,)).hex())  # keep part + 1
     b('8d8f' + d32(k['clothes']) + '8d94b7' + d32(worn) + '52 8b01 ff5004')  # changed(&part)
     b('c784b7' + d32(worn) + 'ffffffff')  # part = -1
     L.land(hidden)
@@ -1649,13 +1658,37 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.to(b'\x0f\x8c', loop)
     b('8bcf')
     call(k['armor_update'])
-    b('8bcf')
-    call(find_or_add)
-    b('c6401801')  # rebuild the costume in the think
+    b('c6431801')  # rebuild the costume in the think
     L.land(none)
-    b('5f 5e')
+    b('5b 5f 5e')
     L.land(no); L.land(no2)
     b('c20400')
+
+    # armour state(slot, broken, notify) entry: an un-broken purged slot gets its part back
+    L.pad()
+    restore = L.here()
+    b('807c240800'); o1 = fwd('0f85')  # broken: original
+    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); o2 = fwd('0f8c')
+    b('8b442404 83f804'); o3 = fwd('0f8c')
+    b('83f808'); o4 = fwd('0f8f')
+    b('56 57 53 51 8bf0')  # esi = slot
+    call(find)
+    b('59 85c0'); d1 = fwd('0f84')
+    b('8bd8 8b7cb3' + bytes((DELIA_KEPT_PART,)).hex() + ' 85ff'); d2 = fwd('0f84')  # edi = part + 1
+    b('c744b3' + bytes((DELIA_KEPT_PART,)).hex() + '00000000 4f')
+    b('83bcb1' + d32(worn) + 'ff'); d3 = fwd('0f85')  # the costume was rebuilt meanwhile
+    b('51 8d94b1' + d32(worn) + '52 8d89' + d32(k['clothes']) + '8b01 ff5004 59')  # changed(&part)
+    b('89bcb1' + d32(worn))  # part back
+    b('c6431801')  # rebuild in the think
+    for at in (d1, d2, d3):
+        L.land(at)
+    b('5b 5f 5e')
+    for at in (o1, o2, o3, o4):
+        L.land(at)
+    L.body += ARMOR_STATE_HEAD
+    L.to(b'\xe9', k['armor_state'] + len(ARMOR_STATE_HEAD))
+    edits.append((k['armor_state'], ARMOR_STATE_HEAD,
+                  b'\xe9' + struct.pack('<i', restore - (k['armor_state'] + 5)) + b'\x90' * 2))
     edits.append((k['events'], EVENTS_HEAD, b'\xe9' + struct.pack('<i', events - (k['events'] + 5)) + b'\x90' * 3))
 
     # on hit (slot 70): the original, then the armed flags add Delia's buffs
@@ -1690,7 +1723,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('5f 5e c20800')
 
     return {'table': hex(table), 'tick': hex(tick), 'forfeit': hex(forfeit), 'register': hex(register),
-            'events': hex(events), 'factories': {n: hex(v) for n, v in factories.items()},
+            'events': hex(events), 'restore': hex(restore), 'factories': {n: hex(v) for n, v in factories.items()},
             'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit),
             'on_hit': hex(on_hit)}
 

@@ -1,6 +1,6 @@
 //! UseInventoryItemProcessor for the selected first Fiona: the UseInTown dispatch with
 //! its dialogs (UseInTown 0 and IsConstraintSatisfied failures) and the capsule_ap
-//! branch (UseUseableItem + CharacterImpl.GiveAP) and the RandomItemContents boxes
+//! branch (UseUseableItem + CharacterImpl.GiveAP, amount from the VALUE attribute) and the RandomItemContents boxes
 //! (`minimum_random_item`). Other usable branches (food, RandomItemV2 opening, pets, ...)
 //! are rejected without changes until migrated.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
@@ -28,11 +28,26 @@ fn fail() -> MinimumError {
     MinimumError::Conflict
 }
 
-/// `capsule_ap` amount: the VALUE attribute (verified absent, so 0) and then
+/// `capsule_ap` amount: item.Value.IntValue when non-zero, else
 /// int.TryParse(ItemClass.Substring(10)); a failed parse yields 0.
-fn capsule_amount(class: &str) -> Option<i32> {
+fn capsule_amount(class: &str, value: i32) -> Option<i32> {
     let suffix = class.strip_prefix("capsule_ap")?;
-    Some(suffix.parse::<i32>().unwrap_or(0))
+    Some(if value != 0 {
+        value
+    } else {
+        suffix.parse::<i32>().unwrap_or(0)
+    })
+}
+
+/// item.Value.IntValue: int.TryParse of the VALUE attribute, else 0.
+fn value_int(attributes: &[Option<wire::Attribute>]) -> i32 {
+    attributes
+        .iter()
+        .flatten()
+        .find(|a| a.name.as_deref() == Some("VALUE"))
+        .and_then(|a| a.value.as_deref())
+        .and_then(|v| v.parse::<i32>().ok())
+        .unwrap_or(0)
 }
 
 /// EntityCommunicator.IsConstraintSatisfied(item) with the selected character (no cafe,
@@ -196,10 +211,10 @@ pub async fn use_item(
         let home_cafe =
             class.starts_with("homecafe_bonus_") || class.starts_with("account_homecafe_bonus_");
         // Item attributes change what some usables do (VALUE amounts, enchant scrolls);
-        // only the VALUE of the HomeCafeBonus items is migrated.
+        // only the VALUE of the HomeCafeBonus and capsule_ap items is migrated.
         let attributes = item.attributes.as_deref().unwrap_or_default();
         if !attributes.is_empty()
-            && !(home_cafe
+            && !((home_cafe || class.starts_with("capsule_ap"))
                 && attributes
                     .iter()
                     .all(|a| a.as_ref().and_then(|a| a.name.as_deref()) == Some("VALUE")))
@@ -241,14 +256,7 @@ pub async fn use_item(
             ));
         }
         if home_cafe {
-            // item.Value.IntValue: int.TryParse of the VALUE attribute, else 0.
-            let days = attributes
-                .iter()
-                .flatten()
-                .find(|a| a.name.as_deref() == Some("VALUE"))
-                .and_then(|a| a.value.as_deref())
-                .and_then(|v| v.parse::<i32>().ok())
-                .unwrap_or(0);
+            let days = value_int(attributes);
             if let Some(dialog) =
                 super::minimum_home_cafe::use_check(&mut tx, owner, cid, &class, days).await?
             {
@@ -340,7 +348,9 @@ pub async fn use_item(
             tx.commit().await?;
             return Ok((Outcome::Applied(packets), None));
         }
-        let Some(amount) = capsule_amount(&class).filter(|_| !indexed.equippable) else {
+        let Some(amount) =
+            capsule_amount(&class, value_int(attributes)).filter(|_| !indexed.equippable)
+        else {
             // questscroll_ and the other branches before the boxes.
             if ["questscroll_", "cashshop_trade_coin"]
                 .iter()
@@ -370,6 +380,10 @@ pub async fn use_item(
         // UseUseableItem: DestroyItem(Useable(item), 1) and Save before onSuccess.
         let deleted = item.count == 1;
         if deleted {
+            sqlx::query("DELETE FROM game_item_attributes WHERE item_id=$1")
+                .bind(item.id)
+                .execute(&mut *tx)
+                .await?;
             sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
                 .bind(item.id)
                 .bind(cid)
@@ -478,4 +492,28 @@ pub async fn use_item(
             .await;
     }
     Ok(outcome)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn value(text: &str) -> Option<wire::Attribute> {
+        Some(wire::Attribute {
+            name: Some("VALUE".to_owned()),
+            value: Some(text.to_owned()),
+            arg: 0,
+            arg2: 0,
+        })
+    }
+
+    #[test]
+    fn capsule_amount_prefers_the_value_attribute() {
+        assert_eq!(capsule_amount("capsule_ap", value_int(&[value("300")])), Some(300));
+        assert_eq!(capsule_amount("capsule_ap50", value_int(&[])), Some(50));
+        assert_eq!(capsule_amount("capsule_ap50", value_int(&[value("x")])), Some(50));
+        assert_eq!(capsule_amount("capsule_ap", value_int(&[])), Some(0));
+        assert_eq!(capsule_amount("capsule_vip_day", 300), None);
+    }
 }
