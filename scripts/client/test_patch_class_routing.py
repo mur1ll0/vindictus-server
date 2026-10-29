@@ -308,6 +308,26 @@ class LabCopyTest(unittest.TestCase):
                 self.assertEqual((moved[0] * 4 + table) & 0xFFFFFFFF, row)
                 self.assertEqual(text[-1], f'jmp {va + 10:#x}')
 
+    def test_class_alias_loads_extra_classes_as_their_clone(self):
+        image, report = self.plan('server.dll')
+        clone = routing.OLD_CLASSES.index(routing.EXTRA_CLASSES[0].clone_of)
+        for va, old in routing.CLASS_ALIAS['server.dll']:
+            text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, va)]
+            self.assertEqual(text[0], 'mov eax, dword ptr [esi + 0x1400]')
+            self.assertIn(f'mov eax, {clone}', text)
+            self.assertEqual(text[-1], f'jmp {va + len(bytes.fromhex(old)):#x}')
+
+    def test_client_spawn_passes_the_extra_class_weapon(self):
+        image, report = self.plan('client.dll')
+        va, old, join = routing.CLIENT_WEAPON_SWITCH['client.dll']
+        code = self.stub_code(image, va)
+        text = [f'{x.mnemonic} {x.op_str}' for x in code]
+        self.assertEqual(text[:3], ['cmp eax, 0xa', text[1], 'push ebx'])
+        pushed = int(text[3].split(' ')[1], 16)
+        self.assertEqual(routing.read_string(image, pushed), routing.EXTRA_CLASSES[0].weapons[0])
+        self.assertEqual(text[4], f'jmp {join:#x}')
+        self.assertEqual(text[-1], f'jmp {va + 5:#x}')
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

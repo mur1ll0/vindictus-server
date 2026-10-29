@@ -245,6 +245,16 @@ CLASS_DEFAULT_HEAD = bytes.fromhex('8b4424048b5424088d04808d04428b0481c20800')
 # gets its own row in .hrte (`weapons`), reached by setting X so that X*4 + table is that row.
 CLASS_WEAPONS = {'client.dll': 0x38FBC6C0, 'server.dll': 0x40F68510}
 WEAPON_SLOTS = 5
+# Places that load m_iClass and then compare it with each older class: an extra class is loaded
+# as its `clone_of` class there. Server 0x4053b560 sets the stamina restoration rate (48 for
+# classes 0, 1, 3-9, 12 for Evy, 0 for anything else): Delia regenerated almost nothing (D18).
+# Entries: (VA of `mov reg, [base + 0x1400]`, its bytes).
+CLASS_ALIAS = {'server.dll': ((0x4053B5BE, '8b8600140000'),   # stamina restoration rate
+                              (0x40539AEC, '8b8600140000'))}  # per-class timing value (switch of 10, 0 above)
+# The client's player spawn (0x38705f30) switches on the class to hand its weapon entity name to
+# vtable +0x55c (`push ebx; push name; jmp 0x38705fb4`); above 9 it skipped that. An extra class
+# passes its first `weapons` entry. (VA of `cmp eax, 9; ja`, its bytes, the join.)
+CLIENT_WEAPON_SWITCH = {'client.dll': (0x38705F62, '83f8097759', 0x38705FB4)}
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -755,6 +765,51 @@ def class_weapons(image: Image, layout: Layout, edits: list, relocs: set[int], t
     return {'rows': {i: hex(a) for i, a in rows.items()}, 'readers': stubs}
 
 
+def class_alias(image: Image, layout: Layout, edits: list, relocs: set[int], va: int, old: str) -> str:
+    """CLASS_ALIAS stub: load m_iClass, turn an extra class into its clone_of, continue."""
+    replaced = bytes.fromhex(old)
+    ins = list(md.disasm(replaced, va))
+    if len(ins) != 1 or ins[0].mnemonic != 'mov' or any(va <= r < va + len(replaced) for r in relocs):
+        raise PreparationError(f'Unexpected class load at {va:#x}; nothing is patched.')
+    reg = {'eax': 0, 'ecx': 1, 'edx': 2, 'ebx': 3, 'esi': 6, 'edi': 7}[ins[0].op_str.split(',')[0]]
+    layout.pad()
+    stub = layout.here()
+    layout.body += replaced
+    for extra in EXTRA_CLASSES:
+        layout.body += bytes((0x83, 0xF8 | reg, extra.index))
+        other = layout.forward(bytes((0x0F, 0x85)))
+        layout.body += bytes((0xB8 | reg,)) + struct.pack('<I', OLD_CLASSES.index(extra.clone_of))
+        layout.land(other)
+    layout.to(bytes((0xE9,)), va + len(replaced))
+    edits.append((va, replaced, bytes((0xE9,)) + struct.pack('<i', stub - (va + 5)) + bytes((0x90,)) * (len(replaced) - 5)))
+    return f'{va:#x} -> {stub:#x}'
+
+
+def client_weapon_switch(image: Image, layout: Layout, edits: list, va: int, old: str, join: int) -> str:
+    """CLIENT_WEAPON_SWITCH stub: `push ebx; push <first weapon>; jmp join` for an extra class."""
+    replaced = bytes.fromhex(old)
+    ins = list(md.disasm(replaced, va))
+    if len(ins) != 2 or f'{ins[0].mnemonic} {ins[0].op_str}' != 'cmp eax, 9' or ins[1].mnemonic != 'ja':
+        raise PreparationError(f'Unexpected class switch at {va:#x}; nothing is patched.')
+    default = int(ins[1].op_str, 16)
+    layout.pad()
+    names = {extra.index: layout.string(extra.weapons[0]) for extra in EXTRA_CLASSES if extra.weapons}
+    layout.pad()
+    stub = layout.here()
+    for index, name in names.items():
+        layout.body += bytes((0x83, 0xF8, index))
+        other = layout.forward(bytes((0x0F, 0x85)))
+        layout.body += bytes((0x53, 0x68))  # push ebx; push name
+        layout.pointer(name)
+        layout.to(bytes((0xE9,)), join)
+        layout.land(other)
+    layout.body += replaced[:3]
+    layout.to(bytes((0x0F, 0x87)), default)
+    layout.to(bytes((0xE9,)), va + 5)
+    edits.append((va, replaced, bytes((0xE9,)) + struct.pack('<i', stub - (va + 5))))
+    return f'{va:#x} -> {stub:#x}'
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -1014,6 +1069,9 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     report['class_defaults'] = [class_default(image, layout, edits, va) for va in CLASS_DEFAULTS.get(name, ())]
     if name in CLASS_WEAPONS:
         report['class_weapons'] = class_weapons(image, layout, edits, relocs, CLASS_WEAPONS[name])
+    report['class_alias'] = [class_alias(image, layout, edits, relocs, *entry) for entry in CLASS_ALIAS.get(name, ())]
+    if name in CLIENT_WEAPON_SWITCH:
+        report['client_weapon_switch'] = client_weapon_switch(image, layout, edits, *CLIENT_WEAPON_SWITCH[name])
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':
