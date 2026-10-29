@@ -2287,3 +2287,15 @@ Passos 39–40 (29/10/2026): plano 8.15, itens 3 e 4 — efeitos de estado da De
 - Testes: `test_delia_effects_register_types_commands_and_hooks`, `test_guard_keeps_state_and_blocks_for_extra_classes`, `test_every_new_pointer_is_relocated` — 0 falhas (`.cache/verification/g3-tests.log`); desmontagem conferida (`.cache/verification/effects-dis.txt`).
 - Cliente: D22, itens "Wild Star" e "Star Divider". Não aplicado (aplicação única no fim).
 - Próxima ação: item 5 do plano 8.15 (ataque forte e agarrar).
+
+Passo 41 (29/10/2026): plano 8.15, máscara de classe do item, aplicação e parada.
+- Mudança: `ITEM_MASK` (cliente): a máscara que `0x384ac450` monta do vetor de classes do item (usada por `0x384af6e0` para comparar dois itens) leva o bit 10 (`+0x1a2`). + teste.
+- Testes: suíte completa do patch, 31 testes. Primeira rodada: 30 passaram e 1 falhou porque o teste das condições lia além do *stub* (agora seguido de dados, sem `int3`). O teste foi corrigido para parar no `jmp` de volta e passou isolado. Logs: `.cache/verification/plan815-routing-tests.log` e `plan815-conditions-test.log`.
+- Aplicado com o jogo fechado, a partir dos `*.pre-routing.bak` (`class-routing-apply-plan815.log`): `client.dll` `ec9d5a12…`, `server.dll` `c9dda8c4…`.
+- Itens 7 e 8 (SP pela barra, itens vermelhos): causa não achada estaticamente (detalhes em `docs/future/new-classes.md` 8.15). Ficam com leitura de memória marcada no D22.
+- Parada (AGENTS.md, regras 2 e 3): os itens 5 e 6 (ataque forte com lançamento/derrubada/agarrar, habilidade segurada especial, avanço até o alvo, lançamento de *ragdoll*) não foram implementados:
+  - são código de motor novo nos dois DLLs, sem par 1.69 mapeado: novo tipo de evento de animação, agendas de IA dos NPCs, física no cliente e comando de rede;
+  - cada peça precisa de teste no cliente antes da seguinte;
+  - a lista das peças está na seção 8.15.
+- Cliente: D22 completo em `docs/client-tests/C2-delia.md` (preparação, ordem e relato).
+- Próxima ação: sessão D22 do operador. Depois, as leituras ao vivo dos itens 7 e 8 e a decisão do operador sobre os itens 5 e 6.

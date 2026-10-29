@@ -718,3 +718,24 @@ Os defeitos 1 e 3 são partes do E3 e do E5 que ainda não existem.
 **Limites desta sessão:**
 - o segundo ponto de parada (vida do jogador, `+0x84` = 2818/3162) derrubou o cliente ao ligar, como no D8o;
 - o caminho do dano ficou provado pela leitura estática da rotina da Fiona e pelo teste com o estado forçado, sem pilha da escrita da vida.
+
+**Andamento do plano 8.15 (29/10/2026):**
+- **Feitos (patch + teste unitário, sem teste no cliente):**
+  - item 1: guarda no cliente, `CLIENT_GUARD`;
+  - item 2: `As_Cond_Can_Armor_Purge`, `CLASS_CONDITIONS`. `SP3_Activated` não foi portada: o contêiner de recarga das SP no 1.69 não foi achado;
+  - itens 3–4: os 5 tipos de efeito e os comandos de efeito no acerto, `DELIA_EFFECTS`;
+  - máscara de classe do item com o bit 10, `ITEM_MASK`.
+- **Itens 7 e 8, causa ainda não achada estaticamente:**
+  - SP pela barra: o servidor tem as SP nos *slots* e a missão manda os atalhos. A região do cliente que traduz `translated_spskill.txt` não tem chamadores diretos;
+  - itens vermelhos: os leitores do vetor de classes do cliente recebem a classe 10 de `[obj+0x30]`, a máscara 2047 inclui o bit 10, e as cópias levam `+0x1a2`;
+  - os dois ficam com leitura de memória marcada no D22.
+- **Itens 5 e 6, não implementados (decisão de escopo com o operador):** são código de motor novo sem par mapeado no 1.69, e cada peça precisa de teste no cliente antes da seguinte. Peças:
+  - novo tipo de evento de animação `AE_DELIA_RAGDOLL_LAUNCH` (NA cliente `0x11c368`);
+  - comandos `ENABLE/DISABLE_RAGDOLL_LAUNCH` no cliente (`0x23519e`) e no servidor (`0x266d8e`);
+  - reação dos NPCs `START/END_RAGDOLL_LAUNCH_REACTION` (`0x6ebcbc`/`0x6ec791`) e as agendas de IA da Seiren (`SCHED_RAGDOLL_LAUNCH_REACTION`, `0x9a4ac7`);
+  - física e *hull trace* no cliente, mais o comando de rede `request_release_launch_ragdoll`;
+  - `START/END_SPECIAL_HOLD_SKILL`, `SPECIAL_HOLD_SKILL_FACE_EACH_OTHER` e `DASH_TO_TARGET` no cliente (`0xaf3042`/`0xaf30f0`, *think* `0xaf3670`);
+  - comandos do servidor `SET_SAVE_HITTED_VICTIM` (`0x6e54f3`), `CLEAR_HITTED_VICTIM` (`0x6e5621`), `SET_ENABLE_CRUSH_PROP` (`0x6e5469`) e `CUSTOM_HOLD_SKILL_TARGET_FINISH_DOWN` (`0x6e553d`);
+  - ataque forte, *slot* 730 do NA (`0x6e40b0`) ↔ 641 do 1.69, par fraco: lançar `0x5a6020`/`0x5aed90`, derrubar `0x5994a0`/`0x5acda0` e agarrar 729/563, todos sem par 1.69 lido.
+  
+  Os comandos genéricos `HOLD_SKILL_*` já existem no 1.69.

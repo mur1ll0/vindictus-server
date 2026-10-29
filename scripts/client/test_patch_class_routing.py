@@ -339,6 +339,8 @@ class LabCopyTest(unittest.TestCase):
             code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
                 bytes(image.data[image.offset(stub):image.offset(stub) + 0x400]), stub)))
             text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            # the stub ends with its jump back; what follows may be data, not int3 padding
+            text = text[:text.index(f'jmp {tail + 6:#x}') + 1]
             self.assertEqual(text[:2], ['pushal ', 'sub esp, 8'])
             self.assertEqual(sum(t == f'call {name_insert:#x}' for t in text), 5)
             self.assertEqual(sum(t == f'call {id_insert:#x}' for t in text), 5)
@@ -477,6 +479,16 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn(f'call {effects["tick"]}', think)
         damage = text(int(report['guard']['damage'], 16), 0xc0)
         self.assertIn(f'call {effects["forfeit"]}', damage)
+
+    def test_item_mask_carries_bit_ten(self):
+        image, report = self.plan('client.dll')
+        va, old = routing.ITEM_MASK['client.dll']
+        stub = int(report['item_mask'].split(' -> ')[1], 16)
+        head = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
+        self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {stub:#x}')
+        text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 0x20]), stub)]
+        self.assertIn('cmp byte ptr [ecx + 0x1a2], 0', text)
+        self.assertIn('add eax, 0x400', text)
 
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)

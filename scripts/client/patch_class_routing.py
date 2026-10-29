@@ -359,6 +359,11 @@ PLAYER_SLOTS = {'add': 0x380, 'find': 0x388, 'remove': 0x390, 'npc': 0x160, 'cha
                 'guarding': 0x9AC}
 PLAYER_FIELDS = {'max_health': 0x80, 'health': 0x84, 'health_cell': 0x90, 'effects': 0x2878, 'dead': 0x9C,
                  'commands': 0xC8}
+# client 0x384ac450 rebuilds an item's class mask from the per-class flags (+0x198..+0x1a1, ten
+# bits); 0x384af6e0 tests two items' masks against each other, so a Delia-only item (flag at
+# +0x1a2) never matched. Its tail (Hagie's bit and `ret`) jumps to a stub that also adds bit 10.
+# (VA of the tail `cmp byte [ecx+0x1a1], 0`, its bytes)
+ITEM_MASK = {'client.dll': (0x384AC4C1, bytes.fromhex('80b9a101000000' '7405' '0500020000' 'c3'))}
 PERFECT_ENDURE = (0x4C, 0x4D)  # As_Cond_Can_PerfectEndurable, As_Cond_Do_PerfectEndurable (1.69 ids)
 COMMANDS = 0x437C  # the client player's command/condition object
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
@@ -1641,6 +1646,16 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
             'slot': class_dispatch(image, layout, edits, relocs, entity, klass, think, body)}
 
 
+def item_mask(layout: Layout, edits: list, va: int, old: bytes) -> str:
+    """ITEM_MASK: the item class mask also carries bit 10 (+0x1a2)."""
+    layout.pad()
+    stub = layout.here()
+    layout.body += old[:-1]  # Hagie's bit as before, without the `ret`
+    layout.body += bytes.fromhex('80b9a201000000' '7405' '0500040000' 'c3')  # + Delia's bit
+    edits.append((va, old, bytes((0xE9,)) + struct.pack('<i', stub - (va + 5)) + bytes((0xCC,)) * (len(old) - 5)))
+    return f'{va:#x} -> {stub:#x}'
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -1918,6 +1933,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
                                 forfeit=int(effects['forfeit'], 16) if effects else None)
     if name in CLIENT_GUARD:
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
+    if name in ITEM_MASK:
+        report['item_mask'] = item_mask(layout, edits, *ITEM_MASK[name])
     if name in CLASS_CONDITIONS:
         report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name],
                                                       tick=int(effects['tick'], 16) if effects else None)
