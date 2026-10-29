@@ -119,6 +119,16 @@ impl Runtime {
         state.broadcast(packets);
         true
     }
+    /// ChannelMember.LookObserver after a Stat change: `Player.UpdateLook` for a member, the
+    /// look of a ticket not yet identified (Client.Enter still uses the newest look).
+    pub async fn update_look(&self, cid: i64, look: OutgoingPacket) {
+        let mut state = self.state.lock().await;
+        if let Some(ticket) = state.pending.get_mut(&cid) {
+            ticket.look = look.clone();
+        }
+        let packets = state.channel.update_look(cid, look);
+        state.broadcast(packets);
+    }
     pub async fn member_count(&self) -> usize {
         self.state.lock().await.channel.member_count()
     }

@@ -579,6 +579,41 @@ fn map_partition_parser_topology_and_channel_match_framework_oracle() {
         }
     }
 
+    // Player.UpdateLook (UpdateLook modifier + NotifyModified): the Look component's
+    // DifferenceMessage reaches the same observers as a Kinetics change, and later
+    // observers see the new look on appear.
+    channel
+        .enter_with_look_packet(1001, p_colhen1, look1_pkt.clone(), action0)
+        .unwrap();
+    channel
+        .enter_with_look_packet(1002, p_colhen2, look2_pkt.clone(), action1)
+        .unwrap();
+    let action_recipients: Vec<i64> = channel
+        .update_action(1001, action1)
+        .unwrap()
+        .into_keys()
+        .collect();
+    let new_look = OutgoingPacket {
+        category: look1_pkt.category,
+        body: vec![0x5a; 4],
+    };
+    let updated = channel.update_look(1001, new_look.clone());
+    assert_eq!(
+        updated.keys().copied().collect::<Vec<_>>(),
+        action_recipients
+    );
+    assert!(action_recipients.contains(&1001) && action_recipients.contains(&1002));
+    assert!(updated.values().all(|p| p == &vec![new_look.clone()]));
+    assert!(channel.update_look(9999, new_look.clone()).is_empty());
+    let entered = channel
+        .enter_with_look_packet(1003, p_colhen1, look2_pkt.clone(), action0)
+        .unwrap();
+    let seen = entered.get(&1003).cloned().unwrap_or_default();
+    assert!(seen.contains(&new_look) && !seen.contains(&look1_pkt));
+    for cid in [1001, 1002, 1003] {
+        channel.leave(cid);
+    }
+
     let mut counts = std::collections::BTreeMap::new();
     assert_eq!(recommend_channel(1, 5, 5, &counts), 1);
     assert_eq!(recommend_channel(0, 5, 5, &counts), 1);

@@ -1431,6 +1431,23 @@ impl Connection {
     /// When the earliest MicroPlay job of the mission is due.
     /// StatusEffectManager.AddStatusEffectToMemory: schedules the next expiry of the stored
     /// effects of the selected character (none when it has none or they cannot load).
+    /// The one authority for a new look of the selected character: the selection keeps it
+    /// for later channel entries and the channel member's Look component takes it
+    /// (ChannelMember.LookObserver → Player.UpdateLook), so the town shows it on return.
+    async fn set_look(
+        &mut self,
+        runtime: &Runtime,
+        look: crate::domain::map_partition::OutgoingPacket,
+    ) {
+        let Some(selected) = self.selected.as_mut() else {
+            return;
+        };
+        if let Some((_, channel)) = runtime.channel.as_ref() {
+            channel.update_look(selected.cid, look.clone()).await;
+        }
+        selected.look = look;
+    }
+
     async fn schedule_effects(&mut self, runtime: &Runtime, pool: &PgPool) {
         self.effect_expiry = None;
         let (Some(selected), Some(minimum)) = (self.selected.as_ref(), runtime.minimum.as_ref())
@@ -2679,10 +2696,8 @@ impl Connection {
                         for packet in &customized.packets {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
-                        if let (Some(look), Some(selected)) =
-                            (customized.look, self.selected.as_mut())
-                        {
-                            selected.look = look;
+                        if let Some(look) = customized.look {
+                            self.set_look(runtime, look).await;
                         }
                         tracing::info!(categories = ?customized.packets.iter().map(|p| p.category).collect::<Vec<_>>(), "minimum beauty shop processed; values omitted");
                     }
@@ -3217,6 +3232,18 @@ impl Connection {
                     self.log_unhandled(category, body);
                     return Ok(());
                 };
+                // ItemServiceProxy: BattleServiceProxy.IsEquipAllowed refuses inside a stage.
+                if self.mission.as_ref().is_some_and(|m| !m.equip_allowed()) {
+                    let refused = super::minimum_shop::system_message(
+                        super::minimum_shop::SYSTEM,
+                        "Heroes_System_Item_Error_Cannot_Equip_In_Dungeon",
+                        &[],
+                    )
+                    .map_err(|_| RuntimeError::Message)?;
+                    send(stream, sender, refused.category, &refused.body).await?;
+                    tracing::info!("minimum equipment change refused inside a stage");
+                    return Ok(());
+                }
                 let cid = selected.cid;
                 let id = self
                     .frontend
@@ -3255,9 +3282,28 @@ impl Connection {
                         for packet in &packets {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
-                        if let Some(selected) = self.selected.as_mut() {
-                            selected.look = look;
+                        if let Some(mission) = self.mission.as_deref_mut() {
+                            match super::minimum_mission::refresh_member(
+                                pool,
+                                &owner,
+                                assets,
+                                cid,
+                                mission,
+                                runtime.minimum_header()?,
+                                runtime.stat_arithmetic(),
+                            )
+                            .await
+                            {
+                                Ok(Some(member)) => {
+                                    send(stream, sender, member.category, &member.body).await?
+                                }
+                                Ok(None) => {}
+                                Err(_) => tracing::warn!(
+                                    "mission member info refresh rejected; values omitted"
+                                ),
+                            }
                         }
+                        self.set_look(runtime, look).await;
                         tracing::info!(
                             elapsed_ms = started.elapsed().as_millis() as u64,
                             "minimum equipment change saved and synchronized"
@@ -3342,9 +3388,7 @@ impl Connection {
                         for packet in &applied.packets {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
-                        if let Some(selected) = self.selected.as_mut() {
-                            selected.look = applied.look;
-                        }
+                        self.set_look(runtime, applied.look).await;
                         tracing::info!(
                             hide_head = request.hide_head,
                             "minimum costume visibility saved and synchronized"
@@ -3702,10 +3746,8 @@ impl Connection {
                         for packet in &packets {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
-                        if let (Some(look), Some(selected)) =
-                            (enhanced.look, self.selected.as_mut())
-                        {
-                            selected.look = look;
+                        if let Some(look) = enhanced.look {
+                            self.set_look(runtime, look).await;
                         }
                         tracing::info!(
                             categories = ?packets.iter().map(|p| p.category).collect::<Vec<_>>(),

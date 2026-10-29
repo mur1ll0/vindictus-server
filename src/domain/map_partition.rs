@@ -628,6 +628,24 @@ impl Channel {
         Ok(out)
     }
 
+    /// Executes `Player.UpdateLook(summary)` (`ApplyModifier(new UpdateLook(cid, summary))`):
+    /// the Look component takes the new NotifyLook and `NotifyModified` sends it, as its
+    /// DifferenceMessage, to the observers of the visible partitions.
+    pub fn update_look(
+        &mut self,
+        cid: i64,
+        look_packet: OutgoingPacket,
+    ) -> BTreeMap<i64, Vec<OutgoingPacket>> {
+        let mut out = BTreeMap::new();
+        let Some(player) = self.players.get_mut(&cid) else {
+            return out;
+        };
+        player.look_packet = look_packet.clone();
+        let cur = player.cur_partition;
+        self.broadcast_degree1(cur, &look_packet, &mut out);
+        out
+    }
+
     /// Executes `Player.Move(target_pid)`:
     /// 1. `ApplyModifier(MakeMove(cid, target_pid))`
     /// 2. `MoveObserver(target_pid, player)`

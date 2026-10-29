@@ -536,10 +536,29 @@ pub struct Mission {
     pub min_clear_time_reduced: i32,
     /// MicroPlayer.ReservedRequiredItem (AddPlayer), paid by CheckCoinPaid.
     pub reserved_item: Option<String>,
+    /// MicroPlayer.Key of the AddPlayer member info.
+    pub member_key: i32,
     /// Goal tracking, rewards and the EndGame of the quest.
     pub completion: super::minimum_mission_finish::Completion,
 }
 impl Mission {
+    /// MicroPlay.ItemLimit: QuestDigest.ItemLimit as a case-insensitive regex.
+    fn item_limit(&self) -> Result<Option<Regex>, MinimumError> {
+        if self.digest.item_limit.is_empty() {
+            return Ok(None);
+        }
+        RegexBuilder::new(&self.digest.item_limit)
+            .case_insensitive(true)
+            .size_limit(1 << 20)
+            .build()
+            .map(Some)
+            .map_err(|_| fail())
+    }
+    /// BattleServiceProxy.IsEquipAllowed: equipment changes are refused while the party
+    /// is InGame (from StartGame on); the ship before it allows them.
+    pub fn equip_allowed(&self) -> bool {
+        self.state != party_state::IN_GAME
+    }
     /// ShipOptionInfo.MemberCountLimit.
     fn member_count_limit(&self) -> i32 {
         if self.option.swear_member_limit != -1 {
@@ -757,6 +776,7 @@ pub async fn accept_quest(
         combat_record: None,
         min_clear_time_reduced: 0,
         reserved_item,
+        member_key: 0,
         completion: super::minimum_mission_finish::Completion::new(cid),
     };
     // AddPlayer: QueryQuestState and the achieved goals of QueryPlayerInfo.
@@ -775,18 +795,9 @@ pub async fn accept_quest(
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
     mission.state = party_state::ENTERING_SHIP;
     // AddPlayer: the item limit regex, member info, relay registration.
-    let item_limit = if mission.digest.item_limit.is_empty() {
-        None
-    } else {
-        Some(
-            RegexBuilder::new(&mission.digest.item_limit)
-                .case_insensitive(true)
-                .size_limit(1 << 20)
-                .build()
-                .map_err(|_| fail())?,
-        )
-    };
+    let item_limit = mission.item_limit()?;
     let key = OsMissionRandom.next();
+    mission.member_key = key;
     let member = member_info(
         pool,
         owner,
@@ -814,26 +825,7 @@ pub async fn accept_quest(
         .await?;
     mission.base_character = u8::try_from(class).map_err(|_| MinimumError::Conflict)?;
     mission.story_drops = story_drop_data(pool, contents, cid, &mission.quest).await?;
-    mission.consumables = member
-        .join
-        .battle_inventory
-        .as_ref()
-        .and_then(|b| b.consumables.0.as_ref())
-        .map(|rows| {
-            rows.iter()
-                .filter_map(|(part, c)| {
-                    let c = c.as_ref()?;
-                    Some((
-                        *part,
-                        c.item_class.clone().unwrap_or_default(),
-                        c.bring,
-                        c.used,
-                        c.draft,
-                    ))
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    mission.consumables = consumables(&member.join);
     let ticket = relay(party_id);
     mission.group = ticket.group;
     // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
@@ -872,6 +864,69 @@ pub async fn accept_quest(
         mission: Box::new(mission),
         packets,
     })
+}
+
+/// MicroPlayer.BattleInventory as part → (ItemClass, BringNum, UsedNum, DraftNum).
+fn consumables(join: &JoinMember) -> Vec<(i32, String, i32, i32, i32)> {
+    join.battle_inventory
+        .as_ref()
+        .and_then(|b| b.consumables.0.as_ref())
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|(part, c)| {
+                    let c = c.as_ref()?;
+                    Some((
+                        *part,
+                        c.item_class.clone().unwrap_or_default(),
+                        c.bring,
+                        c.used,
+                        c.draft,
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// MicroPlayer.EquipmentObserver after an equipment change: while the play waits on the
+/// ship (a registered GameHost, PlayState.Wait) the battle inventory is reloaded and the
+/// host gets MemberInfoMessage(slot, MakeMemberInfo()). Other states send nothing (the
+/// original keeps an unregistered host's info as IgnoredMemberInfo). The member info is
+/// rebuilt whole, so its CostumeInfo carries the new look; the original reused the
+/// summary cached by the MicroPlay observer.
+#[allow(clippy::too_many_arguments)]
+pub async fn refresh_member(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    mission: &mut Mission,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<Option<OutgoingPacket>, MinimumError> {
+    if mission.state != party_state::IN_SHIP {
+        return Ok(None);
+    }
+    let item_limit = mission.item_limit()?;
+    let member = member_info(
+        pool,
+        owner,
+        assets,
+        cid,
+        0,
+        mission.member_key,
+        item_limit.as_ref(),
+        &mission.settings,
+        config,
+        arithmetic,
+    )
+    .await?;
+    mission.consumables = consumables(&member.join);
+    packet(&Message::MemberInfo(Box::new(wire::MemberInfo {
+        uid: 0,
+        info: Some(member.join),
+    })))
+    .map(Some)
 }
 
 /// ShipHost RegisterServerMessage: HostStarted (host info) and ShipLaunched (InShip).
