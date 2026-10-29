@@ -289,6 +289,23 @@ CONDITION_TAIL = bytes.fromhex('5fb0015e8be5')  # pop edi; mov al, 1; pop esi; m
 #  raise, lower)
 GUARD = {'server.dll': (618, 619, 555, 0x40575A50, 0x4060FE00, 0x405380A0, 0x407E6470, 0x407E64D0)}
 GUARD_ENTRIES = 16
+# Guard, client side (plan 8.15 item 1). A hit on the local player is decided by the client: the
+# server's guarded-damage routine honours a client hit (info+0x3c & 0x10000000) only when the
+# client set bit 2 of info+0x78, so the server state alone never blocked Delia's hits (live test
+# 29/10/2026: damage with the server state forced to 1). Fiona's client slot 367 (0x3870cef0)
+# copies the hit, reads slot 430 and, when the hit is guardable (two routines false), sets bit 2,
+# clears byte +0x79, zeroes the damage (+0x30, +0x48), raises As_Cond_Do_PerfectEndurable (0x4d)
+# under As_Cond_Can_PerfectEndurable (0x4c) and calls the base 367 with the copy; her fields
+# (+0x4ba0..+0x4bac) are past the base object and are not reused. ENABLE/DISABLE_ENDURE_MODE
+# (0x38899046) call slot 429 on the client too. For an extra class: 429/430 keep a state table,
+# 367 is Fiona's decision plus AS_Cond_Delia_Guard/_Hit (124/125, NA: on each guarded hit), and
+# the end of the guard lowers both. Conditions live on [this+0x437c] (+0x140 set).
+# (set slot, get slot, damage slot, hit copy, unguardable(info, commands), unguardable(info),
+#  raise, test, lower, allocator global)
+CLIENT_GUARD = {'client.dll': (429, 430, 367, 0x38707FB0, 0x38888400, 0x38888180,
+                               0x387DE550, 0x387DE580, 0x387DE5B0, 0x38ADA3C4)}
+PERFECT_ENDURE = (0x4C, 0x4D)  # As_Cond_Can_PerfectEndurable, As_Cond_Do_PerfectEndurable (1.69 ids)
+COMMANDS = 0x437C  # the client player's command/condition object
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -879,19 +896,13 @@ def conditions(layout: Layout, edits: list, tail: int, name_map: int, name_inser
             'registration': f'{tail:#x} -> {stub:#x}', 'bounds': [f'{va:#x}: < {limit}' for va in bounds]}
 
 
-def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
-          damage_slot: int, guarded: int, forced_off: int, conditions_of: int, raise_: int, lower: int) -> dict:
-    """GUARD: guard state table, state set/get and the guarded damage path for extra classes."""
-    name, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
-    table = vtable(image, name)
-    guard_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard')
-    hit_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit')
+def guard_state(layout: Layout, forced_off: int | None, ended) -> tuple[int, int, int]:
+    """A 16-entry (entity, state) table in .hrte with get(this) -> al and set(this, state) (ret 4).
+    `forced_off` (or None) is a routine whose true result forces the state to 0; `ended` emits the
+    code run (ecx = this, esi/edi free) when the state is set to 0."""
     layout.pad()
     states = layout.here()
     layout.body += bytes(8 * GUARD_ENTRIES)
-
-    def call(target: int) -> None:
-        layout.to(bytes((0xE8,)), target)
 
     # get(this): al = state != 0 for this entity
     layout.pad()
@@ -908,15 +919,18 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
     layout.land(found)
     layout.body += bytes((0x83, 0x78, 0x04, 0x00, 0x0F, 0x95, 0xC0, 0xC3))  # cmp [eax+4], 0; setne al; ret
 
-    # set(this, state)
+    # set(this, state): the state is the argument's low byte
     layout.pad()
     put = layout.here()
-    layout.body += bytes((0x51,))  # push ecx
-    call(forced_off)
-    layout.body += bytes((0x59, 0x8B, 0x54, 0x24, 0x04, 0x84, 0xC0))  # pop ecx; mov edx, [esp+4]; test al, al
-    keep = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0x33, 0xD2))  # xor edx, edx
-    layout.land(keep)
+    if forced_off is not None:
+        layout.body += bytes((0x51,))  # push ecx
+        layout.to(bytes((0xE8,)), forced_off)
+        layout.body += bytes((0x59, 0x0F, 0xB6, 0x54, 0x24, 0x04, 0x84, 0xC0))  # pop ecx; movzx edx, byte [esp+4]; test al, al
+        keep = layout.forward(bytes((0x0F, 0x84)))
+        layout.body += bytes((0x33, 0xD2))  # xor edx, edx
+        layout.land(keep)
+    else:
+        layout.body += bytes((0x0F, 0xB6, 0x54, 0x24, 0x04))  # movzx edx, byte [esp+4]
     layout.body += bytes((0x56, 0x57, 0xBE))  # push esi; push edi; mov esi, states
     layout.pointer(states)
     layout.body += bytes((0x33, 0xFF, 0xB8)) + struct.pack('<I', GUARD_ENTRIES)  # xor edi, edi; mov eax, n
@@ -941,28 +955,74 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
     layout.land(hit)
     layout.body += bytes((0x89, 0x56, 0x04, 0x85, 0xD2))  # mov [esi+4], edx; test edx, edx
     done = layout.forward(bytes((0x0F, 0x85)))
-    # guard ended: lower both conditions (ecx = this)
-    call(conditions_of)
-    layout.body += bytes((0x85, 0xC0))
-    none = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0x89, 0xC7, 0x68)) + struct.pack('<I', guard_id) + bytes((0x89, 0xF9))
-    call(lower)
-    layout.body += bytes((0x68,)) + struct.pack('<I', hit_id) + bytes((0x89, 0xF9))
-    call(lower)
-    layout.land(none)
+    ended()
     layout.land(done)
     layout.body += bytes((0x5F, 0x5E, 0xC2, 0x04, 0x00))  # pop edi; pop esi; ret 4
+    return states, get, put
+
+
+def class_dispatch(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, klass: int,
+                   slot: int, body: int) -> str:
+    """Point vtable `slot` of `name` at a stub that jumps to `body` for an extra class (m_iClass at
+    +klass) and to the original method otherwise."""
+    at = vtable(image, name) + 4 * slot
+    if at not in relocs:
+        raise PreparationError(f'{name} slot {slot} is not relocated; nothing is patched.')
+    original = struct.unpack_from('<I', image.data, image.offset(at))[0]
+    layout.pad()
+    stub = layout.here()
+    layout.body += bytes((0x8B, 0x81)) + struct.pack('<I', klass)
+    for extra in EXTRA_CLASSES:
+        layout.body += bytes((0x83, 0xF8, extra.index))
+        other = layout.forward(bytes((0x0F, 0x85)))
+        layout.to(bytes((0xE9,)), body)
+        layout.land(other)
+    layout.to(bytes((0xE9,)), original)
+    edits.append((at, struct.pack('<I', original), struct.pack('<I', stub)))
+    return f'slot {slot} {original:#x} -> {stub:#x}'
+
+
+def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
+          damage_slot: int, guarded: int, forced_off: int, conditions_of: int, raise_: int, lower: int) -> dict:
+    """GUARD: guard state table, state set/get and the guarded damage path for extra classes."""
+    name, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
+    guard_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard')
+    hit_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit')
+
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
+    def ended() -> None:
+        # guard ended: lower both conditions (ecx = this)
+        call(conditions_of)
+        layout.body += bytes((0x85, 0xC0))
+        none = layout.forward(bytes((0x0F, 0x84)))
+        layout.body += bytes((0x89, 0xC7, 0x68)) + struct.pack('<I', guard_id) + bytes((0x89, 0xF9))
+        call(lower)
+        layout.body += bytes((0x68,)) + struct.pack('<I', hit_id) + bytes((0x89, 0xF9))
+        call(lower)
+        layout.land(none)
+
+    states, get, put = guard_state(layout, forced_off, ended)
 
     # damage(this, info)
     layout.pad()
     damage = layout.here()
     layout.body += bytes((0x56, 0x8B, 0xF1, 0x8B, 0x44, 0x24, 0x08))  # push esi; mov esi, ecx; mov eax, [esp+8]
+    # a hit reported by the client (0x10000000) was guarded there when bit 2 of +0x78 is set
+    layout.body += bytes((0xF7, 0x40, 0x3C)) + struct.pack('<I', 0x10000000)  # test [eax+0x3c], client hit
+    server_side = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0xF6, 0x40, 0x78, 0x02))  # test byte [eax+0x78], 2
+    plain0 = layout.forward(bytes((0x0F, 0x84)))
+    blocked = layout.forward(bytes((0xE9,)))
+    layout.land(server_side)
     layout.body += bytes((0xF7, 0x40, 0x3C)) + struct.pack('<I', 0x8000000)  # test [eax+0x3c], unblockable
     plain = layout.forward(bytes((0x0F, 0x85)))
     layout.body += bytes((0x8B, 0xCE))  # mov ecx, esi
     call(get)
     layout.body += bytes((0x84, 0xC0))
     plain2 = layout.forward(bytes((0x0F, 0x84)))
+    layout.land(blocked)
     layout.body += bytes((0x8B, 0xCE))
     call(conditions_of)
     layout.body += bytes((0x85, 0xC0))
@@ -971,30 +1031,97 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
     call(raise_)  # push eax; push guard; mov ecx, [esp+4]; raise
     layout.body += bytes((0x58, 0x68)) + struct.pack('<I', hit_id) + bytes((0x8B, 0xC8))
     call(raise_)  # pop eax; push hit; mov ecx, eax; raise
-    for at in (plain, plain2, plain3):
+    for at in (plain0, plain, plain2, plain3):
         layout.land(at)
     layout.body += bytes((0xFF, 0x74, 0x24, 0x08, 0x8B, 0xCE))  # push [esp+8]; mov ecx, esi
     call(guarded)
     layout.body += bytes((0x5E, 0xC2, 0x04, 0x00))  # pop esi; ret 4
 
     def dispatch(slot: int, body: int) -> str:
-        at = table + 4 * slot
-        if at not in relocs:
-            raise PreparationError(f'{name} slot {slot} is not relocated; nothing is patched.')
-        original = struct.unpack_from('<I', image.data, image.offset(at))[0]
-        layout.pad()
-        stub = layout.here()
-        layout.body += bytes((0x8B, 0x81)) + struct.pack('<I', klass)
-        for extra in EXTRA_CLASSES:
-            layout.body += bytes((0x83, 0xF8, extra.index))
-            other = layout.forward(bytes((0x0F, 0x85)))
-            layout.to(bytes((0xE9,)), body)
-            layout.land(other)
-        layout.to(bytes((0xE9,)), original)
-        edits.append((at, struct.pack('<I', original), struct.pack('<I', stub)))
-        return f'slot {slot} {original:#x} -> {stub:#x}'
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
 
     return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage),
+            'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
+
+
+def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
+                 damage_slot: int, copy: int, unguardable: int, unguardable_info: int, raise_: int, test: int,
+                 lower: int, allocator: int) -> dict:
+    """CLIENT_GUARD: the client guard state and the client's guarded-hit decision for extra classes."""
+    name, klass = ENTITY_SLOTS['client.dll'][0], ENTITY_SLOTS['client.dll'][1]
+    base = struct.unpack_from('<I', image.data, image.offset(vtable(image, name) + 4 * damage_slot))[0]
+    guard_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard')
+    hit_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit')
+
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
+    def ended() -> None:
+        # guard ended: lower both conditions on [this+COMMANDS]
+        layout.body += bytes((0x8B, 0x81)) + struct.pack('<I', COMMANDS) + bytes((0x85, 0xC0))
+        none = layout.forward(bytes((0x0F, 0x84)))
+        for cond in (guard_id, hit_id):
+            layout.body += bytes((0x89, 0xC7, 0x68)) + struct.pack('<I', cond) + bytes((0x89, 0xF9))
+            call(lower)  # mov edi, eax; push id; mov ecx, edi; lower
+            layout.body += bytes((0x89, 0xF8))  # mov eax, edi
+        layout.land(none)
+
+    states, get, put = guard_state(layout, None, ended)
+
+    # damage(this, info), the frame of Fiona's 0x3870cef0: copy at [esp+0xc] after push esi/edi
+    layout.pad()
+    damage = layout.here()
+    layout.body += bytes((0x81, 0xEC, 0x90, 0, 0, 0, 0x56, 0x57))  # sub esp, 0x90; push esi; push edi
+    layout.body += bytes((0x8B, 0xBC, 0x24, 0x9C, 0, 0, 0, 0x8B, 0xF1))  # mov edi, [esp+0x9c]; mov esi, ecx
+    layout.body += bytes((0x57, 0x8D, 0x4C, 0x24, 0x10))  # push edi; lea ecx, [esp+0x10]
+    call(copy)
+    layout.body += bytes((0x8B, 0xCE))
+    call(get)
+    layout.body += bytes((0x84, 0xC0))
+    skips = [layout.forward(bytes((0x0F, 0x84)))]
+    layout.body += bytes((0x8B, 0x86)) + struct.pack('<I', COMMANDS) + bytes((0x50, 0x57))  # push [esi+cmd]; push edi
+    call(unguardable)
+    layout.body += bytes((0x83, 0xC4, 0x08, 0x84, 0xC0))
+    skips.append(layout.forward(bytes((0x0F, 0x85))))
+    layout.body += bytes((0x57,))
+    call(unguardable_info)
+    layout.body += bytes((0x83, 0xC4, 0x04, 0x84, 0xC0))
+    skips.append(layout.forward(bytes((0x0F, 0x85))))
+    layout.body += bytes((0x83, 0x8C, 0x24, 0x84, 0, 0, 0, 0x02))  # or dword [esp+0x84], 2: guarded
+    layout.body += bytes((0xC6, 0x84, 0x24, 0x85, 0, 0, 0, 0x00))  # mov byte [esp+0x85], 0
+    layout.body += bytes((0xD9, 0xEE, 0xD9, 0x54, 0x24, 0x3C, 0xD9, 0x5C, 0x24, 0x54))  # damage = 0
+    layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS) + bytes((0x85, 0xC9))
+    skips.append(layout.forward(bytes((0x0F, 0x84))))
+    layout.body += bytes((0x51, 0x68)) + struct.pack('<I', guard_id)  # push ecx; push guard
+    call(raise_)
+    layout.body += bytes((0x8B, 0x0C, 0x24, 0x68)) + struct.pack('<I', hit_id)  # mov ecx, [esp]; push hit
+    call(raise_)
+    layout.body += bytes((0x8B, 0x0C, 0x24, 0x68)) + struct.pack('<I', PERFECT_ENDURE[0])
+    call(test)
+    layout.body += bytes((0x59, 0x84, 0xC0))  # pop ecx; test al, al
+    skips.append(layout.forward(bytes((0x0F, 0x84))))
+    layout.body += bytes((0x68,)) + struct.pack('<I', PERFECT_ENDURE[1])
+    call(raise_)
+    for at in skips:
+        layout.land(at)
+    layout.body += bytes((0x8D, 0x54, 0x24, 0x0C, 0x52, 0x8B, 0xCE))  # lea edx, [esp+0xc]; push edx; mov ecx, esi
+    call(base)
+    # free the copy's vector (+0x60) as Fiona's routine does
+    layout.body += bytes((0x83, 0x7C, 0x24, 0x74, 0x00, 0x8B, 0xF0))  # cmp dword [esp+0x74], 0; mov esi, eax
+    done = layout.forward(bytes((0x0F, 0x8C)))
+    layout.body += bytes((0x8B, 0x44, 0x24, 0x6C, 0x85, 0xC0))
+    done2 = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0x0D))
+    layout.pointer(allocator)
+    layout.body += bytes((0x8B, 0x09, 0x8B, 0x11, 0x50, 0x8B, 0x42, 0x14, 0xFF, 0xD0))
+    layout.land(done)
+    layout.land(done2)
+    layout.body += bytes((0x5F, 0x8B, 0xC6, 0x5E, 0x81, 0xC4, 0x90, 0, 0, 0, 0xC2, 0x04, 0x00))
+
+    def dispatch(slot: int, body: int) -> str:
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
+
+    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage), 'base': hex(base),
             'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
 
 
@@ -1268,6 +1395,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['conditions'] = conditions(layout, edits, *CONDITIONS[name])
     if name in GUARD:
         report['guard'] = guard(image, layout, edits, relocs, *GUARD[name])
+    if name in CLIENT_GUARD:
+        report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':

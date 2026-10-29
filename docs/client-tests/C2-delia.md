@@ -428,3 +428,9 @@ Preparação: painel admin → personagem `DeliaLab` → progressão: subir até
 - [ ] Para cada habilidade (`smash` 1–3, `speedmove`, `xe_move`, SP1–SP5, `smash0`, `power_attack`): usar numa fase e anotar se a animação toca, se acerta/causa dano e se algo trava ou cai.
 - [ ] Anotar especialmente: lançamento de inimigos (*ragdoll*), agarrar e segurar alvo, avanço até o alvo, efeito do *smash* carregado.
 Resultado esperado: a lista do que já funciona e do que falta; o porte do NA (E4/E5) segue por essa lista.
+
+Resultado do D20/D21 (29/10/2026, operador, Delia nível 45): a guarda ainda não bloqueia; habilidades SP não saem pela barra de atalhos; a Wild Star (4º estágio) não aplica o *debuff* de 20% de vida nem o devolve no acerto; a Star Divider não recupera estamina nem dá o Sharpness; todos os itens vermelhos no inventário. Diagnóstico e plano: `docs/future/new-classes.md` 8.15.
+
+### D22 — Plano 8.15 completo (E3–E5 e os quatro defeitos), sessão única no fim
+Operador (29/10/2026): implementar o plano inteiro e testar só no fim. Cada item abaixo entra aqui quando fica pronto; a preparação, a ordem e o relato são fechados no último item.
+- [ ] **Guarda (item 1, `CLIENT_GUARD` + `GUARD`):** numa fase com a `DeliaLab`, segurar Shift e levar golpes de frente. Esperado: sem dano, reação de golpe bloqueado (`pc_delia_guard_hit_*`), efeito `shield_pass_over`; atacar logo depois sai o contra-ataque (`AttackMelee_02_guard`). Golpe pelas costas ou indefensável ainda acerta. Não regressão: guarda da Fiona.

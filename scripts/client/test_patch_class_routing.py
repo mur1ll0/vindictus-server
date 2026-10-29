@@ -381,11 +381,43 @@ class LabCopyTest(unittest.TestCase):
         put = body(bodies[set_slot], 0x100)
         self.assertIn(f'call {forced_off:#x}', put)
         self.assertEqual(sum(t == f'call {lower:#x}' for t in put), 2)
-        damage = body(bodies[damage_slot], 0x80)
+        damage = body(bodies[damage_slot], 0xa0)
         self.assertEqual(sum(t == f'call {raise_:#x}' for t in damage), 2)
         self.assertIn('push 0x7c', damage)
         self.assertIn('push 0x7d', damage)
+        self.assertIn('test byte ptr [eax + 0x78], 2', damage)  # a client hit counts when the client guarded it
         self.assertIn(f'call {guarded:#x}', damage)
+        self.assertEqual(damage[-1], 'ret 4')
+
+    def test_client_guard_marks_guarded_hits_for_extra_classes(self):
+        image, report = self.plan('client.dll')
+        (set_slot, get_slot, damage_slot, copy, unguardable, unguardable_info,
+         raise_, test, lower, allocator) = routing.CLIENT_GUARD['client.dll']
+        name = routing.ENTITY_SLOTS['client.dll'][0]
+        original = Image(source('client.dll'))
+        table = routing.vtable(image, name)
+        guard = report['guard']
+        bodies = {set_slot: int(guard['set'], 16), get_slot: int(guard['get'], 16), damage_slot: int(guard['damage'], 16)}
+        for slot, target in bodies.items():
+            stub = self.entry(image, table, slot)
+            text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:5]
+            self.assertEqual(text[0], 'mov eax, dword ptr [ecx + 0x18ec]')
+            self.assertEqual(text[3], f'jmp {target:#x}')
+            self.assertEqual(text[4], f'jmp {self.entry(original, routing.vtable(original, name), slot):#x}')
+        def body(va, size):
+            return [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
+                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
+        put = body(bodies[set_slot], 0x100)
+        self.assertEqual(sum(t == f'call {lower:#x}' for t in put), 2)
+        self.assertIn('movzx edx, byte ptr [esp + 4]', put)
+        damage = body(bodies[damage_slot], 0x140)
+        for target in (copy, unguardable, unguardable_info, test, int(guard['base'], 16)):
+            self.assertIn(f'call {target:#x}', damage)
+        self.assertEqual(sum(t == f'call {raise_:#x}' for t in damage), 3)
+        for text in ('push 0x7c', 'push 0x7d', 'push 0x4c', 'push 0x4d', 'or dword ptr [esp + 0x84], 2',
+                     f'mov ecx, dword ptr [{allocator:#x}]'):
+            self.assertIn(text, damage)
+        self.assertEqual(int(guard['base'], 16), self.entry(original, routing.vtable(original, name), damage_slot))
         self.assertEqual(damage[-1], 'ret 4')
 
     def test_extra_classes_must_be_contiguous(self):

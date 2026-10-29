@@ -2264,3 +2264,10 @@ Correção (29/10/2026): visual do equipamento no barco (relatado pelo operador 
 - Testes focados: `minimum_map` (o `UpdateLook` alcança os mesmos observadores do `KineticsChanged`; quem entra depois vê o visual novo) e o teste PostgreSQL de aceitar missão (nada antes do anfitrião registrar; `MemberInfo` no slot 0 com a chave do `AddPlayer` no barco; recusa e nada enviado em `InGame`). Logs em `.cache/verification/boat-equip-*.log`.
 - Cliente: B3-equipamento.md, EQ1 (pendente).
 - Próxima ação: EQ1 no cliente com o `game` reconstruído.
+
+Passo 37 (29/10/2026): plano 8.15, item 1 — guarda da Delia no cliente.
+- Causa (passo 36): o golpe contra o jogador é decidido no cliente; o servidor só honra o bit 2 de `info+0x78` marcado pelo *slot* 367 do cliente.
+- Mudança (`patch_class_routing.py`): `guard_state` e `class_dispatch` extraídos do `GUARD`; `CLIENT_GUARD` (cliente, `C_HeroesPlayer`, `m_iClass` `+0x18ec`): 429/430 numa tabela `(entidade, estado)` própria; 367 com a decisão da Fiona (`0x3870cef0`) sem os campos dela: cópia do golpe, `0x38888400`/`0x38888180`, bit 2, `+0x79 = 0`, dano zerado, 0x4c → 0x4d, e liga 124/125 (`AS_Cond_Delia_Guard`/`_Hit`) em `[this+0x437c]`; 429 com 0 desliga 124/125. Servidor: o 555 só liga 124/125 num golpe vindo do cliente quando o bit 2 está marcado; o estado passa a ser o *byte* do argumento, como na Fiona.
+- Testes: `test_client_guard_marks_guarded_hits_for_extra_classes`, `test_guard_keeps_state_and_blocks_for_extra_classes`, `test_every_new_pointer_is_relocated` — 0 falhas (`.cache/verification/g1-tests.log`).
+- Cliente: D22, item "Guarda" (teste só no fim, decisão do operador). Não aplicado ainda (o jogo precisa estar fechado; a aplicação é feita uma vez no fim do plano).
+- Próxima ação: item 2 do plano 8.15 (condições SP3/armadura e `SET_GUARD_LATCH_ATTEN`).
