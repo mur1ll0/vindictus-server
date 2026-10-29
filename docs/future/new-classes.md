@@ -726,7 +726,8 @@ Os defeitos 1 e 3 são partes do E3 e do E5 que ainda não existem.
   - itens 3–4: os 5 tipos de efeito e os comandos de efeito no acerto, `DELIA_EFFECTS`;
   - máscara de classe do item com o bit 10, `ITEM_MASK`.
 - **Item 7, causa achada (passo 42):** o grupo `spskill_activate_states` da Delia usa a chave de quadro NA `$immediately$`, que o 1.69 descarta; `FRAME_KEYS` a lê como quadro 0 no cliente e no servidor.
-- **Itens 7 e 8, causa ainda não achada estaticamente:**
+- **Item 8, causa achada ao vivo (passo 43):** o registro de item do 1.69 só tem 10 *flags* de classe; `+0x1a2` é `Indestructible`. O bit da Delia foi para `+0x1cd` (`DELIA_FLAG`), lido por `FLAG_CHECKS`, `TOOLTIPS` e `ITEM_MASK`.
+- **Itens 7 e 8 (registro anterior, antes dos passos 42 e 43):**
   - SP pela barra: o servidor tem as SP nos *slots* e a missão manda os atalhos. A região do cliente que traduz `translated_spskill.txt` não tem chamadores diretos;
   - itens vermelhos: os leitores do vetor de classes do cliente recebem a classe 10 de `[obj+0x30]`, a máscara 2047 inclui o bit 10, e as cópias levam `+0x1a2`;
   - os dois ficam com leitura de memória marcada no D22.

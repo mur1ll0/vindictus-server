@@ -2312,6 +2312,20 @@ Passo 42 (29/10/2026): plano 8.15, item 7 — SP pela barra de atalhos (causa ac
 - Também: branch `claude/elegant-mclean-73d3cb` (exclusão de personagem) integrada na `main` (`ef33053`), *worktree* e branch removidas; imagem Docker reconstruída (`docker-build-merge-delete.log`, `docker-up-merge-delete.log`; serviços saudáveis).
 - Próxima ação: item 8 (itens vermelhos) por leitura ao vivo na sessão D22.
 
+Passo 43 (29/10/2026): plano 8.15, item 8 — itens vermelhos (causa achada ao vivo).
+- Relato do operador (D22, cidade): todos os itens da Delia em vermelho; espada `bastardsword_bloodlord` com "Cannot be equipped"; o Campfire Kit (nenhuma linha vermelha, requisito Campfire F cumprido) também vermelho.
+- Banco: a `DeliaLab` (cid 639287373299843079) tem as 38 skills, entre elas `skill_campfire` rank 1 (F) e `skill_delia_bastard_mastery` rank 9; o `heroes.db3` da cópia tem `ClassRestriction` 2047 (campfire) e 1024 (espada).
+- Leitura ao vivo (`lab_memory.py`, registros `ItemClassInfo` do `engine.dll`, passo 0x27c): Campfire Kit `+0x198..+0x1a1` = 1 (classes 0–9) e `+0x1a2` = 0; espada: tudo 0. O *setter* corrigido no D8 está carregado.
+- Causa: o registro do 1.69 só tem 10 *flags* de classe. O carregador grava `Indestructible` em `+0x1a2` logo depois do *setter* (`0x422bea4a`), apagando o bit da Delia. As correções anteriores que liam `+0x1a2` como *flag* 10 (`FLAG_CHECKS`, `TOOLTIPS`, `ITEM_MASK`) liam `Indestructible`; por isso só a *inner armor* (indestrutível) dizia "Only for Delia" no D8n.
+- Mudança:
+  - `patch_engine_class_flags.py`: o bit 10 vai para `DELIA_FLAG` = `+0x1cd`, o enchimento depois de `UseInQuest` (`+0x1cc`, byte), com `setne` (0 ou 1). Nenhum código do `engine.dll` ou do `server.dll` lê ou grava `+0x1cd..+0x1cf`.
+  - `patch_class_routing.py`: `FLAG_CHECKS` (cliente e servidor), `TOOLTIPS` e `ITEM_MASK` leem `DELIA_FLAG`; `ITEM_COPY` (cliente `0x384e5dbb`) copia o *dword* de `UseInQuest` na cópia do registro do cliente.
+  - Limite registrado: as cópias `0x422a96a0` (`engine.dll`) e `0x38332590` (cliente) não copiam `+0x1cc` (nem `UseInQuest`); se alguma tela usar essas cópias, o item continua vermelho ali.
+- Testes: `test_patch_engine_class_flags` (2) e os 5 testes afetados de `test_patch_class_routing`, 0 falhas (`.cache/verification/item-flag-tests.log`).
+- Aplicado com o jogo fechado: `engine.dll` a partir do `pre-classflags.bak` (`engine-classflags-apply-delia-flag.log`) `d25a6e28…`; `client.dll` e `server.dll` a partir dos `*.pre-routing.bak` (`class-routing-apply-delia-flag.log`) `fd8b3e70…` e `f53a4c13…`.
+- Cliente: D22, item "Itens vermelhos" reescrito (esperado e não regressão com a Fiona).
+- Próxima ação: sessão D22 do operador (roteiro completo); depois, a decisão sobre os itens 5 e 6 do plano 8.15.
+
 Progressão até um nível — história principal (29/10/2026, pedido do operador).
 - Evidência (`.cache/verification/m0-*.log`): 199 histórias MainStream/MainStream_S2/MainStream_S3. Quase todas têm `AutoGiveLevel` -1; cada uma abre a seguinte com `start_storyline` (arg1) e espera quests com `quest_cleared`/`QuestCleared`. Raízes: `GuidePlay_1_SkillTrain` (dada no nível 1) e `S3E03_M02_Summon`. A simulação no conteúdo real com a regra abaixo conclui 10, 17, 33, 60 e 114 histórias principais nos níveis 10, 20, 40, 60 e 80. No 40, a próxima é `S4NQ_6_ScarredBlack` (quest de nível 42).
 - Regra (`domain::progression_plan::story_plan`): a partir das principais dadas até o nível, conclui cada principal cujas quests esperadas estão concluídas (plano de quests mais as já concluídas) e segue o que ela abre. A principal que ainda espera uma quest, e as não principais abertas pelas concluídas, são abertas na fase inicial (sem tocar progresso existente). Respeita `Feature` e `ClassRestriction`. Secundárias, de equipamento e de skill nunca são concluídas.

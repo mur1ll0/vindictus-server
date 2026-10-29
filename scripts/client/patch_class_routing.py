@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '.deps'))
 import capstone  # noqa: E402
 
 from patch_class_table import Image, align, digest  # noqa: E402
+from patch_engine_class_flags import DELIA_FLAG  # noqa: E402
 from prepare_lab_client import PreparationError, reject_original  # noqa: E402
 
 SECTION = b'.hrte\0\0\0'
@@ -143,10 +144,11 @@ MATCH = {
     'client.dll': (0x3885FB93, 0x38860993, 0x38860C1D, 0x38022280),
     'server.dll': (0x407CCBA3, 0x407CD8A3, 0x407CDB2D, 0x400CEB80),
 }
-# "Is this class allowed" accessors over the item's per-class bools (+0x198, 11 entries, filled
-# by engine.dll; see patch_engine_class_flags.py): a `switch` on classes 0-9 returning
-# flags[class], so class 10 got false ("Cannot be equipped", D8e). Each head jumps to a stub that
-# returns flags[class] for classes 0-10 and keeps the default (false) above. Entries: (VA of
+# "Is this class allowed" accessors over the item's per-class bools (+0x198, ten entries, filled
+# by engine.dll; Delia's is DELIA_FLAG, see patch_engine_class_flags.py): a `switch` on classes 0-9
+# returning flags[class], so class 10 got false ("Cannot be equipped", D8e). Each head jumps to a
+# stub that returns flags[class] for classes 0-9, DELIA_FLAG for class 10 and keeps the default
+# (false) above. Entries: (VA of
 # `cmp reg, 9`, original bytes replaced by the jump, class register, item base: 'ecx' (this) or
 # 'stack' ([esp + 4]), default VA, bytes popped by `ret`). The rest of the old head, including its
 # relocated jump-table address, stays in place as dead code.
@@ -162,7 +164,7 @@ FLAG_CHECKS = {
 # Item tooltip "usable by" lists (one block per class, Lethita..Hagie, then "#..._CharacterClass0"
 # = "Cannot be equipped" when no class matched): (Hagie block start, end, join VA, bytes the
 # jump to the stub replaces at the join). The stub runs a copy of the Hagie block reading
-# flag 10 (+0x1a2) and naming #GameUI_Delia; a Delia that is not allowed is skipped instead of
+# Delia's flag (DELIA_FLAG) and naming #GameUI_Delia; a Delia that is not allowed is skipped instead of
 # clearing the "every class" marker, so the lists of the ten older classes do not change.
 TOOLTIPS = {
     'client.dll': (
@@ -360,10 +362,15 @@ PLAYER_SLOTS = {'add': 0x380, 'find': 0x388, 'remove': 0x390, 'npc': 0x160, 'cha
 PLAYER_FIELDS = {'max_health': 0x80, 'health': 0x84, 'health_cell': 0x90, 'effects': 0x2878, 'dead': 0x9C,
                  'commands': 0xC8}
 # client 0x384ac450 rebuilds an item's class mask from the per-class flags (+0x198..+0x1a1, ten
-# bits); 0x384af6e0 tests two items' masks against each other, so a Delia-only item (flag at
-# +0x1a2) never matched. Its tail (Hagie's bit and `ret`) jumps to a stub that also adds bit 10.
+# bits); 0x384af6e0 tests two items' masks against each other, so a Delia-only item never
+# matched. Its tail (Hagie's bit and `ret`) jumps to a stub that also adds bit 10 (DELIA_FLAG).
 # (VA of the tail `cmp byte [ecx+0x1a1], 0`, its bytes)
 ITEM_MASK = {'client.dll': (0x384AC4C1, bytes.fromhex('80b9a101000000' '7405' '0500020000' 'c3'))}
+# The client's item record copy (0x384e5d38, beside the `iteminfo addr` log) copies UseInQuest
+# (+0x1cc) as a byte; copying the dword also carries DELIA_FLAG (+0x1cd; +0x1ce/+0x1cf are padding).
+# (VA, movzx ecx, byte [edi+0x1cc]; mov [esi+0x1cc], cl -> mov ecx, [edi+0x1cc]; nop; mov [esi+0x1cc], ecx)
+ITEM_COPY = {'client.dll': (0x384E5DBB, bytes.fromhex('0fb68fcc010000' '888ecc010000'),
+                            bytes.fromhex('8b8fcc010000' '90' '898ecc010000'))}
 # Animation event frame keys (HEROES_CUSTOM_ANIM_EVENT): the 1.69 parser knows $ref_group$,
 # $endframe_finally$, $0_finally$ and $-1_finally$; any other $...$ key goes to the frame
 # expression and an unknown one drops the event. NA adds `$immediately$` (frame 0 with a flag),
@@ -620,17 +627,20 @@ def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
 
 def flag_check(layout: Layout, edits: list, va: int, old: str, register: str, base: str,
                default: int, pop: int) -> str:
-    """One FLAG_CHECKS stub: cmp reg, DELIA; ja default; al = flags[reg]; ret pop."""
+    """One FLAG_CHECKS stub: cmp reg, DELIA; ja default; al = DELIA_FLAG or flags[reg]; ret pop."""
     reg = {'eax': 0, 'ecx': 1}[register]
+    item = 1 if base == 'ecx' else 0
     layout.pad()
     stub = layout.here()
     layout.body += bytes((0x83, 0xF8 | reg, DELIA))
     layout.body += b'\x0f\x87' + struct.pack('<i', default - (layout.here() + 6))
-    if base == 'ecx':
-        layout.body += bytes((0x8A, 0x84, (reg << 3) | 1)) + struct.pack('<I', 0x198)  # mov al, [ecx + reg + 0x198]
-    else:
+    if base != 'ecx':
         layout.body += b'\x8b\x44\x24\x04'  # mov eax, [esp + 4]
-        layout.body += bytes((0x8A, 0x84, (reg << 3) | 0)) + struct.pack('<I', 0x198)  # mov al, [eax + reg + 0x198]
+    delia = layout.forward(b'\x0f\x84')
+    layout.body += bytes((0x8A, 0x84, (reg << 3) | item)) + struct.pack('<I', 0x198)  # mov al, [item + reg + 0x198]
+    layout.body += b'\xc2' + struct.pack('<H', pop)
+    layout.land(delia)
+    layout.body += bytes((0x8A, 0x80 | item)) + struct.pack('<I', DELIA_FLAG)  # mov al, [item + DELIA_FLAG]
     layout.body += b'\xc2' + struct.pack('<H', pop)
     edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
     return f'{va:#x} -> {stub:#x}'
@@ -666,7 +676,7 @@ def tooltip(image: Image, layout: Layout, edits: list, relocs: set[int],
                 raise PreparationError(f'Unexpected relocation at {ins.address:#x}; nothing is patched.')
             at = raw.find(struct.pack('<I', 0x1A1))
             if ins.mnemonic == 'cmp' and at > 0:
-                struct.pack_into('<I', raw, at, 0x1A2)
+                struct.pack_into('<I', raw, at, DELIA_FLAG)
                 flags += 1
             layout.body += raw
     if flags != 2 or not named or len(skips) != 2:
@@ -1655,11 +1665,11 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
 
 
 def item_mask(layout: Layout, edits: list, va: int, old: bytes) -> str:
-    """ITEM_MASK: the item class mask also carries bit 10 (+0x1a2)."""
+    """ITEM_MASK: the item class mask also carries bit 10 (DELIA_FLAG)."""
     layout.pad()
     stub = layout.here()
     layout.body += old[:-1]  # Hagie's bit as before, without the `ret`
-    layout.body += bytes.fromhex('80b9a201000000' '7405' '0500040000' 'c3')  # + Delia's bit
+    layout.body += bytes((0x80, 0xB9)) + struct.pack('<I', DELIA_FLAG) + bytes.fromhex('00' '7405' '0500040000' 'c3')  # + Delia's bit
     edits.append((va, old, bytes((0xE9,)) + struct.pack('<i', stub - (va + 5)) + bytes((0xCC,)) * (len(old) - 5)))
     return f'{va:#x} -> {stub:#x}'
 
@@ -1963,6 +1973,10 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
     if name in ITEM_MASK:
         report['item_mask'] = item_mask(layout, edits, *ITEM_MASK[name])
+    if name in ITEM_COPY:
+        va, old, new = ITEM_COPY[name]
+        edits.append((va, old, new))
+        report['item_copy'] = f'{va:#x}: UseInQuest dword (+{DELIA_FLAG:#x})'
     if name in FRAME_KEYS:
         report['frame_keys'] = immediately(layout, edits, *FRAME_KEYS[name])
     if name in CLASS_CONDITIONS:

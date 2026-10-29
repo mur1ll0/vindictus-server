@@ -105,12 +105,14 @@ class LabCopyTest(unittest.TestCase):
                 jump = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
                 stub = int(jump.op_str, 16)
                 code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
-                    bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)))
+                    bytes(image.data[image.offset(stub):image.offset(stub) + 0x40]), stub)))
                 text = [f'{x.mnemonic} {x.op_str}' for x in code]
                 self.assertEqual(text[0], f'cmp {register}, 0xa')
                 self.assertEqual(text[1], f'ja {default:#x}')
                 item = 'ecx' if base == 'ecx' else 'eax'
                 self.assertIn(f'mov al, byte ptr [{item} + {register} + 0x198]', text)
+                self.assertIn(f'mov al, byte ptr [{item} + {routing.DELIA_FLAG:#x}]', text)
+                self.assertEqual(text.count(f'ret {pop}'), 2)
                 self.assertEqual(text[-1], f'ret {pop}')
 
     def stub_code(self, image, va):
@@ -125,7 +127,7 @@ class LabCopyTest(unittest.TestCase):
         for _, _, join, old in routing.TOOLTIPS['client.dll']:
             code = self.stub_code(image, join)
             text = [f'{x.mnemonic} {x.op_str}' for x in code]
-            self.assertEqual(sum('0x1a2]' in t for t in text), 2)
+            self.assertEqual(sum(f'{routing.DELIA_FLAG:#x}]' in t for t in text), 2)
             self.assertFalse(any('0x1a1]' in t for t in text))
             pushed = [int(x.op_str, 16) for x in code if x.mnemonic == 'push' and x.op_str.startswith('0x')]
             self.assertEqual([routing.read_string(image, v) for v in pushed], ['#GameUI_Delia'])
@@ -487,7 +489,7 @@ class LabCopyTest(unittest.TestCase):
         head = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
         self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {stub:#x}')
         text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 0x20]), stub)]
-        self.assertIn('cmp byte ptr [ecx + 0x1a2], 0', text)
+        self.assertIn(f'cmp byte ptr [ecx + {routing.DELIA_FLAG:#x}], 0', text)
         self.assertIn('add eax, 0x400', text)
 
     def test_immediately_frame_key_is_frame_zero(self):
@@ -506,6 +508,13 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'jmp {va + routing.FRAME_KEY_DONE:#x}', text)
             self.assertIn('mov ecx, dword ptr [esp + 0xa0]', text)
             self.assertIn(f'jmp {va + 7:#x}', text)
+
+    def test_item_copy_carries_delia_flag(self):
+        image, report = self.plan('client.dll')
+        va, _, new = routing.ITEM_COPY['client.dll']
+        code = self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + len(new)]), va)
+        self.assertEqual([f'{x.mnemonic} {x.op_str}'.strip() for x in code],
+                         ['mov ecx, dword ptr [edi + 0x1cc]', 'nop', 'mov dword ptr [esi + 0x1cc], ecx'])
 
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)

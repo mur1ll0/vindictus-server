@@ -26,14 +26,16 @@ class TailTest(unittest.TestCase):
 class LabCopyTest(unittest.TestCase):
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 
-    def test_setter_sets_flags_eight_to_ten_and_exits_at_the_new_ret(self):
+    def test_setter_sets_flags_eight_nine_and_delia_and_exits_at_the_new_ret(self):
         data, report = flags.plan(source())
         image = Image(data)
         o = image.offset(flags.TAIL)
         code = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[o:o + 32]), flags.TAIL)]
         self.assertEqual(code[0], 'add ecx, 0x1a0')
-        for text in ('byte ptr [ecx], al', 'byte ptr [ecx + 1], al', 'byte ptr [ecx + 2], al'):
-            self.assertIn(f'mov {text}', code)
+        for text in ('mov byte ptr [ecx], al', 'mov byte ptr [ecx + 1], al', 'setne byte ptr [ecx + 0x2d]'):
+            self.assertIn(text, code)
+        self.assertEqual(0x1A0 + 0x2D, flags.DELIA_FLAG)
+        self.assertFalse(any('ecx + 2]' in text for text in code))  # +0x1a2 is Indestructible
         self.assertEqual(code[-1], 'ret 4')
         exit_ = next(self.md.disasm(bytes(image.data[image.offset(flags.EXIT):image.offset(flags.EXIT) + 2]), flags.EXIT))
         self.assertEqual(int(exit_.op_str, 16), int(report['ret'], 16))
