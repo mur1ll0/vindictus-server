@@ -363,7 +363,11 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # the part is kept in the entry (+0x1c + 4 * (slot - 4), part + 1). When the slot stops being broken
 # (a repair; every un-break goes through 0x40547480(slot, 0, notify)), the entry of 0x40547480
 # puts the kept part back (when the slot is still hidden) and asks the think for a rebuild
-# (operator, D23: the repair kit fixed the armour but it did not come back). For an extra class
+# (operator, D23: the repair kit fixed the armour but it did not come back). Where the armour system
+# is off (the game state check 0x40740a10 on [0x40d6f5e4] false, e.g. the ship: every slot reads as
+# empty to 0x40814620, so neither the purge nor the repair kit touches the armour), the purge only
+# hides the worn parts, and the player's repair (0x40530cf0, called by the repair kit) puts the kept
+# parts back first: a look only, as the operator asked (D23). For an extra class
 # each of slots 4-8 that has armour
 # (0x40814620 false) gets HP 0 (0x408144d0), its part hidden and the broken state without notify
 # (0x40547480(slot, 1, 0)), the armour status update (0x4054e160) runs once, and the rebuild is left
@@ -378,13 +382,15 @@ DELIA_EFFECTS = {'server.dll': {
     'health_set': 0x4002AA90, 'armor_add': 0x40530DA0, 'hit_name': 0x408BCCA0, 'level': 0x404FDF40,
     'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70, 'armor': 0x148C, 'armor_none': 0x40814620,
     'armor_hp_set': 0x408144D0, 'armor_state': 0x40547480, 'armor_update': 0x4054E160, 'costume': 0x405465D0,
-    'clothes': 0x156C, 'worn_part': 0x94}}
+    'clothes': 0x156C, 'worn_part': 0x94, 'armor_on': 0x40740A10, 'game_state': 0x40D6F5E4,
+    'repair': 0x40530CF0}}
 DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x40
 # entry: +0 entity, +4 reserved HP, +8 restore per second, +0xc fraction, +0x10 last restore time,
 # +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due,
 # +0x18 costume rebuild due (PURGE_ALL_ARMOR), +0x1c..+0x2f worn part + 1 of purged slots 4-8
 DELIA_KEPT_PART = 0x1C - 4 * 4  # + 4 * slot
 ARMOR_STATE_HEAD = bytes.fromhex('8b442408568bf1')  # mov eax, [esp+8]; push esi; mov esi, ecx
+REPAIR_HEAD = bytes.fromhex('d944240451')  # fld dword [esp+4]; push ecx
 EVENTS_HEAD = bytes.fromhex('515356578b7c2414')  # push ecx/ebx/esi/edi; mov edi, [esp+0x14]
 REGISTRAR_TAIL = bytes.fromhex('c3cccccccc')
 PLAYER_SLOTS = {'add': 0x380, 'find': 0x388, 'remove': 0x390, 'npc': 0x160, 'changed': 0x230,
@@ -1639,21 +1645,36 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('8bcf')
     call(find_or_add)
     b('8bd8 be04000000')  # ebx = entry; esi = slot 4
+    worn = k['clothes'] + k['worn_part']
+
+    def hide() -> None:
+        # edi = entity, esi = slot, ebx = entry: keep the worn part + 1, then -1
+        b('83bcb7' + d32(worn) + 'ff'); hidden = fwd('0f84')  # worn part already none
+        b('8b84b7' + d32(worn) + '40 8944b3' + bytes((DELIA_KEPT_PART,)).hex())  # keep part + 1
+        b('8d8f' + d32(k['clothes']) + '8d94b7' + d32(worn) + '52 8b01 ff5004')  # changed(&part)
+        b('c784b7' + d32(worn) + 'ffffffff')  # part = -1
+        L.land(hidden)
+
+    def armor_on() -> None:
+        # al = the armour system is on (the game state check 0x40814620 makes)
+        b('8b0d'); ptr(k['game_state'])
+        call(k['armor_on'])
+
     loop = L.here()
     b('8b8f' + d32(k['armor']) + '8b4904 56')  # ecx = armour HP; push slot
     call(k['armor_none'])
-    b('84c0'); skip = fwd('0f85')
+    b('84c0'); off = fwd('0f85')
     b('8b8f' + d32(k['armor']) + '8b4904 6a00 56')  # HP(slot) = 0.0
     call(k['armor_hp_set'])
-    worn = k['clothes'] + k['worn_part']
-    b('83bcb7' + d32(worn) + 'ff'); hidden = fwd('0f84')  # worn part already none
-    b('8b84b7' + d32(worn) + '40 8944b3' + bytes((DELIA_KEPT_PART,)).hex())  # keep part + 1
-    b('8d8f' + d32(k['clothes']) + '8d94b7' + d32(worn) + '52 8b01 ff5004')  # changed(&part)
-    b('c784b7' + d32(worn) + 'ffffffff')  # part = -1
-    L.land(hidden)
+    hide()
     b('6a00 6a01 56 8bcf')  # broken(slot, 1, no notify)
     call(k['armor_state'])
-    L.land(skip)
+    skip = fwd('e9')
+    L.land(off)  # no armour here, or the armour system is off: the look only
+    armor_on()
+    b('84c0'); skip2 = fwd('0f85')
+    hide()
+    L.land(skip); L.land(skip2)
     b('46 83fe09')
     L.to(b'\x0f\x8c', loop)
     b('8bcf')
@@ -1689,6 +1710,33 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.to(b'\xe9', k['armor_state'] + len(ARMOR_STATE_HEAD))
     edits.append((k['armor_state'], ARMOR_STATE_HEAD,
                   b'\xe9' + struct.pack('<i', restore - (k['armor_state'] + 5)) + b'\x90' * 2))
+
+    # player repair(rate) entry: with the armour system off, the kept parts come back (look only)
+    L.pad()
+    repair = L.here()
+    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); r1 = fwd('0f8c')
+    b('51')
+    armor_on()
+    b('59 84c0'); r2 = fwd('0f85')  # armour on: the un-break path restores
+    b('56 57 53 51')
+    call(find)
+    b('59 85c0'); r3 = fwd('0f84')
+    b('8bd8 be04000000')
+    rl = L.here()
+    b('8b7cb3' + bytes((DELIA_KEPT_PART,)).hex() + ' 85ff'); rn = fwd('0f84')
+    b('c744b3' + bytes((DELIA_KEPT_PART,)).hex() + '00000000 4f')
+    b('83bcb1' + d32(worn) + 'ff'); rn2 = fwd('0f85')
+    b('51 8d94b1' + d32(worn) + '52 8d89' + d32(k['clothes']) + '8b01 ff5004 59')  # changed(&part)
+    b('89bcb1' + d32(worn) + ' c6431801')  # part back; rebuild in the think
+    L.land(rn); L.land(rn2)
+    b('46 83fe09')
+    L.to(b'\x0f\x8c', rl)
+    L.land(r3)
+    b('5b 5f 5e')
+    L.land(r1); L.land(r2)
+    L.body += REPAIR_HEAD
+    L.to(b'\xe9', k['repair'] + len(REPAIR_HEAD))
+    edits.append((k['repair'], REPAIR_HEAD, b'\xe9' + struct.pack('<i', repair - (k['repair'] + 5))))
     edits.append((k['events'], EVENTS_HEAD, b'\xe9' + struct.pack('<i', events - (k['events'] + 5)) + b'\x90' * 3))
 
     # on hit (slot 70): the original, then the armed flags add Delia's buffs
@@ -1723,7 +1771,8 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('5f 5e c20800')
 
     return {'table': hex(table), 'tick': hex(tick), 'forfeit': hex(forfeit), 'register': hex(register),
-            'events': hex(events), 'restore': hex(restore), 'factories': {n: hex(v) for n, v in factories.items()},
+            'events': hex(events), 'restore': hex(restore), 'repair': hex(repair),
+            'factories': {n: hex(v) for n, v in factories.items()},
             'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit),
             'on_hit': hex(on_hit)}
 

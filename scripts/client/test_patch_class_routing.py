@@ -471,7 +471,7 @@ class LabCopyTest(unittest.TestCase):
             self.assertTrue(all(vt + 4 * i in relocs for i in range(7)), name)
         head = next(self.md.disasm(bytes(image.data[image.offset(k['events']):image.offset(k['events']) + 5]), k['events']))
         self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {effects["events"]}')
-        events = text(int(effects['events'], 16), 0x200)
+        events = text(int(effects['events'], 16), 0x300)
         self.assertIn(f'jmp {k["events"] + len(routing.EVENTS_HEAD):#x}', events)
         self.assertEqual(sum(t == f'call {k["strncmp"]:#x}' for t in events), 5)
         commands = [routing.read_string(image, int(t.split()[1], 16)) for t in events if t.startswith('push 0x')]
@@ -492,8 +492,17 @@ class LabCopyTest(unittest.TestCase):
             f'mov eax, dword ptr [edi + esi*4 + {worn:#x}]', 'inc eax', f'mov dword ptr [ebx + esi*4 + {kept:#x}], eax',
             'lea ecx, [edi + 0x156c]', f'lea edx, [edi + esi*4 + {worn:#x}]', 'push edx', 'mov eax, dword ptr [ecx]',
             'call dword ptr [eax + 4]', f'mov dword ptr [edi + esi*4 + {worn:#x}], 0xffffffff'])
-        self.assertEqual(events[at + 23:at + 30], ['push 0', 'push 1', 'push esi', 'mov ecx, edi',
-                                                   f'call {k["armor_state"]:#x}', 'inc esi', 'cmp esi, 9'])
+        self.assertEqual(events[at + 23:at + 28], ['push 0', 'push 1', 'push esi', 'mov ecx, edi',
+                                                   f'call {k["armor_state"]:#x}'])
+        self.assertTrue(events[at + 28].startswith('jmp '))
+        # no armour on the slot: with the armour system off (the ship) only the look is hidden
+        self.assertEqual(events[at + 29:at + 32], [f'mov ecx, dword ptr [{k["game_state"]:#x}]',
+                                                   f'call {k["armor_on"]:#x}', 'test al, al'])
+        self.assertTrue(events[at + 32].startswith('jne '))
+        self.assertEqual(events[at + 33], f'cmp dword ptr [edi + esi*4 + {worn:#x}], -1')
+        self.assertEqual(events[at + 44:at + 46], ['inc esi', 'cmp esi, 9'])
+        self.assertEqual(text(0x40814620, 0x10)[2:4], [f'mov ecx, dword ptr [{k["game_state"]:#x}]',
+                                                      f'call {k["armor_on"]:#x}'])
         self.assertEqual(events[at - 3:at - 1], ['mov ecx, edi', events[at - 2]])
         self.assertEqual(events[at - 1], 'mov ebx, eax')
         # the costume object: +0x94 is its worn part per slot (0x408154b0 reads it)
@@ -516,6 +525,20 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn('mov byte ptr [ebx + 0x18], 1', restore)
         self.assertEqual(restore[-4:-1], ['mov eax, dword ptr [esp + 8]', 'push esi', 'mov esi, ecx'])
         self.assertEqual(restore[-1], f'jmp {k["armor_state"] + 7:#x}')
+        # the player's repair: with the armour system off the kept parts come back (look only)
+        head = next(self.md.disasm(bytes(image.data[image.offset(k['repair']):image.offset(k['repair']) + 5]), k['repair']))
+        self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {effects["repair"]}')
+        repair = text(int(effects['repair'], 16), 0xa0)
+        self.assertIn(f'call {k["armor_on"]:#x}', repair)
+        self.assertIn(f'mov dword ptr [ecx + esi*4 + {worn:#x}], edi', repair)
+        self.assertIn('mov byte ptr [ebx + 0x18], 1', repair)
+        self.assertEqual(repair[-3:], ['fld dword ptr [esp + 4]', 'push ecx', f'jmp {k["repair"] + 5:#x}'])
+        relocs = routing.relocations(image)
+        at = next(x for x in self.md.disasm(bytes(image.data[image.offset(int(effects['repair'], 16)):
+                                                          image.offset(int(effects['repair'], 16)) + 0x40]),
+                                            int(effects['repair'], 16)) if x.mnemonic == 'mov' and 'ecx, dword ptr [0x' in
+                  f'{x.mnemonic} {x.op_str}')
+        self.assertIn(at.address + 2, relocs)
         # the think rebuilds the costume once the animation events are done
         tick = text(int(effects['tick'], 16), 0x60)
         at = tick.index('cmp byte ptr [esi + 0x18], 0')
