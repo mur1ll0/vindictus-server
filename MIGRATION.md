@@ -2338,6 +2338,17 @@ Passo 44 (29/10/2026): Rose Crush quebra a armadura; guarda sem som de golpe.
 - Cliente: `docs/client-tests/C2-delia.md`, D23 (Rose Crush e guarda), pendente.
 - Próxima ação: sessão D23 do operador; depois, a decisão sobre os itens 5 e 6 do plano 8.15.
 
+Passo 45 (29/10/2026): Rose Crush sem reconstruir o modelo (queda do D23).
+- Relato do operador (D23): no barco a Rose Crush não quebrou a armadura; numa fase, o jogo caiu ao usá-la (`EXCEPTION_ACCESS_VIOLATION`, `server` `0x40383bab`). Nenhum relatório novo em `Documents\Vindictus\Report Error` nem *dump*.
+- Causa: `0x40383b60` é `CStudioHdr::pSeqdesc` (passo `0xd4`, modelo virtual). Caminho direto achado (`callpath.py`, só chamadas diretas): `0x40565b00` → `0x40547480(slot, 1, notify 1)` → `0x405465d0` (reconstrução do modelo de roupa `CoStUmE_…`) → `0x40114940` → `0x40803d00` → `0x40383b60`. NA: a purga chama o *slot* 628 (`0x6e77a0` → `0x6c4f20(slot, 1, notify 0)`), que só muda o estado da roupa, sem reconstruir o modelo.
+- Mudança (`DELIA_EFFECTS`): `PURGE_ALL_ARMOR` deixa de usar `0x40530ce0`; para cada *slot* 4–8 com armadura (`0x40814620` falso: sistema de armadura ligado e HP máximo > 0), HP 0 (`0x408144d0`) e estado quebrado sem aviso (`0x40547480(slot, 1, 0)`); depois uma atualização do estado de armadura (`0x4054e160`).
+- Barco: o NA só tem `PURGE_ALL_ARMOR` no `server.dll` (nenhuma *string* `PURGE` no `client.dll` NA), e o barco não caiu com o mesmo golpe, então ali o servidor não aplicou a purga (sem servidor de jogo ou com o sistema de armadura desligado, `0x40740a10`). No original a armadura também não quebra fora da fase.
+- Risco registrado: a quebra de armadura por golpe de monstro usa o mesmo caminho com aviso (`0x40565b00`) e pode derrubar o jogo com a Delia; não portado nem testado.
+- Testes: `test_delia_effects_register_types_commands_and_hooks` e `test_every_new_pointer_is_relocated`, 2 passaram (`.cache/verification/purge2-tests.log`).
+- Aplicado com o jogo fechado, a partir dos `*.pre-routing.bak` (`.cache/verification/class-routing-apply-purge2.log`): `client.dll` `8695348a…` (igual ao passo 44), `server.dll` `649d4f5f…`.
+- Cliente: D23 atualizado (Rose Crush numa fase; o modelo pode não mudar, a janela de equipamento deve mostrar as peças quebradas).
+- Próxima ação: D23 do operador; se a armadura quebrar sem queda mas o modelo não mudar, ler o estado de roupa no cliente.
+
 Progressão até um nível — história principal (29/10/2026, pedido do operador).
 - Evidência (`.cache/verification/m0-*.log`): 199 histórias MainStream/MainStream_S2/MainStream_S3. Quase todas têm `AutoGiveLevel` -1; cada uma abre a seguinte com `start_storyline` (arg1) e espera quests com `quest_cleared`/`QuestCleared`. Raízes: `GuidePlay_1_SkillTrain` (dada no nível 1) e `S3E03_M02_Summon`. A simulação no conteúdo real com a regra abaixo conclui 10, 17, 33, 60 e 114 histórias principais nos níveis 10, 20, 40, 60 e 80. No 40, a próxima é `S4NQ_6_ScarredBlack` (quest de nível 42).
 - Regra (`domain::progression_plan::story_plan`): a partir das principais dadas até o nível, conclui cada principal cujas quests esperadas estão concluídas (plano de quests mais as já concluídas) e segue o que ela abre. A principal que ainda espera uma quest, e as não principais abertas pelas concluídas, são abertas na fase inicial (sem tocar progresso existente). Respeita `Feature` e `ClassRestriction`. Secundárias, de equipamento e de skill nunca são concluídas.

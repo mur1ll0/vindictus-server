@@ -476,12 +476,20 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(sum(t == f'call {k["strncmp"]:#x}' for t in events), 5)
         commands = [routing.read_string(image, int(t.split()[1], 16)) for t in events if t.startswith('push 0x')]
         self.assertIn('PURGE_ALL_ARMOR', commands)
-        # PURGE_ALL_ARMOR: the 1.69 player's armour break(slot, 1) on slots 4-8
-        breaker = text(k['armor_break'], 0x10)
-        self.assertEqual(breaker[:2], ['mov ecx, dword ptr [ecx + 0x148c]', 'jmp 0x40565b00'])
+        # PURGE_ALL_ARMOR: slots 4-8 with armour get HP 0 and the broken state without notify
+        # (the notify path rebuilds the costume model)
         at = events.index('mov esi, 4')
-        self.assertEqual(events[at + 1:at + 7], ['push 1', 'push esi', 'mov ecx, edi', f'call {k["armor_break"]:#x}',
-                                                 'inc esi', 'cmp esi, 9'])
+        self.assertEqual(events[at + 1:at + 16], [
+            'mov ecx, dword ptr [edi + 0x148c]', 'mov ecx, dword ptr [ecx + 4]', 'push esi', f'call {k["armor_none"]:#x}',
+            'test al, al', events[at + 6], 'mov ecx, dword ptr [edi + 0x148c]', 'mov ecx, dword ptr [ecx + 4]', 'push 0',
+            'push esi', f'call {k["armor_hp_set"]:#x}', 'push 0', 'push 1', 'push esi', 'mov ecx, edi'])
+        self.assertTrue(events[at + 6].startswith('jne '))
+        self.assertEqual(events[at + 16:at + 19], [f'call {k["armor_state"]:#x}', 'inc esi', 'cmp esi, 9'])
+        self.assertIn(f'call {k["armor_update"]:#x}', events)
+        self.assertNotIn('call 0x40530ce0', events)
+        state = text(k['armor_state'], 0x30)
+        self.assertIn('call 0x405465d0', state)  # the rebuild, skipped when the third argument is 0
+        self.assertIn('cmp byte ptr [esp + 0x10], 0', state)
         entity = routing.ENTITY_SLOTS['server.dll'][0]
         stub = self.entry(image, routing.vtable(image, entity), k['hit_slot'])
         head = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:4]
