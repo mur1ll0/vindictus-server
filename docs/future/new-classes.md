@@ -725,6 +725,7 @@ Os defeitos 1 e 3 são partes do E3 e do E5 que ainda não existem.
   - item 2: `As_Cond_Can_Armor_Purge`, `CLASS_CONDITIONS`. `SP3_Activated` não foi portada: o contêiner de recarga das SP no 1.69 não foi achado;
   - itens 3–4: os 5 tipos de efeito e os comandos de efeito no acerto, `DELIA_EFFECTS`;
   - máscara de classe do item com o bit 10, `ITEM_MASK`.
+- **Item 7, causa achada (passo 42):** o grupo `spskill_activate_states` da Delia usa a chave de quadro NA `$immediately$`, que o 1.69 descarta; `FRAME_KEYS` a lê como quadro 0 no cliente e no servidor.
 - **Itens 7 e 8, causa ainda não achada estaticamente:**
   - SP pela barra: o servidor tem as SP nos *slots* e a missão manda os atalhos. A região do cliente que traduz `translated_spskill.txt` não tem chamadores diretos;
   - itens vermelhos: os leitores do vetor de classes do cliente recebem a classe 10 de `[obj+0x30]`, a máscara 2047 inclui o bit 10, e as cópias levam `+0x1a2`;

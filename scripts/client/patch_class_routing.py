@@ -364,6 +364,14 @@ PLAYER_FIELDS = {'max_health': 0x80, 'health': 0x84, 'health_cell': 0x90, 'effec
 # +0x1a2) never matched. Its tail (Hagie's bit and `ret`) jumps to a stub that also adds bit 10.
 # (VA of the tail `cmp byte [ecx+0x1a1], 0`, its bytes)
 ITEM_MASK = {'client.dll': (0x384AC4C1, bytes.fromhex('80b9a101000000' '7405' '0500020000' 'c3'))}
+# Animation event frame keys (HEROES_CUSTOM_ANIM_EVENT): the 1.69 parser knows $ref_group$,
+# $endframe_finally$, $0_finally$ and $-1_finally$; any other $...$ key goes to the frame
+# expression and an unknown one drops the event. NA adds `$immediately$` (frame 0 with a flag),
+# which Delia's `spskill_activate_states` uses to open AttackSP01/02_begin/04/05.
+# (site: `mov ecx, [esp+0xa0]` before the expression call; strcmp)
+FRAME_KEYS = {'client.dll': (0x387FFFD3, 0x38A5DFC6), 'server.dll': (0x40800963, 0x40994755)}
+FRAME_KEY_SITE = bytes.fromhex('8b8c24a0000000')
+FRAME_KEY_DONE = 0x20  # the parser's join after a known key (frame in esi)
 PERFECT_ENDURE = (0x4C, 0x4D)  # As_Cond_Can_PerfectEndurable, As_Cond_Do_PerfectEndurable (1.69 ids)
 COMMANDS = 0x437C  # the client player's command/condition object
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
@@ -1656,6 +1664,26 @@ def item_mask(layout: Layout, edits: list, va: int, old: bytes) -> str:
     return f'{va:#x} -> {stub:#x}'
 
 
+def immediately(layout: Layout, edits: list, va: int, strcmp: int) -> str:
+    """FRAME_KEYS: `$immediately$` is frame 0, as NA reads it (without NA's flag)."""
+    key = layout.string('$immediately$')
+    layout.pad()
+    stub = layout.here()
+    layout.body += bytes((0x68,))
+    layout.pointer(key)
+    layout.body += bytes((0x55,))  # push ebp (the key text)
+    layout.to(bytes((0xE8,)), strcmp)
+    layout.body += bytes.fromhex('83c408' '85c0')  # add esp, 8; test eax, eax
+    other = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x33, 0xF6))  # xor esi, esi
+    layout.to(bytes((0xE9,)), va + FRAME_KEY_DONE)
+    layout.land(other)
+    layout.body += FRAME_KEY_SITE
+    layout.to(bytes((0xE9,)), va + len(FRAME_KEY_SITE))
+    edits.append((va, FRAME_KEY_SITE, bytes((0xE9,)) + struct.pack('<i', stub - (va + 5)) + bytes((0xCC,)) * 2))
+    return f'{va:#x} -> {stub:#x}'
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -1935,6 +1963,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
     if name in ITEM_MASK:
         report['item_mask'] = item_mask(layout, edits, *ITEM_MASK[name])
+    if name in FRAME_KEYS:
+        report['frame_keys'] = immediately(layout, edits, *FRAME_KEYS[name])
     if name in CLASS_CONDITIONS:
         report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name],
                                                       tick=int(effects['tick'], 16) if effects else None)

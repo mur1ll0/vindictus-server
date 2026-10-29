@@ -490,6 +490,23 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn('cmp byte ptr [ecx + 0x1a2], 0', text)
         self.assertIn('add eax, 0x400', text)
 
+    def test_immediately_frame_key_is_frame_zero(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            va, strcmp = routing.FRAME_KEYS[name]
+            stub = int(report['frame_keys'].split(' -> ')[1], 16)
+            head = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
+            self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {stub:#x}')
+            code = list(self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 0x30]), stub))
+            key = int(code[0].op_str, 16)
+            self.assertEqual(routing.read_string(image, key), '$immediately$')
+            text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            self.assertIn(f'call {strcmp:#x}', text)
+            self.assertIn('xor esi, esi', text)
+            self.assertIn(f'jmp {va + routing.FRAME_KEY_DONE:#x}', text)
+            self.assertIn('mov ecx, dword ptr [esp + 0xa0]', text)
+            self.assertIn(f'jmp {va + 7:#x}', text)
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

@@ -2300,6 +2300,18 @@ Passo 41 (29/10/2026): plano 8.15, máscara de classe do item, aplicação e par
 - Cliente: D22 completo em `docs/client-tests/C2-delia.md` (preparação, ordem e relato).
 - Próxima ação: sessão D22 do operador. Depois, as leituras ao vivo dos itens 7 e 8 e a decisão do operador sobre os itens 5 e 6.
 
+Passo 42 (29/10/2026): plano 8.15, item 7 — SP pela barra de atalhos (causa achada).
+- Causa: no `pc_delia_motion.txt` e no `pc_delia_motion_ex.txt` do 1.69, o grupo `spskill_activate_states` abre `AttackSP01`, `AttackSP02_begin`, `AttackSP04` e `AttackSP05` com a chave de quadro `$immediately$`. Só a Delia usa essa chave.
+  - O analisador 1.69 (`HEROES_CUSTOM_ANIM_EVENT`; cliente `0x387fff40`, servidor `0x408008e0`) conhece `$ref_group$`, `$endframe_finally$`, `$0_finally$` e `$-1_finally$`. Outra chave com `$` vai para a expressão de quadro (`CalcFrameNumber`); uma chave desconhecida dá -999 e o evento é descartado.
+  - Nenhum binário 1.69 tem a string; o cliente e o servidor NA têm (cliente `0x1efc53`): quadro 0 mais uma marca no evento.
+  - Sem esses eventos, as condições de troca de estado das SP nunca abrem, e o atalho não leva ao estado.
+- Mudança: `FRAME_KEYS` (cliente e servidor): antes da expressão de quadro, `$immediately$` vira quadro 0 (sem a marca NA). + teste `test_immediately_frame_key_is_frame_zero`.
+- Testes: suíte completa do patch, 32 testes, 0 falhas (`.cache/verification/class-routing-frame-keys.log`).
+- Aplicado com o jogo fechado, a partir dos `*.pre-routing.bak` (`class-routing-apply-frame-keys.log`): `client.dll` `d2218f84…`, `server.dll` `6f616615…`.
+- Cliente: D22, item "SP pela barra" atualizado (a leitura ao vivo fica só se a SP ainda não sair).
+- Também: branch `claude/elegant-mclean-73d3cb` (exclusão de personagem) integrada na `main` (`ef33053`), *worktree* e branch removidas; imagem Docker reconstruída (`docker-build-merge-delete.log`, `docker-up-merge-delete.log`; serviços saudáveis).
+- Próxima ação: item 8 (itens vermelhos) por leitura ao vivo na sessão D22.
+
 Progressão até um nível — história principal (29/10/2026, pedido do operador).
 - Evidência (`.cache/verification/m0-*.log`): 199 histórias MainStream/MainStream_S2/MainStream_S3. Quase todas têm `AutoGiveLevel` -1; cada uma abre a seguinte com `start_storyline` (arg1) e espera quests com `quest_cleared`/`QuestCleared`. Raízes: `GuidePlay_1_SkillTrain` (dada no nível 1) e `S3E03_M02_Summon`. A simulação no conteúdo real com a regra abaixo conclui 10, 17, 33, 60 e 114 histórias principais nos níveis 10, 20, 40, 60 e 80. No 40, a próxima é `S4NQ_6_ScarredBlack` (quest de nível 42).
 - Regra (`domain::progression_plan::story_plan`): a partir das principais dadas até o nível, conclui cada principal cujas quests esperadas estão concluídas (plano de quests mais as já concluídas) e segue o que ela abre. A principal que ainda espera uma quest, e as não principais abertas pelas concluídas, são abertas na fase inicial (sem tocar progresso existente). Respeita `Feature` e `ClassRestriction`. Secundárias, de equipamento e de skill nunca são concluídas.
