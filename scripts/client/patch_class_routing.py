@@ -353,12 +353,15 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # to the 1.69 dispatcher. NA (0x6e5168) breaks armour slots 4-8 through slot 628 (0x6e77a0 ->
 # 0x6c4f20(slot, broken 1, notify 0): the costume state only, no model rebuild), zeroes their armour
 # HP and sets the purge flag (+0xaf48). The 1.69 armour break (0x40530ce0 -> 0x40565b00) always
-# notifies, and the notify path (0x405465d0, costume model rebuild) crashed the stage with Delia
-# (D23: server 0x40383bab, CStudioHdr::pSeqdesc). For an extra class each of slots 4-8 that has
-# armour (0x40814620 false) gets HP 0 (0x408144d0) and the broken state without notify
-# (0x40547480(slot, 1, 0)), then the armour status update (0x4054e160) runs once. The purge flag and
-# NA's slot-4 look (0x6bd370) are not ported. The command is server only (NA client.dll has no
-# PURGE string), so a town area without the game server never purges.
+# notifies: the notify path (0x405465d0) rebuilds the costume model (CoStUmE_<parts>.mdl, which is
+# what shows the broken parts in 1.69) and sets it at once. Run from inside the animation event
+# dispatch, that frees the model the dispatch is still reading (D23: server 0x40383bab,
+# CStudioHdr::pSeqdesc); the 1.69's own breaks run from damage, outside it. For an extra class each
+# of slots 4-8 that has armour (0x40814620 false) gets HP 0 (0x408144d0) and the broken state without
+# notify (0x40547480(slot, 1, 0)), the armour status update (0x4054e160) runs once, and the rebuild
+# is left to the think (entry +0x18), after the base think has finished its animation events. The
+# purge flag and NA's slot-4 look (0x6bd370) are not ported. The command is server only (NA
+# client.dll has no PURGE string), so a town area without the game server never purges.
 DELIA_EFFECTS = {'server.dll': {
     'register': 0x404FD6D0, 'hook': 0x40A087D4, 'new': 0x401D3890, 'base_ctor': 0x404F6290,
     'dtor': 0x4050C9D0, 'base_slots': (0x404F57D0, 0x404F57E0, 0x404F57F0, 0x404F5800, 0x404F5810),
@@ -366,10 +369,11 @@ DELIA_EFFECTS = {'server.dll': {
     'ftol': 0x40993AC0, 'globals': 0x40D6EE48, 'stamina_load': 0x4050C820, 'stamina_hit': 0x4050C9F0,
     'health_set': 0x4002AA90, 'armor_add': 0x40530DA0, 'hit_name': 0x408BCCA0, 'level': 0x404FDF40,
     'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70, 'armor': 0x148C, 'armor_none': 0x40814620,
-    'armor_hp_set': 0x408144D0, 'armor_state': 0x40547480, 'armor_update': 0x4054E160}}
+    'armor_hp_set': 0x408144D0, 'armor_state': 0x40547480, 'armor_update': 0x4054E160, 'costume': 0x405465D0}}
 DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x20
 # entry: +0 entity, +4 reserved HP, +8 restore per second, +0xc fraction, +0x10 last restore time,
-# +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due
+# +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due,
+# +0x18 costume rebuild due (PURGE_ALL_ARMOR)
 EVENTS_HEAD = bytes.fromhex('515356578b7c2414')  # push ecx/ebx/esi/edi; mov edi, [esp+0x14]
 REGISTRAR_TAIL = bytes.fromhex('c3cccccccc')
 PLAYER_SLOTS = {'add': 0x380, 'find': 0x388, 'remove': 0x390, 'npc': 0x160, 'changed': 0x230,
@@ -1360,6 +1364,10 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('c6461700 8bcf ba'); ptr(names['skill_delia_strong_attack_week'])
     call(remove_named)
     L.land(nf)
+    b('807e1800'); nr = fwd('0f84')
+    b('c6461800 8bcf')  # costume rebuild after a purge
+    call(k['costume'])
+    L.land(nr)
     b('807e1600'); nd = fwd('0f84')
     b('c6461600 8b07 6aff 68'); ptr(names['skill_delia_strong_attack'])
     b('8bcf ff90' + d32(s['find']))  # index of the Sharpness buff
@@ -1631,6 +1639,9 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.to(b'\x0f\x8c', loop)
     b('8bcf')
     call(k['armor_update'])
+    b('8bcf')
+    call(find_or_add)
+    b('c6401801')  # rebuild the costume in the think
     L.land(none)
     b('5f 5e')
     L.land(no); L.land(no2)

@@ -487,6 +487,13 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(events[at + 16:at + 19], [f'call {k["armor_state"]:#x}', 'inc esi', 'cmp esi, 9'])
         self.assertIn(f'call {k["armor_update"]:#x}', events)
         self.assertNotIn('call 0x40530ce0', events)
+        self.assertNotIn(f'call {k["costume"]:#x}', events)
+        at = events.index(f'call {k["armor_update"]:#x}')
+        self.assertEqual(events[at + 3], 'mov byte ptr [eax + 0x18], 1')
+        # the think rebuilds the costume once the animation events are done
+        tick = text(int(effects['tick'], 16), 0x60)
+        at = tick.index('cmp byte ptr [esi + 0x18], 0')
+        self.assertEqual(tick[at + 2:at + 5], ['mov byte ptr [esi + 0x18], 0', 'mov ecx, edi', f'call {k["costume"]:#x}'])
         state = text(k['armor_state'], 0x30)
         self.assertIn('call 0x405465d0', state)  # the rebuild, skipped when the third argument is 0
         self.assertIn('cmp byte ptr [esp + 0x10], 0', state)
