@@ -630,3 +630,91 @@ Pedido do operador (28/10/2026): registrar sem implementar. Contagens do `heroes
   - `scripts/dev/lab_memory.py`: leitura da memória do cliente em execução, só com `PROCESS_VM_READ` (sem escrita, injeção ou pausa). Comandos `ps`, `modules`, `dump`, `dword`, `str`, `symbols`, `costume [classe]`, `shell`; expressões com símbolos do patch e desreferência (`[client.costume.real]+0xbb8`). O patch grava os endereços aplicados em `bin/class-routing.json`.
   - Console do motor: o `install_lab_launcher.py` cria `cfg/config_pendingkey_concmd.cfg` (o `engine.dll` faz `exec` dele ao iniciar) com `developer 1` e `con_logfile lab_console.log`. Os outros `.cfg` da cópia são cifrados; se esse também for, o arquivo é ignorado e só a leitura de memória fica.
 - **Janela de habilidades vazia:** o `SkillInfo` também tem `ClassRestriction`, carregado pelo `engine.dll` (`0x422bae3c`, leitura por índice de coluna), sem passar pelo *setter* dos itens. Ainda não localizado.
+
+### 8.15 Plano completo do E3 ao E5 e dos quatro defeitos do operador (29/10/2026)
+
+Pedido do operador (29/10/2026): se for preciso completar o E3 e fazer o E4 e o E5 para a Delia funcionar, documentar tudo e implementar o plano inteiro (nem que demore), e só depois testar no cliente. A conclusão é que sim, é preciso. Os quatro defeitos relatados com a Delia em nível 45 são:
+1. a guarda (Shift) não bloqueia;
+2. as habilidades SP não funcionam pela barra de atalhos;
+3. faltam efeitos da Wild Star (4º estágio) e da Star Divider;
+4. todos os itens aparecem vermelhos no inventário.
+
+Os defeitos 1 e 3 são partes do E3 e do E5 que ainda não existem.
+
+**Evidência nova (sessão ao vivo, 29/10/2026; `lab_memory.py` e `lab_watch.py` com ponto de parada de escrita):**
+- A `DeliaLab` numa fase é a entidade `CHeroesPlayer` `0x43ccc2e8`, com `m_iClass` 10. Os *slots* 618/619/555 apontam para o `GUARD` (`0x412bc060`/`…080`/`…0a0`). Os *slots* SP do servidor (`+0x3418`) têm as 5 habilidades: 100370, 200371, 300372, 400373, 500374, e -1 nas outras três.
+- **A guarda do servidor é ligada.** Para a Delia, o `pc_delia_motion_seqGroup.txt` (igual no NA) dispara `ENABLE_ENDURE_MODE` no `OnBegin` e `DISABLE_ENDURE_MODE` no `OnEnd` de `guard` e de cada `pc_delia_guard_hit_*`. No `pc_delia_motion.txt`, o `ENABLE` está comentado de propósito. Em cada defesa, a tabela `(entidade, estado)` recebeu a Delia e as escritas 1 → 0 → 0 pelo tratador `0x40838f20`. No NA, o *slot* 697 também só é ligado por esse evento (chamadores `0x253daa`/`0x253e19`; os outros chamam com 0).
+- **Mesmo com o estado forçado em 1 (poke), o golpe causou dano.** A decisão do golpe defendido contra o jogador é do **cliente**:
+  - o tratador de dano do jogador no servidor (`0x40557570`) chama o 555 com uma cópia do golpe;
+  - a rotina da Fiona (`0x40575a50`) só consulta o estado da guarda do servidor quando o golpe **não** tem `info+0x3c & 0x10000000`;
+  - com essa flag (golpe vindo do cliente), ela bloqueia só se o cliente marcou o bit 2 de `info+0x78`.
+  
+  O NA faz o mesmo: no *slot* 416 do cliente, zera o dano e marca o bit 2 (`DAMAGE_GUARDED`). O `GUARD` do servidor está certo, mas sozinho não basta.
+- **Guarda da Fiona no cliente (1.69):**
+  - *slots* 429 (gravar, `0x3870cbb0`) e 430 (ler, `0x3870cbd0`): valor protegido em `+0x4ba0`;
+  - 367 (`0x3870cef0`): copia o golpe (`0x38707fb0`) e consulta 430. Se o golpe é defensável (`0x38888400(info, [this+0x437c])` e `0x38888180(info)` falsos):
+    - grava campos próprios (`+0x4bac`, `+0x4b3d`, `+0x4ba8`; fora da base, não reutilizáveis);
+    - faz `flags(+0x78) |= 2`, `+0x79 = 0` e zera `+0x30`/`+0x48`;
+    - se há a condição 0x4c (`As_Cond_Can_PerfectEndurable`), liga a 0x4d e toca o efeito (`0x38836550`);
+    - depois chama a base do 367 (`0x386f8760`).
+  - Base do 1.69: 429 = `ret 4`, 430 = `xor al, al; ret`. O tratador de `ENABLE/DISABLE_ENDURE_MODE` do cliente (`0x38899046`/`0x38899078`) chama o 429 (`0x3889906d`/`0x38899091`).
+  - Condições do jogador no cliente: objeto `[this+0x437c]`, conjunto em `+0x140`; ligar `0x387de550`, consultar `0x387de580`, desligar `0x387de5b0` (invólucros do jogador `0x38886da0` ligar e `0x38886dc0` consultar).
+- **Efeitos da Wild Star e da Star Divider:**
+  - `heroes.db3` do 1.69 já tem os efeitos de estado da Delia:
+    - `skill_delia_strong_attack_week`: `delia_restore_health 0.2 5`, 5 s;
+    - `skill_delia_strong_attack` níveis 1–3: `skill_delia_strong_attack 2 3/2/1`, mais `damage_modify_to_action delia_strong_attack_02a2 delia_strong_attack_03a 1.1/1.15/1.2`;
+    - `skill_delia_strong_attack_hit`: 60 s;
+    - `skill_delia_stamina_adder[_two]`: `stamina_adder_on_attack_time 50/80 1 <efx>`;
+    - `skill_delia_will`: `restore_equipment_def 2500`, `stamina_adder 1 40 8`, `stat_adder ATK_Speed 20`;
+    - `skill_delia_strong_attack_delay`: 1200 s.
+  - O `server.dll` do 1.69 **não tem** os tipos de efeito `delia_restore_health`, `stamina_adder_on_attack_time`, `skill_delia_strong_attack`, `restore_equipment_def` e `damage_modify_to_action` (só `stamina_adder` e `stamina_adder_on_attack`). Os efeitos entram sem fazer nada.
+  - Os comandos de movimento que dão os efeitos no acerto também não existem no 1.69. Servidor NA, tratador `0x6e5280`…:
+    - `ENABLE/DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT`: liga/desliga `+0xad40`;
+    - `ENABLE/DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT`: liga/desliga `+0xad41`;
+    - `RELEASE_RESTORE_STATUS_EFFECT`: `+0xad10` → `+0xad14`, `+0xad20 = 1` e retirada do `skill_delia_strong_attack_week`.
+  - No acerto (`0x6e58c0`; nomes em `0x16c7bb8`/`…bc0`/`…bc8` = `skill_delia_strong_attack`/`…_week`/`…_hit`):
+    - com `+0xad40`: acrescenta `skill_delia_strong_attack` no nível mín(atual + 2, 3) e limpa a marca;
+    - com `+0xad41` e sem `+0xaf8c`: acrescenta `skill_delia_strong_attack_hit` nível 1 quando não existe, ou quando está no nível ≤ 1 com pouco tempo restante.
+  - Sequências que usam esses comandos:
+    - `battle_attack_strong_00_charge_finish_final` (4º estágio da Wild Star): `skill_delia_strong_attack_week` + `STACK_CHARGE_SMASH`;
+    - `battle_attack_strong_01`/`02b`/`03b`: `ADD_STRONG_ATTACK` + `stamina_adder[_two]`;
+    - `delia_SP4`: `STACK_CHARGE_SMASH`.
+
+**Trabalho, na ordem (cada item com patch, teste unitário e entrada no roteiro `docs/client-tests/C2-delia.md`; teste no cliente só no fim, numa sessão única):**
+1. **E3a — guarda no cliente** (`CLIENT_GUARD`, `C_HeroesPlayer` com despachante em `+0x18ec`):
+   - 429/430 numa tabela `(entidade, estado)` na `.hrte`;
+   - 367 para a classe extra: a decisão da Fiona sem os campos dela (cópia do golpe, testes de defensável, bit 2, dano zerado, 0x4c → 0x4d), mais ligar 124/125 (`AS_Cond_Delia_Guard`/`_Hit`, que levam aos estados `Guard_hit_a`…`g` e aos contra-ataques `AttackMelee_02_guard`/`AttackSP02_guard`);
+   - 429 com 0 desliga 124/125.
+   
+   O `GUARD` do servidor fica: ele honra o bit 2 e toca o efeito `shield_pass_over`.
+2. **E3b — condições SP3 e armadura:**
+   - servidor: *slot* 460 do 1.69, `0x6e4d30` do NA: 140 com armadura equipada nos *slots* 4–8, 141 pelo estado da habilidade;
+   - cliente: espelho em `OnDataChanged`, ou ligar nos dois lados, sem campo em rede, se o 460 roda nos dois;
+   - `SET_GUARD_LATCH_ATTEN` (eventos 0x7a/0x7b, cliente 368).
+3. **E5a — efeitos de estado novos no `server.dll`:**
+   - ler no NA os tratadores de `delia_restore_health`, `stamina_adder_on_attack_time`, `skill_delia_strong_attack`, `restore_equipment_def` e `damage_modify_to_action` e o registro de tipos de efeito do 1.69 (string `stamina_adder_on_attack`, `0x40a087c6`);
+   - registrar os tipos novos com o mesmo formato (classe de efeito por nome);
+   - onde um tipo do 1.69 tiver a mesma semântica (`stamina_adder_on_attack` × `stamina_adder_on_attack_time`), mapear o nome em vez de portar código.
+4. **E5b — comandos de efeito no acerto:**
+   - no despachante de eventos do servidor (`0x40838f20`): `ENABLE/DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT`, `ENABLE/DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT` e `RELEASE_RESTORE_STATUS_EFFECT`, com as marcas numa tabela por entidade na `.hrte`;
+   - no acerto do jogador (par 1.69 do *slot* que chama `0x6e58c0` no NA; achar pelo mapa de *slots* `na-x64-to-169-vtables.json`): acrescentar os efeitos pela função de efeito de estado da base do 1.69 (par de `+0x798`/`+0x7a8`/`+0x7b0`/`+0x7b8`/`+0x7c8` do NA).
+5. **E5c — ataque forte:**
+   - servidor *slot* 641 (NA 730/731): `skill_delia_strong_attack_delay` ou 1,5 s depois do acerto anterior;
+   - agarrar e segurar o alvo (563);
+   - `UPDATE_CHARGE_SMASH_EFFECT`/`SET_PLAY_CHARGE_SMASH_EFFECT`.
+6. **E4 — habilidade segurada e *ragdoll*:**
+   - `START/END_SPECIAL_HOLD_SKILL`, `HOLD_SKILL_*`, `DASH_TO_TARGET`, `ENABLE/DISABLE_RAGDOLL_LAUNCH`;
+   - o comando `request_release_launch_ragdoll`;
+   - as classes auxiliares do servidor, ainda não lidas.
+   
+   É o item mais longo; fica depois dos efeitos, que o operador relatou.
+7. **Defeito 2 (SP pela barra de atalhos):**
+   - os *slots* SP do servidor estão certos;
+   - falta seguir o cliente: atalho → `IN_SPSKILLn` (`translated_spskill.txt`, já roteado por `CLASS_NAME`) → transição `AttackSP0n` (`required_skill skill_delia_spN.1`, `SPGauge_need`). Os outros vetores de 11 posições indexados pela classe (8.13) e os *slots* SP do cliente são os primeiros suspeitos.
+8. **Defeito 4 (itens vermelhos):**
+   - ler ao vivo o vetor `bool[11]` dos itens (`engine.dll` `item+0x198`) e a entrada do tom vermelho do inventário;
+   - `FLAG_CHECKS` já cobre os leitores conhecidos; o vermelho vem de outro leitor, ou da regra de nível ou de tipo de arma.
+
+**Limites desta sessão:**
+- o segundo ponto de parada (vida do jogador, `+0x84` = 2818/3162) derrubou o cliente ao ligar, como no D8o;
+- o caminho do dano ficou provado pela leitura estática da rotina da Fiona e pelo teste com o estado forçado, sem pilha da escrita da vida.
