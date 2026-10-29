@@ -419,6 +419,7 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'call {target:#x}', damage)
         self.assertEqual(sum(t == f'call {raise_:#x}' for t in damage), 3)
         for text in ('push 0x7c', 'push 0x7d', 'push 0x4c', 'push 0x4d', 'or dword ptr [esp + 0x84], 2',
+                     f'mov byte ptr [esi + {routing.HIT_IMPACT_SKIP:#x}], 1',
                      f'mov ecx, dword ptr [{allocator:#x}]'):
             self.assertIn(text, damage)
         self.assertEqual(int(guard['base'], 16), self.entry(original, routing.vtable(original, name), damage_slot))
@@ -470,9 +471,17 @@ class LabCopyTest(unittest.TestCase):
             self.assertTrue(all(vt + 4 * i in relocs for i in range(7)), name)
         head = next(self.md.disasm(bytes(image.data[image.offset(k['events']):image.offset(k['events']) + 5]), k['events']))
         self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {effects["events"]}')
-        events = text(int(effects['events'], 16), 0x140)
+        events = text(int(effects['events'], 16), 0x200)
         self.assertIn(f'jmp {k["events"] + len(routing.EVENTS_HEAD):#x}', events)
-        self.assertEqual(sum(t == f'call {k["strncmp"]:#x}' for t in events), 4)
+        self.assertEqual(sum(t == f'call {k["strncmp"]:#x}' for t in events), 5)
+        commands = [routing.read_string(image, int(t.split()[1], 16)) for t in events if t.startswith('push 0x')]
+        self.assertIn('PURGE_ALL_ARMOR', commands)
+        # PURGE_ALL_ARMOR: the 1.69 player's armour break(slot, 1) on slots 4-8
+        breaker = text(k['armor_break'], 0x10)
+        self.assertEqual(breaker[:2], ['mov ecx, dword ptr [ecx + 0x148c]', 'jmp 0x40565b00'])
+        at = events.index('mov esi, 4')
+        self.assertEqual(events[at + 1:at + 7], ['push 1', 'push esi', 'mov ecx, edi', f'call {k["armor_break"]:#x}',
+                                                 'inc esi', 'cmp esi, 9'])
         entity = routing.ENTITY_SLOTS['server.dll'][0]
         stub = self.entry(image, routing.vtable(image, entity), k['hit_slot'])
         head = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:4]

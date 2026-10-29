@@ -2326,6 +2326,18 @@ Passo 43 (29/10/2026): plano 8.15, item 8 — itens vermelhos (causa achada ao v
 - Cliente: D22, item "Itens vermelhos" reescrito (esperado e não regressão com a Fiona).
 - Próxima ação: sessão D22 do operador (roteiro completo); depois, a decisão sobre os itens 5 e 6 do plano 8.15.
 
+Passo 44 (29/10/2026): Rose Crush quebra a armadura; guarda sem som de golpe.
+- Relato do operador (D22): itens vermelhos corrigidos; a guarda bloqueia o dano e o contra-ataque sai, mas o som de golpe recebido ainda toca; as habilidades ativas até o 45 funcionam; no nível 60, a Wild Star funciona e a Rose Crush (SP5) aplica os efeitos sem quebrar a armadura.
+- Rose Crush, causa: o `delia_SP5` do `pc_delia_motion_ex.txt` 1.69 chama `AE_CUSTOM_MOTION PURGE_ALL_ARMOR` no quadro 125; o `server.dll` 1.69 não tem o comando (nem a *string*), então o evento era ignorado. NA (`0x6e5168`): nos *slots* 4–8 quebra a peça (vtable `+0x13a0`, HP da armadura 0) e marca a purga (`+0xaf48`).
+- 1.69 lido: o jogador tem `0x40530ce0(slot, quebrada)` → contêiner de armadura `[+0x148c]` `0x40565b00`: *slots* 4–9, HP 0 (ou máximo ao consertar), estado de quebra `0x40547480` (objeto de roupa `+0x156c`, `0x4081c170`, atualização de rede `0x405465d0`); já usado pelo 1.69 em `0x4063a339`.
+- Mudança (`DELIA_EFFECTS`, servidor): `PURGE_ALL_ARMOR` entra no gancho do despachante `0x40838f20`; para uma classe extra, chama `0x40530ce0(slot, 1)` nos *slots* 4–8. Não portados: a marca de purga (a condição `As_Cond_Can_Armor_Purge` segue sempre ligada) e o visual do capacete do NA (`0x6bd370`).
+- Guarda, causa: a decisão da Fiona (`0x3870cef0`) liga o *byte* da base `+0x4b3d` no golpe defendido; a reação da base (`0x386f32f7`) então pula o impacto e o som (`0x388db3c0`) uma vez e limpa o *byte*. O *stub* da Delia (`CLIENT_GUARD`) não ligava.
+- Mudança (`CLIENT_GUARD`, cliente): `HIT_IMPACT_SKIP` (`+0x4b3d`) = 1 no golpe defendido.
+- Testes: `test_patch_class_routing` e `test_patch_engine_class_flags`, 35 passaram, 0 falhas (`.cache/verification/purge-guard-tests.log`); o teste dos efeitos confere o comando, o laço 4–8 e a rotina `0x40530ce0` do 1.69; o da guarda confere o *byte*.
+- Aplicado com o jogo fechado, a partir dos `*.pre-routing.bak` (`.cache/verification/class-routing-apply-purge.log`): `client.dll` `8695348a…`, `server.dll` `065869bc…`; `engine.dll` sem mudança (`d25a6e28…`).
+- Cliente: `docs/client-tests/C2-delia.md`, D23 (Rose Crush e guarda), pendente.
+- Próxima ação: sessão D23 do operador; depois, a decisão sobre os itens 5 e 6 do plano 8.15.
+
 Progressão até um nível — história principal (29/10/2026, pedido do operador).
 - Evidência (`.cache/verification/m0-*.log`): 199 histórias MainStream/MainStream_S2/MainStream_S3. Quase todas têm `AutoGiveLevel` -1; cada uma abre a seguinte com `start_storyline` (arg1) e espera quests com `quest_cleared`/`QuestCleared`. Raízes: `GuidePlay_1_SkillTrain` (dada no nível 1) e `S3E03_M02_Summon`. A simulação no conteúdo real com a regra abaixo conclui 10, 17, 33, 60 e 114 histórias principais nos níveis 10, 20, 40, 60 e 80. No 40, a próxima é `S4NQ_6_ScarredBlack` (quest de nível 42).
 - Regra (`domain::progression_plan::story_plan`): a partir das principais dadas até o nível, conclui cada principal cujas quests esperadas estão concluídas (plano de quests mais as já concluídas) e segue o que ela abre. A principal que ainda espera uma quest, e as não principais abertas pelas concluídas, são abertas na fase inicial (sem tocar progresso existente). Respeita `Feature` e `ClassRestriction`. Secundárias, de equipamento e de skill nunca são concluídas.

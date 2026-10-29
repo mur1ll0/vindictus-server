@@ -301,11 +301,15 @@ GUARD_ENTRIES = 16
 # (+0x4ba0..+0x4bac) are past the base object and are not reused. ENABLE/DISABLE_ENDURE_MODE
 # (0x38899046) call slot 429 on the client too. For an extra class: 429/430 keep a state table,
 # 367 is Fiona's decision plus AS_Cond_Delia_Guard/_Hit (124/125, NA: on each guarded hit), and
-# the end of the guard lowers both. Conditions live on [this+0x437c] (+0x140 set).
+# the end of the guard lowers both. Conditions live on [this+0x437c] (+0x140 set). Fiona also sets
+# the base byte +0x4b3d (HIT_IMPACT_SKIP) on a guarded hit: the base reaction (0x386f32f7) then
+# skips the hit impact and its sound (0x388db3c0) once and clears it (D22: Delia blocked the damage
+# but still played the hit sound).
 # (set slot, get slot, damage slot, hit copy, unguardable(info, commands), unguardable(info),
 #  raise, test, lower, allocator global)
 CLIENT_GUARD = {'client.dll': (429, 430, 367, 0x38707FB0, 0x38888400, 0x38888180,
                                0x387DE550, 0x387DE580, 0x387DE5B0, 0x38ADA3C4)}
+HIT_IMPACT_SKIP = 0x4B3D
 # Per-frame class conditions (plan 8.15 item 2). NA server 0x6e4d30 (slot 517 = 1.69 460) raises
 # As_Cond_Can_Armor_Purge (SP5's gate) while armour is equipped in slots 4-8 and the purge is not
 # blocked, and As_Cond_Delia_SPSkill3_Activated while skill_delia_sp3 is off cooldown (SP1/SP3
@@ -345,13 +349,18 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # NA 0x6e58c0 overriding slot 73) the first adds skill_delia_strong_attack one level up to 3 and
 # clears itself, the second adds skill_delia_strong_attack_hit when it is absent or at level 1.
 # Decay and forfeit are carried out by the think, never inside an effect callback.
+# PURGE_ALL_ARMOR (Rose Crush, delia_SP5 frame 125 in the 1.69 pc_delia_motion_ex.txt) is unknown
+# to the 1.69 dispatcher. NA (0x6e5168) breaks armour slots 4-8 (+0x13a0, armour HP 0) and sets the
+# purge flag (+0xaf48); for an extra class it calls the 1.69 player's armour break (0x40530ce0 ->
+# 0x40565b00(slot, 1): HP 0, broken state, network update, as the 1.69 caller 0x4063a339 does) on
+# slots 4-8. The purge flag and NA's slot-4 look (0x6bd370) are not ported.
 DELIA_EFFECTS = {'server.dll': {
     'register': 0x404FD6D0, 'hook': 0x40A087D4, 'new': 0x401D3890, 'base_ctor': 0x404F6290,
     'dtor': 0x4050C9D0, 'base_slots': (0x404F57D0, 0x404F57E0, 0x404F57F0, 0x404F5800, 0x404F5810),
     'owner': 0x404F58E0, 'player_owner': 0x404F5930, 'arg': 0x404F6AC0, 'arg_text': 0x404F5C50,
     'ftol': 0x40993AC0, 'globals': 0x40D6EE48, 'stamina_load': 0x4050C820, 'stamina_hit': 0x4050C9F0,
     'health_set': 0x4002AA90, 'armor_add': 0x40530DA0, 'hit_name': 0x408BCCA0, 'level': 0x404FDF40,
-    'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70}}
+    'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70, 'armor_break': 0x40530CE0}}
 DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x20
 # entry: +0 entity, +4 reserved HP, +8 restore per second, +0xc fraction, +0x10 last restore time,
 # +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due
@@ -1178,6 +1187,7 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
     layout.body += bytes((0x83, 0xC4, 0x04, 0x84, 0xC0))
     skips.append(layout.forward(bytes((0x0F, 0x85))))
     layout.body += bytes((0x83, 0x8C, 0x24, 0x84, 0, 0, 0, 0x02))  # or dword [esp+0x84], 2: guarded
+    layout.body += bytes((0xC6, 0x86)) + struct.pack('<I', HIT_IMPACT_SKIP) + b'\x01'  # no impact sound
     layout.body += bytes((0xC6, 0x84, 0x24, 0x85, 0, 0, 0, 0x00))  # mov byte [esp+0x85], 0
     layout.body += bytes((0xD9, 0xEE, 0xD9, 0x54, 0x24, 0x3C, 0xD9, 0x5C, 0x24, 0x54))  # damage = 0
     layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS) + bytes((0x85, 0xC9))
@@ -1252,7 +1262,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         'restore_equipment_def', 'validCount', 'reduce_ratio', 'restore_time', 'delay_time', 'immune_count',
         'candidate_actions', 'damage_rates', 'add_def', 'skill_delia_strong_attack_week', 'skill_delia_strong_attack_hit',
         'ENABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 'DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT',
-        'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', '')}
+        'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'PURGE_ALL_ARMOR', '')}
     L.pad()
     registrar = L.here()
     L.body += bytes(4)
@@ -1576,13 +1586,14 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     events = L.here()
     b('51')
     hits = []
-    for text, _, _ in commands:
+    for text in [c[0] for c in commands] + ['PURGE_ALL_ARMOR']:
         b('6a' + bytes((len(text) + 1,)).hex())
         push_ptr(names[text])
         b('ff742410')
         call(k['strncmp'])
         b('83c40c 85c0')
         hits.append(fwd('0f84'))
+    purge = hits.pop()
     b('59')
     L.body += EVENTS_HEAD
     L.to(b'\xe9', k['events'] + len(EVENTS_HEAD))
@@ -1595,6 +1606,19 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         b('c640' + bytes((field, value)).hex())
         L.land(no); L.land(no2)
         b('c20400')
+    # PURGE_ALL_ARMOR: break(slot, 1) on armour slots 4-8
+    L.land(purge)
+    b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
+    b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f8c')
+    b('56 57 8bf8 be04000000')  # edi = entity, esi = slot 4
+    loop = L.here()
+    b('6a01 56 8bcf')
+    call(k['armor_break'])
+    b('46 83fe09')
+    L.to(b'\x0f\x8c', loop)
+    b('5f 5e')
+    L.land(no); L.land(no2)
+    b('c20400')
     edits.append((k['events'], EVENTS_HEAD, b'\xe9' + struct.pack('<i', events - (k['events'] + 5)) + b'\x90' * 3))
 
     # on hit (slot 70): the original, then the armed flags add Delia's buffs
