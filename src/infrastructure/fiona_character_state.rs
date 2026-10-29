@@ -478,6 +478,21 @@ pub(crate) async fn owned_first_fiona<'p>(
     key: &crate::infrastructure::character_lobby::UserKey<'_>,
     cid: i64,
 ) -> Result<sqlx::Transaction<'p, sqlx::Postgres>, StateError> {
+    let mut tx = owned_account(pool, key).await?;
+    let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 27 AND level>=1 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
+    if owned.is_none() {
+        return Err(StateError::Ownership);
+    }
+    // Other characters of the account are allowed: every lab character carries its own
+    // initialization marker, and account-wide state is checked where it is shared.
+    Ok(tx)
+}
+/// The account lock of `owned_first_fiona` without a character: the character list and its
+/// delete/cancel/slot-order operations, which also see characters waiting for deletion.
+pub(crate) async fn owned_account<'p>(
+    pool: &'p PgPool,
+    key: &crate::infrastructure::character_lobby::UserKey<'_>,
+) -> Result<sqlx::Transaction<'p, sqlx::Postgres>, StateError> {
     use crate::domain::game_user::LegacyNameKey;
     let owner = LegacyNameKey::parse(key.name).map_err(|_| StateError::Ownership)?;
     let mut tx = pool.begin().await?;
@@ -513,12 +528,6 @@ pub(crate) async fn owned_first_fiona<'p>(
     sqlx::query("LOCK TABLE game_character_info IN ROW EXCLUSIVE MODE")
         .execute(&mut *tx)
         .await?;
-    let owned:Option<i64>=sqlx::query_scalar("SELECT id FROM game_character_info WHERE id=$1 AND uid=$2 AND class BETWEEN 0 AND 27 AND level>=1 AND NOT use_preset AND NOT is_premium AND status=0 FOR UPDATE").bind(cid).bind(key.uid).fetch_optional(&mut *tx).await?;
-    if owned.is_none() {
-        return Err(StateError::Ownership);
-    }
-    // Other characters of the account are allowed: every lab character carries its own
-    // initialization marker, and account-wide state is checked where it is shared.
     Ok(tx)
 }
 /// Original MissionBook constructor precedes Stats. The clear time is the recovered

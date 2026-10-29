@@ -196,6 +196,36 @@ async fn inventory_packet(
     )
 }
 
+/// CharacterList DeleteCharacter: QueryCashShopInventory of the character, then
+/// InvolveCharacterCashItem (an order whose ItemClass is not package_adventure/package_grand).
+pub(super) async fn holds_character_items(
+    executor: impl sqlx::PgExecutor<'_>,
+    cid: i64,
+) -> Result<bool, MinimumError> {
+    let rows: Vec<(Vec<u8>, Option<Vec<u8>>)> = sqlx::query_as(
+        "SELECT item_class_utf16,attribute3_utf16 FROM game_cash_orders WHERE cid=$1 AND remain_quantity>0 ORDER BY order_no LIMIT $2",
+    )
+    .bind(cid)
+    .bind(INVENTORY_PAGE)
+    .fetch_all(executor)
+    .await?;
+    for (class, attribute3) in rows {
+        let class = format!(
+            "{}{}",
+            text(&class)?,
+            attribute3
+                .as_deref()
+                .map(text)
+                .transpose()?
+                .unwrap_or_default()
+        );
+        if class != "package_adventure" && class != "package_grand" {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 pub async fn inventory(
     pool: &PgPool,
     owner: &UserKey<'_>,

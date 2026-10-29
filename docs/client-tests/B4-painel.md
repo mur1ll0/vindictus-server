@@ -19,6 +19,7 @@ Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4
 7. **Lojas, cash shop e versão publicada:** B4.4b, B4.4 e B4.5 (editar uma loja de NPC, um preço do cash shop e uma taxa pendente), depois B4.4c (publicar com manutenção, deixar o jogo reiniciar, abrir pelo `start-lab.bat` e conferir a loja e o preço novos).
 8. **Fim:** relogar com a Murael e o personagem novo e conferir o que as entradas listam como preservado; Auditoria deve ter uma linha para cada mudança feita.
 9. **Editor de itens (depois do B4, opcional na mesma sessão):** I2 com a Fiona fora do jogo: criar, clonar com kit, editar, ocultar e remover; publicar; abrir pelo `start-lab.bat`; dar os itens e conferir no jogo; relogar.
+10. **Seleção de personagem (28/10/2026):** S1 (ordem dos slots), S2 (excluir com prazo e cancelar) e S3 (concluir a exclusão depois de 5 minutos) com uma personagem de teste descartável.
 
 ### P2 — Busca por categoria, refino e scrolls de um item pelo painel
 Pré-condição: imagens recompiladas e catálogo reexportado depois dos commits da busca por categoria e do editor de refino (`py -3.13 scripts/content/refresh_item_content.py`, depois `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait`); login no painel como `gm` ou `admin`; uma Fiona de laboratório offline com uma espada longa (ex.: `longsword_swordwind`) na bolsa. Cliente fechado.
@@ -243,6 +244,29 @@ Pré-condição: imagens recompiladas depois do commit do editor de itens (`COMP
 - [ ] O item removido sumiu da bolsa e do corpo da Fiona, sem erro ao entrar; o log do `game` registra "removed item taken from its owners".
 - [ ] Painel → `fiona_inner_fringe` → **Restaurar original** → publicar → `start-lab.bat` → o tooltip volta à DEF original.
 Limites conhecidos: o ícone é escolhido entre os ícones existentes (ícone novo depende do launcher); um item base não muda de conjunto nem ganha modelo novo (só pode apontar outro CostumeType existente); a remoção apaga o item de todos os personagens quando o jogo carrega a publicação (não confere lojas, receitas e drops); a distribuição a outros jogadores é o launcher (fora deste roteiro).
+
+### S1 — Ordem dos slots na seleção
+Pré-condição: `game` recompilado depois do commit da exclusão e da ordem dos slots (28/10/2026); conta com duas ou mais personagens (ex.: `admin` com a Murael e uma personagem de teste criada no B4.N2). Cliente aberto pelo `start-lab.bat`.
+- [ ] Na seleção, mover a personagem do segundo slot para o primeiro → a lista volta na ordem nova, sem desconectar.
+- [ ] Selecionar a personagem que agora está no primeiro slot e entrar → entra com **essa** personagem (antes entrava com a do slot antigo).
+- [ ] Sair para a seleção (FX-relist) → a ordem nova continua; fechar o cliente, abrir de novo e entrar na conta → a ordem nova continua.
+Limites conhecidos: uma ordem com menos posições que personagens é recusada sem gravar nada (o original gravava as primeiras e falhava).
+
+### S2 — Excluir personagem com o prazo de 5 minutos e cancelar
+Pré-condição: a de S1, com uma personagem de teste descartável (não usar a Murael). O laboratório usa `DeleteCharacterDelay` = 5 minutos. A personagem não pode ter itens pendentes no Depot da loja Cash (pedidos não retirados).
+- [ ] Selecionar a personagem de teste → Delete → confirmar (e digitar a segunda senha, se pedir) → mensagem de exclusão iniciada; a personagem continua na lista marcada como "em exclusão", com o tempo restante (até 5 minutos).
+- [ ] Tentar entrar no jogo com ela → nada acontece (a personagem em exclusão não é selecionável), sem desconectar.
+- [ ] Antes dos 5 minutos, Delete de novo → mensagem de que ainda é preciso esperar, com o tempo restante.
+- [ ] Cancelar a exclusão → mensagem de cancelamento; a personagem volta ao normal e entra no jogo.
+- [ ] Relogar → a personagem continua na lista, normal.
+Limites conhecidos: guilda ainda não existe, então "Fail_InGuild" não ocorre; personagem com pedidos abertos no Depot (exceto os pacotes `package_adventure`/`package_grand`) recebe a recusa de itens de cash restantes.
+
+### S3 — Concluir a exclusão
+Pré-condição: S2 feita, com a personagem de teste em exclusão de novo (Delete uma vez) e 5 minutos passados.
+- [ ] Delete outra vez depois do prazo → mensagem de personagem excluída; ela some da lista e o slot fica livre.
+- [ ] Relogar → continua fora da lista; criar uma personagem nova com o mesmo nome → aceita (o nome foi liberado).
+- [ ] Opcional: com uma conta de uma personagem só, excluir até o fim → a lista vem vazia e Create funciona.
+Limites conhecidos: com `DeleteCharacterDelay` 0 a exclusão seria imediata; o laboratório usa 5 minutos, então esse caminho fica só nos testes automáticos.
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.2-4`), o que foi feito, o que apareceu na tela (texto do diálogo/mensagem; captura se possível) e o horário aproximado (hh:mm), para comparar com `docker compose logs game` e a tela Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo.

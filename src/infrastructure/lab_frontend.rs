@@ -1734,6 +1734,14 @@ impl Connection {
                                 .ok_or(RuntimeError::Operation)?
                                 .revision(),
                         };
+                        // CharacterList ignores a summary that IsDeleting, without a response.
+                        if super::minimum_character_list::deleting_at(pool, &owner, index)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?
+                        {
+                            tracing::info!("selection of a character waiting for deletion ignored");
+                            return Ok(());
+                        }
                         let assets = &runtime
                             .minimum
                             .as_ref()
@@ -3177,30 +3185,8 @@ impl Connection {
             // PlayerConn.Closed handler of CharacterSelecting enters
             // CharacterList(sendList: true) while the client stays connected.
             self.release_selected(runtime, pool).await;
-            let password = self.password.as_ref().ok_or(RuntimeError::Operation)?;
-            let revision = password.revision();
-            let state = password.state();
-            // CharacterList(sendList: true) → InitSecondPassword before CharacterListMessage.
-            // Once passed it sends HasSecondPasswordMessage(isFirstQuery false, State !=
-            // NoPassword, IsSecondPasswordPassed, 0, null) and SendDifferentIPMessage (nothing
-            // with enEU). The client waits for it: without it Start does nothing (operator
-            // report of 2026-10-26).
-            send_password(
-                stream,
-                sender,
-                PasswordMessage::Has(HasPassword {
-                    first: false,
-                    has_password: state != crate::domain::second_password::ClientState::NoPassword,
-                    passed: state.passed(true),
-                    fail_count: 0,
-                    retry_seconds: -1,
-                }),
-            )
-            .await?;
-            let list = runtime
-                .character_list(&self.frontend, pool, revision)
+            self.reenter_character_list(runtime, pool, stream, sender)
                 .await?;
-            send(stream, sender, empty_character_list::CATEGORY, &list).await?;
             tracing::info!("minimum character logged out; character list sent");
             return Ok(());
         }
@@ -3763,6 +3749,13 @@ impl Connection {
             self.log_unhandled(category, body);
             return Ok(());
         }
+        if self
+            .character_list_change(runtime, pool, stream, sender, category, body)
+            .await?
+            .is_some()
+        {
+            return Ok(());
+        }
         {
             use crate::protocol::character_creation::{self as wire, Kind, Message};
             let kind = Kind::Create;
@@ -3989,6 +3982,189 @@ impl Connection {
         }
         self.log_unhandled(category, body);
         Ok(())
+    }
+    /// CharacterList(sendList: true): InitSecondPassword before CharacterListMessage. Once
+    /// passed it sends HasSecondPasswordMessage(isFirstQuery false, State != NoPassword,
+    /// IsSecondPasswordPassed, 0, null) and SendDifferentIPMessage (nothing with enEU). The
+    /// client waits for it: without it Start does nothing (operator report of 2026-10-26).
+    async fn reenter_character_list(
+        &self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        let password = self.password.as_ref().ok_or(RuntimeError::Operation)?;
+        let revision = password.revision();
+        let state = password.state();
+        send_password(
+            stream,
+            sender,
+            PasswordMessage::Has(HasPassword {
+                first: false,
+                has_password: state != crate::domain::second_password::ClientState::NoPassword,
+                passed: state.passed(true),
+                fail_count: 0,
+                retry_seconds: -1,
+            }),
+        )
+        .await?;
+        let list = runtime
+            .character_list(&self.frontend, pool, revision)
+            .await?;
+        send(stream, sender, empty_character_list::CATEGORY, &list).await
+    }
+    /// CharacterList DeleteCharacter / DeleteCharacterCancel / SelectOrdersChange. `None` when
+    /// the message is not one of them.
+    async fn character_list_change(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+    ) -> Result<Option<()>, RuntimeError> {
+        use super::minimum_character_delete as delete;
+        use crate::protocol::character_delete::{self as wire, DeleteResult, Kind, Message};
+        let Some(kind) = [Kind::Delete, Kind::Cancel, Kind::SelectOrders]
+            .into_iter()
+            .find(|k| matches(category, body, k.category(), k.type_id()))
+        else {
+            return Ok(None);
+        };
+        // CharacterList.OnMessageReceive returns before any handler until the second password
+        // passed; the frontend answers the Locked dialog as for SelectCharacter.
+        if !self
+            .password
+            .as_ref()
+            .is_some_and(|p| p.selection_allowed(&self.frontend))
+        {
+            locked(stream, sender).await?;
+            return Ok(Some(()));
+        }
+        // A null message is not `is DeleteCharacterMessage`: no handler runs.
+        let Some(message) = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+            .map_err(|_| RuntimeError::Message)?
+        else {
+            return Ok(Some(()));
+        };
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let reply = |m: Message| {
+            wire::encode(m.kind(), Some(&m), DEFAULT_MAX_BODY).map_err(|_| RuntimeError::Message)
+        };
+        // CharacterProcessing.MoveToList(success) enters CharacterList(sendList: success).
+        let relist = match message {
+            Message::Delete { name, character_sn } => {
+                let result = |result: DeleteResult, remain_time_sec: i32| {
+                    reply(Message::DeleteResult {
+                        character_sn,
+                        result: result as i32,
+                        remain_time_sec,
+                    })
+                };
+                // GetCharacterSummary(Name); without it the source answers Fail_NoSuchCharacter
+                // and its CashShop branch stops on the null summary.
+                let Some(cid) = delete::listed_named(pool, &owner, name.as_deref())
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?
+                else {
+                    let bytes = result(DeleteResult::FailNoSuchCharacter, 0)?;
+                    send(stream, sender, Kind::DeleteResult.category(), &bytes).await?;
+                    tracing::info!("character delete refused: not listed; values omitted");
+                    return Ok(Some(()));
+                };
+                // The laboratory overrides CashShop on: QueryCashShopInventory of the character.
+                match delete::remain_cash_items(pool, &owner, cid).await {
+                    Ok(false) => {}
+                    Ok(true) => {
+                        let bytes = result(DeleteResult::FailRemainCashItems, 0)?;
+                        send(stream, sender, Kind::DeleteResult.category(), &bytes).await?;
+                        tracing::info!("character delete refused: cash items remain");
+                        return Ok(Some(()));
+                    }
+                    Err(_) => {
+                        let bytes = result(DeleteResult::FailExcuteOp, 0)?;
+                        send(stream, sender, Kind::DeleteResult.category(), &bytes).await?;
+                        tracing::warn!("character delete cash inventory query failed");
+                        return Ok(Some(()));
+                    }
+                }
+                let assets = runtime
+                    .minimum
+                    .as_ref()
+                    .ok_or(RuntimeError::Profile)?
+                    .assets
+                    .current();
+                let delay = assets
+                    .initializer
+                    .policy()
+                    .get_integer("DeleteCharacterDelay")?;
+                let (outcome, wait) =
+                    delete::delete(pool, &owner, name.as_deref(), character_sn, delay, || {
+                        lab_clock::utc_now()
+                            .map_err(|_| super::minimum_character::MinimumError::Conflict)
+                    })
+                    .await;
+                let bytes = result(outcome, wait)?;
+                send(stream, sender, Kind::DeleteResult.category(), &bytes).await?;
+                tracing::info!(
+                    result = outcome as i32,
+                    "character delete processed; values omitted"
+                );
+                true
+            }
+            Message::Cancel { name, character_sn } => {
+                let outcome = delete::cancel(pool, &owner, name.as_deref(), character_sn).await;
+                let bytes = reply(Message::CancelResult {
+                    character_sn,
+                    result: outcome as i32,
+                })?;
+                send(stream, sender, Kind::CancelResult.category(), &bytes).await?;
+                tracing::info!(
+                    result = outcome as i32,
+                    "character delete cancel processed; values omitted"
+                );
+                true
+            }
+            Message::SelectOrders(orders) => {
+                // SelectOrdersChange has no OnFail: a failed change sends nothing.
+                match delete::select_orders(pool, &owner, orders.as_deref().unwrap_or_default())
+                    .await
+                {
+                    Ok(true) if orders.is_some() => {
+                        tracing::info!("character slot order changed; values omitted");
+                        true
+                    }
+                    Ok(_) => {
+                        tracing::info!("character slot order refused; nothing written");
+                        false
+                    }
+                    Err(_) => {
+                        tracing::warn!("character slot order failed; nothing written");
+                        false
+                    }
+                }
+            }
+            _ => return Err(RuntimeError::Message),
+        };
+        if relist {
+            self.reenter_character_list(runtime, pool, stream, sender)
+                .await?;
+        }
+        Ok(Some(()))
     }
     /// Category identity only; message values are never logged.
     fn log_unhandled(&mut self, category: i32, body: &[u8]) {

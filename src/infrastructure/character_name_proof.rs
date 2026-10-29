@@ -139,7 +139,7 @@ impl NameProof {
 /// Trailing spaces are padding and ASCII letters compare without case. The name rule admits only
 /// ASCII letters and `_`, so every other unit must match exactly. Agrees with all measured SQL
 /// equalities (8 synthetic, 49 original).
-fn same_name(name: &str, stored: &[u8]) -> bool {
+pub(crate) fn same_name(name: &str, stored: &[u8]) -> bool {
     if !stored.len().is_multiple_of(2) {
         return false;
     }
