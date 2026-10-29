@@ -391,6 +391,9 @@ pub struct ReachPlan {
     pub level: i32,
     pub quests: Vec<PlanQuestView>,
     pub skipped: Vec<PlanSkipView>,
+    /// The main story: completed storylines, opened ones (next main and side), quests given,
+    /// titles and skills.
+    pub story: crate::domain::progression_plan::StoryPlan,
 }
 
 /// The quests "reach a level" would complete for the character (staff, read only).
@@ -408,9 +411,13 @@ pub async fn reach_plan(
         .ok_or(AdminError::ContentUnavailable)?
         .minimum_assets()
         .ok_or(AdminError::ContentUnavailable)?;
-    let plan = crate::infrastructure::admin_progression::reach_plan(&assets, level)
-        .ok_or(AdminError::InvalidInput)?;
+    let (plan, story) =
+        crate::infrastructure::admin_progression::reach_preview(pool, &assets, cid_value, level)
+            .await
+            .map_err(minimum)?
+            .ok_or(AdminError::InvalidInput)?;
     Ok(ReachPlan {
+        story,
         level: plan.level,
         quests: plan
             .quests

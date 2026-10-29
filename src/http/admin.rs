@@ -224,6 +224,7 @@ impl AdminState {
         crate::application::admin_character_edits::ReachPlan,
         crate::application::admin_character_edits::PlanQuestView,
         crate::application::admin_character_edits::PlanSkipView,
+        crate::domain::progression_plan::StoryPlan,
         characters::ProgressionChange,
         crate::application::content_admin::ShopSummary,
         crate::application::content_admin::ShopNpcView,

@@ -1685,6 +1685,11 @@ export interface components {
             level: number;
             quests: components["schemas"]["PlanQuestView"][];
             skipped: components["schemas"]["PlanSkipView"][];
+            /**
+             * @description The main story: completed storylines, opened ones (next main and side), quests given,
+             *     titles and skills.
+             */
+            story: components["schemas"]["StoryPlan"];
         };
         RelayView: {
             connected: number;
@@ -1778,6 +1783,19 @@ export interface components {
             files: string[];
             /** @description Game path of the studio model. */
             model: string;
+        };
+        StoryPlan: {
+            /** @description Main storylines completed, in walk order. */
+            complete: string[];
+            /** @description Quests the completed storylines give (owned, not cleared, unless cleared already). */
+            give_quests: string[];
+            /**
+             * @description Storylines opened at their initial phase: the next main ones and the side ones the
+             *     completed storylines start.
+             */
+            open: string[];
+            skills: string[];
+            titles: number[];
         };
         TooltipEnchant: {
             lines: components["schemas"]["TooltipLine"][];

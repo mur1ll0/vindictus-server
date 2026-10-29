@@ -36,11 +36,13 @@ Pré-condição: imagens recompiladas depois do commit da progressão até o ní
 - [ ] Ficha → **Progressão** → **Até o nível** → digitar 20 → o plano lista as quests de missão até o nível 20 (nome da fase, nível, dificuldade) e as que ficam de fora com o motivo.
 - [ ] Aplicar → resposta com nível 1 → 20 e o número de quests concluídas; a Auditoria registra `character.progression` com antes/depois.
 - [ ] Entrar no jogo → nível 20; no quadro de quests (barco/Ceara), as quests do plano aparecem concluídas e as seguintes ficam disponíveis; nenhuma quest do plano pede para ser feita de novo como primeira vez.
-- [ ] Falar com Ceara, Marrec e os NPCs da história principal → as histórias avançam (as condições "quest concluída" já valem); anotar qualquer fala travada ou fase que pede uma quest já concluída.
+- [ ] O plano mostra as histórias principais concluídas (✓) e as próximas (→). Depois de aplicar, no diário de histórias as principais até o nível estão concluídas e a próxima principal aparece no início; as secundárias, de equipamento e de skill não estão concluídas (as abertas pelas principais aparecem no início).
+- [ ] Falar com o NPC da próxima história principal → a conversa começa da primeira fase dela, sem pedir uma quest já concluída; anotar qualquer fala travada.
+- [ ] Janela de títulos e de skills → os títulos e skills que as histórias principais concluídas dão (ex.: Meditation, da história do Winterclaw) estão lá.
 - [ ] No Ferghus, a lista de fabricação mostra receitas que dependem de quest concluída (hipótese: o cliente decide por `RecipeInfo.AppearQuestID`).
 - [ ] Entrar numa quest do plano (ex.: uma de nível 15) → a missão abre e termina normalmente; relogar → o estado continua.
 - [ ] Sair; aplicar **Até o nível** com o mesmo nível → "sem mudança"; com um nível menor → recusa.
-Limites conhecidos: as histórias não são concluídas (as que esperam o evento de fim de missão pedem a quest de novo); as recompensas das quests (EXP, ouro, itens) não são dadas; ofícios (forja do jogador) não mudam.
+Limites conhecidos: só a história principal (MainStream, MainStream_S2, MainStream_S3) é concluída; itens, EXP e ouro de quests e histórias não são dados (itens-chave de história também não); tokens de história (`set_token`) não são gravados; ofícios (forja do jogador) não mudam.
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `B4.3b-2`), o que foi feito, o que apareceu na tela (texto da mensagem do painel ou do jogo; captura se possível) e o horário aproximado (hh:mm). Os horários são comparados com `docker compose logs game` e com a Auditoria do painel. Linhas não testadas ficam desmarcadas com o motivo (ex.: "missão não alcançada").

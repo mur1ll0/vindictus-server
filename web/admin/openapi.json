@@ -5320,7 +5320,8 @@
         "required": [
           "level",
           "quests",
-          "skipped"
+          "skipped",
+          "story"
         ],
         "properties": {
           "level": {
@@ -5338,6 +5339,10 @@
             "items": {
               "$ref": "#/components/schemas/PlanSkipView"
             }
+          },
+          "story": {
+            "$ref": "#/components/schemas/StoryPlan",
+            "description": "The main story: completed storylines, opened ones (next main and side), quests given,\ntitles and skills."
           }
         }
       },
@@ -5611,6 +5616,52 @@
           "model": {
             "type": "string",
             "description": "Game path of the studio model."
+          }
+        }
+      },
+      "StoryPlan": {
+        "type": "object",
+        "required": [
+          "complete",
+          "open",
+          "give_quests",
+          "titles",
+          "skills"
+        ],
+        "properties": {
+          "complete": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Main storylines completed, in walk order."
+          },
+          "give_quests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Quests the completed storylines give (owned, not cleared, unless cleared already)."
+          },
+          "open": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Storylines opened at their initial phase: the next main ones and the side ones the\ncompleted storylines start."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
           }
         }
       },

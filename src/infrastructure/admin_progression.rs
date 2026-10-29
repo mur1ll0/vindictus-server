@@ -49,11 +49,20 @@ async fn snapshot(
     tx: &mut Transaction<'_, Postgres>,
     cid: i64,
 ) -> Result<serde_json::Value, sqlx::Error> {
-    let (level, exp, ap, titles, quests, effects): (i32, i64, i32, i64, i64, Vec<String>) =
-        sqlx::query_as(
+    #[allow(clippy::type_complexity)]
+    let (level, exp, ap, titles, quests, stories, effects): (
+        i32,
+        i64,
+        i32,
+        i64,
+        i64,
+        i64,
+        Vec<String>,
+    ) = sqlx::query_as(
             "SELECT c.level, c.exp, c.ap,
                 (SELECT count(*) FROM game_titles t WHERE t.cid = c.id AND t.acquired),
                 (SELECT count(*) FROM game_quests q WHERE q.owner_id = c.id AND q.clear_count > 0),
+                (SELECT count(*) FROM game_story_progress s WHERE s.cid = c.id AND s.phase_utf16 IS NULL),
                 ARRAY(SELECT encode(e.type_utf16, 'hex') || ':' || e.level
                       FROM game_status_effects e WHERE e.cid = c.id ORDER BY e.row_id)
          FROM game_character_info c WHERE c.id = $1",
@@ -79,7 +88,7 @@ async fn snapshot(
         })
         .collect();
     Ok(serde_json::json!({
-        "level": level, "exp": exp, "ap": ap, "titles": titles, "quests": quests, "effects": effects
+        "level": level, "exp": exp, "ap": ap, "titles": titles, "quests": quests, "stories": stories, "effects": effects
     }))
 }
 
@@ -138,6 +147,177 @@ pub fn reach_plan(assets: &Assets, level: i32) -> Option<crate::domain::progress
         level,
         &quest_facts(assets)?,
     ))
+}
+
+/// The main story for a character of `level` and `class` with the given cleared quests
+/// (`domain::progression_plan::story_plan`); None without the storyline scripts.
+pub fn main_story(
+    assets: &Assets,
+    level: i32,
+    class: i32,
+    cleared: &dyn Fn(&str) -> bool,
+) -> Option<crate::domain::progression_plan::StoryPlan> {
+    use crate::domain::{npc_script::NpcScripts, progression_plan};
+    let npc = assets.npc.as_ref()?;
+    let facts: Vec<progression_plan::StoryFacts<'_>> = npc
+        .scripts
+        .story_lines
+        .iter()
+        .map(|l| progression_plan::StoryFacts {
+            id: &l.info.id,
+            main: l
+                .info
+                .category
+                .as_deref()
+                .is_some_and(|c| c.starts_with("MainStream")),
+            enabled: NpcScripts::is_story_enabled(&l.info, &npc.policy).unwrap_or(false),
+            allowed: l.info.is_allowed_to(class),
+            auto_give_level: l.info.auto_give_level,
+            reward_title: l.info.reward_title,
+            reward_skill: l.info.reward_skill.as_deref(),
+            links: &l.links,
+        })
+        .collect();
+    Some(progression_plan::story_plan(level, &facts, cleared))
+}
+
+type Preview = (
+    crate::domain::progression_plan::Plan,
+    crate::domain::progression_plan::StoryPlan,
+);
+
+/// The plan for the panel's preview: the quests and the main story of this character (its
+/// class and the quests it already cleared).
+pub async fn reach_preview(
+    pool: &PgPool,
+    assets: &Assets,
+    cid: i64,
+    level: i32,
+) -> Result<Option<Preview>, MinimumError> {
+    let Some(plan) = reach_plan(assets, level) else {
+        return Ok(None);
+    };
+    let class: Option<i32> =
+        sqlx::query_scalar("SELECT class::integer FROM game_character_info WHERE id=$1")
+            .bind(cid)
+            .fetch_optional(pool)
+            .await?;
+    let class = class.ok_or_else(fail)?;
+    let owned: Vec<(Vec<u8>, i32)> =
+        sqlx::query_as("SELECT quest_utf16, status FROM game_quests WHERE owner_id=$1 LIMIT 4097")
+            .bind(cid)
+            .fetch_all(pool)
+            .await?;
+    let text = |b: &[u8]| {
+        let units: Vec<u16> = b
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|p| u16::from_le_bytes(*p))
+            .collect();
+        String::from_utf16_lossy(&units)
+    };
+    let cleared: std::collections::HashSet<String> = owned
+        .iter()
+        .filter(|(_, status)| *status > 0)
+        .map(|(q, _)| text(q))
+        .chain(plan.quests.iter().map(|q| q.id.clone()))
+        .collect();
+    let story = main_story(assets, level, class, &|q| cleared.contains(q)).ok_or_else(fail)?;
+    Ok(Some((plan, story)))
+}
+
+/// SQL datetime units (1/300 s since 1900) of now, as the story service writes LastUpdate.
+const NOW_UNITS: &str = "floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT";
+
+/// The story part of "reach a level": completed main storylines (phase null), opened ones at
+/// their initial phase (only when the character has no progress on them), and the titles and
+/// skills the completed storylines give, through the game's own grants.
+async fn apply_story(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    story: &crate::domain::progression_plan::StoryPlan,
+    ctx: GrowthContext,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+) -> Result<(), MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let utf16 = |t: &str| -> Vec<u8> { t.encode_utf16().flat_map(u16::to_le_bytes).collect() };
+    for line in &story.complete {
+        sqlx::query(&format!(
+            "INSERT INTO game_story_progress(row_id,cid,story_line_utf16,phase_utf16,status,last_update_units300)
+             VALUES($1,$2,$3,NULL,0,{NOW_UNITS})
+             ON CONFLICT(cid,story_line_utf16) DO UPDATE SET phase_utf16=NULL,last_update_units300={NOW_UNITS}"
+        ))
+        .bind(ids.next().ok_or_else(fail)?)
+        .bind(cid)
+        .bind(utf16(line))
+        .execute(&mut **tx)
+        .await?;
+    }
+    for id in &story.open {
+        let Some(line) = npc.scripts.story_line(id) else {
+            continue;
+        };
+        let opened = npc.scripts.open_story_line(line).map_err(|_| fail())?;
+        sqlx::query(&format!(
+            "INSERT INTO game_story_progress(row_id,cid,story_line_utf16,phase_utf16,status,last_update_units300)
+             VALUES($1,$2,$3,$4,$5,{NOW_UNITS}) ON CONFLICT(cid,story_line_utf16) DO NOTHING"
+        ))
+        .bind(ids.next().ok_or_else(fail)?)
+        .bind(cid)
+        .bind(utf16(&opened.story_line))
+        .bind(opened.phase.as_deref().map(utf16))
+        .bind(i16::from(opened.status))
+        .execute(&mut **tx)
+        .await?;
+    }
+    for title in &story.titles {
+        super::minimum_growth::acquire_title(tx, owner, assets, cid, *title, ctx).await?;
+    }
+    // GiveSkill as a story reward: SkillManager.GiveSkill(skill, 1) against the skills the
+    // character has; a skill already learnt, of another class or locked is left out.
+    let Some(contents) = assets.skills.as_ref() else {
+        return Ok(());
+    };
+    let (level, class, use_preset): (i32, i32, bool) = sqlx::query_as(
+        "SELECT level, class::integer, use_preset FROM game_character_info WHERE id=$1",
+    )
+    .bind(cid)
+    .fetch_one(&mut **tx)
+    .await?;
+    let rows: Vec<(Vec<u8>, i32)> =
+        sqlx::query_as("SELECT skill_utf16, rank FROM game_skills WHERE cid=$1 LIMIT 4097")
+            .bind(cid)
+            .fetch_all(&mut **tx)
+            .await?;
+    let mut known: std::collections::HashMap<Vec<u8>, i32> = rows.into_iter().collect();
+    for skill in &story.skills {
+        let base_rank = |id: &str| known.get(&utf16(id)).copied().unwrap_or(-1);
+        let Ok(new) =
+            crate::domain::skill_list::give(&base_rank, contents, class, level, use_preset, skill)
+        else {
+            continue;
+        };
+        if new.locked == 1 {
+            continue;
+        }
+        super::minimum_skills::give_story(
+            tx,
+            owner,
+            assets,
+            cid,
+            skill,
+            new,
+            false,
+            ctx.arithmetic,
+            ids,
+        )
+        .await?;
+        known.insert(utf16(skill), 1);
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -232,7 +412,20 @@ pub async fn panel_change(
             for q in &plan.quests {
                 quests.complete_for_panel(contents, &q.id, q.difficulty, now);
             }
+            let class: i32 =
+                sqlx::query_scalar("SELECT class::integer FROM game_character_info WHERE id=$1")
+                    .bind(cid)
+                    .fetch_one(&mut *tx)
+                    .await?;
+            let story = main_story(assets, target, class, &|q| quests.progress_of(q) > 0)
+                .ok_or_else(fail)?;
+            for q in &story.give_quests {
+                if quests.owned(q).is_none() {
+                    quests.give_quest(contents, q, true);
+                }
+            }
             super::minimum_quest::save(&mut tx, cid, &original, &quests, &mut ids).await?;
+            apply_story(&mut tx, &owner, assets, cid, &story, ctx, &mut ids).await?;
             None
         }
         PanelGrowth::Ap(ap) => {

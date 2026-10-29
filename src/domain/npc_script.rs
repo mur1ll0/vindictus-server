@@ -804,11 +804,65 @@ pub struct Phase {
     /// OnEvent handlers kept as their elements until events are migrated.
     pub events: Vec<Element>,
 }
+/// What a storyline's script refers to anywhere in its phases: the storylines it starts
+/// (`start_storyline` arg1), the quests it waits for (`quest_cleared`, `QuestCleared`), the
+/// quests it gives (`give_quest` arg1) and its title and skill rewards (`acquire_title`,
+/// `give_skill` arg1). The panel's "reach a level" walks the main story with them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct StoryLinks {
+    pub starts: Vec<String>,
+    pub requires: Vec<String>,
+    pub gives: Vec<String>,
+    pub titles: Vec<i32>,
+    pub skills: Vec<String>,
+}
+impl StoryLinks {
+    pub fn of(root: &Element) -> Self {
+        let mut links = Self::default();
+        let mut stack = vec![root];
+        while let Some(e) = stack.pop() {
+            let text = e.text.trim();
+            // As load_entity reads a command: arg1, or the first comma part of the text.
+            let arg1 = e
+                .attribute("arg1")
+                .map(str::trim)
+                .or_else(|| text.split(',').next().map(str::trim))
+                .filter(|a| !a.is_empty());
+            let push = |list: &mut Vec<String>, value: Option<&str>| {
+                if let Some(v) = value
+                    && !list.iter().any(|x| x == v)
+                {
+                    list.push(v.to_owned());
+                }
+            };
+            match e.name.as_str() {
+                "start_storyline" => push(&mut links.starts, arg1),
+                "give_quest" => push(&mut links.gives, arg1),
+                "quest_cleared" | "QuestCleared" => {
+                    push(&mut links.requires, (!text.is_empty()).then_some(text));
+                }
+                "give_skill" => push(&mut links.skills, arg1),
+                "acquire_title" => {
+                    if let Some(id) = arg1.and_then(|a| a.parse().ok())
+                        && !links.titles.contains(&id)
+                    {
+                        links.titles.push(id);
+                    }
+                }
+                _ => {}
+            }
+            stack.extend(e.children.iter().rev());
+        }
+        links
+    }
+}
+
 #[derive(Debug)]
 pub struct StoryLine {
     pub info: StoryLineInfo,
     pub phases: Vec<Phase>,
     pub server_commands: BTreeMap<String, NodeId>,
+    pub links: StoryLinks,
 }
 impl StoryLine {
     pub fn load(
@@ -900,6 +954,7 @@ impl StoryLine {
             info,
             phases,
             server_commands,
+            links: StoryLinks::of(root),
         })
     }
     pub fn initial_phase(&self) -> Option<&Phase> {

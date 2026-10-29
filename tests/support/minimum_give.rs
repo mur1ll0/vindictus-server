@@ -7560,6 +7560,24 @@ async fn panel_reach_level_completes_the_plan_quests_once_offline() {
         (Some(1), Some(2))
     );
     assert_eq!(after["quests"].as_i64(), Some(2));
+    // The fixture's main storyline (no awaited quest) is completed and gives its quest.
+    assert_eq!(after["stories"].as_i64(), Some(1));
+    let phase: Option<Vec<u8>> = sqlx::query_scalar(
+        "SELECT phase_utf16 FROM game_story_progress WHERE cid=1 AND story_line_utf16=$1",
+    )
+    .bind(utf16("GuidePlay_1_SkillTrain"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(phase, None);
+    let given: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM game_quests WHERE owner_id=1 AND quest_utf16=$1 AND clear_count=0",
+    )
+    .bind(utf16("quest_story"))
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(given, 1);
     let quest = |id: &'static str| {
         let p = p.clone();
         async move {

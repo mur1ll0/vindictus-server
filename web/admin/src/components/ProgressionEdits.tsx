@@ -59,9 +59,24 @@ function ReachPlanView({ cid, level }: { cid: string; level: number }) {
   return (
     <div className="space-y-2 text-sm">
       <p>
-        {plan.data.quests.length} quest(s) de missão concluída(s) até o nível {plan.data.level}. As histórias não são concluídas: elas avançam ao falar com os
-        NPCs, porque leem as quests concluídas. Recompensas de EXP, ouro e itens das quests não são dadas.
+        {plan.data.quests.length} quest(s) de missão e {plan.data.story.complete.length} história(s) principal(is) concluída(s) até o nível{' '}
+        {plan.data.level}. A história continua de onde parou: {plan.data.story.open.length} história(s) abertas no início (a próxima principal e as
+        secundárias que as concluídas abrem). Dá {plan.data.story.titles.length} título(s) e {plan.data.story.skills.length} skill(s) das histórias
+        concluídas; EXP, ouro e itens de recompensa não são dados.
       </p>
+      <details>
+        <summary className="cursor-pointer text-muted">Histórias principais concluídas e próximas</summary>
+        <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto font-mono text-xs">
+          {plan.data.story.complete.map((id) => (
+            <li key={id}>✓ {id}</li>
+          ))}
+          {plan.data.story.open.map((id) => (
+            <li key={id} className="text-muted">
+              → {id}
+            </li>
+          ))}
+        </ul>
+      </details>
       <ul className="max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-border p-2">
         {plan.data.quests.map((q) => (
           <li key={q.id} className="flex justify-between gap-2">
