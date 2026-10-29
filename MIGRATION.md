@@ -2271,3 +2271,10 @@ Passo 37 (29/10/2026): plano 8.15, item 1 — guarda da Delia no cliente.
 - Testes: `test_client_guard_marks_guarded_hits_for_extra_classes`, `test_guard_keeps_state_and_blocks_for_extra_classes`, `test_every_new_pointer_is_relocated` — 0 falhas (`.cache/verification/g1-tests.log`).
 - Cliente: D22, item "Guarda" (teste só no fim, decisão do operador). Não aplicado ainda (o jogo precisa estar fechado; a aplicação é feita uma vez no fim do plano).
 - Próxima ação: item 2 do plano 8.15 (condições SP3/armadura e `SET_GUARD_LATCH_ATTEN`).
+
+Passo 38 (29/10/2026): plano 8.15, item 2 — condições da classe por quadro.
+- NA (`0x6e4d30`, servidor *slot* 517 ↔ 1.69 460): `As_Cond_Can_Armor_Purge` com armadura nos *slots* 4–8 e sem bloqueio; `As_Cond_Delia_SPSkill3_Activated` quando a `skill_delia_sp3` está fora de recarga (contêiner `+0x96d8`: 32 ids em `+0x18`, último uso em `+0x228`, `0x29bf70`); o cliente NA espelha pela rede. No 1.69 o Kalok liga as dele no *think* do cliente (334, depois da base `0x387065a0`) e do servidor (460).
+- Mudança: `CLASS_CONDITIONS` (cliente 334, servidor 460): a classe extra roda a base e liga `As_Cond_Can_Armor_Purge` (121). Aproximações registradas: sempre ligada (sem conferir armadura/bloqueio); `SP3_Activated` não portada (o contêiner de recarga das SP no 1.69 não foi achado por padrão de código), então os seguimentos `delia_SP1_one`/`AttackSP03_one` ficam fechados. `SET_GUARD_LATCH_ATTEN` não é usado por nenhum conteúdo da Delia (1.69 nem NA): não portado.
+- Testes: `test_think_raises_armor_purge_for_extra_classes`, `test_every_new_pointer_is_relocated` — 0 falhas (`.cache/verification/g2-tests.log`).
+- Cliente: D22, item "SP5 / armadura". Não aplicado (aplicação única no fim).
+- Próxima ação: item 3 do plano 8.15 (tipos de efeito de estado novos no `server.dll`).

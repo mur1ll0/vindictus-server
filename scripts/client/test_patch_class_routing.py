@@ -420,6 +420,26 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(int(guard['base'], 16), self.entry(original, routing.vtable(original, name), damage_slot))
         self.assertEqual(damage[-1], 'ret 4')
 
+    def test_think_raises_armor_purge_for_extra_classes(self):
+        purge = routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('As_Cond_Can_Armor_Purge')
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            think, conditions_of, raise_ = routing.CLASS_CONDITIONS[name]
+            entity = routing.ENTITY_SLOTS[name][0]
+            original = Image(source(name))
+            base = self.entry(original, routing.vtable(original, entity), think)
+            stub = self.entry(image, routing.vtable(image, entity), think)
+            body = int(report['class_conditions']['think'], 16)
+            head = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:5]
+            self.assertEqual(head[3], f'jmp {body:#x}')
+            self.assertEqual(head[4], f'jmp {base:#x}')
+            text = [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
+                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(body):image.offset(body) + 0x40]), body))]
+            self.assertEqual(text[2], f'call {base:#x}')
+            self.assertIn(f'push {purge:#x}', text)
+            self.assertIn(f'call {raise_:#x}', text)
+            self.assertEqual(text[-1].strip(), 'ret')
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

@@ -304,6 +304,17 @@ GUARD_ENTRIES = 16
 #  raise, test, lower, allocator global)
 CLIENT_GUARD = {'client.dll': (429, 430, 367, 0x38707FB0, 0x38888400, 0x38888180,
                                0x387DE550, 0x387DE580, 0x387DE5B0, 0x38ADA3C4)}
+# Per-frame class conditions (plan 8.15 item 2). NA server 0x6e4d30 (slot 517 = 1.69 460) raises
+# As_Cond_Can_Armor_Purge (SP5's gate) while armour is equipped in slots 4-8 and the purge is not
+# blocked, and As_Cond_Delia_SPSkill3_Activated while skill_delia_sp3 is off cooldown (SP1/SP3
+# `_one` follow-ups); the NA client mirrors both from the network. In 1.69 Kalok raises his own in
+# the client think (slot 334, after the base 0x387065a0) and the server think (460). For an extra
+# class both thinks run the base and then raise Can_Armor_Purge (lab approximation: armour is
+# always worn; the purge block is not ported). SP3_Activated stays off: the 1.69 cooldown store of
+# SP skills was not found (NA: 32 ids at +0x18, last use at +0x228, 0x29bf70). SET_GUARD_LATCH_ATTEN
+# is not used by any Delia content (1.69 or NA) and is not ported.
+# (think slot, condition object getter or None for [this+COMMANDS], raise)
+CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0x405380A0, 0x407E6470)}
 PERFECT_ENDURE = (0x4C, 0x4D)  # As_Cond_Can_PerfectEndurable, As_Cond_Do_PerfectEndurable (1.69 ids)
 COMMANDS = 0x437C  # the client player's command/condition object
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
@@ -1125,6 +1136,32 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
             'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
 
 
+def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, think: int,
+                     conditions_of: int | None, raise_: int) -> dict:
+    """CLASS_CONDITIONS: the player think raises the extra class's standing conditions."""
+    entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
+    base = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * think))[0]
+    purge = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Can_Armor_Purge')
+    layout.pad()
+    body = layout.here()
+    layout.body += bytes((0x56, 0x8B, 0xF1))  # push esi; mov esi, ecx
+    layout.to(bytes((0xE8,)), base)
+    if conditions_of is None:
+        layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS)  # mov ecx, [esi + commands]
+    else:
+        layout.body += bytes((0x8B, 0xCE))
+        layout.to(bytes((0xE8,)), conditions_of)
+        layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
+    layout.body += bytes((0x85, 0xC9))
+    none = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x68,)) + struct.pack('<I', purge)
+    layout.to(bytes((0xE8,)), raise_)
+    layout.land(none)
+    layout.body += bytes((0x5E, 0xC3))  # pop esi; ret
+    return {'think': hex(body), 'base': hex(base),
+            'slot': class_dispatch(image, layout, edits, relocs, entity, klass, think, body)}
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -1397,6 +1434,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['guard'] = guard(image, layout, edits, relocs, *GUARD[name])
     if name in CLIENT_GUARD:
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
+    if name in CLASS_CONDITIONS:
+        report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name])
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':
