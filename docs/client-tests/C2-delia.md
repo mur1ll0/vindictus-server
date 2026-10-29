@@ -386,3 +386,12 @@ Pré-condição: aplicado (`client.dll` `8e766ed3…`, `server.dll` `46cd2c50…
 - [ ] Seleção: a `DeliaLab` → a faixa branca da barriga e das coxas deve sumir.
 - [ ] Não regressão: Hagie, Evy e Fiona na seleção; Delia na cidade.
 Resultado do D17 (28/10/2026): **passou.** A faixa branca sumiu da Delia na seleção (operador: "Funcionou, problema resolvido").
+
+### D18 — E2: arma da Delia
+Mudança (passo 31): a entidade da arma vem de uma lista por classe nos dois DLLs, que mandava a classe 10 para a lista da Lethita (`weapon_dualsword`: duas espadas). A Delia agora tem lista própria com `weapon_greatsword` (o 1.69 não tem a `weapon_bastardsword` do NA; é a espada grande nas costas mais próxima). O servidor Rust passa a aplicar a maestria `skill_delia_bastard_mastery` à `Bastard Sword` (imagem Docker reconstruída).
+Pré-condição: aplicado (`client.dll` `d78bf797…`, `server.dll` `62d3aed6…`); servidor reiniciado; abrir pelo `start-lab.bat`.
+- [ ] Cidade com a `DeliaLab` e a `Bastard Sword` equipada: anotar se aparece **uma** espada (nas costas, ou na mão ao atacar) em vez de duas.
+- [ ] Entrar numa missão (Mercenary Outpost → qualquer batalha): ataque básico e um *smash* com a espada; anotar animação, acerto e dano.
+- [ ] Inventário: dica da `Bastard Sword` (ainda "Cannot be equipped"?) e cor das armaduras-base (ainda vermelhas?). Se continuarem, deixar o jogo aberto na cidade e avisar: eu leio os *flags* do item na memória.
+- [ ] Não regressão: Hagie com a adaga, Fiona/Evy com as armas delas.
+Resultado esperado: uma espada só; ataque funciona.
