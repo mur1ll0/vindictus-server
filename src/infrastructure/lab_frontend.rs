@@ -3027,6 +3027,18 @@ impl Connection {
                                 // HomeCafeBonus.OnUseItem: ExecuteDailyItemProcess.
                                 self.daily_items(runtime, pool, stream, sender).await?;
                             }
+                            Ok(super::minimum_use::Outcome::DyeOpened(packets, session)) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                // ItemOwner.DyeAmpleSession = DyeAmpleSession.From(item).
+                                if let Some(selected) = self.selected.as_mut() {
+                                    selected.dye = Some(session);
+                                }
+                                tracing::info!(
+                                    "minimum dye ampoule session opened; values omitted"
+                                );
+                            }
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
                                 tracing::warn!("minimum item use rejected; values omitted")
@@ -3768,6 +3780,13 @@ impl Connection {
                 return Ok(());
             }
         }
+        if self
+            .dye_request(runtime, pool, stream, sender, category, body)
+            .await?
+            .is_some()
+        {
+            return Ok(());
+        }
         if self.selected.is_some() {
             self.log_unhandled(category, body);
             return Ok(());
@@ -4036,6 +4055,88 @@ impl Connection {
             .character_list(&self.frontend, pool, revision)
             .await?;
         send(stream, sender, empty_character_list::CATEGORY, &list).await
+    }
+    /// InGame DyeAmpleRequestMessage → RequestDyeAmple on the ItemService. `None` when the
+    /// message is not one.
+    async fn dye_request(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+    ) -> Result<Option<()>, RuntimeError> {
+        use crate::protocol::dye::{self as wire, Kind, Message};
+        let kind = Kind::Request;
+        if !matches(category, body, kind.category(), kind.type_id()) {
+            return Ok(None);
+        }
+        let Some(Message::Request {
+            x,
+            y,
+            is_avatar,
+            color_value,
+        }) = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+            .map_err(|_| RuntimeError::Message)?
+        else {
+            return Err(RuntimeError::Message);
+        };
+        let (Some(selected), true) = (
+            self.selected.as_ref(),
+            self.password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend)),
+        ) else {
+            self.log_unhandled(category, body);
+            return Ok(Some(()));
+        };
+        let cid = selected.cid;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets
+            .current();
+        let request = super::minimum_dye::Request {
+            x,
+            y,
+            is_avatar,
+            color_value,
+        };
+        match super::minimum_dye::request(
+            pool,
+            &owner,
+            assets,
+            cid,
+            selected.dye.as_ref(),
+            request,
+            runtime.item_log_context(assets)?,
+        )
+        .await
+        {
+            Ok(packets) => {
+                for packet in &packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                tracing::info!("minimum dye ampoule colored and synchronized; values omitted");
+            }
+            Err(_) => tracing::warn!("minimum dye ampoule request refused; nothing written"),
+        }
+        Ok(Some(()))
     }
     /// CharacterList DeleteCharacter / DeleteCharacterCancel / SelectOrdersChange. `None` when
     /// the message is not one of them.

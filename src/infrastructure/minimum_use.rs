@@ -1,7 +1,8 @@
 //! UseInventoryItemProcessor for the selected first Fiona: the UseInTown dispatch with
 //! its dialogs (UseInTown 0 and IsConstraintSatisfied failures) and the capsule_ap
-//! branch (UseUseableItem + CharacterImpl.GiveAP, amount from the VALUE attribute) and the RandomItemContents boxes
-//! (`minimum_random_item`). Other usable branches (food, RandomItemV2 opening, pets, ...)
+//! branch (UseUseableItem + CharacterImpl.GiveAP, amount from the VALUE attribute), the
+//! RandomItemContents boxes (`minimum_random_item`) and the empty dye ampoule
+//! (`minimum_dye`, DyeAmpleSession). Other usable branches (food, RandomItemV2 opening, pets, ...)
 //! are rejected without changes until migrated.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
@@ -22,6 +23,9 @@ pub enum Outcome {
     /// A HomeCafeBonus item: the messages, then CharacterCommonInfo (MakeSummary) from the
     /// frontend, which owns the summary query configuration.
     AppliedWithSummary(Vec<OutgoingPacket>),
+    /// An empty dye ampoule: DyeAmpleUsedMessage, and the session the frontend keeps as
+    /// ItemOwner.DyeAmpleSession. Nothing is written.
+    DyeOpened(Vec<OutgoingPacket>, crate::domain::dye_ample::Session),
 }
 
 fn fail() -> MinimumError {
@@ -370,6 +374,13 @@ pub async fn use_item(
             )
             .await?
             else {
+                // The branches between the boxes and DyeAmpleSession.IsEmptyAmple are not
+                // migrated; none of them matches an empty dye ampoule class.
+                if crate::domain::dye_ample::is_empty(&class) {
+                    let (packets, session) =
+                        super::minimum_dye::open(pool, assets, log.flags, item.id, &class).await?;
+                    return Ok((Outcome::DyeOpened(packets, session), None));
+                }
                 return Err(fail());
             };
             tx.commit().await?;

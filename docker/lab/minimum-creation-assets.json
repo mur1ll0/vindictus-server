@@ -19,6 +19,7 @@
   "enhance": "/content/item-enhance.json",
   "relay_bind": "127.0.0.1:27005",
   "random_item": "/content/random-item.json",
+  "dye_ample": "/content/dye-ample.json",
   "cash_shop": "/content/cash-shop.json",
   "class_initial": "/content/class-initial.json",
   "class_initializers": [

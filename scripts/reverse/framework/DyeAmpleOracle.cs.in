@@ -1,0 +1,100 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections;
+using System.Collections.Generic;
+using System.Runtime.Serialization;
+using System.Web.Script.Serialization;
+using Devcat.Core.Net.Message;
+using ServiceCore.EndPointNetwork;
+using PlayerService.ItemServiceCore.Static;
+
+class DyeAmpleOracle {
+ static int[] Body(Packet p) { return p.Array.Skip(p.Offset+p.BodyOffset).Take(p.Length).Select(b=>(int)b).ToArray(); }
+ static object Capture(object v) {
+  if(v==null)return null;
+  if(v is string || v.GetType().IsPrimitive)return v;
+  if(v.GetType().IsEnum)return Convert.ToInt32(v);
+  if(v is IEnumerable)return ((IEnumerable)v).Cast<object>().Select(Capture).ToArray();
+  return v.GetType().GetProperties().Where(p=>p.CanRead).ToDictionary(p=>p.Name,p=>Capture(p.GetValue(v,null)));
+ }
+ static T Obj<T>(params object[] fields) where T:class {
+  var obj=(T)FormatterServices.GetUninitializedObject(typeof(T));
+  for(int i=0;i<fields.Length;i+=2)typeof(T).GetProperty((string)fields[i]).SetValue(obj,fields[i+1],null);
+  return obj;
+ }
+ static void AddCases<T>(string kind, int category, Guid expectedGuid, IEnumerable<T> values, List<object> cases) where T : class {
+  if (typeof(T).GUID != expectedGuid) throw new InvalidOperationException("GUID mismatch for " + typeof(T).FullName);
+  var items = values.ToArray();
+  var generic = items.Select(v => SerializeWriter.ToBinary<T>(v)).ToArray();
+  ClassInfo<T>.CategoryId = category;
+  for (int n = 0; n < items.Length; n++) {
+   var typed = SerializeWriter.ToBinary<T>(items[n]);
+   foreach (string mode in new[] { "unregistered-generic", "registered-object", "registered-typed" }) {
+    var packet = mode == "unregistered-generic" ? generic[n] : mode == "registered-object" ? SerializeWriter.ToBinary((object)items[n]) : typed;
+    T decoded;
+    SerializeReader.FromBinary<T>(packet, out decoded);
+    var reencoded = SerializeWriter.ToBinary<T>(decoded);
+    if (!Body(reencoded).SequenceEqual(Body(typed))) throw new InvalidOperationException("Roundtrip mismatch for " + kind + " case " + n);
+    var analyzer = new MessageAnalyzer();
+    var raw = packet.Bytes;
+    var copy = new byte[raw.Count];
+    Buffer.BlockCopy(raw.Array, raw.Offset, copy, 0, raw.Count);
+    analyzer.Add(new ArraySegment<byte>(copy));
+    var analyzed = analyzer.ToArray();
+    if (analyzed.Length != 1) throw new InvalidOperationException("MessageAnalyzer count mismatch");
+    var framed = new Packet(analyzed[0]);
+    if (framed.CategoryId != packet.CategoryId || !Body(framed).SequenceEqual(Body(packet))) throw new InvalidOperationException("MessageAnalyzer payload mismatch");
+    cases.Add(new { kind, mode, category = packet.CategoryId, body = Body(packet), typed_body = Body(typed), is_null = decoded == null, fields = Capture(decoded) });
+   }
+  }
+ }
+
+ static void Main(){
+  var cases=new List<object>();
+  var tables=new string[]{null,"","cash","avatarcolor","cash_new","색상"};
+  var seeds=new[]{new[]{0,0,0,0},new[]{255,1,128,77},new[]{int.MinValue,-1,int.MaxValue,17}};
+  var used=new List<DyeAmpleUsedMessage>{null};
+  foreach(var t in tables)foreach(var s in seeds)used.Add(new DyeAmpleUsedMessage(t,s));
+  AddCases("used",270,new Guid("25fbb3e8-bab4-3548-a0a1-224aa97b4f25"),used,cases);
+  var request=new List<DyeAmpleRequestMessage>{null};
+  var lists=new List<int>[]{null,new List<int>(),new List<int>{0},new List<int>{16777215,0,-1,int.MinValue,int.MaxValue,8421504}};
+  foreach(int x in new[]{int.MinValue,-1,0,255,int.MaxValue})foreach(bool avatar in new[]{false,true})foreach(var l in lists)request.Add(Obj<DyeAmpleRequestMessage>("X",x,"Y",-x/2,"IsAvatar",avatar,"ColorValue",l));
+  AddCases("request",269,new Guid("c55d23ca-6885-3155-9375-5035631f3ff5"),request,cases);
+  var complete=new List<DyeAmpleCompleteMessage>{null};
+  foreach(int c in new[]{int.MinValue,-1,0,16777215,int.MaxValue})complete.Add(new DyeAmpleCompleteMessage(c));
+  AddCases("complete",268,new Guid("c9765023-10d1-3a0a-bf97-6b45e7312258"),complete,cases);
+
+  // DistortTable.Undistort with synthetic tables put in place of the dye.displace load
+  // (the static constructor fails on the absent stub path and keeps an empty table).
+  var property=typeof(DistortTable).GetProperty("Table",BindingFlags.NonPublic|BindingFlags.Static);
+  var undistort=new List<object>();
+  var synthetic=new Dictionary<string,Dictionary<int,int>>();
+  synthetic["permutation"]=Enumerable.Range(0,256).ToDictionary(i=>i,i=>(i*37+11)%256);
+  synthetic["short_file"]=Enumerable.Range(0,256).ToDictionary(i=>i,i=>i<200?(255-i):-1);
+  synthetic["empty"]=new Dictionary<int,int>();
+  var coords=new[]{int.MinValue,-600,-257,-1,0,1,39,127,255,256,1000,int.MaxValue};
+  foreach(var entry in synthetic){
+   property.SetValue(null,entry.Value,null);
+   foreach(var s in seeds.Concat(new[]{new[]{17,200,3,99}}))foreach(int x in coords)foreach(int y in coords){
+    int ox=x,oy=y;DistortTable.Undistort(ref ox,ref oy,s);
+    undistort.Add(new{table=entry.Key,seed=s,x,y,out_x=ox,out_y=oy});
+   }
+  }
+  var table=synthetic.ToDictionary(e=>e.Key,e=>Enumerable.Range(0,256).Select(i=>e.Value.ContainsKey(i)?e.Value[i]:(int?)null).ToArray());
+  // int.TryParse of the DyeCashCursor parts.
+  var parse=new List<object>();
+  foreach(var text in new[]{"3","2","40","60"," 2","2 ","\t3\n","+5","-1","-0","007","x","","1.5","2147483647","2147483648","-2147483648","-2147483649","٣","3x"}){int v;bool ok=int.TryParse(text,out v);parse.Add(new{text,ok,value=v});}
+  Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=32*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases,undistort,tables=table,int_parse=parse}));
+ }
+}
+namespace ServiceCore { public static class FeatureMatrix { public static string MaterialPathString { get { return Path.Combine(Path.GetTempPath(),"dye-ample-oracle-absent"); } } } }
+namespace Utility {
+ public static class Log<T> { public static readonly DummyLogger Logger=new DummyLogger(); }
+ public class DummyLogger { public void DebugFormat(string f,params object[] a){} public void Error(string m){} public void Error(string m,Exception e){} }
+ public static class DictionaryExtension {
+__TRYGETVALUE__
+ }
+}
+namespace Devcat.Core.Memory {public static class ChunkSegment<T>{public static ArraySegment<T> Get(int count){return new ArraySegment<T>(new T[count]);}}}

@@ -288,3 +288,27 @@ pub async fn write_requested_ledger(
     let _attempt =
         item_event_logs::write_ledger(pool, cid, &ledger, flags.disable_logging, deadline).await;
 }
+
+/// AddItemLedger(journal, event, action, LogData.From(owner, item)) of an existing item.
+#[allow(clippy::too_many_arguments)]
+pub async fn write_item_ledger(
+    pool: &PgPool,
+    cid: i64,
+    journal: i64,
+    event: i16,
+    action: i16,
+    data: Data,
+    flags: Flags,
+) {
+    let bundle = bundle_count(pool, cid, data.class()).await;
+    let ledger = Ledger {
+        journal,
+        event,
+        action,
+        data,
+        bundle,
+    };
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    let _attempt =
+        item_event_logs::write_ledger(pool, cid, &ledger, flags.disable_logging, deadline).await;
+}

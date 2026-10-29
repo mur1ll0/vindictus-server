@@ -265,3 +265,11 @@ Pré-condições: `game` reconstruído; personagem com uma peça de armadura ou 
 - [ ] Dentro da fase, tentar trocar equipamento → recusado (mensagem de que não é possível equipar na batalha); nada muda.
 - [ ] Na cidade, equipar e desequipar → o visual muda como antes (não regressão).
 Resultado esperado: o visual acompanha o equipamento no barco e na volta à cidade; na fase a troca é recusada.
+
+### DY1 — Ampola de tintura vazia (Clodagh Dye Ampoule)
+Pré-condições: `dye_empty_event_cash` no inventário (a `DeliaLab`, cid 639287373299843079, já tem uma); sidecar `.cache/private-content/dye-ample.json` exportado (`python -s -E scripts/content/export_dye_ample.py --output .cache/private-content/dye-ample.json`); `game` reconstruído com este passo; personagem na cidade.
+- [ ] Usar a ampola (botão direito) → abre a paleta de cores do cliente; a ampola continua igual no inventário até escolher.
+- [ ] Escolher uma cor e confirmar → a ampola vira "Dye Ampoule" colorida (`dye_color_cash`) com a cor escolhida (ícone e dica com a cor); o log do `game` mostra "minimum dye ampoule colored and synchronized".
+- [ ] Relogar → a ampola colorida continua com a mesma cor.
+- [ ] Fechar a paleta sem escolher → nada muda; usar a ampola de novo reabre a paleta.
+Limites conhecidos: tingir uma peça com a ampola colorida (`DyeItemCashMessage`) não está portado; os registros SimpleLog da sessão (candidatos, semente) não são gravados; a ampola de avatar (`dye_empty_avatar_*`) segue o mesmo caminho, mas não foi testada.

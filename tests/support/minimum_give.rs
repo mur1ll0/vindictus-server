@@ -1981,6 +1981,7 @@ async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
             panic!("VIP not applied: {format:?}")
         }
         minimum_use::Outcome::Unchanged => panic!("VIP not applied: unchanged"),
+        minimum_use::Outcome::DyeOpened(..) => panic!("VIP not applied: dye session"),
     };
     let k = kinds(&packets);
     assert_eq!(k[0], Kind::UseInventoryItemOk.category());
@@ -7766,5 +7767,278 @@ async fn panel_progression_levels_gives_ap_and_title_once_offline() {
     .await
     .unwrap();
     assert!((3..=4).contains(&audited));
+    cleanup_game_pool(a, p, s).await;
+}
+
+/// Fixture assets with the empty event dye ampoule (cash inventory, UseInTown) and the
+/// equippable dye_color_cash whose Material1 is the synthetic `cash` table.
+fn dye_assets(
+    raw: &[u8],
+    displace: &[u8],
+) -> (Assets, vindictus_server::domain::item_colors::Materials) {
+    use sha2::{Digest, Sha256};
+    let hex = |b: &[u8]| b.iter().map(|v| format!("{v:02x}")).collect::<String>();
+    let sha = |b: &[u8]| format!("{:x}", Sha256::digest(b));
+    let (mut catalog, mut stats, mut colors, mut profile) = appearance_fixture::fixtures();
+    let gold = appearance_fixture::key("synthetic_gold");
+    let empty = appearance_fixture::key("dye_empty_event_cash");
+    let color = appearance_fixture::key("dye_color_cash");
+    let cash = appearance_fixture::key("cash");
+    catalog["equips"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"item_utf16":color,"feature":null}));
+    for (n, class, storage) in [(2, &gold, 3), (3, &empty, 2), (4, &color, 2)] {
+        catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":class,"feature":null,"max_stack":if n == 2 { 2100000000 } else { 1 },"storage":storage,"bind":null,"trade_on_bind":null}));
+        profile["classes"].as_array_mut().unwrap().push(json!({"source_index":n,"item_utf16":class,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
+    }
+    catalog["manifest"]["equip_rows"] = json!(2);
+    catalog["manifest"]["class_rows"] = json!(5);
+    stats["rows"].as_array_mut().unwrap().push(json!({"source_index":1,"item_utf16":color,"feature":null,"stats":vec![0;18],"max_durability":0,"weight_bits":"0000000000000000","armor_hp":0}));
+    colors["rows"].as_array_mut().unwrap().push(
+        json!({"source_index":1,"item_utf16":color,"feature":null,"materials":[cash,null,null]}),
+    );
+    colors["materials"] = json!([{"name_utf16":cash,"raw_hex":hex(raw),"sha256":sha(raw)}]);
+    let rows: Vec<Value> = catalog["classes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+        .map(|(n, c)| json!({"item_utf16":c["item_utf16"],"category_utf16":null,"unique":0,"expire_in":null,"price":0,"sell_price":0,"required_level":0,"class_restriction":2047,"use_in_town":if n == 3 { 1 } else { 0 },"indestructible":0,"level_upper_bound":0,"cafe_only":0,"required_skill_utf16":null,"required_skill_rank":0,"required_enhance":0,"required_enchant":0,"quick_slot_max_stack":0,"draft":0}))
+        .collect();
+    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":[]});
+    let dye = json!({"format_version":1,"source":"heroesContents.dye-ample","database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"region":"STUDY-A","cursor":"3x2x40","displace":{"raw_hex":hex(displace),"sha256":sha(displace)}});
+    let bytes = |v: &Value| serde_json::to_vec(v).unwrap();
+    let mut appearance = appearance_fixture::fixture();
+    appearance["equips"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"source_index":1,"item_utf16":color,"feature":null,"costume_type":-1}));
+    let assets = Assets::from_parts(Parts {
+        initializer: super::fiona_inventory_delivery::profile(false),
+        catalog: item_catalog::read_package(bytes(&catalog).as_slice()).unwrap(),
+        stats: vindictus_server::infrastructure::item_stats::Package::read(
+            bytes(&stats).as_slice(),
+        )
+        .unwrap(),
+        colors: vindictus_server::infrastructure::item_colors::Package::read(
+            bytes(&colors).as_slice(),
+        )
+        .unwrap(),
+        inventory: vindictus_server::infrastructure::fiona_inventory_profile::Profile::read(
+            bytes(&profile).as_slice(),
+        )
+        .unwrap(),
+        appearance: vindictus_server::infrastructure::fiona_appearance::Profile::read(
+            bytes(&appearance).as_slice(),
+        )
+        .unwrap(),
+        entity_service_id: 77,
+        arithmetic: None,
+        color_seed: 17,
+    })
+    .unwrap()
+    .with_economy(item_economy::Profile::read(bytes(&economy).as_slice()).unwrap())
+    .unwrap()
+    .with_dye(
+        vindictus_server::infrastructure::minimum_dye::Profile::read(bytes(&dye).as_slice())
+            .unwrap(),
+    )
+    .unwrap();
+    let mut materials = vindictus_server::domain::item_colors::Materials::default();
+    let name: Vec<u16> = "cash".encode_utf16().collect();
+    materials.insert(&name, Some(raw)).unwrap();
+    (assets, materials)
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_dye_ample_opens_the_picker_and_colors_the_ampoule_once() {
+    use vindictus_server::{
+        domain::{character_stats::Arithmetic, dye_ample::DistortTable},
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_dye, minimum_item_logs, minimum_selection,
+            minimum_use,
+        },
+        protocol::{dye, inventory::UseItem},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let raw: Vec<u8> = (0..65536u32)
+        .flat_map(|i| [(i % 251) as u8, (i / 256) as u8, (i % 7) as u8])
+        .collect();
+    let displace: Vec<u8> = (0..256u32).map(|i| ((i * 37 + 11) % 256) as u8).collect();
+    let (assets, materials) = dye_assets(&raw, &displace);
+    let distort = DistortTable::from_bytes(&displace);
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    minimum_give::lab_grant(&p, &assets, Some(1), "dye_empty_event_cash", 1, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    let config = || QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let item: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1")
+        .bind(utf16("dye_empty_event_cash"))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let before = items(&p).await;
+    let outcome = minimum_use::use_item(
+        &p,
+        &owner,
+        &assets,
+        1,
+        UseItem {
+            item_id: item,
+            target_item_id: -1,
+        },
+        log,
+        vindictus_server::infrastructure::minimum_quest::QuestClock {
+            arithmetic: Arithmetic::FrameworkX64,
+            civil_offset_seconds: 0,
+        },
+        &[],
+        Vec::new(),
+    )
+    .await
+    .unwrap();
+    let minimum_use::Outcome::DyeOpened(packets, session) = outcome else {
+        panic!("dye session missing")
+    };
+    // DyeAmpleUsedMessage only; the ampoule is unchanged until the request.
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].category, 270);
+    assert_eq!(
+        dye::decode(dye::Kind::Used, &packets[0].body, DEFAULT_MAX_BODY).unwrap(),
+        Some(dye::Message::Used {
+            color_table: Some("cash".into()),
+            seeds: session.seed,
+        })
+    );
+    assert!(session.seed.iter().all(|s| (0..256).contains(s)));
+    assert_eq!(
+        (session.item_id, session.color_table.as_str()),
+        (item, "cash")
+    );
+    assert_eq!(items(&p).await, before);
+    let (x, y) = (5, 7);
+    let grid: Vec<i32> = (0..3)
+        .flat_map(|i| (0..2).map(move |j| (i, j)))
+        .map(|(i, j)| {
+            session
+                .color(&materials, &distort, x + i * 40, y + j * 40)
+                .unwrap()
+        })
+        .collect();
+    let request = |color_value: Option<Vec<i32>>| minimum_dye::Request {
+        x,
+        y,
+        is_avatar: false,
+        color_value,
+    };
+    // No session, no colors or fewer colors than the 3x2 cursor: FailMessage, no writes.
+    for (open, colors) in [
+        (None, Some(grid.clone())),
+        (Some(&session), None),
+        (Some(&session), Some(grid[..5].to_vec())),
+    ] {
+        assert!(
+            minimum_dye::request(&p, &owner, &assets, 1, open, request(colors), log)
+                .await
+                .is_err()
+        );
+    }
+    assert_eq!(items(&p).await, before);
+    let packets = minimum_dye::request(
+        &p,
+        &owner,
+        &assets,
+        1,
+        Some(&session),
+        request(Some(grid.clone())),
+        log,
+    )
+    .await
+    .unwrap();
+    assert_eq!(packets.len(), 2);
+    let Some(dye::Message::Complete { color }) =
+        dye::decode(dye::Kind::Complete, &packets[0].body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("complete missing")
+    };
+    assert!(grid.contains(&color));
+    let Some(Message::UpdateInventoryInfo(Some(slots))) = inventory::decode(
+        Kind::UpdateInventoryInfo,
+        &packets[1].body,
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap() else {
+        panic!("sync missing")
+    };
+    let slot = slots[0].as_ref().unwrap();
+    assert_eq!(
+        (slot.id, slot.class.as_deref(), slot.colors.clone()),
+        (item, Some("dye_color_cash"), Some(vec![color; 3]))
+    );
+    let stored: (Vec<u8>, bool, i32, i32, i32) = sqlx::query_as("SELECT i.item_class_utf16,i.tradable,e.color1,e.color2,e.color3 FROM game_items i JOIN game_equippables e ON e.id=i.id WHERE i.id=$1")
+        .bind(item)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(stored, (utf16("dye_color_cash"), true, color, color, color));
+    let value: Vec<(Vec<u8>, Vec<u8>, i32, i32)> = sqlx::query_as(
+        "SELECT attribute_bytes,value_bytes,arg,arg2 FROM game_item_attributes WHERE item_id=$1",
+    )
+    .bind(item)
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(
+        value,
+        vec![(b"VALUE".to_vec(), color.to_string().into_bytes(), 0, 0)]
+    );
+    // "Already used DyeAmple": the open session is refused without changes.
+    let after = items(&p).await;
+    assert!(
+        minimum_dye::request(
+            &p,
+            &owner,
+            &assets,
+            1,
+            Some(&session),
+            request(Some(grid)),
+            log
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(items(&p).await, after);
+    // Relogin: the colored ampoule loads (VALUE has no Item.Stat).
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    minimum_selection::select(&p, &owner, &assets, 0, config(), Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let inventory = minimum_inventory::query(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    let Some(Message::InventoryInfo(info)) =
+        inventory::decode(Kind::InventoryInfo, &inventory.body, DEFAULT_MAX_BODY).unwrap()
+    else {
+        panic!("inventory missing")
+    };
+    assert!(info.slots.unwrap().iter().flatten().any(|s| s.id == item
+        && s.class.as_deref() == Some("dye_color_cash")
+        && s.colors == Some(vec![color; 3])));
+    minimum_selection::disconnect(&p, 1).await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }

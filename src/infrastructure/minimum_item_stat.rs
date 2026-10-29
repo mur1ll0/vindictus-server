@@ -137,7 +137,8 @@ pub(super) fn equipment_with(
     if attributes
         .as_slice()
         .iter()
-        // LOOK (Item.Look) and COSTUMELOC change the appearance only.
+        // LOOK (Item.Look) and COSTUMELOC change the appearance only; VALUE is a
+        // GeneralValue, whose Stat is null (the colored dye ampoule's color).
         .any(|a| {
             ![
                 ENHANCE,
@@ -148,11 +149,20 @@ pub(super) fn equipment_with(
                 QUALITY,
                 "LOOK",
                 "COSTUMELOC",
+                "VALUE",
             ]
             .contains(&a.name.as_str())
         })
     {
         return Err(fail());
+    }
+    // Only stat-free attributes: the enhance contents are not consulted.
+    if attributes
+        .as_slice()
+        .iter()
+        .all(|a| ["LOOK", "COSTUMELOC", "VALUE"].contains(&a.name.as_str()))
+    {
+        return Ok(out);
     }
     let contents = assets.enhance.as_ref().ok_or_else(fail)?;
     if let Some(value) = attributes.get(ENHANCE).map(|a| a.value.as_str()) {

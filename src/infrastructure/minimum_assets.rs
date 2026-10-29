@@ -48,6 +48,9 @@ struct Files {
     enhance: Option<PathBuf>,
     #[serde(default)]
     random_item: Option<PathBuf>,
+    /// DyeAmpleSession sidecar (DyeCashCursor and dye.displace).
+    #[serde(default)]
+    dye_ample: Option<PathBuf>,
     #[serde(default)]
     cash_shop: Option<PathBuf>,
     /// Per-class DefaultItemInfo, INNERARMOR and CharacterClassInfo (other classes).
@@ -112,6 +115,8 @@ pub struct Assets {
     pub(super) enhance: Option<super::item_enhance::Contents>,
     /// RandomItemContents bound to `catalog`.
     pub(super) random_item: Option<super::random_item::Contents>,
+    /// DyeAmpleSession contents bound to `catalog`.
+    pub(super) dye: Option<super::minimum_dye::Contents>,
     /// RandomItemManager's static Random.
     pub(super) random_item_random: Mutex<ColorRandom>,
     /// Laboratory cash shop catalog bound to `catalog`.
@@ -402,6 +407,9 @@ impl Assets {
         if let Some(path) = f.random_item {
             assets = assets.with_random_item(super::random_item::Profile::read(open(&path)?)?)?;
         }
+        if let Some(path) = f.dye_ample {
+            assets = assets.with_dye(super::minimum_dye::Profile::read(open(&path)?)?)?;
+        }
         if let Some(path) = f.cash_shop {
             assets = assets.with_cash_shop(
                 super::cash_shop::Profile::read(open(&path)?)?.with_overlay(overlay),
@@ -428,6 +436,7 @@ impl Assets {
             npc: None,
             enhance: None,
             random_item: None,
+            dye: None,
             random_item_random: Mutex::new(ColorRandom::from_seed(time_seed())),
             cash_shop: None,
             item_arithmetic: None,
@@ -550,6 +559,10 @@ impl Assets {
         profile: super::random_item::Profile,
     ) -> Result<Self, MinimumError> {
         self.random_item = Some(profile.bind(&self.catalog)?);
+        Ok(self)
+    }
+    pub fn with_dye(mut self, profile: super::minimum_dye::Profile) -> Result<Self, MinimumError> {
+        self.dye = Some(profile.bind(&self.catalog)?);
         Ok(self)
     }
     pub fn with_cash_shop(
