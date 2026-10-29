@@ -356,10 +356,14 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # notifies: the notify path (0x405465d0) rebuilds the costume model (CoStUmE_<parts>.mdl, which is
 # what shows the broken parts in 1.69) and sets it at once. Run from inside the animation event
 # dispatch, that frees the model the dispatch is still reading (D23: server 0x40383bab,
-# CStudioHdr::pSeqdesc); the 1.69's own breaks run from damage, outside it. For an extra class each
-# of slots 4-8 that has armour (0x40814620 false) gets HP 0 (0x408144d0) and the broken state without
-# notify (0x40547480(slot, 1, 0)), the armour status update (0x4054e160) runs once, and the rebuild
-# is left to the think (entry +0x18), after the base think has finished its animation events. The
+# CStudioHdr::pSeqdesc); the 1.69's own breaks run from damage, outside it. A purge also takes the
+# armour off the body, leaving the inner wear (operator, D23: the original shows only the inner
+# armour after Rose Crush, while a break by a hit shows the broken look): the costume's worn part
+# of the slot (+0x94[slot], networked, copied into the model name by 0x4081be60) becomes -1 until
+# the costume is rebuilt from the equipment. For an extra class each of slots 4-8 that has armour
+# (0x40814620 false) gets HP 0 (0x408144d0), its part hidden and the broken state without notify
+# (0x40547480(slot, 1, 0)), the armour status update (0x4054e160) runs once, and the rebuild is left
+# to the think (entry +0x18), after the base think has finished its animation events. The
 # purge flag and NA's slot-4 look (0x6bd370) are not ported. The command is server only (NA
 # client.dll has no PURGE string), so a town area without the game server never purges.
 DELIA_EFFECTS = {'server.dll': {
@@ -369,7 +373,8 @@ DELIA_EFFECTS = {'server.dll': {
     'ftol': 0x40993AC0, 'globals': 0x40D6EE48, 'stamina_load': 0x4050C820, 'stamina_hit': 0x4050C9F0,
     'health_set': 0x4002AA90, 'armor_add': 0x40530DA0, 'hit_name': 0x408BCCA0, 'level': 0x404FDF40,
     'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70, 'armor': 0x148C, 'armor_none': 0x40814620,
-    'armor_hp_set': 0x408144D0, 'armor_state': 0x40547480, 'armor_update': 0x4054E160, 'costume': 0x405465D0}}
+    'armor_hp_set': 0x408144D0, 'armor_state': 0x40547480, 'armor_update': 0x4054E160, 'costume': 0x405465D0,
+    'clothes': 0x156C, 'worn_part': 0x94}}
 DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x20
 # entry: +0 entity, +4 reserved HP, +8 restore per second, +0xc fraction, +0x10 last restore time,
 # +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due,
@@ -1632,6 +1637,11 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('84c0'); skip = fwd('0f85')
     b('8b8f' + d32(k['armor']) + '8b4904 6a00 56')  # HP(slot) = 0.0
     call(k['armor_hp_set'])
+    worn = k['clothes'] + k['worn_part']
+    b('83bcb7' + d32(worn) + 'ff'); hidden = fwd('0f84')  # worn part already none
+    b('8d8f' + d32(k['clothes']) + '8d94b7' + d32(worn) + '52 8b01 ff5004')  # changed(&part)
+    b('c784b7' + d32(worn) + 'ffffffff')  # part = -1
+    L.land(hidden)
     b('6a00 6a01 56 8bcf')  # broken(slot, 1, no notify)
     call(k['armor_state'])
     L.land(skip)

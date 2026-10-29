@@ -479,12 +479,21 @@ class LabCopyTest(unittest.TestCase):
         # PURGE_ALL_ARMOR: slots 4-8 with armour get HP 0 and the broken state without notify
         # (the notify path rebuilds the costume model)
         at = events.index('mov esi, 4')
-        self.assertEqual(events[at + 1:at + 16], [
+        worn = k['clothes'] + k['worn_part']
+        self.assertEqual(events[at + 1:at + 12], [
             'mov ecx, dword ptr [edi + 0x148c]', 'mov ecx, dword ptr [ecx + 4]', 'push esi', f'call {k["armor_none"]:#x}',
             'test al, al', events[at + 6], 'mov ecx, dword ptr [edi + 0x148c]', 'mov ecx, dword ptr [ecx + 4]', 'push 0',
-            'push esi', f'call {k["armor_hp_set"]:#x}', 'push 0', 'push 1', 'push esi', 'mov ecx, edi'])
+            'push esi', f'call {k["armor_hp_set"]:#x}'])
         self.assertTrue(events[at + 6].startswith('jne '))
-        self.assertEqual(events[at + 16:at + 19], [f'call {k["armor_state"]:#x}', 'inc esi', 'cmp esi, 9'])
+        # the worn part leaves the model: network change, then -1
+        self.assertEqual(events[at + 12], f'cmp dword ptr [edi + esi*4 + {worn:#x}], -1')
+        self.assertEqual(events[at + 14:at + 20], [
+            'lea ecx, [edi + 0x156c]', f'lea edx, [edi + esi*4 + {worn:#x}]', 'push edx', 'mov eax, dword ptr [ecx]',
+            'call dword ptr [eax + 4]', f'mov dword ptr [edi + esi*4 + {worn:#x}], 0xffffffff'])
+        self.assertEqual(events[at + 20:at + 27], ['push 0', 'push 1', 'push esi', 'mov ecx, edi',
+                                                   f'call {k["armor_state"]:#x}', 'inc esi', 'cmp esi, 9'])
+        # the costume object: +0x94 is its worn part per slot (0x408154b0 reads it)
+        self.assertEqual(text(0x408154B0, 0x14)[3], 'mov eax, dword ptr [ecx + eax*4 + 0x94]')
         self.assertIn(f'call {k["armor_update"]:#x}', events)
         self.assertNotIn('call 0x40530ce0', events)
         self.assertNotIn(f'call {k["costume"]:#x}', events)
