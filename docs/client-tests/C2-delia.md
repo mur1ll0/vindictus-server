@@ -422,3 +422,9 @@ Pré-condição: aplicado (`client.dll` `3287411a…`, `server.dll` `2f3e5c54…
 - [ ] Ataque que não deveria ser defensável (golpe forte de chefe, se houver): anotar se ainda acerta.
 - [ ] Não regressão: Fiona (guarda com escudo), Hagie e Evy numa fase.
 Resultado esperado: dano bloqueado durante a guarda.
+
+### D21 — Levantamento das habilidades da Delia em nível alto (base para o E4/E5)
+Preparação: painel admin → personagem `DeliaLab` → progressão: subir até o nível 45 (ou mais) e dar AP; no jogo, aprender as habilidades da Delia na janela de habilidades.
+- [ ] Para cada habilidade (`smash` 1–3, `speedmove`, `xe_move`, SP1–SP5, `smash0`, `power_attack`): usar numa fase e anotar se a animação toca, se acerta/causa dano e se algo trava ou cai.
+- [ ] Anotar especialmente: lançamento de inimigos (*ragdoll*), agarrar e segurar alvo, avanço até o alvo, efeito do *smash* carregado.
+Resultado esperado: a lista do que já funciona e do que falta; o porte do NA (E4/E5) segue por essa lista.
