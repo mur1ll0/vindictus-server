@@ -244,6 +244,7 @@ CLASS_DEFAULT_HEAD = bytes.fromhex('8b4424048b5424088d04808d04428b0481c20800')
 # class 10 got Lethita's list and a Bastard Sword showed as dual swords (D14). An extra class now
 # gets its own row in .hrte (`weapons`), reached by setting X so that X*4 + table is that row.
 CLASS_WEAPONS = {'client.dll': 0x38FBC6C0, 'server.dll': 0x40F68510}
+WEAPON_SLOTS = 5
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -701,7 +702,12 @@ def class_default(image: Image, layout: Layout, edits: list, va: int) -> str:
 def class_weapons(image: Image, layout: Layout, edits: list, relocs: set[int], table: int) -> dict:
     """CLASS_WEAPONS: a weapon list row per extra class and a stub at each clamped reader."""
     layout.pad()
-    names = {extra.index: [layout.string(w) for w in extra.weapons] for extra in EXTRA_CLASSES}
+    # Rows hold exactly WEAPON_SLOTS names, the unused ones empty, as the loader fills them: the
+    # server's 0x40825890 walks all five without reading the size (one entry crashed it, D18).
+    if any(len(extra.weapons) > WEAPON_SLOTS for extra in EXTRA_CLASSES):
+        raise PreparationError(f'At most {WEAPON_SLOTS} weapon entities per class.')
+    names = {extra.index: [layout.string(w) for w in extra.weapons] + [layout.string('')] * (WEAPON_SLOTS - len(extra.weapons))
+             for extra in EXTRA_CLASSES}
     layout.pad()
     rows = {}
     for extra in EXTRA_CLASSES:

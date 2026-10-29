@@ -292,9 +292,13 @@ class LabCopyTest(unittest.TestCase):
             table = routing.CLASS_WEAPONS[name]
             row = int(report['class_weapons']['rows'][routing.DELIA], 16)
             items, count, grow, size, elements = struct.unpack_from('<IiiiI', image.data, image.offset(row))
-            self.assertEqual((count, grow, size, elements), (1, -1, 1, items))
-            first = struct.unpack_from('<I', image.data, image.offset(items))[0]
-            self.assertEqual(routing.read_string(image, first), routing.EXTRA_CLASSES[0].weapons[0])
+            self.assertEqual((count, grow, size, elements), (5, -1, 5, items))
+            listed = [routing.read_string(image, struct.unpack_from('<I', image.data, image.offset(items + 4 * i))[0])
+                      for i in range(5)]
+            weapons = list(routing.EXTRA_CLASSES[0].weapons)
+            self.assertEqual(listed[:len(weapons)], weapons)
+            self.assertTrue(all(image.data[image.offset(struct.unpack_from('<I', image.data, image.offset(items + 4 * i))[0])] == 0
+                                for i in range(len(weapons), 5)))
             self.assertEqual(len(report['class_weapons']['readers']), 5)
             for entry in report['class_weapons']['readers']:
                 va = int(entry.split(' -> ')[0], 16)
