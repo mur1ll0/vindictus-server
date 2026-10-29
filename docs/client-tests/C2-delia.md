@@ -410,3 +410,15 @@ Pré-condição: aplicado (`client.dll` `3287411a…`, `server.dll` `2cf34a4f…
 - [ ] Inventário: itens ainda vermelhos? Se sim, deixar o jogo aberto na cidade e avisar (leitura dos *flags* do item na memória).
 - [ ] Não regressão: Hagie, Fiona e Evy na cidade e numa fase.
 Resultado esperado: estamina normal; o comportamento da guarda define o próximo passo do E3.
+
+Resultado do D19 (28/10/2026, operador): **estamina resolvida.** A guarda (Shift) faz a animação mas não defende o golpe; o *dash* (Shift + direção) esquiva corretamente.
+
+### D20 — Guarda da Delia (E3)
+Causa: a guarda liga o "estado da classe" do jogador (*slot* 618, pelo evento `ENABLE_ENDURE_MODE` do script) e o dano consulta o *slot* 619; na base do 1.69 os dois não fazem nada (619 devolve "não"). Só Fiona, Evy, Kalok e Arisha têm os seus.
+Mudança (`GUARD` no patch, servidor): para a classe 10, 618/619 guardam o estado numa tabela própria (16 entidades), e o dano (*slot* 555) usa a rotina de guarda da Fiona (zera o dano e faz a reação; só usa campos da base), levantando `AS_Cond_Delia_Guard`/`AS_Cond_Delia_Guard_Hit` a cada golpe bloqueado (como no NA) e baixando-as ao sair da guarda. Efeito visual: a rotina da Fiona dispara o efeito `shield_pass_over`.
+Pré-condição: aplicado (`client.dll` `3287411a…`, `server.dll` `2f3e5c54…`); abrir pelo `start-lab.bat`.
+- [ ] Primeira fase com a `DeliaLab`: segurar a guarda (Shift) e levar golpes de frente; anotar se o dano é bloqueado e se aparece reação de golpe bloqueado.
+- [ ] Logo depois de um golpe bloqueado, atacar: anotar se sai o contra-ataque da guarda.
+- [ ] Ataque que não deveria ser defensável (golpe forte de chefe, se houver): anotar se ainda acerta.
+- [ ] Não regressão: Fiona (guarda com escudo), Hagie e Evy numa fase.
+Resultado esperado: dano bloqueado durante a guarda.

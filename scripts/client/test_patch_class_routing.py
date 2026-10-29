@@ -364,6 +364,30 @@ class LabCopyTest(unittest.TestCase):
             value = struct.unpack_from('<f', image.data, image.offset(address))[0]
             self.assertAlmostEqual(value, getattr(routing.EXTRA_CLASSES[0], values)[i], places=5)
 
+    def test_guard_keeps_state_and_blocks_for_extra_classes(self):
+        image, report = self.plan('server.dll')
+        set_slot, get_slot, damage_slot, guarded, forced_off, conditions_of, raise_, lower = routing.GUARD['server.dll']
+        table = routing.vtable(image, routing.ENTITY_SLOTS['server.dll'][0])
+        guard = report['guard']
+        bodies = {set_slot: int(guard['set'], 16), get_slot: int(guard['get'], 16), damage_slot: int(guard['damage'], 16)}
+        for slot, body in bodies.items():
+            stub = self.entry(image, table, slot)
+            text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 24]), stub)][:4]
+            self.assertEqual(text[0], 'mov eax, dword ptr [ecx + 0x1400]')
+            self.assertEqual(text[3], f'jmp {body:#x}')
+        def body(va, size):
+            return [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
+                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
+        put = body(bodies[set_slot], 0x100)
+        self.assertIn(f'call {forced_off:#x}', put)
+        self.assertEqual(sum(t == f'call {lower:#x}' for t in put), 2)
+        damage = body(bodies[damage_slot], 0x80)
+        self.assertEqual(sum(t == f'call {raise_:#x}' for t in damage), 2)
+        self.assertIn('push 0x7c', damage)
+        self.assertIn('push 0x7d', damage)
+        self.assertIn(f'call {guarded:#x}', damage)
+        self.assertEqual(damage[-1], 'ret 4')
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

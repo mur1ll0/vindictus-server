@@ -277,6 +277,18 @@ CONDITIONS = {
                    (0x407E63CB, 0x407E641B, 0x407E647B, 0x407E64DB)),
 }
 CONDITION_TAIL = bytes.fromhex('5fb0015e8be5')  # pop edi; mov al, 1; pop esi; mov esp, ebp
+# Guard (E3). The guard state is the base player's "class state" pair, slots 618 (set; the
+# action-state event ENABLE_ENDURE_MODE calls it with 1) and 619 (get); the base does nothing
+# and returns false, so Delia's guard animation never blocked (D19). Fiona keeps the state in a
+# cell of her own object and blocks in slot 555 (0x40575a50: unblockable flag 0x8000000 at
+# info+0x3c, damage zeroed, reaction, then the base 555). For an extra class: 618/619 keep the
+# state in a 16-entry (entity, state) table in .hrte, 555 raises AS_Cond_Delia_Guard and
+# AS_Cond_Delia_Guard_Hit (NA: on each blocked hit) and runs Fiona's routine, which only uses
+# base fields; ending the guard lowers both conditions.
+# (set slot, get slot, damage slot, guarded-damage routine, forced-off test, condition object,
+#  raise, lower)
+GUARD = {'server.dll': (618, 619, 555, 0x40575A50, 0x4060FE00, 0x405380A0, 0x407E6470, 0x407E64D0)}
+GUARD_ENTRIES = 16
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -867,6 +879,125 @@ def conditions(layout: Layout, edits: list, tail: int, name_map: int, name_inser
             'registration': f'{tail:#x} -> {stub:#x}', 'bounds': [f'{va:#x}: < {limit}' for va in bounds]}
 
 
+def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
+          damage_slot: int, guarded: int, forced_off: int, conditions_of: int, raise_: int, lower: int) -> dict:
+    """GUARD: guard state table, state set/get and the guarded damage path for extra classes."""
+    name, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
+    table = vtable(image, name)
+    guard_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard')
+    hit_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit')
+    layout.pad()
+    states = layout.here()
+    layout.body += bytes(8 * GUARD_ENTRIES)
+
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
+    # get(this): al = state != 0 for this entity
+    layout.pad()
+    get = layout.here()
+    layout.body += bytes((0xB8,))
+    layout.pointer(states)
+    layout.body += bytes((0xBA,)) + struct.pack('<I', GUARD_ENTRIES)
+    loop = layout.here()
+    layout.body += bytes((0x39, 0x08))  # cmp [eax], ecx
+    found = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x83, 0xC0, 0x08, 0x4A))  # add eax, 8; dec edx
+    layout.to(bytes((0x0F, 0x85)), loop)
+    layout.body += bytes((0x32, 0xC0, 0xC3))  # xor al, al; ret
+    layout.land(found)
+    layout.body += bytes((0x83, 0x78, 0x04, 0x00, 0x0F, 0x95, 0xC0, 0xC3))  # cmp [eax+4], 0; setne al; ret
+
+    # set(this, state)
+    layout.pad()
+    put = layout.here()
+    layout.body += bytes((0x51,))  # push ecx
+    call(forced_off)
+    layout.body += bytes((0x59, 0x8B, 0x54, 0x24, 0x04, 0x84, 0xC0))  # pop ecx; mov edx, [esp+4]; test al, al
+    keep = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x33, 0xD2))  # xor edx, edx
+    layout.land(keep)
+    layout.body += bytes((0x56, 0x57, 0xBE))  # push esi; push edi; mov esi, states
+    layout.pointer(states)
+    layout.body += bytes((0x33, 0xFF, 0xB8)) + struct.pack('<I', GUARD_ENTRIES)  # xor edi, edi; mov eax, n
+    loop = layout.here()
+    layout.body += bytes((0x39, 0x0E))  # cmp [esi], ecx
+    hit = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x83, 0x3E, 0x00))  # cmp dword [esi], 0
+    used = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x85, 0xFF))  # test edi, edi
+    taken = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x89, 0xF7))  # mov edi, esi: first free entry
+    layout.land(used)
+    layout.land(taken)
+    layout.body += bytes((0x83, 0xC6, 0x08, 0x48))  # add esi, 8; dec eax
+    layout.to(bytes((0x0F, 0x85)), loop)
+    layout.body += bytes((0x85, 0xFF))  # test edi, edi: no free entry -> reuse the first
+    free = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0xBF,))
+    layout.pointer(states)
+    layout.land(free)
+    layout.body += bytes((0x89, 0xFE, 0x89, 0x0E))  # mov esi, edi; mov [esi], ecx
+    layout.land(hit)
+    layout.body += bytes((0x89, 0x56, 0x04, 0x85, 0xD2))  # mov [esi+4], edx; test edx, edx
+    done = layout.forward(bytes((0x0F, 0x85)))
+    # guard ended: lower both conditions (ecx = this)
+    call(conditions_of)
+    layout.body += bytes((0x85, 0xC0))
+    none = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x89, 0xC7, 0x68)) + struct.pack('<I', guard_id) + bytes((0x89, 0xF9))
+    call(lower)
+    layout.body += bytes((0x68,)) + struct.pack('<I', hit_id) + bytes((0x89, 0xF9))
+    call(lower)
+    layout.land(none)
+    layout.land(done)
+    layout.body += bytes((0x5F, 0x5E, 0xC2, 0x04, 0x00))  # pop edi; pop esi; ret 4
+
+    # damage(this, info)
+    layout.pad()
+    damage = layout.here()
+    layout.body += bytes((0x56, 0x8B, 0xF1, 0x8B, 0x44, 0x24, 0x08))  # push esi; mov esi, ecx; mov eax, [esp+8]
+    layout.body += bytes((0xF7, 0x40, 0x3C)) + struct.pack('<I', 0x8000000)  # test [eax+0x3c], unblockable
+    plain = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x8B, 0xCE))  # mov ecx, esi
+    call(get)
+    layout.body += bytes((0x84, 0xC0))
+    plain2 = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0xCE))
+    call(conditions_of)
+    layout.body += bytes((0x85, 0xC0))
+    plain3 = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x50, 0x68)) + struct.pack('<I', guard_id) + bytes((0x8B, 0x4C, 0x24, 0x04))
+    call(raise_)  # push eax; push guard; mov ecx, [esp+4]; raise
+    layout.body += bytes((0x58, 0x68)) + struct.pack('<I', hit_id) + bytes((0x8B, 0xC8))
+    call(raise_)  # pop eax; push hit; mov ecx, eax; raise
+    for at in (plain, plain2, plain3):
+        layout.land(at)
+    layout.body += bytes((0xFF, 0x74, 0x24, 0x08, 0x8B, 0xCE))  # push [esp+8]; mov ecx, esi
+    call(guarded)
+    layout.body += bytes((0x5E, 0xC2, 0x04, 0x00))  # pop esi; ret 4
+
+    def dispatch(slot: int, body: int) -> str:
+        at = table + 4 * slot
+        if at not in relocs:
+            raise PreparationError(f'{name} slot {slot} is not relocated; nothing is patched.')
+        original = struct.unpack_from('<I', image.data, image.offset(at))[0]
+        layout.pad()
+        stub = layout.here()
+        layout.body += bytes((0x8B, 0x81)) + struct.pack('<I', klass)
+        for extra in EXTRA_CLASSES:
+            layout.body += bytes((0x83, 0xF8, extra.index))
+            other = layout.forward(bytes((0x0F, 0x85)))
+            layout.to(bytes((0xE9,)), body)
+            layout.land(other)
+        layout.to(bytes((0xE9,)), original)
+        edits.append((at, struct.pack('<I', original), struct.pack('<I', stub)))
+        return f'slot {slot} {original:#x} -> {stub:#x}'
+
+    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage),
+            'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -1135,6 +1266,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['client_weapon_switch'] = client_weapon_switch(image, layout, edits, *CLIENT_WEAPON_SWITCH[name])
     if name in CONDITIONS:
         report['conditions'] = conditions(layout, edits, *CONDITIONS[name])
+    if name in GUARD:
+        report['guard'] = guard(image, layout, edits, relocs, *GUARD[name])
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':
