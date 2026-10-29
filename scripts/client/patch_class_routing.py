@@ -255,6 +255,22 @@ CLASS_ALIAS = {'server.dll': ((0x4053B5BE, '8b8600140000'),   # stamina restorat
 # vtable +0x55c (`push ebx; push name; jmp 0x38705fb4`); above 9 it skipped that. An extra class
 # passes its first `weapons` entry. (VA of `cmp eax, 9; ja`, its bytes, the join.)
 CLIENT_WEAPON_SWITCH = {'client.dll': (0x38705F62, '83f8097759', 0x38705FB4)}
+# Action-state conditions (E3): named flags in a 121-bit set per animation state; four functions
+# per DLL bound the id by `cmp ecx, 0x79`, and the registration (client 0x387f33b0, server
+# 0x407f5470) fills name->id and id->name maps with ids 0-120. Delia's scripts use five names
+# the 1.69 lacks (NA ids 140-144); they get ids 121-125 (a 121-bit set already spans 128 bits),
+# appended at the registration's epilogue. Entries: (epilogue `pop edi; mov al, 1; pop esi;
+# mov esp, ebp`, name map, its insert, id map, its insert, the four bounds).
+CONDITION_NAMES = ('As_Cond_Can_Armor_Purge', 'As_Cond_Delia_SPSkill3_Activated', 'AS_Cond_Delia_Special_Hold_Skill',
+                   'AS_Cond_Delia_Guard', 'AS_Cond_Delia_Guard_Hit')
+FIRST_NEW_CONDITION = 121
+CONDITIONS = {
+    'client.dll': (0x387F4E79, 0x38FAB1D8, 0x387F29C0, 0x38FAB1F4, 0x387F2A30,
+                   (0x387DE3FB, 0x387DE44B, 0x387DE55B, 0x387DE5BB)),
+    'server.dll': (0x407F6F39, 0x40F5D430, 0x407F4800, 0x40F5D44C, 0x407F4870,
+                   (0x407E63CB, 0x407E641B, 0x407E647B, 0x407E64DB)),
+}
+CONDITION_TAIL = bytes.fromhex('5fb0015e8be5')  # pop edi; mov al, 1; pop esi; mov esp, ebp
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -810,6 +826,41 @@ def client_weapon_switch(image: Image, layout: Layout, edits: list, va: int, old
     return f'{va:#x} -> {stub:#x}'
 
 
+def conditions(layout: Layout, edits: list, tail: int, name_map: int, name_insert: int, id_map: int,
+               id_insert: int, bounds: tuple) -> dict:
+    """CONDITIONS: ids 121-125 for Delia's condition names, registered after the 1.69 list."""
+    limit = FIRST_NEW_CONDITION + len(CONDITION_NAMES)
+    for va in bounds:
+        edits.append((va, bytes.fromhex('83f979'), bytes((0x83, 0xF9, limit))))
+    layout.pad()
+    names = [layout.string(n) for n in CONDITION_NAMES]
+    layout.pad()
+    stub = layout.here()
+    layout.body += bytes((0x60, 0x83, 0xEC, 0x08))  # pushad; sub esp, 8
+    for i, name in enumerate(names):
+        for first, second, table, insert in ((name, None, name_map, name_insert), (None, name, id_map, id_insert)):
+            # the pair {name, id} for the name map, {id, name} for the id map, at [esp]
+            layout.body += bytes((0xC7, 0x04, 0x24))  # mov dword ptr [esp], imm32
+            if first is not None:
+                layout.pointer(first)
+            else:
+                layout.body += struct.pack('<I', FIRST_NEW_CONDITION + i)
+            layout.body += bytes((0xC7, 0x44, 0x24, 0x04))  # mov dword ptr [esp + 4], imm32
+            if second is not None:
+                layout.pointer(second)
+            else:
+                layout.body += struct.pack('<I', FIRST_NEW_CONDITION + i)
+            layout.body += bytes((0x8D, 0x04, 0x24, 0x50, 0xB9))  # lea eax, [esp]; push eax; mov ecx, map
+            layout.pointer(table)
+            layout.to(bytes((0xE8,)), insert)
+    layout.body += bytes((0x83, 0xC4, 0x08, 0x61))  # add esp, 8; popad
+    layout.body += CONDITION_TAIL
+    layout.to(bytes((0xE9,)), tail + len(CONDITION_TAIL))
+    edits.append((tail, CONDITION_TAIL, bytes((0xE9,)) + struct.pack('<i', stub - (tail + 5)) + bytes((0x90,))))
+    return {'ids': {n: FIRST_NEW_CONDITION + i for i, n in enumerate(CONDITION_NAMES)},
+            'registration': f'{tail:#x} -> {stub:#x}', 'bounds': [f'{va:#x}: < {limit}' for va in bounds]}
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -1072,6 +1123,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     report['class_alias'] = [class_alias(image, layout, edits, relocs, *entry) for entry in CLASS_ALIAS.get(name, ())]
     if name in CLIENT_WEAPON_SWITCH:
         report['client_weapon_switch'] = client_weapon_switch(image, layout, edits, *CLIENT_WEAPON_SWITCH[name])
+    if name in CONDITIONS:
+        report['conditions'] = conditions(layout, edits, *CONDITIONS[name])
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':

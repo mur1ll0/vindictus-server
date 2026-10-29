@@ -2229,3 +2229,8 @@ Passo 32 (28/10/2026): estamina e armas por classe.
 - Mudança: `CLASS_ALIAS` (servidor `0x4053b5be` e `0x40539aec`: a classe extra é carregada como a `clone_of`, Hagie) e `CLIENT_WEAPON_SWITCH` (cliente `0x38705f62`: a classe extra passa `weapons[0]`) + testes. 24 testes, 0 falhas (`d19-routing-tests.log`).
 - Itens vermelhos: não é tabela de 10 classes (`d19-clamp-scan.txt`), nem máscara de classe, nem `setAvatarClass` (lista de texto do item). Fica para a leitura ao vivo no teste do E5.
 - Aplicado (`class-routing-apply-d19.log`): `client.dll` `14442417…`, `server.dll` `c40bfc9f…`. Próxima ação: E3 (condições e guarda).
+
+Passo 33 (28/10/2026): E3, condições da Delia registradas.
+- 1.69: o registro `nome → id` das condições de estado de ação (cliente `0x387f33b0`, mapas `0x38fab1d8`/`0x38fab1f4`; servidor `0x407f5470`, `0x40f5d430`/`0x40f5d44c`) vai até 120; quatro funções por DLL limitam o id a `< 0x79` (cliente `0x387de3fb`, `…44b`, `…55b`, `…5bb`; servidor `0x407e63cb`, `…41b`, `…47b`, `…4db`). Os scripts da Delia usam 5 nomes ausentes (`As_Cond_Can_Armor_Purge`, `As_Cond_Delia_SPSkill3_Activated`, `AS_Cond_Delia_Special_Hold_Skill`, `AS_Cond_Delia_Guard`, `AS_Cond_Delia_Guard_Hit`; NA 140–144).
+- Mudança: `CONDITIONS` no patch: ids 121–125 registrados nos dois mapas no fim do registro (mesmo par `{nome, id}`/`{id, nome}` e as mesmas funções de inserção), limites → `< 126` + teste. 25 testes, 0 falhas (`e3-routing-tests.log` + rodada isolada do teste corrigido). Aplicado (`class-routing-apply-e3a.log`).
+- Efeito esperado: os ramos do script que pedem essas condições ficam válidos (por exemplo `AttackMelee_02_guard`); quem liga as condições (guarda, golpe bloqueado, habilidade segurada, SP3, armadura) é o próximo passo.

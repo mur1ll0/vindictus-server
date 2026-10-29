@@ -328,6 +328,26 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(text[4], f'jmp {join:#x}')
         self.assertEqual(text[-1], f'jmp {va + 5:#x}')
 
+    def test_delia_conditions_get_ids_after_the_169_list(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            tail, name_map, name_insert, id_map, id_insert, bounds = routing.CONDITIONS[name]
+            for va in bounds:
+                self.assertEqual(bytes(image.data[image.offset(va):image.offset(va) + 3]), bytes((0x83, 0xF9, 126)))
+            jump = next(self.md.disasm(bytes(image.data[image.offset(tail):image.offset(tail) + 5]), tail))
+            stub = int(jump.op_str, 16)
+            code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+                bytes(image.data[image.offset(stub):image.offset(stub) + 0x400]), stub)))
+            text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            self.assertEqual(text[:2], ['pushal ', 'sub esp, 8'])
+            self.assertEqual(sum(t == f'call {name_insert:#x}' for t in text), 5)
+            self.assertEqual(sum(t == f'call {id_insert:#x}' for t in text), 5)
+            names = [routing.read_string(image, int(t.split(', ')[1], 16)) for t in text
+                     if t.startswith('mov dword ptr [esp') and int(t.split(', ')[1], 16) > 0x10000]
+            self.assertEqual(names[0::2], list(routing.CONDITION_NAMES))
+            self.assertEqual(text[-7:-1], ['add esp, 8', 'popal ', 'pop edi', 'mov al, 1', 'pop esi', 'mov esp, ebp'])
+            self.assertEqual(text[-1], f'jmp {tail + 6:#x}')
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):
