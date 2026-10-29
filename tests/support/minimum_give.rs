@@ -2923,6 +2923,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
             MissionKind::ConnectionRequest,
             MissionKind::LaunchShipGranted,
             MissionKind::GameStartGranted,
+            MissionKind::MemberInfo,
         ]
         .into_iter()
         .find(|k| k.category() == packet.category);
@@ -3076,6 +3077,23 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     .unwrap();
     assert_eq!(early.len(), 1);
     assert_eq!(early[0].category, 602);
+    // MicroPlayer.EquipmentObserver: no registered GameHost yet, nothing is sent.
+    macro_rules! refresh {
+        () => {
+            minimum_mission::refresh_member(
+                &p,
+                &owner,
+                &assets,
+                1,
+                &mut mission,
+                config(),
+                Arithmetic::FrameworkX64,
+            )
+            .await
+            .unwrap()
+        };
+    }
+    assert!(refresh!().is_none());
     let launched = minimum_mission::register_server(
         &mut mission,
         Some(GameInfo {
@@ -3093,6 +3111,19 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         panic!()
     };
     assert_eq!(in_ship.state, 3);
+    // On the ship (PlayState.Wait) an equipment change reaches the host as
+    // MemberInfoMessage(slot 0) with the rebuilt member info and the AddPlayer key.
+    assert!(mission.equip_allowed());
+    let refreshed = refresh!().unwrap();
+    assert_eq!(refreshed.category, MissionKind::MemberInfo.category());
+    let MissionMessage::MemberInfo(refreshed) = decode(&refreshed).unwrap() else {
+        panic!()
+    };
+    let host = launch.host_info.as_ref().unwrap();
+    let info = refreshed.info.as_ref().unwrap();
+    assert_eq!(refreshed.uid, 0);
+    assert_eq!((info.order, info.tag, info.key), (0, 0, host.key));
+    assert!(info == host);
     let started = minimum_mission::start_game(
         &mut mission,
         assets.mission().unwrap(),
@@ -3102,6 +3133,9 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
     let started: Vec<_> = started.iter().map(|p| decode(p).unwrap()).collect();
     // Starting broadcast, GameStartGranted, InGame broadcast.
     assert_eq!(started.len(), 5);
+    // InGame: IsEquipAllowed refuses equipment changes and the host gets nothing.
+    assert!(!mission.equip_allowed());
+    assert!(refresh!().is_none());
     let MissionMessage::GameStartGranted(granted) = &started[2] else {
         panic!()
     };

@@ -255,3 +255,13 @@ Pré-condições: dois Bath Soap (ex.: Rose Bath Soap, `hotspring_powder_rose`) 
 - [ ] Colocar outro igual antes de 1 minuto → mensagem de que outro jogador usou há pouco; o segundo sabonete fica no inventário.
 - [ ] Colocar o sabonete estando dentro da água, sentar e esperar ~30 s → telepathy com o nome do sabonete e o efeito nos buffs com o bônus (Rose: ATK/MATK); some ao expirar (90 min).
 - [ ] Relogar → o efeito continua com o tempo restante.
+
+### EQ1 — Equipar e desequipar no barco
+Causa: no barco o servidor salvava a troca e mandava o visual só para o próprio jogador; não avisava o anfitrião do barco (`MemberInfo`) nem o canal da cidade (`UpdateLook`), e por isso o visual ficava o antigo no barco e de volta à cidade. Dentro da fase o servidor também não recusava a troca, como o original faz.
+Pré-condições: `game` reconstruído; personagem com uma peça de armadura ou arma no inventário que mude o visual.
+- [ ] No barco (aceitar uma missão, antes de começar): equipar a peça pela Battle Inventory → o personagem no barco aparece com ela. Desequipar → a peça some.
+- [ ] Sair do barco sem começar → na cidade o personagem aparece com o equipamento escolhido no barco.
+- [ ] Aceitar de novo, trocar a peça no barco e começar a fase → o personagem entra na fase com a peça nova (ataque/defesa dela valendo).
+- [ ] Dentro da fase, tentar trocar equipamento → recusado (mensagem de que não é possível equipar na batalha); nada muda.
+- [ ] Na cidade, equipar e desequipar → o visual muda como antes (não regressão).
+Resultado esperado: o visual acompanha o equipamento no barco e na volta à cidade; na fase a troca é recusada.
