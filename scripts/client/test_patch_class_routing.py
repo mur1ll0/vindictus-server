@@ -440,6 +440,44 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'call {raise_:#x}', text)
             self.assertEqual(text[-1].strip(), 'ret')
 
+    def test_delia_effects_register_types_commands_and_hooks(self):
+        image, report = self.plan('server.dll')
+        k = routing.DELIA_EFFECTS['server.dll']
+        effects = report['delia_effects']
+
+        def text(va, size):
+            return [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
+                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
+        hook = next(self.md.disasm(bytes(image.data[image.offset(k['hook']):image.offset(k['hook']) + 5]), k['hook']))
+        self.assertEqual(f'{hook.mnemonic} {hook.op_str}', f'jmp {effects["register"]}')
+        register = text(int(effects['register'], 16), 0x80)
+        self.assertEqual(sum(t == f'call {k["register"]:#x}' for t in register), 5)
+        names = [routing.read_string(image, int(t.split()[1], 16)) for t in register if t.startswith('push 0x')]
+        for name in ('stamina_adder_on_attack_time', 'delia_restore_health', 'skill_delia_strong_attack',
+                     'damage_modify_to_action', 'restore_equipment_def'):
+            self.assertIn(name, names)
+        for name, factory in effects['factories'].items():
+            body = text(int(factory, 16), 0x40)
+            self.assertIn(f'call {k["base_ctor"]:#x}', body)
+            vt = int(next(t for t in body if t.startswith('mov dword ptr [esi], ')).split(', ')[1], 16)
+            slots = [self.entry(image, vt, i) for i in range(7)]
+            self.assertEqual(slots[0], k['dtor'])
+            relocs = routing.relocations(image)
+            self.assertTrue(all(vt + 4 * i in relocs for i in range(7)), name)
+        head = next(self.md.disasm(bytes(image.data[image.offset(k['events']):image.offset(k['events']) + 5]), k['events']))
+        self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {effects["events"]}')
+        events = text(int(effects['events'], 16), 0x140)
+        self.assertIn(f'jmp {k["events"] + len(routing.EVENTS_HEAD):#x}', events)
+        self.assertEqual(sum(t == f'call {k["strncmp"]:#x}' for t in events), 4)
+        entity = routing.ENTITY_SLOTS['server.dll'][0]
+        stub = self.entry(image, routing.vtable(image, entity), k['hit_slot'])
+        head = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:4]
+        self.assertEqual(head[3], f'jmp {effects["on_hit"]}')
+        think = text(int(report['class_conditions']['think'], 16), 0x40)
+        self.assertIn(f'call {effects["tick"]}', think)
+        damage = text(int(report['guard']['damage'], 16), 0xc0)
+        self.assertIn(f'call {effects["forfeit"]}', damage)
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

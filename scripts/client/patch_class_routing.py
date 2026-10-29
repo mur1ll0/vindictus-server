@@ -315,6 +315,50 @@ CLIENT_GUARD = {'client.dll': (429, 430, 367, 0x38707FB0, 0x38888400, 0x38888180
 # is not used by any Delia content (1.69 or NA) and is not ported.
 # (think slot, condition object getter or None for [this+COMMANDS], raise)
 CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0x405380A0, 0x407E6470)}
+# Delia's status effects and on-hit commands (plan 8.15 items 3-4), server only. The 1.69
+# heroes.db3 and scripts/status_effect.txt already define her effects, but server.dll registers
+# no factory for five of their types, so those effects did nothing. Registered after
+# stamina_adder_on_attack (its registrar's `ret`), effect objects as the 1.69 builds them (base
+# ctor, 7-slot vtable: 1 load(flag), 2 tick, 3 remove(flag), 4 on hit(info, victim), 5 on damage
+# taken(info, victim)), behaviour from the NA classes (server x64 factories 0xad89f0, 0xad8900,
+# 0xad89a0, 0xad8880, 0xad8950):
+# * stamina_adder_on_attack_time (adder, validCount, effectName): stamina_adder_on_attack limited
+#   to validCount hits (the effect is a client visual, not ported);
+# * delia_restore_health (reduce_ratio, restore_time; Wild Star's last stage): takes the ratio of
+#   current HP (at least 1 HP is kept) into a reserve that the think gives back at
+#   reserve/restore_time per second; a hit taken that is neither guarded nor unblockable forfeits
+#   the rest and removes skill_delia_strong_attack_week (NA 0x6e60e0, 0x6e7054, 0x6e6320);
+# * skill_delia_strong_attack (delay_time, immune_count; Sharpness 1-3): after delay_time each hit
+#   taken that is neither guarded nor unblockable uses one count; below zero the buff drops one
+#   level (NA slot 6 0xad8210, decay in slot 3); the UPDATE/REMOVE_CHARGE_SMASH_EFFECT client
+#   visuals are not ported;
+# * damage_modify_to_action (candidate_actions, damage_rates): a hit whose attack name (info+0x60)
+#   is a candidate is multiplied; the first rate applies to every candidate (all Delia rows use
+#   one rate twice);
+# * restore_equipment_def (add_def): adds armour HP like armor_hp_adder (0x40530da0); the reset
+#   on removal and the purge flag are not ported.
+# The NA commands ENABLE/DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT (+0xad40) and
+# ENABLE/DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT (+0xad41) (NA 0x6e52c9..0x6e5422) are taken at the
+# entry of the AE_CUSTOM_MOTION dispatcher (0x40838f20) for an extra class; on a hit (slot 70,
+# NA 0x6e58c0 overriding slot 73) the first adds skill_delia_strong_attack one level up to 3 and
+# clears itself, the second adds skill_delia_strong_attack_hit when it is absent or at level 1.
+# Decay and forfeit are carried out by the think, never inside an effect callback.
+DELIA_EFFECTS = {'server.dll': {
+    'register': 0x404FD6D0, 'hook': 0x40A087D4, 'new': 0x401D3890, 'base_ctor': 0x404F6290,
+    'dtor': 0x4050C9D0, 'base_slots': (0x404F57D0, 0x404F57E0, 0x404F57F0, 0x404F5800, 0x404F5810),
+    'owner': 0x404F58E0, 'player_owner': 0x404F5930, 'arg': 0x404F6AC0, 'arg_text': 0x404F5C50,
+    'ftol': 0x40993AC0, 'globals': 0x40D6EE48, 'stamina_load': 0x4050C820, 'stamina_hit': 0x4050C9F0,
+    'health_set': 0x4002AA90, 'armor_add': 0x40530DA0, 'hit_name': 0x408BCCA0, 'level': 0x404FDF40,
+    'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70}}
+DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x20
+# entry: +0 entity, +4 reserved HP, +8 restore per second, +0xc fraction, +0x10 last restore time,
+# +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due
+EVENTS_HEAD = bytes.fromhex('515356578b7c2414')  # push ecx/ebx/esi/edi; mov edi, [esp+0x14]
+REGISTRAR_TAIL = bytes.fromhex('c3cccccccc')
+PLAYER_SLOTS = {'add': 0x380, 'find': 0x388, 'remove': 0x390, 'npc': 0x160, 'changed': 0x230,
+                'guarding': 0x9AC}
+PLAYER_FIELDS = {'max_health': 0x80, 'health': 0x84, 'health_cell': 0x90, 'effects': 0x2878, 'dead': 0x9C,
+                 'commands': 0xC8}
 PERFECT_ENDURE = (0x4C, 0x4D)  # As_Cond_Can_PerfectEndurable, As_Cond_Do_PerfectEndurable (1.69 ids)
 COMMANDS = 0x437C  # the client player's command/condition object
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
@@ -994,8 +1038,10 @@ def class_dispatch(image: Image, layout: Layout, edits: list, relocs: set[int], 
 
 
 def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
-          damage_slot: int, guarded: int, forced_off: int, conditions_of: int, raise_: int, lower: int) -> dict:
-    """GUARD: guard state table, state set/get and the guarded damage path for extra classes."""
+          damage_slot: int, guarded: int, forced_off: int, conditions_of: int, raise_: int, lower: int,
+          forfeit: int | None = None) -> dict:
+    """GUARD: guard state table, state set/get and the guarded damage path for extra classes; a hit that
+    is neither guarded nor unblockable calls `forfeit(this)` (Delia's reserved HP) when given."""
     name, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
     guard_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard')
     hit_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit')
@@ -1042,7 +1088,17 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
     call(raise_)  # push eax; push guard; mov ecx, [esp+4]; raise
     layout.body += bytes((0x58, 0x68)) + struct.pack('<I', hit_id) + bytes((0x8B, 0xC8))
     call(raise_)  # pop eax; push hit; mov ecx, eax; raise
-    for at in (plain0, plain, plain2, plain3):
+    final = layout.forward(bytes((0xE9,)))
+    layout.land(plain0)
+    layout.land(plain2)
+    if forfeit is not None:
+        layout.body += bytes((0x8B, 0x44, 0x24, 0x08))  # mov eax, [esp+8]
+        layout.body += bytes((0xF7, 0x40, 0x3C)) + struct.pack('<I', 0x8000000)
+        kept = layout.forward(bytes((0x0F, 0x85)))
+        layout.body += bytes((0x8B, 0xCE))
+        call(forfeit)
+        layout.land(kept)
+    for at in (final, plain, plain3):
         layout.land(at)
     layout.body += bytes((0xFF, 0x74, 0x24, 0x08, 0x8B, 0xCE))  # push [esp+8]; mov ecx, esi
     call(guarded)
@@ -1136,9 +1192,429 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
             'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
 
 
+def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k: dict) -> dict:
+    """DELIA_EFFECTS: Delia's status-effect types, her on-hit commands, the per-entity state and its think."""
+    entity, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
+    f, s = PLAYER_FIELDS, PLAYER_SLOTS
+    L = layout
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def d32(v: int) -> str:
+        return struct.pack('<I', v & 0xFFFFFFFF).hex()
+
+    def call(va: int) -> None:
+        L.to(b'\xe8', va)
+
+    def ptr(va: int) -> None:
+        L.pointer(va)
+
+    def push_ptr(va: int) -> None:
+        b('68')
+        ptr(va)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    def arg_float(name: int) -> None:
+        # ST0 = argument `name` of the effect in esi (default 0)
+        b('d9ee 51 d91c24')  # fldz; push ecx; fstp [esp]
+        push_ptr(name)
+        b('8bce')
+        call(k['arg'])
+
+    names = {n: L.string(n) for n in (
+        'stamina_adder_on_attack_time', 'delia_restore_health', 'skill_delia_strong_attack', 'damage_modify_to_action',
+        'restore_equipment_def', 'validCount', 'reduce_ratio', 'restore_time', 'delay_time', 'immune_count',
+        'candidate_actions', 'damage_rates', 'add_def', 'skill_delia_strong_attack_week', 'skill_delia_strong_attack_hit',
+        'ENABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 'DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT',
+        'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', '')}
+    L.pad()
+    registrar = L.here()
+    L.body += bytes(4)
+    table = L.here()
+    L.body += bytes(DELIA_TABLE_ENTRIES * DELIA_ENTRY)
+
+    # find(ecx = entity) -> eax = entry or 0; find_or_add -> a cleared entry when missing
+    L.pad()
+    find = L.here()
+    b('b8'); ptr(table)
+    b('ba' + d32(DELIA_TABLE_ENTRIES))
+    loop = L.here()
+    b('3908'); hit = fwd('0f84')  # cmp [eax], ecx
+    b('83c0' + bytes((DELIA_ENTRY,)).hex() + '4a')  # add eax, size; dec edx
+    L.to(b'\x0f\x85', loop)
+    b('33c0')
+    L.land(hit)
+    b('c3')
+    L.pad()
+    find_or_add = L.here()
+    call(find)
+    b('85c0'); found = fwd('0f85')
+    b('b8'); ptr(table)
+    b('ba' + d32(DELIA_TABLE_ENTRIES))
+    loop = L.here()
+    b('833800'); free = fwd('0f84')  # cmp dword [eax], 0
+    b('83c0' + bytes((DELIA_ENTRY,)).hex() + '4a')
+    L.to(b'\x0f\x85', loop)
+    b('b8'); ptr(table)  # full: reuse the first entry
+    L.land(free)
+    b('57 51 50 8bf8 33c0 b9' + d32(DELIA_ENTRY // 4) + 'f3ab 58 59 5f')  # clear the entry
+    b('8908')  # mov [eax], ecx
+    L.land(found)
+    b('c3')
+
+    # set_health(ecx = entity, edx = value): the protected cell, then the networked copy
+    L.pad()
+    set_health = L.here()
+    b('56 57 8bf1 8bfa 57 8d8e' + d32(f['health_cell']))
+    call(k['health_set'])
+    b('39be' + d32(f['health'])); same = fwd('0f84')
+    b('8d86' + d32(f['health']) + '50 8bce 8b16 ff92' + d32(s['changed']))
+    b('89be' + d32(f['health']))
+    L.land(same)
+    b('5f 5e c3')
+
+    # status effects of a player (ecx), name in edx: level (0 when absent), remove, add (level in eax)
+    L.pad()
+    level_of = L.here()
+    b('56 8bf1 8b06 6aff 52 8bce ff90' + d32(s['find']))  # find(name, -1)
+    b('85c0'); none = fwd('0f8c')
+    b('50 8b8e' + d32(f['effects']))
+    call(k['level'])
+    b('85c0'); ok = fwd('0f8d')
+    L.land(none)
+    b('33c0')
+    L.land(ok)
+    b('5e c3')
+    L.pad()
+    remove_named = L.here()
+    b('56 8bf1 8b06 6aff 52 8bce ff90' + d32(s['find']))
+    b('85c0'); none = fwd('0f8c')
+    b('8b16 6a01 50 8bce ff92' + d32(s['remove']))
+    L.land(none)
+    b('5e c3')
+    L.pad()
+    add_named = L.here()
+    b('6a00 6a00 51 50 52 8b01 ff90' + d32(s['add']))  # add(name, level, source = player, 0, 0)
+    b('c3')
+
+    # forfeit(ecx = player): a hit taken drops the reserve; the think removes the debuff
+    L.pad()
+    forfeit = L.here()
+    call(find)
+    b('85c0'); out = fwd('0f84')
+    b('837804 00'); out2 = fwd('0f8e')
+    b('c7400400000000 c6401701')
+    L.land(out); L.land(out2)
+    b('c3')
+
+    # tick(ecx = player): deferred removals, then the reserve flows back into health
+    L.pad()
+    tick = L.here()
+    b('56 57 8bf9')
+    call(find)
+    b('85c0'); out = fwd('0f84')
+    b('8bf0')
+    b('807e1700'); nf = fwd('0f84')
+    b('c6461700 8bcf ba'); ptr(names['skill_delia_strong_attack_week'])
+    call(remove_named)
+    L.land(nf)
+    b('807e1600'); nd = fwd('0f84')
+    b('c6461600 8b07 6aff 68'); ptr(names['skill_delia_strong_attack'])
+    b('8bcf ff90' + d32(s['find']))  # index of the Sharpness buff
+    b('85c0'); nd2 = fwd('0f8c')
+    b('50 50 8b8f' + d32(f['effects']))
+    call(k['level'])
+    b('5a 50 8b07 6a01 52 8bcf ff90' + d32(s['remove']))  # pop idx; keep level; remove(idx, 1)
+    b('58 83f801'); nd3 = fwd('0f8e')
+    b('48 8bcf ba'); ptr(names['skill_delia_strong_attack'])
+    call(add_named)
+    L.land(nd); L.land(nd2); L.land(nd3)
+    b('837e0400'); out2 = fwd('0f8e')
+    b('83bf' + d32(f['health']) + '00'); dead = fwd('0f8e')  # no restore once dead
+    b('a1'); ptr(k['globals'])
+    b('d9400c d86610 d84e08 d8460c d9c0')  # dt * rate + fraction; duplicate
+    call(k['ftol'])
+    b('50 db0424 dee9 d95e0c 58')  # fraction = amount - int(amount)
+    b('8b0d'); ptr(k['globals'])
+    b('8b490c 894e10')  # last = now
+    b('85c0'); out3 = fwd('0f8e')
+    b('3b4604'); fits = fwd('0f8e')
+    b('8b4604')
+    L.land(fits)
+    b('294604')  # reserve -= amount
+    b('8b97' + d32(f['health']) + '03d0 3b97' + d32(f['max_health'])); low = fwd('0f8e')
+    b('8b97' + d32(f['max_health']))
+    L.land(low)
+    b('8bcf')
+    call(set_health)
+    L.land(out); L.land(out2); L.land(out3); L.land(dead)
+    b('5f 5e c3')
+
+    # effect classes
+    def vtable_of(slots: list[int]) -> int:
+        L.pad()
+        at = L.here()
+        for v in slots:
+            ptr(v)
+        return at
+
+    def factory(size: int, vt_at: int) -> int:
+        L.pad()
+        at = L.here()
+        b('68' + d32(size))
+        call(k['new'])
+        b('83c404 85c0'); r = fwd('0f84')
+        b('56 8bf0 8bce')
+        call(k['base_ctor'])
+        b('c706'); ptr(vt_at)
+        b('57 8dbe98000000 33c0 b9' + d32((size - 0x98) // 4) + 'f3ab 5f 8bc6 5e')
+        L.land(r)
+        b('c3')
+        return at
+
+    base1, base2, base3, base4, base5, base6 = 0, *k['base_slots']
+    # stamina_adder_on_attack_time: +0x98 adder (stamina_adder_on_attack's load), +0x9c hits left
+    L.pad()
+    sat_load = L.here()
+    b('56 8bf1 ff742408 8bce')
+    call(k['stamina_load'])
+    arg_float(names['validCount'])
+    call(k['ftol'])
+    b('89869c000000 5e c20400')
+    L.pad()
+    sat_hit = L.here()
+    b('56 8bf1 83be9c00000000'); out = fwd('0f8e')
+    b('8b44240c 85c0'); out2 = fwd('0f84')
+    b('8b10 8bc8 ff92' + d32(s['npc']) + '85c0'); out3 = fwd('0f84')
+    b('8b44240c 80b8' + d32(f['dead']) + '00'); out4 = fwd('0f85')
+    b('ff74240c ff74240c 8bce')
+    call(k['stamina_hit'])
+    b('ff8e9c000000')
+    for at in (out, out2, out3, out4):
+        L.land(at)
+    b('5e c20800')
+
+    # delia_restore_health
+    L.pad()
+    drh_load = L.here()
+    b('56 57 8bf1 807c240c00'); out = fwd('0f85')
+    b('6a01 8bce')
+    call(k['owner'])
+    b('8bf8 85ff'); out2 = fwd('0f84')
+    arg_float(names['reduce_ratio'])
+    b('db87' + d32(f['health']) + 'dec9')  # * health
+    call(k['ftol'])
+    b('8b8f' + d32(f['health']) + '3bc1'); keep = fwd('0f8c')
+    b('8d41ff')  # at least 1 HP stays
+    L.land(keep)
+    b('85c0'); out3 = fwd('0f8e')
+    b('50 8bcf')
+    call(find_or_add)
+    b('8b1424 015004 50')  # reserve += amount; keep entry
+    arg_float(names['restore_time'])
+    b('58 db4004 def1 d95808')  # rate = reserve / restore_time
+    b('8b0d'); ptr(k['globals'])
+    b('8b490c 894810 c7400c00000000')
+    b('5a 8b8f' + d32(f['health']) + '2bca 8bd1 8bcf')
+    call(set_health)
+    for at in (out, out2, out3):
+        L.land(at)
+    b('5f 5e c20400')
+
+    # skill_delia_strong_attack: +0x98 time the count starts, +0x9c hits it takes
+    L.pad()
+    sda_load = L.here()
+    b('56 8bf1')
+    arg_float(names['delay_time'])
+    b('a1'); ptr(k['globals'])
+    b('d8400c d99e98000000')
+    arg_float(names['immune_count'])
+    call(k['ftol'])
+    b('89869c000000 5e c20400')
+    L.pad()
+    sda_hurt = L.here()
+    b('56 57 8bf1 6a01 8bce')
+    call(k['owner'])
+    b('8bf8 3b442410'); out = fwd('0f85')  # the owner is the one hit
+    b('8b44240c 83783000'); out2 = fwd('0f84')  # no damage
+    b('f7403c00000008'); out3 = fwd('0f85')  # unblockable
+    b('f7403c00000010'); server = fwd('0f84')
+    b('f6407802'); out4 = fwd('0f85')  # guarded on the client
+    checked = fwd('e9')
+    L.land(server)
+    b('8b17 8bcf ff92' + d32(s['guarding']) + '84c0'); out5 = fwd('0f85')
+    L.land(checked)
+    b('a1'); ptr(k['globals'])
+    b('d9400c d89e98000000 dfe0 f6c441'); out6 = fwd('0f85')  # still within delay_time
+    b('ff8e9c000000'); out7 = fwd('0f89')
+    b('8bcf')
+    call(find_or_add)
+    b('c6401601')  # decay due
+    for at in (out, out2, out3, out4, out5, out6, out7):
+        L.land(at)
+    b('5f 5e c20800')
+
+    # damage_modify_to_action: +0x98 rate, +0x9c candidate names (0x60 bytes)
+    L.pad()
+    dma_load = L.here()
+    b('56 57 8bf1 68'); ptr(names[''])
+    push_ptr(names['candidate_actions'])
+    b('8bce')
+    call(k['arg_text'])
+    b('8dbe9c000000 b95f000000 8bd0 85d2'); done = fwd('0f84')
+    copy = L.here()
+    b('8a02 8807 84c0'); done2 = fwd('0f84')
+    b('42 47 49')
+    L.to(b'\x0f\x85', copy)
+    b('c60700')
+    L.land(done); L.land(done2)
+    arg_float(names['damage_rates'])
+    b('d99e98000000 5f 5e c20400')
+    L.pad()
+    dma_hit = L.here()
+    b('56 57 53 8bf1 8b442410 85c0'); out = fwd('0f84')
+    b('8d4860')
+    call(k['hit_name'])
+    b('85c0'); out2 = fwd('0f84')
+    b('8bd8 8dbe9c000000')
+    token = L.here()
+    b('803f00'); out3 = fwd('0f84')
+    b('803f20'); start = fwd('0f85')
+    b('47')
+    L.to(b'\xe9', token)
+    L.land(start)
+    b('8bcb 8bd7')
+    same = L.here()
+    b('8a01 84c0'); ended = fwd('0f84')
+    b('3a02'); differ = fwd('0f85')
+    b('41 42')
+    L.to(b'\xe9', same)
+    L.land(ended)
+    b('8a02 84c0'); match = fwd('0f84')
+    b('3c20'); match2 = fwd('0f84')
+    L.land(differ)
+    skip = L.here()
+    b('8a07 84c0'); out4 = fwd('0f84')
+    b('3c20')
+    L.to(b'\x0f\x84', token)
+    b('47')
+    L.to(b'\xe9', skip)
+    L.land(match); L.land(match2)
+    b('8b442410 d98698000000 d84830 d95830')
+    for at in (out, out2, out3, out4):
+        L.land(at)
+    b('5b 5f 5e c20800')
+
+    # restore_equipment_def: armour HP + add_def, as armor_hp_adder
+    L.pad()
+    red_load = L.here()
+    b('807c240400'); r = fwd('0f85')
+    b('56 8bf1 6a01')
+    call(k['player_owner'])
+    b('85c0'); o = fwd('0f84')
+    b('50')
+    arg_float(names['add_def'])
+    b('59 51 d91c24')
+    call(k['armor_add'])
+    L.land(o)
+    b('5e')
+    L.land(r)
+    b('c20400')
+
+    types = [
+        ('stamina_adder_on_attack_time', 0xA0, [k['dtor'], sat_load, base2, base3, sat_hit, base5, base6]),
+        ('delia_restore_health', 0x98, [k['dtor'], drh_load, base2, base3, base4, base5, base6]),
+        ('skill_delia_strong_attack', 0xA0, [k['dtor'], sda_load, base2, base3, base4, sda_hurt, base6]),
+        ('damage_modify_to_action', 0x100, [k['dtor'], dma_load, base2, base3, dma_hit, base5, base6]),
+        ('restore_equipment_def', 0x98, [k['dtor'], red_load, base2, base3, base4, base5, base6]),
+    ]
+    factories = {}
+    for name, size, slots in types:
+        factories[name] = factory(size, vtable_of(slots))
+
+    # registration, after stamina_adder_on_attack's (its registrar ends `ret; int3...`)
+    L.pad()
+    register = L.here()
+    for name, _, _ in types:
+        push_ptr(factories[name])
+        push_ptr(names[name])
+        b('b9'); ptr(registrar)
+        call(k['register'])
+    b('c3')
+    edits.append((k['hook'], REGISTRAR_TAIL, b'\xe9' + struct.pack('<i', register - (k['hook'] + 5))))
+
+    # AE_CUSTOM_MOTION commands at the dispatcher entry (ecx = event holder, [esp+4] = command)
+    commands = [('ENABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 0x14, 1), ('DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 0x14, 0),
+                ('ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 0x15, 1), ('DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 0x15, 0)]
+    L.pad()
+    events = L.here()
+    b('51')
+    hits = []
+    for text, _, _ in commands:
+        b('6a' + bytes((len(text) + 1,)).hex())
+        push_ptr(names[text])
+        b('ff742410')
+        call(k['strncmp'])
+        b('83c40c 85c0')
+        hits.append(fwd('0f84'))
+    b('59')
+    L.body += EVENTS_HEAD
+    L.to(b'\xe9', k['events'] + len(EVENTS_HEAD))
+    for at, (_, field, value) in zip(hits, commands):
+        L.land(at)
+        b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
+        b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f8c')
+        b('8bc8')
+        call(find_or_add)
+        b('c640' + bytes((field, value)).hex())
+        L.land(no); L.land(no2)
+        b('c20400')
+    edits.append((k['events'], EVENTS_HEAD, b'\xe9' + struct.pack('<i', events - (k['events'] + 5)) + b'\x90' * 3))
+
+    # on hit (slot 70): the original, then the armed flags add Delia's buffs
+    original = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * k['hit_slot']))[0]
+    L.pad()
+    on_hit = L.here()
+    b('56 57 8bf1 ff742410 ff742410 8bce')
+    call(original)
+    b('8b7c2410 85ff'); out = fwd('0f84')
+    b('8b17 8bcf ff92' + d32(s['npc']) + '85c0'); out2 = fwd('0f84')
+    b('80bf' + d32(f['dead']) + '00'); out3 = fwd('0f85')
+    b('8bce')
+    call(find)
+    b('85c0'); out4 = fwd('0f84')
+    b('8bf8 807f1400'); s2 = fwd('0f84')
+    b('c6471400 8bce ba'); ptr(names['skill_delia_strong_attack'])
+    call(level_of)
+    b('40 83f803'); cap = fwd('0f8e')
+    b('b803000000')
+    L.land(cap)
+    b('8bce ba'); ptr(names['skill_delia_strong_attack'])
+    call(add_named)
+    L.land(s2)
+    b('807f1500'); out5 = fwd('0f84')
+    b('8bce ba'); ptr(names['skill_delia_strong_attack_hit'])
+    call(level_of)
+    b('83f801'); out6 = fwd('0f8f')
+    b('b801000000 8bce ba'); ptr(names['skill_delia_strong_attack_hit'])
+    call(add_named)
+    for at in (out, out2, out3, out4, out5, out6):
+        L.land(at)
+    b('5f 5e c20800')
+
+    return {'table': hex(table), 'tick': hex(tick), 'forfeit': hex(forfeit), 'register': hex(register),
+            'events': hex(events), 'factories': {n: hex(v) for n, v in factories.items()},
+            'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit),
+            'on_hit': hex(on_hit)}
+
+
 def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, think: int,
-                     conditions_of: int | None, raise_: int) -> dict:
-    """CLASS_CONDITIONS: the player think raises the extra class's standing conditions."""
+                     conditions_of: int | None, raise_: int, tick: int | None = None) -> dict:
+    """CLASS_CONDITIONS: the player think raises the extra class's standing conditions, then runs
+    `tick(this)` when given."""
     entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
     base = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * think))[0]
     purge = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Can_Armor_Purge')
@@ -1157,6 +1633,9 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
     layout.body += bytes((0x68,)) + struct.pack('<I', purge)
     layout.to(bytes((0xE8,)), raise_)
     layout.land(none)
+    if tick is not None:
+        layout.body += bytes((0x8B, 0xCE))
+        layout.to(bytes((0xE8,)), tick)
     layout.body += bytes((0x5E, 0xC3))  # pop esi; ret
     return {'think': hex(body), 'base': hex(base),
             'slot': class_dispatch(image, layout, edits, relocs, entity, klass, think, body)}
@@ -1430,12 +1909,18 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['client_weapon_switch'] = client_weapon_switch(image, layout, edits, *CLIENT_WEAPON_SWITCH[name])
     if name in CONDITIONS:
         report['conditions'] = conditions(layout, edits, *CONDITIONS[name])
+    effects = None
+    if name in DELIA_EFFECTS:
+        effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name])
+        report['delia_effects'] = effects
     if name in GUARD:
-        report['guard'] = guard(image, layout, edits, relocs, *GUARD[name])
+        report['guard'] = guard(image, layout, edits, relocs, *GUARD[name],
+                                forfeit=int(effects['forfeit'], 16) if effects else None)
     if name in CLIENT_GUARD:
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
     if name in CLASS_CONDITIONS:
-        report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name])
+        report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name],
+                                                      tick=int(effects['tick'], 16) if effects else None)
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':
