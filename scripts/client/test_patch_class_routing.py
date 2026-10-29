@@ -286,6 +286,24 @@ class LabCopyTest(unittest.TestCase):
                 self.assertEqual(text[2:5], ['cmp edx, 0xa', text[3], f'mov edx, {clone}'])
                 self.assertEqual(text[-2:], ['mov eax, dword ptr [ecx + eax*4]', 'ret 8'])
 
+    def test_class_weapon_lists_give_extra_classes_their_row(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            table = routing.CLASS_WEAPONS[name]
+            row = int(report['class_weapons']['rows'][routing.DELIA], 16)
+            items, count, grow, size, elements = struct.unpack_from('<IiiiI', image.data, image.offset(row))
+            self.assertEqual((count, grow, size, elements), (1, -1, 1, items))
+            first = struct.unpack_from('<I', image.data, image.offset(items))[0]
+            self.assertEqual(routing.read_string(image, first), routing.EXTRA_CLASSES[0].weapons[0])
+            self.assertEqual(len(report['class_weapons']['readers']), 5)
+            for entry in report['class_weapons']['readers']:
+                va = int(entry.split(' -> ')[0], 16)
+                text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, va)]
+                self.assertTrue(text[0].endswith(', 0xa'))
+                moved = [int(t.split(', ')[1], 16) for t in text if t.startswith('mov ') and t.split(', ')[1].startswith('0x')]
+                self.assertEqual((moved[0] * 4 + table) & 0xFFFFFFFF, row)
+                self.assertEqual(text[-1], f'jmp {va + 10:#x}')
+
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)
         with self.assertRaises(routing.PreparationError):

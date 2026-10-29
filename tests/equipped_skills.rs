@@ -258,3 +258,35 @@ fn fixture_covers_each_mastery_with_nonzero_arguments() {
         );
     }
 }
+
+#[test]
+fn bastard_sword_takes_delia_mastery_like_greatsword_takes_hurk_mastery() {
+    // Class 10 extension (not in the Framework fixture): the BASTARDSWORD mastery behaves as the
+    // GREATSWORD one when both skills carry the same arguments.
+    let weight = |equip_class: &str, skill: &str| {
+        let mut cache = Cache::default();
+        let rows: Vec<_> = [("weight_reduction_bonus", 40), ("dmg_bonus", 7)]
+            .iter()
+            .map(|(k, v)| Argument::new(Some(text(k)), Some(*v)).unwrap())
+            .collect();
+        cache.update_arguments(&text(skill), Some(&rows)).unwrap();
+        let stats = Stats::default();
+        let items = [Equipment {
+            stats: &stats,
+            item_class: "bastardsword_newbie",
+            equip_class,
+            weight: 41.8333,
+            armor_hp: 1000,
+            max_durability: 10000,
+            costume_part: 6,
+            destroyed_def: 0,
+            decoration: false,
+        }];
+        let mut output = empty_gear(&Stats::default());
+        apply(&Stats::default(), &items, &cache, &mut output, |_| Ok(String::new())).unwrap();
+        (output.weight, output.stats.values().to_vec())
+    };
+    let delia = weight("BASTARDSWORD", "skill_delia_bastard_mastery");
+    assert_eq!(delia, weight("GREATSWORD", "skill_hurk_greatsword_mastery"));
+    assert_ne!(delia, weight("BASTARDSWORD", "skill_unrelated"));
+}

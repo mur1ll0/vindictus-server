@@ -55,6 +55,7 @@ class ExtraClass:
     constants: tuple[float, float]  # client entity slots 177/178 (NA values)
     faces: int                      # models/player/<key>/pc_<key>_faceNN.mdl
     shape_of: str = 'lynn'          # older class whose body-shape slot it borrows (SHAPE_CLASS)
+    weapons: tuple[str, ...] = ()   # weapon entities of the class (CLASS_WEAPONS)
 
     @property
     def name(self) -> str:
@@ -62,7 +63,10 @@ class ExtraClass:
 
 
 EXTRA_CLASSES = (
-    ExtraClass(10, 'delia', 'hagie', 'female', 'csf/bodyshape_delia_default.fig', (0.88, 0.96), 3),
+    # The NA gives Delia weapon_bastardsword, an entity the 1.69 lacks; the lab uses the closest
+    # existing one, Hurk's weapon_greatsword (one large sword, sheathed on the back).
+    ExtraClass(10, 'delia', 'hagie', 'female', 'csf/bodyshape_delia_default.fig', (0.88, 0.96), 3,
+               weapons=('weapon_greatsword',)),
 )
 # Class 10 is the only extra class with an item "usable by" flag (engine.dll keeps bool[11] per
 # item; patch_engine_class_flags.py), so FLAG_CHECKS and TOOLTIPS stay on her.
@@ -234,6 +238,12 @@ SHAPE_CLASS = {'client.dll': ((0x3876066F, '83fe097733', 'esi'), (0x387606DE, '8
 # hips and thighs (D12-D16). An extra class now reads its `clone_of` column.
 CLASS_DEFAULTS = {'client.dll': (0x3887CE30, 0x3887CF30), 'server.dll': (0x40815390, 0x40815490)}
 CLASS_DEFAULT_HEAD = bytes.fromhex('8b4424048b5424088d04808d04428b0481c20800')
+# Per-class weapon entity lists (a CUtlVector<const char*> per class, 0x14 bytes, filled at load
+# by client 0x3888e4d0 / server 0x408256a0; NA: Delia weapon_bastardsword, Miri weapon_draker).
+# Every reader clamps `cmp R, 0xa; jl; xor R, R; lea X, [R + R*4]` before `[X*4 + table]`, so
+# class 10 got Lethita's list and a Bastard Sword showed as dual swords (D14). An extra class now
+# gets its own row in .hrte (`weapons`), reached by setting X so that X*4 + table is that row.
+CLASS_WEAPONS = {'client.dll': 0x38FBC6C0, 'server.dll': 0x40F68510}
 # Diagnostic only (D8k, operator's choice): the server builds `player_<cl_playerclass>` and, when
 # no such factory exists, pushes "player" (CHeroesPlayer, the base of every class) at 0x40371314.
 # --fallback-entity swaps that string for an existing class factory, so a class without its own
@@ -688,6 +698,57 @@ def class_default(image: Image, layout: Layout, edits: list, va: int) -> str:
     return f'{va:#x} -> {stub:#x}'
 
 
+def class_weapons(image: Image, layout: Layout, edits: list, relocs: set[int], table: int) -> dict:
+    """CLASS_WEAPONS: a weapon list row per extra class and a stub at each clamped reader."""
+    layout.pad()
+    names = {extra.index: [layout.string(w) for w in extra.weapons] for extra in EXTRA_CLASSES}
+    layout.pad()
+    rows = {}
+    for extra in EXTRA_CLASSES:
+        items = layout.here()
+        for name in names[extra.index]:
+            layout.pointer(name)
+        layout.pad()
+        rows[extra.index] = layout.here()
+        # CUtlVector: memory, allocation count, grow size (-1: external buffer, never freed), size, elements
+        layout.pointer(items)
+        layout.body += struct.pack('<iii', len(names[extra.index]), -1, len(names[extra.index]))
+        layout.pointer(items)
+        layout.pad()
+    readers = []
+    for at in sorted(relocs):
+        if not image.text_contains(at) or struct.unpack_from('<I', image.data, image.offset(at))[0] != table:
+            continue
+        for start in range(at - 24, at):
+            code = bytes(image.data[image.offset(start):image.offset(start) + 10])
+            ins = list(md.disasm(code, start))
+            if len(ins) == 4 and ins[0].mnemonic == 'cmp' and ins[0].op_str.endswith(', 0xa') and ins[0].size == 3                     and ins[1].mnemonic == 'jl' and ins[1].size == 2 and ins[2].mnemonic == 'xor' and ins[3].mnemonic == 'lea'                     and ins[3].size == 3 and not any(start <= r < start + 10 for r in relocs):
+                readers.append((start, ins[3].op_str.split(',')[0], code))
+                break
+    if len(readers) != 5:
+        raise PreparationError(f'Expected 5 class weapon readers of {table:#x}, found {len(readers)}; nothing is patched.')
+    regs = {'eax': 0, 'ecx': 1, 'edx': 2, 'ebx': 3, 'esi': 6, 'edi': 7}
+    stubs = []
+    for start, target, code in readers:
+        index = code[1] & 7  # register compared in `cmp R, 0xa`
+        layout.pad()
+        stub = layout.here()
+        found = []
+        for extra in EXTRA_CLASSES:
+            layout.body += bytes((0x83, 0xF8 | index, extra.index))
+            other = layout.forward(bytes((0x0F, 0x85)))
+            layout.body += bytes((0xB8 | regs[target],)) + struct.pack('<I', ((rows[extra.index] - table) // 4) & 0xFFFFFFFF)
+            found.append(layout.forward(bytes((0xE9,))))
+            layout.land(other)
+        layout.body += code
+        for at_ in found:
+            layout.land(at_)
+        layout.to(bytes((0xE9,)), start + 10)
+        edits.append((start, code, bytes((0xE9,)) + struct.pack('<i', stub - (start + 5)) + bytes((0x90,)) * 5))
+        stubs.append(f'{start:#x} -> {stub:#x}')
+    return {'rows': {i: hex(a) for i, a in rows.items()}, 'readers': stubs}
+
+
 def fallback_entity(image: Image, edits: list, factory: str) -> str:
     """Point the server's missing-factory fallback at an existing class factory (diagnostic)."""
     if factory not in FALLBACK_ENTITIES:
@@ -945,6 +1006,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['event_file'] = event_file(layout, edits, shadows, *EVENT_FILE[name])
     report['shape_class'] = [shape_class(layout, edits, *entry) for entry in SHAPE_CLASS.get(name, ())]
     report['class_defaults'] = [class_default(image, layout, edits, va) for va in CLASS_DEFAULTS.get(name, ())]
+    if name in CLASS_WEAPONS:
+        report['class_weapons'] = class_weapons(image, layout, edits, relocs, CLASS_WEAPONS[name])
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if fallback and name == 'server.dll':

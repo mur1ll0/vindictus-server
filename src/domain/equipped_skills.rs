@@ -59,6 +59,9 @@ fn mastery(class: &str) -> Option<(&'static str, bool, bool)> {
         "LONGBLADE" => ("skill_arisha_longblade_mastery", false, false),
         "CASTLET" => ("skill_arisha_castlet_mastery", false, false),
         "PHANTOMDAGGER" => ("skill_hagie_phantomdagger_mastery", false, false),
+        // Class 10 (Delia): absent from the 1.69 C# reference; the 1.69 content maps the
+        // BASTARDSWORD weight bonus to this skill (scripts/expression/expression_table_base.txt).
+        "BASTARDSWORD" => ("skill_delia_bastard_mastery", false, false),
         _ => return None,
     })
 }
