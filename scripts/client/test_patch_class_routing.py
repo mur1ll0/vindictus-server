@@ -204,7 +204,7 @@ class LabCopyTest(unittest.TestCase):
 
     def test_player_entity_slots_dispatch_on_the_class(self):
         image, report = self.plan('client.dll')
-        name, klass, figure_slot, constant_slots, gate = routing.ENTITY_SLOTS['client.dll']
+        name, klass, figure_slot, constant_slots, gate, _ = routing.ENTITY_SLOTS['client.dll']
         table = routing.vtable(image, name)
         original = Image(source('client.dll'))
         for slot in (figure_slot, *constant_slots):
@@ -347,6 +347,22 @@ class LabCopyTest(unittest.TestCase):
             self.assertEqual(names[0::2], list(routing.CONDITION_NAMES))
             self.assertEqual(text[-7:-1], ['add esp, 8', 'popal ', 'pop edi', 'mov al, 1', 'pop esi', 'mov esp, ebp'])
             self.assertEqual(text[-1], f'jmp {tail + 6:#x}')
+
+    def test_server_player_constants_dispatch_on_the_class(self):
+        image, report = self.plan('server.dll')
+        name, klass, _, slots, _, values = routing.ENTITY_SLOTS['server.dll']
+        table = routing.vtable(image, name)
+        original = Image(source('server.dll'))
+        for i, slot in enumerate(slots):
+            stub = self.entry(image, table, slot)
+            code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+                bytes(image.data[image.offset(stub):image.offset(stub) + 0x40]), stub)))
+            text = [f'{x.mnemonic} {x.op_str}' for x in code]
+            self.assertEqual(text[:2], [f'mov eax, dword ptr [ecx + {klass:#x}]', 'cmp eax, 0xa'])
+            self.assertEqual(text[-1], f'jmp {self.entry(original, table, slot):#x}')
+            address = int(re.search(r'\[(0x[0-9a-f]+)\]', next(t for t in text if t.startswith('fld'))).group(1), 16)
+            value = struct.unpack_from('<f', image.data, image.offset(address))[0]
+            self.assertAlmostEqual(value, getattr(routing.EXTRA_CLASSES[0], values)[i], places=5)
 
     def test_extra_classes_must_be_contiguous(self):
         miri = routing.ExtraClass(12, 'miri', 'hagie', 'female', 'x.fig', (1.0, 1.0), 3)

@@ -56,6 +56,7 @@ class ExtraClass:
     faces: int                      # models/player/<key>/pc_<key>_faceNN.mdl
     shape_of: str = 'lynn'          # older class whose body-shape slot it borrows (SHAPE_CLASS)
     weapons: tuple[str, ...] = ()   # weapon entities of the class (CLASS_WEAPONS)
+    server_constants: tuple[float, ...] = (0.9, 1.1, 100.0)  # server slots 221, 222, 414
 
     @property
     def name(self) -> str:
@@ -65,8 +66,9 @@ class ExtraClass:
 EXTRA_CLASSES = (
     # The NA gives Delia weapon_bastardsword, an entity the 1.69 lacks; the lab uses the closest
     # existing one, Hurk's weapon_greatsword (one large sword, sheathed on the back).
+    # Server constants: NA Delia slots 240/241 (0.88/0.96, as the client) and 466 (92.0).
     ExtraClass(10, 'delia', 'hagie', 'female', 'csf/bodyshape_delia_default.fig', (0.88, 0.96), 3,
-               weapons=('weapon_greatsword',)),
+               weapons=('weapon_greatsword',), server_constants=(0.88, 0.96, 92.0)),
 )
 # Class 10 is the only extra class with an item "usable by" flag (engine.dll keeps bool[11] per
 # item; patch_engine_class_flags.py), so FLAG_CHECKS and TOOLTIPS stay on her.
@@ -121,7 +123,11 @@ CLASS_STRING_BOUNDS = {'client.dll': (0x388E6AC4, 0x388E6AE4)}
 # * slots 177/178 return two float constants (base 0.9/1.1, Hagie 0.91/0.99, NA Delia 0.88/0.96).
 # Each slot of that vtable points at a dispatcher on m_iClass (+0x18ec): an extra class gets
 # Hagie's figure gate with its own figure and its constants; the others run the original.
-ENTITY_SLOTS = {'client.dll': ('C_HeroesPlayer', 0x18EC, 264, (177, 178), 0x3870D1D0)}
+# The server's CHeroesPlayer (m_iClass +0x1400) has the same pair at 221/222 and a third NA
+# override at 414 (NA 466: base 100, Lynn 89, Delia 92). Entries: (class, m_iClass offset,
+# figure slot or None, constant slots, figure gate or None, ExtraClass field with the values).
+ENTITY_SLOTS = {'client.dll': ('C_HeroesPlayer', 0x18EC, 264, (177, 178), 0x3870D1D0, 'constants'),
+                'server.dll': ('CHeroesPlayer', 0x1400, None, (221, 222, 414), None, 'server_constants')}
 # `push 0xa` whose log2 sizes the m_iClass SendProp (0x405368c3..0x405368c7).
 BITS = {'server.dll': 0x405368C5}
 # `cmp eax, 0xa; jge` that skips the whole local-player setup (C_HeroesPlayer vtable +0xac,
@@ -949,7 +955,8 @@ def vtable(image: Image, name: str) -> int:
 
 
 def entity_slots(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, klass: int,
-                 figure_slot: int, constant_slots: tuple[int, int], figure_gate: int) -> dict:
+                 figure_slot: int | None, constant_slots: tuple[int, ...], figure_gate: int | None,
+                 values: str) -> dict:
     """ENTITY_SLOTS: per-class dispatchers in the shared player entity's vtable."""
     table = vtable(image, name)
     layout.pad()
@@ -958,7 +965,10 @@ def entity_slots(image: Image, layout: Layout, edits: list, relocs: set[int], na
     constants = {}
     for extra in EXTRA_CLASSES:
         constants[extra.index] = layout.here()
-        layout.body += struct.pack('<ff', *extra.constants)
+        floats = getattr(extra, values)
+        if len(floats) != len(constant_slots):
+            raise PreparationError(f'{extra.key}: {values} needs {len(constant_slots)} values.')
+        layout.body += struct.pack(f'<{len(floats)}f', *floats)
 
     def dispatch(slot: int, body) -> str:
         at = table + 4 * slot
@@ -991,7 +1001,7 @@ def entity_slots(image: Image, layout: Layout, edits: list, relocs: set[int], na
             layout.body += b'\xc3'
         return body
 
-    return {'vtable': hex(table), 'figure': dispatch(figure_slot, figure),
+    return {'vtable': hex(table), 'figure': dispatch(figure_slot, figure) if figure_slot is not None else None,
             'constants': [dispatch(slot, constant(i)) for i, slot in enumerate(constant_slots)]}
 
 

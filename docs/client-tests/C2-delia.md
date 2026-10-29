@@ -395,3 +395,18 @@ Pré-condição: aplicado (`client.dll` `67bcca2f…`, `server.dll` `27e437b7…
 - [ ] Inventário: dica da `Bastard Sword` (ainda "Cannot be equipped"?) e cor das armaduras-base (ainda vermelhas?). Se continuarem, deixar o jogo aberto na cidade e avisar: eu leio os *flags* do item na memória.
 - [ ] Não regressão: Hagie com a adaga, Fiona/Evy com as armas delas.
 Resultado esperado: uma espada só; ataque funciona.
+
+Resultado do D18 (28/10/2026, operador): a Delia entra na cidade com **uma** espada; combate da primeira fase funciona bem; itens do inventário aparecem vermelhos, mas equipam e funcionam; **estamina regenera muito devagar**.
+
+### D19 — Estamina, condições da Delia (E3, primeira parte) e constantes do servidor
+Mudanças desde o D18:
+- estamina: o servidor dava taxa de restauração 0 a classes acima de 9 (48 para as outras, 12 para a Evy); a Delia passa a usar a da Hagie (`CLASS_ALIAS`), assim como um segundo valor por classe zerado;
+- o cliente passa a arma da classe ao jogador ao nascer (`CLIENT_WEAPON_SWITCH`);
+- as 5 condições dos scripts da Delia (`As_Cond_Can_Armor_Purge`, `As_Cond_Delia_SPSkill3_Activated`, `AS_Cond_Delia_Special_Hold_Skill`, `AS_Cond_Delia_Guard`, `AS_Cond_Delia_Guard_Hit`) existem agora nos dois DLLs (ids 121–125); ainda **ninguém as liga** (guarda, golpe bloqueado, SP3, armadura): os ramos do script que pedem essas condições ficam válidos, mas fechados;
+- constantes do servidor da Delia (NA): 0,88/0,96 e 92 (`ENTITY_SLOTS` do servidor).
+Pré-condição: aplicado (`client.dll` `3287411a…`, `server.dll` `2cf34a4f…`); abrir pelo `start-lab.bat`.
+- [ ] Cidade e primeira fase com a `DeliaLab`: anotar se a estamina volta rápido quando ela fica parada e normal durante o movimento; se o jogo abre e entra sem queda.
+- [ ] **Guarda** (`skill_delia_guard`, já aprendida): segurar a guarda e levar golpe de um monstro; anotar se o dano é bloqueado (zero ou reduzido), se há reação de guarda e se algum ataque sai da guarda.
+- [ ] Inventário: itens ainda vermelhos? Se sim, deixar o jogo aberto na cidade e avisar (leitura dos *flags* do item na memória).
+- [ ] Não regressão: Hagie, Fiona e Evy na cidade e numa fase.
+Resultado esperado: estamina normal; o comportamento da guarda define o próximo passo do E3.
