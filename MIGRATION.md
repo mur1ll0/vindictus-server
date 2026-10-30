@@ -28,7 +28,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). |
 | `docs/client-tests/B3-equipamento.md` | Nenhuma entrada testada (inclui DY1, ampola de tintura). |
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, P3 progressão, S1–S3 exclusão de personagem). |
-| `docs/client-tests/B5-pets.md` | P1–P8 pendentes. |
+| `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C3-criacao.md` | Grade, customização, Create → estalagem → cidade aceitos em 30/10; faltam volta à seleção com a personagem criada pela grade, G3 e G5. |
 
