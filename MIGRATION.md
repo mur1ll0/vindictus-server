@@ -2655,3 +2655,11 @@ Sistema de pets P1–P6 (30/10/2026, pedido do operador: "implemente completamen
 - Verificação: `cargo clippy --lib --tests` limpo (só o aviso antigo de `character_class.rs`); `cargo test --lib` (44), `--test pet_wire` (2), `character_list_wire`, `minimum_map`, `mission_wire`, `item_sync_wire`, `admin_http`; PostgreSQL filtrado `minimum_pets` + regressões (`minimum_mission minimum_use minimum_hot_spring minimum_in_game migration minimum_story character_list lobby panel_item admin`): 0 falhas; `test_export_item_economy.py` OK; `npm run build` do painel OK. Logs `.cache/verification/pet-*.log`.
 - Cliente: necessário — roteiro `docs/client-tests/B5-pets.md` (checkpoints P3, pet na cidade, e P6, pet na fase com o índice 28).
 - Próxima ação: rebuild do Docker e sessão de cliente do operador pelo roteiro B5-pets; depois, os pets do NA (P7) junto com a importação das classes.
+
+Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
+- Antes: a regra da loja (itens da aba cash, `Storage 2`) já vendia 99 itens de pet, todos em `CASHITEM` a 300, com itens de teste, "Gift", pacotes de outras regiões e os `package_pet_*`, cujo conteúdo vivia no NISMS (compra sem conteúdo).
+- Mudança: `export_cash_shop.py` (`pet_listing`) põe os itens de pet em quatro categorias com preço próprio (`PET_PACKAGE` 2900, `PET` 1900, `PET_FOOD` 100, `PET_GEM` 900 em `cash_shop_prices.json`, ajustáveis no painel) e lista os demais em `not_sold`; `cash_shop.rs` lê `not_sold` (padrão vazio) junto com `without_contents`. Os pacotes que funcionam são as 16 caixas `randomitem_pet_*_eneu` do `RandomItem` (pet, 50 Premium Pet Food, Thick Hide Gem e Life Giver Gem de 30 dias) e a `randomitem_titicore_pet_chieftain_gold_eneu`. `cash-shop.json` regenerado (anterior em `cash-shop.json.pre-pet-tabs.bak`).
+- Verificação: `test_export_cash_shop.py` (3, com a tabela de `pet_listing`); `lab-export-shop-list` com a lista completa: 49 produtos de pet (27 + 16 + 4 + 2 visíveis na aba cash); PostgreSQL `cash_shop minimum_cash minimum_daily minimum_home_cafe hot_spring` (4); clippy limpo.
+- Cliente: necessário — `docs/client-tests/B5-pets.md`, entrada P9 (abrir pacote ainda não testado com estas caixas).
+- Próxima ação: sessão de cliente pelo roteiro B5-pets.
+

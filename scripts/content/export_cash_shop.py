@@ -58,6 +58,34 @@ def integer(v):
     return v
 
 
+# Pet tabs of the laboratory Depot (operator decision 2026-10-30): the pets, the EU pet
+# packages (RandomItem boxes), the food and the skill gems, each with its own category price.
+PET_WORD = re.compile(r'(^|_)pets?(_|pack|$)')
+
+
+def pet_listing(item, has_name, openable, pet_types, extra):
+    """'PET_PACKAGE', 'PET', 'PET_FOOD' or 'PET_GEM' for a pet item sold in its tab, 'hide' for
+    one not sold, None for other items. Not sold: package_pet_* (their contents lived in the
+    NISMS billing server), boxes of other regions or without contents, test, gift and China
+    items, items without an EU name, and pet_create_ items whose ExtraData has no PetInfo."""
+    if item.startswith('package_pet_'):
+        return 'hide'
+    if item.startswith('randomitem_') and PET_WORD.search(item[len('randomitem_'):]):
+        return 'PET_PACKAGE' if item.endswith('_eneu') and item in openable and has_name else 'hide'
+    if not item.startswith('pet_'):
+        return None
+    if (not has_name or item.startswith('pet_accessory')
+            or any(x in item for x in ('_gift', '_min30', '_test', '_chn'))):
+        return 'hide'
+    if item.startswith('pet_create_'):
+        return 'PET' if extra in pet_types else 'hide'
+    if item.startswith('pet_feed_'):
+        return 'PET_FOOD'
+    if item.startswith('pet_skill_'):
+        return 'PET_GEM'
+    return None
+
+
 def ticks(value):
     """A SQL datetime text ('YYYY-MM-DD hh:mm:ss.fff') as UTC .NET DateTime ticks."""
     import datetime
@@ -116,17 +144,26 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED,
         restrictions = []
         names = []
         boxed = []
+        not_sold = []
         # RandomItem/RandomItemV2 open a box; a box class without them has no contents.
         openable = {r[0] for r in db.execute('Select ItemClass From [RandomItem] Union Select ItemClass From [RandomItemV2]')}
-        for index, r in enumerate(db.execute('Select ItemClass, Feature, Category, ClassRestriction From [ItemClassInfo]')):
+        tables = {r[0] for r in db.execute("Select name From sqlite_master Where type='table'")}
+        pet_types = {str(r[0]) for r in db.execute('Select PetID From [PetInfo]')} if 'PetInfo' in tables else set()
+        extra = ', ExtraData' if 'ExtraData' in {r[1] for r in db.execute('PRAGMA table_info(ItemClassInfo)')} else ''
+        for index, r in enumerate(db.execute('Select ItemClass, Feature, Category, ClassRestriction' + extra + ' From [ItemClassInfo]')):
             if index >= len(package['classes']):
                 raise ValueError('Catalog alignment changed')
             if (r['ItemClass'].encode('utf-16-le').hex() != package['classes'][index]['item_utf16']
                     or r['Feature'] != package['classes'][index]['feature']):
                 raise ValueError('Catalog order changed')
-            categories.append(text(r['Category']))
+            name = localized(entries, r['ItemClass'])
+            pet = pet_listing(r['ItemClass'], name is not None, openable, pet_types,
+                              (r['ExtraData'] or '').strip() if extra else '')
+            categories.append(text(r['Category']) if pet in (None, 'hide') else pet)
+            if pet == 'hide':
+                not_sold.append(index)
             restrictions.append(integer(r['ClassRestriction']))
-            names.append(localized(entries, r['ItemClass']))
+            names.append(name)
             if ((r['ItemClass'].startswith('randomitem_') or r['Category'] == 'PACKAGE')
                     and r['ItemClass'] not in openable):
                 boxed.append(index)
@@ -173,7 +210,7 @@ def read_package(database, config, prices_path=PRICES, localized_path=LOCALIZED,
         raise ValueError('Cash shop source changed during export')
     return dict(format_version=7, source='heroesContents.cash-shop', status_effects=status_effects, daily_items=daily_items, database_sha256=manifest['database_sha256'],
                 config_sha256=manifest['config_sha256'], localized_sha256=digest(localized_path),
-                root_category=105, categories=categories, names=names, without_contents=boxed,
+                root_category=105, categories=categories, names=names, without_contents=boxed, not_sold=not_sold,
                 value_products=[dict(item=k, days=v) for k, v in sorted(value_products.items())],
                 default_price=default, prices=[dict(category=k, price=v) for k, v in sorted(table.items())],
                 customize_items=items, customize_prices=prices, customize_coupons=coupons,

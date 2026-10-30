@@ -128,6 +128,9 @@ pub struct Profile {
     names: Vec<Option<Localized>>,
     /// Catalog rows of boxes without RandomItem/RandomItemV2 contents (not sold).
     without_contents: Vec<usize>,
+    /// Other catalog rows the laboratory Depot does not sell (pet items outside the pet tabs).
+    #[serde(default)]
+    not_sold: Vec<usize>,
     /// Classes sold once per duration with ProductAttribute3 `[VALUE:n]`.
     value_products: Vec<ValueProduct>,
     /// StatusEffectGroupInfo of the HomeCafeBonus effects.
@@ -222,6 +225,7 @@ impl Profile {
             || p.daily_items.len() > 4096
             || p.status_effects.len() > 4096
             || p.without_contents.len() > p.categories.len()
+            || p.not_sold.len() > p.categories.len()
             || p.value_products.len() > 64
             || p.value_products.iter().any(|v| {
                 v.item.is_empty()
@@ -307,8 +311,12 @@ impl Profile {
         }];
         let mut numbers: BTreeMap<String, i32> = BTreeMap::new();
         let mut products = Vec::with_capacity(rows.len());
-        let hidden: std::collections::BTreeSet<usize> =
-            self.without_contents.iter().copied().collect();
+        let hidden: std::collections::BTreeSet<usize> = self
+            .without_contents
+            .iter()
+            .chain(&self.not_sold)
+            .copied()
+            .collect();
         for (index, class) in rows {
             if hidden.contains(&index) {
                 continue;

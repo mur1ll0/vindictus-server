@@ -24,6 +24,7 @@ Sistema de pets do servidor Rust (`docs/future/pet-system.md`, etapas P1–P6). 
 6. **P6:** missão curta com o pet invocado. **Checkpoint:** o pet entra na fase com o índice 28 (`docs/future/pet-system.md`, seção 2.1). Se o cliente fechar ao carregar a fase, pare aqui e relate.
 7. **P7:** skill de cash, *slot* e remoção.
 8. **P8:** painel (aba Pets).
+9. **P9:** Depot (abas de pets).
 
 ## Como relatar
 Para cada linha marcada: ID da entrada e número da linha (ex.: `P3-2`), o que apareceu na tela (texto, captura se possível), se o cliente fechou ou travou, o horário aproximado e o nome do relatório de queda, se houver. Num checkpoint que falhar, pare e relate; as entradas seguintes dependem dele.
@@ -77,3 +78,11 @@ Pré-condição: conta fora do jogo.
 - [ ] "Dar pet" com o tipo 518 e o nome `Spot` → aparece na lista; entrar no jogo → aparece na janela de pets.
 - [ ] Com a personagem no jogo, o painel recusa dar ou remover pets (online).
 - [ ] Remover `Spot` pelo painel → some da lista e do jogo no próximo login.
+
+### P9 — Depot (abas de pets)
+Pré-condição: cash na conta (painel → ficha → Cash, por exemplo 10 000).
+- [ ] Abrir o Depot → aparecem as abas `PET_PACKAGE` (16 pacotes europeus e a caixa do Gold Junior Chieftain, 2900), `PET` (27 pets, 1900), `PET_FOOD` (rações, 100) e `PET_GEM` (gemas de 30 dias, 900). Itens de teste, "Gift" e os "Limited … Package" não aparecem.
+- [ ] Comprar um pacote (ex.: Red Wolf Package) e retirá-lo para o inventário → o cash cai 2900.
+- [ ] Abrir o pacote → entram `pet_create_wolf_red`, 50 Premium Pet Food, Thick Hide Gem (30 days) e Life Giver Gem (30 days).
+- [ ] Usar o `pet_create_wolf_red` → cria o lobo (P1); invocar e conferir o modelo na cidade.
+

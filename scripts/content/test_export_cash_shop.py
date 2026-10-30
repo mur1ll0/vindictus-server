@@ -57,7 +57,7 @@ class CashShopExportTests(unittest.TestCase):
         self.assertIn('STUDY-A', [f['key'] for f in p['features']])
         self.assertEqual(p['class_restrictions'], [2, 2047])
         self.assertEqual(p['value_products'], [{'item': 'potion', 'days': [7, 30]}])
-        self.assertEqual(p['without_contents'], [])
+        self.assertEqual((p['without_contents'], p['not_sold']), ([], []))
         self.assertEqual(p['daily_items'], [{'id': 110, 'start_ticks': 634006656000000000, 'end_ticks': 946707264000010000, 'period_minutes': 1440, 'cafe_level': 0, 'cafe_type': 3,
                                              'level_min': None, 'level_max': None, 'query': 'giveitemuntil cash_revive 3',
                                              'message': 'GameUI_Heroes_DailyItemProcess_GiveItemMessage', 'feature': 'HomeCafeBonus&&enEU'}])
@@ -66,6 +66,29 @@ class CashShopExportTests(unittest.TestCase):
                                                  'combat_count': -1, 'kind': 'UseExpireTime', 'stat_adder': [['ATK', 19], ['MATK', 18]]},
                                                 {'type': 'other', 'level': 1, 'abs_level': 1, 'id_tag': None, 'duration': 10,
                                                  'combat_count': -1, 'kind': 'UseRemainTime', 'stat_adder': [['DEX', 2], ['STR', 1]]}])
+
+    def test_pet_items_get_their_tabs_or_are_not_sold(self):
+        from export_cash_shop import pet_listing
+        openable, types = {'randomitem_pet_wolf_red_eneu'}, {'518'}
+        cases = [
+            (('pet_create_gremlin_young', True, '518'), 'PET'),
+            (('pet_create_gnoll_jr_change', True, '999'), 'hide'),
+            (('pet_create_bear_white', False, '518'), 'hide'),
+            (('pet_feed_normal', True, '100'), 'PET_FOOD'),
+            (('pet_feed_normal_gift', True, '100'), 'hide'),
+            (('pet_skill_atk_buff_day30', True, '9'), 'PET_GEM'),
+            (('pet_skill_atk_buff_min30', True, '9'), 'hide'),
+            (('pet_accessory_test', True, ''), 'hide'),
+            (('package_pet_gremlin_young_eneu', True, '518'), 'hide'),
+            (('randomitem_pet_wolf_red_eneu', True, ''), 'PET_PACKAGE'),
+            (('randomitem_pet_wolf_red_zhcn', True, ''), 'hide'),
+            (('randomitem_pet_wolf_black_eneu', True, ''), 'hide'),
+            (('randomitem_petal_enchant_useu_201509', True, ''), None),
+            (('pet_name_change', True, ''), None),
+            (('potion', True, ''), None),
+        ]
+        for (item, named, extra), expected in cases:
+            self.assertEqual(pet_listing(item, named, openable, types, extra), expected, item)
 
     def test_price_table_is_bounded(self):
         self.prices.write_text(json.dumps({'default': 0, 'categories': {}}), encoding='utf-8')

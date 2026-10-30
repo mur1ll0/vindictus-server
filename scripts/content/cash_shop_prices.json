@@ -16,7 +16,11 @@
     "NECKLACE": 2500,
     "RAREITEM": 3000,
     "CASHITEM": 300,
-    "GARBAGE": 100
+    "GARBAGE": 100,
+    "PET_PACKAGE": 2900,
+    "PET": 1900,
+    "PET_FOOD": 100,
+    "PET_GEM": 900
   },
   "_value_comment": "VALUE products (operator decision 2026-10-25): one product per duration with ProductAttribute3 [VALUE:n], the days UseInventoryItem reads from item.Value.",
   "value_products": {
