@@ -1,8 +1,8 @@
 # Porte da classe Delia (classe 10) do cliente NA para o laboratório 1.69
 
-Registro único de tudo o que a Delia exigiu, do primeiro teste sem patch (27/10/2026) ao último passo da criação pela grade (C3-19, 30/10/2026). Serve de receita para a próxima classe (Miri, 11).
+Registro único de tudo o que a Delia exigiu, do primeiro teste sem patch (27/10/2026) à criação pela grade completa até a cidade (C3-23, 30/10/2026). Serve de receita para a próxima classe (Miri, 11).
 
-Fontes: `MIGRATION.md` (de "Caminho C, etapa C2" ao "Passo 50", "Fechamento do C2 da Delia" e "Passo C3-1" a "Passo C3-19"), `docs/future/new-classes.md` (8.1–8.15, 9.1), `docs/new-class-guide.md` (rascunho anterior, absorvido aqui), `docs/client-tests/C2-delia.md`, `docs/client-tests/C3-criacao.md`, `scripts/client/patch_class_routing.py`, `patch_class_table.py`, `patch_engine_class_flags.py`.
+Fontes: `MIGRATION.md` (de "Caminho C, etapa C2" ao "Passo 50", "Fechamento do C2 da Delia" e "Passo C3-1" a "Passo C3-23"), `docs/future/new-classes.md` (8.1–8.15, 9.1), `docs/new-class-guide.md` (rascunho anterior, absorvido aqui), `docs/client-tests/C2-delia.md`, `docs/client-tests/C3-criacao.md`, `scripts/client/patch_class_routing.py`, `patch_class_table.py`, `patch_engine_class_flags.py`.
 
 Convenções: endereços são do 1.69 EN de laboratório (`client.dll` base `0x38000000`, `server.dll` local base `0x40000000`, `engine.dll` base `0x42000000`); "NA" é o cliente oficial (`F:\Games\vindictus`, somente leitura; x64 em `.cache/bin_x64`, 32 bits em `appdata\en-US\bin`). Os passos citados ("passo 31", "C3-9") são entradas do `MIGRATION.md`; "D…"/"G…" são entradas dos roteiros de cliente.
 
@@ -26,9 +26,11 @@ Convenções: endereços são do 1.69 EN de laboratório (`client.dll` base `0x3
 - Itens da Delia sem fundo vermelho; dica sem "Cannot be equipped" (D22, passo 43).
 - Fechamento do C2 (29/10/2026, operador: "funcionou perfeitamente"): 154 caixas encerradas no `C2-delia.md`; só o D6 ficou aberto e passou ao C3.
 - Criação pela grade (C3): grade com 11 classes na cena `lobby_beautyshop_change`, atores em pose de apresentação, customização da Delia com o modelo certo, botão de voltar, campo de nome e "Check", roupas de amostra (G6), WASD travado e troca imediata de pose/ação (C3-1 a C3-19).
+- Criação até a cidade (30/10/2026, operador: "Funciona completamente agora"): "Create" → estalagem (`create_character`) → fala da Tieve → "Go to town" → cidade com a Delia nova, com WASD e poses da customização ainda certos (C3-20 a C3-23).
 
 ### O que ainda não foi confirmado no cliente
-- "Create" da Delia pela grade até a cidade e a volta à seleção (G4) e a G5 (voltar da grade sem criar): a queda do "Create" foi corrigida no C3-15, mas o último relato (C3-19) não chegou à criação. Próxima ação registrada no `MIGRATION.md`: "Create" até a cidade com a Delia e G5.
+- G5 (voltar da grade sem criar) e G3 (classe antiga pela grade até a cidade): não relatados depois do C3-23.
+- Volta da cidade à seleção com a personagem criada pela grade: não relatada separadamente (a seleção da `DeliaLab` pela lista já funcionava no C2).
 
 ### O que ficou aproximado
 Lista completa na seção 7. Os principais: `As_Cond_Can_Armor_Purge` sempre ligada, `SP3_Activated` não portada, ataque forte e habilidade segurada (E4/E5 itens 5–6) não implementados, `weapon_greatsword` no lugar da `weapon_bastardsword`, atores da grade sem a pose `SELECTED_S3` animada do NA, nome em cinza na customização.
@@ -135,7 +137,7 @@ Troca a classe de uma personagem desconectada pelo nome, numa transação dentro
   3. `python -s -E scripts/client/patch_class_routing.py --client-copy .cache/play-client --apply`: exige a `.hcls` (`EXPECTED` = `a9591d3a44a2b538`/`af43431e78666783`). Para reaplicar, copiar os `client.dll.<hash>.pre-routing.bak`/`server.dll.<hash>.pre-routing.bak` sobre `bin/` antes. Grava `bin/class-routing.json` (endereços dos *stubs*, lido por `scripts/dev/lab_memory.py`).
 - Sem `--apply` é simulação (relatório JSON). `--fallback-entity player_fiona` é só diagnóstico (D8k) e não faz parte do porte.
 - Todos os patches conferem os bytes originais de cada ponto e recusam se não baterem.
-- **Hashes finais do laboratório** (último passo aplicado, C3-20; `.cache/verification/c3/class-routing-apply-c3o.log`): `client.dll` `6abba292…`, `server.dll` `c44e51a2…` (igual desde o C3-6), `engine.dll` `d25a6e28…`.
+- **Hashes finais do laboratório** (último passo aplicado, C3-23; `.cache/verification/c3/class-routing-apply-c3r.log`): `client.dll` `973bf082fede76ffb5c71a283aa213856d06dca5782399b23aec006c691cfdc2`, `server.dll` `c44e51a274da9ab07d4922b4b0a0b948bc95b097c6f3e7d11b3038cabf3f3d91` (igual desde o C3-6), `engine.dll` `d25a6e285421d9d0648f79d23f402b25a25ba5fbb0e2202cfe7893b826ee5289`. Lista completa de arquivos e backups na seção 9.
 - Testes: `cd scripts/client && python -s -E -m unittest test_patch_class_table test_patch_engine_class_flags test_patch_class_routing` (`test_patch_class_routing.py` tem 36 testes, inclusive um plano com uma segunda classe extra fictícia, Miri 11, e `test_every_new_pointer_is_relocated`).
 
 ### 4.2 `patch_class_table.py` (`.hcls`, passo 1 do C2, commit `a6c6304f`)
@@ -205,12 +207,23 @@ Cliente (`client.dll`):
 5. **Transição para o estado 11** (`transition` `0x3852376D`): `NewCharacterSelection_Start` → `CharacterCreationState` (11, `CREATION_STATE`) em vez do prólogo (8); a grade não passa pelo tutorial (decisão do operador, "Keep the NA flow", C3-5).
 6. **Entrada da customização** (`enter` `0x38524B00`): chama `0x38594860(classe)` (`cl_playerclass`/`cl_playermodel`, que o prólogo fazia) antes de `sv_prologue_mode 1`, `scaleform_fade_out 1.5`, `changemap lobby_beautyshop_body`, mais `hhud_should_draw 0` (C3-4, C3-10).
 7. ***Slot* 4 de mapa pronto** do `CharacterCreationState` (vtable `0x38B79BC8`): corpo original da entrada (modo de criação, roupa) + `cam_select_beautyshop_camera`, `scaleform_fade_in 1.5`, `cc_show_create_character_dialog`; liga o *flag* "customização aberta" na `.hrte` (C3-1, C3-18).
-8. **Saída da customização** (`leave_command` `0x38524BAB`, `leave` `0x38524BA0`): `sv_create_character_mode 0;hhud_should_draw 1`; desliga o *flag* (C3-10, C3-18).
-9. **Tabela de transições** (`transitions` `0x3851D6D0`/`0x3851D6D5`, 141 entradas `{estado, evento, função}` em `0x38ca5cc8`): copiada para a `.hrte` com a entrada `(11, CharacterCreation_Back)` → `sv_prologue_mode 0`, estado 7 (a grade) (C3-4; NA `0x389ac61c`, `CharacterBodyCreation_Back`). Máquina `0x3851E5F0`, `Fire` `0x385194D0`.
+8. **Saída da customização** (`leave` `0x38524BA0`): desliga o *flag* e segue o comando original (`sv_create_character_mode 0`). O `leave_command` do C3-10 (`…;hhud_should_draw 1`) saiu no C3-20: religava o HUD e mostrava "Lv. 0" na fala da Tieve; os estados da cidade religam o HUD, como no fluxo antigo.
+9. **Tabela de transições** (`transitions` `0x3851D6D0`/`0x3851D6D5`, 141 entradas `{estado, evento, função}` em `0x38ca5cc8`): copiada para a `.hrte` com a entrada `(11, CharacterCreation_Back)` → desliga o *flag* de estalagem, `sv_prologue_mode 0`, estado 7 (a grade) (C3-4, C3-20; NA `0x389ac61c`, `CharacterBodyCreation_Back`). Máquina `0x3851E5F0`, `Fire` `0x385194D0`.
 10. **Botão Back do diálogo** (`dialog` `0x384AF6E0`, resto `0x384AF6EF`): o *handler* do `CreateCharacterDialog` dispara `CharacterCreation_Back` no comando `Back`; restaura `ecx = esi` antes de voltar (queda `0x384b111d` no "Create", C3-15). As escritas de visibilidade e cor pelo C++ (C3-4 a C3-15) foram retiradas no C3-16; o botão vem do filme (seção 2.4).
 11. **Teclas de movimento** (`input` `0x387ED0FA`, resto `0x387ED110`, `move_buttons` `0x618`): com o *flag*, `ProcessInputSequence` (`0x387ed080`) zera também `IN_FORWARD|IN_BACK|IN_MOVELEFT|IN_MOVERIGHT` (C3-18).
 12. **Troca imediata de pose/ação** (`emotion_call` `0x388933B4`; `request` `0x387EA050`, `merge` `0x387EDD10`, `set_state` `0x387E49D0`, `kv_delete` `0x38917930`): depois do pedido de `cc_play_repeatable_emotion` (`0x388932c0`), aplica-o na hora (*merge* das opções, `SetState`) em vez de deixá-lo para o próximo `ProcessInputSequence` (C3-18).
 13. **Roupas de amostra**: `switch` `0x384A3308` em `SWITCHES` (ver 4.4; C3-9).
+14. **Estalagem depois do "Create"** (`inn_vtable` `0x38B79BE0` = vtable do `PrologueInnBState`, estado 12): `CharacterCreation_OK` leva ao estado 12, cuja entrada original (`0x38526620`) abre a fala `prologue_after_create_character` da Tieve. No fluxo antigo a customização já era na estalagem (`create_character.bsp`); na grade ela é na `lobby_beautyshop_body`. Um *flag* de estalagem na `.hrte` (1 = customização da grade aberta, ligado pelo *slot* 4 da customização; 2 = trocando de mapa; o `Back` zera) faz o *slot* 1 do estado 12 mandar `scaleform_fade_out 1.5;changemap create_character` e o *slot* 4 (mapa pronto, original `0x385190A0`) rodar a entrada original já na estalagem. O jogador nasce no `info_player_start` (-624, -1568, 164), longe dos gatilhos (C3-20).
+15. **Byte de prólogo** (`set_prologue` `0x38519570`, leitura `0x38519590`, `[[máquina]+4]+4`): o botão "Go to town" (`ToTown`, `npc_talk_dialog.txt`) é tratado em `0x383c4390` e só toma o ramo do prólogo (`force_start_touch trigger_startgame;` em `0x383c452e` → `trigger_once` da `create_character.bsp`: `scaleform_fade_out 3` e, aos 3,5 s, `cc_start_game_first` → `0x38526140` → `Fire PrologueInnB_End` → `0x385263d0` seleciona o índice `contagem - 1` (a personagem mais nova) por `0x38594930` → estado 13 `EnterGameFirstSent` → `EnterGameSent_OK` → cidade) com o byte ligado; desligado, cai em `0x383c453b`: manda a conversa ao servidor (`QueryNpcTalk` 534) e marca a fala como `Loading` (a tela travada do C3-21). O 1.69 liga o byte só no início do prólogo (`0x38526d14`) e desliga ao entrar na cidade vindo do estado 13 (`0x3852e18c`) e em outras saídas (`0x38531275`, `0x385313c0`). A grade pula o prólogo, então o *slot* 4 da estalagem (item 14) liga o byte antes da entrada original (C3-22, C3-23). **Não ligar o byte na customização**: ele também troca o tratamento de mouse/teclado do prólogo (`0x38591500`, `0x385f8b20`) e, com ele, digitar o nome numa pose de andar voltava a girar o modelo e as poses paravam (regressão do C3-22, corrigida no C3-23).
+16. **Tentativa descartada (C3-21)**: um *stub* que disparava `cc_start_game_first` no clique do `ToTown`. Partiu de uma premissa errada (o gatilho do mapa falhando); o ramo nem era alcançado, e disparar o evento dentro do *callback* da fala derrubaria o objeto em uso. Retirado no C3-22.
+
+#### 4.5.1 Fluxo completo da grade até a cidade (estado da UI → mapa → peça)
+1. Seleção (estado 5) → "nova personagem" → estado 7 (`NewCharacterSelection`): `changemap lobby_beautyshop_change` (item 2); no mapa pronto, `npc_character_create;force_start_touch trigger_cam_midview` e `OnReadyCreation` (item 4).
+2. Clique na classe: `Select<Classe>` → `npc_character_create_select <n>` (item 3) → o servidor teleporta os atores (servidor 1) com a pose `SELECTED_S3` (servidor 2).
+3. "Start with this character" → `NewCharacterSelection_Start` → estado 11 (item 5): `cl_playerclass`, `sv_prologue_mode 1`, *fade*, `changemap lobby_beautyshop_body`, HUD desligado (item 6); mapa pronto: câmera, *fade in*, diálogo, *flag* da customização e *flag* de estalagem 1 (item 7). O servidor local nasce o jogador com a chave da classe (servidor 3).
+4. Customização: roupas de amostra (item 13), poses/ações sem fila (item 12), WASD travado (item 11), nome/"Check" (filme, seção 2.4), `Back` → estado 7 (itens 9 e 10).
+5. "Create" → servidor Rust cria a personagem e reenvia a lista (7 entradas no teste) → `CharacterCreation_OK` → estado 12: troca para `create_character` (item 14) → mapa pronto: byte de prólogo (item 15) e a fala da Tieve.
+6. "Go to town" → gatilho `trigger_startgame` → `cc_start_game_first` → `SelectCharacter` (índice da mais nova) → estado 13 → `EnterGameSent_OK` → estado 14 (cidade); o byte de prólogo é desligado pelo próprio 1.69.
 
 Servidor (`server.dll`):
 1. **`ConCommand` novos** `npc_character_create` e `npc_character_create_select` (NA `0x406db0d0`/`0x406db3f0`), registrados no inicializador estático do `force_start_touch` (`init` `0x409FA70D`, construtor `0x408BC430`, *flags* `0x40`): o ator escolhido vai ao ponto de seleção (`-64, 0, 0`, ângulo 180) e os outros ao de não seleção (`-16, 276, 152`) por `Teleport` (*slot* `0x208`), achados por `FindEntityByName` (`0x401523E0`) (C3-1).
@@ -275,7 +288,7 @@ Testes focados: `cargo test --lib -- character_class class_initial initializer`,
 As caixas do roteiro continuam desmarcadas; os resultados estão nos relatos do `MIGRATION.md`:
 - G1/G2 (grade, troca de classe): modelos no centro desde o C3-2; poses de apresentação certas e paradas desde o C3-3 (terceira rodada).
 - G3 (Fiona/classe antiga): Arisha abre a customização com o modelo certo e troca as armaduras de *preview* (quarta rodada, C3-5). Criação até a cidade não relatada.
-- G4 (Delia): customização com o modelo da Delia certo e sem queda (C3-8); botão de voltar aparece e funciona (C3-13); nome e "Check" funcionam (C3-15); "Create" caía em `0x384b111d`, corrigido no C3-15; WASD travado e troca imediata de pose/ação funcionaram (C3-19). **"Create" até a cidade e volta à seleção: pendente.**
+- G4 (Delia): customização com o modelo da Delia certo e sem queda (C3-8); botão de voltar aparece e funciona (C3-13); nome e "Check" funcionam (C3-15); "Create" caía em `0x384b111d`, corrigido no C3-15; WASD travado e troca imediata de pose/ação funcionaram (C3-19); "Create" ia direto à fala da Tieve no fundo da customização (C3-20: estalagem); "Go to town" travava em "Loading" (C3-21 diagnóstico, C3-22 byte de prólogo); o byte na customização trouxe de volta WASD e a fila de poses (C3-23: byte só na estalagem). **Passou até a cidade** (30/10/2026).
 - G5 (voltar da grade sem criar): não relatado.
 - G6 (roupas de amostra): funcionam na Delia (oitava rodada, relato do C3-10).
 - HUD "Lv. 0" sobre a personagem: resolvido (C3-10). Travamento depois da senha secundária: sem relação com a grade (C3-11).
@@ -315,7 +328,8 @@ Criação:
 - O NA pede o nome num diálogo à parte (`ShowNameDialog`), que o C++ 1.69 não tem: o filme de laboratório foi editado para manter o campo de nome do `CreateCharacterDialog` (C3-14).
 - Texto do nome cinza: o campo não recebe foco do Scaleform e o 1.69 injeta os caracteres; sem alavanca no filme nem no C++ (mantido, decisão do operador, C3-19).
 - Os *stubs* de visibilidade do `Button_Back` do C3-8 ao C3-11 foram retirados no C3-16; o botão depende do filme editado da cópia de laboratório.
-- Não confirmados: G4 até a cidade e G5 (seção 6.2).
+- Não confirmados: G5 e G3 até a cidade (seção 6.2).
+- A música da estalagem só some pelo gatilho do mapa (`sound_bgm_inn`/`ambient_inn` `FadeOut`), como no original.
 
 ---
 
@@ -330,6 +344,46 @@ Pré-requisitos já prontos: `.hcls` com a Miri na entrada 11 (corpo 2), limite 
 5. **`patch_class_routing.py`.** Acrescentar a linha `ExtraClass(11, 'miri', <clone_of>, 'female', 'csf/bodyshape_miri_default.fig', <constantes NA>, <rostos>, weapons=(...), server_constants=(...))`. Os grupos dirigidos pela tabela (`SWITCHES`, `TABLES`, `MATCH`, `COSTUME`, `EVENT_FILE`, `CLASS_NAME`, `PRECACHE`, `CLASS_BITS`, `CLASS_STRING_BOUNDS`, `SERVER_CLASS_BOUNDS`, `COSTUME_GATE`, `CLASS_DEFAULTS`, `CLASS_WEAPONS`, `CLASS_ALIAS`, `ENTITY_SLOTS`) já aceitam a segunda classe (teste com a Miri fictícia). Rever: `ACTIVE_CLASSES` (11 → 12) em `patch_class_table.py`; os grupos escritos para a Delia (`GUARD`, `CLIENT_GUARD`, `CLASS_CONDITIONS`, `DELIA_EFFECTS`, `CONDITIONS`, `FRAME_KEYS`) só valem se a classe nova tiver as mesmas mecânicas.
 6. **Arma.** Achar uma entidade 1.69 equivalente à `weapon_draker` do NA ou portar a entidade; preencher `weapons` com 5 nomes por linha.
 7. **Mecânicas próprias.** Ler a entidade da classe no NA x64 (`na_x64_delia_entity.py` como modelo), casar *slots* com o 1.69 (`na_x64_to_169_vtables.py`), registrar as condições novas (ids a partir de 126, limite das 4 funções por DLL) e os tipos de efeito/comandos ausentes.
-8. **Criação pela grade.** O filme da grade do 1.69 só tem 11 classes, e o *handler* `Select<Classe>` responde às 11: a classe 11 exige o filme do NA (28 classes) com o contrato de dados no `client.dll` 1.69 (8.8; despachante NA `0x389e06f0`) ou a edição do AS2 do filme do 1.69. Conferir se o `lobby_beautyshop_change.bsp` tem um ator `npc_miri` (o do 1.69 tem só 11) e o `switch` das roupas de amostra (`0x384A3308`).
+8. **Criação pela grade.** O filme da grade do 1.69 só tem 11 classes, e o *handler* `Select<Classe>` responde às 11: a classe 11 exige o filme do NA (28 classes) com o contrato de dados no `client.dll` 1.69 (8.8; despachante NA `0x389e06f0`) ou a edição do AS2 do filme do 1.69. Conferir se o `lobby_beautyshop_change.bsp` tem um ator `npc_miri` (o do 1.69 tem só 11) e o `switch` das roupas de amostra (`0x384A3308`). O resto do fluxo (estalagem, byte de prólogo, "Go to town", 4.5 itens 14–15) não depende da classe.
 9. **Aplicação e teste.** Jogo fechado; `.hcls` → `engine.dll` (do `pre-classflags.bak`) → roteamento (dos `*.pre-routing.bak`); testes unitários; registrar hashes no `MIGRATION.md`; roteiro de cliente na ordem do C2 (seleção, cidade, arma, habilidades, mecânicas, itens) e do C3 (grade, customização, criação, cidade).
 10. **Varredura.** Antes de cada teste, procurar `cmp reg, 9`/`0xa` antes de tabelas por classe nos caminhos que a classe nova toca; o inventário de `v169_class_uses.py` lista os pontos conhecidos.
+
+---
+
+## 9. Inventário completo das alterações
+
+### 9.1 Repositório (versionado), por área
+Lista gerada com `git diff --name-only a6c6304f~1 HEAD` (primeiro *commit* do porte: `a6c6304f`, 27/10/2026), filtrada para o que é da Delia; lista bruta em `.cache/verification/c3/delia-changed-files.txt`.
+
+- **Patches de DLL** (`scripts/client/`): `patch_class_table.py` (`.hcls`), `patch_engine_class_flags.py` (`engine.dll`), `patch_class_routing.py` (`.hrte`, todos os grupos da seção 4.4 e o `CREATION_GRID`), testes `test_patch_class_table.py`, `test_patch_engine_class_flags.py`, `test_patch_class_routing.py`; `install_lab_launcher.py` (console do motor gravado em log, D8g).
+- **Conteúdo e dados de criação** (`scripts/content/`): `class_additions.json`, `content_additions.py`, `export_class_initial.py`, `export_fiona_initializer.py`, `test_content_additions.py`; `docker/lab/minimum-creation-assets.json` (inicializador da classe 10).
+- **Ferramentas de laboratório** (`scripts/dev/`): `lab-set-class.ps1`, `lab_memory.py` (+ `test_lab_memory.py`), `lab_watch.py`.
+- **Engenharia reversa** (`scripts/reverse/`): `v169_class_uses.py`, `na_x64_delia_entity.py`, `na_x64_to_169_vtables.py`; evidências `docs/evidence/client/na-x64-delia-entity.json`, `na-x64-to-169-vtables.json`; crate de referência `tools/na-delia-reference/` (`Cargo.toml`, `Cargo.lock`, `src/{action_event,client,condition,layout,lib,protected,server}.rs`; fora do build).
+- **Servidor Rust** (seção 5): `src/domain/character_class.rs`, `equipped_skills.rs`; `src/infrastructure/character_creation_core.rs`, `class_initial.rs`, `fiona_initializer_profile.rs`, `minimum_assets.rs`, `character_base_stats.rs`, `character_skills.rs`, `initial_inventory.rs`, `fiona_character_state.rs`, `minimum_character_list.rs`, `minimum_selection.rs`, `lab_frontend.rs` (FeatureMatrix `S3_CharacterCreation`), `admin_tooltip.rs`, `admin_characters.rs`, `admin_progression.rs`, `minimum_use.rs`, `minimum_mission.rs`; testes `tests/equipped_skills.rs`, `tests/support/lab_frontend_common.rs`; painel `web/admin` (editor de itens com `ClassRestriction` de 12 bits).
+- **Documentação**: `MIGRATION.md` (C2 passos 1–50, C3-1 a C3-23), `docs/future/new-classes.md` (8.x, 9.1), `docs/future/delia-class-port.md` (este), `docs/future/delia-character-creation-prompt.md` (*brief* do C3), `docs/new-class-guide.md` (rascunho absorvido aqui), `docs/client-tests/C2-delia.md`, `docs/client-tests/C3-criacao.md`.
+- **Mudados no mesmo período, mas não são da Delia** (sessões paralelas): exclusão/reordem de personagens (`character_name_proof.rs`, `minimum_character_delete.rs`, `protocol/character_delete.rs`, `character_initialization_logs.rs`, `minimum_cash_shop.rs`), ampola de tintura (`dye_ample.rs`, `minimum_dye.rs`, `minimum_item_stat.rs`, `minimum_item_logs.rs`, `protocol/dye.rs`, `export_dye_ample.py`), visual no barco (`map_partition.rs`, `channel_server.rs`, `tests/minimum_map.rs`), história pelo painel (`npc_script.rs`, `progression_plan.rs`, `admin_character_edits.rs`), editor de itens (`http/admin/items.rs`, `ItemEditor.tsx`, `ItemPicker.tsx`) e os roteiros B1/B3/B4.
+- **Banco**: nenhuma migração nova ou alterada (seção 3.1).
+
+### 9.2 DLLs da cópia de laboratório (`.cache/play-client/bin`, não versionadas)
+
+| DLL | Original 1.69 (backup) | Intermediário | Final (C3-23) | Patch |
+|---|---|---|---|---|
+| `client.dll` | `314272ec…` (`client.dll.314272ec54054ed0.pre-hcls.bak`) | `.hcls`: `a9591d3a…` (`client.dll.a9591d3a44a2b538.pre-routing.bak`) | `973bf082fede76ff…` | `patch_class_table.py` → `patch_class_routing.py` |
+| `server.dll` | `d7727e18…` (`server.dll.d7727e182f6cdec1.pre-hcls.bak`) | `.hcls`: `af43431e…` (`server.dll.af43431e78666783.pre-routing.bak`) | `c44e51a274da9ab0…` | idem |
+| `engine.dll` | `a3add974…` (`engine.dll.a3add9742f7fa03c.pre-classflags.bak`) | — | `d25a6e285421d9d0…` | `patch_engine_class_flags.py` |
+
+- Outros backups na pasta: `client.dll.0e1b1800c92dc742.routing.bak`, `server.dll.eda9ac59767a42f6.routing.bak` (aplicações antigas do roteamento) e `client.dll.b284ba719047556b.bak` (anterior ao porte). Não são entrada de nenhum patch atual.
+- `bin/class-routing.json`: relatório da última aplicação (endereços dos *stubs*), lido por `lab_memory.py`.
+- Logs de aplicação: `.cache/verification/class-routing-apply-*.log` (C2) e `.cache/verification/c3/class-routing-apply-c3*.log` (C3; final `c3r`).
+
+### 9.3 Conteúdo da cópia de laboratório (`.cache/play-client`, não versionado)
+- Só `scaleform/`: `CreateCharacterDialog.gfx` (final `ac5543b0…`, cadeia `1a51f689` → `d9f2dd66` → `11973c0c` → `4c8b8275` → `ac5543b0`), `CreateCharacterDialog_I30.dds` (`04084564…`), `_I89.dds` (`9a73326f…`), `_I5.dds` (`04642050…`); backups `*.loose.bak` com o hash do solto anterior (tabela da seção 2.4). Origem: o pacote renomeado do próprio 1.69 (`RENOMEADo_9FB527B3…`), não o NA.
+- Nenhum outro arquivo de conteúdo mudou: modelos, scripts, `.csf`, mapas e vídeos da Delia já estavam no 1.69 (seções 2.1–2.2); `heroes.db3` do cliente sem mudança (2.3).
+
+### 9.4 O que veio do cliente NA
+Nenhum arquivo do NA foi copiado para a cópia de laboratório nem para o repositório. Do NA vieram só dados e comportamento recuperados, reimplementados nos patches:
+- a tabela das 28 classes (nome e corpo; `client.dll` NA `0x3958ad38`) para a `.hcls`, o pet no 28 e `m_iClass` com 5 bits;
+- os ids e nomes das 5 condições da Delia (NA 140–144), os 5 tipos de efeito e comandos (`DELIA_EFFECTS`), a chave `$immediately$`, a guarda e a purga (endereços NA na seção 4.4);
+- o fluxo `CharacterCreation_UI_V3`: `changemap lobby_beautyshop_change` (NA `0x380921b0`), os `ConCommand` `npc_character_create`/`_select` (NA `0x406db0d0`/`0x406db3f0`), a atividade `ACT_CHARACTER_CREATION_SELECTED_S3` (NA `0x406d9af1`), o `CharacterBodyCreation_Back` (NA `0x389ac61c`), o laço das roupas de amostra (NA `0x38d15f9f`) e o HUD desligado na customização (NA `0x38bd8683`);
+- conferências: os `queen_after_trial_delia1..4.csf` do 1.69 são iguais byte a byte aos `global_queen_after_trial_delia1..4.csf` do NA; a comparação dos 485 arquivos da Delia (`.cache/verification/d13-delia-na-vs-lab.txt`) manteve os do 1.69.
+
