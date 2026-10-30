@@ -469,7 +469,6 @@ CREATION_GRID = {
         'handler_rest': 0x3890AE35,      # its GameStart test (esi = dialog, edi = argument)
         'transition': (0x3852376D, 'b808000000'),         # NewCharacterSelection_Start -> state 8
         'enter': (0x38524B00, '81ec00020000'),            # CharacterCreationState enter
-        'leave_command': (0x38524BAB, '68b8b2b738'),      # its leave: push "sv_create_character_mode 0"
         'creation_vtable': 0x38B79BC8,   # CharacterCreationState; slot 4 runs once the map is up
         # UI start-up registers the grid dialog's FSCommand handler only when S3_CharacterCreation
         # is already on, and then skips the V4 bar's. The FeatureMatrix arrives later, at login, so
@@ -512,6 +511,11 @@ CREATION_GRID = {
         'move_buttons': 0x618,
         'emotion_call': (0x388933B4, 'e8976cf5ff'),       # call request(name, keyvalues), ecx = cmd
         'request': 0x387EA050, 'merge': 0x387EDD10, 'set_state': 0x387E49D0, 'kv_delete': 0x38917930,
+        # After Create (CharacterCreation_OK -> 12, PrologueInnBState) Tieve's dialogue starts at once
+        # (enter 0x38526620, prologue_after_create_character); the old flow customized inside the
+        # inn (create_character.bsp), the grid flow in lobby_beautyshop_body. With the grid, its enter
+        # first changes to the inn and its map-ready slot runs the original enter there (C3-20).
+        'inn_vtable': 0x38B79BC8 + 0x18,  # PrologueInnBState vtable (0x38b79be0)
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2031,7 +2035,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
         'OnStartCreation', 'npc_character_create;force_start_touch trigger_cam_midview',
         'NewCharacterDialogS3.OnReadyCreation', 'sv_prologue_mode 1', 'scaleform_fade_out 1.5',
         'changemap lobby_beautyshop_body', 'cam_select_beautyshop_camera', 'scaleform_fade_in 1.5',
-        'cc_show_create_character_dialog', 'hhud_should_draw 0', 'sv_create_character_mode 0;hhud_should_draw 1')}
+        'cc_show_create_character_dialog', 'hhud_should_draw 0', 'scaleform_fade_out 1.5;changemap create_character')}
     select = {i: (layout.string(f'Select{key.capitalize()}'), layout.string(f'npc_character_create_select {i}'))
               for i, key in names}
 
@@ -2092,8 +2096,6 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     # answering that played Lethita's video during the loading, then again once loaded (C3-11).
     operand(k['start_camera'], text['gameui_hide;cc_minimap_hide;npc_character_create;force_start_touch trigger_cam_midview'])
     operand(k['start_invoke'], text['NewCharacterDialogS3.OnReadyCreation'])
-    # CharacterCreationState leave (as NA 0x38bd8c50): the overhead HUD back on with the creation mode off.
-    operand(k['leave_command'], text['sv_create_character_mode 0;hhud_should_draw 1'])
 
     # The grid dialog's FSCommand handler: OnStartCreation and Select<Class> here, the rest (GameStart,
     # Back) in the original body with the same frame (esi = dialog, edi = argument).
@@ -2155,6 +2157,8 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.pad()
     flag = layout.here()  # customization open (writable section)
     layout.body += bytes(4)
+    inn_flag = layout.here()  # 1: grid customization done in lobby_beautyshop_body, 2: changing to the inn
+    layout.body += bytes(4)
     table = vtable(image, 'CharacterCreationState')
     if table != k['creation_vtable'] or table + 0x10 not in relocs:
         raise PreparationError(f'Unexpected CharacterCreationState vtable {table:#x}; nothing is patched.')
@@ -2166,6 +2170,9 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\xc6\x05'
     layout.pointer(flag)
     layout.body += b'\x01'  # mov byte [flag], 1
+    layout.body += b'\xc6\x05'
+    layout.pointer(inn_flag)
+    layout.body += b'\x01'  # mov byte [inn_flag], 1
     layout.to(b'\xe8', body)
     for t in ('cam_select_beautyshop_camera', 'scaleform_fade_in 1.5', 'cc_show_create_character_dialog'):
         command(0x1C, text[t])
@@ -2178,6 +2185,9 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     back_label = layout.string('Back')
     layout.pad()
     back = layout.here()
+    layout.body += b'\xc6\x05'
+    layout.pointer(inn_flag)
+    layout.body += b'\x00'  # back to the grid: no inn change
     command(0x1C, prologue_off)
     layout.body += b'\xb8' + struct.pack('<I', k['grid_state']) + b'\xc3'
     count_va, count_old, table_va, table_old = k['transitions']
@@ -2281,6 +2291,37 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\xc2\x08\x00'
     edits.append((va, bytes.fromhex(old), b'\xe8' + struct.pack('<i', stub - (va + 5))))
     report['emotion'] = f'{va:#x} -> {stub:#x}'
+
+    # PrologueInnB: enter -> changemap to the inn (grid creation only); map ready -> original enter.
+    inn = k['inn_vtable']
+    if vtable(image, 'PrologueInnBState') != inn or any(inn + o not in relocs for o in (4, 0x10)):
+        raise PreparationError(f'Unexpected PrologueInnBState vtable; nothing is patched.')
+    enter12, ready12 = (struct.unpack_from('<I', image.data, image.offset(inn + o))[0] for o in (4, 0x10))
+    layout.pad()
+    stub = layout.here()
+    layout.body += b'\x80\x3d'
+    layout.pointer(inn_flag)
+    layout.body += b'\x01'                      # cmp byte [inn_flag], 1 (set by the grid customization)
+    layout.body += b'\x0f\x85' + struct.pack('<i', enter12 - (layout.here() + 6))
+    layout.body += b'\xc6\x05'
+    layout.pointer(inn_flag)
+    layout.body += b'\x02'                      # 2: waiting for the inn
+    command(0x1C, text['scaleform_fade_out 1.5;changemap create_character'])
+    layout.body += b'\xc3'
+    edits.append((inn + 4, struct.pack('<I', enter12), struct.pack('<I', stub)))
+    report['inn_enter'] = f'{inn:#x}[1] {enter12:#x} -> {stub:#x}'
+    layout.pad()
+    stub = layout.here()
+    layout.body += b'\x80\x3d'
+    layout.pointer(inn_flag)
+    layout.body += b'\x02'
+    layout.body += b'\x0f\x85' + struct.pack('<i', ready12 - (layout.here() + 6))
+    layout.body += b'\xc6\x05'
+    layout.pointer(inn_flag)
+    layout.body += b'\x00'
+    layout.to(b'\xe9', enter12)                  # the original enter, in the inn
+    edits.append((inn + 0x10, struct.pack('<I', ready12), struct.pack('<I', stub)))
+    report['inn_ready'] = f'{inn:#x}[4] {ready12:#x} -> {stub:#x}'
     return report
 
 

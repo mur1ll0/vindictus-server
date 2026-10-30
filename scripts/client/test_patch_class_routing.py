@@ -640,6 +640,7 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(operand(k['start_camera']),
                          'gameui_hide;cc_minimap_hide;npc_character_create;force_start_touch trigger_cam_midview')
         self.assertEqual(operand(k['start_invoke']), 'NewCharacterDialogS3.OnReadyCreation')
+        self.assertNotIn('leave_command', k)
         # The handler answers OnStartCreation and every Select<Class>, Delia included, then falls
         # back to the original GameStart/Back body.
         stub = int(grid['handler'].split('-> ')[1], 16)
@@ -673,6 +674,12 @@ class LabCopyTest(unittest.TestCase):
         back_to = ops.index(f'jmp {k["dialog_rest"]:#x}')
         self.assertEqual(ops[back_to - 1], 'mov ecx, esi')  # the original's `mov esi, ecx` follows
         self.assertNotIn('filled', grid)
+        # After Create, the grid flow changes to the inn before Tieve's dialogue.
+        inn = k['inn_vtable']
+        enter = self.code(image, self.entry(image, inn, 1), 0x40)
+        self.assertIn('scaleform_fade_out 1.5;changemap create_character', self.strings(image, enter))
+        ready = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, self.entry(image, inn, 4), 0x20)]
+        self.assertIn('jmp 0x38526620', ready)
         # Customization open: movement bits cleared, emotion switched at once, flag cleared on leave.
         ops = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, int(grid['input'].split('-> ')[1], 16), 0x40)]
         self.assertIn('and dword ptr [edi + 0x28], 0xfffff9e7', ops)
