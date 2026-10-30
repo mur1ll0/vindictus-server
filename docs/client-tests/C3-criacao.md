@@ -55,3 +55,10 @@ Pré-condição: `client.dll` `6a842ff5…` (passo C3-9); customização aberta 
 - [ ] Delia, botão 1 → volta à roupa inicial (só o *inner*).
 - [ ] As cores, o rosto e o cabelo escolhidos antes continuam depois da troca de roupa (anotar se o cabelo ou a maquiagem mudam junto: os conjuntos do NA trazem cabelo e maquiagem próprios, como os das outras classes).
 - [ ] Concluir a criação depois de escolher um conjunto → anotar com que roupa a personagem nasce (comparar com a Arisha).
+
+## Resultados (operador, 29–30/10/2026)
+Detalhes por rodada no `MIGRATION.md` (passos C3-1 a C3-19).
+- G1: a grade abre na cena `lobby_beautyshop_change` com as 11 classes; o vídeo de apresentação toca só depois do carregamento (C3-11).
+- G2: cada classe vai ao centro; pose de apresentação parada (sem a sequência animada do NA, aproximação); Hagie e Delia sem pose T (C3-3).
+- G4 (parcial): customização com o modelo da Delia (C3-6), botão de voltar para a grade (C3-12/C3-14), campo de nome e "Check" (C3-14), roupas de amostra (G6, C3-9), WASD travado e troca imediata de pose/ação (C3-18). Texto do nome em cinza (mantido, C3-19).
+- Pendentes: "Create" da Delia até a cidade e a volta à seleção (G4, fim; a queda do "Create" foi corrigida no C3-15), G3 (classe antiga até a cidade) e G5.
