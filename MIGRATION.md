@@ -2627,3 +2627,10 @@ Passo C3-22 (30/10/2026): "Go to town" — a grade marca o prólogo como o 1.69 
 - Cliente: necessário — criar uma Delia pela grade, "Go to town" deve levar à cidade; conferir também a rotação da câmera na customização (o byte muda o controle do mouse) e o `Back`; depois G3 e G5.
 - Aplicado do `main` com o jogo fechado, a partir dos `*.pre-routing.bak` (`.cache/verification/c3/class-routing-apply-c3q.log`): `client.dll` `02b2acbe…`, `server.dll` `c44e51a2…` (igual).
 - Próxima ação: reteste do operador (Delia pela grade → estalagem → "Go to town" → cidade; rotação na customização; `Back`; G3, G5).
+
+Passo C3-23 (30/10/2026): o byte de prólogo só na estalagem (WASD e poses da customização voltam a funcionar).
+- Relato do operador (C3): com o C3-22, Create → estalagem → "Go to town" → cidade funciona. Na customização, com a Action 5 e digitando o nome, o modelo volta a girar com WASD e depois nenhuma Action/pose responde (regressão do C3-18).
+- Memória (customização aberta): *flag* da customização `0x3921f750` = 1, byte de prólogo = 1, estado 11 — o portão do C3-18 continua ligado; a diferença é o byte de prólogo, que também troca o tratamento de mouse/teclado do prólogo (`0x38591500`, ciclo de modo do cursor; `0x385f8b20`, `input_mouse_view_control`).
+- Mudança (`CREATION_GRID`): o byte sai da entrada da customização e do `Back`; o mapa pronto da estalagem (estado 12, *slot* 4, só com o *flag* de estalagem 2) liga o byte antes de rodar a entrada original — o `ToTown` lê o byte no clique, já na estalagem; a entrada na cidade vinda do estado 13 desliga (`0x3852e18c`). Testes: `test_creation_grid_client_runs_the_na_v3_flow`, `test_every_new_pointer_is_relocated` (`.cache/verification/c3/tests-23.log`).
+- Cliente: necessário — customização (Action 5 + digitar o nome sem girar; poses trocam na hora), Create → estalagem → "Go to town" → cidade, `Back`; G3 e G5.
+- Próxima ação: aplicar com o jogo fechado, a partir dos `*.pre-routing.bak`, e retestar.

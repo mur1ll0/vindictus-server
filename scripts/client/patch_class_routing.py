@@ -521,8 +521,10 @@ CREATION_GRID = {
         # cc_start_game_first -> select the newest -> 13); otherwise it asks the server (QueryNpcTalk)
         # and marks the talk "Loading" (the hang of C3-21). The 1.69 sets the byte only when the
         # prologue starts (0x38526d14, next to cl_playerclass) and clears it when the town is entered
-        # from state 13 (0x3852e18c) and on its other exits; the grid skips the prologue, so its
-        # customization enter sets it and Back clears it (C3-22).
+        # from state 13 (0x3852e18c) and on its other exits; the grid skips the prologue, so the
+        # inn's map-ready sets it before Tieve's dialogue (C3-23). Not in the customization: the byte
+        # also switches the prologue's mouse/keyboard handling (0x38591500, 0x385f8b20), and with it
+        # typing the name in a walk pose steered the model again and stopped the poses (C3-22).
         'set_prologue': 0x38519570,      # machine->SetPrologue(bool)
     },
     'server.dll': {
@@ -2159,7 +2161,6 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\x50'
     layout.to(b'\xe8', k['player_class'])
     layout.body += b'\x83\xc4\x04'
-    set_prologue(1)  # as the prologue start (0x38526d14)
     # NA 0x38bd8683: the overhead HUD is off in the customization ("Lv. 0" above the model otherwise).
     for t in ('sv_prologue_mode 1', 'scaleform_fade_out 1.5', 'changemap lobby_beautyshop_body', 'hhud_should_draw 0'):
         command(0x1C, text[t])
@@ -2203,7 +2204,6 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\xc6\x05'
     layout.pointer(inn_flag)
     layout.body += b'\x00'  # back to the grid: no inn change
-    set_prologue(0)
     command(0x1C, prologue_off)
     layout.body += b'\xb8' + struct.pack('<I', k['grid_state']) + b'\xc3'
     count_va, count_old, table_va, table_old = k['transitions']
@@ -2335,6 +2335,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\xc6\x05'
     layout.pointer(inn_flag)
     layout.body += b'\x00'
+    set_prologue(1)                              # as the prologue start (0x38526d14): Go to town
     layout.to(b'\xe9', enter12)                  # the original enter, in the inn
     edits.append((inn + 0x10, struct.pack('<I', ready12), struct.pack('<I', stub)))
     report['inn_ready'] = f'{inn:#x}[4] {ready12:#x} -> {stub:#x}'
