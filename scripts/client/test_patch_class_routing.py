@@ -680,6 +680,12 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn('scaleform_fade_out 1.5;changemap create_character', self.strings(image, enter))
         ready = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, self.entry(image, inn, 4), 0x20)]
         self.assertIn('jmp 0x38526620', ready)
+        # "Go to town" fades and runs cc_start_game_first itself.
+        town = self.code(image, int(grid['to_town'].split('-> ')[1], 16), 0x30)
+        self.assertIn('scaleform_fade_out 1.5', self.strings(image, town))
+        ops = [f'{x.mnemonic} {x.op_str}' for x in town]
+        self.assertIn(f'call {k["start_game_first"]:#x}', ops)
+        self.assertIn(f'jmp {k["to_town_rest"]:#x}', ops)
         # Customization open: movement bits cleared, emotion switched at once, flag cleared on leave.
         ops = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, int(grid['input'].split('-> ')[1], 16), 0x40)]
         self.assertIn('and dword ptr [edi + 0x28], 0xfffff9e7', ops)

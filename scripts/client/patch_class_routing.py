@@ -516,6 +516,14 @@ CREATION_GRID = {
         # inn (create_character.bsp), the grid flow in lobby_beautyshop_body. With the grid, its enter
         # first changes to the inn and its map-ready slot runs the original enter there (C3-20).
         'inn_vtable': 0x38B79BC8 + 0x18,  # PrologueInnBState vtable (0x38b79be0)
+        # Tieve's "Go to town" (button ToTown, 0x383c450e) asks the server to touch trigger_startgame,
+        # whose outputs reach the client through point_clientcommand (fade, then cc_start_game_first
+        # at 3.5 s). In the lab nothing arrives: the UI state stays 12 and Fire never runs (its mode
+        # stays 2), so the select is never sent (C3-21, read in memory). The button now fades and
+        # runs cc_start_game_first (0x38526140: Fire PrologueInnB_End -> select the newest -> 13).
+        'to_town': (0x383C4526, '8b01' '8b9084010000'),  # after mov ecx, engine: vtable, slot 0x184
+        'to_town_rest': 0x383C4535,                     # pop edi; pop esi; pop ebp; ret 8
+        'start_game_first': 0x38526140,
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2322,6 +2330,16 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.to(b'\xe9', enter12)                  # the original enter, in the inn
     edits.append((inn + 0x10, struct.pack('<I', ready12), struct.pack('<I', stub)))
     report['inn_ready'] = f'{inn:#x}[4] {ready12:#x} -> {stub:#x}'
+
+    # "Go to town": the fade and cc_start_game_first in the client, without the map trigger.
+    va, old = k['to_town']
+    layout.pad()
+    stub = layout.here()
+    command(0x1C, text['scaleform_fade_out 1.5'])
+    layout.to(b'\xe8', k['start_game_first'])
+    layout.to(b'\xe9', k['to_town_rest'])
+    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90' * 3))
+    report['to_town'] = f'{va:#x} -> {stub:#x}'
     return report
 
 
