@@ -2504,6 +2504,6 @@ Passo C3-7 (30/10/2026): queda ao abrir a customização (valor do *set* de vari
 Passo C3-8 (30/10/2026): botão de voltar no arranjo do 1.69.
 - Relato do operador (C3, sétima rodada): a customização abre com o modelo da Delia certo e sem queda; o botão de voltar não aparece e o "Create" ficou deslocado para a direita, cortado; o seletor de *Sample outfits* (5 opções) não carrega nada na Delia (na Arisha carrega).
 - Leitura do filme (`places.py`, posições do `PlaceObject`): no 1.69 o arranjo padrão já tem `Button_BasicShape` x 7, `Button_Back` x 82 e `Button_Complete` x 204 (palco 334); os deslocamentos do ramo V3 (125/199) empurravam o "Create" para fora. O *set* booleano (vt+0x18) não mostrava o botão, enquanto o *set* em texto (vt+0x1c) mudou o `_x`.
-- Mudança: sem deslocamentos; `Button_Back._visible` = `"true"` pelo vt+0x1c. Teste do cliente e relocações OK (`.cache/verification/c3/tests-10.log`). Não aplicado ainda (jogo aberto).
+- Mudança: sem deslocamentos; `Button_Back._visible` = `"true"` pelo vt+0x1c. Teste do cliente e relocações OK (`.cache/verification/c3/tests-10.log`). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3h.log`): `client.dll` `197ca595…`, `server.dll` `c44e51a2…` (igual).
 - *Sample outfits* da Delia: é o trabalho da sessão filha das armaduras de *preview* (prompt da etapa).
-- Próxima ação: aplicar com o jogo fechado; G4 (voltar) no cliente.
+- Próxima ação: G4 (voltar) no cliente.
