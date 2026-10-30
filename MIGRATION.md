@@ -2484,5 +2484,5 @@ Passo C3-5 (30/10/2026): classe da Delia no jogador da customização; botão de
   - o `onShow` do filme `CreateCharacterDialog` esconde o `Button_Back` depois do comando `OnShow` que o C++ recebe; ele termina em `selectHairTab()` → `OnTabSelected` → `SelectTab.<de>.<para>`.
 - Mudança (`CREATION_GRID`): no servidor, depois da queda para `player`, um `player_<chave>` de classe extra recebe o índice em `m_iClass` (`+0x1400`; desligado com `--fallback-entity`, que reescreve o mesmo `push`); no cliente, o diálogo também liga o botão ao receber `SelectTab.`.
 - Verificação: `test_creation_grid_*` ampliados, OK (`.cache/verification/c3/tests-6.log`; relocação e `fallback_entity` OK na rodada anterior). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3e.log`): `client.dll` `66e3d7bc…`, `server.dll` `f89f28c5…`.
-- Decisão pendente do operador: a grade segue o NA e vai direto à customização; o fluxo antigo do 1.69 passava pelo tutorial (prólogo, Bell Tower) antes dela.
+- Decisão do operador (30/10/2026, "Keep the NA flow"): a grade segue o NA e vai direto à customização, sem o tutorial (prólogo, Bell Tower) que o fluxo antigo do 1.69 fazia antes dela.
 - Próxima ação: repetir G3–G5 do C3 com a Delia.
