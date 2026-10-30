@@ -4323,7 +4323,10 @@ pub async fn connection(
   // original server published a static ShopList.aspx, here served by the bootstrap HTTP
   // (scripts/dev/lab-export-shop-list.ps1) instead of the unreachable 192.168.0.200. Its
   // purchases go to ingame_cashshop_purchaseURL, the laboratory web shop of this process.
-  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)},FeatureEntry{key:"ingame_cashshop_purchaseURL",value:Some(super::lab_web_shop::PURCHASE_URL)}])};
+  // S3_CharacterCreation (NULL in every region) opens the NewCharacterDialogS3 class grid, which
+  // lists Delia besides the ten classes of the V4 bar; the lab client.dll runs it as the NA's
+  // CharacterCreation_UI_V3 flow (scripts/client/patch_class_routing.py, CREATION_GRID).
+  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)},FeatureEntry{key:"ingame_cashshop_purchaseURL",value:Some(super::lab_web_shop::PURCHASE_URL)},FeatureEntry{key:"S3_CharacterCreation",value:Some("3.09.00")}])};
   let (mut sender,packets)=encode_initial_packets(salt,Some(&features),super::minimum_cash_shop::CATALOG_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);

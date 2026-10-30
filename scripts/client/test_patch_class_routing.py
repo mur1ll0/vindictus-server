@@ -598,6 +598,65 @@ class LabCopyTest(unittest.TestCase):
         with self.assertRaises(routing.PreparationError):
             routing.check_classes(routing.EXTRA_CLASSES + (miri,))
 
+    def code(self, image, va, size=0x400):
+        return list(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))
+
+    def strings(self, image, code):
+        return [routing.read_string(image, int(v, 16)) for x in code for v in re.findall(r'0x[0-9a-f]{8}', x.op_str)]
+
+    def test_creation_grid_client_runs_the_na_v3_flow(self):
+        image, report = self.plan('client.dll')
+        k, grid = routing.CREATION_GRID['client.dll'], report['creation_grid']
+        operand = lambda site: routing.read_string(image, self.entry(image, site[0] + 1, 0))
+        self.assertEqual(operand(k['map_operand']), 'changemap lobby_beautyshop_change')
+        self.assertEqual(operand(k['start_camera']), 'gameui_hide;cc_minimap_hide')
+        self.assertEqual(operand(k['start_invoke']), 'NewCharacterDialogS3.OnStartCreation')
+        # The handler answers OnStartCreation and every Select<Class>, Delia included, then falls
+        # back to the original GameStart/Back body.
+        stub = int(grid['handler'].split('-> ')[1], 16)
+        self.assertEqual(f'{self.code(image, k["handler"][0], 5)[0].op_str}', hex(stub))
+        handler = self.code(image, stub, 0x600)
+        names = self.strings(image, handler)
+        for i, key in routing.creation_names():
+            self.assertIn(f'Select{key.capitalize()}', names)
+            self.assertIn(f'npc_character_create_select {i}', names)
+        self.assertIn('npc_character_create;force_start_touch trigger_cam_midview', names)
+        self.assertIn('NewCharacterDialogS3.OnReadyCreation', names)
+        self.assertIn(f'jmp {k["handler_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in handler])
+        # GameStart: state 11 with the grid, the prologue (8) without it.
+        transition = self.code(image, int(grid['transition'].split('-> ')[1], 16), 0x30)
+        self.assertEqual([x.op_str for x in transition if x.mnemonic == 'mov' and x.op_str.startswith('eax, 0x')
+                          or x.op_str in ('eax, 8',)], ['eax, 8', f'eax, {routing.CREATION_STATE:#x}'])
+        enter = self.code(image, int(grid['enter'].split('-> ')[1], 16), 0x80)
+        self.assertIn('changemap lobby_beautyshop_body', self.strings(image, enter))
+        # The map-ready slot runs the original enter body, then opens the customization.
+        table = k['creation_vtable']
+        ready = self.entry(image, table, 4)
+        self.assertEqual(hex(ready), grid['map_ready'].split('-> ')[1])
+        ready_code = self.code(image, ready, 0x60)
+        self.assertIn('cc_show_create_character_dialog', self.strings(image, ready_code))
+        body = [int(x.op_str, 16) for x in ready_code if x.mnemonic == 'call' and x.op_str.startswith('0x')][0]
+        self.assertEqual([f'{x.mnemonic} {x.op_str}' for x in self.code(image, body, 11)][-1],
+                         f'jmp {k["enter"][0] + 6:#x}')
+
+    def test_creation_grid_server_registers_the_scene_commands(self):
+        image, report = self.plan('server.dll')
+        k, grid = routing.CREATION_GRID['server.dll'], report['creation_grid']
+        stub = int(grid['init'].split('-> ')[1], 16)
+        init = self.code(image, stub, 0x50)
+        self.assertEqual([int(x.op_str, 16) for x in init if x.mnemonic == 'call'], [k['ctor'], k['ctor']])
+        # ConCommand(name, callback, help = name, ...) for each command, in order.
+        self.assertEqual([s for s in self.strings(image, init) if s],
+                         ['npc_character_create'] * 2 + ['npc_character_create_select'] * 2)
+        choose = self.code(image, int(grid['npc_character_create_select'], 16), 0x800)
+        names = self.strings(image, choose)
+        for _, key in routing.creation_names():
+            self.assertIn(f'npc_{key}', names)
+        helpers = {int(x.op_str, 16) for x in choose if x.mnemonic == 'call' and x.op_str.startswith('0x')}
+        calls = {f'{x.mnemonic} {x.op_str}' for va in helpers for x in self.code(image, va, 0x30)}
+        self.assertIn(f'call dword ptr [eax + {k["teleport"]:#x}]', calls)
+        self.assertIn(f'call {k["find"]:#x}', calls)
+
     def test_every_new_pointer_is_relocated(self):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)

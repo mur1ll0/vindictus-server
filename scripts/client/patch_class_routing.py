@@ -426,6 +426,54 @@ COMMANDS = 0x437C  # the client player's command/condition object
 # entity (only Delia) gets that class's entity. Off by default; not the Delia entity design.
 FALLBACK_PUSH = 0x40371314
 FALLBACK_ENTITIES = ('player_fiona',)
+# Character creation by the class grid (S3_CharacterCreation, NewCharacterDialogS3), following the
+# NA's CharacterCreation_UI_V3 flow (MIGRATION.md, C3). The 1.69 grid movie already lists the 11
+# classes and the 1.69 lobby_beautyshop_change.bsp already has the NA scene: one
+# npc_character_creation_actor `npc_<class>` per class (csf/createcharacter_<class>.csf) and the
+# point_teleport entities npc_character_create_select/_nonselect. What the 1.69 lacks is code:
+# * client: the S3 grid opens in that map (`changemap lobby_beautyshop_change`, NA 0x380921b0)
+#   instead of s3_game_create_character, whose actors stop at Arisha; once the map is up the movie's
+#   OnStartCreation runs (NA 0x38bdf4a0) and the dialog answers `npc_character_create` plus
+#   OnReadyCreation (NA 0x389e06f0); `Select<Class>` (Delia included) sends
+#   `npc_character_create_select <class>` instead of the old map's `force_start_touch <class>`;
+#   GameStart goes straight to CharacterCreationState (11, NA 0x38bdf610) instead of the prologue
+#   (8), which enters with `changemap lobby_beautyshop_body` (NA 0x38bd8600) and, on that map,
+#   turns the creation mode and the customization dialog on (NA 0x38bd8e80);
+# * server: the two console commands (NA 0x406db0d0, 0x406db3f0). The NA hides the actors with
+#   EF_NODRAW and plays ACT_CHARACTER_CREATION_SELECTED_S3 through a client command the 1.69 lacks;
+#   here the selected actor is teleported to the select point and the others to the non-select
+#   point (both from the map), and the actor keeps its own animation (approximation).
+CREATION_GRID = {
+    'client.dll': {
+        'features': 0x38CD2F90,          # feature matrix object (vt+0x18: is the feature on)
+        'engine': 0x38CD2F0C,            # engine client (vt+0x188 ClientCmd, vt+0x1c unrestricted)
+        'ui': 0x385F7EF0,                # Scaleform UI manager getter (vt+0x10 invoke)
+        'strcmp': 0x38A5DFC6,
+        's3_name': 0x38B7AFC0,           # "S3_CharacterCreation"
+        'map_operand': (0x388E8F49, 'b85800c138'),        # mov eax, "map_background s3_game_create_character"
+        'start_camera': (0x385239D4, '68acb0b738'),       # push "cam_select_createcharacter_camera"
+        'start_invoke': (0x38523A02, '6864b0b738'),       # push "NewCharacterDialogS3.StartCreation"
+        'handler': (0x3890AB90, '81ec00020000' '5657' '8bbc2414020000'),  # S3 FSCommand handler head
+        'handler_rest': 0x3890AE35,      # its GameStart test (esi = dialog, edi = argument)
+        'transition': (0x3852376D, 'b808000000'),         # NewCharacterSelection_Start -> state 8
+        'enter': (0x38524B00, '81ec00020000'),            # CharacterCreationState enter
+        'creation_vtable': 0x38B79BC8,   # CharacterCreationState; slot 4 runs once the map is up
+    },
+    'server.dll': {
+        'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
+        'init_rest': 0x409FA712,         # call atexit; pop ecx; ret
+        'ctor': 0x408BC430,              # ConCommand(name, callback, help, flags, completion)
+        'flags': 0x40,                   # as force_start_touch, which the same client path reaches
+        'engine': 0x40D6EE50,            # vt+0xd0 Cmd_Argc, vt+0xd4 Cmd_Argv
+        'entities': 0x40D2A0F8,          # gEntList
+        'find': 0x401523E0,              # FindEntityByName(start, name, searching, activator, caller, filter)
+        'teleport': 0x208,               # CBaseEntity::Teleport(origin, angles, velocity) slot
+        # point_teleport origin/angles in lobby_beautyshop_change.bsp (NA reads the same entities).
+        'select': ((-64.0, 0.0, 0.0), (0.0, 180.0, 0.0)),
+        'nonselect': ((-16.0, 276.0, 152.0), (0.0, 0.0, 0.0)),
+    },
+}
+CREATION_STATE = 11  # CharacterCreationState in the 1.69 state factory (0x3851B990: id - 1 cases)
 
 
 def filled(template: str | None, extra: ExtraClass) -> str | None:
@@ -1909,6 +1957,234 @@ def event_file(layout: Layout, edits: list, shadows: dict, va: int, old: str, ex
     return f'{va:#x} -> {stub:#x}'
 
 
+def creation_names() -> list[tuple[int, str]]:
+    """(m_iClass, key) of every class the grid can create: the 1.69 ten, then EXTRA_CLASSES."""
+    return list(enumerate(OLD_CLASSES)) + [(extra.index, extra.key) for extra in EXTRA_CLASSES]
+
+
+def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int], k: dict) -> dict:
+    """CREATION_GRID, client: the S3 grid in lobby_beautyshop_change, the dialog commands and the
+    CharacterCreationState of the NA's CharacterCreation_UI_V3 flow, all behind S3_CharacterCreation."""
+    names = creation_names()
+    layout.pad()
+    text = {t: layout.string(t) for t in (
+        'changemap lobby_beautyshop_change', 'gameui_hide;cc_minimap_hide', 'NewCharacterDialogS3.OnStartCreation',
+        'OnStartCreation', 'npc_character_create;force_start_touch trigger_cam_midview',
+        'NewCharacterDialogS3.OnReadyCreation', 'sv_prologue_mode 1', 'scaleform_fade_out 1.5',
+        'changemap lobby_beautyshop_body', 'cam_select_beautyshop_camera', 'scaleform_fade_in 1.5',
+        'cc_show_create_character_dialog')}
+    select = {i: (layout.string(f'Select{key.capitalize()}'), layout.string(f'npc_character_create_select {i}'))
+              for i, key in names}
+
+    def feature() -> None:  # al = S3_CharacterCreation is on
+        layout.body += b'\x8b\x0d'
+        layout.pointer(k['features'])
+        layout.body += b'\x8b\x01' + b'\x68'
+        layout.pointer(k['s3_name'])
+        layout.body += b'\xff\x50\x18' + b'\x84\xc0'
+
+    def command(slot: int, string: int) -> None:  # engine->ClientCmd(string), slot 0x188 or 0x1c
+        layout.body += b'\x8b\x0d'
+        layout.pointer(k['engine'])
+        layout.body += b'\x8b\x11' + b'\x68'
+        layout.pointer(string)
+        layout.body += b'\xff\x92' + struct.pack('<I', slot)
+
+    def invoke(string: int) -> None:  # the UI manager calls a movie function without arguments
+        layout.to(b'\xe8', k['ui'])
+        layout.body += b'\x8b\x10' + b'\x6a\x00' * 3 + b'\x8b\xc8' + b'\x68'
+        layout.pointer(string)
+        layout.body += b'\xff\x52\x10'
+
+    def is_argument(string: int) -> int:  # strcmp(edi, string); a forward jne to fill in
+        layout.body += b'\x68'
+        layout.pointer(string)
+        layout.body += b'\x57'
+        layout.to(b'\xe8', k['strcmp'])
+        layout.body += b'\x83\xc4\x08' + b'\x85\xc0'
+        return layout.forward(b'\x0f\x85')
+
+    def operand(site: tuple[int, str], string: int) -> None:
+        va, old = site
+        if va + 1 not in relocs:
+            raise PreparationError(f'No relocation at {va + 1:#x}; nothing is patched.')
+        old_bytes = bytes.fromhex(old)
+        edits.append((va, old_bytes, old_bytes[:1] + struct.pack('<I', string)))
+
+    report = {}
+    operand(k['map_operand'], text['changemap lobby_beautyshop_change'])
+    operand(k['start_camera'], text['gameui_hide;cc_minimap_hide'])
+    operand(k['start_invoke'], text['NewCharacterDialogS3.OnStartCreation'])
+
+    # The grid dialog's FSCommand handler: OnStartCreation and Select<Class> here, the rest (GameStart,
+    # Back) in the original body with the same frame (esi = dialog, edi = argument).
+    handler, head = k['handler'][0], bytes.fromhex(k['handler'][1])
+    layout.pad()
+    stub = layout.here()
+    layout.body += head + b'\x8b\xf1'  # ...; mov esi, ecx
+    done = []
+    other = is_argument(text['OnStartCreation'])
+    command(0x188, text['npc_character_create;force_start_touch trigger_cam_midview'])
+    invoke(text['NewCharacterDialogS3.OnReadyCreation'])
+    done.append(layout.forward(b'\xe9'))
+    layout.land(other)
+    for i, (choose, scene) in select.items():
+        other = is_argument(choose)
+        layout.body += b'\x8b\x46\x20' + b'\xc7\x00' + struct.pack('<I', i) + b'\xc6\x40\x09\x01'
+        command(0x188, scene)
+        done.append(layout.forward(b'\xe9'))
+        layout.land(other)
+    layout.to(b'\xe9', k['handler_rest'])
+    for at in done:
+        layout.land(at)
+    layout.body += b'\x5f\x5e' + b'\x81\xc4\x00\x02\x00\x00' + b'\xc2\x0c\x00'
+    edits.append((handler, head[:6], b'\xe9' + struct.pack('<i', stub - (handler + 5)) + b'\x90'))
+    report['handler'] = f'{handler:#x} -> {stub:#x}'
+
+    # NewCharacterSelection_Start: CharacterCreationState instead of the prologue.
+    va, old = k['transition']
+    layout.pad()
+    stub = layout.here()
+    feature()
+    layout.body += b'\xb8\x08\x00\x00\x00' + b'\x74\x05' + b'\xb8' + struct.pack('<I', CREATION_STATE) + b'\xc3'
+    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
+    report['transition'] = f'{va:#x} -> {stub:#x}'
+
+    # CharacterCreationState enter: with the grid, only the change to the customization map.
+    va, old = k['enter']
+    layout.pad()
+    stub = layout.here()
+    feature()
+    grid = layout.forward(b'\x0f\x85')
+    body = layout.here()
+    layout.body += bytes.fromhex(old)
+    layout.to(b'\xe9', va + len(bytes.fromhex(old)))
+    layout.land(grid)
+    for t in ('sv_prologue_mode 1', 'scaleform_fade_out 1.5', 'changemap lobby_beautyshop_body'):
+        command(0x1C, text[t])
+    layout.body += b'\xc3'
+    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
+    report['enter'] = f'{va:#x} -> {stub:#x}'
+
+    # Its slot 4 (map ready): the original enter body (creation mode, costume), then the camera and
+    # the customization dialog that create_character.bsp's trigger_create_character used to open.
+    table = vtable(image, 'CharacterCreationState')
+    if table != k['creation_vtable'] or table + 0x10 not in relocs:
+        raise PreparationError(f'Unexpected CharacterCreationState vtable {table:#x}; nothing is patched.')
+    slot = struct.unpack_from('<I', image.data, image.offset(table + 0x10))[0]
+    layout.pad()
+    stub = layout.here()
+    feature()
+    layout.body += b'\x0f\x84' + struct.pack('<i', slot - (layout.here() + 6))
+    layout.to(b'\xe8', body)
+    for t in ('cam_select_beautyshop_camera', 'scaleform_fade_in 1.5', 'cc_show_create_character_dialog'):
+        command(0x1C, text[t])
+    layout.body += b'\xc3'
+    edits.append((table + 0x10, struct.pack('<I', slot), struct.pack('<I', stub)))
+    report['map_ready'] = f'{table:#x}[4] {slot:#x} -> {stub:#x}'
+    return report
+
+
+def creation_server(layout: Layout, edits: list, k: dict) -> dict:
+    """CREATION_GRID, server: `npc_character_create` (every actor to the non-select point) and
+    `npc_character_create_select <class>` (that actor to the select point, the others away)."""
+    names = creation_names()
+    layout.pad()
+    create, choose = layout.string('npc_character_create'), layout.string('npc_character_create_select')
+    actors = [(i, layout.string(f'npc_{key}')) for i, key in names]
+    layout.pad()
+    places = {}
+    for place in ('select', 'nonselect'):
+        origin, angles = k[place]
+        places[place] = (layout.here(), layout.here() + 12)
+        layout.body += struct.pack('<3f', *origin) + struct.pack('<3f', *angles)
+    layout.pad()
+    objects = (layout.here(), layout.here() + 0x80)  # two ConCommand objects (the section is writable)
+    layout.body += bytes(0x100)
+
+    layout.pad()
+    find = layout.here()  # find(name): gEntList.FindEntityByName(NULL, name, NULL, NULL, NULL, NULL)
+    layout.body += b'\x6a\x00' * 4 + b'\xff\x74\x24\x14' + b'\x6a\x00' + b'\xb9'
+    layout.pointer(k['entities'])
+    layout.to(b'\xe8', k['find'])
+    layout.body += b'\xc2\x04\x00'
+    layout.pad()
+    teleport = layout.here()  # teleport(entity, origin, angles): entity->Teleport(origin, angles, NULL)
+    layout.body += (b'\x8b\x4c\x24\x04' + b'\x8b\x01' + b'\x6a\x00' + b'\xff\x74\x24\x10' * 2
+                    + b'\xff\x90' + struct.pack('<I', k['teleport']) + b'\xc2\x0c\x00')
+
+    def move(place: str) -> None:  # teleport(eax, place)
+        layout.body += b'\x68'
+        layout.pointer(places[place][1])
+        layout.body += b'\x68'
+        layout.pointer(places[place][0])
+        layout.body += b'\x50'
+        layout.to(b'\xe8', teleport)
+
+    def each_actor(body) -> None:
+        for i, name in actors:
+            layout.body += b'\x68'
+            layout.pointer(name)
+            layout.to(b'\xe8', find)
+            layout.body += b'\x85\xc0'
+            skip = layout.forward(b'\x0f\x84')
+            body(i)
+            layout.land(skip)
+
+    layout.pad()
+    create_callback = layout.here()
+    each_actor(lambda i: move('nonselect'))
+    layout.body += b'\xc3'
+
+    layout.pad()
+    choose_callback = layout.here()
+    layout.body += b'\x56\x53' + b'\x8b\x0d'
+    layout.pointer(k['engine'])
+    layout.body += b'\x8b\x01' + b'\xff\x90\xd0\x00\x00\x00' + b'\x83\xf8\x02'
+    out = layout.forward(b'\x0f\x8c')
+    layout.body += b'\x8b\x0d'
+    layout.pointer(k['engine'])
+    layout.body += b'\x8b\x01' + b'\x6a\x01' + b'\xff\x90\xd4\x00\x00\x00' + b'\x8b\xf0' + b'\x33\xdb'
+    digit = layout.here()  # ebx = the decimal class argument
+    layout.body += b'\x0f\xb6\x06' + b'\x83\xe8\x30' + b'\x83\xf8\x09'
+    parsed = layout.forward(b'\x0f\x87')
+    layout.body += b'\x6b\xdb\x0a' + b'\x03\xd8' + b'\x46'
+    layout.to(b'\xe9', digit)
+    layout.land(parsed)
+
+    def place_actor(i: int) -> None:
+        layout.body += b'\x83\xfb' + bytes((i,))
+        away = layout.forward(b'\x0f\x85')
+        move('select')
+        moved = layout.forward(b'\xe9')
+        layout.land(away)
+        move('nonselect')
+        layout.land(moved)
+    each_actor(place_actor)
+    layout.land(out)
+    layout.body += b'\x5b\x5e' + b'\xc3'
+
+    # Registered from force_start_touch's static initializer, before ConVar_Register links them.
+    va, old = k['init']
+    layout.pad()
+    stub = layout.here()
+    for name, callback, obj in ((create, create_callback, objects[0]), (choose, choose_callback, objects[1])):
+        layout.body += b'\x6a\x00' + b'\x6a' + bytes((k['flags'],))
+        for value in (name, callback, name):
+            layout.body += b'\x68'
+            layout.pointer(value)
+        layout.body += b'\xb9'
+        layout.pointer(obj)
+        layout.to(b'\xe8', k['ctor'])
+    old_bytes = bytes.fromhex(old)
+    layout.body += b'\x68'
+    layout.pointer(struct.unpack_from('<I', old_bytes, 1)[0])
+    layout.to(b'\xe9', k['init_rest'])
+    edits.append((va, old_bytes, b'\xe9' + struct.pack('<i', stub - (va + 5))))
+    return {'init': f'{va:#x} -> {stub:#x}', 'npc_character_create': hex(create_callback),
+            'npc_character_create_select': hex(choose_callback), 'commands': [hex(o) for o in objects]}
+
+
 def file_va(image: Image, at: int) -> int:
     for _, _, vaddr, rsize, raw in image.sections():
         if raw <= at < raw + rsize:
@@ -2135,6 +2411,10 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
                                                       tick=int(effects['tick'], 16) if effects else None)
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
+    if name == 'client.dll':
+        report['creation_grid'] = creation_client(image, layout, edits, relocs, CREATION_GRID[name])
+    elif name == 'server.dll':
+        report['creation_grid'] = creation_server(layout, edits, CREATION_GRID[name])
     if fallback and name == 'server.dll':
         report['fallback_entity'] = fallback_entity(image, edits, fallback)
 
