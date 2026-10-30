@@ -2720,3 +2720,11 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md`, MI2 (painel; pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: Miri M4 — `engine.dll` com o byte de item da classe 11 (seção `.hflg`), já escrito e aplicado na cópia; commit em seguida.
+
+## 2026-10-30 — Miri M4 (`engine.dll`: byte de item da classe 11) e parada para teste de cliente
+- Feito: `scripts/client/patch_engine_class_flags.py` reescrito: parte sempre do `engine.dll` original (ou do `*.pre-classflags.bak`), troca o trecho do *setter* (`0x42245170`) por `jmp` para a seção executável nova `.hflg` + `ret 4` (saída antecipada `0x42245116`); o *stub* grava os bits 8/9 como o original e `CLASS_FLAGS` por `setne` (Delia `+0x1cd`, Miri `+0x1ce`); `DELIA_FLAG` continua exportado para o roteamento. Testes novos em `test_patch_engine_class_flags.py`. `docs/future/miri-class-port.md` 2.10 (inclui o ponto de partida do M5: *strings* de fábrica da Miri no NA x64).
+- Verificação: `python -m unittest test_patch_engine_class_flags test_patch_class_routing test_patch_class_table` 43 OK, nenhum pulado (`.cache/verification/miri/m4-tests.log`); varredura estática de `+0x1cd..+0x1cf` (`m4-scan-1ce.log`): nada no `client.dll`/`server.dll` originais para `+0x1ce`; no `engine.dll`, acessos de 16 bits numa função de outro objeto (`0x420fa5f0`). Aplicado com o jogo fechado (`m4-engine-apply.log`): `engine.dll` `d25a6e285421d9d0` → `51ea90e70b93ad04` (a partir de `a3add9742f7fa03c`), *stub* `0x430d5000`.
+- Cliente: `docs/client-tests/C4-miri.md`, MI3 (pendente).
+- Parada (regra 2): a cópia nunca abriu com os 75 pacotes novos, os 21 scripts mesclados e o `engine.dll` novo; o roteamento da classe 11 (M5) depende de o cliente carregar essa base. Ação retomável: sessão de cliente MI1–MI3; depois M5 (entidade `player_miri` no NA x64, `ACTIVE_CLASSES` 12, `EXTRA_CLASSES`, grupos por `CLASS_FLAGS`, grupos da Delia restritos a ela).
+- Commits: (este passo)
+- Pendente / próxima ação: sessão de cliente C4 (MI1–MI3), depois Miri M5.

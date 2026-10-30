@@ -11,6 +11,7 @@ Porte da Miri do cliente NA (`docs/future/miri-class-port.md`, skill `new-class-
 ## Ordem de gameplay (uma sessão)
 1. **MI1:** não regressão das classes antigas com os pacotes e scripts da Miri.
 2. **MI2:** painel de administração com a Miri (não precisa do jogo aberto).
+3. **MI3:** itens da Delia com o `engine.dll` novo (M4).
 
 ## Como relatar
 ID e número da linha (ex.: `MI1-2`), o que apareceu (captura se possível), se travou ou fechou, horário e relatório de queda. Na primeira falha que bloqueia as seguintes: anotar, voltar ao estado seguro e encerrar.
@@ -32,3 +33,10 @@ Pré-condição: imagem do commit do M3 (`docker compose ps` saudável) e export
 - [ ] Uma poção (`life_potion_lvl0`) → a dica não mostra restrição de classe.
 - [ ] Personagens → uma personagem de classe 10 aparece como **Delia** (não "Classe 10"); se existir uma de classe 11, como **Miri**.
 Limites conhecidos: a Miri ainda não entra no jogo (falta o lado nativo, M4–M8); dar itens da Miri a uma personagem antiga é aceito pelo servidor, mas o cliente mostra o item vermelho.
+
+### MI3 — Itens da Delia com o `engine.dll` novo (M4)
+Pré-condição: `engine.dll` da cópia `51ea90e70b93ad04` (aplicado por `patch_engine_class_flags.py --apply`; *stub* `.hflg` em `0x430d5000`). Personagem `DeliaLab` com uma arma e um inner da Delia no inventário; uma Fiona.
+- [ ] Com a `DeliaLab`, abrir o inventário → itens da Delia sem fundo vermelho, dica sem "Cannot be equipped"; equipar e tirar a arma → funciona como antes (D22).
+- [ ] Com a Fiona → itens da Fiona normais; um item só da Delia (se houver no inventário) aparece vermelho, como antes.
+- [ ] (Opcional, conferência ao vivo do byte da Miri) com a `DeliaLab` na cidade e `lab_memory.py serve` num terminal de administrador: pedir a leitura do byte `+0x1ce` de um registro de item comum (poção) → `1` (a poção tem o bit 11); de `draker_newbie` → `1`; de uma arma da Fiona → `0`.
+Limites conhecidos: os itens da Miri só deixam de ficar vermelhos para uma Miri depois do M5 (os testes de classe nos DLLs ainda param na Delia).
