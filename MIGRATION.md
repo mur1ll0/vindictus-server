@@ -2449,3 +2449,11 @@ Passo C3-1 (29/10/2026): criação pela grade de classes (Delia), fluxo `Charact
 - Docker: imagem `vindictus-server:local` recompilada deste *worktree* (migrações CRLF do checkout principal, `COMPOSE_PARALLEL_LIMIT=1 docker compose build server`, exit 0) e `docker compose up -d --wait` do checkout principal (exit 0; `game` e `server` saudáveis). Logs `.cache/verification/c3/docker-*.log`.
 - Cliente: `docs/client-tests/C3-criacao.md` (G1–G5), pendente.
 - Próxima ação (regra 2: a customização da Delia precisa ser confirmada no cliente antes da sessão filha das armaduras de *preview*): sessão G1–G5 do operador.
+
+Passo C3-2 (29/10/2026): handler da grade registrado na partida da interface.
+- Relato do operador (C3, primeira rodada): nenhum modelo no centro; "Start with this Character" some sem fazer nada.
+- Leitura de memória (`lab_memory.py`, jogo aberto): `lobby_beautyshop_change` carregado, 11 `CNPC_Character_Creation_Actor` e 4 `CPointTeleport`; os dois `ConCommand` novos do `server.dll` registrados (flag `registered` = 1); todos os atores nas posições do mapa (origem em `+0x15b0`), ou seja, nenhum `npc_character_create_select` chegou; nenhum objeto `HeroesGFxNewCharacterDialogS3` na memória.
+- Causa: a partida da interface (`client.dll` `0x3858b7bc`) cria e registra o *handler* `NewCharacterDialogS3` só se `S3_CharacterCreation` já estiver ligada, e então pula o da barra V4; a FeatureMatrix chega depois, no login. O filme abre (a entrada do estado testa a *feature* na hora), mas os FSCommand da grade não têm destino. É também a causa do D6.
+- Mudança (`CREATION_GRID`, `register_*`): o *handler* da grade é registrado sempre e o fluxo segue para o teste `CharacterCreation_UI_V2`, que registra o da barra V4; a escolha do diálogo continua sendo a da hora. Teste `test_creation_grid_client_runs_the_na_v3_flow` ampliado, OK (`.cache/verification/c3/tests-3.log`).
+- Aplicado com o jogo fechado a partir dos `*.pre-routing.bak` (`.cache/verification/c3/class-routing-apply-c3b.log`): `client.dll` `3e0b0c4d…`, `server.dll` `3810caa3…` (igual).
+- Próxima ação: repetir o C3 (G1–G5) no cliente.

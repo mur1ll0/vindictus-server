@@ -607,6 +607,12 @@ class LabCopyTest(unittest.TestCase):
     def test_creation_grid_client_runs_the_na_v3_flow(self):
         image, report = self.plan('client.dll')
         k, grid = routing.CREATION_GRID['client.dll'], report['creation_grid']
+        # Both dialog handlers are registered at UI start-up, before the FeatureMatrix arrives.
+        self.assertEqual([x.mnemonic for x in self.code(image, k['register_test'][0], 2)], ['nop', 'nop'])
+        register = self.code(image, int(grid['register'].split('-> ')[1], 16), 25)
+        self.assertEqual(f'{register[-1].mnemonic} {register[-1].op_str}', f'jmp {k["register_v2"]:#x}')
+        self.assertEqual(register[-2].mnemonic, 'call')
+        self.assertEqual(self.code(image, k['register_failed'][0], 6)[0].op_str, hex(k['register_v2']))
         operand = lambda site: routing.read_string(image, self.entry(image, site[0] + 1, 0))
         self.assertEqual(operand(k['map_operand']), 'changemap lobby_beautyshop_change')
         self.assertEqual(operand(k['start_camera']), 'gameui_hide;cc_minimap_hide')

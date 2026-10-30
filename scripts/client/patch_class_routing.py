@@ -458,6 +458,16 @@ CREATION_GRID = {
         'transition': (0x3852376D, 'b808000000'),         # NewCharacterSelection_Start -> state 8
         'enter': (0x38524B00, '81ec00020000'),            # CharacterCreationState enter
         'creation_vtable': 0x38B79BC8,   # CharacterCreationState; slot 4 runs once the map is up
+        # UI start-up registers the grid dialog's FSCommand handler only when S3_CharacterCreation
+        # is already on, and then skips the V4 bar's. The FeatureMatrix arrives later, at login, so
+        # the grid opened without a handler (D6, and the first C3 run: buttons did nothing).
+        # Both handlers are registered now; the runtime feature test picks the dialog.
+        'register_test': (0x3858B7D0, '745e'),            # je V2 branch (S3 off)
+        'register_failed': (0x3858B81E, '0f8ce9000000'),  # jl next feature (S3 insert failed)
+        'register_done': (0x3858B82B, 'e9c9000000'),      # jmp to the shared tail
+        'register_v2': 0x3858B830,       # the CharacterCreation_UI_V2 test (V4 / V1 handler)
+        'register_tail': bytes.fromhex('3bc3' '7410' '8b0d') + b'%s' + bytes.fromhex('8b09' '8b11' '50' '8b4214' 'ffd0'),
+        'register_list': 0x38ADA3C4,
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2012,6 +2022,21 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
         edits.append((va, old_bytes, old_bytes[:1] + struct.pack('<I', string)))
 
     report = {}
+    # Register the grid handler, then fall through to the V2 test, which registers the V4 one.
+    va, old = k['register_test']
+    edits.append((va, bytes.fromhex(old), b'\x90\x90'))
+    va, old = k['register_failed']
+    edits.append((va, bytes.fromhex(old), b'\x0f\x8c' + struct.pack('<i', k['register_v2'] - (va + 6))))
+    va, old = k['register_done']
+    layout.pad()
+    stub = layout.here()
+    head, tail = k['register_tail'].split(b'%s')
+    layout.body += head
+    layout.pointer(k['register_list'])
+    layout.body += tail
+    layout.to(b'\xe9', k['register_v2'])
+    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
+    report['register'] = f'{va:#x} -> {stub:#x}'
     operand(k['map_operand'], text['changemap lobby_beautyshop_change'])
     operand(k['start_camera'], text['gameui_hide;cc_minimap_hide'])
     operand(k['start_invoke'], text['NewCharacterDialogS3.OnStartCreation'])
