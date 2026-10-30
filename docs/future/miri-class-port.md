@@ -15,9 +15,10 @@ Convenções iguais às da Delia: `client.dll` base `0x38000000`, `server.dll` l
 - **Arma**: entidade `weapon_greatsword` do 1.69 com os modelos e itens `DRAKER` do NA (mesmo caminho da Delia; o 1.69 não tem `weapon_draker` no código).
 - **Modelos**: converter os `.mdl` v45 do NA para v44 por script reprodutível (seção 2.2).
 - **Painel admin**: compatível com a classe nova.
+- **Volume**: todos os itens do NA com a Miri (3,8 GB preparados, 1,27 GiB em pacotes), inclusive os inners de 2021–2026 que usam texturas da pasta da Fiona (escolha do operador entre "sem inners de outra pasta", "tudo" e "só o núcleo").
 
 ### Estado
-- M0 (medição) e M1a (conversor de modelos) feitos. Nada aplicado na cópia de laboratório ainda. Nenhum teste de cliente.
+- M0 (medição), M1a (conversor de modelos) e M1b/M1c (assets e scripts compartilhados na cópia de laboratório) feitos. Nenhum teste de cliente; MI1 (não regressão) pendente em `docs/client-tests/C4-miri.md`.
 
 ---
 
@@ -61,8 +62,16 @@ Tokens dos scripts da Miri do NA ausentes nos DLLs 1.69 (`m0-tokens.log`; "1.69 
 - `scripts/client/mdl_v45_to_v44.py`: remove o bloco de 260 bytes, desloca os índices do cabeçalho até `bonetablebynameindex` (`+364`), as tabelas de *strings* absolutas (`cdtexture`, nomes de nós) e o `baseptr` das sequências e animações (passo achado pelo próprio `baseptr`, limitado pela seção seguinte). De `+368` em diante o cabeçalho do Vindictus tem campos próprios (marca `SCAL` em `+388`), iguais nas duas versões, que ficam como estão.
 - Validação (`.cache/verification/miri/m1-validate.log`): 692 pares NA v45 × 1.69 v44 convertidos sem erro; nos 165 de mesma estrutura o cabeçalho convertido é idêntico ao do 1.69; 5 corpos com uma palavra diferente de exatamente 260 são ruído de `float` em ossos. Os 504 `.mdl` v45 da Miri/Draker convertem sem erro.
 
+### 2.7 Assets e scripts na cópia (M1b, M1c)
+- `scripts/client/stage_na_class.py --class miri --weapon draker` prepara em `.cache/private-assets/classes/miri` (nunca versionado) os arquivos com `miri`/`draker` numa pasta ou no nome, em `models/`, `materials/`, `effects/`, `expressions/`, `csf/`, `scaleform/`, `sound/` e `scripts/`, menos relacionamento, menu inicial do NA, *hero path* e variantes CN/JP; fecha os materiais e texturas que os modelos usam (na ordem de busca do motor: a primeira pasta `cdmaterials` que tem o material), os `includemodel` e os `include` de VMT; converte os v45; nunca prepara um caminho que o 1.69 já tem. `class-assets.json` guarda origem e SHA-256 de cada arquivo.
+- Resultado: 4.331 arquivos (3,8 GB; 504 modelos convertidos), 21 scripts para mesclar, 18 referências que nem o NA tem (`*_lod.vmt`, `glint.vmt`, pupilas, 4 `.vtf`).
+- `scripts/client/apply_lab_content_additions.py` (único gravador do índice e dos pacotes) monta os pacotes da classe por pasta, nas partes seguintes às do 1.69, até 192 MiB de dados por parte (75 pacotes, 1,27 GiB; `sound/` cru, o resto `.comp`), com cache por SHA-256 em `lab-backup/class-packs.json` (reaplicar sem mudança não recomprime); grava em fluxo (`hfs.write_pack`) e sincroniza o índice em lote (`hfs.sync_listed`).
+- Mesclagem (`scripts/client/kv_merge.py`): o pacote do 1.69 que contém cada script é reconstruído do *backup* com só os nós do NA que citam `miri`/`draker` e faltam no 1.69; uma chave presente nos dois com outro valor é conflito e fica como no 1.69. Aplicado: 21 arquivos, 811 blocos, 7 linhas; 1 conflito (`common_state_etc.txt`, `RepeatableEmotion/.../sequence`). Ficaram de fora `chat_commands.txt` (bloco de emotes de voz de todas as classes do NA), o `precache` do relacionamento em `game_sounds_manifest.txt` e os scripts de NPC, pet e relacionamento.
+- Renumeração (`scripts/content/class_costumes.py`): os inners da Miri 9100, 9101 e 9102 colidiam com itens do editor de itens (dados do operador, que ficam como estão); foram para 9044, 9134 e 9148, os primeiros números livres a partir de 9000. O servidor aplica a mesma renumeração ao `CostumeType` dos itens da Miri (M2).
+- Verificação na cópia (`.cache/verification/miri/m1b-verify.log`): os 4.331 arquivos estão no índice; amostra de 4 pacotes (198 arquivos) idêntica à preparação.
+
 ---
 
 ## 3. O que veio do NA
 
-Nenhum arquivo copiado ainda. Cada cópia entra aqui com destino, origem e SHA-256 (lista completa em `.cache/verification/miri/`, fora do Git).
+Autorização do operador (30/10/2026): "precisa trazer vários arquivos de itens, animações, forjas" e, na escolha de volume, "Tudo (3,8 GB)". Origem: `F:\Games\vindictus\hfsExtracted`. A lista completa, com caminho de destino, caminho de origem e SHA-256 da origem e do arquivo convertido, está em `.cache/private-assets/classes/miri/class-assets.json` (fora do Git); os 21 scripts do NA usados na mesclagem ficam em `.cache/private-assets/classes/miri/merge/`. Na cópia `.cache/play-client`: 75 pacotes novos (lista em `lab-backup/class-packs.json`), índice e pacotes de scripts reconstruídos a partir de `lab-backup/` (desfazer: apagar `class-assets.json` e reaplicar).

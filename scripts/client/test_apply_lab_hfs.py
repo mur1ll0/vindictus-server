@@ -91,6 +91,72 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.run_apply([])
         self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
 
+    def stage_class(self, files: dict[str, bytes]) -> None:
+        import hashlib
+        import json
+        root = self.assets / 'classes/miri'
+        records = []
+        for path, data in files.items():
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_bytes(data)
+            records.append({'path': path, 'sha256': hashlib.sha256(data).hexdigest()})
+        (root / 'class-assets.json').write_text(json.dumps({'files': records}), encoding='utf-8')
+
+    def test_class_assets_get_their_own_parts_and_are_cached(self):
+        import apply_lab_content_additions as lab
+        self.stage_class({'models/player/miri/a.mdl': b'A' * 60, 'models/player/miri/b.mdl': b'B' * 60,
+                          'sound/voice/pc/miri_hi.wav': b'RIFF', 'scripts/player_action_state_miri.txt': b'"x" {}'})
+        limit, lab.CLASS_PART_LIMIT = lab.CLASS_PART_LIMIT, 100
+        try:
+            plan = self.run_apply([])
+        finally:
+            lab.CLASS_PART_LIMIT = limit
+        packs = {hfs.pack_name('models/player/miri', 0), hfs.pack_name('models/player/miri', 1),
+                 hfs.pack_name('sound/voice/pc'), hfs.pack_name(SCRIPTS_FOLDER, 1)}
+        self.assertEqual((plan['class_files'], plan['class_packs'], plan['class_packs_built']), (4, 4, 4))
+        plain = hfs.decode_index((self.client / INDEX).read_bytes())
+        self.assertTrue(packs <= set(hfs.index_packs(plain)))
+        self.assertIn(hfs.pack_name(SCRIPTS_FOLDER, 0), hfs.index_packs(plain))
+        keys = {e[:6] for e in hfs.index_entries(plain)}
+        for name in ('a.mdl', 'b.mdl', 'miri_hi.wav', 'player_action_state_miri.txt', 'player_costume.txt'):
+            self.assertIn(hfs.name_key(name), keys)
+        sound = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('sound/voice/pc') + '.hfs')).read_bytes(), KS)
+        self.assertEqual([(e.name, e.data) for e in sound], [('miri_hi.wav', b'RIFF')])
+        model = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('models/player/miri', 1) + '.hfs')).read_bytes(), KS)
+        self.assertEqual([(e.name, hfs.comp_unwrap(e.data)) for e in model], [('b.mdl.comp', b'B' * 60)])
+        lab.CLASS_PART_LIMIT = 100
+        try:
+            again = self.run_apply([])
+        finally:
+            lab.CLASS_PART_LIMIT = limit
+        self.assertEqual((again['class_packs_built'], again['hfs_files_changed']), (0, 0))
+        (self.assets / 'classes/miri/class-assets.json').unlink()
+        self.run_apply([])
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def test_class_merges_add_the_class_lines_to_the_169_script_and_undo(self):
+        import json
+        root = self.assets / 'classes/miri'
+        (root / 'merge/scripts').mkdir(parents=True)
+        na = COSTUME.replace(b'"hair"', b'"miri"\r\n{\r\n\t"default"\t"11"\r\n}\r\n"hair"').replace(
+            b'\t"16"', b'\t"9100"\r\n\t{\r\n\t\t"label"\t"9100"\r\n\t\t"normal"\t"models/player/miri/in.mdl"\r\n\t}\r\n\t"16"')
+        (root / 'merge/scripts/player_costume.txt').write_bytes(na)
+        (root / 'class-assets.json').write_text(json.dumps({'files': [], 'merge': [
+            {'path': 'scripts/player_costume.txt', 'needles': ['miri']}]}), encoding='utf-8')
+        plan = self.run_apply(ITEMS)
+        self.assertEqual(plan['class_merges']['files'], 1)
+        scripts = self.client / 'hfs' / (hfs.pack_name(SCRIPTS_FOLDER) + '.hfs')
+        text = hfs.comp_unwrap(hfs.read_pack(scripts.read_bytes(), KS)[0].data)
+        # The item editor's entry still goes in, after the class lines; the class's 9100 moves to 9000.
+        self.assertIn(b'"miri"', text)
+        self.assertIn(b'"9100"\r\n\t{\r\n\t\t"category"\t"female"', text)
+        self.assertIn(b'"9000"\r\n\t{\r\n\t\t"label"\t"9000"\r\n\t\t"normal"\t"models/player/miri/in.mdl"', text)
+        self.assertEqual(plan['class_merges']['renumbered'], {'inner_armor/9100': '9000'})
+        self.assertEqual(self.run_apply(ITEMS)['hfs_files_changed'], 0)
+        (root / 'class-assets.json').unlink()
+        self.run_apply([])
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
 
 if __name__ == '__main__':
     unittest.main()

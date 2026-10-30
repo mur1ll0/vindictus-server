@@ -7,9 +7,11 @@ default; idempotent; the original clients are refused and a consistent backup is
 the first change."""
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import re
 import sqlite3
+import struct
 import sys
 from contextlib import closing
 from pathlib import Path
@@ -17,9 +19,11 @@ from pathlib import Path
 from prepare_lab_client import PreparationError, reject_original
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'content'))
+import class_costumes  # noqa: E402
 import content_additions  # noqa: E402
 import content_edits  # noqa: E402
 import hfs  # noqa: E402
+import kv_merge  # noqa: E402
 
 ADDITIONS = Path(__file__).resolve().parents[1] / 'content/lab_content_additions.json'
 SHOP_COLUMNS = ('ShopID', 'Order', 'ItemClass', 'Count', 'PriceItemClass', 'PriceCount', 'AppearQuestID',
@@ -190,6 +194,128 @@ def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[
     return packs
 
 
+CLASS_MANIFEST = 'class-assets.json'
+CLASS_PREFIXES = ('models/', 'materials/', 'effects/', 'expressions/', 'csf/', 'scaleform/', 'sound/', 'scripts/')
+# Plain bytes per new pack part: few parts per folder (the 1.69 has at most 14) and packs the size of
+# the largest 1.69 ones (docs/future/miri-class-port.md 2.5).
+CLASS_PART_LIMIT = 192 * 2**20
+CLASS_PACKS = 'class-packs.json'
+GAME_PATH = re.compile(r'^[a-z0-9_./ -]{1,240}$')
+
+
+def class_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
+    """(game path, staged file, SHA-256) of every NA class staged by scripts/client/stage_na_class.py."""
+    files: dict[str, tuple[Path, str]] = {}
+    for manifest in sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)):
+        root = manifest.parent.resolve()
+        for record in json.loads(manifest.read_text(encoding='utf-8')).get('files', []):
+            path = str(record.get('path', ''))
+            if (not GAME_PATH.match(path) or not path.startswith(CLASS_PREFIXES) or '..' in path.split('/')
+                    or not re.fullmatch(r'[0-9a-f]{64}', str(record.get('sha256', '')))):
+                raise PreparationError(f'Bad class asset entry in {manifest}.')
+            file = (root / path).resolve()
+            if not file.is_relative_to(root) or not file.is_file():
+                raise PreparationError(f'Missing staged class asset {path}.')
+            if files.setdefault(path, (file, record['sha256']))[0] != file:
+                raise PreparationError(f'{path} is staged by two classes.')
+    return sorted((path, file, sha) for path, (file, sha) in files.items())
+
+
+def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]]]:
+    """(game path, NA copy, class names) of each shared 1.69 script a staged class adds lines to."""
+    merges = []
+    for manifest in sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)):
+        root = manifest.parent.resolve()
+        data = json.loads(manifest.read_text(encoding='utf-8'))
+        for record in data.get('merge', []):
+            path = str(record.get('path', ''))
+            needles = tuple(str(n) for n in record.get('needles', []))
+            file = (root / 'merge' / path).resolve()
+            if (not GAME_PATH.match(path) or '..' in path.split('/') or not needles
+                    or not all(re.fullmatch(r'[a-z]{2,16}', n) for n in needles)
+                    or not file.is_relative_to(root) or not file.is_file()):
+                raise PreparationError(f'Bad class merge entry in {manifest}.')
+            merges.append((path, file, needles))
+    return merges
+
+
+def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dict[str, list]]:
+    """The 1.69 pack holding each merged script, from the original index: pack path -> file -> merges."""
+    names = hfs.index_packs(plain)
+    where: dict[bytes, list[int]] = {}
+    for e in hfs.index_entries(plain):
+        where.setdefault(e[:6], []).append(struct.unpack_from('<H', e, 6)[0])
+    packs: dict[Path, dict[str, list]] = {}
+    for path, file, needles in merges:
+        folder, file_name = path.rsplit('/', 1)
+        parts = {hfs.pack_name(folder, part) for part in range(64)}
+        found = sorted({names[i] for i in where.get(hfs.name_key(file_name), []) if names[i] in parts})
+        if len(found) != 1:
+            raise PreparationError(f'{path} is not in exactly one pack of the client.')
+        packs.setdefault(client_copy / 'hfs' / (found[0] + '.hfs'), {}).setdefault(file_name, []).append((file, needles))
+    return packs
+
+
+def class_pack_plan(files: list[tuple[str, Path, str]], taken: set[str]) -> list[tuple[str, str, list[tuple[str, Path, str]]]]:
+    """New packs for the staged class files: per folder, the parts after the ones the index has, each up
+    to CLASS_PART_LIMIT plain bytes."""
+    folders: dict[str, list] = {}
+    for path, file, sha in files:
+        folder, name = path.rsplit('/', 1)
+        folders.setdefault(folder, []).append((name, file, sha))
+    plan = []
+    for folder, entries in sorted(folders.items()):
+        part = 0
+        current, size = [], 0
+        for entry in entries:
+            length = entry[1].stat().st_size
+            if current and size + length > CLASS_PART_LIMIT:
+                while hfs.pack_name(folder, part) in taken:
+                    part += 1
+                plan.append((hfs.pack_name(folder, part), folder, current))
+                part += 1
+                current, size = [], 0
+            current.append(entry)
+            size += length
+        while hfs.pack_name(folder, part) in taken:
+            part += 1
+        plan.append((hfs.pack_name(folder, part), folder, current))
+    return plan
+
+
+def class_entry(folder: str, name: str, file: Path) -> tuple[str, object, int]:
+    """Sounds are stored plain, the rest as .comp, as the 1.69 packs do."""
+    if folder == 'sound' or folder.startswith('sound/'):
+        return name, file.read_bytes, hfs.DEFAULT_ATTR
+    return name + '.comp', lambda: hfs.comp_wrap(file.read_bytes(), 6), hfs.DEFAULT_ATTR
+
+
+def class_packs(client_copy: Path, plan: list, ks: bytes, apply_changes: bool) -> tuple[list, int]:
+    """(pack name, pack_files list) of each class pack and how many were written. A pack is rebuilt only
+    when its file list or a file's SHA-256 changed (class-packs.json in lab-backup)."""
+    cache_path = client_copy / 'lab-backup' / CLASS_PACKS
+    cache = json.loads(cache_path.read_text(encoding='utf-8')) if cache_path.exists() else {}
+    listed, built, fresh = [], 0, {}
+    for name, folder, entries in plan:
+        key = hashlib.sha256(json.dumps([(n, sha) for n, _, sha in entries]).encode()).hexdigest()
+        path = client_copy / 'hfs' / (name + '.hfs')
+        known = cache.get(name, {})
+        if known.get('key') == key and path.is_file() and path.stat().st_size == known.get('size'):
+            files = [tuple(f) for f in known['files']]
+        elif apply_changes:
+            files = hfs.write_pack(path, [class_entry(folder, n, f) for n, f, _ in entries], ks)
+            built += 1
+        else:
+            built += 1
+            continue
+        fresh[name] = {'key': key, 'size': path.stat().st_size, 'files': files}
+        listed.append((name, files))
+    if apply_changes:
+        cache_path.parent.mkdir(exist_ok=True)
+        cache_path.write_text(json.dumps(fresh), encoding='utf-8')
+    return listed, built
+
+
 def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_changes: bool, assets: Path = ASSETS,
               overrides: dict | None = None) -> dict:
     """Rebuilds the English text packs (item text) and the scripts pack (player_costume.txt entries) from their
@@ -203,11 +329,19 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     index = client_copy / INDEX
     texts = [(client_copy / 'hfs' / (hfs.pack_name(f) + '.hfs'), f.rsplit('/', 1)[1]) for f in TEXT_FOLDERS]
     scripts = client_copy / 'hfs' / (hfs.pack_name(SCRIPTS_FOLDER) + '.hfs')
-    originals = {path: backup_dir / path.name for path in [index, scripts] + [p for p, _ in texts]}
+    merges = class_merges(assets)
+    original_index = backup_dir / index.name if (backup_dir / index.name).exists() else index
+    merged = merge_packs(hfs.decode_index(original_index.read_bytes()), merges, client_copy) if merges else {}
+    # Every pack with a backup comes back to it unless rebuilt below (a merge that was undone).
+    restored = [client_copy / 'hfs' / p.name for p in backup_dir.glob('*.hfs') if p.name != index.name]
+    originals = {path: backup_dir / path.name
+                 for path in [index, scripts] + [p for p, _ in texts] + sorted(merged) + restored}
     previously_added = json.loads(added_list.read_text(encoding='utf-8')) if added_list.exists() else []
     entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
-    if not items and not entries and not any(b.exists() for b in originals.values()) and not previously_added:
+    class_files = class_asset_files(assets)
+    if (not items and not entries and not class_files and not merges
+            and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
         backup_dir.mkdir(exist_ok=True)
@@ -223,45 +357,71 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
                     for e in hfs.read_pack(source[path], ks)]
             wanted[path] = hfs.build_pack(pack, ks)
             rebuilt.append((path.name, wanted[path]))
-    if costumes:
-        by_file: dict[str, list[dict]] = {}
-        for costume in costumes:
-            by_file.setdefault(script_of(costume['section']), []).append(costume)
+    by_file: dict[str, list[dict]] = {}
+    for costume in costumes:
+        by_file.setdefault(script_of(costume['section']), []).append(costume)
+    merge_report = {'files': 0, 'blocks': 0, 'lines': 0, 'conflicts': [], 'renumbered': {}}
+    # Class merges first (NA lines of the class), then the item editor's entries on top.
+    for path in sorted(set(merged) | ({scripts} if by_file else set())):
+        pending = dict(merged.get(path, {}))
         pack = []
-        for e in hfs.read_pack(source[scripts], ks):
-            rows = by_file.pop(e.name, None)
-            if rows:
-                plain = hfs.comp_unwrap(e.data)
-                if e.name == 'player_costume.txt.comp':
+        for e in hfs.read_pack(source[path], ks):
+            comp = e.name.endswith('.comp')
+            file_name = e.name[:-5] if comp else e.name
+            sources = pending.pop(file_name, [])
+            rows = by_file.pop(e.name, None) if path == scripts else None
+            if sources or rows:
+                plain = hfs.comp_unwrap(e.data) if comp else e.data
+                for file, needles in sources:
+                    na = file.read_bytes()
+                    if file_name == 'player_costume.txt':
+                        remap = class_costumes.costume_remap(na, plain, class_costumes.lab_taken(items), needles)
+                        na = class_costumes.rename(na, remap)
+                        merge_report['renumbered'] = {f'{s}/{k}': v for (s, k), v in sorted(remap.items())}
+                    plain, report = kv_merge.merge(plain, na, needles)
+                    merge_report['files'] += 1
+                    merge_report['blocks'] += report['blocks']
+                    merge_report['lines'] += report['lines']
+                    merge_report['conflicts'] += [f'{file_name}:{c}' for c in report['conflicts']]
+                if rows and e.name == 'player_costume.txt.comp':
                     plain = with_costumes(plain, rows)
-                else:
+                elif rows:
                     plain = with_script_entries(plain, rows, 'shields' if e.name == 'shields.txt.comp' else 'weapon')
-                e = hfs.Entry(e.name, hfs.comp_wrap(plain), e.attr)
+                e = hfs.Entry(e.name, hfs.comp_wrap(plain) if comp else plain, e.attr)
             pack.append(e)
-        if by_file:
-            raise PreparationError(f'The scripts pack has no {sorted(by_file)[0]}.')
-        wanted[scripts] = hfs.build_pack(pack, ks)
-        rebuilt.append((scripts.name, wanted[scripts]))
+        if pending:
+            raise PreparationError(f'{path.name} has no {sorted(pending)[0]}.')
+        wanted[path] = hfs.build_pack(pack, ks)
+        rebuilt.append((path.name, wanted[path]))
+    if by_file:
+        raise PreparationError(f'The scripts pack has no {sorted(by_file)[0]}.')
     plain = hfs.decode_index(source[index])
+    # NA classes first (gigabytes, written pack by pack), then the item editor's packs after them.
+    plan = class_pack_plan(class_files, set(hfs.index_packs(plain)))
+    listed, class_built = class_packs(client_copy, plan, ks, apply_changes)
+    taken = set(hfs.index_packs(plain)) | {name for name, _, _ in plan}
     new_packs = {}
-    for name, pack in asset_packs(items, set(hfs.index_packs(plain)), assets).items():
+    for name, pack in asset_packs(items, taken, assets).items():
         path = client_copy / 'hfs' / (name + '.hfs')
         new_packs[path] = hfs.build_pack(pack, ks)
         rebuilt.append((path.name, new_packs[path]))
-    if rebuilt:
-        plain, _ = hfs.sync(plain, rebuilt, ks)
+    if rebuilt or listed:
+        plain, _ = hfs.sync_listed(plain, [(name, hfs.pack_files(raw, ks)) for name, raw in rebuilt] + listed)
         wanted[index] = hfs.encode_index(plain, source[index][:hfs.INDEX_HEAD])
     wanted.update(new_packs)
     changed = [p for p, data in wanted.items() if not p.exists() or p.read_bytes() != data]
-    stale = [client_copy / 'hfs' / name for name in previously_added if client_copy / 'hfs' / name not in new_packs]
+    added = sorted([p.name for p in new_packs] + [name + '.hfs' for name, _, _ in plan])
+    stale = [client_copy / 'hfs' / name for name in previously_added if name not in added]
     if apply_changes:
         for path in changed:
             path.write_bytes(wanted[path])
         for path in stale:
             path.unlink(missing_ok=True)
-        added_list.write_text(json.dumps(sorted(p.name for p in new_packs)), encoding='utf-8')
-    return {'hfs': 'applied' if items or entries else 'restored', 'text_tokens': len(entries), 'costumes': len(costumes),
-            'new_packs': sorted(p.name for p in new_packs), 'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
+        added_list.write_text(json.dumps(added), encoding='utf-8')
+    return {'hfs': 'applied' if items or entries or class_files or merges else 'restored', 'text_tokens': len(entries),
+            'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
+            'class_packs': len(plan), 'class_packs_built': class_built, 'class_merges': merge_report,
+            'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
 
 
 def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDITIONS, edits: dict | None = None,
