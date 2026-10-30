@@ -667,7 +667,9 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(self.entry(image, k['transitions'][0] + 1, 0), count + 1)
         state, name, handler = (self.entry(image, copy + 12 * count, i) for i in range(3))
         self.assertEqual((state, routing.read_string(image, name)), (routing.CREATION_STATE, 'CharacterCreation_Back'))
-        self.assertIn(f'mov eax, {k["grid_state"]}', [f'{x.mnemonic} {x.op_str}' for x in self.code(image, handler, 0x20)])
+        back = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, handler, 0x30)]
+        self.assertIn(f'mov eax, {k["grid_state"]}', back)
+        self.assertEqual(back[back.index(f'call {k["set_prologue"]:#x}') - 3], 'push 0')
         dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0x60)
         self.assertIn('CharacterCreation_Back', self.strings(image, dialog))
         ops = [f'{x.mnemonic} {x.op_str}' for x in dialog]
@@ -680,12 +682,11 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn('scaleform_fade_out 1.5;changemap create_character', self.strings(image, enter))
         ready = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, self.entry(image, inn, 4), 0x20)]
         self.assertIn('jmp 0x38526620', ready)
-        # "Go to town" fades and runs cc_start_game_first itself.
-        town = self.code(image, int(grid['to_town'].split('-> ')[1], 16), 0x30)
-        self.assertIn('scaleform_fade_out 1.5', self.strings(image, town))
-        ops = [f'{x.mnemonic} {x.op_str}' for x in town]
-        self.assertIn(f'call {k["start_game_first"]:#x}', ops)
-        self.assertIn(f'jmp {k["to_town_rest"]:#x}', ops)
+        # The grid customization marks the prologue (Go to town's prologue branch); Back clears it.
+        enter = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, int(grid['enter'].split('-> ')[1], 16), 0x80)]
+        at = enter.index(f'call {k["set_prologue"]:#x}')
+        self.assertEqual(enter[at - 3], 'push 1')
+        self.assertNotIn('to_town', grid)
         # Customization open: movement bits cleared, emotion switched at once, flag cleared on leave.
         ops = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, int(grid['input'].split('-> ')[1], 16), 0x40)]
         self.assertIn('and dword ptr [edi + 0x28], 0xfffff9e7', ops)

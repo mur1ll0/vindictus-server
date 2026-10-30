@@ -516,14 +516,14 @@ CREATION_GRID = {
         # inn (create_character.bsp), the grid flow in lobby_beautyshop_body. With the grid, its enter
         # first changes to the inn and its map-ready slot runs the original enter there (C3-20).
         'inn_vtable': 0x38B79BC8 + 0x18,  # PrologueInnBState vtable (0x38b79be0)
-        # Tieve's "Go to town" (button ToTown, 0x383c450e) asks the server to touch trigger_startgame,
-        # whose outputs reach the client through point_clientcommand (fade, then cc_start_game_first
-        # at 3.5 s). In the lab nothing arrives: the UI state stays 12 and Fire never runs (its mode
-        # stays 2), so the select is never sent (C3-21, read in memory). The button now fades and
-        # runs cc_start_game_first (0x38526140: Fire PrologueInnB_End -> select the newest -> 13).
-        'to_town': (0x383C4526, '8b01' '8b9084010000'),  # after mov ecx, engine: vtable, slot 0x184
-        'to_town_rest': 0x383C4535,                     # pop edi; pop esi; pop ebp; ret 8
-        'start_game_first': 0x38526140,
+        # Tieve's "Go to town" (button ToTown, 0x383c4390) takes the prologue branch only while the
+        # machine's prologue byte is set (0x38519590: force_start_touch trigger_startgame -> fade ->
+        # cc_start_game_first -> select the newest -> 13); otherwise it asks the server (QueryNpcTalk)
+        # and marks the talk "Loading" (the hang of C3-21). The 1.69 sets the byte only when the
+        # prologue starts (0x38526d14, next to cl_playerclass) and clears it when the town is entered
+        # from state 13 (0x3852e18c) and on its other exits; the grid skips the prologue, so its
+        # customization enter sets it and Back clears it (C3-22).
+        'set_prologue': 0x38519570,      # machine->SetPrologue(bool)
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2061,6 +2061,12 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
         layout.pointer(string)
         layout.body += b'\xff\x92' + struct.pack('<I', slot)
 
+    def set_prologue(on: int) -> None:  # push on; machine->SetPrologue (thiscall, ret 4)
+        layout.body += b'\x6a' + bytes((on,))
+        layout.to(b'\xe8', k['machine'])
+        layout.body += b'\x8b\xc8'
+        layout.to(b'\xe8', k['set_prologue'])
+
     def invoke(string: int) -> None:  # the UI manager calls a movie function without arguments
         layout.to(b'\xe8', k['ui'])
         layout.body += b'\x8b\x10' + b'\x6a\x00' * 3 + b'\x8b\xc8' + b'\x68'
@@ -2153,6 +2159,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\x50'
     layout.to(b'\xe8', k['player_class'])
     layout.body += b'\x83\xc4\x04'
+    set_prologue(1)  # as the prologue start (0x38526d14)
     # NA 0x38bd8683: the overhead HUD is off in the customization ("Lv. 0" above the model otherwise).
     for t in ('sv_prologue_mode 1', 'scaleform_fade_out 1.5', 'changemap lobby_beautyshop_body', 'hhud_should_draw 0'):
         command(0x1C, text[t])
@@ -2196,6 +2203,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\xc6\x05'
     layout.pointer(inn_flag)
     layout.body += b'\x00'  # back to the grid: no inn change
+    set_prologue(0)
     command(0x1C, prologue_off)
     layout.body += b'\xb8' + struct.pack('<I', k['grid_state']) + b'\xc3'
     count_va, count_old, table_va, table_old = k['transitions']
@@ -2330,16 +2338,6 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.to(b'\xe9', enter12)                  # the original enter, in the inn
     edits.append((inn + 0x10, struct.pack('<I', ready12), struct.pack('<I', stub)))
     report['inn_ready'] = f'{inn:#x}[4] {ready12:#x} -> {stub:#x}'
-
-    # "Go to town": the fade and cc_start_game_first in the client, without the map trigger.
-    va, old = k['to_town']
-    layout.pad()
-    stub = layout.here()
-    command(0x1C, text['scaleform_fade_out 1.5'])
-    layout.to(b'\xe8', k['start_game_first'])
-    layout.to(b'\xe9', k['to_town_rest'])
-    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90' * 3))
-    report['to_town'] = f'{va:#x} -> {stub:#x}'
     return report
 
 
