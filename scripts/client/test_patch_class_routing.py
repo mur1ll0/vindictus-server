@@ -512,6 +512,7 @@ class LabCopyTest(unittest.TestCase):
         self.assertNotIn(f'call {k["costume"]:#x}', events)
         at = events.index(f'call {k["armor_update"]:#x}')
         self.assertEqual(events[at + 1], 'mov byte ptr [ebx + 0x18], 1')
+        self.assertEqual(events[at - 3:at - 1], ['lea ecx, [edi + 0x156c]', f'call {k["costume_parts"]:#x}'])
         # a repair (armour state with broken 0) puts a kept part back and asks for a rebuild
         head = next(self.md.disasm(bytes(image.data[image.offset(k['armor_state']):image.offset(k['armor_state']) + 5]),
                                    k['armor_state']))
@@ -528,10 +529,13 @@ class LabCopyTest(unittest.TestCase):
         # the player's repair: with the armour system off the kept parts come back (look only)
         head = next(self.md.disasm(bytes(image.data[image.offset(k['repair']):image.offset(k['repair']) + 5]), k['repair']))
         self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {effects["repair"]}')
-        repair = text(int(effects['repair'], 16), 0xa0)
+        repair = text(int(effects['repair'], 16), 0xc0)
         self.assertIn(f'call {k["armor_on"]:#x}', repair)
         self.assertIn(f'mov dword ptr [ecx + esi*4 + {worn:#x}], edi', repair)
         self.assertIn('mov byte ptr [ebx + 0x18], 1', repair)
+        at = repair.index(f'call {k["costume_parts"]:#x}')
+        self.assertEqual(repair[at - 2:at], ['push ecx', 'lea ecx, [ecx + 0x156c]'])
+        self.assertEqual(repair[at + 1], 'pop ecx')
         self.assertEqual(repair[-3:], ['fld dword ptr [esp + 4]', 'push ecx', f'jmp {k["repair"] + 5:#x}'])
         relocs = routing.relocations(image)
         at = next(x for x in self.md.disasm(bytes(image.data[image.offset(int(effects['repair'], 16)):

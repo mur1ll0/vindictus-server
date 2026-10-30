@@ -367,7 +367,10 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # is off (the game state check 0x40740a10 on [0x40d6f5e4] false, e.g. the ship: every slot reads as
 # empty to 0x40814620, so neither the purge nor the repair kit touches the armour), the purge only
 # hides the worn parts, and the player's repair (0x40530cf0, called by the repair kit) puts the kept
-# parts back first: a look only, as the operator asked (D23). For an extra class
+# parts back first: a look only, as the operator asked (D23). Both then run the costume recompute
+# (0x4081be60: worn +0x94 -> resolved +0x19c, which names the model); a real break or repair runs
+# it inside 0x4081c170, but the look-only path did not (D23 on the ship, memory: worn parts -1 and
+# the resolved parts and the rebuilt CoStUmE_ name still with them). For an extra class
 # each of slots 4-8 that has armour
 # (0x40814620 false) gets HP 0 (0x408144d0), its part hidden and the broken state without notify
 # (0x40547480(slot, 1, 0)), the armour status update (0x4054e160) runs once, and the rebuild is left
@@ -383,7 +386,7 @@ DELIA_EFFECTS = {'server.dll': {
     'strncmp': 0x408B7A50, 'events': 0x40838F20, 'hit_slot': 70, 'armor': 0x148C, 'armor_none': 0x40814620,
     'armor_hp_set': 0x408144D0, 'armor_state': 0x40547480, 'armor_update': 0x4054E160, 'costume': 0x405465D0,
     'clothes': 0x156C, 'worn_part': 0x94, 'armor_on': 0x40740A10, 'game_state': 0x40D6F5E4,
-    'repair': 0x40530CF0}}
+    'repair': 0x40530CF0, 'costume_parts': 0x4081BE60}}
 DELIA_TABLE_ENTRIES, DELIA_ENTRY = 16, 0x40
 # entry: +0 entity, +4 reserved HP, +8 restore per second, +0xc fraction, +0x10 last restore time,
 # +0x14 stack-charge-smash flag, +0x15 add-strong-attack flag, +0x16 decay due, +0x17 forfeit due,
@@ -1677,6 +1680,8 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.land(skip); L.land(skip2)
     b('46 83fe09')
     L.to(b'\x0f\x8c', loop)
+    b('8d8f' + d32(k['clothes']))  # worn -> resolved parts
+    call(k['costume_parts'])
     b('8bcf')
     call(k['armor_update'])
     b('c6431801')  # rebuild the costume in the think
@@ -1731,6 +1736,9 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.land(rn); L.land(rn2)
     b('46 83fe09')
     L.to(b'\x0f\x8c', rl)
+    b('51 8d89' + d32(k['clothes']))  # worn -> resolved parts
+    call(k['costume_parts'])
+    b('59')
     L.land(r3)
     b('5b 5f 5e')
     L.land(r1); L.land(r2)

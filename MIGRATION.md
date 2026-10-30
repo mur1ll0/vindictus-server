@@ -2388,6 +2388,14 @@ Passo 49 (29/10/2026): Rose Crush e conserto no barco, só visual (pedido do ope
 - Cliente: D23, entrada "Rose Crush e conserto no barco".
 - Próxima ação: testes do operador. Se no barco nada mudar, o servidor do barco não roda o evento (e não o sistema desligado): ler a memória com a Delia no barco.
 
+Passo 50 (29/10/2026): visual do barco recalcula as peças da roupa.
+- Relato do operador (passo 49 aplicado): no barco, a Rose Crush não mudou a armadura.
+- Leitura de memória (`lab_memory.py`, jogo no barco): a entrada da Delia (`server.dll` `0x412bc094`, entidade `0x4fa90a08`) tem peças guardadas para os *slots* 4, 5, 7 e 8 (79, 79, 9, 79 + 1) e a marca de reconstrução já consumida. Então a purga rodou no barco e o caminho de sistema desligado foi o certo. Peças vestidas (`+0x156c+0x94`) 4–8 = -1, mas as resolvidas (`+0x156c+0x19c`) seguiam 79/79/-1/9/79, e todos os nomes `CoStUmE_10/0_90035/…/0_79/0_79/0_-1/0_9/0_79/…` na memória ainda tinham as peças.
+- Causa: o recálculo da roupa (`0x4081be60`, vestida → resolvida, que dá o nome do modelo) só roda dentro do estado de quebra (`0x4081c170`); o caminho só visual não passava por ele.
+- Mudança (`DELIA_EFFECTS`): a purga (depois do laço) e o conserto com sistema desligado (depois de devolver as peças) chamam `0x4081be60` sobre a roupa antes da reconstrução no *think*.
+- Testes: os 3 focados passaram (`.cache/verification/purge7-tests.log`). **Não aplicado**: o jogo estava aberto.
+- Próxima ação: com o jogo fechado, aplicar a partir dos `*.pre-routing.bak` e repetir o teste do barco (D23).
+
 Progressão até um nível — história principal (29/10/2026, pedido do operador).
 - Evidência (`.cache/verification/m0-*.log`): 199 histórias MainStream/MainStream_S2/MainStream_S3. Quase todas têm `AutoGiveLevel` -1; cada uma abre a seguinte com `start_storyline` (arg1) e espera quests com `quest_cleared`/`QuestCleared`. Raízes: `GuidePlay_1_SkillTrain` (dada no nível 1) e `S3E03_M02_Summon`. A simulação no conteúdo real com a regra abaixo conclui 10, 17, 33, 60 e 114 histórias principais nos níveis 10, 20, 40, 60 e 80. No 40, a próxima é `S4NQ_6_ScarredBlack` (quest de nível 42).
 - Regra (`domain::progression_plan::story_plan`): a partir das principais dadas até o nível, conclui cada principal cujas quests esperadas estão concluídas (plano de quests mais as já concluídas) e segue o que ela abre. A principal que ainda espera uma quest, e as não principais abertas pelas concluídas, são abertas na fase inicial (sem tocar progresso existente). Respeita `Feature` e `ClassRestriction`. Secundárias, de equipamento e de skill nunca são concluídas.
