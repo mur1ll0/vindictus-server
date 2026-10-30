@@ -497,6 +497,21 @@ CREATION_GRID = {
         # whose CharacterCreation_UI_V3 branch shows it, edited to keep the name field the 1.69 reads).
         'dialog': (0x384AF6E0, '81ecdc030000' '5657' '8bbc24f0030000'),
         'dialog_rest': 0x384AF6EF,
+        # While the customization is open (flag set by its map-ready slot, cleared by its leave):
+        # * movement keys do nothing: ProcessInputSequence (0x387ed080) already clears every button
+        #   of the user command for a frozen player at 0x387ed0fa; the movement bits IN_FORWARD,
+        #   IN_BACK, IN_MOVELEFT, IN_MOVERIGHT (0x618) are cleared too (every move-key transition and
+        #   BattleRun read this command, 0x387f6ead/0x387ebbe0), so the walk pose can not be steered;
+        # * a pose/action click switches at once: cc_play_repeatable_emotion (0x388932c0) files a
+        #   RepeatableEmotion request (one pending slot, cmd+0x134/+0x138); the stub then merges its
+        #   options into the state (0x387edd10, cmd+0x64) and calls SetState (0x387e49d0) instead of
+        #   waiting for ProcessInputSequence to take it (C3-18).
+        'leave': (0x38524BA0, '8b0d0c2fcd38'),            # CharacterCreationState leave head
+        'input': (0x387ED0FA, 'f683fc02000060' '57' '8b7c2434' '7408' '33c0' '894728' '89472c'),
+        'input_rest': 0x387ED110,
+        'move_buttons': 0x618,
+        'emotion_call': (0x388933B4, 'e8976cf5ff'),       # call request(name, keyvalues), ecx = cmd
+        'request': 0x387EA050, 'merge': 0x387EDD10, 'set_state': 0x387E49D0, 'kv_delete': 0x38917930,
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2137,6 +2152,9 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
 
     # Its slot 4 (map ready): the original enter body (creation mode, costume), then the camera and
     # the customization dialog that create_character.bsp's trigger_create_character used to open.
+    layout.pad()
+    flag = layout.here()  # customization open (writable section)
+    layout.body += bytes(4)
     table = vtable(image, 'CharacterCreationState')
     if table != k['creation_vtable'] or table + 0x10 not in relocs:
         raise PreparationError(f'Unexpected CharacterCreationState vtable {table:#x}; nothing is patched.')
@@ -2145,6 +2163,9 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     stub = layout.here()
     feature()
     layout.body += b'\x0f\x84' + struct.pack('<i', slot - (layout.here() + 6))
+    layout.body += b'\xc6\x05'
+    layout.pointer(flag)
+    layout.body += b'\x01'  # mov byte [flag], 1
     layout.to(b'\xe8', body)
     for t in ('cam_select_beautyshop_camera', 'scaleform_fade_in 1.5', 'cc_show_create_character_dialog'):
         command(0x1C, text[t])
@@ -2198,6 +2219,68 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.to(b'\xe9', k['dialog_rest'])
     edits.append((va, head[:6], b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
     report['dialog'] = f'{va:#x} -> {stub:#x}'
+
+    # The customization flag: set by the map-ready slot (customization_open), cleared on leave.
+    va, old = k['leave']
+    layout.pad()
+    stub = layout.here()
+    layout.body += b'\xc6\x05'
+    layout.pointer(flag)
+    layout.body += b'\x00' + bytes.fromhex(old)[:2]
+    layout.pointer(struct.unpack_from('<I', bytes.fromhex(old), 2)[0])
+    layout.to(b'\xe9', va + len(bytes.fromhex(old)))
+    edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
+    report['leave'] = f'{va:#x} -> {stub:#x}'
+
+    # Movement keys off while the flag is set.
+    va, old = k['input']
+    old_bytes = bytes.fromhex(old)
+    layout.pad()
+    stub = layout.here()
+    layout.body += old_bytes[:12]  # test byte [ebx+0x2fc], 0x60; push edi; mov edi, [esp+0x34]
+    frozen = layout.forward(b'\x0f\x84')
+    layout.body += old_bytes[14:]  # xor eax, eax; mov [edi+0x28], eax; mov [edi+0x2c], eax
+    layout.land(frozen)
+    layout.body += b'\x80\x3d'
+    layout.pointer(flag)
+    layout.body += b'\x00'
+    free = layout.forward(b'\x0f\x84')
+    layout.body += b'\x81\x67\x28' + struct.pack('<I', 0xFFFFFFFF ^ k['move_buttons'])  # and [edi+0x28], ~moves
+    layout.land(free)
+    layout.to(b'\xe9', k['input_rest'])
+    edits.append((va, old_bytes, b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90' * (len(old_bytes) - 5)))
+    report['input'] = f'{va:#x} -> {stub:#x}'
+
+    # A pose/action click switches at once while the flag is set.
+    va, old = k['emotion_call']
+    layout.pad()
+    stub = layout.here()
+    layout.body += (b'\x51' + b'\xff\x74\x24\x0c' * 2  # push ecx; push kv; push name
+                    + b'\x8b\x4c\x24\x08')              # mov ecx, [esp+8] (the command object)
+    layout.to(b'\xe8', k['request'])
+    layout.body += b'\x59' + b'\x80\x3d'                  # pop ecx; cmp byte [flag], 0
+    layout.pointer(flag)
+    layout.body += b'\x00'
+    done = layout.forward(b'\x0f\x84')
+    layout.body += b'\x8b\x81\x34\x01\x00\x00' + b'\x85\xc0'  # mov eax, [ecx+0x134]; test eax, eax
+    none = layout.forward(b'\x0f\x84')
+    layout.body += (b'\x56\x57' + b'\x8b\xf1' + b'\x8b\xf8'      # push esi/edi; esi = cmd; edi = state
+                    + b'\x6a\x00' + b'\xff\xb6\x38\x01\x00\x00' + b'\xff\xb6\x28\x01\x00\x00'
+                    + b'\x8d\x4e\x64')                            # lea ecx, [esi+0x64]
+    layout.to(b'\xe8', k['merge'])
+    layout.body += b'\x8b\x8e\x38\x01\x00\x00' + b'\x85\xc9'  # mov ecx, [esi+0x138]; test ecx, ecx
+    kept = layout.forward(b'\x0f\x84')
+    layout.to(b'\xe8', k['kv_delete'])
+    layout.land(kept)
+    layout.body += (b'\xc7\x86\x34\x01\x00\x00' + bytes(4) + b'\xc7\x86\x38\x01\x00\x00' + bytes(4)
+                    + b'\x57' + b'\x8b\xce')                      # push state; mov ecx, esi
+    layout.to(b'\xe8', k['set_state'])
+    layout.body += b'\x5f\x5e'
+    layout.land(none)
+    layout.land(done)
+    layout.body += b'\xc2\x08\x00'
+    edits.append((va, bytes.fromhex(old), b'\xe8' + struct.pack('<i', stub - (va + 5))))
+    report['emotion'] = f'{va:#x} -> {stub:#x}'
     return report
 
 

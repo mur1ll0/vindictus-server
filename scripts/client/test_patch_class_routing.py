@@ -673,6 +673,15 @@ class LabCopyTest(unittest.TestCase):
         back_to = ops.index(f'jmp {k["dialog_rest"]:#x}')
         self.assertEqual(ops[back_to - 1], 'mov ecx, esi')  # the original's `mov esi, ecx` follows
         self.assertNotIn('filled', grid)
+        # Customization open: movement bits cleared, emotion switched at once, flag cleared on leave.
+        ops = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, int(grid['input'].split('-> ')[1], 16), 0x40)]
+        self.assertIn('and dword ptr [edi + 0x28], 0xfffff9e7', ops)
+        self.assertIn(f'jmp {k["input_rest"]:#x}', ops)
+        ops = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, int(grid['emotion'].split('-> ')[1], 16), 0xa0)]
+        for target in ('request', 'merge', 'kv_delete', 'set_state'):
+            self.assertIn(f'call {k[target]:#x}', ops)
+        ops = [f'{x.mnemonic} {x.op_str}' for x in self.code(image, int(grid['leave'].split('-> ')[1], 16), 0x14)]
+        self.assertIn(f'jmp {k["leave"][0] + 6:#x}', ops)
 
     def test_creation_grid_server_registers_the_scene_commands(self):
         image, report = self.plan('server.dll')
