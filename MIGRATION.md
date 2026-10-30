@@ -2564,3 +2564,9 @@ Passo C3-15 (30/10/2026): queda no "Create" da customização; cor do nome.
 - Mudança: o *stub* restaura `ecx = esi` antes de voltar; o *stub* de depois do preenchimento também põe `CreateCharacterDialog.Text_Name.textColor` = `16777215` (branco). Testes do cliente e relocações OK (`.cache/verification/c3/tests-13.log`). Aplicado do `main` com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3l.log`): `client.dll` `a1a6d3ac…`, `server.dll` `c44e51a2…` (igual).
 - Próxima ação: criar a `GradeDelia` até a cidade (G4) e G5.
 - Cor do nome (mesma data, rodada seguinte): o *set* de `textColor` pelo C++ não mudou o texto (ficou cinza). O `Text_Name` do filme é um campo HTML de entrada (`DefineEditText` 87) com cor `#cccccc` no registro e no HTML inicial; os dois passaram a `#ffffff` no filme solto da cópia de laboratório (`0xf381` cor RGBA, e o atributo `color` do HTML inicial). SHA-256 `11973c0c…` → `4c8b8275d548445f1ccc6effae7db387c2cf10b9b6a0d63bc1d514cab07da878`.
+
+Análise de pets (30/10/2026, pedido do operador; só leitura, sem mudança de código).
+- Resultado: o sistema de pets não está implementado no servidor Rust (só GUIDs das 19 mensagens, `PetStatusInfo` sempre nulo e itens `pet_*` recusados). Requisitos e etapas em `docs/future/pet-system.md`.
+- IDs: o índice de classe do pet no laboratório (28) é o do NA, conferido em bytes no `client.dll`/`server.dll` x64 do NA (tabela de 28 classes + `None`, `cmp 0x1b` no nome, `cmp 0x1c` nos `switch` de pet); a ordem bate com `character_class::NAMES` (Delia = 10). Os 36 tipos de `PetInfo` do 1.69 são iguais no NA (que tem 85). Pendente: achar onde o 1.69 grava o índice do pet no `m_iClass` da entidade.
+- Cliente: não necessário.
+- Próxima ação: sem mudança; pets seguem no B5.
