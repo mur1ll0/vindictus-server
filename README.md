@@ -1,186 +1,285 @@
-# Vindictus — servidor de preservação em Rust
+<div align="center">
 
-Migração gradual do servidor legado .NET para Rust, PostgreSQL e Docker, para estudo e manutenção. **A migração está incompleta. O cliente candidato Vindictus 1.69 EN já autenticou no frontend restrito de laboratório, configurou segunda senha e criou/persistiu a primeira personagem Fiona pelo caminho mínimo de laboratório; seleção de personagem e entrada na cidade ainda não funcionam.**
+# Vindictus Server — Rust Preservation Project
 
-O projeto já oferece infraestrutura executável, HTTP operacional, contas de laboratório, formatos de protocolo recuperados, sessões internas e parte da persistência e das regras de login. A composição interna de login novo/existente está em [user-login-composition.md](docs/user-login-composition.md). A segunda senha interna recuperada está em [second-password.md](docs/second-password.md), com [codecs de rede recuperados](docs/second-password-wire.md), ligados ao [frontend TCP restrito](docs/lab-frontend-tcp.md). Os [controles de login e HomeCafeBonus](docs/frontend-login-controls.md) foram recuperados e verificados antes dessa ligação. A [proveniência de contas sintéticas](docs/lab-account-provenance.md) agora é conferida atomicamente antes dos efeitos do login de laboratório. A [consulta inicial de personagens](docs/character-lobby.md) agora preserva os dados do lobby e prepara uma lista vazia somente após confirmar ausência de personagens reais; criação e seleção continuam pendentes. O plano e o status verificável de cada etapa estão em [MIGRATION.md](MIGRATION.md). As regras de vínculo de itens têm implementação de domínio e validação diferencial descritas em [item-binding.md](docs/item-binding.md); uma [projeção efetiva do catálogo](docs/item-catalog.md) pode ser inspecionada somente leitura. Os [stats base dos equipamentos](docs/item-stats.md) têm leitura e composição verificadas; a [durabilidade](docs/item-durability.md) tem regras recuperadas e verificadas. As [cores e materiais](docs/item-colors.md) têm leitura e seleção verificadas. Atributos gerados, carregamento completo e entrega ainda estão pendentes. Código descompilado ou testes de infraestrutura não equivalem a um servidor de jogo completo.
+**A from-evidence rewrite of the legacy Vindictus (Mabinogi Heroes) .NET server in Rust, PostgreSQL and Docker.**
 
-## Executar em Docker
+![Rust 1.98](https://img.shields.io/badge/Rust-1.98-orange?logo=rust)
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![Client 1.69 EN](https://img.shields.io/badge/client-Vindictus%201.69%20EN-6b4fbb)
+![Status](https://img.shields.io/badge/migration-in%20progress-yellow)
 
-Requisitos: Docker Desktop com containers Linux, Docker Compose e PowerShell 7. Execute os comandos na pasta deste README.
+[What it is](#what-it-is) ·
+[Status](#status-at-a-glance) ·
+[Architecture](#architecture) ·
+[Requirements](#requirements) ·
+[Quick start](#quick-start) ·
+[Admin panel](#admin-panel) ·
+[Playing in the lab](#playing-in-the-lab) ·
+[Development](#development-and-tests) ·
+[Documentation](#documentation-map)
 
-~~~powershell
-# Apenas na primeira execução. Se .env existir, preserve-o e pule este comando.
+</div>
+
+> [!TIP]
+> ⭐ **If you like this project, please give it a star!** It helps other Vindictus fans and preservationists find it.
+> 🤝 **Contributions are welcome:** bug reports, reverse-engineering findings, client test results, documentation and code. See [Contributing](#contributing).
+
+> [!IMPORTANT]
+> This is a research and preservation project for a laboratory environment. **The migration is not finished.** It does not ship any game client, game assets, original server binaries, database backups or decompiled sources, and you have to provide your own legitimately obtained copies. All services bind to `127.0.0.1` by default and are not hardened for public hosting.
+
+## What it is
+
+Vindictus is an action MMORPG whose original server was a set of Windows .NET services backed by SQL Server. This repository rebuilds that server as a single Rust application, using evidence recovered from the original program, so that the old **Vindictus 1.69 EN (2016)** client can connect to it and play.
+
+### The problem it solves
+
+- **Preservation.** The original services need an obsolete Windows/.NET/SQL Server stack and native components that can no longer be maintained. This project replaces them with a portable, containerized server.
+- **Compatibility without guesswork.** Wire formats, rules and values are recovered from the original code and checked with differential tests (*oracles*) against the recovered C#. Nothing is "close enough": opcodes, data layouts and game values are never invented.
+- **Maintainability.** The result is a modular Rust codebase with typed errors, bounded parsing, prepared SQL, Argon2id passwords and graceful shutdown, plus a web admin panel to operate the game.
+- **Extensibility.** It is a base for studying new content, such as items, stages and new playable classes (Delia, class 10, is already playable in the lab).
+
+## Status at a glance
+
+The work is organized into blocks (see the [roadmap](docs/playable-game-roadmap.md)). The live status, what is left to do and the next action are always in **[MIGRATION.md](MIGRATION.md)**.
+
+| Block | Scope | Code | Client acceptance |
+|---|---|:---:|:---:|
+| **B0** | Character in town: login, creation, selection, movement, inventory, equipment, quickslots, skills/AP | ✅ | ✅ |
+| **B1** | Town: gold, NPCs and dialogs, shops (buy/sell/buyback/repair), stories and quests | ✅ | ⏳ |
+| **B2** | Stages and combat: mission entry, ProudNet battle relay, dungeons, monsters, drops, rewards, disconnects | ✅ | ⏳ |
+| **B3** | Gear progression: item attributes, Craft, Enhance, Enchant, storage, SkillEnhance, cash shop, VIP | ✅ | ⏳ |
+| **B4** | Admin panel, password login, free names, all 10 original classes, extension feasibility report | ✅ | 🟡 partial |
+| **B5** | Multiplayer (party, sync), PvP, guilds, trade, mail, auction, final parity | 🚧 in progress (pets done) | — |
+
+✅ done · 🟡 partial · ⏳ waiting for the operator's client session · 🚧 in progress
+
+Side tracks: new playable class **Delia** (accepted in the client; creation from the class grid works, with a few checks pending), item editor, stage editor and game launcher studies (see [`docs/future/`](docs/future)).
+
+## Architecture
+
+A **modular monolith**: one Rust binary with several subcommands, with layers that keep game rules, persistence and wire formats apart.
+
+```mermaid
+flowchart LR
+    client["Vindictus 1.69 EN client<br/>(lab copy)"]
+    browser["Browser"]
+
+    subgraph compose["Docker Compose (127.0.0.1 only)"]
+        bootstrap["bootstrap<br/>EndPoint.txt :8081"]
+        game["game (lab-frontend)<br/>login/town :27015<br/>channel :27003<br/>battle relay :27005<br/>web shop :27080<br/>admin panel :27090"]
+        server["server (serve)<br/>health/capabilities :8080"]
+        migrate["migrate<br/>(one-shot)"]
+        pg[("PostgreSQL 17<br/>:5433")]
+        mssql[("SQL Server<br/>legacy reference<br/>(optional profile)")]
+    end
+
+    client -- "server list (HTTP)" --> bootstrap
+    client -- "game TCP" --> game
+    browser -- "admin UI / API" --> game
+    game --> pg
+    server --> pg
+    migrate --> pg
+```
+
+| Layer | Folder | Responsibility |
+|---|---|---|
+| Domain | `src/domain` | Types, invariants and recovered game rules |
+| Application | `src/application` | Use cases, sessions and orchestration |
+| Infrastructure | `src/infrastructure` | PostgreSQL persistence, game runtime and transports |
+| Protocol | `src/protocol` | Packet framing, ISAAC cipher, recovered message codecs |
+| HTTP | `src/http` | Operational endpoints and the admin panel API |
+| Admin UI | `web/admin` | React + Vite single-page admin panel |
+| Schema | `migrations` | Incremental PostgreSQL migrations |
+| Tests | `tests` | Differential (oracle) tests, integration tests and fixtures |
+| Tooling | `scripts` | Dev/verification, content export, client lab preparation, reverse engineering |
+
+**Data.** PostgreSQL holds accounts and character state. The game content (items, NPCs, quests, stages) comes from the client's SQLite databases, exported into versioned JSON profiles that are kept apart from transactional state. SQL Server is used only as an untouched reference to compare against the legacy data.
+
+More detail: [architecture](docs/architecture.md), [database decision](docs/database-decision.md), [protocol](docs/protocol.md), [battle transport](docs/battle-transport.md).
+
+## Requirements
+
+| Use | You need |
+|---|---|
+| Run the server stack | Docker Desktop (Linux containers) with Docker Compose, PowerShell 7.4+ |
+| Develop and test | Rust **1.98.0** with rustfmt and Clippy (pinned by `rust-toolchain.toml`), Python 3.13 (`py -3.13` on Windows), Node.js 24 for the admin UI |
+| Play in the lab | A legitimately obtained **Vindictus 1.69 EN** client (Windows) and the private content exported from it |
+| Legacy comparison (optional) | The original SQL Server backups, the `legacy` Compose profile, .NET SDK and ILSpy for the oracle scripts |
+
+Rust and Node are not needed only to run the Docker images: the build stages compile everything.
+
+## Quick start
+
+This starts the infrastructure (PostgreSQL, migrations and the operational HTTP service). Run it from the repository root:
+
+```powershell
+# First run only: creates .env with generated credentials (keep it if it already exists).
 pwsh -File scripts/dev/init-env.ps1
+
+# Build and start the server (applies migrations first).
 docker compose up -d --build --wait server
+
+# Check it is alive.
 Invoke-RestMethod http://127.0.0.1:8080/health/ready
 Invoke-RestMethod http://127.0.0.1:8080/capabilities
-docker compose ps
-~~~
+```
 
-O Compose inicia PostgreSQL 17, aplica migrações e inicia o serviço Rust. A primeira compilação pode demorar. Não é necessário instalar Rust para executar a imagem Docker.
+Create an account (the password is read without echo and passed to the CLI through stdin):
 
-| Componente | Endereço padrão | Função |
-| --- | --- | --- |
-| HTTP Rust | 127.0.0.1:8080 | Readiness e capacidades operacionais |
-| PostgreSQL | 127.0.0.1:5433 | Banco do servidor Rust |
-| SQL Server opcional | 127.0.0.1:14333 | Referência legada de estudo |
-| Frontend TCP separado | 127.0.0.1:27015 | Login restrito com allowlist sintética; não publicado no Compose |
+```powershell
+pwsh -File scripts/dev/create-account.ps1 -Username researcher
+```
 
-As portas locais podem ser ajustadas em .env. Preserve credenciais e volumes. O processo Rust usa UID/GID 10001; o papel PostgreSQL da aplicação não possui privilégios de superuser, criação de bancos/papéis ou replicação. Hoje o mesmo papel aplica migrações; separar migrador e runtime é uma melhoria prevista antes de exposição pública.
+Stop and restart while keeping the data:
 
-~~~powershell
-# Parar e voltar a iniciar, conservando os dados.
+```powershell
 docker compose stop
-docker compose up -d --wait server
-# Depois de alterar código ou migrações.
-docker compose up -d --build --wait server
-~~~
+docker compose up -d --wait server   # or without "server" once the lab inputs below exist
+```
 
-Os volumes Docker guardam o banco. Não use down -v para parar: a opção remove os volumes. Um clone Git não contém os dados importados desta máquina; executar o Compose em outra máquina cria um banco novo. As migrações criam schema, sem restaurar .bak ou importar dados privados automaticamente.
+> [!WARNING]
+> The database lives in Docker volumes. Never use `docker compose down -v`, which deletes them. A fresh clone starts with an empty database: migrations create the schema, they do not import any private data.
 
-## Criar uma conta de laboratório
+Ports, configurable in `.env`:
 
-~~~powershell
-pwsh -File scripts/dev/create-account.ps1 -Username pesquisador
-~~~
+| Service | Address | Purpose |
+|---|---|---|
+| `server` | `127.0.0.1:8080` | Readiness and capabilities |
+| `postgres` | `127.0.0.1:5433` | Rust server database |
+| `bootstrap` | `127.0.0.1:8081` | `EndPoint.txt` server list for the client |
+| `game` | `127.0.0.1:27015` / `27003` / `27005` | Login and town, channel, battle relay |
+| `game` | `127.0.0.1:27080` | In-game web shop pages |
+| `game` | `127.0.0.1:27090` | Admin panel (UI and API) |
+| `legacy-sqlserver` | `127.0.0.1:14333` | Optional legacy reference (`--profile legacy`) |
 
-A senha é solicitada sem aparecer na tela e enviada ao CLI por stdin. O nome aceita 3–32 letras ASCII, números ou sublinhado, sem distinguir maiúsculas. A senha aceita 12–128 bytes UTF-8; armazenamento em Argon2id com salt aleatório.
+## Admin panel
 
-**Essa conta ainda não permite entrar no jogo.** Ela não cria um passport legado nem ativa as credenciais dos usuários importados. Não há endpoint HTTP de cadastro/login de jogo.
+The web admin panel is how you create game accounts and manage the server day to day. It is served by the `game` service at **<http://127.0.0.1:27090>**, on loopback only, with its own login, role checks and an audit log of every change.
 
-## Cliente e endereço IP
+**First access.** Create an account and give it the `admin` role:
 
-O candidato identificado é o cliente legado **Vindictus 1.69 EN (2016)**; nove arquivos relevantes coincidem entre as duas cópias locais examinadas. A versão atual oficial não está comprovada como compatível.
+```powershell
+pwsh -File scripts/dev/create-account.ps1 -Username myadmin
+pwsh -File scripts/dev/account-set-role.ps1 -Username myadmin -Role admin
+```
 
-A preparação de endereço é feita somente numa cópia do cliente, pela ferramenta scripts/client/prepare_lab_client.py: altera FeatureMatrix.EndPoints numa cópia SQLite e gera EndPoint.txt com backup. Veja parâmetros e limitações em [docs/client-compatibility.md](docs/client-compatibility.md). O IP do HTTP operacional não substitui o endereço frontend de jogo. A cópia já abriu a tela inicial e alcançou a recusa diagnóstica; autenticação continua pendente.
+Roles: `admin` (everything), `gm` (game management) and `leitura` (read-only). `none` removes access. After that, accounts can be created and managed from the panel itself.
 
-Com Rust instalado, o diagnóstico separado pode ser executado:
+| Page | What you can do |
+|---|---|
+| **Accounts** | Create game accounts, reset passwords, assign panel roles |
+| **Characters** | Inspect any character, give or remove items, gold and cash, set level and progression, arrange the inventory |
+| **Item editor / Models** | Create, clone, edit or hide items, and manage 3D model kits for new gear |
+| **Shops / Cash shop** | Edit NPC shop catalogs by location and NPC, and cash shop products and prices |
+| **Tuning** | Change live game rates (EXP, gold, drops) and Enhance/Enchant chances without restarting |
+| **Content** | Publish versioned content changes with scheduled maintenance; the lab launcher brings the client up to date |
+| **World** | Maps and channels (read-only) |
+| **Audit** | Who changed what, and when |
 
-~~~powershell
-cargo run --locked -- probe-frontend --bind 127.0.0.1:27015
-~~~
+The panel never reimplements the game login. Game accounts log in through the client with the account name. Plan and extension points: [docs/b4-painel-plano.md](docs/b4-painel-plano.md).
 
-Ele envia a tabela recuperada de mensagens, reconhece UserLogin tipado478 ou seu envelope GUID categoria0 e recusa todos os logins. Não inicia autenticação, personagens ou batalha. As instruções definitivas de cliente/IP/criação de conta de jogo serão documentadas após o aceite real M24.
+## Playing in the lab
 
-## Desenvolvimento e testes
+The `game` service needs private inputs that are never committed: a prepared client copy, content exported from that client and a protected runtime profile. The outline:
 
-Requisitos adicionais: Rust 1.98.0 com rustfmt/Clippy, PowerShell 7 e Python 3.13 via py no Windows. rust-toolchain.toml fixa o toolchain; Cargo.lock fixa dependências.
+1. **Client copy.** Copy your 1.69 EN client to `.cache/play-client`. Originals stay read-only.
+2. **Point the client at the lab** with `scripts/client/prepare_lab_client.py` (dry run first, then `--apply`), which rewrites the server list in the copy and creates a backup. See [client compatibility](docs/client-compatibility.md).
+3. **Export the content** with `scripts/content/export_*.py` into `.cache/private-content` (commands in [content tuning](docs/content-tuning.md) and in the "Preparation" section of each test script).
+4. **Prepare the runtime profile** with `scripts/dev/prepare-lab-frontend-profile.ps1`, which is mounted as a Docker secret.
+5. **Build and start everything:**
 
-~~~powershell
-# PostgreSQL já deve estar rodando.
+   ```powershell
+   $env:COMPOSE_PARALLEL_LIMIT = 1
+   docker compose build
+   docker compose up -d --wait
+   docker compose ps   # game and server should be healthy
+   ```
+
+6. **Create your account** in the [admin panel](#admin-panel).
+7. **Play** through `.cache/play-client/start-lab.bat`. Log in with the account name.
+
+Lab helpers: `scripts/dev/lab-give-item.ps1`, `lab-give-cash.ps1`, `lab-set-class.ps1` and `account-set-role.ps1`. Every client test script in [`docs/client-tests/`](docs/client-tests) starts with an up-to-date preparation checklist.
+
+## Development and tests
+
+```powershell
+# Fast gate: format, Clippy (-D warnings), Rust tests, doctests, build, Python tests.
+pwsh -File scripts/dev/verify.ps1
+
+# Full gate, including PostgreSQL integration tests in isolated schemas.
 $env:TEST_DATABASE_URL = (Get-Content .cache/database-url -Raw).Trim()
-try {
-    pwsh -File scripts/dev/verify.ps1 -DatabaseIntegration
-} finally {
-    Remove-Item Env:TEST_DATABASE_URL
-}
+try { pwsh -File scripts/dev/verify.ps1 -DatabaseIntegration } finally { Remove-Item Env:TEST_DATABASE_URL }
+
+# Docker smoke: migrate, readiness, account creation, duplicate rejection, restart persistence.
 pwsh -File scripts/dev/smoke-docker.ps1
-~~~
+```
 
-O gate executa formato, Clippy com avisos tratados como erro, testes Rust, doctests, build, integrações PostgreSQL e testes Python. As integrações usam schemas temporários isolados. O modo sem -DatabaseIntegration não executa os testes de banco. Para executar as mesmas integrações na rede interna Linux do Compose, use `pwsh -File scripts/dev/verify.ps1 -DatabaseIntegration -DatabaseIntegrationDocker`; esse modo usa o papel da aplicação já configurado no .env, compila com --locked e não precisa de TEST_DATABASE_URL no Windows. O banco deste projeto deve estar healthy; a imagem de testes recebe apenas fonte/fixtures públicas, e as credenciais são fornecidas ao executar o container, nunca durante o build.
+- Within a block, run only the focused tests for what changed (`cargo test --test <target>`, filtered PostgreSQL tests). The full gate runs when a block closes.
+- Cargo is capped at 4 jobs and 4 test threads (`.cargo/config.toml`), and Docker builds use `COMPOSE_PARALLEL_LIMIT=1`.
+- Full logs go to `.cache/verification/`. Results of the last gate: [verification report](docs/evidence/verification/REPORT.md).
+- When a recovered wire format changes, regenerate its fixtures with the `scripts/reverse/generate-*-fixtures.ps1` oracles.
 
-O smoke reinicia apenas PostgreSQL/servidor deste projeto e preserva contas e snapshots sintéticos como evidência. Logs completos ficam em .cache/verification; o terminal recebe resumos. Resultados ficam em [relatório](docs/evidence/verification/REPORT.md), gate.json e docker-smoke.json. O workflow .github/workflows/verify.yaml executa verificação em CI com PostgreSQL efêmero.
+### Ground rules
 
-Em outro sistema, configure TEST_DATABASE_URL com o banco de teste local e use os comandos Cargo/Python do workflow. Não publique URLs de conexão ou exportações privadas.
+- Never invent opcodes, values or behavior: recover them from evidence and test them against the recovered reference.
+- Never send a fake success to the client: unported features are refused explicitly.
+- No `unsafe`, no `unwrap`/`expect` in production code, no secrets in logs, arguments or source.
+- Originals (clients, backups, legacy server, reference clients) are read-only evidence.
 
-## Arquitetura
+The full contributor and agent rules are in [AGENTS.md](AGENTS.md).
 
-Monólito modular com limites explícitos:
+## Documentation map
 
-| Pasta | Responsabilidade |
-| --- | --- |
-| src/domain | Tipos, invariantes e regras recuperadas |
-| src/application | Casos de uso e coordenação de sessões/importação |
-| src/infrastructure | PostgreSQL e transporte |
-| src/protocol | Framing, cifra, mensagens e identidade legada |
-| src/http | Operação e diagnóstico HTTP |
-| migrations | Schema PostgreSQL incremental |
-| tests | Testes diferenciais, integração e fixtures sintéticos |
-| scripts | Docker, importação, engenharia reversa e cliente de laboratório |
-| docs | Contratos, decisões, evidências sanitizadas e limitações |
+> Project documents are written in Portuguese (pt-BR); code and commit messages are in English.
 
-SQL Server permanece referência; PostgreSQL é o alvo novo. Datas conservam precisão SQL, strings problemáticas ficam em bytes UTF16, rowversion é preservado separadamente da revisão operacional. Protocolo de jogo é separado de HTTP. Não inventar opcodes, relógios, flags ou observações ausentes.
+| I want to know… | Read |
+|---|---|
+| **What is done, what is left and the next action** | [MIGRATION.md](MIGRATION.md) — the live roadmap and checklist |
+| The work order and how blocks are run | [docs/playable-game-roadmap.md](docs/playable-game-roadmap.md) |
+| What to test in the game client, step by step | [docs/client-tests/](docs/client-tests) — one script per block (B1–B5, C2, C3) |
+| The detailed history of every session and its evidence | [docs/history/session-log.md](docs/history/session-log.md) — append-only and large: search it by step id instead of reading it whole |
+| How the system is designed | [docs/architecture.md](docs/architecture.md), [docs/protocol.md](docs/protocol.md), [docs/database-decision.md](docs/database-decision.md) |
+| Which client to use and how to prepare it | [docs/client-compatibility.md](docs/client-compatibility.md) |
+| Where the tunable game values live | [docs/content-tuning.md](docs/content-tuning.md) |
+| The admin panel plan and extension points | [docs/b4-painel-plano.md](docs/b4-painel-plano.md), [docs/extension-feasibility.md](docs/extension-feasibility.md) |
+| How to port a new playable class | [docs/new-class-guide.md](docs/new-class-guide.md), [docs/future/delia-class-port.md](docs/future/delia-class-port.md), [`.agents/skills/new-class-port`](.agents/skills/new-class-port/SKILL.md) |
+| Future features (item editor, launcher, stage editor, pets) | [docs/future/](docs/future) |
+| Contracts of individual subsystems | The topic files in [docs/](docs) (login, characters, items, skills, mail, …) |
+| Git, verification and skills used by the project | [docs/git-workflow.md](docs/git-workflow.md), [docs/verification.md](docs/verification.md), [docs/skills.md](docs/skills.md) |
 
-Detalhes: [AGENTS.md](AGENTS.md), [arquitetura](docs/architecture.md), [banco](docs/database-decision.md), [protocolo](docs/protocol.md) e [skills](docs/skills.md).
+## Contributing
 
-## O que já foi implementado
+Contributions of every size are welcome. Good ways to help:
 
-- Inventário com hashes e recuperação estática de 95 assemblies managed, sem executar serviços originais.
-- Restauração preservada de seis backups SQL Server, CHECKDB e catálogo de dependências.
-- Base Rust/Docker/PostgreSQL, migrações, readiness, CLI de contas e CI.
-- Framing Devcat, ISAAC Core/Heroes, tabela de 649 mensagens e subconjunto de codecs comparados a oracles recuperados.
-- Diagnóstico TCP loopback, identidade legada e preparação de uma cópia de cliente.
-- Persistência dos 15 campos de User; 29 usuários reais importados privadamente e comparados após reinício, sem ativar credenciais.
-- Políticas de ban/IPLock e quantização de relógio, sessões internas e exclusividade de usuário no processo.
-- LimitedAccount, contrato interno de UserLogin e planejador de dormência/retorno/recompensas.
-- Snapshots completos de lealdade/achievements e executor restrito de efeitos de conta com transação, revisão e replay idempotente.
-- Preservação dos 64 campos de personagens, conexões e fila legada, com consultas de lista/última conexão: [contrato e importação](docs/character-login-storage.md).
-- Criação de entradas de recompensas de retorno, identity explícito e replay durável: [contrato e inicialização](docs/dormant-item-queue.md). Entrega de itens ainda pendente.
+- **Play-test** an entry from [`docs/client-tests/`](docs/client-tests) and report what happened (entry id, what you did, what appeared on screen, time).
+- **Recover evidence**: a message format, a game rule or a client behavior, with the source it came from.
+- **Port a pending feature** from the lists in [MIGRATION.md](MIGRATION.md), with focused tests.
+- **Improve the docs**, including English translations.
 
-Cada afirmação tem escopo e evidência em MIGRATION.md. O executor restrito continua recusando dependências não migradas. O novo executor de contas existentes insere recompensas na fila com transação, revisão e recibo; não está ligado ao cliente. Números de testes atualizados ficam no relatório.
+Before opening a pull request, read [AGENTS.md](AGENTS.md) (architecture, safety and verification rules), keep each change small and verified, and never include game assets, client files, backups, credentials or decompiled sources.
 
-Contratos: [persistência](docs/legacy-user-storage.md), [importação](docs/user-import.md), [políticas](docs/login-policy.md), [sessões](docs/frontend-session.md), [ownership](docs/session-registry.md), [LimitedAccount](docs/limited-account-return.md), [planejador](docs/login-effects.md) e [efeitos](docs/login-account-effects.md).
+## Legacy reference and reverse engineering
 
-## Plano restante
+The Rust server does not depend on SQL Server. To restore and compare the legacy data, keep your legitimately obtained files **outside** this repository in this layout:
 
-| Etapas | Resultado esperado |
-| --- | --- |
-| M11–M13 | Frontend/autenticação completos, UserLogin, token, ownership e login real |
-| M14–M15 | Dependências/personagens e criação/lista/seleção/exclusão com persistência |
-| M16 | Inventário, equipamentos, moedas, atributos e operações atômicas |
-| M17 | Conteúdo SQLite, classes, skills, quests, NPCs, receitas e mapas |
-| M18 | Lobby, canais, posição, chat, grupos, convites e reconexão |
-| M19 | Transporte nativo de batalha/ProudNet/relay/host com compatibilidade comprovada |
-| M20 | Missões, combate, drops, recompensas e persistência idempotente |
-| M21 | Postal, trade, guild, ranking, cashshop e demais serviços necessários |
-| M22 | Administração, backups, métricas, auditoria e limites de recursos |
-| M23 | Paridade, falhas, reconexão, integridade e carga comparadas ao legado |
-| M24 | Aceite com cliente: login, personagem, batalha, recompensa e reconexão |
-
-A política de recompensas agora possui exportador privado, qualificação por personagem e diagnóstico Rust/Docker somente leitura, comparados ao Framework. Consulte [política de recompensas](docs/dormant-reward-policy.md) para executar a comparação. Consultas reais, política e recibos estão integrados ao executor interno de contas existentes. A prioridade intermediária é login, seleção e cidade/movimento básicos; veja [caminho e bloqueios](docs/client-minimum-path.md). A próxima ação exata está em MIGRATION.md. Processamento, inventário e correio ainda pendentes.
-
-Depois da compatibilidade básica, o projeto poderá estudar novas armas, fases e classes. Isso exige regras do servidor e dados/assets/animações/mensagens suportados pelo cliente. Extrair uma classe atual não garante que o cliente de 2016 consiga carregá-la; formatos, executável e protocolo podem exigir adaptação. Essa extensão não é uma etapa concluída.
-
-## Referência SQL Server e engenharia reversa
-
-O serviço Rust normal não depende de SQL Server. Para restaurar/comparar o legado, mantenha os arquivos obtidos legitimamente fora deste repositório, na estrutura local esperada:
-
-~~~
+```text
 VindictusPrivate/
-  vindictus-server/       # este repositório Git
-  ServidorVindictus/      # referência original, somente leitura
-    database/            # .bak
-  Client/                # cliente original
-  Vindictus1.69EN/        # outra cópia de referência
-~~~
+├── vindictus-server/      # this repository
+├── ServidorVindictus/     # original server (read-only)
+│   └── database/          # .bak backups
+├── Client/                # original client (read-only)
+└── Vindictus1.69EN/       # reference client copy (read-only)
+```
 
-~~~powershell
+```powershell
 docker compose --profile legacy up -d --wait legacy-sqlserver
-# Exemplo: escolha nomes reais; não substitua bases existentes.
 pwsh -File scripts/database/Restore-Legacy.ps1 -BackupName heroes.bak -DatabaseName study_heroes
-~~~
+```
 
-Consulte [migração de banco](docs/database-decision.md) e parâmetros dos scripts antes de restaurar/catalogar. Scripts de oracle exigem catálogos locais e ferramentas .NET/ILSpy; não são requisitos de execução normal do servidor nem de testes com fixtures já versionados. Catálogos SQL completos podem conter código/dados sensíveis e ficam ignorados pelo Git. Evidências compartilháveis contêm metadados, hashes, contagens e fixtures sintéticos.
+Decompiled output, raw SQL catalogs, private exports and game assets are ignored by Git. Only sanitized evidence (hashes, counts, metadata and synthetic fixtures) is committed.
 
-## Git e continuidade
+## License and disclaimer
 
-O repositório cobre apenas esta pasta. .gitignore exclui credenciais, caches, exportações privadas, backups, clientes/binaries, fontes descompiladas, catálogos SQL brutos e artefatos de compilação. .gitattributes normaliza textos em LF e .editorconfig registra convenções.
-
-Ao terminar cada etapa: executar o gate completo, verificar o escopo da entrega, atualizar MIGRATION.md e evidências sanitizadas, revisar o diff e criar um commit local com código/testes/documentação juntos. Commits não implicam publicação em remoto. Backups do banco e originais são mantidos separadamente do Git.
-
-
-
-O executor interno de contas existentes agora reúne as observações de dormência/lealdade, o catálogo de recompensas e a inserção da fila em uma transação com CAS e recibo UUID. Consulte [o contrato e os limites](docs/login-reward-executor.md). A integração à sessão de jogo e a entrega por inventário/correio continuam pendentes; ainda não há login de cliente disponível.
-
-As decisões do consumidor de QueuedItem agora foram recuperadas e portadas para Rust: seleção por dono, gate de eventos, destino/expiração e binder padrão, comparados a dois perfis Framework. Consulte [consumidores da fila](docs/queued-item-consumers.md) para regras e dependências concretas. Esta subetapa não processa entradas reais; inventário, correio, logs e ligação à sessão continuam pendentes.
-
-O parsing comum de ItemClassEx e o sentinel de localização agora estão portados e comparados ao Framework x86/x64 em cinco culturas. Consulte [parser e limites](docs/item-class-ex.md): argumentos temporais exigem resolver explícito; catálogo/binder e persistência do inventário continuam pendentes.
-
-A cadeia de argumentos temporais de ItemClassEx agora possui contexto explícito e aritmética comparada ao Framework. Consulte [contrato temporal](docs/item-argument.md): o adaptador da gramática cultural de datas e sua ligação ao consumidor ainda estão pendentes.
-
-O [adaptador temporal do perfil offline](docs/item-argument-profile.md) implementa datas completas en-US e segundos relativos com clock explícito e UTC+8. Formatos desconhecidos são recusados; o consumidor real, catálogo/binder e inventário ainda estão pendentes.
-
-
-
-
-O [frontend TCP restrito](docs/lab-frontend-tcp.md) já foi verificado com sockets e PostgreSQL; criação, seleção e entrada no mapa permanecem pendentes, assim como o aceite no cliente real.
+No license is granted for the game, its client, its assets or its original server, which belong to their respective owners. This repository contains only original Rust/Python/PowerShell/TypeScript code and sanitized evidence produced for interoperability and preservation research. It is not affiliated with or endorsed by Nexon or devCAT.

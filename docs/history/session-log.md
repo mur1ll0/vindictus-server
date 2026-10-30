@@ -2677,3 +2677,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Verificação: `py -3.13 scripts/dev/session-usage.py` imprime o resumo da sessão; `rg -l C3-23` sem caminho e com `docs` não lista o histórico; `rg -c Delia docs/history/session-log.md` = 203.
 - Cliente: não necessário.
 - Pendente / próxima ação: rebuild do Docker e sessão de cliente pelo roteiro B5-pets; sessões de cliente B1–B4 e C3; decisão sobre a Miri.
+
+## 2026-10-30 — README em inglês (pedido do operador)
+- Feito: `README.md` reescrito em inglês: o que é, problema resolvido, estado por bloco (B0–B5), arquitetura (diagrama Mermaid e camadas), requisitos, início rápido, painel de administração (primeiro acesso com `create-account.ps1` + `account-set-role.ps1`, papéis e páginas), laboratório de jogo, testes, regras, mapa da documentação (MIGRATION.md, roadmap, roteiros de cliente, este histórico), contribuição, referência legada e aviso legal; pedido de estrela e convite a contribuições no topo.
+- Verificação: links relativos do README conferidos (todos existem).
+- Cliente: não necessário.
+- Commits: ver `git log -- README.md`.
+- Pendente / próxima ação: inalterada (sessão de cliente B5-pets; sessões B1–B4 e C3; decisão sobre a Miri).
