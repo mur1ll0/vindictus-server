@@ -2507,3 +2507,15 @@ Passo C3-8 (30/10/2026): botão de voltar no arranjo do 1.69.
 - Mudança: sem deslocamentos; `Button_Back._visible` = `"true"` pelo vt+0x1c. Teste do cliente e relocações OK (`.cache/verification/c3/tests-10.log`). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3h.log`): `client.dll` `197ca595…`, `server.dll` `c44e51a2…` (igual).
 - *Sample outfits* da Delia: é o trabalho da sessão filha das armaduras de *preview* (prompt da etapa).
 - Próxima ação: G4 (voltar) no cliente.
+
+Passo C3-9 (30/10/2026): roupas de amostra (*Sample outfits*) da Delia na customização.
+- Relato do operador (C3, sétima rodada): o seletor de 5 opções não muda nada na Delia; na Arisha muda.
+- Evidência (leitura pontual, `client.dll` 1.69 e NA):
+  - os 5 botões são `EyeTargetTestPanel.MC_CostumeControl.Button_Costume0..4`; cada um manda o `fscommand` que o C++ lhe dá por `EyeTargetTestPanel.setCommand`. No 1.69 isso é `0x384a32d0`: `switch` da classe (`cmp eax, 9; ja` em `0x384a3308`, tabela `0x384a3b24`), um caso por classe com `CsfChanged.create_<classe>` (botão 0) e `CsfChanged.trial_<classe>1..4` (botões 1–4), e `doFsCommand(create_<classe>)` ao abrir. A classe 10 cai no *default*: botões sem comando;
+  - o *handler* `CsfChanged.` (`0x384b1b61`) carrega `create_<classe>` direto e monta `trial_…` como `<SeasonTag>_trial_<classe><n>[sufixo da arma]` (`SeasonTag` EN-US do `FeatureMatrix` = `queen_after`; sufixo só para as armas 2/4/6/10/22/23);
+  - o NA faz o mesmo em laço (`0x38d15f9f`: `CsfChanged.create_%s`, `CsfChanged.trial_%s%d` para 1..4; `SeasonTag` EN-US `global_queen_after`). Os `csf/queen_after_trial_delia1..4.csf` do 1.69 já existem e são iguais byte a byte aos `global_queen_after_trial_delia1..4.csf` do NA (Crystal Rose 700, Training Cube 704, Infinity Crown 705, Lugh Lámhfhada 678, todos na categoria `female` do `player_costume.txt` do 1.69); `create_delia.csf` também existe. Nenhum dado de conteúdo falta.
+- Mudança: `SWITCHES['client.dll']` ganha `(0x384A3308, 9, False)`: o caso da Hagie é clonado com os nomes da Delia (o mesmo auxiliar `0x384a26a0`, nomes de 5 letras) e volta ao fim comum `0x384a3a1d`. Classes 0–9 com as mesmas entradas da tabela original.
+- Verificação: `test_sample_outfits_give_delia_her_five_commands` (novo), `test_switches_send_ten_to_delia_and_keep_the_pet_at_28`, `test_every_new_pointer_is_relocated`, 3 OK (`.cache/verification/c3/tests-outfits-1.log`). Aplicado com o jogo fechado a partir dos `*.pre-routing.bak` (`.cache/verification/c3/class-routing-apply-c3i.log`; antes `197ca595…`/`c44e51a2…`, o C3-8): `client.dll` `6a842ff5…`, `server.dll` `c44e51a2…` (igual).
+- Pendente de confirmação no cliente: que a classe passada a `0x384a32d0` na customização da Delia é 10 (vem do método virtual `0x384a5870`, *slot* +0x18 do painel); se os botões continuarem mudos, ler a memória na customização.
+- Cliente: `docs/client-tests/C3-criacao.md`, G6.
+- Próxima ação: G6 (e G4) no cliente.

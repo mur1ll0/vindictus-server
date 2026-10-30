@@ -66,6 +66,28 @@ class LabCopyTest(unittest.TestCase):
                         bytes(original.data[original.offset(cmp):original.offset(cmp) + 20]), cmp))[2].op_str).group(1), 16)
                     self.assertEqual(self.entry(image, table, routing.PET), self.entry(original, old, 10))
 
+    def test_sample_outfits_give_delia_her_five_commands(self):
+        image, report = self.plan('client.dll')
+        original = Image(source('client.dll'))
+        switch = next(s for s in report['switches'] if s['cmp'] == hex(0x384A3308))
+        head = list(self.md.disasm(bytes(image.data[image.offset(0x384A3308):image.offset(0x384A3308) + 20]),
+                                   0x384A3308))[:3]
+        table = int(re.search(r'\+ (0x[0-9a-f]+)\]', head[2].op_str).group(1), 16)
+        for i in range(10):
+            self.assertEqual(self.entry(image, table, i), self.entry(original, 0x384A3B24, i))
+        case = int(switch['delia_case'], 16)
+        code = list(self.md.disasm(bytes(image.data[image.offset(case):image.offset(case) + 0x100]), case))
+        end = next(i for i, x in enumerate(code) if x.mnemonic == 'jmp')
+        strings = [routing.read_string(image, int(v, 16)) for x in code[:end]
+                   for v in re.findall(r'0x[0-9a-f]{8}', x.op_str) if x.mnemonic in ('push', 'mov')]
+        commands = [s for s in strings if s and s.startswith('CsfChanged.')]
+        buttons = [s for s in strings if s and s.startswith('Button_Costume')]
+        self.assertEqual(commands, ['CsfChanged.create_delia'] + [f'CsfChanged.trial_delia{n}' for n in range(1, 5)]
+                         + ['CsfChanged.create_delia'])
+        self.assertEqual(buttons, [f'Button_Costume{n}' for n in range(5)])
+        # The clone rejoins Hagie's tail: doFsCommand(create_delia), then the shared epilogue.
+        self.assertEqual(int(code[end].op_str, 16), 0x384A3A1D)
+
     def test_server_tables_have_delia_at_ten_and_no_null_after_her(self):
         image, report = self.plan('server.dll')
         for table in report['tables']:

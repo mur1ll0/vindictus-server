@@ -14,6 +14,7 @@
 3. **G3:** criar uma classe antiga (Fiona) até a cidade.
 4. **G4:** criar uma Delia até a cidade e voltar à seleção.
 5. **G5:** abrir a grade e voltar sem criar.
+6. **G6:** na customização, as roupas de amostra (*Sample outfits*) da Arisha e da Delia (pode vir antes da G4, sem criar).
 
 ## Como relatar
 Para cada linha: ID e número (ex.: `G2-3`), o que apareceu (captura se possível), se travou ou fechou, horário aproximado e relatório de queda. Se uma linha falhar, anote o horário, tente a **G5** (voltar) e encerre a sessão; as entradas seguintes dependem da anterior.
@@ -38,10 +39,19 @@ Pré-condição: G2, com a Fiona selecionada.
 ### G4 — Criar uma Delia
 Pré-condição: G3 concluída (ou, se a G3 falhou na criação mas a customização abriu, ainda assim tente).
 - [ ] Na grade, escolher a **Delia** → "Create this character" → customização com a **Delia** (corpo, rosto, cabelo da Delia, não da Fiona). Mudar rosto, cabelo e cores → o modelo muda.
-- [ ] Os botões de armadura da customização: anotar quantos há e o que acontece ao clicar (as armaduras de *preview* são a etapa seguinte, numa sessão separada).
+- [ ] Os botões de armadura da customização: ver **G6**.
 - [ ] Concluir, nome `GradeDelia` → criada; entra na cidade como Delia (espada nas costas, combate básico como a `DeliaLab`).
 - [ ] Sair para a seleção → `GradeDelia` aparece certa (modelo, rosto, cabelo, roupa) e entra de novo.
 
 ### G5 — Voltar sem criar
 Pré-condição: na seleção.
 - [ ] Abrir a grade e clicar em voltar → volta à seleção sem travar; a lista continua certa.
+
+### G6 — Roupas de amostra (*Sample outfits*)
+Pré-condição: `client.dll` `6a842ff5…` (passo C3-9); customização aberta pela grade.
+- [ ] **Arisha** (controle): clicar nos 5 botões do seletor, um por vez → o modelo troca a cada clique como antes (sem armadura e 4 conjuntos).
+- [ ] **Delia**: ao abrir, o modelo está com a roupa inicial (só o *inner*, como na primeira opção).
+- [ ] Delia, botões 2 a 5 → um conjunto completo (cabeça, tronco, pernas, mãos, pés) a cada clique, nesta ordem: Crystal Rose, Training Cube, Infinity Crown, Lugh Lámhfhada (os do NA). Anotar o número do botão que não mudar nada, que mostrar peça faltando ou que mostrar modelo masculino.
+- [ ] Delia, botão 1 → volta à roupa inicial (só o *inner*).
+- [ ] As cores, o rosto e o cabelo escolhidos antes continuam depois da troca de roupa (anotar se o cabelo ou a maquiagem mudam junto: os conjuntos do NA trazem cabelo e maquiagem próprios, como os das outras classes).
+- [ ] Concluir a criação depois de escolher um conjunto → anotar com que roupa a personagem nasce (comparar com a Arisha).

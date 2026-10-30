@@ -83,6 +83,7 @@ SWITCHES = {
         (0x3880401A, 10, True),   # scripts/expression/expression_table_<class>
         (0x38861C22, 10, True),   # scripts/skill/<class>_skill_keyword_table.txt
         (0x387A3AE4, 9, False),   # lowercase class name (csf/bodyshape_*_%s.fig and others)
+        (0x384A3308, 9, False),   # customization "sample outfits": CsfChanged.create_/trial_<class>1-4
     ),
     'server.dll': (
         (0x407EFDBD, 9, False),   # action state scripts
