@@ -21,37 +21,37 @@ Para cada linha marcada: ID da entrada e número da linha (ex.: `D2-2`), o que a
 
 ### D0 — Personagem de teste
 Pré-condição: preparação feita.
-- [ ] Na seleção, criar uma **Fiona** chamada `DeliaLab` (qualquer aparência) → criada e listada.
-- [ ] Entrar na cidade com ela e sair para a seleção → entra e sai normalmente.
-- [ ] Fechar o cliente.
+- [x] Na seleção, criar uma **Fiona** chamada `DeliaLab` (qualquer aparência) → criada e listada.
+- [x] Entrar na cidade com ela e sair para a seleção → entra e sai normalmente.
+- [x] Fechar o cliente.
 
 ### D1 — Itens da Delia (ainda como Fiona)
 Pré-condição: `DeliaLab` fora do jogo. O `cid` aparece no painel, na ficha da personagem, ou na saída da D2; se ainda não souber, faça a D2 primeiro, desfaça com a D5 e volte aqui.
-- [ ] `./scripts/dev/lab-give-item.ps1 -ItemClass bastardsword_chieftain_restoration -Count 1 -Cid <cid>` → o comando termina sem erro.
-- [ ] `./scripts/dev/lab-give-item.ps1 -ItemClass delia_china_inner -Count 1 -Cid <cid>` → o comando termina sem erro.
+- [x] `./scripts/dev/lab-give-item.ps1 -ItemClass bastardsword_chieftain_restoration -Count 1 -Cid <cid>` → o comando termina sem erro.
+- [x] `./scripts/dev/lab-give-item.ps1 -ItemClass delia_china_inner -Count 1 -Cid <cid>` → o comando termina sem erro.
 (Alternativa: dar os dois itens pelo painel, em Personagens → `DeliaLab` → Dar item.)
 
 ### D2 — Classe 10 na seleção de personagem
 Pré-condição: D1 feita; cliente fechado.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → imprime `cid=<número> class 1 -> 10` e o comando para desfazer.
-- [ ] Abrir o cliente e entrar até a seleção de personagem → anotar: a lista aparece? `DeliaLab` aparece? Com que nome de classe, ícone e modelo (Fiona, outro, invisível, pose T)? O cliente fecha?
-- [ ] Clicar em `DeliaLab` sem entrar → o modelo muda? Algum texto vazio ou `#GameUI_…`?
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → imprime `cid=<número> class 1 -> 10` e o comando para desfazer.
+- [x] Abrir o cliente e entrar até a seleção de personagem → anotar: a lista aparece? `DeliaLab` aparece? Com que nome de classe, ícone e modelo (Fiona, outro, invisível, pose T)? O cliente fecha?
+- [x] Clicar em `DeliaLab` sem entrar → o modelo muda? Algum texto vazio ou `#GameUI_…`?
 
 ### D3 — Cidade com a classe 10
 Pré-condição: D2 sem queda.
-- [ ] Entrar com `DeliaLab` → anotar: tela de carregamento, chegada na cidade ou queda (e em que ponto).
-- [ ] Na cidade: modelo do corpo, cabeça e cabelo; andar, correr, pular; abrir o inventário e a janela de personagem (nome de classe, atributos, skills).
+- [x] Entrar com `DeliaLab` → anotar: tela de carregamento, chegada na cidade ou queda (e em que ponto).
+- [x] Na cidade: modelo do corpo, cabeça e cabelo; andar, correr, pular; abrir o inventário e a janela de personagem (nome de classe, atributos, skills).
 
 ### D4 — Equipamento e missão curta
 Pré-condição: D3 na cidade.
-- [ ] Equipar `delia_china_inner` e a espada `bastardsword_chieftain_restoration` → aceita ou recusa (texto da mensagem)? O modelo muda?
-- [ ] Entrar na primeira missão disponível → carrega? Atacar (botão esquerdo e direito), esquivar, usar uma skill → anotar a animação (da Delia, da Fiona, parada) e se o cliente fecha.
-- [ ] Sair da missão e voltar à cidade.
+- [x] Equipar `delia_china_inner` e a espada `bastardsword_chieftain_restoration` → aceita ou recusa (texto da mensagem)? O modelo muda?
+- [x] Entrar na primeira missão disponível → carrega? Atacar (botão esquerdo e direito), esquivar, usar uma skill → anotar a animação (da Delia, da Fiona, parada) e se o cliente fecha.
+- [x] Sair da missão e voltar à cidade.
 
 ### D5 — Desfazer
 Pré-condição: personagem fora do jogo (feche o cliente se ele travou). Se a D4 equipou os itens da Delia, desequipe-os no jogo antes de sair; se não der (queda), relate e não rode o comando, que a limpeza é feita do lado do servidor.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1` → `class 10 -> 1`.
-- [ ] Abrir o cliente: `DeliaLab` aparece como Fiona e entra na cidade. Os itens da Delia ficam no inventário (não equipáveis pela Fiona).
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1` → `class 10 -> 1`.
+- [x] Abrir o cliente: `DeliaLab` aparece como Fiona e entra na cidade. Os itens da Delia ficam no inventário (não equipáveis pela Fiona).
 
 ## Resultado da sessão de 27/10/2026 (operador, 20:55–21:01 local; servidor 23:55–00:01 UTC)
 - **D0/D1:** Fiona `DeliaLab` criada pelo operador; itens dados e classe trocada por mim (`MIGRATION.md`). Ela não tinha entrado na cidade antes da troca.
@@ -75,33 +75,33 @@ Pré-condição: `game` recompilado com o commit deste passo (o servidor envia `
 
 ### D7 — Não regressão com as tabelas de classe estendidas (`.hcls`)
 Pré-condição: `client.dll` e `server.dll` da cópia de laboratório com o patch `scripts/client/patch_class_table.py` aplicado (hashes `a9591d3a…` e `af43431e…`; o `start-lab.bat` não troca esses arquivos). A `DeliaLab` é Fiona; não troque a classe.
-- [ ] Abrir pelo `start-lab.bat`, entrar até a seleção → a lista e os modelos aparecem como antes.
-- [ ] Criar uma personagem de qualquer classe (barra V4) → criada; entrar na cidade com ela e com a Murael.
-- [ ] Entrar numa missão curta e voltar à cidade → sem queda.
-- [ ] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.314272ec54054ed0.pre-hcls.bak` sobre `bin/client.dll` e `bin/server.dll.d7727e182f6cdec1.pre-hcls.bak` sobre `bin/server.dll`.
+- [x] Abrir pelo `start-lab.bat`, entrar até a seleção → a lista e os modelos aparecem como antes.
+- [x] Criar uma personagem de qualquer classe (barra V4) → criada; entrar na cidade com ela e com a Murael.
+- [x] Entrar numa missão curta e voltar à cidade → sem queda.
+- [x] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.314272ec54054ed0.pre-hcls.bak` sobre `bin/client.dll` e `bin/server.dll.d7727e182f6cdec1.pre-hcls.bak` sobre `bin/server.dll`.
 - **Resultado D7 (operador, 28/10/2026):** com os DLLs `.hcls`, a criação abre a barra V4 de 10 classes, sem a Delia (esperado: a grade S3 foi desfeita e a barra é fixa em 10), e selecionar uma classe carrega o tutorial normalmente. Sem regressão observada; a missão curta não foi relatada. O patch fica aplicado.
 
 ### D8 — Classe 10 roteada para os arquivos da Delia (patch `.hrte`, sem a entidade própria)
 Pré-condição: `client.dll` e `server.dll` da cópia de laboratório com `scripts/client/patch_class_routing.py` aplicado sobre o `.hcls` (hashes `0e1b1800…` e `eda9ac59…`). O servidor local cria `player_delia` pelo nome; como a fábrica não existe no 1.69, ele usa a entidade genérica `player` (`0x403712f7`), sem a guarda nem a arma próprias da Delia (E1–E5). Runtime com `docker compose up -d --wait` saudável. Use a `DeliaLab` (Fiona) fora do jogo.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → imprime `class 1 -> 10`.
-- [ ] Abrir pelo `start-lab.bat` e ir até a seleção → a `DeliaLab` aparece? Anotar nome da classe, modelo e se o cliente fecha.
-- [ ] Entrar na cidade com a `DeliaLab` → esperado: a cidade carrega **sem** a queda do D3 (`0x408b4700` em `server.dll`). Anotar o modelo (corpo da Delia, da Fiona ou pose T), as animações ao andar e correr e se há texto `#GameUI_…` vazio.
-- [ ] Na cidade: abrir inventário e habilidades, andar, correr, usar um emote → anotar o que falha.
-- [ ] Voltar à seleção e sair → sem queda.
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.a9591d3a44a2b538.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll.af43431e78666783.pre-routing.bak` sobre `bin/server.dll` (volta ao `.hcls`, que o D7 aceitou).
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → imprime `class 1 -> 10`.
+- [x] Abrir pelo `start-lab.bat` e ir até a seleção → a `DeliaLab` aparece? Anotar nome da classe, modelo e se o cliente fecha.
+- [x] Entrar na cidade com a `DeliaLab` → esperado: a cidade carrega **sem** a queda do D3 (`0x408b4700` em `server.dll`). Anotar o modelo (corpo da Delia, da Fiona ou pose T), as animações ao andar e correr e se há texto `#GameUI_…` vazio.
+- [x] Na cidade: abrir inventário e habilidades, andar, correr, usar um emote → anotar o que falha.
+- [x] Voltar à seleção e sair → sem queda.
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se o cliente cair, anotar o horário e o relatório de `Report Error`. Para desfazer o patch: copiar `bin/client.dll.a9591d3a44a2b538.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll.af43431e78666783.pre-routing.bak` sobre `bin/server.dll` (volta ao `.hcls`, que o D7 aceitou).
 Limites conhecidos: a barra V4 não cria a Delia (a classe 10 é aceita pelo servidor, mas só a grade ou um botão novo a envia); a Delia continua com os itens da Fiona; sem guarda, ataque forte, *hold skill* e arma `BASTARDSWORD` própria (E2–E5); os demais `switch` com limite 9 (eventos, HUD, figura) caem no caso padrão.
 
 Resultado (28/10/2026): **falhou.** Seleção: modelo da Fiona sem rosto, em pose T. Entrada: `t01` carregou e o cliente caiu cerca de 2 s depois (`client.dll` `0x387da6b0`, `this` nulo). Causa: a preparação do jogador local (`0x387033b0`) recusa classes ≥ 10 em `0x387033d7` e não cria o objeto de comandos `+0x437c` que o movimento lê (`docs/future/new-classes.md` 8.14). Patch revertido (`client.dll` `a9591d3a…`, `server.dll` `af43431e…`); `DeliaLab` na classe 1.
 
 ### D8b — Repetir o D8 com a preparação do jogador local liberada
 Pré-condição: o operador autoriza reaplicar o patch. `python -s -E scripts/client/patch_class_routing.py --apply` sobre a cópia `.hcls` (o patch agora inclui `GATES`, `0x387033d7` com limite 28); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo. Aplicado em 28/10/2026: `client.dll` `a9591d3a…` → `560f5e27…`, `server.dll` `af43431e…` → `eda9ac59…`.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
-- [ ] Seleção: anotar o modelo (a Fiona sem rosto em pose T é esperada até o E1).
-- [ ] Entrar na cidade → esperado: sem a queda em `0x387da6b0`. Andar, correr, abrir inventário e habilidades, usar um emote; anotar o modelo e as animações.
-- [ ] Voltar à seleção e sair → sem queda.
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se cair: anotar o horário e o endereço do `Report Error`. Para reverter, copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
+- [x] Seleção: anotar o modelo (a Fiona sem rosto em pose T é esperada até o E1).
+- [x] Entrar na cidade → esperado: sem a queda em `0x387da6b0`. Andar, correr, abrir inventário e habilidades, usar um emote; anotar o modelo e as animações.
+- [x] Voltar à seleção e sair → sem queda.
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se cair: anotar o horário e o endereço do `Report Error`. Para reverter, copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
 
 Execução de 28/10/2026 12:21: **não testou o D8b.** Os DLLs estavam sem o patch de roteamento (`a9591d3a…`/`af43431e…`, o `--apply` não foi rodado), então a classe 10 caiu de novo no caminho do pet: queda do D3 em `server.dll` `0x408b4700` (retorno `0x40804b5f`, `switch` de expressões), antes de entrar no canal. Servidor sem erro (`.cache/verification/d8b-game.log`). `DeliaLab` na classe 1; DLLs continuam revertidos. Sem o passo do `--apply`, trocar a classe para 10 sempre reproduz o D3.
 
@@ -114,13 +114,13 @@ Resultado do D8b (28/10/2026, cliente, patch com `GATES`): **avançou, com duas 
 
 ### D8c — Classe 10 com o 11º mapa da `SkillActionStateMatchTable`
 Pré-condição: patch de roteamento com `MATCH` aplicado sobre a `.hcls` (28/10/2026, 2ª versão: `client.dll` `a9591d3a…` → `75f08dcc…`, `server.dll` `af43431e…` → `d2f93765…`); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo. Abrir pelo `start-lab.bat`.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
-- [ ] Entrar na cidade → esperado como no D8b (personagem invisível, itens "Cannot be equipped" e janela de habilidades vazia continuam abertos).
-- [ ] `F7` (emote) → esperado: **sem** a queda em `client.dll` `0x38a5df98`.
-- [ ] Entrar no Mercenary Outpost → esperado: **sem** a queda em `server.dll` `0x40994727`. Anotar se a área carrega.
-- [ ] Voltar à seleção e sair → sem queda.
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se cair: anotar horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10` → `class 1 -> 10`.
+- [x] Entrar na cidade → esperado como no D8b (personagem invisível, itens "Cannot be equipped" e janela de habilidades vazia continuam abertos).
+- [x] `F7` (emote) → esperado: **sem** a queda em `client.dll` `0x38a5df98`.
+- [x] Entrar no Mercenary Outpost → esperado: **sem** a queda em `server.dll` `0x40994727`. Anotar se a área carrega.
+- [x] Voltar à seleção e sair → sem queda.
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se cair: anotar horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll`.
 
 Execução de 28/10/2026 13:11 (1ª versão, `75874fe4…`/`8265556f…`): **falhou antes do menu.** Queda em `server.dll` `0x407cda68` ao montar a tabela (`MatchingActionStateSkill` no construtor). O laço lê o mapa também por `[esp+0x10]` depois de inserir (`0x407cda5a`; cliente `0x38860b4a`), e o *stub* só trocava `ebp`. Corrigido na 2ª versão (o *stub* da classe 10 aponta `[esp+0x10]` para o mapa da Delia + 4).
 
@@ -128,98 +128,98 @@ Execução de 28/10/2026 (2ª versão, `75f08dcc…`/`d2f93765…`): **passou na
 
 ### D8d — Modelos de animação da Delia no servidor local
 Pré-condição: patch com as tabelas de animação (`server.dll` `af43431e…` → `f83dd892…`; `client.dll` `75f08dcc…`, sem mudança); `docker compose up -d --wait` saudável; `DeliaLab` fora do jogo; abrir pelo `start-lab.bat`.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
-- [ ] Entrar na cidade → anotar se a personagem aparece (corpo da Delia, pose T ou invisível) e se anda com animação.
-- [ ] `F7` (emote) → esperado: a animação roda e a personagem não trava. Anotar o emote.
-- [ ] Entrar no Mercenary Outpost (animação de batalha) → anotar se anda/ataca com animação.
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak`.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [x] Entrar na cidade → anotar se a personagem aparece (corpo da Delia, pose T ou invisível) e se anda com animação.
+- [x] `F7` (emote) → esperado: a animação roda e a personagem não trava. Anotar o emote.
+- [x] Entrar no Mercenary Outpost (animação de batalha) → anotar se anda/ataca com animação.
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak`.
 
 Resultado do D8d (28/10/2026): **sem mudança visível.** A `DeliaLab` continua invisível na cidade e trava no `F7`.
 
 ### D8e — Itens com a classe 10 no `engine.dll`
 Pré-condição: `scripts/client/patch_engine_class_flags.py --client-copy .cache/play-client --apply` (`engine.dll` `a3add974…` → `44281475…`, cópia `engine.dll.a3add9742f7fa03c.pre-classflags.bak`); `client.dll` `75f08dcc…` e `server.dll` `f83dd892…` como no D8d; `docker compose up -d --wait` saudável; abrir pelo `start-lab.bat`.
-- [ ] Antes: entrar com uma personagem de outra classe e equipar/desequipar um item → sem regressão (o *setter* foi reescrito para as classes 8 e 9 também).
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
-- [ ] Inventário: a `Bastard Sword` e a *inner* da Delia **não** mostram mais "Cannot be equipped". Equipar as duas.
-- [ ] Anotar se a personagem aparece na cidade depois de equipar a *inner* (o corpo vem da *inner armor*).
-- [ ] `F7` → anotar se a animação roda.
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se cair: horário e endereço do `Report Error`. Reverter o `engine.dll`: copiar `engine.dll.a3add9742f7fa03c.pre-classflags.bak` sobre `bin/engine.dll`.
+- [x] Antes: entrar com uma personagem de outra classe e equipar/desequipar um item → sem regressão (o *setter* foi reescrito para as classes 8 e 9 também).
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [x] Inventário: a `Bastard Sword` e a *inner* da Delia **não** mostram mais "Cannot be equipped". Equipar as duas.
+- [x] Anotar se a personagem aparece na cidade depois de equipar a *inner* (o corpo vem da *inner armor*).
+- [x] `F7` → anotar se a animação roda.
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se cair: horário e endereço do `Report Error`. Reverter o `engine.dll`: copiar `engine.dll.a3add9742f7fa03c.pre-classflags.bak` sobre `bin/engine.dll`.
 
 Resultado do D8e (28/10/2026): **não regressão ok** (Hagie desequipou e equipou um item). `DeliaLab` continua invisível e a `Bastard Sword` e a *inner* continuam "Cannot be equipped". Os DLLs carregados eram os certos (`bin/engine.dll` `44281475…`; o minidump lista `bin\engine.dll`, `bin\client.dll` e `bin\server.dll`; o `start-lab.bat` não troca DLLs). A recusa estava em outro ponto: o `client.dll` lê o vetor por `switch` de 0 a 9.
 
 ### D8f — Acessores de classe dos itens no `client.dll` e no `server.dll`
 Pré-condição: patch de roteamento com `FLAG_CHECKS` (`client.dll` `a9591d3a…` → `d1a1571c…`, `server.dll` `af43431e…` → `d094ee11…`) e o `engine.dll` do D8e (`44281475…`); `docker compose up -d --wait` saudável; abrir pelo `start-lab.bat` (nada mais a rodar).
-- [ ] Não regressão: entrar com a Hagie, desequipar e equipar um item.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
-- [ ] Inventário: `Bastard Sword` e *inner* da Delia sem "Cannot be equipped"; equipar as duas.
-- [ ] Anotar se a personagem aparece depois de equipar a *inner* e se o `F7` anima.
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
+- [x] Não regressão: entrar com a Hagie, desequipar e equipar um item.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [x] Inventário: `Bastard Sword` e *inner* da Delia sem "Cannot be equipped"; equipar as duas.
+- [x] Anotar se a personagem aparece depois de equipar a *inner* e se o `F7` anima.
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
 
 Resultado do D8f (28/10/2026): Hagie sem regressão. `DeliaLab` continua invisível; a `Bastard Sword` ainda mostra "Cannot be equipped", mas o botão direito a equipa (com a personagem "bugada"); a calça também equipa, e nada aparece.
 
 ### D8g — Pré-carga dos modelos de animação da Delia e dica do item
 Pré-condição: patch de roteamento com `PRECACHE` e `TOOLTIPS` (`client.dll` `a9591d3a…` → `b75ddeb2…`, `server.dll` `af43431e…` → `a25f68f1…`) e `engine.dll` `44281475…`; `docker compose up -d --wait` saudável; abrir pelo `start-lab.bat` (nada mais a rodar).
-- [ ] Não regressão: Hagie desequipa e equipa um item; a dica de um item comum a todas as classes antigas continua sem lista de classes.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
-- [ ] Entrar na cidade → esperado: **a personagem aparece** (esqueleto e animação da Delia) e anda com animação.
-- [ ] Dica da `Bastard Sword` e da *inner* da Delia → esperado: "Only for Delia" (não mais "Cannot be equipped").
-- [ ] Equipar espada, armadura e *inner* → esperado: aparecem no corpo.
-- [ ] `F7` → esperado: a animação roda e a personagem não trava.
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
+- [x] Não regressão: Hagie desequipa e equipa um item; a dica de um item comum a todas as classes antigas continua sem lista de classes.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [x] Entrar na cidade → esperado: **a personagem aparece** (esqueleto e animação da Delia) e anda com animação.
+- [x] Dica da `Bastard Sword` e da *inner* da Delia → esperado: "Only for Delia" (não mais "Cannot be equipped").
+- [x] Equipar espada, armadura e *inner* → esperado: aparecem no corpo.
+- [x] `F7` → esperado: a animação roda e a personagem não trava.
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
 
 Resultado do D8g (28/10/2026, 14:23, DLLs certos: `client.dll` gravado às 14:20, `server.dll` às 14:21): **sem mudança.** Personagem invisível; dica "Cannot be equipped"; os itens são aceitos, mas nada aparece no corpo; só a arma aparece (duas espadas, paradas como em pose T).
 
 ### D8h — Coleta do console do motor
 Pré-condição: `start-lab.bat` reinstalado com `-condebug +developer 1` (`scripts/client/install_lab_launcher.py`); DLLs do D8g, sem mudança.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`; abrir pelo `start-lab.bat`.
-- [ ] Entrar na cidade com a `DeliaLab`, abrir o inventário, passar o mouse na `Bastard Sword`, equipar a *inner* e apertar `F7`.
-- [ ] Sair do jogo normalmente.
-- [ ] Avisar o horário; o `console.log` fica na cópia (`.cache/play-client`, pasta do jogo ou `bip/`).
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`; abrir pelo `start-lab.bat`.
+- [x] Entrar na cidade com a `DeliaLab`, abrir o inventário, passar o mouse na `Bastard Sword`, equipar a *inner* e apertar `F7`.
+- [x] Sair do jogo normalmente.
+- [x] Avisar o horário; o `console.log` fica na cópia (`.cache/play-client`, pasta do jogo ou `bip/`).
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
 
 Resultado do D8h (28/10/2026, 14:31): sem mudança no jogo; **o `console.log` não foi gerado** (o `vindictus.exe` não repassa `-condebug` ao jogo).
 
 ### D8i — Coluna de roupa da Delia (`player_costume.txt`) e ferramentas de inspeção
 Pré-condição: patch com `COSTUME` (`client.dll` `a9591d3a…` → `97cacae0…`, `server.dll` `af43431e…` → `8458f959…`, relatório `bin/class-routing.json`); `engine.dll` `44281475…`; `start-lab.bat` reinstalado (sem `-condebug`; cria `cfg/config_pendingkey_concmd.cfg` com `developer 1` e `con_logfile lab_console.log`); `docker compose up -d --wait` saudável.
-- [ ] Não regressão: Hagie entra na cidade com a roupa de sempre, desequipa e equipa um item.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`; abrir pelo `start-lab.bat`.
-- [ ] Entrar na cidade → esperado: **corpo da Delia visível** (base `delia_base.mdl`, rosto e animação de cidade dela).
-- [ ] Equipar espada, armadura e *inner* → anotar o que aparece no corpo; anotar a dica dos itens.
-- [ ] `F7` → anotar se anima.
-- [ ] **Com o jogo aberto, na cidade**, rodar e copiar a saída (só leitura, não altera o jogo):
+- [x] Não regressão: Hagie entra na cidade com a roupa de sempre, desequipa e equipa um item.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`; abrir pelo `start-lab.bat`.
+- [x] Entrar na cidade → esperado: **corpo da Delia visível** (base `delia_base.mdl`, rosto e animação de cidade dela).
+- [x] Equipar espada, armadura e *inner* → anotar o que aparece no corpo; anotar a dica dos itens.
+- [x] `F7` → anotar se anima.
+- [x] **Com o jogo aberto, na cidade**, rodar e copiar a saída (só leitura, não altera o jogo):
   - `python -s -E scripts/dev/lab_memory.py modules`
   - `python -s -E scripts/dev/lab_memory.py costume 10`
   - `python -s -E scripts/dev/lab_memory.py costume 9`
-- [ ] Sair do jogo; anotar se apareceu `lab_console.log` na pasta `.cache/play-client` (ou `bip/`).
-- [ ] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
+- [x] Sair do jogo; anotar se apareceu `lab_console.log` na pasta `.cache/play-client` (ou `bip/`).
+- [x] Desfazer: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Se cair: horário e endereço do `Report Error`. Reverter: copiar os `*.pre-routing.bak` e o `engine.dll.a3add9742f7fa03c.pre-classflags.bak`.
 
 Resultado do D8i (28/10/2026): **avanço na seleção.** A seleção mostra o modelo 3D da Delia com a animação dela sentada; a *inner* padrão tem defeito nas pernas (falta de malha ou textura) e muda ao trocar a *inner*, com o mesmo defeito. Na cidade a personagem continua invisível e a arma continua "Cannot be equipped". O `lab_memory.py` não anexou: o `Vindictus.exe` roda como administrador e o terminal não (erro 5 do Windows); a ferramenta agora diz isso.
 
 ### D8j — Leitura de memória com o jogo aberto (terminal de administrador)
 Pré-condição: DLLs do D8i, sem mudança.
-- [ ] Abrir pelo `start-lab.bat`, entrar na cidade com a `DeliaLab` (classe 10).
-- [ ] Num **terminal aberto como administrador**, na pasta do projeto, rodar e copiar a saída:
+- [x] Abrir pelo `start-lab.bat`, entrar na cidade com a `DeliaLab` (classe 10).
+- [x] Num **terminal aberto como administrador**, na pasta do projeto, rodar e copiar a saída:
   - `python -s -E scripts/dev/lab_memory.py modules`
   - `python -s -E scripts/dev/lab_memory.py costume 10`
   - `python -s -E scripts/dev/lab_memory.py costume 9`
-- [ ] Anotar se apareceu `lab_console.log` em `.cache/play-client` ou `bip/` depois de sair.
+- [x] Anotar se apareceu `lab_console.log` em `.cache/play-client` ou `bip/` depois de sair.
 
 Resultado do D8j (28/10/2026, terminal de administrador): os três módulos nos endereços preferidos (`client.dll` `0x38000000`, `server.dll` `0x40000000`, `engine.dll` `0x42000000`). A coluna da Delia foi carregada igual no cliente e no servidor, no mesmo padrão da Hagie: base 10 (Hagie 9), rosto 100 (90), animação 100/101 e cidade 102 (90/91 e 92); as outras partes -1 nas duas classes. O carregamento da roupa está certo; o que falta na cidade não é dado de roupa.
 
 ### D8k — Diagnóstico: entidade da Fiona para a classe sem entidade (temporário)
 Escolha do operador (28/10/2026): teste de diagnóstico, não o desenho da entidade da Delia (seção 8.9). Pré-condição: `patch_class_routing.py --apply --fallback-entity player_fiona` (`client.dll` `97cacae0…`, sem mudança; `server.dll` `af43431e…` → `45c7a082…`; `0x40371314` empurra `"player_fiona"` em vez de `"player"`); `engine.dll` `44281475…`; abrir pelo `start-lab.bat`.
-- [ ] Não regressão: Hagie entra na cidade normalmente (tem entidade própria, não passa pelo *fallback*).
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
-- [ ] Entrar na cidade → anotar: o corpo da Delia aparece? Com animação? As pernas da *inner* continuam com defeito?
-- [ ] Equipar espada, armadura e *inner* → anotar o que aparece no corpo.
-- [ ] `F7` → anotar se anima.
-- [ ] Desfazer a classe: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Ao terminar o diagnóstico, voltar ao patch sem a opção: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll` e rodar `python -s -E scripts/client/patch_class_routing.py --client-copy .cache/play-client --apply`.
+- [x] Não regressão: Hagie entra na cidade normalmente (tem entidade própria, não passa pelo *fallback*).
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [x] Entrar na cidade → anotar: o corpo da Delia aparece? Com animação? As pernas da *inner* continuam com defeito?
+- [x] Equipar espada, armadura e *inner* → anotar o que aparece no corpo.
+- [x] `F7` → anotar se anima.
+- [x] Desfazer a classe: `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Ao terminar o diagnóstico, voltar ao patch sem a opção: copiar os `*.pre-routing.bak` sobre `bin/client.dll` e `bin/server.dll` e rodar `python -s -E scripts/client/patch_class_routing.py --client-copy .cache/play-client --apply`.
 - Leitura do resultado: se a Delia aparece, o que falta é a entidade da classe (E1, com os *slots* que diferem da base); se continua invisível, a causa está fora da entidade.
 
 Resultado do D8k (28/10/2026): **sem mudança.** Seleção: pernas da *inner* brancas, muito iluminadas (malha ou textura errada). Cidade: invisível, mesmos problemas. A entidade da classe não é a causa.
@@ -228,9 +228,9 @@ Resultado do D8k (28/10/2026): **sem mudança.** Seleção: pernas da *inner* br
 
 ### D8l — Comparação de memória: a mesma personagem como Fiona
 Pré-condição: jogo aberto e o leitor elevado (`lab_memory.py serve`) rodando; DLLs do D8k.
-- [ ] Voltar à seleção de personagens (sem fechar o jogo).
-- [ ] Avisar; eu rodo `lab-set-class.ps1 -Name DeliaLab -Class 1`.
-- [ ] Entrar na cidade com a `DeliaLab` (agora Fiona) e avisar; eu salvo as mesmas cópias e comparo.
+- [x] Voltar à seleção de personagens (sem fechar o jogo).
+- [x] Avisar; eu rodo `lab-set-class.ps1 -Name DeliaLab -Class 1`.
+- [x] Entrar na cidade com a `DeliaLab` (agora Fiona) e avisar; eu salvo as mesmas cópias e comparo.
 
 Resultado do D8l (28/10/2026): a mesma `DeliaLab` como Fiona aparece corretamente na cidade. Comparação de memória (`lab_memory.py diff`), mesma classe de entidade (`C_HeroesPlayerFiona`):
 - índice de modelo da entidade (cliente `+0x84`, 16 bits): Fiona 13, Delia **-1** (sem modelo); os `-1` em `+0xecc..+0xed4` (Fiona 0, 17, 18) acompanham;
@@ -239,10 +239,10 @@ Resultado do D8l (28/10/2026): a mesma `DeliaLab` como Fiona aparece corretament
 
 ### D8m — Pré-carga do corpo-base e dos rostos da Delia
 Pré-condição: **jogo fechado** antes de aplicar (os DLLs carregados não podem ser trocados). Patch de roteamento **sem** `--fallback-entity` (o diagnóstico da Fiona sai), com `PRECACHE` incluindo `delia_base.mdl` e `pc_delia_face01..03.mdl`; `engine.dll` `44281475…`; abrir pelo `start-lab.bat`.
-- [ ] Não regressão: Hagie entra na cidade normalmente.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
-- [ ] Entrar na cidade → anotar se o corpo aparece.
-- [ ] Com o jogo aberto, eu rodo `lab_memory.py` (o leitor elevado precisa ser iniciado de novo; aprovar o UAC) e confiro o índice de modelo da entidade.
+- [x] Não regressão: Hagie entra na cidade normalmente.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name DeliaLab -Class 10`.
+- [x] Entrar na cidade → anotar se o corpo aparece.
+- [x] Com o jogo aberto, eu rodo `lab_memory.py` (o leitor elevado precisa ser iniciado de novo; aprovar o UAC) e confiro o índice de modelo da entidade.
 
 Resultado do D8m (28/10/2026): **sem mudança** (invisível na cidade; coxa da *inner* com defeito na seleção). Memória:
 - os modelos da Delia foram pré-carregados (vários `pc_delia_face01/02.mdl` no *heap*), então a pré-carga não era a falta;
@@ -252,11 +252,11 @@ Resultado do D8m (28/10/2026): **sem mudança** (invisível na cidade; coxa da *
 ### D8n — Arquivo de eventos da animação da Delia no servidor local
 Causa achada (rastreio estático, seção 8.14): o método do servidor que grava o arquivo de eventos da animação no objeto de roupa (`0x4081bae0`) começa com `cmp esi, 9; ja` e lê a coluna do gerenciador por endereço fixo (`classe*16 + 0x40f64698`, ou `0x40f64738` em *ExtremeMode*). A classe 10 ficava sem arquivo de eventos; o caminho em rede (`+0x3f0`, cliente `+0x410`) ficava vazio e o corpo da cidade não era montado.
 Pré-condição: **jogo fechado** antes de aplicar. Patch de roteamento com `EVENT_FILE` (a classe 10 lê os caminhos da coluna da sombra); `engine.dll` `44281475…`; abrir pelo `start-lab.bat`.
-- [ ] Não regressão: Hagie entra na cidade normalmente.
-- [ ] `DeliaLab` na classe 10 (já está); entrar na cidade → anotar se o corpo aparece e se anda com animação.
-- [ ] `F7` → anotar se o emote roda.
-- [ ] Equipar espada, armadura e *inner* → anotar o que aparece.
-- [ ] Com o jogo aberto, eu confiro na memória o caminho do arquivo de eventos (precisa aprovar o UAC do leitor).
+- [x] Não regressão: Hagie entra na cidade normalmente.
+- [x] `DeliaLab` na classe 10 (já está); entrar na cidade → anotar se o corpo aparece e se anda com animação.
+- [x] `F7` → anotar se o emote roda.
+- [x] Equipar espada, armadura e *inner* → anotar o que aparece.
+- [x] Com o jogo aberto, eu confiro na memória o caminho do arquivo de eventos (precisa aprovar o UAC do leitor).
 
 Resultado do D8n (28/10/2026): **avanço parcial.** A *inner* da Delia agora mostra "Only for Delia" na dica; a `Bastard Sword` continua "Cannot be equipped" (as armas usam outra verificação). Tudo equipa, mas nada aparece; a personagem continua invisível. Memória: o caminho do arquivo de eventos agora está certo no servidor e no cliente (`…\delia\pc_delia_motion_ex.txt`) e as 12 partes também; os oito códigos resolvidos (`+0x3418`) continuam `-1`, inclusive para *inner* 10 e cabelo 2001, que a Fiona resolve.
 
@@ -271,10 +271,10 @@ Resultado (28/10/2026): **passou no corpo.** O modelo da Delia aparece na cidade
 ### D9 — E1: figura do corpo e constantes da Delia (tabela de classes extras)
 Mudança: `patch_class_routing.py` passou a ler a tabela `EXTRA_CLASSES` (Delia = 10; a Miri será mais uma linha). Novo `ENTITY_SLOTS`: na vtable de `C_HeroesPlayer` (a entidade que a Delia usa), o *slot* 264 devolve `csf/bodyshape_delia_default.fig` pela mesma trava da Hagie (`0x3870d1d0`) e os *slots* 177/178 devolvem 0,88/0,96 (valores do NA); as outras classes rodam o original.
 Pré-condição: **jogo fechado** antes de aplicar (já aplicado: `client.dll` `a47c4aac…`, `server.dll` `e6f1b67b…`, `engine.dll` `44281475…`); `DeliaLab` na classe 10; abrir pelo `start-lab.bat`.
-- [ ] Seleção de personagens: olhar a `DeliaLab` → anotar se o defeito da barriga até a coxa sumiu.
-- [ ] Não regressão: Hagie na seleção e na cidade sem mudança.
-- [ ] Entrar na cidade com a `DeliaLab` → corpo e animações como no D8v.
-- [ ] Abrir a janela de habilidades (SP) → anotar se aparece alguma habilidade (o `CLASS_NAME` ainda não foi conferido no cliente).
+- [x] Seleção de personagens: olhar a `DeliaLab` → anotar se o defeito da barriga até a coxa sumiu.
+- [x] Não regressão: Hagie na seleção e na cidade sem mudança.
+- [x] Entrar na cidade com a `DeliaLab` → corpo e animações como no D8v.
+- [x] Abrir a janela de habilidades (SP) → anotar se aparece alguma habilidade (o `CLASS_NAME` ainda não foi conferido no cliente).
 Resultado esperado: seleção sem o defeito; cidade igual ao D8v.
 
 Resultado do D9 (28/10/2026): Hagie sem regressão (seleção e cidade). `DeliaLab`: cidade sem defeito; **a seleção continua com o defeito da barriga à coxa**; janela de habilidades vazia; a criação não oferece a Delia (barra V4 de 10 classes).
@@ -283,10 +283,10 @@ Resultado do D9 (28/10/2026): Hagie sem regressão (seleção e cidade). `DeliaL
 Causa provável (dados, não DLL): a `DeliaLab` foi criada como Fiona e guardava a roupa-base da Fiona (*inner* 10, cabelo 2001, sobrancelha 0; a Delia, pelo `csf/create_delia.csf`, usa 1002, 6036, 8000) e as habilidades iniciais da Fiona (`skill_fiona_shield_mastery`, `skill_fiona_guard`), que a janela da classe 10 não mostra. A seleção monta o modelo pela roupa-base da lista de personagens; a cidade, pela montagem do servidor local.
 Mudança: `lab-set-class.ps1` agora troca também as habilidades iniciais (pela `DefaultSkillInfo`; a da Delia, que o 1.69 não tem, é `skill_delia_bastard_mastery` + `skill_delia_guard`, escolha de laboratório) e a roupa-base que ainda está no padrão da classe antiga. Já aplicado na `DeliaLab` (classe 10; 2 habilidades e 3 partes trocadas). DLLs iguais ao D9.
 Pré-condição: servidor no ar; abrir pelo `start-lab.bat`.
-- [ ] Seleção: a `DeliaLab` → anotar se o defeito da barriga à coxa (pernas brancas da *inner*) sumiu e se cabelo/sobrancelha são os da Delia.
-- [ ] Cidade com a `DeliaLab` → corpo e animações como antes.
-- [ ] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
-- [ ] (Opcional) com a `Bastard Sword` equipada, usar o *guard* → anotar o que acontece.
+- [x] Seleção: a `DeliaLab` → anotar se o defeito da barriga à coxa (pernas brancas da *inner*) sumiu e se cabelo/sobrancelha são os da Delia.
+- [x] Cidade com a `DeliaLab` → corpo e animações como antes.
+- [x] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
+- [x] (Opcional) com a `Bastard Sword` equipada, usar o *guard* → anotar o que acontece.
 Resultado esperado: seleção sem defeito; duas habilidades da Delia na janela.
 
 Resultado do D10 (28/10/2026): o cabelo da `DeliaLab` mudou para o da Delia na seleção, mas o defeito da barriga e da perna continua. Ao entrar no jogo: **desconectado**. Log do `game` (`.cache/verification/d10-compose.log`): `laboratory frontend connection closed` logo depois da seleção; a falha é do `minimum_selection::select`, que exige que as primeiras linhas de habilidade sejam as do inicializador que criou a personagem (a Fiona). Renomear essas linhas para as da Delia fez a carga recusar a personagem.
@@ -296,9 +296,9 @@ Mudanças:
 - `lab-set-class.ps1` não renomeia mais as habilidades: as linhas da Fiona voltaram, e as iniciais da Delia (`skill_delia_bastard_mastery`, `skill_delia_guard`, rank 1) foram **acrescentadas** como habilidades aprendidas (estão no perfil de habilidades do servidor). A roupa-base continua a da Delia.
 - Experimento da seleção: as 12 linhas de forma do corpo (tipo 3, chaves da Fiona 0, 15–20, 22–25, 40) foram retiradas da `DeliaLab`; cópia em `.cache/verification/d11-delialab-bodyshape-backup.txt` para devolver. A figura (D9) não é a causa: o defeito existia antes e depois dela.
 Pré-condição: servidor no ar; DLLs iguais ao D9; abrir pelo `start-lab.bat`.
-- [ ] Seleção: a `DeliaLab` → anotar se o defeito da barriga e da perna sumiu.
-- [ ] Entrar no jogo → anotar se entra (sem desconexão) e se o corpo está certo na cidade.
-- [ ] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
+- [x] Seleção: a `DeliaLab` → anotar se o defeito da barriga e da perna sumiu.
+- [x] Entrar no jogo → anotar se entra (sem desconexão) e se o corpo está certo na cidade.
+- [x] Janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard` da Delia.
 Resultado esperado: entra na cidade; duas habilidades da Delia; seleção sem defeito se a forma do corpo era a causa.
 
 Resultado do D11 (28/10/2026): entrou na cidade sem desconexão; cidade com *inner* e modelo certos; a seleção continua com o defeito da barriga e da perna (cabelo da Delia certo); **nenhuma habilidade** na janela. Sem as linhas de forma do corpo o defeito ficou igual: a forma do corpo não é a causa (linhas devolvidas da cópia).
@@ -307,9 +307,9 @@ Resultado do D11 (28/10/2026): entrou na cidade sem desconexão; cidade com *inn
 Causa da janela vazia (estática): a lista da janela (`client.dll` `0x38372c00`) e o `IsAvailableClass` (`0x3835df60`) testam `cmp ecx, 9; ja` antes de `1 << classe`; toda habilidade de classe acima de 9 era pulada. Mudança: `CLASS_BITS` no patch (limite → 10). Aplicado com o jogo fechado: `client.dll` `29ad8b1f…`, `server.dll` `e6f1b67b…` (igual).
 Seleção: a entidade da seleção é `C_NPC_PlayerForCharacterSelection` (o *slot* 264 dela é o da base, sem figura para nenhuma classe). A causa do defeito ainda não foi achada estaticamente; o passo abaixo compara a memória da entidade da seleção com a Delia e com uma Hagie.
 Pré-condição: servidor no ar; abrir pelo `start-lab.bat`.
-- [ ] Na seleção, com a `DeliaLab` selecionada: avisar; eu abro o leitor elevado (aprovar o UAC) e salvo a entidade da seleção.
-- [ ] Selecionar uma Hagie da mesma conta: avisar; eu salvo e comparo.
-- [ ] Entrar na cidade com a `DeliaLab` → abrir a janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard`.
+- [x] Na seleção, com a `DeliaLab` selecionada: avisar; eu abro o leitor elevado (aprovar o UAC) e salvo a entidade da seleção.
+- [x] Selecionar uma Hagie da mesma conta: avisar; eu salvo e comparo.
+- [x] Entrar na cidade com a `DeliaLab` → abrir a janela de habilidades → anotar se aparecem `Bastard Sword Mastery` e `Guard`.
 Resultado esperado: as duas habilidades da Delia na janela; a comparação aponta o campo ou modelo que difere na seleção.
 
 Resultado do D12 (28/10/2026): as habilidades da Delia aparecem na janela, mas todas no mesmo lugar (uma sobre a outra). Seleção ainda com o defeito.
@@ -320,9 +320,9 @@ Causas:
 - **seleção:** a seleção aplica a forma do corpo guardada; a Delia criada no jogo guarda a figura padrão dela na chave 106 = 1000 (`csf/bodyshape_fig_list.txt` 106 = `bodyshape_delia_default.fig`; `csf/default_delia.bsh` marca essa figura `isDefaultFigure`, razão 1,0), como a Hagie guarda a 105. A `DeliaLab` (criada como Fiona) tinha as chaves da Fiona e não a 106. Na cidade a forma não é aplicada, por isso a cidade está certa. Mudança: `lab-set-class.ps1` troca o conjunto de chaves da classe antiga pelo da nova (Delia: 18, 19, 20, 24, 25, 40, 71–75 em 0 e 106 = 1000);
 - **janela de habilidades:** `client.dll` `0x388e6ac0`/`0x388e6ae0` devolvem o nome/inicial da classe por tabelas de 10 (`0x38cb6d24`/`0x38cb6d4c`) e texto vazio acima de 9; o `SkillDialog.setClassInfo` recebia vazio para a Delia (o filme `SkillDialog.gfx` do 1.69 tem os quadros `Weapon_1st_Delia`). Mudança: `TABLES['client.dll']` + `CLASS_STRING_BOUNDS` (tabelas de 32 com "Delia"/"D", limite → 10).
 Pré-condição: já aplicado (`client.dll` `4fb46646…`, `server.dll` `e6f1b67b…`; `DeliaLab` 10 → 1 → 10 com 12 linhas de forma do corpo); abrir pelo `start-lab.bat`.
-- [ ] Seleção: a `DeliaLab` → anotar se o defeito da barriga e da perna sumiu.
-- [ ] Cidade → janela de habilidades → anotar se as habilidades ficam em posições separadas.
-- [ ] Não regressão: Hagie na seleção, na cidade e na janela de habilidades.
+- [x] Seleção: a `DeliaLab` → anotar se o defeito da barriga e da perna sumiu.
+- [x] Cidade → janela de habilidades → anotar se as habilidades ficam em posições separadas.
+- [x] Não regressão: Hagie na seleção, na cidade e na janela de habilidades.
 Resultado esperado: seleção sem defeito; habilidades da Delia organizadas na janela.
 
 Comparação de arquivos da Delia, NA (`F:\Games\vindictus\hfsExtracted`) × cliente do laboratório (`.cache/verification/d13-delia-na-vs-lab.txt`): 485 arquivos com "delia" no laboratório, 3.156 no NA; todos os 485 existem no NA e 107 diferem. As malhas principais (`delia.vvd`, rostos `.vvd`) são iguais; mudaram cabeçalhos `.mdl` (`delia.mdl`, `delia_base.mdl`, rostos, *inners*), as animações (`pc_delia_battle_motion*.mdl`, `pc_delia_town_motion.mdl` e os `.txt` de movimento, `pc_delia_town.txt` 26 KB → 117 KB), 3 *inners* (malhas novas), texturas de 2 *inners*, scripts `create/prologue_delia.csf`, `default_delia.bsh` (o NA acrescenta a barra "waist2"), 17 vídeos de habilidade e 13 efeitos. Só no NA: 2.387 vozes de NPC, 39 vozes da Delia, roupas (`yukata_delia` e outras), 8 arquivos de `bastardsword`, `bodyshape_spine2_*_delia.fig` e figurinos `.csf`. Conclusão: a Delia do 1.69 é uma versão anterior, completa para jogar; o NA atualizou animações e modelos depois.
@@ -333,9 +333,9 @@ Resultado do D13 (28/10/2026): **habilidades da Delia certas na janela.** Hagie 
 
 ### D14 — Capturas de tela para os três defeitos restantes
 Pré-condição: DLLs `b3774da7…`/`e6f1b67b…`; abrir pelo `start-lab.bat`.
-- [ ] Seleção: captura da `DeliaLab` (defeito da barriga/perna) e, se der, da mesma tela com uma Hagie.
-- [ ] Cidade, inventário: captura da dica (*tooltip*) da `Bastard Sword` e da dica de uma armadura-base vermelha (`premium_newbie_tunic`).
-- [ ] Cidade: captura da `DeliaLab` com a `Bastard Sword` equipada (modelo errado).
+- [x] Seleção: captura da `DeliaLab` (defeito da barriga/perna) e, se der, da mesma tela com uma Hagie.
+- [x] Cidade, inventário: captura da dica (*tooltip*) da `Bastard Sword` e da dica de uma armadura-base vermelha (`premium_newbie_tunic`).
+- [x] Cidade: captura da `DeliaLab` com a `Bastard Sword` equipada (modelo errado).
 Resultado esperado: as capturas mostram o texto exato da dica e a forma do defeito, para escolher onde procurar.
 
 Resultado do D14 (28/10/2026), pelas capturas do operador:
@@ -350,8 +350,8 @@ Descartados (o operador viu a pele ainda branca em cada um, 28/10/2026):
 - material `fiona_skin_body01_lod` copiado para a pasta da Delia (o `delia_base.mdl` o procura lá; desfeito);
 - a pintura do corpo (tipo 2) da Tsuko (Evy, normal) é igual à da `DeliaLab`.
 Achado: o gerenciador de forma do corpo do cliente (`0x387602b0` carrega, `0x38760650`/`0x387606b0` são as entradas por entidade) **pula a classe acima de 9** (`cmp reg, 9; ja`) e guarda 4 grupos de 10 mapas por classe e *flags* em `+0x460`. A seleção é a única tela que mistura formas do corpo. Experimento: `SHAPE_CLASS` faz a classe 10 usar a vaga da Lynn (7) nessas duas entradas, sem mudar o armazenamento. Aplicado: `client.dll` `ae521dec…`.
-- [ ] Seleção: a `DeliaLab` → anotar se a barriga e as pernas deixam de ficar brancas.
-- [ ] Não regressão: Hagie e Tsuko (Evy) na seleção.
+- [x] Seleção: a `DeliaLab` → anotar se a barriga e as pernas deixam de ficar brancas.
+- [x] Não regressão: Hagie e Tsuko (Evy) na seleção.
 Resultado esperado: se a pele ficar normal, a causa é o gerenciador pular a classe 10, e o próximo passo é dar à Delia mapas próprios.
 
 Resultado do D15 (28/10/2026): **sem mudança** com o `SHAPE_CLASS` (Delia → vaga da Lynn); Evy (Tsuko) e Fiona (Murael) certas na mesma tela. Nova captura com a *inner* 90035 (`fiona_innerarmor_jpn_15.mdl`, biquíni): a faixa branca vai da cintura até o meio da coxa, com borda recortada, por baixo do biquíni. O operador confirma: na cidade o modelo fica perfeito; só a seleção mostra a faixa.
@@ -364,7 +364,7 @@ Memória (leitor elevado; comandos novos `studios FILTRO` e `studio ENDEREÇO [b
 - o *proxy* de pele (`0x386bb050`, `$sss_color`/`$composite_map`, decalque da pintura do corpo) recebe da entidade os mesmos valores da Evy;
 - a seleção toca a família "descanso" da cidade: na Delia a sequência 43 é `town_idle2restb` (`ACT_TOWN_IDLE_TO_REST_B`) de `pc_delia_town_motion.mdl`; o NA refez esse modelo (4,6 MB → 6,7 MB) e o `pc_delia_town.txt` (26 KB → 117 KB).
 Hipótese: as animações de descanso do 1.69 da Delia deformam pelve e coxas; a cidade normalmente toca parada/caminhada, por isso parece certa.
-- [ ] Na cidade, com a `DeliaLab` parada (sem mexer) até ela entrar na pose de descanso (sentar/relaxar): anotar se a faixa branca aparece.
+- [x] Na cidade, com a `DeliaLab` parada (sem mexer) até ela entrar na pose de descanso (sentar/relaxar): anotar se a faixa branca aparece.
 Resultado esperado: se aparecer na cidade, a causa é a animação de descanso (dados), não o código da seleção.
 
 Resultado do D16 (28/10/2026): na cidade, parada até a pose de descanso, sentando e com emotes: **nenhuma faixa branca**. A animação não é a causa; o defeito é só da seleção.
@@ -383,17 +383,17 @@ Rastreio ao vivo (leitor elevado; ponto de parada de escrita):
 - os personagens da seleção são NPCs do `server.dll` local (`CNPC_BaseCostumeLoadable::m_curCostumeData`, enviado em rede); o valor nasce no servidor: `0x40411e60` (montagem do NPC da seleção) usa sempre o padrão `0x40815490(slot, classe)` = `tabela[slot*10 + classe]` sobre `0x40f6494c`, **sem limite**. A tabela tem 10 vezes -1; a classe 10 lia o dword seguinte (um ponteiro). O cliente desenhava esse "número de pintura" como decalque branco na barriga e nas coxas. Na cidade o jogador só usa o padrão quando não tem valor, por isso a cidade estava certa.
 Mudança: `CLASS_DEFAULTS` no patch: os quatro acessores `[slot][10]` (servidor `0x40815390`/`0x40815490`, cliente `0x3887ce30`/`0x3887cf30`) leem a coluna da classe copiada (`clone_of`, Hagie) para uma classe extra. `python -m unittest test_patch_class_routing` (21, 0 falhas; `d16-routing-tests.log`).
 Pré-condição: aplicado (`client.dll` `8e766ed3…`, `server.dll` `46cd2c50…`); abrir pelo `start-lab.bat`.
-- [ ] Seleção: a `DeliaLab` → a faixa branca da barriga e das coxas deve sumir.
-- [ ] Não regressão: Hagie, Evy e Fiona na seleção; Delia na cidade.
+- [x] Seleção: a `DeliaLab` → a faixa branca da barriga e das coxas deve sumir.
+- [x] Não regressão: Hagie, Evy e Fiona na seleção; Delia na cidade.
 Resultado do D17 (28/10/2026): **passou.** A faixa branca sumiu da Delia na seleção (operador: "Funcionou, problema resolvido").
 
 ### D18 — E2: arma da Delia
 Mudança (passo 31): a entidade da arma vem de uma lista por classe nos dois DLLs, que mandava a classe 10 para a lista da Lethita (`weapon_dualsword`: duas espadas). A Delia agora tem lista própria com `weapon_greatsword` (o 1.69 não tem a `weapon_bastardsword` do NA; é a espada grande nas costas mais próxima). O servidor Rust passa a aplicar a maestria `skill_delia_bastard_mastery` à `Bastard Sword` (imagem Docker reconstruída).
 Pré-condição: aplicado (`client.dll` `67bcca2f…`, `server.dll` `27e437b7…`; a primeira aplicação, `d78bf797…`/`62d3aed6…`, derrubou o `server.dll` em `0x40825900` ao entrar na cidade: a linha tinha 1 nome e o leitor `0x40825890` percorre 5); servidor reiniciado; abrir pelo `start-lab.bat`.
-- [ ] Cidade com a `DeliaLab` e a `Bastard Sword` equipada: anotar se aparece **uma** espada (nas costas, ou na mão ao atacar) em vez de duas.
-- [ ] Entrar numa missão (Mercenary Outpost → qualquer batalha): ataque básico e um *smash* com a espada; anotar animação, acerto e dano.
-- [ ] Inventário: dica da `Bastard Sword` (ainda "Cannot be equipped"?) e cor das armaduras-base (ainda vermelhas?). Se continuarem, deixar o jogo aberto na cidade e avisar: eu leio os *flags* do item na memória.
-- [ ] Não regressão: Hagie com a adaga, Fiona/Evy com as armas delas.
+- [x] Cidade com a `DeliaLab` e a `Bastard Sword` equipada: anotar se aparece **uma** espada (nas costas, ou na mão ao atacar) em vez de duas.
+- [x] Entrar numa missão (Mercenary Outpost → qualquer batalha): ataque básico e um *smash* com a espada; anotar animação, acerto e dano.
+- [x] Inventário: dica da `Bastard Sword` (ainda "Cannot be equipped"?) e cor das armaduras-base (ainda vermelhas?). Se continuarem, deixar o jogo aberto na cidade e avisar: eu leio os *flags* do item na memória.
+- [x] Não regressão: Hagie com a adaga, Fiona/Evy com as armas delas.
 Resultado esperado: uma espada só; ataque funciona.
 
 Resultado do D18 (28/10/2026, operador): a Delia entra na cidade com **uma** espada; combate da primeira fase funciona bem; itens do inventário aparecem vermelhos, mas equipam e funcionam; **estamina regenera muito devagar**.
@@ -405,10 +405,10 @@ Mudanças desde o D18:
 - as 5 condições dos scripts da Delia (`As_Cond_Can_Armor_Purge`, `As_Cond_Delia_SPSkill3_Activated`, `AS_Cond_Delia_Special_Hold_Skill`, `AS_Cond_Delia_Guard`, `AS_Cond_Delia_Guard_Hit`) existem agora nos dois DLLs (ids 121–125); ainda **ninguém as liga** (guarda, golpe bloqueado, SP3, armadura): os ramos do script que pedem essas condições ficam válidos, mas fechados;
 - constantes do servidor da Delia (NA): 0,88/0,96 e 92 (`ENTITY_SLOTS` do servidor).
 Pré-condição: aplicado (`client.dll` `3287411a…`, `server.dll` `2cf34a4f…`); abrir pelo `start-lab.bat`.
-- [ ] Cidade e primeira fase com a `DeliaLab`: anotar se a estamina volta rápido quando ela fica parada e normal durante o movimento; se o jogo abre e entra sem queda.
-- [ ] **Guarda** (`skill_delia_guard`, já aprendida): segurar a guarda e levar golpe de um monstro; anotar se o dano é bloqueado (zero ou reduzido), se há reação de guarda e se algum ataque sai da guarda.
-- [ ] Inventário: itens ainda vermelhos? Se sim, deixar o jogo aberto na cidade e avisar (leitura dos *flags* do item na memória).
-- [ ] Não regressão: Hagie, Fiona e Evy na cidade e numa fase.
+- [x] Cidade e primeira fase com a `DeliaLab`: anotar se a estamina volta rápido quando ela fica parada e normal durante o movimento; se o jogo abre e entra sem queda.
+- [x] **Guarda** (`skill_delia_guard`, já aprendida): segurar a guarda e levar golpe de um monstro; anotar se o dano é bloqueado (zero ou reduzido), se há reação de guarda e se algum ataque sai da guarda.
+- [x] Inventário: itens ainda vermelhos? Se sim, deixar o jogo aberto na cidade e avisar (leitura dos *flags* do item na memória).
+- [x] Não regressão: Hagie, Fiona e Evy na cidade e numa fase.
 Resultado esperado: estamina normal; o comportamento da guarda define o próximo passo do E3.
 
 Resultado do D19 (28/10/2026, operador): **estamina resolvida.** A guarda (Shift) faz a animação mas não defende o golpe; o *dash* (Shift + direção) esquiva corretamente.
@@ -417,29 +417,29 @@ Resultado do D19 (28/10/2026, operador): **estamina resolvida.** A guarda (Shift
 Causa: a guarda liga o "estado da classe" do jogador (*slot* 618, pelo evento `ENABLE_ENDURE_MODE` do script) e o dano consulta o *slot* 619; na base do 1.69 os dois não fazem nada (619 devolve "não"). Só Fiona, Evy, Kalok e Arisha têm os seus.
 Mudança (`GUARD` no patch, servidor): para a classe 10, 618/619 guardam o estado numa tabela própria (16 entidades), e o dano (*slot* 555) usa a rotina de guarda da Fiona (zera o dano e faz a reação; só usa campos da base), levantando `AS_Cond_Delia_Guard`/`AS_Cond_Delia_Guard_Hit` a cada golpe bloqueado (como no NA) e baixando-as ao sair da guarda. Efeito visual: a rotina da Fiona dispara o efeito `shield_pass_over`.
 Pré-condição: aplicado (`client.dll` `3287411a…`, `server.dll` `2f3e5c54…`); abrir pelo `start-lab.bat`.
-- [ ] Primeira fase com a `DeliaLab`: segurar a guarda (Shift) e levar golpes de frente; anotar se o dano é bloqueado e se aparece reação de golpe bloqueado.
-- [ ] Logo depois de um golpe bloqueado, atacar: anotar se sai o contra-ataque da guarda.
-- [ ] Ataque que não deveria ser defensável (golpe forte de chefe, se houver): anotar se ainda acerta.
-- [ ] Não regressão: Fiona (guarda com escudo), Hagie e Evy numa fase.
+- [x] Primeira fase com a `DeliaLab`: segurar a guarda (Shift) e levar golpes de frente; anotar se o dano é bloqueado e se aparece reação de golpe bloqueado.
+- [x] Logo depois de um golpe bloqueado, atacar: anotar se sai o contra-ataque da guarda.
+- [x] Ataque que não deveria ser defensável (golpe forte de chefe, se houver): anotar se ainda acerta.
+- [x] Não regressão: Fiona (guarda com escudo), Hagie e Evy numa fase.
 Resultado esperado: dano bloqueado durante a guarda.
 
 ### D21 — Levantamento das habilidades da Delia em nível alto (base para o E4/E5)
 Preparação: painel admin → personagem `DeliaLab` → progressão: subir até o nível 45 (ou mais) e dar AP; no jogo, aprender as habilidades da Delia na janela de habilidades.
-- [ ] Para cada habilidade (`smash` 1–3, `speedmove`, `xe_move`, SP1–SP5, `smash0`, `power_attack`): usar numa fase e anotar se a animação toca, se acerta/causa dano e se algo trava ou cai.
-- [ ] Anotar especialmente: lançamento de inimigos (*ragdoll*), agarrar e segurar alvo, avanço até o alvo, efeito do *smash* carregado.
+- [x] Para cada habilidade (`smash` 1–3, `speedmove`, `xe_move`, SP1–SP5, `smash0`, `power_attack`): usar numa fase e anotar se a animação toca, se acerta/causa dano e se algo trava ou cai.
+- [x] Anotar especialmente: lançamento de inimigos (*ragdoll*), agarrar e segurar alvo, avanço até o alvo, efeito do *smash* carregado.
 Resultado esperado: a lista do que já funciona e do que falta; o porte do NA (E4/E5) segue por essa lista.
 
 Resultado do D20/D21 (29/10/2026, operador, Delia nível 45): a guarda ainda não bloqueia; habilidades SP não saem pela barra de atalhos; a Wild Star (4º estágio) não aplica o *debuff* de 20% de vida nem o devolve no acerto; a Star Divider não recupera estamina nem dá o Sharpness; todos os itens vermelhos no inventário. Diagnóstico e plano: `docs/future/new-classes.md` 8.15.
 
 ### D22 — Plano 8.15 completo (E3–E5 e os quatro defeitos), sessão única no fim
 Operador (29/10/2026): implementar o plano inteiro e testar só no fim. Cada item abaixo entra aqui quando fica pronto; a preparação, a ordem e o relato são fechados no último item.
-- [ ] **Guarda (item 1, `CLIENT_GUARD` + `GUARD`):** numa fase com a `DeliaLab`, segurar Shift e levar golpes de frente. Esperado: sem dano, reação de golpe bloqueado (`pc_delia_guard_hit_*`), efeito `shield_pass_over`; atacar logo depois sai o contra-ataque (`AttackMelee_02_guard`). Golpe pelas costas ou indefensável ainda acerta. Não regressão: guarda da Fiona.
-- [ ] **SP5 / armadura (item 2, `CLASS_CONDITIONS`):** com `skill_delia_sp5` aprendida e SP cheio, usar a SP5. Esperado: a SP5 sai (antes a condição `As_Cond_Can_Armor_Purge` nunca era ligada). Aproximação de laboratório: a condição fica ligada sempre (não confere armadura nem bloqueio); os seguimentos `_one` da SP1/SP3 continuam fechados (`SP3_Activated` não portado).
-- [ ] **Wild Star, 4º estágio (itens 3–4, `DELIA_EFFECTS`):** segurar o botão direito até o golpe final. Esperado: ao começar, a Delia perde 20% da vida atual (efeito `delia_vampiric`, ícone `skill_delia_strong_attack_week`) e a vida volta aos poucos em ~5 s; se ela levar um golpe não defendido nesse tempo, o resto se perde e o ícone some. No acerto do golpe final, o ícone Sharpness (`skill_delia_strong_attack`) aparece; repetir sobe até o nível 3, e os golpes fortes `delia_strong_attack_02a2`/`03a` causam 10/15/20% a mais. Depois de 2 s, golpes recebidos não defendidos gastam o Sharpness (3/2/1 golpes por nível) e ele cai um nível.
-- [ ] **Star Divider e golpes fortes (itens 3–4):** `battle_attack_strong_01`/`02b`/`03b` e a SP4. Esperado: o primeiro acerto em monstro devolve 50 (ou 80) de estamina, uma vez por golpe; o ícone `skill_delia_strong_attack_hit` aparece no acerto; no `03b`, o `skill_delia_will` dá defesa de armadura (+2500), estamina e velocidade de ataque.
-- [ ] **Itens só da Delia (item 8, `ITEM_MASK`):** a máscara de classe que o cliente monta para comparar dois itens (`0x384ac450`) parava na Hagie; agora leva o bit 10. Esperado: nenhuma mudança para itens das 10 classes antigas; itens só da Delia (máscara 1024) deixam de falhar nessa comparação.
-- [ ] **Itens vermelhos (item 8, `DELIA_FLAG`):** na cidade, abrir o inventário e o baú com a `DeliaLab`. Esperado: itens permitidos à Delia (Campfire Kit, penas, poções, armas e roupas dela) sem fundo vermelho; a dica da `bastardsword_bloodlord` sem "Cannot be equipped" (classe Delia listada). Itens de outras classes continuam vermelhos. Não regressão: Fiona com os mesmos itens (dica e cor iguais às de antes).
-- [ ] **SP pela barra (item 7, `FRAME_KEYS`):** numa fase, com SP cheio, usar SP1, SP2, SP4 e SP5 pela barra. Esperado: cada uma sai (antes nada acontecia: os eventos `$immediately$` que abrem `AttackSP01`/`02_begin`/`04`/`05` eram descartados pelo 1.69). A SP3 não está nesse grupo (comentada no conteúdo), então pode continuar sem sair. Se alguma não sair, deixar o jogo aberto na fase e avisar, para a leitura de memória.
+- [x] **Guarda (item 1, `CLIENT_GUARD` + `GUARD`):** numa fase com a `DeliaLab`, segurar Shift e levar golpes de frente. Esperado: sem dano, reação de golpe bloqueado (`pc_delia_guard_hit_*`), efeito `shield_pass_over`; atacar logo depois sai o contra-ataque (`AttackMelee_02_guard`). Golpe pelas costas ou indefensável ainda acerta. Não regressão: guarda da Fiona.
+- [x] **SP5 / armadura (item 2, `CLASS_CONDITIONS`):** com `skill_delia_sp5` aprendida e SP cheio, usar a SP5. Esperado: a SP5 sai (antes a condição `As_Cond_Can_Armor_Purge` nunca era ligada). Aproximação de laboratório: a condição fica ligada sempre (não confere armadura nem bloqueio); os seguimentos `_one` da SP1/SP3 continuam fechados (`SP3_Activated` não portado).
+- [x] **Wild Star, 4º estágio (itens 3–4, `DELIA_EFFECTS`):** segurar o botão direito até o golpe final. Esperado: ao começar, a Delia perde 20% da vida atual (efeito `delia_vampiric`, ícone `skill_delia_strong_attack_week`) e a vida volta aos poucos em ~5 s; se ela levar um golpe não defendido nesse tempo, o resto se perde e o ícone some. No acerto do golpe final, o ícone Sharpness (`skill_delia_strong_attack`) aparece; repetir sobe até o nível 3, e os golpes fortes `delia_strong_attack_02a2`/`03a` causam 10/15/20% a mais. Depois de 2 s, golpes recebidos não defendidos gastam o Sharpness (3/2/1 golpes por nível) e ele cai um nível.
+- [x] **Star Divider e golpes fortes (itens 3–4):** `battle_attack_strong_01`/`02b`/`03b` e a SP4. Esperado: o primeiro acerto em monstro devolve 50 (ou 80) de estamina, uma vez por golpe; o ícone `skill_delia_strong_attack_hit` aparece no acerto; no `03b`, o `skill_delia_will` dá defesa de armadura (+2500), estamina e velocidade de ataque.
+- [x] **Itens só da Delia (item 8, `ITEM_MASK`):** a máscara de classe que o cliente monta para comparar dois itens (`0x384ac450`) parava na Hagie; agora leva o bit 10. Esperado: nenhuma mudança para itens das 10 classes antigas; itens só da Delia (máscara 1024) deixam de falhar nessa comparação.
+- [x] **Itens vermelhos (item 8, `DELIA_FLAG`):** na cidade, abrir o inventário e o baú com a `DeliaLab`. Esperado: itens permitidos à Delia (Campfire Kit, penas, poções, armas e roupas dela) sem fundo vermelho; a dica da `bastardsword_bloodlord` sem "Cannot be equipped" (classe Delia listada). Itens de outras classes continuam vermelhos. Não regressão: Fiona com os mesmos itens (dica e cor iguais às de antes).
+- [x] **SP pela barra (item 7, `FRAME_KEYS`):** numa fase, com SP cheio, usar SP1, SP2, SP4 e SP5 pela barra. Esperado: cada uma sai (antes nada acontecia: os eventos `$immediately$` que abrem `AttackSP01`/`02_begin`/`04`/`05` eram descartados pelo 1.69). A SP3 não está nesse grupo (comentada no conteúdo), então pode continuar sem sair. Se alguma não sair, deixar o jogo aberto na fase e avisar, para a leitura de memória.
 
 #### Preparação, ordem e relato do D22
 - Preparação: jogo fechado; patch aplicado (`class-routing.json`, hashes no `MIGRATION.md`, passo 43); `docker compose up -d --wait` (servidor Rust já em execução); abrir pelo `start-lab.bat`; personagem `DeliaLab` (nível 45, Wild Star, Star Divider, SP1–SP5 e guarda aprendidas; SP e estamina cheios).
@@ -451,12 +451,16 @@ Resultado do D22 (29/10/2026, operador): itens vermelhos corrigidos; a guarda bl
 
 ### D23 — Rose Crush e som da guarda (passos 44–45)
 Resultado da primeira rodada (29/10/2026): no barco a Rose Crush não quebrou a armadura (esperado: o comando só roda no servidor da fase); numa fase o jogo caiu (`server` `0x40383bab`), corrigido no passo 45 (quebra sem reconstruir o modelo). Segunda rodada (passo 45): sem queda, mas as peças não sumiram do corpo; passo 46: o modelo é reconstruído no *think*, depois dos eventos de animação. Terceira rodada (passo 46): sem queda, mas a armadura ficou com o visual de quebrada; o original tira a armadura e deixa só a *inner* (passo 47). Quarta rodada (passo 47): a Rose Crush quebrou e tirou a armadura certo; o *kit* de conserto consertou, mas as peças não voltaram ao corpo (passo 48). No barco, o Repair Kit equipado na barra só apareceu depois de sair do barco (passo 48, servidor).
-- [ ] **Rose Crush quebra a armadura (`PURGE_ALL_ARMOR`, passos 45–47):** só numa fase (no barco/cidade não quebra, como no original); numa fase com a `DeliaLab` (nível 60, armadura inteira equipada, SP cheio), usar a Rose Crush (SP5). Esperado: no fim do golpe (quadro 125), as cinco peças de armadura (*slots* 4–8: cabeça, tronco, pernas, mãos, pés) quebram como num golpe de monstro (HP de armadura 0 e a janela de equipamento mostra as peças quebradas); logo depois do golpe as cinco peças saem do corpo e fica só a *inner armor* (sem visual de quebrada); o jogo **não** cai. Na fase seguinte a armadura volta ao corpo, e os efeitos (Sharpness 3, `skill_delia_strong_attack_hit`, `skill_delia_will`) continuam. Não portado: a marca do NA que bloqueia uma segunda purga e o visual especial do capacete, então usar de novo com a armadura já quebrada não muda nada. Anotar se a durabilidade das peças cai ao sair da fase.
-- [ ] **Conserto depois da Rose Crush (passo 48):** depois da Rose Crush (só a *inner* no corpo), usar o Armor Repair Kit / Armor Temporary Repair. Esperado: as peças consertadas voltam ao corpo logo depois, sem queda. Anotar se alguma peça não volta.
-- [ ] **Rose Crush e conserto no barco (passo 49, só visual):** no barco, com a armadura no corpo, usar a Rose Crush; depois o Armor Repair Kit. Esperado: a armadura some do corpo (fica a *inner*) e volta depois do *kit*; a armadura não quebra de verdade nem perde durabilidade no barco.
-- [ ] **Barra de atalhos no barco (passo 48, servidor):** no barco, arrastar ou equipar um item (por exemplo o Armor Repair Kit) na barra. Esperado: o ícone aparece na hora, sem precisar sair do barco.
-- [ ] **Quebra por golpe (sem patch novo, caminho do 1.69):** sem usar a Rose Crush, deixar monstros, uma queda ou uma armadilha quebrarem uma peça. Esperado: a peça fica com o visual de quebrada (não some) e o jogo não cai. Se cair, anotar o endereço.
-- [ ] **Guarda sem som de golpe (`HIT_IMPACT_SKIP`):** segurar Shift e levar golpes de frente. Esperado: sem dano e **sem** o som/efeito de impacto de golpe recebido (só a reação de guarda). Golpe pelas costas ou indefensável ainda toca o som e causa dano. Não regressão: guarda da Fiona.
+- [x] **Rose Crush quebra a armadura (`PURGE_ALL_ARMOR`, passos 45–47):** só numa fase (no barco/cidade não quebra, como no original); numa fase com a `DeliaLab` (nível 60, armadura inteira equipada, SP cheio), usar a Rose Crush (SP5). Esperado: no fim do golpe (quadro 125), as cinco peças de armadura (*slots* 4–8: cabeça, tronco, pernas, mãos, pés) quebram como num golpe de monstro (HP de armadura 0 e a janela de equipamento mostra as peças quebradas); logo depois do golpe as cinco peças saem do corpo e fica só a *inner armor* (sem visual de quebrada); o jogo **não** cai. Na fase seguinte a armadura volta ao corpo, e os efeitos (Sharpness 3, `skill_delia_strong_attack_hit`, `skill_delia_will`) continuam. Não portado: a marca do NA que bloqueia uma segunda purga e o visual especial do capacete, então usar de novo com a armadura já quebrada não muda nada. Anotar se a durabilidade das peças cai ao sair da fase.
+- [x] **Conserto depois da Rose Crush (passo 48):** depois da Rose Crush (só a *inner* no corpo), usar o Armor Repair Kit / Armor Temporary Repair. Esperado: as peças consertadas voltam ao corpo logo depois, sem queda. Anotar se alguma peça não volta.
+- [x] **Rose Crush e conserto no barco (passo 49, só visual):** no barco, com a armadura no corpo, usar a Rose Crush; depois o Armor Repair Kit. Esperado: a armadura some do corpo (fica a *inner*) e volta depois do *kit*; a armadura não quebra de verdade nem perde durabilidade no barco.
+- [x] **Barra de atalhos no barco (passo 48, servidor):** no barco, arrastar ou equipar um item (por exemplo o Armor Repair Kit) na barra. Esperado: o ícone aparece na hora, sem precisar sair do barco.
+- [x] **Quebra por golpe (sem patch novo, caminho do 1.69):** sem usar a Rose Crush, deixar monstros, uma queda ou uma armadilha quebrarem uma peça. Esperado: a peça fica com o visual de quebrada (não some) e o jogo não cai. Se cair, anotar o endereço.
+- [x] **Guarda sem som de golpe (`HIT_IMPACT_SKIP`):** segurar Shift e levar golpes de frente. Esperado: sem dano e **sem** o som/efeito de impacto de golpe recebido (só a reação de guarda). Golpe pelas costas ou indefensável ainda toca o som e causa dano. Não regressão: guarda da Fiona.
 - Preparação: jogo fechado; patch aplicado (hashes no `MIGRATION.md`, passo 44); abrir pelo `start-lab.bat`; `DeliaLab` nível 60 com a armadura equipada.
 - Ordem: (1) entrar numa fase; (2) guarda: 3 defesas de frente, ouvir o som; (3) Rose Crush com a armadura inteira; olhar o modelo e a janela de equipamento; (4) sair da fase e conferir a durabilidade das peças.
 - Como relatar: "D23 Rose Crush" / "D23 guarda", o que apareceu e o horário; se cair, o relatório da pasta `Report Error`.
+
+## Fechamento do C2 (29/10/2026)
+Operador (29/10/2026): os testes da Delia estão concluídos. A última rodada (D23) confirmou: Rose Crush quebra e tira a armadura na fase e volta com o conserto; no barco, só o visual some e volta; a barra de atalhos atualiza; itens vermelhos, guarda, contra-ataque, SP pela barra, Wild Star e Star Divider funcionando (D22). As caixas das rodadas D0–D21 foram substituídas pelas rodadas seguintes e ficam marcadas como encerradas.
+Fica aberto só o D6 (criação S3 e a Delia na grade de criação): é a próxima etapa, "Criação de personagem da Delia" (`docs/future/delia-character-creation-prompt.md`). Contagem: 154 caixas encerradas, 4 abertas (D6).
