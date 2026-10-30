@@ -2519,3 +2519,9 @@ Passo C3-9 (30/10/2026): roupas de amostra (*Sample outfits*) da Delia na custom
 - Pendente de confirmação no cliente: que a classe passada a `0x384a32d0` na customização da Delia é 10 (vem do método virtual `0x384a5870`, *slot* +0x18 do painel); se os botões continuarem mudos, ler a memória na customização.
 - Cliente: `docs/client-tests/C3-criacao.md`, G6.
 - Próxima ação: G6 (e G4) no cliente.
+
+Passo C3-10 (30/10/2026): HUD acima do modelo e valor do botão de voltar.
+- Relato do operador (C3, oitava rodada): as armaduras de *preview* funcionam (C3-9); aparece "Lv. 0" acima da personagem na customização; o botão de voltar não aparece (só "Check" e "Create").
+- Causas: o NA desliga o HUD sobre as entidades ao entrar na customização (`hhud_should_draw 0`, `0x38bd8683`) e o religa ao sair (`0x38bd8c50`); o fluxo V3 portado não fazia isso. O botão: o *set* em texto (vt+0x1c) moveu o `_x`, mas `"true"` numa propriedade de exibição vira número (NaN, falso) na conversão antiga do AS.
+- Mudança: entrada da customização com a grade manda também `hhud_should_draw 0`; a saída (`0x38524bab`) manda `sv_create_character_mode 0;hhud_should_draw 1`; `Button_Back._visible` = `"1"`. Teste do cliente e relocações OK (`.cache/verification/c3/tests-11.log`).
+- Não aplicado ainda: precisa do jogo fechado e do ramo das roupas de amostra (`claude/practical-mcclintock-2f46ce`, `edbacfa`) junto, senão o novo patch apaga o C3-9 dos DLLs.

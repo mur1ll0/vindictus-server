@@ -469,6 +469,7 @@ CREATION_GRID = {
         'handler_rest': 0x3890AE35,      # its GameStart test (esi = dialog, edi = argument)
         'transition': (0x3852376D, 'b808000000'),         # NewCharacterSelection_Start -> state 8
         'enter': (0x38524B00, '81ec00020000'),            # CharacterCreationState enter
+        'leave_command': (0x38524BAB, '68b8b2b738'),      # its leave: push "sv_create_character_mode 0"
         'creation_vtable': 0x38B79BC8,   # CharacterCreationState; slot 4 runs once the map is up
         # UI start-up registers the grid dialog's FSCommand handler only when S3_CharacterCreation
         # is already on, and then skips the V4 bar's. The FeatureMatrix arrives later, at login, so
@@ -2015,7 +2016,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
         'OnStartCreation', 'npc_character_create;force_start_touch trigger_cam_midview',
         'NewCharacterDialogS3.OnReadyCreation', 'sv_prologue_mode 1', 'scaleform_fade_out 1.5',
         'changemap lobby_beautyshop_body', 'cam_select_beautyshop_camera', 'scaleform_fade_in 1.5',
-        'cc_show_create_character_dialog')}
+        'cc_show_create_character_dialog', 'hhud_should_draw 0', 'sv_create_character_mode 0;hhud_should_draw 1')}
     select = {i: (layout.string(f'Select{key.capitalize()}'), layout.string(f'npc_character_create_select {i}'))
               for i, key in names}
 
@@ -2073,6 +2074,8 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     operand(k['map_operand'], text['changemap lobby_beautyshop_change'])
     operand(k['start_camera'], text['gameui_hide;cc_minimap_hide'])
     operand(k['start_invoke'], text['NewCharacterDialogS3.OnStartCreation'])
+    # CharacterCreationState leave (as NA 0x38bd8c50): the overhead HUD back on with the creation mode off.
+    operand(k['leave_command'], text['sv_create_character_mode 0;hhud_should_draw 1'])
 
     # The grid dialog's FSCommand handler: OnStartCreation and Select<Class> here, the rest (GameStart,
     # Back) in the original body with the same frame (esi = dialog, edi = argument).
@@ -2124,7 +2127,8 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\x50'
     layout.to(b'\xe8', k['player_class'])
     layout.body += b'\x83\xc4\x04'
-    for t in ('sv_prologue_mode 1', 'scaleform_fade_out 1.5', 'changemap lobby_beautyshop_body'):
+    # NA 0x38bd8683: the overhead HUD is off in the customization ("Lv. 0" above the model otherwise).
+    for t in ('sv_prologue_mode 1', 'scaleform_fade_out 1.5', 'changemap lobby_beautyshop_body', 'hhud_should_draw 0'):
         command(0x1C, text[t])
     layout.body += b'\xc3'
     edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
@@ -2151,7 +2155,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     back_event, prologue_off = layout.string('CharacterCreation_Back'), layout.string('sv_prologue_mode 0')
     back_label = layout.string('Back')
     show_label, button = layout.string('OnShow'), layout.string('CreateCharacterDialog.Button_Back._visible')
-    shown = layout.string('true')
+    shown = layout.string('1')  # "true" converts to NaN, false, for a display property (C3-9)
     layout.pad()
     back = layout.here()
     command(0x1C, prologue_off)
