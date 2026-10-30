@@ -12,13 +12,13 @@ Migração completa: **NÃO CONCLUÍDA**.
 
 - Blocos B0–B4 fechados no código (último gate completo: B4, 27/10/2026 — 524 Rust, 298 PostgreSQL em lotes, 61 Python, smoke Docker exit 0). Só o B0 tem aceite completo no cliente.
 - Bloco atual: **B5** (multijogador e sistemas restantes). Pets (P1–P6) adiantados a pedido do operador, sem teste no cliente.
-- Trilha paralela de classes novas: Delia (classe 10) jogável e criável pela grade; Miri aguarda decisão do operador.
+- Trilha paralela de classes novas: Delia (classe 10) jogável e criável pela grade; Miri (classe 11) em porte na branch `feat/miri-class` (`docs/future/miri-class-port.md`).
 - Laboratório: `docker compose` (`game`, `server`, PostgreSQL) e cópia do cliente em `.cache/play-client` (`start-lab.bat`, conta `lab169_a`).
 
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Aguardando o operador: sessões de cliente pendentes (tabela abaixo) e a decisão sobre a Miri.
+2. Miri: M1 — conversor `.mdl` v45→v44 e cópia dos assets do NA para `.cache/play-client` (decisões de 30/10 no `docs/future/miri-class-port.md`).
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
@@ -35,7 +35,6 @@ Migração completa: **NÃO CONCLUÍDA**.
 Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 ou B2.6), usar consumível pela barra (B2.5).
 
 Decisões pendentes:
-- Miri (classe 11): cópia de assets do NA, escopo das mecânicas, arma e caminho da grade; depois o passo 0 da skill `.agents/skills/new-class-port`.
 - Customização: poses animadas e rotação dos atores da grade (opcional, comando `cc_create_character_selection_play_sequence` do NA).
 
 ## Blocos do roteiro
@@ -83,7 +82,7 @@ Decisões pendentes:
 - Classes novas (`docs/future/new-classes.md`, `docs/future/delia-class-port.md`, skill `new-class-port`):
   - [x] Delia C2: classe 10 jogável (corpo, armas, guarda, condições, efeitos, Rose Crush, SP), aceita em 29/10.
   - [ ] Delia C3: criação pela grade do NA — falta volta à seleção, G3 e G5.
-  - [ ] Miri: aguarda decisão do operador.
+  - [ ] Miri: M0 medição feita; decisões de 30/10 (assets do NA, todas as mecânicas, `weapon_greatsword`, modelos v44); próximos M1–M10.
 - Recursos futuros do painel (`docs/playable-game-roadmap.md`, seção "Recursos futuros do painel"):
   - [x] Editor de itens (corte 1 aceito; I2 no cliente pendente).
   - [x] Busca por categoria, editor de refino/scrolls, progressão até um nível (inclui história principal; P3 no cliente pendente).

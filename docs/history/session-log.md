@@ -2684,3 +2684,11 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver `git log -- README.md`.
 - Pendente / próxima ação: inalterada (sessão de cliente B5-pets; sessões B1–B4 e C3; decisão sobre a Miri).
+
+## 2026-10-30 — Miri M0 (medição da classe 11, sem patch)
+- Feito: branch `feat/miri-class`; `scripts/reverse/na_class_measure.py` (relatórios db/models/tokens por classe); `docs/future/miri-class-port.md` com a medição e as decisões do operador (assets do NA autorizados, portar todas as mecânicas, arma pela entidade `weapon_greatsword`, modelos convertidos para v44, painel compatível).
+- Medição: NA 78 tabelas/10.373 linhas com `miri`, 1.69 nenhuma; arma única `DRAKER` (76); 19 habilidades. Modelos: 1.69 só IDST v44 (16.802); Miri NA 501 v45 + 157 v44; v45 = v44 + bloco de 260 bytes (caminho longo) depois do cabeçalho, deslocamentos +260 (par `pc_delia_hair_crystal_rose_04.mdl`); `datacache.dll` só testa `IDST` (`0x1000bcd8`). Scripts: 3 condições próprias (`As_Cond_Miri_*`), comandos `EQUIP/PURGE_DRAGON_KNIGHT_LOOK`, `REDUCE_DRAGON_KNIGHT_SP_GAUGE`, `USE_DRAGON_ENERGY`, `SP_Paladin_*`/`SP_DarkKnight_*`, 26 eventos `AE_*` sem código no 1.69.
+- Verificação: `na_class_measure.py` db/models/tokens exit 0; logs `.cache/verification/miri/m0-*.log`, lista de arquivos `m0-na-files.txt` (5.993).
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M1 — conversor `.mdl` v45→v44 e cópia dos assets do NA para `.cache/play-client`.
