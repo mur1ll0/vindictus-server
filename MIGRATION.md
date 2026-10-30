@@ -2457,3 +2457,11 @@ Passo C3-2 (29/10/2026): handler da grade registrado na partida da interface.
 - Mudança (`CREATION_GRID`, `register_*`): o *handler* da grade é registrado sempre e o fluxo segue para o teste `CharacterCreation_UI_V2`, que registra o da barra V4; a escolha do diálogo continua sendo a da hora. Teste `test_creation_grid_client_runs_the_na_v3_flow` ampliado, OK (`.cache/verification/c3/tests-3.log`).
 - Aplicado com o jogo fechado a partir dos `*.pre-routing.bak` (`.cache/verification/c3/class-routing-apply-c3b.log`): `client.dll` `3e0b0c4d…`, `server.dll` `3810caa3…` (igual).
 - Próxima ação: repetir o C3 (G1–G5) no cliente.
+
+Passo C3-3 (30/10/2026): pose de apresentação dos atores da grade.
+- Relato do operador (C3, segunda rodada): os modelos aparecem no centro, mas parados; Hagie e Delia em pose T; a Fiona com um escudo flutuando, o Kay apoiando a perna e a Lynn sobre algo invisível.
+- Causa: com `S3_CharacterCreation` o ator do 1.69 pede `ACT_CHARACTER_CREATION_S3` (`server.dll` `0x4040e380`), poses feitas para os objetos do mapa S3 antigo; os `pc_hagie_town_Motion.mdl` e `pc_delia_town_motion.mdl` não têm essa atividade (pose T). Os 11 `pc_<classe>_town_motion.mdl` têm `ACT_CHARACTER_CREATION_SELECTED_S3`, a atividade que o NA registra (`0x406d9af1`) e toca na classe escolhida; o NA não tem `ACT_CHARACTER_CREATION_S3`.
+- Mudança (`CREATION_GRID['server.dll']['activity']`): o registro da atividade S3 (`0x4040f034`/`0x4040f03f`) passa a usar o nome `ACT_CHARACTER_CREATION_SELECTED_S3`. Teste `test_creation_grid_server_registers_the_scene_commands` ampliado, OK (`.cache/verification/c3/tests-4.log`).
+- Pendente se continuarem parados: o NA força a sequência no ator do lado do cliente (comando `cc_create_character_selection_play_sequence`, cliente NA `0x3888ded0`: sequência em `+0x4c1c` e reinício do ciclo), que o 1.69 não tem.
+- Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3c.log`): `client.dll` `3e0b0c4d…` (igual), `server.dll` `35f2ef50…`.
+- Próxima ação: repetir G1–G2 do C3 e seguir para G3–G5.

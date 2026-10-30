@@ -654,6 +654,8 @@ class LabCopyTest(unittest.TestCase):
         # ConCommand(name, callback, help = name, ...) for each command, in order.
         self.assertEqual([s for s in self.strings(image, init) if s],
                          ['npc_character_create'] * 2 + ['npc_character_create_select'] * 2)
+        for va, _ in k['activity']:
+            self.assertEqual(routing.read_string(image, self.entry(image, va + 1, 0)), 'ACT_CHARACTER_CREATION_SELECTED_S3')
         choose = self.code(image, int(grid['npc_character_create_select'], 16), 0x800)
         names = self.strings(image, choose)
         for _, key in routing.creation_names():

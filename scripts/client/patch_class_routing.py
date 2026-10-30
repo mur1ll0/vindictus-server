@@ -478,6 +478,11 @@ CREATION_GRID = {
         'entities': 0x40D2A0F8,          # gEntList
         'find': 0x401523E0,              # FindEntityByName(start, name, searching, activator, caller, filter)
         'teleport': 0x208,               # CBaseEntity::Teleport(origin, angles, velocity) slot
+        # The actor's S3 activity (0x4040e380 under S3_CharacterCreation) is registered by name at
+        # these two pushes. ACT_CHARACTER_CREATION_S3 poses were made for the old map's props (Kay
+        # leans, Lynn stands on nothing) and Hagie's and Delia's town motions lack it (T-pose); all
+        # eleven have the NA's ACT_CHARACTER_CREATION_SELECTED_S3, so the slot takes that name.
+        'activity': ((0x4040F034, '68f00fb340'), (0x4040F03F, '68f00fb340')),
         # point_teleport origin/angles in lobby_beautyshop_change.bsp (NA reads the same entities).
         'select': ((-64.0, 0.0, 0.0), (0.0, 180.0, 0.0)),
         'nonselect': ((-16.0, 276.0, 152.0), (0.0, 0.0, 0.0)),
@@ -2116,6 +2121,9 @@ def creation_server(layout: Layout, edits: list, k: dict) -> dict:
     names = creation_names()
     layout.pad()
     create, choose = layout.string('npc_character_create'), layout.string('npc_character_create_select')
+    selected = layout.string('ACT_CHARACTER_CREATION_SELECTED_S3')
+    for va, old in k['activity']:
+        edits.append((va, bytes.fromhex(old), b'\x68' + struct.pack('<I', selected)))
     actors = [(i, layout.string(f'npc_{key}')) for i, key in names]
     layout.pad()
     places = {}
