@@ -1,6 +1,6 @@
 # Roteiro de testes no cliente — B3 progressão de equipamento
 
-Bloco B3 (atributos de item, Craft, Enhance, Enchant e complementos: slots, reparo completo, armazenamento pessoal e SkillEnhance). O item 5 (Combine Craft e habilidades de item) foi adiado pelo operador. Gate fechado em 24/10/2026 (resultado no `MIGRATION.md`). Nenhuma entrada foi testada no cliente ainda; as do B1 e do B2 também continuam pendentes (`docs/client-tests/B2-fases.md`).
+Bloco B3 (atributos de item, Craft, Enhance, Enchant e complementos: slots, reparo completo, armazenamento pessoal e SkillEnhance). O item 5 (Combine Craft e habilidades de item) foi adiado pelo operador. Gate fechado em 24/10/2026 (resultado no `docs/history/session-log.md`). Nenhuma entrada foi testada no cliente ainda; as do B1 e do B2 também continuam pendentes (`docs/client-tests/B2-fases.md`).
 
 ## Preparação
 1. Conteúdo privado regenerado no B3: `.cache/private-content/item-enhance.json` (formato 6; melhoria, encantamento, manufatura, qualidade e SkillEnhance). A cópia do cliente (`.cache/play-client`) já recebeu os valores originais de `EnhanceInfo`, `EnchantInfo` e `ManufactureRecipeInfo` (`py -3.13 scripts/client/apply_original_content.py --client-copy .cache/play-client` deve listar 0 pendências).

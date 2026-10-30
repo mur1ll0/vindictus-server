@@ -1,6 +1,6 @@
 # Registro e aceite
 
-## Entrada do `MIGRATION.md` (uma por passo verificado)
+## Entrada do `docs/history/session-log.md` (uma por passo verificado)
 Modelo, no estilo dos passos C3-x da Delia:
 
 ```
@@ -26,11 +26,11 @@ entradas G*). Escolha um prefixo de ID próprio para a classe. Formato de `docs/
 ```
 # Roteiro de testes no cliente — <etapa> <classe>
 
-<objetivo em 2–3 linhas e a entrada do MIGRATION.md de origem>
+<objetivo em 2–3 linhas e a entrada do docs/history/session-log.md de origem>
 
 ## Preparação
 1. Servidor: <imagem/commit>; `docker compose ps` com `game` e `server` saudáveis.
-2. DLLs: <patches aplicados, hashes no MIGRATION.md>; jogo fechado durante a aplicação.
+2. DLLs: <patches aplicados, hashes no docs/history/session-log.md>; jogo fechado durante a aplicação.
 3. Cliente: `.cache/play-client/start-lab.bat`, conta `lab169_a`; personagem <nome> (<classe, nível, itens>;
    comandos `lab-set-class.ps1`/`lab-give-item.ps1` com a personagem fora do jogo).
 4. Relatórios de queda: `Documents\Vindictus EU GM\Report Error` (nome do mais novo e horário).
@@ -74,7 +74,7 @@ Mesma estrutura do `delia-class-port.md`; não copie o da Delia, cite-o quando o
      decisão do operador com data) e dados/comportamentos recuperados (endereço NA de cada um).
 
 ## Git
-- *Commit* local por passo, com código, testes, roteiro, documento da classe e `MIGRATION.md` juntos.
+- *Commit* local por passo, com código, testes, roteiro, documento da classe, linha do `MIGRATION.md` e entrada do histórico juntos.
 - `git add` com caminhos explícitos; revisar a lista e o *diff* antes do *commit*.
 - Nunca: assets do jogo, DLLs, `heroes.db3`, *dumps*, exportações privadas, credenciais, fontes
   decompiladas. `.cache/` e `docs/evidence/client/` são locais.
@@ -96,5 +96,5 @@ Pré-condição: todos os patches aplicados; Docker reconstruído no fechamento;
 | Criação até a cidade | "Create" → estalagem → fala da Tieve → "Go to town" → cidade com a personagem nova | G4 |
 | Volta à seleção | a personagem criada aparece certa e entra de novo; classe antiga pela grade até a cidade (G3); voltar da grade sem criar (G5) | G3, G4, G5 |
 
-Com o aceite do operador: registrar no `MIGRATION.md` (citação do relato), atualizar o estado no documento
+Com o aceite do operador: marcar o item no `MIGRATION.md`, registrar no `docs/history/session-log.md` (citação do relato), atualizar o estado no documento
 da classe e encerrar as caixas do roteiro.

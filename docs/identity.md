@@ -39,7 +39,7 @@ Foram gerados 2 executáveis próprios com os compiladores Microsoft Framework c
 
 `tests/fixtures/framework-identity.json` contém 2 arquiteturas × 5 culturas × 194 entradas: vazio/null, paridades de comprimento, 24/25 unidades, sufixos restritos, sinais/espaços, Unicode/NUL para o hash bruto e 160 entradas ASCII determinísticas com comprimentos 1–160. Casos são exclusivamente sintéticos, sem credenciais reais.
 
-Os testes comparam hash bruto UTF-16 em ambas arquiteturas; identidade ASCII e restrições `zhCN`; divergência de cultura turca; rejeição de online/Unicode/controles; limite antes de alocar; e diferença entre nome truncado e hash completo. A verificação global deve ser executada após integrar o módulo; o resultado pertence à memória MIGRATION.md.
+Os testes comparam hash bruto UTF-16 em ambas arquiteturas; identidade ASCII e restrições `zhCN`; divergência de cultura turca; rejeição de online/Unicode/controles; limite antes de alocar; e diferença entre nome truncado e hash completo. A verificação global deve ser executada após integrar o módulo; o resultado pertence à memória docs/history/session-log.md.
 
 Ainda pendem perfil efetivo original, compatibilidade Unicode/cultura além deste subconjunto, adapter `dbo.User`/PostgreSQL, colisões, frontend e state machine de autenticação, mensagens/categorias completas e login real pelo cliente. M13 continua parcial.
 

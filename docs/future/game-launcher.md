@@ -9,7 +9,7 @@ Encaixe no roteiro: o L0 (teste de arquivos soltos) pode rodar a qualquer moment
 - O cliente de teste é a cópia `.cache/play-client` do 1.69 EN (`docs/client-compatibility.md`, "Clientes de referência").
 - O `start-lab.bat` foi gerado por `scripts/client/install_lab_launcher.py` no B4.4c. Ele roda `py -3.13 scripts/client/apply_lab_content_additions.py --client-copy … --apply --edits .cache/content-state/content-edits.json`, que reaplica as edições publicadas no `sql/heroes.db3` da cópia a partir do backup original, e depois executa `start vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4`.
 - Limites: exige Python e o repositório na máquina do jogador; não baixa nem repara arquivos; só altera o `heroes.db3`; não confere a versão do conteúdo do servidor.
-- Login (B4.2d, `MIGRATION.md`): o cliente não envia a senha (diagnóstico B4.2-D); o frontend aceita no ID o login de uma conta ativa, sem senha no jogo.
+- Login (B4.2d, `docs/history/session-log.md`): o cliente não envia a senha (diagnóstico B4.2-D); o frontend aceita no ID o login de uma conta ativa, sem senha no jogo.
 
 ## 2. O cliente funciona com arquivos soltos ou exige os `.hfs`?
 

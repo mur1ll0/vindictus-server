@@ -1,6 +1,6 @@
 # Roteiro de testes no cliente — B1 cidade
 
-Bloco B1 (dinheiro, NPCs, lojas, histórias e quests). Gate fechado em 21/10/2026 (resultado no `MIGRATION.md`).
+Bloco B1 (dinheiro, NPCs, lojas, histórias e quests). Gate fechado em 21/10/2026 (resultado no `docs/history/session-log.md`).
 
 ## Preparação
 1. Banco do laboratório: o smoke Docker do gate já aplicou as migrações até a 0037. Se o banco tiver sido recriado, rodar `docker compose run --rm --no-deps migrate` (idempotente).

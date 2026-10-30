@@ -439,7 +439,7 @@ COMMANDS = 0x437C  # the client player's command/condition object
 FALLBACK_PUSH = 0x40371314
 FALLBACK_ENTITIES = ('player_fiona',)
 # Character creation by the class grid (S3_CharacterCreation, NewCharacterDialogS3), following the
-# NA's CharacterCreation_UI_V3 flow (MIGRATION.md, C3). The 1.69 grid movie already lists the 11
+# NA's CharacterCreation_UI_V3 flow (docs/history/session-log.md, C3). The 1.69 grid movie already lists the 11
 # classes and the 1.69 lobby_beautyshop_change.bsp already has the NA scene: one
 # npc_character_creation_actor `npc_<class>` per class (csf/createcharacter_<class>.csf) and the
 # point_teleport entities npc_character_create_select/_nonselect. What the 1.69 lacks is code:

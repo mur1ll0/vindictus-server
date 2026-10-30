@@ -8,7 +8,7 @@ Prompt para abrir uma sessão nova (Claude Code, pasta `D:\PROJETOS\VindictusPri
 
 Última etapa da Delia (classe 10) no laboratório Vindictus 1.69: **criação de personagem pela grade de classes do NA**, totalmente funcional no cliente 1.69, sem quebrar a criação e a seleção das classes 0–9.
 
-Leia antes de mexer: `AGENTS.md`, `MIGRATION.md` (passos da Delia, do 21 ao 50, e as notas de criação: commits `8305d80`, `5aa5cf2`, `d90bfe4`), `docs/playable-game-roadmap.md`, `docs/future/new-classes.md` (seções 8.x, principalmente as linhas sobre `NewCharacterDialogS3`, o contrato filme/C++ e o plano de 364–376), `docs/client-compatibility.md` ("Clientes de referência") e `docs/client-tests/C2-delia.md` (D6, D9, D12–D17).
+Leia antes de mexer: `AGENTS.md`, `docs/history/session-log.md` (passos da Delia, do 21 ao 50, e as notas de criação: commits `8305d80`, `5aa5cf2`, `d90bfe4`), `docs/playable-game-roadmap.md`, `docs/future/new-classes.md` (seções 8.x, principalmente as linhas sobre `NewCharacterDialogS3`, o contrato filme/C++ e o plano de 364–376), `docs/client-compatibility.md` ("Clientes de referência") e `docs/client-tests/C2-delia.md` (D6, D9, D12–D17).
 
 ### O que já se sabe (não refazer)
 - O 1.69 escolhe a tela em `client.dll` `0x38523690`: `S3_CharacterCreation` ligado → `NewCharacterDialogS3` (`NewCharacterDialog_V2.gfx`, a grade); senão `CharacterCreation_UI_V2` → `NewCharacterDialogV4` (a barra de 10 classes usada hoje, que nunca manda a classe 10).
@@ -31,10 +31,10 @@ Leia antes de mexer: `AGENTS.md`, `MIGRATION.md` (passos da Delia, do 21 ao 50, 
 
 ### O que fazer
 1. Ler no NA (DLLs 32 bits e x64, filmes `.gfx` e `.csf`) como a grade funciona de ponta a ponta: preencher a lista, selecionar uma classe, tocar a apresentação (`createcharacter_<classe>.csf`, vídeos `.usm`), botões de arma, entrar na customização (`CreateCharacterOptionDialog`/`CreateCharacterDialog`), nome e envio do `CreateCharacter`.
-2. Decidir com evidência o caminho no 1.69 e registrar no `MIGRATION.md`: trazer o filme NA para a cópia de laboratório (`.cache/play-client`, nunca nos originais) e implementar o contrato no `client.dll` 1.69 como código novo na seção `.hrte`, ligando `S3_CharacterCreation`/`CharacterCreation_UI_V3` pelo servidor. Se faltar asset no 1.69 (`.csf`, `.usm`, modelos), copiar do NA para a cópia de laboratório, registrando arquivo, origem e hash (sem *commitar* assets do jogo).
+2. Decidir com evidência o caminho no 1.69 e registrar no `docs/history/session-log.md`: trazer o filme NA para a cópia de laboratório (`.cache/play-client`, nunca nos originais) e implementar o contrato no `client.dll` 1.69 como código novo na seção `.hrte`, ligando `S3_CharacterCreation`/`CharacterCreation_UI_V3` pelo servidor. Se faltar asset no 1.69 (`.csf`, `.usm`, modelos), copiar do NA para a cópia de laboratório, registrando arquivo, origem e hash (sem *commitar* assets do jogo).
 3. A grade precisa funcionar para todas as classes que o 1.69 já cria (0–9) e para a Delia (10): apresentação, troca de arma, customização, nome, criação, entrada na cidade. Classes sem conteúdo no 1.69 (11–27) ficam ocultas ou desligadas, sem quebrar a tela.
 4. Seleção de personagem: a Delia criada pela grade aparece certa na seleção (modelo, rosto, cabelo, roupa) e entra no jogo.
-5. Seguir o `AGENTS.md`: passos pequenos e verificados, testes focados por passo, *commit* local por passo com `MIGRATION.md` e entrada de teste do cliente (bloco de criação: criar `docs/client-tests/C3-criacao.md` ou usar o script do bloco certo), um *job* pesado por vez, Docker só ao fechar um grupo, jogo fechado para aplicar patches e uma aprovação de UAC para leitura de memória (`.cache/lab-serve.ps1` + `.cache/lab-ask.sh`), sem pontos de parada de execução (`--exec`).
+5. Seguir o `AGENTS.md`: passos pequenos e verificados, testes focados por passo, *commit* local por passo com `docs/history/session-log.md` e entrada de teste do cliente (bloco de criação: criar `docs/client-tests/C3-criacao.md` ou usar o script do bloco certo), um *job* pesado por vez, Docker só ao fechar um grupo, jogo fechado para aplicar patches e uma aprovação de UAC para leitura de memória (`.cache/lab-serve.ps1` + `.cache/lab-ask.sh`), sem pontos de parada de execução (`--exec`).
 
 ### Sessão filha: armaduras de preview na customização da Delia
 Quando a grade já abrir a customização da Delia, inicie **a partir desta sessão** uma sessão nova (`start_session`, com *worktree* própria) com este objetivo:
@@ -51,6 +51,6 @@ Depois que a sessão filha das armaduras terminar, escrever um documento único 
 - **Testes de cliente:** quais roteiros validaram cada parte (`C2-delia.md`, criação, armaduras de *preview*).
 - **Pendências e aproximações:** o que ficou aproximado (por exemplo `As_Cond_Can_Armor_Purge` sempre ligada, `SP3_Activated` não portado, visual de purga no barco, `ArmorBrokenMessage` sem *handler*).
 - **Receita resumida:** a ordem para portar a próxima classe (Miri, 11, e as seguintes).
-Registrar o fechamento no `MIGRATION.md` e fazer o *commit* local.
+Registrar o fechamento no `docs/history/session-log.md` e fazer o *commit* local.
 
 Fim: perguntar ao operador pelo teste de criação no cliente (roteiro de criação completo) antes de declarar a Delia concluída.

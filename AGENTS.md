@@ -2,10 +2,27 @@
 
 Scope: all development under vindictus-server. The requested deliverable is a complete Rust migration; the current foundation is not that deliverable.
 
-## Session memory
-- Read MIGRATION.md and docs/playable-game-roadmap.md before changing code. The roadmap's blocks (B0–B5) set the work order; continue the earliest actionable incomplete step of the current block.
-- Update MIGRATION.md after each verified step with command, evidence, remaining dependencies, client-test status (checklist entry or "cliente: não necessário") and next action.
+## Session memory (user instruction 2026-10-30)
+- MIGRATION.md is the project roadmap and working memory: current state, what is left to do, a short checklist of what is done, pending client sessions/decisions and the resumable next action. Read it and docs/playable-game-roadmap.md (block order and rules) before changing code; continue the earliest actionable incomplete step of the current block.
+- Keep MIGRATION.md short. After each verified step, update only its checklist line(s), pending lists and "Próxima ação retomável" in one or two lines each. Remove items that stop being pending. Never paste session narratives, logs, command output or hashes into it.
+- docs/history/session-log.md is the append-only session history. Never read it whole or load it into context, and never rewrite earlier entries. To find old evidence, search it (`rg -n "<step id>" docs/history/session-log.md`) and read only the matching lines. It is excluded from default searches by `.ignore`.
+- At the end of every session (and after each committed step in a long session), append one entry to the end of the history with a shell heredoc (`cat >> docs/history/session-log.md <<'EOF'`), never with Read/Edit/Write of the whole file. Entry format:
+  ```
+  ## <YYYY-MM-DD> — <step ids / short title>
+  - Feito: <what changed, files/modules>
+  - Verificação: <commands, aggregate counts, log paths under .cache/verification>
+  - Cliente: <test-script entry, operator result, or "não necessário">
+  - Commits: <short hashes>
+  - Pendente / próxima ação: <same text written to MIGRATION.md>
+  ```
+- Detailed evidence that other docs used to cite as "MIGRATION.md, passo X" now lives in the history under the same step id.
 - Never mark a service migrated merely because ILSpy exported C# or a Rust placeholder compiles.
+
+## Session usage report (user instruction 2026-10-30)
+- At the end of every session (final message of the turn that closes the work), show the tokens spent and the current context window:
+  - context window: call `mcp__ccd_session_mgmt__get_usage` (session "self"; load it with ToolSearch if deferred) and show tokens used / window size, percent, auto-compact threshold and the category breakdown — the same data as `/context`;
+  - tokens spent: run `py -3.13 scripts/dev/session-usage.py` (sums input, cache created, cache read and output of the session and its subagents from the local transcript) and show its summary.
+- If a tool is unavailable, say so and show what could be measured; never estimate figures.
 - Game compatibility requires a reproducible client login, character creation, battle and persistence test.
 
 ## Continuous execution (user instruction 2026-10-21)
@@ -55,7 +72,7 @@ Scope: all development under vindictus-server. The requested deliverable is a co
 
 ## Git and stage completion
 - User authorized local commits after each completed, verified migration stage.
-- Commit each step with its code, focused tests, sanitized evidence, block test-script entry and MIGRATION.md status together. The block's closing commit records the full gate result.
+- Commit each step with its code, focused tests, sanitized evidence, block test-script entry, MIGRATION.md status and the appended history entry together. The block's closing commit records the full gate result (summary line in MIGRATION.md, details in the history).
 - Stage explicit paths and review the staged diff and file list.
 - Never commit credentials, private exports, restored raw SQL catalogs, original game assets or decompiled proprietary sources.
 - Use the configured Git author. No push or remote creation is implied by local commit authorization.

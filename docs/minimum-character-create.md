@@ -23,7 +23,7 @@ Guild, pets, café/retorno/VIP, eventos, arena e outros serviços acessórios fi
 
 As fontes de seleção são `FrontendServiceCore.States.CharacterList`, `CharacterSelecting`, `InGame`, `FrontendServiceCore.Proxy.MMOChannelProxy`, `SelectCharacterProcessor`, `MMOChannelService.Processor.JoinChannelProcessor` e `HeroesChannelServer.Server`. `SelectCharacterMessage.Index` indexa a lista, não o CharacterSN. `LoginOk.RegionCode` converte o valor 1 em 0. `EnterChannel` carrega ChannelID, PartitionID e ActionSync. Esses achados são estáticos; nenhum deles certifica execução nativa de seleção/cidade.
 
-Verificação completa e ativação são registradas em MIGRATION.md, no relatório corrente e em `docs/evidence/auth/minimum-character-create.json`. Logs completos permanecem em `.cache/verification`; somente resumos devem ser coletados no terminal. Originais e SQL Server continuam somente leitura.
+Verificação completa e ativação são registradas em docs/history/session-log.md, no relatório corrente e em `docs/evidence/auth/minimum-character-create.json`. Logs completos permanecem em `.cache/verification`; somente resumos devem ser coletados no terminal. Originais e SQL Server continuam somente leitura.
 
 ## Estado atual da etapa M15.1c.2 (Seleção e Cidade)
 

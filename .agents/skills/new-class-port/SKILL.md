@@ -34,7 +34,7 @@ documento da Delia sempre que precisar do endereço, do grupo ou do passo exato.
 
 ## Antes de começar
 Leia, nesta ordem:
-1. `AGENTS.md` e as entradas recentes do `MIGRATION.md`.
+1. `AGENTS.md`, o `MIGRATION.md` e, por busca (`rg -n "<passo>" docs/history/session-log.md`), as entradas do histórico que o passo cita.
 2. `docs/future/delia-class-port.md` inteiro (sobretudo 4.4, 4.5, 4.5.1, 7, 8 e 9).
 3. `docs/future/new-classes.md` 8.13 (limites de 10 classes), 8.15 (mecânicas) e 9.1 (Miri).
 4. `references/fontes-e-ferramentas.md` (clientes, cópia de laboratório, ferramentas).
@@ -91,7 +91,7 @@ Evidência e passo de cada uma: `references/armadilhas.md`.
 
 ## Como registrar
 Modelos prontos: `references/registro-e-aceite.md`.
-- **`MIGRATION.md`**, uma entrada por passo verificado: relato, causa, mudança, verificação (comando e log
+- **`docs/history/session-log.md`** (acréscimo no fim, formato do `AGENTS.md`), uma entrada por passo verificado: relato, causa, mudança, verificação (comando e log
   em `.cache/verification/<etapa>/`), aplicação (hashes antes → depois), cliente (entrada do roteiro ou
   "cliente: não necessário") e próxima ação. Parada: motivo e ação retomável.
 - **Roteiro de cliente por etapa** em `docs/client-tests/<etapa>-<classe>.md` (formato de
@@ -99,7 +99,7 @@ Modelos prontos: `references/registro-e-aceite.md`.
 - **Documento da classe** `docs/future/<classe>-class-port.md`, na estrutura do da Delia, com o inventário
   de arquivos do repositório, DLLs e *backups* com hashes, conteúdo da cópia de laboratório com antes/depois,
   e **o que veio do NA** (arquivo, origem, SHA-256 e a decisão do operador que autorizou).
-- *Commit* local por passo, com código, testes, roteiro e `MIGRATION.md` juntos; sem *push*.
+- *Commit* local por passo, com código, testes, roteiro, linha do `MIGRATION.md` e entrada do histórico juntos; sem *push*.
 
 ## Checklist final de aceite
 A classe só está portada quando o operador confirma no cliente, numa sessão pelo roteiro:

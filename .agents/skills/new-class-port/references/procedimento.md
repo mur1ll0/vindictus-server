@@ -1,8 +1,8 @@
 # Procedimento do porte, passo a passo
 
-Cada passo termina com: testes focados, entrada no `MIGRATION.md`, entrada no roteiro de cliente quando
+Cada passo termina com: testes focados, linha do `MIGRATION.md` atualizada, entrada acrescentada ao `docs/history/session-log.md`, entrada no roteiro de cliente quando
 há efeito visível, *commit* local. "Delia" cita o que foi feito (seção do `docs/future/delia-class-port.md`
-ou passo do `MIGRATION.md`); "Miri" é o que muda para a classe 11. Hipóteses não confirmadas estão
+ou passo do `docs/history/session-log.md`); "Miri" é o que muda para a classe 11. Hipóteses não confirmadas estão
 marcadas como **a conferir**.
 
 ## 0. Medir a classe (sem patch)
@@ -25,7 +25,7 @@ Objetivo: saber o que já existe, o que vem do NA e o que é código novo, antes
 - **Modelos**: comparar a versão do cabeçalho `IDST` dos `.mdl` do NA com os do 1.69. A Delia usou só os
   do 1.69; se a versão do NA for mais nova, o motor 1.69 pode recusá-los (**a conferir** com um modelo antes
   de copiar o lote).
-- Registrar a medição (seção no documento da classe ou em `new-classes.md`) e a entrada no `MIGRATION.md`
+- Registrar a medição (seção no documento da classe ou em `new-classes.md`) e a entrada no `docs/history/session-log.md`
   ("cliente: não necessário").
 - **Parar e pedir ao operador**: cópia de assets do NA (lista e origem), escopo das mecânicas (portar ou
   aproximar cada uma), arma (entidade 1.69 existente ou porte), caminho da grade (passo 8).
@@ -69,7 +69,7 @@ Objetivo: saber o que já existe, o que vem do NA e o que é código novo, antes
   bits de `ClassRestriction`. Conferir nomes de classe com 10/11 posições (`new-classes.md` 8.13, "Servidor Rust").
 
 ## 3. Dados de criação no servidor
-Delia: seção 3.2–3.3 e passo 2 do `MIGRATION.md`. Para a classe nova:
+Delia: seção 3.2–3.3 e passo 2 do `docs/history/session-log.md`. Para a classe nova:
 - linha em `scripts/content/class_additions.json` (`default_items`, `default_skills`, `inner`), escolha de
   laboratório declarada quando não vier do NA;
 - reexportar `class-initial.json` e `class-<n>-initializer.json` (`export_class_initial.py`,
@@ -187,7 +187,7 @@ O fluxo inteiro está em 4.5/4.5.1 da Delia. O que depende da classe:
   - `python -s -E scripts/client/patch_engine_class_flags.py --client-copy .cache/play-client --apply`
   - `python -s -E scripts/client/patch_class_routing.py --client-copy .cache/play-client --apply > .cache/verification/<etapa>/class-routing-apply-<rodada>.log`
 - Sem `--apply` é simulação (relatório JSON). `--fallback-entity` é só diagnóstico.
-- Registrar no `MIGRATION.md` os *hashes* antes → depois de cada DLL e o nome do log; o `bin/class-routing.json`
+- Registrar no `docs/history/session-log.md` os *hashes* antes → depois de cada DLL e o nome do log; o `bin/class-routing.json`
   guarda os endereços dos *stubs* para o `lab_memory.py`.
 
 ## 10. Testes e roteiro de cliente

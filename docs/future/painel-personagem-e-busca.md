@@ -1,6 +1,6 @@
 # Progressão até um nível, editor de refino/scrolls e busca de itens por categoria (recursos futuros do painel)
 
-Status: estudo de viabilidade (27/10/2026). Implementação em andamento por decisão do operador: busca por categoria (C1–C3), editor de refino/scrolls (E1–E4) e a progressão até o nível (nível, quests de missão e, desde 29/10/2026, a história principal; ofícios ficam para depois do teste de cliente P3) feitos em 27–29/10/2026; ver `MIGRATION.md`. Este documento levanta, a partir da evidência do projeto, três recursos pedidos pelo operador para o painel admin. O que ainda não foi verificado aparece marcado como **hipótese**.
+Status: estudo de viabilidade (27/10/2026). Implementação em andamento por decisão do operador: busca por categoria (C1–C3), editor de refino/scrolls (E1–E4) e a progressão até o nível (nível, quests de missão e, desde 29/10/2026, a história principal; ofícios ficam para depois do teste de cliente P3) feitos em 27–29/10/2026; ver `docs/history/session-log.md`. Este documento levanta, a partir da evidência do projeto, três recursos pedidos pelo operador para o painel admin. O que ainda não foi verificado aparece marcado como **hipótese**.
 
 Encaixe no roteiro: depois do B4 (fechado) e sem mudar a ordem dos blocos B0–B5. Os três recursos usam o que o B4 já entrega: edição de personagem offline com auditoria e `operation_id` (`src/application/admin_character_edits.rs`), o catálogo do painel (`scripts/content/export_panel_catalog.py` → `EnglishNames` em `src/infrastructure/admin_characters.rs`) e o tooltip do jogo (`src/infrastructure/admin_tooltip.rs`). Ver "Recursos futuros do painel" em [playable-game-roadmap.md](../playable-game-roadmap.md).
 
@@ -196,7 +196,7 @@ Diferença de nomes: em `SubCategoryInfo` as armaduras usam `HELM`, `TUNIC`, `PA
 | `GET /api/items?search=` | `src/http/admin/characters.rs:159` → `EnglishNames::search_items` (`src/infrastructure/admin_characters.rs:635`) | 2–64 caracteres obrigatórios, filtro por substring na classe ou no nome, sem itens ocultos, ordena por nome, corta em 50; sem paginação nem categoria |
 | `GET /api/item-editor/items?search=&filter=` | `src/http/admin/items.rs:72` → `application::item_editor::list` | até 200, filtros adicionados/editados/ocultos/pendentes |
 
-O catálogo em memória (`EnglishNames`) vem do `panel-catalog.json` (18.884 itens em `item_edit` na última reexportação, segundo o `MIGRATION.md`). O `item_info` exportado (`export_panel_catalog.py:40–45`, chaves curtas `r`, `c`, `rl`, `lv`, `cr`, `ec`…) **não** inclui `TradeCategory`/`TradeCategorySub`.
+O catálogo em memória (`EnglishNames`) vem do `panel-catalog.json` (18.884 itens em `item_edit` na última reexportação, segundo o `docs/history/session-log.md`). O `item_info` exportado (`export_panel_catalog.py:40–45`, chaves curtas `r`, `c`, `rl`, `lv`, `cr`, `ec`…) **não** inclui `TradeCategory`/`TradeCategorySub`.
 
 Pontos do frontend que exigem digitar (todos a trocar pelo modal):
 

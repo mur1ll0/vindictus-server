@@ -1,6 +1,6 @@
 # Armadilhas do porte da Delia
 
-Cada item: o sintoma, a causa, como evitar e onde está a evidência (passo do `MIGRATION.md`, entrada de
+Cada item: o sintoma, a causa, como evitar e onde está a evidência (passo do `docs/history/session-log.md`, entrada de
 roteiro ou seção do `docs/future/delia-class-port.md`).
 
 ## 1. Limites de 10 classes antes de tabelas por classe

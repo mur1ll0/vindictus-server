@@ -1,6 +1,6 @@
 # Roteiro de testes no cliente — B4 painel de administração
 
-Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4-painel-plano.md`. Gate fechado em 27/10/2026 (resultado no `MIGRATION.md`). Algumas entradas já foram testadas pelo operador (marcadas com [x]); as demais seguem a ordem abaixo.
+Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4-painel-plano.md`. Gate fechado em 27/10/2026 (resultado no `docs/history/session-log.md`). Algumas entradas já foram testadas pelo operador (marcadas com [x]); as demais seguem a ordem abaixo.
 
 ## Preparação
 1. Runtime no Docker recompilado no gate (27/10/2026): `docker compose ps` mostra `game` e `server` saudáveis. Se o código mudou depois disso: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait` (o serviço `migrate` aplica as migrações até a 0048).

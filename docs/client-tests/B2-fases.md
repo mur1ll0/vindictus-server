@@ -1,6 +1,6 @@
 # Roteiro de testes no cliente — B2 fases e combate
 
-Bloco B2 (EXP/level up, saída para a fase, transporte de batalha, dungeons, monstros, combate, drops, progressão e robustez). Gate fechado em 22/10/2026 (resultado no `MIGRATION.md`). Por decisão do operador, esta sessão cobre o B1 e o B2 juntos: primeiro todo o roteiro do B1 (`docs/client-tests/B1-cidade.md`), depois este.
+Bloco B2 (EXP/level up, saída para a fase, transporte de batalha, dungeons, monstros, combate, drops, progressão e robustez). Gate fechado em 22/10/2026 (resultado no `docs/history/session-log.md`). Por decisão do operador, esta sessão cobre o B1 e o B2 juntos: primeiro todo o roteiro do B1 (`docs/client-tests/B1-cidade.md`), depois este.
 
 ## Preparação
 1. Banco do laboratório: o smoke Docker do gate aplicou as migrações até a última. Se o banco tiver sido recriado, rodar `docker compose run --rm --no-deps migrate` (idempotente).

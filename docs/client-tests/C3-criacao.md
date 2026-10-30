@@ -1,10 +1,10 @@
 # Roteiro de testes no cliente — C3 criação pela grade de classes (Delia)
 
-Última etapa da Delia (`docs/future/delia-character-creation-prompt.md`). A criação passa da barra V4 (10 classes) para a grade de classes (`NewCharacterDialogS3`) no fluxo `CharacterCreation_UI_V3` do NA: a grade abre na cena `lobby_beautyshop_change` (um ator por classe, a classe escolhida vai para o centro), e a customização roda em `lobby_beautyshop_body`. Detalhes e evidência: `MIGRATION.md`, passo C3-1.
+Última etapa da Delia (`docs/future/delia-character-creation-prompt.md`). A criação passa da barra V4 (10 classes) para a grade de classes (`NewCharacterDialogS3`) no fluxo `CharacterCreation_UI_V3` do NA: a grade abre na cena `lobby_beautyshop_change` (um ator por classe, a classe escolhida vai para o centro), e a customização roda em `lobby_beautyshop_body`. Detalhes e evidência: `docs/history/session-log.md`, passo C3-1.
 
 ## Preparação
 1. Servidor: imagem `vindictus-server:local` recompilada com o commit deste passo (o servidor manda `S3_CharacterCreation = 3.09.00`); `docker compose ps` mostra `game` e `server` saudáveis.
-2. DLLs: `client.dll` e `server.dll` da cópia de laboratório repatchados a partir dos `*.pre-routing.bak` com `scripts/client/patch_class_routing.py` deste commit (bloco `creation_grid` em `.cache/play-client/bin/class-routing.json`). Feito por mim com o jogo fechado; os hashes ficam no `MIGRATION.md`.
+2. DLLs: `client.dll` e `server.dll` da cópia de laboratório repatchados a partir dos `*.pre-routing.bak` com `scripts/client/patch_class_routing.py` deste commit (bloco `creation_grid` em `.cache/play-client/bin/class-routing.json`). Feito por mim com o jogo fechado; os hashes ficam no `docs/history/session-log.md`.
 3. Cliente: `.cache/play-client/start-lab.bat`, conta `lab169_a`. Se a conta estiver sem vaga, exclua uma personagem de teste antes (não a `DeliaLab`).
 4. Relatórios de queda: `Documents\Vindictus EU GM\Report Error` (nome do arquivo mais novo e horário).
 
@@ -57,7 +57,7 @@ Pré-condição: `client.dll` `6a842ff5…` (passo C3-9); customização aberta 
 - [ ] Concluir a criação depois de escolher um conjunto → anotar com que roupa a personagem nasce (comparar com a Arisha).
 
 ## Resultados (operador, 29–30/10/2026)
-Detalhes por rodada no `MIGRATION.md` (passos C3-1 a C3-19).
+Detalhes por rodada no `docs/history/session-log.md` (passos C3-1 a C3-19).
 - G1: a grade abre na cena `lobby_beautyshop_change` com as 11 classes; o vídeo de apresentação toca só depois do carregamento (C3-11).
 - G2: cada classe vai ao centro; pose de apresentação parada (sem a sequência animada do NA, aproximação); Hagie e Delia sem pose T (C3-3).
 - G4 (parcial): customização com o modelo da Delia (C3-6), botão de voltar para a grade (C3-12/C3-14), campo de nome e "Check" (C3-14), roupas de amostra (G6, C3-9), WASD travado e troca imediata de pose/ação (C3-18). Texto do nome em cinza (mantido, C3-19).

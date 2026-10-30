@@ -1,6 +1,6 @@
 # Trazer uma classe nova para o cliente 1.69 e o servidor
 
-Guia montado com a Delia (classe 10, outubro de 2026). Cada passo cita a ferramenta e o teste; os endereços são do cliente 1.69 EN de laboratório (`client.dll` `a9591d3a…` antes do `.hrte`, `server.dll` `af43431e…`). Histórico e evidência: `MIGRATION.md` (passos 4–31) e `docs/client-tests/C2-delia.md` (D0–D18).
+Guia montado com a Delia (classe 10, outubro de 2026). Cada passo cita a ferramenta e o teste; os endereços são do cliente 1.69 EN de laboratório (`client.dll` `a9591d3a…` antes do `.hrte`, `server.dll` `af43431e…`). Histórico e evidência: `docs/history/session-log.md` (passos 4–31) e `docs/client-tests/C2-delia.md` (D0–D18).
 
 ## 1. O que a classe precisa ter no conteúdo
 

@@ -5,7 +5,7 @@ Plano revisado pelo operador em 21/10/2026. A ordem prioriza o ciclo PvE jogáve
 ## Como os blocos funcionam
 
 - O trabalho é organizado em **blocos grandes**. Cada bloco é uma sequência de etapas pequenas (fatias cliente → armazenamento).
-- **Dentro do bloco:** a cada etapa rodam só testes focados (alvos Rust afetados e testes PostgreSQL filtrados), seguidos de um commit local. A etapa seguinte começa sem pedir confirmação ao operador. Toda etapa com efeito visível no cliente acrescenta uma entrada ao roteiro de testes do bloco; uma etapa sem efeito visível registra `cliente: não necessário` no `MIGRATION.md`.
+- **Dentro do bloco:** a cada etapa rodam só testes focados (alvos Rust afetados e testes PostgreSQL filtrados), seguidos de um commit local. A etapa seguinte começa sem pedir confirmação ao operador. Toda etapa com efeito visível no cliente acrescenta uma entrada ao roteiro de testes do bloco; uma etapa sem efeito visível registra `cliente: não necessário` na entrada do histórico (`docs/history/session-log.md`).
 - **No fim do bloco (gate):**
   1. Reiniciar o PostgreSQL de teste se o WAL estiver alto.
   2. Rodar a suíte completa `scripts/dev/verify.ps1 -DatabaseIntegration` e o smoke Docker.
@@ -30,35 +30,15 @@ Plano revisado pelo operador em 21/10/2026. A ordem prioriza o ciclo PvE jogáve
   - a **preparação**: como iniciar o runtime (`scripts/dev/start-lab-frontend.ps1`), quais comandos de laboratório rodar e qual personagem usar;
   - uma **ordem de gameplay** que percorre todas as entradas numa sessão natural;
   - **como relatar**: ID da entrada, o que fez, o que apareceu na tela e o horário, para comparar com os logs em `.cache/verification`.
-- Depois da sessão, as falhas relatadas viram correções no mesmo bloco. Quando o operador confirmar o bloco inteiro, o aceite é registrado no `MIGRATION.md` e o arquivo do roteiro é removido.
+- Depois da sessão, as falhas relatadas viram correções no mesmo bloco. Quando o operador confirmar o bloco inteiro, o aceite é marcado no `MIGRATION.md` (detalhes no histórico) e o arquivo do roteiro é removido.
 - Itens que só podem ser testados num bloco seguinte ficam listados naquele bloco deste roadmap, e não no roteiro atual.
 - **Checkpoint de cliente no meio do bloco:** parar apenas quando a próxima etapa não puder ser verificada sem confirmar no cliente uma etapa anterior (exemplo: o primeiro carregamento de uma dungeon antes de implementar combate dentro dela).
 - **Sincronização desde já:** toda mudança de estado visível a outros jogadores (look, posição, ações, spawn, HP, drops, estado de instância) passa por um ponto único de difusão/autoridade. Assim, o multijogador do bloco B5 não exige reescrita. Testes multijogador reais ficam para o B5.
 - **Ferramentas de laboratório antes do painel:** conceder ouro ou itens para testar pode ser feito por comandos CLI pontuais, registrados no checklist. O painel completo é o bloco B4.
 
-## Estado confirmado
+## Estado e pendências
 
-- **B0 fechado.** Suíte completa em 2026-10-21T17:13:11Z com 406 Rust, 245 PostgreSQL (0 ignorados), 50 Python e zero falhas.
-- **B0 aceito no cliente (21/10/2026):** criação/relogin da Fiona, seleção, cidade, movimento, inventário, equipar/desequipar, mover itens, quickslots de consumíveis, lista de skills/AP, cápsula de AP e treino de skill com AP.
-- **Testes adiados:** aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 via loja ou B2.6 via loot), usar consumível pela barra (B2.5) e o "Depot" da loja Cash (B5).
-- **B1 e B2 fechados no código, sem aceite de cliente.** B1 em 21/10 e B2 em 22/10/2026 (suíte completa verde). Nenhuma entrada dos dois roteiros foi testada no cliente ainda; a sessão combinada segue `docs/client-tests/B2-fases.md`. O transporte ProudNet (relay 27005) e toda a missão foram construídos sem checkpoint de cliente, por decisão do operador.
-- **B3 fechado no código (24/10/2026), sem aceite de cliente.** Itens 0–4 implementados (atributos, Craft, Enhance, Enchant, slots, reparo completo, armazenamento pessoal e SkillEnhance); o item 5 foi adiado pelo operador. Gate verde (PostgreSQL em lotes por causa do tmpfs); roteiro em `docs/client-tests/B3-equipamento.md`.
-- **B4 fechado no código (27/10/2026), aceite de cliente parcial.** Painel de administração (contas, personagens, itens, progressão, lojas, cash shop, ajustes ao vivo, conteúdo versionado, mapas e canais), nome livre e criação das 10 classes, relatório de extensões (`docs/extension-feasibility.md`) e contratos dos pontos de extensão (`docs/b4-painel-plano.md`, seção 4). Gate verde (PostgreSQL em lotes); roteiro em `docs/client-tests/B4-painel.md`, com o B4.2-L já aceito. Classes novas (Delia, Miri) investigadas em `docs/future/new-classes.md`: não cabem no cliente 1.69 sem o código delas.
-
-## Pendências conhecidas do B2 (não implementadas)
-
-Levantadas na auditoria de 22/10/2026 a partir do código e dos limites de cada entrada do roteiro; revisadas em 23/10/2026. O servidor recusa ou ignora esses casos sem enviar sucesso falso.
-
-- **Entrada e grupo:** só missão solo (host local). Recusadas: pesca, caça, torre, missões com item obrigatório ou limite de equipamento. Moedas e pedras de bênção vêm vazias. Reinício pelo navio (ReturnToShip) não existe; o botão de reiniciar fica oculto. Reentrar numa missão em andamento (CombatRejoinSystem) não existe.
-- **Setores:** sem AntiSectorSkip e sem diálogos de console de setor.
-- **Drops:** baú do tesouro, mapas do tesouro, núcleos de evento/história, pontos fracos (WeakPoint) e HugeLucky. O `AbilityBonus` de props e props nomeados foi para o item 5 do B3. Itens com atributo (ex.: pergaminhos de encantamento) dependem do inventário com atributos (B3); inventário cheio é recusado e o envio por correio da sobra não existe.
-- **Combate:** o anti-trapaça de dano (MDRSystem) só marca rankings, que não existem. Caixas alquímicas na barra continuam recusadas.
-- **Conclusão e recompensas:** recompensas de troca de item (ex.: `slayer_stamp_limit>slayer_stamp`); rankings (CharacterRank); bônus de status, cafe, guilda, moedas e pedras de bênção; AddMicroPlayTime e contagem diária de quests grátis; OnEnterPhase das histórias após a quest. Um objetivo de quest (do sapo) usa uma regex que o motor não compila e nunca conclui.
-- **Progressão:** AddGrowthLog, efeitos de guilda e títulos de rank. Destruir item equipado por história (`take_item` de peça vestida) continua recusado até o desequipar pelo ItemService.
-- **Histórias:** ainda param o diálogo, sem gravar nada, a vocação (`select_vocation`), recompensas `enchant_scroll[...]` com atributo (B3) e `complete_episode`/`give_title_by_episode`.
-- **Robustez:** envio por correio dos itens reservados de quem sai da missão.
-- **Feitos depois da auditoria (22–23/10):** títulos adquiridos (status concluído, bônus de atributo, TitleListMessage na entrada, títulos por ação de combate), recompensa de título e de skill de história, props nomeados (`NamedPropDropTable`), itens com validade e valores originais de conteúdo (`docs/content-tuning.md`).
-- **Gate:** o smoke Docker não completou no fechamento (carga externa); repetido na auditoria de 22/10 com exit 0, o que completa o gate do B2.
+O estado de cada bloco, as pendências conhecidas (inclusive as do B2), os roteiros de cliente em aberto e a próxima ação ficam no `MIGRATION.md`. Este arquivo define só a ordem e as regras dos blocos.
 
 ## B0 — personagem na cidade (fechado em 21/10/2026)
 
@@ -134,7 +114,7 @@ Planejados em 26/10/2026, só como documentação. Não mudam a ordem dos blocos
 - Entregar uma fatia pequena do cliente ao armazenamento, com recusas/persistência. Não enviar sucesso fictício ou listas vazias para ocultar serviço obrigatório ausente.
 - Logs em `.cache/verification`, arquivos editados em LF; uso de múltiplos núcleos autorizado.
 - Preservar Fiona/marcador/schema e diretórios originais. Validar no cliente real antes de declarar compatibilidade.
-- Commits locais por etapa verificada, sem push automático. Registrar novas lacunas aqui e no checkpoint do `MIGRATION.md`.
+- Commits locais por etapa verificada, sem push automático. Registrar novas lacunas nas pendências do `MIGRATION.md`.
 
 ## Compilação e GitHub
 
@@ -144,4 +124,4 @@ O workflow `.github/workflows/verify.yaml`, que executava build/testes em todo p
 
 - P0-01: contrato do inventário inicial em [minimum-inventory-client.md](minimum-inventory-client.md).
 - P0-02a–c: slots, loader de equipamento vestido e EquipItem457 em [minimum-equipment-client.md](minimum-equipment-client.md).
-- P0-02d–f e P0-03a–d: detalhes e evidências no `MIGRATION.md`.
+- P0-02d–f e P0-03a–d: detalhes e evidências em `docs/history/session-log.md`.
