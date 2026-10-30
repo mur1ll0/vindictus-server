@@ -651,8 +651,9 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'npc_character_create_select {i}', names)
         self.assertNotIn('NewCharacterDialogS3.OnReadyCreation', names)  # the map-ready slot sends it
         # After the panel fill, the button is shown again (its movie onShow hides it).
-        filled = self.code(image, int(grid['filled'].split('-> ')[1], 16), 0x40)
+        filled = self.code(image, int(grid['filled'].split('-> ')[1], 16), 0x60)
         self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, filled))
+        self.assertIn('CreateCharacterDialog.Text_Name.textColor', self.strings(image, filled))
         self.assertIn(f'jmp {k["ui"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in filled])
         self.assertIn(f'jmp {k["handler_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in handler])
         # GameStart: state 11 with the grid, the prologue (8) without it.
@@ -673,7 +674,9 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn(f'mov eax, {k["grid_state"]}', [f'{x.mnemonic} {x.op_str}' for x in self.code(image, handler, 0x20)])
         dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0x100)
         self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, dialog))
-        self.assertIn(f'jmp {k["dialog_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in dialog])
+        ops = [f'{x.mnemonic} {x.op_str}' for x in dialog]
+        back_to = ops.index(f'jmp {k["dialog_rest"]:#x}')
+        self.assertEqual(ops[back_to - 1], 'mov ecx, esi')  # the original's `mov esi, ecx` follows
         # SelectTab. (sent after the movie's onShow) also shows the button: both short jumps of the
         # prefix test land on the OnShow test.
         ops = [f'{x.mnemonic} {x.op_str}' for x in dialog]

@@ -2160,7 +2160,8 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     back_event, prologue_off = layout.string('CharacterCreation_Back'), layout.string('sv_prologue_mode 0')
     back_label = layout.string('Back')
     show_label, button = layout.string('OnShow'), layout.string('CreateCharacterDialog.Button_Back._visible')
-    shown = layout.string('1')  # "true" converts to NaN, false, for a display property (C3-9)
+    shown = layout.string('1')
+    name_color, white = layout.string('CreateCharacterDialog.Text_Name.textColor'), layout.string('16777215')  # "true" converts to NaN, false, for a display property (C3-9)
     layout.pad()
     back = layout.here()
     command(0x1C, prologue_off)
@@ -2219,6 +2220,9 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\xff\x52\x1c'
     layout.land(original)
     layout.land(hidden)
+    # The original continues with `mov esi, ecx` (0x384af6f5): ecx must be the dialog again, after
+    # the strcmp and feature calls above (Create read a null [esi+0x20] otherwise, C3-15).
+    layout.body += b'\x8b\xce'  # mov ecx, esi
     layout.to(b'\xe9', k['dialog_rest'])
     edits.append((va, head[:6], b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
     report['dialog'] = f'{va:#x} -> {stub:#x}'
@@ -2233,6 +2237,12 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.pointer(shown)
     layout.body += b'\x8b\xc8' + b'\x68'
     layout.pointer(button)
+    layout.body += b'\xff\x52\x1c'
+    layout.to(b'\xe8', k['ui'])
+    layout.body += b'\x8b\x10' + b'\x68'
+    layout.pointer(white)
+    layout.body += b'\x8b\xc8' + b'\x68'
+    layout.pointer(name_color)
     layout.body += b'\xff\x52\x1c'
     layout.land(skip)
     layout.to(b'\xe9', k['ui'])
