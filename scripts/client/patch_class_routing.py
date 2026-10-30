@@ -468,6 +468,22 @@ CREATION_GRID = {
         'register_v2': 0x3858B830,       # the CharacterCreation_UI_V2 test (V4 / V1 handler)
         'register_tail': bytes.fromhex('3bc3' '7410' '8b0d') + b'%s' + bytes.fromhex('8b09' '8b11' '50' '8b4214' 'ffd0'),
         'register_list': 0x38ADA3C4,
+        # The prologue (state 8) gives the local player the chosen class: state machine 0x3851e5f0,
+        # its class 0x38519540, cl_playerclass/cl_playermodel 0x38594860 (called at 0x38526d0c).
+        # The grid skips the prologue (NA V3), so the creation enter does it (else the customization
+        # shows the default Lethita).
+        'machine': 0x3851E5F0, 'machine_class': 0x38519540, 'player_class': 0x38594860,
+        'fire': 0x385194D0,              # machine->Fire(event, arguments)
+        # Customization Back (NA 0x389ac61c: sv_prologue_mode 0, CharacterBodyCreation_Back): the
+        # 1.69 CharacterCreationState (11) only has Create/OK/Failed in the transition table, so the
+        # table (state, event, handler) is copied with one more entry back to the class grid (7).
+        'transitions': (0x3851D6D0, '688d000000', 0x3851D6D5, '68c85cca38'),  # push count; push table
+        'grid_state': 7,
+        # The customization dialog's FSCommand handler; its movie shows Button_Back only with
+        # CharacterCreation_UI_V3, which also hides the name field the 1.69 C++ still reads, so the
+        # handler shows the button itself on OnShow (UI manager vt+0x18, set boolean).
+        'dialog': (0x384AF6E0, '81ecdc030000' '5657' '8bbc24f0030000'),
+        'dialog_rest': 0x384AF6EF,
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2090,6 +2106,12 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += bytes.fromhex(old)
     layout.to(b'\xe9', va + len(bytes.fromhex(old)))
     layout.land(grid)
+    layout.to(b'\xe8', k['machine'])
+    layout.body += b'\x8b\xc8'
+    layout.to(b'\xe8', k['machine_class'])
+    layout.body += b'\x50'
+    layout.to(b'\xe8', k['player_class'])
+    layout.body += b'\x83\xc4\x04'
     for t in ('sv_prologue_mode 1', 'scaleform_fade_out 1.5', 'changemap lobby_beautyshop_body'):
         command(0x1C, text[t])
     layout.body += b'\xc3'
@@ -2112,6 +2134,60 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\xc3'
     edits.append((table + 0x10, struct.pack('<I', slot), struct.pack('<I', stub)))
     report['map_ready'] = f'{table:#x}[4] {slot:#x} -> {stub:#x}'
+
+    # Customization Back: a CharacterCreationState -> class grid transition in a copy of the table.
+    back_event, prologue_off = layout.string('CharacterCreation_Back'), layout.string('sv_prologue_mode 0')
+    back_label = layout.string('Back')
+    show_label, button = layout.string('OnShow'), layout.string('CreateCharacterDialog.Button_Back._visible')
+    layout.pad()
+    back = layout.here()
+    command(0x1C, prologue_off)
+    layout.body += b'\xb8' + struct.pack('<I', k['grid_state']) + b'\xc3'
+    count_va, count_old, table_va, table_old = k['transitions']
+    count = struct.unpack_from('<I', bytes.fromhex(count_old), 1)[0]
+    old_table = struct.unpack_from('<I', bytes.fromhex(table_old), 1)[0]
+    if table_va + 1 not in relocs:
+        raise PreparationError(f'No relocation at {table_va + 1:#x}; nothing is patched.')
+    layout.pad()
+    copy = layout.here()
+    for i in range(count):
+        state, name, handler = struct.unpack_from('<III', image.data, image.offset(old_table + 12 * i))
+        layout.body += struct.pack('<I', state)
+        layout.pointer(name)
+        layout.pointer(handler)
+    layout.body += struct.pack('<I', CREATION_STATE)
+    layout.pointer(back_event)
+    layout.pointer(back)
+    edits.append((count_va, bytes.fromhex(count_old), b'\x68' + struct.pack('<I', count + 1)))
+    edits.append((table_va, bytes.fromhex(table_old), b'\x68' + struct.pack('<I', copy)))
+    report['transitions'] = f'{old_table:#x}[{count}] -> {copy:#x}[{count + 1}]'
+
+    # The dialog: Back fires the event; OnShow (grid only) shows the button, then the original runs.
+    va, old = k['dialog']
+    head = bytes.fromhex(old)
+    layout.pad()
+    stub = layout.here()
+    layout.body += head + b'\x8b\xf1'
+    other = is_argument(back_label)
+    layout.body += b'\x6a\x00' + b'\x68'
+    layout.pointer(back_event)
+    layout.to(b'\xe8', k['machine'])
+    layout.body += b'\x8b\xc8'
+    layout.to(b'\xe8', k['fire'])
+    layout.body += b'\x5f\x5e' + b'\x81\xc4' + struct.pack('<I', 0x3DC) + b'\xc2\x0c\x00'
+    layout.land(other)
+    original = is_argument(show_label)
+    feature()
+    hidden = layout.forward(b'\x0f\x84')
+    layout.to(b'\xe8', k['ui'])
+    layout.body += b'\x8b\x10' + b'\x6a\x01' + b'\x8b\xc8' + b'\x68'
+    layout.pointer(button)
+    layout.body += b'\xff\x52\x18'
+    layout.land(original)
+    layout.land(hidden)
+    layout.to(b'\xe9', k['dialog_rest'])
+    edits.append((va, head[:6], b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
+    report['dialog'] = f'{va:#x} -> {stub:#x}'
     return report
 
 

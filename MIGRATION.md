@@ -2465,3 +2465,14 @@ Passo C3-3 (30/10/2026): pose de apresentação dos atores da grade.
 - Pendente se continuarem parados: o NA força a sequência no ator do lado do cliente (comando `cc_create_character_selection_play_sequence`, cliente NA `0x3888ded0`: sequência em `+0x4c1c` e reinício do ciclo), que o 1.69 não tem.
 - Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3c.log`): `client.dll` `3e0b0c4d…` (igual), `server.dll` `35f2ef50…`.
 - Próxima ação: repetir G1–G2 do C3 e seguir para G3–G5.
+
+Passo C3-4 (30/10/2026): classe da personagem na customização e botão de voltar.
+- Relato do operador (C3, terceira rodada): poses de apresentação certas (paradas); a criação da Delia foi direto para a customização (sem tutorial) e mostrou o modelo do Lethita; sem botão para voltar na customização. Pedidos opcionais: poses animadas (idle alternado) e girar o modelo.
+- Causas:
+  - classe: o prólogo (estado 8) chama `0x38594860` (`cl_playerclass`/`cl_playermodel`) com a classe guardada pela transição (`0x3851e5f0` → `0x38519540`); o fluxo V3 pula o prólogo (como o NA, cuja entrada V3 também lê a classe antes do `changemap`), então o jogador local ficava com o padrão `lethita`;
+  - voltar: o filme `CreateCharacterDialog` do 1.69 já tem `Button_Back` (manda `Back`), mas só o mostra com a *feature* `CharacterCreation_UI_V3`, que também esconde o campo de nome que o C++ 1.69 lê; o *handler* do diálogo (`0x384af6e0`) não trata `Back`, e a tabela de transições (`0x38ca5cc8`, 141 entradas `{estado, evento, função}`) só tem Create/OK/Failed para o `CharacterCreationState` (11). O NA (`0x389ac61c`) desliga `sv_prologue_mode` e volta por um estado próprio (`CharacterBodyCreation_Back`).
+- Mudança (`CREATION_GRID`): a entrada do `CharacterCreationState` com a grade chama `0x38594860(classe)` antes do `changemap`; a tabela de transições é copiada para a `.hrte` com a entrada `(11, CharacterCreation_Back)` → `sv_prologue_mode 0`, estado 7 (a grade, que volta à seleção pelo próprio botão); o *handler* do diálogo dispara esse evento no `Back` e, no `OnShow` com a grade, liga `CreateCharacterDialog.Button_Back._visible` (gerenciador de UI vt+0x18).
+- Mantido como o NA: a criação pela grade não passa pelo prólogo/tutorial antes da customização.
+- Não feito (opcional): poses animadas e rotação dos atores da grade; o NA anima com o comando de cliente `cc_create_character_selection_play_sequence` (ausente no 1.69).
+- Verificação: `test_creation_grid_client_runs_the_na_v3_flow` ampliado e `test_every_new_pointer_is_relocated`, OK (`.cache/verification/c3/tests-5.log`). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3d.log`): `client.dll` `a2d44738…`, `server.dll` `35f2ef50…` (igual).
+- Próxima ação: repetir G3–G5 do C3 (Delia na customização, voltar, criar e entrar).

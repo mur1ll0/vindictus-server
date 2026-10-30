@@ -633,8 +633,21 @@ class LabCopyTest(unittest.TestCase):
         transition = self.code(image, int(grid['transition'].split('-> ')[1], 16), 0x30)
         self.assertEqual([x.op_str for x in transition if x.mnemonic == 'mov' and x.op_str.startswith('eax, 0x')
                           or x.op_str in ('eax, 8',)], ['eax, 8', f'eax, {routing.CREATION_STATE:#x}'])
-        enter = self.code(image, int(grid['enter'].split('-> ')[1], 16), 0x80)
+        enter = self.code(image, int(grid['enter'].split('-> ')[1], 16), 0xa0)
         self.assertIn('changemap lobby_beautyshop_body', self.strings(image, enter))
+        self.assertIn(f'call {k["player_class"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in enter])
+        # Customization Back: one more transition (CharacterCreationState -> grid) in the copied table.
+        old, new = grid['transitions'].split(' -> ')
+        count = int(old.split('[')[1][:-1])
+        copy = int(new.split('[')[0], 16)
+        self.assertEqual(self.entry(image, k['transitions'][2] + 1, 0), copy)
+        self.assertEqual(self.entry(image, k['transitions'][0] + 1, 0), count + 1)
+        state, name, handler = (self.entry(image, copy + 12 * count, i) for i in range(3))
+        self.assertEqual((state, routing.read_string(image, name)), (routing.CREATION_STATE, 'CharacterCreation_Back'))
+        self.assertIn(f'mov eax, {k["grid_state"]}', [f'{x.mnemonic} {x.op_str}' for x in self.code(image, handler, 0x20)])
+        dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0x90)
+        self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, dialog))
+        self.assertIn(f'jmp {k["dialog_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in dialog])
         # The map-ready slot runs the original enter body, then opens the customization.
         table = k['creation_vtable']
         ready = self.entry(image, table, 4)
