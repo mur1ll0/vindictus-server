@@ -497,6 +497,10 @@ CREATION_GRID = {
         # handler shows the button itself on OnShow (UI manager vt+0x18, set boolean).
         'dialog': (0x384AF6E0, '81ecdc030000' '5657' '8bbc24f0030000'),
         'dialog_rest': 0x384AF6EF,
+        # The customization panel fill (0x384a5870: loadDefaultValues, outfits, arrageAll) runs after
+        # the movie's own onShow; the UI manager call right after arrageAll becomes a call into a stub
+        # that shows the button, then goes to the getter (C3-11).
+        'filled': (0x384A5B1E, 'e8cd231500'),
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2012,7 +2016,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     names = creation_names()
     layout.pad()
     text = {t: layout.string(t) for t in (
-        'changemap lobby_beautyshop_change', 'gameui_hide;cc_minimap_hide', 'NewCharacterDialogS3.OnStartCreation',
+        'changemap lobby_beautyshop_change', 'gameui_hide;cc_minimap_hide;npc_character_create;force_start_touch trigger_cam_midview',
         'OnStartCreation', 'npc_character_create;force_start_touch trigger_cam_midview',
         'NewCharacterDialogS3.OnReadyCreation', 'sv_prologue_mode 1', 'scaleform_fade_out 1.5',
         'changemap lobby_beautyshop_body', 'cam_select_beautyshop_camera', 'scaleform_fade_in 1.5',
@@ -2072,8 +2076,11 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
     report['register'] = f'{va:#x} -> {stub:#x}'
     operand(k['map_operand'], text['changemap lobby_beautyshop_change'])
-    operand(k['start_camera'], text['gameui_hide;cc_minimap_hide'])
-    operand(k['start_invoke'], text['NewCharacterDialogS3.OnStartCreation'])
+    # Map ready: the scene commands and OnReadyCreation (which shows the first class and its video)
+    # straight from here. The movie also calls OnStartCreation when it opens, before the map loads;
+    # answering that played Lethita's video during the loading, then again once loaded (C3-11).
+    operand(k['start_camera'], text['gameui_hide;cc_minimap_hide;npc_character_create;force_start_touch trigger_cam_midview'])
+    operand(k['start_invoke'], text['NewCharacterDialogS3.OnReadyCreation'])
     # CharacterCreationState leave (as NA 0x38bd8c50): the overhead HUD back on with the creation mode off.
     operand(k['leave_command'], text['sv_create_character_mode 0;hhud_should_draw 1'])
 
@@ -2084,9 +2091,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     stub = layout.here()
     layout.body += head + b'\x8b\xf1'  # ...; mov esi, ecx
     done = []
-    other = is_argument(text['OnStartCreation'])
-    command(0x188, text['npc_character_create;force_start_touch trigger_cam_midview'])
-    invoke(text['NewCharacterDialogS3.OnReadyCreation'])
+    other = is_argument(text['OnStartCreation'])  # answered by the map-ready slot above
     done.append(layout.forward(b'\xe9'))
     layout.land(other)
     for i, (choose, scene) in select.items():
@@ -2217,6 +2222,22 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.to(b'\xe9', k['dialog_rest'])
     edits.append((va, head[:6], b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
     report['dialog'] = f'{va:#x} -> {stub:#x}'
+
+    va, old = k['filled']
+    layout.pad()
+    stub = layout.here()
+    feature()
+    skip = layout.forward(b'\x0f\x84')
+    layout.to(b'\xe8', k['ui'])
+    layout.body += b'\x8b\x10' + b'\x68'
+    layout.pointer(shown)
+    layout.body += b'\x8b\xc8' + b'\x68'
+    layout.pointer(button)
+    layout.body += b'\xff\x52\x1c'
+    layout.land(skip)
+    layout.to(b'\xe9', k['ui'])
+    edits.append((va, bytes.fromhex(old), b'\xe8' + struct.pack('<i', stub - (va + 5))))
+    report['filled'] = f'{va:#x} -> {stub:#x}'
     return report
 
 

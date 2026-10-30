@@ -637,8 +637,9 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(self.code(image, k['register_failed'][0], 6)[0].op_str, hex(k['register_v2']))
         operand = lambda site: routing.read_string(image, self.entry(image, site[0] + 1, 0))
         self.assertEqual(operand(k['map_operand']), 'changemap lobby_beautyshop_change')
-        self.assertEqual(operand(k['start_camera']), 'gameui_hide;cc_minimap_hide')
-        self.assertEqual(operand(k['start_invoke']), 'NewCharacterDialogS3.OnStartCreation')
+        self.assertEqual(operand(k['start_camera']),
+                         'gameui_hide;cc_minimap_hide;npc_character_create;force_start_touch trigger_cam_midview')
+        self.assertEqual(operand(k['start_invoke']), 'NewCharacterDialogS3.OnReadyCreation')
         # The handler answers OnStartCreation and every Select<Class>, Delia included, then falls
         # back to the original GameStart/Back body.
         stub = int(grid['handler'].split('-> ')[1], 16)
@@ -648,8 +649,11 @@ class LabCopyTest(unittest.TestCase):
         for i, key in routing.creation_names():
             self.assertIn(f'Select{key.capitalize()}', names)
             self.assertIn(f'npc_character_create_select {i}', names)
-        self.assertIn('npc_character_create;force_start_touch trigger_cam_midview', names)
-        self.assertIn('NewCharacterDialogS3.OnReadyCreation', names)
+        self.assertNotIn('NewCharacterDialogS3.OnReadyCreation', names)  # the map-ready slot sends it
+        # After the panel fill, the button is shown again (its movie onShow hides it).
+        filled = self.code(image, int(grid['filled'].split('-> ')[1], 16), 0x40)
+        self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, filled))
+        self.assertIn(f'jmp {k["ui"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in filled])
         self.assertIn(f'jmp {k["handler_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in handler])
         # GameStart: state 11 with the grid, the prologue (8) without it.
         transition = self.code(image, int(grid['transition'].split('-> ')[1], 16), 0x30)
