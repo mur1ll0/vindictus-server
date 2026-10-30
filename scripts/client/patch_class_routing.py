@@ -2150,7 +2150,8 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     back_event, prologue_off = layout.string('CharacterCreation_Back'), layout.string('sv_prologue_mode 0')
     back_label = layout.string('Back')
     show_label, button = layout.string('OnShow'), layout.string('CreateCharacterDialog.Button_Back._visible')
-    moves = {t: layout.string(t) for t in ('CreateCharacterDialog.Button_BasicShape._x', 'CreateCharacterDialog.Button_Complete._x')}
+    moves = {t: layout.string(t) for t in ('CreateCharacterDialog.Button_BasicShape._x', 'CreateCharacterDialog.Button_Complete._x',
+                                           '125', '199')}
     layout.pad()
     back = layout.here()
     command(0x1C, prologue_off)
@@ -2202,9 +2203,13 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\x8b\x10' + b'\x6a\x01' + b'\x8b\xc8' + b'\x68'
     layout.pointer(button)
     layout.body += b'\xff\x52\x18'
-    for name, x in (('CreateCharacterDialog.Button_BasicShape._x', 125), ('CreateCharacterDialog.Button_Complete._x', 199)):
-        layout.to(b'\xe8', k['ui'])  # the V3 layout's room for the button (UI manager vt+0x1c, set integer)
-        layout.body += b'\x8b\x10' + b'\x68' + struct.pack('<I', x) + b'\x8b\xc8' + b'\x68'
+    for name, x in (('CreateCharacterDialog.Button_BasicShape._x', '125'), ('CreateCharacterDialog.Button_Complete._x', '199')):
+        # The V3 layout's room for the button. UI manager vt+0x1c sets a variable from TEXT (the 1.69
+        # passes a string, as DyeDialog.selectedTab at 0x3828d256); an integer crashed shaderapidx9.
+        layout.to(b'\xe8', k['ui'])
+        layout.body += b'\x8b\x10' + b'\x68'
+        layout.pointer(moves[x])
+        layout.body += b'\x8b\xc8' + b'\x68'
         layout.pointer(moves[name])
         layout.body += b'\xff\x52\x1c'
     layout.land(original)
