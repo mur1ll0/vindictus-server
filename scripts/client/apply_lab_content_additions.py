@@ -20,6 +20,7 @@ from prepare_lab_client import PreparationError, reject_original
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'content'))
 import class_costumes  # noqa: E402
+import class_imports  # noqa: E402
 import content_additions  # noqa: E402
 import content_edits  # noqa: E402
 import hfs  # noqa: E402
@@ -340,7 +341,8 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
     class_files = class_asset_files(assets)
-    if (not items and not entries and not class_files and not merges
+    class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
+    if (not items and not entries and not class_files and not merges and not class_tokens
             and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
@@ -351,10 +353,16 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     source = {path: (backup if backup.exists() else path).read_bytes() for path, backup in originals.items()}
     wanted = dict(source)
     rebuilt = []
-    if entries:
+    if entries or class_tokens:
         for path, language in texts:
-            pack = [hfs.Entry(e.name, with_tokens(e.data, entries) if e.name == f'heroes_text_{language}.txt' else e.data, e.attr)
-                    for e in hfs.read_pack(source[path], ks)]
+            pack = []
+            for e in hfs.read_pack(source[path], ks):
+                if e.name == f'heroes_text_{language}.txt':
+                    # Class tokens only where the 1.69 has no line; the item editor's replace theirs.
+                    present = {k.lower() for k, _ in class_imports.TOKEN_LINE.findall(e.data.decode('utf-16'))}
+                    added = {k: v for k, v in class_tokens.items() if k.lower() not in present}
+                    e = hfs.Entry(e.name, with_tokens(e.data, {**added, **entries}), e.attr)
+                pack.append(e)
             wanted[path] = hfs.build_pack(pack, ks)
             rebuilt.append((path.name, wanted[path]))
     by_file: dict[str, list[dict]] = {}
@@ -418,7 +426,8 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         for path in stale:
             path.unlink(missing_ok=True)
         added_list.write_text(json.dumps(added), encoding='utf-8')
-    return {'hfs': 'applied' if items or entries or class_files or merges else 'restored', 'text_tokens': len(entries),
+    return {'hfs': 'applied' if items or entries or class_files or merges or class_tokens else 'restored', 'text_tokens': len(entries),
+            'class_tokens': len(class_tokens),
             'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
             'class_packs': len(plan), 'class_packs_built': class_built, 'class_merges': merge_report,
             'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
@@ -450,7 +459,9 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
         previous = json.loads(written.read_text(encoding='utf-8')) if written.exists() else {}
         plan['items'] = len(items)
         plan['item_overrides'] = len(overrides)
-        if apply_changes and (items or overrides) and not backup.exists():
+        imports = class_imports.load_imports(content_additions.CLASS_IMPORTS)
+        plan['class_imports'] = [p.stem for p in imports]
+        if apply_changes and (items or overrides or imports) and not backup.exists():
             with closing(sqlite3.connect(backup)) as copy:
                 db.backup(copy)
         if apply_changes:
@@ -462,12 +473,18 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
             original = sqlite3.connect(backup.resolve().as_uri() + '?mode=ro', uri=True) if backup.exists() else None
             try:
                 with db:
+                    # Imported NA classes first (their tables come back to the original rows), then the
+                    # item editor's rows on top.
+                    if imports or previous.get('imported'):
+                        plan['class_rows'] = class_imports.apply_client(db, original, imports,
+                                                                        content_additions.class_remap(imports, items))
                     plan['item_rows'] = content_additions.apply_client(db, items, overrides, original, previous)
             finally:
                 if original is not None:
                     original.close()
             written.write_text(json.dumps({'added': sorted(i['ItemClass'] for i in items),
-                                           'overridden': sorted(overrides)}), encoding='utf-8')
+                                           'overridden': sorted(overrides),
+                                           'imported': [p.stem for p in imports]}), encoding='utf-8')
         if apply_changes and current != target:
             if not backup.exists():
                 with closing(sqlite3.connect(backup)) as copy:

@@ -21,4 +21,5 @@ Pré-condição: preparação feita. Nenhuma personagem Miri existe ainda; o M1 
 - [ ] Equipar e tirar um inner da Fiona e o `fiona_inner_zero`/`evy_inner_zero` do editor de itens (se a personagem tiver) → o modelo de cada um continua o mesmo de antes (as entradas 9100–9102 da Miri foram renumeradas para não tomar as deles).
 - [ ] Entrar numa fase com a Fiona e atacar algumas vezes → sons de golpe e de passos normais.
 - [ ] A grade de criação (C3) abre e mostra as 11 classes como antes (a Miri ainda não aparece).
+- [ ] (M2) Numa loja de NPC e no inventário, a dica de uma poção e de uma peça feminina comum não mostra classe nova nem "Cannot be equipped" para a Fiona; a forja do Ferghus abre sem erro (as receitas de Draker só aparecem quando a Miri existir).
 Limites conhecidos: nenhum comportamento da Miri é esperado neste passo.

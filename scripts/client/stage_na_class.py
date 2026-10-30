@@ -42,6 +42,9 @@ NAME = re.compile(r'^[a-z]{2,16}$')
 # Shared 1.69 scripts that get the class's lines (kv_merge.py), measured for Miri in
 # docs/future/miri-class-port.md 2.5. Left out: NPC, pet and relationship scripts, the voice emote
 # block of chat_commands.txt (every NA class) and the relationship precache of game_sounds_manifest.txt.
+# English text of the NA: the class's tokens (names, descriptions, UI) go into the 1.69 text packs.
+TEXT_SOURCE = 'resource/localized_text/english/heroes_text_english.txt'
+TEXT_TARGET = 'text/heroes_text_english.txt'
 SHARED_SCRIPTS = (
     'csf/bodyshape_fig_list.txt', 'scripts/action_table_player.txt', 'scripts/action_table_player_deathmatch.txt',
     'scripts/action_table_player_pmatch.txt', 'scripts/actionstate/common_state_etc.txt',
@@ -145,8 +148,14 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         target.write_bytes(source)
         merges.append({'path': rel, 'source': na[rel].relative_to(na_root).as_posix(), 'source_sha256': sha256(source),
                        'needles': list(names)})
+    text = None
+    if TEXT_SOURCE in na:
+        source = na[TEXT_SOURCE].read_bytes()
+        (out / 'merge/text').mkdir(parents=True, exist_ok=True)
+        (out / 'merge' / TEXT_TARGET).write_bytes(source)
+        text = {'path': TEXT_TARGET, 'source': na[TEXT_SOURCE].relative_to(na_root).as_posix(), 'source_sha256': sha256(source)}
     manifest = {'format_version': 1, 'class': class_name, 'weapon': weapon, 'source_root': str(na_root),
-                'files': [records[k] for k in sorted(records)], 'merge': merges, 'missing': sorted(missing)}
+                'files': [records[k] for k in sorted(records)], 'merge': merges, 'text': text, 'missing': sorted(missing)}
     (out / MANIFEST).write_text(json.dumps(manifest, indent=1), encoding='utf-8')
     return manifest
 

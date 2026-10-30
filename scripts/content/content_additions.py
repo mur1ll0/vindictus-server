@@ -23,6 +23,9 @@ import pathlib
 import re
 import sqlite3
 
+import class_costumes
+import class_imports
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ADDITIONS = pathlib.Path(__file__).resolve().parent / 'item_additions.json'
 EDITS = ROOT / '.cache/content-state/content-edits.json'
@@ -30,6 +33,10 @@ SERVER_DATABASE = ROOT.parent / 'ServidorVindictus/Server/zh-tw-x-gm/Bin/heroesC
 TABLES = ('ItemClassInfo', 'EquipItemInfo', 'CustomizeDefaultInfo', 'CustomizePriceInfo')
 SET_TABLE = 'SetItemInfo'
 CLASS_ADDITIONS = pathlib.Path(__file__).resolve().parent / 'class_additions.json'
+# Imported NA classes (class_imports.py): staged files and the 1.69 player_costume.txt they merge into.
+CLASS_ASSETS = ROOT / '.cache/private-assets/classes'
+BASE_COSTUME = ROOT / '.cache/play-client/hfs_extracted/scripts/player_costume.txt'
+CLASS_IMPORTS = class_imports.IMPORTS
 # BaseCharacter values: 5-bit m_iClass and int ClassRestriction masks (docs/future/new-classes.md 8.13).
 CLASS_LIMIT = 32
 # Columns the item editor changes (the Rust panel validates the same list, src/domain/item_editor.rs).
@@ -188,12 +195,15 @@ def install(db: sqlite3.Connection, items: list[dict], overrides: dict[str, dict
             raise ValueError(f'{name} is an added item; edit it, not override it')
         if not db.execute('SELECT 1 FROM main.[ItemClassInfo] WHERE ItemClass=?', (name,)).fetchone():
             raise ValueError(f'Overridden item {name} is not in the content')
+    temp = {r[0] for r in db.execute("SELECT name FROM temp.sqlite_master WHERE type='table'")}
     for table in TABLES:
-        source = f'main.[{table}]'
+        # Imported classes (class_imports.install_server): original rows with the class bits, then theirs.
+        source = f'temp.[_class_base_{table}]' if f'_class_base_{table}' in temp else f'main.[{table}]'
+        imported = f' UNION ALL SELECT * FROM temp.[_imported_{table}]' if f'_imported_{table}' in temp else ''
         changes = {n: o['set'][table] for n, o in overrides.items() if o.get('set', {}).get(table)}
         if changes:
             # Same rows in the same order (insertion order of the copy), with the edited cells.
-            db.execute(f'CREATE TEMP TABLE [_base_{table}] AS SELECT * FROM main.[{table}]')
+            db.execute(f'CREATE TEMP TABLE [_base_{table}] AS SELECT * FROM {source}')
             columns = [r[1] for r in db.execute(f'PRAGMA main.table_info([{table}])')]
             for name, values in changes.items():
                 assignments, params = _override_sql(columns, values, table, name)
@@ -205,7 +215,8 @@ def install(db: sqlite3.Connection, items: list[dict], overrides: dict[str, dict
                 raise ValueError(f'{item["ItemClass"]} already exists in {table}')
             columns, rows = item_rows(db, table, item, source)
             db.executemany(f'INSERT INTO temp.[_added_{table}] VALUES({",".join("?" * len(columns))})', rows)
-        db.execute(f'CREATE TEMP VIEW [{table}] AS SELECT * FROM {source} UNION ALL SELECT * FROM temp.[_added_{table}]')
+        db.execute(f'CREATE TEMP VIEW [{table}] AS SELECT * FROM {source}{imported} '
+                   f'UNION ALL SELECT * FROM temp.[_added_{table}]')
     if any(item.get('set_id') for item in items):
         db.execute(f'CREATE TEMP TABLE [_added_{SET_TABLE}] AS SELECT * FROM main.[{SET_TABLE}] WHERE 0')
         for item in items:
@@ -261,6 +272,20 @@ def install_classes(db: sqlite3.Connection, classes: list[dict]) -> None:
     db.commit()
 
 
+def class_remap(imports: list[pathlib.Path], items: list[dict]) -> dict:
+    """Per imported class, its player_costume.txt numbers the laboratory items took (class_costumes),
+    from the same files the client copy merges: the class's NA copy and the 1.69 original."""
+    remap = {}
+    for path in imports:
+        info = class_imports.read_meta(path)
+        na = CLASS_ASSETS / info['name'] / 'merge/scripts/player_costume.txt'
+        if na.is_file() and BASE_COSTUME.is_file():
+            remap[info['name']] = class_costumes.costume_remap(na.read_bytes(), BASE_COSTUME.read_bytes(),
+                                                               class_costumes.lab_taken(items),
+                                                               (info['name'], info['weapon']))
+    return remap
+
+
 def connect(database: pathlib.Path | str) -> sqlite3.Connection:
     """Read-only connection; the server content database also sees the added and edited items
     and the added classes' creation rows."""
@@ -270,8 +295,11 @@ def connect(database: pathlib.Path | str) -> sqlite3.Connection:
         items = load()
         overrides = load_overrides()
         classes = load_classes()
+        imports = class_imports.load_imports(CLASS_IMPORTS)
         try:
-            if items or overrides:
+            if imports:
+                class_imports.install_server(db, imports, class_remap(imports, items))
+            if items or overrides or imports:
                 install(db, items, overrides)
             if classes:
                 install_classes(db, classes)

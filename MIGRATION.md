@@ -18,7 +18,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Miri: M2 — linhas do banco da Miri (itens, habilidades, forja, FeatureMatrix) convertidas do NA para o servidor e o cliente, com o bit 11 nas linhas comuns e a renumeração de inners do M1.
+2. Miri: M3 — dados de criação (`class_additions.json`, exportações, `lab-set-class.ps1`, maestria `DRAKER`) e painel (nomes de classe, máscara do editor, dica de item), depois reexportar o conteúdo e recompilar o Docker.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
@@ -83,7 +83,7 @@ Decisões pendentes:
 - Classes novas (`docs/future/new-classes.md`, `docs/future/delia-class-port.md`, skill `new-class-port`):
   - [x] Delia C2: classe 10 jogável (corpo, armas, guarda, condições, efeitos, Rose Crush, SP), aceita em 29/10.
   - [ ] Delia C3: criação pela grade do NA — falta volta à seleção, G3 e G5.
-  - [ ] Miri: M0 medição, M1 assets e scripts compartilhados na cópia (75 pacotes) feitos; decisões de 30/10 (assets do NA, todas as mecânicas, `weapon_greatsword`, modelos v44); próximos M1–M10.
+  - [ ] Miri: M0 medição, M1 assets e scripts compartilhados na cópia (75 pacotes), M2 banco e textos (servidor e cliente) feitos; decisões de 30/10 (assets do NA, todas as mecânicas, `weapon_greatsword`, modelos v44); próximos M1–M10.
 - Recursos futuros do painel (`docs/playable-game-roadmap.md`, seção "Recursos futuros do painel"):
   - [x] Editor de itens (corte 1 aceito; I2 no cliente pendente).
   - [x] Busca por categoria, editor de refino/scrolls, progressão até um nível (inclui história principal; P3 no cliente pendente).

@@ -27,6 +27,12 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
             db.commit()
         self.additions = self.root / 'additions.json'
         self.additions.write_text(json.dumps({'ShopInfo': [ROW]}), encoding='utf-8')
+        # The developer's imported classes never reach these tests.
+        from unittest import mock
+        import content_additions
+        patcher = mock.patch.object(content_additions, 'CLASS_IMPORTS', self.root / 'no-imports')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def count(self):
         with closing(sqlite3.connect(self.db)) as db:

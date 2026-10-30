@@ -39,6 +39,12 @@ class ApplyLabHfsTest(unittest.TestCase):
         (self.assets / 'kit/models/player/f').mkdir(parents=True)
         (self.assets / 'kit/models/player/f/new.mdl').write_bytes(b'IDST0')
         self.original = {p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}
+        # The developer's imported classes never reach these tests.
+        from unittest import mock
+        import content_additions
+        patcher = mock.patch.object(content_additions, 'CLASS_IMPORTS', Path(self.temp.name) / 'no-imports')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -131,6 +137,27 @@ class ApplyLabHfsTest(unittest.TestCase):
             lab.CLASS_PART_LIMIT = limit
         self.assertEqual((again['class_packs_built'], again['hfs_files_changed']), (0, 0))
         (self.assets / 'classes/miri/class-assets.json').unlink()
+        self.run_apply([])
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def test_class_text_adds_only_missing_class_tokens(self):
+        import json
+        root = self.assets / 'classes/miri'
+        (root / 'merge/text').mkdir(parents=True)
+        na = '"lang"\r\n{\r\n\t"Tokens"\r\n\t{\r\n\t\t"OLD"\t"miri old"\r\n\t\t"HEROES_ITEM_NAME_DRAKER_X"\t"Dragon \\"X\\""\r\n' \
+             '\t\t"HEROES_UNRELATED"\t"x"\r\n\t}\r\n}\r\n'
+        (root / 'merge/text/heroes_text_english.txt').write_bytes(na.encode('utf-16'))
+        (root / 'class-assets.json').write_text(json.dumps({'class': 'miri', 'weapon': 'draker', 'files': [],
+                                                            'text': {'path': 'text/heroes_text_english.txt'}}), encoding='utf-8')
+        plan = self.run_apply([])
+        self.assertEqual(plan['class_tokens'], 1)  # OLD's key does not name the class
+        pack = self.client / 'hfs' / (hfs.pack_name(TEXT_FOLDERS[0]) + '.hfs')
+        text = hfs.read_pack(pack.read_bytes(), KS)[0].data.decode('utf-16')
+        self.assertIn('"HEROES_ITEM_NAME_DRAKER_X"\t"Dragon \\"X\\""', text)
+        self.assertIn('"OLD"\t"old"', text)
+        self.assertNotIn('miri old', text)
+        self.assertNotIn('HEROES_UNRELATED', text)
+        (root / 'class-assets.json').unlink()
         self.run_apply([])
         self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
 

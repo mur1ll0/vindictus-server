@@ -36,6 +36,9 @@ class ContentAdditionsTest(unittest.TestCase):
         patcher = mock.patch.object(additions, 'CLASS_ADDITIONS', pathlib.Path(self.temp.name) / 'no-classes.json')
         patcher.start()
         self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(additions, 'CLASS_IMPORTS', pathlib.Path(self.temp.name) / 'no-imports')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp.cleanup()
