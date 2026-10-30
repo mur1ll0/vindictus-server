@@ -135,7 +135,7 @@ Troca a classe de uma personagem desconectada pelo nome, numa transação dentro
   3. `python -s -E scripts/client/patch_class_routing.py --client-copy .cache/play-client --apply`: exige a `.hcls` (`EXPECTED` = `a9591d3a44a2b538`/`af43431e78666783`). Para reaplicar, copiar os `client.dll.<hash>.pre-routing.bak`/`server.dll.<hash>.pre-routing.bak` sobre `bin/` antes. Grava `bin/class-routing.json` (endereços dos *stubs*, lido por `scripts/dev/lab_memory.py`).
 - Sem `--apply` é simulação (relatório JSON). `--fallback-entity player_fiona` é só diagnóstico (D8k) e não faz parte do porte.
 - Todos os patches conferem os bytes originais de cada ponto e recusam se não baterem.
-- **Hashes finais do laboratório** (último passo aplicado, C3-18; `.cache/verification/c3/class-routing-apply-c3n.log`): `client.dll` `28f7625b…`, `server.dll` `c44e51a2…` (igual desde o C3-6), `engine.dll` `d25a6e28…`.
+- **Hashes finais do laboratório** (último passo aplicado, C3-20; `.cache/verification/c3/class-routing-apply-c3o.log`): `client.dll` `6abba292…`, `server.dll` `c44e51a2…` (igual desde o C3-6), `engine.dll` `d25a6e28…`.
 - Testes: `cd scripts/client && python -s -E -m unittest test_patch_class_table test_patch_engine_class_flags test_patch_class_routing` (`test_patch_class_routing.py` tem 36 testes, inclusive um plano com uma segunda classe extra fictícia, Miri 11, e `test_every_new_pointer_is_relocated`).
 
 ### 4.2 `patch_class_table.py` (`.hcls`, passo 1 do C2, commit `a6c6304f`)
