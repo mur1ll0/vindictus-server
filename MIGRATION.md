@@ -2543,3 +2543,9 @@ Passo C3-12 (30/10/2026): o filme da customização em uso não tinha botão de 
 - Mudança (só na cópia de laboratório, nada versionado): `scaleform/CreateCharacterDialog.gfx` substituído pela versão do pacote do próprio 1.69 (origem `hfs_extracted/PATH_NOT_FOUND/RENOMEADo_9FB527B373DCBD159552ADD1710487A724237AF9/CreateCharacterDialog.gfx`, SHA-256 `d9f2dd66a109ed1821d682781322a4360e9f0cf3b4dfad8eb500403134ab5665`); a solta fica em `scaleform/CreateCharacterDialog.gfx.1a51f689.loose.bak` (SHA-256 `1a51f68934503d8f14b2cf8e40b38032c0fda5499b9b176c29f660a0bc5efed4`). Os DLLs não mudam (`client.dll` `6a06afc1…`): o `onShow` do filme esconde o botão fora do modo V3 e o *stub* do C3-11 o liga depois do preenchimento.
 - Desfazer: copiar o `.loose.bak` de volta sobre `scaleform/CreateCharacterDialog.gfx`.
 - Próxima ação: conferir o botão na customização (G4).
+
+Passo C3-13 (30/10/2026): imagens do filme novo da customização.
+- Relato do operador (C3, décima primeira rodada): o botão de voltar aparece e funciona; no fundo da caixa "Create Character" aparece um ícone de elmo esticado.
+- Causa: o filme do pacote usa 34 imagens; 31 vêm do pacote legível de `scaleform` (parte 7), mas `CreateCharacterDialog_I5.dds`, `_I30.dds` e `_I89.dds` também existem soltas em `scaleform/`, com o conteúdo do filme antigo, e os arquivos soltos têm prioridade. O `_I30` solto (4 224 bytes, um ícone) ocupava o fundo de 524 416 bytes do filme novo.
+- Mudança (só na cópia de laboratório): as três imagens soltas trocadas pelas do pacote renomeado (`hfs_extracted/PATH_NOT_FOUND/RENOMEADo_9FB527B373DCBD159552ADD1710487A724237AF9/`): `_I5` `98c11a45…` → `04642050…`, `_I30` `0759d216…` → `04084564…`, `_I89` `f250de86…` → `9a73326f…`; as antigas ficam ao lado como `<arquivo>.<hash>.loose.bak` (desfazer: copiá-las de volta junto com o filme do C3-12).
+- Próxima ação: conferir a caixa na customização; depois G5 e o registro do porte da Delia.
