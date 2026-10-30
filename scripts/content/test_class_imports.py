@@ -16,7 +16,12 @@ def make(path: Path, na: bool) -> None:
     with closing(sqlite3.connect(path)) as db:
         db.execute(f'CREATE TABLE ItemClassInfo(ItemClass TEXT, Category TEXT, ClassRestriction {restriction}, MaxStack INT{extra})')
         db.execute('CREATE TABLE EquipItemInfo(ItemClass TEXT, CostumeType INT, ATK INT)')
-        for table in ('CustomizeItemInfo', 'CustomizeDefaultInfo', 'CustomizePriceInfo', 'DyeableParts', 'PatternInfo'):
+        db.execute('CREATE TABLE CustomizeItemInfo(ItemClass TEXT, IsCash, Feature TEXT, CashShopType TEXT)')
+        db.execute("INSERT INTO CustomizeItemInfo VALUES(?, ?, ?, ?)",
+                   ('draker_newbie', 1, 'enUS', 'en-US') if na else ('sword', 'False', None, 'en-EU'))
+        if na:  # gated by a feature the 1.69 does not have: left out
+            db.execute("INSERT INTO CustomizeItemInfo VALUES('miri_inner', 0, 'Calia', NULL)")
+        for table in ('CustomizeDefaultInfo', 'CustomizePriceInfo', 'DyeableParts', 'PatternInfo'):
             db.execute(f'CREATE TABLE {table}(ItemClass TEXT, Feature TEXT)')
         db.execute(f'CREATE TABLE SkillInfo(SkillID TEXT, ClassRestriction {restriction})')
         db.execute('CREATE TABLE SkillRankInfo(SkillID TEXT, Rank INT, Feature TEXT)')
@@ -58,6 +63,8 @@ def make(path: Path, na: bool) -> None:
             db.execute("INSERT INTO SkillInfo VALUES('skill_fiona_attack', 2)")
             db.execute("INSERT INTO CraftShopInfo VALUES('_Craft', 40, 'recipe_sword')")
             db.execute("INSERT INTO FeatureMatrix VALUES('Delia', '3.09.00', '3.09.00', '3.09.00', '3.09.00')")
+            db.execute("INSERT INTO FeatureMatrix VALUES('enUS', '1', '1', NULL, NULL)")
+            db.execute("INSERT INTO FeatureMatrix VALUES('enEU', NULL, NULL, '1', '1')")
             db.execute('CREATE TABLE CharacterClassInfo(Identifier INT, Level INT, BaseSTR INT)')
             db.executemany('INSERT INTO CharacterClassInfo VALUES(?,?,?)', [(10, 1, 9), (10, 2, 11), (9, 1, 8)])
         db.commit()
@@ -77,7 +84,8 @@ class ClassImportsTest(unittest.TestCase):
     def test_build_selects_the_class_rows(self):
         rows = self.report['rows']
         self.assertEqual((rows['ItemClassInfo'], rows['SkillInfo'], rows['SkillRankInfo']), (2, 1, 1))
-        self.assertEqual(self.report['dropped'], {'category AVATAR_WEAPON': 1, 'recipe with unknown material': 1})
+        self.assertEqual(self.report['dropped'], {'category AVATAR_WEAPON': 1, 'recipe with unknown material': 1,
+                                                  'CustomizeItemInfo row with unknown feature': 1})
         self.assertEqual((rows['RecipeMaterialInfo'], rows['CraftShopInfo'], rows['FeatureMatrix']), (2, 1, 2))
         with closing(sqlite3.connect(self.imported)) as db:
             # The NA shop becomes the 1.69 shop with the same recipes, after its last row.
@@ -101,6 +109,10 @@ class ClassImportsTest(unittest.TestCase):
             self.assertEqual(db.execute('SELECT SkillID, ClassRestriction FROM SkillInfo').fetchall(),
                              [('skill_fiona_attack', 2), ('skill_miri_attack', 2048)])
             self.assertEqual(report['class_bits'], 1)
+            # The NA 0/1 becomes the 1.69 text boolean of the column.
+            # ... and the NA US region becomes the laboratory's EU region.
+            self.assertEqual(db.execute("SELECT IsCash, Feature, CashShopType FROM CustomizeItemInfo "
+                                        "WHERE ItemClass='draker_newbie'").fetchone(), ('True', 'enEU', 'en-EU'))
 
     def test_client_copy_gets_rows_once_and_comes_back(self):
         original = self.base.with_name('original.db3')

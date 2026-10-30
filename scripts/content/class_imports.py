@@ -14,6 +14,7 @@ in front of a 1.69 database the same way:
   - target columns only: the NA value where the NA has the column, else the column's most common value;
   - ClassRestriction text -> the class's bit (the imported rows name only the class);
   - FeatureMatrix rows take the laboratory locale columns of the Delia row (enabled on EN-EU-X-GM);
+  - rows of the NA US region become EU rows (enUS -> enEU, CashShopType en-US -> en-EU);
   - CostumeType of the class's items renumbered like its player_costume.txt entries (class_costumes);
   - existing items the class can wear get its bit: their mask already allows every 1.69 female class
     (Miri's body is female) and the NA expression does not exclude the class (female(!miri));
@@ -23,6 +24,7 @@ in front of a 1.69 database the same way:
 from __future__ import annotations
 import argparse
 import collections
+import hashlib
 import json
 import re
 import sqlite3
@@ -46,6 +48,11 @@ SKILL_TABLES = {'SkillInfo': 'SkillID', 'SkillRankInfo': 'SkillID', 'SkillArgume
 RECIPE_TABLES = ('RecipeInfo', 'RecipeMaterialInfo', 'ManufactureRecipeInfo', 'CraftShopInfo')
 MENTION_TABLES = {'StatusEffectGroupInfo': ('Type', 'Level'), 'SynthesisSkillBonus': ('ID',)}
 FEATURE_TEMPLATE = 'Delia'
+FEATURE_TOKEN = re.compile(r'[A-Za-z0-9_.]+')
+# The NA's English region is US; the laboratory client is EU English (EN-EU-X-GM): rows of the NA US
+# region become EU rows (feature token and customization CashShopType), as the 1.69's Delia rows are.
+REGION_FEATURES = {'enus': 'enEU'}
+REGION_TAGS = {'en-US': 'en-EU'}
 FEATURE_SKIP = re.compile(r'relationship|startmovie|event_', re.IGNORECASE)
 STAT_TABLES = {'CharacterClassInfo': 'Identifier', 'CharacterBaseLoadInfo': 'Character'}
 # 1.69 classes with a female body (Fiona, Evy, Vella, Lynn, Arisha, Delia).
@@ -161,6 +168,24 @@ def select(na: sqlite3.Connection, base: sqlite3.Connection, name: str, weapon: 
     cols, rows = _rows(na, 'FeatureMatrix', 'lower(Feature) LIKE ?', [f'%{name}%'])
     present = {r[0] for r in base.execute('SELECT Feature FROM FeatureMatrix')}
     out['FeatureMatrix'] = (cols, [r for r in rows if r[0] not in present and not FEATURE_SKIP.search(r[0])])
+    # Rows gated by a feature the 1.69 FeatureMatrix lacks (other NA classes, NA-only events) would
+    # never be enabled and the server's profiles refuse unknown features: they stay out.
+    known_features = {r[0].lower() for r in base.execute('SELECT Feature FROM FeatureMatrix') if r[0]}
+    known_features |= {r[0].lower() for r in out['FeatureMatrix'][1]}
+    for table, (cols, rows) in out.items():
+        if 'Feature' not in cols or table == 'FeatureMatrix':
+            continue
+        at = cols.index('Feature')
+        kept = [r for r in rows if not r[at] or all(t.lower() in known_features for t in FEATURE_TOKEN.findall(r[at]))]
+        dropped[f'{table} row with unknown feature'] += len(rows) - len(kept)
+        out[table] = (cols, kept)
+    remaining = {r[0] for r in out['ItemClassInfo'][1]}
+    for table in ITEM_TABLES[1:]:
+        cols, rows = out[table]
+        at = cols.index('ItemClass')
+        kept = [r for r in rows if r[at] in remaining]
+        dropped[f'{table} row of a dropped item'] += len(rows) - len(kept)
+        out[table] = (cols, kept)
     return out, {k: v for k, v in dropped.items() if v}
 
 
@@ -227,6 +252,14 @@ def meta(imported: sqlite3.Connection) -> dict:
     return {'name': name, 'weapon': weapon, 'index': index, 'stats_from': stats_from}
 
 
+def digest(paths: list[Path], classes: Path = CLASS_ASSETS) -> str:
+    """SHA-256 over the import databases and the staged classes' manifests (what the item exports read)."""
+    h = hashlib.sha256()
+    for path in sorted(paths) + sorted(classes.glob('*/class-assets.json')):
+        h.update(path.name.encode() + b'\0' + hashlib.sha256(path.read_bytes()).digest())
+    return h.hexdigest()
+
+
 def read_meta(path: Path) -> dict:
     with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as imported:
         return meta(imported)
@@ -249,6 +282,15 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
     cursor = imported.execute(f'SELECT * FROM [{table}]')
     source = [c[0] for c in cursor.description]
     defaults = _defaults(db, table, schema, [c for c in target if c not in source])
+    # Booleans: the 1.69 stores some as the text True/False where the NA has 0/1 (CustomizeItemInfo
+    # IsCash), and the other way round; each column takes the target table's form.
+    text_bools, int_bools = set(), set()
+    for c in (c for c in target if c in source):
+        seen = {r[0] for r in db.execute(f'SELECT DISTINCT [{c}] FROM {schema}.[{table}] LIMIT 4')} - {None}
+        if seen and seen <= {'True', 'False'}:
+            text_bools.add(c)
+        elif seen and seen <= {0, 1}:
+            int_bools.add(c)
     template = None
     if table == 'FeatureMatrix':
         template = db.execute(f'SELECT * FROM {schema}.[FeatureMatrix] WHERE Feature=?', (FEATURE_TEMPLATE,)).fetchone()
@@ -256,6 +298,16 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
     for row in cursor:
         values = dict(zip(source, row))
         out = {c: values[c] if c in values else defaults[c] for c in target}
+        if isinstance(out.get('Feature'), str) and table != 'FeatureMatrix':
+            out['Feature'] = FEATURE_TOKEN.sub(lambda m: REGION_FEATURES.get(m.group(0).lower(), m.group(0)), out['Feature'])
+        if out.get('CashShopType') in REGION_TAGS:
+            out['CashShopType'] = REGION_TAGS[out['CashShopType']]
+        for c in text_bools:
+            if out[c] in (0, 1):
+                out[c] = 'True' if out[c] else 'False'
+        for c in int_bools:
+            if out[c] in ('True', 'False'):
+                out[c] = int(out[c] == 'True')
         if 'ClassRestriction' in out and isinstance(out['ClassRestriction'], str):
             out['ClassRestriction'] = 1 << info['index'] if names_class(out['ClassRestriction'], info['name']) else 0
         if table == 'EquipItemInfo' and remap and out.get('CostumeType') is not None:

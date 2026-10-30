@@ -93,7 +93,7 @@ class ContentAdditionsTest(unittest.TestCase):
 
     def test_the_versioned_class_file_is_valid(self):
         classes = additions.load_classes(pathlib.Path(additions.__file__).resolve().parent / 'class_additions.json')
-        self.assertEqual([(c['character_class'], c['name']) for c in classes], [(10, 'Delia')])
+        self.assertEqual([(c['character_class'], c['name']) for c in classes], [(10, 'Delia'), (11, 'Miri')])
 
     def test_other_databases_are_opened_plain(self):
         with mock.patch.object(additions, 'load', return_value=ITEMS):

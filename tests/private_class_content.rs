@@ -22,7 +22,8 @@ fn every_class_has_initializer_items_and_inner_armor() {
         fiona_appearance::Profile::read(open("fiona-appearance-inventory.json")).unwrap();
     let package = class_initial::Package::read(open("class-initial.json")).unwrap();
     package.bind(&catalog).unwrap();
-    assert_eq!(package.classes.len(), 10);
+    // The ten 1.69 classes, Delia (10) and Miri (11) from scripts/content/class_additions.json.
+    assert_eq!(package.classes.len(), 12);
     for (class, initial) in package.classes {
         if class != 1 {
             inventory.add_class(class, initial.requests);
@@ -42,7 +43,7 @@ fn every_class_has_initializer_items_and_inner_armor() {
     );
     let bound_stats = stats.bind(&catalog).unwrap();
     let bound_colors = colors.bind(&catalog).unwrap();
-    for class in 0..=9u8 {
+    for class in 0..=11u8 {
         let requests = inventory
             .requests(class, &catalog, &bound_stats, &bound_colors)
             .unwrap_or_else(|e| panic!("class {class} requests: {e}"));

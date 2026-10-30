@@ -1,6 +1,6 @@
 #requires -Version 7.4
 # Laboratory class switch for one offline character, by name, for client tests of classes the
-# 1.69 client does not create (class 10 = Delia). Prints the previous class; run again with it to
+# 1.69 client does not create (class 10 = Delia, 11 = Miri). Prints the previous class; run again with it to
 # undo. The query runs inside the postgres container with the application role; no credential is
 # printed or passed on the command line.
 # The new class's starting skills (DefaultSkillInfo) that the character lacks are added as
@@ -12,16 +12,17 @@
 # white legs at character select, D9).
 # Body shape (costume type 3) follows when both classes have a known slider set
 # (csf/bodyshape_fig_list.txt): the old set is replaced by the new one at 0, plus the new class's
-# default figure at 1000 (Hagie 105, Delia 106), as a created Hagie stores it. Character select
+# default figure at 1000 (Hagie 105, Delia 106, Miri 107), as a created Hagie stores it. Character select
 # blends these; Delia with Fiona's sliders and no figure 106 was deformed from belly to thigh (D12).
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Name,[Parameter(Mandatory)][ValidateRange(0,10)][int]$Class)
+param([Parameter(Mandatory)][string]$Name,[Parameter(Mandatory)][ValidateRange(0,11)][int]$Class)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if($Name-notmatch'^[A-Za-z0-9]{2,16}$'){throw 'Name must be 2-16 ASCII letters or digits'}
 $hex=[Convert]::ToHexString([Text.Encoding]::Unicode.GetBytes($Name)).ToLowerInvariant()
 # DefaultSkillInfo of the 1.69 content (heroesContents.db3, in ID order). The 1.69 has no row for
-# class 10: Delia's are the laboratory choice matching Fiona's (first-weapon mastery, guard).
+# class 10: Delia's are the laboratory choice matching Fiona's (first-weapon mastery, guard); Miri's
+# (11) are scripts/content/class_additions.json's (Draker mastery, speed move).
 $defaults=@{
  0=@('skill_lethita_slipdash','skill_combat_mastery','skill_lethita_spear_dash')
  1=@('skill_fiona_shield_mastery','skill_fiona_guard')
@@ -34,14 +35,15 @@ $defaults=@{
  8=@('skill_arisha_castlet_mastery','skill_arisha_mana_stone')
  9=@('skill_hagie_magic_mastery')
  10=@('skill_delia_bastard_mastery','skill_delia_guard')
+ 11=@('skill_miri_draker_mastery','skill_miri_speedmove')
 }
 $rows=foreach($c in $defaults.Keys){for($i=0;$i-lt$defaults[$c].Count;$i++){"($c,$i,decode('$([Convert]::ToHexString([Text.Encoding]::Unicode.GetBytes($defaults[$c][$i])).ToLowerInvariant())','hex'))"}}
 # csf/create_<class>.csf defaults: (costume type, key) = inner (0,1), hair (0,3), eyebrows (1,0).
-$looks=@{0=@(0,1002,1000);1=@(10,2001,0);2=@(10,3001,3000);3=@(2002,-1,4008);4=@(3007,5001,5001);5=@(4001,6001,6000);6=@(6013,6017,7000);7=@(1002,6036,8000);8=@(1002,6044,9005);9=@(8001,8001,10001);10=@(1002,6036,8000)}
+$looks=@{0=@(0,1002,1000);1=@(10,2001,0);2=@(10,3001,3000);3=@(2002,-1,4008);4=@(3007,5001,5001);5=@(4001,6001,6000);6=@(6013,6017,7000);7=@(1002,6036,8000);8=@(1002,6044,9005);9=@(8001,8001,10001);10=@(1002,6036,8000);11=@(1002,8008,12001)}
 $parts=@(@(0,1),@(0,3),@(1,0))
 $looksRows=foreach($c in $looks.Keys){for($i=0;$i-lt3;$i++){"($c,$($parts[$i][0]),$($parts[$i][1]),$($looks[$c][$i]))"}}
-$shapes=@{1=@(0,15,16,17,18,19,20,22,23,24,25,40);9=@(52,53,54,55,56,59,60,61,62,63,64,65);10=@(18,19,20,24,25,40,71,72,73,74,75)}
-$figures=@{9=105;10=106}
+$shapes=@{1=@(0,15,16,17,18,19,20,22,23,24,25,40);9=@(52,53,54,55,56,59,60,61,62,63,64,65);10=@(18,19,20,24,25,40,71,72,73,74,75);11=@(0,15,16,17,18,19,20,22,23,24,25,40)}
+$figures=@{9=105;10=106;11=107}
 $shapeRows=foreach($c in $shapes.Keys){foreach($k in $shapes[$c]){"($c,$k,0)"};if($figures.ContainsKey($c)){"($c,$($figures[$c]),1000)"}}
 # The old class comes from the locked row; a connected character is left untouched.
 $query="WITH d(class,pos,skill) AS (VALUES $($rows-join',')), l(class,type,key,sn) AS (VALUES $($looksRows-join',')), f(class,key,sn) AS (VALUES $($shapeRows-join',')), t AS (SELECT id,class FROM game_character_info WHERE name_utf16=decode('$hex','hex') AND NOT is_connected AND status=0 AND (SELECT count(*) FROM game_character_info WHERE name_utf16=decode('$hex','hex'))=1 FOR UPDATE), s AS (INSERT INTO game_skills(row_id,cid,skill_utf16,rank,locked,current_ap) SELECT (extract(epoch FROM clock_timestamp())*10000000)::bigint+621355968000000000+n.pos,t.id,n.skill,1,0,0 FROM t, d n WHERE n.class=$Class AND NOT EXISTS(SELECT 1 FROM game_skills x WHERE x.cid=t.id AND x.skill_utf16=n.skill) RETURNING row_id), b AS (UPDATE game_costumes g SET costume_sn=n.sn FROM t, l o, l n WHERE g.cid=t.id AND g.is_base AND o.class=t.class AND n.class=$Class AND o.type=n.type AND o.key=n.key AND g.costume_type=o.type AND g.costume_key=o.key AND g.costume_sn=o.sn AND o.sn<>n.sn RETURNING g.row_id), x AS (DELETE FROM game_costumes g USING t WHERE g.cid=t.id AND g.is_base AND g.costume_type=3 AND t.class<>$Class AND EXISTS(SELECT 1 FROM f WHERE f.class=$Class) AND g.costume_key IN (SELECT key FROM f WHERE f.class=t.class) AND NOT EXISTS(SELECT 1 FROM game_costumes y WHERE y.cid=t.id AND y.is_base AND y.costume_type=3 AND y.costume_key NOT IN (SELECT key FROM f WHERE f.class=t.class)) RETURNING g.row_id), y AS (INSERT INTO game_costumes(row_id,cid,is_base,costume_type,costume_key,costume_sn) SELECT nextval('game_costume_row_id'),t.id,true,3,n.key,n.sn FROM t, f n WHERE n.class=$Class AND EXISTS(SELECT 1 FROM x) RETURNING row_id) UPDATE game_character_info c SET class=$Class FROM t WHERE c.id=t.id RETURNING t.id||'|'||t.class||'|'||(SELECT count(*) FROM s)||'|'||(SELECT count(*) FROM b)||'|'||(SELECT count(*) FROM y)"

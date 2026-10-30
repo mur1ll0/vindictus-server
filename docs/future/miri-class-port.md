@@ -18,7 +18,7 @@ Convenções iguais às da Delia: `client.dll` base `0x38000000`, `server.dll` l
 - **Volume**: todos os itens do NA com a Miri (3,8 GB preparados, 1,27 GiB em pacotes), inclusive os inners de 2021–2026 que usam texturas da pasta da Fiona (escolha do operador entre "sem inners de outra pasta", "tudo" e "só o núcleo").
 
 ### Estado
-- M0 (medição), M1 (assets e scripts compartilhados na cópia) e M2 (banco e textos no servidor e no cliente) feitos. Nenhum teste de cliente; MI1 (não regressão) pendente em `docs/client-tests/C4-miri.md`.
+- M0 (medição), M1 (assets e scripts compartilhados na cópia), M2 (banco e textos) e M3 (dados de criação e painel) feitos. Nenhum teste de cliente; MI1 (não regressão) e MI2 (painel) pendentes em `docs/client-tests/C4-miri.md`. Falta todo o lado nativo (M4–M8): sem ele o cliente 1.69 não carrega a classe 11.
 
 ---
 
@@ -75,7 +75,15 @@ Tokens dos scripts da Miri do NA ausentes nos DLLs 1.69 (`m0-tokens.log`; "1.69 
 - A mesma conversão serve aos dois lados: colunas do alvo (valor do NA ou o valor mais comum da coluna), `ClassRestriction` → bit 11 (2048), `CostumeType` renumerado como no M1 (9044/9134/9148), `FeatureMatrix` `Miri` com a versão `EN-EU` da Delia (3.09.00; as do NA são 4.x) e as outras com o valor `EN-US` do NA. Itens existentes ganham o bit 11 quando a máscara já cobre todas as classes femininas do 1.69 (1446) e a expressão do NA não exclui a Miri (`female(!miri)`).
 - Servidor: `content_additions.connect` instala tabelas TEMP (`_imported_<tabela>`, `_class_base_ItemClassInfo`) e visões, sem tocar o banco de referência; `CharacterClassInfo` e `CharacterBaseLoadInfo` da classe 11 copiam as da Delia (escolha de laboratório: o banco do NA é do cliente e não tem tabelas de atributos). Conferido: +1.170 itens na visão, 9.088 linhas 2047 → 4095, ranks e loja de forja presentes.
 - Cliente (`apply_lab_content_additions.py`): as tabelas tocadas voltam às linhas do *backup* (`heroes.db3.pre-lab-additions`, que só difere do atual pelos itens do editor) e recebem as linhas importadas antes das do editor de itens. Aplicado: 1.170 itens, 304 ranks, 11.870 linhas com o bit 11.
+- Correções do fechamento do M3 (a reexportação recusou as linhas): booleanos seguem a forma da coluna no 1.69 (`CustomizeItemInfo.IsCash` é `'True'`/`'False'` no 1.69 e 0/1 no NA); linhas cuja `Feature` cita algo fora da `FeatureMatrix` do 1.69 mais as da Miri (outras classes do NA como `Calia`, eventos do NA) ficam fora, e com elas as linhas dependentes dos itens que perderam toda `ItemClassInfo` (1.166 itens, 300 ranks; os 4 ranks fora dependem de `S4EP*`). A região inglesa do NA é a americana e o laboratório é EN-EU: nas linhas importadas, `enUS` vira `enEU` nas `Feature` e `en-US` vira `en-EU` em `CashShopType` (como as linhas da Delia no 1.69); sem isso nenhum item da Miri era oferecido na região e a aparência de criação da classe 11 era recusada (`private_class_content`).
 - Textos: `stage_na_class.py` copia `heroes_text_english.txt` do NA; `class_imports.class_text` escolhe as chaves que citam `miri`/`draker` ou terminam no id de um item ou habilidade importado; os pacotes de texto do 1.69 recebem só as que faltam (5.702). O painel usa a mesma função (`export_item_names.py`) e procura ícones também nos assets preparados (`export_panel_catalog.py`).
+
+### 2.9 Criação e painel (M3)
+- `scripts/content/class_additions.json`: Miri (11) com os consumíveis e o ouro da Delia, `draker_newbie`, `skill_miri_draker_mastery` e `skill_miri_speedmove` em rank 1 e o inner `miri_inner_free` (escolha de laboratório; o NA não traz `DefaultItemInfo`/`DefaultSkillInfo`, que são tabelas do servidor).
+- Exportações privadas: `class-initial.json` (12 classes, 400 pedidos), `class-11-initializer.json` e `class-11-initializer-reference-pairs.json` (`measure-fiona-initializer-features.ps1`: 30 comparações, x86 = x64); `docker/lab/minimum-creation-assets.json` com a classe 11.
+- `scripts/dev/lab-set-class.ps1`: classe 11 com as habilidades iniciais acima, aparência do `create_miri.csf` do NA (inner 1002, cabelo 8008, sobrancelha 12001), formas do corpo da Fiona (o `default_miri.bsh` usa os mesmos controles femininos) e figura 107 (`bodyshape_fig_list.txt` mesclado no M1).
+- Maestria: `DRAKER` → `skill_miri_draker_mastery` em `src/domain/equipped_skills.rs` (teste em `tests/equipped_skills.rs`).
+- Painel: nomes Delia e Miri na lista de personagens (`web/admin/src/api/characters.ts`), bits 1024 e 2048 nas caixas de classe do editor de itens (`items.ts`), Miri na dica de item (`admin_tooltip.rs`, 12 classes); nomes e ícones dos itens da Miri pelas exportações do M2. O carimbo das exportações (`item-content.json`) ganhou `classes_sha256` (`class_imports.digest`), para o `start-lab.bat` reexportar quando as classes importadas mudam.
 
 ---
 

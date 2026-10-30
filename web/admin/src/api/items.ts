@@ -86,7 +86,8 @@ export async function uploadKit(file: File): Promise<StoredKit> {
   return data;
 }
 
-/** Bit of each class in ItemClassInfo.ClassRestriction; the 1.69 client knows the first ten. */
+/** Bit of each class in ItemClassInfo.ClassRestriction: the ten 1.69 classes, then the classes the
+ * laboratory ported from the NA client (Delia, Miri). */
 export const CLASSES: [string, number][] = [
   ['Lann', 1],
   ['Fiona', 2],
@@ -98,6 +99,8 @@ export const CLASSES: [string, number][] = [
   ['Lynn', 128],
   ['Arisha', 256],
   ['Hagie', 512],
+  ['Delia', 1024],
+  ['Miri', 2048],
 ];
 
 /** Editable columns, in form order: [column, label, kind]. */

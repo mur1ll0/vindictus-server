@@ -10,6 +10,7 @@ Porte da Miri do cliente NA (`docs/future/miri-class-port.md`, skill `new-class-
 
 ## Ordem de gameplay (uma sessão)
 1. **MI1:** não regressão das classes antigas com os pacotes e scripts da Miri.
+2. **MI2:** painel de administração com a Miri (não precisa do jogo aberto).
 
 ## Como relatar
 ID e número da linha (ex.: `MI1-2`), o que apareceu (captura se possível), se travou ou fechou, horário e relatório de queda. Na primeira falha que bloqueia as seguintes: anotar, voltar ao estado seguro e encerrar.
@@ -23,3 +24,11 @@ Pré-condição: preparação feita. Nenhuma personagem Miri existe ainda; o M1 
 - [ ] A grade de criação (C3) abre e mostra as 11 classes como antes (a Miri ainda não aparece).
 - [ ] (M2) Numa loja de NPC e no inventário, a dica de uma poção e de uma peça feminina comum não mostra classe nova nem "Cannot be equipped" para a Fiona; a forja do Ferghus abre sem erro (as receitas de Draker só aparecem quando a Miri existir).
 Limites conhecidos: nenhum comportamento da Miri é esperado neste passo.
+
+### MI2 — Painel com a Miri (M3)
+Pré-condição: imagem do commit do M3 (`docker compose ps` saudável) e exportações refeitas (`scripts/content/refresh_item_content.py`). Painel em `http://127.0.0.1:27090`.
+- [ ] Itens → buscar `draker` → aparecem as armas Draker (76) com nome em inglês e ícone; a dica de `draker_newbie` diz "For Miri".
+- [ ] Itens → buscar `miri_inner` → inners da Miri com nome e ícone; abrir um no editor → a caixa **Miri** (e a **Delia**) aparecem entre as classes e só a Miri está marcada.
+- [ ] Uma poção (`life_potion_lvl0`) → a dica não mostra restrição de classe.
+- [ ] Personagens → uma personagem de classe 10 aparece como **Delia** (não "Classe 10"); se existir uma de classe 11, como **Miri**.
+Limites conhecidos: a Miri ainda não entra no jogo (falta o lado nativo, M4–M8); dar itens da Miri a uma personagem antiga é aceito pelo servidor, mas o cliente mostra o item vermelho.
