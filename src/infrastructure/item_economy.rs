@@ -61,6 +61,9 @@ struct Export {
     alchemist_boxes: Vec<PrivateText>,
     #[serde(default)]
     hot_spring: Vec<HotSpringPotion>,
+    /// ItemContents pet dictionaries (absent from exports without PetInfo).
+    #[serde(default)]
+    pets: Option<crate::domain::pet::Export>,
 }
 /// HotSpringPotionInfo row (UntilEffectSec and ShowName are not read by the server).
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -104,6 +107,7 @@ pub struct Profile {
     /// AlchemistBoxInfo.BoxItemClass (UTF-16LE).
     alchemist_boxes: Vec<Vec<u8>>,
     hot_spring: Vec<HotSpringPotion>,
+    pets: Option<crate::domain::pet::Export>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -213,7 +217,12 @@ impl Profile {
             classes,
             alchemist_boxes,
             hot_spring: export.hot_spring,
+            pets: export.pets,
         })
+    }
+    /// The exported pet tables, evaluated against the feature policy by the assets.
+    pub fn pets(&self) -> Option<&crate::domain::pet::Export> {
+        self.pets.as_ref()
     }
     /// ItemContents.GetHotSpringPotionInfo.
     pub fn hot_spring(&self, class: &str) -> Option<&HotSpringPotion> {

@@ -184,6 +184,8 @@ pub mod proudnet;
 
 pub mod inventory;
 
+pub mod pet;
+
 pub mod equipment;
 
 pub mod character_delete;

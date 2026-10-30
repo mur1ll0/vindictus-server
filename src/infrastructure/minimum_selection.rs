@@ -289,6 +289,8 @@ pub(super) struct View {
     pub equipment: Vec<(i32, i64)>,
     /// WhoIs(Stat|Equipment) values for GameJoinMemberInfo.
     pub member: MemberBase,
+    /// CharacterSummary.Pet: PetManager.CurrentPetStatusInfo.
+    pub pet: Option<crate::protocol::pet::PetStatusInfo>,
 }
 /// CharacterSummary, Stats.GetDictionary, ArmorDefMap, ArmorHPMap and DestroyedDef.
 pub(super) struct MemberBase {
@@ -469,6 +471,8 @@ pub(super) async fn view(
     summary.title_count = i32::try_from(acquired).map_err(|_| MinimumError::Conflict)?;
     // CharacterEntity.CafeType: the HomeCafeBonus type set by HomeCafeBonus.OnLogIn.
     summary.cafe_type = super::minimum_home_cafe::cafe_type(tx, owner.uid, cid).await?;
+    // CharacterEntity.MakeSummary: Pets.CurrentPetStatusInfo (the town look shows the pet).
+    summary.pet = super::minimum_pet::current_info(tx, owner.uid, assets).await?;
     let mut costumes = None;
     if project || !gear.projection.equipment.is_empty() {
         let before = super::character_costumes::load_for_constructor(tx, cid)
@@ -513,6 +517,7 @@ pub(super) async fn view(
             stat: Some(dictionary),
         })?,
         look,
+        pet: summary.pet.clone(),
         costume: summary.costume,
         costumes,
         equipment: gear.projection.equipment,

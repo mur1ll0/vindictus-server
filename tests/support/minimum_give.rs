@@ -106,7 +106,11 @@ fn assets_from(
     } else {
         Vec::new()
     };
-    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":hot_spring});
+    // A pet_create_ row-3 class is the item of pet type 518 (ItemContents pet tables).
+    let pets = scroll_class
+        .starts_with("pet_create_")
+        .then(|| pet_contents(scroll_class));
+    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":hot_spring,"pets":pets});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -1982,6 +1986,7 @@ async fn minimum_home_cafe_vip_adds_the_effect_stats_and_ends_at_login() {
         }
         minimum_use::Outcome::Unchanged => panic!("VIP not applied: unchanged"),
         minimum_use::Outcome::DyeOpened(..) => panic!("VIP not applied: dye session"),
+        minimum_use::Outcome::Pet(_) => panic!("VIP not applied: pet item"),
     };
     let k = kinds(&packets);
     assert_eq!(k[0], Kind::UseInventoryItemOk.category());
@@ -8040,5 +8045,287 @@ async fn minimum_dye_ample_opens_the_picker_and_colors_the_ampoule_once() {
         && s.class.as_deref() == Some("dye_color_cash")
         && s.colors == Some(vec![color; 3])));
     minimum_selection::disconnect(&p, 1).await.unwrap();
+    cleanup_game_pool(a, p, s).await;
+}
+/// Pet type 518 (item `create`), three levels of StatType 1, default skill 6, cash skill 9,
+/// the enEU period and pet_feed_make (25 hunger) as FeedType 1.
+fn pet_contents(create: &str) -> Value {
+    let level = |level: i32, required: i32| json!({"stat_type":1,"level":level,"required_exp":required,"max_exp":150,"hp":624,"res_damage":25,"hp_recovery":2,"def_break":70,"atk_balance":80,"atk":740,"defense":152,"critical":2,"res_critical":10});
+    json!({"features":[{"key":"Pet","value":"1.09.03"},{"key":"Pet_food_V2","value":"2.02.01"},{"key":"PetPurchaseLimit","value":"100"},{"key":"PetMaxLevel","value":"30"},{"key":"Pet_ExpBattle_Point","value":"20"},{"key":"NamingRuleMaxBytes","value":"20"}],
+        "infos":[{"pet_id":518,"default_level":1,"stat_type":1,"max_active_time":86400,"item_class":create,"max_hunger":200,"hunger_time":36,"hunger_decrease":1}],
+        "balance":[level(1, 88), level(2, 287), level(3, 464)],
+        "skills":[{"skill_id":6,"cool_time_type":0},{"skill_id":9,"cool_time_type":0}],
+        "default_skills":[{"pet_id":518,"slot_order":0,"skill_id":6,"open_level":1}],
+        "periods":[{"pet_id":518,"date_from_ticks":634_647_492_000_000_000_i64,"period":24,"feature":"enEU"}],
+        "feeds":[{"feed_type":1,"item_class":"pet_feed_make"}],
+        "items":[{"item_class":create,"extra_data":"518"},{"item_class":"pet_feed_make","extra_data":"25"}]})
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_pets_create_select_battle_slot_and_remove_per_account() {
+    use vindictus_server::{
+        domain::{character_stats::Arithmetic, pet::PetResult},
+        infrastructure::{character_lobby::QueryConfig, minimum_pet, minimum_selection},
+        protocol::pet::{self as pet_wire, Kind as PetKind, Message as PetMessage},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let create = "pet_create_gremlin_young";
+    // The NPC FeatureMatrix enables Pet, Pet_food_V2 and the enEU period.
+    let mut npc = npc_export_p3(None);
+    for (key, value) in [("Pet", "1"), ("Pet_food_V2", "1"), ("enEU", "1")] {
+        npc["features"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"key":key,"value":value}));
+    }
+    // UseInTown 1 gives the row ClassRestriction 2047, as the pet_ items have.
+    let assets = assets_with_classes(0, 1, 0, None, create, 1)
+        .with_npc_scripts(npc_profile_from(npc))
+        .unwrap();
+    assert!(assets.pets().is_some());
+    for _ in 0..2 {
+        minimum_give::lab_grant(&p, &assets, Some(1), create, 1, 9)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    let pet_list = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        assert_eq!(packet.category, PetKind::PetList.category());
+        match pet_wire::decode(PetKind::PetList, &packet.body, DEFAULT_MAX_BODY).unwrap() {
+            Some(PetMessage::PetList(list)) => list,
+            _ => panic!("pet list"),
+        }
+    };
+    // PetManager.Load: the empty total list and the shared food list.
+    let (entered, next) = minimum_pet::enter(&p, &owner, &assets, 1).await.unwrap();
+    assert_eq!(entered.len(), 2);
+    let list = pet_list(&entered[0]);
+    assert_eq!(
+        (list.pets, list.is_total, next),
+        (Some(Vec::new()), true, None)
+    );
+    // CheckPetName: the EN-EU rule (4+ letters) and NamingRuleMaxBytes.
+    for (name, result) in [
+        ("Rex", PetResult::CreateAgainstNamingRule),
+        ("Bolt", PetResult::Success),
+    ] {
+        assert_eq!(
+            minimum_pet::check_name(&p, &owner, &assets, 1, Some(name))
+                .await
+                .unwrap(),
+            result
+        );
+    }
+    let items_of = |class: &str| {
+        let (p, key) = (p.clone(), utf16(class));
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM game_items WHERE item_class_utf16=$1 ORDER BY id",
+            )
+            .bind(key)
+            .fetch_all(&p)
+            .await
+            .unwrap()
+        }
+    };
+    let creates = items_of(create).await;
+    assert_eq!(creates.len(), 2);
+    // PetCreate: the item becomes pet 518 in slot 0 with the PetInfo values.
+    let out = minimum_pet::create(&p, &owner, &assets, 1, creates[0], Some("Bolt"))
+        .await
+        .unwrap();
+    assert_eq!(out.packets.len(), 2);
+    assert_eq!(
+        out.packets[0].category,
+        Kind::UpdateInventoryInfo.category()
+    );
+    let list = pet_list(&out.packets[1]);
+    assert!(!list.is_total);
+    let created = list.pets.unwrap()[0].clone().unwrap();
+    assert_eq!(
+        (
+            created.pet_type,
+            created.slot,
+            created.level,
+            created.desire,
+            created.pet_status
+        ),
+        (518, 0, 1, 200, 3)
+    );
+    assert_eq!(created.remain_active_time, 86400);
+    assert_eq!(created.skills.unwrap().len(), 1);
+    assert_eq!(items_of(create).await, vec![creates[1]]);
+    let pet_id = created.pet_id;
+    // A name of the account (without case) is refused and the item stays.
+    let out = minimum_pet::create(&p, &owner, &assets, 1, creates[1], Some("bolt"))
+        .await
+        .unwrap();
+    assert_eq!(out.packets.len(), 1);
+    assert_ne!(out.packets[0].category, PetKind::PetList.category());
+    assert_eq!(items_of(create).await, vec![creates[1]]);
+    // SelectPet: the current pet (status 4) changes the summary.
+    let out = minimum_pet::select(&p, &owner, &assets, 1, pet_id)
+        .await
+        .unwrap();
+    let current = out.current.clone().unwrap().unwrap();
+    assert_eq!((current.pet_id, current.pet_status), (pet_id, 4));
+    // The battle: 1000 monster experience at 20 % (capped at MaxExp 150), one hour of
+    // play (100 hunger), then the shared food feeds the pet automatically.
+    sqlx::query("INSERT INTO game_pet_feeds(owner_uid,feed_type,count) VALUES($1,1,3)")
+        .bind(owner.uid)
+        .execute(&p)
+        .await
+        .unwrap();
+    let mut battle = minimum_pet::BattlePets::new(&assets);
+    battle.set_force_current(Some(current));
+    let start = std::time::Instant::now();
+    battle.start_battle(start);
+    battle.give_exp(1000);
+    assert!(battle.killed(pet_id, start));
+    assert!(battle.revived(pet_id, start));
+    let rewards = battle.end_battle(true, start + std::time::Duration::from_secs(3600));
+    assert_eq!(
+        rewards,
+        vec![minimum_pet::RewardPet {
+            pet_id,
+            play_time: 3600,
+            exp: 200
+        }]
+    );
+    let out = minimum_pet::reward_end_battle(&p, &owner, &assets, 1, &rewards)
+        .await
+        .unwrap();
+    let after = out.current.unwrap().unwrap();
+    assert_eq!(
+        (
+            after.level,
+            after.exp,
+            after.desire,
+            after.remain_active_time
+        ),
+        (2, 62, 175, 82800)
+    );
+    let feeds: i64 = sqlx::query_scalar("SELECT count(*) FROM game_pet_feeds")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(feeds, 0);
+    // MovePetSlot inside PetPurchaseLimit; RemovePet sends the total list.
+    let out = minimum_pet::move_slot(&p, &owner, &assets, 1, pet_id, 5)
+        .await
+        .unwrap();
+    assert_eq!(
+        pet_list(&out.packets[0]).pets.unwrap()[0]
+            .as_ref()
+            .unwrap()
+            .slot,
+        5
+    );
+    assert!(
+        minimum_pet::move_slot(&p, &owner, &assets, 1, pet_id, 100)
+            .await
+            .unwrap()
+            .packets
+            .is_empty()
+    );
+    let out = minimum_pet::remove(&p, &owner, &assets, 1, pet_id)
+        .await
+        .unwrap();
+    let list = pet_list(&out.packets[0]);
+    assert_eq!((list.pets, list.is_total), (Some(Vec::new()), true));
+    assert_eq!(out.current, Some(None));
+    let ledger: Vec<String> =
+        sqlx::query_scalar("SELECT operation FROM game_pet_ledger ORDER BY id")
+            .fetch_all(&p)
+            .await
+            .unwrap();
+    assert_eq!(
+        ledger,
+        [
+            "CreatePet",
+            "CreatePet",
+            "GiveExp",
+            "DecreaseHungerDesire",
+            "AutoFeed",
+            "DecreaseActiveTime",
+            "RemovePet"
+        ]
+    );
+    // The panel: refused while the account is in the game, then audited once per
+    // operation with the game's checks.
+    use vindictus_server::infrastructure::{admin_store::AuditRecord, minimum_pet::PanelError};
+    let audit = |operation: uuid::Uuid| AuditRecord {
+        account_id: None,
+        actor_name: Some("tester"),
+        role: None,
+        operation_id: Some(operation),
+        action: "character.pet.add",
+        target_kind: Some("character"),
+        target_id: Some("1"),
+        before: None,
+        after: None,
+        refused: false,
+        peer: None,
+    };
+    let first = uuid::Uuid::new_v4();
+    assert_eq!(
+        minimum_pet::panel_add(&p, &assets, owner.uid, 518, "Spot", audit(first))
+            .await
+            .unwrap()
+            .unwrap_err(),
+        PanelError::Online
+    );
+    minimum_selection::disconnect(&p, 1).await.unwrap();
+    let added = minimum_pet::panel_add(&p, &assets, owner.uid, 518, "Spot", audit(first))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((added.level, added.slot, added.hunger), (1, 0, 200));
+    assert_eq!(
+        minimum_pet::panel_add(&p, &assets, owner.uid, 518, "Rover", audit(first))
+            .await
+            .unwrap()
+            .unwrap_err(),
+        PanelError::Repeated
+    );
+    assert_eq!(
+        minimum_pet::panel_add(
+            &p,
+            &assets,
+            owner.uid,
+            518,
+            "SPOT",
+            audit(uuid::Uuid::new_v4())
+        )
+        .await
+        .unwrap()
+        .unwrap_err(),
+        PanelError::Refused(PetResult::CreateHasSameName)
+    );
+    let listed = minimum_pet::panel_list(&p, &assets, owner.uid)
+        .await
+        .unwrap();
+    assert_eq!(listed.len(), 1);
+    let id: i64 = added.id.parse().unwrap();
+    minimum_pet::panel_remove(&p, owner.uid, id, audit(uuid::Uuid::new_v4()))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        minimum_pet::panel_list(&p, &assets, owner.uid)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     cleanup_game_pool(a, p, s).await;
 }

@@ -82,6 +82,10 @@ pub trait Facts {
     fn items(&self) -> Vec<(String, i32)>;
     /// CharacterInfo.UsePreset (DataCache.QueryIsPreset).
     fn use_preset(&self) -> bool;
+    /// PetManager.HasPet (DataCache.QueryHasPet): a pet of the account has this PetType.
+    fn has_pet(&self, _pet_type: i32) -> bool {
+        false
+    }
     /// DateTime.UtcNow.ToInt32(): Unix seconds.
     fn utc_seconds(&self) -> i32;
     /// Unexpired item count of an ItemClass.
@@ -1418,6 +1422,8 @@ impl<'a> Talker<'a> {
             // QueryIsOTPEnabled: the laboratory announces IsOTP false.
             "is_account_secured" => Some(false),
             "is_preset_character" => Some(self.facts.use_preset()),
+            // Cond_has_pet: Convert.ToInt32(PetType), then PetManager.HasPet.
+            "has_pet" => level(arg1).map(|t| self.facts.has_pet(t)),
             // Items carry no ENHANCE attribute in the migrated inventory: EnhanceLevel 0.
             "has_item_enhanced" => {
                 level(arg2).map(|l| self.item_count(arg1.unwrap_or("")) > 0 && 0 >= l)

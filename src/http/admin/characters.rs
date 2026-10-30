@@ -578,3 +578,99 @@ pub(super) async fn upgrade_item(
         .await?,
     ))
 }
+
+/// Pets of the character's account (owner or staff).
+#[utoipa::path(get, path = "/api/characters/{cid}/pets", params(("cid" = String, Path)),
+    responses((status = 200, body = Vec<crate::infrastructure::minimum_pet::PanelPet>),
+              (status = 404, body = super::ApiError), (status = 503, body = super::ApiError)))]
+pub(super) async fn pets(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+) -> Result<Json<Vec<crate::infrastructure::minimum_pet::PanelPet>>, Refusal> {
+    let assets = state.runtime.as_ref().and_then(|r| r.minimum_assets());
+    Ok(Json(
+        admin_character_edits::pets(state.auth.pool(), assets.as_deref(), &auth.session, &cid)
+            .await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct AddPet {
+    operation_id: Uuid,
+    /// PetInfo.PetID (see /api/pets/types).
+    pet_type: i32,
+    /// The game's pet name rule (4+ letters, one optional `_`, unique in the account).
+    name: String,
+}
+
+/// Gives the character's account a pet (offline; the game's name and slot checks).
+#[utoipa::path(post, path = "/api/characters/{cid}/pets", params(("cid" = String, Path)),
+    request_body = AddPet,
+    responses((status = 200, body = crate::infrastructure::minimum_pet::PanelPet),
+              (status = 403, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn add_pet(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(cid): Path<String>,
+    Json(body): Json<AddPet>,
+) -> Result<Json<crate::infrastructure::minimum_pet::PanelPet>, Refusal> {
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+    };
+    let assets = state.runtime.as_ref().and_then(|r| r.minimum_assets());
+    Ok(Json(
+        admin_character_edits::add_pet(
+            state.auth.pool(),
+            assets.as_deref(),
+            &change,
+            &cid,
+            body.pet_type,
+            &body.name,
+        )
+        .await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct RemovePet {
+    operation_id: Uuid,
+}
+
+/// Removes a pet of the character's account (offline).
+#[utoipa::path(post, path = "/api/characters/{cid}/pets/{pet}/remove",
+    params(("cid" = String, Path), ("pet" = String, Path)), request_body = RemovePet,
+    responses((status = 204), (status = 403, body = super::ApiError),
+              (status = 404, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn remove_pet(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path((cid, pet)): Path<(String, String)>,
+    Json(body): Json<RemovePet>,
+) -> Result<axum::http::StatusCode, Refusal> {
+    let change = Change {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+    };
+    admin_character_edits::remove_pet(state.auth.pool(), &change, &cid, &pet).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+/// The pet types of the content (staff).
+#[utoipa::path(get, path = "/api/pets/types",
+    responses((status = 200, body = Vec<crate::infrastructure::minimum_pet::PanelPetType>),
+              (status = 403, body = super::ApiError)))]
+pub(super) async fn pet_types(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+) -> Result<Json<Vec<crate::infrastructure::minimum_pet::PanelPetType>>, Refusal> {
+    auth.require(crate::domain::admin::Permission::Read)?;
+    let assets = state.runtime.as_ref().and_then(|r| r.minimum_assets());
+    Ok(Json(assets.as_deref().map_or_else(
+        Vec::new,
+        crate::infrastructure::minimum_pet::panel_types,
+    )))
+}

@@ -21,8 +21,8 @@ use crate::protocol::mission::{
 use crate::protocol::{
     inventory::Dict,
     mission::{
-        BattleInventory, Consumable, CostumeField, GameStartGranted, JoinMember, NoPet,
-        QuestSector, QuestSectors, SectorConnection, StrDict, TreasureBox, TrialFactor,
+        BattleInventory, Consumable, CostumeField, GameStartGranted, JoinMember, QuestSector,
+        QuestSectors, SectorConnection, StrDict, TreasureBox, TrialFactor,
     },
 };
 use rand_core::{OsRng, RngCore};
@@ -192,8 +192,9 @@ fn text(raw: &[u8]) -> Result<String, MinimumError> {
 
 /// MicroPlayer.MakeMemberInfo for a player admitted by AddPlayer: WhoIs (summary,
 /// stats, skills, equipment maps), QueryPlayerInfo (equipped items, status-effect
-/// and ability lists) and the battle inventory. Vocations, SP-skill enhancements,
-/// guilds, pets and stored status effects are outside the migrated profile and refused.
+/// and ability lists), the battle inventory and the current pet. Vocations, SP-skill
+/// enhancements, guilds and stored status effects are outside the migrated profile and
+/// refused.
 #[allow(clippy::too_many_arguments)]
 pub async fn member_info(
     pool: &PgPool,
@@ -375,7 +376,9 @@ pub async fn member_info(
             )),
         }),
         costume: CostumeField(view.costume.clone()),
-        pet: NoPet,
+        // AddPlayer: PetManager.SetForceCurrentPet(WhoIs.Summary.Pet), null without
+        // active time left.
+        pet: view.pet.clone().filter(|p| p.remain_active_time > 0),
         skill_list: StrDict(Some(skills)),
         sp_skills: Dict(Some(sp_skills)),
         vocation_skills: StrDict(Some(Vec::new())),
@@ -540,6 +543,8 @@ pub struct Mission {
     pub member_key: i32,
     /// Goal tracking, rewards and the EndGame of the quest.
     pub completion: super::minimum_mission_finish::Completion,
+    /// MicroPlayer.PetManager.
+    pub pets: super::minimum_pet::BattlePets,
 }
 impl Mission {
     /// MicroPlay.ItemLimit: QuestDigest.ItemLimit as a case-insensitive regex.
@@ -553,6 +558,11 @@ impl Mission {
             .build()
             .map(Some)
             .map_err(|_| fail())
+    }
+    /// MicroPlay.IsPetUsable: not a giant raid (no giant raid is migrated) nor a hunting
+    /// quest.
+    pub fn pet_usable(&self) -> bool {
+        !self.digest.is_hunting_quest
     }
     /// BattleServiceProxy.IsEquipAllowed: equipment changes are refused while the party
     /// is InGame (from StartGame on); the ship before it allows them.
@@ -778,6 +788,7 @@ pub async fn accept_quest(
         reserved_item,
         member_key: 0,
         completion: super::minimum_mission_finish::Completion::new(cid),
+        pets: super::minimum_pet::BattlePets::new(assets),
     };
     // AddPlayer: QueryQuestState and the achieved goals of QueryPlayerInfo.
     let (achieved, today_play_count, today) =
@@ -819,6 +830,7 @@ pub async fn accept_quest(
         .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
         .map_or(0, |(_, v)| *v);
     mission.luck = luck;
+    mission.pets.set_force_current(member.join.pet.clone());
     let class: i16 = sqlx::query_scalar("SELECT class FROM game_character_info WHERE id=$1")
         .bind(cid)
         .fetch_one(pool)
@@ -922,6 +934,8 @@ pub async fn refresh_member(
     )
     .await?;
     mission.consumables = consumables(&member.join);
+    // QueryCurrentPet → SetForceCurrentPet before SendMemberInfoMessage.
+    mission.pets.set_force_current(member.join.pet.clone());
     packet(&Message::MemberInfo(Box::new(wire::MemberInfo {
         uid: 0,
         info: Some(member.join),
@@ -1018,7 +1032,12 @@ pub fn move_sector(
         mission.alive = true;
         mission.completion.finished = false;
     } else {
-        super::minimum_mission_finish::start(mission, contents, std::time::Instant::now())?;
+        let now = std::time::Instant::now();
+        super::minimum_mission_finish::start(mission, contents, now)?;
+        // MicroPlay StartGame: PetManager.StartBattle when IsPetUsable.
+        if mission.pet_usable() {
+            mission.pets.start_battle(now);
+        }
     }
     mission.in_game = true;
     mission.game_time = game_time;
@@ -1075,14 +1094,12 @@ pub fn monster_killed(
     } = &kill
     {
         if let Some(info) = info {
-            mission.monster_kill_exp =
-                mission
-                    .monster_kill_exp
-                    .saturating_add(domain::monster_kill_exp(
-                        *info,
-                        *spawn_count,
-                        exp_rate_monster,
-                    ));
+            let exp = domain::monster_kill_exp(*info, *spawn_count, exp_rate_monster);
+            mission.monster_kill_exp = mission.monster_kill_exp.saturating_add(exp);
+            // GiveMonsterKillExp → PetManager.GiveExpToCurrentPet (not after GiveUp).
+            if !mission.completion.give_up {
+                mission.pets.give_exp(exp);
+            }
         }
         mission
             .events

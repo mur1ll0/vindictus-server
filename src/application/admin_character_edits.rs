@@ -440,3 +440,83 @@ pub async fn reach_plan(
             .collect(),
     })
 }
+
+/// Pets of the character's account (B5): the owner or staff may read them.
+pub async fn pets(
+    pool: &PgPool,
+    assets: Option<&Assets>,
+    session: &SessionAccount,
+    cid: &str,
+) -> Result<Vec<crate::infrastructure::minimum_pet::PanelPet>, AdminError> {
+    let cid: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
+    let owner = admin_characters::owner(pool, cid)
+        .await?
+        .ok_or(AdminError::NotFound)?;
+    let staff = session.role.is_some_and(|r| r.allows(Permission::Read));
+    if !staff && owner.account_id != Some(session.account_id) {
+        return Err(AdminError::NotFound);
+    }
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    crate::infrastructure::minimum_pet::panel_list(pool, assets, owner.uid)
+        .await
+        .map_err(minimum)
+}
+
+fn pet_refusal(error: crate::infrastructure::minimum_pet::PanelError) -> AdminError {
+    use crate::infrastructure::minimum_pet::PanelError;
+    match error {
+        PanelError::Online => AdminError::Online,
+        PanelError::Repeated => AdminError::RepeatedOperation,
+        PanelError::Unknown => AdminError::NotFound,
+        PanelError::Refused(result) => AdminError::ItemRefused(result.name().to_owned()),
+    }
+}
+
+/// A pet of `pet_type` for the character's account (offline), with the game's checks.
+pub async fn add_pet(
+    pool: &PgPool,
+    assets: Option<&Assets>,
+    change: &Change<'_>,
+    cid: &str,
+    pet_type: i32,
+    name: &str,
+) -> Result<crate::infrastructure::minimum_pet::PanelPet, AdminError> {
+    let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
+    if name.chars().count() > 32 {
+        return Err(AdminError::InvalidInput);
+    }
+    let uid = authorize(pool, change.session, cid_value).await?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    crate::infrastructure::minimum_pet::panel_add(
+        pool,
+        assets,
+        uid,
+        pet_type,
+        name,
+        audit(change, "character.pet.add", cid),
+    )
+    .await
+    .map_err(minimum)?
+    .map_err(pet_refusal)
+}
+
+/// Removes a pet of the character's account (offline).
+pub async fn remove_pet(
+    pool: &PgPool,
+    change: &Change<'_>,
+    cid: &str,
+    pet_id: &str,
+) -> Result<(), AdminError> {
+    let cid_value: i64 = cid.parse().map_err(|_| AdminError::NotFound)?;
+    let pet: i64 = pet_id.parse().map_err(|_| AdminError::NotFound)?;
+    let uid = authorize(pool, change.session, cid_value).await?;
+    crate::infrastructure::minimum_pet::panel_remove(
+        pool,
+        uid,
+        pet,
+        audit(change, "character.pet.remove", cid),
+    )
+    .await
+    .map_err(minimum)?
+    .map_err(pet_refusal)
+}

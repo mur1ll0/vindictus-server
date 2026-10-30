@@ -216,21 +216,7 @@ fn payload(e: CharacterListError) -> PayloadError {
     match e {
         CharacterListError::Payload(e) => e,
         CharacterListError::DuplicateKey => PayloadError::DuplicateKey,
-        CharacterListError::Pet | CharacterListError::Type => PayloadError::Unsupported,
-    }
-}
-/// PetStatusInfo: only null is supported (no pet system is migrated).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct NoPet;
-impl Wire for NoPet {
-    fn write(&self, w: &mut Writer) -> Result<(), PayloadError> {
-        w.append(&[0])
-    }
-    fn read(r: &mut Reader<'_>) -> Result<Self, PayloadError> {
-        match r.byte()? {
-            0 => Ok(Self),
-            _ => Err(PayloadError::Unsupported),
-        }
+        CharacterListError::Type => PayloadError::Unsupported,
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -401,7 +387,8 @@ pub struct JoinMember {
     pub stats: StrDict<i32>,
     pub battle_inventory: Option<BattleInventory>,
     pub costume: CostumeField,
-    pub pet: NoPet,
+    /// MicroPlayerPetManager.CurrentPet (null without a usable pet).
+    pub pet: Option<super::pet::PetStatusInfo>,
     pub skill_list: StrDict<i32>,
     pub sp_skills: Dict<Option<String>>,
     pub vocation_skills: StrDict<i32>,

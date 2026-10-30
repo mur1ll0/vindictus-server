@@ -21,6 +21,7 @@ import { ItemIcon } from '@/components/ItemIcon';
 import { ItemTooltipBox, itemColors, itemTitle, WithItemTooltip } from '@/components/ItemTooltip';
 import { ItemUpgradeForm } from '@/components/ItemUpgrade';
 import { CashModal, GiveItemModal, GoldModal, RemoveItemForm } from '@/components/CharacterEdits';
+import { Pets } from '@/components/PetEdits';
 import { ProgressionModal, RemoveEffectModal } from '@/components/ProgressionEdits';
 import { Button } from '@/components/ui/button';
 import { ActionForm, errorText } from '@/components/forms';
@@ -31,7 +32,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-type Tab = 'items' | 'skills' | 'effects' | 'titles';
+type Tab = 'items' | 'skills' | 'effects' | 'titles' | 'pets';
 
 function when(seconds?: number | null) {
   return seconds == null ? null : new Date(seconds * 1000).toLocaleString('pt-BR');
@@ -482,6 +483,7 @@ export function CharacterPage() {
     { id: 'effects', label: 'Efeitos', count: sheet.status_effects.length },
     { id: 'titles', label: 'Títulos', count: sheet.titles.filter((t) => t.acquired).length },
   ];
+  const pets: Tab = 'pets';
   return (
     <section className="space-y-5">
       <button type="button" onClick={() => history.back()} className="flex items-center gap-1 text-sm text-muted hover:text-fg">
@@ -550,7 +552,17 @@ export function CharacterPage() {
             {t.label} <span className="text-xs">({t.count})</span>
           </button>
         ))}
+        <button
+          role="tab"
+          type="button"
+          aria-selected={tab === pets}
+          onClick={() => setTab(pets)}
+          className={cn('rounded-md px-3 py-1.5 text-muted', tab === pets && 'bg-surface font-medium text-fg shadow-sm')}
+        >
+          Pets
+        </button>
       </div>
+      {tab === 'pets' && <Pets cid={s.cid} canManage={canManage} online={s.connected} />}
       {tab === 'items' && <Inventory sheet={sheet} canManage={canManage} onChanged={changed} />}
       {edit === 'item' && <GiveItemModal cid={s.cid} characterClass={s.class} onClose={() => setEdit(null)} onDone={changed} />}
       {edit === 'gold' && <GoldModal cid={s.cid} current={sheet.gold} onClose={() => setEdit(null)} onDone={changed} />}

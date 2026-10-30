@@ -1,9 +1,9 @@
 //! UseInventoryItemProcessor for the selected first Fiona: the UseInTown dispatch with
 //! its dialogs (UseInTown 0 and IsConstraintSatisfied failures) and the capsule_ap
 //! branch (UseUseableItem + CharacterImpl.GiveAP, amount from the VALUE attribute), the
-//! RandomItemContents boxes (`minimum_random_item`) and the empty dye ampoule
-//! (`minimum_dye`, DyeAmpleSession). Other usable branches (food, RandomItemV2 opening, pets, ...)
-//! are rejected without changes until migrated.
+//! RandomItemContents boxes (`minimum_random_item`), the empty dye ampoule (`minimum_dye`,
+//! DyeAmpleSession) and the pet_ items (`minimum_pet`). Other usable branches (food,
+//! RandomItemV2 opening, ...) are rejected without changes until migrated.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
     domain::map_partition::OutgoingPacket,
@@ -26,6 +26,8 @@ pub enum Outcome {
     /// An empty dye ampoule: DyeAmpleUsedMessage, and the session the frontend keeps as
     /// ItemOwner.DyeAmpleSession. Nothing is written.
     DyeOpened(Vec<OutgoingPacket>, crate::domain::dye_ample::Session),
+    /// A pet_feed_/pet_skill_ item (PetManager), whose current pet may have changed.
+    Pet(super::minimum_pet::Outcome),
 }
 
 fn fail() -> MinimumError {
@@ -56,7 +58,7 @@ fn value_int(attributes: &[Option<wire::Attribute>]) -> i32 {
 
 /// EntityCommunicator.IsConstraintSatisfied(item) with the selected character (no cafe,
 /// guild or equipped enhancement in the migrated state).
-async fn constraint_failure(
+pub(super) async fn constraint_failure(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     owner: &UserKey<'_>,
     assets: &Assets,
@@ -227,10 +229,18 @@ pub async fn use_item(
         }
         let key: Vec<u8> = class.encode_utf16().flat_map(u16::to_le_bytes).collect();
         let indexed = assets.stats_index.class(Some(&key)).ok_or_else(fail)?;
-        // Branches dispatched before the UseInTown test are not migrated.
+        // The pet_ branch runs before the UseInTown test.
+        if class.starts_with("pet_") {
+            let out = super::minimum_pet::use_item(
+                &mut tx, owner, assets, cid, item.id, &class, item.count,
+            )
+            .await?;
+            tx.commit().await?;
+            return Ok((Outcome::Pet(out), None));
+        }
+        // Other branches dispatched before the UseInTown test are not migrated.
         if [
             "coupon_bingo_shuffle",
-            "pet_",
             "skill_untrain_",
             "guild_advanced_feather",
         ]
@@ -505,7 +515,6 @@ pub async fn use_item(
     Ok(outcome)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -521,9 +530,15 @@ mod tests {
 
     #[test]
     fn capsule_amount_prefers_the_value_attribute() {
-        assert_eq!(capsule_amount("capsule_ap", value_int(&[value("300")])), Some(300));
+        assert_eq!(
+            capsule_amount("capsule_ap", value_int(&[value("300")])),
+            Some(300)
+        );
         assert_eq!(capsule_amount("capsule_ap50", value_int(&[])), Some(50));
-        assert_eq!(capsule_amount("capsule_ap50", value_int(&[value("x")])), Some(50));
+        assert_eq!(
+            capsule_amount("capsule_ap50", value_int(&[value("x")])),
+            Some(50)
+        );
         assert_eq!(capsule_amount("capsule_ap", value_int(&[])), Some(0));
         assert_eq!(capsule_amount("capsule_vip_day", 300), None);
     }

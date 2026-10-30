@@ -374,6 +374,8 @@ struct Facts<'a> {
     skills: std::collections::BTreeMap<String, i32>,
     items: std::collections::BTreeMap<String, i32>,
     use_preset: bool,
+    /// PetType of each pet of the account (PetManager.EntryPets).
+    pets: Vec<i32>,
     repair_price: i32,
     gold: i32,
     manufacture: crate::domain::manufacture::State,
@@ -399,6 +401,9 @@ impl crate::domain::npc_talk::Facts for Facts<'_> {
     }
     fn use_preset(&self) -> bool {
         self.use_preset
+    }
+    fn has_pet(&self, pet_type: i32) -> bool {
+        self.pets.contains(&pet_type)
     }
     fn utc_seconds(&self) -> i32 {
         std::time::SystemTime::now()
@@ -524,9 +529,15 @@ pub async fn talk(
                 .bind(cid)
                 .fetch_one(&mut *tx)
                 .await?;
+        let pets: Vec<i32> =
+            sqlx::query_scalar("SELECT pet_type FROM game_pets WHERE owner_uid=$1 LIMIT 101")
+                .bind(owner.uid)
+                .fetch_all(&mut *tx)
+                .await?;
         let facts = Facts {
             skill_contents: assets.skills.as_ref(),
             use_preset,
+            pets,
             skills: skills
                 .into_iter()
                 .map(|(k, r)| Ok((text(&k)?, r)))

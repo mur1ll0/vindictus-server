@@ -109,6 +109,9 @@ pub struct Assets {
     pub(super) color_index: item_colors::ColorIndex,
     /// ItemClassInfo economy rows bound to `catalog` (Unique, ExpireIn, prices).
     pub(super) economy: Option<super::item_economy::Profile>,
+    /// ItemContents pet dictionaries, built on first use: the PetActiveTimePeriodInfo
+    /// features need the NPC FeatureMatrix (region atoms).
+    pets: std::sync::OnceLock<Option<crate::domain::pet::Contents>>,
     /// NpcTalkInfo defaults and storylines bound to `catalog`.
     pub(super) npc: Option<super::npc_scripts::Profile>,
     /// Enhance dictionaries and EnhanceType bound to `catalog`.
@@ -244,6 +247,23 @@ impl Assets {
     /// FeatureMatrix values of the NPC script profile.
     pub fn npc_policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
         self.npc.as_ref().map(|n| &n.policy)
+    }
+    /// ItemContents pet dictionaries (economy export) with the PetActiveTimePeriodInfo rows
+    /// enabled by the NPC FeatureMatrix; None without either or when the rows conflict.
+    pub fn pets(&self) -> Option<&crate::domain::pet::Contents> {
+        self.pets
+            .get_or_init(|| {
+                let export = self.economy.as_ref()?.pets()?;
+                let policy = self.npc_policy()?;
+                let built = crate::domain::pet::Contents::new(export.clone(), |f| {
+                    policy.is_enabled(f).ok()
+                });
+                if built.is_err() {
+                    tracing::warn!("pet content refused; values omitted");
+                }
+                built.ok()
+            })
+            .as_ref()
     }
     /// ShopList.aspx of the laboratory cash shop, when exported.
     pub fn cash_shop_list(&self, per_category: usize) -> Option<String> {
@@ -433,6 +453,7 @@ impl Assets {
             stats_index: item_stats::StatsIndex::default(),
             color_index: item_colors::ColorIndex::default(),
             economy: None,
+            pets: std::sync::OnceLock::new(),
             npc: None,
             enhance: None,
             random_item: None,
@@ -524,6 +545,7 @@ impl Assets {
         profile: super::item_economy::Profile,
     ) -> Result<Self, MinimumError> {
         profile.bind(&self.catalog)?;
+        self.pets = std::sync::OnceLock::new();
         self.economy = Some(profile);
         Ok(self)
     }

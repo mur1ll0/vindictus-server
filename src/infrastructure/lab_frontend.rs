@@ -488,6 +488,8 @@ struct Connection {
     daily_at: Option<tokio::time::Instant>,
     /// ItemOwner.LatestSort (30-second SortInventory cooldown).
     latest_sort: Option<std::time::Instant>,
+    /// PetManager.UpdateSchedule: the next period start of a pet's active time.
+    pet_reset_at: Option<tokio::time::Instant>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -505,19 +507,22 @@ impl Connection {
             effect_expiry: None,
             daily_at: None,
             latest_sort: None,
+            pet_reset_at: None,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
     async fn release_selected(&mut self, runtime: &Runtime, pool: &PgPool) {
         // LeaveParty: the party and MicroPlay of this connection end with it; its relay
         // group closes (the disconnected player gets no reward, as without CombatRejoinSystem).
-        if let Some(m) = self.mission.take()
-            && let Some(relay) = runtime.relay()
-        {
-            relay.close_group(m.group);
+        if let Some(mut m) = self.mission.take() {
+            self.leave_pets(runtime, pool, &mut m).await;
+            if let Some(relay) = runtime.relay() {
+                relay.close_group(m.group);
+            }
         }
         self.effect_expiry = None;
         self.daily_at = None;
+        self.pet_reset_at = None;
         if let Some(selected) = self.selected.take() {
             runtime.web_shop.remove(selected.cid);
             if let Some((_, channel)) = &runtime.channel
@@ -880,6 +885,8 @@ impl Connection {
     ) -> Result<(), RuntimeError> {
         use super::minimum_mission::{self as mission, Accept, RelayTicket};
         use crate::protocol::mission::Message;
+        // The summary pet after RemovePlayer's EndBattle, for PushUpdatePetStatus.
+        let mut left_pet = None;
         let (Some(selected), true, Some(relay)) = (
             self.selected.as_ref(),
             self.password
@@ -1310,8 +1317,12 @@ impl Connection {
                         tracing::info!("mission returned to its story sector; values omitted");
                         packets
                     }
-                    Return::Town(packets) => {
-                        if let Some(m) = self.mission.take() {
+                    Return::Town(mut packets) => {
+                        if let Some(mut m) = self.mission.take() {
+                            if let Some(out) = self.leave_pets(runtime, pool, &mut m).await {
+                                packets.extend(out.packets);
+                                left_pet = out.current;
+                            }
                             relay.close_group(m.group);
                         }
                         tracing::info!("mission left; returning to town; values omitted");
@@ -1328,7 +1339,367 @@ impl Connection {
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
         }
+        let changed = left_pet.or_else(|| {
+            self.mission
+                .as_deref_mut()
+                .and_then(|m| m.pets.take_summary())
+        });
+        if let Some(pet) = changed {
+            let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
+            let assets = &runtime
+                .minimum
+                .as_ref()
+                .ok_or(RuntimeError::Profile)?
+                .assets
+                .current();
+            self.pet_changed(runtime, pool, assets, cid, pet, stream, sender)
+                .await?;
+        }
         Ok(())
+    }
+    /// InGame pet messages (FeatureMatrix "Pet"; the shared food also "Pet_food_V2") and the
+    /// host's PetKilled/PetRevived, which BattleServiceProxy hands to the MicroPlay.
+    #[allow(clippy::too_many_arguments)]
+    async fn pet(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: crate::protocol::pet::Message,
+    ) -> Result<(), RuntimeError> {
+        use crate::protocol::pet::Message;
+        match &message {
+            Message::PetKilled(k) => {
+                if let Some(m) = self.mission.as_deref_mut() {
+                    let counted = m.pets.killed(k.pet_id, std::time::Instant::now());
+                    tracing::info!(counted, "mission pet killed; values omitted");
+                }
+                return Ok(());
+            }
+            Message::PetRevived(r) => {
+                if let Some(m) = self.mission.as_deref_mut() {
+                    let counted = m.pets.revived(r.pet_id, std::time::Instant::now());
+                    tracing::info!(counted, "mission pet revived; values omitted");
+                }
+                return Ok(());
+            }
+            _ => {}
+        }
+        let (Some(selected), true) = (
+            self.selected.as_ref(),
+            self.password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend)),
+        ) else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let Ok(settings) = super::minimum_pet::settings(assets) else {
+            tracing::warn!("pet feature policy unreadable; values omitted");
+            return Ok(());
+        };
+        let food = settings.enabled && settings.food_v2;
+        // BattleServiceProxy.IsEquipAllowed(-1) for PetCreate.
+        let equip_allowed = self.mission.as_deref().is_none_or(|m| m.equip_allowed());
+        let ids = match &message {
+            Message::RequestPetFoodUnshare(_) => minimum
+                .creation
+                .entity_ids(4)
+                .await
+                .map_err(|_| RuntimeError::Operation)?,
+            _ => Vec::new(),
+        };
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        use super::minimum_pet as pets;
+        let outcome = match message {
+            Message::PetCreateNameCheck(m) if settings.enabled => {
+                pets::check_name(pool, &owner, assets, cid, m.pet_name.as_deref())
+                    .await
+                    .and_then(|r| pets::create_name_answer(m.item_id, m.pet_name.as_deref(), r))
+                    .map(|packets| pets::Outcome {
+                        packets,
+                        current: None,
+                    })
+            }
+            Message::PetCreate(m) if equip_allowed => {
+                pets::create(pool, &owner, assets, cid, m.item_id, m.pet_name.as_deref()).await
+            }
+            Message::PetChangeNameCheck(m) if settings.enabled => {
+                pets::check_name(pool, &owner, assets, cid, m.pet_name.as_deref())
+                    .await
+                    .and_then(|r| {
+                        pets::change_name_answer(m.item_id, m.pet_id, m.pet_name.as_deref(), r)
+                    })
+                    .map(|p| pets::Outcome {
+                        packets: vec![p],
+                        current: None,
+                    })
+            }
+            Message::PetChangeName(m) if settings.enabled => {
+                pets::change_name(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    m.item_id,
+                    m.pet_id,
+                    m.pet_name.as_deref(),
+                )
+                .await
+            }
+            Message::MovePetSlot(m) if settings.enabled => {
+                pets::move_slot(pool, &owner, assets, cid, m.pet_id, m.dest_slot_no).await
+            }
+            Message::RemovePetSkill(m) if settings.enabled => {
+                pets::remove_skill(pool, &owner, assets, cid, m.pet_id, m.pet_skill_id).await
+            }
+            Message::QueryPetList if settings.enabled => {
+                pets::query_list(pool, &owner, assets, cid)
+                    .await
+                    .map(|packets| pets::Outcome {
+                        packets,
+                        current: None,
+                    })
+            }
+            Message::SelectPet(pet_id) if settings.enabled => {
+                pets::select(pool, &owner, assets, cid, pet_id).await
+            }
+            Message::RemovePet(pet_id) if settings.enabled => {
+                pets::remove(pool, &owner, assets, cid, pet_id).await
+            }
+            Message::RequestPetFoodShare(item_id) if food => {
+                pets::food_share(pool, &owner, assets, cid, item_id).await
+            }
+            Message::RequestPetFoodUnshare(class) if food => {
+                pets::food_unshare(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    class.as_deref(),
+                    &mut ids.into_iter(),
+                )
+                .await
+            }
+            // PetOperationMessage needs IsCheat (no GM session in the laboratory); the
+            // feature-gated messages are ignored while the feature is off.
+            _ => {
+                tracing::info!(category, "pet message ignored; values omitted");
+                return Ok(());
+            }
+        };
+        match outcome {
+            Ok(out) => {
+                for packet in &out.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                tracing::info!(
+                    category,
+                    messages = out.packets.len(),
+                    "minimum pet request processed; values omitted"
+                );
+                if let Some(pet) = out.current {
+                    self.pet_changed(runtime, pool, assets, cid, pet, stream, sender)
+                        .await?;
+                }
+            }
+            Err(_) => tracing::warn!(category, "minimum pet request refused; values omitted"),
+        }
+        Ok(())
+    }
+    /// PetManager.Sync → PushUpdatePetStatus: the new summary pet reaches the town look and
+    /// the MicroPlayer's PetStatus observer (QueryCurrentPet: member info in the ship,
+    /// UpdateCurrentPetMessage to the host in and after the game).
+    #[allow(clippy::too_many_arguments)]
+    async fn pet_changed(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        assets: &super::minimum_assets::Assets,
+        cid: i64,
+        pet: Option<crate::protocol::pet::PetStatusInfo>,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let config = runtime.minimum_header()?;
+        let arithmetic = runtime.stat_arithmetic();
+        match super::minimum_pet::look(pool, &owner, assets, cid, config, arithmetic).await {
+            Ok(look) => {
+                if let Some((_, channel)) = runtime.channel.as_ref() {
+                    channel.update_look(cid, look.clone()).await;
+                }
+                if let Some(selected) = self.selected.as_mut() {
+                    selected.look = look;
+                }
+            }
+            Err(_) => tracing::warn!("pet look refresh rejected; values omitted"),
+        }
+        let Some(mission) = self.mission.as_deref_mut() else {
+            return Ok(());
+        };
+        let packet = if mission.state == super::minimum_mission::party_state::IN_SHIP {
+            match super::minimum_mission::refresh_member(
+                pool, &owner, assets, cid, mission, config, arithmetic,
+            )
+            .await
+            {
+                Ok(packet) => packet,
+                Err(_) => {
+                    tracing::warn!("mission member info refresh rejected; values omitted");
+                    None
+                }
+            }
+        } else if mission.in_game {
+            if mission.completion.player_state
+                == super::minimum_mission_finish::PlayerState::Finished
+            {
+                mission.pets.set_force_current(pet);
+            } else {
+                mission.pets.change_current(pet, std::time::Instant::now());
+            }
+            Some(
+                super::minimum_pet::update_current_packet(
+                    mission.member.slot,
+                    mission.pets.current(),
+                )
+                .map_err(|_| RuntimeError::Message)?,
+            )
+        } else {
+            None
+        };
+        if let Some(packet) = packet {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
+        Ok(())
+    }
+    /// PetManager.AddToUpdateSchedule: wake at the next period start (ticks).
+    fn schedule_pets(&mut self, next: Option<i64>) {
+        self.pet_reset_at = next.and_then(|at| {
+            let now = super::minimum_status_effect::now_ticks().ok()?;
+            let ticks = u64::try_from(at.saturating_sub(now)).ok()?;
+            Some(
+                tokio::time::Instant::now()
+                    + Duration::from_nanos(ticks.saturating_mul(100))
+                    + Duration::from_secs(1),
+            )
+        });
+    }
+    /// PetManager.ScheduledUpdate → DailyActiveTimeResetProcess of the selected account.
+    async fn pet_jobs(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        self.pet_reset_at = None;
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return Ok(());
+        };
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets
+            .current();
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let reset = super::minimum_pet::scheduled_reset(pool, &owner, assets, cid).await;
+        match reset {
+            Ok((out, next)) => {
+                for packet in &out.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                self.schedule_pets(next);
+                if let Some(pet) = out.current {
+                    self.pet_changed(runtime, pool, assets, cid, pet, stream, sender)
+                        .await?;
+                }
+                tracing::info!("pet active time period processed; values omitted");
+            }
+            Err(_) => tracing::warn!("pet active time reset rejected; values omitted"),
+        }
+        Ok(())
+    }
+    /// MicroPlay.RemovePlayer: PetManager.EndBattle(includeExpInfo: false) when the player
+    /// leaves the play while its pets still count.
+    async fn leave_pets(
+        &self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        mission: &mut super::minimum_mission::Mission,
+    ) -> Option<super::minimum_pet::Outcome> {
+        if !mission.pet_usable() {
+            return None;
+        }
+        let rewards = mission.pets.end_battle(false, std::time::Instant::now());
+        if rewards.is_empty() {
+            return None;
+        }
+        let assets = &runtime.minimum.as_ref()?.assets.current();
+        let id = self.frontend.accepted_identity().ok()?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self.password.as_ref()?.revision(),
+        };
+        match super::minimum_pet::reward_end_battle(
+            pool,
+            &owner,
+            assets,
+            mission.completion.cid,
+            &rewards,
+        )
+        .await
+        {
+            Ok(out) => Some(out),
+            Err(_) => {
+                tracing::warn!("pet battle reward rejected; values omitted");
+                None
+            }
+        }
     }
     /// TitleGoalTracker → InformMicroplayEvent → Titles.Proceed for the queued informer
     /// events of a non-practice game, event by event.
@@ -1638,7 +2009,6 @@ impl Connection {
             .map_err(|_| RuntimeError::Operation)?;
         let mut ids = ids.into_iter();
         let state = self.mission.as_mut().ok_or(RuntimeError::Operation)?;
-        let _ = cid;
         let packets = super::minimum_mission_finish::run_jobs(
             state,
             ctx,
@@ -1650,6 +2020,8 @@ impl Connection {
         .map_err(|_| RuntimeError::Operation)?;
         let mut packets = packets;
         packets.extend(Self::mission_titles(state, runtime, pool, &owner, journal).await?);
+        // RewardPetEndBattle changed the current pet (PushUpdatePetStatus).
+        let pet_summary = state.pets.take_summary();
         // GiveReward_Null → Leave: the proxy left the party with the MicroPlay.
         if state.completion.left
             && let Some(m) = self.mission.take()
@@ -1667,6 +2039,10 @@ impl Connection {
                 messages = packets.len(),
                 "mission jobs processed; values omitted"
             );
+        }
+        if let Some(pet) = pet_summary {
+            self.pet_changed(runtime, pool, assets, cid, pet, stream, sender)
+                .await?;
         }
         Ok(())
     }
@@ -1887,6 +2263,19 @@ impl Connection {
                                 Err(_) => tracing::warn!(
                                     "minimum in-game story sync rejected; values omitted"
                                 ),
+                            }
+                        }
+                        // ItemOwner load: PetManager.Load (PetList and the shared food).
+                        {
+                            let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
+                            match super::minimum_pet::enter(pool, &owner, assets, cid).await {
+                                Ok((packets, next)) => {
+                                    entered.extend(packets);
+                                    self.schedule_pets(next);
+                                }
+                                Err(_) => {
+                                    tracing::warn!("minimum pet load rejected; values omitted")
+                                }
                             }
                         }
                         for packet in &entered {
@@ -2198,6 +2587,20 @@ impl Connection {
                 .map_err(|_| RuntimeError::Message)?
                 .ok_or(RuntimeError::Message)?;
                 return self.mission(runtime, pool, stream, sender, message).await;
+            }
+        }
+        {
+            use crate::protocol::pet::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                    .ok_or(RuntimeError::Message)?;
+                return self
+                    .pet(runtime, pool, stream, sender, category, body, message)
+                    .await;
             }
         }
         {
@@ -3038,6 +3441,18 @@ impl Connection {
                                 tracing::info!(
                                     "minimum dye ampoule session opened; values omitted"
                                 );
+                            }
+                            Ok(super::minimum_use::Outcome::Pet(out)) => {
+                                for packet in &out.packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                if let Some(pet) = out.current {
+                                    self.pet_changed(
+                                        runtime, pool, assets, cid, pet, stream, sender,
+                                    )
+                                    .await?;
+                                }
+                                tracing::info!("minimum pet item used; values omitted");
                             }
                             Ok(super::minimum_use::Outcome::Unchanged) => {}
                             Err(_) => {
@@ -4335,12 +4750,14 @@ pub async fn connection(
    let timer=state.mission_timer();
    let effects=state.effect_expiry;
    let daily=state.daily_at;
+   let pets=state.pet_reset_at;
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
     _=tokio::time::sleep_until(deadline),if waiting=>return if state.close_at.is_some(){Ok(())}else{Err(RuntimeError::Timeout)},
     _=tokio::time::sleep_until(timer.unwrap_or(deadline)),if timer.is_some()&&state.close_at.is_none()=>{state.mission_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(effects.unwrap_or(deadline)),if effects.is_some()&&state.close_at.is_none()=>{state.effect_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(daily.unwrap_or(deadline)),if daily.is_some()&&state.close_at.is_none()=>{state.daily_items(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    _=tokio::time::sleep_until(pets.unwrap_or(deadline)),if pets.is_some()&&state.close_at.is_none()=>{state.pet_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     notice=notices.recv()=>{
      // ShutDownProcessor.SendNoticeShutDownMessage: every client, NoticeShutDownMessage{Delay}.
      match notice{

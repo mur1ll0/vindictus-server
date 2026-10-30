@@ -191,6 +191,7 @@ fn summary(v: &Value) -> Summary<'_> {
         vocation_skill_point_available: v["VocationSkillPointAvailable"].as_i64().unwrap() as i32,
         free_match_win_count: v["FreeMatchWinCount"].as_i64().unwrap() as i32,
         free_match_lose_count: v["FreeMatchLoseCount"].as_i64().unwrap() as i32,
+        pet: None,
         is_event_jumping: v["IsEventJumping"].as_bool().unwrap(),
         free_title_name: v["FreeTitleName"].as_str(),
         pattern: v["Pattern"].as_i64().unwrap() as i32,

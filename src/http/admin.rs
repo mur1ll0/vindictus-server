@@ -133,6 +133,10 @@ impl AdminState {
         characters::move_item,
         characters::sort_inventory,
         characters::adjust_cash,
+        characters::pets,
+        characters::add_pet,
+        characters::remove_pet,
+        characters::pet_types,
         characters::catalog,
         characters::picker,
         characters::trade_categories,
@@ -195,6 +199,10 @@ impl AdminState {
         accounts::SetStatus,
         crate::infrastructure::admin_characters::CharacterSummary,
         crate::infrastructure::admin_characters::CharacterSheet,
+        crate::infrastructure::minimum_pet::PanelPet,
+        crate::infrastructure::minimum_pet::PanelPetType,
+        characters::AddPet,
+        characters::RemovePet,
         crate::infrastructure::admin_characters::CharacterStats,
         crate::infrastructure::admin_characters::CharacterItem,
         crate::infrastructure::admin_characters::ItemAttribute,
@@ -303,6 +311,15 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             post(characters::sort_inventory),
         )
         .route("/api/characters/{cid}/cash", post(characters::adjust_cash))
+        .route(
+            "/api/characters/{cid}/pets",
+            get(characters::pets).post(characters::add_pet),
+        )
+        .route(
+            "/api/characters/{cid}/pets/{pet}/remove",
+            post(characters::remove_pet),
+        )
+        .route("/api/pets/types", get(characters::pet_types))
         .route(
             "/api/characters/{cid}/items/{item}/upgrade",
             get(characters::upgrade_options).post(characters::upgrade_item),

@@ -2645,3 +2645,13 @@ Skill de porte de classe `new-class-port` (30/10/2026, pedido do operador).
 - Cliente: não necessário.
 - Pendentes do C3 da Delia: volta à seleção com a personagem criada pela grade, G3 e G5.
 - Próxima ação: decisão do operador sobre a Miri (cópia de assets do NA, escopo das mecânicas, arma, caminho da grade); depois o passo 0 da skill (medição).
+
+Sistema de pets P1–P6 (30/10/2026, pedido do operador: "implemente completamente o sistema de pets").
+- Escopo: antecipa os pets do B5; sem multijogador (o pet de outro jogador fica para o B5). Detalhes, desvios e pendências em `docs/future/pet-system.md`, seção 5.
+- Conteúdo: `scripts/content/export_item_economy.py` ganhou a seção `pets` (36 tipos, 150 linhas de balanço, 43 skills, 234 skills padrão, 188 períodos, 4 rações, 53 itens `pet_*` e os valores de *feature*); `.cache/private-content/item-economy.json` regenerado (anterior em `item-economy.json.pre-pets.bak`).
+- Banco: `migrations/0050_pets.sql` (`game_pets`, `game_pet_skills`, `game_pet_feeds`, `game_pet_ledger`); as cadeias de reversão dos testes incluem a versão 50.
+- Fio: `src/protocol/pet.rs` com *fixtures* do C# (`scripts/reverse/framework/PetWireOracle.cs`, `generate-pet-wire-fixtures.ps1`, 195 casos, x86 = x64; `DateTime` é o `dateData` UInt64 com o tipo nos bits 62–63; elementos nulos dentro de `Skills`/`Accessories` não fazem ida e volta no leitor original e não são enviados). `CharacterSummary.Pet` e `GameJoinMemberInfo.Pet` deixaram de ser nulos fixos (`NoPet` removido).
+- Regras e operações: `src/domain/pet.rs`, `src/infrastructure/minimum_pet.rs`; ramo `pet_` de `minimum_use`; despacho e temporizador do período no `lab_frontend`; `BattlePets` na missão (EXP, tempo, morto/revivido, `EndBattle`, `UpdateCurrentPetMessage`); condição `has_pet`; painel (`/api/characters/{cid}/pets`, aba Pets).
+- Verificação: `cargo clippy --lib --tests` limpo (só o aviso antigo de `character_class.rs`); `cargo test --lib` (44), `--test pet_wire` (2), `character_list_wire`, `minimum_map`, `mission_wire`, `item_sync_wire`, `admin_http`; PostgreSQL filtrado `minimum_pets` + regressões (`minimum_mission minimum_use minimum_hot_spring minimum_in_game migration minimum_story character_list lobby panel_item admin`): 0 falhas; `test_export_item_economy.py` OK; `npm run build` do painel OK. Logs `.cache/verification/pet-*.log`.
+- Cliente: necessário — roteiro `docs/client-tests/B5-pets.md` (checkpoints P3, pet na cidade, e P6, pet na fase com o índice 28).
+- Próxima ação: rebuild do Docker e sessão de cliente do operador pelo roteiro B5-pets; depois, os pets do NA (P7) junto com a importação das classes.

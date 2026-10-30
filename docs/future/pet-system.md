@@ -4,14 +4,12 @@ Análise de 30/10/2026, a pedido do operador: o sistema de pets já existe no se
 
 ## 1. Estado no servidor Rust
 
-**Não implementado.** O que existe hoje:
+**Implementado em 30/10/2026 (P1–P6), sem teste no cliente.** A seção 5 descreve o que foi feito e os desvios; o roteiro de teste é `docs/client-tests/B5-pets.md`. Antes desta data:
 
-- `src/protocol/server_profile.rs`: só o registro de categoria/GUID das 19 mensagens de pet (313–331, `MovePetSlotMessage` … `PetOperationMessage`), necessário para o TypeConverter. Nenhum codec nem processador.
-- `src/protocol/character_list.rs` e `src/protocol/mission.rs` (`NoPet`): o `PetStatusInfo` sai sempre nulo (byte 0) na lista de personagens e no início de missão; um pet não nulo é recusado (`CharacterListError::Pet`, `PayloadError::Unsupported`).
-- `src/infrastructure/minimum_use.rs`: itens `pet_*` (criar pet, ração, skill, ressurreição) são recusados ao usar.
-- `src/domain/character_class.rs`: `PET = 28`, só usado em teste; nenhum código o envia.
-- Nenhuma migração PostgreSQL de pets, nenhum carregador de `PetInfo`/`PetSkillInfo`, nenhuma ação no painel.
-- No roteiro, pets estão no **B5** (sistemas restantes).
+- `src/protocol/server_profile.rs` só registrava a categoria/GUID das mensagens de pet (313–332);
+- o `PetStatusInfo` saía sempre nulo na lista de personagens e no início de missão (`NoPet`);
+- itens `pet_*` eram recusados ao usar;
+- `character_class::PET = 28` só era usado em teste.
 
 ## 2. Os "IDs do pet": três valores diferentes
 
@@ -133,3 +131,48 @@ Comportamentos do original para decidir (copiar ou corrigir): `UpdatePetStatus` 
 5. **P5 — pet na missão:** `PetStatusInfo` no início de missão, EXP/fome/tempo no fim, morto/revivido, reinício diário. *Checkpoint* de cliente: o pet aparece na fase com o índice 28 (seção 2.1) antes de seguir para EXP.
 6. **P6 — skills de cash e painel.** Acessórios e os sistemas só do NA (livro, pré-escola, expedição) ficam fora, porque o cliente 1.69 não os tem.
 7. **Importação dos pets do NA** (junto com as demais classes): linhas novas de `PetInfo`/`PetStatusBalanceInfo`/`PetSkillInfo` e os itens `pet_create_*`, modelos e ícones, com `PetMaxLevel` revisto (o NA vai a 50). Os 36 tipos atuais não mudam.
+
+## 5. Implementação (30/10/2026)
+
+Pedido do operador ("implemente completamente o sistema de pets"), antes da ordem do B5. Cliente: **necessário** (roteiro `docs/client-tests/B5-pets.md`).
+
+### 5.1 O que existe
+
+| Parte | Onde | Origem |
+|---|---|---|
+| Conteúdo (`PetInfo`, `PetStatusBalanceInfo`, `PetSkillInfo`, `DefaultPetSkillInfo`, `PetActiveTimePeriodInfo`, `PetFeedInfo`, `ExtraData` dos itens `pet_*` e os valores `PetPurchaseLimit`, `PetMaxLevel`, `Pet_ExpBattle_Point`, `NamingRuleMaxBytes`) | `scripts/content/export_item_economy.py` → seção `pets` do `item-economy.json`; `domain::pet::Contents` | `ItemContents` (pet dictionaries) |
+| Esquema | `migrations/0050_pets.sql`: `game_pets`, `game_pet_skills`, `game_pet_feeds` (UserSharedItem tipo 2), `game_pet_ledger` | `heroes.Pet/PetSkill`, `heroesLog.PetLedger` |
+| Fio | `src/protocol/pet.rs` (20 mensagens, `PetStatusInfo` com `DateTime` = `dateData`), `CharacterSummary.Pet` e `GameJoinMemberInfo.Pet` não nulos | *fixtures* `tests/fixtures/framework-pet-wire.json` (195 casos, x86 = x64) de `scripts/reverse/generate-pet-wire-fixtures.ps1` |
+| Regras | `src/domain/pet.rs`: nome, *slot*, EXP/nível, fome, tempo ativo, status, período, ração automática, skills de cash, validade pelo nome do item | `PetManager`, `UseInventoryItemProcessor.GetTimeSpanInfoByItemClass` |
+| Operações | `src/infrastructure/minimum_pet.rs`: carga na seleção, lista, checagem de nome, criar, renomear, invocar/recolher, mover *slot*, apagar, remover skill, ração V1 e V2, fim de batalha, reinício por período (temporizador do frontend) | processadores de `PlayerService.ItemServiceCore.PetSystem` |
+| Missão | `BattlePets` (MicroPlayerPetManager) no `Mission`: pet atual no `GameJoinMemberInfo`, contagem de tempo, EXP de monstros × `Pet_ExpBattle_Point`/100, `PetKilled`/`PetRevived`, `EndBattle` nas recompensas (com EXP) e na recompensa nula/saída (sem EXP), `UpdateCurrentPetMessage` quando o pet muda em jogo e `MemberInfo` no navio | `MicroPlayer`, `MicroPlay.IsPetUsable` |
+| Aparência | o pet atual entra no `CharacterSummary` da seleção e da cidade (`NotifyLook`) e é atualizado a cada mudança (`PushUpdatePetStatus`) | `CharacterEntity.MakeSummary` |
+| História | condição `has_pet` | `Cond_has_pet` → `PetManager.HasPet` |
+| Painel | aba Pets na ficha; `GET/POST /api/characters/{cid}/pets`, `POST …/pets/{pet}/remove`, `GET /api/pets/types` (auditoria e `operation_id`, recusa online) | GM `_CHEAT_AddPet`/`RemovePet` |
+
+`IsEnable("Pet")`, `IsEnable("Pet_food_V2")` e as *features* de região do `PetActiveTimePeriodInfo` são avaliados pela política das NPCs (`assets.npc_policy()`), que tem os pares de versão medidos. O conteúdo de pets é montado no primeiro uso (`Assets::pets`). No 1.69 EN-EU: 36 tipos, 32 com período diário (31 `enEU` às 07:00 UTC + o tipo 659 sem *feature*), `PetPurchaseLimit` 100, `PetMaxLevel` 30, `Pet_ExpBattle_Point` 20.
+
+### 5.2 Desvios do original (todos com o mesmo efeito visível ou em caminhos sem uso)
+
+- **Item usado na falha:** o original destrói o item e devolve (ou manda por correio) quando a operação de pet falha; aqui a operação é checada antes e o item só é consumido no sucesso. O inventário e o diálogo ficam iguais.
+- **Ração compartilhada com inventário cheio:** o original manda o item por correio e libera a ração; o correio não está migrado, então a ração continua compartilhada e o diálogo `GameUI_Heroes_Pet_Fail_Food_Unshare` é enviado.
+- **`UpdatePetStatus`:** o original marca "vencido" com `ExpiredTime > agora` (invertido). Nenhum caminho do 1.69 grava `ExpiredTime` no pet; aqui o vencimento vale quando o prazo passou.
+- **Nome proibido:** não é checado, como no nome de personagem (nome livre, decisão do operador de 26/10/2026). A regra `NamingRule` (EN-EU, 4+ letras) e `NamingRuleMaxBytes` valem.
+- **`PetOperationMessage`:** exige `IsCheat` (sessão de GM), que o laboratório não tem; é ignorada. O painel faz criar e apagar.
+- **Acessórios:** sem tabela e sempre lista vazia (`EquipPetAccessory` não tem chamador no 1.69).
+- **Raide gigante:** não migrada; `IsPetUsable` usa só `IsHuntingQuest`.
+- **`PetTransSelect`/"SetPetName"** (troca forçada de nome na seleção, para pets transferidos): não há transferência de pets, não foi portado.
+
+Copiados do original: `SelectPet` aceita pet desativado; `RemainExpiredTime` é sempre `UtcNow`; `GiveSkill` (GM) não foi exposto.
+
+### 5.3 Verificação
+
+- `cargo test --lib domain::pet` (7), `--test pet_wire` (195 casos com truncamentos e campos), `--test character_list_wire --test minimum_map --test mission_wire --test item_sync_wire --test admin_http`.
+- PostgreSQL: `minimum_pets_create_select_battle_slot_and_remove_per_account` (criar, nome, invocar, batalha com EXP limitada, fome e ração automática, *slot*, apagar, *ledger*, painel com recusa online, repetição e nome repetido) e regressões `minimum_mission minimum_use minimum_hot_spring minimum_in_game migration minimum_story character_list lobby panel_item admin`.
+- `scripts/content/test_export_item_economy.py`; `npm run build` do painel.
+
+### 5.4 Pendências de cliente
+
+- **Índice 28 do pet:** o pet aparece na cidade e na fase? (Seção 2.1: o DLL cria a entidade; o despacho do patch de classes compara por igualdade com as classes extras, então o pet não cai nos casos da Delia, mas não há teste.)
+- Janela de pets, ração compartilhada, renomear, skills de cash e mensagens (`GameUI_Heroes_Pet_*`).
+- Multijogador (B5): o pet de outro jogador na cidade e na missão.

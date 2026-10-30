@@ -1,4 +1,4 @@
-//! Recovered filled CharacterListMessage/CharacterSummary/CostumeInfo; Pet NULL subset.
+//! Recovered filled CharacterListMessage/CharacterSummary/CostumeInfo with its PetStatusInfo.
 //! Does not create characters or manufacture a list from missing persisted state.
 pub use super::empty_character_list::{CATEGORY, TYPE_ID};
 use super::{
@@ -85,6 +85,8 @@ pub struct Summary<'a> {
     pub vocation_skill_point_available: i32,
     pub free_match_win_count: i32,
     pub free_match_lose_count: i32,
+    /// The current pet (PetManager.CurrentPetStatusInfo); QueryCharacters supplies null.
+    pub pet: Option<super::pet::PetStatusInfo>,
     pub is_event_jumping: bool,
     pub free_title_name: Option<&'a str>,
     pub pattern: i32,
@@ -94,8 +96,6 @@ pub struct Summary<'a> {
 }
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum CharacterListError {
-    #[error("non-null PetStatusInfo requires recovered serialization")]
-    Pet,
     #[error("duplicate costume dictionary key")]
     DuplicateKey,
     #[error("unsupported filled character-list type/category")]
@@ -304,7 +304,7 @@ pub(super) fn write_summary(
     s.vocation_skill_point_available.write(w)?;
     s.free_match_win_count.write(w)?;
     s.free_match_lose_count.write(w)?;
-    w.append(&[0])?; // Source QueryCharacters supplies Pet NULL.
+    super::pet::write_pet(w, s.pet.as_ref())?;
     s.is_event_jumping.write(w)?;
     w.nullable(s.free_title_name.map(str::as_bytes))?;
     s.pattern.write(w)?;
@@ -351,9 +351,7 @@ pub(super) fn read_summary<'a>(
     let vocation_skill_point_available = i32::read(r)?;
     let free_match_win_count = i32::read(r)?;
     let free_match_lose_count = i32::read(r)?;
-    if r.byte()? != 0 {
-        return Err(CharacterListError::Pet);
-    }
+    let pet = super::pet::read_pet(r)?;
     let is_event_jumping = bool::read(r)?;
     let free_title_name = r.string()?;
     let pattern = i32::read(r)?;
@@ -393,6 +391,7 @@ pub(super) fn read_summary<'a>(
         vocation_skill_point_available,
         free_match_win_count,
         free_match_lose_count,
+        pet,
         is_event_jumping,
         free_title_name,
         pattern,

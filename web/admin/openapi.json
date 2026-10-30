@@ -1061,6 +1061,191 @@
         }
       }
     },
+    "/api/characters/{cid}/pets": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Pets of the character's account (owner or staff).",
+        "operationId": "pets",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PanelPet"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Gives the character's account a pet (offline; the game's name and slot checks).",
+        "operationId": "add_pet",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PanelPet"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/characters/{cid}/pets/{pet}/remove": {
+      "post": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "Removes a pet of the character's account (offline).",
+        "operationId": "remove_pet",
+        "parameters": [
+          {
+            "name": "cid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemovePet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/characters/{cid}/progression": {
       "post": {
         "tags": [
@@ -2456,6 +2641,40 @@
         }
       }
     },
+    "/api/pets/types": {
+      "get": {
+        "tags": [
+          "characters"
+        ],
+        "summary": "The pet types of the content (staff).",
+        "operationId": "pet_types",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PanelPetType"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/session": {
       "get": {
         "tags": [],
@@ -2951,6 +3170,29 @@
           },
           "username": {
             "type": "string"
+          }
+        }
+      },
+      "AddPet": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "pet_type",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The game's pet name rule (4+ letters, one optional `_`, unique in the account)."
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "pet_type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "PetInfo.PetID (see /api/pets/types)."
           }
         }
       },
@@ -4879,6 +5121,99 @@
           }
         }
       },
+      "PanelPet": {
+        "type": "object",
+        "description": "Panel view of one pet.",
+        "required": [
+          "id",
+          "name",
+          "pet_type",
+          "slot",
+          "status",
+          "level",
+          "exp",
+          "hunger",
+          "remain_active_time",
+          "cash_skills"
+        ],
+        "properties": {
+          "cash_skills": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "exp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hunger": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "string"
+          },
+          "item_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "max_hunger": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pet_type": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remain_active_time": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "slot": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "PanelPetType": {
+        "type": "object",
+        "description": "A PetInfo type for the panel.",
+        "required": [
+          "pet_type"
+        ],
+        "properties": {
+          "item_class": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The pet_create_ item of the type."
+          },
+          "pet_type": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "PickerItem": {
         "type": "object",
         "description": "One item as the picker lists it.",
@@ -5368,6 +5703,18 @@
           "waiting": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "RemovePet": {
+        "type": "object",
+        "required": [
+          "operation_id"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

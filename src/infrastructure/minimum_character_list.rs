@@ -306,6 +306,8 @@ async fn entry(
         vocation_skill_point_available: 0,
         free_match_win_count: info.try_get("free_match_win_count")?,
         free_match_lose_count: info.try_get("free_match_lose_count")?,
+        // QueryCharacters supplies Pet null; the selection sets the current pet.
+        pet: None,
         is_event_jumping: false,
         free_title_name: None,
         pattern: 0,

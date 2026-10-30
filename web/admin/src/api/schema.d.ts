@@ -245,6 +245,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/characters/{cid}/pets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pets of the character's account (owner or staff). */
+        get: operations["pets"];
+        put?: never;
+        /** Gives the character's account a pet (offline; the game's name and slot checks). */
+        post: operations["add_pet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/characters/{cid}/pets/{pet}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Removes a pet of the character's account (offline). */
+        post: operations["remove_pet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/characters/{cid}/progression": {
         parameters: {
             query?: never;
@@ -689,6 +724,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pets/types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The pet types of the content (staff). */
+        get: operations["pet_types"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/session": {
         parameters: {
             query?: never;
@@ -877,6 +929,17 @@ export interface components {
             /** @description active or disabled. */
             status: string;
             username: string;
+        };
+        AddPet: {
+            /** @description The game's pet name rule (4+ letters, one optional `_`, unique in the account). */
+            name: string;
+            /** Format: uuid */
+            operation_id: string;
+            /**
+             * Format: int32
+             * @description PetInfo.PetID (see /api/pets/types).
+             */
+            pet_type: number;
         };
         /** @description Error body of every refused request. */
         ApiError: {
@@ -1545,6 +1608,36 @@ export interface components {
             /** @description Items matching the filters (all pages). */
             total: number;
         };
+        /** @description Panel view of one pet. */
+        PanelPet: {
+            cash_skills: number[];
+            /** Format: int32 */
+            exp: number;
+            /** Format: int32 */
+            hunger: number;
+            id: string;
+            item_class?: string | null;
+            /** Format: int32 */
+            level: number;
+            /** Format: int32 */
+            max_hunger?: number | null;
+            name: string;
+            /** Format: int32 */
+            pet_type: number;
+            /** Format: int32 */
+            remain_active_time: number;
+            /** Format: int32 */
+            slot: number;
+            /** Format: int32 */
+            status: number;
+        };
+        /** @description A PetInfo type for the panel. */
+        PanelPetType: {
+            /** @description The pet_create_ item of the type. */
+            item_class?: string | null;
+            /** Format: int32 */
+            pet_type: number;
+        };
         /** @description One item as the picker lists it. */
         PickerItem: {
             category?: string | null;
@@ -1696,6 +1789,10 @@ export interface components {
             /** @description Missions in progress (P2P groups) and their member counts. */
             groups: components["schemas"]["GroupView"][];
             waiting: number;
+        };
+        RemovePet: {
+            /** Format: uuid */
+            operation_id: string;
         };
         SaveItem: {
             draft: components["schemas"]["ItemDraft"];
@@ -2613,6 +2710,132 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UpgradePreview"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    pets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelPet"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    add_pet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddPet"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelPet"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    remove_pet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cid: string;
+                pet: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemovePet"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {
@@ -3609,6 +3832,33 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    pet_types: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PanelPetType"][];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -694,6 +694,8 @@ async fn reward(
         // GiveReward_Null → Leave → SendNullEndGameOp: the proxy leaves the party.
         mission.completion.player_state = PlayerState::Finished;
         mission.completion.left = true;
+        // GiveReward_Null: PetManager.EndBattle(includeExpInfo: false).
+        packets.extend(end_pets(mission, rc, false, now).await);
         packets.push(packet(&Message::Kicked)?);
         return Ok(packets);
     }
@@ -837,6 +839,11 @@ async fn reward(
         summary.current_progress = current;
         summary.last_progress = last;
     }
+    // The rewarding functions end with PetManager.EndBattle(includeExpInfo: true) when
+    // IsPetUsable.
+    if mission.pet_usable() {
+        packets.extend(end_pets(mission, rc, true, now).await);
+    }
     let c = &mut mission.completion;
     match kind {
         RewardKind::MainGoal => {
@@ -894,6 +901,35 @@ async fn reward(
         }
     }
     Ok(packets)
+}
+
+/// MicroPlayerPetManager.EndBattle → RewardPetEndBattle of the player's pets. A failure is
+/// logged, as the source's failed operation, and leaves the reward as it is.
+pub async fn end_pets(
+    mission: &mut Mission,
+    rc: &RewardContext<'_>,
+    include_exp: bool,
+    now: Instant,
+) -> Vec<OutgoingPacket> {
+    let rewards = mission.pets.end_battle(include_exp, now);
+    match super::minimum_pet::reward_end_battle(
+        rc.pool,
+        rc.owner,
+        rc.assets,
+        mission.completion.cid,
+        &rewards,
+    )
+    .await
+    {
+        Ok(out) => {
+            mission.pets.set_summary(out.current);
+            out.packets
+        }
+        Err(_) => {
+            tracing::warn!("pet battle reward rejected; values omitted");
+            Vec::new()
+        }
+    }
 }
 
 /// CalculateCurrentQuestProgress and CalculateLastQuestProgress.

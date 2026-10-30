@@ -146,6 +146,7 @@ mod minimum_item_stat;
 pub mod minimum_mission;
 pub mod minimum_mission_finish;
 pub mod minimum_move;
+pub mod minimum_pet;
 pub mod minimum_quest;
 pub mod minimum_quickslot;
 pub mod minimum_repair;
