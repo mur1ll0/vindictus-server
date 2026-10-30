@@ -2476,3 +2476,13 @@ Passo C3-4 (30/10/2026): classe da personagem na customização e botão de volt
 - Não feito (opcional): poses animadas e rotação dos atores da grade; o NA anima com o comando de cliente `cc_create_character_selection_play_sequence` (ausente no 1.69).
 - Verificação: `test_creation_grid_client_runs_the_na_v3_flow` ampliado e `test_every_new_pointer_is_relocated`, OK (`.cache/verification/c3/tests-5.log`). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3d.log`): `client.dll` `a2d44738…`, `server.dll` `35f2ef50…` (igual).
 - Próxima ação: repetir G3–G5 do C3 (Delia na customização, voltar, criar e entrar).
+
+Passo C3-5 (30/10/2026): classe da Delia no jogador da customização; botão de voltar depois do `onShow` do filme.
+- Relato do operador (C3, quarta rodada): Arisha cria com o modelo certo e troca as armaduras de *preview*; a Delia continua com o Lethita; o botão de voltar não aparece. A criação pela grade continua sem o tutorial (Bell Tower) antes da customização.
+- Causas:
+  - o `server.dll` cria o jogador local como `player_<cl_playerclass>` (`0x403712c0`); sem fábrica `player_delia` cai na entidade base `player` (`0x40371313`), cujo `m_iClass` fica 0 (na cidade a classe vem dos dados da personagem; as classes 0–9 têm entidade própria). O `cl_playerclass` já chegava como `delia` pelo passo C3-4 (Arisha certa);
+  - o `onShow` do filme `CreateCharacterDialog` esconde o `Button_Back` depois do comando `OnShow` que o C++ recebe; ele termina em `selectHairTab()` → `OnTabSelected` → `SelectTab.<de>.<para>`.
+- Mudança (`CREATION_GRID`): no servidor, depois da queda para `player`, um `player_<chave>` de classe extra recebe o índice em `m_iClass` (`+0x1400`; desligado com `--fallback-entity`, que reescreve o mesmo `push`); no cliente, o diálogo também liga o botão ao receber `SelectTab.`.
+- Verificação: `test_creation_grid_*` ampliados, OK (`.cache/verification/c3/tests-6.log`; relocação e `fallback_entity` OK na rodada anterior). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3e.log`): `client.dll` `66e3d7bc…`, `server.dll` `f89f28c5…`.
+- Decisão pendente do operador: a grade segue o NA e vai direto à customização; o fluxo antigo do 1.69 passava pelo tutorial (prólogo, Bell Tower) antes dela.
+- Próxima ação: repetir G3–G5 do C3 com a Delia.

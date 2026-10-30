@@ -499,6 +499,14 @@ CREATION_GRID = {
         # leans, Lynn stands on nothing) and Hagie's and Delia's town motions lack it (T-pose); all
         # eleven have the NA's ACT_CHARACTER_CREATION_SELECTED_S3, so the slot takes that name.
         'activity': ((0x4040F034, '68f00fb340'), (0x4040F03F, '68f00fb340')),
+        # The local player is built as player_<cl_playerclass>; an extra class has no factory and
+        # falls back to the base "player" (0x40371313, see FALLBACK_PUSH), whose m_iClass stays 0:
+        # the customization showed Lethita for Delia (town reads the class from the character).
+        # After the fallback, `player_<key>` of an extra class gets its index.
+        'fallback': (0x40371313, '57685880a440e892ee1b0083c408'),  # push edi; push "player"; call; add esp, 8
+        'fallback_rest': 0x40371321,
+        'stricmp': 0x40994755,
+        'player_class': 0x1400,          # CHeroesPlayer m_iClass
         # point_teleport origin/angles in lobby_beautyshop_change.bsp (NA reads the same entities).
         'select': ((-64.0, 0.0, 0.0), (0.0, 180.0, 0.0)),
         'nonselect': ((-16.0, 276.0, 152.0), (0.0, 0.0, 0.0)),
@@ -2176,7 +2184,14 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.to(b'\xe8', k['fire'])
     layout.body += b'\x5f\x5e' + b'\x81\xc4' + struct.pack('<I', 0x3DC) + b'\xc2\x0c\x00'
     layout.land(other)
+    # The movie's own onShow hides the button after the OnShow command; it ends with
+    # selectHairTab(), whose OnTabSelected sends `SelectTab.<from>.<to>`: show it then too.
+    # cmp [edi], "Sele"; jne; cmp [edi+4], "ctTa"; jne; cmp byte [edi+8], 'b'; je show
+    layout.body += b'\x81\x3f' + b'Sele' + b'\x75\x13' + b'\x81\x7f\x04' + b'ctTa' + b'\x75\x0a'
+    layout.body += b'\x80\x7f\x08' + b'b'
+    tab = layout.forward(b'\x0f\x84')
     original = is_argument(show_label)
+    layout.land(tab)
     feature()
     hidden = layout.forward(b'\x0f\x84')
     layout.to(b'\xe8', k['ui'])
@@ -2191,7 +2206,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     return report
 
 
-def creation_server(layout: Layout, edits: list, k: dict) -> dict:
+def creation_server(layout: Layout, edits: list, k: dict, class_hook: bool = True) -> dict:
     """CREATION_GRID, server: `npc_character_create` (every actor to the non-select point) and
     `npc_character_create_select <class>` (that actor to the select point, the others away)."""
     names = creation_names()
@@ -2290,8 +2305,38 @@ def creation_server(layout: Layout, edits: list, k: dict) -> dict:
     layout.pointer(struct.unpack_from('<I', old_bytes, 1)[0])
     layout.to(b'\xe9', k['init_rest'])
     edits.append((va, old_bytes, b'\xe9' + struct.pack('<i', stub - (va + 5))))
-    return {'init': f'{va:#x} -> {stub:#x}', 'npc_character_create': hex(create_callback),
-            'npc_character_create_select': hex(choose_callback), 'commands': [hex(o) for o in objects]}
+    report = {'init': f'{va:#x} -> {stub:#x}', 'npc_character_create': hex(create_callback),
+              'npc_character_create_select': hex(choose_callback), 'commands': [hex(o) for o in objects]}
+    if not class_hook:
+        return report
+
+    # Base-player fallback: the "player_<key>" text (the caller's buffer, [esp + 8]) names the class.
+    va, old = k['fallback']
+    old_bytes = bytes.fromhex(old)
+    keys = [(extra.index, layout.string(f'player_{extra.key}')) for extra in EXTRA_CLASSES]
+    layout.pad()
+    stub = layout.here()
+    layout.body += b'\x57' + b'\x68'
+    layout.pointer(struct.unpack_from('<I', old_bytes, 2)[0])
+    layout.to(b'\xe8', va + 6 + 5 + struct.unpack_from('<i', old_bytes, 7)[0])
+    layout.body += b'\x83\xc4\x08' + b'\x85\xc0'
+    none = layout.forward(b'\x0f\x84')
+    layout.body += b'\x50'
+    for index, name in keys:
+        layout.body += b'\x8d\x4c\x24\x0c' + b'\x68'
+        layout.pointer(name)
+        layout.body += b'\x51'
+        layout.to(b'\xe8', k['stricmp'])
+        layout.body += b'\x83\xc4\x08' + b'\x85\xc0'
+        other = layout.forward(b'\x0f\x85')
+        layout.body += b'\x8b\x04\x24' + b'\xc7\x80' + struct.pack('<II', k['player_class'], index)
+        layout.land(other)
+    layout.body += b'\x58'
+    layout.land(none)
+    layout.to(b'\xe9', k['fallback_rest'])
+    edits.append((va, old_bytes, b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\xcc' * (len(old_bytes) - 5)))
+    report['fallback'] = f'{va:#x} -> {stub:#x}'
+    return report
 
 
 def file_va(image: Image, at: int) -> int:
@@ -2523,7 +2568,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name == 'client.dll':
         report['creation_grid'] = creation_client(image, layout, edits, relocs, CREATION_GRID[name])
     elif name == 'server.dll':
-        report['creation_grid'] = creation_server(layout, edits, CREATION_GRID[name])
+        # The diagnostic fallback entity rewrites the same push; it keeps the factory it names.
+        report['creation_grid'] = creation_server(layout, edits, CREATION_GRID[name], class_hook=not fallback)
     if fallback and name == 'server.dll':
         report['fallback_entity'] = fallback_entity(image, edits, fallback)
 

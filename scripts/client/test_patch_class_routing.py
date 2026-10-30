@@ -645,9 +645,17 @@ class LabCopyTest(unittest.TestCase):
         state, name, handler = (self.entry(image, copy + 12 * count, i) for i in range(3))
         self.assertEqual((state, routing.read_string(image, name)), (routing.CREATION_STATE, 'CharacterCreation_Back'))
         self.assertIn(f'mov eax, {k["grid_state"]}', [f'{x.mnemonic} {x.op_str}' for x in self.code(image, handler, 0x20)])
-        dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0x90)
+        dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0xc0)
         self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, dialog))
         self.assertIn(f'jmp {k["dialog_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in dialog])
+        # SelectTab. (sent after the movie's onShow) also shows the button: both short jumps of the
+        # prefix test land on the OnShow test.
+        ops = [f'{x.mnemonic} {x.op_str}' for x in dialog]
+        prefix = ops.index('cmp dword ptr [edi], 0x656c6553')
+        show_test = next(x.address for x in dialog if x.mnemonic == 'push' and x.op_str.startswith('0x')
+                         and routing.read_string(image, int(x.op_str, 16)) == 'OnShow')
+        jumps = [x for x in dialog[prefix:prefix + 6] if x.mnemonic == 'jne']
+        self.assertEqual({int(x.op_str, 16) for x in jumps}, {show_test})
         # The map-ready slot runs the original enter body, then opens the customization.
         table = k['creation_vtable']
         ready = self.entry(image, table, 4)
@@ -667,6 +675,13 @@ class LabCopyTest(unittest.TestCase):
         # ConCommand(name, callback, help = name, ...) for each command, in order.
         self.assertEqual([s for s in self.strings(image, init) if s],
                          ['npc_character_create'] * 2 + ['npc_character_create_select'] * 2)
+        # The base-player fallback gives player_<key> of an extra class its m_iClass.
+        fallback = self.code(image, int(grid['fallback'].split('-> ')[1], 16), 0x60)
+        ops = [f'{x.mnemonic} {x.op_str}' for x in fallback]
+        for extra in routing.EXTRA_CLASSES:
+            self.assertIn(f'player_{extra.key}', self.strings(image, fallback))
+            self.assertIn(f'mov dword ptr [eax + {k["player_class"]:#x}], {extra.index:#x}', ops)
+        self.assertIn(f'jmp {k["fallback_rest"]:#x}', ops)
         for va, _ in k['activity']:
             self.assertEqual(routing.read_string(image, self.entry(image, va + 1, 0)), 'ACT_CHARACTER_CREATION_SELECTED_S3')
         choose = self.code(image, int(grid['npc_character_create_select'], 16), 0x800)
