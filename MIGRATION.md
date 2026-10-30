@@ -2590,3 +2590,9 @@ Passo C3-18 (30/10/2026): WASD travado e troca imediata de pose/ação na custom
 - Verificação: `test_creation_grid_client_runs_the_na_v3_flow` ampliado e relocações OK (`.cache/verification/c3/tests-15.log`).
 - Aplicado do `main` com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3n.log`): `client.dll` `28f7625b…`, `server.dll` `c44e51a2…` (igual). O filme da customização com o nome branco (C3-17) vale a partir deste início do jogo.
 - Próxima ação: no cliente, conferir nome branco, WASD sem efeito na ação 5, troca imediata de pose/ação, câmera girando, "Create" até a cidade e G5.
+
+Passo C3-19 (30/10/2026): resultado do C3-18 e fecho da cor do nome.
+- Relato do operador: ações (troca imediata) e WASD travado funcionaram; o texto do nome continua cinza.
+- Verificação: o filme solto em uso (`ac5543b0…`) tem branco nos três pontos (cor do `DefineEditText` 87, HTML inicial, `onKillFocus`); nenhuma camada cobre o campo (`Text_Name` profundidade 35; acima só `Button_CheckName` x 254, `Image_CharacterName` x 19, `t_Notic` oculto) e não há transformação de cor; o C++ não escreve no `Text_Name`. O campo não recebe foco do Scaleform (o `onSetFocus` não dispara) e o 1.69 injeta os caracteres; o cinza vem do desenho do campo nesse caminho. Sem alavanca no filme ou no C++: mantido (decisão do operador, "se não tiver o que fazer vamos manter assim").
+- Atlas `CreateCharacterDialog_I5.dds`: a volta ao solto no C3-13 partiu de um diagnóstico errado (o campo sumia pelo ramo V3, achado no C3-14). O atlas só serve `MC_SheetBodyShape`, `MC_SheetHair` e as dicas de peso; voltou o do próprio filme (`04642050…`), o solto fica no `.loose.bak`.
+- Próxima ação: "Create" até a cidade com a Delia e G5; registro final do porte da Delia (`docs/future/delia-class-port.md`).
