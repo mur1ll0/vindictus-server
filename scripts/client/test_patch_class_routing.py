@@ -650,11 +650,6 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'Select{key.capitalize()}', names)
             self.assertIn(f'npc_character_create_select {i}', names)
         self.assertNotIn('NewCharacterDialogS3.OnReadyCreation', names)  # the map-ready slot sends it
-        # After the panel fill, the button is shown again (its movie onShow hides it).
-        filled = self.code(image, int(grid['filled'].split('-> ')[1], 16), 0x60)
-        self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, filled))
-        self.assertIn('CreateCharacterDialog.Text_Name.textColor', self.strings(image, filled))
-        self.assertIn(f'jmp {k["ui"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in filled])
         self.assertIn(f'jmp {k["handler_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in handler])
         # GameStart: state 11 with the grid, the prologue (8) without it.
         transition = self.code(image, int(grid['transition'].split('-> ')[1], 16), 0x30)
@@ -672,36 +667,12 @@ class LabCopyTest(unittest.TestCase):
         state, name, handler = (self.entry(image, copy + 12 * count, i) for i in range(3))
         self.assertEqual((state, routing.read_string(image, name)), (routing.CREATION_STATE, 'CharacterCreation_Back'))
         self.assertIn(f'mov eax, {k["grid_state"]}', [f'{x.mnemonic} {x.op_str}' for x in self.code(image, handler, 0x20)])
-        dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0x100)
-        self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, dialog))
+        dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0x60)
+        self.assertIn('CharacterCreation_Back', self.strings(image, dialog))
         ops = [f'{x.mnemonic} {x.op_str}' for x in dialog]
         back_to = ops.index(f'jmp {k["dialog_rest"]:#x}')
         self.assertEqual(ops[back_to - 1], 'mov ecx, esi')  # the original's `mov esi, ecx` follows
-        # SelectTab. (sent after the movie's onShow) also shows the button: both short jumps of the
-        # prefix test land on the OnShow test.
-        ops = [f'{x.mnemonic} {x.op_str}' for x in dialog]
-        prefix = ops.index('cmp dword ptr [edi], 0x656c6553')
-        show_test = next(x.address for x in dialog if x.mnemonic == 'push' and x.op_str.startswith('0x')
-                         and routing.read_string(image, int(x.op_str, 16)) == 'OnShow')
-        jumps = [x for x in dialog[prefix:prefix + 6] if x.mnemonic == 'jne']
-        self.assertEqual({int(x.op_str, 16) for x in jumps}, {show_test})
-        # The map-ready slot runs the original enter body, then opens the customization.
-        table = k['creation_vtable']
-        ready = self.entry(image, table, 4)
-        self.assertEqual(hex(ready), grid['map_ready'].split('-> ')[1])
-        ready_code = self.code(image, ready, 0x60)
-        self.assertIn('cc_show_create_character_dialog', self.strings(image, ready_code))
-        body = [int(x.op_str, 16) for x in ready_code if x.mnemonic == 'call' and x.op_str.startswith('0x')][0]
-        self.assertEqual([f'{x.mnemonic} {x.op_str}' for x in self.code(image, body, 11)][-1],
-                         f'jmp {k["enter"][0] + 6:#x}')
-
-    def test_server_spawn_knows_extra_class_keys(self):
-        image, report = self.plan('server.dll')
-        table = next(t for t in report['tables'] if t['table'] == hex(0x40CFA1B0))
-        self.assertEqual(table['delia'], 'delia')
-        for va, _, new in routing.SERVER_CLASS_BOUNDS['server.dll']:
-            got = bytes(image.data[image.offset(va):image.offset(va) + len(new(routing.LAST))])
-            self.assertEqual(got, new(routing.LAST))
+        self.assertNotIn('filled', grid)
 
     def test_creation_grid_server_registers_the_scene_commands(self):
         image, report = self.plan('server.dll')

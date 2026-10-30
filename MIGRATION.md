@@ -2570,3 +2570,9 @@ Análise de pets (30/10/2026, pedido do operador; só leitura, sem mudança de c
 - IDs: o índice de classe do pet no laboratório (28) é o do NA, conferido em bytes no `client.dll`/`server.dll` x64 do NA (tabela de 28 classes + `None`, `cmp 0x1b` no nome, `cmp 0x1c` nos `switch` de pet); a ordem bate com `character_class::NAMES` (Delia = 10). Os 36 tipos de `PetInfo` do 1.69 são iguais no NA (que tem 85). Pendente: achar onde o 1.69 grava o índice do pet no `m_iClass` da entidade.
 - Cliente: não necessário.
 - Próxima ação: sem mudança; pets seguem no B5.
+
+Passo C3-16 (30/10/2026): sem escritas de visibilidade e cor no diálogo da customização.
+- Relato do operador (C3, depois do C3-15 e do filme com nome branco): o texto do nome continua cinza; ao digitar o nome a personagem ficou de costas e não gira mais.
+- Leitura do filme: o `Text_Name` só fica branco no `onSetFocus` (`textColor = 16777215`) e volta ao cinza `#666666` no `onKillFocus` vazio; texto cinza ao digitar indica campo sem foco de teclado no Scaleform, e as teclas (`a`, `d`, …) chegam ao jogo, que gira/move o modelo. A única escrita do C++ nesse campo era a do C3-15 (`Text_Name.textColor` pelo *set* de variável) no *stub* depois do preenchimento (`0x384a5870`), rotina que também roda nas trocas de aba e de roupa de amostra, junto da de `Button_Back._visible`. Hipótese: essas escritas repetidas tiram o foco do campo.
+- Mudança: o *stub* do diálogo fica só com o `Back` (evento `CharacterCreation_Back`, com `ecx` restaurado); saem o gancho de depois do preenchimento e as escritas no `OnShow`/`SelectTab`: o botão vem do ramo V3 do filme de laboratório (C3-14). Testes do cliente e relocações OK (`.cache/verification/c3/tests-14.log`). Não aplicado ainda (jogo aberto).
+- Próxima ação: aplicar com o jogo fechado; reiniciar o jogo (o filme é relido) e conferir foco, cor do nome, rotação e "Create".

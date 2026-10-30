@@ -492,15 +492,11 @@ CREATION_GRID = {
         # table (state, event, handler) is copied with one more entry back to the class grid (7).
         'transitions': (0x3851D6D0, '688d000000', 0x3851D6D5, '68c85cca38'),  # push count; push table
         'grid_state': 7,
-        # The customization dialog's FSCommand handler; its movie shows Button_Back only with
-        # CharacterCreation_UI_V3, which also hides the name field the 1.69 C++ still reads, so the
-        # handler shows the button itself on OnShow (UI manager vt+0x18, set boolean).
+        # The customization dialog's FSCommand handler: Back fires the transition above. The button
+        # itself comes from the lab copy's movie (C3-12..C3-14: the 1.69's newer CreateCharacterDialog,
+        # whose CharacterCreation_UI_V3 branch shows it, edited to keep the name field the 1.69 reads).
         'dialog': (0x384AF6E0, '81ecdc030000' '5657' '8bbc24f0030000'),
         'dialog_rest': 0x384AF6EF,
-        # The customization panel fill (0x384a5870: loadDefaultValues, outfits, arrageAll) runs after
-        # the movie's own onShow; the UI manager call right after arrageAll becomes a call into a stub
-        # that shows the button, then goes to the getter (C3-11).
-        'filled': (0x384A5B1E, 'e8cd231500'),
     },
     'server.dll': {
         'init': (0x409FA70D, '68405fa240'),  # force_start_touch's static initializer: push atexit dtor
@@ -2159,9 +2155,6 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     # Customization Back: a CharacterCreationState -> class grid transition in a copy of the table.
     back_event, prologue_off = layout.string('CharacterCreation_Back'), layout.string('sv_prologue_mode 0')
     back_label = layout.string('Back')
-    show_label, button = layout.string('OnShow'), layout.string('CreateCharacterDialog.Button_Back._visible')
-    shown = layout.string('1')
-    name_color, white = layout.string('CreateCharacterDialog.Text_Name.textColor'), layout.string('16777215')  # "true" converts to NaN, false, for a display property (C3-9)
     layout.pad()
     back = layout.here()
     command(0x1C, prologue_off)
@@ -2185,7 +2178,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     edits.append((table_va, bytes.fromhex(table_old), b'\x68' + struct.pack('<I', copy)))
     report['transitions'] = f'{old_table:#x}[{count}] -> {copy:#x}[{count + 1}]'
 
-    # The dialog: Back fires the event; OnShow (grid only) shows the button, then the original runs.
+    # The dialog: Back fires the event; anything else runs the original handler.
     va, old = k['dialog']
     head = bytes.fromhex(old)
     layout.pad()
@@ -2199,55 +2192,12 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.to(b'\xe8', k['fire'])
     layout.body += b'\x5f\x5e' + b'\x81\xc4' + struct.pack('<I', 0x3DC) + b'\xc2\x0c\x00'
     layout.land(other)
-    # The movie's own onShow hides the button after the OnShow command; it ends with
-    # selectHairTab(), whose OnTabSelected sends `SelectTab.<from>.<to>`: show it then too.
-    # cmp [edi], "Sele"; jne; cmp [edi+4], "ctTa"; jne; cmp byte [edi+8], 'b'; je show
-    layout.body += b'\x81\x3f' + b'Sele' + b'\x75\x13' + b'\x81\x7f\x04' + b'ctTa' + b'\x75\x0a'
-    layout.body += b'\x80\x7f\x08' + b'b'
-    tab = layout.forward(b'\x0f\x84')
-    original = is_argument(show_label)
-    layout.land(tab)
-    feature()
-    hidden = layout.forward(b'\x0f\x84')
-    # UI manager vt+0x1c sets a variable from TEXT (the 1.69 passes the result of vt+0x14, a string:
-    # 0x3828d24a, 0x3826dc35); the boolean entry vt+0x18 left the button hidden (C3-7). The 1.69
-    # layout already places Button_Back between Button_BasicShape (x 7) and Button_Complete (x 204).
-    layout.to(b'\xe8', k['ui'])
-    layout.body += b'\x8b\x10' + b'\x68'
-    layout.pointer(shown)
-    layout.body += b'\x8b\xc8' + b'\x68'
-    layout.pointer(button)
-    layout.body += b'\xff\x52\x1c'
-    layout.land(original)
-    layout.land(hidden)
-    # The original continues with `mov esi, ecx` (0x384af6f5): ecx must be the dialog again, after
-    # the strcmp and feature calls above (Create read a null [esi+0x20] otherwise, C3-15).
+    # The original continues with `mov esi, ecx` (0x384af6f5): ecx must be the dialog again after the
+    # strcmp above (Create read a null [esi+0x20] otherwise, C3-15).
     layout.body += b'\x8b\xce'  # mov ecx, esi
     layout.to(b'\xe9', k['dialog_rest'])
     edits.append((va, head[:6], b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\x90'))
     report['dialog'] = f'{va:#x} -> {stub:#x}'
-
-    va, old = k['filled']
-    layout.pad()
-    stub = layout.here()
-    feature()
-    skip = layout.forward(b'\x0f\x84')
-    layout.to(b'\xe8', k['ui'])
-    layout.body += b'\x8b\x10' + b'\x68'
-    layout.pointer(shown)
-    layout.body += b'\x8b\xc8' + b'\x68'
-    layout.pointer(button)
-    layout.body += b'\xff\x52\x1c'
-    layout.to(b'\xe8', k['ui'])
-    layout.body += b'\x8b\x10' + b'\x68'
-    layout.pointer(white)
-    layout.body += b'\x8b\xc8' + b'\x68'
-    layout.pointer(name_color)
-    layout.body += b'\xff\x52\x1c'
-    layout.land(skip)
-    layout.to(b'\xe9', k['ui'])
-    edits.append((va, bytes.fromhex(old), b'\xe8' + struct.pack('<i', stub - (va + 5))))
-    report['filled'] = f'{va:#x} -> {stub:#x}'
     return report
 
 
