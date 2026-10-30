@@ -4,7 +4,6 @@ import re
 import struct
 import sys
 import unittest
-from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / '.deps'))
 import capstone  # noqa: E402
@@ -52,7 +51,7 @@ class LabCopyTest(unittest.TestCase):
                 head = list(self.md.disasm(bytes(image.data[image.offset(cmp):image.offset(cmp) + 20]), cmp))[:3]
                 table = int(re.search(r'\+ (0x[0-9a-f]+)\]', head[2].op_str).group(1), 16)
                 bound = int(head[0].op_str.split(', ')[1], 16)
-                self.assertEqual(bound, routing.PET if switch['pet'] else routing.DELIA)
+                self.assertEqual(bound, routing.PET if switch['pet'] else routing.LAST)
                 self.assertEqual(self.entry(image, table, routing.DELIA), int(switch['delia_case'], 16))
                 case = int(switch['delia_case'], 16)
                 strings = [routing.read_string(image, int(v, 16))
@@ -94,7 +93,8 @@ class LabCopyTest(unittest.TestCase):
             moved = int(table['moved_to'], 16)
             ten = self.entry(image, moved, routing.DELIA)
             self.assertEqual(routing.read_string(image, ten) if ten else None, table['delia'])
-            self.assertTrue(all(self.entry(image, moved, i) == self.entry(image, moved, 0) for i in range(11, 32)))
+            self.assertTrue(all(self.entry(image, moved, i) == self.entry(image, moved, 0)
+                                for i in range(routing.LAST + 1, 32)))
         self.assertEqual(bytes(image.data[image.offset(0x405368C5):image.offset(0x405368C5) + 2]), b'\x6a\x1c')
 
     def test_local_player_setup_accepts_classes_below_the_pet(self):
@@ -109,7 +109,7 @@ class LabCopyTest(unittest.TestCase):
             delia_map = int(report['match_table']['map'], 16)
             self.assertEqual(struct.unpack_from('<IIIIHHHHI', image.data, image.offset(delia_map)),
                              (less, 0, 0, 0, 0xFFFF, 0, 0xFFFF, 0, 0))
-            self.assertEqual(bytes(image.data[image.offset(loop):image.offset(loop) + 3]), b'\x83\xf9\x0b')
+            self.assertEqual(bytes(image.data[image.offset(loop):image.offset(loop) + 3]), bytes((0x83, 0xF9, routing.LAST + 1)))
             for va, size, register in ((lookup, len(routing.MATCH_LOOKUP), 'edi'), (pick, len(routing.MATCH_PICK), 'ebp')):
                 code = self.stub_code(image, va)
                 text = [f'{x.mnemonic} {x.op_str}' for x in code]
@@ -127,21 +127,27 @@ class LabCopyTest(unittest.TestCase):
                 jump = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
                 stub = int(jump.op_str, 16)
                 code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
-                    bytes(image.data[image.offset(stub):image.offset(stub) + 0x40]), stub)))
+                    bytes(image.data[image.offset(stub):image.offset(stub) + 0x80]), stub)))
                 text = [f'{x.mnemonic} {x.op_str}' for x in code]
-                self.assertEqual(text[0], f'cmp {register}, 0xa')
+                self.assertEqual(text[0], f'cmp {register}, {routing.LAST:#x}')
                 self.assertEqual(text[1], f'ja {default:#x}')
                 item = 'ecx' if base == 'ecx' else 'eax'
                 self.assertIn(f'mov al, byte ptr [{item} + {register} + 0x198]', text)
-                self.assertIn(f'mov al, byte ptr [{item} + {routing.DELIA_FLAG:#x}]', text)
-                self.assertEqual(text.count(f'ret {pop}'), 2)
-                self.assertEqual(text[-1], f'ret {pop}')
+                for extra in routing.EXTRA_CLASSES:  # each extra class reads its own item byte
+                    flag = routing.CLASS_FLAGS[extra.index]
+                    at = text.index(f'mov al, byte ptr [{item} + {flag:#x}]')
+                    self.assertEqual(text[at - 2], f'cmp {register}, {extra.index:#x}')
+                self.assertEqual(text.count(f'ret {pop}'), 1 + len(routing.EXTRA_CLASSES))
+                self.assertEqual(text[-1], f'jmp {default:#x}')
 
     def stub_code(self, image, va):
         jump = next(self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + 5]), va))
         stub = int(jump.op_str, 16)
-        return list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
-            bytes(image.data[image.offset(stub):image.offset(stub) + 0x80]), stub)))
+        code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3' and x.bytes != bytes(2), self.md.disasm(
+            bytes(image.data[image.offset(stub):image.offset(stub) + 0x200]), stub)))
+        # The stub ends at its last jmp or ret; what follows up to the padding is the next stub's data.
+        last = max(i for i, x in enumerate(code) if x.mnemonic in ('jmp', 'ret'))
+        return code[:last + 1]
 
     def test_tooltips_name_delia_from_flag_ten(self):
         image, report = self.plan('client.dll')
@@ -149,10 +155,12 @@ class LabCopyTest(unittest.TestCase):
         for _, _, join, old in routing.TOOLTIPS['client.dll']:
             code = self.stub_code(image, join)
             text = [f'{x.mnemonic} {x.op_str}' for x in code]
-            self.assertEqual(sum(f'{routing.DELIA_FLAG:#x}]' in t for t in text), 2)
+            for extra in routing.EXTRA_CLASSES:
+                self.assertEqual(sum(f'{routing.CLASS_FLAGS[extra.index]:#x}]' in t for t in text), 2)
             self.assertFalse(any('0x1a1]' in t for t in text))
             pushed = [int(x.op_str, 16) for x in code if x.mnemonic == 'push' and x.op_str.startswith('0x')]
-            self.assertEqual([routing.read_string(image, v) for v in pushed], ['#GameUI_Delia'])
+            self.assertEqual([routing.read_string(image, v) for v in pushed],
+                             [f'#GameUI_{extra.name}' for extra in routing.EXTRA_CLASSES])
             self.assertEqual(int(code[-1].op_str, 16), join + len(bytes.fromhex(old)))
 
     def test_precache_loads_delia_motion_models_first(self):
@@ -161,8 +169,10 @@ class LabCopyTest(unittest.TestCase):
         code = self.stub_code(image, entry)
         pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
                   if x.mnemonic == 'push' and x.op_str.startswith('0x') and int(x.op_str, 16) > 0xFFFF]
-        self.assertEqual(pushed, routing.DELIA_PRECACHE)
-        self.assertEqual(sum(f'call {precache_model:#x}' == f'{x.mnemonic} {x.op_str}' for x in code), len(routing.DELIA_PRECACHE))
+        models = [m for extra in routing.EXTRA_CLASSES for m in routing.precache_models(extra)]
+        self.assertEqual(pushed[:len(routing.DELIA_PRECACHE)], routing.DELIA_PRECACHE)
+        self.assertEqual(pushed, models)
+        self.assertEqual(sum(f'call {precache_model:#x}' == f'{x.mnemonic} {x.op_str}' for x in code), len(models))
         self.assertEqual(int(code[-1].op_str, 16), entry + len(bytes.fromhex(old)))
 
     def test_costume_sends_class_ten_to_the_shadow_column(self):
@@ -174,7 +184,7 @@ class LabCopyTest(unittest.TestCase):
             self.assertEqual(struct.unpack_from('<i', image.data, o + 0xF0)[0], -1)
             self.assertEqual(struct.unpack_from('<i', image.data, o + 0x2D0 + 11 * 40)[0], -1)
             self.assertEqual(struct.unpack_from('<i', image.data, o + 0xBB8)[0], -1)
-            self.assertEqual(bytes(image.data[image.offset(bound):image.offset(bound) + 3]), b'\x83\xfe\x0a')
+            self.assertEqual(bytes(image.data[image.offset(bound):image.offset(bound) + 3]), bytes((0x83, 0xFE, routing.LAST)))
             text = [f'{x.mnemonic} {x.op_str}' for x in self.stub_code(image, block)]
             self.assertIn(f'mov dword ptr [esp + 0x14], {shadow:#x}', text)
             self.assertEqual(text[-1], f'jmp {block + len(routing.COSTUME_BLOCK):#x}')
@@ -201,7 +211,7 @@ class LabCopyTest(unittest.TestCase):
     def test_server_costume_build_admits_class_ten(self):
         image, report = self.plan('server.dll')
         va = routing.COSTUME_GATE['server.dll']
-        self.assertEqual(bytes(image.data[image.offset(va):image.offset(va) + 3]), b'\x83\xf8\x0a')
+        self.assertEqual(bytes(image.data[image.offset(va):image.offset(va) + 3]), bytes((0x83, 0xF8, routing.LAST)))
 
     def test_class_name_lookup_knows_delia(self):
         for name in ('client.dll', 'server.dll'):
@@ -211,7 +221,7 @@ class LabCopyTest(unittest.TestCase):
             text = [f'{x.mnemonic} {x.op_str}' for x in code]
             pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
                       if x.mnemonic == 'push' and x.op_str.startswith('0x')]
-            self.assertEqual(pushed, ['delia'])
+            self.assertEqual(pushed, [extra.key for extra in routing.EXTRA_CLASSES])
             self.assertIn(f'call {compare:#x}', text)
             self.assertIn('mov eax, 0xa', text)
             self.assertEqual(text[-1], f'jmp {entry + 5:#x}')
@@ -234,42 +244,64 @@ class LabCopyTest(unittest.TestCase):
         for slot in (figure_slot, *constant_slots):
             stub = self.entry(image, table, slot)
             code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
-                bytes(image.data[image.offset(stub):image.offset(stub) + 0x40]), stub)))
+                bytes(image.data[image.offset(stub):image.offset(stub) + 0x80]), stub)))
             text = [f'{x.mnemonic} {x.op_str}' for x in code]
             self.assertEqual(text[:2], [f'mov eax, dword ptr [ecx + {klass:#x}]', 'cmp eax, 0xa'])
             self.assertEqual(text[-1], f'jmp {self.entry(original, table, slot):#x}')
             if slot == figure_slot:
                 self.assertIn(f'call {gate:#x}', text)
                 loaded = [int(x.op_str.split(', ')[1], 16) for x in code if x.mnemonic == 'mov' and x.op_str.startswith('eax, 0x')]
-                self.assertEqual([routing.read_string(image, v) for v in loaded], ['csf/bodyshape_delia_default.fig'])
+                self.assertEqual([routing.read_string(image, v) for v in loaded],
+                                 [extra.figure for extra in routing.EXTRA_CLASSES])
             else:
-                address = int(re.search(r'\[(0x[0-9a-f]+)\]', next(t for t in text if t.startswith('fld'))).group(1), 16)
-                value = struct.unpack_from('<f', image.data, image.offset(address))[0]
-                self.assertAlmostEqual(value, routing.EXTRA_CLASSES[0].constants[constant_slots.index(slot)], places=5)
+                values = [struct.unpack_from('<f', image.data, image.offset(int(re.search(r'\[(0x[0-9a-f]+)\]', t).group(1), 16)))[0]
+                          for t in text if t.startswith('fld')]
+                expected = [extra.constants[constant_slots.index(slot)] for extra in routing.EXTRA_CLASSES]
+                for value, want in zip(values, expected, strict=True):
+                    self.assertAlmostEqual(value, want, places=5)
 
-    def test_a_second_extra_class_gets_its_own_entries(self):
-        miri = routing.ExtraClass(11, 'miri', 'hagie', 'female', 'csf/bodyshape_miri_default.fig', (0.9, 1.0), 3)
-        with mock.patch.multiple(routing, EXTRA_CLASSES=routing.EXTRA_CLASSES + (miri,), LAST=11):
-            for name in ('client.dll', 'server.dll'):
-                image, report = self.plan(name)
-                for switch in report['switches']:
-                    case = int(switch['cases'][11], 16)
-                    self.assertIn('miri', ' '.join(s.lower() for s in switch['strings']))
-                    cmp = int(switch['cmp'], 16)
-                    head = list(self.md.disasm(bytes(image.data[image.offset(cmp):image.offset(cmp) + 20]), cmp))[:3]
-                    table = int(re.search(r'\+ (0x[0-9a-f]+)\]', head[2].op_str).group(1), 16)
-                    self.assertEqual(self.entry(image, table, 11), case)
-                self.assertEqual(len(report['match_table']['maps']), 2)
-                self.assertEqual(len(report['costume']['shadows']), 2)
-                entry, _, _ = routing.CLASS_NAME[name]
-                code = self.stub_code(image, entry)
-                pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
-                          if x.mnemonic == 'push' and x.op_str.startswith('0x')]
-                self.assertEqual(pushed, ['delia', 'miri'])
-                if name == 'server.dll':
-                    moved = int(report['tables'][0]['moved_to'], 16)
-                    self.assertEqual(routing.read_string(image, self.entry(image, moved, 11)), 'csf/create_miri.csf')
-                    self.assertEqual(bytes(image.data[image.offset(routing.COSTUME_GATE[name]):][:3]), b'\x83\xf8\x0b')
+    def test_miri_gets_her_own_entries(self):
+        self.assertEqual([c.key for c in routing.EXTRA_CLASSES], ['delia', 'miri'])
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            for switch in report['switches']:
+                case = int(switch['cases'][11], 16)
+                self.assertIn('miri', ' '.join(s.lower() for s in switch['strings']))
+                cmp = int(switch['cmp'], 16)
+                head = list(self.md.disasm(bytes(image.data[image.offset(cmp):image.offset(cmp) + 20]), cmp))[:3]
+                table = int(re.search(r'\+ (0x[0-9a-f]+)\]', head[2].op_str).group(1), 16)
+                self.assertEqual(self.entry(image, table, 11), case)
+            self.assertEqual(len(report['match_table']['maps']), 2)
+            self.assertEqual(len(report['costume']['shadows']), 2)
+            entry, _, _ = routing.CLASS_NAME[name]
+            code = self.stub_code(image, entry)
+            pushed = [routing.read_string(image, int(x.op_str, 16)) for x in code
+                      if x.mnemonic == 'push' and x.op_str.startswith('0x')]
+            self.assertEqual(pushed, ['delia', 'miri'])
+            if name == 'server.dll':
+                moved = int(report['tables'][0]['moved_to'], 16)
+                self.assertEqual(routing.read_string(image, self.entry(image, moved, 11)), 'csf/create_miri.csf')
+                self.assertEqual(bytes(image.data[image.offset(routing.COSTUME_GATE[name]):][:3]), b'\x83\xf8\x0b')
+
+    def test_delia_mechanics_stay_on_delia(self):
+        # Guard, standing conditions and Delia's on-hit effects dispatch class 10 only: Miri falls
+        # through to the original methods (her own mechanics come with M7).
+        stubs = []
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            texts = list(report['guard']['slots']) if 'guard' in report else []
+            texts += list(report.get('client_guard', {}).get('slots', []))
+            texts += [report['class_conditions']['slot']]
+            if 'delia_effects' in report:
+                texts.append(report['delia_effects']['hit'])
+            for text in texts:
+                stub = int(text.rsplit('-> ', 1)[1], 16)
+                code = list(itertools.takewhile(lambda x: x.mnemonic != 'jmp', self.md.disasm(
+                    bytes(image.data[image.offset(stub):image.offset(stub) + 0x40]), stub)))
+                compares = [x.op_str for x in code if x.mnemonic == 'cmp']
+                self.assertEqual(compares, ['eax, 0xa'], text)
+                stubs.append(text)
+        self.assertGreaterEqual(len(stubs), 8)
 
     def test_skill_class_checks_admit_the_extra_classes(self):
         image, report = self.plan('client.dll')

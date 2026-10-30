@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '.deps'))
 import capstone  # noqa: E402
 
 from patch_class_table import Image, align, digest  # noqa: E402
-from patch_engine_class_flags import DELIA_FLAG  # noqa: E402
+from patch_engine_class_flags import CLASS_FLAGS, DELIA_FLAG  # noqa: E402
 from prepare_lab_client import PreparationError, reject_original  # noqa: E402
 
 SECTION = b'.hrte\0\0\0'
@@ -70,12 +70,20 @@ EXTRA_CLASSES = (
     # Server constants: NA Delia slots 240/241 (0.88/0.96, as the client) and 466 (92.0).
     ExtraClass(10, 'delia', 'hagie', 'female', 'csf/bodyshape_delia_default.fig', (0.88, 0.96), 3,
                weapons=('weapon_greatsword',), server_constants=(0.88, 0.96, 92.0)),
+    # Miri (NA class 11, Draker): the NA gives weapon_draker, the lab uses weapon_greatsword too
+    # (operator, 30/10/2026). Constants measured in the NA x64 entity (scripts/reverse/
+    # na_x64_miri_entity.py): client slots 190/191 0.865/0.945, server 240/241/466 0.865/0.945/92.0;
+    # three faces; her figure is NA bodyshape_fig_list.txt entry 107.
+    ExtraClass(11, 'miri', 'hagie', 'female', 'csf/bodyshape_miri_default.fig', (0.865, 0.945), 3,
+               weapons=('weapon_greatsword',), server_constants=(0.865, 0.945, 92.0)),
 )
-# Class 10 is the only extra class with an item "usable by" flag (engine.dll keeps bool[11] per
-# item; patch_engine_class_flags.py), so FLAG_CHECKS and TOOLTIPS stay on her.
+# Each extra class has an item "usable by" byte (patch_engine_class_flags.CLASS_FLAGS) that
+# FLAG_CHECKS, TOOLTIPS and ITEM_MASK read. Delia's own mechanics (GUARD, CLIENT_GUARD,
+# CLASS_CONDITIONS, DELIA_EFFECTS) run for her only (DELIA_MECHANICS).
 DELIA = 10
+DELIA_MECHANICS = (DELIA,)
 LAST = max(c.index for c in EXTRA_CLASSES)
-EXPECTED = {'client.dll': 'a9591d3a44a2b538', 'server.dll': 'af43431e78666783'}
+EXPECTED = {'client.dll': '0a0b866dcc0a1852', 'server.dll': 'c85a56d5b845810f'}
 # Switches: (VA of `cmp reg, imm8`, original bound, whether case 10 is the pet).
 SWITCHES = {
     'client.dll': (
@@ -567,6 +575,8 @@ def check_classes(classes: tuple[ExtraClass, ...]) -> None:
         raise PreparationError('Extra classes must be numbered 10, 11, ... below the pet.')
     if len({c.key for c in classes}) != len(classes) or any(c.clone_of not in OLD_CLASSES for c in classes):
         raise PreparationError('Extra classes need distinct keys and an older class to clone.')
+    if any(c.index not in CLASS_FLAGS for c in classes):
+        raise PreparationError('Every extra class needs an item byte in patch_engine_class_flags.CLASS_FLAGS.')
 
 
 DELIA_PRECACHE = precache_models(EXTRA_CLASSES[0])
@@ -787,63 +797,72 @@ def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
 
 def flag_check(layout: Layout, edits: list, va: int, old: str, register: str, base: str,
                default: int, pop: int) -> str:
-    """One FLAG_CHECKS stub: cmp reg, DELIA; ja default; al = DELIA_FLAG or flags[reg]; ret pop."""
+    """One FLAG_CHECKS stub: cmp reg, LAST; ja default; al = flags[reg] for classes 0-9, the class's
+    CLASS_FLAGS byte for an extra class; ret pop."""
     reg = {'eax': 0, 'ecx': 1}[register]
     item = 1 if base == 'ecx' else 0
     layout.pad()
     stub = layout.here()
-    layout.body += bytes((0x83, 0xF8 | reg, DELIA))
+    layout.body += bytes((0x83, 0xF8 | reg, LAST))
     layout.body += b'\x0f\x87' + struct.pack('<i', default - (layout.here() + 6))
     if base != 'ecx':
         layout.body += b'\x8b\x44\x24\x04'  # mov eax, [esp + 4]
-    delia = layout.forward(b'\x0f\x84')
+    layout.body += bytes((0x83, 0xF8 | reg, DELIA))
+    extra = layout.forward(b'\x0f\x83')  # jae: an extra class
     layout.body += bytes((0x8A, 0x84, (reg << 3) | item)) + struct.pack('<I', 0x198)  # mov al, [item + reg + 0x198]
     layout.body += b'\xc2' + struct.pack('<H', pop)
-    layout.land(delia)
-    layout.body += bytes((0x8A, 0x80 | item)) + struct.pack('<I', DELIA_FLAG)  # mov al, [item + DELIA_FLAG]
-    layout.body += b'\xc2' + struct.pack('<H', pop)
+    layout.land(extra)
+    for c in EXTRA_CLASSES:
+        layout.body += bytes((0x83, 0xF8 | reg, c.index))
+        other = layout.forward(b'\x0f\x85')
+        layout.body += bytes((0x8A, 0x80 | item)) + struct.pack('<I', CLASS_FLAGS[c.index])  # mov al, [item + flag]
+        layout.body += b'\xc2' + struct.pack('<H', pop)
+        layout.land(other)
+    layout.body += b'\xe9' + struct.pack('<i', default - (layout.here() + 5))
     edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
     return f'{va:#x} -> {stub:#x}'
 
 
 def tooltip(image: Image, layout: Layout, edits: list, relocs: set[int],
             start: int, end: int, join: int, old: str) -> str:
-    """One TOOLTIPS stub: the Hagie block for flag 10 and #GameUI_<class 10>, then the join."""
+    """One TOOLTIPS stub: a copy of the Hagie block per extra class (its CLASS_FLAGS byte and
+    #GameUI_<Name>), then the join."""
     replaced = bytes.fromhex(old)
     if any(join - 3 <= r < join + len(replaced) for r in relocs):
         raise PreparationError(f'Relocated dword inside the join {join:#x}; nothing is patched.')
     layout.pad()
-    name = layout.string(f'#GameUI_{EXTRA_CLASSES[0].name}')
+    names = {c.index: layout.string(f'#GameUI_{c.name}') for c in EXTRA_CLASSES}
     layout.pad()
     stub = layout.here()
-    skips, flags, named = [], 0, False
-    for ins in md.disasm(bytes(image.data[image.offset(start):image.offset(end)]), start):
-        raw = bytearray(image.data[image.offset(ins.address):image.offset(ins.address) + ins.size])
-        if ins.mnemonic == 'je':
-            layout.body += b'\x0f\x84'
-            skips.append(len(layout.body))
-            layout.body += bytes(4)
-        elif ins.mnemonic == 'call' and raw[0] == 0xE8:
-            layout.body += b'\xe8' + struct.pack('<i', int(ins.op_str, 16) - (layout.here() + 5))
-        elif ins.mnemonic == 'push' and ins.address + 1 in relocs:
-            if read_string(image, struct.unpack_from('<I', raw, 1)[0]) != '#GameUI_Hagie':
-                raise PreparationError(f'Unexpected string at {ins.address:#x}; nothing is patched.')
-            layout.body += b'\x68'
-            layout.pointer(name)
-            named = True
-        else:
-            if any(ins.address <= r < ins.address + ins.size for r in relocs):
-                raise PreparationError(f'Unexpected relocation at {ins.address:#x}; nothing is patched.')
-            at = raw.find(struct.pack('<I', 0x1A1))
-            if ins.mnemonic == 'cmp' and at > 0:
-                struct.pack_into('<I', raw, at, DELIA_FLAG)
-                flags += 1
-            layout.body += raw
-    if flags != 2 or not named or len(skips) != 2:
-        raise PreparationError(f'Unexpected Hagie block at {start:#x}; nothing is patched.')
-    tail = len(layout.body)
-    for at in skips:
-        struct.pack_into('<i', layout.body, at, tail - (at + 4))
+    for c in EXTRA_CLASSES:
+        skips, flags, named = [], 0, False
+        for ins in md.disasm(bytes(image.data[image.offset(start):image.offset(end)]), start):
+            raw = bytearray(image.data[image.offset(ins.address):image.offset(ins.address) + ins.size])
+            if ins.mnemonic == 'je':
+                layout.body += b'\x0f\x84'
+                skips.append(len(layout.body))
+                layout.body += bytes(4)
+            elif ins.mnemonic == 'call' and raw[0] == 0xE8:
+                layout.body += b'\xe8' + struct.pack('<i', int(ins.op_str, 16) - (layout.here() + 5))
+            elif ins.mnemonic == 'push' and ins.address + 1 in relocs:
+                if read_string(image, struct.unpack_from('<I', raw, 1)[0]) != '#GameUI_Hagie':
+                    raise PreparationError(f'Unexpected string at {ins.address:#x}; nothing is patched.')
+                layout.body += b'\x68'
+                layout.pointer(names[c.index])
+                named = True
+            else:
+                if any(ins.address <= r < ins.address + ins.size for r in relocs):
+                    raise PreparationError(f'Unexpected relocation at {ins.address:#x}; nothing is patched.')
+                at = raw.find(struct.pack('<I', 0x1A1))
+                if ins.mnemonic == 'cmp' and at > 0:
+                    struct.pack_into('<I', raw, at, CLASS_FLAGS[c.index])
+                    flags += 1
+                layout.body += raw
+        if flags != 2 or not named or len(skips) != 2:
+            raise PreparationError(f'Unexpected Hagie block at {start:#x}; nothing is patched.')
+        tail = len(layout.body)  # a class that is not allowed skips to the next copy
+        for at in skips:
+            struct.pack_into('<i', layout.body, at, tail - (at + 4))
     layout.body += replaced + b'\xe9' + struct.pack('<i', join + len(replaced) - (layout.here() + len(replaced) + 5))
     edits.append((join, replaced, b'\xe9' + struct.pack('<i', stub - (join + 5)) + b'\x90' * (len(replaced) - 5)))
     return f'{join:#x} -> {stub:#x}'
@@ -1200,9 +1219,9 @@ def guard_state(layout: Layout, forced_off: int | None, ended) -> tuple[int, int
 
 
 def class_dispatch(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, klass: int,
-                   slot: int, body: int) -> str:
-    """Point vtable `slot` of `name` at a stub that jumps to `body` for an extra class (m_iClass at
-    +klass) and to the original method otherwise."""
+                   slot: int, body: int, classes: tuple[int, ...] | None = None) -> str:
+    """Point vtable `slot` of `name` at a stub that jumps to `body` for the given extra classes (all of
+    them by default; m_iClass at +klass) and to the original method otherwise."""
     at = vtable(image, name) + 4 * slot
     if at not in relocs:
         raise PreparationError(f'{name} slot {slot} is not relocated; nothing is patched.')
@@ -1211,6 +1230,8 @@ def class_dispatch(image: Image, layout: Layout, edits: list, relocs: set[int], 
     stub = layout.here()
     layout.body += bytes((0x8B, 0x81)) + struct.pack('<I', klass)
     for extra in EXTRA_CLASSES:
+        if classes is not None and extra.index not in classes:
+            continue
         layout.body += bytes((0x83, 0xF8, extra.index))
         other = layout.forward(bytes((0x0F, 0x85)))
         layout.to(bytes((0xE9,)), body)
@@ -1288,7 +1309,7 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
     layout.body += bytes((0x5E, 0xC2, 0x04, 0x00))  # pop esi; ret 4
 
     def dispatch(slot: int, body: int) -> str:
-        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body, DELIA_MECHANICS)
 
     return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage),
             'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
@@ -1370,7 +1391,7 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
     layout.body += bytes((0x5F, 0x8B, 0xC6, 0x5E, 0x81, 0xC4, 0x90, 0, 0, 0, 0xC2, 0x04, 0x00))
 
     def dispatch(slot: int, body: int) -> str:
-        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body, DELIA_MECHANICS)
 
     return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage), 'base': hex(base),
             'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
@@ -1755,7 +1776,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     for at, (_, field, value) in zip(hits, commands):
         L.land(at)
         b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
-        b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f8c')
+        b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f85')  # Delia only
         b('8bc8')
         call(find_or_add)
         b('c640' + bytes((field, value)).hex())
@@ -1764,7 +1785,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     # PURGE_ALL_ARMOR: armour slots 4-8 broken without the costume rebuild
     L.land(purge)
     b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
-    b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f8c')
+    b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f85')  # Delia only
     b('56 57 53 8bf8 8b8f' + d32(k['armor']) + '85c9'); none = fwd('0f84')  # edi = entity; armour container
     b('8bcf')
     call(find_or_add)
@@ -1815,7 +1836,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.pad()
     restore = L.here()
     b('807c240800'); o1 = fwd('0f85')  # broken: original
-    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); o2 = fwd('0f8c')
+    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); o2 = fwd('0f85')  # Delia only
     b('8b442404 83f804'); o3 = fwd('0f8c')
     b('83f808'); o4 = fwd('0f8f')
     b('56 57 53 51 8bf0')  # esi = slot
@@ -1840,7 +1861,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     # player repair(rate) entry: with the armour system off, the kept parts come back (look only)
     L.pad()
     repair = L.here()
-    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); r1 = fwd('0f8c')
+    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); r1 = fwd('0f85')  # Delia only
     b('51')
     armor_on()
     b('59 84c0'); r2 = fwd('0f85')  # armour on: the un-break path restores
@@ -1902,7 +1923,8 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     return {'table': hex(table), 'tick': hex(tick), 'forfeit': hex(forfeit), 'register': hex(register),
             'events': hex(events), 'restore': hex(restore), 'repair': hex(repair),
             'factories': {n: hex(v) for n, v in factories.items()},
-            'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit),
+            'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit,
+                                  DELIA_MECHANICS),
             'on_hit': hex(on_hit)}
 
 
@@ -1933,15 +1955,18 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
         layout.to(bytes((0xE8,)), tick)
     layout.body += bytes((0x5E, 0xC3))  # pop esi; ret
     return {'think': hex(body), 'base': hex(base),
-            'slot': class_dispatch(image, layout, edits, relocs, entity, klass, think, body)}
+            'slot': class_dispatch(image, layout, edits, relocs, entity, klass, think, body, DELIA_MECHANICS)}
 
 
 def item_mask(layout: Layout, edits: list, va: int, old: bytes) -> str:
-    """ITEM_MASK: the item class mask also carries bit 10 (DELIA_FLAG)."""
+    """ITEM_MASK: the item class mask also carries each extra class's bit (its CLASS_FLAGS byte)."""
     layout.pad()
     stub = layout.here()
     layout.body += old[:-1]  # Hagie's bit as before, without the `ret`
-    layout.body += bytes((0x80, 0xB9)) + struct.pack('<I', DELIA_FLAG) + bytes.fromhex('00' '7405' '0500040000' 'c3')  # + Delia's bit
+    for c in EXTRA_CLASSES:  # cmp byte [ecx + flag], 0; je +5; add eax, 1 << class
+        layout.body += bytes((0x80, 0xB9)) + struct.pack('<I', CLASS_FLAGS[c.index]) + bytes.fromhex('00' '7405')
+        layout.body += b'\x05' + struct.pack('<I', 1 << c.index)
+    layout.body += b'\xc3'
     edits.append((va, old, bytes((0xE9,)) + struct.pack('<i', stub - (va + 5)) + bytes((0xCC,)) * (len(old) - 5)))
     return f'{va:#x} -> {stub:#x}'
 

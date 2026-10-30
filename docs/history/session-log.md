@@ -2728,3 +2728,11 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Parada (regra 2): a cópia nunca abriu com os 75 pacotes novos, os 21 scripts mesclados e o `engine.dll` novo; o roteamento da classe 11 (M5) depende de o cliente carregar essa base. Ação retomável: sessão de cliente MI1–MI3; depois M5 (entidade `player_miri` no NA x64, `ACTIVE_CLASSES` 12, `EXTRA_CLASSES`, grupos por `CLASS_FLAGS`, grupos da Delia restritos a ela).
 - Commits: (este passo)
 - Pendente / próxima ação: sessão de cliente C4 (MI1–MI3), depois Miri M5.
+
+## 2026-10-30 — Miri M5 (classe 11 roteada nos DLLs)
+- Feito: operador escolheu seguir com o M5 antes da sessão de cliente MI1–MI3. `scripts/reverse/na_x64_miri_entity.py` + `docs/evidence/client/na-x64-miri-entity.json` (fábrica, construtor e vtable da Miri no NA x64; constantes cliente 190/191 = 0.865/0.945, servidor 240/241/466 = 0.865/0.945/92.0, com a Delia conferindo 0.88/0.96/92.0); `patch_class_table.py` `ACTIVE_CLASSES` 12; `patch_class_routing.py`: Miri em `EXTRA_CLASSES`, `FLAG_CHECKS`/`TOOLTIPS`/`ITEM_MASK` por `CLASS_FLAGS`, `class_dispatch` com lista de classes e mecânicas da Delia só na classe 10 (`DELIA_MECHANICS`, quatro `jl` → `jne`), checagem de `CLASS_FLAGS` em `check_classes`; `EXPECTED` do roteamento e do `v169_class_uses.py` com os novos hashes; testes de roteamento generalizados, `test_miri_gets_her_own_entries` e `test_delia_mechanics_stay_on_delia`; roteiro MI4.
+- Verificação: `python -m unittest test_patch_class_routing test_patch_class_table test_patch_engine_class_flags` 44 OK, nenhum pulado (`.cache/verification/miri/m5-tests.log`); simulação e aplicação (`m5-routing-dry.log`, `m5-routing-apply.log`).
+- Aplicado com o jogo fechado: DLLs roteados só com a Delia guardados (`client.dll.973bf082fede76ff.pre-miri.bak`, `server.dll.c44e51a274da9ab0.pre-miri.bak`); `*.pre-hcls.bak` → `.hcls` de 12 classes (`client.dll` `0a0b866dcc0a1852`, `server.dll` `c85a56d5b845810f`, novos `*.pre-routing.bak`) → roteamento (`client.dll` `3db678f4f337b0c1`, `server.dll` `59bb33eb00d2ff03`); `engine.dll` `51ea90e70b93ad04` (M4).
+- Cliente: `docs/client-tests/C4-miri.md`, MI1–MI4 (pendentes).
+- Commits: (este passo)
+- Pendente / próxima ação: sessão de cliente C4 (MI1–MI4); em paralelo, Miri M7 (mecânicas próprias: transformação Dragon Knight, Dragon Smash, energia do dragão).

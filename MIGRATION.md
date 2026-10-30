@@ -18,7 +18,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Miri — parada (regra 2): sessão de cliente pelo `docs/client-tests/C4-miri.md` (MI1 não regressão com os pacotes e scripts mesclados, MI2 painel, MI3 `engine.dll` novo) antes de empilhar o roteamento nativo. Depois, M5 — medir a entidade `player_miri` no NA x64 (constantes 190/191/301 e 240/241/466, *slots*), depois `ACTIVE_CLASSES` 12, `EXTRA_CLASSES` com a Miri, `FLAG_CHECKS`/`TOOLTIPS`/`ITEM_MASK` por `CLASS_FLAGS` e grupos da Delia restritos a ela.
+2. Miri: sessão de cliente pelo `docs/client-tests/C4-miri.md` (MI1–MI4: não regressão, painel, `engine.dll`, Miri de laboratório na seleção e na cidade); em paralelo, M7 — mecânicas próprias (transformação Dragon Knight, Dragon Smash, energia do dragão) a partir das condições e comandos medidos no M0.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
@@ -30,7 +30,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
-| `docs/client-tests/C4-miri.md` | MI1 (não regressão depois dos pacotes e scripts da Miri), MI2 (painel) e MI3 (`engine.dll` novo) pendentes. |
+| `docs/client-tests/C4-miri.md` | MI1 (não regressão), MI2 (painel), MI3 (`engine.dll` novo) e MI4 (Miri de laboratório na seleção e na cidade) pendentes. |
 | `docs/client-tests/C3-criacao.md` | Grade, customização, Create → estalagem → cidade aceitos em 30/10; faltam volta à seleção com a personagem criada pela grade, G3 e G5. |
 
 Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 ou B2.6), usar consumível pela barra (B2.5).
@@ -83,7 +83,7 @@ Decisões pendentes:
 - Classes novas (`docs/future/new-classes.md`, `docs/future/delia-class-port.md`, skill `new-class-port`):
   - [x] Delia C2: classe 10 jogável (corpo, armas, guarda, condições, efeitos, Rose Crush, SP), aceita em 29/10.
   - [ ] Delia C3: criação pela grade do NA — falta volta à seleção, G3 e G5.
-  - [ ] Miri: M0 medição, M1 assets e scripts compartilhados na cópia (75 pacotes), M2 banco e textos, M3 criação e painel, M4 `engine.dll` feitos; falta o roteamento nativo (M5–M8) e o teste de cliente; decisões de 30/10 (assets do NA, todas as mecânicas, `weapon_greatsword`, modelos v44); próximos M1–M10.
+  - [ ] Miri: M0 medição, M1 assets e scripts compartilhados na cópia (75 pacotes), M2 banco e textos, M3 criação e painel, M4 `engine.dll`, M5 classe 11 roteada feitos; faltam mecânicas (M7), grade (M8) e o teste de cliente; decisões de 30/10 (assets do NA, todas as mecânicas, `weapon_greatsword`, modelos v44); próximos M1–M10.
 - Recursos futuros do painel (`docs/playable-game-roadmap.md`, seção "Recursos futuros do painel"):
   - [x] Editor de itens (corte 1 aceito; I2 no cliente pendente).
   - [x] Busca por categoria, editor de refino/scrolls, progressão até um nível (inclui história principal; P3 no cliente pendente).

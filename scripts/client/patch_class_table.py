@@ -28,8 +28,8 @@ CLASSES = (('Lethita', 1), ('Fiona', 2), ('Evy', 2), ('Kalok', 3), ('Kay', 1), (
            ('Lynn', 2), ('Arisha', 2), ('Hagie', 1), ('Delia', 2), ('Miri', 2), ('Grimden', 4), ('Miul', 2),
            ('Bel', 2), ('Lethor', 2), ('Kael', 1), ('Tessa', 2), ('Danah', 2), ('Letty', 2), ('Latiya', 2),
            ('Czern', 2), ('Achel', 1), ('Sou', 1), ('Sanyaa', 2), ('Neamhain', 2), ('Calia', 2), ('Lumielle', 2))
-# Classes the accessors accept: the ten of the 1.69 client and Delia.
-ACTIVE_CLASSES = 11
+# Classes the accessors accept: the ten of the 1.69 client, Delia and Miri.
+ACTIVE_CLASSES = 12
 PAIRS, NAMES, STRINGS = 0, 0x100, 0x180
 
 # Per DLL: (VA, opcode prefix, original table VA, field) for pair loads, (VA, original bound,

@@ -18,7 +18,7 @@ Convenções iguais às da Delia: `client.dll` base `0x38000000`, `server.dll` l
 - **Volume**: todos os itens do NA com a Miri (3,8 GB preparados, 1,27 GiB em pacotes), inclusive os inners de 2021–2026 que usam texturas da pasta da Fiona (escolha do operador entre "sem inners de outra pasta", "tudo" e "só o núcleo").
 
 ### Estado
-- M0 (medição), M1 (assets e scripts compartilhados na cópia), M2 (banco e textos), M3 (dados de criação e painel) e M4 (`engine.dll`: byte de item da classe 11) feitos. Nenhum teste de cliente; MI1–MI3 pendentes em `docs/client-tests/C4-miri.md`. Falta o roteamento da classe 11 nos DLLs (M5–M8): sem ele o cliente 1.69 não carrega a Miri.
+- M0 (medição), M1 (assets e scripts compartilhados na cópia), M2 (banco e textos), M3 (dados de criação e painel), M4 (`engine.dll`: byte de item da classe 11) e M5 (classe 11 roteada nos DLLs) feitos. Nenhum teste de cliente; MI1–MI4 pendentes em `docs/client-tests/C4-miri.md`. Faltam as mecânicas próprias (M7) e a grade de criação (M8).
 
 ---
 
@@ -90,6 +90,13 @@ Tokens dos scripts da Miri do NA ausentes nos DLLs 1.69 (`m0-tokens.log`; "1.69 
 - Varredura estática (`.cache/verification/miri/m4-scan-1ce.log`): nenhum acesso a `+0x1ce` no `client.dll` nem no `server.dll` originais; no `engine.dll`, quatro acessos de 16 bits numa função de outro objeto (comparações de *float*, campos `+0x28`/`+0x30`, `0x420fa5f0`), não no registro de item. Conferência ao vivo pendente (MI3, `lab_memory.py`).
 - Ponto de partida do M5 (busca de bytes em `.cache/bin_x64`): cliente `player_miri` (deslocamento de arquivo 28.334.088), `C_HeroesPlayerMiri` (28.333.984), `miri_endure_latch_time`, `miri_dragon_energy`, `miri_dragon_hit_knight`; servidor `player_miri` (17.880.016), `CHeroesPlayerMiri` (17.879.960), `miri_dragon_transform`, `miri_dragon_knight`, `miri_dragon_mark`, `miri_guard`. A fábrica, o construtor e a vtable saem daí como no `na_x64_delia_entity.py`.
 - Aplicado na cópia com o jogo fechado: `engine.dll` `d25a6e285421d9d0` (patch da Delia) → `51ea90e70b93ad04`, a partir de `a3add9742f7fa03c`; *stub* em `0x430d5000`. `patch_class_routing.py` continua lendo `DELIA_FLAG` (= `CLASS_FLAGS[10]`); `FLAG_CHECKS`, `TOOLTIPS` e `ITEM_MASK` passam a ler `CLASS_FLAGS` no M5.
+
+### 2.11 Classe 11 nos DLLs (M5)
+- Entidade no NA x64 (`scripts/reverse/na_x64_miri_entity.py`; JSON local em `docs/evidence/client/na-x64-miri-entity.json`, fora do Git): cliente — `player_miri` registrado em `0x53db2` (tamanho `0x8a00`, criador `0xb19400` → construtor `0xb19170`, base `0xabeb50` como a Delia, vtable `0x1b06c58`, 538 *slots*, 31 trocados); servidor — objeto de fábrica `0x16c8a80` (vtable `0x110ebb8`), criação `0x739bf0` com o construtor embutido (base `0x692630`, vtable `0x110d3e8`, objeto `0xc3e8`, 752 *slots*, 40 trocados). Constantes: cliente 190/191 = 0.865/0.945, servidor 240/241/466 = 0.865/0.945/92.0 (a Delia confere 0.88/0.96/92.0); o *slot* 301 é genérico (`BodyShapeModify`) e a figura segue a convenção: `csf/bodyshape_miri_default.fig` (entrada 107). Três rostos.
+- `patch_class_table.py`: `ACTIVE_CLASSES` 12, reaplicado a partir dos `*.pre-hcls.bak` (`client.dll` `0a0b866dcc0a1852`, `server.dll` `c85a56d5b845810f` antes do roteamento; `EXPECTED` do roteamento e do `v169_class_uses.py` atualizados).
+- `patch_class_routing.py`: `ExtraClass(11, 'miri', 'hagie', 'female', 'csf/bodyshape_miri_default.fig', (0.865, 0.945), 3, weapons=('weapon_greatsword',), server_constants=(0.865, 0.945, 92.0))`. `FLAG_CHECKS` (um byte por classe, `cmp reg, LAST`), `TOOLTIPS` (uma cópia do bloco da Hagie por classe, com `#GameUI_<Classe>`) e `ITEM_MASK` (um bit por classe) leem `CLASS_FLAGS`; `class_dispatch` recebe a lista de classes, e guarda, guarda do cliente, condições por *frame* e os efeitos da Delia (`DELIA_MECHANICS`) ficam só na classe 10, inclusive os quatro testes `cmp classe, 10` dos efeitos (agora `jne`). Os demais grupos já seguem a tabela.
+- Testes: os de roteamento passaram a valer para todas as classes extras; `test_miri_gets_her_own_entries` substitui a Miri fictícia; `test_delia_mechanics_stay_on_delia` prova que os *stubs* de guarda/condições/efeitos comparam só com 10.
+- Aplicado com o jogo fechado: `client.dll` `3db678f4f337b0c1`, `server.dll` `59bb33eb00d2ff03` (DLLs anteriores, roteados só com a Delia, guardados como `*.pre-miri.bak`).
 
 ---
 
