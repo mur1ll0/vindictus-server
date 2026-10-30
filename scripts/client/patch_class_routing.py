@@ -2150,8 +2150,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     back_event, prologue_off = layout.string('CharacterCreation_Back'), layout.string('sv_prologue_mode 0')
     back_label = layout.string('Back')
     show_label, button = layout.string('OnShow'), layout.string('CreateCharacterDialog.Button_Back._visible')
-    moves = {t: layout.string(t) for t in ('CreateCharacterDialog.Button_BasicShape._x', 'CreateCharacterDialog.Button_Complete._x',
-                                           '125', '199')}
+    shown = layout.string('true')
     layout.pad()
     back = layout.here()
     command(0x1C, prologue_off)
@@ -2199,19 +2198,15 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.land(tab)
     feature()
     hidden = layout.forward(b'\x0f\x84')
+    # UI manager vt+0x1c sets a variable from TEXT (the 1.69 passes the result of vt+0x14, a string:
+    # 0x3828d24a, 0x3826dc35); the boolean entry vt+0x18 left the button hidden (C3-7). The 1.69
+    # layout already places Button_Back between Button_BasicShape (x 7) and Button_Complete (x 204).
     layout.to(b'\xe8', k['ui'])
-    layout.body += b'\x8b\x10' + b'\x6a\x01' + b'\x8b\xc8' + b'\x68'
+    layout.body += b'\x8b\x10' + b'\x68'
+    layout.pointer(shown)
+    layout.body += b'\x8b\xc8' + b'\x68'
     layout.pointer(button)
-    layout.body += b'\xff\x52\x18'
-    for name, x in (('CreateCharacterDialog.Button_BasicShape._x', '125'), ('CreateCharacterDialog.Button_Complete._x', '199')):
-        # The V3 layout's room for the button. UI manager vt+0x1c sets a variable from TEXT (the 1.69
-        # passes a string, as DyeDialog.selectedTab at 0x3828d256); an integer crashed shaderapidx9.
-        layout.to(b'\xe8', k['ui'])
-        layout.body += b'\x8b\x10' + b'\x68'
-        layout.pointer(moves[x])
-        layout.body += b'\x8b\xc8' + b'\x68'
-        layout.pointer(moves[name])
-        layout.body += b'\xff\x52\x1c'
+    layout.body += b'\xff\x52\x1c'
     layout.land(original)
     layout.land(hidden)
     layout.to(b'\xe9', k['dialog_rest'])
