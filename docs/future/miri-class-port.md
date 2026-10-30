@@ -17,7 +17,7 @@ Convenções iguais às da Delia: `client.dll` base `0x38000000`, `server.dll` l
 - **Painel admin**: compatível com a classe nova.
 
 ### Estado
-- M0 (medição) feito. Nada aplicado na cópia de laboratório ainda. Nenhum teste de cliente.
+- M0 (medição) e M1a (conversor de modelos) feitos. Nada aplicado na cópia de laboratório ainda. Nenhum teste de cliente.
 
 ---
 
@@ -50,6 +50,16 @@ Tokens dos scripts da Miri do NA ausentes nos DLLs 1.69 (`m0-tokens.log`; "1.69 
 3. Ataques SP de Paladin/DarkKnight (`SP_*`), remoção de modelos de efeito da habilidade segurada.
 4. Eventos visuais `AE_*` usados pela Miri: medir quais mudam o que o jogador vê antes de portar.
 5. Condições compartilhadas com a Delia: os grupos `GUARD`, `CLIENT_GUARD`, `CLASS_CONDITIONS` e `DELIA_EFFECTS` despacham toda classe extra; restringir à Delia antes de pôr a Miri (skill, armadilha 9).
+
+### 2.5 Entrega no cliente (medido no M1)
+- `models/`, `materials/` e `scripts/` só são lidos de pacotes `.hfs` listados no índice (`docs/future/game-launcher.md` 2.3); pacotes novos e pastas novas funcionam com o índice regravado (L0-f, L0-g). O nome do pacote vem da pasta e da parte (`hfs.pack_name`).
+- O 1.69 usa várias partes por pasta (324 de 1.924 pastas; `models/player/fiona` tem 14), em geral de ~5 MB, e há pacotes de até 207 MB. A Miri entra em pacotes novos, partes seguintes às existentes, de até ~48 MiB, para não passar de 14 partes por pasta.
+- Scripts compartilhados que citam a Miri no NA (`.cache/verification/miri/m1-shared-na.txt`, 61): 21 existem no 1.69 e recebem só os trechos da Miri (`player_costume.txt` 651 linhas, `game_sounds_heroes_weapons.txt` 104, `game_sounds_heroes_player.txt` 94, `projectile.txt` 83, `action_table_player.txt` 59, `item_data.txt` 17, `face_layer.txt` 14, `skill_actionstate_match_table.txt` 13, `translated_spskill.txt` 6, entre outros); 40 são novos no NA (relacionamento, *quickchat*, `new_character_info.txt`, armas de outras classes) e só entram se a Miri precisar.
+- A única autoridade sobre o índice e os pacotes da cópia é `scripts/client/apply_lab_content_additions.py` (reconstrói a partir dos *backups* a cada execução); a Miri entra por ele, não por um segundo gravador.
+
+### 2.6 Conversor `.mdl` v45 → v44 (M1a)
+- `scripts/client/mdl_v45_to_v44.py`: remove o bloco de 260 bytes, desloca os índices do cabeçalho até `bonetablebynameindex` (`+364`), as tabelas de *strings* absolutas (`cdtexture`, nomes de nós) e o `baseptr` das sequências e animações (passo achado pelo próprio `baseptr`, limitado pela seção seguinte). De `+368` em diante o cabeçalho do Vindictus tem campos próprios (marca `SCAL` em `+388`), iguais nas duas versões, que ficam como estão.
+- Validação (`.cache/verification/miri/m1-validate.log`): 692 pares NA v45 × 1.69 v44 convertidos sem erro; nos 165 de mesma estrutura o cabeçalho convertido é idêntico ao do 1.69; 5 corpos com uma palavra diferente de exatamente 260 são ruído de `float` em ossos. Os 504 `.mdl` v45 da Miri/Draker convertem sem erro.
 
 ---
 

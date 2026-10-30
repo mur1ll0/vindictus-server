@@ -2692,3 +2692,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: (este passo)
 - Pendente / próxima ação: Miri M1 — conversor `.mdl` v45→v44 e cópia dos assets do NA para `.cache/play-client`.
+
+## 2026-10-30 — Miri M1a (conversor de modelos v45 → v44)
+- Feito: `scripts/client/mdl_v45_to_v44.py` e `test_mdl_v45_to_v44.py`; `docs/future/miri-class-port.md` 2.5 (entrega por pacotes: partes por pasta, scripts compartilhados) e 2.6 (conversor).
+- Verificação: `python -m unittest test_mdl_v45_to_v44` 4 OK (`.cache/verification/miri/m1-unittest.log`); validação contra 692 pares NA v45 × 1.69 v44: 0 falhas, 165 de mesma estrutura com cabeçalho idêntico, 5 diferenças de 260 explicadas por ruído de `float` em ossos; 504 `.mdl` v45 da Miri/Draker convertidos sem erro (`m1-validate.log`). Medido também: 324 pastas do 1.69 com várias partes (até 14), pacotes de ~5 MB a 207 MB; 61 scripts do NA citam a Miri sem ter o nome dela (21 existem no 1.69).
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M1b — preparar os assets da Miri do NA (modelos convertidos, scripts mesclados) e entregá-los por `apply_lab_content_additions.py`.
