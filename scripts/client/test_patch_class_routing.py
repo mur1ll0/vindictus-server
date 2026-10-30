@@ -645,7 +645,7 @@ class LabCopyTest(unittest.TestCase):
         state, name, handler = (self.entry(image, copy + 12 * count, i) for i in range(3))
         self.assertEqual((state, routing.read_string(image, name)), (routing.CREATION_STATE, 'CharacterCreation_Back'))
         self.assertIn(f'mov eax, {k["grid_state"]}', [f'{x.mnemonic} {x.op_str}' for x in self.code(image, handler, 0x20)])
-        dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0xc0)
+        dialog = self.code(image, int(grid['dialog'].split('-> ')[1], 16), 0x100)
         self.assertIn('CreateCharacterDialog.Button_Back._visible', self.strings(image, dialog))
         self.assertIn(f'jmp {k["dialog_rest"]:#x}', [f'{x.mnemonic} {x.op_str}' for x in dialog])
         # SelectTab. (sent after the movie's onShow) also shows the button: both short jumps of the
@@ -666,6 +666,14 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual([f'{x.mnemonic} {x.op_str}' for x in self.code(image, body, 11)][-1],
                          f'jmp {k["enter"][0] + 6:#x}')
 
+    def test_server_spawn_knows_extra_class_keys(self):
+        image, report = self.plan('server.dll')
+        table = next(t for t in report['tables'] if t['table'] == hex(0x40CFA1B0))
+        self.assertEqual(table['delia'], 'delia')
+        for va, _, new in routing.SERVER_CLASS_BOUNDS['server.dll']:
+            got = bytes(image.data[image.offset(va):image.offset(va) + len(new(routing.LAST))])
+            self.assertEqual(got, new(routing.LAST))
+
     def test_creation_grid_server_registers_the_scene_commands(self):
         image, report = self.plan('server.dll')
         k, grid = routing.CREATION_GRID['server.dll'], report['creation_grid']
@@ -675,13 +683,6 @@ class LabCopyTest(unittest.TestCase):
         # ConCommand(name, callback, help = name, ...) for each command, in order.
         self.assertEqual([s for s in self.strings(image, init) if s],
                          ['npc_character_create'] * 2 + ['npc_character_create_select'] * 2)
-        # The base-player fallback gives player_<key> of an extra class its m_iClass.
-        fallback = self.code(image, int(grid['fallback'].split('-> ')[1], 16), 0x60)
-        ops = [f'{x.mnemonic} {x.op_str}' for x in fallback]
-        for extra in routing.EXTRA_CLASSES:
-            self.assertIn(f'player_{extra.key}', self.strings(image, fallback))
-            self.assertIn(f'mov dword ptr [eax + {k["player_class"]:#x}], {extra.index:#x}', ops)
-        self.assertIn(f'jmp {k["fallback_rest"]:#x}', ops)
         for va, _ in k['activity']:
             self.assertEqual(routing.read_string(image, self.entry(image, va + 1, 0)), 'ACT_CHARACTER_CREATION_SELECTED_S3')
         choose = self.code(image, int(grid['npc_character_create_select'], 16), 0x800)

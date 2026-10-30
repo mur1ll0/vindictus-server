@@ -105,6 +105,10 @@ TABLES = {
         (0x40CF1F80, 'models/player/_anim/{body}/{key}/pc_{key}_town_motion.mdl'),
         (0x40CF1FA8, 'models/player/_anim/{body}/{key}/pc_{key}_battle_motion.mdl'),
         (0x40CF1FD0, 'models/player/_anim/{body}/{key}/pc_{key}_battle_motion_ex.mdl'),
+        # Player spawn matches cl_playerclass against these keys (0x4055a320, bound in
+        # SERVER_CLASS_BOUNDS) and sets class 0 when none matches: a Delia created by the class grid
+        # (no town character data yet) spawned as Lethita in the customization (C3).
+        (0x40CFA1B0, '{key}'),
     ),
     # Class name and initial read through 0x388e6ac0/0x388e6ae0 (bounded below by CLASS_STRING_BOUNDS);
     # the skill window passes the name to SkillDialog.setClassInfo, whose movie has Delia's frames
@@ -116,6 +120,13 @@ TABLES = {
 }
 # `cmp eax, 9` of the two client accessors above (`ja` to an empty string); the bound becomes LAST.
 CLASS_STRING_BOUNDS = {'client.dll': (0x388E6AC4, 0x388E6AE4)}
+# Server class bounds: (VA, original bytes, replacement from LAST). The spawn's key loop
+# (`cmp esi, 0xa`) and CHeroesPlayer::SetClass (0x4055a190: `cmp eax, 9` ... `mov ebx, 9`, the cap).
+SERVER_CLASS_BOUNDS = {'server.dll': (
+    (0x4055A336, '83fe0a', lambda last: bytes((0x83, 0xFE, last + 1))),
+    (0x4055A194, '83f809', lambda last: bytes((0x83, 0xF8, last))),
+    (0x4055A19E, 'bb09000000', lambda last: b'\xbb' + struct.pack('<I', last)),
+)}
 # The client entity every extra class gets (the server falls back to "player", CHeroesPlayer)
 # and the methods its own class entity overrides in the NA:
 # * slot 264 returns the body figure (csf/bodyshape_<class>_default.fig). Hagie's (0x3870d1d0)
@@ -499,14 +510,6 @@ CREATION_GRID = {
         # leans, Lynn stands on nothing) and Hagie's and Delia's town motions lack it (T-pose); all
         # eleven have the NA's ACT_CHARACTER_CREATION_SELECTED_S3, so the slot takes that name.
         'activity': ((0x4040F034, '68f00fb340'), (0x4040F03F, '68f00fb340')),
-        # The local player is built as player_<cl_playerclass>; an extra class has no factory and
-        # falls back to the base "player" (0x40371313, see FALLBACK_PUSH), whose m_iClass stays 0:
-        # the customization showed Lethita for Delia (town reads the class from the character).
-        # After the fallback, `player_<key>` of an extra class gets its index.
-        'fallback': (0x40371313, '57685880a440e892ee1b0083c408'),  # push edi; push "player"; call; add esp, 8
-        'fallback_rest': 0x40371321,
-        'stricmp': 0x40994755,
-        'player_class': 0x1400,          # CHeroesPlayer m_iClass
         # point_teleport origin/angles in lobby_beautyshop_change.bsp (NA reads the same entities).
         'select': ((-64.0, 0.0, 0.0), (0.0, 180.0, 0.0)),
         'nonselect': ((-16.0, 276.0, 152.0), (0.0, 0.0, 0.0)),
@@ -2147,6 +2150,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     back_event, prologue_off = layout.string('CharacterCreation_Back'), layout.string('sv_prologue_mode 0')
     back_label = layout.string('Back')
     show_label, button = layout.string('OnShow'), layout.string('CreateCharacterDialog.Button_Back._visible')
+    moves = {t: layout.string(t) for t in ('CreateCharacterDialog.Button_BasicShape._x', 'CreateCharacterDialog.Button_Complete._x')}
     layout.pad()
     back = layout.here()
     command(0x1C, prologue_off)
@@ -2198,6 +2202,11 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     layout.body += b'\x8b\x10' + b'\x6a\x01' + b'\x8b\xc8' + b'\x68'
     layout.pointer(button)
     layout.body += b'\xff\x52\x18'
+    for name, x in (('CreateCharacterDialog.Button_BasicShape._x', 125), ('CreateCharacterDialog.Button_Complete._x', 199)):
+        layout.to(b'\xe8', k['ui'])  # the V3 layout's room for the button (UI manager vt+0x1c, set integer)
+        layout.body += b'\x8b\x10' + b'\x68' + struct.pack('<I', x) + b'\x8b\xc8' + b'\x68'
+        layout.pointer(moves[name])
+        layout.body += b'\xff\x52\x1c'
     layout.land(original)
     layout.land(hidden)
     layout.to(b'\xe9', k['dialog_rest'])
@@ -2206,7 +2215,7 @@ def creation_client(image: Image, layout: Layout, edits: list, relocs: set[int],
     return report
 
 
-def creation_server(layout: Layout, edits: list, k: dict, class_hook: bool = True) -> dict:
+def creation_server(layout: Layout, edits: list, k: dict) -> dict:
     """CREATION_GRID, server: `npc_character_create` (every actor to the non-select point) and
     `npc_character_create_select <class>` (that actor to the select point, the others away)."""
     names = creation_names()
@@ -2305,38 +2314,8 @@ def creation_server(layout: Layout, edits: list, k: dict, class_hook: bool = Tru
     layout.pointer(struct.unpack_from('<I', old_bytes, 1)[0])
     layout.to(b'\xe9', k['init_rest'])
     edits.append((va, old_bytes, b'\xe9' + struct.pack('<i', stub - (va + 5))))
-    report = {'init': f'{va:#x} -> {stub:#x}', 'npc_character_create': hex(create_callback),
-              'npc_character_create_select': hex(choose_callback), 'commands': [hex(o) for o in objects]}
-    if not class_hook:
-        return report
-
-    # Base-player fallback: the "player_<key>" text (the caller's buffer, [esp + 8]) names the class.
-    va, old = k['fallback']
-    old_bytes = bytes.fromhex(old)
-    keys = [(extra.index, layout.string(f'player_{extra.key}')) for extra in EXTRA_CLASSES]
-    layout.pad()
-    stub = layout.here()
-    layout.body += b'\x57' + b'\x68'
-    layout.pointer(struct.unpack_from('<I', old_bytes, 2)[0])
-    layout.to(b'\xe8', va + 6 + 5 + struct.unpack_from('<i', old_bytes, 7)[0])
-    layout.body += b'\x83\xc4\x08' + b'\x85\xc0'
-    none = layout.forward(b'\x0f\x84')
-    layout.body += b'\x50'
-    for index, name in keys:
-        layout.body += b'\x8d\x4c\x24\x0c' + b'\x68'
-        layout.pointer(name)
-        layout.body += b'\x51'
-        layout.to(b'\xe8', k['stricmp'])
-        layout.body += b'\x83\xc4\x08' + b'\x85\xc0'
-        other = layout.forward(b'\x0f\x85')
-        layout.body += b'\x8b\x04\x24' + b'\xc7\x80' + struct.pack('<II', k['player_class'], index)
-        layout.land(other)
-    layout.body += b'\x58'
-    layout.land(none)
-    layout.to(b'\xe9', k['fallback_rest'])
-    edits.append((va, old_bytes, b'\xe9' + struct.pack('<i', stub - (va + 5)) + b'\xcc' * (len(old_bytes) - 5)))
-    report['fallback'] = f'{va:#x} -> {stub:#x}'
-    return report
+    return {'init': f'{va:#x} -> {stub:#x}', 'npc_character_create': hex(create_callback),
+            'npc_character_create_select': hex(choose_callback), 'commands': [hex(o) for o in objects]}
 
 
 def file_va(image: Image, at: int) -> int:
@@ -2505,6 +2484,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
 
     for va in CLASS_STRING_BOUNDS.get(name, ()):
         edits.append((va, b'\x83\xf8\x09', b'\x83\xf8' + bytes((LAST,))))
+    for va, old, new in SERVER_CLASS_BOUNDS.get(name, ()):
+        edits.append((va, bytes.fromhex(old), new(LAST)))
     if name in BITS:
         edits.append((BITS[name], b'\x6a\x0a', bytes((0x6A, PET))))
         report['bits'] = f'm_iClass nBits log2(10)+1 -> log2({PET})+1'
@@ -2568,8 +2549,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name == 'client.dll':
         report['creation_grid'] = creation_client(image, layout, edits, relocs, CREATION_GRID[name])
     elif name == 'server.dll':
-        # The diagnostic fallback entity rewrites the same push; it keeps the factory it names.
-        report['creation_grid'] = creation_server(layout, edits, CREATION_GRID[name], class_hook=not fallback)
+        report['creation_grid'] = creation_server(layout, edits, CREATION_GRID[name])
     if fallback and name == 'server.dll':
         report['fallback_entity'] = fallback_entity(image, edits, fallback)
 

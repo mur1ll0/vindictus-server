@@ -2486,3 +2486,11 @@ Passo C3-5 (30/10/2026): classe da Delia no jogador da customização; botão de
 - Verificação: `test_creation_grid_*` ampliados, OK (`.cache/verification/c3/tests-6.log`; relocação e `fallback_entity` OK na rodada anterior). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3e.log`): `client.dll` `66e3d7bc…`, `server.dll` `f89f28c5…`.
 - Decisão do operador (30/10/2026, "Keep the NA flow"): a grade segue o NA e vai direto à customização, sem o tutorial (prólogo, Bell Tower) que o fluxo antigo do 1.69 fazia antes dela.
 - Próxima ação: repetir G3–G5 do C3 com a Delia.
+
+Passo C3-6 (30/10/2026): chave da classe no nascimento do jogador; espaço do botão de voltar.
+- Relato do operador (C3, quinta rodada): modelo masculino no lugar da Delia; sem botão de voltar.
+- Leitura de memória (jogo aberto na customização): jogador `CHeroesPlayer` (a queda para `player` acontecia), `m_iClass` 0 no servidor (`+0x1400`) e no cliente (`+0x18ec`).
+- Causa: no nascimento o `server.dll` compara o `cl_playerclass` com as 10 chaves de `0x40cfa1b0` (`0x4055a320`, laço `cmp esi, 0xa`) e chama `SetClass(0)` quando nenhuma bate; o `SetClass` (`0x4055a190`) ainda corta em 9. O gancho de queda do passo C3-5 era sobrescrito por esse caminho e foi retirado.
+- Mudança: `TABLES['server.dll']` ganha a tabela de chaves (`delia` na posição 10); `SERVER_CLASS_BOUNDS`: laço até `LAST + 1`, corte do `SetClass` em `LAST`. No cliente, ao mostrar o `Button_Back`, o diálogo também move `Button_BasicShape._x` = 125 e `Button_Complete._x` = 199 (o arranjo V3 do filme; o botão ficava embaixo deles), com o *set* inteiro do gerenciador de UI (vt+0x1c).
+- Verificação: `test_server_spawn_knows_extra_class_keys` (novo), `test_creation_grid_*`, `test_server_tables_have_delia_at_ten_and_no_null_after_her`, `test_fallback_entity_is_opt_in`, `test_every_new_pointer_is_relocated`, OK (`.cache/verification/c3/tests-7.log`, `tests-8.log`). Aplicado com o jogo fechado (`.cache/verification/c3/class-routing-apply-c3f.log`): `client.dll` `87ccfda5…`, `server.dll` `c44e51a2…`.
+- Próxima ação: repetir G3–G5 do C3 com a Delia.
