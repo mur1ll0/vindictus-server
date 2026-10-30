@@ -2637,3 +2637,11 @@ Passo C3-23 (30/10/2026): o byte de prólogo só na estalagem (WASD e poses da c
 - Resultado do operador (30/10/2026): "Funciona completamente agora" — customização (Action 5 + nome sem girar, poses sem fila) e Create → estalagem → "Go to town" → cidade. `docs/future/delia-class-port.md` atualizado (4.5 itens 14–16, 4.5.1 fluxo completo, seção 9 com o inventário de arquivos, DLLs, conteúdo da cópia e o que veio do NA).
 - Pendentes no roteiro C3: volta à seleção com a personagem criada pela grade, G3 e G5.
 - Próxima ação: skill de porte de classe a partir de `docs/future/delia-class-port.md` (nova sessão, pedido do operador).
+
+Skill de porte de classe `new-class-port` (30/10/2026, pedido do operador).
+- Mudança: `.agents/skills/new-class-port/SKILL.md` (quando usar, limites, procedimento em 11 passos, armadilhas, registro, checklist de aceite) e `references/` (`procedimento.md`, `armadilhas.md`, `registro-e-aceite.md`, `fontes-e-ferramentas.md`); proveniência em `docs/skills.md`. Aponta para `docs/future/delia-class-port.md` como exemplo completo.
+- Achado registrado na skill (leitura de `patch_class_routing.py`): `GUARD`, `CLIENT_GUARD`, `CLASS_CONDITIONS` e `DELIA_EFFECTS` despacham toda classe extra (≥ 10) para o comportamento da Delia (`class_dispatch`, `cmp classe, 10; jl`); `FLAG_CHECKS`, `TOOLTIPS`, `ITEM_MASK` e `CONDITIONS` estão presos à classe 10. Para a Miri: restringir ou parametrizar esses grupos, subir `ACTIVE_CLASSES` (muda o *hash* da `.hcls` e o `EXPECTED` do roteamento) e achar espaço para o *flag* de item da classe 11 (o *tail* do `engine.dll` está cheio).
+- Verificação: só documentação; nenhum código ou teste mudou.
+- Cliente: não necessário.
+- Pendentes do C3 da Delia: volta à seleção com a personagem criada pela grade, G3 e G5.
+- Próxima ação: decisão do operador sobre a Miri (cópia de assets do NA, escopo das mecânicas, arma, caminho da grade); depois o passo 0 da skill (medição).
