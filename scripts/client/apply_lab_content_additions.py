@@ -291,7 +291,8 @@ def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -
 # Class scripts in a folder the 1.69 already has go into the 1.69's own (last) pack of that folder: the
 # client did not read them from a new part of the folder (C4 MI6: no key of the Miri's action-state,
 # expression or keyword scripts reached memory, while her new folders and the merged scripts load).
-INJECTED_PREFIXES = ('scripts/',)
+# The Draker's chain material (M7f) joins the 1.69's cable pack the same way, for the same doubt.
+INJECTED_PREFIXES = ('scripts/', 'materials/cable/')
 
 
 def injected_packs(plain: bytes, files: list[tuple[str, Path, str]],

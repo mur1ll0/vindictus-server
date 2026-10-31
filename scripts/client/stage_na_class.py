@@ -137,6 +137,11 @@ def jump_donor(path: str, data: bytes, known=lambda p: False) -> str | None:
     return donor
 
 
+# Files the NA's native code of a weapon names, which no name selection finds: the Draker's chain
+# cable (C_WeaponDraker, ported in patch_class_routing.py CHAIN).
+NATIVE_ASSETS = {'draker': ('materials/cable/heroes_metalchain_05.vmt',)}
+
+
 # Battle rest sequences in which the NA hangs the Draker from the chain on the left arm (C_WeaponDraker:
 # draker_chain.mdl and a cable to the weapon's chain_01, native code the 1.69 lacks): without the chain
 # the weapon floated beside her (C4 MI8). Until the chain is ported, the copied _ex keeps the weapon in
@@ -195,7 +200,8 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
     na = game_files(na_root)
     lab = set(game_files(lab_root))
     names = (class_name, weapon)
-    queue = sorted(p for p in na if selected(p, names) and p not in lab)
+    queue = sorted({p for p in na if selected(p, names) and p not in lab}
+                   | {p for p in NATIVE_ASSETS.get(weapon, ()) if p in na and p not in lab})
     records: dict[str, dict] = {}
     missing: set[str] = set()
     while queue:

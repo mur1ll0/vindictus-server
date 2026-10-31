@@ -94,6 +94,18 @@ class StageTest(unittest.TestCase):
         self.assertTrue(record['converted'])
         self.assertEqual((self.out / record['path']).read_bytes(), v44)
 
+    def test_assets_named_by_the_weapon_native_code_are_staged(self):
+        cable = stage.NATIVE_ASSETS['draker'][0]
+        (self.na / cable).parent.mkdir(parents=True, exist_ok=True)
+        (self.na / cable).write_bytes(b'"UnlitGeneric" { "$basetexture" "cable/heroes_metalchain_05" }')
+        (self.na / 'materials/cable/heroes_metalchain_05.vtf').write_bytes(b'VTF\0')
+        (self.na / 'materials/cable/heroes_metalchain_04.vmt').write_bytes(b'"UnlitGeneric" { }')
+        paths = {f['path'] for f in stage.stage('miri', 'draker', self.na, self.lab, self.out)['files']}
+        self.assertIn(cable, paths)
+        self.assertIn('materials/cable/heroes_metalchain_05.vtf', paths)
+        self.assertNotIn('materials/cable/heroes_metalchain_04.vmt', paths)
+        self.assertNotIn(cable, {f['path'] for f in stage.stage('miri', 'other', self.na, self.lab, self.out / 'b')['files']})
+
     def test_names_are_checked(self):
         with self.assertRaises(stage.StageError):
             stage.stage('../x', 'draker', self.na, self.lab, self.out)

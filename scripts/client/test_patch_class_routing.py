@@ -503,9 +503,9 @@ class LabCopyTest(unittest.TestCase):
             base = self.entry(original, routing.vtable(original, entity), think)
             stub = self.entry(image, routing.vtable(image, entity), think)
             body = int(report['class_conditions']['think'], 16)
-            head = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:5]
-            self.assertEqual(head[3], f'jmp {body:#x}')
-            self.assertEqual(head[4], f'jmp {base:#x}')
+            head = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 48]), stub)][:8]
+            self.assertEqual(head[1:4], ['cmp eax, 0xa', head[2], f'jmp {body:#x}'])
+            self.assertIn(f'jmp {base:#x}', head)
             text = [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
                 lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(body):image.offset(body) + 0x40]), body))]
             self.assertEqual(text[2], f'call {base:#x}')
@@ -513,13 +513,59 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'call {raise_:#x}', text)
             self.assertEqual(text[-1].strip(), 'ret')
 
+    def test_miri_think_keeps_the_draker_chain(self):
+        image, report = self.plan('client.dll')
+        think = routing.CLASS_CONDITIONS['client.dll'][0]
+        entity = routing.ENTITY_SLOTS['client.dll'][0]
+        original = Image(source('client.dll'))
+        base = self.entry(original, routing.vtable(original, entity), think)
+        stub = self.entry(image, routing.vtable(image, entity), think)
+        chain = report['class_conditions']['chain']
+        body, tick = int(chain['think'], 16), int(chain['tick'], 16)
+
+        def text(va, size):
+            return [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
+                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
+        head = text(stub, 48)
+        # Delia (10) keeps her conditions body; the Miri (11) gets the chain think; the rest the base.
+        self.assertEqual(head[4:7], ['cmp eax, 0xb', head[5], f'jmp {body:#x}'])
+        self.assertEqual(text(body, 32), ['push esi', 'mov esi, ecx', f'call {base:#x}', 'mov ecx, esi',
+                                          f'call {tick:#x}', 'pop esi', 'ret'])
+        k = routing.CHAIN['client.dll']
+        code = text(tick, 0x200)
+        self.assertEqual(code[-1], 'ret')
+        self.assertIn(f'lea ecx, [esi + {k["active_weapon"]:#x}]', code)
+        self.assertEqual(code.count(f'call {k["handle_get"]:#x}'), 2)
+        self.assertIn(f'call {k["remove"]:#x}', code)
+        self.assertIn(f'call dword ptr [eax + {k["lookup_attachment"]:#x}]', code)
+        # A point counts only above 0 (-1: model not loaded, and then the weapon is tried again).
+        self.assertEqual(sum(c.startswith('jg ') for c in code), 1 + len(routing.CHAIN_PLAYER_ATTACHMENTS))
+        self.assertIn('mov dword ptr [edi + 4], 0', code)
+        create = code.index(f'call {k["create"]:#x}')
+        # Create(weapon, player, chain_01, hand, width, material, segments, flags, slack, length, 0, 0)
+        pushes = code[create - 12:create]
+        self.assertEqual(pushes[-4:], ['push eax', 'push ebx', 'push esi', 'push ebp'])
+        self.assertEqual(pushes[:2], ['push 0', 'push 0'])
+        rope = routing.CHAIN_ROPE
+        floats = [struct.unpack('<f', struct.pack('<I', int(p.split()[1], 16)))[0] for p in (pushes[2], pushes[3], pushes[7])]
+        self.assertEqual([round(f, 3) for f in floats], [rope['length'], rope['slack'], rope['width']])
+        self.assertEqual(pushes[4:6], [f'push {rope["flags"]}', f'push {rope["segments"]:#x}'])
+        material = int(pushes[6].split()[1], 16)
+        self.assertEqual(routing.read_string(image, material), rope['material'])
+        self.assertEqual(code[create + 1:create + 3], ['add esp, 0x30', 'test eax, eax'])
+        self.assertIn(f'call {k["handle_set"]:#x}', code)
+        names = [routing.read_string(image, int(c.split()[1], 16)) for c in code if c.startswith('push 0x')]
+        self.assertEqual([n for n in names if n and 'chain' in n.lower() or n and n.startswith('anim_')],
+                         [routing.CHAIN_WEAPON_ATTACHMENT, *routing.CHAIN_PLAYER_ATTACHMENTS, rope['material']])
+        self.assertEqual(chain['classes'], [11])
+
     def test_delia_effects_register_types_commands_and_hooks(self):
         image, report = self.plan('server.dll')
         k = routing.DELIA_EFFECTS['server.dll']
         effects = report['delia_effects']
 
         def text(va, size):
-            return [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
+            return [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
                 lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
         hook = next(self.md.disasm(bytes(image.data[image.offset(k['hook']):image.offset(k['hook']) + 5]), k['hook']))
         self.assertEqual(f'{hook.mnemonic} {hook.op_str}', f'jmp {effects["register"]}')
