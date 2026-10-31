@@ -108,3 +108,18 @@ Resultado da MI5, rodada 2 (31/10/2026, 00:25, base 5000):
 - Cidade: as animações e ações da Miri funcionam, mas a Draker equipada não aparece. Na memória continua sem instância de `C_WeaponGreatSword`.
 - Barco: entrou sem travar. A Miri fica invisível, sem modelo, animação nem arma, com e sem a Draker equipada, mas se move. O modelo combinado `CoStUmE_11/0_90454/...` está na memória, e o inner 90454 existe no `player_costume.txt` mesclado.
 - Causa da arma: a regra exata da lista de armas (servidor `0x40823590`): 10000–19999 → posição 0, 20000–29999 → 1, outro valor → `CostumeType / 64`, no máximo 4. Base trocada para 10100. O corpo invisível no barco começou junto com a arma em posição vazia; repetir com a base 10100.
+
+Trava do barco, captura (31/10/2026, 01:07:43, `mi5e-trigger.txt`): nas pilhas de todas as *threads* aos 0, 3 e 8 s, a principal está no laço de espera da conexão (`engine.dll+0x3418f6`, que chama a rede e dorme 1 ms) e as *threads* de rede do `engine.dll` estão paradas em espera. Nenhuma está gerando a chave pública nem em biblioteca de criptografia. A camada ProudNet do cliente não reage ao *hint*. Acontece também com a Delia. As entradas que funcionaram vieram logo depois de voltar à seleção ou de abrir o jogo. Contorno para os testes: voltar à seleção antes de criar o barco. A causa fica para uma tarefa própria do *relay*.
+
+Resultado da MI5, rodada 3 (31/10/2026, 01:00–01:12, base 10100):
+- Cidade: ok. A Draker aparece nas costas, e as animações e ações da Miri funcionam.
+- Pulo na cidade (Delia e Miri): a arma vai para a mão no pulo e volta para as costas ao pousar, de modo estranho. Comparar com Hurk e Fiona (pendente).
+- Barco (01:11, depois de voltar à seleção): corpo visível, com e sem a Draker, mas só a *idle* de combate. WASD desliza a personagem; pulo, clique e Shift não fazem nada. Causa provável e correção no M7b, MI6.
+
+### MI6 — Estados de batalha da Miri (M7b)
+Pré-condição: jogo fechado durante `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (feitos por mim); `player_action_state_miri[_ex].txt` sem os `include` de `common_state_rope.txt` e `common_state_interactive_object.txt`. Antes do barco, voltar à seleção (contorno da trava do *relay*).
+- [ ] Barco sem arma: andar com animação, pular, atacar de mãos vazias.
+- [ ] Barco com a Draker: andar, correr, pular, ataque básico (clique) e esquiva (Shift).
+- [ ] Numa fase: combate contra monstros, ataque forte (botão direito) e uma habilidade da barra.
+- [ ] `DeliaLab` no barco: sem regressão.
+Limites conhecidos: as mecânicas próprias (transformação Dragon Knight, Dragon Smash, energia do dragão) e as condições do NA ainda não foram portadas. Se a Miri continuar só na *idle*, o próximo passo é registrar as condições (`CONDITION_NAMES`), como na Delia.

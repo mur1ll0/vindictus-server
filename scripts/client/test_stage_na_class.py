@@ -96,6 +96,18 @@ class StageTest(unittest.TestCase):
         with self.assertRaises(stage.StageError):
             stage.stage('../x', 'draker', self.na, self.lab, self.out)
 
+    def test_action_state_includes_the_lab_lacks_are_dropped(self):
+        script = (b'"PlayerActionState"\r\n{\r\n\t"Header"\r\n\t{\r\n'
+                  b'\t\t"include"\t"scripts/actionstate/common_state_movement.txt"\r\n'
+                  b'\t\t"include"\t"scripts/actionstate/common_state_rope.txt" // rope\r\n'
+                  b'\t\t"include_condition" "death_match scripts/actionstate/common_state_pvp.txt"\r\n\t}\r\n}\r\n')
+        known = {'scripts/actionstate/common_state_movement.txt'}.__contains__
+        out = stage.without_missing_includes('scripts/actionstate/player_action_state_miri.txt', script, known)
+        self.assertIn(b'common_state_movement.txt', out)
+        self.assertNotIn(b'common_state_rope.txt', out)
+        self.assertIn(b'"include_condition"', out)
+        self.assertEqual(stage.without_missing_includes('scripts/weapon_draker.txt', script, known), script)
+
 
 if __name__ == '__main__':
     unittest.main()

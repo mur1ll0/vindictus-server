@@ -87,6 +87,18 @@ def include_models(mdl: bytes) -> list[str]:
     return out
 
 
+SCRIPT_INCLUDE = re.compile(rb'^[ \t]*"include"[ \t]+"([^"\r\n]+)"[^\r\n]*(?:\r?\n|$)', re.M)
+
+
+def without_missing_includes(path: str, data: bytes, known=lambda p: False) -> bytes:
+    """An action-state script without the "include" lines of files that neither the 1.69 nor the staging
+    has (NA systems such as rope and interactive objects): the 1.69 loader drops the whole class file
+    when an include is missing, and the class stays in its idle pose in battle (MI5)."""
+    if not (path.startswith('scripts/actionstate/') and path.endswith('.txt')):
+        return data
+    return SCRIPT_INCLUDE.sub(lambda m: m.group(0) if known(m.group(1).decode('latin-1').lower()) else b'', data)
+
+
 def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
     """Game paths a staged model or material needs. A model's material is the first cdmaterials folder
     that has it, as the engine searches them (`known`: the path exists in the 1.69, the NA or the
@@ -125,6 +137,8 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         converted = mdl_v45_to_v44.is_v45(source)
         if converted:
             data = mdl_v45_to_v44.convert(source)
+        data = without_missing_includes(rel, data, lambda p: p in lab or (p in na and selected(p, names)))
+        converted = converted or data != source
         target = out / rel
         if not target.is_file() or sha256(target.read_bytes()) != sha256(data):
             target.parent.mkdir(parents=True, exist_ok=True)

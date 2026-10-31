@@ -2809,3 +2809,15 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: MI5, rodada 3, depois de reaplicar.
 - Commits: (este passo)
 - Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (base 10100); depois a MI5 (Draker visível; corpo no barco com e sem arma).
+
+## 2026-10-31 — Miri M7b (estados de batalha sem os `include` do NA ausentes no 1.69)
+- Feito:
+  - MI5, rodada 3: Draker visível nas costas na cidade (base 10100 ok). No barco, a Miri só na *idle*, deslizando com WASD, sem pulo, ataque nem Shift.
+  - `player_action_state_miri[_ex].txt` do NA incluem `common_state_rope.txt` e `common_state_interactive_object.txt`, ausentes no 1.69; nenhum arquivo de estado do 1.69 inclui arquivo inexistente.
+  - `stage_na_class.without_missing_includes` (preparação) tira essas linhas; teste `test_action_state_includes_the_lab_lacks_are_dropped`; Miri preparada de novo (4.331 arquivos, 506 convertidos = 504 modelos + 2 scripts).
+  - Trava do *relay*: capturas de falha (01:07, `mi5e-trigger.txt`) e de sucesso (01:11, `mi5f-trigger.txt`) passadas à sessão própria `local_4348e5ee`.
+  - Pulo na cidade com a arma indo para a mão (Delia e Miri): comparar com Hurk e Fiona.
+- Verificação: `test_stage_na_class` OK (`m7b-stage-tests.log`); preparação (`m7b-stage.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI6.
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`; MI6 (barco e fase com a Miri). Se continuar na *idle*: condições do NA (`CONDITION_NAMES`).
