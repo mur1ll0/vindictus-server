@@ -22,6 +22,42 @@ SECTIONS = {'INNERARMOR': 'inner_armor', 'HAIR': 'hair', 'FACE': 'face', 'HELM':
             'PANTS': 'lower_body', 'GLOVES': 'hand', 'BOOTS': 'foot'}
 
 
+# The 1.69 entity an imported class's weapon type uses (patch_class_routing.py EXTRA_CLASSES `weapons`):
+# the 1.69 has no weapon_draker, and a weapon entity takes its model from its own script's
+# SubTypeInfoOverride entry named by the item's EquipItemInfo.CostumeType. The class's NA subtypes
+# move there as WEAPON_SUBTYPE_BASE + n, above the 1.69 entries and the item editor's.
+LAB_WEAPON_ENTITY = {'draker': 'weapon_greatsword'}
+WEAPON_SUBTYPE_BASE = 20000
+
+
+def weapon_subtype(weapon: str, costume_type: int) -> int:
+    """The CostumeType an imported weapon item gets (its NA subtype moved into the lab entity)."""
+    return WEAPON_SUBTYPE_BASE + costume_type if weapon in LAB_WEAPON_ENTITY else costume_type
+
+
+def weapon_costumes(script: bytes, weapon: str) -> list[dict]:
+    """The NA weapon script's SubTypeInfoOverride models as entries of the lab entity's script
+    (section, key, normal), for apply_lab_content_additions.with_script_entries."""
+    entity = LAB_WEAPON_ENTITY.get(weapon)
+    if entity is None:
+        return []
+    found, stack = None, [kv_merge.parse(script)]
+    while stack and found is None:
+        node = stack.pop()
+        for child in node.children:
+            if child.block and child.key.lower() == 'subtypeinfooverride':
+                found = child
+                break
+            if child.block:
+                stack.append(child)
+    out = []
+    for entry in found.children if found else []:
+        model = next((leaf.value for leaf in entry.children if leaf.key.lower() == 'playermodel'), None)
+        if entry.block and re.fullmatch(r'\d{1,4}', entry.key) and model:
+            out.append({'section': entity, 'key': str(weapon_subtype(weapon, int(entry.key))), 'normal': model})
+    return out
+
+
 def section_keys(text: bytes) -> dict[str, set[str]]:
     return {s.key.lower(): {c.key for c in s.children if c.block} for s in kv_merge.parse(text).children if s.block}
 

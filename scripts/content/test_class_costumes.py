@@ -25,5 +25,25 @@ class CostumeRemapTest(unittest.TestCase):
         self.assertEqual(class_costumes.costume_remap(SOURCE, BASE, {}, ('miri',)), {})
 
 
+WEAPON = (b'WeaponData\r\n{\r\n\t"playermodel"\t"models/weapon/draker/draker_test.mdl"\r\n'
+          b'\t"SubTypeInfoOverride"\r\n\t{\r\n'
+          b'\t\t"0"\r\n\t\t{\r\n\t\t\t"viewmodel"\t"models/weapon/draker/draker_test.mdl"\r\n'
+          b'\t\t\t"playermodel"\t"models/weapon/draker/draker_test.mdl"\r\n\t\t}\r\n'
+          b'\t\t"1" // newbie\r\n\t\t{\r\n\t\t\t"viewmodel"\t"models/weapon/draker/draker_newbie.mdl"\r\n'
+          b'\t\t\t"playermodel"\t"models/weapon/draker/draker_newbie.mdl"\r\n\t\t}\r\n\t}\r\n}\r\n')
+
+
+class WeaponSubtypeTest(unittest.TestCase):
+    def test_class_subtypes_move_into_the_lab_entity_script(self):
+        self.assertEqual(class_costumes.weapon_costumes(WEAPON, 'draker'), [
+            {'section': 'weapon_greatsword', 'key': '20000', 'normal': 'models/weapon/draker/draker_test.mdl'},
+            {'section': 'weapon_greatsword', 'key': '20001', 'normal': 'models/weapon/draker/draker_newbie.mdl'}])
+        self.assertEqual(class_costumes.weapon_subtype('draker', 1), 20001)
+
+    def test_a_weapon_without_lab_entity_keeps_its_numbers(self):
+        self.assertEqual(class_costumes.weapon_costumes(WEAPON, 'blaster'), [])
+        self.assertEqual(class_costumes.weapon_subtype('blaster', 1), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -15,7 +15,7 @@ def make(path: Path, na: bool) -> None:
     extra = ', IconFG TEXT' if na else ''
     with closing(sqlite3.connect(path)) as db:
         db.execute(f'CREATE TABLE ItemClassInfo(ItemClass TEXT, Category TEXT, ClassRestriction {restriction}, MaxStack INT{extra})')
-        db.execute('CREATE TABLE EquipItemInfo(ItemClass TEXT, CostumeType INT, ATK INT)')
+        db.execute('CREATE TABLE EquipItemInfo(ItemClass TEXT, CostumeType INT, ATK INT, EquipClass TEXT)')
         db.execute('CREATE TABLE CustomizeItemInfo(ItemClass TEXT, IsCash, Feature TEXT, CashShopType TEXT)')
         db.execute("INSERT INTO CustomizeItemInfo VALUES(?, ?, ?, ?)",
                    ('draker_newbie', 1, 'enUS', 'en-US') if na else ('sword', 'False', None, 'en-EU'))
@@ -41,7 +41,8 @@ def make(path: Path, na: bool) -> None:
                 ('draker_newbie', 'WEAPON', 'miri', 1, 'fg'), ('miri_inner', 'INNERARMOR', 'miri', 1, None),
                 ('miri_tail', 'AVATAR_WEAPON', 'miri', 1, None), ('potion', 'POTION', 'all', 99, None),
                 ('dress', 'TUNIC', 'female(!miri)', 1, None), ('sword', 'WEAPON', 'fiona', 1, None)])
-            db.executemany('INSERT INTO EquipItemInfo VALUES(?,?,?)', [('draker_newbie', 0, 10), ('miri_inner', 9100, 0)])
+            db.executemany('INSERT INTO EquipItemInfo VALUES(?,?,?,?)', [('draker_newbie', 3, 10, 'DRAKER'),
+                                                                 ('miri_inner', 9100, 0, None)])
             db.execute("INSERT INTO SkillInfo VALUES('skill_miri_attack', 'miri')")
             db.execute("INSERT INTO SkillInfo VALUES('skill_fiona_attack', 'fiona')")
             db.execute("INSERT INTO SkillInfo VALUES('skill_defence_mastery', '!grimden')")
@@ -61,7 +62,7 @@ def make(path: Path, na: bool) -> None:
                 ('potion', 'POTION', 2047, 99), ('dress', 'TUNIC', 1446, 1), ('sword', 'WEAPON', 2, 1),
                 ('helm', 'HELM', 1024, 1), ('fiona_inner', 'INNERARMOR', 2, 1),
                 ('gold', 'POTION', 2, 1)])
-            db.execute("INSERT INTO EquipItemInfo VALUES('sword', 0, 5)")
+            db.execute("INSERT INTO EquipItemInfo VALUES('sword', 0, 5, 'SWORD')")
             db.execute("INSERT INTO SkillInfo VALUES('skill_fiona_attack', 2)")
             # Every 1.69 class (0-10); the NA leaves Miri out of the second only.
             db.execute("INSERT INTO SkillInfo VALUES('skill_defence_mastery', 2047)")
@@ -105,7 +106,7 @@ class ClassImportsTest(unittest.TestCase):
             base = dict(db.execute('SELECT ItemClass, ClassRestriction FROM temp._class_base_ItemClassInfo'))
             self.assertEqual(base, {'potion': 4095, 'dress': 1446, 'sword': 2, 'helm': 1024, 'fiona_inner': 2, 'gold': 2})
             self.assertEqual(dict(db.execute('SELECT ItemClass, CostumeType FROM temp._imported_EquipItemInfo')),
-                             {'draker_newbie': 0, 'miri_inner': 9044})
+                             {'draker_newbie': 20003, 'miri_inner': 9044})
             features = db.execute('SELECT * FROM FeatureMatrix ORDER BY Feature').fetchall()
             self.assertIn(('Miri', '4.00.00', '4.00.00', '3.09.00', '3.09.00'), features)
             self.assertIn(('DressRankLimit_Miri', '100', '100', '100', '100'), features)

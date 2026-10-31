@@ -2771,3 +2771,20 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
   - Barco: abriu depois de o operador fechar o Firefox (1,8 GB); antes travava com Miri e Delia.
 - Commits: (este passo)
 - Pendente / próxima ação: Miri M7 (pedido do operador em 30/10: todas as armas, habilidades e animações): entidade `weapon_draker` (modelos do `weapon_draker.txt`), registro das condições e chaves de quadro do NA (Miri presa na *idle* em batalha), depois transformação Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 do C4 pendentes.
+
+## 2026-10-30 — Miri M7a (modelos Draker na `weapon_greatsword`) e diagnóstico da *idle* em batalha
+- Feito:
+  - Pedido do operador ("implemente o que faltou da Miri: todas as armas, habilidades e animações").
+  - Arma: o modelo vem do `SubTypeInfoOverride` do script da entidade, pelo `CostumeType`. O 1.69 procura o subtipo por nome (`itoa` + `FindKey`, servidor `0x40319e07`), sem limite.
+  - `class_costumes.LAB_WEAPON_ENTITY`/`WEAPON_SUBTYPE_BASE` (20000), `weapon_costumes`, `weapon_subtype`; `class_imports.converted` renumera o `CostumeType` dos itens `EquipClass DRAKER`; `apply_lab_content_additions.class_weapon_costumes` põe no `weapon_greatsword.txt` as 45 entradas do `weapon_draker.txt`.
+  - Diagnóstico estático da *idle*, sem causa encontrada:
+    - sequências pedidas pelos `common_state_*` do 1.69 presentes no modelo de batalha da Miri (faltam só pulo e duas de mapa, `m7-seqdiff.txt`);
+    - `PlayerAnimationExtension` monta nomes `%s_%s` que nenhuma classe usa;
+    - `TownAttachData` só existe no NA;
+    - as condições da Miri só aparecem em Dragon Smash e Dragon Knight;
+    - as chaves NA `multiplay_sequence`/`shared_id` estão em estados isolados;
+    - as tabelas de expressão têm a mesma estrutura das da Delia (`m7-keydiff.txt`).
+- Verificação: `scripts/content` OK, `test_apply_lab_content_additions` OK (`m7a-*-tests.log`); simulação do aplicador com 48 entradas (3 do editor de itens, 45 Draker; `m7a-apply-dry.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI5 (modelo Draker; experimento da *idle*: cidade, barco sem arma, barco com arma).
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M7: M7a (modelos Draker na `weapon_greatsword`, chaves 20000 + n) feito; com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`, depois a MI5 do `docs/client-tests/C4-miri.md` (modelo e experimento da *idle*: cidade, barco sem arma, barco com arma), que define o M7b. Em seguida: transformação Dragon Knight, Dragon Smash e energia do dragão.

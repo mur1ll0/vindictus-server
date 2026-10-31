@@ -18,7 +18,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Miri M7 (pedido do operador em 30/10: todas as armas, habilidades e animações): entidade `weapon_draker` (modelos do `weapon_draker.txt`), registro das condições e chaves de quadro do NA (Miri presa na *idle* em batalha), depois transformação Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 do C4 pendentes.
+2. Miri M7: M7a (modelos Draker na `weapon_greatsword`, chaves 20000 + n) feito; com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`, depois a MI5 do `docs/client-tests/C4-miri.md` (modelo e experimento da *idle*: cidade, barco sem arma, barco com arma), que define o M7b. Em seguida: transformação Dragon Knight, Dragon Smash e energia do dragão.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador

@@ -314,6 +314,9 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
         if table == 'EquipItemInfo' and remap and out.get('CostumeType') is not None:
             section = remap.get('_category', {}).get(out['ItemClass'])
             out['CostumeType'] = int(remap.get((section, str(out['CostumeType'])), out['CostumeType']))
+        if table == 'EquipItemInfo' and isinstance(out.get('CostumeType'), int) \
+                and str(out.get('EquipClass', '')).lower() == info['weapon']:
+            out['CostumeType'] = class_costumes.weapon_subtype(info['weapon'], out['CostumeType'])
         if template is not None:
             # The class's own feature holds the version that enables it: the Delia row's, which the
             # 1.69 client accepts (NA versions are 4.x). Other features (limits) keep the NA EN-US value.

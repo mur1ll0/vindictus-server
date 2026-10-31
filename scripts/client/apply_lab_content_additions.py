@@ -222,6 +222,18 @@ def class_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
     return sorted((path, file, sha) for path, (file, sha) in files.items())
 
 
+def class_weapon_costumes(assets: Path = ASSETS, imports: Path = content_additions.CLASS_IMPORTS) -> list[dict]:
+    """Model entries of each staged imported class's weapon script, renumbered into the lab entity's
+    script (class_costumes.LAB_WEAPON_ENTITY), the same numbers class_imports gives its items."""
+    out = []
+    for path in class_imports.load_imports(imports):
+        info = class_imports.read_meta(path)
+        script = assets / 'classes' / info['name'] / 'scripts' / f'weapon_{info["weapon"]}.txt'
+        if (assets / 'classes' / info['name'] / CLASS_MANIFEST).is_file() and script.is_file():
+            out += class_costumes.weapon_costumes(script.read_bytes(), info['weapon'])
+    return out
+
+
 def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]]]:
     """(game path, NA copy, class names) of each shared 1.69 script a staged class adds lines to."""
     merges = []
@@ -340,6 +352,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     previously_added = json.loads(added_list.read_text(encoding='utf-8')) if added_list.exists() else []
     entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
+    costumes += class_weapon_costumes(assets)
     class_files = class_asset_files(assets)
     class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
     if (not items and not entries and not class_files and not merges and not class_tokens

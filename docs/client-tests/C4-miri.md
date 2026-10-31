@@ -89,3 +89,13 @@ O operador foi direto à MI4. Evidência em `.cache/verification/miri/mi4-*` (lo
   - O cliente não manda a chave pública ao *relay*.
   - A memória baixa (até 2 GB) do jogo estava quase esgotada: 68–176 MB livres, pedaços de no máximo 15 MB (`mi4r2-memory-monitor.txt`). Desde o M1 o jogo usa ~2,0 GB de memória privada; antes eram 1,0–1,2 GB.
   - Com o Firefox fechado (1,8 GB), o barco abriu. Causa provável: pressão de memória da máquina somada ao volume de conteúdo da Miri. Não é defeito de protocolo.
+
+### MI5 — Modelos Draker e diagnóstico da *idle* em batalha (M7a)
+Pré-condição: jogo fechado durante `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (feitos por mim). Os itens Draker usam o `CostumeType` 20000 + n, e o `weapon_greatsword.txt` da cópia ganhou os 45 modelos do `weapon_draker.txt` do NA nessas chaves. Firefox fechado ou com pouca memória antes de criar o barco.
+- [ ] Cidade com a `MiriLab` e a `draker_newbie` equipada → o modelo é a Dragonspine de treino (não a *greatsword* de treino). Anotar onde a arma fica (mão, costas, solta).
+- [ ] Outro item Draker (se houver, pelo painel ou `lab-give-item.ps1`) → modelo próprio.
+- [ ] Na cidade, andar, correr e um emote com a Miri → anotar se ela anda ou fica na *idle*.
+- [ ] No barco, **sem arma** (tirar a Draker) → anotar se anda e ataca de mãos vazias.
+- [ ] No barco, com a Draker → anotar se anda, ataca ou fica na *idle* (com o horário, para a leitura de memória).
+- [ ] `DeliaLab` e uma Fiona: armas e combate como antes (a *greatsword* e a espada bastarda não mudam).
+Limites conhecidos: a entidade continua sendo `weapon_greatsword` (o 1.69 não tem `weapon_draker`), então o encaixe na mão segue o da *greatsword*. A Delia também usa `weapon_greatsword` com o `CostumeType` dos itens dela e pode mostrar modelos de *greatsword*; isso fica para um passo próprio.
