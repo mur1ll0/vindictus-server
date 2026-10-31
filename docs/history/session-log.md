@@ -2932,3 +2932,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI11 e MI12 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI12 no cliente; Flamebreath (energia de 8 níveis, recarga, gasto por `USE_DRAGON_ENERGY`) e o HUD `MiriSkillDialog.gfx`; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7h: medição de Flamebreath e do HUD
+- Feito: pedido do operador (HUD de Flamebreath, com captura de tela). `scripts/reverse/na_x64_miri_dragon_energy.py` (sondagem por strings nos DLLs x64 do NA). HUD: `MiriSkillDialog.gfx` (`SetGaugeLevel`, `ShowEffect`), GFX 9 como o 1.69, já nos pacotes; o 1.69 abre filmes pelo nome (`0x385f7ef0`, `+0x20`/`+0x10`). Energia no servidor NA: `word +0x1454` 0–8, `USE_DRAGON_ENERGY`, recarga 7 s (5/4 s transformada) por `expression_table_miri_common.txt`. Detalhes em `docs/future/miri-class-port.md` 2.11.
+- Verificação: sondagens `.cache/verification/miri/r2/de-*.log`; JSON local em `docs/evidence/client/` (fora do Git).
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: escolha do operador (Flamebreath simulado nos dois DLLs ou no servidor com rede); MI12 no cliente.

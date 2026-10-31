@@ -18,7 +18,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Miri: M7e (pulos, descanso na mão) e M7f (corrente da Draker no cliente: cabo de batalha mão→arma, cabo de cidade na própria arma, corrente do braço em *bonemerge*, escondidos junto com a arma; teste de cidade pelo estado do jogo, corrente do braço com *precache*), pulo de cidade da Fiona, conjuntos e maestria da Draker; M7g: golpes próprios da Miri no `_ex`, SP, Tab, E nos núcleos, corrente oculta na fonte termal aplicados; MI12 do C4 pendente no cliente. Próximo: Flamebreath (energia do dragão, 8 níveis) e o HUD `MiriSkillDialog.gfx`; depois Dragon Knight. MI1–MI3 pendentes.
+2. Miri: M7e (pulos, descanso na mão) e M7f (corrente da Draker no cliente: cabo de batalha mão→arma, cabo de cidade na própria arma, corrente do braço em *bonemerge*, escondidos junto com a arma; teste de cidade pelo estado do jogo, corrente do braço com *precache*), pulo de cidade da Fiona, conjuntos e maestria da Draker; M7g: golpes próprios da Miri no `_ex`, SP, Tab, E nos núcleos, corrente oculta na fonte termal aplicados; MI12 do C4 pendente no cliente. Próximo: Flamebreath (energia de 8 níveis, medida no NA) e o HUD `MiriSkillDialog.gfx` (abre pela interface de UI do 1.69); parada: escolha do operador entre simular nos dois DLLs ou servidor com rede; depois Dragon Knight. MI1–MI3 pendentes.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
