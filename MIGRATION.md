@@ -1,6 +1,6 @@
 # Migração Vindictus .NET → Rust — roadmap vivo
 
-Atualizado em 30/10/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
+Atualizado em 31/10/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
 
 ## Objetivo e critério de conclusão
 
@@ -18,14 +18,14 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Aguardando o operador: sessões de cliente pendentes (tabela abaixo) e a decisão sobre a Miri.
+2. Aguardando o operador: sessões de cliente pendentes (tabela abaixo) e a decisão sobre a Miri. Com o jogo fechado: aplicar `scripts/client/patch_engine_iocp_sign.py --client-copy .cache/play-client --apply` e rodar a RL1 do B2.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
 
 | Roteiro | Situação |
 |---|---|
-| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). |
+| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). RL1 (barco repetido sem trava, 31/10) pede o patch `patch_engine_iocp_sign.py` aplicado com o jogo fechado. |
 | `docs/client-tests/B3-equipamento.md` | Nenhuma entrada testada (inclui DY1, ampola de tintura). |
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
@@ -104,7 +104,7 @@ Marcar [x] só com evidência fresca da etapa inteira.
 - [ ] M16 inventário — parcial: B0/B1/B3; GetItemStat/conversões/rates incompletos.
 - [ ] M17 conteúdo — parcial: perfis SQLite exportados para o que B0–B4 usam.
 - [ ] M18 lobby/canais — parcial: cidade/movimento solo; grupos e chat não.
-- [ ] M19 transporte de batalha — parcial: relay ProudNet solo (B2).
+- [ ] M19 transporte de batalha — parcial: relay ProudNet solo (B2); trava do barco com memória alta corrigida no `engine.dll` do laboratório (RL1 no cliente pendente).
 - [ ] M20 MicroPlay — parcial: missão solo (B2), pendências acima.
 - [ ] M21 serviços adicionais — parcial: cash shop, armazenamento; postal, trade, guild, rank não.
 - [ ] M22 ferramentas operacionais — parcial: painel B4.
