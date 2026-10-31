@@ -422,13 +422,14 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # 14, 17, 35; memory, C4 MI10: Colhen 14, its port 17, the boat 23; the level name is no guide, `t01` in Colhen and
 # `lobby_multiplayer` on the boat) the cable joins the weapon's `chain_01` to its own `chain_town`
 # (10 segments, as NA's town cable) and nothing ties it to the hand; a weapon without `chain_town` gets
-# the battle cable. Each think shows the cable and the arm chain only while the weapon itself is drawn,
-# through the weapon's ShouldDraw (renderable vtable +0x0c; C_WeaponGreatSword 0x3881f640): it is false
-# while the owner is in the hot spring (byte +0x126e, read by the hot spring potion checks, C4 MI12)
-# and otherwise C_BaseCombatWeapon's (0x38051380), false under EF_NODRAW (0x20 of m_fEffects +0x7c),
-# which the weapon's visible/invisible events set (AE_CUSTOM_WEAPON_EVENT, 0x3874808a). The cable and
-# the arm chain get EF_NODRAW to match (AddEffects 0x380107f0, RemoveEffects 0x38018640), only when it
-# differs.
+# the battle cable. The cable and the arm chain exist only while the weapon itself is drawn, through the
+# weapon's ShouldDraw (renderable vtable +0x0c; C_WeaponGreatSword 0x3881f640): it is false while the
+# owner is in the hot spring (byte +0x126e, 1 there, memory C4 MI14) and otherwise C_BaseCombatWeapon's
+# (0x38051380), false under EF_NODRAW (0x20 of m_fEffects +0x7c), which the weapon's visible/invisible
+# events set (AE_CUSTOM_WEAPON_EVENT, 0x3874808a). A think that finds the weapon not drawn removes the
+# pair and forgets the weapon, so the next think that finds it drawn makes them again. Hiding the
+# cable with EF_NODRAW is not enough: C_RopeKeyframe's ShouldDraw (0x3853daf0) ignores its own flag
+# and hides only when its start entity has EF_NODRAW, so the cable stayed in the hot spring (C4 MI14).
 CHAIN = {'client.dll': {'think': 334, 'active_weapon': 0x1140, 'handle_get': 0x385519D0, 'handle_set': 0x38541370,
                         'remove': 0x38058370, 'create': 0x38540A30, 'lookup_attachment': 0x8C,
                         'new': 0x380528B0, 'animating': 0x380431F0, 'animating_size': 0xCA0,
@@ -2420,7 +2421,18 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     # ebp = active weapon, eax = live cable.
     layout.body += bytes((0x8D, 0x8E)) + struct.pack('<I', k['active_weapon'])  # lea ecx, [esi + m_hActiveWeapon]
     call(k['handle_get'])
-    layout.body += bytes((0x8B, 0xE8, 0x8D, 0x4F, 0x08))  # mov ebp, eax; lea ecx, [edi + 8]
+    layout.body += bytes((0x8B, 0xE8, 0x85, 0xED))  # mov ebp, eax; test ebp, ebp
+    weaponless = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8D, 0x4D, 0x04, 0x8B, 0x01, 0xFF, 0x50, k['should_draw']))  # lea ecx, [ebp + 4]; mov eax, [ecx]; call [eax + slot]
+    layout.body += bytes((0x84, 0xC0))  # test al, al
+    drawn = layout.forward(bytes((0x0F, 0x85)))
+    call(drop)  # the weapon is not drawn: no cable, no arm chain, weapon forgotten
+    set_dword(4, 0)
+    set_dword(12, 0)
+    hidden = layout.forward(bytes((0xE9,)))
+    layout.land(weaponless)
+    layout.land(drawn)
+    layout.body += bytes((0x8D, 0x4F, 0x08))  # lea ecx, [edi + 8]
     call(k['handle_get'])
     layout.body += bytes((0x3B, 0x6F, 0x04))  # cmp ebp, [edi + 4]
     changed = layout.forward(bytes((0x0F, 0x85)))
@@ -2513,31 +2525,7 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     call(k['follow'])
     layout.body += bytes((0x53, 0x8D, 0x4F, 0x10))  # push ebx; lea ecx, [edi + 16]
     call(k['handle_set'])
-    # Visibility: the cable and the arm chain are hidden while the weapon is not drawn (ebp = weapon,
-    # edi = entry): ebx = 0 when its ShouldDraw is true, EF_NODRAW when it is false.
-    for at in (alive, arm_alive, no_memory):
-        layout.land(at)
-    layout.body += bytes((0x85, 0xED))  # test ebp, ebp
-    no_sync = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0x8D, 0x4D, 0x04, 0x8B, 0x01, 0xFF, 0x50, k['should_draw']))  # lea ecx, [ebp + 4]; mov eax, [ecx]; call [eax + slot]
-    layout.body += bytes((0x33, 0xDB, 0x84, 0xC0, 0x75, 0x05, 0xBB)) + struct.pack('<I', EF_NODRAW)
-    # xor ebx, ebx; test al, al; jnz +5; mov ebx, EF_NODRAW
-    for disp in (8, 16):
-        layout.body += bytes((0x8D, 0x4F, disp))  # lea ecx, [edi + disp]
-        call(k['handle_get'])
-        layout.body += bytes((0x85, 0xC0))
-        absent = layout.forward(bytes((0x0F, 0x84)))
-        layout.body += bytes((0x8B, 0x50, k['effects'], 0x83, 0xE2, EF_NODRAW, 0x3B, 0xD3))  # mov edx, [eax + effects]; and edx, 0x20; cmp edx, ebx
-        same = layout.forward(bytes((0x0F, 0x84)))
-        layout.body += bytes((0x6A, EF_NODRAW, 0x8B, 0xC8, 0x85, 0xDB))  # push EF_NODRAW; mov ecx, eax; test ebx, ebx
-        show = layout.forward(bytes((0x0F, 0x84)))
-        call(k['add_effects'])
-        hidden = layout.forward(bytes((0xE9,)))
-        layout.land(show)
-        call(k['remove_effects'])
-        for at in (absent, same, hidden):
-            layout.land(at)
-    for at in (full, no_chain, no_weapon, no_point, unloaded, no_hand, no_sync):
+    for at in (alive, arm_alive, no_memory, full, no_chain, no_weapon, no_point, unloaded, no_hand, hidden):
         layout.land(at)
     layout.body += bytes((0x5D, 0x5F, 0x5E, 0x5B, 0xC3))  # pop ebp/edi/esi/ebx; ret
     return {'tick': hex(tick), 'drop': hex(drop), 'table': hex(table), 'entry': CHAIN_ENTRY, 'players': CHAIN_PLAYERS,

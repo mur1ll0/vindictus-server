@@ -190,6 +190,23 @@ class StageTest(unittest.TestCase):
                          {states: 'scripts/actionstate/player_action_state_miri.txt',
                           anim + 'pc_miri_motion_ex.txt': anim + 'pc_miri_motion.txt'})
 
+    def test_jump_activations_come_from_the_donor(self):
+        mine = (b'"battle_idle_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tBattleRun"\r\n}\r\n'
+                b'"battle_run_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpBegin"\r\n}\r\n'
+                b'"miri_only"\r\n{\r\n}\r\n')
+        donor = (b'"battle_idle_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpBegin"\r\n'
+                 b'\t"5"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpAttack"\r\n\t"$endframe$"\r\n\t{\r\n'
+                 b'\t\t"event"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpTown"\r\n\t}\r\n}\r\n'
+                 b'"battle_run_lower"\r\n{\r\n\t"3"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpBegin"\r\n}\r\n')
+        out, opened = stage.with_jump_activations(mine, donor)
+        self.assertEqual(opened, ['battle_idle_lower'])
+        idle = out[slice(*stage.event_blocks(out)['battle_idle_lower'])]
+        self.assertIn(b'\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpBegin"\r\n\t"5"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpAttack"\r\n}', idle)
+        self.assertNotIn(b'JumpTown', out)  # nested "event" lines are not taken
+        self.assertEqual(out[slice(*stage.event_blocks(out)['battle_run_lower'])],
+                         mine[slice(*stage.event_blocks(mine)['battle_run_lower'])])
+        self.assertEqual(stage.with_jump_activations(out, donor)[1], [])
+
     def test_the_sp_skill_section_takes_the_169_shape(self):
         na = (b'"delia"\r\n{\r\n\t"0"\r\n\t{\r\n\t\t"skill_delia_sp1" { "key" "IN_SPSKILL2" "id" "AttackSP01" }\r\n\t}\r\n}\r\n'
               b'"miri"\r\n{\r\n\t"0"\r\n\t{\r\n'

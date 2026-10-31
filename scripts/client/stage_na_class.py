@@ -195,6 +195,29 @@ def event_blocks(script: bytes) -> dict[str, tuple[int, int]]:
     return blocks
 
 
+JUMP_ACTIVATION = re.compile(rb'^[ \t]*"(?!event")[^"\r\n]*"[ \t]+"AE_ACTIVATE_STATE_CHANGE_CONDITION[ \t]+(Jump\w*)"[^\r\n]*(?:\r?\n)', re.M)
+
+
+def with_jump_activations(script: bytes, donor_script: bytes) -> tuple[bytes, list[str]]:
+    """The class's events script with the donor's jump activations (AE_ACTIVATE_STATE_CHANGE_CONDITION
+    Jump*) in each block both scripts have and the class's lacks: the NA had no jump, so the Miri's own
+    idle, run and rest never opened JumpBegin and Space did nothing in battle (C4 MI14)."""
+    mine, theirs = event_blocks(script), event_blocks(donor_script)
+    edits = []
+    for name, (start, end) in mine.items():
+        if name not in theirs:
+            continue
+        have = {m.group(1) for m in JUMP_ACTIVATION.finditer(script, start, end)}
+        lines = [m.group(0) for m in JUMP_ACTIVATION.finditer(donor_script, *theirs[name]) if m.group(1) not in have]
+        if lines:
+            close = script.rfind(b'}', start, end)
+            at = script.rfind(b'\n', start, close) + 1
+            edits.append((at, b''.join(lines), name))
+    for at, text, _ in sorted(edits, reverse=True):
+        script = script[:at] + text + script[at:]
+    return script, sorted(name for _, _, name in edits)
+
+
 def with_included_events(script: bytes, donor_script: bytes, sequences: set[str]) -> tuple[bytes, list[str]]:
     """The class's events script plus the donor's event blocks of `sequences` (the ones an included model
     supplies) that the script lacks: the engine plays an included sequence with the events of the
@@ -319,6 +342,11 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
             if donor:
                 included = ({q.lower() for q in mdl_anim.Model(lab_files[donor].read_bytes()).sequences}
                             - {q.lower() for q in mdl_anim.Model(data).sequences})
+                # the 1.69 keeps the town motion's events in the same _ex script (jump_town): without its
+                # block the Miri froze after a town jump until the map changed (C4 MI14)
+                town = rel.replace('_battle_motion_ex.mdl', '_town_motion.mdl')
+                if town in records:
+                    included |= {q.lower() for q in mdl_anim.Model((out / town).read_bytes()).sequences}
                 data = mdl_anim.with_included_model(data, donor)
                 record['included'] = donor
             (out / rel).write_bytes(data)
@@ -332,8 +360,10 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                 extra = {'copied_from': full}
                 donor_events = donor and donor.replace('_battle_motion_ex.mdl', '_motion_ex.txt')
                 if donor_events and script.endswith('_motion_ex.txt') and donor_events in lab_files:
-                    text, added = with_included_events(text, lab_files[donor_events].read_bytes(), included)
-                    extra.update({'events_from': donor_events, 'events_added': len(added)})
+                    donor_text = lab_files[donor_events].read_bytes()
+                    text, added = with_included_events(text, donor_text, included)
+                    text, opened = with_jump_activations(text, donor_text)
+                    extra.update({'events_from': donor_events, 'events_added': len(added), 'jump_activations': len(opened)})
                 (out / script).write_bytes(text)
                 records[script].update({'sha256': sha256(text), 'bytes': len(text), 'converted': True, **extra})
     merges = []

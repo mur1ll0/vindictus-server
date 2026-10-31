@@ -253,3 +253,18 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Fonte termal: entrar com a `MiriLab` e avisar, com o jogo aberto, para eu ler a memória (só leitura) enquanto a corrente aparece sem a arma.
 - [ ] SP: descrever o que está errado (não enche ao bater? enche devagar? a SP usada não volta?) e o valor de SP de uma SP da Miri na dica (custo).
 - [ ] Dano: no mesmo monstro (por exemplo um Goblin ou o White Tyrant), anotar os números de dano de 3–4 golpes da Miri (ataque normal e Smash) e, se puder, os da `DeliaLab` com ATK parecido; dizer se algum golpe não mostra número.
+
+Resultado parcial da MI14 (31/10/2026, `MiriLab`, leitura de memória ao vivo):
+- Fonte termal: só a corrente da arma aparece. Memória: o *byte* `+0x126e` do jogador vale 1 dentro (0 fora), o `ShouldDraw` da arma é falso; a arma é recriada ao entrar (mesmo endereço, série nova); o cabo tem `EF_NODRAW`, mas o `ShouldDraw` do `C_RopeKeyframe` ignora o próprio *flag* (só esconde com `EF_NODRAW` na entidade de início).
+- Pulo em batalha não sai: os eventos próprios da Miri (NA sem pulo) nunca abrem `JumpBegin`.
+- Pulo na cidade congela depois de cair até trocar de mapa: o 1.69 guarda os eventos do `jump_town` no mesmo roteiro `_ex`, e o dela não tinha o bloco.
+- HUD de Flamebreath, SP e dano: não testados nesta rodada.
+
+### MI15 — Corrente na fonte termal, pulos
+Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.py --apply` e o roteamento do `client.dll` refeito dos `*.pre-routing.bak` (feitos por mim; passo M7j).
+- [ ] Fonte termal: entrar → a corrente some com a arma; sair → a corrente volta.
+- [ ] Emote que esconde a arma na cidade → a corrente some e volta com a arma.
+- [ ] Cidade: pular parado e correndo várias vezes → cai e volta a andar normalmente, sem congelar.
+- [ ] Barco/fase: Espaço → pulo de batalha (subida, queda, aterrissagem) e volta ao combate; pulo depois de um ataque.
+- [ ] Barco/fase: o dragão de Flamebreath aparece e enche (itens da MI14).
+- [ ] SP e dano: as informações pedidas na MI14.

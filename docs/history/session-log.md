@@ -2953,3 +2953,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI12/MI13 e MI14 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI14 no cliente, com leitura de memória na fonte termal e números de SP e dano; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7j: corrente na fonte termal e pulos (C4 MI14 → MI15)
+- Feito: MI14 com leitura de memória na fonte termal (`+0x126e` = 1, arma recriada, cabo com `EF_NODRAW` ainda visível porque o `ShouldDraw` do `C_RopeKeyframe` `0x3853daf0` só olha a entidade de início). `patch_class_routing.chain`: o *tick* remove cabo e corrente do braço e esquece a arma enquanto o `ShouldDraw` dela é falso (sai o espelho de `EF_NODRAW`). `stage_na_class.with_jump_activations` (linhas `Jump*` da Delia nos blocos dela, 44) e blocos da Delia para as sequências do modelo de cidade dela (`jump_town`; 44 blocos no total).
+- Verificação: `test_stage_na_class` OK; `test_patch_class_routing -k draker/chain/flamebreath` OK (`.cache/verification/miri/r2/r4-*.log`). Aplicado com o jogo fechado: preparação (`r2/stage4.log`), `apply4.log`, roteamento (`routing-apply-r4.log`): `client.dll` `c3af6d198ea46c88` → `e59696d5d5c2a96a`, `server.dll` sem mudança `88924f0ea4df6f57` (anteriores em `*.pre-r4.bak`); no pacote: `jump_town` e `JumpBegin` no `battle_idle_lower`.
+- Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI14 e MI15 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI15 no cliente; números de SP e dano; depois Dragon Knight.

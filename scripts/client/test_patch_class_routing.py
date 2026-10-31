@@ -606,10 +606,10 @@ class LabCopyTest(unittest.TestCase):
         code = text(tick, 0x500)
         self.assertEqual(code[-1], 'ret')
         self.assertIn(f'lea ecx, [esi + {k["active_weapon"]:#x}]', code)
-        # Sweep (player handle), active weapon, cable, arm chain, and both again for the visibility.
-        self.assertEqual(code.count(f'call {k["handle_get"]:#x}'), 6)
+        # Sweep (player handle), active weapon, cable, arm chain.
+        self.assertEqual(code.count(f'call {k["handle_get"]:#x}'), 4)
         drop = int(chain['drop'], 16)
-        self.assertEqual(code.count(f'call {drop:#x}'), 3)
+        self.assertEqual(code.count(f'call {drop:#x}'), 4)
         dropped = text(drop, 0x60)
         self.assertEqual(dropped.count(f'call {k["remove"]:#x}'), 2)
         self.assertEqual([c for c in dropped if c.startswith('lea ecx')], ['lea ecx, [edi + 8]', 'lea ecx, [edi + 0x10]'])
@@ -675,14 +675,17 @@ class LabCopyTest(unittest.TestCase):
         image, report = self.plan('client.dll')
         chain = report['class_conditions']['chain']
         k = routing.CHAIN['client.dll']
-        tick = int(chain['tick'], 16)
+        tick, drop = int(chain['tick'], 16), int(chain['drop'], 16)
         code = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
             lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x500]), tick))]
-        start = code.index('test ebp, ebp', code.index(f'call {k["follow"]:#x}'))
-        sync = code[start:]
-        self.assertEqual(sync[2:9], ['lea ecx, [ebp + 4]', 'mov eax, dword ptr [ecx]', f'call dword ptr [eax + {k["should_draw"]:#x}]',
-                                     'xor ebx, ebx', 'test al, al', sync[7], f'mov ebx, {routing.EF_NODRAW:#x}'])
-        self.assertTrue(sync[7].startswith('jne '))
+        # right after the active weapon: not drawn -> drop the pair and forget the weapon
+        at = code.index('mov ebp, eax')
+        self.assertEqual(code[at + 1:at + 6], ['test ebp, ebp', code[at + 2], 'lea ecx, [ebp + 4]', 'mov eax, dword ptr [ecx]',
+                                               f'call dword ptr [eax + {k["should_draw"]:#x}]'])
+        self.assertEqual(code[at + 6], 'test al, al')
+        self.assertEqual(code[at + 8:at + 11], [f'call {drop:#x}', 'mov dword ptr [edi + 4], 0', 'mov dword ptr [edi + 0xc], 0'])
+        self.assertNotIn(f'call {k["add_effects"]:#x}', code)
+        self.assertEqual(code[-5:], ['pop ebp', 'pop edi', 'pop esi', 'pop ebx', 'ret'])
         # The Draker's entity (C_WeaponGreatSword): its renderable ShouldDraw is false while the owner is in
         # the hot spring (+0x126e), then C_BaseCombatWeapon's, false under EF_NODRAW.
         should_draw = struct.unpack_from('<I', image.data, image.offset(0x38C02F74 + k['should_draw']))[0]
@@ -690,18 +693,6 @@ class LabCopyTest(unittest.TestCase):
         body = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(should_draw):image.offset(should_draw) + 0x30]), should_draw)]
         self.assertIn('cmp byte ptr [eax + 0x126e], 0', body)
         self.assertIn('jmp 0x38051380', body)
-        base = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(0x38051380):image.offset(0x38051380) + 0x18]), 0x38051380)]
-        self.assertIn(f'mov eax, dword ptr [edi + {k["effects"] - 4:#x}]', base)
-        self.assertEqual([c for c in sync if c.startswith('lea ecx')], ['lea ecx, [ebp + 4]', 'lea ecx, [edi + 8]', 'lea ecx, [edi + 0x10]'])
-        self.assertEqual(sync.count(f'call {k["add_effects"]:#x}'), 2)
-        self.assertEqual(sync.count(f'call {k["remove_effects"]:#x}'), 2)
-        self.assertEqual(sync.count(f'push {routing.EF_NODRAW:#x}'), 2)
-        self.assertEqual(sync[-5:], ['pop ebp', 'pop edi', 'pop esi', 'pop ebx', 'ret'])
-        # The live-pair path (cable or arm chain alive) goes to the sync, not straight to the end.
-        ins = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
-            bytes(image.data[image.offset(tick):image.offset(tick) + 0x500]), tick)))
-        sync_at = [x.address for x in ins if f'{x.mnemonic} {x.op_str}'.strip() == 'test ebp, ebp'][-1]
-        self.assertGreaterEqual(sum(1 for x in ins if x.mnemonic == 'jne' and int(x.op_str, 16) == sync_at), 2)
 
     @unittest.skipUnless(any(LAB.glob('engine.dll.*.pre-classflags.bak')), 'needs the engine.dll backup')
     def test_town_states_are_the_engines_own(self):
