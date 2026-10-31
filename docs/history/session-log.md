@@ -2799,3 +2799,13 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: MI5 a repetir depois de reaplicar (base 5000).
 - Commits: (este passo)
 - Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`; depois a MI5 do `docs/client-tests/C4-miri.md`, com a captura de *threads* armada para a trava do *relay*.
+
+## 2026-10-31 — Miri M7a, base dos subtipos 10100 (regra da lista de armas)
+- Feito:
+  - MI5, rodada 2 (base 5000): Draker invisível na cidade e nenhuma instância de `C_WeaponGreatSword`. A regra do servidor `0x40823590` (nome da entidade pela classe e `CostumeType`) dá: 10000–19999 → 0, 20000–29999 → 1, outro → `CostumeType / 64` limitado a 4; 5000 + n caía na posição 4.
+  - `WEAPON_SUBTYPE_BASE` 10100: posição 0, depois das 10001–10009 da *greatsword*.
+  - No barco a Miri ficou invisível com e sem a Draker; o modelo combinado `CoStUmE_11/0_90454/...` está na memória e o inner 90454 existe no `player_costume.txt` mesclado; repetir com a base 10100. A captura do *relay* não disparou: o barco entrou.
+- Verificação: `scripts/content` OK (`m7a3-content-tests.log`); `mi5b-memfind.txt`.
+- Cliente: MI5, rodada 3, depois de reaplicar.
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (base 10100); depois a MI5 (Draker visível; corpo no barco com e sem arma).

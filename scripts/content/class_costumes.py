@@ -25,12 +25,13 @@ SECTIONS = {'INNERARMOR': 'inner_armor', 'HAIR': 'hair', 'FACE': 'face', 'HELM':
 # The 1.69 entity an imported class's weapon type uses (patch_class_routing.py EXTRA_CLASSES `weapons`):
 # the 1.69 has no weapon_draker, and a weapon entity takes its model from its own script's
 # SubTypeInfoOverride entry named by the item's EquipItemInfo.CostumeType. The class's NA subtypes
-# move there as WEAPON_SUBTYPE_BASE + n. CostumeType / 10000 also picks the entity in the class's
-# weapon list (patch_class_routing.py CLASS_WEAPONS: 1.69 second weapons are 10000+ and 20000+), so
-# the base stays below 10000; 5000-6033 is free in the 1.69 weapon_greatsword.txt (0-60, 1035, 1036,
-# 10001-10009). With 20000 the Miri got list slot 2, empty, and no weapon at all (MI5, 30/10).
+# move there as WEAPON_SUBTYPE_BASE + n. CostumeType also picks the entity in the class's weapon
+# list (patch_class_routing.py CLASS_WEAPONS; server 0x40823590): 10000-19999 slot 0, 20000-29999
+# slot 1, anything else CostumeType / 64 capped at 4. The Miri has slot 0 only, so her subtypes go to
+# 10100 + n (up to 11133), past the 1.69 greatsword's 10001-10009. 20000 + n (slot 1) and 5000 + n
+# (slot 4) left her with no weapon at all (MI5, 30/10).
 LAB_WEAPON_ENTITY = {'draker': 'weapon_greatsword'}
-WEAPON_SUBTYPE_BASE = 5000
+WEAPON_SUBTYPE_BASE = 10100
 
 
 def weapon_subtype(weapon: str, costume_type: int) -> int:

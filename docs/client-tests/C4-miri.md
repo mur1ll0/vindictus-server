@@ -91,7 +91,7 @@ O operador foi direto à MI4. Evidência em `.cache/verification/miri/mi4-*` (lo
   - Com o Firefox fechado (1,8 GB), o barco abriu. Causa provável: pressão de memória da máquina somada ao volume de conteúdo da Miri. Não é defeito de protocolo.
 
 ### MI5 — Modelos Draker e diagnóstico da *idle* em batalha (M7a)
-Pré-condição: jogo fechado durante `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (feitos por mim). Os itens Draker usam o `CostumeType` 5000 + n, e o `weapon_greatsword.txt` da cópia ganhou os 45 modelos do `weapon_draker.txt` do NA nessas chaves. Firefox fechado ou com pouca memória antes de criar o barco.
+Pré-condição: jogo fechado durante `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (feitos por mim). Os itens Draker usam o `CostumeType` 10100 + n, e o `weapon_greatsword.txt` da cópia ganhou os 45 modelos do `weapon_draker.txt` do NA nessas chaves. Firefox fechado ou com pouca memória antes de criar o barco.
 - [ ] Cidade com a `MiriLab` e a `draker_newbie` equipada → o modelo é a Dragonspine de treino (não a *greatsword* de treino). Anotar onde a arma fica (mão, costas, solta).
 - [ ] Outro item Draker (se houver, pelo painel ou `lab-give-item.ps1`) → modelo próprio.
 - [ ] Na cidade, andar, correr e um emote com a Miri → anotar se ela anda ou fica na *idle*.
@@ -103,3 +103,8 @@ Limites conhecidos: a entidade continua sendo `weapon_greatsword` (o 1.69 não t
 Resultado da MI5, rodada 1 (30/10/2026, 23:33, base 20000):
 - Draker equipada e nenhuma arma visível na cidade. Na memória não havia nenhuma instância de `C_WeaponGreatSword`. Causa: `CostumeType / 10000` escolhe a entidade na lista de armas da classe, e a posição 2 da Miri está vazia. Base trocada para 5000.
 - Barco: travou de novo (02:33 UTC; o *relay* fechou aos 10 s sem a chave pública). A máquina tinha 10 GB livres, então a hipótese de memória da máquina perde força. Captura automática de *threads* armada para a próxima tentativa.
+
+Resultado da MI5, rodada 2 (31/10/2026, 00:25, base 5000):
+- Cidade: as animações e ações da Miri funcionam, mas a Draker equipada não aparece. Na memória continua sem instância de `C_WeaponGreatSword`.
+- Barco: entrou sem travar. A Miri fica invisível, sem modelo, animação nem arma, com e sem a Draker equipada, mas se move. O modelo combinado `CoStUmE_11/0_90454/...` está na memória, e o inner 90454 existe no `player_costume.txt` mesclado.
+- Causa da arma: a regra exata da lista de armas (servidor `0x40823590`): 10000–19999 → posição 0, 20000–29999 → 1, outro valor → `CostumeType / 64`, no máximo 4. Base trocada para 10100. O corpo invisível no barco começou junto com a arma em posição vazia; repetir com a base 10100.
