@@ -514,7 +514,7 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'push {purge:#x}', text)
             self.assertIn(f'call {raise_:#x}', text)
             self.assertEqual(text[-1].strip(), 'ret')
-            # The Miri raises her two standing conditions in both thinks, never the Delia's.
+            # The Miri raises her standing conditions in both thinks, never the Delia's.
             miri = int(report['class_conditions']['classes'][11], 16)
             self.assertEqual(head[4:7], ['cmp eax, 0xb', head[5], f'jmp {miri:#x}'])
             text = [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
@@ -522,8 +522,65 @@ class LabCopyTest(unittest.TestCase):
             pushed = [int(t.split()[1], 16) for t in text if t.startswith('push 0x')]
             self.assertEqual(pushed, [routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index(c)
                                       for c in routing.STANDING_CONDITIONS[11]])
-            self.assertEqual(sum(t == f'call {raise_:#x}' for t in text), 2)
+            self.assertEqual(sum(t == f'call {raise_:#x}' for t in text), len(routing.STANDING_CONDITIONS[11]))
             self.assertNotIn(f'push {purge:#x}', text)
+            # then her Flamebreath tick
+            self.assertIn(f'call {report["class_conditions"]["flamebreath"]["tick"]}', text)
+
+    def test_flamebreath_lives_in_the_fever_gauge_on_the_server(self):
+        image, report = self.plan('server.dll')
+        k = routing.FLAMEBREATH['server.dll']
+        flame = report['class_conditions']['flamebreath']
+        smash = routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('As_Cond_Miri_Can_DragonSmash')
+        self.assertEqual(flame['condition'], smash)
+
+        def text(va, size=0x120):
+            return [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
+                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
+        tick, spend, set_level = (int(flame[n], 16) for n in ('tick', 'spend', 'set_level'))
+        code = text(tick)
+        self.assertEqual(code[3], f'cmp byte ptr [esi + {k["shown"]:#x}], 0')  # never while a fever gauge is shown
+        self.assertIn(f'cmp dword ptr [esi + {k["value"]:#x}], {routing.FLAMEBREATH_LEVELS}', code)
+        self.assertIn(f'call {set_level:#x}', code)
+        self.assertIn(f'push {smash:#x}', code)
+        for va in (k['conditions_of'], k['raise'], k['lower']):
+            self.assertIn(f'call {va:#x}', code)
+        self.assertEqual(text(set_level, 0x20)[-3:], [f'call {k["set"]:#x}', 'add esp, 4', 'ret'])
+        spent = text(spend)
+        self.assertIn('dec eax', spent)
+        self.assertLess(spent.index(f'call {set_level:#x}'), len(spent))
+        restore = [struct.unpack_from('<f', image.data, image.offset(int(flame['table'], 16) - 8 + 4 * i))[0] for i in range(2)]
+        self.assertEqual(restore, list(routing.FLAMEBREATH_RESTORE))
+        # USE_DRAGON_ENERGY at the AE_CUSTOM_MOTION dispatcher entry, for the Miri only
+        events = int(report['delia_effects']['events'], 16)
+        dispatch = text(events, 0x300)
+        self.assertIn(f'call {spend:#x}', dispatch)
+        at = dispatch.index(f'call {spend:#x}')
+        self.assertEqual(dispatch[at - 3], f'cmp dword ptr [eax + {routing.ENTITY_SLOTS["server.dll"][1]:#x}], {routing.FLAMEBREATH_CLASS:#x}')
+        names = [routing.read_string(image, int(c.split()[1], 16)) for c in dispatch if c.startswith('push 0x') and int(c.split()[1], 16) > 0x10000]
+        self.assertIn(routing.FLAMEBREATH_SPEND, names)
+
+    def test_flamebreath_drives_the_miri_skill_dialog_on_the_client(self):
+        image, report = self.plan('client.dll')
+        k = routing.FLAMEBREATH['client.dll']
+        flame = report['class_conditions']['flamebreath']
+        tick = int(flame['tick'], 16)
+        code = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
+            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x140]), tick))]
+        self.assertIn(f'cmp dword ptr [esi + {k["value"]:#x}], 0', code)
+        for va in (k['raise'], k['lower'], k['local_player'], k['ui'], int(report['class_conditions']['chain']['in_town'], 16)):
+            self.assertIn(f'call {va:#x}', code)
+        self.assertIn(f'call dword ptr [edx + {k["ui_show"]:#x}]', code)
+        self.assertIn(f'call dword ptr [edx + {k["ui_invoke"]:#x}]', code)
+        strings = [routing.read_string(image, int(c.split()[1], 16)) for c in code if c.startswith('push 0x') and int(c.split()[1], 16) > 0x10000]
+        self.assertEqual(strings, [routing.FLAMEBREATH_DIALOG, routing.FLAMEBREATH_DIALOG + '.SetGaugeLevel'])
+        self.assertIn('mov dword ptr [esp], 3', code)  # one number argument
+        self.assertEqual(code[-2:], ['pop esi', 'ret'])
+        # the Miri's think runs it before the chain tick
+        body = int(report['class_conditions']['classes'][11], 16)
+        think = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
+            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(body):image.offset(body) + 0x80]), body))]
+        self.assertLess(think.index(f'call {tick:#x}'), think.index(f'call {report["class_conditions"]["chain"]["tick"]}'))
 
     def test_miri_think_keeps_the_draker_chain(self):
         image, report = self.plan('client.dll')
@@ -541,7 +598,8 @@ class LabCopyTest(unittest.TestCase):
         head = text(stub, 48)
         # Delia (10) keeps her conditions body; the Miri (11) gets the chain think; the rest the base.
         self.assertEqual(head[4:7], ['cmp eax, 0xb', head[5], f'jmp {body:#x}'])
-        think_body = text(body, 0x60)
+        think_body = text(body, 0x80)
+        think_body = think_body[:think_body.index('ret') + 1]
         self.assertEqual(think_body[:3], ['push esi', 'mov esi, ecx', f'call {base:#x}'])
         self.assertEqual(think_body[-4:], ['mov ecx, esi', f'call {tick:#x}', 'pop esi', 'ret'])
         k = routing.CHAIN['client.dll']
@@ -685,7 +743,7 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(f'{head.mnemonic} {head.op_str}', f'jmp {effects["events"]}')
         events = text(int(effects['events'], 16), 0x300)
         self.assertIn(f'jmp {k["events"] + len(routing.EVENTS_HEAD):#x}', events)
-        self.assertEqual(sum(t == f'call {k["strncmp"]:#x}' for t in events), 5)
+        self.assertEqual(sum(t == f'call {k["strncmp"]:#x}' for t in events), 6)  # 4 + PURGE_ALL_ARMOR + USE_DRAGON_ENERGY
         commands = [routing.read_string(image, int(t.split()[1], 16)) for t in events if t.startswith('push 0x')]
         self.assertIn('PURGE_ALL_ARMOR', commands)
         # PURGE_ALL_ARMOR: slots 4-8 with armour get HP 0 and the broken state without notify

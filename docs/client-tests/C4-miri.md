@@ -229,3 +229,12 @@ Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.
 - [ ] Com Fiery Evasion e Fiery Assault aprendidas: Tab durante um ataque → esquiva; Tab + direito → Fiery Assault. Fiery Chainswing depois dos Smash (direito de novo).
 - [ ] Pulo em batalha (barco) continua com animação e aterrissagem.
 Limites conhecidos: Flamebreath (`skill_miri_dragon_energy`) ainda não existe; as habilidades Fiery ficam sempre liberadas (`As_Cond_Miri_Can_DragonSmash` sempre ligada) e não há HUD. As versões transformadas (Dragon Knight) ficam fechadas.
+
+### MI13 — Flamebreath e o HUD do dragão
+Pré-condição: com o jogo fechado, roteamento refeito dos `*.pre-routing.bak` (feito por mim; hashes no histórico, passo M7h). Pode ser jogado junto com a MI12. A `MiriLab` com Fiery Chainswing, Fiery Evasion e Fiery Assault aprendidas.
+- [ ] Cidade → nenhum HUD de dragão.
+- [ ] Barco ou fase → o dragão (`MiriSkillDialog`) aparece; ao entrar começa vazio e enche um nível a cada 7 s até cheio (8 níveis, cerca de 1 min). Dizer onde aparece na tela (posição) e se o desenho enche como no NA.
+- [ ] Com o dragão cheio: Fiery Chainswing depois de um Smash, Tab (Fiery Evasion) e Tab + direito (Fiery Assault) → cada uma gasta um nível (o dragão baixa) e 7 s depois volta a encher.
+- [ ] Gastar tudo (dragão vazio) → as habilidades Fiery e o Tab não saem até encher de novo.
+- [ ] Voltar para a cidade → o dragão some.
+Limites conhecidos: o dragão aparece para a Miri de qualquer nível (o NA mostra só depois de aprender Flamebreath, nível 20); começa vazio a cada entrada (reinício do 1.69); a forma Dragon Knight não existe. Na missão do título de poluição de Regina a barra de febre usa o mesmo campo e a energia para.

@@ -355,11 +355,45 @@ HIT_IMPACT_SKIP = 0x4B3D
 # always worn; the purge block is not ported). SP3_Activated stays off: the 1.69 cooldown store of
 # SP skills was not found (NA: 32 ids at +0x18, last use at +0x228, 0x29bf70). SET_GUARD_LATCH_ATTEN
 # is not used by any Delia content (1.69 or NA) and is not ported.
-# The Miri (C4 MI12) raises As_Cond_Miri_Can_DragonSmash and As_Cond_Miri_Can_Transform_DragonKnight
-# in both thinks (lab approximation: Flamebreath, skill_miri_dragon_energy, is not ported, so her Fiery
-# skills never run out; SP4 plays without the Dragon Knight look).
+# The Miri raises As_Cond_Miri_Can_Transform_DragonKnight in both thinks (SP4 plays without the
+# Dragon Knight look); As_Cond_Miri_Can_DragonSmash follows her Flamebreath (FLAMEBREATH).
 STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',),
-                       11: ('As_Cond_Miri_Can_DragonSmash', 'As_Cond_Miri_Can_Transform_DragonKnight')}
+                       11: ('As_Cond_Miri_Can_Transform_DragonKnight',)}
+# Flamebreath (skill_miri_dragon_energy, Miri M7h): NA server CPlayerMiri keeps an 8-level gauge in a
+# network word (+0x1454), spent one level by AE_CUSTOM_MOTION USE_DRAGON_ENERGY (0x5dc040) and restored
+# one level per DragonEnergy.FirstRestoreDelay / NormalRestoreDelay seconds (7 / 7,
+# expression_table_miri_common.txt, read at 0x5dc9a0); her Fiery skills and Fiery Evasion need
+# As_Cond_Miri_Can_DragonSmash. The NA client shows it with scaleform/MiriSkillDialog.gfx
+# (SetGaugeLevel(level, isDagonKnight)). The 1.69's generic player (CHeroesPlayer) already sends a
+# gauge to every client, the fever gauge: m_gaugeValue (server +0x3ac4, 8 bits; client +0x4b34), shown
+# by CHeroesHudFeverGaugeUI only while m_isShowGaugeUI (server +0x3ac0, client +0x4b30) is set, which
+# only the Regina pollution title and the spawn reset (0x4055c5d0, to 0) use. The Miri's level lives
+# there while no fever gauge is shown, written through its network setter (0x402c56d0, ecx = field,
+# [esp+4] = &value). Server: her think restores a level when the restore time (per-player table in
+# .hrte) has passed and raises As_Cond_Miri_Can_DragonSmash while the level is above 0, lowering it at
+# 0 (raise 0x407e6470, lower 0x407e64d0 on the condition object 0x405380a0); USE_DRAGON_ENERGY, taken at
+# the AE_CUSTOM_MOTION dispatcher entry (DELIA_EFFECTS events), spends one and restarts the first
+# delay. Client: her think raises or lowers the condition from the received level (raise 0x387de550,
+# lower 0x387de5b0 on [this+COMMANDS]) and, for the local player (0x38063690) outside town (the chain's
+# game state test), shows MiriSkillDialog through the UI interface (0x385f7ef0: vtable +0x20 (name,
+# shown), as ShipHPGauge; +0x10 Invoke(method, args, count, 0), arguments of 0x20 bytes: type 3 =
+# number, double at +8, an empty string at +0x10) and calls SetGaugeLevel when the level changes. Lab
+# limits: the skill's rank is not checked (NA shows the dragon once Flamebreath is learned, level 20),
+# the level starts at 0 on spawn (the 1.69 reset), the transformed delays and the Dragon Knight
+# state are not ported, and inside the Regina pollution title the fever gauge keeps the field.
+FLAMEBREATH = {'server.dll': {'value': 0x3AC4, 'shown': 0x3AC0, 'set': 0x402C56D0, 'globals': 0x40D6EE48,
+                              'conditions_of': 0x405380A0, 'raise': 0x407E6470, 'lower': 0x407E64D0},
+               'client.dll': {'value': 0x4B34, 'shown': 0x4B30, 'raise': 0x387DE550, 'lower': 0x387DE5B0,
+                              'local_player': 0x38063690, 'ui': 0x385F7EF0, 'ui_show': 0x20, 'ui_invoke': 0x10}}
+FLAMEBREATH_HEADS = {'server.dll': {'set': '568bf18b06', 'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404'},
+                     'client.dll': {'local_player': 'a1a483cc38c3', 'ui': 'a1c814e73885c0',
+                                    'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404'}}
+FLAMEBREATH_LEVELS = 8
+FLAMEBREATH_RESTORE = (7.0, 7.0)  # first, normal (seconds)
+FLAMEBREATH_PLAYERS = 16
+FLAMEBREATH_SPEND = 'USE_DRAGON_ENERGY'
+FLAMEBREATH_DIALOG = 'MiriSkillDialog'
+FLAMEBREATH_CLASS = 11
 # (think slot, condition object getter or None for [this+COMMANDS], raise)
 CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0x405380A0, 0x407E6470)}
 # Draker chain (Miri M7f; docs/future/miri-class-port.md 2.11). The NA draws it from its own weapon
@@ -1501,8 +1535,10 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
             'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
 
 
-def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k: dict) -> dict:
-    """DELIA_EFFECTS: Delia's status-effect types, her on-hit commands, the per-entity state and its think."""
+def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k: dict,
+                  commands_of: dict[str, tuple[int, int]] | None = None) -> dict:
+    """DELIA_EFFECTS: Delia's status-effect types, her on-hit commands, the per-entity state and its think.
+    `commands_of` adds AE_CUSTOM_MOTION commands of other classes: text -> (class, routine(ecx = player))."""
     entity, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
     f, s = PLAYER_FIELDS, PLAYER_SLOTS
     L = layout
@@ -1538,7 +1574,8 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         'restore_equipment_def', 'validCount', 'reduce_ratio', 'restore_time', 'delay_time', 'immune_count',
         'candidate_actions', 'damage_rates', 'add_def', 'skill_delia_strong_attack_week', 'skill_delia_strong_attack_hit',
         'ENABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 'DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT',
-        'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'PURGE_ALL_ARMOR', '')}
+        'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'PURGE_ALL_ARMOR', '',
+        *(commands_of or {}))}
     L.pad()
     registrar = L.here()
     L.body += bytes(4)
@@ -1866,13 +1903,16 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     events = L.here()
     b('51')
     hits = []
-    for text in [c[0] for c in commands] + ['PURGE_ALL_ARMOR']:
+    others = list((commands_of or {}).items())
+    for text in [c[0] for c in commands] + ['PURGE_ALL_ARMOR'] + [t for t, _ in others]:
         b('6a' + bytes((len(text) + 1,)).hex())
         push_ptr(names[text])
         b('ff742410')
         call(k['strncmp'])
         b('83c40c 85c0')
         hits.append(fwd('0f84'))
+    other_hits = hits[len(commands) + 1:]
+    hits = hits[:len(commands) + 1]
     purge = hits.pop()
     b('59')
     L.body += EVENTS_HEAD
@@ -1884,6 +1924,14 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         b('8bc8')
         call(find_or_add)
         b('c640' + bytes((field, value)).hex())
+        L.land(no); L.land(no2)
+        b('c20400')
+    for at, (_, (index, routine)) in zip(other_hits, others):
+        L.land(at)
+        b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
+        b('83b8' + d32(klass) + bytes((index,)).hex()); no2 = fwd('0f85')
+        b('8bc8')
+        call(routine)
         L.land(no); L.land(no2)
         b('c20400')
     # PURGE_ALL_ARMOR: armour slots 4-8 broken without the costume rebuild
@@ -2032,10 +2080,189 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
             'on_hit': hex(on_hit)}
 
 
+def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = None) -> dict:
+    """FLAMEBREATH: the server's restore tick and spend routine, or the client's condition and HUD tick
+    (ecx = player for each; in_town: the chain's game state test, client only)."""
+    k = FLAMEBREATH[name]
+    for key, head in FLAMEBREATH_HEADS[name].items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    L = layout
+    smash = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Miri_Can_DragonSmash')
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def d32(v: int) -> str:
+        return struct.pack('<I', v & 0xFFFFFFFF).hex()
+
+    def call(va: int) -> None:
+        L.to(b'\xe8', va)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    def at(code: str, va: int) -> None:  # an instruction whose last four bytes are an absolute address
+        b(code)
+        L.pointer(va)
+
+    def condition(load_object) -> None:
+        # ecx = the condition object (load_object); raise smash while the level (esi) is above 0, else lower
+        load_object()
+        b('85c9'); none = fwd('0f84')
+        b('68' + d32(smash) + '83be' + d32(k['value']) + '00'); low = fwd('0f8e')
+        call(k['raise'])
+        done = fwd('e9')
+        L.land(low)
+        call(k['lower'])
+        L.land(done); L.land(none)
+
+    if name == 'server.dll':
+        L.pad()
+        first = L.here()
+        L.body += struct.pack('<f', FLAMEBREATH_RESTORE[0])
+        normal = L.here()
+        L.body += struct.pack('<f', FLAMEBREATH_RESTORE[1])
+        table = L.here()
+        L.body += bytes(8 * FLAMEBREATH_PLAYERS)  # {player, next restore time}
+
+        # entry(ecx = player) -> eax = the player's entry, a free one taken when missing, 0 when full
+        L.pad()
+        entry = L.here()
+        at('b8', table)
+        b('ba' + d32(FLAMEBREATH_PLAYERS))
+        loop = L.here()
+        b('3908'); found = fwd('0f84')
+        b('83c008 4a')
+        L.to(b'\x0f\x85', loop)
+        at('b8', table)
+        b('ba' + d32(FLAMEBREATH_PLAYERS))
+        free = L.here()
+        b('833800'); take = fwd('0f84')
+        b('83c008 4a')
+        L.to(b'\x0f\x85', free)
+        b('33c0 c3')
+        L.land(take)
+        b('8908 c7400400000000')
+        L.land(found)
+        b('c3')
+
+        # set_level(esi = player, eax = level): the network setter of m_gaugeValue
+        L.pad()
+        set_level = L.here()
+        b('50 8bc4 50 8d8e' + d32(k['value']))
+        call(k['set'])
+        b('83c404 c3')
+
+        def now() -> None:  # st0 = gpGlobals->curtime
+            at('8b0d', k['globals'])
+            b('d9410c')
+
+        def conditions_object() -> None:
+            b('8bce')
+            call(k['conditions_of'])
+            b('8bc8')
+
+        # tick(ecx = player)
+        L.pad()
+        tick = L.here()
+        b('56 57 8bf1 80be' + d32(k['shown']) + '00'); fever = fwd('0f85')
+        b('8bce')
+        call(entry)
+        b('85c0'); full_table = fwd('0f84')
+        b('8bf8 83be' + d32(k['value']) + bytes((FLAMEBREATH_LEVELS,)).hex()); recharge = fwd('0f8c')
+        b('c7470400000000'); conds = [fwd('e9')]
+        L.land(recharge)
+        now()
+        b('837f0400'); armed = fwd('0f85')
+        at('d805', first)
+        b('d95f04'); conds.append(fwd('e9'))
+        L.land(armed)
+        b('d85f04 dfe0 f6c401'); conds.append(fwd('0f85'))  # now < next: wait
+        b('8b86' + d32(k['value']) + '40')
+        call(set_level)
+        now()
+        at('d805', normal)
+        b('d95f04')
+        for j in conds:
+            L.land(j)
+        condition(conditions_object)
+        L.land(fever); L.land(full_table)
+        b('5f 5e c3')
+
+        # spend(ecx = player): USE_DRAGON_ENERGY
+        L.pad()
+        spend = L.here()
+        b('56 57 8bf1 80be' + d32(k['shown']) + '00'); out = fwd('0f85')
+        b('8b86' + d32(k['value']) + '85c0'); empty = fwd('0f8e')
+        b('48')
+        call(set_level)
+        b('8bce')
+        call(entry)
+        b('85c0'); full_table = fwd('0f84')
+        now()
+        at('d805', first)
+        b('d95804')
+        L.land(out); L.land(empty); L.land(full_table)
+        b('5f 5e c3')
+        return {'tick': hex(tick), 'spend': hex(spend), 'entry': hex(entry), 'set_level': hex(set_level),
+                'table': hex(table), 'levels': FLAMEBREATH_LEVELS, 'restore': list(FLAMEBREATH_RESTORE),
+                'condition': smash}
+
+    L.pad()
+    dialog = L.string(FLAMEBREATH_DIALOG)
+    method = L.string(FLAMEBREATH_DIALOG + '.SetGaugeLevel')
+    L.pad()
+    shown = L.here()
+    L.body += bytes(4)
+    level = L.here()
+    L.body += struct.pack('<i', -1)
+
+    def commands_object() -> None:
+        b('8b8e' + d32(COMMANDS))
+
+    def ui() -> None:  # ecx = the UI interface, edx = its vtable
+        call(k['ui'])
+        b('8bc8 8b10')
+
+    L.pad()
+    tick = L.here()
+    b('56 8bf1')
+    condition(commands_object)
+    call(k['local_player'])
+    b('3bc6'); other = fwd('0f85')
+    call(in_town)
+    b('83f001')  # shown outside town
+    at('3b05', shown); same = fwd('0f84')
+    at('a3', shown)
+    at('c705', level)
+    b('ffffffff')
+    b('50'); at('68', dialog)
+    ui()
+    b('ff52' + bytes((k['ui_show'],)).hex())
+    L.land(same)
+    at('833d', shown)
+    b('00'); hidden = fwd('0f84')
+    b('8b86' + d32(k['value']))
+    at('3b05', level); unchanged = fwd('0f84')
+    at('a3', level)
+    b('6a00' * 8 + 'c7042403000000')  # one argument: type 3 (number)
+    at('db05', level)
+    b('dd5c2408 8bc4 6a00 6a01 50'); at('68', method)
+    ui()
+    b('ff52' + bytes((k['ui_invoke'],)).hex() + '83c420')
+    L.land(other); L.land(hidden); L.land(unchanged)
+    b('5e c3')
+    return {'tick': hex(tick), 'dialog': FLAMEBREATH_DIALOG, 'shown': hex(shown), 'level': hex(level), 'condition': smash}
+
+
 def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, think: int,
-                     conditions_of: int | None, raise_: int, tick: int | None = None) -> dict:
+                     conditions_of: int | None, raise_: int, tick: int | None = None,
+                     flame: dict | None = None) -> dict:
     """CLASS_CONDITIONS: the player think runs the base, raises the class's STANDING_CONDITIONS, then
-    runs `tick(this)` when given (Delia's effects) and, for CHAIN_CLASSES in the client, the chain tick."""
+    runs `tick(this)` when given (Delia's effects) and, for FLAMEBREATH_CLASS, its Flamebreath tick (the
+    server's built beforehand and passed in `flame`) and, for CHAIN_CLASSES in the client, the chain tick."""
     entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
     base = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * think))[0]
 
@@ -2069,11 +2296,16 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
     if name in CHAIN and CHAIN[name]['think'] == think:
         report['chain'] = chain(image, layout, name)
         chain_tick = int(report['chain']['tick'], 16)
+    if flame is None and name in FLAMEBREATH:
+        flame = flamebreath(image, layout, name, int(report['chain']['in_town'], 16) if 'chain' in report else None)
+    if flame is not None:
+        report['flamebreath'] = flame
     report['classes'] = {}
     for index, conditions in STANDING_CONDITIONS.items():
         if index in DELIA_MECHANICS:
             continue
-        ticks = (chain_tick,) if chain_tick is not None and index in CHAIN_CLASSES else ()
+        ticks = (int(flame['tick'], 16),) if flame is not None and index == FLAMEBREATH_CLASS else ()
+        ticks += (chain_tick,) if chain_tick is not None and index in CHAIN_CLASSES else ()
         bodies[index] = body_of(conditions, ticks)
         report['classes'][index] = hex(bodies[index])
     if chain_tick is not None:
@@ -3035,8 +3267,12 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name in CONDITIONS:
         report['conditions'] = conditions(layout, edits, *CONDITIONS[name])
     effects = None
+    flame = None
+    if name in FLAMEBREATH and name == 'server.dll':
+        flame = flamebreath(image, layout, name)
     if name in DELIA_EFFECTS:
-        effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name])
+        effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name],
+                                {FLAMEBREATH_SPEND: (FLAMEBREATH_CLASS, int(flame['spend'], 16))} if flame else None)
         report['delia_effects'] = effects
     if name in GUARD:
         report['guard'] = guard(image, layout, edits, relocs, *GUARD[name],
@@ -3053,7 +3289,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['frame_keys'] = immediately(layout, edits, *FRAME_KEYS[name])
     if name in CLASS_CONDITIONS:
         report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name],
-                                                      tick=int(effects['tick'], 16) if effects else None)
+                                                      tick=int(effects['tick'], 16) if effects else None, flame=flame)
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if name == 'client.dll':

@@ -2939,3 +2939,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: (este passo)
 - Pendente / próxima ação: escolha do operador (Flamebreath simulado nos dois DLLs ou no servidor com rede); MI12 no cliente.
+
+## 2026-10-31 — Miri M7h: Flamebreath no servidor e HUD do dragão
+- Feito: escolha do operador "servidor com rede". `patch_class_routing.FLAMEBREATH`: o nível (0–8) mora no campo de rede da barra de febre do jogador genérico (`m_gaugeValue` servidor `+0x3ac4`/cliente `+0x4b34`, fora de barra de febre `+0x3ac0`), gravado pelo *setter* `0x402c56d0`. Servidor: *think* da Miri recupera 1 nível a cada 7 s e liga/desliga `As_Cond_Miri_Can_DragonSmash`; `USE_DRAGON_ENERGY` no despachante de `AE_CUSTOM_MOTION` (`delia_effects(commands_of=…)`, só classe 11) gasta um nível. Cliente: condição pelo valor recebido; jogador local fora da cidade abre `MiriSkillDialog` (`0x385f7ef0` `+0x20`) e chama `SetGaugeLevel` (`+0x10`). `STANDING_CONDITIONS[11]` só com `Can_Transform`.
+- Verificação: `test_patch_class_routing` 44 OK, nenhum pulado (`.cache/verification/miri/r2/flame-tests-full.log`). Roteamento dos `*.pre-routing.bak` (`r2/routing-apply-flame.log`): `client.dll` `05ff78e6b917c901` → `c3af6d198ea46c88`, `server.dll` `57237b86e84476bd` → `88924f0ea4df6f57` (anteriores em `*.pre-flame.bak`).
+- Cliente: `docs/client-tests/C4-miri.md` MI13 (pendente, junto com a MI12).
+- Commits: (este passo)
+- Pendente / próxima ação: MI12 e MI13 no cliente; depois Dragon Knight.
