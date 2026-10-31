@@ -44,12 +44,48 @@ Limites conhecidos: os itens da Miri só deixam de ficar vermelhos para uma Miri
 
 ### MI4 — Miri de laboratório: seleção, cidade, arma, itens (M5)
 Pré-condição: DLLs da cópia roteados com a Miri (`patch_class_table.py` com 12 classes e `patch_class_routing.py` deste commit, aplicados por mim com o jogo fechado; hashes no `docs/history/session-log.md`, passo M5). Imagem Docker do M3 ou posterior.
-- [ ] Na seleção, criar uma **Fiona** chamada `MiriLab` (qualquer aparência) → criada e listada. Fechar o jogo.
-- [ ] `./scripts/dev/lab-set-class.ps1 -Name MiriLab -Class 11` → imprime `cid=<número> class 1 -> 11` e o comando para desfazer.
-- [ ] Dar a arma: painel → Personagens → `MiriLab` → Dar item `draker_newbie` (ou `./scripts/dev/lab-give-item.ps1 -ItemClass draker_newbie -Count 1 -Cid <cid>`).
+- [x] Na seleção, criar uma **Fiona** chamada `MiriLab` (qualquer aparência) → criada e listada. Fechar o jogo.
+- [x] `./scripts/dev/lab-set-class.ps1 -Name MiriLab -Class 11` → imprime `cid=<número> class 1 -> 11` e o comando para desfazer.
+- [x] Dar a arma: painel → Personagens → `MiriLab` → Dar item `draker_newbie` (ou `./scripts/dev/lab-give-item.ps1 -ItemClass draker_newbie -Count 1 -Cid <cid>`).
 - [ ] Abrir o jogo → na seleção, `MiriLab` aparece com o **corpo da Miri** (rosto, cabelo, inner padrão), sem decalques, faixas ou pose T. Anotar o que aparecer errado (captura).
-- [ ] Entrar na cidade → corpo e animações da Miri; andar, correr, um emote; sem queda. A estamina recupera normalmente.
+- [x] Entrar na cidade → corpo e animações da Miri; andar, correr, um emote; sem queda. A estamina recupera normalmente.
 - [ ] Inventário → `draker_newbie` sem fundo vermelho e sem "Cannot be equipped"; equipar → uma arma, no lugar certo (aproximação: entidade `weapon_greatsword` com o modelo da Draker).
 - [ ] Janela de habilidades → as habilidades da Miri (Dragonspine Mastery, Speed Move...) com ícones em posições distintas.
 - [ ] Não regressão: `DeliaLab` e uma Fiona entram na cidade como antes (corpo, arma, guarda da Delia).
 Limites conhecidos: as mecânicas próprias da Miri (transformação Dragon Knight, Dragon Smash, energia do dragão) ainda não funcionam (M7); a grade de criação ainda não mostra a Miri (M8); a guarda, a purga e os efeitos da Delia ficam só na Delia.
+
+## Resultados
+
+### 30/10/2026 — rodada 1 (MI4; MI1–MI3 não executadas)
+O operador foi direto à MI4. Evidência em `.cache/verification/miri/mi4-*` (logs do cliente e do Docker, minidump, amostras de *threads*).
+
+- **MI4-1 a MI4-3:** ok. Fiona `MiriLab` criada pela grade, classe 1 → 11, `draker_newbie` dada pelo painel.
+- **MI4-4:** parcial. A seleção mostra o corpo 3D da Miri certo, mas o retrato da lista é de outra classe (rosto masculino): ícone de classe da lista, M8.
+- **MI4-5:**
+  - 19:55: falhou. O Start desconectou e o jogo caiu: `EXCEPTION_ACCESS_VIOLATION` em `server.dll+0x8b5472`, relatório `heroes_[2016-01-14][17_02]_[2026-10-30][19_55_14].mdmp`, copiado em `mi4-crash-1955/`.
+  - Causa 1: o servidor Rust recusava a seleção porque o `skill-profile-v5.json` não tinha as habilidades da Miri. Corrigido com `export_skill_profile.py --all-skills`, agora no `refresh_item_content.py`.
+  - Causa 2: `GetSkillKeywordTable` lia, para a classe 11, a vtable de um `ConCommand` como tabela de palavras-chave. Corrigido com `KEYWORD_TABLES` no roteamento (cliente e servidor).
+  - Depois da correção (20:36): entra na cidade com o modelo 3D e o inner da Miri certos.
+- **MI4-6:** parcial.
+  - O item equipa sem "Cannot be equipped" ("Only for Miri").
+  - O modelo é `greatsword_practice.mdl`, porque a entidade `weapon_greatsword` escolhe o modelo pelo subtipo (`CostumeType 1`), e a arma fica numa posição estranha.
+  - Falta a entidade `weapon_draker` (M7).
+- **MI4-7:** parcial.
+  - As habilidades próprias da Miri aparecem certas.
+  - Training e Restoration estavam vazias e Equipment só tinha a Dragonspine Mastery.
+  - Corrigido depois da rodada: as 29 habilidades comuns do 1.69 ganharam o bit 11 (`class_imports.shared_skills`). Reteste pendente.
+- **MI4-8:** parcial. A `DeliaLab` cria party e entra na mesma fase (20:57). A Fiona não foi testada. Rodada 2: ok.
+- **Extra, party e fase com a Miri:**
+  - 20:41 e 20:54: o cliente travou ("Not Responding") ao criar a party. Conectou no *relay* sem mandar a chave pública, ficou 60 s no laço de espera de conexão do `engine.dll`, desistiu e voltou à cidade.
+  - 21:03: a terceira tentativa (depois de voltar à seleção) conectou e entrou no barco. É intermitente e não foi reproduzido com a captura armada.
+  - No barco, a Miri fica presa na *idle* segurando a arma e não anda nem ataca. Hipótese: condições de estado de ação do NA não registradas no 1.69 (M7).
+
+
+### 30/10/2026 — rodada 2 (MI4-7, MI4-8 e trava do barco)
+- **MI4-7:** ok. Com as 29 habilidades comuns (bit 11), Training, Restoration e Equipment aparecem para a `MiriLab`.
+- **Inventário da Miri:** ok. Nenhum "Cannot be equipped" indevido.
+- **MI4-8 (Delia depois do M5 e das correções):** ok. Combate completo, transformação Rose Crush, habilidades e itens funcionam.
+- **Trava ao criar o barco (Miri e Delia, intermitente):**
+  - O cliente não manda a chave pública ao *relay*.
+  - A memória baixa (até 2 GB) do jogo estava quase esgotada: 68–176 MB livres, pedaços de no máximo 15 MB (`mi4r2-memory-monitor.txt`). Desde o M1 o jogo usa ~2,0 GB de memória privada; antes eram 1,0–1,2 GB.
+  - Com o Firefox fechado (1,8 GB), o barco abriu. Causa provável: pressão de memória da máquina somada ao volume de conteúdo da Miri. Não é defeito de protocolo.

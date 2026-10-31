@@ -44,6 +44,8 @@ def make(path: Path, na: bool) -> None:
             db.executemany('INSERT INTO EquipItemInfo VALUES(?,?,?)', [('draker_newbie', 0, 10), ('miri_inner', 9100, 0)])
             db.execute("INSERT INTO SkillInfo VALUES('skill_miri_attack', 'miri')")
             db.execute("INSERT INTO SkillInfo VALUES('skill_fiona_attack', 'fiona')")
+            db.execute("INSERT INTO SkillInfo VALUES('skill_defence_mastery', '!grimden')")
+            db.execute("INSERT INTO SkillInfo VALUES('skill_no_miri', '!miri')")
             db.execute("INSERT INTO SkillRankInfo VALUES('skill_miri_attack', 1, 'Miri')")
             db.execute("INSERT INTO RecipeMaterialInfo VALUES('recipe_draker', 'draker_newbie', 1, 0)")
             db.execute("INSERT INTO RecipeMaterialInfo VALUES('recipe_draker', 'gold', 10, 1)")
@@ -61,6 +63,9 @@ def make(path: Path, na: bool) -> None:
                 ('gold', 'POTION', 2, 1)])
             db.execute("INSERT INTO EquipItemInfo VALUES('sword', 0, 5)")
             db.execute("INSERT INTO SkillInfo VALUES('skill_fiona_attack', 2)")
+            # Every 1.69 class (0-10); the NA leaves Miri out of the second only.
+            db.execute("INSERT INTO SkillInfo VALUES('skill_defence_mastery', 2047)")
+            db.execute("INSERT INTO SkillInfo VALUES('skill_no_miri', 2047)")
             db.execute("INSERT INTO CraftShopInfo VALUES('_Craft', 40, 'recipe_sword')")
             db.execute("INSERT INTO FeatureMatrix VALUES('Delia', '3.09.00', '3.09.00', '3.09.00', '3.09.00')")
             db.execute("INSERT INTO FeatureMatrix VALUES('enUS', '1', '1', NULL, NULL)")
@@ -107,8 +112,9 @@ class ClassImportsTest(unittest.TestCase):
             self.assertEqual(db.execute('SELECT * FROM CharacterClassInfo WHERE Identifier=11').fetchall(),
                              [(11, 1, 9), (11, 2, 11)])
             self.assertEqual(db.execute('SELECT SkillID, ClassRestriction FROM SkillInfo').fetchall(),
-                             [('skill_fiona_attack', 2), ('skill_miri_attack', 2048)])
-            self.assertEqual(report['class_bits'], 1)
+                             [('skill_fiona_attack', 2), ('skill_defence_mastery', 4095), ('skill_no_miri', 2047),
+                              ('skill_miri_attack', 2048)])
+            self.assertEqual((report['class_bits'], report['skill_bits']), (1, 1))
             # The NA 0/1 becomes the 1.69 text boolean of the column.
             # ... and the NA US region becomes the laboratory's EU region.
             self.assertEqual(db.execute("SELECT IsCash, Feature, CashShopType FROM CustomizeItemInfo "
@@ -123,7 +129,12 @@ class ClassImportsTest(unittest.TestCase):
             self.assertEqual(report['miri']['ItemClassInfo'], 2)
             self.assertEqual(db.execute('SELECT count(*) FROM ItemClassInfo').fetchone()[0], 8)
             self.assertEqual(db.execute("SELECT ClassRestriction FROM ItemClassInfo WHERE ItemClass='potion'").fetchone()[0], 4095)
+            self.assertEqual(report['miri']['skill_bits'], 1)
+            self.assertEqual(dict(db.execute("SELECT SkillID, ClassRestriction FROM SkillInfo WHERE SkillID IN "
+                                             "('skill_defence_mastery', 'skill_no_miri')")),
+                             {'skill_defence_mastery': 4095, 'skill_no_miri': 2047})
             class_imports.apply_client(db, backup, [])
+            self.assertEqual(db.execute("SELECT ClassRestriction FROM SkillInfo WHERE SkillID='skill_defence_mastery'").fetchone()[0], 2047)
             self.assertEqual(db.execute('SELECT count(*) FROM ItemClassInfo').fetchone()[0], 6)
             self.assertEqual(db.execute("SELECT ClassRestriction FROM ItemClassInfo WHERE ItemClass='potion'").fetchone()[0], 2047)
 

@@ -18,7 +18,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Miri: sessão de cliente pelo `docs/client-tests/C4-miri.md` (MI1–MI4: não regressão, painel, `engine.dll`, Miri de laboratório na seleção e na cidade); em paralelo, M7 — mecânicas próprias (transformação Dragon Knight, Dragon Smash, energia do dragão) a partir das condições e comandos medidos no M0.
+2. Miri M7 (pedido do operador em 30/10: todas as armas, habilidades e animações): entidade `weapon_draker` (modelos do `weapon_draker.txt`), registro das condições e chaves de quadro do NA (Miri presa na *idle* em batalha), depois transformação Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 do C4 pendentes.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
@@ -30,7 +30,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
-| `docs/client-tests/C4-miri.md` | MI1 (não regressão), MI2 (painel), MI3 (`engine.dll` novo) e MI4 (Miri de laboratório na seleção e na cidade) pendentes. |
+| `docs/client-tests/C4-miri.md` | Rodadas 1–2 (30/10, MI4): entrada, cidade, corpo, inner, itens e habilidades (próprias e comuns) ok; Delia sem regressão (combate, Rose Crush). Arma `greatsword_practice` e *idle* travada em batalha → M7; retrato → M8. Trava do barco: pressão de memória (jogo ~2 GB desde o M1). MI1–MI3 pendentes. |
 | `docs/client-tests/C3-criacao.md` | Grade, customização, Create → estalagem → cidade aceitos em 30/10; faltam volta à seleção com a personagem criada pela grade, G3 e G5. |
 
 Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 ou B2.6), usar consumível pela barra (B2.5).

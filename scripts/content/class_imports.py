@@ -57,6 +57,7 @@ FEATURE_SKIP = re.compile(r'relationship|startmovie|event_', re.IGNORECASE)
 STAT_TABLES = {'CharacterClassInfo': 'Identifier', 'CharacterBaseLoadInfo': 'Character'}
 # 1.69 classes with a female body (Fiona, Evy, Vella, Lynn, Arisha, Delia).
 FEMALE_169 = (1 << 1) | (1 << 2) | (1 << 5) | (1 << 7) | (1 << 8) | (1 << 10)
+ALL_169 = (1 << 11) - 1  # classes 0-10
 TABLES = ITEM_TABLES + tuple(SKILL_TABLES) + RECIPE_TABLES + tuple(MENTION_TABLES) + ('FeatureMatrix',)
 
 
@@ -344,11 +345,23 @@ def wearable_items(db: sqlite3.Connection, imported: sqlite3.Connection, info: d
     return out
 
 
-def na_restrictions(imported_path: Path) -> dict:
+def shared_skills(db: sqlite3.Connection, info: dict, na_restrictions: dict, schema: str = 'main') -> list[str]:
+    """Existing skills the class gets its bit on: those every 1.69 class has (the NA gives them to every
+    class but Grimden, '!grimden', or retired the armor masteries, 'nothing'), unless the NA leaves the
+    class out."""
+    out = []
+    for skill, mask in db.execute(f'SELECT SkillID, ClassRestriction FROM {schema}.[SkillInfo]'):
+        if isinstance(mask, int) and mask & ALL_169 == ALL_169 and not mask & (1 << info['index']) \
+                and not excludes_class(na_restrictions.get(skill), info['name']):
+            out.append(skill)
+    return out
+
+
+def na_restrictions(imported_path: Path, table: str = 'ItemClassInfo', key: str = 'ItemClass') -> dict:
     with closing(sqlite3.connect(f'file:{imported_path}?mode=ro', uri=True)) as imported:
         source = imported.execute('SELECT source FROM [_class]').fetchone()[0]
     with closing(sqlite3.connect(f'file:{source}?mode=ro', uri=True)) as na:
-        return dict(na.execute('SELECT ItemClass, ClassRestriction FROM ItemClassInfo'))
+        return dict(na.execute(f'SELECT [{key}], ClassRestriction FROM [{table}]'))
 
 
 def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None = None) -> dict:
@@ -358,6 +371,7 @@ def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None
     report = {}
     imported_rows: dict[str, list] = collections.defaultdict(list)
     bits: dict[str, int] = collections.defaultdict(int)
+    skill_bits: dict[str, int] = collections.defaultdict(int)
     stats = []
     for path in paths:
         with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as imported:
@@ -368,6 +382,8 @@ def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None
                 imported_rows[table] += rows
             for item in wearable_items(db, imported, info, na_restrictions(path)):
                 bits[item] |= 1 << info['index']
+            for skill in shared_skills(db, info, na_restrictions(path, 'SkillInfo', 'SkillID')):
+                skill_bits[skill] |= 1 << info['index']
             stats.append(info)
             report[info['name']] = {t: len(r) for t, r in imported_rows.items()}
     for table, rows in imported_rows.items():
@@ -390,14 +406,20 @@ def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None
         db.execute('CREATE TEMP TABLE [_class_base_ItemClassInfo] AS SELECT * FROM main.[ItemClassInfo]')
         db.executemany('UPDATE temp.[_class_base_ItemClassInfo] SET ClassRestriction = ClassRestriction | ? WHERE ItemClass=?',
                        [(bit, item) for item, bit in bits.items()])
+    if skill_bits:
+        db.execute('CREATE TEMP TABLE [_class_base_SkillInfo] AS SELECT * FROM main.[SkillInfo]')
+        db.executemany('UPDATE temp.[_class_base_SkillInfo] SET ClassRestriction = ClassRestriction | ? WHERE SkillID=?',
+                       [(bit, skill) for skill, bit in skill_bits.items()])
     from content_additions import TABLES as ITEM_EDITOR_TABLES  # noqa: PLC0415 (circular at import time)
+    based = {'ItemClassInfo': bool(bits), 'SkillInfo': bool(skill_bits)}
     for table in imported_rows:
         if table in ITEM_EDITOR_TABLES:
             continue  # content_additions.install builds these views (class base + imported + added rows)
-        base = 'temp.[_class_base_ItemClassInfo]' if table == 'ItemClassInfo' and bits else f'main.[{table}]'
+        base = f'temp.[_class_base_{table}]' if based.get(table) else f'main.[{table}]'
         db.execute(f'CREATE TEMP VIEW [{table}] AS SELECT * FROM {base} UNION ALL SELECT * FROM temp.[_imported_{table}]')
     db.commit()
     report['class_bits'] = len(bits)
+    report['skill_bits'] = len(skill_bits)
     return report
 
 
@@ -430,6 +452,10 @@ def apply_client(db: sqlite3.Connection, original: sqlite3.Connection | None, pa
             db.executemany('UPDATE main.[ItemClassInfo] SET ClassRestriction = ClassRestriction | ? WHERE ItemClass=?',
                            [(1 << info['index'], item) for item in items])
             counts['class_bits'] = len(items)
+            skills = shared_skills(db, info, na_restrictions(path, 'SkillInfo', 'SkillID'))
+            db.executemany('UPDATE main.[SkillInfo] SET ClassRestriction = ClassRestriction | ? WHERE SkillID=?',
+                           [(1 << info['index'], skill) for skill in skills])
+            counts['skill_bits'] = len(skills)
             report[info['name']] = counts
     return report
 

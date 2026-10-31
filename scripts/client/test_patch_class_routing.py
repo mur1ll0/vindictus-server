@@ -283,6 +283,20 @@ class LabCopyTest(unittest.TestCase):
                 self.assertEqual(routing.read_string(image, self.entry(image, moved, 11)), 'csf/create_miri.csf')
                 self.assertEqual(bytes(image.data[image.offset(routing.COSTUME_GATE[name]):][:3]), b'\x83\xf8\x0b')
 
+    def test_skill_keyword_tables_have_an_entry_up_to_the_pet(self):
+        for name in ('client.dll', 'server.dll'):
+            image, report = self.plan(name)
+            clamp, array = routing.KEYWORD_TABLES[name]
+            tables = report['keyword_tables']
+            moved = int(tables['moved_to'], 16)
+            self.assertEqual(bytes(image.data[image.offset(clamp):image.offset(clamp) + 11]),
+                             bytes.fromhex('83f81c577e07bf1c000000'))
+            for at in tables['references']:
+                self.assertEqual(struct.unpack_from('<I', image.data, image.offset(int(at, 16)))[0], moved)
+            self.assertEqual(bytes(image.data[image.offset(moved):image.offset(moved) + 4 * (routing.PET + 1)]),
+                             bytes(4 * (routing.PET + 1)))
+            self.assertNotIn(struct.pack('<I', array), bytes(image.data[image.offset(clamp):image.offset(clamp) + 0x70]))
+
     def test_delia_mechanics_stay_on_delia(self):
         # Guard, standing conditions and Delia's on-hit effects dispatch class 10 only: Miri falls
         # through to the original methods (her own mechanics come with M7).

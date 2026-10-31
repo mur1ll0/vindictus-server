@@ -164,6 +164,13 @@ MATCH = {
     'client.dll': (0x3885FB93, 0x38860993, 0x38860C1D, 0x38022280),
     'server.dll': (0x407CCBA3, 0x407CD8A3, 0x407CDB2D, 0x400CEB80),
 }
+# GetSkillKeywordTable (one SkillKeywordTable per class, made on first use) clamps the class to 11
+# into a static array of 11 (0-9 and the pet at 10) that a static ConCommand follows (server
+# 0x40f5968c, the reload command): class 11, and the pet at PET, read the command's vtable as a
+# table and crashed in KeyValues::FindKey (Miri MI4, server.dll+0x8b5472). The array moves to .hrte
+# with PET + 1 entries and the clamp becomes PET: (VA of the clamp, array).
+KEYWORD_TABLES = {'client.dll': (0x38861D04, 0x38FB1B58), 'server.dll': (0x407CEC04, 0x40F59660)}
+KEYWORD_CLAMP = bytes.fromhex('83f80b577e07bf0b000000')  # cmp eax, 0xb; push edi; jle +7; mov edi, 0xb
 # "Is this class allowed" accessors over the item's per-class bools (+0x198, ten entries, filled
 # by engine.dll; Delia's is DELIA_FLAG, see patch_engine_class_flags.py): a `switch` on classes 0-9
 # returning flags[class], so class 10 got false ("Cannot be equipped", D8e). Each head jumps to a
@@ -719,6 +726,26 @@ def clone_case(image: Image, layout: Layout, start: int, end: int, relocs: set[i
             raise PreparationError(f'Branch to {target:#x} lands inside an instruction; nothing is patched.')
         struct.pack_into('<i', layout.body, at, placed[target] - (at + 4))
     return replaced
+
+
+def keyword_tables(image: Image, layout: Layout, edits: list, relocs: set[int], clamp: int, array: int) -> dict:
+    """GetSkillKeywordTable's array, moved to .hrte with an entry for every class up to the pet."""
+    if bytes(image.data[image.offset(clamp):image.offset(clamp) + len(KEYWORD_CLAMP)]) != KEYWORD_CLAMP:
+        raise PreparationError(f'Unexpected keyword table clamp at {clamp:#x}; nothing is patched.')
+    layout.pad()
+    moved = layout.here()
+    layout.body += bytes(4 * (PET + 1))
+    users = []
+    for at in sorted(relocs):
+        if image.text_contains(at) and struct.unpack_from('<I', image.data, image.offset(at))[0] == array:
+            edits.append((at, struct.pack('<I', array), struct.pack('<I', moved)))
+            users.append(hex(at))
+    # Read, test, store and store null: the function's four uses, all of them [index*4 + array].
+    if len(users) != 4:
+        raise PreparationError(f'Expected 4 uses of the keyword table array {array:#x}, found {len(users)}; nothing is patched.')
+    edits.append((clamp + 2, b'\x0b', bytes((PET,))))
+    edits.append((clamp + 7, b'\x0b', bytes((PET,))))
+    return {'clamp': hex(clamp), 'array': hex(array), 'moved_to': hex(moved), 'entries': PET + 1, 'references': users}
 
 
 def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
@@ -2646,6 +2673,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         edits.append((va, b'\x83\xf8\x0a', bytes((0x83, 0xF8, PET))))
     if name in MATCH:
         report['match_table'] = match_table(image, layout, edits, relocs, *MATCH[name])
+    if name in KEYWORD_TABLES:
+        report['keyword_tables'] = keyword_tables(image, layout, edits, relocs, *KEYWORD_TABLES[name])
     report['flag_checks'] = [flag_check(layout, edits, *entry) for entry in FLAG_CHECKS.get(name, ())]
     report['tooltips'] = [tooltip(image, layout, edits, relocs, *entry) for entry in TOOLTIPS.get(name, ())]
     if name in PRECACHE:

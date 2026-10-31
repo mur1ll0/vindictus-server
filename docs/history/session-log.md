@@ -2736,3 +2736,38 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md`, MI1–MI4 (pendentes).
 - Commits: (este passo)
 - Pendente / próxima ação: sessão de cliente C4 (MI1–MI4); em paralelo, Miri M7 (mecânicas próprias: transformação Dragon Knight, Dragon Smash, energia do dragão).
+
+## 2026-10-30 — Miri C4 rodada 1 (MI4) e correções da entrada (perfil de habilidades, `KEYWORD_TABLES`, habilidades comuns)
+- Feito: sessão de cliente C4, só MI4 (o operador pulou MI1–MI3). Correções:
+  - Seleção: `export_skill_profile.py --all-skills` (toda habilidade com *rank* bem tipado, inclusive importadas; fora `skill_kalok_stormwind`, `RequiredAP ''`), agora em `refresh_item_content.EXPORTS`. O perfil antigo (383, sem a Miri) fazia `minimum_selection::skill_cache` recusar `skill_miri_draker_mastery`.
+  - Queda `server.dll+0x8b5472`: `GetSkillKeywordTable` (cliente `0x38861d00`, servidor `0x407cec00`) limita a classe a 11 num vetor de 11 entradas seguido de um `ConCommand` estático. A classe 11 (e o pet em 28) lia a vtable do comando (`0x40c246ec`) como tabela, em `ExpressionEvaluator::GetFromSkillKeyword` → `KeyValues::FindKey`. `KEYWORD_TABLES` em `patch_class_routing.py` move o vetor para a `.hrte` com `PET + 1` entradas e o limite passa a `PET`.
+  - Habilidades comuns: `class_imports.shared_skills` dá o bit da classe às habilidades com máscara 2047 do 1.69, salvo `!<classe>` no NA. São 29: `!grimden` no NA, ou `nothing` nas maestrias de armadura. Servidor via `_class_base_SkillInfo`; cliente via `apply_client`.
+  - Diagnóstico da arma: o modelo vem do `SubTypeInfoOverride` da entidade pelo `CostumeType`; com `weapon_greatsword` a `draker_newbie` mostra `greatsword_practice.mdl`.
+  - Diagnóstico da batalha: *idle* travada no barco; hipótese de condições do NA não registradas.
+  - Arquivos: `docs/future/miri-class-port.md` 2.11, `docs/client-tests/C4-miri.md` (Resultados).
+- Verificação:
+  - `test_patch_class_routing test_patch_class_table test_patch_engine_class_flags` 45 OK, nenhum pulado (`mi4-fix-routing-tests.log`).
+  - `scripts/content` 84 OK (`mi4-fix-content-tests.log`).
+  - Roteamento reaplicado dos `*.pre-routing.bak` (`mi4-fix-routing-apply.log`): `client.dll` `2a674af585254817`, `server.dll` `282b624df15bee24`; anteriores em `*.pre-keyword.bak`; `engine.dll` `51ea90e70b93ad04`.
+  - `refresh_item_content.py --force` OK em 708 s; `apply_lab_content_additions.py --apply` OK (`skill_bits` 29).
+  - Perfil com 402 habilidades, 48 com o bit 11; `heroes.db3` da cópia com 48; `game` saudável, sem `ERROR`.
+  - Evidência da sessão em `.cache/verification/miri/mi4-*`: minidump, logs, amostras de *threads*, `mi4-party-samples.txt`.
+- Cliente:
+  - MI4-1–3 ok. MI4-4 parcial (retrato da lista errado, M8).
+  - MI4-5 ok depois das correções (cidade, corpo, inner).
+  - MI4-6 parcial (equipa, mas modelo `greatsword_practice` e posição estranha, M7).
+  - MI4-7 parcial (habilidades próprias ok, comuns corrigidas, reteste pendente).
+  - MI4-8 parcial (`DeliaLab` entra na fase; Fiona não testada).
+  - Party com a Miri: trava intermitente (20:41 e 20:54; o cliente não manda a chave pública ao *relay* e fica 60 s no laço de espera do `engine.dll`); a terceira tentativa entrou no barco, com a Miri presa na *idle*.
+- Commits: nenhum (sessão de teste; mudanças deixadas para revisão).
+- Pendente / próxima ação: Miri: reteste da MI4-7 (habilidades comuns) e MI1–MI3 do `docs/client-tests/C4-miri.md`; M7 começa pela entidade `weapon_draker` (modelos do `weapon_draker.txt`) e pelo registro das condições do NA (Miri presa na *idle* em batalha), depois transformação Dragon Knight, Dragon Smash e energia do dragão.
+
+## 2026-10-30 — Miri C4 rodada 2 (MI4-7, MI4-8, trava do barco) e commit das correções da MI4
+- Feito: as correções da rodada 1 (perfil de habilidades `--all-skills`, `KEYWORD_TABLES`, `class_imports.shared_skills`) foram commitadas juntas. Diagnóstico da trava do barco: o cliente não manda a chave pública ao *relay* e a memória baixa estava quase esgotada; a medição (`VirtualQueryEx`) está em `mi4r2-*`.
+- Verificação: as mesmas da entrada da rodada 1 (routing 45 OK, `scripts/content` 84 OK). Memória de 22:28 a 22:33: abaixo de 2 GB, 1.627–1.740 MB ocupados, 68–176 MB livres, pedaços de no máximo 15 MB. Os relatórios de queda mostram memória privada de 1,0–1,2 GB antes do M1 e 2,0 GB depois.
+- Cliente:
+  - MI4-7 ok (habilidades comuns visíveis); inventário da Miri ok.
+  - MI4-8 ok: Delia com combate, Rose Crush, habilidades e itens.
+  - Barco: abriu depois de o operador fechar o Firefox (1,8 GB); antes travava com Miri e Delia.
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M7 (pedido do operador em 30/10: todas as armas, habilidades e animações): entidade `weapon_draker` (modelos do `weapon_draker.txt`), registro das condições e chaves de quadro do NA (Miri presa na *idle* em batalha), depois transformação Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 do C4 pendentes.

@@ -47,6 +47,8 @@ EXPORTS = (
     ('export_equipment_profile.py', 'normal-equipment-profile-v4.json', ('--all-classes',)),
     ('export_fiona_appearance.py', 'fiona-appearance-inventory.json', ()),
     ('export_fiona_inventory.py', 'fiona-inventory.json', ()),
+    # Imported classes add skills; a learned skill missing here refuses the selection (Miri MI4).
+    ('export_skill_profile.py', 'skill-profile-v5.json', ('--all-skills',)),
 )
 EXPORT_TIMEOUT = 900
 LOG = ROOT / '.cache/verification/refresh-item-content.log'

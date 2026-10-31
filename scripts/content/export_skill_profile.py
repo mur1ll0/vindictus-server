@@ -69,13 +69,24 @@ def read_package(database, config, selected):
                 config_sha256=package['manifest']['config_sha256'], implementations={k:r['sha256'] for k,r in sources.items()},
                 skills=skills, ranks=ranks, constraints=constraints, arguments=arguments, features=features)
 
+def all_skills(database):
+    """Every SkillInfo row with well-typed ranks, in row order, with the imported classes' skills
+    (content_additions); the selection load refuses a learned skill missing from the profile. As the
+    earlier 383-skill subset, a skill with a non-integer rank column (1.69 skill_kalok_stormwind,
+    RequiredAP '') stays out."""
+    with contextlib.closing(content_additions.connect(database)) as db:
+        ranked={r[0] for r in db.execute("SELECT SkillID FROM SkillRankInfo GROUP BY SkillID HAVING min(typeof(Rank)='integer' AND typeof(LevelConstraint)='integer' AND typeof(RequiredAP)='integer')")}
+        ids=[r[0] for r in db.execute('SELECT SkillID FROM SkillInfo') if r[0] in ranked]
+    return [i.encode('utf-16-le', errors='surrogatepass').hex() for i in ids]
+
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--skills-file',required=True);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--output',required=True)
+    group=parser.add_mutually_exclusive_group(required=True);group.add_argument('--skills-file');group.add_argument('--all-skills',action='store_true');args=parser.parse_args()
     out=pathlib.Path(args.output).resolve();private=(ROOT/'.cache/private-content').resolve()
-    source=pathlib.Path(args.skills_file).resolve()
-    if out.parent != private or source.parent != private: raise ValueError('Use prepared private content directory')
-    selected=[r['skill_hex'] for r in json.loads(source.read_text(encoding='utf-8-sig'))]
+    source=pathlib.Path(args.skills_file).resolve() if args.skills_file else None
+    if out.parent != private or (source and source.parent != private): raise ValueError('Use prepared private content directory')
     base=ROOT.parent/'ServidorVindictus/Server/zh-tw-x-gm/Bin'
+    selected=all_skills(base/'heroesContents.db3') if args.all_skills else [r['skill_hex'] for r in json.loads(source.read_text(encoding='utf-8-sig'))]
     package=read_package(base/'heroesContents.db3',base/'ServiceCore.dll.config',selected)
     with out.open('x',encoding='utf-8',newline='\n') as stream: json.dump(package,stream,separators=(',',':'),ensure_ascii=True);stream.write('\n')
     print('Private readonly skill profile exported; values omitted.')
