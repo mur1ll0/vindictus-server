@@ -106,7 +106,7 @@ class ClassImportsTest(unittest.TestCase):
             base = dict(db.execute('SELECT ItemClass, ClassRestriction FROM temp._class_base_ItemClassInfo'))
             self.assertEqual(base, {'potion': 4095, 'dress': 1446, 'sword': 2, 'helm': 1024, 'fiona_inner': 2, 'gold': 2})
             self.assertEqual(dict(db.execute('SELECT ItemClass, CostumeType FROM temp._imported_EquipItemInfo')),
-                             {'draker_newbie': 20003, 'miri_inner': 9044})
+                             {'draker_newbie': 5003, 'miri_inner': 9044})
             features = db.execute('SELECT * FROM FeatureMatrix ORDER BY Feature').fetchall()
             self.assertIn(('Miri', '4.00.00', '4.00.00', '3.09.00', '3.09.00'), features)
             self.assertIn(('DressRankLimit_Miri', '100', '100', '100', '100'), features)

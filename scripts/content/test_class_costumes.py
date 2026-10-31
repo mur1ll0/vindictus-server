@@ -36,9 +36,9 @@ WEAPON = (b'WeaponData\r\n{\r\n\t"playermodel"\t"models/weapon/draker/draker_tes
 class WeaponSubtypeTest(unittest.TestCase):
     def test_class_subtypes_move_into_the_lab_entity_script(self):
         self.assertEqual(class_costumes.weapon_costumes(WEAPON, 'draker'), [
-            {'section': 'weapon_greatsword', 'key': '20000', 'normal': 'models/weapon/draker/draker_test.mdl'},
-            {'section': 'weapon_greatsword', 'key': '20001', 'normal': 'models/weapon/draker/draker_newbie.mdl'}])
-        self.assertEqual(class_costumes.weapon_subtype('draker', 1), 20001)
+            {'section': 'weapon_greatsword', 'key': '5000', 'normal': 'models/weapon/draker/draker_test.mdl'},
+            {'section': 'weapon_greatsword', 'key': '5001', 'normal': 'models/weapon/draker/draker_newbie.mdl'}])
+        self.assertEqual(class_costumes.weapon_subtype('draker', 1), 5001)
 
     def test_a_weapon_without_lab_entity_keeps_its_numbers(self):
         self.assertEqual(class_costumes.weapon_costumes(WEAPON, 'blaster'), [])

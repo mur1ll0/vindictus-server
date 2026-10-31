@@ -2788,3 +2788,14 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI5 (modelo Draker; experimento da *idle*: cidade, barco sem arma, barco com arma).
 - Commits: (este passo)
 - Pendente / próxima ação: Miri M7: M7a (modelos Draker na `weapon_greatsword`, chaves 20000 + n) feito; com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`, depois a MI5 do `docs/client-tests/C4-miri.md` (modelo e experimento da *idle*: cidade, barco sem arma, barco com arma), que define o M7b. Em seguida: transformação Dragon Knight, Dragon Smash e energia do dragão.
+
+## 2026-10-30 — Miri M7a, correção da base dos subtipos (20000 → 5000)
+- Feito: MI5, rodada 1 — a Draker não aparecia. Na memória do jogo não havia nenhuma instância de `C_WeaponGreatSword` (vtable `0x38c0303c`, encontrada pelo RTTI). `CostumeType / 10000` escolhe a entidade na lista de armas da classe (`CLASS_WEAPONS`; as segundas armas do 1.69 usam 10000+/20000+), e com 20000 a Miri caía na posição 2, vazia. `WEAPON_SUBTYPE_BASE` 5000 (faixa livre no `weapon_greatsword.txt` do 1.69).
+- Verificação:
+  - `scripts/content` OK (`m7a2-content-tests.log`).
+  - Leitura de memória: sem caminho `weapon/draker` e sem instância de arma (`mi5-memfind*.txt`).
+  - O índice e o pacote de scripts conferem (`mi5-whichpack.txt`); o perfil do servidor tinha `serial` 20001.
+  - Trava do barco: mesmo padrão com 10 GB livres na máquina (`mi5-vmmap-hung.txt`, `mi5-threads-hung.txt`).
+- Cliente: MI5 a repetir depois de reaplicar (base 5000).
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`; depois a MI5 do `docs/client-tests/C4-miri.md`, com a captura de *threads* armada para a trava do *relay*.
