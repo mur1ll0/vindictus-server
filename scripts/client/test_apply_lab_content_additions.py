@@ -5,6 +5,7 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 
+import apply_lab_content_additions as a
 from apply_lab_content_additions import apply
 from prepare_lab_client import PreparationError
 
@@ -37,6 +38,19 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
     def count(self):
         with closing(sqlite3.connect(self.db)) as db:
             return db.execute("SELECT count(*) FROM ShopInfo WHERE ItemClass='enhance_elixir'").fetchone()[0]
+
+    def test_class_scripts_join_the_original_pack_of_an_existing_folder(self):
+        import hfs  # noqa: PLC0415
+        packs = sorted([hfs.pack_name('scripts/actionstate', 0), hfs.pack_name('scripts/actionstate', 1),
+                        hfs.pack_name('models/player/fiona', 0)])
+        plain = hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, [])
+        files = [('scripts/actionstate/player_action_state_miri.txt', Path('a'), 's1'),
+                 ('scripts/newfolder/x.txt', Path('b'), 's2'),
+                 ('models/player/fiona/miri_inner.mdl', Path('c'), 's3')]
+        out = a.injected_packs(plain, files, Path('copy'))
+        # The folder's last original part; a new folder and non-script files keep their own packs.
+        self.assertEqual(out, {Path('copy/hfs') / (hfs.pack_name('scripts/actionstate', 1) + '.hfs'):
+                               [('scripts/actionstate/player_action_state_miri.txt', Path('a'), 's1')]})
 
     def test_dry_run_changes_nothing_and_apply_is_idempotent(self):
         self.assertEqual(apply(self.root, False, self.additions, items=[])['shop_rows_missing'], 1)

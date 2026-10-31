@@ -44,6 +44,22 @@ fn packet(message: Message<'_>) -> Result<OutgoingPacket, MinimumError> {
             .to_vec(),
     })
 }
+/// Logs which selection step refused and the error kind (no values), then passes the result
+/// on: the client only sees the connection close (C4 MI6, Murael and Tsuko).
+fn traced<T>(step: &'static str, result: Result<T, MinimumError>) -> Result<T, MinimumError> {
+    if let Err(e) = &result {
+        let kind = match e {
+            MinimumError::State(_) => "state",
+            MinimumError::Managers(_) => "managers",
+            MinimumError::Customization(_) => "customization",
+            MinimumError::Content(_) => "content",
+            MinimumError::Database(_) => "database",
+            MinimumError::Conflict => "conflict",
+        };
+        tracing::warn!(step, kind, "minimum selection step refused; values omitted");
+    }
+    result
+}
 /// Password/session admission is checked by the frontend before this storage boundary.
 /// Stat arithmetic follows the explicit CLR profile, independently of body quantization.
 pub async fn select(
@@ -71,13 +87,19 @@ pub async fn select(
     .fetch_one(&mut *tx)
     .await?;
     if row.try_get::<bool, _>("dirty")? || row.try_get::<bool, _>("is_connected")? {
-        return Err(MinimumError::Conflict);
+        return traced("flags", Err(MinimumError::Conflict));
     }
     // CafeManager.OnLogIn (HomeCafeBonus) before the entry state is projected.
     let level: i32 = row.try_get("level")?;
-    let cafe = super::minimum_home_cafe::login(&mut tx, assets, owner, cid, level).await?;
+    let cafe = traced(
+        "cafe",
+        super::minimum_home_cafe::login(&mut tx, assets, owner, cid, level).await,
+    )?;
     let user_cafe_type = super::minimum_home_cafe::account_cafe_type(&mut tx, owner.uid).await?;
-    let view = view(&mut tx, owner, assets, cid, config, arithmetic, false, 0).await?;
+    let view = traced(
+        "view",
+        view(&mut tx, owner, assets, cid, config, arithmetic, false, 0).await,
+    )?;
     let look = view.look;
     let equipment = view.equipment;
     let mut packets = vec![
@@ -104,26 +126,34 @@ pub async fn select(
         view.stat,
     ];
     // InGame.OnEnter: the Title observer (TitleListMessage) after the Stat observer.
-    if let Some(titles) = super::minimum_growth::title_list_packet(&mut tx, assets, cid).await? {
+    if let Some(titles) = traced(
+        "titles",
+        super::minimum_growth::title_list_packet(&mut tx, assets, cid).await,
+    )? {
         packets.push(titles);
     }
     // InGame.OnEnter forces the Skill observer (SkillListMessage) and QueryAP
     // (APMessage) after the Stat observer, without a client query.
     if assets.skills.is_some() {
         let (level, class): (i32, i32) = (row.try_get("level")?, row.try_get("class")?);
-        packets
-            .push(super::minimum_skills::packet(&mut tx, owner, assets, cid, level, class).await?);
-        packets.push(super::minimum_ap::packet(
-            super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await?,
+        packets.push(traced(
+            "skills",
+            super::minimum_skills::packet(&mut tx, owner, assets, cid, level, class).await,
         )?);
+        packets.push(super::minimum_ap::packet(traced(
+            "ap",
+            super::minimum_ap::current(&mut tx, owner, assets, cid, arithmetic).await,
+        )?)?);
     }
     // ItemServiceProxy.Open: QueryManufactureInfo before the item observer syncs (sent
     // when the manufacture contents are loaded).
     if assets.enhance.is_some() {
         packets.push(super::minimum_manufacture::query(&mut tx, cid).await?);
     }
-    packets
-        .push(super::minimum_inventory::load(&mut tx, owner, assets, cid, Some(equipment)).await?);
+    packets.push(traced(
+        "inventory",
+        super::minimum_inventory::load(&mut tx, owner, assets, cid, Some(equipment)).await,
+    )?);
     packets.extend(cafe.packets);
     sqlx::query("INSERT INTO game_user_info(nexon_sn,last_login_cid,prologue_played) VALUES($1,$2,false) ON CONFLICT(nexon_sn) DO UPDATE SET last_login_cid=EXCLUDED.last_login_cid").bind(owner.uid).bind(cid).execute(&mut *tx).await?;
     sqlx::query("UPDATE game_character_info SET is_connected=true WHERE id=$1")
@@ -353,14 +383,20 @@ async fn compute_stats(
     }
     // StatManager.CalculateBaseStat: class stats of the level (level 1 from the
     // initializer profile) plus the acquired and account titles' stats.
-    let base = super::minimum_growth::base_stats(tx, assets, cid).await?;
+    let base = traced(
+        "stats.base",
+        super::minimum_growth::base_stats(tx, assets, cid).await,
+    )?;
     if row.try_get::<bool, _>("dirty")? || values != *base.values() {
-        return Err(MinimumError::Conflict);
+        return traced("stats.values", Err(MinimumError::Conflict));
     }
-    let cache = skill_cache(tx, assets, cid).await?;
-    let gear = super::minimum_equipment::load(tx, owner, assets, cid).await?;
+    let cache = traced("stats.skills", skill_cache(tx, assets, cid).await)?;
+    let gear = traced(
+        "stats.gear",
+        super::minimum_equipment::load(tx, owner, assets, cid).await,
+    )?;
     if !gear.bonus.skills.is_empty() {
-        return Err(MinimumError::Conflict);
+        return traced("stats.gear_skills", Err(MinimumError::Conflict));
     }
     let items = gear
         .projection
@@ -448,13 +484,17 @@ pub(super) async fn view(
         || super::lab_clock::utc_now().map_err(|_| MinimumError::Conflict),
         cid,
     )
-    .await?;
+    .await;
+    let bytes = traced("view.summary", bytes)?;
     let Computed {
         gear,
         stats,
         dictionary,
         armor_hp,
-    } = compute_stats(tx, owner, assets, cid, arithmetic).await?;
+    } = traced(
+        "view.stats",
+        compute_stats(tx, owner, assets, cid, arithmetic).await,
+    )?;
     let mut summary = character_list::decode(&bytes, DEFAULT_MAX_BODY)
         .map_err(|_| MinimumError::Conflict)?
         .and_then(|m| m.characters)
@@ -472,7 +512,10 @@ pub(super) async fn view(
     // CharacterEntity.CafeType: the HomeCafeBonus type set by HomeCafeBonus.OnLogIn.
     summary.cafe_type = super::minimum_home_cafe::cafe_type(tx, owner.uid, cid).await?;
     // CharacterEntity.MakeSummary: Pets.CurrentPetStatusInfo (the town look shows the pet).
-    summary.pet = super::minimum_pet::current_info(tx, owner.uid, assets).await?;
+    summary.pet = traced(
+        "view.pet",
+        super::minimum_pet::current_info(tx, owner.uid, assets).await,
+    )?;
     let mut costumes = None;
     if project || !gear.projection.equipment.is_empty() {
         let before = super::character_costumes::load_for_constructor(tx, cid)

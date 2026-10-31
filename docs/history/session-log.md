@@ -2821,3 +2821,15 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI6.
 - Commits: (este passo)
 - Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`; MI6 (barco e fase com a Miri). Se continuar na *idle*: condições do NA (`CONDITION_NAMES`).
+
+## 2026-10-31 — Miri M7c (scripts nas partes originais) e diagnóstico da seleção (Murael, Tsuko)
+- Feito:
+  - MI6, rodada 1: o M7b não mudou nada. A leitura de memória mostrou que nenhum script da Miri (estados de ação, expressões) chega a ser lido, embora o roteamento peça `player_action_state_miri[_ex].txt` e o arquivo esteja são e no índice.
+  - Esses scripts estavam em partes novas (N ≥ 1) de pastas que o 1.69 já tem. As pastas novas da Miri e as mesclas em pacotes originais carregam.
+  - `apply_lab_content_additions.injected_packs` põe os scripts da classe (`scripts/`) na última parte original da pasta, reconstruída a partir do *backup* (7 arquivos; 71 pacotes novos de classe em vez de 75).
+  - Seleção da Murael (Fiona) e da Tsuko (Evy) recusada (`operation failed`). Descartados: *flags* `dirty`/`is_connected`, habilidades fora do perfil (máscaras 2047 → 4095 conferidas bit a bit), itens fora das exportações (inclusive os `*_inner_zero` do editor) e impressão digital do inicializador (a mesma da `DeliaLab` e da `MiriLab`).
+  - `minimum_selection::traced` registra o passo e o tipo do erro (sem valores).
+- Verificação: `test_apply_lab_content_additions` e `test_hfs` OK (`m7c-apply-tests.log`); simulação do aplicador (`m7c-apply-dry.log`, 7 injetados); `cargo check --lib` OK, sem aviso (`sel-check.log`); Docker recompilado (`sel-docker-build.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI7.
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, aplicar a cópia e subir o `game` com a imagem nova; MI7 (barco com a Miri; entrada da Murael e da Tsuko, com o passo da recusa no log).

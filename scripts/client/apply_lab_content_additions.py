@@ -269,6 +269,29 @@ def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dic
     return packs
 
 
+# Class scripts in a folder the 1.69 already has go into the 1.69's own (last) pack of that folder: the
+# client did not read them from a new part of the folder (C4 MI6: no key of the Miri's action-state,
+# expression or keyword scripts reached memory, while her new folders and the merged scripts load).
+INJECTED_PREFIXES = ('scripts/',)
+
+
+def injected_packs(plain: bytes, files: list[tuple[str, Path, str]],
+                   client_copy: Path) -> dict[Path, list[tuple[str, Path, str]]]:
+    """Original pack (the folder's last part in the original index) -> class files (game path, file,
+    SHA-256) added to it."""
+    names = set(hfs.index_packs(plain))
+    out: dict[Path, list[tuple[str, Path, str]]] = {}
+    for path, file, sha in files:
+        if not path.startswith(INJECTED_PREFIXES):
+            continue
+        folder = path.rsplit('/', 1)[0]
+        parts = [part for part in range(64) if hfs.pack_name(folder, part) in names]
+        if parts:
+            pack = client_copy / 'hfs' / (hfs.pack_name(folder, max(parts)) + '.hfs')
+            out.setdefault(pack, []).append((path, file, sha))
+    return out
+
+
 def class_pack_plan(files: list[tuple[str, Path, str]], taken: set[str]) -> list[tuple[str, str, list[tuple[str, Path, str]]]]:
     """New packs for the staged class files: per folder, the parts after the ones the index has, each up
     to CLASS_PART_LIMIT plain bytes."""
@@ -345,15 +368,18 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     merges = class_merges(assets)
     original_index = backup_dir / index.name if (backup_dir / index.name).exists() else index
     merged = merge_packs(hfs.decode_index(original_index.read_bytes()), merges, client_copy) if merges else {}
+    class_files = class_asset_files(assets)
+    injected = injected_packs(hfs.decode_index(original_index.read_bytes()), class_files, client_copy)
+    injected_paths = {path for pack in injected.values() for path, _, _ in pack}
+    class_files = [f for f in class_files if f[0] not in injected_paths]
     # Every pack with a backup comes back to it unless rebuilt below (a merge that was undone).
     restored = [client_copy / 'hfs' / p.name for p in backup_dir.glob('*.hfs') if p.name != index.name]
     originals = {path: backup_dir / path.name
-                 for path in [index, scripts] + [p for p, _ in texts] + sorted(merged) + restored}
+                 for path in [index, scripts] + [p for p, _ in texts] + sorted(merged) + sorted(injected) + restored}
     previously_added = json.loads(added_list.read_text(encoding='utf-8')) if added_list.exists() else []
     entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
     costumes += class_weapon_costumes(assets)
-    class_files = class_asset_files(assets)
     class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
     if (not items and not entries and not class_files and not merges and not class_tokens
             and not any(b.exists() for b in originals.values()) and not previously_added):
@@ -383,7 +409,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         by_file.setdefault(script_of(costume['section']), []).append(costume)
     merge_report = {'files': 0, 'blocks': 0, 'lines': 0, 'conflicts': [], 'renumbered': {}}
     # Class merges first (NA lines of the class), then the item editor's entries on top.
-    for path in sorted(set(merged) | ({scripts} if by_file else set())):
+    for path in sorted(set(merged) | set(injected) | ({scripts} if by_file else set())):
         pending = dict(merged.get(path, {}))
         pack = []
         for e in hfs.read_pack(source[path], ks):
@@ -412,6 +438,13 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
             pack.append(e)
         if pending:
             raise PreparationError(f'{path.name} has no {sorted(pending)[0]}.')
+        present = {e.name.lower() for e in pack}
+        for game_path, file, _ in injected.get(path, []):
+            folder, name = game_path.rsplit('/', 1)
+            entry_name, data, attr = class_entry(folder, name, file)
+            if entry_name.lower() in present:
+                raise PreparationError(f'{path.name} already has {entry_name}.')
+            pack.append(hfs.Entry(entry_name, data(), attr))
         wanted[path] = hfs.build_pack(pack, ks)
         rebuilt.append((path.name, wanted[path]))
     if by_file:
@@ -442,7 +475,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     return {'hfs': 'applied' if items or entries or class_files or merges or class_tokens else 'restored', 'text_tokens': len(entries),
             'class_tokens': len(class_tokens),
             'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
-            'class_packs': len(plan), 'class_packs_built': class_built, 'class_merges': merge_report,
+            'class_packs': len(plan), 'class_injected': len(injected_paths), 'class_packs_built': class_built, 'class_merges': merge_report,
             'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
 
 

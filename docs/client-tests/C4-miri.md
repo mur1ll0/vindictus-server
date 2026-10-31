@@ -123,3 +123,21 @@ Pré-condição: jogo fechado durante `refresh_item_content.py --force` e `apply
 - [ ] Numa fase: combate contra monstros, ataque forte (botão direito) e uma habilidade da barra.
 - [ ] `DeliaLab` no barco: sem regressão.
 Limites conhecidos: as mecânicas próprias (transformação Dragon Knight, Dragon Smash, energia do dragão) e as condições do NA ainda não foram portadas. Se a Miri continuar só na *idle*, o próximo passo é registrar as condições (`CONDITION_NAMES`), como na Delia.
+
+Resultado da MI6, rodada 1 (31/10/2026, 01:5x, M7b aplicado): sem mudança. No barco, só a *idle* de combate; a Miri desliza.
+- Leitura de memória (`mi6-memfind*.txt`):
+  - O método vale: as chaves de estados comuns (`LadderUpDuringJump`) e de outras classes (Delia, Hagie, Hurk e outras) estão na tabela de símbolos do `KeyValues`.
+  - Nenhuma chave dos scripts da Miri foi lida: nem dos estados de ação (`AttackMelee_01_attack04`, `SpeedyMove_dragon`) nem da tabela de expressões (`DragonEnergy_transform`, `FirstRestoreDelay`).
+  - O roteamento está certo: o caso 11 do *switch* pede `player_action_state_miri[_ex].txt` no cliente e no servidor. O carregador (servidor `0x407ee6b0`) faz `LoadFromFile` e, se falha, a classe fica sem estados.
+  - O arquivo da Miri está são (chaves balanceadas, sem BOM, tokens curtos) e no índice.
+  - Ele está em `scripts/actionstate` parte 1 (`661E4BD9`), um pacote novo depois da única parte do 1.69 (`DCB08EBB`). O mesmo vale para `scripts/expression` parte 1, `scripts/skill` parte 1 e `scripts` parte 1. Formato e atributo (0x20) iguais aos dos pacotes originais.
+- O que funciona: modelos em pastas **novas** da Miri (`models/player/_anim/female/miri` parte 0) e o que foi mesclado em pacotes **originais** (`player_costume.txt`).
+- Hipótese: o cliente não lê partes novas (N ≥ 1) de pastas que já existem no 1.69. O percurso das partes fica no `FileSystem_Stdio` (`0x10027cd0`, protegido por VMProtect).
+- Experimento proposto: pôr os scripts da Miri na parte que o 1.69 já tem (`DCB08EBB` e similares), reconstruída a partir do *backup*, como já se faz com as mesclas.
+
+### MI7 — Scripts da Miri nos pacotes originais (M7c) e seleção da Murael e da Tsuko
+Pré-condição: imagem Docker com o registro dos passos da seleção (`minimum_selection.rs`, `traced`); com o jogo fechado, `apply_lab_content_additions.py --apply` põe os 7 scripts da Miri em pastas que o 1.69 já tem (`scripts/actionstate`, `scripts/expression`, `scripts/skill`, `scripts`) na última parte original da pasta, em vez de pacotes novos.
+- [ ] Barco com a Miri (sem arma e com a Draker): anda com animação, pula, ataca, Shift.
+- [ ] Murael (Fiona) e Tsuko (Evy): tentar entrar. Se recusar, anotar o horário; o log do `game` dirá o passo (`minimum selection step refused`, `step`, `kind`).
+- [ ] `DeliaLab` e `MiriLab`: entram como antes.
+Limites conhecidos: as mecânicas próprias da Miri ainda não foram portadas.
