@@ -359,19 +359,28 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # fixed length (when > 0), byte, byte) and keeps the result in a handle. For each extra class in
 # CHAIN_CLASSES, the client think (slot 334, after the base) keeps one such cable per player from
 # the active weapon's `chain_01` (m_hActiveWeapon +0x1140) to the player's `anim_attachment_LH_Chain1`
-# (`anim_attachment_LH` when the body lacks it): made when the weapon changes, removed with
+# (`anim_attachment_LH` when the body lacks it), and the arm chain as a client model bone-merged on the
+# player, as the 1.69 makes its own (0x381c8cd3: operator new 0x380528b0 of 0xca0 bytes,
+# C_BaseAnimating 0x380431f0, InitializeAsClientEntity(model, 0) at vtable +0x148,
+# FollowEntity(owner, bonemerge) 0x380136d0). Both are made when the weapon changes and removed with
 # C_BaseEntity::Remove (0x38058370, as LINK_ROPE does) when it changes again or goes away; a weapon
-# without `chain_01` gets none. State per player (CHAIN_PLAYERS entries of player, weapon, cable
-# handle, weapon has chain) in .hrte. Not ported: the town cable on the weapon (the battle cable is
-# used in town too), the arm prop, hiding the cable while the weapon is invisible.
+# without `chain_01` gets neither. Each think also removes the pair of a player that no longer exists
+# (its handle no longer resolves): a model following a removed entity would stay in the world. State
+# per player (CHAIN_PLAYERS entries: player, weapon, cable handle, weapon has chain, arm handle,
+# player handle) in .hrte. Not ported: the town cable on the weapon (the battle cable is used in town
+# too), hiding both while the weapon is invisible.
 CHAIN = {'client.dll': {'think': 334, 'active_weapon': 0x1140, 'handle_get': 0x385519D0, 'handle_set': 0x38541370,
-                        'remove': 0x38058370, 'create': 0x38540A30, 'lookup_attachment': 0x8C}}
+                        'remove': 0x38058370, 'create': 0x38540A30, 'lookup_attachment': 0x8C,
+                        'new': 0x380528B0, 'animating': 0x380431F0, 'animating_size': 0xCA0,
+                        'initialize': 0x148, 'follow': 0x380136D0}}
 CHAIN_HEADS = {'handle_get': '8b0183f8ff', 'handle_set': '568bf18b4c2408', 'remove': '568bf180be5b01000000',
-               'create': '5668380c0000'}
+               'create': '5668380c0000', 'new': 'a1c4a3ad38', 'animating': '515355568bf1', 'follow': '8b442404568bf185c0'}
 CHAIN_CLASSES = (11,)
 CHAIN_PLAYERS = 16
+CHAIN_ENTRY = 32
 CHAIN_ROPE = {'material': 'cable/heroes_metalchain_05', 'width': 1.5, 'segments': 19, 'flags': 8,
               'slack': 1.1, 'length': -1.0}
+CHAIN_ARM_MODEL = 'models/weapon/draker/draker_chain.mdl'
 CHAIN_WEAPON_ATTACHMENT = 'chain_01'
 CHAIN_PLAYER_ATTACHMENTS = ('anim_attachment_LH_Chain1', 'anim_attachment_LH')
 # Delia's status effects and on-hit commands (plan 8.15 items 3-4), server only. The 1.69
@@ -2028,8 +2037,8 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
 
 
 def chain(image: Image, layout: Layout, name: str) -> dict:
-    """CHAIN: the per-player cable table and the tick (ecx = player) that keeps the cable in step with
-    the active weapon. Returns the tick's and the table's addresses."""
+    """CHAIN: the per-player table, a drop routine and the tick (ecx = player) that keeps the cable and
+    the arm chain in step with the active weapon. Returns their addresses."""
     k = CHAIN[name]
     for key, head in CHAIN_HEADS.items():
         expected = bytes.fromhex(head)
@@ -2040,11 +2049,31 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     weapon_name = layout.string(CHAIN_WEAPON_ATTACHMENT)
     player_names = [layout.string(n) for n in CHAIN_PLAYER_ATTACHMENTS]
     material = layout.string(rope['material'])
+    arm_model = layout.string(CHAIN_ARM_MODEL)
     layout.pad()
     table = layout.here()
-    layout.body += bytes(16 * CHAIN_PLAYERS)  # player, weapon, cable handle, weapon has chain
+    # Entry: +0 player, +4 weapon, +8 cable handle, +12 weapon has chain, +16 arm handle, +20 player handle.
+    layout.body += bytes(CHAIN_ENTRY * CHAIN_PLAYERS)
+
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
+    def set_dword(disp: int, value: int) -> None:
+        layout.body += bytes((0xC7, 0x47, disp)) + struct.pack('<i', value)  # mov dword [edi + disp], value
+
+    # drop(edi = entry): remove the entry's cable and arm chain, if alive; eax/ecx/edx are lost.
     layout.pad()
-    tick = layout.here()
+    drop = layout.here()
+    for disp in (8, 16):
+        layout.body += bytes((0x8D, 0x4F, disp))  # lea ecx, [edi + disp]
+        call(k['handle_get'])
+        layout.body += bytes((0x85, 0xC0))
+        gone = layout.forward(bytes((0x0F, 0x84)))
+        layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
+        call(k['remove'])
+        layout.land(gone)
+        set_dword(disp, -1)
+    layout.body += bytes((0xC3,))
 
     def lookup(entity: int, text: int) -> None:
         """eax = entity's attachment `text` (entity register code), through its renderable at +4."""
@@ -2053,9 +2082,31 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
         layout.pointer(text)
         layout.body += bytes((0xFF, 0x90)) + struct.pack('<I', k['lookup_attachment'])  # call [eax + slot]
 
+    layout.pad()
+    tick = layout.here()
     esi, ebp = 6, 5
     layout.body += bytes((0x53, 0x56, 0x57, 0x55))  # push ebx/esi/edi/ebp
     layout.body += bytes((0x8B, 0xF1))  # mov esi, ecx (player)
+    # Sweep: the entries of other players whose handle no longer resolves lose their pair.
+    layout.body += bytes((0xBF,))  # mov edi, table
+    layout.pointer(table)
+    layout.body += bytes((0xBB,)) + struct.pack('<I', CHAIN_PLAYERS)  # mov ebx, n
+    sweep = len(layout.body)
+    layout.body += bytes((0x8B, 0x07, 0x85, 0xC0))  # mov eax, [edi]; test eax, eax
+    empty = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x3B, 0xC6))  # cmp eax, esi
+    own = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8D, 0x4F, 0x14))  # lea ecx, [edi + 20]
+    call(k['handle_get'])
+    layout.body += bytes((0x3B, 0x07))  # cmp eax, [edi]
+    living = layout.forward(bytes((0x0F, 0x84)))
+    call(drop)
+    for disp, value in ((0, 0), (4, 0), (12, 0), (20, -1)):
+        set_dword(disp, value)
+    for at in (empty, own, living):
+        layout.land(at)
+    layout.body += bytes((0x83, 0xC7, CHAIN_ENTRY, 0x4B))  # add edi, entry; dec ebx
+    layout.body += bytes((0x0F, 0x85)) + struct.pack('<i', sweep - (len(layout.body) + 6))  # jnz sweep
     # Find the player's entry, or take the first free one.
     layout.body += bytes((0xBF,))  # mov edi, table
     layout.pointer(table)
@@ -2065,50 +2116,52 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     found = layout.forward(bytes((0x0F, 0x84)))
     layout.body += bytes((0x85, 0xDB, 0x75, 0x07, 0x83, 0x3F, 0x00, 0x75, 0x02, 0x8B, 0xDF))
     # test ebx, ebx; jnz +7; cmp dword [edi], 0; jnz +2; mov ebx, edi
-    layout.body += bytes((0x83, 0xC7, 0x10, 0x49))  # add edi, 16; dec ecx
+    layout.body += bytes((0x83, 0xC7, CHAIN_ENTRY, 0x49))  # add edi, entry; dec ecx
     layout.body += bytes((0x0F, 0x85)) + struct.pack('<i', scan - (len(layout.body) + 6))  # jnz scan
     layout.body += bytes((0x85, 0xDB))  # test ebx, ebx
     full = layout.forward(bytes((0x0F, 0x84)))
     layout.body += bytes((0x8B, 0xFB, 0x89, 0x37))  # mov edi, ebx; mov [edi], esi
-    layout.body += bytes((0xC7, 0x47, 0x04)) + bytes(4)  # mov dword [edi + 4], 0
-    layout.body += bytes((0xC7, 0x47, 0x08)) + struct.pack('<i', -1)  # mov dword [edi + 8], -1
-    layout.body += bytes((0xC7, 0x47, 0x0C)) + bytes(4)  # mov dword [edi + 12], 0
+    for disp, value in ((4, 0), (8, -1), (12, 0), (16, -1)):
+        set_dword(disp, value)
+    # +20 = the player's handle (GetRefEHandle, vtable +8, as the handle setter reads it).
+    layout.body += bytes((0x8B, 0x06, 0x8B, 0xCE, 0xFF, 0x50, 0x08))  # mov eax, [esi]; mov ecx, esi; call [eax + 8]
+    layout.body += bytes((0x8B, 0x00, 0x89, 0x47, 0x14))  # mov eax, [eax]; mov [edi + 20], eax
     layout.land(found)
     # ebp = active weapon, eax = live cable.
     layout.body += bytes((0x8D, 0x8E)) + struct.pack('<I', k['active_weapon'])  # lea ecx, [esi + m_hActiveWeapon]
-    layout.to(bytes((0xE8,)), k['handle_get'])
+    call(k['handle_get'])
     layout.body += bytes((0x8B, 0xE8, 0x8D, 0x4F, 0x08))  # mov ebp, eax; lea ecx, [edi + 8]
-    layout.to(bytes((0xE8,)), k['handle_get'])
+    call(k['handle_get'])
     layout.body += bytes((0x3B, 0x6F, 0x04))  # cmp ebp, [edi + 4]
     changed = layout.forward(bytes((0x0F, 0x85)))
     layout.body += bytes((0x85, 0xC0))  # same weapon: test eax, eax (cable alive)
     alive = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x8D, 0x4F, 0x10))  # lea ecx, [edi + 16]
+    call(k['handle_get'])
+    layout.body += bytes((0x85, 0xC0))  # or arm chain alive
+    arm_alive = layout.forward(bytes((0x0F, 0x85)))
     layout.body += bytes((0x83, 0x7F, 0x0C, 0x00))  # cmp dword [edi + 12], 0 (no chain on it)
     no_chain = layout.forward(bytes((0x0F, 0x84)))
     create = layout.forward(bytes((0xE9,)))
     layout.land(changed)
-    layout.body += bytes((0x85, 0xC0))  # test eax, eax
-    no_old = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
-    layout.to(bytes((0xE8,)), k['remove'])
-    layout.land(no_old)
+    call(drop)
     layout.body += bytes((0x89, 0x6F, 0x04))  # mov [edi + 4], ebp
-    layout.body += bytes((0xC7, 0x47, 0x08)) + struct.pack('<i', -1)  # mov dword [edi + 8], -1
-    layout.body += bytes((0xC7, 0x47, 0x0C)) + bytes(4)  # mov dword [edi + 12], 0
+    set_dword(12, 0)
     layout.body += bytes((0x85, 0xED))  # test ebp, ebp
     no_weapon = layout.forward(bytes((0x0F, 0x84)))
     layout.land(create)
+    call(drop)
     # LookupAttachment: index + 1, 0 when the model lacks the point, -1 while the model is not loaded
     # (the weapon is then forgotten, so the next think tries again).
     lookup(ebp, weapon_name)
     layout.body += bytes((0x85, 0xC0))
     found_point = layout.forward(bytes((0x0F, 0x8F)))  # jg
     no_point = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0xC7, 0x47, 0x04)) + bytes(4)  # mov dword [edi + 4], 0
+    set_dword(4, 0)
     unloaded = layout.forward(bytes((0xE9,)))
     layout.land(found_point)
     layout.body += bytes((0x8B, 0xD8))  # mov ebx, eax (weapon attachment)
-    layout.body += bytes((0xC7, 0x47, 0x0C)) + struct.pack('<I', 1)  # mov dword [edi + 12], 1
+    set_dword(12, 1)
     have = []
     for text in player_names:
         lookup(esi, text)
@@ -2126,16 +2179,32 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     layout.pointer(material)
     layout.body += bytes((0x68,)) + struct.pack('<f', rope['width'])
     layout.body += bytes((0x50, 0x53, 0x56, 0x55))  # push eax (hand), ebx (chain_01), esi (player), ebp (weapon)
-    layout.to(bytes((0xE8,)), k['create'])
+    call(k['create'])
     layout.body += bytes((0x83, 0xC4, 0x30, 0x85, 0xC0))  # add esp, 0x30; test eax, eax
     no_cable = layout.forward(bytes((0x0F, 0x84)))
     layout.body += bytes((0x50, 0x8D, 0x4F, 0x08))  # push eax; lea ecx, [edi + 8]
-    layout.to(bytes((0xE8,)), k['handle_set'])
-    for at in (full, alive, no_chain, no_weapon, no_point, unloaded, no_hand, no_cable):
+    call(k['handle_set'])
+    layout.land(no_cable)
+    # The arm chain: a client C_BaseAnimating with the model, bone-merged on the player.
+    layout.body += bytes((0x68,)) + struct.pack('<I', k['animating_size'])
+    call(k['new'])
+    layout.body += bytes((0x83, 0xC4, 0x04, 0x85, 0xC0))  # add esp, 4; test eax, eax
+    no_memory = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
+    call(k['animating'])
+    layout.body += bytes((0x8B, 0xD8, 0x8B, 0x03, 0x6A, 0x00, 0x68))  # mov ebx, eax; mov eax, [ebx]; push 0; push model
+    layout.pointer(arm_model)
+    layout.body += bytes((0x8B, 0xCB, 0xFF, 0x90)) + struct.pack('<I', k['initialize'])  # mov ecx, ebx; call [eax + init]
+    layout.body += bytes((0x6A, 0x01, 0x56, 0x8B, 0xCB))  # push 1; push esi; mov ecx, ebx
+    call(k['follow'])
+    layout.body += bytes((0x53, 0x8D, 0x4F, 0x10))  # push ebx; lea ecx, [edi + 16]
+    call(k['handle_set'])
+    for at in (full, alive, arm_alive, no_chain, no_weapon, no_point, unloaded, no_hand, no_memory):
         layout.land(at)
     layout.body += bytes((0x5D, 0x5F, 0x5E, 0x5B, 0xC3))  # pop ebp/edi/esi/ebx; ret
-    return {'tick': hex(tick), 'table': hex(table), 'players': CHAIN_PLAYERS, 'classes': list(CHAIN_CLASSES),
-            'rope': dict(rope), 'attachments': [CHAIN_WEAPON_ATTACHMENT, *CHAIN_PLAYER_ATTACHMENTS]}
+    return {'tick': hex(tick), 'drop': hex(drop), 'table': hex(table), 'entry': CHAIN_ENTRY, 'players': CHAIN_PLAYERS,
+            'classes': list(CHAIN_CLASSES), 'rope': dict(rope), 'arm_model': CHAIN_ARM_MODEL,
+            'attachments': [CHAIN_WEAPON_ATTACHMENT, *CHAIN_PLAYER_ATTACHMENTS]}
 
 
 def item_mask(layout: Layout, edits: list, va: int, old: bytes) -> str:

@@ -184,10 +184,11 @@ Limites conhecidos: a corrente da Draker (braço esquerdo e cabo até a arma) é
 ### MI10 — Corrente da Draker (M7f)
 Pré-condição: com o jogo fechado, `stage_na_class.py` (material `cable/heroes_metalchain_05` do NA), `apply_lab_content_additions.py --apply` e o roteamento do `client.dll` refeito a partir do `*.pre-routing.bak` com o grupo `CHAIN` (feitos por mim; hashes no histórico, passo M7f). Só o `client.dll` muda; o `server.dll` fica igual.
 - [ ] Cidade com a `MiriLab` e a Draker equipada: anotar se aparece uma corrente da mão esquerda até a arma (nas costas), e se ela acompanha ao andar, correr e pular.
-- [ ] Tirar a Draker e equipar de novo (inventário): a corrente some sem a arma e volta com ela; nenhuma corrente solta parada no chão ou no ar.
+- [ ] Corrente enrolada no braço esquerdo (`draker_chain.mdl`): aparece no antebraço e acompanha o braço (sem ficar parada no ar nem no chão), com a ponta solta balançando.
+- [ ] Tirar a Draker e equipar de novo (inventário): o cabo e a corrente do braço somem sem a arma e voltam com ela; nenhuma corrente solta parada no chão ou no ar.
 - [ ] Barco com a Draker: ataques 01–04 e o arremesso (Shift + botão direito) → a corrente liga a mão esquerda à arma enquanto ela se afasta e volta. Anotar se ela fica esticada, frouxa demais, atravessa o corpo ou pisca.
 - [ ] Barco: descanso de combate (parada depois de atacar) → a arma na mão e a corrente curta.
 - [ ] Sair do barco para a cidade e voltar: a corrente reaparece; nenhuma corrente fica para trás no lugar antigo.
 - [ ] `DeliaLab` e uma Fiona: nenhuma corrente; combate e cidade como antes.
 - [ ] (Opcional, com `lab_memory.py serve`) anotar o horário se algo der errado: a tabela da corrente está em `class-routing.json` (`class_conditions.chain.table`).
-Limites conhecidos: na cidade o NA usa outro cabo, preso só na arma (`chain_01` a `chain_town`); aqui é o mesmo cabo da batalha. O prop da corrente enrolada no braço esquerdo (`draker_chain.mdl`) e o sumiço do cabo quando a arma fica invisível (emotes, interações) ainda não foram portados. Até 16 jogadores com corrente por mapa.
+Limites conhecidos: na cidade o NA usa outro cabo, preso só na arma (`chain_01` a `chain_town`); aqui é o mesmo cabo da batalha. O cabo e a corrente do braço não somem quando a arma fica invisível (emotes, interações). Até 16 jogadores com corrente por mapa; a corrente de uma Miri que sai do mapa é removida no próximo *think* de outra Miri (sem outra Miri, fica até trocar de mapa).

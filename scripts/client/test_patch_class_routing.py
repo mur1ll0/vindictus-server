@@ -532,11 +532,17 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(text(body, 32), ['push esi', 'mov esi, ecx', f'call {base:#x}', 'mov ecx, esi',
                                           f'call {tick:#x}', 'pop esi', 'ret'])
         k = routing.CHAIN['client.dll']
-        code = text(tick, 0x200)
+        code = text(tick, 0x400)
         self.assertEqual(code[-1], 'ret')
         self.assertIn(f'lea ecx, [esi + {k["active_weapon"]:#x}]', code)
-        self.assertEqual(code.count(f'call {k["handle_get"]:#x}'), 2)
-        self.assertIn(f'call {k["remove"]:#x}', code)
+        # Sweep (player handle), active weapon, cable, arm chain.
+        self.assertEqual(code.count(f'call {k["handle_get"]:#x}'), 4)
+        drop = int(chain['drop'], 16)
+        self.assertEqual(code.count(f'call {drop:#x}'), 3)
+        dropped = text(drop, 0x60)
+        self.assertEqual(dropped.count(f'call {k["remove"]:#x}'), 2)
+        self.assertEqual([c for c in dropped if c.startswith('lea ecx')], ['lea ecx, [edi + 8]', 'lea ecx, [edi + 0x10]'])
+        self.assertEqual(dropped[-1], 'ret')
         self.assertIn(f'call dword ptr [eax + {k["lookup_attachment"]:#x}]', code)
         # A point counts only above 0 (-1: model not loaded, and then the weapon is tried again).
         self.assertEqual(sum(c.startswith('jg ') for c in code), 1 + len(routing.CHAIN_PLAYER_ATTACHMENTS))
@@ -553,10 +559,20 @@ class LabCopyTest(unittest.TestCase):
         material = int(pushes[6].split()[1], 16)
         self.assertEqual(routing.read_string(image, material), rope['material'])
         self.assertEqual(code[create + 1:create + 3], ['add esp, 0x30', 'test eax, eax'])
-        self.assertIn(f'call {k["handle_set"]:#x}', code)
+        self.assertEqual(code.count(f'call {k["handle_set"]:#x}'), 2)
+        # The arm chain: new C_BaseAnimating, InitializeAsClientEntity(model, 0), FollowEntity(player, 1).
+        arm = code.index(f'push {k["animating_size"]:#x}')
+        self.assertEqual(code[arm + 1], f'call {k["new"]:#x}')
+        self.assertIn(f'call {k["animating"]:#x}', code[arm:])
+        init = code.index(f'call dword ptr [eax + {k["initialize"]:#x}]')
+        self.assertEqual(routing.read_string(image, int(code[init - 2].split()[1], 16)), routing.CHAIN_ARM_MODEL)
+        self.assertEqual(code[init - 3], 'push 0')
+        follow = code.index(f'call {k["follow"]:#x}')
+        self.assertEqual(code[follow - 3:follow - 1], ['push 1', 'push esi'])
         names = [routing.read_string(image, int(c.split()[1], 16)) for c in code if c.startswith('push 0x')]
-        self.assertEqual([n for n in names if n and 'chain' in n.lower() or n and n.startswith('anim_')],
-                         [routing.CHAIN_WEAPON_ATTACHMENT, *routing.CHAIN_PLAYER_ATTACHMENTS, rope['material']])
+        self.assertEqual([n for n in names if n and ('chain' in n.lower() or n.startswith('anim_'))],
+                         [routing.CHAIN_WEAPON_ATTACHMENT, *routing.CHAIN_PLAYER_ATTACHMENTS, rope['material'],
+                          routing.CHAIN_ARM_MODEL])
         self.assertEqual(chain['classes'], [11])
 
     def test_delia_effects_register_types_commands_and_hooks(self):

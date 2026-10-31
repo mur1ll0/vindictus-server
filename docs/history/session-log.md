@@ -2892,3 +2892,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI10 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI9 e MI10 no cliente (parada: o resto da corrente depende de vê-la). Depois: prop do braço (`draker_chain.mdl`), cabo de cidade na própria arma, esconder com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: corrente do braço da Draker
+- Feito: `CHAIN` em `patch_class_routing.py` cria, junto com o cabo, o `draker_chain.mdl` como modelo de cliente em *bonemerge* no jogador, como o 1.69 faz em `0x381c8cd3` (`new` `0x380528b0` 0xca0, `C_BaseAnimating` `0x380431f0`, `InitializeAsClientEntity` vtable `+0x148`, `FollowEntity(dono, 1)` `0x380136d0`); rotina `drop` remove cabo e corrente juntos; varredura por *think* remove o par de jogadores cujo *handle* não resolve; "vivo" = cabo ou corrente vivos (sem recriar a cada quadro). Entrada da tabela 32 bytes (jogador, arma, cabo, arma com corrente, corrente, *handle* do jogador). Medidos também `AddEffects` `0x380107f0`/`RemoveEffects` `0x38018640` (`m_fEffects +0x7c`), para esconder com a arma invisível depois.
+- Verificação: testes de corrente, *think* da Delia e relocação ok (`.cache/verification/miri/m7f/test-arm.log`); `draker_chain.mdl`, `.vvd`, `.dx90.vtx` e o material resolvidos pelo índice da cópia (`verify-arm-model.log`). Roteamento aplicado dos `*.pre-routing.bak` com o jogo fechado (`routing-apply-arm.log`): `client.dll` `e5a7e582ac718e41` → `2cf1dd9b45f86aeb`, `server.dll` igual `282b624df15bee24`; *tick* `0x39220780`, `drop` `0x39220740`, tabela `0x39220540`.
+- Cliente: `docs/client-tests/C4-miri.md` MI10 (corrente do braço acrescentada; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 e MI10 no cliente. Depois: cabo de cidade na própria arma, esconder com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
