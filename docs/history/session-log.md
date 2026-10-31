@@ -2691,3 +2691,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: RL1 (B2) — barco ao menos 8 vezes seguidas sem voltar à seleção.
 - Commits: (este commit)
 - Pendente / próxima ação: com o jogo fechado, aplicar `patch_engine_iocp_sign.py --apply` e rodar a RL1.
+
+## 2026-10-31 — B2 RL1: patch do engine.dll aplicado
+- Feito: com o jogo fechado, `patch_engine_iocp_sign.py --apply` na cópia do laboratório: `engine.dll` `51ea90e7…` → `df6c70d2…`, backup `engine.dll.51ea90e70b93ad04.pre-iocpsign.bak`.
+- Verificação: `iocp-sign-apply.log` (exit 0); `test_patch_engine_iocp_sign` 4 OK depois do patch (`iocp-sign-tests-after.log`).
+- Cliente: RL1 (B2) pendente.
+- Commits: 1c94c22 (correção), este commit (aplicação).
+- Pendente / próxima ação: rodar a RL1 do B2 (barco sem trava; `engine.dll` do laboratório já com o patch).

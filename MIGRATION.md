@@ -18,14 +18,14 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Aguardando o operador: sessões de cliente pendentes (tabela abaixo) e a decisão sobre a Miri. Com o jogo fechado: aplicar `scripts/client/patch_engine_iocp_sign.py --client-copy .cache/play-client --apply` e rodar a RL1 do B2.
+2. Aguardando o operador: sessões de cliente pendentes (tabela abaixo) e a decisão sobre a Miri. Rodar a RL1 do B2 (barco sem trava; `engine.dll` do laboratório já com o patch).
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
 
 | Roteiro | Situação |
 |---|---|
-| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). RL1 (barco repetido sem trava, 31/10) pede o patch `patch_engine_iocp_sign.py` aplicado com o jogo fechado. |
+| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). RL1 (barco repetido sem trava, 31/10; patch `patch_engine_iocp_sign.py` já aplicado). |
 | `docs/client-tests/B3-equipamento.md` | Nenhuma entrada testada (inclui DY1, ampola de tintura). |
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
