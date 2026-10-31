@@ -26,6 +26,7 @@ import struct
 import sys
 from pathlib import Path
 
+import mdl_anim
 import mdl_v45_to_v44
 from model_kit import TEXTURE_PARAMS, model_materials
 
@@ -113,6 +114,61 @@ def extreme_motion_sibling(path: str, data: bytes) -> str | None:
     return None
 
 
+# 1.69 battle motion model of the same skeleton that the copied _ex includes when it has no battle
+# jump: the Miri's NA battle model has none (jump_begin/during/end, jump_attack), and she slid in the air
+# without animation (C4 MI8). The Delia's is the closest female set; her events file already names the
+# sequences. The engine takes from an included model only the sequences the model lacks.
+JUMP_SEQUENCE = 'jump_begin'
+JUMP_DONORS = {'female': 'models/player/_anim/female/delia/pc_delia_battle_motion_ex.mdl'}
+
+
+def jump_donor(path: str, data: bytes, known=lambda p: False) -> str | None:
+    """The 1.69 model a battle motion _ex model must include for the battle jump, or None."""
+    if not path.endswith('_battle_motion_ex.mdl') or not path.startswith('models/player/_anim/'):
+        return None
+    donor = JUMP_DONORS.get(path.split('/')[3])
+    if donor is None or not known(donor):
+        return None
+    try:
+        if JUMP_SEQUENCE in {s.lower() for s in mdl_anim.Model(data).sequences}:
+            return None
+    except mdl_anim.ModelError:
+        return None
+    return donor
+
+
+# Battle rest sequences in which the NA hangs the Draker from the chain on the left arm (C_WeaponDraker:
+# draker_chain.mdl and a cable to the weapon's chain_01, native code the 1.69 lacks): without the chain
+# the weapon floated beside her (C4 MI8). Until the chain is ported, the copied _ex keeps the weapon in
+# the hand there, as every 1.69 class does (the hand offset of battle_idle_lower). The attacks and the
+# throw still swing it on the (invisible) chain.
+REST_SEQUENCES = ('battle_idle2rest', 'battle_idle2restb', 'battle_rest', 'battle_restb')
+HAND = 'ValveBiped.Bip01_R_Hand'
+HAND_REFERENCE = 'battle_idle_lower'
+
+
+def rest_in_hand(data: bytes) -> tuple[bytes, list[str]]:
+    """data with the weapon bone pinned to the hand in each REST_SEQUENCES that takes it off the hand."""
+    pinned = []
+    for sequence in REST_SEQUENCES:
+        try:
+            if max(mdl_anim.max_drift(data, sequence, mdl_anim.WEAPON_BONE, HAND, HAND_REFERENCE)) < mdl_anim.PINNED:
+                continue
+        except mdl_anim.ModelError:
+            continue
+        data = mdl_anim.pin_bone(data, sequence, mdl_anim.WEAPON_BONE, HAND, HAND_REFERENCE)
+        pinned.append(sequence)
+    return data, pinned
+
+
+def town_motion(path: str, data: bytes) -> bytes:
+    """A town motion model with the weapon kept on the back in jump_town (mdl_anim.town_jump_on_back):
+    the Miri's, like the Delia's, carried it into her hand (C4 MI7, MI8)."""
+    if path.startswith('models/player/_anim/') and path.endswith('_town_motion.mdl'):
+        return mdl_anim.town_jump_on_back(data) or data
+    return data
+
+
 def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
     """Game paths a staged model or material needs. A model's material is the first cdmaterials folder
     that has it, as the engine searches them (`known`: the path exists in the 1.69, the NA or the
@@ -152,6 +208,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         if converted:
             data = mdl_v45_to_v44.convert(source)
         data = without_missing_includes(rel, data, lambda p: p in lab or (p in na and selected(p, names)))
+        data = town_motion(rel, data)
         converted = converted or data != source
         target = out / rel
         if not target.is_file() or sha256(target.read_bytes()) != sha256(data):
@@ -170,8 +227,16 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         sibling = extreme_motion_sibling(rel, (out / rel).read_bytes())
         if sibling and sibling in records:
             data = (out / sibling).read_bytes()
+            record.update({'copied_from': sibling})
+            donor = jump_donor(rel, data, lambda p: p in lab)
+            if donor:
+                data = mdl_anim.with_included_model(data, donor)
+                record['included'] = donor
+            data, pinned = rest_in_hand(data)
+            if pinned:
+                record['weapon_in_hand'] = pinned
             (out / rel).write_bytes(data)
-            record.update({'sha256': sha256(data), 'bytes': len(data), 'converted': True, 'copied_from': sibling})
+            record.update({'sha256': sha256(data), 'bytes': len(data), 'converted': True})
     merges = []
     for rel in SHARED_SCRIPTS:
         if rel not in na or rel not in lab:

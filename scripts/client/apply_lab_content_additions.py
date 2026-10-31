@@ -25,6 +25,7 @@ import content_additions  # noqa: E402
 import content_edits  # noqa: E402
 import hfs  # noqa: E402
 import kv_merge  # noqa: E402
+import mdl_anim  # noqa: E402
 
 ADDITIONS = Path(__file__).resolve().parents[1] / 'content/lab_content_additions.json'
 SHOP_COLUMNS = ('ShopID', 'Order', 'ItemClass', 'Count', 'PriceItemClass', 'PriceCount', 'AppearQuestID',
@@ -252,20 +253,38 @@ def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]
     return merges
 
 
+def original_pack(plain: bytes, path: str, client_copy: Path) -> Path:
+    """The 1.69 pack holding a game path, from the original index."""
+    names = hfs.index_packs(plain)
+    folder, file_name = path.rsplit('/', 1)
+    parts = {hfs.pack_name(folder, part) for part in range(64)}
+    key = hfs.name_key(file_name)
+    found = sorted({names[struct.unpack_from('<H', e, 6)[0]] for e in hfs.index_entries(plain) if e[:6] == key} & parts)
+    if len(found) != 1:
+        raise PreparationError(f'{path} is not in exactly one pack of the client.')
+    return client_copy / 'hfs' / (found[0] + '.hfs')
+
+
 def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dict[str, list]]:
     """The 1.69 pack holding each merged script, from the original index: pack path -> file -> merges."""
-    names = hfs.index_packs(plain)
-    where: dict[bytes, list[int]] = {}
-    for e in hfs.index_entries(plain):
-        where.setdefault(e[:6], []).append(struct.unpack_from('<H', e, 6)[0])
     packs: dict[Path, dict[str, list]] = {}
     for path, file, needles in merges:
-        folder, file_name = path.rsplit('/', 1)
-        parts = {hfs.pack_name(folder, part) for part in range(64)}
-        found = sorted({names[i] for i in where.get(hfs.name_key(file_name), []) if names[i] in parts})
-        if len(found) != 1:
-            raise PreparationError(f'{path} is not in exactly one pack of the client.')
-        packs.setdefault(client_copy / 'hfs' / (found[0] + '.hfs'), {}).setdefault(file_name, []).append((file, needles))
+        pack = original_pack(plain, path, client_copy)
+        packs.setdefault(pack, {}).setdefault(path.rsplit('/', 1)[1], []).append((file, needles))
+    return packs
+
+
+# 1.69 files rewritten inside their own pack (rebuilt from the backup) for an imported class's look: the
+# Delia's town jump carried the weapon into her hand, as the Miri's did (mdl_anim.town_jump_on_back,
+# C4 MI9). A fix that returns None leaves the file as it is.
+ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl': mdl_anim.town_jump_on_back}
+
+
+def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -> dict[Path, dict[str, object]]:
+    """Original pack -> lower-case file name -> fix, for the 1.69 files a staged class needs changed."""
+    packs: dict[Path, dict[str, object]] = {}
+    for path, fix in fixes.items():
+        packs.setdefault(original_pack(plain, path, client_copy), {})[path.rsplit('/', 1)[1].lower()] = fix
     return packs
 
 
@@ -371,11 +390,12 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     class_files = class_asset_files(assets)
     injected = injected_packs(hfs.decode_index(original_index.read_bytes()), class_files, client_copy)
     injected_paths = {path for pack in injected.values() for path, _, _ in pack}
+    fixed = fixed_packs(hfs.decode_index(original_index.read_bytes()), client_copy) if class_files else {}
     class_files = [f for f in class_files if f[0] not in injected_paths]
     # Every pack with a backup comes back to it unless rebuilt below (a merge that was undone).
     restored = [client_copy / 'hfs' / p.name for p in backup_dir.glob('*.hfs') if p.name != index.name]
     originals = {path: backup_dir / path.name
-                 for path in [index, scripts] + [p for p, _ in texts] + sorted(merged) + sorted(injected) + restored}
+                 for path in [index, scripts] + [p for p, _ in texts] + sorted(merged) + sorted(injected) + sorted(fixed) + restored}
     previously_added = json.loads(added_list.read_text(encoding='utf-8')) if added_list.exists() else []
     entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
@@ -409,14 +429,22 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         by_file.setdefault(script_of(costume['section']), []).append(costume)
     merge_report = {'files': 0, 'blocks': 0, 'lines': 0, 'conflicts': [], 'renumbered': {}}
     # Class merges first (NA lines of the class), then the item editor's entries on top.
-    for path in sorted(set(merged) | set(injected) | ({scripts} if by_file else set())):
+    fix_report = []
+    for path in sorted(set(merged) | set(injected) | set(fixed) | ({scripts} if by_file else set())):
         pending = dict(merged.get(path, {}))
+        fixes = dict(fixed.get(path, {}))
         pack = []
         for e in hfs.read_pack(source[path], ks):
             comp = e.name.endswith('.comp')
             file_name = e.name[:-5] if comp else e.name
             sources = pending.pop(file_name, [])
             rows = by_file.pop(e.name, None) if path == scripts else None
+            fix = fixes.pop(file_name.lower(), None)
+            if fix:
+                data = fix(hfs.comp_unwrap(e.data) if comp else e.data)
+                if data is not None:
+                    e = hfs.Entry(e.name, hfs.comp_wrap(data) if comp else data, e.attr)
+                    fix_report.append(file_name)
             if sources or rows:
                 plain = hfs.comp_unwrap(e.data) if comp else e.data
                 for file, needles in sources:
@@ -436,8 +464,8 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
                     plain = with_script_entries(plain, rows, 'shields' if e.name == 'shields.txt.comp' else 'weapon')
                 e = hfs.Entry(e.name, hfs.comp_wrap(plain) if comp else plain, e.attr)
             pack.append(e)
-        if pending:
-            raise PreparationError(f'{path.name} has no {sorted(pending)[0]}.')
+        if pending or fixes:
+            raise PreparationError(f'{path.name} has no {sorted(pending or fixes)[0]}.')
         present = {e.name.lower() for e in pack}
         for game_path, file, _ in injected.get(path, []):
             folder, name = game_path.rsplit('/', 1)
@@ -475,7 +503,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     return {'hfs': 'applied' if items or entries or class_files or merges or class_tokens else 'restored', 'text_tokens': len(entries),
             'class_tokens': len(class_tokens),
             'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
-            'class_packs': len(plan), 'class_injected': len(injected_paths), 'class_packs_built': class_built, 'class_merges': merge_report,
+            'class_packs': len(plan), 'class_injected': len(injected_paths), 'class_packs_built': class_built, 'class_merges': merge_report, 'original_fixes': fix_report,
             'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
 
 

@@ -170,3 +170,13 @@ Resultado da MI8, rodada 1 (31/10/2026): andar, atacar, combos e golpes funciona
 - **Corrente da Draker invisível** no arremesso (Shift + botão direito). O modelo tem os pontos `chain_01`/`chain_town`; os eventos do NA `AE_ATTACH_ANIMATING_PROP`/`AE_DETACH_ANIMATING_PROP` (M0) não existem no 1.69. Patch nativo.
 - **Arma flutuando no descanso de combate** (*idle* depois de atacar). O NA usa o modo de encaixe `battle_rest` (`TownAttachData` do `weapon_draker.txt`), que o 1.69 não lê.
 - **Pulo na cidade** (pedido do operador: como o do Hurk): tirar o saque da arma do `JumpTown` (`selectweapon weapon_defaultsword`) ou a ativação dele nos arquivos de cidade da Delia (1.69) e da Miri.
+
+### MI9 — Pulos sem a arma na mão, pulo em batalha e descanso de combate (M7e)
+Pré-condição: com o jogo fechado, `stage_na_class.py --class miri --weapon draker` e `apply_lab_content_additions.py --apply` (feitos por mim; `.cache/verification/miri/m7e/`). Na cópia: `jump_town` da Miri e da Delia com a arma presa às costas (`mdl_anim.py`), `pc_miri_battle_motion_ex.mdl` incluindo o `pc_delia_battle_motion_ex.mdl` (pulo de batalha) e com a arma na mão em `battle_idle2rest[b]`/`battle_rest[b]`. Antes do barco não é preciso voltar à seleção (trava do *relay* corrigida no `engine.dll`, B2 RL1).
+- [ ] Cidade com a `MiriLab` (Draker equipada): pular parado e correndo → a Draker fica nas costas durante todo o pulo, como a *greatsword* do Hurk (sem ir para a mão nem "voltar" ao pousar).
+- [ ] Cidade com a `DeliaLab`: pular parado e correndo → a arma fica nas costas; andar, correr e um emote como antes.
+- [ ] Barco com a Miri (sem arma e com a Draker): pular parado e correndo → animação de pulo (subida, ar, pouso), sem deslizar congelada; clique e botão direito no ar → ataque no ar.
+- [ ] Barco com a Miri: atacar e esperar parada até a *idle* de descanso → a Draker fica na mão (não solta no ar).
+- [ ] Barco: Shift + botão direito (arremesso) → anotar como a arma aparece (sem corrente ainda, ver limites).
+- [ ] `DeliaLab` no barco: pulo, combate e Rose Crush sem regressão; uma Fiona ou o Hurk na cidade: pulo como antes.
+Limites conhecidos: a corrente da Draker (braço esquerdo e cabo até a arma) é código nativo do NA (`C_WeaponDraker`) ainda não portado (M7f): nos ataques e no arremesso a arma continua se afastando da mão sem a corrente visível. Com `ExtremeMode` a Miri usa o conjunto de golpes da Delia (os `_ex` do NA são cópias dos dela); Dragon Knight, Dragon Smash e energia do dragão ainda não funcionam. Se a seleção ou o barco ficarem mais lentos, anotar (o modelo da Delia passa a carregar junto com a Miri).

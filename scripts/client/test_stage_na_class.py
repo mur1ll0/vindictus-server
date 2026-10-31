@@ -4,7 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import mdl_anim
 import stage_na_class as stage
+import test_mdl_anim as models
 
 
 def model(textures: list[str], folders: list[str]) -> bytes:
@@ -118,6 +120,40 @@ class StageTest(unittest.TestCase):
         self.assertNotIn(b'common_state_rope.txt', out)
         self.assertIn(b'"include_condition"', out)
         self.assertEqual(stage.without_missing_includes('scripts/weapon_draker.txt', script, known), script)
+
+    def test_a_battle_ex_model_without_the_jump_includes_the_donor(self):
+        path = 'models/player/_anim/female/miri/pc_miri_battle_motion_ex.mdl'
+        donor = stage.JUMP_DONORS['female']
+        without = models.synthetic({'battle_idle_lower': {3: models.still(2, bone=3)}})
+        with_jump = models.synthetic({stage.JUMP_SEQUENCE: {3: models.still(2, bone=3)}})
+        self.assertEqual(stage.jump_donor(path, without, {donor}.__contains__), donor)
+        self.assertIsNone(stage.jump_donor(path, with_jump, {donor}.__contains__))
+        self.assertIsNone(stage.jump_donor(path, without, lambda p: False))
+        self.assertIsNone(stage.jump_donor(path.replace('female', 'male'), without, lambda p: True))
+        self.assertIsNone(stage.jump_donor(path.replace('_ex', ''), without, lambda p: True))
+
+    def test_the_weapon_stays_in_the_hand_in_the_battle_rest(self):
+        hand = models.BASE_POS[3]
+        off = ((0.3, 0.2, 0.1), (9.0, 6.0, 3.0))  # hanging from the chain, off the hand
+        data = models.synthetic({
+            stage.HAND_REFERENCE: {2: models.still(2, (0.1, 0.0, 0.0), bone=2), 3: models.still(2, bone=3)},
+            'battle_rest': {2: ([(0.1 * f, 0.2, 0) for f in range(5)], [models.BASE_POS[2]] * 5),
+                            3: ([off[0]] * 5, [off[1]] * 5)},
+            'battle_attack_01': {3: ([off[0]] * 3, [off[1]] * 3)}})
+        out, pinned = stage.rest_in_hand(data)
+        self.assertEqual(pinned, ['battle_rest'])
+        self.assertLess(max(mdl_anim.max_drift(out, 'battle_rest', mdl_anim.WEAPON_BONE, stage.HAND, stage.HAND_REFERENCE)),
+                        mdl_anim.PINNED)
+        model = mdl_anim.Model(out)
+        ad = model.animation('battle_rest')
+        self.assertEqual([round(x, 3) for x in model.local(ad, 3, 4)[0]], [round(x, 3) for x in hand])
+        self.assertEqual(stage.rest_in_hand(out), (out, []))  # the attacks keep their swing
+
+    def test_town_motion_models_get_the_jump_on_the_back(self):
+        data = models.town_model()
+        path = 'models/player/_anim/female/miri/pc_miri_town_motion.mdl'
+        self.assertNotEqual(stage.town_motion(path, data), data)
+        self.assertEqual(stage.town_motion(path.replace('town', 'battle'), data), data)
 
 
 if __name__ == '__main__':

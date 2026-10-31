@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import struct
 import tempfile
 import unittest
 from contextlib import closing
@@ -51,6 +52,18 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
         # The folder's last original part; a new folder and non-script files keep their own packs.
         self.assertEqual(out, {Path('copy/hfs') / (hfs.pack_name('scripts/actionstate', 1) + '.hfs'):
                                [('scripts/actionstate/player_action_state_miri.txt', Path('a'), 's1')]})
+
+    def test_original_fixes_find_the_pack_of_their_file(self):
+        import hfs  # noqa: PLC0415
+        folder = 'models/player/_anim/female/delia'
+        packs = sorted([hfs.pack_name(folder, 0), hfs.pack_name(folder, 1), hfs.pack_name('models/player/fiona', 0)])
+        entry = hfs.name_key('pc_delia_town_motion.mdl') + struct.pack('<H', packs.index(hfs.pack_name(folder, 1))) + bytes(8)
+        plain = hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, [entry])
+        fix = a.ORIGINAL_FIXES[folder + '/pc_delia_town_motion.mdl']
+        self.assertEqual(a.fixed_packs(plain, Path('copy')),
+                         {Path('copy/hfs') / (hfs.pack_name(folder, 1) + '.hfs'): {'pc_delia_town_motion.mdl': fix}})
+        with self.assertRaises(PreparationError):
+            a.fixed_packs(hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, []), Path('copy'))
 
     def test_dry_run_changes_nothing_and_apply_is_idempotent(self):
         self.assertEqual(apply(self.root, False, self.additions, items=[])['shop_rows_missing'], 1)
