@@ -142,35 +142,13 @@ def jump_donor(path: str, data: bytes, known=lambda p: False) -> str | None:
 NATIVE_ASSETS = {'draker': ('materials/cable/heroes_metalchain_05.vmt',)}
 
 
-# Battle rest sequences in which the NA hangs the Draker from the chain on the left arm (C_WeaponDraker:
-# draker_chain.mdl and a cable to the weapon's chain_01, native code the 1.69 lacks): without the chain
-# the weapon floated beside her (C4 MI8). Until the chain is ported, the copied _ex keeps the weapon in
-# the hand there, as every 1.69 class does (the hand offset of battle_idle_lower). The attacks and the
-# throw still swing it on the (invisible) chain.
-REST_SEQUENCES = ('battle_idle2rest', 'battle_idle2restb', 'battle_rest', 'battle_restb')
-HAND = 'ValveBiped.Bip01_R_Hand'
-HAND_REFERENCE = 'battle_idle_lower'
-
-
-def rest_in_hand(data: bytes) -> tuple[bytes, list[str]]:
-    """data with the weapon bone pinned to the hand in each REST_SEQUENCES that takes it off the hand."""
-    pinned = []
-    for sequence in REST_SEQUENCES:
-        try:
-            if max(mdl_anim.max_drift(data, sequence, mdl_anim.WEAPON_BONE, HAND, HAND_REFERENCE)) < mdl_anim.PINNED:
-                continue
-        except mdl_anim.ModelError:
-            continue
-        data = mdl_anim.pin_bone(data, sequence, mdl_anim.WEAPON_BONE, HAND, HAND_REFERENCE)
-        pinned.append(sequence)
-    return data, pinned
-
-
-def town_motion(path: str, data: bytes) -> bytes:
-    """A town motion model with the weapon kept on the back in jump_town (mdl_anim.town_jump_on_back):
-    the Miri's, like the Delia's, carried it into her hand (C4 MI7, MI8)."""
+def town_motion(path: str, data: bytes, donor: bytes | None = None) -> bytes:
+    """A town motion model with the 1.69 Fiona's free-hands jump_town and the weapon kept on the back
+    (mdl_anim.town_jump_on_back): the Miri's jump_town is the Delia's, in the combat pose, and carried the
+    weapon into her hands (C4 MI7, MI8, MI11). The NA has no town jump (its movement states are commented
+    out); the operator chose the Fiona's until an EU client can be compared."""
     if path.startswith('models/player/_anim/') and path.endswith('_town_motion.mdl'):
-        return mdl_anim.town_jump_on_back(data) or data
+        return mdl_anim.town_jump_on_back(data, donor) or data
     return data
 
 
@@ -198,7 +176,9 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         if not NAME.match(name):
             raise StageError(f'Class and weapon names must match {NAME.pattern}.')
     na = game_files(na_root)
-    lab = set(game_files(lab_root))
+    lab_files = game_files(lab_root)
+    lab = set(lab_files)
+    donor = lab_files[mdl_anim.TOWN_JUMP_DONOR].read_bytes() if mdl_anim.TOWN_JUMP_DONOR in lab_files else None
     names = (class_name, weapon)
     queue = sorted({p for p in na if selected(p, names) and p not in lab}
                    | {p for p in NATIVE_ASSETS.get(weapon, ()) if p in na and p not in lab})
@@ -214,7 +194,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         if converted:
             data = mdl_v45_to_v44.convert(source)
         data = without_missing_includes(rel, data, lambda p: p in lab or (p in na and selected(p, names)))
-        data = town_motion(rel, data)
+        data = town_motion(rel, data, donor)
         converted = converted or data != source
         target = out / rel
         if not target.is_file() or sha256(target.read_bytes()) != sha256(data):
@@ -238,9 +218,6 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
             if donor:
                 data = mdl_anim.with_included_model(data, donor)
                 record['included'] = donor
-            data, pinned = rest_in_hand(data)
-            if pinned:
-                record['weapon_in_hand'] = pinned
             (out / rel).write_bytes(data)
             record.update({'sha256': sha256(data), 'bytes': len(data), 'converted': True})
     merges = []

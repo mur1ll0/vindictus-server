@@ -83,6 +83,10 @@ def synthetic(animations: dict[str, dict[int, tuple]], rot_scale=(ROT_SCALE,) * 
     return bytes(out)
 
 
+def models_pos(bone: int):
+    return BASE_POS[bone]
+
+
 def still(frames: int, euler=(0.0, 0.0, 0.0), pos=None, bone=0):
     return ([euler] * frames, [pos or BASE_POS[bone]] * frames)
 
@@ -139,6 +143,32 @@ class MdlAnimTest(unittest.TestCase):
         pos2, quat2 = after.local(bd, 3, 0)
         self.assertEqual(pos, pos2)
         self.assertLess(a.q_distance(quat, quat2), 1e-6)
+
+    def test_retarget_takes_the_donor_jump_and_keeps_the_rest(self):
+        data = town_model()
+        donor_jump = {0: ([(0, 0, -0.05 * f) for f in range(6)], [(0, 0, 40 + 6 * f) for f in range(6)]),
+                      2: ([(-0.3 * f, 0.2, 0.1 * f) for f in range(6)], [models_pos(2)] * 6),
+                      3: ([(0.1, 0.1, 0.1)] * 6, [(20.0, 3.0, 2.0)] * 6)}
+        donor = synthetic({a.TOWN_REFERENCE: {0: still(2)}, a.TOWN_JUMP: donor_jump})
+        out = a.retarget(data, a.TOWN_JUMP, donor)
+        mine, theirs = a.Model(out), a.Model(donor)
+        ad, sd = mine.animation(a.TOWN_JUMP), theirs.animation(a.TOWN_JUMP)
+        for f in range(6):
+            for bone in range(len(BONES)):
+                p1, q1 = mine.local(ad, bone, f)
+                p2, q2 = theirs.local(sd, bone, f)
+                self.assertLess(math.dist(p1, p2), 0.01)
+                self.assertLess(a.q_distance(q1, q2), 1e-6)
+        before = a.Model(data)
+        rd, bd = mine.animation(a.TOWN_REFERENCE), before.animation(a.TOWN_REFERENCE)
+        self.assertEqual([mine.local(rd, k, 1)[0] for k in range(len(BONES))], [before.local(bd, k, 1)[0] for k in range(len(BONES))])
+        # With a donor the town jump is the donor's and the weapon still stays on its carrier.
+        pinned = a.town_jump_on_back(data, donor)
+        self.assertLess(max(a.max_drift(pinned, a.TOWN_JUMP, a.WEAPON_BONE, a.BACK_CARRIER, a.TOWN_REFERENCE)), a.PINNED)
+        root = a.Model(pinned)
+        self.assertLess(math.dist(root.local(root.animation(a.TOWN_JUMP), 0, 5)[0], (0, 0, 70)), 0.01)
+        with self.assertRaises(a.ModelError):  # another frame count
+            a.retarget(data, a.TOWN_JUMP, synthetic({a.TOWN_JUMP: {0: still(4)}}))
 
     def test_an_included_model_is_appended_once(self):
         data = town_model()

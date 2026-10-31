@@ -58,7 +58,17 @@ STAT_TABLES = {'CharacterClassInfo': 'Identifier', 'CharacterBaseLoadInfo': 'Cha
 # 1.69 classes with a female body (Fiona, Evy, Vella, Lynn, Arisha, Delia).
 FEMALE_169 = (1 << 1) | (1 << 2) | (1 << 5) | (1 << 7) | (1 << 8) | (1 << 10)
 ALL_169 = (1 << 11) - 1  # classes 0-10
-TABLES = ITEM_TABLES + tuple(SKILL_TABLES) + RECIPE_TABLES + tuple(MENTION_TABLES) + ('FeatureMatrix',)
+# Equipment sets: the set rows of the imported items (the Miri's level-60 pythonshock_set and 15 more);
+# a set the 1.69 lacks comes with its SetInfo and SetEffectInfo rows, one it has keeps the 1.69's effects.
+SET_TABLES = ('SetItemInfo', 'SetInfo', 'SetEffectInfo')
+# Weapon mastery: the NA dropped the mastery rank requirement of its weapons (every DRAKER row has no
+# RequiredSkill), the 1.69 still asks it (greatsword_titan: skill_hurk_greatsword_mastery rank 6). An
+# imported weapon without a requirement takes the class's own mastery, at the rank of the 1.69 weapon of
+# the reference equip class with the same name (draker_titan -> greatsword_titan), else the most common
+# rank of that class's weapons at its level (or the nearest lower one), within the ranks the class's
+# mastery has (the Miri's skips 9-12: a higher requirement takes the highest rank below it).
+MASTERY_REFERENCE = {'draker': 'greatsword'}
+TABLES = ITEM_TABLES + tuple(SKILL_TABLES) + RECIPE_TABLES + tuple(MENTION_TABLES) + ('FeatureMatrix',) + SET_TABLES
 
 
 class ImportError_(ValueError):
@@ -187,6 +197,13 @@ def select(na: sqlite3.Connection, base: sqlite3.Connection, name: str, weapon: 
         kept = [r for r in rows if r[at] in remaining]
         dropped[f'{table} row of a dropped item'] += len(rows) - len(kept)
         out[table] = (cols, kept)
+    if all(columns(na, t) and columns(base, t) for t in SET_TABLES):
+        gather('SetItemInfo', 'ItemClass', remaining)
+        cols, rows = out['SetItemInfo']
+        base_sets = {r[0] for r in base.execute('SELECT SetID FROM SetInfo')}
+        new_sets = {r[cols.index('SetID')] for r in rows} - base_sets
+        gather('SetInfo', 'SetID', new_sets)
+        gather('SetEffectInfo', 'SetID', new_sets)
     return out, {k: v for k, v in dropped.items() if v}
 
 
@@ -274,6 +291,48 @@ def _defaults(db: sqlite3.Connection, table: str, schema: str, cols: list[str]) 
     return out
 
 
+def mastery_requirements(db: sqlite3.Connection, imported: sqlite3.Connection, info: dict,
+                         schema: str = 'main') -> dict[str, tuple[str, int]]:
+    """Imported weapon -> (mastery skill, rank) for the weapons without a requirement (MASTERY_REFERENCE)."""
+    reference = MASTERY_REFERENCE.get(info['weapon'])
+    skill = f"skill_{info['name']}_{info['weapon']}_mastery"
+    needed = {'RequiredLevel', 'RequiredSkill', 'RequiredSkillRank'}
+    if (not reference or not needed <= set(columns(db, 'ItemClassInfo', schema))
+            or not needed <= set(columns(imported, 'ItemClassInfo'))
+            or not imported.execute("SELECT 1 FROM sqlite_master WHERE name='SkillRankInfo'").fetchone()):
+        return {}
+    ranks = sorted({r[0] for r in imported.execute('SELECT [Rank] FROM SkillRankInfo WHERE SkillID=?', (skill,))})
+    if not ranks:
+        return {}
+    by_name, by_level = {}, collections.defaultdict(collections.Counter)
+    for item, level, required, rank in db.execute(
+            f'SELECT i.ItemClass, i.RequiredLevel, i.RequiredSkill, i.RequiredSkillRank FROM {schema}.[ItemClassInfo] i '
+            f'JOIN {schema}.[EquipItemInfo] e ON e.ItemClass = i.ItemClass WHERE upper(e.EquipClass) = ?', (reference.upper(),)):
+        prefix = reference + '_'
+        if item.lower().startswith(prefix):
+            by_name[item.lower()[len(prefix):]] = rank if required else None
+        if required:
+            by_level[level][rank] += 1
+    out = {}
+    weapons = [r[0] for r in imported.execute('SELECT ItemClass FROM EquipItemInfo WHERE upper(EquipClass) = ?',
+                                              (info['weapon'].upper(),))]
+    levels = dict(imported.execute('SELECT ItemClass, RequiredLevel FROM ItemClassInfo WHERE RequiredSkill IS NULL'))
+    prefix = info['weapon'] + '_'
+    for item in weapons:
+        if item not in levels:
+            continue
+        suffix = item.lower()[len(prefix):] if item.lower().startswith(prefix) else None
+        if suffix in by_name:
+            wanted = by_name[suffix]
+        else:
+            lower = [level for level in by_level if level <= (levels[item] or 0)]
+            wanted = by_level[max(lower)].most_common(1)[0][0] if lower else None
+        if not wanted:
+            continue
+        out[item] = (skill, max(r for r in ranks if r <= wanted) if any(r <= wanted for r in ranks) else ranks[0])
+    return out
+
+
 def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, info: dict, remap: dict,
               schema: str = 'main') -> tuple[list[str], list[tuple]]:
     """The imported rows of one table in the target's columns."""
@@ -292,6 +351,7 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
             text_bools.add(c)
         elif seen and seen <= {0, 1}:
             int_bools.add(c)
+    mastery = mastery_requirements(db, imported, info, schema) if table == 'ItemClassInfo' else {}
     template = None
     if table == 'FeatureMatrix':
         template = db.execute(f'SELECT * FROM {schema}.[FeatureMatrix] WHERE Feature=?', (FEATURE_TEMPLATE,)).fetchone()
@@ -309,6 +369,8 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
         for c in int_bools:
             if out[c] in ('True', 'False'):
                 out[c] = int(out[c] == 'True')
+        if out.get('ItemClass') in mastery and 'RequiredSkill' in out:
+            out['RequiredSkill'], out['RequiredSkillRank'] = mastery[out['ItemClass']]
         if 'ClassRestriction' in out and isinstance(out['ClassRestriction'], str):
             out['ClassRestriction'] = 1 << info['index'] if names_class(out['ClassRestriction'], info['name']) else 0
         if table == 'EquipItemInfo' and remap and out.get('CostumeType') is not None:

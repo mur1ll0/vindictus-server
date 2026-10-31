@@ -367,21 +367,26 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # without `chain_01` gets neither. Each think also removes the pair of a player that no longer exists
 # (its handle no longer resolves): a model following a removed entity would stay in the world. State
 # per player (CHAIN_PLAYERS entries: player, weapon, cable handle, weapon has chain, arm handle,
-# player handle) in .hrte. In town (CHAIN_TOWN_MAPS, the five maps the engine itself treats as towns,
-# 0x420ec35a; the level name is the engine's 0x42a82ee0, set by V_FileBase at map load, 0x420e9522,
-# read across DLLs because the lab DLLs have no ASLR) the cable joins the weapon's `chain_01` to its
-# own `chain_town` (10 segments, as NA's town cable) and nothing ties it to the hand; a weapon without
-# `chain_town` gets the battle cable. The weapon's visible/invisible events (AE_CUSTOM_WEAPON_EVENT,
+# player handle) in .hrte. The arm chain's model is precached first (client PrecacheModel 0x3879f280):
+# InitializeAsClientEntity only takes a precached model (modelinfo GetModelIndex -1 -> false, 0x38059b90),
+# and without it the arm chain never appeared (C4 MI10, memory: arm handle -1). In town (the game state,
+# as NA asks it: GameStateManager001 through the client's getter 0x38021bf0, predicate +0x20 = states
+# 14, 17, 35; memory, C4 MI10: Colhen 14, its port 17, the boat 23; the level name is no guide, `t01` in Colhen and
+# `lobby_multiplayer` on the boat) the cable joins the weapon's `chain_01` to its own `chain_town`
+# (10 segments, as NA's town cable) and nothing ties it to the hand; a weapon without `chain_town` gets
+# the battle cable. The weapon's visible/invisible events (AE_CUSTOM_WEAPON_EVENT,
 # 0x3874808a) clear and set EF_NODRAW (0x20 of m_fEffects +0x7c); each think copies that bit to the
 # cable and the arm chain (AddEffects 0x380107f0, RemoveEffects 0x38018640), only when it differs.
 CHAIN = {'client.dll': {'think': 334, 'active_weapon': 0x1140, 'handle_get': 0x385519D0, 'handle_set': 0x38541370,
                         'remove': 0x38058370, 'create': 0x38540A30, 'lookup_attachment': 0x8C,
                         'new': 0x380528B0, 'animating': 0x380431F0, 'animating_size': 0xCA0,
                         'initialize': 0x148, 'follow': 0x380136D0, 'add_effects': 0x380107F0,
-                        'remove_effects': 0x38018640, 'effects': 0x7C}}
+                        'remove_effects': 0x38018640, 'effects': 0x7C, 'precache_model': 0x3879F280,
+                        'game_state': 0x38021BF0, 'in_town_predicate': 0x20}}
 CHAIN_HEADS = {'handle_get': '8b0183f8ff', 'handle_set': '568bf18b4c2408', 'remove': '568bf180be5b01000000',
                'create': '5668380c0000', 'new': 'a1c4a3ad38', 'animating': '515355568bf1', 'follow': '8b442404568bf185c0',
-               'add_effects': '8b44240409417c', 'remove_effects': '8b4424048bd0f7d221517c'}
+               'add_effects': '8b44240409417c', 'remove_effects': '8b4424048bd0f7d221517c',
+               'precache_model': '803db42ae93800', 'game_state': 'a1a42acc3885c0'}
 EF_NODRAW = 0x20
 CHAIN_CLASSES = (11,)
 CHAIN_PLAYERS = 16
@@ -389,9 +394,7 @@ CHAIN_ENTRY = 32
 CHAIN_ROPE = {'material': 'cable/heroes_metalchain_05', 'width': 1.5, 'segments': 19, 'flags': 8,
               'slack': 1.1, 'length': -1.0}
 CHAIN_ARM_MODEL = 'models/weapon/draker/draker_chain.mdl'
-CHAIN_LEVEL_NAME = 0x42A82EE0  # engine.dll
-CHAIN_TOWN_MAPS = ('lobby_multiplayer', 'lobby_multiplayer_morvan', 'lobby_multiplayer_rochest',
-                   's3_lobby_multiplayer', 's3_lobby_multiplayer_rochest')
+CHAIN_TOWN_STATES = (14, 17, 35)  # engine.dll HeroesGameStateManager predicate +0x20 (0x4240cb50)
 CHAIN_TOWN_ROPE = {'segments': 10, 'slack': 1.2}
 CHAIN_TOWN_ATTACHMENT = 'chain_town'
 CHAIN_WEAPON_ATTACHMENT = 'chain_01'
@@ -2064,12 +2067,6 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     material = layout.string(rope['material'])
     arm_model = layout.string(CHAIN_ARM_MODEL)
     town_name = layout.string(CHAIN_TOWN_ATTACHMENT)
-    maps = [layout.string(m) for m in CHAIN_TOWN_MAPS]
-    layout.pad()
-    town_maps = layout.here()
-    for m in maps:
-        layout.pointer(m)
-    layout.body += bytes(4)
     layout.pad()
     table = layout.here()
     # Entry: +0 player, +4 weapon, +8 cable handle, +12 weapon has chain, +16 arm handle, +20 player handle.
@@ -2095,27 +2092,16 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
         set_dword(disp, -1)
     layout.body += bytes((0xC3,))
 
-    # in_town(): eax = 1 when the engine's level name is one of CHAIN_TOWN_MAPS (ASCII letters folded
-    # to lower case); ecx/edx are lost.
+    # in_town(): eax = 1 in a town game state (GameStateManager001 predicate); ecx/edx are lost.
     layout.pad()
     in_town = layout.here()
-    layout.body += bytes((0x53, 0x56, 0x57, 0xBB))  # push ebx/esi/edi; mov ebx, maps
-    layout.pointer(town_maps)
-    next_map = len(layout.body)
-    layout.body += bytes((0x8B, 0x3B, 0x85, 0xFF))  # mov edi, [ebx]; test edi, edi
-    no_map = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0xBE,)) + struct.pack('<I', CHAIN_LEVEL_NAME)  # mov esi, level name (engine, not relocated)
-    compare = len(layout.body)
-    layout.body += bytes((0x8A, 0x06, 0x8A, 0x17))  # mov al, [esi]; mov dl, [edi]
-    layout.body += bytes((0x3C, 0x41, 0x72, 0x06, 0x3C, 0x5A, 0x77, 0x02, 0x0C, 0x20))  # 'A'..'Z' -> lower case
-    layout.body += bytes((0x3A, 0xC2, 0x75, 0x08))  # cmp al, dl; jne other map (+8)
-    layout.body += bytes((0x84, 0xC0, 0x74, 0x0C, 0x46, 0x47))  # test al, al; je match (+12); inc esi; inc edi
-    layout.body += bytes((0xEB,)) + bytes(((compare - (len(layout.body) + 2)) & 0xFF,))  # jmp compare
-    layout.body += bytes((0x83, 0xC3, 0x04))  # other map: add ebx, 4
-    layout.body += bytes((0xE9,)) + struct.pack('<i', next_map - (len(layout.body) + 5))  # jmp next map
-    layout.body += bytes((0xB8, 0x01, 0x00, 0x00, 0x00, 0xEB, 0x02))  # match: mov eax, 1; jmp out
-    layout.land(no_map)
-    layout.body += bytes((0x33, 0xC0, 0x5F, 0x5E, 0x5B, 0xC3))  # xor eax, eax; out: pop edi/esi/ebx; ret
+    call(k['game_state'])
+    layout.body += bytes((0x85, 0xC0))  # test eax, eax
+    no_manager = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0x10, 0x8B, 0xC8, 0xFF, 0x52, k['in_town_predicate']))  # mov edx, [eax]; mov ecx, eax; call [edx + slot]
+    layout.body += bytes((0x0F, 0xB6, 0xC0))  # movzx eax, al
+    layout.land(no_manager)
+    layout.body += bytes((0xC3,))
 
     def lookup(entity: int, text: int) -> None:
         """eax = entity's attachment `text` (entity register code), through its renderable at +4."""
@@ -2247,7 +2233,11 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     layout.body += bytes((0x50, 0x8D, 0x4F, 0x08))  # push eax; lea ecx, [edi + 8]
     call(k['handle_set'])
     layout.land(no_cable)
-    # The arm chain: a client C_BaseAnimating with the model, bone-merged on the player.
+    # The arm chain: the model precached, then a client C_BaseAnimating with it, bone-merged on the player.
+    layout.body += bytes((0x68,))
+    layout.pointer(arm_model)
+    call(k['precache_model'])
+    layout.body += bytes((0x83, 0xC4, 0x04))  # add esp, 4
     layout.body += bytes((0x68,)) + struct.pack('<I', k['animating_size'])
     call(k['new'])
     layout.body += bytes((0x83, 0xC4, 0x04, 0x85, 0xC0))  # add esp, 4; test eax, eax
@@ -2287,7 +2277,7 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     layout.body += bytes((0x5D, 0x5F, 0x5E, 0x5B, 0xC3))  # pop ebp/edi/esi/ebx; ret
     return {'tick': hex(tick), 'drop': hex(drop), 'table': hex(table), 'entry': CHAIN_ENTRY, 'players': CHAIN_PLAYERS,
             'classes': list(CHAIN_CLASSES), 'rope': dict(rope), 'arm_model': CHAIN_ARM_MODEL,
-            'in_town': hex(in_town), 'town_maps': list(CHAIN_TOWN_MAPS), 'town_rope': dict(CHAIN_TOWN_ROPE),
+            'in_town': hex(in_town), 'town_states': list(CHAIN_TOWN_STATES), 'town_rope': dict(CHAIN_TOWN_ROPE),
             'attachments': [CHAIN_WEAPON_ATTACHMENT, *CHAIN_PLAYER_ATTACHMENTS]}
 
 

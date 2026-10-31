@@ -193,3 +193,21 @@ Pré-condição: com o jogo fechado, `stage_na_class.py` (material `cable/heroes
 - [ ] `DeliaLab` e uma Fiona: nenhuma corrente; combate e cidade como antes.
 - [ ] (Opcional, com `lab_memory.py serve`) anotar o horário se algo der errado: a tabela da corrente está em `class-routing.json` (`class_conditions.chain.table`).
 Limites conhecidos: a cidade é reconhecida pelo nome do mapa (as cinco cidades que o próprio `engine.dll` lista); outro mapa sem servidor de batalha usaria o cabo de batalha. O cabo e a corrente do braço seguem só o esconder da arma por evento (`visible`/`invisible`); uma arma escondida de outro jeito pode deixá-los à vista. Até 16 jogadores com corrente por mapa; a corrente de uma Miri que sai do mapa é removida no próximo *think* de outra Miri (sem outra Miri, fica até trocar de mapa).
+
+Resultado da MI9/MI10, rodada 1 (31/10/2026, `MiriLab`, leitura de memória ao vivo):
+- Cidade: a Draker fica nas costas no pulo, mas o corpo pula na pose de combate (como se segurasse a arma). Medido: o `jump_town` da Miri é o mesmo da Delia (NA e 1.69), com os braços na pose do pulo de batalha; o NA não tem pulo nenhum (estados comentados). Escolha do operador: testar o pulo de cidade da Fiona (mãos livres); se não ficar bom, voltar.
+- Barco: a corrente não aparece no arremesso. Memória: o teste de cidade pelo nome do mapa estava invertido (Colhen e o porto são `t01`; o barco é `lobby_multiplayer`), então o barco recebia o cabo de cidade (preso só na arma); e a corrente do braço nunca foi criada (*handle* `-1`: modelo sem *precache*). Estado do jogo: Colhen 14, porto 17, barco 23.
+- Descanso de combate: a Miri abre a mão de propósito (a arma fica pendurada na corrente); prender a arma na mão estava errado.
+- Painel: a Miri não tinha o conjunto de nível 60 (`pythonshock_set`): as tabelas de conjunto não eram importadas.
+- Draker de nível 60 equipada com maestria F: o NA tirou o requisito de maestria das armas.
+
+### MI11 — Correções da rodada 1 (pulo da Fiona, corrente no barco, conjuntos, maestria)
+Pré-condição: com o jogo fechado, preparação, `refresh_item_content.py --force` (reinicia o `game`), `apply_lab_content_additions.py --apply` e o roteamento do `client.dll` refeito dos `*.pre-routing.bak` (feitos por mim; hashes no histórico, passo M7f). A `MiriLab` precisa estar fora do jogo durante a aplicação.
+- [ ] Cidade com a `MiriLab` e com a `DeliaLab`: pular parado e correndo → o pulo de cidade da Fiona (mãos livres), a arma nas costas o tempo todo. Dizer se fica bom (se não, eu volto ao pulo delas).
+- [ ] Cidade e porto com a Miri: uma corrente curta presa só na arma (nas costas), sem ligação com a mão; a corrente enrolada no braço esquerdo aparece.
+- [ ] Barco com a Draker: ataques e arremesso (Shift + botão direito) → a corrente sai da mão esquerda até a arma e acompanha o lançar e o puxar; a corrente do braço aparece.
+- [ ] Barco: parada depois de atacar → a Miri abre a mão e a arma fica pendurada na corrente (sem ficar solta no ar).
+- [ ] Um emote na cidade que esconde a arma → corrente e corrente do braço somem juntas.
+- [ ] Painel → Itens → buscar `pythonshock` → as cinco peças de nível 60 da Miri, no conjunto `pythonshock_set`; no jogo, a dica de uma peça mostra o conjunto e os bônus.
+- [ ] Inventário da Miri com maestria baixa (F): `draker_titan` ou `draker_colru` (nível 60) pede Dragonspine Mastery rank 6 e não equipa; `draker_newbie` equipa como antes.
+Limites conhecidos: a corrente de cidade e a do barco seguem o estado do jogo (cidades 14, 17, 35); o pulo da Fiona é uma escolha provisória até comparar com um cliente EU. Requisitos de maestria acima do rank 8 caem para o 8 (a maestria da Miri não tem os ranks 9-12).

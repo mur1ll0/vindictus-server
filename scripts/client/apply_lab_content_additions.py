@@ -276,8 +276,10 @@ def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dic
 
 # 1.69 files rewritten inside their own pack (rebuilt from the backup) for an imported class's look: the
 # Delia's town jump carried the weapon into her hand, as the Miri's did (mdl_anim.town_jump_on_back,
-# C4 MI9). A fix that returns None leaves the file as it is.
-ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl': mdl_anim.town_jump_on_back}
+# C4 MI9), in a combat-pose jump: the Fiona's free-hands jump replaces it (C4 MI11). A fix takes the file
+# and a reader of other original files; returning None leaves the file as it is.
+ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
+                  lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR))}
 
 
 def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -> dict[Path, dict[str, object]]:
@@ -431,6 +433,18 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     merge_report = {'files': 0, 'blocks': 0, 'lines': 0, 'conflicts': [], 'renumbered': {}}
     # Class merges first (NA lines of the class), then the item editor's entries on top.
     fix_report = []
+    original_plain = hfs.decode_index(original_index.read_bytes())
+
+    def read_original(game_path: str) -> bytes:
+        """An original 1.69 file, from its pack's backup when the copy has one."""
+        pack = original_pack(original_plain, game_path, client_copy)
+        raw = (backup_dir / pack.name).read_bytes() if (backup_dir / pack.name).exists() else pack.read_bytes()
+        name = game_path.rsplit('/', 1)[1].lower()
+        for e in hfs.read_pack(raw, ks):
+            if e.name.lower() in (name, name + '.comp'):
+                return hfs.comp_unwrap(e.data) if e.name.lower().endswith('.comp') else e.data
+        raise PreparationError(f'{pack.name} has no {name}.')
+
     for path in sorted(set(merged) | set(injected) | set(fixed) | ({scripts} if by_file else set())):
         pending = dict(merged.get(path, {}))
         fixes = dict(fixed.get(path, {}))
@@ -442,7 +456,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
             rows = by_file.pop(e.name, None) if path == scripts else None
             fix = fixes.pop(file_name.lower(), None)
             if fix:
-                data = fix(hfs.comp_unwrap(e.data) if comp else e.data)
+                data = fix(hfs.comp_unwrap(e.data) if comp else e.data, read_original)
                 if data is not None:
                     e = hfs.Entry(e.name, hfs.comp_wrap(data) if comp else data, e.attr)
                     fix_report.append(file_name)

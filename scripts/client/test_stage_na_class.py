@@ -144,28 +144,16 @@ class StageTest(unittest.TestCase):
         self.assertIsNone(stage.jump_donor(path.replace('female', 'male'), without, lambda p: True))
         self.assertIsNone(stage.jump_donor(path.replace('_ex', ''), without, lambda p: True))
 
-    def test_the_weapon_stays_in_the_hand_in_the_battle_rest(self):
-        hand = models.BASE_POS[3]
-        off = ((0.3, 0.2, 0.1), (9.0, 6.0, 3.0))  # hanging from the chain, off the hand
-        data = models.synthetic({
-            stage.HAND_REFERENCE: {2: models.still(2, (0.1, 0.0, 0.0), bone=2), 3: models.still(2, bone=3)},
-            'battle_rest': {2: ([(0.1 * f, 0.2, 0) for f in range(5)], [models.BASE_POS[2]] * 5),
-                            3: ([off[0]] * 5, [off[1]] * 5)},
-            'battle_attack_01': {3: ([off[0]] * 3, [off[1]] * 3)}})
-        out, pinned = stage.rest_in_hand(data)
-        self.assertEqual(pinned, ['battle_rest'])
-        self.assertLess(max(mdl_anim.max_drift(out, 'battle_rest', mdl_anim.WEAPON_BONE, stage.HAND, stage.HAND_REFERENCE)),
-                        mdl_anim.PINNED)
-        model = mdl_anim.Model(out)
-        ad = model.animation('battle_rest')
-        self.assertEqual([round(x, 3) for x in model.local(ad, 3, 4)[0]], [round(x, 3) for x in hand])
-        self.assertEqual(stage.rest_in_hand(out), (out, []))  # the attacks keep their swing
-
     def test_town_motion_models_get_the_jump_on_the_back(self):
         data = models.town_model()
         path = 'models/player/_anim/female/miri/pc_miri_town_motion.mdl'
         self.assertNotEqual(stage.town_motion(path, data), data)
         self.assertEqual(stage.town_motion(path.replace('town', 'battle'), data), data)
+        donor = models.town_model(rh_jump_in_hand=False)
+        with_donor = stage.town_motion(path, data, donor)
+        self.assertNotEqual(with_donor, stage.town_motion(path, data))
+        self.assertLess(max(mdl_anim.max_drift(with_donor, mdl_anim.TOWN_JUMP, mdl_anim.WEAPON_BONE, mdl_anim.BACK_CARRIER,
+                                               mdl_anim.TOWN_REFERENCE)), mdl_anim.PINNED)
 
 
 if __name__ == '__main__':

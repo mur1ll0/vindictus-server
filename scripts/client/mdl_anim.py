@@ -35,6 +35,10 @@ WEAPON_BONE = 'ValveBiped.Anim_Attachment_RH'
 BACK_CARRIER = 'ValveBiped.Bip01_Spine2'
 TOWN_JUMP, TOWN_REFERENCE = 'jump_town', 'town_idle_lower'
 PINNED = 0.05  # units (and quaternion distance) under which a track already follows its carrier
+# A free-hands town jump of the same female skeleton and frame count (85) as the Delia's and the Miri's:
+# their own jump_town is in the combat pose (arms 0.11 from the Delia's battle jump_during, 0.6-0.99 from
+# her town idle) and the NA has no town jump (C4 MI11); the operator chose the Fiona's.
+TOWN_JUMP_DONOR = 'models/player/_anim/female/fiona/pc_fiona_town_motion.mdl'
 
 
 class ModelError(ValueError):
@@ -361,6 +365,116 @@ def rotation_scale_rewritten(data: bytes, model: Model, bi: int, scale: Vec) -> 
     return bytes(out)
 
 
+def position_scale_rewritten(data: bytes, model: Model, bi: int, scale: Vec) -> bytes:
+    """rotation_scale_rewritten for the position channels (ANIMPOS) of bone bi."""
+    out = bytearray(data)
+    old = model.bones[bi]['posscale']
+    at = struct.unpack_from('<i', data, BONES_AT + 4)[0] + BONE_STRIDE * bi
+    struct.pack_into('<3f', out, at + 72, *scale)
+    for ad in model.anims:
+        flags, animblock, sectionframes = i32(data, ad + 12), i32(data, ad + 52), i32(data, ad + 84)
+        if flags & ANIM_ALLZEROS:
+            continue
+        if animblock or sectionframes:
+            raise ModelError('Cannot rescale a bone of a sectioned or external animation.')
+        frames = i32(data, ad + 16)
+        for bone, entry, _ in model.entries(ad):
+            kind = data[entry + 1]
+            if bone != bi or not kind & ANIMPOS:
+                continue
+            pointer = entry + 4 + (8 if kind & RAWROT2 else 6 if kind & (RAWROT | ANIMROT) else 0)
+            for c, offset in enumerate(struct.unpack_from('<3h', data, pointer)):
+                if not offset or scale[c] == old[c]:
+                    continue
+                run, covered = pointer + offset, 0
+                while covered < frames:
+                    valid, total = data[run], data[run + 1]
+                    for k in range(valid):
+                        v = struct.unpack_from('<h', data, run + 2 * (k + 1))[0]
+                        struct.pack_into('<h', out, run + 2 * (k + 1), round(v * old[c] / scale[c]))
+                    covered += total
+                    run += 2 * (valid + 1)
+    return bytes(out)
+
+
+def track_entry(bi: int, rotations: list[list[int]], positions: list[list[int]]) -> bytes:
+    """One mstudioanim_t with ANIMROT and ANIMPOS, every frame of every channel stored."""
+    channels = [encode_values([r[c] for r in rotations]) for c in range(3)]
+    channels += [encode_values([p[c] for p in positions]) for c in range(3)]
+    offsets, at = [], 4 + 6 + 6
+    for chunk in channels:
+        offsets.append(at)
+        at += len(chunk)
+    if at > 32767:
+        raise ModelError('Track too long for one animation entry.')
+    return (struct.pack('<BBh', bi, ANIMROT | ANIMPOS, 0) + struct.pack('<3h', *[o - 4 for o in offsets[:3]])
+            + struct.pack('<3h', *[o - 10 for o in offsets[3:]]) + b''.join(channels))
+
+
+def appended(data: bytes, ad: int, pieces: list[tuple[int, bytes]]) -> bytes:
+    """data with the animation at ad pointing at a new block of the pieces (bone, entry), in bone order."""
+    block = bytearray()
+    pieces = sorted(pieces, key=lambda p: p[0])
+    for k, (_, piece) in enumerate(pieces):
+        piece = bytearray(piece + (bytes(1) if len(piece) % 2 else b''))
+        struct.pack_into('<h', piece, 2, len(piece) if k + 1 < len(pieces) else 0)
+        block += piece
+    out = bytearray(data)
+    out += bytes(-len(out) % 4)
+    start = len(out)
+    out += block
+    out += bytes(-len(out) % 4)
+    struct.pack_into('<i', out, ad + 56, start - ad)
+    struct.pack_into('<i', out, LENGTH_AT, len(out))
+    return bytes(out)
+
+
+def retarget(data: bytes, sequence: str, donor: bytes, donor_sequence: str | None = None) -> bytes:
+    """data with sequence's animation replaced by donor_sequence of a donor model of the same skeleton:
+    each bone the donor has (same name, parent and bind pose) takes the donor's local transform per
+    frame, the others keep their own. Scales grow where the donor needs more range."""
+    model, source = Model(data), Model(donor)
+    ad, sd = model.animation(sequence), source.animation(donor_sequence or sequence)
+    frames = i32(data, ad + 16)
+    if i32(donor, sd + 16) != frames:
+        raise ModelError(f'{sequence}: the donor has {i32(donor, sd + 16)} frames, the model {frames}.')
+    names = {b['name']: k for k, b in enumerate(source.bones)}
+
+    def same(bi: int) -> int | None:
+        b = model.bones[bi]
+        si = names.get(b['name'])
+        if si is None:
+            return None
+        s = source.bones[si]
+        parent = model.bones[b['parent']]['name'] if b['parent'] >= 0 else None
+        donor_parent = source.bones[s['parent']]['name'] if s['parent'] >= 0 else None
+        if parent != donor_parent or q_distance(b['quat'], s['quat']) > 1e-6 or math.dist(b['pos'], s['pos']) > 1e-3:
+            return None
+        return si
+
+    own, theirs = model.entries(ad), source.entries(sd)
+    poses = {}
+    for bi in range(len(model.bones)):
+        si = same(bi)
+        poses[bi] = [source.local(sd, si, f, theirs) if si is not None else model.local(ad, bi, f, own) for f in range(frames)]
+    pieces = []
+    for bi, track in poses.items():
+        b = model.bones[bi]
+        eulers = euler_track([q for _, q in track], b['rot'], b['rotscale'])
+        rot_scale = tuple(max(b['rotscale'][c], max(abs(e[c] - b['rot'][c]) for e in eulers) / 32000) for c in range(3))
+        pos_scale = tuple(max(b['posscale'][c], max(abs(p[c] - b['pos'][c]) for p, _ in track) / 32000) for c in range(3))
+        if rot_scale != b['rotscale']:
+            data = rotation_scale_rewritten(data, model, bi, rot_scale)
+            model = Model(data)
+        if pos_scale != b['posscale']:
+            data = position_scale_rewritten(data, model, bi, pos_scale)
+            model = Model(data)
+        rotations = [[round((e[c] - b['rot'][c]) / rot_scale[c]) if rot_scale[c] else 0 for c in range(3)] for e in eulers]
+        positions = [[round((p[c] - b['pos'][c]) / pos_scale[c]) if pos_scale[c] else 0 for c in range(3)] for p, _ in track]
+        pieces.append((bi, track_entry(bi, rotations, positions)))
+    return appended(data, ad, pieces)
+
+
 def pin_bone(data: bytes, sequence: str, bone: str, carrier: str, reference: str) -> bytes:
     """data with bone's track in sequence rewritten so the bone keeps, relative to carrier, the offset it
     has in the first frame of reference. The new animation data goes to the end of the file; the
@@ -464,9 +578,10 @@ def max_drift(data: bytes, sequence: str, bone: str, carrier: str, reference: st
     return worst
 
 
-def town_jump_on_back(data: bytes) -> bytes | None:
+def town_jump_on_back(data: bytes, donor: bytes | None = None) -> bytes | None:
     """The town motion model with the weapon on the back in jump_town (module doc), or None when the model
-    has no such pair of sequences or the weapon already stays there."""
+    has no such pair of sequences or nothing changes. With a donor (such as TOWN_JUMP_DONOR) the jump
+    itself is first the donor's (retarget)."""
     try:
         model = Model(data)
         if TOWN_JUMP not in model.sequences or TOWN_REFERENCE not in model.sequences:
@@ -475,8 +590,11 @@ def town_jump_on_back(data: bytes) -> bytes | None:
         model.bone(BACK_CARRIER)
     except ModelError:
         return None
+    changed = False
+    if donor is not None:
+        data, changed = retarget(data, TOWN_JUMP, donor), True
     if max(max_drift(data, TOWN_JUMP, WEAPON_BONE, BACK_CARRIER, TOWN_REFERENCE)) < PINNED:
-        return None
+        return data if changed else None
     return pin_bone(data, TOWN_JUMP, WEAPON_BONE, BACK_CARRIER, TOWN_REFERENCE)
 
 

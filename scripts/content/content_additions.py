@@ -222,7 +222,12 @@ def install(db: sqlite3.Connection, items: list[dict], overrides: dict[str, dict
         for item in items:
             columns, rows = set_rows(db, item)
             db.executemany(f'INSERT INTO temp.[_added_{SET_TABLE}] VALUES({",".join("?" * len(columns))})', rows)
-        db.execute(f'CREATE TEMP VIEW [{SET_TABLE}] AS SELECT * FROM main.[{SET_TABLE}] '
+        # An imported class's set rows (class_imports.install_server) already have a view: rebuild it with both.
+        views = {r[0] for r in db.execute("SELECT name FROM temp.sqlite_master WHERE type='view'")}
+        if SET_TABLE in views:
+            db.execute(f'DROP VIEW temp.[{SET_TABLE}]')
+        imported = f' UNION ALL SELECT * FROM temp.[_imported_{SET_TABLE}]' if f'_imported_{SET_TABLE}' in temp else ''
+        db.execute(f'CREATE TEMP VIEW [{SET_TABLE}] AS SELECT * FROM main.[{SET_TABLE}]{imported} '
                    f'UNION ALL SELECT * FROM temp.[_added_{SET_TABLE}]')
     db.commit()
 

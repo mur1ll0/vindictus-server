@@ -2913,3 +2913,15 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI10 (linha do emote; pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI9 e MI10 no cliente. Depois: tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: correções da rodada 1 (C4 MI9/MI10 → MI11)
+- Feito:
+    - Corrente: leitura de memória ao vivo mostrou o teste de cidade invertido (nome do nível `t01` em Colhen e no porto, `lobby_multiplayer` no barco) e a corrente do braço nunca criada (*handle* `-1`). Agora a cidade é o estado do jogo (`GameStateManager001` pelo *getter* `0x38021bf0`, predicado `+0x20` = 14, 17, 35; medido: Colhen 14, porto 17, barco 23) e o `draker_chain.mdl` é precarregado (`PrecacheModel` `0x3879f280`) antes de `InitializeAsClientEntity` (`0x38059b90` recusa modelo sem *precache*).
+    - Descanso de combate: `rest_in_hand`/`REST_SEQUENCES` removidos (a Miri abre a mão de propósito).
+    - Pulo de cidade: o `jump_town` da Miri é idêntico ao da Delia (NA e 1.69), na pose de combate; o NA não tem pulo. Por escolha do operador (provisória, testar e reverter se não ficar bom), `mdl_anim.retarget` copia o `jump_town` da Fiona (mesmo esqueleto, 85 quadros) para a Miri (preparação, `TOWN_JUMP_DONOR`) e a Delia (`ORIGINAL_FIXES`, lendo a Fiona do pacote original), com a arma presa às costas; `position_scale_rewritten`, `track_entry`, `appended`.
+    - Conjuntos: `class_imports.SET_TABLES` (35 `SetItemInfo`, 10 `SetInfo`, 239 `SetEffectInfo`; `pythonshock_set` de nível 60); `content_additions` refaz a vista `SetItemInfo` com as linhas importadas e as do editor.
+    - Maestria: `class_imports.mastery_requirements` (Draker sem requisito → `skill_miri_draker_mastery`, rank da *greatsword* 1.69 de mesmo nome ou o mais comum do nível, limitado aos ranks da Miri; `draker_titan`/`colru` 6, `draker_ep10` 8).
+- Verificação: testes focados ok (`test-gsm.log`, `test-gsm2.log`, `test-imports.log`, `test-content.log` 20, `test-redonor.log` 21) em `.cache/verification/miri/m7f/`; `retarget-check.log` (Delia = Fiona nos ossos, deriva 0,003), `jump-compare.log`, `town-jump-donors.log`. Aplicação com o jogo fechado: preparação 4.334 arquivos (`stage2.log`); `refresh_item_content.py --force` (754 s, `refresh.log`); `apply3.log` (conjuntos 35/10/239 no `heroes.db3`, `original_fixes` Delia, 1 pacote da Miri); roteamento (`routing-apply-gsm.log`): `client.dll` `0eae117d56f17a12` → `50bfa860eb3153a4`, `server.dll` igual; `verify-db.log` (maestria e conjunto na cópia).
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI9/MI10 rodada 1 e MI11 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI11 no cliente (se o pulo da Fiona não ficar bom, voltar ao pulo delas); depois o `_ex` próprio da Miri com as mecânicas.

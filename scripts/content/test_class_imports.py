@@ -34,6 +34,19 @@ def make(path: Path, na: bool) -> None:
         db.execute('CREATE TABLE StatusEffectGroupInfo(Type TEXT, Level INT)')
         db.execute('CREATE TABLE SynthesisSkillBonus(ID INT, SkillID TEXT)')
         db.execute(f'CREATE TABLE FeatureMatrix({",".join(f"[{c}]" for c in FM)})')
+        db.execute('CREATE TABLE SetInfo(SetID TEXT)')
+        db.execute('CREATE TABLE SetItemInfo(ItemClass TEXT, BaseItemClass TEXT, SetID TEXT)')
+        db.execute('CREATE TABLE SetEffectInfo(SetID TEXT, SetCount INT, EffectTarget TEXT, Amount INT)')
+        db.execute("INSERT INTO SetInfo VALUES('old_set')")
+        db.execute("INSERT INTO SetEffectInfo VALUES('old_set', 2, 'STR', 5)")
+        if na:  # a new set with its effects, and an imported item joining a set the 1.69 has
+            db.execute("INSERT INTO SetInfo VALUES('pythonshock_set')")
+            db.executemany('INSERT INTO SetItemInfo VALUES(?,?,?)', [('draker_newbie', 'draker_newbie', 'pythonshock_set'),
+                                                                     ('miri_inner', 'miri_inner', 'old_set'),
+                                                                     ('sword', 'sword', 'other_set')])
+            db.executemany('INSERT INTO SetEffectInfo VALUES(?,?,?,?)', [('pythonshock_set', 2, 'DEF', 190),
+                                                                         ('pythonshock_set', 2, 'STR', 111),
+                                                                         ('old_set', 2, 'STR', 99)])
         db.execute("INSERT INTO RecipeMaterialInfo VALUES('recipe_sword', 'sword', 1, 0)")
         db.execute("INSERT INTO RecipeMaterialInfo VALUES('recipe_sword', 'gold', 10, 1)")
         if na:
@@ -93,6 +106,8 @@ class ClassImportsTest(unittest.TestCase):
         self.assertEqual(self.report['dropped'], {'category AVATAR_WEAPON': 1, 'recipe with unknown material': 1,
                                                   'CustomizeItemInfo row with unknown feature': 1})
         self.assertEqual((rows['RecipeMaterialInfo'], rows['CraftShopInfo'], rows['FeatureMatrix']), (2, 1, 2))
+        # Sets: the imported items' set rows; only the new set brings its SetInfo and effects.
+        self.assertEqual((rows['SetItemInfo'], rows['SetInfo'], rows['SetEffectInfo']), (2, 1, 2))
         with closing(sqlite3.connect(self.imported)) as db:
             # The NA shop becomes the 1.69 shop with the same recipes, after its last row.
             self.assertEqual(db.execute('SELECT * FROM CraftShopInfo').fetchall(), [('_Craft', 41, 'recipe_draker')])
@@ -138,6 +153,33 @@ class ClassImportsTest(unittest.TestCase):
             self.assertEqual(db.execute("SELECT ClassRestriction FROM SkillInfo WHERE SkillID='skill_defence_mastery'").fetchone()[0], 2047)
             self.assertEqual(db.execute('SELECT count(*) FROM ItemClassInfo').fetchone()[0], 6)
             self.assertEqual(db.execute("SELECT ClassRestriction FROM ItemClassInfo WHERE ItemClass='potion'").fetchone()[0], 2047)
+
+    def test_weapons_without_mastery_take_the_reference_rank(self):
+        with closing(sqlite3.connect(':memory:')) as db, closing(sqlite3.connect(':memory:')) as imported:
+            for target in (db, imported):
+                target.execute('CREATE TABLE ItemClassInfo(ItemClass TEXT, RequiredLevel INT, RequiredSkill TEXT, RequiredSkillRank INT)')
+                target.execute('CREATE TABLE EquipItemInfo(ItemClass TEXT, EquipClass TEXT)')
+            db.executemany('INSERT INTO ItemClassInfo VALUES(?,?,?,?)', [
+                ('greatsword_titan', 60, 'skill_hurk_greatsword_mastery', 6), ('greatsword_newbie', 1, None, 0),
+                ('greatsword_a', 70, 'skill_hurk_greatsword_mastery', 8), ('greatsword_b', 80, 'skill_hurk_greatsword_mastery', 10),
+                ('sword_c', 70, 'skill_sword_mastery', 2)])
+            db.executemany('INSERT INTO EquipItemInfo VALUES(?,?)', [('greatsword_titan', 'GREATSWORD'), ('greatsword_newbie', 'GREATSWORD'),
+                                                                   ('greatsword_a', 'GREATSWORD'), ('greatsword_b', 'GREATSWORD'),
+                                                                   ('sword_c', 'SWORD')])
+            imported.executemany('INSERT INTO ItemClassInfo VALUES(?,?,?,?)', [
+                ('draker_titan', 60, None, 0), ('draker_newbie', 1, None, 0), ('draker_x', 75, None, 0),
+                ('draker_y', 90, None, 0), ('draker_kept', 70, 'skill_other', 3), ('draker_low', 0, None, 0)])
+            imported.executemany('INSERT INTO EquipItemInfo VALUES(?,?)', [(i, 'DRAKER') for i in (
+                'draker_titan', 'draker_newbie', 'draker_x', 'draker_y', 'draker_kept', 'draker_low')])
+            imported.execute('CREATE TABLE SkillRankInfo(SkillID TEXT, Rank INT)')
+            imported.executemany('INSERT INTO SkillRankInfo VALUES(?,?)',
+                                 [('skill_miri_draker_mastery', r) for r in (0, 1, 2, 3, 4, 5, 6, 7, 8, 13, 14, 15)])
+            got = class_imports.mastery_requirements(db, imported, {'name': 'miri', 'weapon': 'draker'})
+            self.assertEqual(got, {'draker_titan': ('skill_miri_draker_mastery', 6),   # by name
+                                   'draker_x': ('skill_miri_draker_mastery', 8),       # level 70's rank
+                                   'draker_y': ('skill_miri_draker_mastery', 8)})      # 10 is not a Miri rank: 8
+            # No reference for another weapon; nothing without the columns.
+            self.assertEqual(class_imports.mastery_requirements(db, imported, {'name': 'miri', 'weapon': 'other'}), {})
 
     def test_bad_arguments_are_refused(self):
         with self.assertRaises(class_imports.ImportError_):
