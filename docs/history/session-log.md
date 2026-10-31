@@ -2899,3 +2899,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI10 (corrente do braço acrescentada; pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI9 e MI10 no cliente. Depois: cabo de cidade na própria arma, esconder com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: cabo de cidade da Draker
+- Feito: na cidade o cabo vai de `chain_01` a `chain_town` da própria arma (10 segmentos, folga 1,2), sem ligação com a mão, como o servidor NA faz (`0x22d603`). Cidade = nome do nível do motor (`engine.dll` `0x42a82ee0`, `V_FileBase` em `0x420e9522`) igual a um dos cinco mapas que o próprio motor trata como cidade (`0x420ec35a`: `lobby_multiplayer`, `_morvan`, `_rochest`, `s3_lobby_multiplayer`, `s3_lobby_multiplayer_rochest`); rotina `in_town` do *stub* compara sem chamar o motor. Os predicados do `GameStateManager001` foram medidos e descartados: NA x64 (*slots* 18/21/22: máscara de estados, 10–14 exceto 12, 5 ou 7) e 1.69 (`HeroesGameStateService`, *slots* 7–22 com outros conjuntos de estados, sem nomes) não têm numeração comum. Arma sem `chain_town` recebe o cabo de batalha.
+- Verificação: testes `test_the_draker_chain_uses_the_weapon_cable_in_town` (saltos da rotina, lista de mapas, argumentos do cabo), `test_town_maps_are_the_engines_own` (o `engine.dll` original compara `0x42a82ee0` com exatamente esses cinco nomes), corrente de batalha, *think* da Delia e relocação ok (`.cache/verification/miri/m7f/test-town.log`, `test-town2.log`). Roteamento dos `*.pre-routing.bak` com o jogo fechado (`routing-apply-town.log`): `client.dll` `2cf1dd9b45f86aeb` → `8f87b64b09c44f34`, `server.dll` igual `282b624df15bee24`; `in_town` `0x39220820`, *tick* `0x39220870`.
+- Cliente: `docs/client-tests/C4-miri.md` MI10 (linha da cidade atualizada; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 e MI10 no cliente. Depois: esconder cabo e corrente com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.

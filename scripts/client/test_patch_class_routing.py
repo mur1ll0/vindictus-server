@@ -547,7 +547,7 @@ class LabCopyTest(unittest.TestCase):
         # A point counts only above 0 (-1: model not loaded, and then the weapon is tried again).
         self.assertEqual(sum(c.startswith('jg ') for c in code), 1 + len(routing.CHAIN_PLAYER_ATTACHMENTS))
         self.assertIn('mov dword ptr [edi + 4], 0', code)
-        create = code.index(f'call {k["create"]:#x}')
+        create = len(code) - 1 - code[::-1].index(f'call {k["create"]:#x}')  # the battle cable (the town one comes first)
         # Create(weapon, player, chain_01, hand, width, material, segments, flags, slack, length, 0, 0)
         pushes = code[create - 12:create]
         self.assertEqual(pushes[-4:], ['push eax', 'push ebx', 'push esi', 'push ebp'])
@@ -571,9 +571,61 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(code[follow - 3:follow - 1], ['push 1', 'push esi'])
         names = [routing.read_string(image, int(c.split()[1], 16)) for c in code if c.startswith('push 0x')]
         self.assertEqual([n for n in names if n and ('chain' in n.lower() or n.startswith('anim_'))],
-                         [routing.CHAIN_WEAPON_ATTACHMENT, *routing.CHAIN_PLAYER_ATTACHMENTS, rope['material'],
-                          routing.CHAIN_ARM_MODEL])
+                         [routing.CHAIN_WEAPON_ATTACHMENT, routing.CHAIN_TOWN_ATTACHMENT, rope['material'],
+                          *routing.CHAIN_PLAYER_ATTACHMENTS, rope['material'], routing.CHAIN_ARM_MODEL])
         self.assertEqual(chain['classes'], [11])
+
+    def test_the_draker_chain_uses_the_weapon_cable_in_town(self):
+        image, report = self.plan('client.dll')
+        chain = report['class_conditions']['chain']
+        k = routing.CHAIN['client.dll']
+        town, tick = int(chain['in_town'], 16), int(chain['tick'], 16)
+        ins = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+            bytes(image.data[image.offset(town):image.offset(town) + 0x80]), town)))
+        at = {f'{x.mnemonic} {x.op_str}'.strip(): x.address for x in ins}
+        target = {f'{x.mnemonic} {x.op_str}'.strip(): int(x.op_str, 16) for x in ins
+                  if x.mnemonic.startswith('j') and x.op_str.startswith('0x')}
+        self.assertIn(f'mov esi, {routing.CHAIN_LEVEL_NAME:#x}', at)
+        jumps = [x for x in ins if x.mnemonic.startswith('j')]
+        by = {x.mnemonic: int(x.op_str, 16) for x in jumps}
+        self.assertEqual(by['jb'], at['cmp al, dl'])
+        self.assertEqual(by['ja'], at['cmp al, dl'])
+        self.assertEqual(by['jne'], at['add ebx, 4'])
+        self.assertEqual([int(x.op_str, 16) for x in jumps if x.mnemonic == 'jmp'][0], at['mov al, byte ptr [esi]'])
+        self.assertEqual([int(x.op_str, 16) for x in jumps if x.mnemonic == 'jmp'][1], at['mov edi, dword ptr [ebx]'])
+        self.assertEqual([int(x.op_str, 16) for x in jumps if x.mnemonic == 'je'],
+                         [at['xor eax, eax'], at['mov eax, 1']])
+        self.assertEqual([int(x.op_str, 16) for x in jumps if x.mnemonic == 'jmp'][2], at['pop edi'])
+        maps = int(next(x.op_str.split(', ')[1] for x in ins if x.mnemonic == 'mov' and x.op_str.startswith('ebx, ')), 16)
+        names = []
+        while True:
+            pointer = struct.unpack_from('<I', image.data, image.offset(maps + 4 * len(names)))[0]
+            if not pointer:
+                break
+            names.append(routing.read_string(image, pointer))
+        self.assertEqual(tuple(names), routing.CHAIN_TOWN_MAPS)
+        self.assertTrue(all(n == n.lower() for n in names))
+        code = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
+            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x400]), tick))]
+        creates = [i for i, c in enumerate(code) if c == f'call {k["create"]:#x}']
+        self.assertEqual(len(creates), 2)
+        first = code[creates[0] - 12:creates[0]]
+        self.assertEqual(first[-4:], ['push eax', 'push ebx', 'push ebp', 'push ebp'])
+        self.assertEqual(first[5], f'push {routing.CHAIN_TOWN_ROPE["segments"]:#x}')
+        slack = struct.unpack('<f', struct.pack('<I', int(first[3].split()[1], 16)))[0]
+        self.assertAlmostEqual(slack, routing.CHAIN_TOWN_ROPE['slack'], places=5)
+        self.assertIn(f'call {town:#x}', code[:creates[0]])
+        self.assertEqual(routing.read_string(image, int(code[code.index(f'call {town:#x}') + 5].split()[1], 16)),
+                         routing.CHAIN_TOWN_ATTACHMENT)
+
+    @unittest.skipUnless(any(LAB.glob('engine.dll.*.pre-classflags.bak')), 'needs the engine.dll backup')
+    def test_town_maps_are_the_engines_own(self):
+        engine = Image(next(LAB.glob('engine.dll.*.pre-classflags.bak')).read_bytes())
+        start = 0x420EC35A
+        code = list(self.md.disasm(bytes(engine.data[engine.offset(start):engine.offset(start) + 0x80]), start))
+        pushes = [int(x.op_str, 16) for x in code if x.mnemonic == 'push' and x.op_str.startswith('0x')][:10]
+        self.assertEqual(pushes[1::2], [routing.CHAIN_LEVEL_NAME] * 5)
+        self.assertEqual(tuple(routing.read_string(engine, va) for va in pushes[0::2]), routing.CHAIN_TOWN_MAPS)
 
     def test_delia_effects_register_types_commands_and_hooks(self):
         image, report = self.plan('server.dll')
