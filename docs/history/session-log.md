@@ -2906,3 +2906,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI10 (linha da cidade atualizada; pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI9 e MI10 no cliente. Depois: esconder cabo e corrente com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: corrente escondida com a arma
+- Feito: os eventos `visible`/`invisible` da arma no 1.69 (`AE_CUSTOM_WEAPON_EVENT`, `0x3874808a`) limpam e ligam `EF_NODRAW` (`0x20` de `m_fEffects +0x7c`, por `AddEffects` `0x380107f0`). O *tick* da corrente copia esse bit da arma para o cabo e a corrente do braço a cada *think*, chamando `AddEffects`/`RemoveEffects` (`0x38018640`) só quando difere; os caminhos "par vivo" e "recém-criado" passam por essa sincronização.
+- Verificação: `test_the_draker_chain_follows_the_weapon_visibility`, cabo de cidade, corrente de batalha, *think* da Delia e relocação ok (`.cache/verification/miri/m7f/test-hide.log`, `test-hide2.log`). Roteamento dos `*.pre-routing.bak` com o jogo fechado (`routing-apply-hide.log`): `client.dll` `8f87b64b09c44f34` → `0eae117d56f17a12`, `server.dll` igual `282b624df15bee24`.
+- Cliente: `docs/client-tests/C4-miri.md` MI10 (linha do emote; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 e MI10 no cliente. Depois: tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.

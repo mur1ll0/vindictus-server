@@ -371,13 +371,18 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # 0x420ec35a; the level name is the engine's 0x42a82ee0, set by V_FileBase at map load, 0x420e9522,
 # read across DLLs because the lab DLLs have no ASLR) the cable joins the weapon's `chain_01` to its
 # own `chain_town` (10 segments, as NA's town cable) and nothing ties it to the hand; a weapon without
-# `chain_town` gets the battle cable. Not ported: hiding both while the weapon is invisible.
+# `chain_town` gets the battle cable. The weapon's visible/invisible events (AE_CUSTOM_WEAPON_EVENT,
+# 0x3874808a) clear and set EF_NODRAW (0x20 of m_fEffects +0x7c); each think copies that bit to the
+# cable and the arm chain (AddEffects 0x380107f0, RemoveEffects 0x38018640), only when it differs.
 CHAIN = {'client.dll': {'think': 334, 'active_weapon': 0x1140, 'handle_get': 0x385519D0, 'handle_set': 0x38541370,
                         'remove': 0x38058370, 'create': 0x38540A30, 'lookup_attachment': 0x8C,
                         'new': 0x380528B0, 'animating': 0x380431F0, 'animating_size': 0xCA0,
-                        'initialize': 0x148, 'follow': 0x380136D0}}
+                        'initialize': 0x148, 'follow': 0x380136D0, 'add_effects': 0x380107F0,
+                        'remove_effects': 0x38018640, 'effects': 0x7C}}
 CHAIN_HEADS = {'handle_get': '8b0183f8ff', 'handle_set': '568bf18b4c2408', 'remove': '568bf180be5b01000000',
-               'create': '5668380c0000', 'new': 'a1c4a3ad38', 'animating': '515355568bf1', 'follow': '8b442404568bf185c0'}
+               'create': '5668380c0000', 'new': 'a1c4a3ad38', 'animating': '515355568bf1', 'follow': '8b442404568bf185c0',
+               'add_effects': '8b44240409417c', 'remove_effects': '8b4424048bd0f7d221517c'}
+EF_NODRAW = 0x20
 CHAIN_CLASSES = (11,)
 CHAIN_PLAYERS = 16
 CHAIN_ENTRY = 32
@@ -2256,7 +2261,28 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     call(k['follow'])
     layout.body += bytes((0x53, 0x8D, 0x4F, 0x10))  # push ebx; lea ecx, [edi + 16]
     call(k['handle_set'])
-    for at in (full, alive, arm_alive, no_chain, no_weapon, no_point, unloaded, no_hand, no_memory):
+    # Visibility: the cable and the arm chain take the weapon's EF_NODRAW (ebp = weapon, edi = entry).
+    for at in (alive, arm_alive, no_memory):
+        layout.land(at)
+    layout.body += bytes((0x85, 0xED))  # test ebp, ebp
+    no_sync = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0x5D, k['effects'], 0x83, 0xE3, EF_NODRAW))  # mov ebx, [ebp + effects]; and ebx, EF_NODRAW
+    for disp in (8, 16):
+        layout.body += bytes((0x8D, 0x4F, disp))  # lea ecx, [edi + disp]
+        call(k['handle_get'])
+        layout.body += bytes((0x85, 0xC0))
+        absent = layout.forward(bytes((0x0F, 0x84)))
+        layout.body += bytes((0x8B, 0x50, k['effects'], 0x83, 0xE2, EF_NODRAW, 0x3B, 0xD3))  # mov edx, [eax + effects]; and edx, 0x20; cmp edx, ebx
+        same = layout.forward(bytes((0x0F, 0x84)))
+        layout.body += bytes((0x6A, EF_NODRAW, 0x8B, 0xC8, 0x85, 0xDB))  # push EF_NODRAW; mov ecx, eax; test ebx, ebx
+        show = layout.forward(bytes((0x0F, 0x84)))
+        call(k['add_effects'])
+        hidden = layout.forward(bytes((0xE9,)))
+        layout.land(show)
+        call(k['remove_effects'])
+        for at in (absent, same, hidden):
+            layout.land(at)
+    for at in (full, no_chain, no_weapon, no_point, unloaded, no_hand, no_sync):
         layout.land(at)
     layout.body += bytes((0x5D, 0x5F, 0x5E, 0x5B, 0xC3))  # pop ebp/edi/esi/ebx; ret
     return {'tick': hex(tick), 'drop': hex(drop), 'table': hex(table), 'entry': CHAIN_ENTRY, 'players': CHAIN_PLAYERS,

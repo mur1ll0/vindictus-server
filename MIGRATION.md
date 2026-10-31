@@ -18,7 +18,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Miri: M7e (pulos, descanso na mão) e M7f (corrente da Draker no cliente: cabo de batalha mão→arma, cabo de cidade na própria arma, corrente do braço em *bonemerge*) aplicados; MI9 e MI10 do C4 pendentes no cliente (parada: o próximo passo depende de ver a corrente). Depois: esconder com a arma invisível, tirar `REST_SEQUENCES`, `_ex` próprio da Miri (os do NA são cópias da Delia) com Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 pendentes.
+2. Miri: M7e (pulos, descanso na mão) e M7f (corrente da Draker no cliente: cabo de batalha mão→arma, cabo de cidade na própria arma, corrente do braço em *bonemerge*, escondidos junto com a arma) aplicados; MI9 e MI10 do C4 pendentes no cliente (parada: o próximo passo depende de ver a corrente). Depois: tirar `REST_SEQUENCES`, `_ex` próprio da Miri (os do NA são cópias da Delia) com Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 pendentes.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador

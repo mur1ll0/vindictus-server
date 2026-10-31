@@ -532,11 +532,11 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(text(body, 32), ['push esi', 'mov esi, ecx', f'call {base:#x}', 'mov ecx, esi',
                                           f'call {tick:#x}', 'pop esi', 'ret'])
         k = routing.CHAIN['client.dll']
-        code = text(tick, 0x400)
+        code = text(tick, 0x500)
         self.assertEqual(code[-1], 'ret')
         self.assertIn(f'lea ecx, [esi + {k["active_weapon"]:#x}]', code)
-        # Sweep (player handle), active weapon, cable, arm chain.
-        self.assertEqual(code.count(f'call {k["handle_get"]:#x}'), 4)
+        # Sweep (player handle), active weapon, cable, arm chain, and both again for the visibility.
+        self.assertEqual(code.count(f'call {k["handle_get"]:#x}'), 6)
         drop = int(chain['drop'], 16)
         self.assertEqual(code.count(f'call {drop:#x}'), 3)
         dropped = text(drop, 0x60)
@@ -606,7 +606,7 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(tuple(names), routing.CHAIN_TOWN_MAPS)
         self.assertTrue(all(n == n.lower() for n in names))
         code = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
-            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x400]), tick))]
+            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x500]), tick))]
         creates = [i for i, c in enumerate(code) if c == f'call {k["create"]:#x}']
         self.assertEqual(len(creates), 2)
         first = code[creates[0] - 12:creates[0]]
@@ -617,6 +617,27 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn(f'call {town:#x}', code[:creates[0]])
         self.assertEqual(routing.read_string(image, int(code[code.index(f'call {town:#x}') + 5].split()[1], 16)),
                          routing.CHAIN_TOWN_ATTACHMENT)
+
+    def test_the_draker_chain_follows_the_weapon_visibility(self):
+        image, report = self.plan('client.dll')
+        chain = report['class_conditions']['chain']
+        k = routing.CHAIN['client.dll']
+        tick = int(chain['tick'], 16)
+        code = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
+            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x500]), tick))]
+        start = code.index('test ebp, ebp', code.index(f'call {k["follow"]:#x}'))
+        sync = code[start:]
+        self.assertEqual(sync[2:4], [f'mov ebx, dword ptr [ebp + {k["effects"]:#x}]', f'and ebx, {routing.EF_NODRAW:#x}'])
+        self.assertEqual([c for c in sync if c.startswith('lea ecx')], ['lea ecx, [edi + 8]', 'lea ecx, [edi + 0x10]'])
+        self.assertEqual(sync.count(f'call {k["add_effects"]:#x}'), 2)
+        self.assertEqual(sync.count(f'call {k["remove_effects"]:#x}'), 2)
+        self.assertEqual(sync.count(f'push {routing.EF_NODRAW:#x}'), 2)
+        self.assertEqual(sync[-5:], ['pop ebp', 'pop edi', 'pop esi', 'pop ebx', 'ret'])
+        # The live-pair path (cable or arm chain alive) goes to the sync, not straight to the end.
+        ins = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
+            bytes(image.data[image.offset(tick):image.offset(tick) + 0x500]), tick)))
+        sync_at = [x.address for x in ins if f'{x.mnemonic} {x.op_str}'.strip() == 'test ebp, ebp'][-1]
+        self.assertGreaterEqual(sum(1 for x in ins if x.mnemonic == 'jne' and int(x.op_str, 16) == sync_at), 2)
 
     @unittest.skipUnless(any(LAB.glob('engine.dll.*.pre-classflags.bak')), 'needs the engine.dll backup')
     def test_town_maps_are_the_engines_own(self):
