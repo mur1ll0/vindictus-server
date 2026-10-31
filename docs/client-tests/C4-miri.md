@@ -164,3 +164,9 @@ Pré-condição: `pc_miri_battle_motion_ex.mdl` da cópia com 551 sequências (c
 - [ ] Fase: combate contra monstros e uma habilidade da barra.
 - [ ] Anotar animações que faltarem (pose congelada num golpe, por exemplo), com o nome da habilidade ou do golpe.
 Limites conhecidos: Dragon Knight, Dragon Smash e energia do dragão não foram portados; os golpes que dependem deles podem não sair.
+
+Resultado da MI8, rodada 1 (31/10/2026): andar, atacar, combos e golpes funcionam no barco (M7d ok). Pendências:
+- **Pulo no barco** não anima. O modelo de batalha da Miri **no próprio NA** não tem `jump_begin`/`jump_during`/`jump_end` (só escada e emotes). Os do 1.69 da Delia (`pc_delia_battle_motion_ex.mdl`) têm. Caminho: `includemodel` de um modelo feminino com o pulo, ou cópia das sequências.
+- **Corrente da Draker invisível** no arremesso (Shift + botão direito). O modelo tem os pontos `chain_01`/`chain_town`; os eventos do NA `AE_ATTACH_ANIMATING_PROP`/`AE_DETACH_ANIMATING_PROP` (M0) não existem no 1.69. Patch nativo.
+- **Arma flutuando no descanso de combate** (*idle* depois de atacar). O NA usa o modo de encaixe `battle_rest` (`TownAttachData` do `weapon_draker.txt`), que o 1.69 não lê.
+- **Pulo na cidade** (pedido do operador: como o do Hurk): tirar o saque da arma do `JumpTown` (`selectweapon weapon_defaultsword`) ou a ativação dele nos arquivos de cidade da Delia (1.69) e da Miri.

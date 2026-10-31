@@ -2855,3 +2855,16 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI8.
 - Commits: (este passo)
 - Pendente / próxima ação: MI8 (combate da Miri no barco e na fase); depois transformação Dragon Knight, Dragon Smash e energia do dragão. Decisão do operador sobre o pulo de cidade.
+
+## 2026-10-31 — Miri MI8 (combate ok) e levantamento do M7e
+- Feito:
+  - MI8: andar, atacar, combos e golpes da Miri funcionam no barco.
+  - Levantamento do M7e:
+    - Pulo de batalha: o `pc_miri_battle_motion.mdl` do NA não tem sequências de pulo.
+    - Corrente da Draker: eventos `AE_*_ANIMATING_PROP` ausentes no 1.69.
+    - Descanso de combate: encaixe `battle_rest` só no NA.
+    - Pulo de cidade: `JumpTown` saca a arma; o operador quer o pulo do Hurk para a Delia e a Miri.
+- Verificação: busca de nomes de sequência nos modelos do NA e do 1.69.
+- Cliente: `docs/client-tests/C4-miri.md` MI8, rodada 1.
+- Commits: (este passo)
+- Pendente / próxima ação: M7e em sessão nova (pulo de cidade sem sacar a arma, pulo de batalha, corrente da Draker, descanso de combate); depois Dragon Knight, Dragon Smash e energia do dragão.
