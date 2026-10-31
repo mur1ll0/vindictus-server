@@ -55,13 +55,16 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
 
     def test_ui_elements_declare_the_class_dialogs(self):
         xml = ('<UIElementInfo>\r\n  <ElementList>\r\n    <Element name="ShipHPGauge" filename="ShipHPGauge.gfx" />\r\n'
-               '    <Element name="Other" filename="Other.gfx" />\r\n  </ElementList>\r\n  <MoveableDialogs>\r\n'
+               '    <Element name="Other" filename="Other.gfx" />\r\n  </ElementList>\r\n  <PreloadList>\r\n'
+               '    <Element>ShipHPGauge</Element>\r\n  </PreloadList>\r\n  <MoveableDialogs>\r\n'
                '    <Element name="QuickSlotPanel" background="hitBox" />\r\n  </MoveableDialogs>\r\n</UIElementInfo>\r\n').encode()
         out = a.ui_elements_with_classes(xml)
         lines = out.decode().split('\r\n')
         self.assertTrue(lines[3].startswith('    <Element name="MiriSkillDialog" filename="MiriSkillDialog.gfx"'))
-        self.assertEqual(lines[8], '    <Element name="MiriSkillDialog" background="MC_DragonEnergy.BG" />')
-        self.assertEqual(lines[9], '  </MoveableDialogs>')
+        self.assertEqual(lines[8], '    <Element>MiriSkillDialog</Element>')
+        self.assertEqual(lines[9], '  </PreloadList>')
+        self.assertEqual(lines[12], '    <Element name="MiriSkillDialog" background="MC_DragonEnergy.BG" />')
+        self.assertEqual(lines[13], '  </MoveableDialogs>')
         self.assertIsNone(a.ui_elements_with_classes(out))  # already declared
         with self.assertRaises(PreparationError):
             a.ui_elements_with_classes(b'<UIElementInfo></UIElementInfo>')

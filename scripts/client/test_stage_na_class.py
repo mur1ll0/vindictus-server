@@ -190,6 +190,25 @@ class StageTest(unittest.TestCase):
                          {states: 'scripts/actionstate/player_action_state_miri.txt',
                           anim + 'pc_miri_motion_ex.txt': anim + 'pc_miri_motion.txt'})
 
+    def test_donor_states_fill_what_the_class_lacks(self):
+        mine = (b'"PlayerActionState"\r\n{\r\n\t"Header"\r\n\t{\r\n\t}\r\n'
+                b'\t"StateChangeConditionDefine"\r\n\t{\r\n\t\t"JumpAttackStrong"\r\n\t\t{\r\n\t\t\t"priority"\t"9"\r\n\t\t}\r\n\t}\r\n'
+                b'\t"StateDefine"\r\n\t{\r\n\t\t"Idle"\r\n\t\t{\r\n\t\t}\r\n\t}\r\n}\r\n')
+        donor = (b'"PlayerActionState"\r\n{\r\n\t"StateChangeConditionDefine"\r\n\t{\r\n'
+                 b'\t\t"JumpAttack"\r\n\t\t{\r\n\t\t\t"command"\t"+IN_ATTACK/"\r\n\t\t}\r\n'
+                 b'\t\t"JumpAttackStrong"\r\n\t\t{\r\n\t\t\t"priority"\t"2"\r\n\t\t}\r\n'
+                 b'\t\t"SuperPower"\r\n\t\t{\r\n\t\t}\r\n\t}\r\n'
+                 b'\t"StateDefine"\r\n\t{\r\n\t\t"JumpAttack"\r\n\t\t{\r\n\t\t\t"output" { "sequence" "jump_attack" }\r\n\t\t}\r\n\t}\r\n}\r\n')
+        out, added = stage.with_donor_states(mine, donor, ('JumpAttack', 'JumpAttackStrong'))
+        self.assertEqual(added, ['StateChangeConditionDefine/JumpAttack', 'StateDefine/JumpAttack'])
+        root = next(n for n in stage.kv_merge.parse(out).children if n.block)
+        sections = {c.key: [x.key for x in c.children] for c in root.children}
+        self.assertEqual(sections['StateChangeConditionDefine'], ['JumpAttackStrong', 'JumpAttack'])
+        self.assertEqual(sections['StateDefine'], ['Idle', 'JumpAttack'])
+        self.assertIn(b'"priority"\t"9"', out)  # the class's own state stays
+        self.assertNotIn(b'SuperPower', out)
+        self.assertEqual(stage.with_donor_states(out, donor, ('JumpAttack', 'JumpAttackStrong'))[1], [])
+
     def test_jump_activations_come_from_the_donor(self):
         mine = (b'"battle_idle_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tBattleRun"\r\n}\r\n'
                 b'"battle_run_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpBegin"\r\n}\r\n'

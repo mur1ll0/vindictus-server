@@ -268,3 +268,17 @@ Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.
 - [ ] Barco/fase: Espaço → pulo de batalha (subida, queda, aterrissagem) e volta ao combate; pulo depois de um ataque.
 - [ ] Barco/fase: o dragão de Flamebreath aparece e enche (itens da MI14).
 - [ ] SP e dano: as informações pedidas na MI14.
+
+Resultado da MI15 (31/10/2026, `MiriLab`):
+- Pulo na cidade e corrente na fonte termal: aprovados.
+- Botões no ar não atacam; falta o XE: o NA não tem pulo nem XE para a Miri (a Nexon removeu os dois); o operador decidiu migrar da Delia e criar um XE como habilidade extra.
+- HUD de Flamebreath não apareceu numa fase; Tab (Fiery Evasion) não sai.
+- Giant Polar Bear com 13k de ATK: 37 de dano por golpe e nenhum SP ao atacar (só ao apanhar): as ações `miri_*` não estavam no `action_table_player_ex.txt` que o `ExtremeMode` lê.
+
+### MI16 — Dano, SP, ataques no ar
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7k). DLLs iguais aos da MI15.
+- [ ] Fase (o mesmo Giant Polar Bear): golpes normais e Smash → dano compatível com 13k de ATK (anotar 3–4 números) e a barra de SP enche ao acertar.
+- [ ] Barco/fase: pular e apertar esquerdo no ar → ataque no ar; direito no ar → ataque forte no ar (animações da Delia).
+- [ ] Fase: o dragão de Flamebreath aparece? Se não, avisar com o jogo aberto, na fase, para eu ler a memória (nível, estado do HUD).
+- [ ] Fase, com Fiery Evasion aprendida e o dragão com nível: Tab durante um ataque → esquiva. Se não sair, avisar junto com o item anterior.
+Limites conhecidos: XE ainda não existe para a Miri (habilidade extra a criar).

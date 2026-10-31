@@ -2960,3 +2960,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI14 e MI15 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI15 no cliente; números de SP e dano; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7k: dano, SP, ataques no ar; regra do pulo e do XE (C4 MI15 → MI16)
+- Feito: MI15 jogada (pulo na cidade e fonte termal ok; 37 de dano a 13k de ATK, sem SP ao atacar, sem ataques no ar, sem XE, HUD e Tab ausentes). Causa do dano/SP: com `ExtremeMode` o 1.69 lê `action_table_player_ex.txt`, e as ações `miri_*` só iam ao `action_table_player.txt`; `stage_na_class.EXTREME_MERGES` mescla as linhas dela também no `_ex`. `DONOR_STATES`/`with_donor_states` copiam `JumpAttack`/`JumpAttackStrong` da Delia. `apply_lab_content_additions`: `MiriSkillDialog` também no `<PreloadList>`. Decisão do operador: a Nexon removeu pulo e XE; classes da Miri em diante migram isso de uma doadora do 1.69 e ganham XE como habilidade extra (skill `new-class-port` 1.1.0, `docs/future/miri-class-port.md`).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/r5-tests.log`). Aplicado com o jogo fechado (`r2/stage5.log`, `r2/apply5.log`: 22 mesclas); no pacote da cópia: `miri_normal_attack_01` no `action_table_player_ex.txt` e `JumpAttack` nas duas seções do `_ex` dela. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI15 e MI16 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI16 (dano, SP, ataques no ar; Flamebreath e Tab com leitura de memória numa fase); depois XE como habilidade extra e Dragon Knight.

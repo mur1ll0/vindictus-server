@@ -233,6 +233,36 @@ def with_included_events(script: bytes, donor_script: bytes, sequences: set[str]
 
 
 SPSKILL_TABLE = 'scripts/translated_spskill.txt'
+# 1.69 scripts that ExtremeMode reads in place of a shared one, mapped to the NA script whose class lines
+# they get: with ExtremeMode the 1.69 loads scripts/action_table_player_ex.txt (client and server), and
+# the NA's _ex table has no Miri line, so her AE_SET_CUR_ACTION_INFO miri_* found no action: 37 damage a
+# hit at 13k ATK and no SP from attacks (C4 MI15).
+EXTREME_MERGES = {'scripts/action_table_player_ex.txt': 'scripts/action_table_player.txt'}
+# States the 1.69's ExtremeMode gives every class and the NA's class files lack (the NA had no jump): the
+# jump attacks of the "XE common" block, copied from the 1.69 donor's _ex state file (C4 MI15). The XE
+# move itself (SuperPower) needs an XE skill the NA Miri does not have.
+DONOR_STATES = {'female': ('scripts/actionstate/player_action_state_delia_ex.txt', ('JumpAttack', 'JumpAttackStrong'))}
+
+
+def with_donor_states(script: bytes, donor_script: bytes, names: tuple[str, ...]) -> tuple[bytes, list[str]]:
+    """The class's action-state script with the donor's `names` states, in each section
+    (StateChangeConditionDefine, StateDefine) where the donor has them and the class does not."""
+    mine = next(n for n in kv_merge.parse(script).children if n.block)
+    theirs = next(n for n in kv_merge.parse(donor_script).children if n.block)
+    newline = b'\r\n' if b'\r\n' in script else b'\n'
+    edits, added = [], []
+    for section in theirs.children:
+        target = next((c for c in mine.children if c.block and c.key == section.key), None)
+        if target is None or not section.block:
+            continue
+        have = {c.key for c in target.children}
+        for state in section.children:
+            if state.block and state.key in names and state.key not in have:
+                edits.append((target.close, b'\t\t' + donor_script[state.start:state.end] + newline + b'\t'))
+                added.append(f'{section.key}/{state.key}')
+    for at, text in sorted(edits, key=lambda e: e[0], reverse=True):
+        script = script[:at] + text + script[at:]
+    return script, added
 
 
 def spskill_for_169(na: bytes, lab: bytes, class_name: str) -> bytes:
@@ -355,9 +385,13 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                 if script not in records or full not in records:
                     continue
                 text = (out / full).read_bytes()
+                extra = {'copied_from': full}
                 if script.startswith('scripts/actionstate/'):
                     text = with_extreme_includes(text, lambda q: q in lab)
-                extra = {'copied_from': full}
+                    donor_states = DONOR_STATES.get(rel.split('/')[3])
+                    if donor_states and donor_states[0] in lab_files:
+                        text, states = with_donor_states(text, lab_files[donor_states[0]].read_bytes(), donor_states[1])
+                        extra.update({'states_from': donor_states[0], 'states_added': states})
                 donor_events = donor and donor.replace('_battle_motion_ex.mdl', '_motion_ex.txt')
                 if donor_events and script.endswith('_motion_ex.txt') and donor_events in lab_files:
                     donor_text = lab_files[donor_events].read_bytes()
@@ -367,14 +401,14 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                 (out / script).write_bytes(text)
                 records[script].update({'sha256': sha256(text), 'bytes': len(text), 'converted': True, **extra})
     merges = []
-    for rel in SHARED_SCRIPTS:
-        if rel not in na or rel not in lab:
+    for rel, na_rel in [(r, r) for r in SHARED_SCRIPTS] + list(EXTREME_MERGES.items()):
+        if na_rel not in na or rel not in lab:
             continue
-        source = na[rel].read_bytes()
+        source = na[na_rel].read_bytes()
         target = out / 'merge' / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(spskill_for_169(source, lab_files[rel].read_bytes(), class_name) if rel == SPSKILL_TABLE else source)
-        merges.append({'path': rel, 'source': na[rel].relative_to(na_root).as_posix(), 'source_sha256': sha256(source),
+        merges.append({'path': rel, 'source': na[na_rel].relative_to(na_root).as_posix(), 'source_sha256': sha256(source),
                        'needles': list(names)})
     text = None
     if TEXT_SOURCE in na:

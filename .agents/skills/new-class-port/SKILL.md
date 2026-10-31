@@ -9,7 +9,7 @@ description: >
   das 10 classes antigas, nem para trocar a base do projeto pelo cliente NA.
 metadata:
   author: vindictus-server (escrita a partir do porte da Delia)
-  version: "1.0.0"
+  version: "1.1.0"
   date: 2026-10-30
 ---
 
@@ -65,6 +65,29 @@ Detalhes, comandos e o que muda da Delia para a Miri: `references/procedimento.m
 
 Antes de cada teste de cliente, procure `cmp reg, 9`/`0xa` antes de tabelas por classe nos caminhos que
 a classe nova toca (`scripts/reverse/v169_class_uses.py` lista os pontos conhecidos).
+
+## Pulo, ataques no ar e XE nas classes novas (decisão do operador, 31/10/2026)
+A Nexon removeu o pulo e o XE *move* (`ExtremeMode`) em determinado momento: as classes lançadas depois
+(da Miri em diante) não têm pulo, ataques no ar, XE nem `_ex` próprio no NA (os `_ex` delas são cópias de
+outra classe ou cascos de uma sequência). O laboratório roda com `ExtremeMode`, que lê só os arquivos
+`_ex`. Regra: **migrar o que falta a partir de uma classe doadora do 1.69 de mesmo esqueleto** (feminino:
+Delia) **e implementar para a classe um XE *move* como habilidade extra**. O que a Miri já faz
+(`stage_na_class.py`, `apply_lab_content_additions.py`; `docs/future/miri-class-port.md` 2.11, M7d–M7k):
+- `_ex` a partir dos arquivos completos da classe: modelo (`extreme_motion_sibling`), estados e eventos
+  (`extreme_scripts`), com os *includes* trocados pela variante `_ex` do 1.69 (`with_extreme_includes`;
+  o `common_state_movement.txt` do 1.69 tem os pulos comentados);
+- modelo da doadora incluído para as sequências que faltam (`jump_donor`: `jump_*`, `jump_attack*`,
+  `super_power`, busca de núcleos), com os blocos de evento dela (`with_included_events`, inclusive o
+  `jump_town`, que o 1.69 guarda no roteiro `_ex` da classe) e as ativações `Jump*` nos blocos de mesmo nome
+  (`with_jump_activations`);
+- estados da doadora que a classe não tem (`DONOR_STATES`: `JumpAttack`, `JumpAttackStrong`);
+- tabelas lidas no lugar das comuns com `ExtremeMode` recebem as linhas da classe (`EXTREME_MERGES`:
+  `action_table_player_ex.txt`; sem ele os golpes ficam sem ação, dano mínimo e sem SP).
+XE *move* (a fazer na Miri): habilidade nova `skill_<classe>_xe_move` (linhas de `SkillInfo`/`SkillRankInfo`
+no esquema 1.69, recarga `skill_xe_move_cooltime`), estado `SuperPower` copiado da doadora com
+`required_skill` e `is_weapon` da classe, ativações `SuperPower` nos eventos e a ação do golpe (`super_power`
+usa a da doadora). Os nomes e valores vêm da doadora do 1.69, não do NA, e ficam registrados no documento
+da classe.
 
 ## Armadilhas que a Delia ensinou
 Evidência e passo de cada uma: `references/armadilhas.md`.

@@ -282,7 +282,8 @@ def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dic
 # by name, client 0x385fbf60): the Miri's Flamebreath dragon (MiriSkillDialog.gfx, shown by
 # patch_class_routing FLAMEBREATH) never appeared (C4 MI13). CLASS_UI_ELEMENTS are the NA's declarations
 # (scaleform/UIElements.xml: <ElementList>, after ShipHPGauge as in the NA's depth order, and
-# <MoveableDialogs>, its drag area).
+# <MoveableDialogs>, its drag area), and the element joins <PreloadList> as ShipHPGauge does, which the
+# 1.69 also shows by name (C4 MI15: declared but still not shown).
 CLASS_UI_ELEMENTS = (
     ('MiriSkillDialog', 'filename="MiriSkillDialog.gfx" align="Center" x="300" y="0" width="126" height="210"',
      'ShipHPGauge', 'background="MC_DragonEnergy.BG"'),
@@ -307,6 +308,10 @@ def ui_elements_with_classes(data: bytes, elements=CLASS_UI_ELEMENTS) -> bytes |
         close = out.find(b'</MoveableDialogs>')
         start = out.rfind(newline, 0, close) + len(newline)
         out = out[:start] + f'    <Element name="{name}" {background} />'.encode() + newline + out[start:]
+        close = out.find(b'</PreloadList>')
+        if close >= 0:
+            start = out.rfind(newline, 0, close) + len(newline)
+            out = out[:start] + f'    <Element>{name}</Element>'.encode() + newline + out[start:]
     return None if out == data else out
 
 
