@@ -2833,3 +2833,14 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI7.
 - Commits: (este passo)
 - Pendente / próxima ação: com o jogo fechado, aplicar a cópia e subir o `game` com a imagem nova; MI7 (barco com a Miri; entrada da Murael e da Tsuko, com o passo da recusa no log).
+
+## 2026-10-31 — Seleção recalcula os atributos base (Murael, Tsuko) e MI7 da Miri
+- Feito:
+  - O registro dos passos (`traced`) mostrou a Tsuko recusada em `stats.values`.
+  - Os atributos base somam os títulos de todas as personagens da conta. A `DeliaLab` ganhou 12 títulos em 29/10 pela progressão do painel, e só os atributos dela foram recalculados.
+  - `minimum_selection::select` chama `minimum_growth::calculate_base_stat` antes de conferir (`StatManager.CalculateBaseStat` na carga; a coluna gravada é uma cópia).
+  - Miri: o barco continua só na *idle*. O jogo pede `player_action_state_miri_ex.txt`. O experimento dos pacotes originais (M7c) é inconclusivo e foi mantido.
+- Verificação: `cargo check --lib` OK, sem aviso (`sel2-check.log`); log do `game` com o passo da recusa; títulos da conta conferidos no banco (data de aquisição 29/10, 21:4x UTC); Docker recompilado (`sel2-docker-build.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI7, rodada 1; a entrada da Murael e da Tsuko será conferida depois de subir a imagem.
+- Commits: (este passo)
+- Pendente / próxima ação: subir o `game` com a imagem nova (jogo fechado) e entrar com a Murael e a Tsuko. Miri M7: ler na memória a máquina de estados de ação do jogador no barco (estado atual e tabela carregada) e comparar com a Delia.

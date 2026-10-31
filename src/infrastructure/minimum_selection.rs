@@ -89,6 +89,14 @@ pub async fn select(
     if row.try_get::<bool, _>("dirty")? || row.try_get::<bool, _>("is_connected")? {
         return traced("flags", Err(MinimumError::Conflict));
     }
+    // StatManager.CalculateBaseStat on load: the stored stats are a copy of the class stats of the
+    // level plus the character's and the account's acquired titles, so another character of the
+    // account acquiring a title changes them (C4 MI7: Murael and Tsuko were refused after DeliaLab
+    // gained titles). The copy is written again before the stats are checked and projected.
+    traced(
+        "stats.recalculate",
+        super::minimum_growth::calculate_base_stat(&mut tx, assets, cid).await,
+    )?;
     // CafeManager.OnLogIn (HomeCafeBonus) before the entry state is projected.
     let level: i32 = row.try_get("level")?;
     let cafe = traced(

@@ -141,3 +141,11 @@ Pré-condição: imagem Docker com o registro dos passos da seleção (`minimum_
 - [ ] Murael (Fiona) e Tsuko (Evy): tentar entrar. Se recusar, anotar o horário; o log do `game` dirá o passo (`minimum selection step refused`, `step`, `kind`).
 - [ ] `DeliaLab` e `MiriLab`: entram como antes.
 Limites conhecidos: as mecânicas próprias da Miri ainda não foram portadas.
+
+Resultado da MI7, rodada 1 (31/10/2026, 02:40):
+- Tsuko recusada. O log do `game` mostrou o passo `stats.values` (`conflict`): os atributos gravados não batiam com os recalculados. O cálculo soma os títulos de **todas** as personagens da conta (`TitleQueryAcquiredByAccount`). A `DeliaLab` ganhou 12 títulos em 29/10 (progressão pelo painel), e os atributos gravados da Murael e da Tsuko ficaram velhos; a seleção só recalculava os da personagem que ganhava o título. Não tem relação com a Miri nem com o *inner zero*.
+  - Correção: na seleção, `calculate_base_stat` grava de novo a cópia antes de conferir, como o `StatManager.CalculateBaseStat` na carga. A cópia gravada é só um *cache* do valor da classe no nível mais os títulos.
+- Miri no barco: continua só na *idle*.
+  - O jogo pede a variante `player_action_state_miri_ex.txt` (cópias do nome na memória do cliente e do servidor). As chaves desse `_ex` existem todas em arquivos do 1.69, então a memória não prova se ele foi lido.
+  - Os cabeçalhos do `_ex` da Miri e da Delia são idênticos. O experimento dos pacotes originais é inconclusivo e fica: não piora nada e mantém os scripts com o pacote da pasta.
+  - Próximo passo: ler na memória a máquina de estados de ação do jogador da Miri no barco (estado atual e tabela de estados carregada), comparando com a Delia.
