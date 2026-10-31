@@ -144,6 +144,61 @@ class StageTest(unittest.TestCase):
         self.assertIsNone(stage.jump_donor(path.replace('female', 'male'), without, lambda p: True))
         self.assertIsNone(stage.jump_donor(path.replace('_ex', ''), without, lambda p: True))
 
+    def test_an_abandoned_extreme_mode_stages_the_full_moveset(self):
+        """The NA _ex stub model, state and events scripts (another class's copies) give way to the full
+        ones; the events gain the donor's blocks of the sequences the donor model supplies."""
+        anim = 'models/player/_anim/female/miri/'
+        still = {3: models.still(2, bone=3)}
+        na = {
+            anim + 'pc_miri_battle_motion_ex.mdl': models.synthetic({'idle': still}),
+            anim + 'pc_miri_battle_motion.mdl': models.synthetic({'battle_idle_lower': still, 'get_item': still}),
+            anim + 'pc_miri_motion.txt': b'"get_item"\r\n{\r\n\t"30"\t"AE_CUSTOM_MOTION\tItem_Loot"\r\n}\r\n',
+            anim + 'pc_miri_motion_ex.txt': b'"delia_sp1"\r\n{\r\n}\r\n',
+            'scripts/actionstate/player_action_state_miri.txt': b'"PlayerActionState" { "miri" {} }',
+            'scripts/actionstate/player_action_state_miri_ex.txt': b'"PlayerActionState" { "delia" {} }',
+        }
+        for path, data in na.items():
+            (self.na / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.na / path).write_bytes(data)
+        donor = self.lab / stage.JUMP_DONORS['female']
+        donor.parent.mkdir(parents=True)
+        donor.write_bytes(models.synthetic({stage.JUMP_SEQUENCE: still, 'search_evil_core': still, 'get_item': still}))
+        (donor.parent / 'pc_delia_motion_ex.txt').write_bytes(
+            b'// "comment" { }\r\n"get_item"\r\n{\r\n\t"0"\t"AE_KEY_CLEAR"\r\n}\r\n'
+            b'"search_evil_core"\r\n{\r\n\t"92"\t"AE_CUSTOM_MOTION\tItem_Loot"\r\n\t"$endframe-10$"\r\n\t{\r\n\t\t"event"\t"x"\r\n\t}\r\n}\r\n'
+            b'"jump_begin"\r\n{\r\n}\r\n')
+        manifest = stage.stage('miri', 'draker', self.na, self.lab, self.out)
+        records = {r['path']: r for r in manifest['files']}
+        states = 'scripts/actionstate/player_action_state_miri_ex.txt'
+        self.assertEqual((self.out / states).read_bytes(), na['scripts/actionstate/player_action_state_miri.txt'])
+        self.assertEqual(records[states]['copied_from'], 'scripts/actionstate/player_action_state_miri.txt')
+        events = (self.out / anim / 'pc_miri_motion_ex.txt').read_bytes()
+        self.assertTrue(events.startswith(na[anim + 'pc_miri_motion.txt'].rstrip()))
+        self.assertEqual(sorted(stage.event_blocks(events)), ['get_item', 'jump_begin', 'search_evil_core'])
+        self.assertIn(b'"92"\t"AE_CUSTOM_MOTION\tItem_Loot"', events)
+        self.assertNotIn(b'AE_KEY_CLEAR', events)  # the class's own get_item stays
+        self.assertNotIn(b'delia_sp1', events)
+        self.assertEqual(records[anim + 'pc_miri_motion_ex.txt']['events_added'], 2)
+        self.assertEqual(stage.extreme_scripts(anim + 'pc_miri_battle_motion_ex.mdl'),
+                         {states: 'scripts/actionstate/player_action_state_miri.txt',
+                          anim + 'pc_miri_motion_ex.txt': anim + 'pc_miri_motion.txt'})
+
+    def test_the_sp_skill_section_takes_the_169_shape(self):
+        na = (b'"delia"\r\n{\r\n\t"0"\r\n\t{\r\n\t\t"skill_delia_sp1" { "key" "IN_SPSKILL2" "id" "AttackSP01" }\r\n\t}\r\n}\r\n'
+              b'"miri"\r\n{\r\n\t"0"\r\n\t{\r\n'
+              b'\t\t"skill_miri_sp1"\r\n\t\t{\r\n\t\t\t"key"\t"IN_SPSKILL2"\r\n\t\t\t"id"\t"AttackSP01"\r\n\t\t}\r\n'
+              b'\t\t// vocation\r\n\t\t"skill_voc_dk_active_throw_attack" { "key" "IN_SPSKILL12" "id" "SP_DarkKnight_ThrowAttack" }\r\n'
+              b'\t}\r\n}\r\n"grimden" { "0" { } }\r\n')
+        lab = b'"delia"\r\n{\r\n\t"skill_delia_sp1" { "key" "IN_SPSKILL2" "id" "AttackSP01" }\r\n}\r\n'
+        out = stage.spskill_for_169(na, lab, 'miri')
+        miri = next(n for n in stage.kv_merge.parse(out).children if n.key == 'miri')
+        self.assertEqual([c.key for c in miri.children], ['skill_miri_sp1'])
+        self.assertEqual({k.key: k.value for k in miri.children[0].children}, {'key': 'IN_SPSKILL2', 'id': 'AttackSP01'})
+        self.assertNotIn(b'skill_voc_dk', out)
+        self.assertEqual(out.replace(out[out.find(b'"miri"'):out.find(b'"grimden"')], b''),
+                         na.replace(na[na.find(b'"miri"'):na.find(b'"grimden"')], b''))
+        self.assertEqual(stage.spskill_for_169(lab, lab, 'delia'), lab)  # already flat
+
     def test_town_motion_models_get_the_jump_on_the_back(self):
         data = models.town_model()
         path = 'models/player/_anim/female/miri/pc_miri_town_motion.mdl'

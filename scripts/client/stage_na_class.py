@@ -26,6 +26,7 @@ import struct
 import sys
 from pathlib import Path
 
+import kv_merge
 import mdl_anim
 import mdl_v45_to_v44
 from model_kit import TEXTURE_PARAMS, model_materials
@@ -137,6 +138,91 @@ def jump_donor(path: str, data: bytes, known=lambda p: False) -> str | None:
     return donor
 
 
+def extreme_scripts(model_path: str) -> dict[str, str]:
+    """The _ex scripts that go with a battle motion _ex model copied from the full one (extreme_motion_sibling),
+    each mapped to the full sibling it is staged from. The NA kept the class's _ex scripts as copies of
+    another class's (the Miri's: 368 mentions of the Delia, none of herself), so with ExtremeMode the Miri
+    played the Delia's moveset on her own animations: no SP skill, no Tab (Fiery Evasion), no Fiery
+    skill (C4 MI12). Her full scripts are the moveset her model, her skill table and translated_spskill
+    were made for."""
+    parts = model_path.split('/')
+    folder, name = '/'.join(parts[:-1]), parts[-1]
+    klass = name[len('pc_'):-len('_battle_motion_ex.mdl')]
+    return {f'scripts/actionstate/player_action_state_{klass}_ex.txt': f'scripts/actionstate/player_action_state_{klass}.txt',
+            f'{folder}/pc_{klass}_motion_ex.txt': f'{folder}/pc_{klass}_motion.txt'}
+
+
+def event_blocks(script: bytes) -> dict[str, tuple[int, int]]:
+    """Top-level blocks of a motion events script: lower-case sequence name -> (start, end) of
+    `"name" { ... }`, braces counted outside quotes and // comments."""
+    blocks, at, depth, start, name = {}, 0, 0, None, None
+    while at < len(script):
+        c = script[at:at + 1]
+        if script.startswith(b'//', at):
+            end = script.find(b'\n', at)
+            at = len(script) if end < 0 else end
+            continue
+        if c == b'"':
+            end = script.find(b'"', at + 1)
+            if end < 0:
+                break
+            if depth == 0:
+                start, name = at, script[at + 1:end].decode('latin-1').lower()
+            at = end + 1
+            continue
+        if c == b'{':
+            depth += 1
+        elif c == b'}':
+            depth -= 1
+            if depth == 0 and name is not None:
+                blocks.setdefault(name, (start, at + 1))
+                name = None
+        at += 1
+    return blocks
+
+
+def with_included_events(script: bytes, donor_script: bytes, sequences: set[str]) -> tuple[bytes, list[str]]:
+    """The class's events script plus the donor's event blocks of `sequences` (the ones an included model
+    supplies) that the script lacks: the engine plays an included sequence with the events of the
+    model's own script, so without them the battle jump would have no landing and the core search
+    (E on a monster's drop, "GET") no Item_Loot (C4 MI12)."""
+    mine, theirs = event_blocks(script), event_blocks(donor_script)
+    added = sorted(s for s in sequences if s not in mine and s in theirs)
+    if not added:
+        return script, []
+    newline = b'\r\n' if b'\r\n' in script else b'\n'
+    pieces = [donor_script[theirs[s][0]:theirs[s][1]] for s in added]
+    return script.rstrip() + newline + newline + (newline + newline).join(pieces) + newline, added
+
+
+SPSKILL_TABLE = 'scripts/translated_spskill.txt'
+
+
+def spskill_for_169(na: bytes, lab: bytes, class_name: str) -> bytes:
+    """The NA translated_spskill.txt with the class's section in the 1.69 shape. The NA nests each class's
+    SP skills under a weapon block ("miri" { "0" { "skill_miri_sp1" {...} } }); the 1.69 lists them right
+    under the class, so the merged Miri section held no skill and none of her SP skills could be used
+    (C4 MI12). The section keeps the first weapon's skills whose key the 1.69's own table uses (the NA
+    vocation entries take IN_SPSKILL12-17, keys the 1.69 lacks)."""
+    keys = {n.value for n in _walk(kv_merge.parse(lab)) if not n.block and n.key.lower() == 'key'}
+    section = next((n for n in kv_merge.parse(na).children if n.block and n.key.lower() == class_name), None)
+    if section is None or not section.children or not all(c.block and c.key.isdigit() for c in section.children):
+        return na
+    weapon = next(c for c in section.children if c.key == '0') if any(c.key == '0' for c in section.children) else section.children[0]
+    kept = [c for c in weapon.children if c.block
+            and any(not k.block and k.key.lower() == 'key' and k.value in keys for k in c.children)]
+    newline = b'\r\n' if b'\r\n' in na else b'\n'
+    body = b''.join(b'\t' + na[c.start:c.end] + newline + newline for c in kept)
+    flat = b'"' + section.key.encode('latin-1') + b'"' + newline + b'{' + newline + body + b'}'
+    return na[:section.start] + flat + na[section.end:]
+
+
+def _walk(node):
+    for child in node.children:
+        yield child
+        yield from _walk(child)
+
+
 # Files the NA's native code of a weapon names, which no name selection finds: the Draker's chain
 # cable (C_WeaponDraker, ported in patch_class_routing.py CHAIN).
 NATIVE_ASSETS = {'draker': ('materials/cable/heroes_metalchain_05.vmt',)}
@@ -215,11 +301,25 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
             data = (out / sibling).read_bytes()
             record.update({'copied_from': sibling})
             donor = jump_donor(rel, data, lambda p: p in lab)
+            included = set()
             if donor:
+                included = ({q.lower() for q in mdl_anim.Model(lab_files[donor].read_bytes()).sequences}
+                            - {q.lower() for q in mdl_anim.Model(data).sequences})
                 data = mdl_anim.with_included_model(data, donor)
                 record['included'] = donor
             (out / rel).write_bytes(data)
             record.update({'sha256': sha256(data), 'bytes': len(data), 'converted': True})
+            for script, full in extreme_scripts(rel).items():
+                if script not in records or full not in records:
+                    continue
+                text = (out / full).read_bytes()
+                extra = {'copied_from': full}
+                donor_events = donor and donor.replace('_battle_motion_ex.mdl', '_motion_ex.txt')
+                if donor_events and script.endswith('_motion_ex.txt') and donor_events in lab_files:
+                    text, added = with_included_events(text, lab_files[donor_events].read_bytes(), included)
+                    extra.update({'events_from': donor_events, 'events_added': len(added)})
+                (out / script).write_bytes(text)
+                records[script].update({'sha256': sha256(text), 'bytes': len(text), 'converted': True, **extra})
     merges = []
     for rel in SHARED_SCRIPTS:
         if rel not in na or rel not in lab:
@@ -227,7 +327,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         source = na[rel].read_bytes()
         target = out / 'merge' / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(source)
+        target.write_bytes(spskill_for_169(source, lab_files[rel].read_bytes(), class_name) if rel == SPSKILL_TABLE else source)
         merges.append({'path': rel, 'source': na[rel].relative_to(na_root).as_posix(), 'source_sha256': sha256(source),
                        'needles': list(names)})
     text = None

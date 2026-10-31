@@ -296,8 +296,17 @@ CLIENT_WEAPON_SWITCH = {'client.dll': (0x38705F62, '83f8097759', 0x38705FB4)}
 # the 1.69 lacks (NA ids 140-144); they get ids 121-125 (a 121-bit set already spans 128 bits),
 # appended at the registration's epilogue. Entries: (epilogue `pop edi; mov al, 1; pop esi;
 # mov esp, ebp`, name map, its insert, id map, its insert, the four bounds).
+# The Miri's own action states (C4 MI12) name three more: As_Cond_Miri_Can_DragonSmash (her Fiery
+# skills and Fiery Evasion on Tab), As_Cond_Miri_Can_Transform_DragonKnight (SP4) and
+# As_Cond_Miri_DragonKnight (the transformed SP1/SP3). The set holds 128 ids (four dwords at +0x140),
+# so only the first two get ids (126, 127); the bounds `cmp ecx, 0x79; jge` become `cmp ecx, 0x7f; jg`,
+# as 128 does not fit a signed imm8. An unregistered name reads as id -1, which the raise and test
+# routines skip (`cmp ecx, -1; je`): As_Cond_Miri_DragonKnight is never on, so the transformed states
+# stay closed and the untransformed ones open.
 CONDITION_NAMES = ('As_Cond_Can_Armor_Purge', 'As_Cond_Delia_SPSkill3_Activated', 'AS_Cond_Delia_Special_Hold_Skill',
-                   'AS_Cond_Delia_Guard', 'AS_Cond_Delia_Guard_Hit')
+                   'AS_Cond_Delia_Guard', 'AS_Cond_Delia_Guard_Hit',
+                   'As_Cond_Miri_Can_DragonSmash', 'As_Cond_Miri_Can_Transform_DragonKnight')
+CONDITION_SET_BITS = 128
 FIRST_NEW_CONDITION = 121
 CONDITIONS = {
     'client.dll': (0x387F4E79, 0x38FAB1D8, 0x387F29C0, 0x38FAB1F4, 0x387F2A30,
@@ -346,6 +355,11 @@ HIT_IMPACT_SKIP = 0x4B3D
 # always worn; the purge block is not ported). SP3_Activated stays off: the 1.69 cooldown store of
 # SP skills was not found (NA: 32 ids at +0x18, last use at +0x228, 0x29bf70). SET_GUARD_LATCH_ATTEN
 # is not used by any Delia content (1.69 or NA) and is not ported.
+# The Miri (C4 MI12) raises As_Cond_Miri_Can_DragonSmash and As_Cond_Miri_Can_Transform_DragonKnight
+# in both thinks (lab approximation: Flamebreath, skill_miri_dragon_energy, is not ported, so her Fiery
+# skills never run out; SP4 plays without the Dragon Knight look).
+STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',),
+                       11: ('As_Cond_Miri_Can_DragonSmash', 'As_Cond_Miri_Can_Transform_DragonKnight')}
 # (think slot, condition object getter or None for [this+COMMANDS], raise)
 CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0x405380A0, 0x407E6470)}
 # Draker chain (Miri M7f; docs/future/miri-class-port.md 2.11). The NA draws it from its own weapon
@@ -374,15 +388,19 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # 14, 17, 35; memory, C4 MI10: Colhen 14, its port 17, the boat 23; the level name is no guide, `t01` in Colhen and
 # `lobby_multiplayer` on the boat) the cable joins the weapon's `chain_01` to its own `chain_town`
 # (10 segments, as NA's town cable) and nothing ties it to the hand; a weapon without `chain_town` gets
-# the battle cable. The weapon's visible/invisible events (AE_CUSTOM_WEAPON_EVENT,
-# 0x3874808a) clear and set EF_NODRAW (0x20 of m_fEffects +0x7c); each think copies that bit to the
-# cable and the arm chain (AddEffects 0x380107f0, RemoveEffects 0x38018640), only when it differs.
+# the battle cable. Each think shows the cable and the arm chain only while the weapon itself is drawn,
+# through the weapon's ShouldDraw (renderable vtable +0x0c; C_WeaponGreatSword 0x3881f640): it is false
+# while the owner is in the hot spring (byte +0x126e, read by the hot spring potion checks, C4 MI12)
+# and otherwise C_BaseCombatWeapon's (0x38051380), false under EF_NODRAW (0x20 of m_fEffects +0x7c),
+# which the weapon's visible/invisible events set (AE_CUSTOM_WEAPON_EVENT, 0x3874808a). The cable and
+# the arm chain get EF_NODRAW to match (AddEffects 0x380107f0, RemoveEffects 0x38018640), only when it
+# differs.
 CHAIN = {'client.dll': {'think': 334, 'active_weapon': 0x1140, 'handle_get': 0x385519D0, 'handle_set': 0x38541370,
                         'remove': 0x38058370, 'create': 0x38540A30, 'lookup_attachment': 0x8C,
                         'new': 0x380528B0, 'animating': 0x380431F0, 'animating_size': 0xCA0,
                         'initialize': 0x148, 'follow': 0x380136D0, 'add_effects': 0x380107F0,
                         'remove_effects': 0x38018640, 'effects': 0x7C, 'precache_model': 0x3879F280,
-                        'game_state': 0x38021BF0, 'in_town_predicate': 0x20}}
+                        'game_state': 0x38021BF0, 'in_town_predicate': 0x20, 'should_draw': 0x0C}}
 CHAIN_HEADS = {'handle_get': '8b0183f8ff', 'handle_set': '568bf18b4c2408', 'remove': '568bf180be5b01000000',
                'create': '5668380c0000', 'new': 'a1c4a3ad38', 'animating': '515355568bf1', 'follow': '8b442404568bf185c0',
                'add_effects': '8b44240409417c', 'remove_effects': '8b4424048bd0f7d221517c',
@@ -1198,10 +1216,15 @@ def client_weapon_switch(image: Image, layout: Layout, edits: list, va: int, old
 
 def conditions(layout: Layout, edits: list, tail: int, name_map: int, name_insert: int, id_map: int,
                id_insert: int, bounds: tuple) -> dict:
-    """CONDITIONS: ids 121-125 for Delia's condition names, registered after the 1.69 list."""
+    """CONDITIONS: ids from 121 for the extra classes' condition names, registered after the 1.69 list."""
     limit = FIRST_NEW_CONDITION + len(CONDITION_NAMES)
+    if limit > CONDITION_SET_BITS:
+        raise PreparationError(f'{len(CONDITION_NAMES)} new conditions do not fit the {CONDITION_SET_BITS}-bit set.')
     for va in bounds:
-        edits.append((va, bytes.fromhex('83f979'), bytes((0x83, 0xF9, limit))))
+        if limit < 0x80:
+            edits.append((va, bytes.fromhex('83f979'), bytes((0x83, 0xF9, limit))))
+        else:  # cmp ecx, limit - 1; jg (the same rel8 as the jge)
+            edits.append((va, bytes.fromhex('83f9797d'), bytes((0x83, 0xF9, limit - 1, 0x7F))))
     layout.pad()
     names = [layout.string(n) for n in CONDITION_NAMES]
     layout.pad()
@@ -2011,43 +2034,50 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
 
 def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, think: int,
                      conditions_of: int | None, raise_: int, tick: int | None = None) -> dict:
-    """CLASS_CONDITIONS: the player think raises the extra class's standing conditions, then runs
-    `tick(this)` when given."""
+    """CLASS_CONDITIONS: the player think runs the base, raises the class's STANDING_CONDITIONS, then
+    runs `tick(this)` when given (Delia's effects) and, for CHAIN_CLASSES in the client, the chain tick."""
     entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
     base = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * think))[0]
-    purge = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Can_Armor_Purge')
-    layout.pad()
-    body = layout.here()
-    layout.body += bytes((0x56, 0x8B, 0xF1))  # push esi; mov esi, ecx
-    layout.to(bytes((0xE8,)), base)
-    if conditions_of is None:
-        layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS)  # mov ecx, [esi + commands]
-    else:
-        layout.body += bytes((0x8B, 0xCE))
-        layout.to(bytes((0xE8,)), conditions_of)
-        layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
-    layout.body += bytes((0x85, 0xC9))
-    none = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0x68,)) + struct.pack('<I', purge)
-    layout.to(bytes((0xE8,)), raise_)
-    layout.land(none)
-    if tick is not None:
-        layout.body += bytes((0x8B, 0xCE))
-        layout.to(bytes((0xE8,)), tick)
-    layout.body += bytes((0x5E, 0xC3))  # pop esi; ret
-    bodies = {index: body for index in DELIA_MECHANICS}
-    report = {'think': hex(body), 'base': hex(base)}
-    if name in CHAIN and CHAIN[name]['think'] == think:
-        report['chain'] = chain(image, layout, name)
+
+    def body_of(conditions: tuple[str, ...], ticks: tuple[int, ...]) -> int:
         layout.pad()
-        chain_think = layout.here()
+        body = layout.here()
         layout.body += bytes((0x56, 0x8B, 0xF1))  # push esi; mov esi, ecx
         layout.to(bytes((0xE8,)), base)
-        layout.body += bytes((0x8B, 0xCE))
-        layout.to(bytes((0xE8,)), int(report['chain']['tick'], 16))
+        for condition in conditions:  # the raise takes ecx: the condition object is read again each time
+            if conditions_of is None:
+                layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS)  # mov ecx, [esi + commands]
+            else:
+                layout.body += bytes((0x8B, 0xCE))
+                layout.to(bytes((0xE8,)), conditions_of)
+                layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
+            layout.body += bytes((0x85, 0xC9))
+            none = layout.forward(bytes((0x0F, 0x84)))
+            layout.body += bytes((0x68,)) + struct.pack('<I', FIRST_NEW_CONDITION + CONDITION_NAMES.index(condition))
+            layout.to(bytes((0xE8,)), raise_)
+            layout.land(none)
+        for at in ticks:
+            layout.body += bytes((0x8B, 0xCE))
+            layout.to(bytes((0xE8,)), at)
         layout.body += bytes((0x5E, 0xC3))  # pop esi; ret
-        report['chain']['think'] = hex(chain_think)
-        bodies.update({index: chain_think for index in CHAIN_CLASSES})
+        return body
+
+    body = body_of(STANDING_CONDITIONS[DELIA], () if tick is None else (tick,))
+    bodies = {index: body for index in DELIA_MECHANICS}
+    report = {'think': hex(body), 'base': hex(base)}
+    chain_tick = None
+    if name in CHAIN and CHAIN[name]['think'] == think:
+        report['chain'] = chain(image, layout, name)
+        chain_tick = int(report['chain']['tick'], 16)
+    report['classes'] = {}
+    for index, conditions in STANDING_CONDITIONS.items():
+        if index in DELIA_MECHANICS:
+            continue
+        ticks = (chain_tick,) if chain_tick is not None and index in CHAIN_CLASSES else ()
+        bodies[index] = body_of(conditions, ticks)
+        report['classes'][index] = hex(bodies[index])
+    if chain_tick is not None:
+        report['chain']['think'] = hex(bodies[CHAIN_CLASSES[0]])
     report['slot'] = class_dispatch(image, layout, edits, relocs, entity, klass, think, bodies)
     return report
 
@@ -2251,12 +2281,15 @@ def chain(image: Image, layout: Layout, name: str) -> dict:
     call(k['follow'])
     layout.body += bytes((0x53, 0x8D, 0x4F, 0x10))  # push ebx; lea ecx, [edi + 16]
     call(k['handle_set'])
-    # Visibility: the cable and the arm chain take the weapon's EF_NODRAW (ebp = weapon, edi = entry).
+    # Visibility: the cable and the arm chain are hidden while the weapon is not drawn (ebp = weapon,
+    # edi = entry): ebx = 0 when its ShouldDraw is true, EF_NODRAW when it is false.
     for at in (alive, arm_alive, no_memory):
         layout.land(at)
     layout.body += bytes((0x85, 0xED))  # test ebp, ebp
     no_sync = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0x8B, 0x5D, k['effects'], 0x83, 0xE3, EF_NODRAW))  # mov ebx, [ebp + effects]; and ebx, EF_NODRAW
+    layout.body += bytes((0x8D, 0x4D, 0x04, 0x8B, 0x01, 0xFF, 0x50, k['should_draw']))  # lea ecx, [ebp + 4]; mov eax, [ecx]; call [eax + slot]
+    layout.body += bytes((0x33, 0xDB, 0x84, 0xC0, 0x75, 0x05, 0xBB)) + struct.pack('<I', EF_NODRAW)
+    # xor ebx, ebx; test al, al; jnz +5; mov ebx, EF_NODRAW
     for disp in (8, 16):
         layout.body += bytes((0x8D, 0x4F, disp))  # lea ecx, [edi + disp]
         call(k['handle_get'])

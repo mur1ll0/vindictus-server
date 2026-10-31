@@ -402,8 +402,10 @@ class LabCopyTest(unittest.TestCase):
         for name in ('client.dll', 'server.dll'):
             image, report = self.plan(name)
             tail, name_map, name_insert, id_map, id_insert, bounds = routing.CONDITIONS[name]
-            for va in bounds:
-                self.assertEqual(bytes(image.data[image.offset(va):image.offset(va) + 3]), bytes((0x83, 0xF9, 126)))
+            limit = routing.FIRST_NEW_CONDITION + len(routing.CONDITION_NAMES)
+            self.assertEqual(limit, routing.CONDITION_SET_BITS)
+            for va in bounds:  # cmp ecx, 127; jg: ids up to 127, the last bit of the set
+                self.assertEqual(bytes(image.data[image.offset(va):image.offset(va) + 4]), bytes((0x83, 0xF9, 0x7F, 0x7F)))
             jump = next(self.md.disasm(bytes(image.data[image.offset(tail):image.offset(tail) + 5]), tail))
             stub = int(jump.op_str, 16)
             code = list(itertools.takewhile(lambda x: x.mnemonic != 'int3', self.md.disasm(
@@ -412,8 +414,8 @@ class LabCopyTest(unittest.TestCase):
             # the stub ends with its jump back; what follows may be data, not int3 padding
             text = text[:text.index(f'jmp {tail + 6:#x}') + 1]
             self.assertEqual(text[:2], ['pushal ', 'sub esp, 8'])
-            self.assertEqual(sum(t == f'call {name_insert:#x}' for t in text), 5)
-            self.assertEqual(sum(t == f'call {id_insert:#x}' for t in text), 5)
+            self.assertEqual(sum(t == f'call {name_insert:#x}' for t in text), len(routing.CONDITION_NAMES))
+            self.assertEqual(sum(t == f'call {id_insert:#x}' for t in text), len(routing.CONDITION_NAMES))
             names = [routing.read_string(image, int(t.split(', ')[1], 16)) for t in text
                      if t.startswith('mov dword ptr [esp') and int(t.split(', ')[1], 16) > 0x10000]
             self.assertEqual(names[0::2], list(routing.CONDITION_NAMES))
@@ -512,6 +514,16 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'push {purge:#x}', text)
             self.assertIn(f'call {raise_:#x}', text)
             self.assertEqual(text[-1].strip(), 'ret')
+            # The Miri raises her two standing conditions in both thinks, never the Delia's.
+            miri = int(report['class_conditions']['classes'][11], 16)
+            self.assertEqual(head[4:7], ['cmp eax, 0xb', head[5], f'jmp {miri:#x}'])
+            text = [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
+                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(miri):image.offset(miri) + 0x80]), miri))]
+            pushed = [int(t.split()[1], 16) for t in text if t.startswith('push 0x')]
+            self.assertEqual(pushed, [routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index(c)
+                                      for c in routing.STANDING_CONDITIONS[11]])
+            self.assertEqual(sum(t == f'call {raise_:#x}' for t in text), 2)
+            self.assertNotIn(f'push {purge:#x}', text)
 
     def test_miri_think_keeps_the_draker_chain(self):
         image, report = self.plan('client.dll')
@@ -529,8 +541,9 @@ class LabCopyTest(unittest.TestCase):
         head = text(stub, 48)
         # Delia (10) keeps her conditions body; the Miri (11) gets the chain think; the rest the base.
         self.assertEqual(head[4:7], ['cmp eax, 0xb', head[5], f'jmp {body:#x}'])
-        self.assertEqual(text(body, 32), ['push esi', 'mov esi, ecx', f'call {base:#x}', 'mov ecx, esi',
-                                          f'call {tick:#x}', 'pop esi', 'ret'])
+        think_body = text(body, 0x60)
+        self.assertEqual(think_body[:3], ['push esi', 'mov esi, ecx', f'call {base:#x}'])
+        self.assertEqual(think_body[-4:], ['mov ecx, esi', f'call {tick:#x}', 'pop esi', 'ret'])
         k = routing.CHAIN['client.dll']
         code = text(tick, 0x500)
         self.assertEqual(code[-1], 'ret')
@@ -609,8 +622,19 @@ class LabCopyTest(unittest.TestCase):
             lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x500]), tick))]
         start = code.index('test ebp, ebp', code.index(f'call {k["follow"]:#x}'))
         sync = code[start:]
-        self.assertEqual(sync[2:4], [f'mov ebx, dword ptr [ebp + {k["effects"]:#x}]', f'and ebx, {routing.EF_NODRAW:#x}'])
-        self.assertEqual([c for c in sync if c.startswith('lea ecx')], ['lea ecx, [edi + 8]', 'lea ecx, [edi + 0x10]'])
+        self.assertEqual(sync[2:9], ['lea ecx, [ebp + 4]', 'mov eax, dword ptr [ecx]', f'call dword ptr [eax + {k["should_draw"]:#x}]',
+                                     'xor ebx, ebx', 'test al, al', sync[7], f'mov ebx, {routing.EF_NODRAW:#x}'])
+        self.assertTrue(sync[7].startswith('jne '))
+        # The Draker's entity (C_WeaponGreatSword): its renderable ShouldDraw is false while the owner is in
+        # the hot spring (+0x126e), then C_BaseCombatWeapon's, false under EF_NODRAW.
+        should_draw = struct.unpack_from('<I', image.data, image.offset(0x38C02F74 + k['should_draw']))[0]
+        self.assertEqual(should_draw, 0x3881F640)
+        body = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(should_draw):image.offset(should_draw) + 0x30]), should_draw)]
+        self.assertIn('cmp byte ptr [eax + 0x126e], 0', body)
+        self.assertIn('jmp 0x38051380', body)
+        base = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(0x38051380):image.offset(0x38051380) + 0x18]), 0x38051380)]
+        self.assertIn(f'mov eax, dword ptr [edi + {k["effects"] - 4:#x}]', base)
+        self.assertEqual([c for c in sync if c.startswith('lea ecx')], ['lea ecx, [ebp + 4]', 'lea ecx, [edi + 8]', 'lea ecx, [edi + 0x10]'])
         self.assertEqual(sync.count(f'call {k["add_effects"]:#x}'), 2)
         self.assertEqual(sync.count(f'call {k["remove_effects"]:#x}'), 2)
         self.assertEqual(sync.count(f'push {routing.EF_NODRAW:#x}'), 2)

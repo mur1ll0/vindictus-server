@@ -211,3 +211,21 @@ Pré-condição: com o jogo fechado, preparação, `refresh_item_content.py --fo
 - [ ] Painel → Itens → buscar `pythonshock` → as cinco peças de nível 60 da Miri, no conjunto `pythonshock_set`; no jogo, a dica de uma peça mostra o conjunto e os bônus.
 - [ ] Inventário da Miri com maestria baixa (F): `draker_titan` ou `draker_colru` (nível 60) pede Dragonspine Mastery rank 6 e não equipa; `draker_newbie` equipa como antes.
 Limites conhecidos: a corrente de cidade e a do barco seguem o estado do jogo (cidades 14, 17, 35); o pulo da Fiona é uma escolha provisória até comparar com um cliente EU. Requisitos de maestria acima do rank 8 caem para o 8 (a maestria da Miri não tem os ranks 9-12).
+
+Resultado da MI11 (31/10/2026, `MiriLab`):
+- Pulo de cidade da Fiona: aprovado pelo operador (fica).
+- Corrente no combate: correta nos combos iniciais (habilidades avançadas não testadas).
+- Fonte termal: a corrente e a corrente do braço ficavam visíveis sem a arma. O 1.69 esconde a arma ali pelo `ShouldDraw` dela (dono com o *byte* `+0x126e`, o mesmo das poções da fonte), não por `EF_NODRAW`.
+- E num núcleo derrubado ("GET"): nada acontecia. O estado `SearchEvilCore` toca `search_evil_core`, que vem do modelo da Delia incluído, mas o roteiro de eventos da Miri não tinha o bloco (sem `Item_Loot`).
+- Nenhuma SP da Miri e Tab (Fiery Evasion) depois de aprender Fiery Assault: com `ExtremeMode` a Miri jogava o `_ex` do NA, cópia do da Delia; o `translated_spskill.txt` do NA aninha as SP sob `"0"`; e as condições `As_Cond_Miri_*` não existiam no 1.69.
+- Pedido novo: o HUD de Flamebreath (dragão que enche de vermelho), em estudo.
+
+### MI12 — Correções da MI11 (fonte termal, E nos núcleos, SP, Tab)
+Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.py --apply` e o roteamento refeito dos `*.pre-routing.bak` (feitos por mim; hashes no histórico, passo M7g).
+- [ ] Fonte termal com a `MiriLab` → ao entrar, a arma, a corrente e a corrente do braço somem juntas; ao sair, voltam.
+- [ ] Fase: matar um monstro que derruba núcleo ("GET"), parar na frente e apertar E → a Miri se abaixa e o item entra no inventário (núcleo dourado também).
+- [ ] Barco ou fase: as SP da Miri na barra (X/teclas de SP): Scorching Streak, Slice and Dice, Blazing Spine, Ancestral Garb (anima, sem a roupa de Dragon Knight), Call of the Dragon → cada uma sai e gasta SP.
+- [ ] Combos da Miri (os dela agora, não os da Delia): ataques e Smash (Coiled Strike, Tail Impale etc.), Spinethrow (Shift + direito) → animações dela, sem congelar.
+- [ ] Com Fiery Evasion e Fiery Assault aprendidas: Tab durante um ataque → esquiva; Tab + direito → Fiery Assault. Fiery Chainswing depois dos Smash (direito de novo).
+- [ ] Pulo em batalha (barco) continua com animação e aterrissagem.
+Limites conhecidos: Flamebreath (`skill_miri_dragon_energy`) ainda não existe; as habilidades Fiery ficam sempre liberadas (`As_Cond_Miri_Can_DragonSmash` sempre ligada) e não há HUD. As versões transformadas (Dragon Knight) ficam fechadas.
