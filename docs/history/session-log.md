@@ -2844,3 +2844,14 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI7, rodada 1; a entrada da Murael e da Tsuko será conferida depois de subir a imagem.
 - Commits: (este passo)
 - Pendente / próxima ação: subir o `game` com a imagem nova (jogo fechado) e entrar com a Murael e a Tsuko. Miri M7: ler na memória a máquina de estados de ação do jogador no barco (estado atual e tabela carregada) e comparar com a Delia.
+
+## 2026-10-31 — Miri M7d (modelo `_ex` completo para o ExtremeMode) e causa do pulo na cidade
+- Feito:
+  - MI7, rodada 2: Murael e Tsuko ok; Hurk novo ok; a Miri congelada na pose de referência no barco.
+  - O laboratório roda com o `ExtremeMode` (string em `0x40a95128`, escolha em `0x407efd78`): estados e modelo `_ex`. O `pc_miri_battle_motion_ex.mdl` do NA tem 1 sequência, contra 475–639 nos do 1.69.
+  - `stage_na_class.extreme_motion_sibling`: o `_ex` casco vira cópia do modelo de batalha (551 sequências); teste novo; Miri preparada de novo (507 convertidos) e aplicada.
+  - Pulo na cidade: a Delia (arquivo do 1.69) e a Miri ativam o `JumpTown`, que saca a arma (`selectweapon weapon_defaultsword`); comportamento original, decisão do operador.
+- Verificação: `test_stage_na_class` OK (`m7d-stage-tests.log`); preparação (`m7d-stage.log`); aplicação (`m7d-apply.log`, 1 pacote reconstruído).
+- Cliente: `docs/client-tests/C4-miri.md` MI8.
+- Commits: (este passo)
+- Pendente / próxima ação: MI8 (combate da Miri no barco e na fase); depois transformação Dragon Knight, Dragon Smash e energia do dragão. Decisão do operador sobre o pulo de cidade.

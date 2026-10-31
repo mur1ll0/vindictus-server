@@ -96,6 +96,17 @@ class StageTest(unittest.TestCase):
         with self.assertRaises(stage.StageError):
             stage.stage('../x', 'draker', self.na, self.lab, self.out)
 
+    def test_an_extreme_motion_stub_stands_for_the_battle_motion(self):
+        def mdl(sequences):
+            data = bytearray(model([], []))
+            struct.pack_into('<i', data, 0xbc, sequences)
+            return bytes(data)
+        path = 'models/player/_anim/female/miri/pc_miri_battle_motion_ex.mdl'
+        self.assertEqual(stage.extreme_motion_sibling(path, mdl(1)),
+                         'models/player/_anim/female/miri/pc_miri_battle_motion.mdl')
+        self.assertIsNone(stage.extreme_motion_sibling(path, mdl(509)))
+        self.assertIsNone(stage.extreme_motion_sibling(path.replace('_ex', ''), mdl(1)))
+
     def test_action_state_includes_the_lab_lacks_are_dropped(self):
         script = (b'"PlayerActionState"\r\n{\r\n\t"Header"\r\n\t{\r\n'
                   b'\t\t"include"\t"scripts/actionstate/common_state_movement.txt"\r\n'

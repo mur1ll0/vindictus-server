@@ -149,3 +149,18 @@ Resultado da MI7, rodada 1 (31/10/2026, 02:40):
   - O jogo pede a variante `player_action_state_miri_ex.txt` (cópias do nome na memória do cliente e do servidor). As chaves desse `_ex` existem todas em arquivos do 1.69, então a memória não prova se ele foi lido.
   - Os cabeçalhos do `_ex` da Miri e da Delia são idênticos. O experimento dos pacotes originais é inconclusivo e fica: não piora nada e mantém os scripts com o pacote da pasta.
   - Próximo passo: ler na memória a máquina de estados de ação do jogador da Miri no barco (estado atual e tabela de estados carregada), comparando com a Delia.
+
+Resultado da MI7, rodada 2 (31/10/2026):
+- Murael (Fiona) e Tsuko (Evy) entram na cidade e lutam no barco; o *inner zero* da Evy funciona (recálculo dos atributos base na seleção).
+- Hurk novo (Espadao): criação e cidade ok. Na cidade a *greatsword* fica nas costas ao pular; no barco, combate ok e a arma na mão ao pular.
+- Hagie (Teste): na cidade a arma fica na cintura ao pular.
+- Delia: na cidade a arma vai para a mão ao pular; no barco, combate e animações ok.
+- Miri: na cidade a arma vai para a mão ao pular. No barco fica congelada numa pose de referência, sem animação ao andar, pular ou atacar. Causa: o `_ex` do NA é um casco de 1 sequência; ver MI8.
+- Pulo na cidade: as duas usam o `JumpTown` original (`selectweapon weapon_defaultsword`); ver `docs/future/miri-class-port.md`.
+
+### MI8 — Combate da Miri com o `_ex` completo (M7d)
+Pré-condição: `pc_miri_battle_motion_ex.mdl` da cópia com 551 sequências (cópia do modelo de batalha), aplicado com o jogo fechado.
+- [ ] Barco sem arma e com a Draker: andar, correr, pular, ataque básico (clique), ataque forte (botão direito), Shift.
+- [ ] Fase: combate contra monstros e uma habilidade da barra.
+- [ ] Anotar animações que faltarem (pose congelada num golpe, por exemplo), com o nome da habilidade ou do golpe.
+Limites conhecidos: Dragon Knight, Dragon Smash e energia do dragão não foram portados; os golpes que dependem deles podem não sair.

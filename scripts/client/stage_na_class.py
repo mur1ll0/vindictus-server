@@ -99,6 +99,20 @@ def without_missing_includes(path: str, data: bytes, known=lambda p: False) -> b
     return SCRIPT_INCLUDE.sub(lambda m: m.group(0) if known(m.group(1).decode('latin-1').lower()) else b'', data)
 
 
+def sequence_count(mdl: bytes) -> int:
+    return struct.unpack_from('<i', mdl, 0xbc)[0] if mdl[:4] == b'IDST' and len(mdl) >= 0xc0 else -1
+
+
+def extreme_motion_sibling(path: str, data: bytes) -> str | None:
+    """The full battle motion model an NA *_battle_motion_ex.mdl stub stands for. The 1.69 lab runs
+    with the ExtremeMode feature, which loads the _ex motion model (every 1.69 class has a full one,
+    475-639 sequences); the NA dropped the mode and left a one-sequence stub, so the class froze in
+    its reference pose in battle (MI7)."""
+    if path.endswith('_battle_motion_ex.mdl') and 0 <= sequence_count(data) <= 1:
+        return path[:-len('_ex.mdl')] + '.mdl'
+    return None
+
+
 def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
     """Game paths a staged model or material needs. A model's material is the first cdmaterials folder
     that has it, as the engine searches them (`known`: the path exists in the 1.69, the NA or the
@@ -152,6 +166,12 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                 queue.append(need)
             else:
                 missing.add(need)
+    for rel, record in list(records.items()):
+        sibling = extreme_motion_sibling(rel, (out / rel).read_bytes())
+        if sibling and sibling in records:
+            data = (out / sibling).read_bytes()
+            (out / rel).write_bytes(data)
+            record.update({'sha256': sha256(data), 'bytes': len(data), 'converted': True, 'copied_from': sibling})
     merges = []
     for rel in SHARED_SCRIPTS:
         if rel not in na or rel not in lab:

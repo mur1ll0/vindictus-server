@@ -18,7 +18,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Miri M7: armas (Draker na posição 0 da lista, base 10100) ok na cidade; no barco a Miri fica só na *idle* (o jogo pede `player_action_state_miri_ex.txt`). Próximo: ler na memória a máquina de estados de ação do jogador e comparar com a Delia; depois transformação Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 do C4 pendentes.
+2. Miri M7: armas ok na cidade; M7d (modelo `pc_miri_battle_motion_ex.mdl` completo para o `ExtremeMode`) aplicado na cópia, falta a MI8 no cliente (combate da Miri no barco e na fase). Depois: transformação Dragon Knight, Dragon Smash e energia do dragão. Decisão pendente: pulo de cidade da Delia e da Miri (`JumpTown` original) ou como o do Hurk. MI1–MI3 do C4 pendentes.
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
