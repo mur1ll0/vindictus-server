@@ -238,3 +238,18 @@ Pré-condição: com o jogo fechado, roteamento refeito dos `*.pre-routing.bak` 
 - [ ] Gastar tudo (dragão vazio) → as habilidades Fiery e o Tab não saem até encher de novo.
 - [ ] Voltar para a cidade → o dragão some.
 Limites conhecidos: o dragão aparece para a Miri de qualquer nível (o NA mostra só depois de aprender Flamebreath, nível 20); começa vazio a cada entrada (reinício do 1.69); a forma Dragon Knight não existe. Na missão do título de poluição de Regina a barra de febre usa o mesmo campo e a energia para.
+
+Resultado da MI12/MI13 (31/10/2026, `MiriLab`):
+- Pulo na cidade e em batalha pararam: o roteiro completo da Miri inclui o `common_state_movement.txt` do 1.69, que tem todos os estados de pulo comentados; todo `_ex` do 1.69 inclui o `common_state_movement_ex.txt`.
+- HUD de Flamebreath não apareceu: o 1.69 só mostra um filme declarado em `scaleform/UIElements.xml` (`BaseUI.setVisibleElement` pelo nome), e o `MiriSkillDialog` não estava lá.
+- Corrente na fonte termal continua aparecendo: o `ShouldDraw` da arma não é o que a esconde ali (o *byte* `+0x126e` não é escrito por código; `m_isHostInHotSpring` é da entidade da fonte, `C_HotSpring +0x540`). Falta medir na memória com a Miri dentro da fonte.
+- Regeneração de SP "bugada" e dano baixo no White Tyrant (Hard) com 12k: em análise. Os golpes da Miri usam fatores de dano do NA na mesma faixa da Delia (mediana 38 contra 30) e 43 de 44 ações existem (falta `lynn_kick_01`); o campo da barra de febre só alimenta a barra de febre e o veneno de Regina, não o SP. Faltam números do jogo.
+
+### MI14 — Pulos de volta, HUD do dragão declarado
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7i). DLLs iguais aos da MI13.
+- [ ] Cidade e barco/fase: pular parado e correndo → pulo de cidade (Fiona) e de batalha voltam.
+- [ ] Barco ou fase → o dragão (`MiriSkillDialog`) aparece no centro, à direita (x 300); enche um nível a cada 7 s; Fiery Chainswing, Tab e Tab + direito gastam um nível cada; vazio, não saem. Arrastar o dragão com o mouse funciona.
+- [ ] Cidade → o dragão some.
+- [ ] Fonte termal: entrar com a `MiriLab` e avisar, com o jogo aberto, para eu ler a memória (só leitura) enquanto a corrente aparece sem a arma.
+- [ ] SP: descrever o que está errado (não enche ao bater? enche devagar? a SP usada não volta?) e o valor de SP de uma SP da Miri na dica (custo).
+- [ ] Dano: no mesmo monstro (por exemplo um Goblin ou o White Tyrant), anotar os números de dano de 3–4 golpes da Miri (ataque normal e Smash) e, se puder, os da `DeliaLab` com ATK parecido; dizer se algum golpe não mostra número.

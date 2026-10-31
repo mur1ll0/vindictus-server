@@ -278,8 +278,41 @@ def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dic
 # Delia's town jump carried the weapon into her hand, as the Miri's did (mdl_anim.town_jump_on_back,
 # C4 MI9), in a combat-pose jump: the Fiona's free-hands jump replaces it (C4 MI11). A fix takes the file
 # and a reader of other original files; returning None leaves the file as it is.
+# The 1.69 shows a scaleform movie only when scaleform/UIElements.xml declares it (BaseUI.setVisibleElement
+# by name, client 0x385fbf60): the Miri's Flamebreath dragon (MiriSkillDialog.gfx, shown by
+# patch_class_routing FLAMEBREATH) never appeared (C4 MI13). CLASS_UI_ELEMENTS are the NA's declarations
+# (scaleform/UIElements.xml: <ElementList>, after ShipHPGauge as in the NA's depth order, and
+# <MoveableDialogs>, its drag area).
+CLASS_UI_ELEMENTS = (
+    ('MiriSkillDialog', 'filename="MiriSkillDialog.gfx" align="Center" x="300" y="0" width="126" height="210"',
+     'ShipHPGauge', 'background="MC_DragonEnergy.BG"'),
+)
+UI_ELEMENTS = 'scaleform/uielements.xml'
+
+
+def ui_elements_with_classes(data: bytes, elements=CLASS_UI_ELEMENTS) -> bytes | None:
+    """UIElements.xml with each class element declared after its neighbour in <ElementList> and in
+    <MoveableDialogs>; None when nothing is missing."""
+    newline = b'\r\n' if b'\r\n' in data else b'\n'
+    out = data
+    for name, attributes, after, background in elements:
+        if f'name="{name}"'.encode() in out:
+            continue
+        anchor = out.find(f'name="{after}"'.encode())
+        end = out.find(newline, anchor)
+        if anchor < 0 or end < 0 or out.find(b'</MoveableDialogs>') < 0:
+            raise PreparationError(f'UIElements.xml has no {after} element or no <MoveableDialogs>.')
+        line = f'    <Element name="{name}" {attributes} />'.encode() + newline
+        out = out[:end + len(newline)] + line + out[end + len(newline):]
+        close = out.find(b'</MoveableDialogs>')
+        start = out.rfind(newline, 0, close) + len(newline)
+        out = out[:start] + f'    <Element name="{name}" {background} />'.encode() + newline + out[start:]
+    return None if out == data else out
+
+
 ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
-                  lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR))}
+                  lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR)),
+                  UI_ELEMENTS: lambda data, read: ui_elements_with_classes(data)}
 
 
 def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -> dict[Path, dict[str, object]]:

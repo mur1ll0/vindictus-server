@@ -154,12 +154,17 @@ class StageTest(unittest.TestCase):
             anim + 'pc_miri_battle_motion.mdl': models.synthetic({'battle_idle_lower': still, 'get_item': still}),
             anim + 'pc_miri_motion.txt': b'"get_item"\r\n{\r\n\t"30"\t"AE_CUSTOM_MOTION\tItem_Loot"\r\n}\r\n',
             anim + 'pc_miri_motion_ex.txt': b'"delia_sp1"\r\n{\r\n}\r\n',
-            'scripts/actionstate/player_action_state_miri.txt': b'"PlayerActionState" { "miri" {} }',
+            'scripts/actionstate/player_action_state_miri.txt':
+                b'"PlayerActionState" {\r\n"Header" {\r\n\t"include"\t"scripts/actionstate/common_state_movement.txt"\r\n'
+                b'\t"include"\t"scripts/actionstate/common_state_item.txt"\r\n}\r\n"miri" {} }',
             'scripts/actionstate/player_action_state_miri_ex.txt': b'"PlayerActionState" { "delia" {} }',
         }
         for path, data in na.items():
             (self.na / path).parent.mkdir(parents=True, exist_ok=True)
             (self.na / path).write_bytes(data)
+        for name in ('common_state_movement.txt', 'common_state_movement_ex.txt', 'common_state_item.txt'):
+            (self.lab / 'scripts/actionstate').mkdir(parents=True, exist_ok=True)
+            (self.lab / 'scripts/actionstate' / name).write_bytes(b'"PlayerActionState" {}')
         donor = self.lab / stage.JUMP_DONORS['female']
         donor.parent.mkdir(parents=True)
         donor.write_bytes(models.synthetic({stage.JUMP_SEQUENCE: still, 'search_evil_core': still, 'get_item': still}))
@@ -170,7 +175,9 @@ class StageTest(unittest.TestCase):
         manifest = stage.stage('miri', 'draker', self.na, self.lab, self.out)
         records = {r['path']: r for r in manifest['files']}
         states = 'scripts/actionstate/player_action_state_miri_ex.txt'
-        self.assertEqual((self.out / states).read_bytes(), na['scripts/actionstate/player_action_state_miri.txt'])
+        # her full script, with the 1.69's _ex movement (the jumps) where the 1.69 has one
+        self.assertEqual((self.out / states).read_bytes(), na['scripts/actionstate/player_action_state_miri.txt'].replace(
+            b'common_state_movement.txt', b'common_state_movement_ex.txt'))
         self.assertEqual(records[states]['copied_from'], 'scripts/actionstate/player_action_state_miri.txt')
         events = (self.out / anim / 'pc_miri_motion_ex.txt').read_bytes()
         self.assertTrue(events.startswith(na[anim + 'pc_miri_motion.txt'].rstrip()))

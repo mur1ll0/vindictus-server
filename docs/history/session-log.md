@@ -2946,3 +2946,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI13 (pendente, junto com a MI12).
 - Commits: (este passo)
 - Pendente / próxima ação: MI12 e MI13 no cliente; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7i: pulos de volta e HUD declarado (C4 MI12/MI13 → MI14)
+- Feito: MI12/MI13 jogadas: pulos de cidade e batalha perdidos, HUD ausente, corrente visível na fonte termal, SP e dano a medir. `stage_na_class.with_extreme_includes` (os *includes* do `_ex` dela passam à variante `_ex` do 1.69: `common_state_movement_ex.txt`, onde estão os pulos). `apply_lab_content_additions.CLASS_UI_ELEMENTS`/`ui_elements_with_classes` em `ORIGINAL_FIXES` (declara `MiriSkillDialog` no `scaleform/UIElements.xml` como o NA). Medido: o campo da barra de febre só alimenta `StatusEffectPoisonByFeverGauge` e a barra de febre (não o SP); tabelas de texto do servidor com entradas próprias da Miri; 43 de 44 ações dos eventos dela existem (falta `lynn_kick_01`).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/r3-tests.log`). Aplicado com o jogo fechado: preparação 4.334 (`r2/stage3.log`), `apply3.log` (`original_fixes` Delia e `UIElements.xml`); no pacote da cópia: `player_action_state_miri_ex.txt` com `common_state_movement_ex.txt`, `UIElements.xml` com o `MiriSkillDialog`. DLLs sem mudança (`c3af6d198ea46c88`/`88924f0ea4df6f57`).
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI12/MI13 e MI14 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI14 no cliente, com leitura de memória na fonte termal e números de SP e dano; depois Dragon Knight.

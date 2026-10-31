@@ -53,6 +53,19 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
         self.assertEqual(out, {Path('copy/hfs') / (hfs.pack_name('scripts/actionstate', 1) + '.hfs'):
                                [('scripts/actionstate/player_action_state_miri.txt', Path('a'), 's1')]})
 
+    def test_ui_elements_declare_the_class_dialogs(self):
+        xml = ('<UIElementInfo>\r\n  <ElementList>\r\n    <Element name="ShipHPGauge" filename="ShipHPGauge.gfx" />\r\n'
+               '    <Element name="Other" filename="Other.gfx" />\r\n  </ElementList>\r\n  <MoveableDialogs>\r\n'
+               '    <Element name="QuickSlotPanel" background="hitBox" />\r\n  </MoveableDialogs>\r\n</UIElementInfo>\r\n').encode()
+        out = a.ui_elements_with_classes(xml)
+        lines = out.decode().split('\r\n')
+        self.assertTrue(lines[3].startswith('    <Element name="MiriSkillDialog" filename="MiriSkillDialog.gfx"'))
+        self.assertEqual(lines[8], '    <Element name="MiriSkillDialog" background="MC_DragonEnergy.BG" />')
+        self.assertEqual(lines[9], '  </MoveableDialogs>')
+        self.assertIsNone(a.ui_elements_with_classes(out))  # already declared
+        with self.assertRaises(PreparationError):
+            a.ui_elements_with_classes(b'<UIElementInfo></UIElementInfo>')
+
     def test_original_fixes_find_the_pack_of_their_file(self):
         import hfs  # noqa: PLC0415
         folder = 'models/player/_anim/female/delia'
@@ -60,10 +73,11 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
         entry = hfs.name_key('pc_delia_town_motion.mdl') + struct.pack('<H', packs.index(hfs.pack_name(folder, 1))) + bytes(8)
         plain = hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, [entry])
         fix = a.ORIGINAL_FIXES[folder + '/pc_delia_town_motion.mdl']
-        self.assertEqual(a.fixed_packs(plain, Path('copy')),
+        fixes = {folder + '/pc_delia_town_motion.mdl': fix}
+        self.assertEqual(a.fixed_packs(plain, Path('copy'), fixes),
                          {Path('copy/hfs') / (hfs.pack_name(folder, 1) + '.hfs'): {'pc_delia_town_motion.mdl': fix}})
         with self.assertRaises(PreparationError):
-            a.fixed_packs(hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, []), Path('copy'))
+            a.fixed_packs(hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, []), Path('copy'), fixes)
 
     def test_dry_run_changes_nothing_and_apply_is_idempotent(self):
         self.assertEqual(apply(self.root, False, self.additions, items=[])['shop_rows_missing'], 1)

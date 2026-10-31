@@ -152,6 +152,20 @@ def extreme_scripts(model_path: str) -> dict[str, str]:
             f'{folder}/pc_{klass}_motion_ex.txt': f'{folder}/pc_{klass}_motion.txt'}
 
 
+def with_extreme_includes(script: bytes, known=lambda p: False) -> bytes:
+    """An action-state script whose includes take the 1.69's _ex variant when there is one, as every 1.69
+    _ex state file does: the 1.69's common_state_movement.txt has all its jump states commented out
+    (they live in common_state_movement_ex.txt), and the Miri's full script, staged as her _ex
+    (extreme_scripts), lost the town and battle jumps (C4 MI13)."""
+    def swap(m):
+        path = m.group(1).decode('latin-1')
+        extreme = path[:-len('.txt')] + '_ex.txt'
+        if not path.endswith('.txt') or path.endswith('_ex.txt') or not known(extreme.lower()):
+            return m.group(0)
+        return m.group(0).replace(m.group(1), extreme.encode('latin-1'))
+    return SCRIPT_INCLUDE.sub(swap, script)
+
+
 def event_blocks(script: bytes) -> dict[str, tuple[int, int]]:
     """Top-level blocks of a motion events script: lower-case sequence name -> (start, end) of
     `"name" { ... }`, braces counted outside quotes and // comments."""
@@ -313,6 +327,8 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                 if script not in records or full not in records:
                     continue
                 text = (out / full).read_bytes()
+                if script.startswith('scripts/actionstate/'):
+                    text = with_extreme_includes(text, lambda q: q in lab)
                 extra = {'copied_from': full}
                 donor_events = donor and donor.replace('_battle_motion_ex.mdl', '_motion_ex.txt')
                 if donor_events and script.endswith('_motion_ex.txt') and donor_events in lab_files:
