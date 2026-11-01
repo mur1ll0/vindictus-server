@@ -315,6 +315,22 @@ class StageTest(unittest.TestCase):
         self.assertNotIn(b'delia', out)
         self.assertNotIn(b'bastard', out)
 
+    def test_the_dragon_is_a_summoned_model_with_its_own_effects(self):
+        motion = (b'"miri_SP5_attack"\r\n{\r\n'
+                  b'\t"0"\t"AE_CUSTOM_MOTION_CLIENT\tPLAY_DRAGON_EFFECT\teffects/player/miri/SP5_dragon_body.efx"\r\n'
+                  b'\t"0"\t"AE_CUSTOM_WEAPON_EVENT_INDP\tSUMMON_DRAGON"\r\n'
+                  b'\t"$endframe-1$"\r\n\t{\r\n\t\t"event"\t"AE_CUSTOM_WEAPON_EVENT_INDP\tRETURN_DRAGON"\r\n'
+                  b'\t\t"is_finally"\t"1"\r\n\t}\r\n}\r\n')
+        out = stage.with_summoned_model('models/player/_anim/female/miri/pc_miri_motion_ex.txt', motion, 'miri')
+        model = b'models\\effects\\mesh\\pc_miri_sp5_dragon.mdl'
+        self.assertIn(b'"AE_CREATE_ATTACKABLE_MODEL\t' + model + b' dragon_attack 0.0"', out)
+        self.assertIn(b'"AE_DELETE_ATTACKABLE_MODEL\t' + model + b' 0.0"', out)
+        self.assertNotIn(b'DRAGON_EFFECT', out)
+        self.assertNotIn(b'_DRAGON"', out)
+        self.assertEqual(stage.summoned_model_events(motion),
+                         b'"dragon_attack"\r\n{\r\n\t"0"\t"AE_CL_PLAY_EFFECT\teffects/player/miri/SP5_dragon_body.efx"\r\n}\r\n')
+        self.assertIsNone(stage.summoned_model_events(b'"x" { }'))
+
     def test_the_battle_sprint_ends_in_battle_idle(self):
         script = (b'"battle_run_sprint"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStop"\r\n'
                   b'\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStopGamePad"\r\n}\r\n'

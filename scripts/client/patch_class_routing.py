@@ -82,6 +82,16 @@ EXTRA_CLASSES = (
 # CLASS_CONDITIONS, DELIA_EFFECTS) run for her only (DELIA_MECHANICS).
 DELIA = 10
 DELIA_MECHANICS = (DELIA,)
+# The Miri's Parrying Attack is the NA's generic endure mode (C4 MI27): her basic attacks raise
+# ENABLE_ENDURE_MODE and As_Cond_Can_PerfectEndurable in their first frames (NA server x64 0x7394d0
+# decides the hit, 0x7395e0 zeroes it; the attack goes on) and the NA plays
+# effects/player/miri/pc_miri_endure_success.efx. The lab's GUARD/CLIENT_GUARD are that mechanic (from
+# Fiona's Shield Pass Over), so they also run for her, without Delia's reserved-HP forfeit, and her client
+# plays MIRI_ENDURE_EFFECT on a guarded hit as Fiona's plays hers (0x38836550, released by 0x38832000).
+MIRI = 11
+GUARD_CLASSES = (DELIA, MIRI)
+MIRI_ENDURE_EFFECT = 'effects/player/miri/pc_miri_endure_success.efx'
+CLIENT_EFFECT = (0x38836550, 0x38832000)  # play(out, path, entity, 0) cdecl; release(ecx = handle)
 LAST = max(c.index for c in EXTRA_CLASSES)
 EXPECTED = {'client.dll': '0a0b866dcc0a1852', 'server.dll': 'c85a56d5b845810f'}
 # Switches: (VA of `cmp reg, imm8`, original bound, whether case 10 is the pet).
@@ -1465,9 +1475,26 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
         call(lower)
         layout.land(none)
 
-    states, get, put = guard_state(layout, forced_off, ended)
+    def damage_body(forfeit_: int | None) -> int:
+        return _server_guard_damage(layout, get, conditions_of, raise_, guarded, guard_id, hit_id, forfeit_)
 
-    # damage(this, info)
+    states, get, put = guard_state(layout, forced_off, ended)
+    damages = {klass_: damage_body(forfeit if klass_ == DELIA else None) for klass_ in GUARD_CLASSES}
+
+    def dispatch(slot: int, body) -> str:
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
+
+    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': {c: hex(d) for c, d in damages.items()},
+            'slots': [dispatch(set_slot, {c: put for c in GUARD_CLASSES}), dispatch(get_slot, {c: get for c in GUARD_CLASSES}),
+                      dispatch(damage_slot, damages)]}
+
+
+def _server_guard_damage(layout: Layout, get: int, conditions_of: int, raise_: int, guarded: int,
+                         guard_id: int, hit_id: int, forfeit: int | None) -> int:
+    """damage(this, info) of GUARD; a hit neither guarded nor unblockable calls `forfeit` when given."""
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
     layout.pad()
     damage = layout.here()
     layout.body += bytes((0x56, 0x8B, 0xF1, 0x8B, 0x44, 0x24, 0x08))  # push esi; mov esi, ecx; mov eax, [esp+8]
@@ -1508,12 +1535,7 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
     layout.body += bytes((0xFF, 0x74, 0x24, 0x08, 0x8B, 0xCE))  # push [esp+8]; mov ecx, esi
     call(guarded)
     layout.body += bytes((0x5E, 0xC2, 0x04, 0x00))  # pop esi; ret 4
-
-    def dispatch(slot: int, body: int) -> str:
-        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body, DELIA_MECHANICS)
-
-    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage),
-            'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
+    return damage
 
 
 def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
@@ -1539,8 +1561,27 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
         layout.land(none)
 
     states, get, put = guard_state(layout, None, ended)
+    damages = {klass_: _client_guard_damage(layout, get, copy, unguardable, unguardable_info, raise_, test, base,
+                                            allocator, guard_id, hit_id,
+                                            MIRI_ENDURE_EFFECT if klass_ == MIRI else None)
+               for klass_ in GUARD_CLASSES}
 
-    # damage(this, info), the frame of Fiona's 0x3870cef0: copy at [esp+0xc] after push esi/edi
+    def dispatch(slot: int, body) -> str:
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
+
+    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': {c: hex(d) for c, d in damages.items()},
+            'base': hex(base),
+            'slots': [dispatch(set_slot, {c: put for c in GUARD_CLASSES}), dispatch(get_slot, {c: get for c in GUARD_CLASSES}),
+                      dispatch(damage_slot, damages)]}
+
+
+def _client_guard_damage(layout: Layout, get: int, copy: int, unguardable: int, unguardable_info: int, raise_: int,
+                         test: int, base: int, allocator: int, guard_id: int, hit_id: int, effect: str | None) -> int:
+    """damage(this, info) of CLIENT_GUARD, the frame of Fiona's 0x3870cef0 (copy at [esp+0xc] after push
+    esi/edi); on a guarded hit it plays `effect` on the player when given, as Fiona's plays hers."""
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
     layout.pad()
     damage = layout.here()
     layout.body += bytes((0x81, 0xEC, 0x90, 0, 0, 0, 0x56, 0x57))  # sub esp, 0x90; push esi; push edi
@@ -1563,6 +1604,16 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
     layout.body += bytes((0xC6, 0x86)) + struct.pack('<I', HIT_IMPACT_SKIP) + b'\x01'  # no impact sound
     layout.body += bytes((0xC6, 0x84, 0x24, 0x85, 0, 0, 0, 0x00))  # mov byte [esp+0x85], 0
     layout.body += bytes((0xD9, 0xEE, 0xD9, 0x54, 0x24, 0x3C, 0xD9, 0x5C, 0x24, 0x54))  # damage = 0
+    if effect is not None:
+        path = layout.string(effect)
+        layout.body += bytes((0xB8,))
+        layout.pointer(path)  # mov eax, path
+        layout.body += bytes((0x6A, 0x00, 0x56, 0x50, 0x8D, 0x4C, 0x24, 0x14, 0x51))  # push 0/esi/eax; lea ecx, [esp+0x14]; push ecx
+        call(CLIENT_EFFECT[0])
+        layout.body += bytes((0x8B, 0x4C, 0x24, 0x18, 0x83, 0xC4, 0x10, 0x85, 0xC9))  # mov ecx, [esp+0x18]; add esp, 0x10
+        played = layout.forward(bytes((0x0F, 0x84)))
+        call(CLIENT_EFFECT[1])
+        layout.land(played)
     layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS) + bytes((0x85, 0xC9))
     skips.append(layout.forward(bytes((0x0F, 0x84))))
     layout.body += bytes((0x51, 0x68)) + struct.pack('<I', guard_id)  # push ecx; push guard
@@ -1590,12 +1641,7 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
     layout.land(done)
     layout.land(done2)
     layout.body += bytes((0x5F, 0x8B, 0xC6, 0x5E, 0x81, 0xC4, 0x90, 0, 0, 0, 0xC2, 0x04, 0x00))
-
-    def dispatch(slot: int, body: int) -> str:
-        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body, DELIA_MECHANICS)
-
-    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage), 'base': hex(base),
-            'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
+    return damage
 
 
 def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k: dict,

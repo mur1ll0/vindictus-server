@@ -3072,3 +3072,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` relato da MI27 e MI28 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI28 no cliente; decisão do operador sobre portar o Parrying Attack e o dragão do Call of the Dragon.
+
+## 2026-11-01 — Miri M7y: Parrying Attack e o dragão do Call of the Dragon
+- Feito: investigação (dois agentes; evidência em `.cache/verification/miri/r4/parrying-attack-findings.md` e `sp5_dragon_findings.md`). Parrying Attack = *endure* genérico do NA (servidor x64 `0x7394d0`/`0x7395e0`, efeito `pc_miri_endure_success.efx`), não o *parry* do Hurk. `patch_class_routing.GUARD`/`CLIENT_GUARD` despacham também a classe 11 (`GUARD_CLASSES`): corpo de dano por classe no servidor (*forfeit* só na Delia) e, no cliente, o da Miri toca `MIRI_ENDURE_EFFECT` (`CLIENT_EFFECT` `0x38836550`/`0x38832000`). Dragão: `stage_na_class.with_summoned_model` (`SUMMON_DRAGON`/`RETURN_DRAGON` → `AE_CREATE/DELETE_ATTACKABLE_MODEL` de `models\effects\mesh\pc_miri_sp5_dragon.mdl`, `dragon_attack`) e `summoned_model_events` (`pc_miri_sp5_dragon.txt` com os quatro `PLAY_DRAGON_EFFECT` no quadro 0).
+- Verificação: `test_patch_class_routing -k guard -k delia_effects` OK (`.cache/verification/miri/r4/t-routing2.log`), `test_stage_na_class` OK (`r3/t14-stage.log`). Aplicado com o jogo fechado: DLLs atuais guardadas como `*.pre-m7y.bak`, `*.pre-routing.bak` (`.hcls`) restaurados e roteamento reaplicado (`r4/patch2.log`: `client.dll` `fb8f8ea72800dd3b`, `server.dll` `0aaf7aa3693645d2`); preparação 5.316 arquivos (`r4/stage.log`), `r4/apply.log`.
+- Cliente: `docs/client-tests/C4-miri.md` MI29 (pendente, com a MI28).
+- Commits: (este passo)
+- Pendente / próxima ação: MI28 e MI29 no cliente; corrigir o que o operador relatar.

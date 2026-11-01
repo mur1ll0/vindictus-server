@@ -401,3 +401,11 @@ Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.
 - [ ] Sair da Miri para a seleção de personagens → o dragão do Flamebreath some; entrar com a Delia → sem o dragão. Voltar com a Miri numa fase → o dragão volta a aparecer.
 - [ ] Qualquer personagem: arrastar um item comum para a lixeira (destruir) → confirma e o item some. Item equipado ou no atalho → mensagem "não pode destruir item equipado"; item indestrutível (ex.: livro de história) → mensagem "não pode destruir".
 Relatar: o que aconteceu em cada item e a mensagem mostrada nas recusas.
+
+### MI29 — Parrying Attack e o dragão do Call of the Dragon
+Pré-condição: com o jogo fechado, `patch_class_routing.py --apply` (DLLs novas), preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7y). Servidor sem mudança. Pode ser jogada junto da MI28.
+- [ ] Parrying Attack: numa fase, deixar um monstro atacar e apertar o ataque básico logo no começo do golpe dele → a Miri não leva dano, o ataque dela continua e aparece o efeito de *endure* dela (fagulha/chama no corpo). Fora dessa janela (no fim do ataque dela) → leva dano normal.
+- [ ] Call of the Dragon (SP5) → o dragão aparece junto da Miri e ataca, com fogo e fagulhas; some no fim da habilidade (e se ela for interrompida).
+- [ ] Depois do dragão: andar e atacar perto de onde ele esteve → nada invisível bloqueando a Miri ou os monstros.
+- [ ] Delia: guarda dela continua igual (bloqueia e o HP reservado funciona como antes).
+Relatar: se o *parry* funcionou e com qual golpe; se o dragão apareceu, para que lado ele olhava e se os efeitos dele saíram.

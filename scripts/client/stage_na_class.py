@@ -519,6 +519,39 @@ def with_sp_reduce(path: str, data: bytes, checks: dict[str, int]) -> bytes:
     return data
 
 
+# Call of the Dragon (C4 MI27: no dragon): the NA client draws the dragon itself (C_HeroesDrakerSystem,
+# client x64 0xaa5110: a client entity of SUMMONED_MODEL; SUMMON_DRAGON plays SUMMONED_SEQUENCE at the
+# player, RETURN_DRAGON hides it, PLAY_DRAGON_EFFECT plays an effect on the dragon's bones), which the 1.69
+# has not. The 1.69 server spawns a model prop at the player playing a sequence (AE_CREATE_ATTACKABLE_MODEL
+# <mdl> <sequence> <forward>, removed by AE_DELETE_ATTACKABLE_MODEL <mdl> <delay>; the Delia's and Evy's
+# transformations use it), and plays a model's own events file (<model>.txt) on it: the summon becomes that
+# pair, and the dragon's effects move to its events file (summoned_model_events).
+SUMMONED_MODEL = 'models/effects/mesh/pc_{klass}_sp5_dragon.mdl'
+SUMMONED_SEQUENCE = 'dragon_attack'
+SUMMON = re.compile(rb'AE_CUSTOM_WEAPON_EVENT_INDP([ \t]+)SUMMON_DRAGON\b')
+RETURN = re.compile(rb'AE_CUSTOM_WEAPON_EVENT_INDP([ \t]+)RETURN_DRAGON\b')
+DRAGON_EFFECT = re.compile(rb'^[^\r\n]*AE_CUSTOM_MOTION_CLIENT[ \t]+PLAY_DRAGON_EFFECT[ \t]+([^\s"]+)[^\r\n]*\r?\n', re.M)
+
+
+def with_summoned_model(path: str, data: bytes, klass: str) -> bytes:
+    if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
+        return data
+    model = SUMMONED_MODEL.format(klass=klass).replace('/', '\\').encode()
+    data = SUMMON.sub(rb'AE_CREATE_ATTACKABLE_MODEL\g<1>' + model.replace(b'\\', b'\\\\') + b' '
+                      + SUMMONED_SEQUENCE.encode() + b' 0.0', data)
+    data = RETURN.sub(rb'AE_DELETE_ATTACKABLE_MODEL\g<1>' + model.replace(b'\\', b'\\\\') + b' 0.0', data)
+    return DRAGON_EFFECT.sub(b'', data)
+
+
+def summoned_model_events(motion: bytes) -> bytes | None:
+    """The dragon model's events file: its PLAY_DRAGON_EFFECT effects at frame 0 of SUMMONED_SEQUENCE."""
+    effects = list(dict.fromkeys(m.group(1).decode('latin-1') for m in DRAGON_EFFECT.finditer(motion)))
+    if not effects:
+        return None
+    lines = ''.join(f'\t"0"\t"AE_CL_PLAY_EFFECT\t{e}"\r\n' for e in effects)
+    return f'"{SUMMONED_SEQUENCE}"\r\n{{\r\n{lines}}}\r\n'.encode('latin-1')
+
+
 COSTUME_SCRIPT = 'scripts/player_costume.txt'
 MODEL_COMPANIONS = ('.vvd', '.dx90.vtx', '.dx80.vtx', '.sw.vtx', '.xbox.vtx', '.phy', '.ani')
 
@@ -635,6 +668,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = with_plain_effects(rel, data)
         data = with_sp_reduce(rel, data, sp_checks)
         data = without_sprint_stop(rel, data)
+        data = with_summoned_model(rel, data, class_name)
         if rel in csf_without_weapon:
             data = without_csf_weapon(data)
         converted = converted or data != source
@@ -700,6 +734,14 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         (out / atlas).write_bytes(data)
         records[atlas] = {'path': atlas, 'source': records[portrait]['source'], 'source_sha256': records[portrait]['source_sha256'],
                           'sha256': sha256(data), 'converted': True, 'bytes': len(data), 'copied_from': portrait}
+    dragon = SUMMONED_MODEL.format(klass=class_name)
+    for motion in [r for r in records if r.startswith('models/player/_anim/') and r.endswith(f'pc_{class_name}_motion.txt')]:
+        events = summoned_model_events(na[motion].read_bytes())
+        if events is not None and dragon in records:
+            target = dragon[:-len('.mdl')] + '.txt'
+            (out / target).write_bytes(events)
+            records[target] = {'path': target, 'source': records[motion]['source'], 'source_sha256': records[motion]['source_sha256'],
+                               'sha256': sha256(events), 'converted': True, 'bytes': len(events), 'copied_from': motion}
     merges = []
     for rel, na_rel in [(r, r) for r in SHARED_SCRIPTS] + list(EXTREME_MERGES.items()):
         if na_rel not in na or rel not in lab:

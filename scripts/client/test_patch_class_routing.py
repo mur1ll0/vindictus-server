@@ -443,12 +443,16 @@ class LabCopyTest(unittest.TestCase):
         set_slot, get_slot, damage_slot, guarded, forced_off, conditions_of, raise_, lower = routing.GUARD['server.dll']
         table = routing.vtable(image, routing.ENTITY_SLOTS['server.dll'][0])
         guard = report['guard']
-        bodies = {set_slot: int(guard['set'], 16), get_slot: int(guard['get'], 16), damage_slot: int(guard['damage'], 16)}
+        damages = {int(c): int(d, 16) for c, d in guard['damage'].items()}
+        bodies = {set_slot: int(guard['set'], 16), get_slot: int(guard['get'], 16), damage_slot: damages[routing.DELIA]}
         for slot, body in bodies.items():
             stub = self.entry(image, table, slot)
-            text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 24]), stub)][:4]
+            text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 40]), stub)][:7]
             self.assertEqual(text[0], 'mov eax, dword ptr [ecx + 0x1400]')
             self.assertEqual(text[3], f'jmp {body:#x}')
+            # the Miri too (her Parrying Attack is this endure mode), with her own damage body
+            self.assertEqual(text[4], 'cmp eax, 0xb')
+            self.assertEqual(text[6], f'jmp {damages[routing.MIRI] if slot == damage_slot else body:#x}')
         def body(va, size):
             return [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
                 lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
@@ -462,6 +466,12 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn('test byte ptr [eax + 0x78], 2', damage)  # a client hit counts when the client guarded it
         self.assertIn(f'call {guarded:#x}', damage)
         self.assertEqual(damage[-1], 'ret 4')
+        # Delia's reserved HP forfeit is hers only
+        forfeit = int(report['delia_effects']['forfeit'], 16)
+        self.assertIn(f'call {forfeit:#x}', damage)
+        miri = body(damages[routing.MIRI], 0xa0)
+        self.assertNotIn(f'call {forfeit:#x}', miri)
+        self.assertIn(f'call {guarded:#x}', miri)
 
     def test_client_guard_marks_guarded_hits_for_extra_classes(self):
         image, report = self.plan('client.dll')
@@ -471,13 +481,16 @@ class LabCopyTest(unittest.TestCase):
         original = Image(source('client.dll'))
         table = routing.vtable(image, name)
         guard = report['guard']
-        bodies = {set_slot: int(guard['set'], 16), get_slot: int(guard['get'], 16), damage_slot: int(guard['damage'], 16)}
+        damages = {int(c): int(d, 16) for c, d in guard['damage'].items()}
+        bodies = {set_slot: int(guard['set'], 16), get_slot: int(guard['get'], 16), damage_slot: damages[routing.DELIA]}
         for slot, target in bodies.items():
             stub = self.entry(image, table, slot)
-            text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:5]
+            text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 48]), stub)][:8]
             self.assertEqual(text[0], 'mov eax, dword ptr [ecx + 0x18ec]')
             self.assertEqual(text[3], f'jmp {target:#x}')
-            self.assertEqual(text[4], f'jmp {self.entry(original, routing.vtable(original, name), slot):#x}')
+            self.assertEqual(text[4], 'cmp eax, 0xb')
+            self.assertEqual(text[6], f'jmp {damages[routing.MIRI] if slot == damage_slot else target:#x}')
+            self.assertEqual(text[7], f'jmp {self.entry(original, routing.vtable(original, name), slot):#x}')
         def body(va, size):
             return [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
                 lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
@@ -494,6 +507,16 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(text, damage)
         self.assertEqual(int(guard['base'], 16), self.entry(original, routing.vtable(original, name), damage_slot))
         self.assertEqual(damage[-1], 'ret 4')
+        play, release = routing.CLIENT_EFFECT
+        self.assertNotIn(f'call {play:#x}', damage)  # Delia plays no endure effect
+        # the Miri's guarded hit plays her endure effect, as Fiona's plays hers
+        miri = body(damages[routing.MIRI], 0x180)
+        self.assertIn(f'call {play:#x}', miri)
+        self.assertIn(f'call {release:#x}', miri)
+        at = next(i for i, t in enumerate(miri) if t.startswith('mov eax, 0x'))
+        self.assertEqual(routing.read_string(image, int(miri[at].split(', ')[1], 16)), routing.MIRI_ENDURE_EFFECT)
+        self.assertEqual(miri[at + 1:at + 7], ['push 0', 'push esi', 'push eax', 'lea ecx, [esp + 0x14]', 'push ecx', f'call {play:#x}'])
+        self.assertEqual(miri[-1], 'ret 4')
 
     def test_think_raises_armor_purge_for_extra_classes(self):
         purge = routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('As_Cond_Can_Armor_Purge')
@@ -875,7 +898,7 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(head[3], f'jmp {effects["on_hit"]}')
         think = text(int(report['class_conditions']['think'], 16), 0x40)
         self.assertIn(f'call {effects["tick"]}', think)
-        damage = text(int(report['guard']['damage'], 16), 0xc0)
+        damage = text(int(report['guard']['damage'][routing.DELIA], 16), 0xc0)
         self.assertIn(f'call {effects["forfeit"]}', damage)
 
     def test_item_mask_carries_bit_ten(self):
