@@ -341,6 +341,38 @@ class StageTest(unittest.TestCase):
         self.assertNotIn('attachment_1', efx)
         self.assertEqual(efx.count('{'), efx.count('}'))
 
+    def test_dragon_knight_fire_trails_become_weapon_effects(self):
+        motion = (b'"battle_attack_strong_dragon_01"\r\n{\r\n'
+                  b'\t"13"\t"AE_WEAPON_ENABLE_TRAIL_POINT\t0 1"\r\n'
+                  b'\t"19"\t"AE_WEAPON_DISABLE_TRAIL_POINT\t0 1"\r\n'
+                  b'\t"13"\t"AE_WEAPON_ENABLE_TRAIL_POINT\t2 2"\r\n'
+                  b'\t"19"\t"AE_WEAPON_DISABLE_TRAIL_POINT\t2 2"\r\n}\r\n'
+                  b'"battle_attack_01"\r\n{\r\n\t"5"\t"AE_WEAPON_ENABLE_TRAIL_POINT\t0 1"\r\n}\r\n')
+        out = stage.with_knight_trails('models/player/_anim/female/miri/pc_miri_motion.txt', motion, 'miri')
+        knight, plain = out.split(b'"battle_attack_01"')
+        # the fire trail (1) leaves the transformed sequence, the refraction trail (2) stays
+        self.assertNotIn(b'TRAIL_POINT\t0 1', knight)
+        self.assertIn(b'AE_WEAPON_ENABLE_TRAIL_POINT\t2 2', knight)
+        # blade and chain fire every KNIGHT_TRAIL_STEP frames of the window [13, 19)
+        for frame in (13, 16):
+            for effect in ('pc_miri_dragon_knight_trail.efx', 'pc_miri_dragon_knight_chain.efx'):
+                self.assertIn(f'\t"{frame}"\t"AE_CL_PLAY_WEAPON_EFFECT\teffects/player/miri/{effect}"\r\n'.encode(), knight)
+        self.assertNotIn(b'"19"\t"AE_CL_PLAY_WEAPON_EFFECT', knight)
+        self.assertEqual(knight.count(b'{'), knight.count(b'}'))
+        # an untransformed sequence keeps its trails
+        self.assertIn(b'AE_WEAPON_ENABLE_TRAIL_POINT\t0 1', plain)
+        self.assertNotIn(b'AE_CL_PLAY_WEAPON_EFFECT', plain)
+        efx = stage.knight_trail_effects('miri')
+        trail, chain = (efx[f'effects/player/miri/pc_miri_dragon_knight_{n}.efx'].decode() for n in ('trail', 'chain'))
+        self.assertEqual(trail.count('"particle"'), 6)
+        self.assertIn('ATTACK_POINT_END_02', trail)
+        self.assertIn('effects/miri_trail_dragon_01_night.vmt', trail)
+        self.assertEqual(chain.count('"particle"'), 4)
+        self.assertIn('ATTACK_POINT_START_04', chain)
+        for text in (trail, chain):
+            self.assertEqual(text.count('{'), text.count('}'))
+            self.assertIn('"use_local"\t"0"', text)
+
     def test_the_battle_sprint_ends_in_battle_idle(self):
         script = (b'"battle_run_sprint"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStop"\r\n'
                   b'\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStopGamePad"\r\n}\r\n'

@@ -3135,3 +3135,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI30–MI36 (pendentes; MI28/MI29 continuam valendo).
 - Commits: (este passo)
 - Pendente / próxima ação: corrigir o que o operador relatar nas MI30–MI36; decisões M8d (efeitos pelo estado) e M8e (rastros pretos).
+
+## 2026-11-01 — Miri M8e: rastros escuros do Dragon Knight (aproximação aprovada)
+- Feito: decisão do operador ("Aceitar aproximação"). `stage_na_class.with_knight_trails`: nas sequências só transformadas, as janelas `AE_WEAPON_ENABLE/DISABLE_TRAIL_POINT` dos rastros de fogo 0, 1 e 3 saem e viram `AE_CL_PLAY_WEAPON_EFFECT` a cada `KNIGHT_TRAIL_STEP` (3) quadros com dois efeitos de laboratório gerados na preparação (`knight_trail_effects`): lâmina (`ATTACK_POINT_START/END_00-02`, `miri_smash_night`/`miri_trail_dragon_01_night`) e corrente (`03-04`, `miri_trail_dragon_02`), materiais do subtipo 1033 do NA; o rastro 2 fica. Nenhuma mudança nas alças de rastro nem nas DLLs. Medição: 16 sequências transformadas, 8 com rastros (`pc_miri_motion_ex.txt`), 206 eventos novos por arquivo.
+- Verificação: `test_stage_na_class` 24 OK (`r5/m8e-stage.log`); preparação (5.319 arquivos, `r5/m8e-stage-run.log`) e `apply_lab_content_additions.py --apply` (um pacote refeito, `r5/m8e-apply.log`), com o jogo fechado.
+- Cliente: `docs/client-tests/C4-miri.md` MI37 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI30–MI37 no cliente; decisão M8d.

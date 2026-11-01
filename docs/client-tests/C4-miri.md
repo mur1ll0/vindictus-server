@@ -454,3 +454,11 @@ Relatar: o que a interface ofereceu e o que sumiu.
 Pré-condição: `class_imports.py`, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (feitos por mim; passo M8g).
 - [ ] Janela de habilidades da Miri → XE Move com nome "XE Move", descrição do golpe (a mesma da Delia, genérica) e o ícone genérico de XE do 1.69 (o das outras classes), não o da espada da Delia.
 Relatar: o ícone e o texto mostrados.
+
+### MI37 — Rastros escuros do Dragon Knight (aproximação)
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M8e). DLLs e servidor sem mudança.
+- [ ] Transformada (Dragon Knight), golpes fortes transformados (`battle_attack_strong_dragon_*`), o golpe rápido forte e o SP3 transformado → chamas escuras deixadas ao longo da lâmina e da corrente durante o golpe, no lugar do rastro azul; o rastro de distorção continua.
+- [ ] Fora da transformação → rastros azuis da Draker como antes.
+- [ ] Vários golpes seguidos e trocar de equipamento transformada → sem queda.
+Limites conhecidos: aproximação feita no laboratório (partículas com as texturas de Dragon Knight do NA), não as fitas do NA; o fogo da corrente acompanha os mesmos golpes.
+Relatar: a cor e o tamanho das chamas, se ficaram presas à arma e se algum golpe transformado ficou sem rastro.

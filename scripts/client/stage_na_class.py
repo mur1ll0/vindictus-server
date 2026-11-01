@@ -466,6 +466,89 @@ def with_plain_effects(path: str, data: bytes) -> bytes:
     return b''.join(out)
 
 
+# Dragon Knight trails (M8e, operator: "Aceitar aproximação"). The NA draws the transformed swings with the
+# Dragon Knight weapon's own trails (weapon_draker.txt subtype 1033: 0 miri_smash_night, 1 and 3
+# miri_trail_dragon_01_night, 2 the refraction blade, 4 miri_trail_dragon_02 on points 0-4) and the fire
+# along the chain in native code. They do not fit the 1.69's 12 trail handles (class_costumes TRAIL_HANDLES)
+# and the .csf weapon block makes a new weapon entity, so the transformed-only sequences (KNIGHT_SEQUENCE)
+# keep the refraction trail (2, the same as the Draker's) and replace the fire trails' windows
+# (AE_WEAPON_ENABLE/DISABLE_TRAIL_POINT <point> <trail>, trails KNIGHT_FIRE_TRAILS) by laboratory effects
+# on the weapon: AE_CL_PLAY_WEAPON_EFFECT (the Delia's delia_run_spark.efx precedent, on the same
+# weapon_greatsword entity) every KNIGHT_TRAIL_STEP frames of each window, a dark fire particle effect on the
+# blade's attack points (ATTACK_POINT_START/END_00-02) and one on the chain's (03-04), with the NA's
+# Dragon Knight particle materials. Each play emits for KNIGHT_TRAIL_EMIT seconds; its particles stay in the
+# world and fade, which draws the swing. An approximation: not the NA's ribbons.
+KNIGHT_FIRE_TRAILS = (0, 1, 3)
+KNIGHT_TRAIL_STEP = 3
+KNIGHT_TRAIL_EMIT = 0.12
+KNIGHT_TRAIL_EFFECT = 'effects/player/{klass}/pc_{klass}_dragon_knight_trail.efx'
+KNIGHT_CHAIN_EFFECT = 'effects/player/{klass}/pc_{klass}_dragon_knight_chain.efx'
+KNIGHT_TRAIL_EVENT = re.compile(rb'^[ \t]*"(\d+)"[ \t]*"AE_WEAPON_(ENABLE|DISABLE)_TRAIL_POINT[ \t]+(\d+)[ \t]+(\d+)"[^\r\n]*\r?\n', re.M)
+
+
+def _fire_particle(attachment: str, material: str, size: str) -> str:
+    return ('"particle"\r\n{\r\n'
+            f'\t"attachment_1"\t"{attachment}"\r\n\t"follow_parent_1"\t"1"\r\n\t"direction_axis_1"\t"2"\r\n'
+            '\t"position_offset_1"\t"0 0 0"\r\n'
+            f'\t"material"\t"{material}"\r\n\t"delay"\t"0"\r\n'
+            '\t"emitter"\t"simple"\r\n\t"gravity"\t"-20"\r\n'
+            f'\t"emit_interval"\t"0.01"\r\n\t"emit_duration"\t"{KNIGHT_TRAIL_EMIT}"\r\n'
+            '\t"particle_count"\t"1 1"\r\n\t"die_time"\t"0.15 0.25"\r\n'
+            '\t"speed"\t"0 10"\r\n\t"spread_angle"\t"0 180"\r\n'
+            '\t"color_ramp"\t"1 2"\r\n\t"color_min"\t"255 255 255"\r\n\t"color_max"\t"255 255 255"\r\n'
+            '\t"use_light"\t"0"\r\n\t"wind_blown"\t"0"\r\n\t"use_local"\t"0"\r\n'
+            '\t"start_alpha"\t"200 255"\r\n\t"end_alpha"\t"0 0"\r\n'
+            f'\t"start_size"\t"{size}"\r\n\t"end_size"\t"2 4"\r\n'
+            '\t"roll"\t"0 360"\r\n\t"roll_delta"\t"0 90"\r\n'
+            '\t"width"\t"1 1"\r\n\t"length"\t"1 1"\r\n}\r\n\r\n')
+
+
+KNIGHT_TRAIL_EFX = ('// Laboratory effect (Miri M8e): Dragon Knight blade fire, an approximation of weapon_draker 1033 trails\r\n'
+                    + ''.join(_fire_particle(f'ATTACK_POINT_{end}_0{n}',
+                                             'effects/miri_smash_night.vmt' if n == 0 else 'effects/miri_trail_dragon_01_night.vmt',
+                                             '10 16')
+                              for n in range(3) for end in ('START', 'END')))
+KNIGHT_CHAIN_EFX = ('// Laboratory effect (Miri M8e): Dragon Knight chain fire (NA: native code, trail 4 of weapon_draker 1033)\r\n'
+                    + ''.join(_fire_particle(f'ATTACK_POINT_{end}_0{n}', 'effects/miri_trail_dragon_02.vmt', '6 10')
+                              for n in (3, 4) for end in ('START', 'END')))
+
+
+def knight_trail_effects(klass: str) -> dict[str, bytes]:
+    """The laboratory effect files the transformed sequences play (with_knight_trails)."""
+    return {KNIGHT_TRAIL_EFFECT.format(klass=klass): KNIGHT_TRAIL_EFX.encode('latin-1'),
+            KNIGHT_CHAIN_EFFECT.format(klass=klass): KNIGHT_CHAIN_EFX.encode('latin-1')}
+
+
+def with_knight_trails(path: str, data: bytes, klass: str) -> bytes:
+    if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
+        return data
+    trail, chain = KNIGHT_TRAIL_EFFECT.format(klass=klass), KNIGHT_CHAIN_EFFECT.format(klass=klass)
+    out, at = [], 0
+    for start, end in sorted(span for name, span in event_blocks(data).items() if KNIGHT_SEQUENCE.search(name)):
+        block = data[start:end]
+        opened, frames = {}, set()
+        for m in KNIGHT_TRAIL_EVENT.finditer(block):
+            frame, kind, point, index = int(m.group(1)), m.group(2), int(m.group(3)), int(m.group(4))
+            if index not in KNIGHT_FIRE_TRAILS:
+                continue
+            if kind == b'ENABLE':
+                opened[(point, index)] = frame
+            elif (point, index) in opened:
+                frames.update(range(opened.pop((point, index)), frame, KNIGHT_TRAIL_STEP))
+        if not frames:
+            continue
+        kept = KNIGHT_TRAIL_EVENT.sub(lambda m: b'' if int(m.group(4)) in KNIGHT_FIRE_TRAILS else m.group(0), block)
+        brace = kept.find(b'{') + 1
+        newline = b'\r\n' if b'\r\n' in kept else b'\n'
+        lines = b''.join(f'\t"{f}"\t"AE_CL_PLAY_WEAPON_EFFECT\t{e}"'.encode() + newline
+                         for f in sorted(frames) for e in (trail, chain))
+        out.append(data[at:start])
+        out.append(kept[:brace] + newline + lines + kept[brace:].lstrip(b'\r\n'))
+        at = end
+    out.append(data[at:])
+    return b''.join(out)
+
+
 # The NA spends the Dragon Knight transformation's SP at a frame of miri_SP4 (AE_CUSTOM_MOTION
 # REDUCE_DRAGON_KNIGHT_SP_GAUGE; NA server 0x5dc470: the SP of skill_miri_sp4 taken off the gauge), while its
 # state AttackSP04 only checks it (SPGauge_check_only 200). No 1.69 handler knows the command, so the
@@ -697,6 +780,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = town_motion(rel, data, donor)
         data = pbs_as_armor(rel, data)
         data = with_plain_effects(rel, data)
+        data = with_knight_trails(rel, data, class_name)
         data = with_sp_reduce(rel, data, sp_checks)
         data = without_sprint_stop(rel, data)
         data = with_summoned_model(rel, data, class_name)
@@ -773,6 +857,12 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
             (out / target).write_bytes(events)
             records[target] = {'path': target, 'source': records[motion]['source'], 'source_sha256': records[motion]['source_sha256'],
                                'sha256': sha256(events), 'converted': True, 'bytes': len(events), 'copied_from': motion}
+            for effect, efx in knight_trail_effects(class_name).items():
+                (out / effect).parent.mkdir(parents=True, exist_ok=True)
+                (out / effect).write_bytes(efx)
+                records[effect] = {'path': effect, 'source': 'laboratory (stage_na_class.KNIGHT_TRAIL_EFX)',
+                                   'source_sha256': sha256(efx), 'sha256': sha256(efx), 'converted': True,
+                                   'bytes': len(efx), 'copied_from': None}
             eye = SUMMONED_EYE_EFFECT.format(klass=class_name)
             efx = SUMMONED_EYE_EFX.encode('latin-1')
             (out / eye).parent.mkdir(parents=True, exist_ok=True)
