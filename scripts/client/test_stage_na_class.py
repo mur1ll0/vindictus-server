@@ -330,6 +330,16 @@ class StageTest(unittest.TestCase):
         self.assertEqual(stage.summoned_model_events(motion),
                          b'"dragon_attack"\r\n{\r\n\t"0"\t"AE_CL_PLAY_EFFECT\teffects/player/miri/SP5_dragon_body.efx"\r\n}\r\n')
         self.assertIsNone(stage.summoned_model_events(b'"x" { }'))
+        # the eyes: the lab glow on each eye attachment
+        eyes = stage.summoned_model_events(motion, 'miri')
+        for eye in ('LEFT_EYE', 'RIGHT_EYE'):
+            self.assertIn(f'\t"0"\t"AE_CL_PLAY_EFFECT\teffects/player/miri/pc_miri_sp5_dragon_eye.efx attachment_1 {eye}"\r\n'
+                          .encode(), eyes)
+        efx = stage.SUMMONED_EYE_EFX
+        self.assertIn('"material"\t"effects/redeye1.vmt"', efx)
+        self.assertIn('"follow_parent_1"\t"1"', efx)
+        self.assertNotIn('attachment_1', efx)
+        self.assertEqual(efx.count('{'), efx.count('}'))
 
     def test_the_battle_sprint_ends_in_battle_idle(self):
         script = (b'"battle_run_sprint"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStop"\r\n'

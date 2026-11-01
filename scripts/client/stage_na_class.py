@@ -543,12 +543,43 @@ def with_summoned_model(path: str, data: bytes, klass: str) -> bytes:
     return DRAGON_EFFECT.sub(b'', data)
 
 
-def summoned_model_events(motion: bytes) -> bytes | None:
-    """The dragon model's events file: its PLAY_DRAGON_EFFECT effects at frame 0 of SUMMONED_SEQUENCE."""
+# The dragon's eyes (M8b): the NA client puts a sprite (sprites/redglow1.vmt, scale 0.1, glow render mode,
+# brightness 255) on each eye attachment of the model (client x64 0xaa532c), in code. The 1.69 attaches an
+# effect to an attachment from the event (AE_CL_PLAY_EFFECT <efx> attachment_1 <name>, as the Kraken's
+# eyeL1), so the eyes are a laboratory effect: one red glow particle renewed every 0.05 s, following the
+# attachment, for the length of SUMMONED_SEQUENCE (639 frames at 60 fps); the material is the 1.69's
+# particle glow effects/redeye1.vmt (the ratman's eyes; base texture sprites/redglow2), since the sprite
+# shader of redglow1 is not a particle material. It dies with the model.
+SUMMONED_EYES = ('LEFT_EYE', 'RIGHT_EYE')
+SUMMONED_EYE_EFFECT = 'effects/player/{klass}/pc_{klass}_sp5_dragon_eye.efx'
+SUMMONED_EYE_EFX = (
+    '// Laboratory effect (Miri M8b): the Call of the Dragon eye glow, NA client 0xaa532c\r\n'
+    '"particle"\r\n{\r\n'
+    '\t"follow_parent_1"\t"1"\r\n\t"direction_axis_1"\t"2"\r\n\t"position_offset_1"\t"0 0 0"\r\n'
+    '\t"emitter"\t"simple"\r\n\t"gravity"\t"0"\r\n'
+    '\t"emit_interval"\t"0.05"\r\n\t"emit_duration"\t"10.7"\r\n'
+    '\t"material"\t"effects/redeye1.vmt"\r\n\t"particle_count"\t"1"\r\n'
+    '\t"color_min"\t"255 255 255"\r\n'
+    '\t"die_time"\r\n\t{\r\n\t\t"0"\t"0.1"\r\n\t}\r\n'
+    '\t"use_spread_direction"\t"1"\r\n'
+    '\t"color_ramp"\r\n\t{\r\n\t\t"0"\t"1 1"\r\n\t}\r\n'
+    '\t"size_delta"\r\n\t{\r\n\t\t"0"\t"12"\r\n\t}\r\n'
+    '\t"alpha_delta"\r\n\t{\r\n\t\t"0"\t"255"\r\n\t}\r\n'
+    '\t"roll_delta"\r\n\t{\r\n\t\t"0"\t"0"\r\n\t}\r\n'
+    '\t"length"\t"0.5 2"\r\n\t"width"\t"5 5"\r\n\t"wind_blown"\t"0"\r\n\t"no_screen"\t"0"\r\n'
+    '}\r\n')
+
+
+def summoned_model_events(motion: bytes, klass: str | None = None) -> bytes | None:
+    """The dragon model's events file: its PLAY_DRAGON_EFFECT effects at frame 0 of SUMMONED_SEQUENCE, then
+    the eye glows on SUMMONED_EYES when the class is given."""
     effects = list(dict.fromkeys(m.group(1).decode('latin-1') for m in DRAGON_EFFECT.finditer(motion)))
     if not effects:
         return None
     lines = ''.join(f'\t"0"\t"AE_CL_PLAY_EFFECT\t{e}"\r\n' for e in effects)
+    if klass is not None:
+        eye = SUMMONED_EYE_EFFECT.format(klass=klass)
+        lines += ''.join(f'\t"0"\t"AE_CL_PLAY_EFFECT\t{eye} attachment_1 {a}"\r\n' for a in SUMMONED_EYES)
     return f'"{SUMMONED_SEQUENCE}"\r\n{{\r\n{lines}}}\r\n'.encode('latin-1')
 
 
@@ -736,12 +767,18 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                           'sha256': sha256(data), 'converted': True, 'bytes': len(data), 'copied_from': portrait}
     dragon = SUMMONED_MODEL.format(klass=class_name)
     for motion in [r for r in records if r.startswith('models/player/_anim/') and r.endswith(f'pc_{class_name}_motion.txt')]:
-        events = summoned_model_events(na[motion].read_bytes())
+        events = summoned_model_events(na[motion].read_bytes(), class_name)
         if events is not None and dragon in records:
             target = dragon[:-len('.mdl')] + '.txt'
             (out / target).write_bytes(events)
             records[target] = {'path': target, 'source': records[motion]['source'], 'source_sha256': records[motion]['source_sha256'],
                                'sha256': sha256(events), 'converted': True, 'bytes': len(events), 'copied_from': motion}
+            eye = SUMMONED_EYE_EFFECT.format(klass=class_name)
+            efx = SUMMONED_EYE_EFX.encode('latin-1')
+            (out / eye).parent.mkdir(parents=True, exist_ok=True)
+            (out / eye).write_bytes(efx)
+            records[eye] = {'path': eye, 'source': 'laboratory (stage_na_class.SUMMONED_EYE_EFX)', 'source_sha256': sha256(efx),
+                            'sha256': sha256(efx), 'converted': True, 'bytes': len(efx), 'copied_from': None}
     merges = []
     for rel, na_rel in [(r, r) for r in SHARED_SCRIPTS] + list(EXTREME_MERGES.items()):
         if na_rel not in na or rel not in lab:

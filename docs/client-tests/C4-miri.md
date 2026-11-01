@@ -425,3 +425,8 @@ Pré-condição: com o jogo fechado, `class_imports.py`, `refresh_item_content.p
 - [ ] Monstro que acerta por decisão do servidor (golpe em área, projétil) defendido → o efeito aparece também (feito pelo servidor).
 Limites conhecidos: o Hydra some ao levar dano pelos eventos de sequência do NA; o *latch* de tempo do cliente do NA (`miri_endure_latch_time`) não foi portado.
 Relatar: se o ícone apareceu, quanto de stamina subiu e se o golpe forte ficou mais forte.
+
+### MI32 — Olhos do dragão do Call of the Dragon
+Pré-condição: a mesma da MI31 (preparação e aplicador; passo M8b).
+- [ ] Call of the Dragon (SP5) → o dragão aparece com os dois olhos brilhando em vermelho durante todo o ataque; os brilhos seguem a cabeça e somem com ele (também se a habilidade for interrompida).
+Relatar: se os dois olhos brilharam, o tamanho do brilho (pequeno/grande demais) e se algum brilho ficou no ar depois.

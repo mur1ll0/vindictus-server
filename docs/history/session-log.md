@@ -3093,3 +3093,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI31 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: M8b (olhos do dragão do Call of the Dragon).
+
+## 2026-11-01 — Miri M8b: olhos do dragão do Call of the Dragon
+- Feito: `stage_na_class.SUMMONED_EYES`/`SUMMONED_EYE_EFFECT`/`SUMMONED_EYE_EFX`: efeito de laboratório `effects/player/miri/pc_miri_sp5_dragon_eye.efx` (partícula `effects/redeye1.vmt` seguindo o pai) gerado na preparação, e `summoned_model_events(motion, classe)` acrescenta `AE_CL_PLAY_EFFECT <efx> attachment_1 LEFT_EYE`/`RIGHT_EYE` no quadro 0 do `dragon_attack` (NA: *sprites* `redglow1` nas *attachments* dos olhos, cliente x64 `0xaa532c`; 1.69: precedente `attachment_1 eyeL1` no Kraken).
+- Verificação: `test_stage_na_class` 23 OK (`r5/m8b-stage.log`). Aplicação conjunta com M8a/M8c no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI32 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8c (Flamebreath pelo rank, nível inicial do NA).
