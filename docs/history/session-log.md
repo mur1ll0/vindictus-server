@@ -2967,3 +2967,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI15 e MI16 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI16 (dano, SP, ataques no ar; Flamebreath e Tab com leitura de memória numa fase); depois XE como habilidade extra e Dragon Knight.
+
+## 2026-10-31 — Miri M7l: dragão escondido na cidade; medição do Dragon Knight (C4 MI16 → MI17)
+- Feito: MI16 jogada (dano e SP ok; dragão ok no barco e na fase, nível subindo sozinho como no NA; aparecia na cidade ao falar com NPC; Ancestral Garb sem transformação). `patch_class_routing.flamebreath` (cliente): visibilidade inicial desconhecida (-1) e reenvio a cada `FLAMEBREATH_RESEND` *thinks*. Sonda `na_x64_miri_dragon_energy.py` com os nomes do Dragon Knight (servidor NA `0x5db540`–`0x5dede9`, `0x5dc040`, `0x5dd7f0`; efeito `dragonknight_transform`; `skill_miri_dragon_transform` nível 1, 70 s).
+- Verificação: `test_patch_class_routing -k flamebreath` OK (`.cache/verification/miri/r2/r6-tests.log`); memória ao vivo (estado de jogo 14 na estalagem, 25 na fase; HUD mostrado, nível 5). Roteamento (`r2/routing-apply-r6.log`): `client.dll` `e59696d5d5c2a96a` → `ff5aa0537f8163a9` (anterior em `*.pre-r6.bak`), `server.dll` sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI16 e MI17 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI17 no cliente; porte do Dragon Knight; depois XE como habilidade extra.

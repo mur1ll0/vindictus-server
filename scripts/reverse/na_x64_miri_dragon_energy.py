@@ -23,7 +23,11 @@ OUTPUT = ROOT / 'docs/evidence/client/na-x64-miri-dragon-energy-{dll}.json'
 STRINGS = ('MiriSkillDialog', 'DragonEnergy', 'SetGaugeLevel', 'ShowEffect', 'USE_DRAGON_ENERGY',
            'REDUCE_DRAGON_KNIGHT_SP_GAUGE', 'skill_miri_dragon_energy', 'As_Cond_Miri_Can_DragonSmash',
            'As_Cond_Miri_DragonKnight', 'As_Cond_Miri_Can_Transform_DragonKnight', 'skill_miri_dragon_mark',
-           'dragon_energy', 'DragonEnergyLevel', 'm_nDragonEnergy', 'm_iDragonEnergy', 'm_DragonEnergy')
+           'dragon_energy', 'DragonEnergyLevel', 'm_nDragonEnergy', 'm_iDragonEnergy', 'm_DragonEnergy',
+           # Dragon Knight (Ancestral Garb, skill_miri_sp4): status effect type and look
+           'dragonknight_transform', 'skill_miri_dragon_transform', 'EQUIP_DRAGON_KNIGHT_LOOK', 'PURGE_DRAGON_KNIGHT_LOOK',
+           'EQUIP_DRAGON_KNIGHT_ARMOR', 'PURGE_DRAGON_KNIGHT_ARMOR', 'csf/metamorphosis/miri_dragon_knight.csf',
+           'DragonEnergy_transform')
 
 
 def probe(directory: Path, dll: str, dumps=()) -> dict:

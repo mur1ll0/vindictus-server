@@ -394,6 +394,9 @@ FLAMEBREATH_PLAYERS = 16
 FLAMEBREATH_SPEND = 'USE_DRAGON_ENERGY'
 FLAMEBREATH_DIALOG = 'MiriSkillDialog'
 FLAMEBREATH_CLASS = 11
+# Thinks between two sends of the same visibility: a preloaded movie starts visible, and talking to an
+# NPC in town showed the dragon again although the think had hidden it (C4 MI16).
+FLAMEBREATH_RESEND = 31
 # (think slot, condition object getter or None for [this+COMMANDS], raise)
 CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0x405380A0, 0x407E6470)}
 # Draker chain (Miri M7f; docs/future/miri-class-port.md 2.11). The NA draws it from its own weapon
@@ -2216,9 +2219,11 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
     method = L.string(FLAMEBREATH_DIALOG + '.SetGaugeLevel')
     L.pad()
     shown = L.here()
-    L.body += bytes(4)
+    L.body += struct.pack('<i', -1)  # unknown: the first think sends the real visibility
     level = L.here()
     L.body += struct.pack('<i', -1)
+    resend = L.here()
+    L.body += bytes(4)
 
     def commands_object() -> None:
         b('8b8e' + d32(COMMANDS))
@@ -2235,10 +2240,16 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
     b('3bc6'); other = fwd('0f85')
     call(in_town)
     b('83f001')  # shown outside town
-    at('3b05', shown); same = fwd('0f84')
+    at('3b05', shown); changed = fwd('0f85')
+    at('ff0d', resend); same = fwd('0f89')  # dec [resend]; jns: not yet
+    at('c705', resend)
+    L.body += struct.pack('<I', FLAMEBREATH_RESEND)
+    send = fwd('e9')  # the same visibility again: the UI can show it behind our back
+    L.land(changed)
     at('a3', shown)
     at('c705', level)
     b('ffffffff')
+    L.land(send)
     b('50'); at('68', dialog)
     ui()
     b('ff52' + bytes((k['ui_show'],)).hex())

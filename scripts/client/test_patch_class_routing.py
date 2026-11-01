@@ -575,6 +575,10 @@ class LabCopyTest(unittest.TestCase):
         strings = [routing.read_string(image, int(c.split()[1], 16)) for c in code if c.startswith('push 0x') and int(c.split()[1], 16) > 0x10000]
         self.assertEqual(strings, [routing.FLAMEBREATH_DIALOG, routing.FLAMEBREATH_DIALOG + '.SetGaugeLevel'])
         self.assertIn('mov dword ptr [esp], 3', code)  # one number argument
+        # the visibility starts unknown and is sent again every FLAMEBREATH_RESEND thinks
+        self.assertEqual(struct.unpack_from('<i', image.data, image.offset(int(flame['shown'], 16)))[0], -1)
+        self.assertTrue(any(c.startswith('dec dword ptr [') for c in code))
+        self.assertTrue(any(c.endswith(f', {routing.FLAMEBREATH_RESEND:#x}') and c.startswith('mov dword ptr [') for c in code))
         self.assertEqual(code[-2:], ['pop esi', 'ret'])
         # the Miri's think runs it before the chain tick
         body = int(report['class_conditions']['classes'][11], 16)

@@ -282,3 +282,13 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Fase: o dragão de Flamebreath aparece? Se não, avisar com o jogo aberto, na fase, para eu ler a memória (nível, estado do HUD).
 - [ ] Fase, com Fiery Evasion aprendida e o dragão com nível: Tab durante um ataque → esquiva. Se não sair, avisar junto com o item anterior.
 Limites conhecidos: XE ainda não existe para a Miri (habilidade extra a criar).
+
+Resultado da MI16 (31/10/2026, `MiriLab`, memória ao vivo):
+- Dano e SP: resolvidos (operador).
+- Dragão de Flamebreath: aparece no barco e na fase e enche sozinho (memória: estado de jogo 25, mostrado, nível 5), como no NA (um nível a cada 7 s). Na cidade aparecia ao falar com um NPC: o filme pré-carregado começa visível e a interface o mostra de novo no diálogo, e o *think* só mandava a visibilidade quando ela mudava.
+- Ancestral Garb (Dragon Knight) não faz nada além da animação: a transformação não está portada (efeito de estado `dragonknight_transform`, nativo do NA).
+
+### MI17 — Dragão escondido na cidade
+Pré-condição: com o jogo fechado, roteamento do `client.dll` refeito dos `*.pre-routing.bak` (feito por mim; passo M7l).
+- [ ] Cidade e estalagem: falar com NPCs e fechar o diálogo → o dragão não aparece (no máximo um piscar de meio segundo).
+- [ ] Barco e fase → o dragão aparece e enche como antes.
