@@ -318,15 +318,18 @@ def ui_elements_with_classes(data: bytes, elements=CLASS_UI_ELEMENTS) -> bytes |
 
 # The character list portrait of each imported class (gfx_patch.with_class_frame): a frame named after the
 # class in scaleform/SelectCharacterDialog_V2.gfx, showing the atlas the staging made
-# (stage_na_class.LIST_PORTRAIT_ATLAS; the client sends the class name, CLASS_STRINGS "{Name}").
-CLASS_LIST_PORTRAITS = (('Miri', 'SelectCharacterDialog_V2_IMiri.dds'),)
+# (stage_na_class.LIST_PORTRAIT_ATLAS), and the class's entry in the movie's characterImageLabel array (class
+# number -> frame label; C4 MI20: without it the list still showed Lann).
+CLASS_LIST_PORTRAITS = (('Miri', 11, 'SelectCharacterDialog_V2_IMiri.dds'),)
+CLASS_IMAGE_LABELS = 'characterImageLabel'
 SELECT_DIALOG = 'scaleform/selectcharacterdialog_v2.gfx'
 
 
 def select_dialog_with_classes(data: bytes, portraits=CLASS_LIST_PORTRAITS) -> bytes | None:
     out = data
-    for label, image in portraits:
+    for label, index, image in portraits:
         out = gfx_patch.with_class_frame(out, label, image) or out
+        out = gfx_patch.with_array_entry(out, CLASS_IMAGE_LABELS, index, label) or out
     return None if out == data else out
 
 

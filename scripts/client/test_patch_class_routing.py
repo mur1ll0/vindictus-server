@@ -758,11 +758,11 @@ class LabCopyTest(unittest.TestCase):
         # HeroesGameStateManager (GameStateManager001; vtable stored by the static initialiser).
         vtable = 0x4273F90C
         predicate = struct.unpack_from('<I', engine.data, engine.offset(vtable + routing.CHAIN['client.dll']['in_town_predicate']))[0]
-        code = list(self.md.disasm(bytes(engine.data[engine.offset(predicate):engine.offset(predicate) + 0x30]), predicate))
+        code = list(self.md.disasm(bytes(engine.data[engine.offset(predicate):engine.offset(predicate) + 0x80]), predicate))
         body = list(itertools.takewhile(lambda x: f'{x.mnemonic} {x.op_str}' != 'xor eax, eax', code))
         states = tuple(sorted(int(x.op_str.split(', ')[1], 16) for x in body if x.mnemonic == 'cmp' and x.op_str.startswith('eax, ')))
         self.assertEqual(states, routing.CHAIN_TOWN_STATES)
-        self.assertEqual([f'{x.mnemonic} {x.op_str}' for x in code[:3]], ['mov eax, dword ptr [ecx]', 'mov edx, dword ptr [eax + 8]', 'call edx'])
+        self.assertIn('mov edx, dword ptr [eax + 8]', [f'{x.mnemonic} {x.op_str}' for x in body])  # the state getter
 
     def test_delia_effects_register_types_commands_and_hooks(self):
         image, report = self.plan('server.dll')

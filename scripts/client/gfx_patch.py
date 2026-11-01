@@ -2,7 +2,10 @@
 
 The movie keeps one portrait per class in a sprite whose frames are labelled with the class name (Lethita
 .. Delia); the client sends the class name (patch_class_routing CLASS_STRINGS, "{Name}") and a name with no
-frame stays on the first one, Lethita's: the Miri's list portrait was a man's face (C4 MI4-4). Each frame
+frame stays on the first one, Lethita's: the Miri's list portrait was a man's face (C4 MI4-4). The name
+does not come from the client as such: the movie's root code maps the class number to the label through
+`var characterImageLabel = new Array("Lethita", .., "Delia")` (11 entries), so the class also needs its
+entry there (with_array_entry; C4 MI20: the frame alone changed nothing). Each frame
 places a shape filled with a 101x54 sub-image (GFx DefineSubImage, tag 1008) of an external DDS atlas
 (GFx DefineExternalImage2, tag 1009). with_class_frame copies the donor class's frame, shape and sub-image
 with new ids onto a new atlas holding the class's portrait (class_portrait_dds, from the NA's
@@ -59,6 +62,42 @@ def _tag(code: int, body: bytes, long: bool = True) -> bytes:
     if not long and len(body) < 0x3F:
         return struct.pack('<H', code << 6 | len(body)) + body
     return struct.pack('<HI', code << 6 | 0x3F, len(body)) + body
+
+
+DO_ACTION = 12
+
+
+def _open(movie: bytes) -> tuple[bytes, bool, int]:
+    """The uncompressed movie, whether it was compressed, and the offset of its first tag."""
+    if movie[:3] not in (b'GFX', b'CFX'):
+        raise GfxError('Not a GFx movie.')
+    compressed = movie[:3] == b'CFX'
+    data = movie[:8] + zlib.decompress(movie[8:]) if compressed else movie
+    return data, compressed, 8 + (5 + 4 * (data[8] >> 3) + 7) // 8 + 4
+
+
+def _close(data: bytearray, compressed: bool) -> bytes:
+    struct.pack_into('<I', data, 4, len(data))
+    return bytes(data[:8]) + zlib.compress(bytes(data[8:])) if compressed else bytes(data)
+
+
+def with_array_entry(movie: bytes, array: str, index: int, value: str) -> bytes | None:
+    """The movie with `array[index] = value` appended to the root action block that names the array (before
+    its End action, so no earlier offset moves); None when it is already there."""
+    data, compressed, first = _open(movie)
+    code = (b'\x96' + struct.pack('<H', len(array) + 2) + b'\x00' + array.encode('latin-1') + b'\x00' + b'\x1c'
+            + b'\x96' + struct.pack('<H', len(value) + 7) + b'\x07' + struct.pack('<i', index) + b'\x00'
+            + value.encode('latin-1') + b'\x00' + b'\x4f')
+    for tag, start, body, length in _tags(data, first, len(data)):
+        if tag != DO_ACTION or array.encode('latin-1') + b'\0' not in data[body:body + length]:
+            continue
+        if code in data[body:body + length]:
+            return None
+        if data[body + length - 1] != 0:
+            raise GfxError('The action block does not end with End.')
+        block = data[body:body + length - 1] + code + b'\x00'
+        return _close(bytearray(data[:start] + _tag(DO_ACTION, block) + data[body + length:]), compressed)
+    raise GfxError(f'No root action block names {array}.')
 
 
 def with_class_frame(movie: bytes, label: str, image_file: str, donor: str = 'Delia') -> bytes | None:

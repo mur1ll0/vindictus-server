@@ -310,6 +310,82 @@ def town_motion(path: str, data: bytes, donor: bytes | None = None) -> bytes:
     return data
 
 
+# Effects name their materials, models and sub-effects; without following them the Miri's skill effects
+# drew nothing (Blazing Spine's blue fire, effects/fire_ani_03; Slice and Dice, effects/dark_02; C4 MI20).
+EFX_REFERENCE = re.compile(rb'"(material|matname|sprite|model|effect|efx|sub_effect)"\s+"([^"]+)"', re.I)
+# NA physically based materials (a shader the 1.69 lacks) drew as a white wireframe (the Dragon Knight
+# armour, C4 MI20; the later Draker weapons): they become Heroes_Armor with the texture the player sees,
+# the parameters the 1.69 shader knows, and nothing of the PBS set.
+PBS_SHADERS = ('heroes_pbs', 'heroes_pbs_texture_transition')
+ARMOR_PARAMS = ('$bumpmap', '$envmap', '$envmapcontrast', '$envmaptint', '$normalmapalphaenvmapmask', '$nocull',
+                '$nodecal', '$alphatest', '$translucent', '$halflambert', '$rimlight_enable', '$rimlight_exp',
+                '$rimlight_boost', '$selfillum', '$selfillummask', '$phong_enable', '$phongexponent', '$phongboost',
+                '$surfaceprop')
+VMT_PARAM = re.compile(r'^\s*"(\$[A-Za-z0-9_]+)"\s+("[^"]*"|\S+)', re.M)
+
+
+def pbs_as_armor(path: str, data: bytes) -> bytes:
+    """A material of a PBS shader as Heroes_Armor; any other data unchanged."""
+    if not path.endswith('.vmt'):
+        return data
+    text = data.decode('latin-1')
+    head = re.match(r'\s*"?([A-Za-z0-9_]+)"?', text)
+    if not head or head.group(1).lower() not in PBS_SHADERS:
+        return data
+    live = '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('//'))
+    params = {k.lower(): v for k, v in VMT_PARAM.findall(live)}
+    base = params.get('$transition_map') or params.get('$basetexture')
+    lines = ['"Heroes_Armor"', '{']
+    if base:
+        lines.append(f'\t"$basetexture" {base if base.startswith(chr(34)) else chr(34) + base + chr(34)}')
+    for key in ARMOR_PARAMS:
+        if key in params:
+            value = params[key]
+            lines.append(f'\t"{key}" {value if value.startswith(chr(34)) else chr(34) + value + chr(34)}')
+    lines.append('}')
+    return ('\r\n'.join(lines) + '\r\n').encode('latin-1')
+
+
+# The NA's Dragon Knight look names the NA weapon entity (weapon_draker, NA sub-type), which the 1.69 copy
+# does not have (the Draker is a weapon_greatsword there): the look keeps the weapon she holds.
+CSF_WITHOUT_WEAPON = ('csf/metamorphosis/{klass}_dragon_knight.csf',)
+
+
+def without_csf_weapon(data: bytes) -> bytes:
+    import kv_merge as kv
+    root = kv.parse(data)
+    costume = next((n for n in root.children if n.block), None)
+    weapon = next((c for c in costume.children if c.block and c.key.lower() == 'weapon'), None) if costume else None
+    if weapon is None:
+        return data
+    start = data.rfind(b'\n', 0, weapon.start) + 1
+    end = data.find(b'\n', weapon.end)
+    return data[:start] + data[end + 1 if end >= 0 else weapon.end:]
+
+
+# Item icons of the class's imported items (class_imports, .cache/private-content/class-imports/<class>.db3):
+# their names seldom carry the class's (Dragon Rise: eq_dragon_rises_female_*), so the sets showed no icon.
+CLASS_IMPORT = ROOT / '.cache/private-content/class-imports/{klass}.db3'
+ICON_COLUMNS = ('Icon', 'IconFG', 'IconBG')
+ICON_FOLDER = 'scaleform/item_icon/'
+
+
+def imported_icons(class_name: str, na: dict, path: Path | None = None) -> set[str]:
+    import sqlite3
+    db_path = path or Path(str(CLASS_IMPORT).format(klass=class_name))
+    if not db_path.is_file():
+        return set()
+    db = sqlite3.connect(f'file:{db_path.as_posix()}?mode=ro', uri=True)
+    try:
+        cols = {r[1] for r in db.execute('PRAGMA table_info(ItemClassInfo)')}
+        names = set()
+        for col in (c for c in ICON_COLUMNS if c in cols):
+            names |= {r[0].lower() for r in db.execute(f'SELECT [{col}] FROM ItemClassInfo') if r[0]}
+    finally:
+        db.close()
+    return {p for p in na if p.startswith(ICON_FOLDER) and p[len(ICON_FOLDER):].rsplit('.', 1)[0] in names}
+
+
 def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
     """Game paths a staged model or material needs. A model's material is the first cdmaterials folder
     that has it, as the engine searches them (`known`: the path exists in the 1.69, the NA or the
@@ -321,6 +397,15 @@ def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
             paths = ['materials/' + (folder + texture).replace('\\', '/').lower().strip('/') + '.vmt' for folder in folders]
             wanted.append(next((p for p in paths if known(p)), paths[0] if paths else None))
         return [w for w in wanted if w] + [m if m.startswith('models/') else 'models/' + m for m in include_models(data)]
+    if path.endswith('.efx'):
+        wanted = []
+        for key, value in EFX_REFERENCE.findall(data):
+            name = value.decode('latin-1').replace(chr(92), '/').lower().strip('/')
+            if key.lower() in (b'material', b'matname', b'sprite'):
+                wanted.append('materials/' + (name[:-4] if name.endswith('.vmt') else name) + '.vmt')
+            elif name.endswith(('.mdl', '.efx')):
+                wanted.append(name)
+        return wanted
     if path.endswith('.vmt'):
         text = data.decode('latin-1')
         wanted = ['materials/' + name.replace('\\', '/').lower().strip('/') + '.vtf'
@@ -339,7 +424,9 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
     donor = lab_files[mdl_anim.TOWN_JUMP_DONOR].read_bytes() if mdl_anim.TOWN_JUMP_DONOR in lab_files else None
     names = (class_name, weapon)
     queue = sorted({p for p in na if selected(p, names) and p not in lab}
-                   | {p for p in NATIVE_ASSETS.get(weapon, ()) if p in na and p not in lab})
+                   | {p for p in NATIVE_ASSETS.get(weapon, ()) if p in na and p not in lab}
+                   | {p for p in imported_icons(class_name, na) if p not in lab})
+    csf_without_weapon = {c.format(klass=class_name) for c in CSF_WITHOUT_WEAPON}
     records: dict[str, dict] = {}
     missing: set[str] = set()
     while queue:
@@ -353,6 +440,9 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
             data = mdl_v45_to_v44.convert(source)
         data = without_missing_includes(rel, data, lambda p: p in lab or (p in na and selected(p, names)))
         data = town_motion(rel, data, donor)
+        data = pbs_as_armor(rel, data)
+        if rel in csf_without_weapon:
+            data = without_csf_weapon(data)
         converted = converted or data != source
         target = out / rel
         if not target.is_file() or sha256(target.read_bytes()) != sha256(data):

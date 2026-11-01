@@ -181,6 +181,29 @@ class ClassImportsTest(unittest.TestCase):
             # No reference for another weapon; nothing without the columns.
             self.assertEqual(class_imports.mastery_requirements(db, imported, {'name': 'miri', 'weapon': 'other'}), {})
 
+    def test_armor_takes_the_169_mastery_and_trade_layout(self):
+        with closing(sqlite3.connect(':memory:')) as db, closing(sqlite3.connect(':memory:')) as imported:
+            for target in (db, imported):
+                target.execute('CREATE TABLE ItemClassInfo(ItemClass TEXT, TradeCategory TEXT, TradeCategorySub TEXT, '
+                               'RequiredLevel INT, RequiredSkill TEXT, RequiredSkillRank INT)')
+            db.executemany('INSERT INTO ItemClassInfo VALUES(?,?,?,?,?,?)', [
+                ('a', 'LIGHTARMOR', 'LIGHTARMOR_HELM', 54, 'skill_light_armor_mastery', 5),
+                ('b', 'LIGHTARMOR', 'LIGHTARMOR_BOOTS', 60, 'skill_light_armor_mastery', 6),
+                ('c', 'LIGHTARMOR', 'LIGHTARMOR_TUNIC', 60, 'skill_light_armor_mastery', 6),
+                ('d', 'LIGHTARMOR', 'LIGHTARMOR_PANTS', 60, 'skill_light_armor_mastery', 3),
+                ('e', 'PLATEARMOR', 'PLATEARMOR_HELM', 50, 'skill_plate_armor_mastery', 4)])
+            imported.executemany('INSERT INTO ItemClassInfo VALUES(?,?,?,?,?,?)', [
+                ('dragon_rise_head', 'HELM', 'LIGHTARMOR', 54, 'skill_common_armor_mastery', 5),
+                ('pythonshock_foot', 'BOOTS', 'LIGHTARMOR', 61, 'skill_common_armor_mastery', 5),
+                ('plate_helm', 'HELM', 'PLATEARMOR', 52, 'skill_common_armor_mastery', 5),
+                ('ring', 'ACCESSORY', 'JEWELLERY', 50, None, 0)])
+            cols, rows = class_imports.converted(db, imported, 'ItemClassInfo', {'name': 'miri', 'weapon': 'draker', 'index': 11}, {})
+            got = {r[0]: r[1:] for r in rows}
+            self.assertEqual(got['dragon_rise_head'], ('LIGHTARMOR', 'LIGHTARMOR_HELM', 54, 'skill_light_armor_mastery', 5))
+            self.assertEqual(got['pythonshock_foot'], ('LIGHTARMOR', 'LIGHTARMOR_BOOTS', 61, 'skill_light_armor_mastery', 6))
+            self.assertEqual(got['plate_helm'], ('PLATEARMOR', 'PLATEARMOR_HELM', 52, 'skill_plate_armor_mastery', 4))
+            self.assertEqual(got['ring'], ('ACCESSORY', 'JEWELLERY', 50, None, 0))
+
     def test_bad_arguments_are_refused(self):
         with self.assertRaises(class_imports.ImportError_):
             class_imports.build('Miri', 'draker', 11, 10, self.na, self.base, self.out)

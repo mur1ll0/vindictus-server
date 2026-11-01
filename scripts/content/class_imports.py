@@ -68,6 +68,14 @@ SET_TABLES = ('SetItemInfo', 'SetInfo', 'SetEffectInfo')
 # rank of that class's weapons at its level (or the nearest lower one), within the ranks the class's
 # mastery has (the Miri's skips 9-12: a higher requirement takes the highest rank below it).
 MASTERY_REFERENCE = {'draker': 'greatsword'}
+# Armour in the 1.69 shape (C4 MI20: the Miri's Dragon Rise and Pythonshock pieces were red and could not be
+# worn). The NA merged the armour masteries into skill_common_armor_mastery, which the 1.69 does not have,
+# and files armour as TradeCategory part / TradeCategorySub type (HELM / LIGHTARMOR) where the 1.69 files it
+# as type / type_part (LIGHTARMOR / LIGHTARMOR_HELM). An imported piece takes the 1.69 layout and, for the
+# common mastery, the (skill, rank) most 1.69 pieces of its type ask at the nearest level at or below its own.
+ARMOR_PARTS = ('HELM', 'TUNIC', 'PANTS', 'GLOVES', 'BOOTS')
+ARMOR_TYPES = ('CLOTH', 'LIGHTARMOR', 'HEAVYARMOR', 'PLATEARMOR')
+COMMON_ARMOR_MASTERY = 'skill_common_armor_mastery'
 TABLES = ITEM_TABLES + tuple(SKILL_TABLES) + RECIPE_TABLES + tuple(MENTION_TABLES) + ('FeatureMatrix',) + SET_TABLES
 
 
@@ -333,6 +341,23 @@ def mastery_requirements(db: sqlite3.Connection, imported: sqlite3.Connection, i
     return out
 
 
+def armor_requirements(db: sqlite3.Connection, schema: str = 'main'):
+    """(armour type, level) -> the (RequiredSkill, RequiredSkillRank) most 1.69 pieces of that type ask at the
+    nearest level at or below; (None, 0) when none does."""
+    needed = {'TradeCategory', 'RequiredLevel', 'RequiredSkill', 'RequiredSkillRank'}
+    by_type = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+    if needed <= set(columns(db, 'ItemClassInfo', schema)):
+        for kind, level, skill, rank in db.execute(
+                f'SELECT TradeCategory, RequiredLevel, RequiredSkill, RequiredSkillRank FROM {schema}.[ItemClassInfo] '
+                f'WHERE TradeCategory IN ({",".join("?" * len(ARMOR_TYPES))})', ARMOR_TYPES):
+            by_type[kind][level or 0][(skill, rank or 0)] += 1
+
+    def rule(kind: str, level: int) -> tuple[str | None, int]:
+        levels = [lv for lv in by_type.get(kind, {}) if lv <= (level or 0)]
+        return by_type[kind][max(levels)].most_common(1)[0][0] if levels else (None, 0)
+    return rule
+
+
 def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, info: dict, remap: dict,
               schema: str = 'main') -> tuple[list[str], list[tuple]]:
     """The imported rows of one table in the target's columns."""
@@ -352,6 +377,7 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
         elif seen and seen <= {0, 1}:
             int_bools.add(c)
     mastery = mastery_requirements(db, imported, info, schema) if table == 'ItemClassInfo' else {}
+    armor = armor_requirements(db, schema) if table == 'ItemClassInfo' else None
     template = None
     if table == 'FeatureMatrix':
         template = db.execute(f'SELECT * FROM {schema}.[FeatureMatrix] WHERE Feature=?', (FEATURE_TEMPLATE,)).fetchone()
@@ -371,6 +397,11 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
                 out[c] = int(out[c] == 'True')
         if out.get('ItemClass') in mastery and 'RequiredSkill' in out:
             out['RequiredSkill'], out['RequiredSkillRank'] = mastery[out['ItemClass']]
+        if armor and out.get('TradeCategory') in ARMOR_PARTS and out.get('TradeCategorySub') in ARMOR_TYPES:
+            part, kind = out['TradeCategory'], out['TradeCategorySub']
+            if out.get('RequiredSkill') == COMMON_ARMOR_MASTERY:
+                out['RequiredSkill'], out['RequiredSkillRank'] = armor(kind, out.get('RequiredLevel'))
+            out['TradeCategory'], out['TradeCategorySub'] = kind, f'{kind}_{part}'
         if 'ClassRestriction' in out and isinstance(out['ClassRestriction'], str):
             out['ClassRestriction'] = 1 << info['index'] if names_class(out['ClassRestriction'], info['name']) else 0
         if table == 'EquipItemInfo' and remap and out.get('CostumeType') is not None:

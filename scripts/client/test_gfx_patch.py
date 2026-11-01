@@ -49,6 +49,20 @@ class GfxPatchTest(unittest.TestCase):
         with self.assertRaises(g.GfxError):
             g.with_class_frame(src, 'Miri', 'portrait.dds', donor='Kay')
 
+    def test_an_array_entry_is_appended_to_the_root_actions(self):
+        # push "labels" twice; pop; end
+        body = bytes((0x08, 0x00)) + struct.pack('<HH', 0, 1) + tag(12, b'\x96\x09\x00\x00labels\x00\x00\x17\x00') + tag(0, b'')
+        src = b'GFX\x09' + struct.pack('<I', 8 + len(body)) + body
+        out = g.with_array_entry(src, 'labels', 11, 'Miri')
+        self.assertEqual(struct.unpack_from('<I', out, 4)[0], len(out))
+        top = list(g._tags(out, 8 + 2 + 4, len(out)))
+        block = next(out[b:b + l] for c, _, b, l in top if c == 12)
+        self.assertTrue(block.startswith(b'\x96\x09\x00\x00labels\x00\x00\x17'))
+        self.assertTrue(block.endswith(b'\x96\x08\x00\x00labels\x00\x1c\x96\x0b\x00\x07\x0b\x00\x00\x00\x00Miri\x00\x4f\x00'))
+        self.assertIsNone(g.with_array_entry(out, 'labels', 11, 'Miri'))
+        with self.assertRaises(g.GfxError):
+            g.with_array_entry(src, 'other', 11, 'Miri')
+
     def test_the_portrait_is_a_dxt5_atlas(self):
         from PIL import Image
         bust = Image.new('RGBA', (95, 95), (200, 100, 50, 255))

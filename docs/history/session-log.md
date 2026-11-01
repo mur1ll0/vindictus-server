@@ -3009,3 +3009,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI20 (pendente, com MI17–MI19).
 - Commits: (este passo)
 - Pendente / próxima ação: MI17–MI20 no cliente; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-10-31 — Miri M7p: correções da MI17–MI20 e efeitos das SP
+- Feito: MI17–MI20 jogadas (retrato ainda errado, dragão com NPC, conjuntos vermelhos sem ícone, Dragon Knight em *wireframe*; pedido: efeitos de Blazing Spine e Slice and Dice). `gfx_patch.with_array_entry` (`characterImageLabel[11] = "Miri"` no fim das ações raiz do `SelectCharacterDialog_V2.gfx`; `CLASS_LIST_PORTRAITS` com o índice). `CHAIN.in_town_predicate` `+0x38` (todos os estados de cidade). `class_imports.armor_requirements` (maestria comum do NA → maestria do tipo no *rank* do 1.69; `TradeCategory`/`Sub` na forma do 1.69). `stage_na_class`: `imported_icons`, `pbs_as_armor` (materiais `Heroes_PBS*` → `Heroes_Armor`), `without_csf_weapon` (o `.csf` do Dragon Knight sem a arma do NA), `dependencies` dos `.efx`.
+- Verificação: `test_gfx_patch test_apply_lab_content_additions` OK (`r2/r7-tests.log`), `test_stage_na_class` OK (`r2/r8-stage-tests.log`), `scripts/content/test_class_imports` OK (`r2/r8-imports-tests.log`), `test_patch_class_routing -k chain/town/flamebreath/draker` 6 OK (`r2/r8-routing-tests.log`). Aplicado com o jogo fechado: preparação 4.500 arquivos (`r2/stage8.log`), `refresh_item_content.py --force` 728 s (`r2/refresh8.log`), `apply8.log`, roteamento (`r2/routing-apply-r8.log`): `client.dll` `ff8ef33a242a99cb` → `b7d9f7ec9cacafe3` (anterior em `*.pre-r8.bak`), `server.dll` sem mudança `4161f1d0c6e53f3d`. Na cópia: `dragon_rise_head` `LIGHTARMOR`/`skill_light_armor_mastery` 5; painel com a maestria leve 5/6.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI17–MI20 e MI21 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI21 no cliente; gasto de SP da transformação; XE como habilidade extra.

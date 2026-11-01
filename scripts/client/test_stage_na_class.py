@@ -190,6 +190,47 @@ class StageTest(unittest.TestCase):
                          {states: 'scripts/actionstate/player_action_state_miri.txt',
                           anim + 'pc_miri_motion_ex.txt': anim + 'pc_miri_motion.txt'})
 
+    def test_effects_bring_their_materials(self):
+        efx = b'"particle"\r\n{\r\n\t"material"\t\t"effects/fire_ani_03"\r\n\t"model" "models/effects/x.mdl"\r\n}\r\n'
+        self.assertEqual(stage.dependencies('effects/player/miri/sp3.efx', efx),
+                         ['materials/effects/fire_ani_03.vmt', 'models/effects/x.mdl'])
+
+    def test_pbs_materials_become_heroes_armor(self):
+        vmt = (b'"Heroes_PBS_Texture_Transition"\r\n{\r\n\t"$basetexture" "m\\black"\r\n\t"$bumpmap" "m\\normal"\r\n'
+               b'\t"$alphatest" 1\r\n\t"$metallic" 0\r\n\t"$transition_map" "m\\knight"\r\n}\r\n'
+               b'// "Heroes_Armor"\r\n// {\r\n//\t"$basetexture" "m\\old"\r\n// }\r\n')
+        out = stage.pbs_as_armor('materials/m/knight.vmt', vmt).decode()
+        self.assertTrue(out.startswith('"Heroes_Armor"'))
+        self.assertIn('"$basetexture" "m\\knight"', out)
+        self.assertIn('"$bumpmap" "m\\normal"', out)
+        self.assertIn('"$alphatest" "1"', out)
+        self.assertNotIn('metallic', out)
+        self.assertNotIn('old', out)
+        plain = b'"Heroes_Armor"\r\n{\r\n}\r\n'
+        self.assertEqual(stage.pbs_as_armor('materials/m/a.vmt', plain), plain)
+        self.assertEqual(stage.pbs_as_armor('models/m/a.mdl', vmt), vmt)
+
+    def test_the_dragon_knight_look_keeps_the_held_weapon(self):
+        csf = (b'"costume"\r\n{\r\n\t"upper_body"\r\n\t{\r\n\t\t"sn"\t\t"500152"\r\n\t}\r\n'
+               b'\t"weapon"\r\n\t{\r\n\t\t"name"\t\t"weapon_draker"\r\n\t\t"sub_type"\t\t"1033"\r\n\t}\r\n}\r\n')
+        out = stage.without_csf_weapon(csf)
+        self.assertNotIn(b'weapon', out)
+        self.assertIn(b'"500152"', out)
+        self.assertEqual([c.key for c in stage.kv_merge.parse(out).children[0].children], ['upper_body'])
+
+    def test_imported_item_icons_are_staged(self):
+        import sqlite3
+        db_path = Path(self.temp.name) / 'miri.db3'
+        db = sqlite3.connect(db_path)
+        db.execute('CREATE TABLE ItemClassInfo (ItemClass TEXT, Icon TEXT, IconFG TEXT, IconBG TEXT)')
+        db.execute("INSERT INTO ItemClassInfo VALUES ('dragon_rise_head', 'eq_dragon_rises_female_head', NULL, 'bg_redflame')")
+        db.commit(); db.close()
+        na = {'scaleform/item_icon/eq_dragon_rises_female_head.tga': 0, 'scaleform/item_icon/bg_redflame.tga': 0,
+              'scaleform/item_icon/other.tga': 0}
+        self.assertEqual(stage.imported_icons('miri', na, db_path),
+                         {'scaleform/item_icon/eq_dragon_rises_female_head.tga', 'scaleform/item_icon/bg_redflame.tga'})
+        self.assertEqual(stage.imported_icons('miri', na, Path(self.temp.name) / 'none.db3'), set())
+
     def test_donor_states_fill_what_the_class_lacks(self):
         mine = (b'"PlayerActionState"\r\n{\r\n\t"Header"\r\n\t{\r\n\t}\r\n'
                 b'\t"StateChangeConditionDefine"\r\n\t{\r\n\t\t"JumpAttackStrong"\r\n\t\t{\r\n\t\t\t"priority"\t"9"\r\n\t\t}\r\n\t}\r\n'

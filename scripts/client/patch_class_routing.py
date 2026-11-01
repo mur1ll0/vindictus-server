@@ -477,8 +477,8 @@ CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0
 # player handle) in .hrte. The arm chain's model is precached first (client PrecacheModel 0x3879f280):
 # InitializeAsClientEntity only takes a precached model (modelinfo GetModelIndex -1 -> false, 0x38059b90),
 # and without it the arm chain never appeared (C4 MI10, memory: arm handle -1). In town (the game state,
-# as NA asks it: GameStateManager001 through the client's getter 0x38021bf0, predicate +0x20 = states
-# 14, 17, 35; memory, C4 MI10: Colhen 14, its port 17, the boat 23; the level name is no guide, `t01` in Colhen and
+# as NA asks it: GameStateManager001 through the client's getter 0x38021bf0, predicate +0x38 = every town state (CHAIN_TOWN_STATES; it was +0x20,
+# 14, 17, 35, until C4 MI20); memory, C4 MI10: Colhen 14, its port 17, the boat 23; the level name is no guide, `t01` in Colhen and
 # `lobby_multiplayer` on the boat) the cable joins the weapon's `chain_01` to its own `chain_town`
 # (10 segments, as NA's town cable) and nothing ties it to the hand; a weapon without `chain_town` gets
 # the battle cable. The cable and the arm chain exist only while the weapon itself is drawn, through the
@@ -494,7 +494,7 @@ CHAIN = {'client.dll': {'think': 334, 'active_weapon': 0x1140, 'handle_get': 0x3
                         'new': 0x380528B0, 'animating': 0x380431F0, 'animating_size': 0xCA0,
                         'initialize': 0x148, 'follow': 0x380136D0, 'add_effects': 0x380107F0,
                         'remove_effects': 0x38018640, 'effects': 0x7C, 'precache_model': 0x3879F280,
-                        'game_state': 0x38021BF0, 'in_town_predicate': 0x20, 'should_draw': 0x0C}}
+                        'game_state': 0x38021BF0, 'in_town_predicate': 0x38, 'should_draw': 0x0C}}
 CHAIN_HEADS = {'handle_get': '8b0183f8ff', 'handle_set': '568bf18b4c2408', 'remove': '568bf180be5b01000000',
                'create': '5668380c0000', 'new': 'a1c4a3ad38', 'animating': '515355568bf1', 'follow': '8b442404568bf185c0',
                'add_effects': '8b44240409417c', 'remove_effects': '8b4424048bd0f7d221517c',
@@ -506,7 +506,10 @@ CHAIN_ENTRY = 32
 CHAIN_ROPE = {'material': 'cable/heroes_metalchain_05', 'width': 1.5, 'segments': 19, 'flags': 8,
               'slack': 1.1, 'length': -1.0}
 CHAIN_ARM_MODEL = 'models/weapon/draker/draker_chain.mdl'
-CHAIN_TOWN_STATES = (14, 17, 35)  # engine.dll HeroesGameStateManager predicate +0x20 (0x4240cb50)
+# engine.dll HeroesGameStateManager predicate +0x38 (0x4240cc50): every town state, the open town (+0x20: 14, 17,
+# 35) and its sub-states (+0x1c: buildings, NPC talk...). With +0x20 alone, talking to an NPC in town left the
+# town states and showed the Flamebreath dragon (C4 MI20).
+CHAIN_TOWN_STATES = (14, 15, 16, 17, 18, 19, 20, 21, 22, 33, 35, 36, 42, 43)
 CHAIN_TOWN_ROPE = {'segments': 10, 'slack': 1.2}
 CHAIN_TOWN_ATTACHMENT = 'chain_town'
 CHAIN_WEAPON_ATTACHMENT = 'chain_01'

@@ -317,3 +317,20 @@ Limites conhecidos: sem a troca de textura do NA (`AE_CL_TEXTURE_TRANSITION`); a
 Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7o).
 - [ ] Seleção de personagens: a `MiriLab` mostra o retrato da Miri (cabelo preto, fundo escuro) na lista, no lugar do rosto de homem; as outras classes (Delia inclusive) continuam com os retratos delas.
 - [ ] Painel → Itens → buscar `pythonshock` e `dragon_rise` → cinco peças de cada conjunto único da Miri (níveis 60 e 54); dar à `MiriLab` e vestir → a dica mostra o conjunto e os bônus ativos conforme o número de peças.
+
+Resultado da MI17–MI20 (31/10/2026, `MiriLab`, capturas do operador):
+- Seleção: retrato ainda de homem. O filme mapeia o número da classe para o rótulo por `characterImageLabel = new Array("Lethita", .., "Delia")`; o quadro `Miri` sozinho não bastava.
+- Dragão de Flamebreath aparece ao falar com NPC na estalagem: o teste de cidade só via 14, 17, 35; a conversa troca o estado (subestados de cidade).
+- Dragon Rise e Pythonshock em vermelho, sem ícone: o NA exige `skill_common_armor_mastery`, que o 1.69 não tem, e arquiva a armadura como parte/tipo; os ícones não tinham `miri` no nome e não vieram.
+- Dragon Knight no barco: modelo branco em *wireframe* (material `Heroes_PBS_Texture_Transition` do NA, sem *shader* no 1.69); o `.csf` também nomeia a arma do NA.
+- Pedido novo: efeitos de Blazing Spine (chama azul) e Slice and Dice não aparecem: os materiais citados pelos `.efx` não eram preparados (40 faltando, entre eles `effects/fire_ani_03`, `effects/dark_02`).
+
+### MI21 — Correções da MI17–MI20 e efeitos das SP
+Pré-condição: com o jogo fechado, preparação, `refresh_item_content.py --force` (reinicia o `game`), `apply_lab_content_additions.py --apply` e o roteamento do `client.dll` refeito (feitos por mim; passo M7p).
+- [ ] Seleção: a `MiriLab` com o retrato da Miri (cabelo preto, fundo escuro); as outras classes como antes.
+- [ ] Cidade e estalagem: falar com NPCs, abrir lojas e entrar em prédios → o dragão não aparece; barco e fase → aparece.
+- [ ] Inventário: Dragon Rise (54) e Pythonshock (60) com ícone, pedindo Light Armor Mastery (rank 5 e 6) em vez de algo vermelho impossível; com a maestria, vestem; bônus de conjunto na dica. Painel: as peças na categoria Light Armor.
+- [ ] Barco/fase: Ancestral Garb → a armadura de Dragon Knight aparece com textura (não branca); a arma continua a dela; ao fim, a roupa volta.
+- [ ] Blazing Spine → chama azul saindo da arma; Slice and Dice → efeito escuro de corte; outras habilidades com efeitos próprios (Fiery Chainswing, Call of the Dragon) também mostram efeito.
+- [ ] Draker de nível alto (ex.: `draker_orna`, 115) → modelo com textura (antes podia ficar branco).
+Limites conhecidos: o material da armadura de Dragon Knight e das Draker novas usa o *shader* de armadura do 1.69 (sem o PBS do NA); `effects/fire_ani_03_blue` não existe no NA; a transformação mantém a arma atual.
