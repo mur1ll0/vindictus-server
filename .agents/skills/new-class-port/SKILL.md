@@ -94,6 +94,11 @@ Evidência e passo de cada uma: `references/armadilhas.md`.
 - **Rastros de arma cabem em 12 alças** no cliente 1.69 (`C_PlaneTrail`, rastros × faixa de `attack_points`
   ≤ 12; a espada grande usa 4 × 3). Passar disso derruba o cliente ao montar a arma (Miri M7u,
   `class_costumes.fitting_trails`).
+- **Máscara "todas as classes" do 1.69 é 2047** (classes 0–10): linhas de `ItemClassInfo`, `SkillInfo`,
+  `StoryLineInfo` e `TitleInfo` com ela precisam do bit da classe nova, senão a classe fica sem histórias
+  (Miri M7v, `class_imports.SHARED_TABLES`).
+- **Texto de habilidade vem do id** (`HEROES_SKILL_NAME_<id>`, `HEROES_SKILL_DESC_<id>_ex`), não do
+  `SkillName` da tabela: habilidade copiada de doadora precisa dos textos renomeados (Miri M7v).
 - **`onepiece` no `player_costume.txt`** aponta para outra entrada da mesma seção (corpo inteiro); traga a
   entrada e o modelo junto, ou peitoral e calça se escondem (Miri M7u).
 - **Limites de 10 classes** aparecem como `cmp reg, 9; ja`, `cmp reg, 0xa; jge`, `cmp R, 0xa; jl; xor R, R`

@@ -238,6 +238,22 @@ def donor_xe_rows(base: sqlite3.Connection, table: str, column: str, cols: list[
     return rows
 
 
+def donor_xe_tokens(text: str, classes: list[str]) -> dict[str, str]:
+    """The 1.69 text of the donor's XE skill (class_costumes.XE_SKILL) under each class's skill id: the client
+    names a skill's text after its id (HEROES_SKILL_NAME_<id>, HEROES_SKILL_DESC_<id>_ex,
+    GameUI_Heroes_Desc_<id>_<rank>), not after SkillInfo.SkillName, and showed the keys (C4 MI25)."""
+    donor = class_costumes.XE_SKILL.format(klass=class_costumes.XE_DONOR).lower()
+    out = {}
+    for key, value in TOKEN_LINE.findall(text):
+        at = key.lower().find(donor)
+        if at < 0:
+            continue
+        for name in classes:
+            own = class_costumes.XE_SKILL.format(klass=name)
+            out.setdefault(key[:at] + own + key[at + len(donor):], value)
+    return out
+
+
 def build(name: str, weapon: str, index: int, stats_from: int, na_path: Path, base_path: Path, out_dir: Path) -> dict:
     if not NAME.match(name) or not NAME.match(weapon) or not 10 <= index < 32 or not 0 <= stats_from < index:
         raise ImportError_('Class and weapon names must be lower-case words, the class 10-31 and stats_from below it.')
@@ -502,10 +518,33 @@ def shared_skills(db: sqlite3.Connection, info: dict, na_restrictions: dict, sch
     return out
 
 
+# Other 1.69 rows with a class mask: the ones for every 1.69 class (ALL_169) are for every class, the imported
+# one too. The 822 storylines and 1,029 titles for every class left the Miri out of the whole story: Marrec's
+# Story ended in GameUI_Heroes_NPCTalkEntity_Talk_NullError,start_storyline, Ceara never offered the XE
+# move's skill_all_xe_move, and the panel's "reach a level" completed no main storyline (C4 MI25).
+SHARED_TABLES = {'StoryLineInfo': 'StoryLineID', 'TitleInfo': 'ID'}
+
+
+def shared_rows(db: sqlite3.Connection, info: dict, table: str, key: str, na_restrictions: dict,
+                schema: str = 'main') -> list:
+    """Keys of the `table` rows every 1.69 class has that the class gets its bit on, unless the NA leaves
+    the class out."""
+    if not {key, 'ClassRestriction'} <= set(columns(db, table, schema)):
+        return []
+    out = []
+    for row_key, mask in db.execute(f'SELECT [{key}], ClassRestriction FROM {schema}.[{table}]'):
+        if isinstance(mask, int) and mask & ALL_169 == ALL_169 and not mask & (1 << info['index']) \
+                and not excludes_class(na_restrictions.get(row_key), info['name']):
+            out.append(row_key)
+    return out
+
+
 def na_restrictions(imported_path: Path, table: str = 'ItemClassInfo', key: str = 'ItemClass') -> dict:
     with closing(sqlite3.connect(f'file:{imported_path}?mode=ro', uri=True)) as imported:
         source = imported.execute('SELECT source FROM [_class]').fetchone()[0]
     with closing(sqlite3.connect(f'file:{source}?mode=ro', uri=True)) as na:
+        if not {key, 'ClassRestriction'} <= set(columns(na, table)):
+            return {}
         return dict(na.execute(f'SELECT [{key}], ClassRestriction FROM [{table}]'))
 
 
@@ -517,6 +556,7 @@ def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None
     imported_rows: dict[str, list] = collections.defaultdict(list)
     bits: dict[str, int] = collections.defaultdict(int)
     skill_bits: dict[str, int] = collections.defaultdict(int)
+    row_bits: dict[str, dict] = {t: collections.defaultdict(int) for t in SHARED_TABLES}
     stats = []
     for path in paths:
         with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as imported:
@@ -529,6 +569,9 @@ def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None
                 bits[item] |= 1 << info['index']
             for skill in shared_skills(db, info, na_restrictions(path, 'SkillInfo', 'SkillID')):
                 skill_bits[skill] |= 1 << info['index']
+            for table, key in SHARED_TABLES.items():
+                for row in shared_rows(db, info, table, key, na_restrictions(path, table, key)):
+                    row_bits[table][row] |= 1 << info['index']
             stats.append(info)
             report[info['name']] = {t: len(r) for t, r in imported_rows.items()}
     for table, rows in imported_rows.items():
@@ -555,8 +598,15 @@ def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None
         db.execute('CREATE TEMP TABLE [_class_base_SkillInfo] AS SELECT * FROM main.[SkillInfo]')
         db.executemany('UPDATE temp.[_class_base_SkillInfo] SET ClassRestriction = ClassRestriction | ? WHERE SkillID=?',
                        [(bit, skill) for skill, bit in skill_bits.items()])
+    for table, key in SHARED_TABLES.items():
+        if row_bits[table]:
+            db.execute(f'CREATE TEMP TABLE [_class_base_{table}] AS SELECT * FROM main.[{table}]')
+            db.executemany(f'UPDATE temp.[_class_base_{table}] SET ClassRestriction = ClassRestriction | ? WHERE [{key}]=?',
+                           [(bit, row) for row, bit in row_bits[table].items()])
+            if table not in imported_rows:
+                db.execute(f'CREATE TEMP VIEW [{table}] AS SELECT * FROM temp.[_class_base_{table}]')
     from content_additions import TABLES as ITEM_EDITOR_TABLES  # noqa: PLC0415 (circular at import time)
-    based = {'ItemClassInfo': bool(bits), 'SkillInfo': bool(skill_bits)}
+    based = {'ItemClassInfo': bool(bits), 'SkillInfo': bool(skill_bits), **{t: bool(b) for t, b in row_bits.items()}}
     for table in imported_rows:
         if table in ITEM_EDITOR_TABLES:
             continue  # content_additions.install builds these views (class base + imported + added rows)
@@ -565,6 +615,7 @@ def install_server(db: sqlite3.Connection, paths: list[Path], remap: dict | None
     db.commit()
     report['class_bits'] = len(bits)
     report['skill_bits'] = len(skill_bits)
+    report['shared_bits'] = {t: len(b) for t, b in row_bits.items()}
     return report
 
 
@@ -574,7 +625,7 @@ def apply_client(db: sqlite3.Connection, original: sqlite3.Connection | None, pa
     (`original`, the copy before any laboratory change), then gets the imported rows and the class bits.
     Run before the item editor's rows (they go on top)."""
     report = {}
-    tables = set(TABLES)
+    tables = set(TABLES) | set(SHARED_TABLES)
     if original is not None:
         for table in sorted(tables):
             if columns(db, table) and columns(original, table):
@@ -601,6 +652,11 @@ def apply_client(db: sqlite3.Connection, original: sqlite3.Connection | None, pa
             db.executemany('UPDATE main.[SkillInfo] SET ClassRestriction = ClassRestriction | ? WHERE SkillID=?',
                            [(1 << info['index'], skill) for skill in skills])
             counts['skill_bits'] = len(skills)
+            for table, key in SHARED_TABLES.items():
+                rows = shared_rows(db, info, table, key, na_restrictions(path, table, key))
+                db.executemany(f'UPDATE main.[{table}] SET ClassRestriction = ClassRestriction | ? WHERE [{key}]=?',
+                               [(1 << info['index'], row) for row in rows])
+                counts[f'{table}_bits'] = len(rows)
             report[info['name']] = counts
     return report
 

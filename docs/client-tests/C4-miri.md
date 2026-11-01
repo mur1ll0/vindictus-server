@@ -373,3 +373,13 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Vestir as cinco peças de Dragon Rise → corpo inteiro (peitoral e calça juntos, como peça única); tirar uma das duas → a outra aparece sozinha.
 - [ ] Equipar e desequipar peças várias vezes, na cidade e numa fase → sem queda.
 - [ ] Combate → rastros de fogo azul da Draker nos golpes (rastros 0–3).
+
+Resultado da MI25 (01/11/2026, `MiriLab`): Dragon Rise inteiro e efeitos aprovados; transformação sem dreno contínuo de SP (correto: o NA gasta 200 uma vez). XE Move aparece na janela de habilidades com as chaves de texto (`HEROES_SKILL_NAME_skill_miri_xe_move`, `HEROES_SKILL_DESC_skill_miri_xe_move_ex`) e a Ceara não oferece a história que o libera; a história principal quebrou: Marrec → Story → `GameUI_Heroes_NPCTalkEntity_Talk_NullError,start_storyline`. Causa: as 822 histórias e 1.029 títulos do 1.69 para todas as classes têm a máscara 2047 (classes 0–10), sem a Miri; o "atingir nível 61" do painel completou 183 missões e nenhuma história principal. Corrigido no M7v.
+
+### MI26 — Histórias, XE Move e título
+Pré-condição: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7v). DLLs sem mudança. Depois, com a `MiriLab` desconectada, no painel: personagem → **Atingir nível** 61 de novo (o mesmo nível é aceito; completa as histórias principais até o 61 e abre as seguintes; as missões já feitas ficam como estão).
+- [ ] Entrar com a `MiriLab` → Marrec e os outros NPCs com `?` abrem a história sem o erro `NullError,start_storyline`.
+- [ ] Janela de habilidades → XE Move com nome e descrição (textos da Delia), sem chaves `HEROES_...`.
+- [ ] Ceara → história **XE Move** (`skill_all_xe_move`) oferecida; aceitar e falar com ela → XE Move liberado para treinar (rank 1, 0 AP); treinar e usar em combate (ataque + golpe forte).
+- [ ] Diário de histórias → as principais até o nível 61 concluídas e a seguinte aberta.
+Relatar: o que cada NPC ofereceu e se algum erro de NPC apareceu.

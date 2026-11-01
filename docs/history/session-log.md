@@ -3051,3 +3051,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI24 e MI25 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI25 no cliente (com o resto da MI23/MI24); corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7v: histórias, títulos e texto do XE Move
+- Feito: MI25 jogada (Dragon Rise e efeitos aprovados; transformação sem dreno contínuo confirmada pelo texto do NA, "SP Consumed: 200"; XE Move com chaves de texto; Ceara sem a `skill_all_xe_move`; Marrec com `NPCTalkEntity_Talk_NullError,start_storyline`). Causa: 822 `StoryLineInfo` e 1.029 `TitleInfo` do 1.69 com a máscara 2047 (classes 0–10); a MiriLab tinha 183 missões e nenhuma história principal (o plano do painel pula linhas não permitidas). `class_imports.SHARED_TABLES`/`shared_rows` (servidor: visões de `install_server`; cliente: `apply_client`, com restauração do original), `donor_xe_tokens` (textos da `skill_delia_xe_move` com o id da classe, no aplicador; o cliente nomeia o texto pelo id). Painel sem mudança de código: o operador refaz "Atingir nível 61".
+- Verificação: `test_class_imports test_class_costumes` OK (`.cache/verification/miri/r3/t9-content.log`), `test_stage_na_class test_apply_lab_hfs test_apply_lab_content_additions` OK (`r3/t9-client.log`). `refresh_item_content.py --force` (`r3/refresh2.log`; `npc-scripts.json` com `skill_all_xe_move` 4095), `apply3.log` (735 histórias e 1.029 títulos com o bit 2048 no `heroes.db3` da cópia; 35 textos do XE no pacote de texto). Estado da MiriLab lido só para leitura (50 linhas de história: eventos e despedidas automáticas; nenhuma principal).
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI25 e MI26 (pendente; operador refaz "Atingir nível 61").
+- Commits: (este passo)
+- Pendente / próxima ação: MI26 no cliente; corrigir o que o operador relatar.

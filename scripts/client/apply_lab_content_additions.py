@@ -464,6 +464,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     costumes = [c for item in items for c in item.get('costumes', [])]
     costumes += class_weapon_costumes(assets)
     class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
+    class_names = [class_imports.read_meta(p)['name'] for p in class_imports.load_imports(content_additions.CLASS_IMPORTS)]
     if (not items and not entries and not class_files and not merges and not class_tokens
             and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
@@ -481,8 +482,10 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
             for e in hfs.read_pack(source[path], ks):
                 if e.name == f'heroes_text_{language}.txt':
                     # Class tokens only where the 1.69 has no line; the item editor's replace theirs.
-                    present = {k.lower() for k, _ in class_imports.TOKEN_LINE.findall(e.data.decode('utf-16'))}
-                    added = {k: v for k, v in class_tokens.items() if k.lower() not in present}
+                    text = e.data.decode('utf-16')
+                    present = {k.lower() for k, _ in class_imports.TOKEN_LINE.findall(text)}
+                    tokens = {**class_imports.donor_xe_tokens(text, class_names), **class_tokens}
+                    added = {k: v for k, v in tokens.items() if k.lower() not in present}
                     e = hfs.Entry(e.name, with_tokens(e.data, {**added, **entries}), e.attr)
                 pack.append(e)
             wanted[path] = hfs.build_pack(pack, ks)

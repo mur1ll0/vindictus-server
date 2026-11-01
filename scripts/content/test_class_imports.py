@@ -61,6 +61,8 @@ def make(path: Path, na: bool) -> None:
             db.execute("INSERT INTO SkillInfo VALUES('skill_defence_mastery', '!grimden')")
             db.execute("INSERT INTO SkillInfo VALUES('skill_no_miri', '!miri')")
             db.execute("INSERT INTO SkillRankInfo VALUES('skill_miri_attack', 1, 'Miri')")
+            db.execute('CREATE TABLE StoryLineInfo(StoryLineID TEXT, ClassRestriction TEXT)')
+            db.execute("INSERT INTO StoryLineInfo VALUES('story_no_miri', '!miri')")
             db.execute("INSERT INTO RecipeMaterialInfo VALUES('recipe_draker', 'draker_newbie', 1, 0)")
             db.execute("INSERT INTO RecipeMaterialInfo VALUES('recipe_draker', 'gold', 10, 1)")
             db.execute("INSERT INTO RecipeMaterialInfo VALUES('recipe_draker_new', 'draker_newbie', 1, 0)")
@@ -81,6 +83,12 @@ def make(path: Path, na: bool) -> None:
             db.execute("INSERT INTO SkillInfo VALUES('skill_defence_mastery', 2047)")
             db.execute("INSERT INTO SkillInfo VALUES('skill_no_miri', 2047)")
             db.execute("INSERT INTO CraftShopInfo VALUES('_Craft', 40, 'recipe_sword')")
+            # storylines and titles for every 1.69 class; the NA leaves Miri out of one storyline
+            db.execute('CREATE TABLE StoryLineInfo(StoryLineID TEXT, ClassRestriction INT)')
+            db.executemany('INSERT INTO StoryLineInfo VALUES(?,?)',
+                           [('skill_all_xe_move', 2047), ('story_no_miri', 2047), ('story_fiona', 2)])
+            db.execute('CREATE TABLE TitleInfo(ID INT, ClassRestriction INT)')
+            db.executemany('INSERT INTO TitleInfo VALUES(?,?)', [(1, 2047), (2, 1024)])
             db.execute("INSERT INTO FeatureMatrix VALUES('Delia', '3.09.00', '3.09.00', '3.09.00', '3.09.00')")
             db.execute("INSERT INTO FeatureMatrix VALUES('enUS', '1', '1', NULL, NULL)")
             db.execute("INSERT INTO FeatureMatrix VALUES('enEU', NULL, NULL, '1', '1')")
@@ -131,6 +139,11 @@ class ClassImportsTest(unittest.TestCase):
                              [('skill_fiona_attack', 2), ('skill_defence_mastery', 4095), ('skill_no_miri', 2047),
                               ('skill_miri_attack', 2048)])
             self.assertEqual((report['class_bits'], report['skill_bits']), (1, 1))
+            # storylines and titles for every class take the class too (C4 MI25)
+            self.assertEqual(dict(db.execute('SELECT * FROM StoryLineInfo')),
+                             {'skill_all_xe_move': 4095, 'story_no_miri': 2047, 'story_fiona': 2})
+            self.assertEqual(dict(db.execute('SELECT * FROM TitleInfo')), {1: 4095, 2: 1024})
+            self.assertEqual(report['shared_bits'], {'StoryLineInfo': 1, 'TitleInfo': 1})
             # The NA 0/1 becomes the 1.69 text boolean of the column.
             # ... and the NA US region becomes the laboratory's EU region.
             self.assertEqual(db.execute("SELECT IsCash, Feature, CashShopType FROM CustomizeItemInfo "
@@ -149,7 +162,11 @@ class ClassImportsTest(unittest.TestCase):
             self.assertEqual(dict(db.execute("SELECT SkillID, ClassRestriction FROM SkillInfo WHERE SkillID IN "
                                              "('skill_defence_mastery', 'skill_no_miri')")),
                              {'skill_defence_mastery': 4095, 'skill_no_miri': 2047})
+            self.assertEqual(dict(db.execute('SELECT * FROM StoryLineInfo')),
+                             {'skill_all_xe_move': 4095, 'story_no_miri': 2047, 'story_fiona': 2})
+            self.assertEqual(report['miri']['TitleInfo_bits'], 1)
             class_imports.apply_client(db, backup, [])
+            self.assertEqual(db.execute("SELECT ClassRestriction FROM StoryLineInfo WHERE StoryLineID='skill_all_xe_move'").fetchone()[0], 2047)
             self.assertEqual(db.execute("SELECT ClassRestriction FROM SkillInfo WHERE SkillID='skill_defence_mastery'").fetchone()[0], 2047)
             self.assertEqual(db.execute('SELECT count(*) FROM ItemClassInfo').fetchone()[0], 6)
             self.assertEqual(db.execute("SELECT ClassRestriction FROM ItemClassInfo WHERE ItemClass='potion'").fetchone()[0], 2047)
@@ -232,6 +249,15 @@ class ClassImportsTest(unittest.TestCase):
             # a class with its own XE keeps it
             self.assertEqual(class_imports.donor_xe_rows(base, 'SkillInfo', 'SkillID', ['SkillID'], 'miri',
                                                          {'skill_miri_xe_move'}), [])
+
+    def test_the_class_xe_takes_the_donor_text(self):
+        text = ('"lang"\r\n{\r\n\t"Tokens"\r\n\t{\r\n'
+                '\t\t"HEROES_SKILL_NAME_SKILL_DELIA_XE_MOVE"\t"XE Move"\r\n'
+                '\t\t"GAMEUI_HEROES_DESC_SKILL_DELIA_XE_MOVE_F_EX"\t"Increases damage by 10%."\r\n'
+                '\t\t"HEROES_SKILL_NAME_SKILL_DELIA_SP1"\t"Other"\r\n\t}\r\n}\r\n')
+        self.assertEqual(class_imports.donor_xe_tokens(text, ['miri']),
+                         {'HEROES_SKILL_NAME_skill_miri_xe_move': 'XE Move',
+                          'GAMEUI_HEROES_DESC_skill_miri_xe_move_F_EX': 'Increases damage by 10%.'})
 
     def test_bad_arguments_are_refused(self):
         with self.assertRaises(class_imports.ImportError_):
