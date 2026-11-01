@@ -407,6 +407,43 @@ FLAMEBREATH_HEADS = {'server.dll': {'set': '568bf18b06', 'raise': '8bc18b4c2404'
 FLAMEBREATH_LEVELS = 8
 FLAMEBREATH_RESTORE = (7.0, 7.0)  # first, normal (seconds)
 FLAMEBREATH_RESTORE_TRANSFORMED = (5.0, 4.0)  # DragonEnergy_transform
+# Dragon Knight look (Miri M7n). NA: EQUIP_DRAGON_KNIGHT_ARMOR dresses the player in
+# csf/metamorphosis/miri_dragon_knight.csf (0x6ddd60) and PURGE gives the outfit back. In the 1.69 a .csf
+# is put on the player by 0x4056a140(player, path, 1, 0, 0, 1, 0, 0) (cdecl; the metamorphosis' load_csf,
+# 0x405977a0) and the model rebuilt by 0x405465d0; the metamorphosis saves the appearance before
+# (0x40599330) and gives it back after (0x40596380) through getter/setter pairs. The Miri's server think
+# does the same on her transformed state: per player (DRAGON_KNIGHT_PLAYERS entries: player, handle
+# (vtable +8, GetRefEHandle; a new entity at the same address starts clean), dressed, saved fields),
+# it saves the 12 costume slots (part 0x408154b0 -> 0x40547530(slot, part, 0); three colours 0x40815510
+# -> 0x40531a40(slot, i, colour); extra 0x40815550 -> 0x40531aa0(slot, value); the armour state redone
+# as the metamorphosis does, 0x40530e10 / 0x40547480(slot, 1, 0)), the body and face fields
+# (0x408155d0 -> 0x40538e00(0, v); 0x408155f0 -> three 0x40531b10(0, i, v); 0x40816a40..aa0 ->
+# 0x40531b20..b80) on the costume (+0x156c), dresses her and rebuilds; when the state ends it puts them
+# back, then 0x40530df0(0.0), the weapon refresh 0x40559440(-1), the armour status 0x4054e160 and the
+# rebuild, in the metamorphosis' order. Its weapon and model blocks (+0x20c, +0x244) are not taken:
+# this .csf load does not change them.
+DRAGON_KNIGHT_CSF = 'csf/metamorphosis/miri_dragon_knight.csf'
+DRAGON_KNIGHT_PLAYERS = 16
+DRAGON_KNIGHT_ENTRY = 0x130
+DRAGON_KNIGHT_LOOK = {
+    'apply': 0x4056A140, 'rebuild': 0x405465D0, 'costume': 0x156C,
+    'part_get': 0x408154B0, 'color_get': 0x40815510, 'extra_get': 0x40815550,
+    'body_get': 0x408155D0, 'body3_get': 0x408155F0,
+    'part_set': 0x40547530, 'intact': 0x40530E10, 'broken_set': 0x40547480, 'color_set': 0x40531A40,
+    'extra_set': 0x40531AA0, 'scale_set': 0x40530DF0, 'body_set': 0x40538E00, 'body3_set': 0x40531B10,
+    'weapon_refresh': 0x40559440, 'armor_update': 0x4054E160,
+    # (getter, setter) of the face/body values, in the metamorphosis' restore order
+    'face': ((0x40816A50, 0x40531B30), (0x40816A60, 0x40531B40), (0x40816A70, 0x40531B50),
+             (0x40816A80, 0x40531B60), (0x40816A40, 0x40531B20), (0x40816A90, 0x40531B70),
+             (0x40816AA0, 0x40531B80)),
+}
+DRAGON_KNIGHT_LOOK_HEADS = {
+    'apply': '566a28e8', 'rebuild': '83ec1853568b', 'part_get': '8b44240483f8', 'color_get': '8b44240483f8',
+    'extra_get': '8b44240483f8', 'body_get': '8b44240485c0', 'body3_get': '8b44240485c0',
+    'part_set': '538b5c240c55', 'intact': '8b898c140000', 'broken_set': '8b442408568b',
+    'color_set': '81c16c150000', 'extra_set': '81c16c150000', 'scale_set': 'd9442404518b',
+    'body_set': '8b4424085657', 'body3_set': '81c16c150000', 'weapon_refresh': '8b4424046aff',
+    'armor_update': '83ec08568bf1'}
 DRAGON_KNIGHT_EFFECT = 'skill_miri_dragon_transform'
 DRAGON_KNIGHT_TYPE = 'dragonknight_transform'
 FLAMEBREATH_PLAYERS = 16
@@ -2111,6 +2148,134 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
             'on_hit': hex(on_hit)}
 
 
+def dragon_knight_look(image: Image, layout: Layout) -> dict:
+    """DRAGON_KNIGHT_LOOK: look(esi = player, ebx = transformed): dresses the player in DRAGON_KNIGHT_CSF when
+    the state turns on and gives the saved appearance back when it turns off. Keeps ebx and esi."""
+    k = DRAGON_KNIGHT_LOOK
+    for key, head in DRAGON_KNIGHT_LOOK_HEADS.items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    for getter, setter in k['face']:
+        if bytes(image.data[image.offset(getter):image.offset(getter) + 2]) != bytes.fromhex('8b81') or \
+                bytes(image.data[image.offset(setter):image.offset(setter) + 6]) != bytes.fromhex('81c16c150000'):
+            raise PreparationError(f'Unexpected code at {getter:#x}/{setter:#x}; nothing is patched.')
+    L = layout
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def d32(v: int) -> str:
+        return struct.pack('<I', v & 0xFFFFFFFF).hex()
+
+    def call(va: int) -> None:
+        L.to(b'\xe8', va)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    # entry: +0 player, +4 handle, +8 dressed, +0xc parts[12], +0x3c colours[12][3], +0xcc extra[12],
+    # +0xfc body, +0x100 body3[3], +0x10c face[7]
+    parts, colours, extra, body, body3, face = 0x0C, 0x3C, 0xCC, 0xFC, 0x100, 0x10C
+    L.pad()
+    path = L.string(DRAGON_KNIGHT_CSF)
+    L.pad()
+    table = L.here()
+    L.body += bytes(DRAGON_KNIGHT_ENTRY * DRAGON_KNIGHT_PLAYERS)
+
+    def costume() -> None:
+        b('8d8e' + d32(k['costume']))  # lea ecx, [esi + costume]
+
+    # save(esi = player, edi = entry)
+    L.pad()
+    save = L.here()
+    b('53 33db')
+    loop = L.here()
+    costume(); b('53'); call(k['part_get'])
+    b('89849f' + d32(parts))  # mov [edi + ebx*4 + parts], eax
+    b('8d045b 8d8487' + d32(colours) + '50 53')  # lea eax, [ebx*3]; lea eax, [edi + eax*4 + colours]; push eax; push ebx
+    costume(); call(k['color_get'])
+    costume(); b('53'); call(k['extra_get'])
+    b('89849f' + d32(extra))
+    b('43 83fb0c')
+    L.to(b'\x0f\x8c', loop)
+    costume(); b('6a00'); call(k['body_get'])
+    b('8987' + d32(body))
+    b('8d87' + d32(body3) + '50 6a00')
+    costume(); call(k['body3_get'])
+    for i, (getter, _) in enumerate(k['face']):
+        costume(); call(getter)
+        b('8987' + d32(face + 4 * i))
+    b('5b c3')
+
+    # restore(esi = player, edi = entry)
+    L.pad()
+    restore = L.here()
+    b('53 33db')
+    loop = L.here()
+    b('6a00 ffb49f' + d32(parts) + '53 8bce'); call(k['part_set'])
+    b('53 8bce'); call(k['intact'])
+    b('84c0'); intact = fwd('0f85')
+    b('6a00 6a01 53 8bce'); call(k['broken_set'])
+    L.land(intact)
+    for i in range(3):
+        b('8d045b ffb487' + d32(colours + 4 * i) + '6a' + bytes((i,)).hex() + '53 8bce'); call(k['color_set'])
+    b('ffb49f' + d32(extra) + '53 8bce'); call(k['extra_set'])
+    b('43 83fb0c')
+    L.to(b'\x0f\x8c', loop)
+    b('6a00 8bce'); call(k['scale_set'])  # 0.0
+    b('ffb7' + d32(body) + '6a00 8bce'); call(k['body_set'])
+    for i in range(3):
+        b('ffb7' + d32(body3 + 4 * i) + '6a' + bytes((i,)).hex() + '6a00 8bce'); call(k['body3_set'])
+    for i, (_, setter) in enumerate(k['face']):
+        b('ffb7' + d32(face + 4 * i) + '8bce'); call(setter)
+    b('6aff 8bce'); call(k['weapon_refresh'])
+    b('8bce'); call(k['armor_update'])
+    b('8bce'); call(k['rebuild'])
+    b('5b c3')
+
+    # look(esi = player, ebx = transformed)
+    L.pad()
+    look = L.here()
+    b('57 55 8b06 8bce ff5008 8b28')  # push edi/ebp; ebp = the player's handle (GetRefEHandle)
+    b('bf'); L.pointer(table)
+    b('b9' + d32(DRAGON_KNIGHT_PLAYERS))
+    find = L.here()
+    b('3937'); found = fwd('0f84')
+    b('81c7' + d32(DRAGON_KNIGHT_ENTRY) + '49')
+    L.to(b'\x0f\x85', find)
+    b('85db'); out = [fwd('0f84')]  # no entry and not transformed: nothing to do
+    b('bf'); L.pointer(table)
+    b('b9' + d32(DRAGON_KNIGHT_PLAYERS))
+    free = L.here()
+    b('833f00'); take = fwd('0f84')
+    b('81c7' + d32(DRAGON_KNIGHT_ENTRY) + '49')
+    L.to(b'\x0f\x85', free)
+    out.append(fwd('e9'))  # table full
+    L.land(take)
+    b('8937'); stale = fwd('e9')
+    L.land(found)
+    b('396f04'); have = fwd('0f84')
+    L.land(stale)
+    b('896f04 c7470800000000')  # a new entity: handle, not dressed
+    L.land(have)
+    b('395f08'); out.append(fwd('0f84'))  # already as it should be
+    b('85db'); undress = fwd('0f84')
+    call(save)
+    b('6a00 6a00 6a01 6a00 6a00 6a01 68'); L.pointer(path)
+    b('56'); call(k['apply'])
+    b('83c420 8bce'); call(k['rebuild'])
+    b('c7470801000000'); out.append(fwd('e9'))
+    L.land(undress)
+    call(restore)
+    b('c7470800000000')
+    for j in out:
+        L.land(j)
+    b('5d 5f c3')
+    return {'look': hex(look), 'save': hex(save), 'restore': hex(restore), 'table': hex(table),
+            'csf': DRAGON_KNIGHT_CSF, 'entry': DRAGON_KNIGHT_ENTRY, 'players': DRAGON_KNIGHT_PLAYERS}
+
+
 def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = None, level_of: int | None = None,
                 built: dict | None = None) -> dict:
     """FLAMEBREATH: the server's spend routine (first call, before DELIA_EFFECTS registers it) and its
@@ -2220,6 +2385,8 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         if level_of is None:
             raise PreparationError('FLAMEBREATH: the server tick needs DELIA_EFFECTS level_of.')
         entry, set_level, delays = (int(built[n], 16) for n in ('entry', 'set_level', 'delays'))
+        looks = dragon_knight_look(image, L)
+        look = int(looks['look'], 16)
         L.pad()
         effect = L.string(DRAGON_KNIGHT_EFFECT)
 
@@ -2269,9 +2436,10 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         for j in conds + [full_table]:
             L.land(j)
         conditions(conditions_object)
+        call(look)  # esi = player, ebx = transformed
         L.land(fever)
         b('5f 5e 5b c3')
-        return {**built, 'tick': hex(tick), 'effect': DRAGON_KNIGHT_EFFECT, 'level_of': hex(level_of)}
+        return {**built, 'tick': hex(tick), 'effect': DRAGON_KNIGHT_EFFECT, 'level_of': hex(level_of), 'look': looks}
 
     L.pad()
     dialog = L.string(FLAMEBREATH_DIALOG)

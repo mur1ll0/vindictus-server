@@ -302,3 +302,13 @@ Pré-condição: com o jogo fechado, roteamento dos dois DLLs refeito dos `*.pre
 - [ ] Delia (`DeliaLab`): guarda e golpe na guarda funcionam como antes (os números das condições dela mudaram).
 - [ ] Repetir a MI17 (dragão escondido na cidade com NPC) e o Tab, se ainda não foram jogados.
 Limites conhecidos: sem o visual de Dragon Knight; a transformação não gasta SP (só exige 200); custo menor das SP transformadas não portado.
+
+### MI19 — Visual do Dragon Knight
+Pré-condição: com o jogo fechado, roteamento refeito dos `*.pre-routing.bak` (feito por mim; passo M7n). A `MiriLab` com Ancestral Garb e 200 SP, vestindo roupas e cores conhecidas (anotar ou tirar print antes).
+- [ ] Fase: Ancestral Garb → durante a animação (por volta do quadro 180) a Miri passa a vestir a armadura de Dragon Knight; a arma continua a mesma.
+- [ ] Transformada: andar, atacar e usar as SP → a roupa de Dragon Knight fica.
+- [ ] Depois de 70 s (ou ao morrer) → a roupa, as cores e o corpo voltam exatamente como antes (comparar com o print); armadura quebrada continua quebrada.
+- [ ] Transformar de novo na mesma fase → veste e devolve outra vez.
+- [ ] Trocar de mapa transformada → no mapa novo a roupa é a normal.
+- [ ] Se algo ficar errado (parte trocada, cor diferente, corpo deformado), anotar qual parte e me avisar com o jogo aberto (leio a memória).
+Limites conhecidos: sem a troca de textura do NA (`AE_CL_TEXTURE_TRANSITION`); a transformação não gasta SP.

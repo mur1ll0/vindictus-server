@@ -585,6 +585,34 @@ class LabCopyTest(unittest.TestCase):
         factories = report['delia_effects']['factories']
         self.assertIn(routing.DRAGON_KNIGHT_TYPE, factories)
 
+    def test_dragon_knight_look_saves_dresses_and_restores(self):
+        image, report = self.plan('server.dll')
+        k = routing.DRAGON_KNIGHT_LOOK
+        flame = report['class_conditions']['flamebreath']
+        look = flame['look']
+        tick = self.text_at(image, int(flame['tick'], 16), 0x300)
+        self.assertIn(f'call {look["look"]}', tick)
+        code = self.text_at(image, int(look['look'], 16), 0x120)
+        # dress: save, the .csf through the 1.69 loader (cdecl, eight arguments), rebuild; else restore
+        self.assertIn(f'call {look["save"]}', code)
+        self.assertIn(f'call {look["restore"]}', code)
+        self.assertIn(f'call {k["apply"]:#x}', code)
+        at = code.index(f'call {k["apply"]:#x}')
+        self.assertEqual(code[at + 1], 'add esp, 0x20')
+        self.assertEqual(routing.read_string(image, int(code[at - 2].split()[1], 16)), routing.DRAGON_KNIGHT_CSF)
+        self.assertEqual(code[at - 1], 'push esi')
+        self.assertEqual(code[-3:], ['pop ebp', 'pop edi', 'ret'])
+        save = self.text_at(image, int(look['save'], 16), 0x200)
+        restore = self.text_at(image, int(look['restore'], 16), 0x300)
+        for getter in (k['part_get'], k['color_get'], k['extra_get'], k['body_get'], k['body3_get'], *(g for g, _ in k['face'])):
+            self.assertIn(f'call {getter:#x}', save)
+        for setter in (k['part_set'], k['intact'], k['broken_set'], k['color_set'], k['extra_set'], k['scale_set'],
+                       k['body_set'], k['body3_set'], *(t for _, t in k['face']), k['weapon_refresh'], k['armor_update'], k['rebuild']):
+            self.assertIn(f'call {setter:#x}', restore)
+        self.assertEqual(restore.count(f'call {k["color_set"]:#x}'), 3)
+        self.assertEqual(restore.count(f'call {k["body3_set"]:#x}'), 3)
+        self.assertEqual(restore[-2:], ['pop ebx', 'ret'])
+
     def test_flamebreath_drives_the_miri_skill_dialog_on_the_client(self):
         image, report = self.plan('client.dll')
         k = routing.FLAMEBREATH['client.dll']

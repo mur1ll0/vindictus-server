@@ -2995,3 +2995,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: (este passo)
 - Pendente / próxima ação: escolha do operador sobre como devolver a roupa normal ao fim da transformação; MI17 e MI18 no cliente.
+
+## 2026-10-31 — Miri M7n: visual do Dragon Knight
+- Feito: escolha do operador "guardar e devolver tudo". `patch_class_routing.DRAGON_KNIGHT_LOOK`/`dragon_knight_look`: o *think* da Miri no servidor, ao mudar o estado transformado, guarda (12 *slots*: parte, 3 cores, campo extra; corpo e rosto) pelos *getters* da metamorfose do 1.69, veste `csf/metamorphosis/miri_dragon_knight.csf` (`0x4056a140`, 1, 0, 0, 1, 0, 0) e reconstrói (`0x405465d0`); ao acabar devolve pelos *setters* na ordem da metamorfose (`0x40596380`), com estado de armadura, `0x40530df0(0.0)`, `0x40559440(-1)`, `0x4054e160` e a reconstrução. Tabela de 16 jogadores com *handle* (entidade nova no mesmo endereço começa limpa). Conjuntos únicos da Miri: o NA tem dois (`dragon_rise_set` 54, `pythonshock_set` 60), já importados, no `heroes.db3` da cópia (`SetInfo` 2, `SetEffectInfo` 39) e no catálogo do painel (bit 2048).
+- Verificação: `test_patch_class_routing` completo 45 OK, nenhum pulado (`.cache/verification/miri/r2/look-tests-full.log`). Roteamento (`r2/routing-apply-look.log`): `server.dll` `2f2e5ee91d61a321` → `4161f1d0c6e53f3d` (anterior em `*.pre-look.bak`), `client.dll` sem mudança `ff8ef33a242a99cb`.
+- Cliente: `docs/client-tests/C4-miri.md` MI19 (pendente, com MI17 e MI18).
+- Commits: (este passo)
+- Pendente / próxima ação: retrato da Miri na seleção (`SelectCharacterDialog_V2.gfx`: quadro por classe, sem `Miri`); MI17–MI19 no cliente; gasto de SP da transformação; XE como habilidade extra.
