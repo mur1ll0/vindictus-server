@@ -527,63 +527,89 @@ class LabCopyTest(unittest.TestCase):
             # then her Flamebreath tick
             self.assertIn(f'call {report["class_conditions"]["flamebreath"]["tick"]}', text)
 
+    def text_at(self, image, va, size=0x200):
+        return [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
+            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
+
+    def assert_miri_conditions(self, code, k, flame):
+        """The three Miri conditions: smash with level or transformed, knight with transformed, can_transform
+        without it; each is raised or lowered, never left."""
+        c = flame['conditions']
+        for name in ('smash', 'knight', 'can_transform'):
+            self.assertIn(f'push {c[name]:#x}', code)
+        self.assertEqual(sum(x == f'call {k["raise"]:#x}' for x in code), 3)
+        self.assertEqual(sum(x == f'call {k["lower"]:#x}' for x in code), 3)
+        at = code.index(f'push {c["smash"]:#x}')
+        self.assertEqual(code[at + 1:at + 3], [f'mov eax, dword ptr [esi + {k["value"]:#x}]', 'or eax, ebx'])
+        at = code.index(f'push {c["can_transform"]:#x}')
+        self.assertEqual(code[at + 1], 'test ebx, ebx')
+        self.assertTrue(code[at + 2].startswith('jne '))
+
     def test_flamebreath_lives_in_the_fever_gauge_on_the_server(self):
         image, report = self.plan('server.dll')
         k = routing.FLAMEBREATH['server.dll']
         flame = report['class_conditions']['flamebreath']
-        smash = routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('As_Cond_Miri_Can_DragonSmash')
-        self.assertEqual(flame['condition'], smash)
-
-        def text(va, size=0x120):
-            return [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
-                lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
+        c = flame['conditions']
+        self.assertEqual(c, {'smash': routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('As_Cond_Miri_Can_DragonSmash'),
+                             'knight': routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('As_Cond_Miri_DragonKnight'),
+                             'can_transform': routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('As_Cond_Miri_Can_Transform_DragonKnight')})
+        self.assertLessEqual(max(c.values()), routing.CONDITION_SET_BITS - 1)
+        self.assertNotIn('AS_Cond_Delia_Special_Hold_Skill', routing.CONDITION_NAMES)
         tick, spend, set_level = (int(flame[n], 16) for n in ('tick', 'spend', 'set_level'))
-        code = text(tick)
-        self.assertEqual(code[3], f'cmp byte ptr [esi + {k["shown"]:#x}], 0')  # never while a fever gauge is shown
+        code = self.text_at(image, tick, 0x300)
+        # the Dragon Knight status effect, found by name, decides ebx; m_gaugeType carries it to the client
+        self.assertEqual(code[6], f'call {flame["level_of"]}')
+        self.assertEqual(routing.read_string(image, int(code[5].split(', ')[1], 16)), routing.DRAGON_KNIGHT_EFFECT)
+        self.assertEqual(code[7:10], ['xor ebx, ebx', 'test eax, eax', 'setg bl'])
+        self.assertEqual(code[10], f'cmp byte ptr [esi + {k["shown"]:#x}], 0')  # never while a fever gauge is shown
+        self.assertIn(f'call {k["set_type"]:#x}', code)
+        self.assertIn(f'lea ecx, [esi + {k["type"]:#x}]', code)
         self.assertIn(f'cmp dword ptr [esi + {k["value"]:#x}], {routing.FLAMEBREATH_LEVELS}', code)
         self.assertIn(f'call {set_level:#x}', code)
-        self.assertIn(f'push {smash:#x}', code)
-        for va in (k['conditions_of'], k['raise'], k['lower']):
-            self.assertIn(f'call {va:#x}', code)
-        self.assertEqual(text(set_level, 0x20)[-3:], [f'call {k["set"]:#x}', 'add esp, 4', 'ret'])
-        spent = text(spend)
+        self.assert_miri_conditions(code, k, flame)
+        self.assertEqual(code[-4:], ['pop edi', 'pop esi', 'pop ebx', 'ret'])
+        delays = struct.unpack_from('<4f', image.data, image.offset(int(flame['delays'], 16)))
+        self.assertEqual(list(delays), [*routing.FLAMEBREATH_RESTORE, *routing.FLAMEBREATH_RESTORE_TRANSFORMED])
+        self.assertEqual(self.text_at(image, set_level, 0x20)[-3:], [f'call {k["set"]:#x}', 'add esp, 4', 'ret'])
+        spent = self.text_at(image, spend)
         self.assertIn('dec eax', spent)
-        self.assertLess(spent.index(f'call {set_level:#x}'), len(spent))
-        restore = [struct.unpack_from('<f', image.data, image.offset(int(flame['table'], 16) - 8 + 4 * i))[0] for i in range(2)]
-        self.assertEqual(restore, list(routing.FLAMEBREATH_RESTORE))
+        self.assertIn(f'cmp dword ptr [esi + {k["type"]:#x}], 0', spent)  # unlimited while transformed
         # USE_DRAGON_ENERGY at the AE_CUSTOM_MOTION dispatcher entry, for the Miri only
-        events = int(report['delia_effects']['events'], 16)
-        dispatch = text(events, 0x300)
+        dispatch = self.text_at(image, int(report['delia_effects']['events'], 16), 0x300)
         self.assertIn(f'call {spend:#x}', dispatch)
         at = dispatch.index(f'call {spend:#x}')
         self.assertEqual(dispatch[at - 3], f'cmp dword ptr [eax + {routing.ENTITY_SLOTS["server.dll"][1]:#x}], {routing.FLAMEBREATH_CLASS:#x}')
-        names = [routing.read_string(image, int(c.split()[1], 16)) for c in dispatch if c.startswith('push 0x') and int(c.split()[1], 16) > 0x10000]
+        names = [routing.read_string(image, int(x.split()[1], 16)) for x in dispatch if x.startswith('push 0x') and int(x.split()[1], 16) > 0x10000]
         self.assertIn(routing.FLAMEBREATH_SPEND, names)
+        # dragonknight_transform is a registered (no-op) effect type
+        factories = report['delia_effects']['factories']
+        self.assertIn(routing.DRAGON_KNIGHT_TYPE, factories)
 
     def test_flamebreath_drives_the_miri_skill_dialog_on_the_client(self):
         image, report = self.plan('client.dll')
         k = routing.FLAMEBREATH['client.dll']
         flame = report['class_conditions']['flamebreath']
         tick = int(flame['tick'], 16)
-        code = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
-            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(tick):image.offset(tick) + 0x140]), tick))]
-        self.assertIn(f'cmp dword ptr [esi + {k["value"]:#x}], 0', code)
-        for va in (k['raise'], k['lower'], k['local_player'], k['ui'], int(report['class_conditions']['chain']['in_town'], 16)):
+        code = self.text_at(image, tick, 0x300)
+        self.assertEqual(code[3:6], ['xor ebx, ebx', f'cmp dword ptr [esi + {k["type"]:#x}], 0', 'setne bl'])
+        self.assert_miri_conditions(code, k, flame)
+        for va in (k['local_player'], k['ui'], int(report['class_conditions']['chain']['in_town'], 16)):
             self.assertIn(f'call {va:#x}', code)
         self.assertIn(f'call dword ptr [edx + {k["ui_show"]:#x}]', code)
         self.assertIn(f'call dword ptr [edx + {k["ui_invoke"]:#x}]', code)
-        strings = [routing.read_string(image, int(c.split()[1], 16)) for c in code if c.startswith('push 0x') and int(c.split()[1], 16) > 0x10000]
+        strings = [routing.read_string(image, int(x.split()[1], 16)) for x in code if x.startswith('push 0x') and int(x.split()[1], 16) > 0x10000]
         self.assertEqual(strings, [routing.FLAMEBREATH_DIALOG, routing.FLAMEBREATH_DIALOG + '.SetGaugeLevel'])
-        self.assertIn('mov dword ptr [esp], 3', code)  # one number argument
+        # SetGaugeLevel(level, isDagonKnight): two arguments, a number and a bool
+        for line in ('mov dword ptr [esp], 3', 'mov dword ptr [esp + 0x20], 2', 'mov byte ptr [esp + 0x28], bl', 'push 2'):
+            self.assertIn(line, code)
         # the visibility starts unknown and is sent again every FLAMEBREATH_RESEND thinks
         self.assertEqual(struct.unpack_from('<i', image.data, image.offset(int(flame['shown'], 16)))[0], -1)
-        self.assertTrue(any(c.startswith('dec dword ptr [') for c in code))
-        self.assertTrue(any(c.endswith(f', {routing.FLAMEBREATH_RESEND:#x}') and c.startswith('mov dword ptr [') for c in code))
-        self.assertEqual(code[-2:], ['pop esi', 'ret'])
+        self.assertTrue(any(x.startswith('dec dword ptr [') for x in code))
+        self.assertTrue(any(x.endswith(f', {routing.FLAMEBREATH_RESEND:#x}') and x.startswith('mov dword ptr [') for x in code))
+        self.assertEqual(code[-3:], ['pop esi', 'pop ebx', 'ret'])
         # the Miri's think runs it before the chain tick
         body = int(report['class_conditions']['classes'][11], 16)
-        think = [f'{x.mnemonic} {x.op_str}'.strip() for x in itertools.takewhile(
-            lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(body):image.offset(body) + 0x80]), body))]
+        think = self.text_at(image, body, 0x80)
         self.assertLess(think.index(f'call {tick:#x}'), think.index(f'call {report["class_conditions"]["chain"]["tick"]}'))
 
     def test_miri_think_keeps_the_draker_chain(self):
@@ -720,11 +746,11 @@ class LabCopyTest(unittest.TestCase):
                 lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(va):image.offset(va) + size]), va))]
         hook = next(self.md.disasm(bytes(image.data[image.offset(k['hook']):image.offset(k['hook']) + 5]), k['hook']))
         self.assertEqual(f'{hook.mnemonic} {hook.op_str}', f'jmp {effects["register"]}')
-        register = text(int(effects['register'], 16), 0x80)
-        self.assertEqual(sum(t == f'call {k["register"]:#x}' for t in register), 5)
+        register = text(int(effects['register'], 16), 0xa0)
+        self.assertEqual(sum(t == f'call {k["register"]:#x}' for t in register), 6)  # five Delia types + dragonknight_transform
         names = [routing.read_string(image, int(t.split()[1], 16)) for t in register if t.startswith('push 0x')]
         for name in ('stamina_adder_on_attack_time', 'delia_restore_health', 'skill_delia_strong_attack',
-                     'damage_modify_to_action', 'restore_equipment_def'):
+                     'damage_modify_to_action', 'restore_equipment_def', routing.DRAGON_KNIGHT_TYPE):
             self.assertIn(name, names)
         for name, factory in effects['factories'].items():
             body = text(int(factory, 16), 0x40)

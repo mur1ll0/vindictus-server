@@ -299,13 +299,14 @@ CLIENT_WEAPON_SWITCH = {'client.dll': (0x38705F62, '83f8097759', 0x38705FB4)}
 # The Miri's own action states (C4 MI12) name three more: As_Cond_Miri_Can_DragonSmash (her Fiery
 # skills and Fiery Evasion on Tab), As_Cond_Miri_Can_Transform_DragonKnight (SP4) and
 # As_Cond_Miri_DragonKnight (the transformed SP1/SP3). The set holds 128 ids (four dwords at +0x140),
-# so only the first two get ids (126, 127); the bounds `cmp ecx, 0x79; jge` become `cmp ecx, 0x7f; jg`,
-# as 128 does not fit a signed imm8. An unregistered name reads as id -1, which the raise and test
-# routines skip (`cmp ecx, -1; je`): As_Cond_Miri_DragonKnight is never on, so the transformed states
-# stay closed and the untransformed ones open.
-CONDITION_NAMES = ('As_Cond_Can_Armor_Purge', 'As_Cond_Delia_SPSkill3_Activated', 'AS_Cond_Delia_Special_Hold_Skill',
+# so 121-127 are all there is; the bounds `cmp ecx, 0x79; jge` become `cmp ecx, 0x7f; jg`, as 128 does
+# not fit a signed imm8. AS_Cond_Delia_Special_Hold_Skill gave its id to As_Cond_Miri_DragonKnight (Miri
+# M7m): nothing raised it, and an unregistered name reads as id -1, which the raise and test routines
+# skip (`cmp ecx, -1; je`), so the Delia's states that name it behave as before.
+CONDITION_NAMES = ('As_Cond_Can_Armor_Purge', 'As_Cond_Delia_SPSkill3_Activated',
                    'AS_Cond_Delia_Guard', 'AS_Cond_Delia_Guard_Hit',
-                   'As_Cond_Miri_Can_DragonSmash', 'As_Cond_Miri_Can_Transform_DragonKnight')
+                   'As_Cond_Miri_Can_DragonSmash', 'As_Cond_Miri_Can_Transform_DragonKnight',
+                   'As_Cond_Miri_DragonKnight')
 CONDITION_SET_BITS = 128
 FIRST_NEW_CONDITION = 121
 CONDITIONS = {
@@ -355,10 +356,8 @@ HIT_IMPACT_SKIP = 0x4B3D
 # always worn; the purge block is not ported). SP3_Activated stays off: the 1.69 cooldown store of
 # SP skills was not found (NA: 32 ids at +0x18, last use at +0x228, 0x29bf70). SET_GUARD_LATCH_ATTEN
 # is not used by any Delia content (1.69 or NA) and is not ported.
-# The Miri raises As_Cond_Miri_Can_Transform_DragonKnight in both thinks (SP4 plays without the
-# Dragon Knight look); As_Cond_Miri_Can_DragonSmash follows her Flamebreath (FLAMEBREATH).
-STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',),
-                       11: ('As_Cond_Miri_Can_Transform_DragonKnight',)}
+# The Miri's three conditions follow her Flamebreath and her Dragon Knight state (FLAMEBREATH).
+STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',), 11: ()}
 # Flamebreath (skill_miri_dragon_energy, Miri M7h): NA server CPlayerMiri keeps an 8-level gauge in a
 # network word (+0x1454), spent one level by AE_CUSTOM_MOTION USE_DRAGON_ENERGY (0x5dc040) and restored
 # one level per DragonEnergy.FirstRestoreDelay / NormalRestoreDelay seconds (7 / 7,
@@ -381,15 +380,35 @@ STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',),
 # limits: the skill's rank is not checked (NA shows the dragon once Flamebreath is learned, level 20),
 # the level starts at 0 on spawn (the 1.69 reset), the transformed delays and the Dragon Knight
 # state are not ported, and inside the Regina pollution title the fever gauge keeps the field.
+#
+# Dragon Knight (Ancestral Garb, skill_miri_sp4, Miri M7m): miri_SP4 adds the status effect
+# skill_miri_dragon_transform (level 1, 70 s; NA StatusEffectGroupInfo) at frame 180, whose effect
+# dragonknight_transform is native NA server code (CPlayerMiri 0x5db540-0x5dede9: the flag +0x1450,
+# the look csf/metamorphosis/miri_dragon_knight.csf through 0x6ddd60). The 1.69 has no such effect type,
+# so DELIA_EFFECTS registers it as a no-op one and the status effect lives its 70 s. The Miri's server
+# think asks for it (the status effects' find by name, DELIA_EFFECTS level_of) and publishes the state in
+# the other byte of the fever gauge, m_gaugeType (server +0x3ac8, setter 0x4054abe0; client +0x4b38): 1
+# while transformed. Both thinks then raise As_Cond_Miri_DragonKnight while transformed, lower
+# As_Cond_Miri_Can_Transform_DragonKnight then (SP4 cannot run twice) and keep
+# As_Cond_Miri_Can_DragonSmash up ("While transformed, Flamebreath has unlimited uses": USE_DRAGON_ENERGY
+# spends nothing); the restore uses DragonEnergy_transform (5 s first, 4 s next). The HUD gets
+# SetGaugeLevel(level, isDagonKnight). Not yet: the look, the SP drain (REDUCE_DRAGON_KNIGHT_SP_GAUGE) and
+# the transformed SP cost.
 FLAMEBREATH = {'server.dll': {'value': 0x3AC4, 'shown': 0x3AC0, 'set': 0x402C56D0, 'globals': 0x40D6EE48,
-                              'conditions_of': 0x405380A0, 'raise': 0x407E6470, 'lower': 0x407E64D0},
+                              'conditions_of': 0x405380A0, 'raise': 0x407E6470, 'lower': 0x407E64D0,
+                              'type': 0x3AC8, 'set_type': 0x4054ABE0},
                'client.dll': {'value': 0x4B34, 'shown': 0x4B30, 'raise': 0x387DE550, 'lower': 0x387DE5B0,
-                              'local_player': 0x38063690, 'ui': 0x385F7EF0, 'ui_show': 0x20, 'ui_invoke': 0x10}}
-FLAMEBREATH_HEADS = {'server.dll': {'set': '568bf18b06', 'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404'},
+                              'local_player': 0x38063690, 'ui': 0x385F7EF0, 'ui_show': 0x20, 'ui_invoke': 0x10,
+                              'type': 0x4B38}}
+FLAMEBREATH_HEADS = {'server.dll': {'set': '568bf18b06', 'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404',
+                                    'set_type': '8b4424045657'},
                      'client.dll': {'local_player': 'a1a483cc38c3', 'ui': 'a1c814e73885c0',
                                     'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404'}}
 FLAMEBREATH_LEVELS = 8
 FLAMEBREATH_RESTORE = (7.0, 7.0)  # first, normal (seconds)
+FLAMEBREATH_RESTORE_TRANSFORMED = (5.0, 4.0)  # DragonEnergy_transform
+DRAGON_KNIGHT_EFFECT = 'skill_miri_dragon_transform'
+DRAGON_KNIGHT_TYPE = 'dragonknight_transform'
 FLAMEBREATH_PLAYERS = 16
 FLAMEBREATH_SPEND = 'USE_DRAGON_ENERGY'
 FLAMEBREATH_DIALOG = 'MiriSkillDialog'
@@ -1579,6 +1598,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         'candidate_actions', 'damage_rates', 'add_def', 'skill_delia_strong_attack_week', 'skill_delia_strong_attack_hit',
         'ENABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 'DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT',
         'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'PURGE_ALL_ARMOR', '',
+        DRAGON_KNIGHT_TYPE,
         *(commands_of or {}))}
     L.pad()
     registrar = L.here()
@@ -1862,6 +1882,10 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         L.land(at)
     b('5b 5f 5e c20800')
 
+    L.pad()
+    noop_load = L.here()
+    b('c20400')
+
     # restore_equipment_def: armour HP + add_def, as armor_hp_adder
     L.pad()
     red_load = L.here()
@@ -1884,6 +1908,8 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         ('skill_delia_strong_attack', 0xA0, [k['dtor'], sda_load, base2, base3, base4, sda_hurt, base6]),
         ('damage_modify_to_action', 0x100, [k['dtor'], dma_load, base2, base3, dma_hit, base5, base6]),
         ('restore_equipment_def', 0x98, [k['dtor'], red_load, base2, base3, base4, base5, base6]),
+        # the Miri's Dragon Knight (FLAMEBREATH): the status effect only has to exist; the think reads it
+        (DRAGON_KNIGHT_TYPE, 0x98, [k['dtor'], noop_load, base2, base3, base4, base5, base6]),
     ]
     factories = {}
     for name, size, slots in types:
@@ -2077,6 +2103,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('5f 5e c20800')
 
     return {'table': hex(table), 'tick': hex(tick), 'forfeit': hex(forfeit), 'register': hex(register),
+            'level_of': hex(level_of),
             'events': hex(events), 'restore': hex(restore), 'repair': hex(repair),
             'factories': {n: hex(v) for n, v in factories.items()},
             'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit,
@@ -2084,9 +2111,11 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
             'on_hit': hex(on_hit)}
 
 
-def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = None) -> dict:
-    """FLAMEBREATH: the server's restore tick and spend routine, or the client's condition and HUD tick
-    (ecx = player for each; in_town: the chain's game state test, client only)."""
+def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = None, level_of: int | None = None,
+                built: dict | None = None) -> dict:
+    """FLAMEBREATH: the server's spend routine (first call, before DELIA_EFFECTS registers it) and its
+    restore and Dragon Knight tick (second call, with DELIA_EFFECTS level_of and the first call's result), or
+    the client's condition and HUD tick (in_town: the chain's game state test). ecx = player for each."""
     k = FLAMEBREATH[name]
     for key, head in FLAMEBREATH_HEADS[name].items():
         expected = bytes.fromhex(head)
@@ -2094,6 +2123,8 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
             raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
     L = layout
     smash = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Miri_Can_DragonSmash')
+    knight = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Miri_DragonKnight')
+    can_transform = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Miri_Can_Transform_DragonKnight')
 
     def b(code: str) -> None:
         L.body += bytes.fromhex(code)
@@ -2111,23 +2142,27 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         b(code)
         L.pointer(va)
 
-    def condition(load_object) -> None:
-        # ecx = the condition object (load_object); raise smash while the level (esi) is above 0, else lower
+    def switch(load_object, condition: int, test: str, lower_if: str) -> None:
+        """ecx = the condition object (load_object); `test` sets the flags and `lower_if` (a jcc) lowers the
+        condition, else it is raised. esi = player, ebx = 1 while transformed."""
         load_object()
         b('85c9'); none = fwd('0f84')
-        b('68' + d32(smash) + '83be' + d32(k['value']) + '00'); low = fwd('0f8e')
+        b('68' + d32(condition) + test); low = fwd(lower_if)
         call(k['raise'])
         done = fwd('e9')
         L.land(low)
         call(k['lower'])
         L.land(done); L.land(none)
 
-    if name == 'server.dll':
+    def conditions(load_object) -> None:
+        switch(load_object, smash, '8b86' + d32(k['value']) + '0bc3', '0f84')  # level > 0 or transformed
+        switch(load_object, knight, '85db', '0f84')  # transformed
+        switch(load_object, can_transform, '85db', '0f85')  # not transformed
+
+    if name == 'server.dll' and built is None:
         L.pad()
-        first = L.here()
-        L.body += struct.pack('<f', FLAMEBREATH_RESTORE[0])
-        normal = L.here()
-        L.body += struct.pack('<f', FLAMEBREATH_RESTORE[1])
+        delays = L.here()
+        L.body += struct.pack('<4f', *FLAMEBREATH_RESTORE, *FLAMEBREATH_RESTORE_TRANSFORMED)
         table = L.here()
         L.body += bytes(8 * FLAMEBREATH_PLAYERS)  # {player, next restore time}
 
@@ -2159,9 +2194,46 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         call(k['set'])
         b('83c404 c3')
 
+        # spend(ecx = player): USE_DRAGON_ENERGY, nothing while transformed
+        L.pad()
+        spend = L.here()
+        b('56 57 8bf1 80be' + d32(k['shown']) + '00'); out = fwd('0f85')
+        b('83be' + d32(k['type']) + '00'); unlimited = fwd('0f85')
+        b('8b86' + d32(k['value']) + '85c0'); empty = fwd('0f8e')
+        b('48')
+        call(set_level)
+        b('8bce')
+        call(entry)
+        b('85c0'); full_table = fwd('0f84')
+        at('8b0d', k['globals'])
+        b('d9410c')
+        at('d805', delays)
+        b('d95804')
+        L.land(out); L.land(unlimited); L.land(empty); L.land(full_table)
+        b('5f 5e c3')
+        return {'spend': hex(spend), 'entry': hex(entry), 'set_level': hex(set_level), 'table': hex(table),
+                'delays': hex(delays), 'levels': FLAMEBREATH_LEVELS, 'restore': list(FLAMEBREATH_RESTORE),
+                'restore_transformed': list(FLAMEBREATH_RESTORE_TRANSFORMED),
+                'conditions': {'smash': smash, 'knight': knight, 'can_transform': can_transform}}
+
+    if name == 'server.dll':
+        if level_of is None:
+            raise PreparationError('FLAMEBREATH: the server tick needs DELIA_EFFECTS level_of.')
+        entry, set_level, delays = (int(built[n], 16) for n in ('entry', 'set_level', 'delays'))
+        L.pad()
+        effect = L.string(DRAGON_KNIGHT_EFFECT)
+
         def now() -> None:  # st0 = gpGlobals->curtime
             at('8b0d', k['globals'])
             b('d9410c')
+
+        def delay(index: int) -> None:  # st0 += the first (0) or normal (1) delay, the transformed one with ebx
+            b('85db'); plain = fwd('0f84')
+            at('d805', delays + 4 * (2 + index))
+            done = fwd('e9')
+            L.land(plain)
+            at('d805', delays + 4 * index)
+            L.land(done)
 
         def conditions_object() -> None:
             b('8bce')
@@ -2171,8 +2243,13 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         # tick(ecx = player)
         L.pad()
         tick = L.here()
-        b('56 57 8bf1 80be' + d32(k['shown']) + '00'); fever = fwd('0f85')
-        b('8bce')
+        b('53 56 57 8bf1 8bce'); at('ba', effect)
+        call(level_of)
+        b('33db 85c0 0f9fc3')  # ebx = transformed
+        b('80be' + d32(k['shown']) + '00'); fever = fwd('0f85')
+        b('53 8bc4 50 8d8e' + d32(k['type']))  # m_gaugeType = transformed
+        call(k['set_type'])
+        b('83c404 8bce')
         call(entry)
         b('85c0'); full_table = fwd('0f84')
         b('8bf8 83be' + d32(k['value']) + bytes((FLAMEBREATH_LEVELS,)).hex()); recharge = fwd('0f8c')
@@ -2180,39 +2257,21 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         L.land(recharge)
         now()
         b('837f0400'); armed = fwd('0f85')
-        at('d805', first)
+        delay(0)
         b('d95f04'); conds.append(fwd('e9'))
         L.land(armed)
         b('d85f04 dfe0 f6c401'); conds.append(fwd('0f85'))  # now < next: wait
         b('8b86' + d32(k['value']) + '40')
         call(set_level)
         now()
-        at('d805', normal)
+        delay(1)
         b('d95f04')
-        for j in conds:
+        for j in conds + [full_table]:
             L.land(j)
-        condition(conditions_object)
-        L.land(fever); L.land(full_table)
-        b('5f 5e c3')
-
-        # spend(ecx = player): USE_DRAGON_ENERGY
-        L.pad()
-        spend = L.here()
-        b('56 57 8bf1 80be' + d32(k['shown']) + '00'); out = fwd('0f85')
-        b('8b86' + d32(k['value']) + '85c0'); empty = fwd('0f8e')
-        b('48')
-        call(set_level)
-        b('8bce')
-        call(entry)
-        b('85c0'); full_table = fwd('0f84')
-        now()
-        at('d805', first)
-        b('d95804')
-        L.land(out); L.land(empty); L.land(full_table)
-        b('5f 5e c3')
-        return {'tick': hex(tick), 'spend': hex(spend), 'entry': hex(entry), 'set_level': hex(set_level),
-                'table': hex(table), 'levels': FLAMEBREATH_LEVELS, 'restore': list(FLAMEBREATH_RESTORE),
-                'condition': smash}
+        conditions(conditions_object)
+        L.land(fever)
+        b('5f 5e 5b c3')
+        return {**built, 'tick': hex(tick), 'effect': DRAGON_KNIGHT_EFFECT, 'level_of': hex(level_of)}
 
     L.pad()
     dialog = L.string(FLAMEBREATH_DIALOG)
@@ -2224,6 +2283,8 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
     L.body += struct.pack('<i', -1)
     resend = L.here()
     L.body += bytes(4)
+    transformed = L.here()
+    L.body += struct.pack('<i', -1)
 
     def commands_object() -> None:
         b('8b8e' + d32(COMMANDS))
@@ -2234,8 +2295,8 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
 
     L.pad()
     tick = L.here()
-    b('56 8bf1')
-    condition(commands_object)
+    b('53 56 8bf1 33db 83be' + d32(k['type']) + '00 0f95c3')  # ebx = transformed (m_gaugeType)
+    conditions(commands_object)
     call(k['local_player'])
     b('3bc6'); other = fwd('0f85')
     call(in_town)
@@ -2257,16 +2318,21 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
     at('833d', shown)
     b('00'); hidden = fwd('0f84')
     b('8b86' + d32(k['value']))
-    at('3b05', level); unchanged = fwd('0f84')
+    at('3b05', level); update = fwd('0f85')
+    at('3b1d', transformed); unchanged = fwd('0f84')
+    L.land(update)
     at('a3', level)
-    b('6a00' * 8 + 'c7042403000000')  # one argument: type 3 (number)
+    at('891d', transformed)
+    # SetGaugeLevel(level, isDagonKnight): a number (type 3, double at +8) and a bool (type 2, byte at +8)
+    b('6a00' * 16 + 'c7042403000000')
     at('db05', level)
-    b('dd5c2408 8bc4 6a00 6a01 50'); at('68', method)
+    b('dd5c2408 c744242002000000 885c2428 8bc4 6a00 6a02 50'); at('68', method)
     ui()
-    b('ff52' + bytes((k['ui_invoke'],)).hex() + '83c420')
+    b('ff52' + bytes((k['ui_invoke'],)).hex() + '83c440')
     L.land(other); L.land(hidden); L.land(unchanged)
-    b('5e c3')
-    return {'tick': hex(tick), 'dialog': FLAMEBREATH_DIALOG, 'shown': hex(shown), 'level': hex(level), 'condition': smash}
+    b('5e 5b c3')
+    return {'tick': hex(tick), 'dialog': FLAMEBREATH_DIALOG, 'shown': hex(shown), 'level': hex(level),
+            'transformed': hex(transformed), 'conditions': {'smash': smash, 'knight': knight, 'can_transform': can_transform}}
 
 
 def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, think: int,
@@ -3272,6 +3338,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name in DELIA_EFFECTS:
         effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name],
                                 {FLAMEBREATH_SPEND: (FLAMEBREATH_CLASS, int(flame['spend'], 16))} if flame else None)
+        if flame is not None:
+            flame = flamebreath(image, layout, name, level_of=int(effects['level_of'], 16), built=flame)
         report['delia_effects'] = effects
     if name in GUARD:
         report['guard'] = guard(image, layout, edits, relocs, *GUARD[name],

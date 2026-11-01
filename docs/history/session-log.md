@@ -2974,3 +2974,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI16 e MI17 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI17 no cliente; porte do Dragon Knight; depois XE como habilidade extra.
+
+## 2026-10-31 — Miri M7m: Dragon Knight, mecânica
+- Feito: a pedido do operador ("Start Dragon Knight first"). `patch_class_routing`: `dragonknight_transform` registrado nos `DELIA_EFFECTS` como tipo sem operação (o `skill_miri_dragon_transform` de 70 s passa a existir); `FLAMEBREATH` em duas chamadas no servidor (gasto antes dos `DELIA_EFFECTS`, *tick* depois, com o `level_of` deles): estado transformado pelo efeito, publicado em `m_gaugeType` (`+0x3ac8`/cliente `+0x4b38`), condições `Can_DragonSmash`/`DragonKnight`/`Can_Transform` nos dois *thinks*, gasto nulo e recarga 5/4 s transformada, HUD com `isDagonKnight`. `CONDITION_NAMES`: `As_Cond_Miri_DragonKnight` (127) no lugar de `AS_Cond_Delia_Special_Hold_Skill` (nunca ligada); Delia 121–124. `STANDING_CONDITIONS[11]` vazio.
+- Verificação: `test_patch_class_routing` completo OK, nenhum pulado (`.cache/verification/miri/r2/dk-tests-full.log`); `heroes.db3` da cópia com `skill_miri_dragon_transform` (nível 1, 70 s, `dragonknight_transform`). Roteamento (`r2/routing-apply-dk.log`): `client.dll` `ff5aa0537f8163a9` → `ff8ef33a242a99cb`, `server.dll` `88924f0ea4df6f57` → `2f2e5ee91d61a321` (anteriores em `*.pre-dk.bak`).
+- Cliente: `docs/client-tests/C4-miri.md` MI18 (pendente, com a MI17).
+- Commits: (este passo)
+- Pendente / próxima ação: MI17 e MI18 no cliente; visual do Dragon Knight (metamorfose do 1.69); depois XE como habilidade extra.

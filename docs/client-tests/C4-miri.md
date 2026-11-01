@@ -292,3 +292,13 @@ Resultado da MI16 (31/10/2026, `MiriLab`, memória ao vivo):
 Pré-condição: com o jogo fechado, roteamento do `client.dll` refeito dos `*.pre-routing.bak` (feito por mim; passo M7l).
 - [ ] Cidade e estalagem: falar com NPCs e fechar o diálogo → o dragão não aparece (no máximo um piscar de meio segundo).
 - [ ] Barco e fase → o dragão aparece e enche como antes.
+
+### MI18 — Dragon Knight (mecânica, sem o visual)
+Pré-condição: com o jogo fechado, roteamento dos dois DLLs refeito dos `*.pre-routing.bak` (feito por mim; passo M7m). A `MiriLab` com Ancestral Garb (SP4) e pelo menos 200 SP.
+- [ ] Fase: usar Ancestral Garb → a animação de transformação toca; o ícone do efeito (70 s) aparece; a roupa ainda não muda (visual a portar).
+- [ ] Transformada: Fiery Chainswing, Tab e Tab + direito várias vezes seguidas → o dragão não baixa (Flamebreath ilimitado); Scorching Streak e Blazing Spine saem nas versões de dragão (animações diferentes das normais).
+- [ ] Transformada: tentar Ancestral Garb de novo → não sai.
+- [ ] Depois de 70 s → volta ao normal: o dragão volta a gastar, Ancestral Garb sai de novo.
+- [ ] Delia (`DeliaLab`): guarda e golpe na guarda funcionam como antes (os números das condições dela mudaram).
+- [ ] Repetir a MI17 (dragão escondido na cidade com NPC) e o Tab, se ainda não foram jogados.
+Limites conhecidos: sem o visual de Dragon Knight; a transformação não gasta SP (só exige 200); custo menor das SP transformadas não portado.
