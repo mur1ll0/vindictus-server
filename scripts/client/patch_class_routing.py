@@ -1693,6 +1693,8 @@ def _client_guard_damage(layout: Layout, get: int, copy: int, unguardable: int, 
     def call(target: int) -> None:
         layout.to(bytes((0xE8,)), target)
 
+    # the string goes before the body: Layout.string writes at the current position (MI29 crash 0x392204e4)
+    path = layout.string(effect) if effect is not None else None
     layout.pad()
     damage = layout.here()
     layout.body += bytes((0x81, 0xEC, 0x90, 0, 0, 0, 0x56, 0x57))  # sub esp, 0x90; push esi; push edi
@@ -1715,8 +1717,7 @@ def _client_guard_damage(layout: Layout, get: int, copy: int, unguardable: int, 
     layout.body += bytes((0xC6, 0x86)) + struct.pack('<I', HIT_IMPACT_SKIP) + b'\x01'  # no impact sound
     layout.body += bytes((0xC6, 0x84, 0x24, 0x85, 0, 0, 0, 0x00))  # mov byte [esp+0x85], 0
     layout.body += bytes((0xD9, 0xEE, 0xD9, 0x54, 0x24, 0x3C, 0xD9, 0x5C, 0x24, 0x54))  # damage = 0
-    if effect is not None:
-        path = layout.string(effect)
+    if path is not None:
         layout.body += bytes((0xB8,))
         layout.pointer(path)  # mov eax, path
         layout.body += bytes((0x6A, 0x00, 0x56, 0x50, 0x8D, 0x4C, 0x24, 0x14, 0x51))  # push 0/esi/eax; lea ecx, [esp+0x14]; push ecx

@@ -462,3 +462,10 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Vários golpes seguidos e trocar de equipamento transformada → sem queda.
 Limites conhecidos: aproximação feita no laboratório (partículas com as texturas de Dragon Knight do NA), não as fitas do NA; o fogo da corrente acompanha os mesmos golpes.
 Relatar: a cor e o tamanho das chamas, se ficaram presas à arma e se algum golpe transformado ficou sem rastro.
+
+### MI38 — Parrying Attack sem crash e Fiery Chainswing azul (M8h)
+Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.py --apply` e `patch_class_routing.py --apply` (feitos por mim; passo M8h). A MI37 foi cancelada (rastros do M8e revertidos).
+- [ ] Parrying Attack: defender golpes com o ataque básico no começo do golpe do monstro, várias vezes → sem crash; sem dano, efeito de *endure* dela, ícone Hydra e stamina (itens da MI31).
+- [ ] Fiery Chainswing sem transformar → efeito azul simples, como antes do M8e.
+- [ ] Transformada, golpes fortes → sem o fogo vermelho; sem rastros pretos (como antes do M8e).
+Relatar: se algum *parry* travou o jogo (com o endereço do erro) e a cor dos efeitos.

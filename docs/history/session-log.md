@@ -3142,3 +3142,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI37 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI30–MI37 no cliente; decisão M8d.
+
+## 2026-11-01 — Miri M8h: crash do Parrying Attack e rastros do M8e revertidos
+- Feito: MI37/MI29 no cliente: o fogo vermelho do M8e aparecia também no Fiery Chainswing sem transformar (`KNIGHT_SEQUENCE` pega `miri_strong_dragon_attack_*`) e o operador pediu a volta ao anterior; `stage_na_class.py` e `test_stage_na_class.py` voltaram ao estado de `6fd551a^` (sem rastros de Dragon Knight). O *parry* travou o cliente em `0x392204e4` (`.hrte`): `patch_class_routing._client_guard_damage` gravava `MIRI_ENDURE_EFFECT` com `Layout.string` no meio do corpo, logo depois de zerar o dano (bug do M7y); o caminho agora é alocado antes do corpo; teste novo confere que o código segue o `fstp` e que o caminho fica fora do corpo.
+- Verificação: `test_stage_na_class` 23 OK (`.cache/verification/miri/r6/m8h-stage-tests.log`); `test_patch_class_routing` 44 OK e 1 falha de janela de teste (corpo da Delia lido além do `ret`), corrigida e repassada (`r6/m8h-routing-tests.log`, `r6/m8h-guard-test.log`). Aplicado com o jogo fechado: preparação (5.317 arquivos), `apply_lab_content_additions.py --apply` (um pacote refeito), DLLs atuais guardadas como `*.pre-m8h.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8h-routing-apply.log`): client `7f318b0a89bfbb01`, server `b36463e6da412e19`; corpo da Miri conferido por desmontagem.
+- Cliente: `docs/client-tests/C4-miri.md` MI38 (pendente); MI37 cancelada.
+- Commits: (este passo)
+- Pendente / próxima ação: MI30–MI36 e MI38 no cliente; decisão M8d.

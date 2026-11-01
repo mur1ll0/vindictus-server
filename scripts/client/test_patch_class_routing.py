@@ -511,6 +511,8 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(sum(t == f'call {lower:#x}' for t in put), 2)
         self.assertIn('movzx edx, byte ptr [esp + 4]', put)
         damage = body(bodies[damage_slot], 0x140)
+        # the Miri's effect path follows this body without padding: stop at its return
+        damage = damage[:damage.index('ret 4') + 1]
         for target in (copy, unguardable, unguardable_info, test, int(guard['base'], 16)):
             self.assertIn(f'call {target:#x}', damage)
         self.assertEqual(sum(t == f'call {raise_:#x}' for t in damage), 3)
@@ -527,6 +529,9 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn(f'call {play:#x}', miri)
         self.assertIn(f'call {release:#x}', miri)
         at = next(i for i, t in enumerate(miri) if t.startswith('mov eax, 0x'))
+        # code follows the zeroed damage directly; the path lies outside the body (MI29 crash 0x392204e4)
+        self.assertEqual(miri[at - 1], 'fstp dword ptr [esp + 0x54]')
+        self.assertFalse(damages[routing.MIRI] <= int(miri[at].split(', ')[1], 16) < damages[routing.MIRI] + 0x180)
         self.assertEqual(routing.read_string(image, int(miri[at].split(', ')[1], 16)), routing.MIRI_ENDURE_EFFECT)
         self.assertEqual(miri[at + 1:at + 7], ['push 0', 'push esi', 'push eax', 'lea ecx, [esp + 0x14]', 'push ecx', f'call {play:#x}'])
         self.assertEqual(miri[-1], 'ret 4')
