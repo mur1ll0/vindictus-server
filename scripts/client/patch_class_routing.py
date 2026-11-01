@@ -406,10 +406,9 @@ STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',), 11: ()}
 # lower 0x387de5b0 on [this+COMMANDS]) and, for the local player (0x38063690) outside town (the chain's
 # game state test), shows MiriSkillDialog through the UI interface (0x385f7ef0: vtable +0x20 (name,
 # shown), as ShipHPGauge; +0x10 Invoke(method, args, count, 0), arguments of 0x20 bytes: type 3 =
-# number, double at +8, an empty string at +0x10) and calls SetGaugeLevel when the level changes. Lab
-# limits: the skill's rank is not checked (NA shows the dragon once Flamebreath is learned, level 20),
-# the level starts at 0 on spawn (the 1.69 reset), the transformed delays and the Dragon Knight
-# state are not ported, and inside the Regina pollution title the fever gauge keeps the field.
+# number, double at +8, an empty string at +0x10) and calls SetGaugeLevel when the level changes. The
+# skill's rank and the starting level came with M8c (FLAMEBREATH_START). Lab limit: inside the Regina
+# pollution title the fever gauge keeps the field.
 #
 # Dragon Knight (Ancestral Garb, skill_miri_sp4, Miri M7m): miri_SP4 adds the status effect
 # skill_miri_dragon_transform (level 1, 70 s; NA StatusEffectGroupInfo) at frame 180, whose effect
@@ -426,17 +425,31 @@ STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',), 11: ()}
 # the transformed SP cost.
 FLAMEBREATH = {'server.dll': {'value': 0x3AC4, 'shown': 0x3AC0, 'set': 0x402C56D0, 'globals': 0x40D6EE48,
                               'conditions_of': 0x405380A0, 'raise': 0x407E6470, 'lower': 0x407E64D0,
-                              'type': 0x3AC8, 'set_type': 0x4054ABE0},
+                              'type': 0x3AC8, 'set_type': 0x4054ABE0, 'skill_rank': 0x40532A00},
                'client.dll': {'value': 0x4B34, 'shown': 0x4B30, 'raise': 0x387DE550, 'lower': 0x387DE5B0,
                               'local_player': 0x38063690, 'ui': 0x385F7EF0, 'ui_show': 0x20, 'ui_invoke': 0x10,
                               'type': 0x4B38}}
 FLAMEBREATH_HEADS = {'server.dll': {'set': '568bf18b06', 'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404',
-                                    'set_type': '8b4424045657'},
+                                    'set_type': '8b4424045657', 'skill_rank': '8b89e02e0000'},
                      'client.dll': {'local_player': 'a1a483cc38c3', 'ui': 'a1c814e73885c0',
                                     'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404'}}
 FLAMEBREATH_LEVELS = 8
 FLAMEBREATH_RESTORE = (7.0, 7.0)  # first, normal (seconds)
 FLAMEBREATH_RESTORE_TRANSFORMED = (5.0, 4.0)  # DragonEnergy_transform
+# Rank and start (M8c). The NA shows the gauge once Flamebreath is learned (skill_miri_dragon_energy, rank 1
+# at level 20; rank 0 is the untrained row) and its constructor and reset (server x64 0x5dad4b, 0x5dcea0) put
+# the level at 4. The 1.69's battle server gets the character's skills in GameJoinMemberInfo.skill_list;
+# 0x40532a00(name) (thiscall, ret 4: the player's skill table +0x2ee0, 0x407c4d60 -> the decoded rank, 0
+# when absent; the summon prop's variation_postfix_skill_rank reads it) gives the rank. Each Flamebreath
+# entry keeps the player's handle (GetRefEHandle, vtable +8): a new entity at that address (each stage
+# spawns one, and the 1.69 zeroes the fever gauge) starts at FLAMEBREATH_START when the skill is learned,
+# and gets the status effect resound (level 1) when skill_miri_attack is (NA slot 0x1398, 0x739840, the
+# Parrying Attack's lasting "Hydra"). Without the skill the level stays 0. m_gaugeType carries bit 0
+# (transformed) and bit 1 (learned): the client shows MiriSkillDialog only with bit 1.
+FLAMEBREATH_START = 4
+FLAMEBREATH_SKILL = 'skill_miri_dragon_energy'
+PARRYING_SKILL = 'skill_miri_attack'
+FLAMEBREATH_ENTRY = 12  # player, next restore time, player handle
 # Dragon Knight look (Miri M7n). NA: EQUIP_DRAGON_KNIGHT_ARMOR dresses the player in
 # csf/metamorphosis/miri_dragon_knight.csf (0x6ddd60) and PURGE gives the outfit back. In the 1.69 a .csf
 # is put on the player by 0x4056a140(player, path, 1, 0, 0, 1, 0, 0) (cdecl; the metamorphosis' load_csf,
@@ -2424,7 +2437,7 @@ def dragon_knight_look(image: Image, layout: Layout) -> dict:
 
 
 def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = None, level_of: int | None = None,
-                built: dict | None = None) -> dict:
+                built: dict | None = None, add_named: int | None = None) -> dict:
     """FLAMEBREATH: the server's spend routine (first call, before DELIA_EFFECTS registers it) and its
     restore and Dragon Knight tick (second call, with DELIA_EFFECTS level_of and the first call's result), or
     the client's condition and HUD tick (in_town: the chain's game state test). ecx = player for each."""
@@ -2476,7 +2489,7 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         delays = L.here()
         L.body += struct.pack('<4f', *FLAMEBREATH_RESTORE, *FLAMEBREATH_RESTORE_TRANSFORMED)
         table = L.here()
-        L.body += bytes(8 * FLAMEBREATH_PLAYERS)  # {player, next restore time}
+        L.body += bytes(FLAMEBREATH_ENTRY * FLAMEBREATH_PLAYERS)  # {player, next restore time, handle}
 
         # entry(ecx = player) -> eax = the player's entry, a free one taken when missing, 0 when full
         L.pad()
@@ -2485,17 +2498,17 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         b('ba' + d32(FLAMEBREATH_PLAYERS))
         loop = L.here()
         b('3908'); found = fwd('0f84')
-        b('83c008 4a')
+        b('83c0' + bytes((FLAMEBREATH_ENTRY,)).hex() + ' 4a')
         L.to(b'\x0f\x85', loop)
         at('b8', table)
         b('ba' + d32(FLAMEBREATH_PLAYERS))
         free = L.here()
         b('833800'); take = fwd('0f84')
-        b('83c008 4a')
+        b('83c0' + bytes((FLAMEBREATH_ENTRY,)).hex() + ' 4a')
         L.to(b'\x0f\x85', free)
         b('33c0 c3')
         L.land(take)
-        b('8908 c7400400000000')
+        b('8908 c7400400000000 c7400800000000')
         L.land(found)
         b('c3')
 
@@ -2510,7 +2523,7 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         L.pad()
         spend = L.here()
         b('56 57 8bf1 80be' + d32(k['shown']) + '00'); out = fwd('0f85')
-        b('83be' + d32(k['type']) + '00'); unlimited = fwd('0f85')
+        b('f686' + d32(k['type']) + '01'); unlimited = fwd('0f85')  # transformed (bit 0)
         b('8b86' + d32(k['value']) + '85c0'); empty = fwd('0f8e')
         b('48')
         call(set_level)
@@ -2529,13 +2542,14 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
                 'conditions': {'smash': smash, 'knight': knight, 'can_transform': can_transform}}
 
     if name == 'server.dll':
-        if level_of is None:
-            raise PreparationError('FLAMEBREATH: the server tick needs DELIA_EFFECTS level_of.')
+        if level_of is None or add_named is None:
+            raise PreparationError('FLAMEBREATH: the server tick needs DELIA_EFFECTS level_of and add_named.')
         entry, set_level, delays = (int(built[n], 16) for n in ('entry', 'set_level', 'delays'))
         looks = dragon_knight_look(image, L)
         look = int(looks['look'], 16)
         L.pad()
         effect = L.string(DRAGON_KNIGHT_EFFECT)
+        skill, parrying, resound = (L.string(n) for n in (FLAMEBREATH_SKILL, PARRYING_SKILL, MIRI_RESOUND[0]))
 
         def now() -> None:  # st0 = gpGlobals->curtime
             at('8b0d', k['globals'])
@@ -2561,12 +2575,36 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         call(level_of)
         b('33db 85c0 0f9fc3')  # ebx = transformed
         b('80be' + d32(k['shown']) + '00'); fever = fwd('0f85')
-        b('53 8bc4 50 8d8e' + d32(k['type']))  # m_gaugeType = transformed
-        call(k['set_type'])
-        b('83c404 8bce')
+        b('8bce')
         call(entry)
         b('85c0'); full_table = fwd('0f84')
-        b('8bf8 83be' + d32(k['value']) + bytes((FLAMEBREATH_LEVELS,)).hex()); recharge = fwd('0f8c')
+        b('8bf8')  # edi = the entry
+        # a new entity (its handle changed): restore time cleared, resound, the starting level
+        b('8b06 8bce ff5008 8b00 394708'); known = fwd('0f84')
+        b('894708 c7470400000000')
+        at('68', parrying); b('8bce'); call(k['skill_rank'])
+        b('85c0'); no_resound = fwd('0f8e')
+        b('8bce b801000000'); at('ba', resound)
+        call(add_named)
+        L.land(no_resound)
+        at('68', skill); b('8bce'); call(k['skill_rank'])
+        b('85c0'); unlearned = fwd('0f8e')
+        b('83be' + d32(k['value']) + bytes((FLAMEBREATH_START,)).hex()); started = fwd('0f8d')
+        b('b8' + d32(FLAMEBREATH_START))
+        call(set_level)
+        L.land(unlearned); L.land(started); L.land(known)
+        # m_gaugeType = transformed | learned << 1
+        at('68', skill); b('8bce'); call(k['skill_rank'])
+        b('33c9 85c0 0f9fc1 51 8d0c4b 51 8bc4 50 8d8e' + d32(k['type']))
+        call(k['set_type'])
+        b('83c404 58 85c0'); learned = fwd('0f85')
+        b('83be' + d32(k['value']) + '00'); empty = fwd('0f84')  # not learned: no Flamebreath
+        b('33c0')
+        call(set_level)
+        L.land(empty)
+        unlearned_conditions = fwd('e9')
+        L.land(learned)
+        b('83be' + d32(k['value']) + bytes((FLAMEBREATH_LEVELS,)).hex()); recharge = fwd('0f8c')
         b('c7470400000000'); conds = [fwd('e9')]
         L.land(recharge)
         now()
@@ -2580,13 +2618,14 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         now()
         delay(1)
         b('d95f04')
-        for j in conds + [full_table]:
+        for j in conds + [full_table, unlearned_conditions]:
             L.land(j)
         conditions(conditions_object)
         call(look)  # esi = player, ebx = transformed
         L.land(fever)
         b('5f 5e 5b c3')
-        return {**built, 'tick': hex(tick), 'effect': DRAGON_KNIGHT_EFFECT, 'level_of': hex(level_of), 'look': looks}
+        return {**built, 'tick': hex(tick), 'effect': DRAGON_KNIGHT_EFFECT, 'level_of': hex(level_of),
+                'add_named': hex(add_named), 'start': FLAMEBREATH_START, 'skill': FLAMEBREATH_SKILL, 'look': looks}
 
     L.pad()
     dialog = L.string(FLAMEBREATH_DIALOG)
@@ -2610,12 +2649,13 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
 
     L.pad()
     tick = L.here()
-    b('53 56 8bf1 33db 83be' + d32(k['type']) + '00 0f95c3')  # ebx = transformed (m_gaugeType)
+    b('53 56 8bf1 33db f686' + d32(k['type']) + '01 0f95c3')  # ebx = transformed (m_gaugeType bit 0)
     conditions(commands_object)
     call(k['local_player'])
     b('3bc6'); other = fwd('0f85')
     call(in_town)
     b('83f001')  # shown outside town
+    b('f686' + d32(k['type']) + '02 7502 33c0')  # and once Flamebreath is learned (bit 1)
     at('3b05', shown); changed = fwd('0f85')
     at('ff0d', resend); same = fwd('0f89')  # dec [resend]; jns: not yet
     at('c705', resend)
@@ -3654,7 +3694,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name],
                                 {FLAMEBREATH_SPEND: (FLAMEBREATH_CLASS, int(flame['spend'], 16))} if flame else None)
         if flame is not None:
-            flame = flamebreath(image, layout, name, level_of=int(effects['level_of'], 16), built=flame)
+            flame = flamebreath(image, layout, name, level_of=int(effects['level_of'], 16), built=flame,
+                                add_named=int(effects['add_named'], 16))
         report['delia_effects'] = effects
     if name in GUARD:
         report['guard'] = guard(image, layout, edits, relocs, *GUARD[name],

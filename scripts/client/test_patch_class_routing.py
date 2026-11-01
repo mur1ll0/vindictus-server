@@ -602,6 +602,20 @@ class LabCopyTest(unittest.TestCase):
         self.assertIn(f'lea ecx, [esi + {k["type"]:#x}]', code)
         self.assertIn(f'cmp dword ptr [esi + {k["value"]:#x}], {routing.FLAMEBREATH_LEVELS}', code)
         self.assertIn(f'call {set_level:#x}', code)
+        # M8c: a new entity (handle at +8 of its entry) starts at FLAMEBREATH_START with the skill learned,
+        # and gets resound with the Parrying Attack learned; m_gaugeType = transformed | learned << 1
+        self.assertIn('cmp dword ptr [edi + 8], eax', code)
+        self.assertIn('mov dword ptr [edi + 8], eax', code)
+        self.assertIn(f'cmp dword ptr [esi + {k["value"]:#x}], {routing.FLAMEBREATH_START}', code)
+        self.assertIn(f'mov eax, {routing.FLAMEBREATH_START}', code)
+        self.assertEqual(sum(x == f'call {k["skill_rank"]:#x}' for x in code), 3)
+        pushed = [routing.read_string(image, int(x.split()[1], 16)) for x in code if x.startswith('push 0x') and int(x.split()[1], 16) > 0x10000]
+        self.assertEqual(pushed, [routing.PARRYING_SKILL, routing.FLAMEBREATH_SKILL, routing.FLAMEBREATH_SKILL])
+        self.assertIn(f'call {flame["add_named"]}', code)
+        self.assertIn('lea ecx, [ebx + ecx*2]', code)
+        moved = [routing.read_string(image, int(x.split(', ')[1], 16)) for x in code if x.startswith('mov edx, 0x')]
+        self.assertIn(routing.MIRI_RESOUND[0], moved)
+        self.assertEqual(code.count('xor eax, eax'), 1)  # not learned: level 0
         self.assert_miri_conditions(code, k, flame)
         self.assertEqual(code[-4:], ['pop edi', 'pop esi', 'pop ebx', 'ret'])
         delays = struct.unpack_from('<4f', image.data, image.offset(int(flame['delays'], 16)))
@@ -609,7 +623,7 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(self.text_at(image, set_level, 0x20)[-3:], [f'call {k["set"]:#x}', 'add esp, 4', 'ret'])
         spent = self.text_at(image, spend)
         self.assertIn('dec eax', spent)
-        self.assertIn(f'cmp dword ptr [esi + {k["type"]:#x}], 0', spent)  # unlimited while transformed
+        self.assertIn(f'test byte ptr [esi + {k["type"]:#x}], 1', spent)  # unlimited while transformed
         # USE_DRAGON_ENERGY at the AE_CUSTOM_MOTION dispatcher entry, for the Miri only
         dispatch = self.text_at(image, int(report['delia_effects']['events'], 16), 0x300)
         self.assertIn(f'call {spend:#x}', dispatch)
@@ -655,7 +669,11 @@ class LabCopyTest(unittest.TestCase):
         flame = report['class_conditions']['flamebreath']
         tick = int(flame['tick'], 16)
         code = self.text_at(image, tick, 0x300)
-        self.assertEqual(code[3:6], ['xor ebx, ebx', f'cmp dword ptr [esi + {k["type"]:#x}], 0', 'setne bl'])
+        self.assertEqual(code[3:6], ['xor ebx, ebx', f'test byte ptr [esi + {k["type"]:#x}], 1', 'setne bl'])
+        # the dialog shows outside town once Flamebreath is learned (m_gaugeType bit 1, M8c)
+        shown = code.index('xor eax, 1')
+        self.assertEqual(code[shown + 1:shown + 4][0], f'test byte ptr [esi + {k["type"]:#x}], 2')
+        self.assertEqual(code[shown + 3], 'xor eax, eax')
         self.assert_miri_conditions(code, k, flame)
         for va in (k['local_player'], k['ui'], int(report['class_conditions']['chain']['in_town'], 16)):
             self.assertIn(f'call {va:#x}', code)

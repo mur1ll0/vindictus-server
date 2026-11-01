@@ -430,3 +430,10 @@ Relatar: se o ícone apareceu, quanto de stamina subiu e se o golpe forte ficou 
 Pré-condição: a mesma da MI31 (preparação e aplicador; passo M8b).
 - [ ] Call of the Dragon (SP5) → o dragão aparece com os dois olhos brilhando em vermelho durante todo o ataque; os brilhos seguem a cabeça e somem com ele (também se a habilidade for interrompida).
 Relatar: se os dois olhos brilharam, o tamanho do brilho (pequeno/grande demais) e se algum brilho ficou no ar depois.
+
+### MI33 — Flamebreath só com a habilidade, começando em 4
+Pré-condição: a mesma da MI31 (DLLs novas; passo M8c). Uma Miri abaixo do nível 20 (ou sem `skill_miri_dragon_energy`) e a `MiriLab` com ela aprendida.
+- [ ] Miri sem Flamebreath numa fase → sem o dragão do HUD; golpes de Flamebreath (Dragon Smash) indisponíveis.
+- [ ] `MiriLab` (Flamebreath aprendido) ao entrar numa fase → o dragão do HUD já começa com 4 casas e enche até 8 com o tempo; gastar e recarregar como antes; transformada, gasto ilimitado.
+- [ ] Com Parrying Attack aprendido, ao entrar na fase → estado **Hydra** já ativo.
+Relatar: quantas casas o HUD mostrou ao entrar e se a Miri sem a habilidade viu o HUD.

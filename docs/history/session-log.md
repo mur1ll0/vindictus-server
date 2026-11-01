@@ -3100,3 +3100,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI32 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: M8c (Flamebreath pelo rank, nível inicial do NA).
+
+## 2026-11-01 — Miri M8c: Flamebreath pelo rank e nível inicial do NA
+- Feito: `patch_class_routing.FLAMEBREATH` ganha `skill_rank` (`0x40532a00`, cabeça conferida), `FLAMEBREATH_START` 4 (NA `0x5dad4b`/`0x5dcea0`), `FLAMEBREATH_SKILL`, `PARRYING_SKILL` e entradas de 12 bytes com o *handle* do jogador. *Tick* do servidor: entidade nova → próxima recarga zerada, `resound` com `skill_miri_attack` (NA `0x739840`), nível 4 com `skill_miri_dragon_energy`; `m_gaugeType` = transformada | aprendida << 1; sem a habilidade, nível 0. Gasto ilimitado testa o bit 0; o cliente mostra o HUD só com o bit 1.
+- Verificação: `test_patch_class_routing -k flamebreath -k guard -k dragon_knight` 5 testes, uma asserção corrigida (contagem de `xor eax, eax`), depois `-k flamebreath_lives` OK (`r5/m8c-routing.log`, `r5/m8c-routing2.log`). Aplicação conjunta com M8a/M8b no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI33 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8d (efeitos de Dragon Knight nos golpes compartilhados).
