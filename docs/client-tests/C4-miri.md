@@ -391,3 +391,13 @@ Pré-condição: com o jogo fechado, imagem Docker reconstruída e `refresh_item
 - [ ] Inventário → usar **History of the Gods Book** → mensagem de história revelada; o livro some; a história `EPD_30raid_elclous` aparece no diário com o NPC (Ti). Usar outro livro de uma história que já tem → mensagem "já possui" e o livro fica.
 - [ ] Ceara → história **XE Move** → ela fala, dá o XE Move e a história termina; janela de habilidades → XE Move liberado (treinar rank 1 com 0 AP) e usável em combate (ataque + golpe forte).
 Relatar: a mensagem de cada livro usado e se a Ceara deu a habilidade.
+
+Relato da MI27 (01/11/2026, `MiriLab` e `Murael`): E não pega o que caiu no chão; Parrying Attack não defende; ao parar de correr em combate a Miri dá um pequeno *dash* (a Delia e a Fiona não); Call of the Dragon sem o dragão atacando; o dragão do Flamebreath fica na seleção e com a Delia depois de sair da Miri; destruir item do inventário (Murael) não faz nada. Corrigidos no M7x: E, *dash*, dragão do HUD, destruir item. Pendentes de decisão: Parrying Attack e o dragão do Call of the Dragon (mecânicas nativas do NA).
+
+### MI28 — Pegar do chão, corrida, HUD e destruir item
+Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.py --apply` e imagem Docker reconstruída (feitos por mim; passo M7x). DLLs sem mudança.
+- [ ] Miri numa fase: monstro solta núcleo/itens → E perto do que caiu → animação de vasculhar e o item entra no inventário.
+- [ ] Miri em combate: correr e soltar a tecla (também um toque rápido) → para sem o *dash* para frente, como a Delia.
+- [ ] Sair da Miri para a seleção de personagens → o dragão do Flamebreath some; entrar com a Delia → sem o dragão. Voltar com a Miri numa fase → o dragão volta a aparecer.
+- [ ] Qualquer personagem: arrastar um item comum para a lixeira (destruir) → confirma e o item some. Item equipado ou no atalho → mensagem "não pode destruir item equipado"; item indestrutível (ex.: livro de história) → mensagem "não pode destruir".
+Relatar: o que aconteceu em cada item e a mensagem mostrada nas recusas.

@@ -3065,3 +3065,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI26 e MI27 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI27 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7x: E no que cai, corrida, dragão do HUD, destruir item
+- Feito: relato da MI27. `stage_na_class.with_ref_group_activations` (`SearchEvilCore` no `common_idle_run_active_states` da Miri, da Delia) e `without_sprint_stop` (`battle_run_sprint` termina em `BattleIdle`, decisão do operador); `apply_lab_content_additions.UI_HIDE_LISTS` (`MiriSkillDialog` em `HideOnChangeTownState` e `DeactivateInGameUI`, como o `ShipHPGauge`); protocolo `DestroySlotItem` (454) e `minimum_shop::destroy_slot` (DestroySlotItemProcessor) no frontend. Medidos sem porte: Parrying Attack (`skill_miri_attack`) e o dragão do Call of the Dragon (`PREARE_SUMMON_DRAGON`, `SUMMON_DRAGON`/`RETURN_DRAGON`) são nativos do NA; o 1.69 só tem o *parry* do Hurk (`As_Cond_ParryCandidate`, animações `battle_attack_parry_*`).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r3/t12-client.log`, `t13-stage.log`), `cargo test --test item_sync_wire --test inventory_wire` OK (`r3/rs-wire2.log`), PostgreSQL filtrado `destroy sell storyscroll` (8, 0 falhas; `r3/rs-pg3.log`; novo `minimum_destroy_slot_item_removes_the_whole_stack`). Aplicado com o jogo fechado: preparação 5.315 arquivos (`r3/stage3.log`), `apply4.log` (2 pacotes; `UIElements.xml` com o dragão nas listas de esconder), `docker compose build`/`up -d --wait` (`r3/docker-build2.log`).
+- Cliente: `docs/client-tests/C4-miri.md` relato da MI27 e MI28 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI28 no cliente; decisão do operador sobre portar o Parrying Attack e o dragão do Call of the Dragon.

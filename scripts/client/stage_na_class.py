@@ -223,6 +223,41 @@ def with_jump_activations(script: bytes, donor_script: bytes) -> tuple[bytes, li
     return script, sorted(name for _, _, name in edits)
 
 
+# Activations of the donor's $ref_group$ lists the class lacks: the NA Miri's common_idle_run_active_states
+# has no SearchEvilCore, so E on what a monster dropped did nothing (C4 MI27; M7g only added the
+# search_evil_core events).
+REF_GROUP_ACTIVATIONS = {'common_idle_run_active_states': ('SearchEvilCore',)}
+REF_GROUP = '$ref_group$'
+
+
+def with_ref_group_activations(script: bytes, donor_script: bytes,
+                               wanted: dict = REF_GROUP_ACTIVATIONS) -> tuple[bytes, list[str]]:
+    """The class's events script with the donor's `wanted` activations added to the same $ref_group$ list."""
+    mine, theirs = event_blocks(script).get(REF_GROUP.lower()), event_blocks(donor_script).get(REF_GROUP.lower())
+    if mine is None or theirs is None:
+        return script, []
+    def groups(text, span):
+        root = next((n for n in kv_merge.parse(text[span[0]:span[1]]).children if n.block), None)
+        return {g.key: g for g in root.children if g.block} if root else {}
+    my_groups, their_groups = groups(script, mine), groups(donor_script, theirs)
+    edits, added = [], []
+    for name, states in wanted.items():
+        group, donor = my_groups.get(name), their_groups.get(name)
+        if group is None or donor is None:
+            continue
+        have = set(re.findall(rb'AE_ACTIVATE_STATE_CHANGE_CONDITION[ \t]+(\w+)', script[mine[0] + group.start:mine[0] + group.end]))
+        for state in states:
+            line = re.search(rb'^[^\r\n]*AE_ACTIVATE_STATE_CHANGE_CONDITION[ \t]+' + state.encode() + rb'"[^\r\n]*\r?\n',
+                             donor_script[theirs[0] + donor.start:theirs[0] + donor.end], re.M)
+            if line and state.encode() not in have:
+                at = script.rfind(b'\n', 0, mine[0] + group.close) + 1
+                edits.append((at, line.group(0)))
+                added.append(f'{name}/{state}')
+    for at, text in sorted(edits, key=lambda e: e[0], reverse=True):
+        script = script[:at] + text + script[at:]
+    return script, added
+
+
 def with_included_events(script: bytes, donor_script: bytes, sequences: set[str]) -> tuple[bytes, list[str]]:
     """The class's events script plus the donor's event blocks of `sequences` (the ones an included model
     supplies) that the script lacks: the engine plays an included sequence with the events of the
@@ -457,6 +492,23 @@ def state_sp_checks(states: bytes) -> dict[str, int]:
     return out
 
 
+# Stopping a battle run opened SprintStop (battle_run_sprint_stop, a short dash forward) from the class's
+# battle_run_sprint, even after a tap of a move key; the 1.69 classes (Delia, Fiona) go back to BattleIdle
+# there. Operator decision (C4 MI27): the class's battle sprint ends in BattleIdle, as the Delia's.
+SPRINT_STOP = re.compile(rb'(AE_ACTIVATE_STATE_CHANGE_CONDITION[ \t]+)SprintStop(GamePad)?\b')
+SPRINT_BLOCK = 'battle_run_sprint'
+
+
+def without_sprint_stop(path: str, data: bytes) -> bytes:
+    if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
+        return data
+    span = event_blocks(data).get(SPRINT_BLOCK)
+    if span is None:
+        return data
+    start, end = span
+    return data[:start] + SPRINT_STOP.sub(rb'\1BattleIdle', data[start:end]) + data[end:]
+
+
 def with_sp_reduce(path: str, data: bytes, checks: dict[str, int]) -> bytes:
     if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
         return data
@@ -582,6 +634,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = pbs_as_armor(rel, data)
         data = with_plain_effects(rel, data)
         data = with_sp_reduce(rel, data, sp_checks)
+        data = without_sprint_stop(rel, data)
         if rel in csf_without_weapon:
             data = without_csf_weapon(data)
         converted = converted or data != source
@@ -634,6 +687,8 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                     donor_text = lab_files[donor_events].read_bytes()
                     text, added = with_included_events(text, donor_text, included)
                     text, opened = with_jump_activations(text, donor_text)
+                    text, grouped = with_ref_group_activations(text, donor_text)
+                    extra['ref_group_activations'] = grouped
                     extra.update({'events_from': donor_events, 'events_added': len(added), 'jump_activations': len(opened)})
                 (out / script).write_bytes(text)
                 records[script].update({'sha256': sha256(text), 'bytes': len(text), 'converted': True, **extra})

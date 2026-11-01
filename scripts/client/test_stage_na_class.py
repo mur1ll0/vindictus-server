@@ -315,6 +315,27 @@ class StageTest(unittest.TestCase):
         self.assertNotIn(b'delia', out)
         self.assertNotIn(b'bastard', out)
 
+    def test_the_battle_sprint_ends_in_battle_idle(self):
+        script = (b'"battle_run_sprint"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStop"\r\n'
+                  b'\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStopGamePad"\r\n}\r\n'
+                  b'"battle_run_sprint_minigame"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSprintStop"\r\n}\r\n')
+        out = stage.without_sprint_stop('models/player/_anim/female/miri/pc_miri_motion_ex.txt', script)
+        sprint = out[slice(*stage.event_blocks(out)['battle_run_sprint'])]
+        self.assertNotIn(b'SprintStop', sprint)
+        self.assertEqual(sprint.count(b'CONDITION\tBattleIdle"'), 2)
+        self.assertIn(b'SprintStop', out[slice(*stage.event_blocks(out)['battle_run_sprint_minigame'])])
+        self.assertEqual(stage.without_sprint_stop('scripts/x.txt', script), script)
+
+    def test_ref_group_activations_come_from_the_donor(self):
+        group = lambda *states: (b'"$ref_group$"\r\n{\r\n\t"common_idle_run_active_states"\r\n\t{\r\n'
+                                 + b''.join(b'\t\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\t%s"\r\n' % s for s in states)
+                                 + b'\t}\r\n}\r\n')
+        mine, donor = group(b'Kick'), group(b'Kick', b'SearchEvilCore', b'Other')
+        out, added = stage.with_ref_group_activations(mine, donor)
+        self.assertEqual(added, ['common_idle_run_active_states/SearchEvilCore'])
+        self.assertEqual(out, group(b'Kick', b'SearchEvilCore'))
+        self.assertEqual(stage.with_ref_group_activations(out, donor)[1], [])
+
     def test_jump_activations_come_from_the_donor(self):
         mine = (b'"battle_idle_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tBattleRun"\r\n}\r\n'
                 b'"battle_run_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tJumpBegin"\r\n}\r\n'

@@ -66,6 +66,12 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
         self.assertEqual(lines[12], '    <Element name="MiriSkillDialog" background="MC_DragonEnergy.BG" />')
         self.assertEqual(lines[13], '  </MoveableDialogs>')
         self.assertIsNone(a.ui_elements_with_classes(out))  # already declared
+        # hidden on a game state change, as ShipHPGauge (C4 MI27: the dragon stayed on the select screen)
+        hiding = xml.replace(b'  <MoveableDialogs>', b'  <HideOnChangeTownState>\r\n    <Element>ShipHPGauge</Element>\r\n'
+                             b'  </HideOnChangeTownState>\r\n  <DeactivateInGameUI>\r\n  </DeactivateInGameUI>\r\n  <MoveableDialogs>')
+        out = a.ui_elements_with_classes(hiding).decode()
+        self.assertIn('<Element>MiriSkillDialog</Element>\r\n  </HideOnChangeTownState>', out)
+        self.assertIn('<Element>MiriSkillDialog</Element>\r\n  </DeactivateInGameUI>', out)
         with self.assertRaises(PreparationError):
             a.ui_elements_with_classes(b'<UIElementInfo></UIElementInfo>')
 

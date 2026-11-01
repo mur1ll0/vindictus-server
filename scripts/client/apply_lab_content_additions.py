@@ -293,6 +293,10 @@ CLASS_UI_ELEMENTS = (
      'ShipHPGauge', 'background="MC_DragonEnergy.BG"'),
 )
 UI_ELEMENTS = 'scaleform/uielements.xml'
+# Lists that hide an element when the game state changes, as the 1.69 does for ShipHPGauge (preloaded the
+# same way): the Miri's dragon stayed on the character select and with the next character, which never
+# hides it (C4 MI27). The Miri's think sends the visibility again every FLAMEBREATH_RESEND thinks.
+UI_HIDE_LISTS = (b'HideOnChangeTownState', b'DeactivateInGameUI')
 
 
 def ui_elements_with_classes(data: bytes, elements=CLASS_UI_ELEMENTS) -> bytes | None:
@@ -312,10 +316,11 @@ def ui_elements_with_classes(data: bytes, elements=CLASS_UI_ELEMENTS) -> bytes |
         close = out.find(b'</MoveableDialogs>')
         start = out.rfind(newline, 0, close) + len(newline)
         out = out[:start] + f'    <Element name="{name}" {background} />'.encode() + newline + out[start:]
-        close = out.find(b'</PreloadList>')
-        if close >= 0:
-            start = out.rfind(newline, 0, close) + len(newline)
-            out = out[:start] + f'    <Element>{name}</Element>'.encode() + newline + out[start:]
+        for tag in (b'PreloadList',) + UI_HIDE_LISTS:
+            close = out.find(b'</' + tag + b'>')
+            if close >= 0:
+                start = out.rfind(newline, 0, close) + len(newline)
+                out = out[:start] + f'    <Element>{name}</Element>'.encode() + newline + out[start:]
     return None if out == data else out
 
 

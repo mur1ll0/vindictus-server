@@ -6923,6 +6923,69 @@ async fn minimum_storyscroll_opens_its_storyline_and_is_consumed_once() {
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_destroy_slot_item_removes_the_whole_stack() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_shop,
+        },
+        protocol::inventory::Kind,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let class = "questscroll2_gnoll_shadowfang";
+    let assets = assets_with_classes(0, 1, 0, None, class, 1)
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    minimum_give::lab_grant(&p, &assets, Some(1), class, 1, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let item: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1")
+        .bind(utf16(class))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let log = || minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    // An item the character does not hold: FailMessage only.
+    assert!(
+        minimum_shop::destroy_slot(&p, &owner, &assets, 1, item + 1, log())
+            .await
+            .is_err()
+    );
+    let packets = minimum_shop::destroy_slot(&p, &owner, &assets, 1, item, log())
+        .await
+        .unwrap();
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].category, Kind::UpdateInventoryInfo.category());
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items WHERE id=$1")
+        .bind(item)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_mission_required_item_is_reserved_and_paid_at_start() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,
