@@ -32,6 +32,9 @@ def make(path: Path, na: bool) -> None:
         db.execute('CREATE TABLE ManufactureRecipeInfo(RecipeID TEXT)')
         db.execute('CREATE TABLE CraftShopInfo(ShopID TEXT, [Order] INT, RecipeID TEXT)')
         db.execute('CREATE TABLE StatusEffectGroupInfo(Type TEXT, Level INT)')
+        if na:  # the Miri's own effect, one she uses without her name in it, and another class's
+            db.executemany('INSERT INTO StatusEffectGroupInfo VALUES(?, ?)',
+                           [('miri_dragon_transform', 1), ('resound_stamina', 1), ('delia_guard', 1)])
         db.execute('CREATE TABLE SynthesisSkillBonus(ID INT, SkillID TEXT)')
         db.execute(f'CREATE TABLE FeatureMatrix({",".join(f"[{c}]" for c in FM)})')
         db.execute('CREATE TABLE SetInfo(SetID TEXT)')
@@ -116,6 +119,10 @@ class ClassImportsTest(unittest.TestCase):
         self.assertEqual((rows['RecipeMaterialInfo'], rows['CraftShopInfo'], rows['FeatureMatrix']), (2, 1, 2))
         # Sets: the imported items' set rows; only the new set brings its SetInfo and effects.
         self.assertEqual((rows['SetItemInfo'], rows['SetInfo'], rows['SetEffectInfo']), (2, 1, 2))
+        # Status effects: those naming the class and the ones it uses by name (MENTIONED_BY_NAME).
+        with closing(sqlite3.connect(self.imported)) as db:
+            self.assertEqual(sorted(db.execute('SELECT Type FROM StatusEffectGroupInfo')),
+                             [('miri_dragon_transform',), ('resound_stamina',)])
         with closing(sqlite3.connect(self.imported)) as db:
             # The NA shop becomes the 1.69 shop with the same recipes, after its last row.
             self.assertEqual(db.execute('SELECT * FROM CraftShopInfo').fetchall(), [('_Craft', 41, 'recipe_draker')])

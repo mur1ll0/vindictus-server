@@ -3086,3 +3086,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI30 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: M8a (`resound` do Parrying Attack e efeito/som do servidor).
+
+## 2026-11-01 — Miri M8a: Hydra (resound) do Parrying Attack e endure pelo servidor
+- Feito: `patch_class_routing.MIRI_GUARD`/`_miri_guard_damage`: o *slot* 555 da Miri é uma cópia da rotina da Fiona (`0x40575a50`) com `pc_miri_endure_success.efx` (só golpe decidido pelo servidor, como o NA `0x7395e0`) e `miri.guard`, as condições da guarda, `resound` nível 1 (salvo Dragon Knight, `level_of`) e `resound_stamina` nível 1 (`add_named` dos `DELIA_EFFECTS`, agora exportado). `class_imports.MENTIONED_BY_NAME` traz `resound_stamina` (a importação passa de 13 para 14 linhas de `StatusEffectGroupInfo`).
+- Verificação: `test_patch_class_routing -k guard -k flamebreath` 4 OK (`r5/m8a-routing.log`), `test_class_imports` 9 OK (`r5/m8a-imports.log`), importação refeita (`r5/m8a-import.log`; anterior em `r5/miri-import.pre-m8a.db3`). Aplicação (refresh, preparação, aplicador, DLLs) conjunta com M8b/M8c, no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI31 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8b (olhos do dragão do Call of the Dragon).

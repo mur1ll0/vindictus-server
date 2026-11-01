@@ -469,9 +469,22 @@ class LabCopyTest(unittest.TestCase):
         # Delia's reserved HP forfeit is hers only
         forfeit = int(report['delia_effects']['forfeit'], 16)
         self.assertIn(f'call {forfeit:#x}', damage)
-        miri = body(damages[routing.MIRI], 0xa0)
+        # the Miri's endure: her effect and sound, then resound (not while Dragon Knight) and resound_stamina
+        miri = body(damages[routing.MIRI], 0x140)
+        k = routing.MIRI_GUARD['server.dll']
         self.assertNotIn(f'call {forfeit:#x}', miri)
-        self.assertIn(f'call {guarded:#x}', miri)
+        self.assertNotIn(f'call {guarded:#x}', miri)
+        for target in ('effect', 'effect_release', 'sound', 'held', 'unguardable', 'unguardable_info'):
+            self.assertEqual(sum(t == f'call {k[target]:#x}' for t in miri), 1, target)
+        self.assertEqual(miri[-6:], ['push edi', 'mov ecx, esi', f"call {k['base']:#x}", 'pop edi', 'pop esi', 'ret 4'])
+        effects = report['delia_effects']
+        strings = [routing.read_string(image, int(v, 16)) for t in miri for v in re.findall(r'0x[0-9a-f]{8}', t)]
+        for text in (routing.MIRI_ENDURE_EFFECT, routing.MIRI_GUARD_SOUND, routing.DRAGON_KNIGHT_EFFECT, *routing.MIRI_RESOUND):
+            self.assertIn(text, strings)
+        self.assertEqual(sum(t == f"call {effects['add_named']}" for t in miri), 2)
+        self.assertEqual(sum(t == f"call {effects['level_of']}" for t in miri), 1)
+        self.assertEqual(sum(t == f'call {raise_:#x}' for t in miri), 2)
+        self.assertIn('test byte ptr [edi + 0x78], 2', miri)
 
     def test_client_guard_marks_guarded_hits_for_extra_classes(self):
         image, report = self.plan('client.dll')

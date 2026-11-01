@@ -416,3 +416,12 @@ Pré-condição: `refresh_item_content.py --force` (feito por mim; passo M7z). D
 - [ ] Histórias com ramo `Fail` (texto genérico) e o tutorial (`GuidePlay_1_2_Alert`: a Delia e a Miri ganham o mesmo item da Fiona) → como antes.
 Limites conhecidos: onde a Fiona ganha arma ou habilidade dela (eventos, `GuidePlay_6_Chieftain`), a Delia e a Miri ficam no `Fail`.
 Relatar: a fala que apareceu e se a história avançou.
+
+### MI31 — Parrying Attack: Hydra e efeito visto pelo servidor
+Pré-condição: com o jogo fechado, `class_imports.py`, `refresh_item_content.py --force`, preparação, `apply_lab_content_additions.py --apply` e `patch_class_routing.py --apply` (feitos por mim; passos M8a–M8c, aplicação conjunta). Miri com Parrying Attack (`skill_miri_attack`) aprendido.
+- [ ] Numa fase, defender um golpe com o ataque básico no começo do golpe do monstro → sem dano, efeito de *endure* dela e o som `miri.guard`; aparece o estado **Hydra** (ícone) e a barra de stamina sobe (Hydra STA, +20).
+- [ ] Golpe forte do dragão (Fiery Chainswing, `miri_strong_dragon_attack_*`) com Hydra ativo → dano maior que sem ele.
+- [ ] Transformada (Dragon Knight) → defender ainda dá stamina, mas não dá Hydra.
+- [ ] Monstro que acerta por decisão do servidor (golpe em área, projétil) defendido → o efeito aparece também (feito pelo servidor).
+Limites conhecidos: o Hydra some ao levar dano pelos eventos de sequência do NA; o *latch* de tempo do cliente do NA (`miri_endure_latch_time`) não foi portado.
+Relatar: se o ícone apareceu, quanto de stamina subiu e se o golpe forte ficou mais forte.

@@ -47,6 +47,9 @@ SKILL_TABLES = {'SkillInfo': 'SkillID', 'SkillRankInfo': 'SkillID', 'SkillArgume
                 'SkillConstraintInfo': 'SkillId'}
 RECIPE_TABLES = ('RecipeInfo', 'RecipeMaterialInfo', 'ManufactureRecipeInfo', 'CraftShopInfo')
 MENTION_TABLES = {'StatusEffectGroupInfo': ('Type', 'Level'), 'SynthesisSkillBonus': ('ID',)}
+# Rows a class uses whose text does not name it (key column values per table): the Miri's endure adds
+# resound_stamina (NA server 0x7395e0, Miri M8a), a status effect with no 'miri' in its row.
+MENTIONED_BY_NAME = {'miri': {'StatusEffectGroupInfo': ('Type', ('resound_stamina',))}}
 FEATURE_TEMPLATE = 'Delia'
 FEATURE_TOKEN = re.compile(r'[A-Za-z0-9_.]+')
 # The NA's English region is US; the laboratory client is EU English (EN-EU-X-GM): rows of the NA US
@@ -184,6 +187,10 @@ def select(na: sqlite3.Connection, base: sqlite3.Connection, name: str, weapon: 
         cols = columns(na, table)
         text = ' OR '.join(f'lower(cast([{c}] AS TEXT)) LIKE ?' for c in cols)
         cols, rows = _rows(na, table, text, [f'%{name}%'] * len(cols))
+        if table in MENTIONED_BY_NAME.get(name, {}):
+            column, values = MENTIONED_BY_NAME[name][table]
+            named = _rows(na, table, f'[{column}] IN ({",".join("?" * len(values))})', list(values))[1]
+            rows = rows + [r for r in named if r not in rows]
         present = {tuple(r) for r in base.execute(f'SELECT {",".join(f"[{k}]" for k in key)} FROM [{table}]')}
         out[table] = (cols, [r for r in rows if tuple(r[cols.index(k)] for k in key) not in present])
     cols, rows = _rows(na, 'FeatureMatrix', 'lower(Feature) LIKE ?', [f'%{name}%'])

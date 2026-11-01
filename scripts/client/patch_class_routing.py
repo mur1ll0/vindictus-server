@@ -92,6 +92,26 @@ MIRI = 11
 GUARD_CLASSES = (DELIA, MIRI)
 MIRI_ENDURE_EFFECT = 'effects/player/miri/pc_miri_endure_success.efx'
 CLIENT_EFFECT = (0x38836550, 0x38832000)  # play(out, path, entity, 0) cdecl; release(ecx = handle)
+# The Miri's endure on the server (M8a). NA server x64 0x7395e0 (CHeroesPlayerMiri slot 0x1338): an
+# endured hit loses its damage; a hit the server decided plays pc_miri_endure_success.efx at the player
+# (0x204240) and miri.guard (0x2bf5c0), the client predicts its own; then every endured hit adds the
+# status effects resound (level 1, "Hydra"; not while Dragon Knight, +0xc181) and resound_stamina
+# (level 1, stamina_adder 20). Fiona's routine (0x40575a50) does the same in the 1.69 with her
+# effect and sound from globals, so the Miri's damage slot is her own copy of it: the guard tests
+# (client bit 2 of +0x78; server: guard state, not unblockable, 0x4081f9c0(conditions, info) and
+# 0x4081f740(info) false), damage +0x30/+0x48 and +0x75 zeroed, EmitSound 0x40758f60(name, 0.0, 0)
+# (ret 0xc), Fiona's 0x405337c0/0x405337d0(0), the effect 0x4073e210(&handle, path, player, 1) (cdecl)
+# released by 0x40739dd0, then the base 555 (0x405400e0). The status effects go through DELIA_EFFECTS
+# (level_of for Dragon Knight, add_named).
+MIRI_GUARD = {'server.dll': {'unguardable': 0x4081F9C0, 'unguardable_info': 0x4081F740, 'sound': 0x40758F60,
+                             'held': 0x405337C0, 'release_held': 0x405337D0, 'effect': 0x4073E210,
+                             'effect_release': 0x40739DD0, 'base': 0x405400E0}}
+MIRI_GUARD_HEADS = {'server.dll': {'unguardable': '53558b6c240c', 'unguardable_info': '538b5c24088b',
+                                   'sound': '83ec6456578b', 'held': '83b9bc3a0000', 'release_held': '8b89bc3a0000',
+                                   'effect': '568b74241085', 'effect_release': '568bf1ff0e83',
+                                   'base': '568b7424088b'}}
+MIRI_GUARD_SOUND = 'miri.guard'
+MIRI_RESOUND = ('resound', 'resound_stamina')
 LAST = max(c.index for c in EXTRA_CLASSES)
 EXPECTED = {'client.dll': '0a0b866dcc0a1852', 'server.dll': 'c85a56d5b845810f'}
 # Switches: (VA of `cmp reg, imm8`, original bound, whether case 10 is the pet).
@@ -1454,9 +1474,10 @@ def class_dispatch(image: Image, layout: Layout, edits: list, relocs: set[int], 
 
 def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
           damage_slot: int, guarded: int, forced_off: int, conditions_of: int, raise_: int, lower: int,
-          forfeit: int | None = None) -> dict:
+          forfeit: int | None = None, effects: dict | None = None) -> dict:
     """GUARD: guard state table, state set/get and the guarded damage path for extra classes; a hit that
-    is neither guarded nor unblockable calls `forfeit(this)` (Delia's reserved HP) when given."""
+    is neither guarded nor unblockable calls `forfeit(this)` (Delia's reserved HP) when given. With the
+    DELIA_EFFECTS helpers (`effects`: level_of, add_named) the Miri gets her own endure (MIRI_GUARD)."""
     name, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
     guard_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard')
     hit_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit')
@@ -1480,6 +1501,9 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
 
     states, get, put = guard_state(layout, forced_off, ended)
     damages = {klass_: damage_body(forfeit if klass_ == DELIA else None) for klass_ in GUARD_CLASSES}
+    if effects is not None and MIRI in GUARD_CLASSES:
+        damages[MIRI] = _miri_guard_damage(image, layout, get, conditions_of, raise_, guard_id, hit_id,
+                                           int(effects['level_of'], 16), int(effects['add_named'], 16))
 
     def dispatch(slot: int, body) -> str:
         return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
@@ -1535,6 +1559,80 @@ def _server_guard_damage(layout: Layout, get: int, conditions_of: int, raise_: i
     layout.body += bytes((0xFF, 0x74, 0x24, 0x08, 0x8B, 0xCE))  # push [esp+8]; mov ecx, esi
     call(guarded)
     layout.body += bytes((0x5E, 0xC2, 0x04, 0x00))  # pop esi; ret 4
+    return damage
+
+
+def _miri_guard_damage(image: Image, layout: Layout, get: int, conditions_of: int, raise_: int, guard_id: int,
+                       hit_id: int, level_of: int, add_named: int) -> int:
+    """damage(this, info) of the Miri (MIRI_GUARD): Fiona's endure with her effect and sound, the guard
+    conditions and the resound status effects."""
+    k = MIRI_GUARD['server.dll']
+    for key, head in MIRI_GUARD_HEADS['server.dll'].items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    L = layout
+    efx, sound = L.string(MIRI_ENDURE_EFFECT), L.string(MIRI_GUARD_SOUND)
+    knight = L.string(DRAGON_KNIGHT_EFFECT)
+    resound, stamina = (L.string(n) for n in MIRI_RESOUND)
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def call(va: int) -> None:
+        L.to(b'\xe8', va)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    def at(code: str, va: int) -> None:
+        b(code)
+        L.pointer(va)
+
+    L.pad()
+    damage = L.here()
+    b('56 57 8bf1 8b7c240c')  # push esi; push edi; mov esi, ecx; mov edi, info
+    b('f7473c' + struct.pack('<I', 0x10000000).hex()); server_side = fwd('0f84')  # a client hit
+    b('f6477802'); plain0 = fwd('0f84')  # guarded by the client
+    client = fwd('e9')
+    L.land(server_side)
+    b('f7473c' + struct.pack('<I', 0x8000000).hex()); plain1 = fwd('0f85')  # unblockable
+    b('8bce'); call(get)
+    b('84c0'); plain2 = fwd('0f84')
+    b('8bce'); call(conditions_of)
+    b('50 57'); call(k['unguardable'])
+    b('83c408 84c0'); plain3 = fwd('0f85')
+    b('57'); call(k['unguardable_info'])
+    b('83c404 84c0'); plain4 = fwd('0f85')
+    # the server decided the hit: her effect at the player, sent to everyone
+    b('6a00 8bc4 6a01 56'); at('68', efx); b('50')  # handle slot; push 1; push player; push path; push &handle
+    call(k['effect'])
+    b('83c410 59 85c9'); none = fwd('0f84')
+    call(k['effect_release'])
+    L.land(none)
+    L.land(client)
+    # fldz; push 0; push ecx; fst [edi+0x30]; fst [edi+0x48]; mov byte [edi+0x75], 0; fstp [esp]
+    b('d9ee 6a00 51 d95730 d95748 c6477500 d91c24')
+    at('68', sound); b('8bce')
+    call(k['sound'])
+    b('8bce'); call(k['held'])
+    b('84c0'); free = fwd('0f84')
+    b('6a00 8bce'); call(k['release_held'])
+    L.land(free)
+    b('8bce'); call(conditions_of)
+    b('85c0'); no_conditions = fwd('0f84')
+    b('50 68' + struct.pack('<I', guard_id).hex() + '8b4c2404'); call(raise_)
+    b('58 68' + struct.pack('<I', hit_id).hex() + '8bc8'); call(raise_)
+    L.land(no_conditions)
+    b('8bce'); at('ba', knight); call(level_of)
+    b('85c0'); transformed = fwd('0f85')
+    b('8bce b801000000'); at('ba', resound); call(add_named)
+    L.land(transformed)
+    b('8bce b801000000'); at('ba', stamina); call(add_named)
+    for j in (plain0, plain1, plain2, plain3, plain4):
+        L.land(j)
+    b('57 8bce'); call(k['base'])
+    b('5f 5e c20400')
     return damage
 
 
@@ -2189,7 +2287,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('5f 5e c20800')
 
     return {'table': hex(table), 'tick': hex(tick), 'forfeit': hex(forfeit), 'register': hex(register),
-            'level_of': hex(level_of),
+            'level_of': hex(level_of), 'add_named': hex(add_named),
             'events': hex(events), 'restore': hex(restore), 'repair': hex(repair),
             'factories': {n: hex(v) for n, v in factories.items()},
             'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit,
@@ -3560,7 +3658,7 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['delia_effects'] = effects
     if name in GUARD:
         report['guard'] = guard(image, layout, edits, relocs, *GUARD[name],
-                                forfeit=int(effects['forfeit'], 16) if effects else None)
+                                forfeit=int(effects['forfeit'], 16) if effects else None, effects=effects)
     if name in CLIENT_GUARD:
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
     if name in ITEM_MASK:
