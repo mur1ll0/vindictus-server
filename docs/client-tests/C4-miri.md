@@ -347,3 +347,11 @@ Pré-condição: com o jogo fechado, preparação, `refresh_item_content.py --fo
 - [ ] Blazing Spine, Slice and Dice, Fiery Chainswing e Call of the Dragon → efeitos aparecem (versão normal).
 - [ ] Ancestral Garb → efeitos da transformação, inclusive a asa.
 Limites conhecidos: transformada, os efeitos são os normais (não os de Dragon Knight); o fogo nas correntes (rastros da `weapon_draker.txt`) ainda não foi portado.
+
+Resultado da MI22 (01/11/2026, `MiriLab`): efeitos das habilidades aparecem; transformada, a chama sai azul (efeito normal) onde o NA usa a de Dragon Knight; Dragon Rise ainda sem modelo (os modelos de roupa importados vieram sem `.vvd`/`.vtx`); painel sem detalhes do conjunto e sem modelo no editor.
+
+### MI23 — Modelos dos conjuntos completos, chamas de Dragon Knight
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7r).
+- [ ] Vestir Dragon Rise e Pythonshock → as armaduras aparecem no corpo.
+- [ ] Ancestral Garb → as chamas da transformação e das habilidades transformadas saem escuras (Dragon Knight); sem transformar, azuis.
+- [ ] Painel → editor de itens com Dragon Rise → modelo e detalhes do conjunto; anotar se ainda faltar.

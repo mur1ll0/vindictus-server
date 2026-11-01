@@ -227,6 +227,17 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/b.efx"', out)
         self.assertNotIn(b'knight', out)
         self.assertEqual(stage.with_plain_effects('scripts/x.txt', script), script)
+        knight = script.replace(b'"miri_SP3"', b'"miri_SP4"')
+        out = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', knight + script)
+        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a_knight.efx"', out)  # the transformation: Dragon Knight
+        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a.efx"', out)  # the other block: the normal one
+        self.assertNotIn(b'CUSTOM', out)
+
+    def test_models_bring_their_mesh_files(self):
+        mdl = b'IDST' + bytes(0x200)
+        known = {'models/a/x.vvd', 'models/a/x.dx90.vtx', 'models/a/x.phy'}.__contains__
+        deps = stage.dependencies('models/a/x.mdl', mdl, known)
+        self.assertEqual([d for d in deps if not d.startswith('materials/')], ['models/a/x.vvd', 'models/a/x.dx90.vtx', 'models/a/x.phy'])
 
     def test_imported_costume_models_are_staged(self):
         import sqlite3

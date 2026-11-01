@@ -391,15 +391,29 @@ def imported_icons(class_name: str, na: dict, path: Path | None = None) -> set[s
 # and none of those effects showed (C4 MI21). They become the 1.69's AE_CL_PLAY_EFFECT <effect>, the
 # untransformed one.
 CUSTOM_EFFECT = re.compile(rb'AE_CL_PLAY_CUSTOM_EFFECT([ \t]+)([^\s"]+)[ \t]+[^\s"]+')
+KNIGHT_EFFECT = re.compile(rb'AE_CL_PLAY_CUSTOM_EFFECT([ \t]+)[^\s"]+[ \t]+([^\s"]+)')
+
+
+# Sequences only the Dragon Knight plays (the transformation and the transformed skills) take the second,
+# Dragon Knight effect: its dark flames, where the first is the untransformed blue (C4 MI22).
+KNIGHT_SEQUENCE = re.compile(r'sp4|_dragon($|_)|dragon_knight', re.I)
 
 
 def with_plain_effects(path: str, data: bytes) -> bytes:
     if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
         return data
-    return CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data)
+    knight = sorted(span for name, span in event_blocks(data).items() if KNIGHT_SEQUENCE.search(name))
+    out, at = [], 0
+    for start, end in knight:
+        out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:start]))
+        out.append(KNIGHT_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[start:end]))
+        at = end
+    out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:]))
+    return b''.join(out)
 
 
 COSTUME_SCRIPT = 'scripts/player_costume.txt'
+MODEL_COMPANIONS = ('.vvd', '.dx90.vtx', '.dx80.vtx', '.sw.vtx', '.xbox.vtx', '.phy', '.ani')
 
 
 def imported_costumes(class_name: str, costume_script: bytes, path: Path | None = None) -> set[str]:
@@ -443,12 +457,15 @@ def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
     that has it, as the engine searches them (`known`: the path exists in the 1.69, the NA or the
     staging); a material no folder has is reported in its first folder."""
     if path.endswith('.mdl') and data[:4] == b'IDST':
+        # the mesh and physics files beside the .mdl; a model staged without them (the imported costume
+        # models, whose names do not carry the class's) loaded with no mesh (C4 MI22)
+        companions = [path[:-4] + ext for ext in MODEL_COMPANIONS if known(path[:-4] + ext)]
         textures, folders = model_materials(data)
         wanted = []
         for texture in textures:
             paths = ['materials/' + (folder + texture).replace('\\', '/').lower().strip('/') + '.vmt' for folder in folders]
             wanted.append(next((p for p in paths if known(p)), paths[0] if paths else None))
-        return [w for w in wanted if w] + [m if m.startswith('models/') else 'models/' + m for m in include_models(data)]
+        return [w for w in wanted if w] + [m if m.startswith('models/') else 'models/' + m for m in include_models(data)] + companions
     if path.endswith('.efx'):
         wanted = []
         for key, value in EFX_REFERENCE.findall(data):

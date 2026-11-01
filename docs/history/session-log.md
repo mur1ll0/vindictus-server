@@ -3023,3 +3023,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI21 e MI22 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI22 no cliente; rastros de fogo da Draker (`weapon_draker.txt`); versões de Dragon Knight dos efeitos; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7r: malhas dos modelos importados e efeitos de Dragon Knight
+- Feito: MI22 jogada (efeitos ok; chama azul transformada; Dragon Rise sem modelo). `stage_na_class.dependencies` traz os arquivos irmãos de cada `.mdl` (`MODEL_COMPANIONS`); `with_plain_effects` escolhe o efeito de Dragon Knight nas sequências só transformadas (`KNIGHT_SEQUENCE`). Pythonshock tinha o mesmo problema, corrigido junto.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r2/r10-tests.log`). Aplicado com o jogo fechado: preparação 5.268 arquivos (`r2/stage10.log`), `apply10.log`; Dragon Rise e Pythonshock com `.mdl`/`.vvd`/`.dx90.vtx` na preparação. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI22 e MI23 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI23 no cliente (inclui conferir o painel: detalhes do conjunto e modelo no editor); rastros de fogo da Draker; gasto de SP da transformação; XE como habilidade extra.
