@@ -3128,3 +3128,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI36 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: aplicar M8a–M8g (Docker, refresh, preparação, aplicador, DLLs).
+
+## 2026-11-01 — Miri M8a–M8g: aplicação no laboratório
+- Feito: com o jogo fechado: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `up -d --wait` (`game` e `server` saudáveis, `migrate` exit 0); `refresh_item_content.py --force`; preparação (5.317 arquivos, `pc_miri_sp5_dragon_eye.efx` e as duas linhas dos olhos no `pc_miri_sp5_dragon.txt`); `apply_lab_content_additions.py --apply` (`heroes.db3` da cópia com `resound_stamina` e o XE da Miri em `skill_phantom`, um pacote refeito); DLLs do M7y guardadas como `client.dll.fb8f8ea72800dd3b.pre-m8.bak`/`server.dll.0aaf7aa3693645d2.pre-m8.bak`, `*.pre-routing.bak` restaurados e roteamento reaplicado (`client.dll` `7426256d7b1d6478`, `server.dll` `b36463e6da412e19`).
+- Verificação: `r5/docker-build.log`, `r5/docker-up.log`, `r5/m8-refresh.log` (exit 0), `r5/stage.log`, `r5/apply.log`, `r5/patch.log`; `test_patch_class_routing`, `test_stage_na_class` e `test_apply_lab_content_additions` juntos: 75 OK (`r5/client-tests.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI30–MI36 (pendentes; MI28/MI29 continuam valendo).
+- Commits: (este passo)
+- Pendente / próxima ação: corrigir o que o operador relatar nas MI30–MI36; decisões M8d (efeitos pelo estado) e M8e (rastros pretos).
