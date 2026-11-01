@@ -437,3 +437,8 @@ Pré-condição: a mesma da MI31 (DLLs novas; passo M8c). Uma Miri abaixo do ní
 - [ ] `MiriLab` (Flamebreath aprendido) ao entrar numa fase → o dragão do HUD já começa com 4 casas e enche até 8 com o tempo; gastar e recarregar como antes; transformada, gasto ilimitado.
 - [ ] Com Parrying Attack aprendido, ao entrar na fase → estado **Hydra** já ativo.
 Relatar: quantas casas o HUD mostrou ao entrar e se a Miri sem a habilidade viu o HUD.
+
+### MI34 — Efeitos e rastros do Dragon Knight (sem mudança; decisão pendente)
+Pré-condição: nenhuma (passos M8d e M8e só investigados; opções no `MIGRATION.md`, "Decisões pendentes").
+- [ ] Transformada, golpes básicos → efeitos normais (azuis), como hoje; nas sequências só transformadas, os efeitos escuros. Sem rastros pretos nem fogo na corrente.
+Relatar: se quer a aproximação dos rastros (efeitos de laboratório na arma) e qual caminho para os efeitos pelo estado.

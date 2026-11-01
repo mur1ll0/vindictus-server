@@ -3107,3 +3107,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI33 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: M8d (efeitos de Dragon Knight nos golpes compartilhados).
+
+## 2026-11-01 — Miri M8d/M8e: efeitos e rastros do Dragon Knight (investigação, decisão pendente)
+- Feito: M8d: o cliente 1.69 registra `AE_CL_PLAY_CUSTOM_EFFECT` (id 0x59, `0x380c0d6c`; NA id 0x65, `0x115038`), sem efeito visível na MI21; os blocos de evento do 1.69 só têm `event`, `is_finally`, `is_once`, `is_pvp`, `is_not_pvp`, `delay` (contagem em `models/player/_anim`); o despachante do id não aparece por `cmp` imediato nem por chamada direta (`r5/cl-custom-effect.txt`, `r5/cl-jumptables.txt`, tabelas inconclusivas). M8e: as 12 alças de rastro (`C_PlaneTrail` `0x38827f90`, vetor fixo em `+0xdd4`) e a arma nova do bloco `weapon` do `.csf` (`0x40539f60`) seguem impedindo os rastros pretos; achado um caminho de dados seguro (`AE_CL_PLAY_WEAPON_EFFECT` com `.efx` de rastro nas *attachments* de ataque, como `attach_particle.efx`), que é uma aproximação de laboratório. Opções registradas em "Decisões pendentes" do `MIGRATION.md`.
+- Verificação: medições em `.cache/verification/miri/r5/` (sem patch).
+- Cliente: `docs/client-tests/C4-miri.md` MI34 (estado atual e pergunta ao operador).
+- Commits: (este passo)
+- Pendente / próxima ação: decisão do operador sobre M8d (nativo × sequências próprias) e M8e (aproximação dos rastros); seguir com M8f.
