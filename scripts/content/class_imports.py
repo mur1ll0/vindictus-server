@@ -265,6 +265,30 @@ def class_text(classes: Path = CLASS_ASSETS, imports: list[Path] | None = None) 
             if any(n in key.lower() for n in needles) or any(
                     upper[i + 1:] in ids for i, c in enumerate(upper) if c == '_'):
                 tokens.setdefault(key, value)
+    for key, value in set_tokens(imports or []).items():
+        tokens.setdefault(key, value)
+    return tokens
+
+
+def set_tokens(imports: list[Path]) -> dict[str, str]:
+    """Name and bonus text of the imported sets, in the 1.69's form (HEROES_ITEM_SETITEM_NAME_<SET> 'Ivory Set',
+    HEROES_SET_ITEM_DESC_<SET>_<pieces> 'DEF +125\nSTR +10\n'): the NA text has none for the Miri's own sets,
+    whose bonuses its client computes from SetEffectInfo, and the panel's tooltip showed no set (C4 MI23). The
+    class's NA tokens win where they exist."""
+    tokens: dict[str, str] = {}
+    for path in imports:
+        with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as imported:
+            if not imported.execute("SELECT 1 FROM sqlite_master WHERE name='SetEffectInfo'").fetchone():
+                continue
+            bonuses = collections.defaultdict(list)
+            for set_id, count, target, amount in imported.execute(
+                    'SELECT SetID, SetCount, EffectTarget, Amount FROM SetEffectInfo ORDER BY rowid'):
+                bonuses[(set_id, count)].append(f'{target} {"+" if amount >= 0 else ""}{amount}')
+            for (set_id, count), lines in bonuses.items():
+                key = str(set_id).upper()
+                name = ' '.join(w.capitalize() for w in str(set_id).split('_')[:-1] if w) + ' Set'                     if str(set_id).lower().endswith('_set') else str(set_id)
+                tokens.setdefault(f'HEROES_ITEM_SETITEM_NAME_{key}', name)
+                tokens[f'HEROES_SET_ITEM_DESC_{key}_{count}'] = ''.join(f'{line}\n' for line in lines)
     return tokens
 
 # --- install -------------------------------------------------------------------------------------

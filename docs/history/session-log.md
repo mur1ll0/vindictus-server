@@ -3030,3 +3030,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI22 e MI23 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI23 no cliente (inclui conferir o painel: detalhes do conjunto e modelo no editor); rastros de fogo da Draker; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7s: texto dos conjuntos importados
+- Feito: o painel não mostrava nome nem bônus dos conjuntos da Miri: o texto do NA não tem `HEROES_ITEM_SETITEM_NAME_<SET>`/`HEROES_SET_ITEM_DESC_<SET>_<n>` deles (o cliente do NA calcula pelo `SetEffectInfo`). `class_imports.set_tokens` gera nome e linhas de bônus no formato do 1.69 (o NA vence onde tem texto: `pythonshock_set` = "Serpent Shock Set"); `export_panel_catalog` leva esses *tokens* ao `tooltip_text`.
+- Verificação: `test_class_imports` OK (`.cache/verification/miri/r2/r11-tests.log`), `test_export_panel_catalog` OK; `refresh_item_content.py --force` duas vezes (`r2/refresh11.log`, `refresh11b.log`); catálogo do painel com "Dragon Rise Set" e `DEF +150\nINT +35\nSTR +35`; `apply11.log` (5.770 *tokens* de classe no cliente).
+- Cliente: `docs/client-tests/C4-miri.md` item M7s na MI23 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI23 no cliente; rastros de fogo da Draker; gasto de SP da transformação; XE como habilidade extra.

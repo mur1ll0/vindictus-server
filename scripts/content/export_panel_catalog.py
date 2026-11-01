@@ -103,6 +103,9 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
         # Imported NA classes: their item names where the 1.69 localization has none (aliases).
         imported = class_imports.class_text(imports=class_imports.load_imports(content_additions.CLASS_IMPORTS))
         item_text = {**{k.upper(): v for k, v in imported.items() if k.upper().startswith('HEROES_ITEM_')}, **item_text}
+        # and their sets' name and bonus text (class_imports.set_tokens), which the tooltip's set block reads
+        tooltip_text = {**{k.upper(): v.replace('\\n', '\n') for k, v in imported.items()
+                           if k.upper().startswith(('HEROES_ITEM_SETITEM_NAME_', 'HEROES_SET_ITEM_DESC_'))}, **tooltip_text}
     trade_names = {k.upper(): v.strip() for k, v in TRADE_NAME.findall(decoded)
                    if not UNTRANSLATED.search(v) and v.strip() and len(v) <= 128}
     quest_titles = {k.upper(): v for k, v in QUEST_TITLE.findall(decoded)

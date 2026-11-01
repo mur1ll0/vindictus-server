@@ -204,6 +204,20 @@ class ClassImportsTest(unittest.TestCase):
             self.assertEqual(got['plate_helm'], ('PLATEARMOR', 'PLATEARMOR_HELM', 52, 'skill_plate_armor_mastery', 4))
             self.assertEqual(got['ring'], ('ACCESSORY', 'JEWELLERY', 50, None, 0))
 
+    def test_imported_sets_get_name_and_bonus_text(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'miri.db3'
+            with closing(sqlite3.connect(path)) as db:
+                db.execute('CREATE TABLE SetEffectInfo(SetID TEXT, SetCount INT, EffectTarget TEXT, Amount INT)')
+                db.executemany('INSERT INTO SetEffectInfo VALUES(?,?,?,?)', [
+                    ('dragon_rise_set', 2, 'DEF', 150), ('dragon_rise_set', 2, 'INT', 35), ('dragon_rise_set', 3, 'DEF', 165)])
+                db.commit()
+            got = class_imports.set_tokens([path])
+        self.assertEqual(got, {'HEROES_ITEM_SETITEM_NAME_DRAGON_RISE_SET': 'Dragon Rise Set',
+                               'HEROES_SET_ITEM_DESC_DRAGON_RISE_SET_2': 'DEF +150\nINT +35\n',
+                               'HEROES_SET_ITEM_DESC_DRAGON_RISE_SET_3': 'DEF +165\n'})
+
     def test_bad_arguments_are_refused(self):
         with self.assertRaises(class_imports.ImportError_):
             class_imports.build('Miri', 'draker', 11, 10, self.na, self.base, self.out)

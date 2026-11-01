@@ -355,3 +355,4 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Vestir Dragon Rise e Pythonshock → as armaduras aparecem no corpo.
 - [ ] Ancestral Garb → as chamas da transformação e das habilidades transformadas saem escuras (Dragon Knight); sem transformar, azuis.
 - [ ] Painel → editor de itens com Dragon Rise → modelo e detalhes do conjunto; anotar se ainda faltar.
+- [ ] (M7s) Painel → dica de uma peça de Dragon Rise e de Pythonshock → nome do conjunto ("Dragon Rise Set", "Serpent Shock Set") e bônus por número de peças; no jogo, o nome do conjunto sem `HEROES_ITEM_SETITEM_NAME_...`.
