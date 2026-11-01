@@ -2,7 +2,8 @@
 //! its dialogs (UseInTown 0 and IsConstraintSatisfied failures) and the capsule_ap
 //! branch (UseUseableItem + CharacterImpl.GiveAP, amount from the VALUE attribute), the
 //! RandomItemContents boxes (`minimum_random_item`), the empty dye ampoule (`minimum_dye`,
-//! DyeAmpleSession) and the pet_ items (`minimum_pet`). Other usable branches (food,
+//! DyeAmpleSession), the pet_ items (`minimum_pet`) and the storyscroll_ books
+//! (StoryImpl.GiveStory, `minimum_story::give_story`). Other usable branches (food,
 //! RandomItemV2 opening, ...) are rejected without changes until migrated.
 use super::{character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError};
 use crate::{
@@ -361,6 +362,100 @@ pub async fn use_item(
             let packets = give_quest(&mut tx, assets, cid, &class, suffix, &mut ids, clock).await?;
             tx.commit().await?;
             return Ok((Outcome::Applied(packets), None));
+        }
+        if let Some(story) = class.strip_prefix("storyscroll_") {
+            // UseUseableItem(1) then StoryImpl.GiveStory(ItemClass.Substring(12)): Telepathy
+            // GameUI_Heroes_NPC_Reveal_StoryLine_Successful on Success. A failure gives the item
+            // back (OnOperationFailed) and shows the reason's dialog; here the item is kept.
+            let class_id: i32 =
+                sqlx::query_scalar("SELECT class::integer FROM game_character_info WHERE id=$1")
+                    .bind(cid)
+                    .fetch_one(&mut *tx)
+                    .await?;
+            use super::minimum_story::GiveStory;
+            let opened = match super::minimum_story::give_story(
+                &mut tx, assets, cid, class_id, story, &mut ids,
+            )
+            .await?
+            {
+                GiveStory::Opened(packets) => packets,
+                failed => {
+                    // InvalidCharacter has no entry in the source's dictionary (it throws).
+                    let dialog = match failed {
+                        GiveStory::AlreadyOwned => "UseItemFail_Story_AlreadyOwned",
+                        GiveStory::AlreadyCompleted => "UseItemFail_Story_AlreadyCompleted",
+                        GiveStory::NoSuchStory => "UseItemFail_Story_NoSuchStory",
+                        _ => "UseItemFail_Story_SystemError",
+                    };
+                    return Ok((
+                        Outcome::Applied(vec![super::minimum_equip::item_fail(dialog)?]),
+                        None,
+                    ));
+                }
+            };
+            let deleted = item.count == 1;
+            if deleted {
+                sqlx::query("DELETE FROM game_item_attributes WHERE item_id=$1")
+                    .bind(item.id)
+                    .execute(&mut *tx)
+                    .await?;
+                sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2")
+                    .bind(item.id)
+                    .bind(cid)
+                    .execute(&mut *tx)
+                    .await?;
+            } else {
+                sqlx::query("UPDATE game_items SET count=count-1 WHERE id=$1 AND owner_id=$2")
+                    .bind(item.id)
+                    .bind(cid)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            let mut packets = vec![OutgoingPacket {
+                category: Kind::UseInventoryItemOk.category(),
+                body: wire::encode(
+                    Kind::UseInventoryItemOk,
+                    Some(&Message::UseInventoryItemOk(Some(class.clone()))),
+                    DEFAULT_MAX_BODY,
+                )
+                .map_err(|_| fail())?
+                .to_vec(),
+            }];
+            packets.extend(opened);
+            // SystemMessageCategory.Telepathy.
+            packets.push(super::minimum_shop::system_message(
+                2,
+                "GameUI_Heroes_NPC_Reveal_StoryLine_Successful",
+                &[story.to_owned()],
+            )?);
+            let slot = if deleted {
+                super::minimum_move::deleted_slot(item.id)
+            } else {
+                let after = super::minimum_inventory::snapshot_with_equipment(
+                    &mut tx, owner, assets, cid, None,
+                )
+                .await?;
+                after
+                    .slots
+                    .as_ref()
+                    .and_then(|s| s.iter().flatten().find(|s| s.id == item.id))
+                    .cloned()
+                    .ok_or_else(fail)?
+            };
+            let update = Message::UpdateInventoryInfo(Some(vec![Some(slot)]));
+            packets.push(OutgoingPacket {
+                category: Kind::UpdateInventoryInfo.category(),
+                body: wire::encode(Kind::UpdateInventoryInfo, Some(&update), DEFAULT_MAX_BODY)
+                    .map_err(|_| fail())?
+                    .to_vec(),
+            });
+            tx.commit().await?;
+            let change = super::minimum_item_logs::NumChange {
+                item_id: item.id,
+                class_utf16: key.clone(),
+                delta: -1,
+            };
+            return Ok((Outcome::Applied(packets), Some((change, use_journal))));
         }
         let Some(amount) =
             capsule_amount(&class, value_int(attributes)).filter(|_| !indexed.equippable)

@@ -471,7 +471,9 @@ impl<'a> Talker<'a> {
                 _ => self.process(otherwise, k),
             },
             Node::Switch { branches } => {
-                let class = usize::try_from(self.facts.class()).ok().filter(|c| *c < 10);
+                let class = usize::try_from(self.facts.class())
+                    .ok()
+                    .filter(|c| *c < SWITCH_BRANCHES.len() - 1);
                 let branch = class
                     .and_then(|c| branches[c])
                     .or(branches[SWITCH_BRANCHES.len() - 1]);

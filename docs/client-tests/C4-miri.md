@@ -383,3 +383,11 @@ Pré-condição: com o jogo fechado, `refresh_item_content.py --force` e `apply_
 - [ ] Ceara → história **XE Move** (`skill_all_xe_move`) oferecida; aceitar e falar com ela → XE Move liberado para treinar (rank 1, 0 AP); treinar e usar em combate (ataque + golpe forte).
 - [ ] Diário de histórias → as principais até o nível 61 concluídas e a seguinte aberta.
 Relatar: o que cada NPC ofereceu e se algum erro de NPC apareceu.
+
+Resultado parcial da MI26 (01/11/2026, `MiriLab`, depois de refazer "Atingir nível 61"): Marrec sem o erro; a Ceara não deu o XE Move (a história `skill_all_xe_move` ficou aberta na fase A); usar o livro **History of the Gods Book** (`storyscroll_EPD_30raid_elclous`) não fez nada (servidor: "minimum item use rejected"). Causas: o `Switch` do servidor só tem ramos para as classes 0–9 (como a referência), e a Delia e a Miri caíam no `Fail` vazio; o ramo `storyscroll_` do uso de item não tinha sido migrado. Corrigido no M7w.
+
+### MI27 — Livros de história e XE Move da Ceara
+Pré-condição: com o jogo fechado, imagem Docker reconstruída e `refresh_item_content.py --force` (feitos por mim; passo M7w). DLLs e cópia do cliente sem mudança.
+- [ ] Inventário → usar **History of the Gods Book** → mensagem de história revelada; o livro some; a história `EPD_30raid_elclous` aparece no diário com o NPC (Ti). Usar outro livro de uma história que já tem → mensagem "já possui" e o livro fica.
+- [ ] Ceara → história **XE Move** → ela fala, dá o XE Move e a história termina; janela de habilidades → XE Move liberado (treinar rank 1 com 0 AP) e usável em combate (ataque + golpe forte).
+Relatar: a mensagem de cada livro usado e se a Ceara deu a habilidade.

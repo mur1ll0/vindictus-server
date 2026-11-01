@@ -3058,3 +3058,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI25 e MI26 (pendente; operador refaz "Atingir nível 61").
 - Commits: (este passo)
 - Pendente / próxima ação: MI26 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7w: livros de história e XE Move da Ceara
+- Feito: MI26 parcial (Marrec ok; a Ceara não deu o XE Move, `skill_all_xe_move` aberta na fase A; o livro History of the Gods Book, `storyscroll_EPD_30raid_elclous`, rejeitado). Servidor: `minimum_story::give_story` (StoryImpl.GiveStory: NoSuchStory, InvalidCharacter, AlreadyOwned/AlreadyCompleted, ou OpenStoryLine e SyncStoryProgress) e o ramo `storyscroll_` em `minimum_use` (item fica na falha, com o diálogo `UseItemFail_Story_*`). `SWITCH_BRANCHES` com `Delia`/`Miri` antes do `Fail` (a referência só tem 0–9); `export_npc_scripts.with_lab_switch_branches` cria os ramos a partir do ramo de classe mais curto que só dá coisas com o nome da classe (só a `skill_all_xe_move`), com ids de comando próprios. Primeira tentativa: ids repetidos ("duplicate server command id") derrubaram a carga e o `refresh` voltou ao anterior (`r3/refresh3.log`); corrigido e conferido com o leitor do servidor antes do novo `refresh`.
+- Verificação: `cargo test --test npc_talk` (13, inclui `switch_takes_the_lab_class_branch_or_fail`), PostgreSQL filtrado `storyscroll questscroll minimum_story` (10, 0 falhas; `.cache/verification/miri/r3/rs-pg2.log`; novo `minimum_storyscroll_opens_its_storyline_and_is_consumed_once`), `test_export_npc_scripts` OK (`r3/t11-export.log`), `rustfmt` nos arquivos alterados. `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `up -d --wait` (`r3/docker-build.log`), `refresh_item_content.py --force` (`r3/refresh4.log`; `skill_all_xe_move` com ramos Delia e Miri).
+- Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI26 e MI27 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI27 no cliente; corrigir o que o operador relatar.

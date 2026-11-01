@@ -43,9 +43,13 @@ impl Element {
 pub type NodeId = usize;
 pub type CondId = usize;
 
-/// Character classes of Switch, in the source setter order.
-pub const SWITCH_BRANCHES: [&str; 11] = [
-    "Lethita", "Fiona", "Evy", "Kalok", "Kay", "Vella", "Hurk", "Lynn", "Arisha", "Hagie", "Fail",
+/// Character classes of Switch, in the source setter order, then the laboratory classes the
+/// source has no setter for (Delia 10, Miri 11: a branch the exported script carries,
+/// export_npc_scripts LAB_SWITCH_CLASSES), then Fail. Without its branch a class takes Fail,
+/// as every class from 10 does in the source.
+pub const SWITCH_BRANCHES: [&str; 13] = [
+    "Lethita", "Fiona", "Evy", "Kalok", "Kay", "Vella", "Hurk", "Lynn", "Arisha", "Hagie", "Delia",
+    "Miri", "Fail",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,7 +77,7 @@ pub enum Node {
         fail: Option<NodeId>,
     },
     /// Branch Do blocks by SWITCH_BRANCHES index.
-    Switch { branches: [Option<NodeId>; 11] },
+    Switch { branches: [Option<NodeId>; 13] },
     CheckTime {
         condition: CondId,
         then: NodeId,
@@ -168,7 +172,7 @@ impl Arena {
             }
             "If" => self.load_if(xml),
             "Switch" => {
-                let mut branches = [None; 11];
+                let mut branches = [None; 13];
                 for (slot, name) in branches.iter_mut().zip(SWITCH_BRANCHES) {
                     if let Some(e) = xml.first(name) {
                         *slot = Some(self.load_do(e)?);

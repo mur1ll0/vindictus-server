@@ -45,6 +45,66 @@ def condition_atoms(node, out):
         out |= feature_atoms(value.split(',')[0].strip())
     for c in node[3]: condition_atoms(c, out)
 
+# The source Switch has branches for classes 0-9 only (domain::npc_script::SWITCH_BRANCHES); the
+# laboratory's Delia (10) and Miri (11) took Fail, and Ceara's skill_all_xe_move gave the Miri no
+# XE move (C4 MI26). A Switch whose class branches give only things named after their class
+# (give_skill skill_arisha_xe_move) gets a branch for each laboratory class from the shortest such
+# branch, with the class name in what it gives, when the content has those ids.
+SOURCE_SWITCH_CLASSES = ('Lethita', 'Fiona', 'Evy', 'Kalok', 'Kay', 'Vella', 'Hurk', 'Lynn', 'Arisha', 'Hagie')
+LAB_SWITCH_CLASSES = ('Delia', 'Miri')
+
+
+def _given(node):
+    """(element, given id) of each give_* command under `node`: arg1, else the text's first argument."""
+    out = []
+    if node[0].startswith('give_'):
+        arg1 = dict(node[1]).get('arg1')
+        out.append((node, arg1 if arg1 is not None else (node[2] or '').split(',')[0].strip()))
+    for c in node[3]:
+        out += _given(c)
+    return out
+
+
+def _size(node):
+    return 1 + sum(_size(c) for c in node[3])
+
+
+def _renamed(node, old, new):
+    """The branch for class `new`: the given ids renamed, and each command id made its own (the server
+    refuses a server command id twice, NpcScripts.register)."""
+    name = new if node[0] == old else node[0]
+    def value(k, v):
+        if k == 'id':
+            return f'lab_{new.lower()}_{v}'
+        return v.replace(old.lower(), new.lower()) if k == 'arg1' and name.startswith('give_') else v
+    attrs = [[k, value(k, v)] for k, v in node[1]]
+    text = node[2]
+    if name.startswith('give_') and dict(node[1]).get('arg1') is None:
+        text = text.replace(old.lower(), new.lower())
+    return [name, attrs, text, [_renamed(c, old, new) for c in node[3]], node[4]]
+
+
+def with_lab_switch_branches(node, known):
+    """The script tree with the laboratory classes' Switch branches added where they can be made."""
+    children = [with_lab_switch_branches(c, known) for c in node[3]]
+    if node[0] == 'Switch':
+        cases = {c[0]: c for c in children}
+        templates = []
+        for at, name in enumerate(SOURCE_SWITCH_CLASSES):
+            given = _given(cases[name]) if name in cases else []
+            if given and all(name.lower() in g.lower() for _, g in given):
+                templates.append((_size(cases[name]), at, name))
+        if templates:
+            _, _, name = min(templates)
+            fail = next((i for i, c in enumerate(children) if c[0] == 'Fail'), len(children))
+            for lab in LAB_SWITCH_CLASSES:
+                branch = _renamed(cases[name], name, lab)
+                if lab not in cases and all(known(g) for _, g in _given(branch)):
+                    children.insert(fail, branch)
+                    fail += 1
+    return [node[0], node[1], node[2], children, node[4]]
+
+
 def load(path, hasher):
     data = path.read_bytes()
     if len(data) > 4 * 1024 * 1024: raise ValueError('Script file bound')
@@ -95,6 +155,10 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     storylines = []
     with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master UNION SELECT name FROM sqlite_temp_master")}
+        ids = {r[0] for table, column in (('SkillInfo', 'SkillID'), ('ItemClassInfo', 'ItemClass')) if table in tables
+               for r in db.execute(f'SELECT [{column}] FROM [{table}]')}
+        known = lambda i: i in ids
         for r in overrides.select(db, 'StoryLineInfo'):
             info = {k: text(r[k]) for k in ('StoryLineID', 'StoryLineName', 'XmlPath', 'Npc', 'Category', 'Stage', 'RewardItem', 'RewardSkill', 'Episode', 'Feature')}
             info.update({k: integer(r[k]) for k in ('RewardGold', 'RewardExp', 'RewardAp', 'RewardTitle', 'RewardItemCount', 'RewardSkillRank', 'AutoGiveLevel', 'ClassRestriction', 'Season')})
@@ -104,7 +168,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                 folder = base.joinpath(*pathlib.PureWindowsPath(info['XmlPath']).parts)
                 path = folder / (info['StoryLineID'] + '.xml')
                 if not path.resolve().is_relative_to(base.resolve()): raise ValueError('Storyline outside XML root')
-                entry['tree'] = load(path, hasher)
+                entry['tree'] = with_lab_switch_branches(load(path, hasher), known)
             storylines.append(entry)
     def short(v):
         if type(v) is not int or not -(2**15) <= v < 2**15: raise ValueError('ShopInfo Int16')

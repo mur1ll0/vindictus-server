@@ -97,5 +97,24 @@ class NpcScriptExportTests(unittest.TestCase):
         (self.xml / 'QuestSet01' / 'GuidePlay.xml').unlink()
         with self.assertRaises(OSError): read_package(self.xml, self.db, self.config)
 
+    def test_lab_classes_get_a_switch_branch_named_after_them(self):
+        from export_npc_scripts import with_lab_switch_branches
+        def node(name, children=(), attrs=(), text=''):
+            return [name, [list(a) for a in attrs], text, list(children), '']
+        def give(skill):
+            return node('give_skill', attrs=[('id', 'x'), ('arg1', skill)])
+        switch = node('Switch', [node('Lethita', [node('talk', text='LONG'), give('skill_lethita_xe_move'), node('talk')]),
+                                 node('Lynn', [give('skill_lynn_xe_move'), node('talk', text='BYE')]),
+                                 node('Fail')])
+        known = {'skill_miri_xe_move'}.__contains__
+        out = with_lab_switch_branches(node('Do', [switch]), known)[3][0]
+        # the shortest branch that gives only its class's own skill, renamed; Delia's skill is unknown
+        self.assertEqual([c[0] for c in out[3]], ['Lethita', 'Lynn', 'Miri', 'Fail'])
+        self.assertEqual(out[3][2][3][0][1], [['id', 'lab_miri_x'], ['arg1', 'skill_miri_xe_move']])
+        self.assertEqual(out[3][2][3][1][2], 'BYE')
+        # a branch giving something not named after its class makes no template
+        other = node('Switch', [node('Lynn', [give('sword')]), node('Fail')])
+        self.assertEqual(with_lab_switch_branches(other, lambda i: True), other)
+
 if __name__ == '__main__':
     unittest.main()
