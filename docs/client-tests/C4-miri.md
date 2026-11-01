@@ -365,3 +365,11 @@ Pré-condição: com o jogo fechado, importação, preparação, `refresh_item_c
 - [ ] Transformada: Blazing Spine custa 100 SP (normal: 250).
 - [ ] XE *move*: janela de habilidades → **XE Move** (texto e ícone da Delia) disponível no nível 8; treinar para o rank 1 (0 AP) ou dar pelo painel. Em combate, ataque + golpe forte juntos (como a Delia) → a Miri faz o XE (`super_power`, gasta 20% do HP, recarga). Anotar se a animação, o dano ou a recarga falharem.
 Relatar: um item por linha, com o que apareceu (ou não) e capturas das chamas transformadas.
+
+Resultado parcial da MI24 (01/11/2026, `MiriLab`): Dragon Rise mostrou só elmo, botas e luvas; tirar o peitoral mostrava a calça e vice-versa; trocando peças, o cliente caiu (`EXCEPTION_ACCESS_VIOLATION` em `client` `0x38828069`, rastros da arma: o M7t passou das 12 alças de rastro do 1.69). Corrigido no M7u.
+
+### MI25 — Dragon Rise inteiro e sem queda ao trocar peças
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7u). DLLs sem mudança. Os itens da MI24 continuam valendo, menos as chamas escuras transformadas (retiradas: não cabem no 1.69).
+- [ ] Vestir as cinco peças de Dragon Rise → corpo inteiro (peitoral e calça juntos, como peça única); tirar uma das duas → a outra aparece sozinha.
+- [ ] Equipar e desequipar peças várias vezes, na cidade e numa fase → sem queda.
+- [ ] Combate → rastros de fogo azul da Draker nos golpes (rastros 0–3).

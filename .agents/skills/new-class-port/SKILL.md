@@ -91,6 +91,11 @@ da classe.
 
 ## Armadilhas que a Delia ensinou
 Evidência e passo de cada uma: `references/armadilhas.md`.
+- **Rastros de arma cabem em 12 alças** no cliente 1.69 (`C_PlaneTrail`, rastros × faixa de `attack_points`
+  ≤ 12; a espada grande usa 4 × 3). Passar disso derruba o cliente ao montar a arma (Miri M7u,
+  `class_costumes.fitting_trails`).
+- **`onepiece` no `player_costume.txt`** aponta para outra entrada da mesma seção (corpo inteiro); traga a
+  entrada e o modelo junto, ou peitoral e calça se escondem (Miri M7u).
 - **Limites de 10 classes** aparecem como `cmp reg, 9; ja`, `cmp reg, 0xa; jge`, `cmp R, 0xa; jl; xor R, R`
   (lê a linha 0), tabelas sem limite (lê a tabela seguinte) e o pet no caso 10. Procure todos antes de
   testar; cada um falha de um jeito diferente (queda, pose T, corpo invisível, lista vazia).

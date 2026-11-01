@@ -3044,3 +3044,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI24 (pendente, junto da MI23).
 - Commits: (este passo)
 - Pendente / próxima ação: MI23 e MI24 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7u: queda nos rastros e peça única do Dragon Rise
+- Feito: MI24 parcial (Dragon Rise só com elmo, botas e luvas; peitoral e calça se escondiam; queda `client` `0x38828069` trocando peças). Queda: `C_PlaneTrail`, montagem `0x38827f90` sem limite (ativar/desativar checam `<= 0xb`), 12 alças em `+0xdd4`, índice largura × rastro + ponto; o M7t dava 10 rastros × largura 5. `class_costumes.fitting_trails` (`TRAIL_HANDLES` 12: Draker 0–3), `knight_trails` e os rastros de Dragon Knight retirados. Dragon Rise: `upper_body` 790 com `onepiece` 10704 (o 1.69 lê a chave) sem a entrada nem o modelo; `stage_na_class.imported_costumes` segue `onepiece`, `class_costumes.rename` acompanha a renumeração. Armadilhas na skill `new-class-port`.
+- Verificação: `test_class_costumes test_class_imports` OK (`.cache/verification/miri/r3/t8-content.log`), `test_stage_na_class test_apply_lab_hfs` OK (`r3/t8-client.log`). Aplicado com o jogo fechado: preparação 5.315 arquivos (`r3/stage2.log`, 8 da peça única), `apply2.log`; nos pacotes, `weapon_greatsword.txt` com no máximo 12 (rastros × largura) e `player_costume.txt` com a 10704. Sem atualizar o servidor (conteúdo igual). DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI24 e MI25 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI25 no cliente (com o resto da MI23/MI24); corrigir o que o operador relatar.

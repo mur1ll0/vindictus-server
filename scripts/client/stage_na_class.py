@@ -414,16 +414,8 @@ KNIGHT_EFFECT = re.compile(rb'AE_CL_PLAY_CUSTOM_EFFECT([ \t]+)[^\s"]+[ \t]+([^\s
 
 # Sequences only the Dragon Knight plays (the transformation and the transformed skills) take the second,
 # Dragon Knight effect: its dark flames, where the first is the untransformed blue (C4 MI22). Their weapon
-# trails take the Dragon Knight weapon's black ones, which every Draker sub-type carries at
-# class_costumes.KNIGHT_TRAIL_OFFSET + n (the lab look keeps the held weapon).
+# trails stay the Draker's (class_costumes TRAIL_HANDLES: no room for the Dragon Knight weapon's).
 KNIGHT_SEQUENCE = re.compile(r'sp4|_dragon($|_)|dragon_knight', re.I)
-KNIGHT_TRAIL = re.compile(rb'(AE_WEAPON_(?:EN|DIS)ABLE_TRAIL_POINT[ \t]+\d+[ \t]+)(\d+)')
-
-
-def knight_trails(block: bytes) -> bytes:
-    offset = class_costumes.KNIGHT_TRAIL_OFFSET
-    return KNIGHT_TRAIL.sub(lambda m: m.group(1) + (str(int(m.group(2)) + offset).encode()
-                                                    if int(m.group(2)) < offset else m.group(2)), block)
 
 
 def with_plain_effects(path: str, data: bytes) -> bytes:
@@ -433,7 +425,7 @@ def with_plain_effects(path: str, data: bytes) -> bytes:
     out, at = [], 0
     for start, end in knight:
         out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:start]))
-        out.append(knight_trails(KNIGHT_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[start:end])))
+        out.append(KNIGHT_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[start:end]))
         at = end
     out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:]))
     return b''.join(out)
@@ -483,7 +475,11 @@ def imported_costumes(class_name: str, costume_script: bytes, path: Path | None 
     """Model paths (lower case) of the NA player_costume.txt entries the class's imported non-weapon items
     wear (EquipItemInfo.CostumeType in the class import), male entries left out. Neither the models nor the
     entries name the class (Dragon Rise: models/armor/dragon_rises/...), so the pieces equipped but drew
-    nothing (C4 MI21); the paths stage the models and are the merge's needles for those entries."""
+    nothing (C4 MI21); the paths stage the models and are the merge's needles for those entries.
+    An entry's "onepiece" (the 1.69 reads it too: the body model drawn in place of the upper and lower
+    pieces when both are worn) names another entry of the same section, which comes with it: the Dragon
+    Rise tunic pointed at a one-piece entry the lab did not have, the tunic and the pants hid each other
+    and equipping them in turn crashed the client (C4 MI24)."""
     import sqlite3
     db_path = path or Path(str(CLASS_IMPORT).format(klass=class_name))
     if not db_path.is_file():
@@ -502,16 +498,23 @@ def imported_costumes(class_name: str, costume_script: bytes, path: Path | None 
     for section in kv_merge.parse(costume_script).children:
         if not section.block:
             continue
-        for entry in section.children:
-            if not entry.block or entry.key not in numbers:
+        entries = {e.key: e for e in section.children if e.block}
+        wanted, seen = [n for n in numbers if n in entries], set()
+        while wanted:
+            number = wanted.pop()
+            if number in seen:
                 continue
-            values = {c.key.lower(): (c.value or '') for c in entry.children if not c.block}
+            seen.add(number)
+            values = {c.key.lower(): (c.value or '') for c in entries[number].children if not c.block}
             if values.get('category', '').lower() == 'male':
                 continue
             for key in ('normal', 'broken'):
                 model = values.get(key, '').replace(chr(92), '/').lower()
                 if model.endswith('.mdl'):
                     models.add(model)
+            onepiece = values.get('onepiece', '').split(';')[0].strip()
+            if onepiece in entries:
+                wanted.append(onepiece)
     return models
 
 

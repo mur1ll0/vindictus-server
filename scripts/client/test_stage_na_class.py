@@ -241,13 +241,6 @@ class StageTest(unittest.TestCase):
         knight = script.replace(b'"miri_SP3"', b'"miri_SP4"')
         out = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', knight + script)
         self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a_knight.efx"', out)  # the transformation: Dragon Knight
-        trails = b'"miri_sp1_dragon"\r\n{\r\n\t"5"\t"AE_WEAPON_ENABLE_TRAIL_POINT\t0 2"\r\n\t"9"\t"AE_WEAPON_DISABLE_TRAIL_POINT\t2 5"\r\n}\r\n'
-        plain = trails.replace(b'miri_sp1_dragon', b'miri_sp1')
-        traced = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', trails + plain)
-        # the transformed sequence draws the Dragon Knight trails (5 + n); others and indices past them stay
-        self.assertIn(b'"AE_WEAPON_ENABLE_TRAIL_POINT\t0 7"', traced)
-        self.assertEqual(traced.count(b'"AE_WEAPON_DISABLE_TRAIL_POINT\t2 5"'), 2)
-        self.assertTrue(traced.endswith(plain))
         self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a.efx"', out)  # the other block: the normal one
         self.assertNotIn(b'CUSTOM', out)
 
@@ -272,6 +265,14 @@ class StageTest(unittest.TestCase):
                    b'"upper_body"\r\n{\r\n\t"790"\r\n\t{\r\n\t\t"category"\t"male"\r\n\t\t"normal"\t"models/armor/x_male.mdl"\r\n\t}\r\n}\r\n')
         self.assertEqual(stage.imported_costumes('miri', costume, db_path),
                          {'models/armor/dragon_rises/pc_female_dragon_rises_head.mdl'})
+        # the tunic's one-piece entry (same section) comes with it (C4 MI24)
+        onepiece = costume.replace(b'"category"\t"male"\r\n\t\t"normal"\t"models/armor/x_male.mdl"',
+                                   b'"category"\t"female"\r\n\t\t"normal"\t"models/armor/dr/upper.mdl"\r\n\t\t"onepiece"\t"10704"')
+        onepiece = onepiece.replace(b'\r\n}\r\n', b'\r\n\t"10704"\r\n\t{\r\n\t\t"normal"\t"models/armor/dr/onepiece.mdl"\r\n\t}\r\n'
+                                                  b'\t"10705"\r\n\t{\r\n\t\t"normal"\t"models/armor/dr/unrelated.mdl"\r\n\t}\r\n}\r\n')
+        self.assertEqual(stage.imported_costumes('miri', onepiece, db_path),
+                         {'models/armor/dragon_rises/pc_female_dragon_rises_head.mdl', 'models/armor/dr/upper.mdl',
+                          'models/armor/dr/onepiece.mdl'})
 
     def test_imported_item_icons_are_staged(self):
         import sqlite3
