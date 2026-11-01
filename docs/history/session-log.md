@@ -3079,3 +3079,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI29 (pendente, com a MI28).
 - Commits: (este passo)
 - Pendente / próxima ação: MI28 e MI29 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7z: ramos do Switch de classe para Delia e Miri
+- Feito: medição dos 74 `Switch` de classe das histórias (`.cache/verification/miri/r5/switch-measure.log`, `switch-kinds.log`): 10 sem `Fail` em 9 histórias (falas por gênero/arma; Idahl dá missão e abre a história seguinte) travavam a Delia e a Miri; os 64 com `Fail` fazem as mesmas operações com texto genérico, e os ramos de classe só dão a mais armas/habilidades da classe ou itens femininos. `export_npc_scripts.with_lab_switch_branches` recebe `usable(id, classe)` (`ClassRestriction` de `SkillInfo`/`ItemClassInfo`) e `LAB_SWITCH_DONORS` (Fiona, Vella, Arisha, Evy, Lynn): sem `Fail`, o ramo da primeira doadora permitido; com `Fail`, o da Fiona só quando dá item permitido à classe (tiara do 3º aniversário, chocolates); ids `lab_<classe>_<id>`. Depois: 10 ramos sem `Fail` e 3 eventos com a recompensa feminina; `GuidePlay_*` continuam no `Fail` como a Fiona.
+- Verificação: `test_export_npc_scripts` 4 OK (`r5/m7z-unit.log`); exportação lida por `npc_scripts::Profile::read` num teste temporário (1 passou, `r5/m7z-reader.log`; arquivo removido); `refresh_item_content.py --force` exit 0 (`r5/m7z-refresh.log`), `game` saudável.
+- Cliente: `docs/client-tests/C4-miri.md` MI30 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8a (`resound` do Parrying Attack e efeito/som do servidor).

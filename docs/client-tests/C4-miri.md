@@ -409,3 +409,10 @@ Pré-condição: com o jogo fechado, `patch_class_routing.py --apply` (DLLs nova
 - [ ] Depois do dragão: andar e atacar perto de onde ele esteve → nada invisível bloqueando a Miri ou os monstros.
 - [ ] Delia: guarda dela continua igual (bloqueia e o HP reservado funciona como antes).
 Relatar: se o *parry* funcionou e com qual golpe; se o dragão apareceu, para que lado ele olhava e se os efeitos dele saíram.
+
+### MI30 — Histórias com fala por classe (Delia e Miri)
+Pré-condição: `refresh_item_content.py --force` (feito por mim; passo M7z). DLLs e cópia do cliente sem mudança. Personagem Delia ou Miri com as histórias da temporada 2 abertas (painel → **Atingir nível**, se preciso).
+- [ ] Seguir as histórias `S2E01_M01_Milled` (Milled no Crescent), `S2E01_S06_Snake` (Ahir), `S2E02_M10_Idahl_Meet` (Eire) → o NPC fala o texto feminino (o da Fiona) e a conversa continua até o fim, sem travar; a Eire dá a missão `quest_desert_ep2_07` e abre a história seguinte.
+- [ ] Histórias com ramo `Fail` (texto genérico) e o tutorial (`GuidePlay_1_2_Alert`: a Delia e a Miri ganham o mesmo item da Fiona) → como antes.
+Limites conhecidos: onde a Fiona ganha arma ou habilidade dela (eventos, `GuidePlay_6_Chieftain`), a Delia e a Miri ficam no `Fail`.
+Relatar: a fala que apareceu e se a história avançou.

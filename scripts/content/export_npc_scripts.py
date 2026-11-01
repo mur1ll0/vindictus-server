@@ -50,8 +50,20 @@ def condition_atoms(node, out):
 # XE move (C4 MI26). A Switch whose class branches give only things named after their class
 # (give_skill skill_arisha_xe_move) gets a branch for each laboratory class from the shortest such
 # branch, with the class name in what it gives, when the content has those ids.
+# Otherwise a laboratory class takes the branch of the first donor in LAB_SWITCH_DONORS (both are
+# female melee classes whose guard is Fiona's endure; the class texts differ by gender and weapon,
+# S2E01_M01_Milled "hot stuff" for Fiona, Evy, Vella, Arisha) when every item and skill it gives is
+# allowed to the class (ClassRestriction) where the Switch has no Fail (10 talks in 9 storylines
+# halted, M7z). Where it has one, the class goes where Fiona goes: Fiona's branch when it gives an
+# item or skill the class may use (a reward restricted by gender, 3rd_tiara_7d_head), else Fail (a
+# talk-only Fail has the generic text; GuidePlay_1_2_Alert gives Evy and Arisha a robe, Fiona Fail).
 SOURCE_SWITCH_CLASSES = ('Lethita', 'Fiona', 'Evy', 'Kalok', 'Kay', 'Vella', 'Hurk', 'Lynn', 'Arisha', 'Hagie')
 LAB_SWITCH_CLASSES = ('Delia', 'Miri')
+LAB_CLASS_INDEX = {'Delia': 10, 'Miri': 11}
+LAB_SWITCH_DONORS = ('Fiona', 'Vella', 'Arisha', 'Evy', 'Lynn')
+# give_* commands whose id is an item or a skill; the others (give_quest, give_exp,
+# give_title_by_episode) are not restricted by class.
+CLASS_RESTRICTED_GIVES = ('give_item', 'give_item_failmail', 'give_skill')
 
 
 def _given(node):
@@ -69,24 +81,33 @@ def _size(node):
     return 1 + sum(_size(c) for c in node[3])
 
 
-def _renamed(node, old, new):
-    """The branch for class `new`: the given ids renamed, and each command id made its own (the server
-    refuses a server command id twice, NpcScripts.register)."""
+def _renamed(node, old, new, rename_given=True):
+    """The branch for class `new`: the given ids renamed (unless `rename_given` is false), and each
+    command id made its own (the server refuses a server command id twice, NpcScripts.register)."""
     name = new if node[0] == old else node[0]
     def value(k, v):
         if k == 'id':
             return f'lab_{new.lower()}_{v}'
-        return v.replace(old.lower(), new.lower()) if k == 'arg1' and name.startswith('give_') else v
+        if k == 'arg1' and rename_given and name.startswith('give_'):
+            return v.replace(old.lower(), new.lower())
+        return v
     attrs = [[k, value(k, v)] for k, v in node[1]]
     text = node[2]
-    if name.startswith('give_') and dict(node[1]).get('arg1') is None:
+    if rename_given and name.startswith('give_') and dict(node[1]).get('arg1') is None:
         text = text.replace(old.lower(), new.lower())
-    return [name, attrs, text, [_renamed(c, old, new) for c in node[3]], node[4]]
+    return [name, attrs, text, [_renamed(c, old, new, rename_given) for c in node[3]], node[4]]
 
 
-def with_lab_switch_branches(node, known):
-    """The script tree with the laboratory classes' Switch branches added where they can be made."""
-    children = [with_lab_switch_branches(c, known) for c in node[3]]
+def _allowed(branch, lab, usable):
+    """Whether every item and skill `branch` gives is usable by the laboratory class `lab`."""
+    return all(usable(g.split('[')[0].strip(), LAB_CLASS_INDEX[lab])
+               for n, g in _given(branch) if n[0] in CLASS_RESTRICTED_GIVES)
+
+
+def with_lab_switch_branches(node, usable):
+    """The script tree with the laboratory classes' Switch branches added where they can be made;
+    usable(id, class index) tells whether an item or skill exists for that class."""
+    children = [with_lab_switch_branches(c, usable) for c in node[3]]
     if node[0] == 'Switch':
         cases = {c[0]: c for c in children}
         templates = []
@@ -94,14 +115,25 @@ def with_lab_switch_branches(node, known):
             given = _given(cases[name]) if name in cases else []
             if given and all(name.lower() in g.lower() for _, g in given):
                 templates.append((_size(cases[name]), at, name))
-        if templates:
-            _, _, name = min(templates)
-            fail = next((i for i, c in enumerate(children) if c[0] == 'Fail'), len(children))
-            for lab in LAB_SWITCH_CLASSES:
-                branch = _renamed(cases[name], name, lab)
-                if lab not in cases and all(known(g) for _, g in _given(branch)):
-                    children.insert(fail, branch)
-                    fail += 1
+        fail = next((i for i, c in enumerate(children) if c[0] == 'Fail'), len(children))
+        for lab in LAB_SWITCH_CLASSES:
+            if lab in cases:
+                continue
+            branch = None
+            if templates:
+                _, _, name = min(templates)
+                renamed = _renamed(cases[name], name, lab)
+                if all(usable(g, LAB_CLASS_INDEX[lab]) for _, g in _given(renamed)):
+                    branch = renamed
+            if branch is None:
+                donors = LAB_SWITCH_DONORS if 'Fail' not in cases else LAB_SWITCH_DONORS[:1]
+                donor = next((d for d in donors if d in cases and _allowed(cases[d], lab, usable)), None)
+                gives = donor is not None and any(n[0] in CLASS_RESTRICTED_GIVES for n, _ in _given(cases[donor]))
+                if donor is not None and ('Fail' not in cases or gives):
+                    branch = _renamed(cases[donor], donor, lab, rename_given=False)
+            if branch is not None:
+                children.insert(fail, branch)
+                fail += 1
     return [node[0], node[1], node[2], children, node[4]]
 
 
@@ -156,9 +188,9 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     with contextlib.closing(content_additions.connect(database)) as db:
         db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
         tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master UNION SELECT name FROM sqlite_temp_master")}
-        ids = {r[0] for table, column in (('SkillInfo', 'SkillID'), ('ItemClassInfo', 'ItemClass')) if table in tables
-               for r in db.execute(f'SELECT [{column}] FROM [{table}]')}
-        known = lambda i: i in ids
+        masks = {r[0]: r[1] for table, column in (('SkillInfo', 'SkillID'), ('ItemClassInfo', 'ItemClass')) if table in tables
+                 for r in db.execute(f'SELECT [{column}], [ClassRestriction] FROM [{table}]')}
+        usable = lambda i, index: type(masks.get(i)) is int and bool(masks[i] >> index & 1)
         for r in overrides.select(db, 'StoryLineInfo'):
             info = {k: text(r[k]) for k in ('StoryLineID', 'StoryLineName', 'XmlPath', 'Npc', 'Category', 'Stage', 'RewardItem', 'RewardSkill', 'Episode', 'Feature')}
             info.update({k: integer(r[k]) for k in ('RewardGold', 'RewardExp', 'RewardAp', 'RewardTitle', 'RewardItemCount', 'RewardSkillRank', 'AutoGiveLevel', 'ClassRestriction', 'Season')})
@@ -168,7 +200,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                 folder = base.joinpath(*pathlib.PureWindowsPath(info['XmlPath']).parts)
                 path = folder / (info['StoryLineID'] + '.xml')
                 if not path.resolve().is_relative_to(base.resolve()): raise ValueError('Storyline outside XML root')
-                entry['tree'] = with_lab_switch_branches(load(path, hasher), known)
+                entry['tree'] = with_lab_switch_branches(load(path, hasher), usable)
             storylines.append(entry)
     def short(v):
         if type(v) is not int or not -(2**15) <= v < 2**15: raise ValueError('ShopInfo Int16')
