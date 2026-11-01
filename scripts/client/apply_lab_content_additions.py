@@ -247,7 +247,7 @@ def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]
             needles = tuple(str(n) for n in record.get('needles', []))
             file = (root / 'merge' / path).resolve()
             if (not GAME_PATH.match(path) or '..' in path.split('/') or not needles
-                    or not all(re.fullmatch(r'[a-z]{2,16}', n) for n in needles)
+                    or not all(re.fullmatch(r'[a-z]{2,16}|[a-z0-9_./-]{4,160}\.mdl', n) for n in needles)
                     or not file.is_relative_to(root) or not file.is_file()):
                 raise PreparationError(f'Bad class merge entry in {manifest}.')
             merges.append((path, file, needles))

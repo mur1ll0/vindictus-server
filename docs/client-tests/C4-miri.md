@@ -334,3 +334,16 @@ Pré-condição: com o jogo fechado, preparação, `refresh_item_content.py --fo
 - [ ] Blazing Spine → chama azul saindo da arma; Slice and Dice → efeito escuro de corte; outras habilidades com efeitos próprios (Fiery Chainswing, Call of the Dragon) também mostram efeito.
 - [ ] Draker de nível alto (ex.: `draker_orna`, 115) → modelo com textura (antes podia ficar branco).
 Limites conhecidos: o material da armadura de Dragon Knight e das Draker novas usa o *shader* de armadura do 1.69 (sem o PBS do NA); `effects/fire_ani_03_blue` não existe no NA; a transformação mantém a arma atual.
+
+Resultado da MI21 (01/11/2026, `MiriLab`):
+- Retrato na seleção e dragão escondido nas conversas: aprovados.
+- Dragon Rise equipa, mas nenhum modelo aparece: nem os modelos (`models/armor/dragon_rises/`) nem as entradas do `player_costume.txt` citam a Miri, e não vieram. Nome do conjunto aparece como `HEROES_ITEM_SETITEM_NAME_dragon_rise_set`.
+- Efeitos: Blazing Spine sem chama azul; transformada, sem asa e sem fogo nas correntes ao girar. 37 efeitos das habilidades dela usam `AE_CL_PLAY_CUSTOM_EFFECT`, que nenhum roteiro do 1.69 usa; o fogo da arma vem do `weapon_draker.txt` do NA (rastros `miri_trail_dragon_*`), que a cópia não usa (a Draker é `weapon_greatsword`).
+
+### MI22 — Modelos dos conjuntos, nomes e efeitos das habilidades
+Pré-condição: com o jogo fechado, preparação, `refresh_item_content.py --force` (reinicia o `game`) e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7q). DLLs iguais aos da MI21.
+- [ ] Vestir as cinco peças de Dragon Rise (e, se quiser, Pythonshock) → as armaduras aparecem no corpo; a dica mostra o nome do conjunto (sem `HEROES_ITEM_SETITEM_NAME_...`).
+- [ ] Outras roupas e avatares da Miri do painel → modelo aparece.
+- [ ] Blazing Spine, Slice and Dice, Fiery Chainswing e Call of the Dragon → efeitos aparecem (versão normal).
+- [ ] Ancestral Garb → efeitos da transformação, inclusive a asa.
+Limites conhecidos: transformada, os efeitos são os normais (não os de Dragon Knight); o fogo nas correntes (rastros da `weapon_draker.txt`) ainda não foi portado.

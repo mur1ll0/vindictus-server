@@ -246,8 +246,10 @@ def class_text(classes: Path = CLASS_ASSETS, imports: list[Path] | None = None) 
     ids: set[str] = set()
     for path in imports or []:
         with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as imported:
-            for table, column in (('ItemClassInfo', 'ItemClass'), ('SkillInfo', 'SkillID')):
-                ids |= {str(r[0]).upper() for r in imported.execute(f'SELECT [{column}] FROM [{table}]')}
+            for table, column in (('ItemClassInfo', 'ItemClass'), ('SkillInfo', 'SkillID'), ('SetItemInfo', 'SetID')):
+                # SetItemInfo: HEROES_ITEM_SETITEM_NAME_<set> (C4 MI21: the set name showed as its token)
+                if imported.execute("SELECT 1 FROM sqlite_master WHERE name=?", (table,)).fetchone():
+                    ids |= {str(r[0]).upper() for r in imported.execute(f'SELECT [{column}] FROM [{table}]')}
     for manifest in sorted(classes.glob('*/class-assets.json')):
         data = json.loads(manifest.read_text(encoding='utf-8'))
         if not data.get('text'):

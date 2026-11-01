@@ -218,6 +218,32 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"500152"', out)
         self.assertEqual([c.key for c in stage.kv_merge.parse(out).children[0].children], ['upper_body'])
 
+    def test_custom_effects_play_the_plain_effect(self):
+        script = (b'"miri_SP3"\r\n{\r\n\t"10"\t"AE_CL_PLAY_CUSTOM_EFFECT\teffects/a.efx effects/a_knight.efx"\r\n'
+                  b'\t"20"\r\n\t{\r\n\t\t"event"\t"AE_CL_PLAY_CUSTOM_EFFECT\teffects/b.efx effects/b_knight.efx"\r\n\t}\r\n}\r\n')
+        out = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', script)
+        self.assertNotIn(b'CUSTOM', out)
+        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a.efx"', out)
+        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/b.efx"', out)
+        self.assertNotIn(b'knight', out)
+        self.assertEqual(stage.with_plain_effects('scripts/x.txt', script), script)
+
+    def test_imported_costume_models_are_staged(self):
+        import sqlite3
+        db_path = Path(self.temp.name) / 'miri.db3'
+        db = sqlite3.connect(db_path)
+        db.execute('CREATE TABLE ItemClassInfo (ItemClass TEXT, Category TEXT)')
+        db.execute('CREATE TABLE EquipItemInfo (ItemClass TEXT, EquipClass TEXT, CostumeType INT)')
+        db.executemany('INSERT INTO ItemClassInfo VALUES (?, ?)', [('dragon_rise_head', 'HELM'), ('draker_x', 'WEAPON')])
+        db.executemany('INSERT INTO EquipItemInfo VALUES (?, ?, ?)', [('dragon_rise_head', 'LIGHT_ARMOR', 790), ('draker_x', 'DRAKER', 33)])
+        db.commit(); db.close()
+        costume = (b'"head"\r\n{\r\n\t"790"\r\n\t{\r\n\t\t"category"\t"female"\r\n'
+                   b'\t\t"normal"\t"models/armor/dragon_rises/pc_female_dragon_rises_head.mdl"\r\n\t\t"broken"\t"null"\r\n\t}\r\n'
+                   b'\t"33"\r\n\t{\r\n\t\t"normal"\t"models/other.mdl"\r\n\t}\r\n}\r\n'
+                   b'"upper_body"\r\n{\r\n\t"790"\r\n\t{\r\n\t\t"category"\t"male"\r\n\t\t"normal"\t"models/armor/x_male.mdl"\r\n\t}\r\n}\r\n')
+        self.assertEqual(stage.imported_costumes('miri', costume, db_path),
+                         {'models/armor/dragon_rises/pc_female_dragon_rises_head.mdl'})
+
     def test_imported_item_icons_are_staged(self):
         import sqlite3
         db_path = Path(self.temp.name) / 'miri.db3'

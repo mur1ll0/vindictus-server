@@ -3016,3 +3016,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` resultado da MI17–MI20 e MI21 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI21 no cliente; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7q: modelos dos conjuntos, nomes e efeitos das habilidades
+- Feito: MI21 jogada (retrato e dragão com NPC aprovados; Dragon Rise sem modelo, nome do conjunto sem texto, efeitos ausentes). `stage_na_class.imported_costumes` (entradas e modelos do `player_costume.txt` do NA para os `CostumeType` dos itens importados; agulhas `….mdl` na mescla, aceitas pelo aplicador), `with_plain_effects` (`AE_CL_PLAY_CUSTOM_EFFECT` → `AE_CL_PLAY_EFFECT`, 37), `class_imports.class_text` com os `SetID`.
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/r9-tests.log`, `r9-stage.log`), `test_class_imports` OK (`r9-imports.log`). Aplicado com o jogo fechado: preparação 4.937 arquivos (`r2/stage9.log`), `refresh_item_content.py --force` (`r2/refresh9.log`), `apply9.log` (980 blocos mesclados); no pacote, `player_costume.txt` com a entrada 790 e 30 citações de `dragon_rises`. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI21 e MI22 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI22 no cliente; rastros de fogo da Draker (`weapon_draker.txt`); versões de Dragon Knight dos efeitos; gasto de SP da transformação; XE como habilidade extra.

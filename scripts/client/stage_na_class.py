@@ -386,6 +386,58 @@ def imported_icons(class_name: str, na: dict, path: Path | None = None) -> set[s
     return {p for p in na if p.startswith(ICON_FOLDER) and p[len(ICON_FOLDER):].rsplit('.', 1)[0] in names}
 
 
+# The NA plays most of the Miri's skill effects through AE_CL_PLAY_CUSTOM_EFFECT <effect> <Dragon Knight
+# effect> (37 events: Blazing Spine, Slice and Dice, the Fiery smashes...); no 1.69 script uses that event
+# and none of those effects showed (C4 MI21). They become the 1.69's AE_CL_PLAY_EFFECT <effect>, the
+# untransformed one.
+CUSTOM_EFFECT = re.compile(rb'AE_CL_PLAY_CUSTOM_EFFECT([ \t]+)([^\s"]+)[ \t]+[^\s"]+')
+
+
+def with_plain_effects(path: str, data: bytes) -> bytes:
+    if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
+        return data
+    return CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data)
+
+
+COSTUME_SCRIPT = 'scripts/player_costume.txt'
+
+
+def imported_costumes(class_name: str, costume_script: bytes, path: Path | None = None) -> set[str]:
+    """Model paths (lower case) of the NA player_costume.txt entries the class's imported non-weapon items
+    wear (EquipItemInfo.CostumeType in the class import), male entries left out. Neither the models nor the
+    entries name the class (Dragon Rise: models/armor/dragon_rises/...), so the pieces equipped but drew
+    nothing (C4 MI21); the paths stage the models and are the merge's needles for those entries."""
+    import sqlite3
+    db_path = path or Path(str(CLASS_IMPORT).format(klass=class_name))
+    if not db_path.is_file():
+        return set()
+    db = sqlite3.connect(f'file:{db_path.as_posix()}?mode=ro', uri=True)
+    try:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE name='EquipItemInfo'").fetchone():
+            return set()
+        numbers = {str(r[0]) for r in db.execute(
+            'SELECT DISTINCT CostumeType FROM EquipItemInfo WHERE CostumeType IS NOT NULL '
+            'AND upper(EquipClass) NOT IN (SELECT DISTINCT upper(EquipClass) FROM EquipItemInfo e '
+            "JOIN ItemClassInfo i ON i.ItemClass = e.ItemClass WHERE i.Category = 'WEAPON')")}
+    finally:
+        db.close()
+    models = set()
+    for section in kv_merge.parse(costume_script).children:
+        if not section.block:
+            continue
+        for entry in section.children:
+            if not entry.block or entry.key not in numbers:
+                continue
+            values = {c.key.lower(): (c.value or '') for c in entry.children if not c.block}
+            if values.get('category', '').lower() == 'male':
+                continue
+            for key in ('normal', 'broken'):
+                model = values.get(key, '').replace(chr(92), '/').lower()
+                if model.endswith('.mdl'):
+                    models.add(model)
+    return models
+
+
 def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
     """Game paths a staged model or material needs. A model's material is the first cdmaterials folder
     that has it, as the engine searches them (`known`: the path exists in the 1.69, the NA or the
@@ -426,6 +478,8 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
     queue = sorted({p for p in na if selected(p, names) and p not in lab}
                    | {p for p in NATIVE_ASSETS.get(weapon, ()) if p in na and p not in lab}
                    | {p for p in imported_icons(class_name, na) if p not in lab})
+    costume_models = imported_costumes(class_name, na[COSTUME_SCRIPT].read_bytes()) if COSTUME_SCRIPT in na else set()
+    queue = sorted(set(queue) | {m for m in costume_models if m in na and m not in lab})
     csf_without_weapon = {c.format(klass=class_name) for c in CSF_WITHOUT_WEAPON}
     records: dict[str, dict] = {}
     missing: set[str] = set()
@@ -441,6 +495,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = without_missing_includes(rel, data, lambda p: p in lab or (p in na and selected(p, names)))
         data = town_motion(rel, data, donor)
         data = pbs_as_armor(rel, data)
+        data = with_plain_effects(rel, data)
         if rel in csf_without_weapon:
             data = without_csf_weapon(data)
         converted = converted or data != source
@@ -512,7 +567,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(spskill_for_169(source, lab_files[rel].read_bytes(), class_name) if rel == SPSKILL_TABLE else source)
         merges.append({'path': rel, 'source': na[na_rel].relative_to(na_root).as_posix(), 'source_sha256': sha256(source),
-                       'needles': list(names)})
+                       'needles': list(names) + (sorted(costume_models) if rel == COSTUME_SCRIPT else [])})
     text = None
     if TEXT_SOURCE in na:
         source = na[TEXT_SOURCE].read_bytes()
