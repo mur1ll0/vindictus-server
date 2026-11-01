@@ -2981,3 +2981,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI18 (pendente, com a MI17).
 - Commits: (este passo)
 - Pendente / próxima ação: MI17 e MI18 no cliente; visual do Dragon Knight (metamorfose do 1.69); depois XE como habilidade extra.
+
+## 2026-10-31 — Miri M7m: correção do registro de testes
+- Feito: a entrada anterior (M7m) registrou o `test_patch_class_routing` completo como OK, mas a execução teve 2 falhas: `test_guard_keeps_state_and_blocks_for_extra_classes` e `test_client_guard_marks_guarded_hits_for_extra_classes` esperavam os ids antigos da guarda da Delia (`0x7c`/`0x7d`), que passaram a 123/124 com a troca de `AS_Cond_Delia_Special_Hold_Skill` por `As_Cond_Miri_DragonKnight`. O código aplicado estava certo (empurra `0x7b`/`0x7c`); os testes passam a calcular os ids por `CONDITION_NAMES`.
+- Verificação: execução completa `.cache/verification/miri/r2/dk-tests-full.log` 42 OK e 2 falhas (as acima); `-k guard` depois da correção OK (`r2/dk-tests-guard.log`). Os DLLs aplicados não mudaram.
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: MI17 e MI18 no cliente; visual do Dragon Knight; depois XE como habilidade extra.

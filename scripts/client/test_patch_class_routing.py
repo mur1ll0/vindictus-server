@@ -457,8 +457,8 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(sum(t == f'call {lower:#x}' for t in put), 2)
         damage = body(bodies[damage_slot], 0xa0)
         self.assertEqual(sum(t == f'call {raise_:#x}' for t in damage), 2)
-        self.assertIn('push 0x7c', damage)
-        self.assertIn('push 0x7d', damage)
+        self.assertIn(f"push {routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('AS_Cond_Delia_Guard'):#x}", damage)
+        self.assertIn(f"push {routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit'):#x}", damage)
         self.assertIn('test byte ptr [eax + 0x78], 2', damage)  # a client hit counts when the client guarded it
         self.assertIn(f'call {guarded:#x}', damage)
         self.assertEqual(damage[-1], 'ret 4')
@@ -488,7 +488,7 @@ class LabCopyTest(unittest.TestCase):
         for target in (copy, unguardable, unguardable_info, test, int(guard['base'], 16)):
             self.assertIn(f'call {target:#x}', damage)
         self.assertEqual(sum(t == f'call {raise_:#x}' for t in damage), 3)
-        for text in ('push 0x7c', 'push 0x7d', 'push 0x4c', 'push 0x4d', 'or dword ptr [esp + 0x84], 2',
+        for text in (f"push {routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('AS_Cond_Delia_Guard'):#x}", f"push {routing.FIRST_NEW_CONDITION + routing.CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit'):#x}", 'push 0x4c', 'push 0x4d', 'or dword ptr [esp + 0x84], 2',
                      f'mov byte ptr [esi + {routing.HIT_IMPACT_SKIP:#x}], 1',
                      f'mov ecx, dword ptr [{allocator:#x}]'):
             self.assertIn(text, damage)
