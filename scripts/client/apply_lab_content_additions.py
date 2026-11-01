@@ -147,6 +147,9 @@ def with_script_entries(text: bytes, costumes: list[dict], kind: str) -> bytes:
         if costume['key'] in children:
             raise PreparationError(f'The {costume["section"]} script already has entry {costume["key"]}.')
         lines = ''.join('\t\t\t"%s"\t"%s"\r\n' % (f, costume['normal']) for f in fields)
+        if costume.get('trails'):
+            # the class weapon's own trails (class_costumes.weapon_costumes)
+            lines += '\t\t\t' + costume['trails'].strip() + '\r\n'
         entry = ('\r\n\t\t"%s"\r\n\t\t{\r\n%s\t\t}\r\n\t' % (costume['key'], lines)).encode('ascii')
         text = text[:closing] + entry + text[closing:]
     return text

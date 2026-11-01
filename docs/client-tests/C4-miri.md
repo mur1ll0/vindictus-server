@@ -356,3 +356,12 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Ancestral Garb → as chamas da transformação e das habilidades transformadas saem escuras (Dragon Knight); sem transformar, azuis.
 - [ ] Painel → editor de itens com Dragon Rise → modelo e detalhes do conjunto; anotar se ainda faltar.
 - [ ] (M7s) Painel → dica de uma peça de Dragon Rise e de Pythonshock → nome do conjunto ("Dragon Rise Set", "Serpent Shock Set") e bônus por número de peças; no jogo, o nome do conjunto sem `HEROES_ITEM_SETITEM_NAME_...`.
+
+### MI24 — Fogo da Draker, gasto de SP da transformação e XE *move*
+Pré-condição: com o jogo fechado, importação, preparação, `refresh_item_content.py --force` (reinicia o `game`) e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7t). DLLs sem mudança. Pode ser jogada junto da MI23.
+- [ ] Combate sem transformar: golpes, giros das correntes e habilidades → rastros de fogo azul da Draker na arma e nas correntes (antes: os rastros da espada grande do 1.69, ou nenhum).
+- [ ] Ancestral Garb com 200 SP ou mais → a barra de SP cai 200 no momento da transformação (antes: não gastava). Com menos de 200, não ativa.
+- [ ] Transformada: golpes fortes e habilidades transformadas (sequências `_dragon`: Scorching Streak, golpes fortes, *speed move*) → rastros de fogo escuro (Dragon Knight). Golpes básicos transformados continuam com o fogo azul (as sequências são as mesmas do normal).
+- [ ] Transformada: Blazing Spine custa 100 SP (normal: 250).
+- [ ] XE *move*: janela de habilidades → **XE Move** (texto e ícone da Delia) disponível no nível 8; treinar para o rank 1 (0 AP) ou dar pelo painel. Em combate, ataque + golpe forte juntos (como a Delia) → a Miri faz o XE (`super_power`, gasta 20% do HP, recarga). Anotar se a animação, o dano ou a recarga falharem.
+Relatar: um item por linha, com o que apareceu (ou não) e capturas das chamas transformadas.

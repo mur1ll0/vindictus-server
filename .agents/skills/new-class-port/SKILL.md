@@ -83,7 +83,7 @@ Delia) **e implementar para a classe um XE *move* como habilidade extra**. O que
 - estados da doadora que a classe não tem (`DONOR_STATES`: `JumpAttack`, `JumpAttackStrong`);
 - tabelas lidas no lugar das comuns com `ExtremeMode` recebem as linhas da classe (`EXTREME_MERGES`:
   `action_table_player_ex.txt`; sem ele os golpes ficam sem ação, dano mínimo e sem SP).
-XE *move* (a fazer na Miri): habilidade nova `skill_<classe>_xe_move` (linhas de `SkillInfo`/`SkillRankInfo`
+XE *move* (feito na Miri, M7t: `class_imports.donor_xe_rows`, `DONOR_STATES` com `donor_renames`, ativações em `with_jump_activations`): habilidade nova `skill_<classe>_xe_move` (linhas de `SkillInfo`/`SkillRankInfo`
 no esquema 1.69, recarga `skill_xe_move_cooltime`), estado `SuperPower` copiado da doadora com
 `required_skill` e `is_weapon` da classe, ativações `SuperPower` nos eventos e a ação do golpe (`super_power`
 usa a da doadora). Os nomes e valores vêm da doadora do 1.69, não do NA, e ficam registrados no documento

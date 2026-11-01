@@ -218,6 +218,21 @@ class ClassImportsTest(unittest.TestCase):
                                'HEROES_SET_ITEM_DESC_DRAGON_RISE_SET_2': 'DEF +150\nINT +35\n',
                                'HEROES_SET_ITEM_DESC_DRAGON_RISE_SET_3': 'DEF +165\n'})
 
+    def test_the_class_takes_the_donor_xe_move(self):
+        with closing(sqlite3.connect(self.base)) as base:
+            base.execute("INSERT INTO SkillInfo VALUES('skill_delia_xe_move', 1024)")
+            base.executemany('INSERT INTO SkillRankInfo VALUES(?,?,?)',
+                             [('skill_delia_xe_move', r, 'ExtremeMode') for r in (0, 1)])
+            base.commit()
+            info = class_imports.donor_xe_rows(base, 'SkillInfo', 'SkillID', ['SkillID', 'ClassRestriction'], 'miri', set())
+            # the class's own name and restriction (converted() turns the name into its bit)
+            self.assertEqual(info, [('skill_miri_xe_move', 'miri')])
+            ranks = class_imports.donor_xe_rows(base, 'SkillRankInfo', 'SkillID', ['Feature', 'SkillID', 'Rank', 'X'], 'miri', set())
+            self.assertEqual(ranks, [('ExtremeMode', 'skill_miri_xe_move', 0, None), ('ExtremeMode', 'skill_miri_xe_move', 1, None)])
+            # a class with its own XE keeps it
+            self.assertEqual(class_imports.donor_xe_rows(base, 'SkillInfo', 'SkillID', ['SkillID'], 'miri',
+                                                         {'skill_miri_xe_move'}), [])
+
     def test_bad_arguments_are_refused(self):
         with self.assertRaises(class_imports.ImportError_):
             class_imports.build('Miri', 'draker', 11, 10, self.na, self.base, self.out)

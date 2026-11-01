@@ -218,6 +218,17 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"500152"', out)
         self.assertEqual([c.key for c in stage.kv_merge.parse(out).children[0].children], ['upper_body'])
 
+    def test_the_transformation_spends_the_sp_its_state_checks(self):
+        states = (b'"Miri"\r\n{\r\n\t"Output"\r\n\t{\r\n\t\t"AttackSP03"\r\n\t\t{\r\n\t\t\t"property"\r\n\t\t\t{\r\n'
+                  b'\t\t\t\t"SPGauge_need"\t"250"\r\n\t\t\t}\r\n\t\t}\r\n\t\t"AttackSP04"\r\n\t\t{\r\n\t\t\t"property"\r\n'
+                  b'\t\t\t{\r\n\t\t\t\t"SPGauge_check_only"\t\t"200"\r\n\t\t\t}\r\n\t\t}\r\n\t}\r\n}\r\n')
+        checks = stage.state_sp_checks(states)
+        self.assertEqual(checks, {'AttackSP04': 200})
+        motion = b'"miri_SP4"\r\n{\r\n\t{\r\n\t\t"event"\t"AE_CUSTOM_MOTION\tREDUCE_DRAGON_KNIGHT_SP_GAUGE"\r\n\t}\r\n}\r\n'
+        out = stage.with_sp_reduce('models/player/_anim/female/miri/pc_miri_motion.txt', motion, checks)
+        self.assertEqual(out, motion.replace(b'AE_CUSTOM_MOTION\tREDUCE_DRAGON_KNIGHT_SP_GAUGE', b'AE_GAIN_SP_GAUGE\t-200'))
+        self.assertEqual(stage.with_sp_reduce('models/player/_anim/female/miri/pc_miri_motion.txt', motion, {}), motion)
+
     def test_custom_effects_play_the_plain_effect(self):
         script = (b'"miri_SP3"\r\n{\r\n\t"10"\t"AE_CL_PLAY_CUSTOM_EFFECT\teffects/a.efx effects/a_knight.efx"\r\n'
                   b'\t"20"\r\n\t{\r\n\t\t"event"\t"AE_CL_PLAY_CUSTOM_EFFECT\teffects/b.efx effects/b_knight.efx"\r\n\t}\r\n}\r\n')
@@ -230,6 +241,13 @@ class StageTest(unittest.TestCase):
         knight = script.replace(b'"miri_SP3"', b'"miri_SP4"')
         out = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', knight + script)
         self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a_knight.efx"', out)  # the transformation: Dragon Knight
+        trails = b'"miri_sp1_dragon"\r\n{\r\n\t"5"\t"AE_WEAPON_ENABLE_TRAIL_POINT\t0 2"\r\n\t"9"\t"AE_WEAPON_DISABLE_TRAIL_POINT\t2 5"\r\n}\r\n'
+        plain = trails.replace(b'miri_sp1_dragon', b'miri_sp1')
+        traced = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', trails + plain)
+        # the transformed sequence draws the Dragon Knight trails (5 + n); others and indices past them stay
+        self.assertIn(b'"AE_WEAPON_ENABLE_TRAIL_POINT\t0 7"', traced)
+        self.assertEqual(traced.count(b'"AE_WEAPON_DISABLE_TRAIL_POINT\t2 5"'), 2)
+        self.assertTrue(traced.endswith(plain))
         self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a.efx"', out)  # the other block: the normal one
         self.assertNotIn(b'CUSTOM', out)
 
@@ -286,6 +304,15 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"priority"\t"9"', out)  # the class's own state stays
         self.assertNotIn(b'SuperPower', out)
         self.assertEqual(stage.with_donor_states(out, donor, ('JumpAttack', 'JumpAttackStrong'))[1], [])
+        xe = donor.replace(b'"SuperPower"\r\n\t\t{\r\n', b'"SuperPower"\r\n\t\t{\r\n\t\t\t"required_skill"\t"skill_delia_xe_move.1"\r\n'
+                                                       b'\t\t\t"state_options" { "is_weapon"\t"weapon_bastardsword" }\r\n')
+        out, added = stage.with_donor_states(mine, xe, ('SuperPower',), stage.donor_renames('miri', 'draker'))
+        self.assertEqual(added, ['StateChangeConditionDefine/SuperPower'])
+        # the class's XE skill and weapon entity, not the donor's
+        self.assertIn(b'"required_skill"\t"skill_miri_xe_move.1"', out)
+        self.assertIn(b'"is_weapon"\t"weapon_greatsword"', out)
+        self.assertNotIn(b'delia', out)
+        self.assertNotIn(b'bastard', out)
 
     def test_jump_activations_come_from_the_donor(self):
         mine = (b'"battle_idle_lower"\r\n{\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tBattleRun"\r\n}\r\n'
@@ -303,6 +330,10 @@ class StageTest(unittest.TestCase):
         self.assertEqual(out[slice(*stage.event_blocks(out)['battle_run_lower'])],
                          mine[slice(*stage.event_blocks(mine)['battle_run_lower'])])
         self.assertEqual(stage.with_jump_activations(out, donor)[1], [])
+        xe = donor.replace(b'JumpBegin"\r\n}', b'JumpBegin"\r\n\t"0"\t"AE_ACTIVATE_STATE_CHANGE_CONDITION\tSuperPower"\r\n}')
+        out, opened = stage.with_jump_activations(out, xe)
+        self.assertEqual(opened, ['battle_run_lower'])  # the XE move opens where the donor's does
+        self.assertIn(b'SuperPower', out[slice(*stage.event_blocks(out)['battle_run_lower'])])
 
     def test_the_sp_skill_section_takes_the_169_shape(self):
         na = (b'"delia"\r\n{\r\n\t"0"\r\n\t{\r\n\t\t"skill_delia_sp1" { "key" "IN_SPSKILL2" "id" "AttackSP01" }\r\n\t}\r\n}\r\n'

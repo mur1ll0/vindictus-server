@@ -139,6 +139,8 @@ def select(na: sqlite3.Connection, base: sqlite3.Connection, name: str, weapon: 
         gather(table, 'ItemClass', items)
     for table, column in SKILL_TABLES.items():
         gather(table, column, skills)
+        cols, rows = out[table]
+        out[table] = (cols, rows + donor_xe_rows(base, table, column, cols, name, skills))
     # Recipes: RecipeMaterialInfo lists the product (Type 0) and the materials (Type 1); a recipe comes
     # when it makes an imported item from materials the 1.69 or the import has.
     have = known | items
@@ -213,6 +215,27 @@ def select(na: sqlite3.Connection, base: sqlite3.Connection, name: str, weapon: 
         gather('SetInfo', 'SetID', new_sets)
         gather('SetEffectInfo', 'SetID', new_sets)
     return out, {k: v for k, v in dropped.items() if v}
+
+
+def donor_xe_rows(base: sqlite3.Connection, table: str, column: str, cols: list[str], name: str,
+                  skills: set[str]) -> list[tuple]:
+    """The 1.69 donor's XE skill rows (class_costumes.XE_DONOR) as the class's own skill_<class>_xe_move, in
+    the import's columns: the NA released the Miri without XE (operator rule of 31/10/2026). Ranks,
+    arguments, ExtremeMode feature and text tokens stay the donor's; ClassRestriction names the class, so
+    converted() gives it the class's bit. None when the NA class or the 1.69 already has the skill."""
+    donor = class_costumes.XE_SKILL.format(klass=class_costumes.XE_DONOR)
+    own = class_costumes.XE_SKILL.format(klass=name)
+    base_cols = columns(base, table)
+    if own in skills or column not in base_cols or             base.execute(f'SELECT 1 FROM [{table}] WHERE [{column}]=?', (own,)).fetchone():
+        return []
+    rows = []
+    for row in base.execute(f'SELECT * FROM [{table}] WHERE [{column}]=?', (donor,)):
+        values = dict(zip(base_cols, row))
+        values[column] = own
+        if 'ClassRestriction' in values:
+            values['ClassRestriction'] = name
+        rows.append(tuple(values.get(c) for c in cols))
+    return rows
 
 
 def build(name: str, weapon: str, index: int, stats_from: int, na_path: Path, base_path: Path, out_dir: Path) -> dict:

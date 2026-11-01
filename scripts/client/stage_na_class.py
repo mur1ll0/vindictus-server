@@ -32,6 +32,9 @@ import mdl_anim
 import mdl_v45_to_v44
 from model_kit import TEXTURE_PARAMS, model_materials
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'content'))
+import class_costumes  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 NA_ROOT = Path('F:/Games/vindictus/hfsExtracted')
 LAB_ROOT = ROOT / '.cache/play-client/hfs_extracted'
@@ -196,13 +199,14 @@ def event_blocks(script: bytes) -> dict[str, tuple[int, int]]:
     return blocks
 
 
-JUMP_ACTIVATION = re.compile(rb'^[ \t]*"(?!event")[^"\r\n]*"[ \t]+"AE_ACTIVATE_STATE_CHANGE_CONDITION[ \t]+(Jump\w*)"[^\r\n]*(?:\r?\n)', re.M)
+JUMP_ACTIVATION = re.compile(rb'^[ \t]*"(?!event")[^"\r\n]*"[ \t]+"AE_ACTIVATE_STATE_CHANGE_CONDITION[ \t]+(Jump\w*|SuperPower)"[^\r\n]*(?:\r?\n)', re.M)
 
 
 def with_jump_activations(script: bytes, donor_script: bytes) -> tuple[bytes, list[str]]:
-    """The class's events script with the donor's jump activations (AE_ACTIVATE_STATE_CHANGE_CONDITION
-    Jump*) in each block both scripts have and the class's lacks: the NA had no jump, so the Miri's own
-    idle, run and rest never opened JumpBegin and Space did nothing in battle (C4 MI14)."""
+    """The class's events script with the donor's jump and XE activations (AE_ACTIVATE_STATE_CHANGE_CONDITION
+    Jump*, SuperPower) in each block both scripts have and the class's lacks: the NA had no jump, so the
+    Miri's own idle, run and rest never opened JumpBegin and Space did nothing in battle (C4 MI14); the XE
+    move opens from the same 71 blocks as the donor's (idle, run, attacks, light damage...)."""
     mine, theirs = event_blocks(script), event_blocks(donor_script)
     edits = []
     for name, (start, end) in mine.items():
@@ -244,14 +248,25 @@ LIST_PORTRAIT_ATLAS = 'scaleform/selectcharacterdialog_v2_i{klass}.dds'
 # hit at 13k ATK and no SP from attacks (C4 MI15).
 EXTREME_MERGES = {'scripts/action_table_player_ex.txt': 'scripts/action_table_player.txt'}
 # States the 1.69's ExtremeMode gives every class and the NA's class files lack (the NA had no jump): the
-# jump attacks of the "XE common" block, copied from the 1.69 donor's _ex state file (C4 MI15). The XE
-# move itself (SuperPower) needs an XE skill the NA Miri does not have.
-DONOR_STATES = {'female': ('scripts/actionstate/player_action_state_delia_ex.txt', ('JumpAttack', 'JumpAttackStrong'))}
+# jump attacks of the "XE common" block, copied from the 1.69 donor's _ex state file (C4 MI15), and the XE
+# move (SuperPower), which asks for the class's own XE skill (class_imports.donor_xe_rows) and weapon
+# entity in place of the donor's (donor_renames).
+DONOR_STATES = {'female': ('scripts/actionstate/player_action_state_delia_ex.txt',
+                           ('JumpAttack', 'JumpAttackStrong', 'SuperPower'))}
 
 
-def with_donor_states(script: bytes, donor_script: bytes, names: tuple[str, ...]) -> tuple[bytes, list[str]]:
+def donor_renames(class_name: str, weapon: str) -> tuple[tuple[bytes, bytes], ...]:
+    donor = class_costumes.XE_DONOR
+    entity = class_costumes.LAB_WEAPON_ENTITY.get(weapon, f'weapon_{weapon}')
+    return ((class_costumes.XE_SKILL.format(klass=donor).encode(), class_costumes.XE_SKILL.format(klass=class_name).encode()),
+            (f'"{class_costumes.DONOR_WEAPON_ENTITY[donor]}"'.encode(), f'"{entity}"'.encode()))
+
+
+def with_donor_states(script: bytes, donor_script: bytes, names: tuple[str, ...],
+                      renames: tuple[tuple[bytes, bytes], ...] = ()) -> tuple[bytes, list[str]]:
     """The class's action-state script with the donor's `names` states, in each section
-    (StateChangeConditionDefine, StateDefine) where the donor has them and the class does not."""
+    (StateChangeConditionDefine, StateDefine) where the donor has them and the class does not, with the
+    `renames` (donor text, class text) made in the copied states."""
     mine = next(n for n in kv_merge.parse(script).children if n.block)
     theirs = next(n for n in kv_merge.parse(donor_script).children if n.block)
     newline = b'\r\n' if b'\r\n' in script else b'\n'
@@ -263,7 +278,10 @@ def with_donor_states(script: bytes, donor_script: bytes, names: tuple[str, ...]
         have = {c.key for c in target.children}
         for state in section.children:
             if state.block and state.key in names and state.key not in have:
-                edits.append((target.close, b'\t\t' + donor_script[state.start:state.end] + newline + b'\t'))
+                text = donor_script[state.start:state.end]
+                for old, new in renames:
+                    text = text.replace(old, new)
+                edits.append((target.close, b'\t\t' + text + newline + b'\t'))
                 added.append(f'{section.key}/{state.key}')
     for at, text in sorted(edits, key=lambda e: e[0], reverse=True):
         script = script[:at] + text + script[at:]
@@ -395,8 +413,17 @@ KNIGHT_EFFECT = re.compile(rb'AE_CL_PLAY_CUSTOM_EFFECT([ \t]+)[^\s"]+[ \t]+([^\s
 
 
 # Sequences only the Dragon Knight plays (the transformation and the transformed skills) take the second,
-# Dragon Knight effect: its dark flames, where the first is the untransformed blue (C4 MI22).
+# Dragon Knight effect: its dark flames, where the first is the untransformed blue (C4 MI22). Their weapon
+# trails take the Dragon Knight weapon's black ones, which every Draker sub-type carries at
+# class_costumes.KNIGHT_TRAIL_OFFSET + n (the lab look keeps the held weapon).
 KNIGHT_SEQUENCE = re.compile(r'sp4|_dragon($|_)|dragon_knight', re.I)
+KNIGHT_TRAIL = re.compile(rb'(AE_WEAPON_(?:EN|DIS)ABLE_TRAIL_POINT[ \t]+\d+[ \t]+)(\d+)')
+
+
+def knight_trails(block: bytes) -> bytes:
+    offset = class_costumes.KNIGHT_TRAIL_OFFSET
+    return KNIGHT_TRAIL.sub(lambda m: m.group(1) + (str(int(m.group(2)) + offset).encode()
+                                                    if int(m.group(2)) < offset else m.group(2)), block)
 
 
 def with_plain_effects(path: str, data: bytes) -> bytes:
@@ -406,10 +433,46 @@ def with_plain_effects(path: str, data: bytes) -> bytes:
     out, at = [], 0
     for start, end in knight:
         out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:start]))
-        out.append(KNIGHT_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[start:end]))
+        out.append(knight_trails(KNIGHT_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[start:end])))
         at = end
     out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:]))
     return b''.join(out)
+
+
+# The NA spends the Dragon Knight transformation's SP at a frame of miri_SP4 (AE_CUSTOM_MOTION
+# REDUCE_DRAGON_KNIGHT_SP_GAUGE; NA server 0x5dc470: the SP of skill_miri_sp4 taken off the gauge), while its
+# state AttackSP04 only checks it (SPGauge_check_only 200). No 1.69 handler knows the command, so the
+# transformation cost nothing. It becomes the 1.69's AE_GAIN_SP_GAUGE -<SP the state checks> at the same
+# frame (the 1.69 scripts spend that way: AE_GAIN_SP_GAUGE -50).
+SP_REDUCE = {'REDUCE_DRAGON_KNIGHT_SP_GAUGE': 'AttackSP04'}
+SP_REDUCE_STATES = 'scripts/actionstate/player_action_state_{klass}.txt'
+
+
+def state_sp_checks(states: bytes) -> dict[str, int]:
+    """SP each state of an action-state script checks without spending (property SPGauge_check_only)."""
+    out = {}
+    stack = [kv_merge.parse(states)]
+    while stack:
+        node = stack.pop()
+        for child in node.children:
+            if not child.block:
+                continue
+            prop = next((c for c in child.children if c.block and c.key.lower() == 'property'), None)
+            value = next((c.value for c in prop.children if not c.block and c.key == 'SPGauge_check_only'), None) if prop else None
+            if value and value.isdigit():
+                out.setdefault(child.key, int(value))
+            stack.append(child)
+    return out
+
+
+def with_sp_reduce(path: str, data: bytes, checks: dict[str, int]) -> bytes:
+    if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
+        return data
+    for command, state in SP_REDUCE.items():
+        if state in checks:
+            data = re.sub(rb'AE_CUSTOM_MOTION([ \t]+)' + command.encode() + rb'\b',
+                          rb'AE_GAIN_SP_GAUGE\g<1>-' + str(checks[state]).encode(), data)
+    return data
 
 
 COSTUME_SCRIPT = 'scripts/player_costume.txt'
@@ -498,6 +561,8 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
     costume_models = imported_costumes(class_name, na[COSTUME_SCRIPT].read_bytes()) if COSTUME_SCRIPT in na else set()
     queue = sorted(set(queue) | {m for m in costume_models if m in na and m not in lab})
     csf_without_weapon = {c.format(klass=class_name) for c in CSF_WITHOUT_WEAPON}
+    sp_states = SP_REDUCE_STATES.format(klass=class_name)
+    sp_checks = state_sp_checks(na[sp_states].read_bytes()) if sp_states in na else {}
     records: dict[str, dict] = {}
     missing: set[str] = set()
     while queue:
@@ -513,6 +578,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = town_motion(rel, data, donor)
         data = pbs_as_armor(rel, data)
         data = with_plain_effects(rel, data)
+        data = with_sp_reduce(rel, data, sp_checks)
         if rel in csf_without_weapon:
             data = without_csf_weapon(data)
         converted = converted or data != source
@@ -557,7 +623,8 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                     text = with_extreme_includes(text, lambda q: q in lab)
                     donor_states = DONOR_STATES.get(rel.split('/')[3])
                     if donor_states and donor_states[0] in lab_files:
-                        text, states = with_donor_states(text, lab_files[donor_states[0]].read_bytes(), donor_states[1])
+                        text, states = with_donor_states(text, lab_files[donor_states[0]].read_bytes(), donor_states[1],
+                                                         donor_renames(class_name, weapon))
                         extra.update({'states_from': donor_states[0], 'states_added': states})
                 donor_events = donor and donor.replace('_battle_motion_ex.mdl', '_motion_ex.txt')
                 if donor_events and script.endswith('_motion_ex.txt') and donor_events in lab_files:

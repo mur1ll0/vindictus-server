@@ -3037,3 +3037,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` item M7s na MI23 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: MI23 no cliente; rastros de fogo da Draker; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7t: fogo da Draker, gasto de SP da transformação, XE move
+- Feito: `class_costumes.weapon_costumes` dá a cada subtipo da Draker no `weapon_greatsword.txt` os rastros dela (topo do `weapon_draker.txt` ou os do subtipo) e os do subtipo 1033 (Dragon Knight, chamas `miri_*_night`) em 5 + n; `apply_lab_content_additions.with_script_entries` grava o `TrailData`; `stage_na_class.knight_trails` soma 5 aos rastros das sequências só transformadas. `with_sp_reduce`: `REDUCE_DRAGON_KNIGHT_SP_GAUGE` (NA servidor x64 `0x5dc470`) vira `AE_GAIN_SP_GAUGE -200` (o `SPGauge_check_only` do `AttackSP04`). XE: `class_imports.donor_xe_rows` (linhas 1.69 da `skill_delia_xe_move` como `skill_miri_xe_move`), `DONOR_STATES` + `donor_renames` (`SuperPower` com a habilidade e `weapon_greatsword`), ativações `SuperPower` em `with_jump_activations`. Arma do `.csf` medida e descartada: o bloco `weapon` (bandeira 7 de `0x4056a140`) cria arma nova (`0x40539f60`, vtable `+0x808`) que a restauração não desfaz. `test_apply_lab_hfs` antigo corrigido (cliente falso sem os arquivos de `ORIGINAL_FIXES`; script injetado no pacote do 1.69).
+- Verificação: `test_class_costumes test_class_imports` OK (`.cache/verification/miri/r3/t5-content.log`), `test_stage_na_class test_apply_lab_hfs` OK (`r3/t7-client.log`). Aplicado com o jogo fechado: importação (`r3/imports.log`; XE 1/16/32 linhas), preparação 5.268 arquivos (`r3/stage.log`), `refresh_item_content.py --force` (`r3/refresh.log`), `apply.log` (3 pacotes; nos pacotes: `-200` ×2, 75 ativações `SuperPower`, `skill_miri_xe_move` no estado, subtipo 11133 com rastros 0–9; `heroes.db3` com a habilidade, máscara 2048). DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` MI24 (pendente, junto da MI23).
+- Commits: (este passo)
+- Pendente / próxima ação: MI23 e MI24 no cliente; corrigir o que o operador relatar.

@@ -32,6 +32,12 @@ SECTIONS = {'INNERARMOR': 'inner_armor', 'HAIR': 'hair', 'FACE': 'face', 'HELM':
 # (slot 4) left her with no weapon at all (MI5, 30/10).
 LAB_WEAPON_ENTITY = {'draker': 'weapon_greatsword'}
 WEAPON_SUBTYPE_BASE = 10100
+# XE move of a class the NA released without one (operator rule of 31/10/2026; .agents/skills/new-class-port,
+# "Pulo, ataques no ar e XE"): the 1.69 donor's XE skill under the class's name (class_imports.donor_xe_rows)
+# and the donor's SuperPower state, with the class's skill and weapon entity (stage_na_class DONOR_STATES).
+XE_DONOR = 'delia'
+XE_SKILL = 'skill_{klass}_xe_move'
+DONOR_WEAPON_ENTITY = {'delia': 'weapon_bastardsword'}
 
 
 def weapon_subtype(weapon: str, costume_type: int) -> int:
@@ -39,13 +45,43 @@ def weapon_subtype(weapon: str, costume_type: int) -> int:
     return WEAPON_SUBTYPE_BASE + costume_type if weapon in LAB_WEAPON_ENTITY else costume_type
 
 
+# The Dragon Knight look's weapon (the NA's csf/metamorphosis/miri_dragon_knight.csf: weapon_draker
+# sub-type 1033) has the black trails (miri_*_night; the normal ones are blue). The lab look keeps the held
+# weapon: a .csf weapon block gives the player a new weapon entity (server 0x40539f60, vtable +0x808), which
+# only the class default outfits ask for and the metamorphosis' restore does not undo. So every sub-type
+# also carries the Dragon Knight trails at KNIGHT_TRAIL_OFFSET + n, the indices stage_na_class gives the
+# transformed sequences (the 1.69 reads trail indices up to 10: weapon_dualblade.txt).
+KNIGHT_WEAPON_SUBTYPE = {'draker': '1033'}
+KNIGHT_TRAIL_OFFSET = 5
+
+
+def kv_block_text(script: bytes, node, key: str | None = None) -> str:
+    """A block's source text without its comment lines, under another key when given."""
+    lines = [line.rstrip() for line in script[node.start:node.end].decode('latin-1').splitlines()
+             if line.strip() and not line.strip().startswith('//')]
+    if key is not None and lines:
+        lines[0] = re.sub(r'^(\s*)"?[^"\s{]+"?', lambda m: f'{m.group(1)}"{key}"', lines[0], count=1)
+    return '\r\n'.join(lines)
+
+
+def block_child(node, key: str):
+    return next((c for c in node.children if c.block and c.key.lower() == key), None) if node else None
+
+
 def weapon_costumes(script: bytes, weapon: str) -> list[dict]:
     """The NA weapon script's SubTypeInfoOverride models as entries of the lab entity's script
-    (section, key, normal), for apply_lab_content_additions.with_script_entries."""
+    (section, key, normal, trails), for apply_lab_content_additions.with_script_entries.
+
+    An entry takes the weapon's own TrailData (the Draker's fire, miri_trail_dragon_*) when the NA
+    subtype has none: in the lab entity's script the top-level trails are the 1.69 greatsword's, which
+    the Miri's AE_WEAPON_ENABLE_TRAIL_POINT indices (up to 4, along the chain) drew instead (C4 MI21).
+    The Dragon Knight sub-type's trails follow at KNIGHT_TRAIL_OFFSET + n."""
     entity = LAB_WEAPON_ENTITY.get(weapon)
     if entity is None:
         return []
-    found, stack = None, [kv_merge.parse(script)]
+    root = kv_merge.parse(script)
+    default = block_child(next((n for n in root.children if n.block), None), 'traildata')
+    found, stack = None, [root]
     while stack and found is None:
         node = stack.pop()
         for child in node.children:
@@ -54,11 +90,19 @@ def weapon_costumes(script: bytes, weapon: str) -> list[dict]:
                 break
             if child.block:
                 stack.append(child)
+    knight = block_child(block_child(found, KNIGHT_WEAPON_SUBTYPE.get(weapon, '')), 'traildata')
     out = []
     for entry in found.children if found else []:
         model = next((leaf.value for leaf in entry.children if leaf.key.lower() == 'playermodel'), None)
         if entry.block and re.fullmatch(r'\d{1,4}', entry.key) and model:
-            out.append({'section': entity, 'key': str(weapon_subtype(weapon, int(entry.key))), 'normal': model})
+            costume = {'section': entity, 'key': str(weapon_subtype(weapon, int(entry.key))), 'normal': model}
+            own = block_child(entry, 'traildata') or default
+            parts = [kv_block_text(script, c) for c in own.children if c.block] if own else []
+            parts += [kv_block_text(script, c, str(KNIGHT_TRAIL_OFFSET + int(c.key)))
+                      for c in (knight.children if knight else []) if c.block and c.key.isdigit()]
+            if parts:
+                costume['trails'] = '"TrailData"\r\n{\r\n' + '\r\n'.join(parts) + '\r\n}'
+            out.append(costume)
     return out
 
 

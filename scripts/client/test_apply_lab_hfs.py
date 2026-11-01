@@ -74,6 +74,9 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.assertEqual(text.count(b'models/weapon/longsword/new.mdl'), 2)
         with self.assertRaises(Exception):
             with_script_entries(text, [entry], 'weapon')
+        trails = {**entry, 'key': '3', 'trails': '"TrailData"\r\n{\r\n"0" { "material" "Effects/miri_smash" }\r\n}'}
+        text = with_script_entries(text, [trails], 'weapon')
+        self.assertEqual(kv_blocks(text)[('weapondata', 'subtypeinfooverride', '3', 'traildata')][2], {'0'})
         shields = b'"Fiona"\r\n{\r\n\t"normal_paladin_subtype_id"\t"23"\r\n\t"0"\r\n\t{\r\n\t\t"normal"\t"models/weapon/shield/a.mdl"\r\n\t}\r\n}\r\n'
         text = with_script_entries(shields, [{**entry, 'section': 'shields', 'key': '1'}], 'shields')
         self.assertEqual(kv_blocks(text)[('fiona',)][2], {'0', '1'})
@@ -113,13 +116,18 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.stage_class({'models/player/miri/a.mdl': b'A' * 60, 'models/player/miri/b.mdl': b'B' * 60,
                           'sound/voice/pc/miri_hi.wav': b'RIFF', 'scripts/player_action_state_miri.txt': b'"x" {}'})
         limit, lab.CLASS_PART_LIMIT = lab.CLASS_PART_LIMIT, 100
+        # the fake client has none of the 1.69 files ORIGINAL_FIXES rewrites
+        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client: {}
+        self.addCleanup(setattr, lab, 'fixed_packs', fixed)
         try:
             plan = self.run_apply([])
         finally:
             lab.CLASS_PART_LIMIT = limit
         packs = {hfs.pack_name('models/player/miri', 0), hfs.pack_name('models/player/miri', 1),
-                 hfs.pack_name('sound/voice/pc'), hfs.pack_name(SCRIPTS_FOLDER, 1)}
-        self.assertEqual((plan['class_files'], plan['class_packs'], plan['class_packs_built']), (4, 4, 4))
+                 hfs.pack_name('sound/voice/pc')}
+        # the script goes into the 1.69's own scripts pack (INJECTED_PREFIXES), the rest into new parts
+        self.assertEqual((plan['class_files'], plan['class_packs'], plan['class_packs_built'], plan['class_injected']),
+                         (3, 3, 3, 1))
         plain = hfs.decode_index((self.client / INDEX).read_bytes())
         self.assertTrue(packs <= set(hfs.index_packs(plain)))
         self.assertIn(hfs.pack_name(SCRIPTS_FOLDER, 0), hfs.index_packs(plain))

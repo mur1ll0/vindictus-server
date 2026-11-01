@@ -40,6 +40,30 @@ class WeaponSubtypeTest(unittest.TestCase):
             {'section': 'weapon_greatsword', 'key': '10101', 'normal': 'models/weapon/draker/draker_newbie.mdl'}])
         self.assertEqual(class_costumes.weapon_subtype('draker', 1), 10101)
 
+    def test_subtypes_take_the_class_weapon_trails(self):
+        trails = (b'\t"TrailData"\r\n\t{\r\n\t\t"0"\r\n\t\t{\r\n\t\t\t"material"\t"Effects/miri_trail_dragon_01"\r\n'
+                  b'\t\t}\r\n\t}\r\n')
+        own = (b'\t\t\t"TrailData"\r\n\t\t\t{\r\n\t\t\t\t// "material"\t"Effects/old"\r\n'
+               b'\t\t\t\t"0" { "material"\t"Effects/miri_smash_night" }\r\n'
+               b'\t\t\t\t"1" { "material"\t"Effects/miri_trail_dragon_01_night" }\r\n\t\t\t}\r\n')
+        knight = (b'\t\t"1033"\r\n\t\t{\r\n\t\t\t"playermodel"\t"models/weapon/draker/draker_dragonknight.mdl"\r\n'
+                  + own + b'\t\t}\r\n')
+        script = WEAPON.replace(b'\t"SubTypeInfoOverride"', trails + b'\t"SubTypeInfoOverride"', 1)
+        script = script.replace(b'\t}\r\n}\r\n', knight + b'\t}\r\n}\r\n', 1)
+        test, newbie, dragon = class_costumes.weapon_costumes(script, 'draker')
+        self.assertEqual(dragon['key'], '11133')
+        for costume in (test, newbie):
+            # the weapon's own trails (not the greatsword's), then the Dragon Knight's at 5 + n
+            block = class_costumes.kv_merge.parse(costume['trails'].encode()).children[0]
+            self.assertEqual([c.key for c in block.children], ['0', '5', '6'])
+            self.assertIn('miri_trail_dragon_01"', costume['trails'])
+            self.assertIn('"5" { "material"\t"Effects/miri_smash_night" }', costume['trails'])
+            self.assertNotIn('Effects/old', costume['trails'])
+        # a sub-type's own trails win over the weapon's
+        self.assertEqual([c.key for c in class_costumes.kv_merge.parse(dragon['trails'].encode()).children[0].children],
+                         ['0', '1', '5', '6'])
+        self.assertNotIn('trails', class_costumes.weapon_costumes(WEAPON, 'draker')[0])
+
     def test_a_weapon_without_lab_entity_keeps_its_numbers(self):
         self.assertEqual(class_costumes.weapon_costumes(WEAPON, 'blaster'), [])
         self.assertEqual(class_costumes.weapon_subtype('blaster', 1), 1)
