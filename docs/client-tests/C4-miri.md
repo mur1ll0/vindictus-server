@@ -312,3 +312,8 @@ Pré-condição: com o jogo fechado, roteamento refeito dos `*.pre-routing.bak` 
 - [ ] Trocar de mapa transformada → no mapa novo a roupa é a normal.
 - [ ] Se algo ficar errado (parte trocada, cor diferente, corpo deformado), anotar qual parte e me avisar com o jogo aberto (leio a memória).
 Limites conhecidos: sem a troca de textura do NA (`AE_CL_TEXTURE_TRANSITION`); a transformação não gasta SP.
+
+### MI20 — Retrato da Miri na lista de seleção e conjuntos únicos
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M7o).
+- [ ] Seleção de personagens: a `MiriLab` mostra o retrato da Miri (cabelo preto, fundo escuro) na lista, no lugar do rosto de homem; as outras classes (Delia inclusive) continuam com os retratos delas.
+- [ ] Painel → Itens → buscar `pythonshock` e `dragon_rise` → cinco peças de cada conjunto único da Miri (níveis 60 e 54); dar à `MiriLab` e vestir → a dica mostra o conjunto e os bônus ativos conforme o número de peças.

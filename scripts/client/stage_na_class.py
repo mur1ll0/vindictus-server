@@ -26,6 +26,7 @@ import struct
 import sys
 from pathlib import Path
 
+import gfx_patch
 import kv_merge
 import mdl_anim
 import mdl_v45_to_v44
@@ -233,6 +234,10 @@ def with_included_events(script: bytes, donor_script: bytes, sequences: set[str]
 
 
 SPSKILL_TABLE = 'scripts/translated_spskill.txt'
+# The character list portrait (gfx_patch): the 1.69 select movie gets a frame for the class, showing an
+# atlas made from the NA's own portrait of the class (C4 MI4-4: the list showed Lann's face).
+LIST_PORTRAIT = 'scaleform/player_portrait/c_info_{klass}.tga'
+LIST_PORTRAIT_ATLAS = 'scaleform/selectcharacterdialog_v2_i{klass}.dds'
 # 1.69 scripts that ExtremeMode reads in place of a shared one, mapped to the NA script whose class lines
 # they get: with ExtremeMode the 1.69 loads scripts/action_table_player_ex.txt (client and server), and
 # the NA's _ex table has no Miri line, so her AE_SET_CUR_ACTION_INFO miri_* found no action: 37 damage a
@@ -400,6 +405,14 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                     extra.update({'events_from': donor_events, 'events_added': len(added), 'jump_activations': len(opened)})
                 (out / script).write_bytes(text)
                 records[script].update({'sha256': sha256(text), 'bytes': len(text), 'converted': True, **extra})
+    portrait = LIST_PORTRAIT.format(klass=class_name)
+    if portrait in records:
+        atlas = LIST_PORTRAIT_ATLAS.format(klass=class_name)
+        data = gfx_patch.class_portrait_dds((out / portrait).read_bytes())
+        (out / atlas).parent.mkdir(parents=True, exist_ok=True)
+        (out / atlas).write_bytes(data)
+        records[atlas] = {'path': atlas, 'source': records[portrait]['source'], 'source_sha256': records[portrait]['source_sha256'],
+                          'sha256': sha256(data), 'converted': True, 'bytes': len(data), 'copied_from': portrait}
     merges = []
     for rel, na_rel in [(r, r) for r in SHARED_SCRIPTS] + list(EXTREME_MERGES.items()):
         if na_rel not in na or rel not in lab:

@@ -3002,3 +3002,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI19 (pendente, com MI17 e MI18).
 - Commits: (este passo)
 - Pendente / próxima ação: retrato da Miri na seleção (`SelectCharacterDialog_V2.gfx`: quadro por classe, sem `Miri`); MI17–MI19 no cliente; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-10-31 — Miri M7o: retrato na lista de seleção; conjuntos únicos conferidos
+- Feito: pedido do operador. `scripts/client/gfx_patch.py` (atlas DXT5 do retrato do NA e quadro novo no `SelectCharacterDialog_V2.gfx`, copiado do da Delia com ids novos), `stage_na_class.LIST_PORTRAIT(_ATLAS)`, `apply_lab_content_additions.CLASS_LIST_PORTRAITS`/`select_dialog_with_classes` em `ORIGINAL_FIXES`; testes `test_gfx_patch.py`. Conjuntos únicos: o NA só tem `dragon_rise_set` (54) e `pythonshock_set` (60) exclusivos da Miri; ambos já estavam importados, no `heroes.db3` da cópia (`SetInfo` 2, `SetEffectInfo` 39) e no catálogo do painel (bit 2048): nada a importar.
+- Verificação: `test_gfx_patch test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/portrait-tests.log`). Aplicado com o jogo fechado (`r2/stage6.log`, `r2/apply6.log`): no pacote da cópia, o `SelectCharacterDialog_V2.gfx` com o quadro `Miri` e o atlas num pacote da classe. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` MI20 (pendente, com MI17–MI19).
+- Commits: (este passo)
+- Pendente / próxima ação: MI17–MI20 no cliente; gasto de SP da transformação; XE como habilidade extra.

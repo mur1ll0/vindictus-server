@@ -25,6 +25,7 @@ import content_additions  # noqa: E402
 import content_edits  # noqa: E402
 import hfs  # noqa: E402
 import kv_merge  # noqa: E402
+import gfx_patch  # noqa: E402
 import mdl_anim  # noqa: E402
 
 ADDITIONS = Path(__file__).resolve().parents[1] / 'content/lab_content_additions.json'
@@ -315,9 +316,24 @@ def ui_elements_with_classes(data: bytes, elements=CLASS_UI_ELEMENTS) -> bytes |
     return None if out == data else out
 
 
+# The character list portrait of each imported class (gfx_patch.with_class_frame): a frame named after the
+# class in scaleform/SelectCharacterDialog_V2.gfx, showing the atlas the staging made
+# (stage_na_class.LIST_PORTRAIT_ATLAS; the client sends the class name, CLASS_STRINGS "{Name}").
+CLASS_LIST_PORTRAITS = (('Miri', 'SelectCharacterDialog_V2_IMiri.dds'),)
+SELECT_DIALOG = 'scaleform/selectcharacterdialog_v2.gfx'
+
+
+def select_dialog_with_classes(data: bytes, portraits=CLASS_LIST_PORTRAITS) -> bytes | None:
+    out = data
+    for label, image in portraits:
+        out = gfx_patch.with_class_frame(out, label, image) or out
+    return None if out == data else out
+
+
 ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
                   lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR)),
-                  UI_ELEMENTS: lambda data, read: ui_elements_with_classes(data)}
+                  UI_ELEMENTS: lambda data, read: ui_elements_with_classes(data),
+                  SELECT_DIALOG: lambda data, read: select_dialog_with_classes(data)}
 
 
 def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -> dict[Path, dict[str, object]]:
