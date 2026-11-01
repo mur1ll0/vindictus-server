@@ -1434,6 +1434,7 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::SecuredOperation,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
+        Kind::DestroyItem,
         Kind::DestroySlotItem,
         Kind::QueryBuybackList,
         Kind::BuybackListResult,
@@ -1632,4 +1633,18 @@ fn destroy_slot_item_carries_the_item_id() {
         Some(Message::DestroySlotItem(0x0102_0304_0506_0708))
     ));
     assert_eq!(Kind::DestroySlotItem.category(), 454);
+}
+
+#[test]
+fn destroy_item_carries_the_class_and_the_count() {
+    // DestroyItemMessage(string itemClass, int num): category 453, before DestroySlotItemMessage.
+    use vindictus_server::protocol::inventory::DestroyItem;
+    let message = Message::DestroyItem(DestroyItem {
+        item_class: Some("potion".into()),
+        num: 3,
+    });
+    let body = wire::encode(Kind::DestroyItem, Some(&message), DEFAULT_MAX_BODY).unwrap();
+    assert!(wire::decode(Kind::DestroyItem, &body, DEFAULT_MAX_BODY).unwrap() == Some(message));
+    assert_eq!(Kind::DestroyItem.category(), 453);
+    assert!(wire::decode(Kind::DestroyItem, &body[..body.len() - 1], DEFAULT_MAX_BODY).is_err());
 }

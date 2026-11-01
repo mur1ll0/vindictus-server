@@ -442,3 +442,10 @@ Relatar: quantas casas o HUD mostrou ao entrar e se a Miri sem a habilidade viu 
 Pré-condição: nenhuma (passos M8d e M8e só investigados; opções no `MIGRATION.md`, "Decisões pendentes").
 - [ ] Transformada, golpes básicos → efeitos normais (azuis), como hoje; nas sequências só transformadas, os efeitos escuros. Sem rastros pretos nem fogo na corrente.
 Relatar: se quer a aproximação dos rastros (efeitos de laboratório na arma) e qual caminho para os efeitos pelo estado.
+
+### MI35 — Destruir itens pela classe e itens vencidos
+Pré-condição: imagem Docker reconstruída (feito por mim; passo M8f).
+- [ ] Destruir um item comum pela lixeira → some (como na MI28).
+- [ ] Item indestrutível com prazo vencido (ex.: item de evento de N dias, depois do prazo) → destruir pela lixeira funciona; indestrutível dentro do prazo → mensagem "não pode destruir".
+- [ ] Onde o cliente destrói pela classe e quantidade (`DestroyItemMessage`; ex.: descartar parte de uma pilha, se a interface oferecer) → só a quantidade pedida some.
+Relatar: o que a interface ofereceu e o que sumiu.

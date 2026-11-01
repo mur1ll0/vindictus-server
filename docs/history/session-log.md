@@ -3114,3 +3114,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI34 (estado atual e pergunta ao operador).
 - Commits: (este passo)
 - Pendente / próxima ação: decisão do operador sobre M8d (nativo × sequências próprias) e M8e (aproximação dos rastros); seguir com M8f.
+
+## 2026-11-01 — Miri M8f: DestroyItemMessage e item indestrutível vencido
+- Feito: protocolo `DestroyItem` (categoria 453, GUID `3a0bd929-…` do `framework-converter.json`; `ItemClass`, `Num`); `minimum_shop::destroy_class` (DestroyItemProcessor → `ItemImpl.DestroyItem` → `Owner.DestroyItem(lista, Useable)` pelo `minimum_give::apply`, *ledger* `DestroyItem`/`Unknown`, `UpdateInventoryInfo`); `lab_frontend` aceita e despacha a mensagem. `destroy_slot`: `Indestructible == 1 && !IsExpired` (vencido pode ser destruído). Livros de história: a referência destrói e recria na falha; o laboratório mantém o livro (mesmo resultado para o jogador), não alinhado.
+- Verificação: `cargo test --test item_sync_wire destroy` 2 OK (`r5/m8f-wire.log`); PostgreSQL filtrado `minimum_destroy` 2 OK, 0 falhas (`r5/m8f-pg.log`; novo `minimum_destroy_item_takes_the_count_of_its_class`); `rustfmt` nos arquivos alterados. Imagem Docker na aplicação conjunta.
+- Cliente: `docs/client-tests/C4-miri.md` MI35 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8g (texto e ícone do XE Move).

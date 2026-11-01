@@ -2635,6 +2635,7 @@ impl Connection {
                 Kind::HotSpringRequestPotionEffect,
                 Kind::QueryShopItemInfo,
                 Kind::SellItem,
+                Kind::DestroyItem,
                 Kind::DestroySlotItem,
                 Kind::QueryBuybackList,
                 Kind::RepairItem,
@@ -2908,6 +2909,33 @@ impl Connection {
                                 tracing::info!("minimum buyback processed; values omitted");
                             }
                             Err(_) => tracing::warn!("minimum buyback refused; values omitted"),
+                        }
+                    }
+                    Message::DestroyItem(request) => {
+                        // ItemServiceProxy: UseSecondPassword passes (not refused in a micro play).
+                        let class = request.item_class.as_deref().unwrap_or_default();
+                        match super::minimum_shop::destroy_class(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            class,
+                            request.num,
+                            runtime.item_log_context(assets)?,
+                        )
+                        .await
+                        {
+                            Ok(packets) => {
+                                for packet in &packets {
+                                    send(stream, sender, packet.category, &packet.body).await?;
+                                }
+                                tracing::info!(
+                                    "minimum item class destroy processed; values omitted"
+                                );
+                            }
+                            Err(_) => {
+                                tracing::warn!("minimum item class destroy refused; values omitted")
+                            }
                         }
                     }
                     Message::DestroySlotItem(item_id) => {
