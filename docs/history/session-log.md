@@ -2988,3 +2988,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: (este passo)
 - Pendente / próxima ação: MI17 e MI18 no cliente; visual do Dragon Knight; depois XE como habilidade extra.
+
+## 2026-10-31 — Miri M7n: medição do visual do Dragon Knight
+- Feito: a pedido do operador ("Port the look first"). Medido no servidor 1.69: vestir um `.csf` é `0x4056a140(jogador, csf, 1, 0, 0, 1, 0, 0)` + reconstrução `0x405465d0`; a metamorfose do 1.69 guarda (`0x40599330`) e devolve (`0x40596380`) roupa (12 *slots*: parte, estado, 3 cores, campo extra), corpo/rosto e arma por pares de *getters*/*setters*. NA: `0x6ddd60` + `0x6c5740` ×3 + `0x6b6c00` + `0x5de630`. Detalhes em `docs/future/miri-class-port.md` 2.11 (M7n).
+- Verificação: listagens em `.cache/verification/miri/r2/meta-*.log`, `csf-apply-callers.log`, `dk-purge-dump.log`.
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: escolha do operador sobre como devolver a roupa normal ao fim da transformação; MI17 e MI18 no cliente.
