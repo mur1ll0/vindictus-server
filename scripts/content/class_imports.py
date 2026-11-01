@@ -224,12 +224,20 @@ def select(na: sqlite3.Connection, base: sqlite3.Connection, name: str, weapon: 
     return out, {k: v for k, v in dropped.items() if v}
 
 
+# The XE skill's icon (M8g): the 1.69 gives the generic skill_phantom to eight of the eleven XE skills
+# (Lethita and Fiona take a skill icon of theirs, the Delia her weapon's, skill_bastard); the NA has no
+# XE for the Miri, so hers is the generic one instead of the Delia's weapon.
+XE_ICON = 'skill_phantom'
+
+
 def donor_xe_rows(base: sqlite3.Connection, table: str, column: str, cols: list[str], name: str,
                   skills: set[str]) -> list[tuple]:
     """The 1.69 donor's XE skill rows (class_costumes.XE_DONOR) as the class's own skill_<class>_xe_move, in
     the import's columns: the NA released the Miri without XE (operator rule of 31/10/2026). Ranks,
-    arguments, ExtremeMode feature and text tokens stay the donor's; ClassRestriction names the class, so
-    converted() gives it the class's bit. None when the NA class or the 1.69 already has the skill."""
+    arguments and ExtremeMode feature stay the donor's; ClassRestriction names the class, so converted()
+    gives it the class's bit; the text columns name the class's own tokens (donor_xe_tokens copies the
+    donor's text under them) and the icon is XE_ICON (M8g). None when the NA class or the 1.69 already
+    has the skill."""
     donor = class_costumes.XE_SKILL.format(klass=class_costumes.XE_DONOR)
     own = class_costumes.XE_SKILL.format(klass=name)
     base_cols = columns(base, table)
@@ -241,6 +249,11 @@ def donor_xe_rows(base: sqlite3.Connection, table: str, column: str, cols: list[
         values[column] = own
         if 'ClassRestriction' in values:
             values['ClassRestriction'] = name
+        if 'IconType' in values:
+            values['IconType'] = XE_ICON
+        for key, value in values.items():
+            if key != column and isinstance(value, str):
+                values[key] = re.sub(re.escape(donor), own, value, flags=re.IGNORECASE)
         rows.append(tuple(values.get(c) for c in cols))
     return rows
 

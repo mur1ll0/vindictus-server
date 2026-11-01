@@ -257,6 +257,20 @@ class ClassImportsTest(unittest.TestCase):
             self.assertEqual(class_imports.donor_xe_rows(base, 'SkillInfo', 'SkillID', ['SkillID'], 'miri',
                                                          {'skill_miri_xe_move'}), [])
 
+    def test_the_class_xe_names_its_own_text_and_the_generic_icon(self):
+        with closing(sqlite3.connect(':memory:')) as base:
+            base.execute('CREATE TABLE SkillInfo(SkillID TEXT, ClassRestriction INT, IconType TEXT, SkillName TEXT, SkillDescription TEXT)')
+            base.execute("INSERT INTO SkillInfo VALUES('skill_delia_xe_move', 1024, 'skill_bastard', "
+                         "'HEROES_SKILL_NAME_skill_delia_xe_move', 'HEROES_SKILL_DESC_skill_delia_xe_move')")
+            base.execute('CREATE TABLE SkillRankInfo(SkillID TEXT, Rank INT, Description TEXT)')
+            base.execute("INSERT INTO SkillRankInfo VALUES('skill_delia_xe_move', 1, 'GameUI_Heroes_Desc_skill_delia_xe_move_F')")
+            cols = ['SkillID', 'ClassRestriction', 'IconType', 'SkillName', 'SkillDescription']
+            self.assertEqual(class_imports.donor_xe_rows(base, 'SkillInfo', 'SkillID', cols, 'miri', set()),
+                             [('skill_miri_xe_move', 'miri', class_imports.XE_ICON,
+                               'HEROES_SKILL_NAME_skill_miri_xe_move', 'HEROES_SKILL_DESC_skill_miri_xe_move')])
+            self.assertEqual(class_imports.donor_xe_rows(base, 'SkillRankInfo', 'SkillID', ['SkillID', 'Rank', 'Description'], 'miri', set()),
+                             [('skill_miri_xe_move', 1, 'GameUI_Heroes_Desc_skill_miri_xe_move_F')])
+
     def test_the_class_xe_takes_the_donor_text(self):
         text = ('"lang"\r\n{\r\n\t"Tokens"\r\n\t{\r\n'
                 '\t\t"HEROES_SKILL_NAME_SKILL_DELIA_XE_MOVE"\t"XE Move"\r\n'

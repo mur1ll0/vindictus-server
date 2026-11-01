@@ -449,3 +449,8 @@ Pré-condição: imagem Docker reconstruída (feito por mim; passo M8f).
 - [ ] Item indestrutível com prazo vencido (ex.: item de evento de N dias, depois do prazo) → destruir pela lixeira funciona; indestrutível dentro do prazo → mensagem "não pode destruir".
 - [ ] Onde o cliente destrói pela classe e quantidade (`DestroyItemMessage`; ex.: descartar parte de uma pilha, se a interface oferecer) → só a quantidade pedida some.
 Relatar: o que a interface ofereceu e o que sumiu.
+
+### MI36 — XE Move com texto e ícone próprios
+Pré-condição: `class_imports.py`, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (feitos por mim; passo M8g).
+- [ ] Janela de habilidades da Miri → XE Move com nome "XE Move", descrição do golpe (a mesma da Delia, genérica) e o ícone genérico de XE do 1.69 (o das outras classes), não o da espada da Delia.
+Relatar: o ícone e o texto mostrados.

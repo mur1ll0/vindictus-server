@@ -3121,3 +3121,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI35 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: M8g (texto e ícone do XE Move).
+
+## 2026-11-01 — Miri M8g: XE Move com textos e ícone próprios
+- Feito: `class_imports.donor_xe_rows` troca `skill_delia_xe_move` pelo id da classe nas colunas de texto (`SkillName`, `SkillDescription`, descrições de *rank*) e usa `XE_ICON` = `skill_phantom` (ícone genérico de XE de 8 das 11 classes do 1.69; o da Delia, `skill_bastard`, é a arma dela; o NA não tem XE para a Miri). Os textos copiados da Delia (`donor_xe_tokens`, M7v) já são genéricos ("XE Move", golpe rápido perto do inimigo) e ficam.
+- Verificação: `test_class_imports` 10 OK (`r5/m8g-imports.log`); importação refeita (`r5/m8g-import.log`: `skill_miri_xe_move` com `skill_phantom` e tokens da Miri, nenhuma descrição de *rank* com `delia`). Aplicação conjunta no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI36 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: aplicar M8a–M8g (Docker, refresh, preparação, aplicador, DLLs).
