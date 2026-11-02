@@ -13,7 +13,7 @@ Vale para `bin/client.dll`, `bin/server.dll` e `bin/engine.dll` da cópia `.cach
 
 | DLL | Original 1.69 (SHA-256, tamanho) | Cadeia de patches (ordem) | Atual (02/11/2026) |
 |---|---|---|---|
-| `client.dll` | `b284ba719047556b`, 14.719.200 | `patch_shop_list_limit.py` → `314272ec…` → `patch_class_table.py` → `0a0b866d…` → `patch_class_routing.py` → `c0b5d416…` → `patch_client_auto_login.py` | `608bf9bcc6046751`, 16.638.976 |
+| `client.dll` | `b284ba719047556b`, 14.719.200 | `patch_shop_list_limit.py` → `314272ec…` → `patch_class_table.py` → `0a0b866d…` → `patch_class_routing.py` → `c0b5d416…` → `patch_client_launcher_login.py` | `0b7d0248d17a34c2`, 17.589.248 |
 | `server.dll` | `d7727e182f6cdec1`, 16.311.216 | `patch_class_table.py` → `c85a56d5…` → `patch_class_routing.py` | `5f0429365ee0ccd1`, 19.028.480 |
 | `engine.dll` | `a3add9742f7fa03c`, 11.237.760 | `patch_engine_class_flags.py` → `51ea90e7…` → `patch_engine_iocp_sign.py` | `df6c70d2d66f52ed`, 11.238.400 |
 
@@ -27,7 +27,7 @@ Os hashes intermediários são os que os *scripts* esperam na entrada. O hash fi
 | `patch_class_table.py` (`test_patch_class_table.py`) | client, server | Tabelas `{nome, corpo}` de classe e lista de nomes numa seção nova, com 32 entradas; `ACTIVE_CLASSES` | Sem `.hcls` | Seção `.hcls` | `<dll>.<hash>.pre-hcls.bak` |
 | `patch_class_routing.py` (`test_patch_class_routing.py`) | client, server | Todo o roteamento e as mecânicas das classes extras (`EXTRA_CLASSES`: Delia 10, Miri 11); detalhe abaixo | `EXPECTED` (saída do `.hcls`); recusa DLL que já tem `.hrte` | Seção `.hrte`; `bin/class-routing.json` | `<dll>.<hash>.pre-routing.bak` |
 | `patch_engine_class_flags.py` (`test_patch_engine_class_flags.py`) | engine | Um *byte* de classe por item para as classes extras (`CLASS_FLAGS`: 10 → `+0x1cd`, 11 → `+0x1ce`) | Sempre parte do original (`EXPECTED`); se a cópia já tem o patch, usa o `*.pre-classflags.bak` | Seção `.hflg` | `engine.dll.a3add9742f7fa03c.pre-classflags.bak` |
-| `patch_client_auto_login.py` (`test_patch_client_auto_login.py`) | client | Login pelo launcher: o `je` que só deixa o Start Game ler o passport do ConVar `event_account` com os modos de evento E3/PAX vira NOP; `event_account` vazio continua abrindo o diálogo (`docs/future/game-launcher.md` §4.1) | Os 6 bytes originais no endereço (`ORIGINAL`) | Bytes trocados | `client.dll.<hash>.pre-autologin.bak` |
+| `patch_client_launcher_login.py` (`test_patch_client_launcher_login.py`) | client | Login pelo launcher: com `-launcher_ticket <t>`, o Start Game (`ShowLoginDialog`) faz o que o botão Login faz, com o ticket como ID, sem a página de login; sem o parâmetro nada muda (`docs/future/game-launcher.md` §4.1) | O epílogo original em `0x3826a3b9` (`EPILOGUE`) | Seção `.hlgn` | `client.dll.<hash>.pre-launcherlogin.bak` |
 | `patch_engine_iocp_sign.py` (`test_patch_engine_iocp_sign.py`) | engine | ProudNet: `jge` → `jmp` no teste com sinal do `OVERLAPPED` (sem isso, eventos de rede acima de 2 GB eram descartados; `docs/battle-transport.md`) | Os 4 bytes originais no endereço (`ORIGINAL`) | Bytes trocados | `engine.dll.<hash>.pre-iocpsign.bak` |
 
 Sem `--apply`, todos simulam e só imprimem um relatório JSON com `before_sha256` e `after_sha256`. Todos se recusam a mexer no cliente original e só gravam numa cópia.
@@ -53,7 +53,7 @@ S=<pasta descartável>; B=.cache/play-client/bin; mkdir -p "$S/bin" .cache/verif
 cp $B/client.dll.b284ba719047556b.bak "$S/bin/client.dll"
 cp $B/server.dll.d7727e182f6cdec1.pre-hcls.bak "$S/bin/server.dll"
 cp $B/engine.dll.a3add9742f7fa03c.pre-classflags.bak "$S/bin/engine.dll"
-for p in patch_shop_list_limit patch_class_table patch_class_routing patch_client_auto_login patch_engine_class_flags patch_engine_iocp_sign; do
+for p in patch_shop_list_limit patch_class_table patch_class_routing patch_client_launcher_login patch_engine_class_flags patch_engine_iocp_sign; do
   python -s -E scripts/client/$p.py --client-copy "$S" --apply > .cache/verification/dll-repro/$p.log 2>&1 || echo "$p falhou"
 done
 sha256sum "$S"/bin/{client,server,engine}.dll $B/{client,server,engine}.dll
@@ -63,7 +63,7 @@ Os originais também estão em `../Vindictus1.69EN/Vindictus EU/en-EU/bin` e em 
 
 ## Reaplicar na cópia em uso depois de mudar um patch
 Sempre **com o jogo fechado**: os DLLs ficam carregados enquanto ele roda.
-- **Roteamento** (o caso comum): copie os `*.pre-routing.bak` atuais (`client.dll.0a0b866dcc0a1852.pre-routing.bak`, `server.dll.c85a56d5b845810f.pre-routing.bak`) sobre `bin/` e rode `patch_class_routing.py --apply`. Ele recusa um DLL que já tem `.hrte`. Depois, no `client.dll`, rode `patch_client_auto_login.py --apply` de novo.
+- **Roteamento** (o caso comum): copie os `*.pre-routing.bak` atuais (`client.dll.0a0b866dcc0a1852.pre-routing.bak`, `server.dll.c85a56d5b845810f.pre-routing.bak`) sobre `bin/` e rode `patch_class_routing.py --apply`. Ele recusa um DLL que já tem `.hrte`. Depois, no `client.dll`, rode `patch_client_launcher_login.py --apply` de novo.
 - **`.hcls`** (mudou `ACTIVE_CLASSES` ou a tabela de classes): parta dos `*.pre-hcls.bak` e rode de novo o `.hcls` e, depois, o roteamento.
 - **`engine.dll`**: `patch_engine_class_flags.py` sempre parte do original e, por isso, **desfaz o patch IOCP**. Depois dele, rode `patch_engine_iocp_sign.py` de novo. A ordem é sempre essa: *flags* → IOCP.
 - Depois de aplicar, confira o hash final no relatório e registre-o no histórico.

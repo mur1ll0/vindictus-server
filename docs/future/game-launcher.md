@@ -120,11 +120,13 @@ Fontes: cabeçalhos PE (parser Python próprio); `nexon_api.dll` original (SHA-2
 1. **`nexon_api.dll` é só um carregador do Nexon Launcher (NXL).** `nxapi_init(productId)` monta o `CNXAPIContainer`. O `FindNXL` procura o processo `nexon_client.exe` ou `nexon_runtime.exe`, carrega `<pasta dele>\bin\nexon.dll`, chama a exportação `GetDLLInterface()` e usa o objeto devolvido (vtable: +0x3c `InitNXLauncher(productId)`, +0x14 `GetAPI`, +0x1c `GetNXUser`, +0x40 desligar). Sem NXL, `nxapi_init` devolve 0. `nxapi_get_friends` não faz nada. O `nexon.dll` da raiz do cliente é outro arquivo (log4cxx).
 2. **O jogo quase não usa esse DLL.** `Vindictus.exe` importa só `nxapi_init`; `engine.dll`, só `nxapi_shutdown`. Ninguém importa `nxapi_get_user` nem `nxapi_get_api`. Logo, a sessão não passa por ele, e um `nexon_api.dll` próprio **não é necessário para o login**. O DLL trocado do Windictus (10,5 MB, libcurl, libcrypto, Discord) deve servir a outras coisas (integridade, presença no Discord): **hipótese**.
 3. **Modo de login do `engine.dll`** (função em torno de `0x422f8d80`, campo `+0x98`): `-token <v>` → modo 4; `-mantis` (nome interno do NXL) → modo 3, lê `-passport` e **não** chama o NMCO; só `-passport <v>` → modo 1, `NMManager->[+0xc](passport)` (validação SSO da Nexon) e, na falha, "NMManager - Warning". É o "Erro [Auth] SSO" do T2. Na saída, o mesmo `-mantis` decide chamar `nxapi_shutdown` (`0x421cf737`).
-4. **Start Game no `client.dll`** (`0x385232f0`): com `-mantis` devolve o estado `0x29`. Senão, **só se** um dos modos de evento do FeatureMatrix estiver ligado (`E3_Event_2010` ou `Event_PAX_2011_enUS`), lê o passport: com `NGM_disable`, do ConVar **`event_account`** (`0x38e5d9c8`, registrado em `0x38aa5670`, vazio por padrão); sem ele, do NMCO. Passport não vazio → `login->[+8](passport)` e devolve 2, **sem o `LoginDialog_V2`**; vazio ou falha → diálogo. O diálogo também grava o ID digitado no `event_account` (`0x3852245d`); por isso o passport é o ID (B4.2-D).
+4. **Estado do menu principal no `client.dll`** (`0x385232f0`; não é o caminho do botão Start Game, ver item 7): com `-mantis` devolve o estado `0x29`. Senão, **só se** um dos modos de evento do FeatureMatrix estiver ligado (`E3_Event_2010` ou `Event_PAX_2011_enUS`), lê o passport: com `NGM_disable`, do ConVar **`event_account`** (`0x38e5d9c8`, registrado em `0x38aa5670`, vazio por padrão); sem ele, do NMCO. Passport não vazio → `login->[+8](passport)` e devolve 2, **sem o `LoginDialog_V2`**; vazio ou falha → diálogo. O diálogo também grava o ID digitado no `event_account` (`0x3852245d`); por isso o passport é o ID (B4.2-D).
 5. **Os modos de evento não servem como chave:** `E3_Event_2010`/`Event_PAX_2011_enUS` aparecem em 66 pontos do `client.dll`, 5 do `engine.dll` e 9 do `server.dll`. Ligá-los mudaria o jogo inteiro (modo de demonstração).
 6. **Outros caminhos vistos:** `-event_account <v>` na linha de comando grava o ConVar, mas também só com um modo de evento ligado (`0x3826ab2a`). O comando `LoginAuto1`/`LoginAuto2` do diálogo lê `ID` e `Password` de um `AutoLogin.txt` (KeyValues, entradas `Auto1`/`Auto2`) e dispara `LoginDialog_OK` (`0x3826a590`): exige o diálogo aberto e um comando de interface.
 
-**Decisão (L-A):** patch `scripts/client/patch_client_auto_login.py`, que troca o `je` de `0x385233fe` (nenhum modo de evento → diálogo) por um NOP de 6 bytes. Com `event_account` vazio, o jogo continua abrindo o diálogo. O launcher abre o jogo com `+event_account <ticket>` (o `+` executa o comando de console na inicialização, padrão da engine Source; **hipótese** até o LA1), e o Start Game entra direto com o ticket como passport. O servidor recebe o mesmo `UserLoginMessage` de hoje.
+7. **O Start Game não passa por esse ponto** (LA1 de 02/11/2026: com `+event_account` o diálogo continuou). O botão da tela de título manda o comando `ShowLoginDialog` ao `GameTitleMenu_V2` (tratador `0x3826a1d0`), que preenche a lista de servidores do EndPointNetwork, seleciona o primeiro (`selectServerItem`) e volta; a própria página mostra os campos de ID e senha. O botão Login da página manda `Login` (`0x3826a3c5`): copia `GameTitleMenu_V2.selectedServerStr` para o ConVar `server_name` (`0x38269c70`, `SetValue` em +0x2c), monta o KeyValues `TransitionArgs {ID, Password}` e dispara a transição `LoginDialog_OK` (`0x3851e5f0` → `0x385194d0`, `Transition(nome, args)`, `ret 8`). Com `NGM_disable`, o ID vira o passport (`0x3852245d`) e a senha não sai do cliente.
+
+**Decisão (L-A, revisada em 02/11/2026):** `scripts/client/patch_client_launcher_login.py` troca o epílogo do ramo `ShowLoginDialog` (`0x3826a3b9`) por um salto para a seção nova `.hlgn`. Ali, `CommandLine()->ParmValue("-launcher_ticket", "")`: vazio → o epílogo original, nada muda; com valor → o mesmo que o Login faz, com o ticket como ID e senha vazia; o servidor é o selecionado na página ou, se ela ainda não o tiver, o primeiro do EndPointNetwork (+0x18 contagem, +0x24 nome); sem servidor, a página aparece. O primeiro patch (`patch_client_auto_login.py`, NOP no `je` de `0x385233fe` com `+event_account`) não teve efeito no cliente e foi removido.
 
 ### 4.2 Arquitetura
 
@@ -133,7 +135,7 @@ Fontes: cabeçalhos PE (parser Python próprio); `nexon_api.dll` original (SHA-2
  contas, POST /api/launcher/login ─┐ API interna: rascunho, publicar, reverter   status.json
  página "Versões do cliente" ──────┼► armazém por SHA-256 + chave Ed25519        versao.json + .sig
  game_play_tickets (PostgreSQL)    │ HTTP só leitura (Range, ETag) ◄──────────── manifesto, deltas, objetos, pacotes
- lab_frontend resgata o ticket ◄───┘ status: sonda server e game na rede interna  Vindictus.exe +event_account <ticket>
+ lab_frontend resgata o ticket ◄───┘ status: sonda server e game na rede interna  Vindictus.exe -launcher_ticket <ticket>
 ```
 
 - **`crates/client-dist`** (biblioteca sem banco nem servidor, como o `pw-atualizador`): tipos do manifesto e do `versao.json`, assinatura Ed25519, regras de caminho (recusar `..`, absolutos, links, nomes reservados do Windows), transformações reversíveis e deltas (4.3). Usada pelo servidor e pelo launcher. O `Cargo.toml` da raiz passa a declarar um workspace com esse membro; o pacote `vindictus-server` continua na raiz.
@@ -159,18 +161,18 @@ Do pw-universal fica o desenho que já funcionou: manifesto completo e assinado 
 Fluxo alvo:
 
 1. O launcher pede login e senha, os mesmos do painel. `POST /api/launcher/login` (HTTPS) confere o argon2 em `accounts` e devolve um ticket de jogo: 128 bits aleatórios, uso único, validade de 2 minutos, ligado à conta e ao usuário de jogo, gravado só como hash (`game_play_tickets`, migração nova; os `play_codes` de 0044/0045 foram removidos). Senha errada: 401 genérico, limite por IP e por conta. Nenhuma senha em disco; o launcher lembra só o login.
-2. O launcher abre `Vindictus.exe` com os argumentos de hoje mais `+event_account <ticket>`.
+2. O launcher abre `Vindictus.exe` com os argumentos de hoje mais `-launcher_ticket <ticket>`.
 3. Na tela inicial, "Start Game" não abre o diálogo de login: o cliente envia `UserLoginMessage` com o ticket no campo `passport`.
 4. O `lab_frontend` troca o `permits(passport)` por `PlayTickets::redeem` (`UPDATE … WHERE redeemed_at IS NULL AND expires_at > now() RETURNING`), que devolve a identidade da conta: `NexonID` = login, `NexonSN` derivado como hoje, mantendo os UIDs atuais. Seleção de personagem e segunda senha seguem iguais.
 5. Depois do aceite, o login por nome digitado no jogo é desligado (`login_mode = launcher`, decisão D-L6). Isso fecha a falha atual: hoje quem souber um login entra sem senha. O modo `lab_username` fica só no perfil privado de desenvolvimento.
 
 Como o cliente recebe o ticket (etapa L-A; evidência na seção 4.1):
 
-- **Escolhido:** `patch_client_auto_login.py` (6 bytes no `client.dll`, na cadeia de `docs/client-dll-patches.md`) e `+event_account <ticket>` na linha de comando. Aplicado na cópia de laboratório em 02/11/2026 (`c0b5d416…` → `608bf9bc…`). O ticket fica visível na linha de comando para processos do mesmo usuário; por isso é de uso único e vence em 2 minutos.
-- **Se o `+event_account` não for executado na inicialização** (LA1 decide): o launcher grava `event_account "<ticket>"` num `.cfg` que a engine executa ao abrir, e o apaga depois; ou um patch lê `-event_account` sem o modo de evento (`0x3826ab24`).
-- **Limite conhecido:** depois de um login recusado ou de voltar ao título, o `event_account` continua com o ticket já usado; o próximo Start Game é recusado, e o jogador abre o jogo de novo pelo launcher.
-- **Não usados:** `nexon_api.dll` próprio (o jogo não pega a sessão por ele; fica como opção para extras, por exemplo presença no Discord), `-mantis` (exigiria emular o NXL e entender o estado `0x29`), `AutoLogin.txt` (exige o diálogo aberto) e o launcher digitar no diálogo (Scaleform, sem controles Win32).
-- **Teste de cliente LA1** (`docs/client-tests/L-launcher.md`): `+event_account lab169_a` → Start Game → seleção de personagem sem diálogo; sem o parâmetro → diálogo como antes; conta inexistente → recusa. No L4, com ticket: ticket reutilizado ou vencido → recusa.
+- **Escolhido:** `patch_client_launcher_login.py` (seção `.hlgn` no `client.dll`, na cadeia de `docs/client-dll-patches.md`) e `-launcher_ticket <ticket>` na linha de comando, lido por `CommandLine()`. Aplicado na cópia de laboratório em 02/11/2026 (`c0b5d416…` → `0b7d0248…`). O ticket fica visível na linha de comando para processos do mesmo usuário; por isso é de uso único e vence em 2 minutos.
+- **A página de login pode piscar** por um instante: o stub dispara a transição no mesmo comando que abre a página.
+- **Limite conhecido:** depois de um login recusado ou de voltar ao título, o próximo Start Game repete o mesmo ticket, já usado, e é recusado; o jogador abre o jogo de novo pelo launcher (no laboratório, pode digitar o login na página).
+- **Não usados:** `nexon_api.dll` próprio (o jogo não pega a sessão por ele; fica como opção para extras, por exemplo presença no Discord), `-mantis` (exigiria emular o NXL e entender o estado `0x29`), o ConVar `event_account` (o Start Game só o lê nos modos de evento), `AutoLogin.txt` (exige o diálogo aberto) e o launcher digitar no diálogo (Scaleform, sem controles Win32).
+- **Teste de cliente LA1** (`docs/client-tests/L-launcher.md`): `-launcher_ticket admin` → Start Game → seleção de personagem sem a página; sem o parâmetro → página como antes; conta inexistente → recusa. No L4, com ticket: ticket reutilizado ou vencido → recusa.
 
 ### 4.5 Status dos serviços
 
@@ -206,7 +208,7 @@ Como o cliente recebe o ticket (etapa L-A; evidência na seção 4.1):
 
 - Distribuir o cliente é distribuir assets proprietários: o servidor de arquivos é local ou privado, e nada disso entra no Git (`AGENTS.md`).
 - Antivírus e SmartScreen com executável novo sem assinatura de código.
-- **D-L1:** autorizado em 02/11/2026 e feito (seção 4.1); resta o teste de cliente LA1.
+- **D-L1:** autorizado em 02/11/2026 e feito (seção 4.1); resta o teste de cliente LA1 (primeira tentativa, com `+event_account`, sem efeito).
 - **D-L2:** conteúdo da v1: o 1.69 limpo (sem login pelo launcher nem EndPoint, não joga no servidor) ou o 1.69 com o necessário para jogar aqui (recomendado).
 - **D-L3:** lista de exclusões da v1 (4.3, item 6).
 - **D-L4:** endereço público e HTTPS (domínio e proxy) ou só rede local por enquanto.
@@ -225,7 +227,7 @@ O L-A vem primeiro, porque decide se o "Start Game direto" é viável sem patch 
 | Etapa | Entrega | Cliente |
 |---|---|---|
 | L0 | testes de arquivos soltos, índice e pacotes (seção 2.4) | feito em 26/10/2026 |
-| L-A | login: evidência (seção 4.1) e `patch_client_auto_login.py` aplicado no laboratório | LA1: `+event_account` → Start Game → seleção sem diálogo |
+| L-A | login: evidência (seção 4.1) e `patch_client_launcher_login.py` aplicado no laboratório | LA1: `-launcher_ticket` → Start Game → seleção sem a página |
 | L1 | `crates/client-dist`, módulo e serviço `updates`, importação da v1, `hfs-xor`, pacotes, manifesto assinado, HTTP de leitura, `status.json`; medição de tamanho, razão por grupo e tempo | não necessário |
 | L2 | receitas e publicação da v1, v2 (Delia) e v3 (Miri), deltas, envio só do que falta | não necessário (SHA-256 da v3 = cópia em uso) |
 | L3 | launcher Win32/win7: instalar, "já tenho o cliente", atualizar 1→3, verificar e reparar, status, botões Painel e Criar conta | instalar numa pasta limpa, atualizar uma cópia 1.69, jogar |

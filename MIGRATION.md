@@ -20,7 +20,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
 2. Miri: aceita no cliente em 02/11/2026 (combate, grade e customização MG1–MG4, teclas da Delia regravadas MI45; `docs/future/miri-class-port.md`); branch `feat/miri-class` no `main`. Pendentes no cliente: B4 I3 (modelo substituto pelo painel, MG6), MI1–MI3 e MI30–MI36 sem relato isolado.
    - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
-3. Launcher: checkpoint de cliente LA1 (`docs/client-tests/L-launcher.md`: `+event_account lab169_a` → Start Game → seleção sem diálogo). Sem esperar o LA1: L1 (`updates`, importação da v1 e medição), após D-L2–D-L4.
+3. Launcher: checkpoint de cliente LA1 (`docs/client-tests/L-launcher.md`: `start_login.bat` com `-launcher_ticket admin` → Start Game → seleção sem a página de login). Sem esperar o LA1: L1 (`updates`, importação da v1 e medição), após D-L2–D-L4.
 4. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
@@ -33,7 +33,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
-| `docs/client-tests/L-launcher.md` | LA1 pendente (Start Game direto para a seleção, `+event_account`). |
+| `docs/client-tests/L-launcher.md` | LA1: `+event_account` sem efeito (02/11); refazer com `-launcher_ticket`. |
 | `docs/client-tests/C3-criacao.md` | Grade, customização, Create → estalagem → cidade aceitos em 30/10; faltam volta à seleção com a personagem criada pela grade, G3 e G5. |
 
 Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 ou B2.6), usar consumível pela barra (B2.5).
@@ -92,7 +92,7 @@ Decisões pendentes:
   - [x] Editor de itens (corte 1 aceito; I2 no cliente pendente; modelo substituto de item existente, I3 pendente).
   - [x] Busca por categoria, editor de refino/scrolls, progressão até um nível (inclui história principal; P3 no cliente pendente).
   - [x] Seleção de personagem: exclusão, cancelamento e ordem dos slots (S1–S3 no cliente pendentes).
-  - [ ] Launcher do jogo: L0 feito; plano revisado em 02/11 (`docs/future/game-launcher.md` §4–7: versões 1 base/2 Delia/3 Miri, Windows 7, login pelo launcher com `nexon_api.dll` próprio, status do Docker). L-A: o jogo não usa o `nexon_api.dll` para a sessão; Start Game entra com o ConVar `event_account` (patch `patch_client_auto_login.py`, aplicado no laboratório). LA1 no cliente pendente.
+  - [ ] Launcher do jogo: L0 feito; plano revisado em 02/11 (`docs/future/game-launcher.md` §4–7: versões 1 base/2 Delia/3 Miri, Windows 7, login pelo launcher com `nexon_api.dll` próprio, status do Docker). L-A: o jogo não usa o `nexon_api.dll` para a sessão; o `event_account` não funcionou no LA1; novo patch `patch_client_launcher_login.py` (Start Game faz o Login com `-launcher_ticket`), aplicado no laboratório. LA1 no cliente pendente.
   - [ ] Editor de fases (depois do editor de itens).
 
 ## Etapas da migração integral (M01–M24)
