@@ -3254,3 +3254,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: entrada MG4 de `docs/client-tests/C4-miri.md`, pendente.
 - Commits: commit MG4 (este passo).
 - Pendente / próxima ação: recurso de correção de malha no *add-on* do Blender (pedido do operador); sessões MG3/MG4.
+
+## 2026-11-02 — MG5 / correção de malha no add-on do Blender
+- Feito: pedido do operador. *Add-on* `tools/blender/vindictus` 0.2.0: `mesh_fix` (média das normais de canto, deslocamento; sem `bpy`), `blender_io.push_out` (move os vértices ao longo das normais do jogo e regrava as normais personalizadas), operador `vindictus.push_out` "Push Mesh Out (fix clipping)" (padrão 0,3 = `stage_na_class.ARMOR_INFLATE`; menu Object e aba Vindictus da barra lateral), seleção pela *view layer*, exportação sugere o caminho do modelo original. README e `docs/future/miri-creation-grid.md` 10.1/10.2 (método da análise e ajuste).
+- Verificação: testes do *add-on* com o Python do Blender, 10 OK (`.cache/verification/miri-grid/mg5-addon-tests.log`); pacote `vindictus-0.2.0.zip` gerado pelo Blender (`mg5-addon-build.log`) e instalado no Blender 5.1 do operador pelo MCP (ligado, operador e painel registrados); ponta a ponta no Blender: `pytonshock` superior e inferior empurradas 0,30, exportadas (11 arquivos cada, em `.cache/mg5`), reimportadas e renderizadas com a pele da Miri sem manchas.
+- Cliente: não necessário (ferramenta); MG3/MG4 pendentes.
+- Commits: commit MG5 (este passo).
+- Pendente / próxima ação: sessões MG3/MG4; troca do modelo de um item existente pelo painel não existe (itens base não ganham modelo novo).

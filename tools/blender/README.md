@@ -12,7 +12,7 @@ Plano do editor de itens: [docs/future/item-editor.md](../../docs/future/item-ed
 
 1. Gere o pacote com o próprio Blender, que valida o manifesto e deixa fora os testes e os caches:
    `"C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" --command extension build --source-dir tools/blender/vindictus --output-dir .cache/blender-addon`
-2. No Blender 5.1, abra *Edit → Preferences → Get Extensions*. No menu ⌄ do canto superior direito, escolha *Install from Disk* e selecione `.cache/blender-addon/vindictus-0.1.0.zip`.
+2. No Blender 5.1, abra *Edit → Preferences → Get Extensions*. No menu ⌄ do canto superior direito, escolha *Install from Disk* e selecione `.cache/blender-addon/vindictus-0.2.0.zip`.
 
 Para desenvolver, também dá para ligar a pasta em `%APPDATA%\Blender Foundation\Blender\5.1\extensions\user_default\vindictus`.
 
@@ -26,7 +26,9 @@ Para desenvolver, também dá para ligar a pasta em `%APPDATA%\Blender Foundatio
   - Cada material vira um material do Blender com a textura base e o mapa de normais.
   - Os pesos viram grupos de vértices com o nome dos ossos, e a malha recebe um modificador Armature.
 - **Editar:** mova vértices, pinte pesos ou edite as imagens importadas. Uma imagem cujos pixels mudarem é gravada de novo como VTF; as outras são copiadas sem mudança.
-- **Exportar:** selecione as malhas importadas e use *File → Export → Vindictus Kit (.zip)*. Escolha o arquivo `.zip` e o caminho do modelo novo (`models/player/fiona/fiona_inner_lab.mdl`). O zip tem o mesmo formato do painel (sem compressão, com `kit.json`), então pode ser reimportado no Blender ou aberto no visualizador.
+- **Corrigir peça atravessada pela pele (*Push Mesh Out*):** algumas armaduras do NA ficam em parte dentro do corpo e a pele aparece através delas no jogo (análise em `docs/future/miri-creation-grid.md` 10). Selecione as malhas importadas, em modo objeto, e use *Object → Push Mesh Out (fix clipping)* ou o botão **Push Mesh Out** da aba **Vindictus** da barra lateral (N) do 3D View. Cada vértice anda `Offset` unidades do jogo ao longo da normal do jogo (padrão **0,3**, o valor que cobriu a pele na `pytonshock` e na `dragon_rises`; negativo puxa para dentro). As normais ficam como estavam. Depois exporte o kit.
+  - Para conferir antes, importe junto a pele (*inner*) da classe e veja de frente e de lado em sombreamento sólido: manchas da pele no tecido indicam que falta deslocar.
+- **Exportar:** selecione as malhas importadas e use *File → Export → Vindictus Kit (.zip)*. Escolha o arquivo `.zip` e o caminho do modelo (com uma malha de kit selecionada, o campo já vem com o caminho do modelo original, para o kit corrigido substituí-lo; troque-o para criar um modelo novo, como `models/player/fiona/fiona_inner_lab.mdl`). O zip tem o mesmo formato do painel (sem compressão, com `kit.json`), então pode ser reimportado no Blender ou aberto no visualizador.
   - O kit novo leva os materiais para `materials/models/<pasta do modelo>/<nome>/`.
   - Para virar item, o kit vai em `.cache/private-assets/<nome>`, com uma entrada em `scripts/content/item_additions.json` (exemplo: `fiona_inner_lab`).
 
