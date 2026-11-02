@@ -3275,3 +3275,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: operador, 02/11 — MG1–MG4 e MI45 ok.
 - Commits: (este) e o merge de `feat/miri-class` no `main`.
 - Pendente / próxima ação: B4 I3 (modelo substituto pelo painel) no cliente; MI1–MI3 e MI30–MI36 sem relato isolado; seguir o B5.
+
+## 2026-11-02 — Infra: banco de testes descartável no compose principal
+- Feito: o PostgreSQL tmpfs de testes deixou de ser o projeto avulso `vindictus-map-verification` (criado por overrides locais `.cache/compose.*-tests.yaml`, porta mudando por faixas reservadas do Windows) e virou o serviço `test-postgres` do `compose.yaml` (perfil `tests`, rede própria `tests`, tmpfs 1 GiB, porta `TEST_POSTGRES_HOST_PORT` padrão 57432, `restart: "no"`, mesma definição do `postgres` por âncora). Contêiner e rede antigos removidos. AGENTS.md, README.md e .env.example atualizados.
+- Verificação: `docker compose --profile tests config --quiet` OK; hashes de configuração de postgres/server/game iguais aos contêineres em execução (nada recriado); `test-postgres` subiu healthy na 57432 e o papel da aplicação tem CREATE no banco; removido em seguida (`rm -sf`). Log `.cache/verification/test-postgres-up.log`.
+- Cliente: não necessário.
+- Commits: ver commit "chore: disposable test database as a tests-profile compose service".
+- Pendente / próxima ação: inalterada no MIGRATION.md; avaliação de contêiner próprio para o painel admin aguardando decisão do operador.

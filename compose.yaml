@@ -16,7 +16,7 @@ x-app: &app
   security_opt: [no-new-privileges:true]
 
 services:
-  postgres:
+  postgres: &postgres
     image: postgres:17-bookworm@sha256:3645570cccdfa447589da9f57dd740faa29b30938e861289a5574b6ca6b03826
     # Crash recovery syncs the data directory with one syncfs instead of an fsync per file:
     # the restored legacy data has too many files for the per-file pass (over 30 minutes).
@@ -40,6 +40,27 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
+
+  # Disposable database for the PostgreSQL integration tests (tests create isolated schemas).
+  # Only with the tests profile; data lives in tmpfs, so remove it after use:
+  #   docker compose --profile tests up -d --wait test-postgres
+  #   docker compose --profile tests rm -sf test-postgres
+  test-postgres:
+    <<: *postgres
+    profiles: [tests]
+    ports:
+      - 127.0.0.1:${TEST_POSTGRES_HOST_PORT:-57432}:5432
+    volumes:
+      - type: tmpfs
+        target: /var/lib/postgresql/data
+        tmpfs:
+          size: 1073741824
+      - type: bind
+        source: ./scripts/database/init-postgres.sh
+        target: /docker-entrypoint-initdb.d/10-app-role.sh
+        read_only: true
+    networks: [tests]
+    restart: "no"
 
   migrate:
     <<: *app
@@ -174,6 +195,7 @@ volumes:
 
 networks:
   backend:
+  tests:
 
 secrets:
   lab_runtime_profile:

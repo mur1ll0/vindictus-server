@@ -212,9 +212,13 @@ Lab helpers: `scripts/dev/lab-give-item.ps1`, `lab-give-cash.ps1`, `lab-set-clas
 # Fast gate: format, Clippy (-D warnings), Rust tests, doctests, build, Python tests.
 pwsh -File scripts/dev/verify.ps1
 
-# Full gate, including PostgreSQL integration tests in isolated schemas.
+# Full gate, including PostgreSQL integration tests in isolated schemas. The disposable
+# test database is the tests-profile service (tmpfs, host port TEST_POSTGRES_HOST_PORT,
+# default 57432, same app role as .env); remove it afterwards.
+docker compose --profile tests up -d --wait test-postgres
 $env:TEST_DATABASE_URL = (Get-Content .cache/database-url -Raw).Trim()
 try { pwsh -File scripts/dev/verify.ps1 -DatabaseIntegration } finally { Remove-Item Env:TEST_DATABASE_URL }
+docker compose --profile tests rm -sf test-postgres
 
 # Docker smoke: migrate, readiness, account creation, duplicate rejection, restart persistence.
 pwsh -File scripts/dev/smoke-docker.ps1
