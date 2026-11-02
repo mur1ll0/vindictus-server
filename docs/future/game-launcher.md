@@ -1,6 +1,6 @@
 # Launcher do jogo (recurso futuro do painel)
 
-Status: planejamento (26/10/2026). Nada implementado. Objetivo: o jogador baixa o jogo, recebe as atualizações publicadas pelo servidor baixando só o que mudou, e entra no jogo. O launcher substitui o `start-lab.bat` atual. O que não foi verificado aparece marcado como **hipótese**.
+Status: planejamento (26/10/2026; plano revisado em 02/11/2026 com os pedidos do operador: versões 1–3, Windows 7, login pelo launcher, status do Docker; seções 4–7). Nada implementado. Objetivo: o jogador baixa o jogo, recebe as atualizações publicadas pelo servidor baixando só o que mudou, e entra no jogo. O launcher substitui o `start-lab.bat` atual. O que não foi verificado aparece marcado como **hipótese**.
 
 Encaixe no roteiro: o L0 (teste de arquivos soltos) pode rodar a qualquer momento, porque é só um checkpoint de cliente. Do L1 em diante, o launcher vem depois do B4 e **antes** de qualquer etapa que mude assets do cliente: ícones e modelos do [editor de itens](item-editor.md) e a classe C do [editor de fases](stage-editor.md). Ver "Recursos futuros do painel" em [playable-game-roadmap.md](../playable-game-roadmap.md).
 
@@ -97,59 +97,134 @@ Lido em `F:\Python_C_Projects\PWSource1.5.3\pw-universal-server` (somente leitur
 - **Assinatura:** Ed25519 sobre os bytes exatos do `.json`. A chave pública vai embutida no launcher, e a chave privada nasce no serviço, num volume só dele.
 - **Launcher:** Rust, Win32 nativo. Guarda `.pw-atualizacao/estado.json`, `manifesto.json`, `<pacote>.parcial` (retomado com `Range`) e `objetos/<sha>`. Instalar, verificar/reparar (confere todos os arquivos com o manifesto completo), atualizar e jogar, tudo retomável.
 - **Governança:** rascunho → itens por caminho → publicar N+1 assinado → reverter, pela página "Recursos do cliente" do painel.
+- **Windows 7 (B275 de lá, 19/10/2026, confirmado num Windows 7 real):** o Tauri 2 não abre no 7 (WebView2 parou na 109; `combase`/WinRT), e a std do Rust ≥ 1.78 no alvo `*-pc-windows-msvc` importa funções do Windows 10. Solução: janela Win32 nativa (`windows-sys` 0.52) e alvo `*-win7-windows-msvc` com `-Zbuild-std=std`, `RUSTC_BOOTSTRAP=1` e CRT estático (`tools/pw-launcher/compilar.ps1`); exe de 64 bits com 2,6 MB.
 - Números medidos lá (1.2.6: 61.234 arquivos, 4,7 GB, 26 pacotes de 2,80 GB) ajudam a dimensionar, mas o Vindictus precisa medir o próprio.
 
-## 4. Modelo proposto para o Vindictus
+## 4. Plano revisado (02/11/2026)
 
-### 4.1 Servidor
+Pedido do operador (02/11/2026): launcher versionado no projeto, do Windows 7 em diante, ligado a um servidor de atualização que lê os serviços do Docker; baixa o cliente quando não houver e o atualiza pelas versões publicadas no painel; botões para o painel e para criar conta; login no launcher, e o jogo abre já autenticado: "Start Game" vai direto à seleção de personagem, porque a tela de login do jogo não valida senha (B4.2-D).
 
-- Novo módulo (ex.: `client_distribution`) no monólito: domínio (manifesto, versão, regras de caminho), infraestrutura (armazenamento por SHA-256 num volume próprio, assinatura) e HTTP só de leitura para os arquivos, separado do HTTP operacional do painel.
-- **Versão 0 (importação):** a instalação 1.69 EN original (`Vindictus1.69EN/Vindictus EU/en-EU`, somente leitura) é importada **sem** os arquivos que não servem: `hfs_extracted/` (só referência), logs (`npp_api_*.log`, `fmod.log`), `*.bak` e backups `heroes.db3.*`, `BlackCipher`, `NMService.exe`, `_eu_AdBalloonExt.exe` e outros instaladores ou serviços Nexon sem uso no laboratório (lista final no L1, decisão do operador).
-- **Pacotes:** `hfs/` é a maior parte e muda raramente. Proposta: pacotes `.tar.zst` por grupo (por exemplo `hfs-0` … `hfs-N` por faixa de nome, `bin`, `scaleform`, `raiz`), porque 2.681 pacotes de uma pasta só seriam pequenos demais. Os HFS já são armazenados ofuscados e comprimem pouco (**hipótese**; medir no L1).
-- **Objetos por versão de conteúdo:** cada versão publicada do painel (B4.4c) que toca o cliente gera uma versão do cliente com:
-  - `sql/heroes.db3` completo, gerado no servidor a partir do original + `lab_content_additions.json` + sobreposição publicada (a mesma lógica de `apply_lab_content_additions.py`, migrada para o servidor). Tem 18.198.528 bytes; com zstd e baixado só quando muda, é aceitável. Delta binário (`zstd --patch-from`) é uma otimização posterior;
-  - arquivos soltos novos ou alterados fora dos prefixos bloqueados (ícones novos, textos de `resource/` com o HFS dele desativado, mapas) e, depois do L0-d, `.hfs` novos com o índice regravado para `models/`, `materials/` e `scripts/` (seção 2.3);
-  - o `EndPoint` certo para o servidor em `FeatureMatrix.EndPoints`, gravado no `heroes.db3` publicado, em vez do preparador manual (`prepare_lab_client.py`).
-- **Ligação com a versão de conteúdo do servidor:** o `versao.json` leva a versão de conteúdo e a `minima`. A publicação com manutenção (B4.4c) só termina quando o pacote do cliente da mesma versão existir. **Hipótese:** o protocolo não leva a versão de conteúdo; quem impede jogar com conteúdo velho é o launcher (versão mínima). Uma checagem no servidor exigiria um campo novo, fora do protocolo recuperado.
+| Versão do cliente | Conteúdo | Origem |
+|---|---|---|
+| 1 | 1.69 EU base, mais o necessário para jogar neste servidor (recomendação, decisão D-L2): EndPoint, patch IOCP do `engine.dll` (B2 RL1), conteúdo B1–B4 no `heroes.db3`, `nexon_api.dll` do launcher (4.4) | original somente leitura `Vindictus1.69EN/Vindictus EU/en-EU` + receita |
+| 2 | v1 + Delia: `.hcls`, roteamento e flags de classe só com a classe 10, conteúdo C2/C3 | receita no commit em que a Delia foi aceita |
+| 3 | v2 + Miri: roteamento com a classe 11, assets do NA (3,8 GB, `.cache/private-assets`), MG1–MG6 | receita do `main` atual |
+| 4+ | cada publicação do painel que toca o cliente (lojas, editor de itens, mapas, classes, armas) | painel |
 
-### 4.2 Launcher (Windows)
+O servidor roda sempre o conteúdo mais novo; as versões antigas existem para o histórico, o reparo e a reversão. O launcher sempre leva o jogador à versão publicada.
 
-- Rust (o mesmo idioma do servidor, binário único), reaproveitando o desenho do `pw-atualizador`: estado local numa pasta oculta, por exemplo `.vindictus-atualizacao/`; download retomável; conferência por SHA-256; reparar; assinatura Ed25519 conferida antes de usar qualquer manifesto.
-- **Telas:** primeira instalação (escolher pasta, baixar e extrair em fluxo), atualização detectada ao abrir, "Verificar arquivos", notícias e estado do servidor (manutenção agendada do B4.4c), "Jogar".
-- **Jogar:** executa `vindictus.exe -stage -dev -lang en-eu-x-gm -noupdate -threads 4`, os argumentos atuais do `start.bat`. Revisar `-dev` e `-stage`, que o `client-compatibility.md` liga a hipóteses de modo desenvolvedor.
-- **Login no launcher (sugestão):** hoje o jogo entra sem senha (B4.2d). O launcher pode pedir login e senha da conta (o mesmo do painel), obter do servidor um token de uso único e entregá-lo ao cliente. Pelo plano do B4 (`docs/b4-painel-plano.md` §1.3) o canal seria o `-passport`, já que o cliente envia um campo passport (5 bytes no diagnóstico B4.2-D). **Hipótese:** precisa do teste T1/T2 do plano do B4 para saber se o cliente repassa um passport vindo da linha de comando.
-- **Segurança:** nenhum caminho fora da pasta do jogo (recusar `..`, absolutos e links); limites de tamanho por manifesto e objeto; nunca executar arquivo baixado sem hash conferido; a autoatualização do launcher também é assinada; sem credenciais em log.
+### 4.1 Evidência nova (02/11/2026)
 
-### 4.3 Substituir o `start-lab.bat`
+Só leitura de cabeçalhos PE (exportações/importações, parser Python próprio) e busca de strings; nenhum binário executado nem analisado por inteiro.
 
-| Hoje (`start-lab.bat`) | Com o launcher |
-|---|---|
-| Python e repositório na máquina | só o launcher |
-| `apply_lab_content_additions.py` reconstrói o ShopInfo da cópia a partir do backup | o servidor gera o `heroes.db3` da versão; o launcher baixa só quando o hash muda |
-| lê `.cache/content-state/content-edits.json` local | lê `versao.json` assinado pela HTTP |
-| sem conferência de versão | recusa jogar abaixo da `minima` e mostra a manutenção |
-| só o `heroes.db3` | qualquer arquivo (soltos, HFS refeitos) |
+- T2 (25/10/2026): `-passport lab169_a` mostrou "Erro [Auth] SSO" e fechou (`docs/b4-painel-plano.md` §1.3).
+- `Vindictus.exe` importa estaticamente `nexon_api.dll` (`nxapi_init`), e `bin/engine.dll` também (`nxapi_shutdown` e outras), além de `nmcogame.dll`. O `engine.dll` traz as classes NMCO de passport (`CNMLoginPassportFunc`, `CNMGetNexonPassportFunc`, `CNMLoginNexonPassportFunc`, `NMCO_LaunchGameWithoutPassport`, `LoginAuth_InvalidPassport`).
+- O `nexon_api.dll` do 1.69 tem 107.520 bytes, 5 exportações (`nxapi_init`, `nxapi_get_api`, `nxapi_get_user`, `nxapi_get_friends`, `nxapi_shutdown`) e importa só `KERNEL32` e `PSAPI`.
+- **Windictus 2023 trocou esse DLL** (somente leitura, `C:\Windictus 2023`): 10.508.288 bytes, as mesmas 5 exportações, importando `libcurl.dll`, `libcrypto-3.dll` e `discord_game_sdk.dll`. Os outros DLLs Nexon (`nmcogame`, `nmconew`, `npp_api`, `nexon.dll`) têm o mesmo tamanho dos do 1.69. **Hipótese forte:** o login pelo launcher do Windictus passa por um `nexon_api.dll` próprio, que entrega ao jogo a sessão autenticada, sem mexer no resto do cliente.
+- "SSO" aparece em `npp_api.dll`, `nmconew.dll`, `engine.dll` (`SSOSubErrorMessage`) e `client.dll` (`SSOError`). Onde nasce o "[Auth] SSO" do T2 ainda não foi lido.
 
-Durante a transição, o `start-lab.bat` continua como alternativa de laboratório, como o `apply-content-edits.ps1` continuou depois do B4.4c.
+### 4.2 Arquitetura
+
+```text
+ painel (processo game, 27090)       updates (serviço novo, mesma imagem)        launcher (Windows 7+)
+ contas, POST /api/launcher/login ─┐ API interna: rascunho, publicar, reverter   status.json
+ página "Versões do cliente" ──────┼► armazém por SHA-256 + chave Ed25519        versao.json + .sig
+ game_play_tickets (PostgreSQL)    │ HTTP só leitura (Range, ETag) ◄──────────── manifesto, deltas, objetos, pacotes
+ lab_frontend resgata o ticket ◄───┘ status: sonda server e game na rede interna  Vindictus.exe + nosso nexon_api.dll
+```
+
+- **`crates/client-dist`** (biblioteca sem banco nem servidor, como o `pw-atualizador`): tipos do manifesto e do `versao.json`, assinatura Ed25519, regras de caminho (recusar `..`, absolutos, links, nomes reservados do Windows), transformações reversíveis e deltas (4.3). Usada pelo servidor e pelo launcher. O `Cargo.toml` da raiz passa a declarar um workspace com esse membro; o pacote `vindictus-server` continua na raiz.
+- **Servidor:** módulo `client_distribution` no monólito. Domínio: versão, manifesto, regras de caminho e de exclusão. Aplicação: importar, publicar, reverter, consolidar. Infraestrutura: armazém em disco, chave, registro das versões no PostgreSQL. HTTP só de leitura num listener próprio, separado do HTTP operacional e do painel.
+- **Serviço `updates` no compose:** `vindictus-server client-dist serve`, porta 8090. Dados num bind mount `${CLIENT_DIST_DIR:-./.cache/client-dist}`: são grandes e proprietários, ficam fora da imagem, do Git e de volumes nomeados que um `down -v` apagaria. A chave privada fica em `keys/`, montado só nesse serviço.
+- **Painel (processo `game`):** a página "Versões do cliente" e a rota de login do launcher, porque é lá que já estão as contas, o argon2, o limite de tentativas e a auditoria. Fala com o `updates` pela API interna (rede do Docker e segredo compartilhado).
+- **Launcher:** `tools/launcher/`, fora do workspace, como o `tools/pw-launcher`.
+
+### 4.3 Armazenamento e compressão
+
+Do pw-universal fica o desenho que já funcionou: manifesto completo e assinado por versão; objetos por SHA-256 (cada conteúdo é baixado e guardado uma vez, mesmo que apareça em várias versões); pacotes `.tar.zst` de instalação extraídos em fluxo, sem exigir o dobro de disco, e retomados com `Range`; chave Ed25519 nascida no serviço; rascunho → publicar → reverter. O que muda para o Vindictus (números a medir no L1):
+
+1. **Desfazer o XOR antes de comprimir (`transform: hfs-xor`).** Os `.hfs` levam XOR com a tabela de 4.096 bytes pela posição absoluta (seção 2.4) e, ofuscados, comprimem mal. O servidor guarda cada `.hfs` com o XOR desfeito no arquivo inteiro (reversível; nomes e dados ficam claros) e comprimido. O launcher refaz o XOR depois de descomprimir e confere o SHA-256 do `.hfs` original. A tabela vai como objeto do próprio manifesto (é derivada do conteúdo que já está sendo distribuído; continua fora do Git). **Hipótese:** ganho grande em `models/`, `materials/` e `maps/`, pequeno em `scripts/` (`.comp` já é zlib). O campo `transform` é por arquivo; só ativar onde a medição mostrar ganho.
+2. **zstd com janela longa:** nível 19 e `--long=27` (128 MB, seguro para descomprimir num Windows 7 de 32 bits). O pw usou nível 12 por tempo de importação; medir os dois.
+3. **Pacotes de instalação por grupo**, não por pasta (2.681 pacotes de pasta seriam pequenos demais): `hfs-00`…`hfs-NN` (cerca de 256 MB cada, pela ordem do nome), `bin`, `scaleform`, `raiz`. Cada pacote é a unidade de retomada e de paralelismo (dois downloads ao mesmo tempo). Quando as versões seguintes acumulam muito em objetos avulsos (a v3 traz 3,8 GB do NA), a ação "Consolidar instalação" do painel gera pacotes da versão atual, e os antigos podem ser apagados.
+4. **Delta binário entre versões** (`zstd --patch-from`, sobre a forma clara, para arquivos até 128 MB): para cada arquivo que mudou de N−1 para N, o servidor gera `deltas/<sha antigo>-<sha novo>.zst` quando ele tiver menos da metade do objeto. É o caso típico: `sql/heroes.db3` (18 MB, muda a cada publicação de conteúdo), o índice `E608DF10….hfs` (1,7 MB, muda sempre que um pacote muda), os três DLLs patchados e os `.hfs` refeitos pelo `apply_lab_content_additions.py` (um arquivo muda dentro de cada um). O launcher usa o delta quando tem o SHA antigo; senão baixa o objeto. "Verificar arquivos" nunca usa delta.
+5. **Arquivos do jogador** (`cfg/config.cfg`, `SAVE/`, opções): marcados `preservar`. São instalados se faltarem e nunca conferidos nem sobrescritos.
+6. **Exclusões da v1** (lista inicial, decisão D-L3): `hfs_extracted/`, `lab-backup/`, `l0-*`, `*.bak`, `*.pre-*.bak`, logs (`*.log`, `npp_*_std*.log`, `fmod.log`), `__pycache__/`, `downloads/`, `DownloadLists/`, `passport/` (atualizador Python da Nexon), `BlackCipher/`, `NMService.exe`, `_eu_AdBalloonExt.exe`, `VindictusLauncher.exe`, `bcdedit.exe`, `start*.bat`, `hfs-keystream.bin` (vai como objeto do manifesto).
+7. **Leiaute do armazém:** `objects/<aa>/<sha256>.zst`, `deltas/`, `packs/<versão>/<grupo>.tar.zst`, `manifests/<n>.json` + `.sig`, `versao.json` + `.sig` e `status.json` (dinâmico, não assinado). O registro das versões (número, título, notas, autor, estado, mínima, base da instalação, versão de conteúdo ligada) fica no PostgreSQL, numa migração nova, com auditoria do painel.
+
+### 4.4 Login pelo launcher e "Start Game" direto para a seleção
+
+Fluxo alvo:
+
+1. O launcher pede login e senha, os mesmos do painel. `POST /api/launcher/login` (HTTPS) confere o argon2 em `accounts` e devolve um ticket de jogo: 128 bits aleatórios, uso único, validade de 2 minutos, ligado à conta e ao usuário de jogo, gravado só como hash (`game_play_tickets`, migração nova; os `play_codes` de 0044/0045 foram removidos). Senha errada: 401 genérico, limite por IP e por conta. Nenhuma senha em disco; o launcher lembra só o login.
+2. O launcher abre `Vindictus.exe` com os argumentos de hoje e entrega o ticket ao nosso `nexon_api.dll` (canal decidido no L-A; preferência: variável de ambiente do processo filho, fora da linha de comando).
+3. Na tela inicial, "Start Game" não abre o diálogo de login: o cliente envia `UserLoginMessage` com o ticket no campo `passport`.
+4. O `lab_frontend` troca o `permits(passport)` por `PlayTickets::redeem` (`UPDATE … WHERE redeemed_at IS NULL AND expires_at > now() RETURNING`), que devolve a identidade da conta: `NexonID` = login, `NexonSN` derivado como hoje, mantendo os UIDs atuais. Seleção de personagem e segunda senha seguem iguais.
+5. Depois do aceite, o login por nome digitado no jogo é desligado (`login_mode = launcher`, decisão D-L6). Isso fecha a falha atual: hoje quem souber um login entra sem senha. O modo `lab_username` fica só no perfil privado de desenvolvimento.
+
+Como o cliente recebe o ticket (etapa L-A, o maior risco, checkpoint antes do resto):
+
+- **Caminho A (preferido, sem mexer nos binários do jogo):** um `nexon_api.dll` próprio, 32 bits, com as 5 exportações, como o Windictus fez. (a) Ler o `nexon_api.dll` original (107 KB) e só as chamadas a `nxapi_*` no `Vindictus.exe` e no `engine.dll` (referências cruzadas das importações, sem análise do binário inteiro). (b) Um DLL de registro que repassa ao original renomeado e grava a sequência e os argumentos das chamadas, com o jogo aberto normalmente e com `-passport`. (c) O DLL definitivo, que entrega o ticket. Escrito em Rust (`tools/nexon-api`, `cdylib`, alvo `i686-win7-windows-msvc`, sem dependências), com build determinístico; entra no manifesto da v1.
+- **Caminho B (se o engine ainda passar o passport pelo NMCO/SSO):** patch no `engine.dll`/`client.dll` pela cadeia existente (`docs/client-dll-patches.md`): no ramo `-passport` (`engine.dll` 0x422f8973…0x422f8e05), pular o NMManager e gravar o valor direto no passport (`client.dll` 0x38e5d9c8), com o estado que pula o diálogo (`LoginDialog`, 0x38522400).
+- **Descartado:** o launcher digitar no diálogo (a tela é Scaleform, sem controles Win32; frágil).
+- **Teste de cliente L-A:** com ticket válido, "Start Game" → seleção de personagem sem diálogo; ticket reutilizado ou vencido → recusa; `Vindictus.exe` aberto sem o launcher → recusa.
+
+### 4.5 Status dos serviços
+
+- O `updates` monta o `status.json` a cada 10 s, sondando pela rede interna do Docker: `server` (`/health/ready`) e o processo `game` (rota interna nova `/internal/status`: frontend 27015, canal 27003, relay 27005, manutenção agendada do B4.4c, jogadores conectados, versão de conteúdo publicada).
+- Sem montar o `docker.sock` (daria controle total do Docker a um serviço exposto) e sem conectar no 27015 (abriria uma sessão de login; o healthcheck atual evita isso de propósito).
+- O `status.json` leva também os endereços do painel e do cadastro aberto e as notícias publicadas pelo painel.
+
+### 4.6 Launcher (Windows 7 em diante)
+
+- **Mesma solução do `pw-launcher` B275**, que o operador já confirmou num Windows 7 real: Rust com janela Win32 nativa (`windows-sys` 0.52, sem Tauri/WebView2), alvo `i686-win7-windows-msvc` (32 bits: roda no 7 de 32 e 64 bits e no 10/11), `-Zbuild-std=std` com `RUSTC_BOOTSTRAP=1`, CRT estático (sem depender do KB2999226), manifesto com `supportedOS` 7–10, comctl32 v6 e `dpiAware`. Conferir a tabela de importações a cada build (só funções do Windows 7).
+- **Rede:** `ureq` com rustls e raízes embutidas (`webpki-roots`), porque o SChannel e o repositório de certificados do Windows 7 costumam estar desatualizados. O pw nunca testou HTTPS no 7; fica no gate.
+- **Tela única:** notícias; status do servidor (online, manutenção com horário de volta); versão local × publicada; barra de progresso; login, senha e "Entrar"; botões "Jogar", "Verificar arquivos", "Painel", "Criar conta" e pasta do jogo. Sem cliente: "Baixar o jogo" ou "Já tenho o cliente" (confere e baixa só a diferença). Desatualizado: atualiza ao abrir. Em manutenção: "Jogar" desabilitado.
+- **Estado** em `<pasta do jogo>/.vindictus-update/`: `estado.json`, manifesto aplicado, parciais retomáveis e um diário de aplicação, para retomar uma atualização interrompida.
+- **Atualizar:** `versao.json` + assinatura → Ed25519 com a chave embutida → manifesto alvo (assinado) → diferença com o manifesto local → deltas/objetos na pasta de preparo → SHA-256 → aplicar com o jogo fechado (`.novo` + rename) → gravar o estado. Antes de jogar, conferência rápida (tamanho e data contra o estado); "Verificar arquivos" confere o SHA-256 de tudo e repara.
+- **Autoatualização:** o `versao.json` traz versão, SHA-256 e objeto do launcher; ele baixa, confere, renomeia o exe atual para `.old` e reinicia.
+- **No projeto:** `tools/launcher/` (código, ícone, `.rc`, manifesto, `build.ps1`) e a chave pública em `tools/launcher/update-public-key.txt`, gerada pelo `updates` na primeira execução. A privada nunca sai do servidor. O endereço do servidor fica em `launcher.json` ao lado do exe.
+
+### 4.7 Versões, receitas e publicação
+
+- **Receita** (`scripts/client/build_client_version.py`, novo): monta numa pasta de preparo, a partir do original somente leitura, o cliente de uma versão: copiar a base, aplicar os patches de DLL na ordem de `docs/client-dll-patches.md`, rodar `apply_lab_content_additions.py` (pacotes, índice, `heroes.db3`), juntar os assets privados e o `nexon_api.dll`. A v2 e a v3 usam o código das receitas no commit de referência, extraído por `git archive <ref> scripts/client` para uma pasta temporária (não `git worktree`, por causa da junction `.cache/play-client`). A saída é determinística (os DLLs já são); a v3 deve bater em SHA-256 com a cópia em uso.
+- **Importar a base** (uma vez por servidor): copiar o cliente original para uma pasta do servidor (robocopy ou scp) e rodar a importação no contêiner (`client-dist import --source /import/1.69 --exclude docker/client-dist/exclude-v1.txt`). Enviar mais de 10 GB pelo navegador não é recomendado; o painel mostra o progresso e aceita arquivos avulsos num rascunho, como os "itens por caminho" do pw.
+- **Publicar** (`client-dist publish --tree <preparo> --title … --notes …`, ou o painel): calcula os SHA-256, envia só o que o armazém não tem (`POST /internal/objects/missing` devolve o que falta; envio retomável), gera os deltas contra a versão anterior, grava e assina o manifesto e troca o `versao.json`. Num servidor remoto, o mesmo comando usa a API administrativa autenticada por HTTPS.
+- **Página "Versões do cliente"** no painel: lista, notas (aparecem no launcher), publicar rascunho, definir a mínima, retirar (reverter publica N+1 igual a N−1; objetos nunca são apagados), consolidar instalação, uso de disco e notícias. Tudo vai para a auditoria do B4.
+- **Conteúdo do servidor:** a publicação com manutenção (B4.4c) que toca o cliente gera a versão N+1 (o `heroes.db3` passa a ser gerado no servidor, substituindo o `start-lab.bat`), e o servidor só sai da manutenção quando ela existir. O protocolo não leva a versão do cliente; o login do launcher só emite ticket se ele declarar versão ≥ mínima. A declaração não prova nada, mas evita jogar desatualizado por engano.
+
+### 4.8 Segurança
+
+- Ticket só como hash, uso único, 2 minutos, nunca em log. Limite de tentativas no login do launcher, como no painel.
+- API interna do `updates` só na rede do Docker e com segredo. Na publicação externa, HTTPS por proxy reverso (por exemplo Caddy com Let's Encrypt).
+- Nenhum caminho fora da pasta do jogo (recusar `..`, absolutos, links, nomes reservados do Windows); limites de tamanho por manifesto e por objeto; nunca executar arquivo baixado sem hash conferido; autoatualização assinada; nenhuma credencial em log.
 
 ## 5. Riscos e decisões do operador
 
-- Distribuir o cliente original é distribuir assets proprietários: o servidor de arquivos é local ou privado, e nada disso entra no Git (AGENTS.md).
-- O índice é lido por código protegido com VMProtect; regravá-lo pode ser recusado por uma checagem que não se vê estaticamente (L0-d decide). O HFSExtract é ferramenta de terceiros: usar só para leitura até o L0-d.
-- Antivírus e SmartScreen com executável novo sem assinatura de código: decidir se o operador assina o launcher.
-- Decisões: pacotes por grupo × por pasta; o que sai da versão 0; se o launcher faz login (depende de T1/T2 do B4); onde fica a chave privada.
+- Distribuir o cliente é distribuir assets proprietários: o servidor de arquivos é local ou privado, e nada disso entra no Git (`AGENTS.md`).
+- Antivírus e SmartScreen com executável novo sem assinatura de código.
+- **D-L1:** autorizar a leitura no REA do `nexon_api.dll` (107 KB) e só das referências a `nxapi_*` no `Vindictus.exe`/`engine.dll`, e o teste de cliente com o DLL de registro (4.4).
+- **D-L2:** conteúdo da v1: o 1.69 limpo (sem login pelo launcher nem EndPoint, não joga no servidor) ou o 1.69 com o necessário para jogar aqui (recomendado).
+- **D-L3:** lista de exclusões da v1 (4.3, item 6).
+- **D-L4:** endereço público e HTTPS (domínio e proxy) ou só rede local por enquanto.
+- **D-L5:** assinatura de código do launcher.
+- **D-L6:** desligar o login por nome digitado assim que o launcher for aceito.
 
 ## 6. Engenharia reversa com REA (pedido do operador, 26/10/2026)
 
 - `inspect_managed_artifact` no `Windictus.exe`: a proteção dos metadados .NET impede ler o launcher do Windictus; o modelo dele fica só pelo log de integridade.
 - `FileSystem_Stdio.dll` (autorizado pelo operador em 26/10/2026): resultado na seção 2.2. Limite: a parte em `.vmp0` (VMProtect), que escolhe o arquivo do índice e monta a lista de pacotes, não é legível estaticamente. O L0-a (console) falhou; o candidato a índice e a cifra estão na seção 2.4.
 
-## 7. Etapas propostas
+## 7. Etapas
+
+O L-A vem primeiro, porque decide se o "Start Game direto" é viável sem patch de binário. L1–L3 não dependem dele e seguem enquanto o L-A espera o cliente.
 
 | Etapa | Entrega | Cliente |
 |---|---|---|
-| L0 | testes L0-a…d na cópia de laboratório (seção 2.4) | checkpoint de cliente |
-| L1 | importação da versão 0, pacotes, manifesto assinado e HTTP de arquivos (com medição de tamanho e tempo) | não necessário |
-| L2 | launcher: instalar, verificar, reparar e jogar | instalar numa pasta limpa e jogar |
-| L3 | versão de cliente gerada a cada publicação de conteúdo que toca o cliente (`heroes.db3` gerado no servidor, EndPoint), no lugar do `start-lab.bat` | preço novo de loja visto depois de atualizar pelo launcher |
-| L4 | autoatualização do launcher, notícias, manutenção, login com token (se T1/T2 permitir) | — |
+| L0 | testes de arquivos soltos, índice e pacotes (seção 2.4) | feito em 26/10/2026 |
+| L-A | login: leitura do `nexon_api.dll`, DLL de registro, `nexon_api.dll` próprio com ticket de laboratório | checkpoint: "Start Game" → seleção sem diálogo |
+| L1 | `crates/client-dist`, módulo e serviço `updates`, importação da v1, `hfs-xor`, pacotes, manifesto assinado, HTTP de leitura, `status.json`; medição de tamanho, razão por grupo e tempo | não necessário |
+| L2 | receitas e publicação da v1, v2 (Delia) e v3 (Miri), deltas, envio só do que falta | não necessário (SHA-256 da v3 = cópia em uso) |
+| L3 | launcher Win32/win7: instalar, "já tenho o cliente", atualizar 1→3, verificar e reparar, status, botões Painel e Criar conta | instalar numa pasta limpa, atualizar uma cópia 1.69, jogar |
+| L4 | login no launcher: `POST /api/launcher/login`, `game_play_tickets`, resgate no frontend, `login_mode` | login no launcher → seleção; ticket reutilizado recusado |
+| L5 | painel "Versões do cliente", notícias, autoatualização do launcher, publicação de conteúdo → versão do cliente (aposenta o `start-lab.bat`) | preço novo de loja visto depois de atualizar pelo launcher |
+| L6 (gate) | suíte completa, smoke Docker com o `updates`, Windows 7 real | roteiro `docs/client-tests/L-launcher.md` |

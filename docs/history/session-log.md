@@ -3282,3 +3282,11 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver commit "chore: disposable test database as a tests-profile compose service".
 - Pendente / próxima ação: inalterada no MIGRATION.md; avaliação de contêiner próprio para o painel admin aguardando decisão do operador.
+
+## 2026-11-02 — Launcher: plano revisado (versões 1–3, Windows 7, login pelo launcher)
+- Feito: `docs/future/game-launcher.md` §4–7 reescritas com o pedido do operador: serviço `updates` (armazém por SHA-256, manifesto assinado Ed25519, pacotes `.tar.zst` por grupo, `hfs-xor` antes de comprimir, deltas `--patch-from`, status por sonda na rede do Docker sem `docker.sock`), receitas das versões 1 (1.69 base), 2 (Delia) e 3 (Miri) por `git archive`, launcher Win32 alvo `i686-win7-windows-msvc` (solução B275 do pw-universal), login no launcher com ticket de uso único e `login_mode`. §3 ganhou a nota do Windows 7. `MIGRATION.md` e `docs/playable-game-roadmap.md` atualizados.
+- Evidência nova (só cabeçalhos PE e strings): `Vindictus.exe` e `engine.dll` importam `nexon_api.dll` (5 exportações `nxapi_*`, 107.520 bytes, importa só KERNEL32/PSAPI); o Windictus 2023 tem um `nexon_api.dll` próprio (10.508.288 bytes, mesmas 5 exportações, importa libcurl, libcrypto-3 e discord_game_sdk), com os demais DLLs Nexon iguais aos do 1.69. Hipótese: login do launcher por `nexon_api.dll` substituto (caminho A); patch de `engine.dll`/`client.dll` como caminho B.
+- Verificação: não necessária (só documentação).
+- Cliente: não necessário.
+- Commits: (este commit)
+- Pendente / próxima ação: Launcher: aguardando D-L1–D-L6; com o aceite, começar pelo L-A (login) e pelo L1 (`updates`, importação da v1 e medição).
