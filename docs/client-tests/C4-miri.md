@@ -498,3 +498,10 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Call of the Dragon (SP5) → anotar o que fica parado no chão: o **corpo do dragão** (o modelo) ou só os **efeitos** (fogo/poeira)? O dragão aparece em algum momento?
 - [ ] HUD: com a Miri no barco, menu → Home Screen; com o HUD do Flamebreath ainda na tela, num **terminal como administrador** na pasta do projeto: `py -3.13 -s -E scripts/dev/lab_memory.py dword 0x39220e90` e copiar a saída.
 Relatar: as asas de frente e de trás, as chamas, o que fica no chão no SP5 e a saída do comando.
+
+### MI43 — HUD do Flamebreath na seleção de personagens (M8m)
+Pré-condição: com o jogo fechado, `patch_class_routing.py --apply` (passo M8m; feito por mim). MI42: asas ok; o dragão do SP5 aparece mas fica no chão.
+- [ ] Miri no barco (HUD aparece) → menu → Change Character → seleção **sem** o HUD; Home Screen → tela inicial **sem** o HUD.
+- [ ] Entrar de novo com a Miri numa fase → o HUD volta; entrar com a Delia → sem HUD.
+- [ ] SP5 com a sonda de memória ligada (eu ligo e aviso): usar Call of the Dragon numa fase e avisar quando terminar.
+Relatar: o HUD nas telas e quando o SP5 foi usado.

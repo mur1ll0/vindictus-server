@@ -732,8 +732,15 @@ class LabCopyTest(unittest.TestCase):
         tick = int(flame['tick'], 16)
         code = self.text_at(image, tick, 0x300)
         self.assertEqual(code[3:6], ['xor ebx, ebx', f'test byte ptr [esi + {k["type"]:#x}], 1', 'setne bl'])
-        # the dialog shows outside town once Flamebreath is learned (m_gaugeType bit 1, M8c)
-        shown = code.index('xor eax, 1')
+        # the dialog shows outside town and in the game (not the character selection, M8m) once Flamebreath
+        # is learned (m_gaugeType bit 1, M8c)
+        town = code.index('xor eax, 1')
+        self.assertEqual(code[town + 1], 'test eax, eax')
+        out_of_game = int(code[town + 3].split()[1], 16)
+        game = self.text_at(image, out_of_game, 0x20)
+        self.assertEqual(game[0], f"call {routing.CHAIN['client.dll']['game_state']:#x}")
+        self.assertIn(f'call dword ptr [edx + {routing.FLAMEBREATH_OUT_OF_GAME_PREDICATE:#x}]', game)
+        shown = code.index('xor eax, 1', town + 1)
         self.assertEqual(code[shown + 1:shown + 4][0], f'test byte ptr [esi + {k["type"]:#x}], 2')
         self.assertEqual(code[shown + 3], 'xor eax, eax')
         self.assert_miri_conditions(code, k, flame)
@@ -879,6 +886,12 @@ class LabCopyTest(unittest.TestCase):
         states = tuple(sorted(int(x.op_str.split(', ')[1], 16) for x in body if x.mnemonic == 'cmp' and x.op_str.startswith('eax, ')))
         self.assertEqual(states, routing.CHAIN_TOWN_STATES)
         self.assertIn('mov edx, dword ptr [eax + 8]', [f'{x.mnemonic} {x.op_str}' for x in body])  # the state getter
+        # and the out-of-game predicate the Flamebreath HUD asks (character selection 5, M8m)
+        predicate = struct.unpack_from('<I', engine.data, engine.offset(vtable + routing.FLAMEBREATH_OUT_OF_GAME_PREDICATE))[0]
+        code = list(self.md.disasm(bytes(engine.data[engine.offset(predicate):engine.offset(predicate) + 0x40]), predicate))
+        body = list(itertools.takewhile(lambda x: f'{x.mnemonic} {x.op_str}' != 'xor eax, eax', code))
+        states = tuple(sorted(int(x.op_str.split(', ')[1], 0) for x in body if x.mnemonic == 'cmp' and x.op_str.startswith('eax, ')))
+        self.assertEqual(states, routing.FLAMEBREATH_OUT_OF_GAME_STATES)
 
     def test_delia_effects_register_types_commands_and_hooks(self):
         image, report = self.plan('server.dll')

@@ -3177,3 +3177,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI42 (pendente), com a pergunta do SP5 e a leitura de `shown` (`0x39220e90`).
 - Commits: (este passo)
 - Pendente / próxima ação: resultado da MI42 (asas, chamas, o que fica no chão no SP5, saída do `lab_memory.py`).
+
+## 2026-11-02 — Miri M8m: HUD do Flamebreath fora do jogo (seleção de personagens)
+- Feito: MI42 no cliente: asas ok; dragão do SP5 aparece no chão e não sobe com a Miri (anda de lado com ela); HUD na seleção. Memória com o jogo aberto, sem administrador (`.cache/verification/miri/r6/m8m-hud-sampler.log`): o destrutor da Miri escondeu o HUD ao sair do barco (`shown` -1); a seleção criou outro jogador de classe 11, cujo *tick* (fora da cidade) mostrou o HUD de novo. Gerenciador de estados (`[0x38cc2aa4]`, estado em `+8`, vtable `0x4273f90c` no `engine.dll`): seleção = 5; predicado `+0x40` = 1, 2, 3, 4, 5, 7 (fora do jogo). `patch_class_routing`: `out_of_game` (predicado `FLAMEBREATH_OUT_OF_GAME_PREDICATE`) no *tick* do HUD, visível só fora da cidade e dentro do jogo; teste novo confere os estados no `engine.dll`. Dragão (investigação): no NA o dragão é posto na origem e ângulos do jogador, toca `dragon_attack` (639 quadros, sem movimento de raiz, como `miri_SP5_attack`) e a cada quadro copia o ciclo do jogador (`0xaa5a40`/`0xaa5b00`); no 1.69 `CAttackableDynamicProp` (de `CDynamicProp`) recebe `PropSetSequence` (`0x40275c80`, arma `AnimThink`); falta evidência de execução.
+- Verificação: `test_patch_class_routing` 48 OK, completo (`r6/m8m-routing-full.log`). Aplicado com o jogo fechado: DLLs atuais em `*.pre-m8m.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8m-routing-apply.log`): client `c0b5d4164cc122a3`, server `fe944a02c7eb9627` (sem mudança).
+- Cliente: `docs/client-tests/C4-miri.md` MI43 (pendente), com a sonda de memória do SP5.
+- Commits: (este passo)
+- Pendente / próxima ação: MI43 (HUD na seleção e na tela inicial) e a sonda do dragão no SP5.

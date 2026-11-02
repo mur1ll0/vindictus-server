@@ -391,6 +391,12 @@ CUSTOM_EFFECT_PATH = 260
 # (vtable slot 0, 0x38705cc0: 0x38704fb0, then delete when bit 0) runs the Flamebreath `hide` for the Miri.
 FLAMEBREATH_LEAVE = {'client.dll': {'slot': 0, 'destructor': 0x38705CC0}}
 FLAMEBREATH_LEAVE_HEAD = '568bf1e8e8f2ffff'
+# The character selection makes a player of her class too (C4 MI42, memory: the Miri left the boat, her
+# destructor hid the dialog, then the selection's own class 11 player showed it again: not a town). The
+# HUD tick also asks the game state manager's out-of-game predicate (vtable +0x40: states 1, 2, 3, 4, 5, 7;
+# the character selection is 5, memory MI42).
+FLAMEBREATH_OUT_OF_GAME_PREDICATE = 0x40
+FLAMEBREATH_OUT_OF_GAME_STATES = (1, 2, 3, 4, 5, 7)
 # The Call of the Dragon dragon follows the Miri (M8j, C4 MI39: it stayed where it appeared while she flew; the
 # NA client keeps its dragon at the player). The 1.69 server's prop creation (0x400f96e0, AE_CREATE_ATTACKABLE_
 # MODEL and AE_CREATE_AUX_MODEL) places the model at the player and stores its handle in the player's list
@@ -2766,6 +2772,15 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         call(k['ui'])
         b('8bc8 8b10')
 
+    # out_of_game(): eax = 1 outside the game (FLAMEBREATH_OUT_OF_GAME_PREDICATE); ecx/edx are lost.
+    L.pad()
+    out_of_game = L.here()
+    call(CHAIN[name]['game_state'])
+    b('85c0'); none = fwd('0f84')
+    b('8b10 8bc8 ff52' + bytes((FLAMEBREATH_OUT_OF_GAME_PREDICATE,)).hex() + ' 0fb6c0')
+    L.land(none)
+    b('c3')
+
     # Leaving the game (C4: Go to Home screen) destroys the player, whose tick is the only one that hides the
     # dialog: FLAMEBREATH_LEAVE runs this from her destructor. It hides the dialog and forgets the visibility,
     # so a Miri still playing shows it again on her next tick. The UI may be gone at exit.
@@ -2788,6 +2803,10 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
     b('3bc6'); other = fwd('0f85')
     call(in_town)
     b('83f001')  # shown outside town
+    b('85c0'); playing = fwd('0f84')
+    call(out_of_game)
+    b('83f001')  # and in the game (not the title, login or character selection)
+    L.land(playing)
     b('f686' + d32(k['type']) + '02 7502 33c0')  # and once Flamebreath is learned (bit 1)
     at('3b05', shown); changed = fwd('0f85')
     at('ff0d', resend); same = fwd('0f89')  # dec [resend]; jns: not yet
