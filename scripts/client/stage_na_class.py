@@ -404,12 +404,19 @@ def pbs_as_armor(path: str, data: bytes) -> bytes:
 CSF_WITHOUT_WEAPON = ('csf/metamorphosis/{klass}_dragon_knight.csf',)
 
 
-# The Dragon Knight's black wings (M8j, operator): the look's .csf leaves the back slot empty ("rear" sn -1)
-# and the NA client wears them from code, but its start menu look (csf/<class>_dragon_knight_startmenu.csf)
-# names them: rear 500139, models/rear/dragonknight/miri_dragonknight_wing.mdl, an entry the class merge
-# already brings (the needles name the class). The 1.69 loads the whole .csf (M7n), so the look takes that
-# back slot from the start menu one.
+# The Dragon Knight's black wings (M8j/M8k, operator). The NA client wears them from code; the look's .csf
+# leaves the back slot empty ("rear" sn -1), but the NA start menu look (csf/<class>_dragon_knight_startmenu.csf)
+# names them: rear 500139, an entry the class merge already brings (the needles name the class). The 1.69
+# loads the whole .csf (M7n), so the look takes that back slot from the start menu one.
 CSF_REAR = {'csf/metamorphosis/{klass}_dragon_knight.csf': 'csf/{klass}_dragon_knight_startmenu.csf'}
+# That entry draws models/rear/dragonknight/<class>_dragonknight_wing.mdl (29 bones, from Spine2), and with it
+# worn the transformation's camera (AE_ENABLE_CAMERA_ORIGIN/TARGET_BONE) went under the boat (C4 MI40): the
+# camera bones ValveBiped.Anim_Attachment_CAM(_Origin) of every body model are not in it. The NA also has
+# the wings alone on the whole skeleton, camera bones included (models/player/<class>/dragonknight/
+# <class>_dragonknight_wing.mdl, one mesh, 2546 vertices against the body's 12632), so the merge's copy of
+# the entry draws that one; the body (upper_body 500152) keeps its hair and bust jiggle bones.
+KNIGHT_WINGS = ('models/rear/dragonknight/{klass}_dragonknight_wing.mdl',
+                'models/player/{klass}/dragonknight/{klass}_dragonknight_wing.mdl')
 
 
 def _costume_child(data: bytes, key: str):
@@ -423,6 +430,11 @@ def with_csf_rear(data: bytes, look: bytes) -> bytes:
     if rear is None or worn is None:
         return data
     return data[:rear.start] + look[worn.start:worn.end] + data[rear.end:]
+
+
+def with_knight_wings(costume_script: bytes, klass: str) -> bytes:
+    back, whole = (m.format(klass=klass).encode() for m in KNIGHT_WINGS)
+    return costume_script.replace(b'"' + back + b'"', b'"' + whole + b'"')
 
 
 def without_csf_weapon(data: bytes) -> bytes:
@@ -787,7 +799,10 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         source = na[na_rel].read_bytes()
         target = out / 'merge' / rel
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(spskill_for_169(source, lab_files[rel].read_bytes(), class_name) if rel == SPSKILL_TABLE else source)
+        data = spskill_for_169(source, lab_files[rel].read_bytes(), class_name) if rel == SPSKILL_TABLE else source
+        if rel == COSTUME_SCRIPT and KNIGHT_WINGS[1].format(klass=class_name) in records:
+            data = with_knight_wings(data, class_name)
+        target.write_bytes(data)
         merges.append({'path': rel, 'source': na[na_rel].relative_to(na_root).as_posix(), 'source_sha256': sha256(source),
                        'needles': list(names) + (sorted(costume_models) if rel == COSTUME_SCRIPT else [])})
     text = None

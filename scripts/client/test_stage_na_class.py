@@ -229,7 +229,17 @@ class StageTest(unittest.TestCase):
         self.assertEqual([c.key for c in stage.kv_merge.parse(out).children[0].children], ['upper_body', 'rear'])
         self.assertNotIn(b'motion', out)
         self.assertEqual(stage.with_csf_rear(csf, b'"costume"\r\n{\r\n}\r\n'), csf)
-        self.assertEqual(set(stage.CSF_REAR), {'csf/metamorphosis/{klass}_dragon_knight.csf'})
+
+    def test_the_wings_are_the_whole_skeleton_ones(self):
+        script = (b'"rear"\r\n{\r\n\t"500139"\r\n\t{\r\n\t\t"category"\t"female"\r\n'
+                  b'\t\t"normal"\t"models/rear/dragonknight/miri_dragonknight_wing.mdl"\r\n\t}\r\n}\r\n'
+                  b'"upper_body"\r\n{\r\n\t"500152"\r\n\t{\r\n'
+                  b'\t\t"normal"\t"models/player/miri/dragonknight/miri_dragonknight.mdl"\r\n\t}\r\n}\r\n')
+        out = stage.with_knight_wings(script, 'miri')
+        self.assertEqual(out, script.replace(b'models/rear/dragonknight/miri_dragonknight_wing.mdl',
+                                             b'models/player/miri/dragonknight/miri_dragonknight_wing.mdl'))
+        self.assertIn(b'"models/player/miri/dragonknight/miri_dragonknight.mdl"', out)  # the body keeps its jiggles
+        self.assertEqual(stage.with_knight_wings(out, 'miri'), out)
 
     def test_the_transformation_spends_the_sp_its_state_checks(self):
         states = (b'"Miri"\r\n{\r\n\t"Output"\r\n\t{\r\n\t\t"AttackSP03"\r\n\t\t{\r\n\t\t\t"property"\r\n\t\t\t{\r\n'

@@ -3163,3 +3163,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI40 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: resultado da MI40 (asas, dragão seguindo a Miri, HUD nas duas saídas).
+
+## 2026-11-01 — Miri M8k: asas no esqueleto inteiro (câmera da transformação) mantendo cabelo e busto
+- Feito: MI40 no cliente: ao transformar no barco a câmera foi para baixo dele. Os modelos de corpo têm os ossos de câmera `ValveBiped.Anim_Attachment_CAM`/`_CAM_Origin` (usados por `AE_ENABLE_CAMERA_ORIGIN/TARGET_BONE` do `miri_SP4`); a peça de costas do M8j (`models/rear/dragonknight/miri_dragonknight_wing.mdl`, 29 ossos desde `Spine2`) não. O NA tem as asas sozinhas no esqueleto inteiro (`models/player/miri/dragonknight/miri_dragonknight_wing.mdl`, uma malha, 2546 vértices; corpo 12632). Primeiro tentei esse modelo no lugar do corpo; o operador pediu para manter os ossos de balanço de cabelo e busto, e a medição mostrou que ele é só as asas. Final: `stage_na_class.with_knight_wings` troca o modelo da entrada `rear` 500139 por esse na cópia de *merge* do `player_costume.txt`; o `.csf` mantém `rear` 500139 (`with_csf_rear`); o corpo `upper_body` 500152 fica como está.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r6/m8k-stage-tests.log`). Aplicado com o jogo fechado: preparação e `apply_lab_content_additions.py --apply` (dois pacotes, `r6/m8k-apply.log`); conferido na cópia de *merge* (corpo 1, asas do esqueleto 1, asas de costas 0) e no `.csf` (`rear` 500139). DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` MI41 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI41 (câmera, asas, cabelo e busto, e o resto da MI40).

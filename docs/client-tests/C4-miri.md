@@ -483,3 +483,10 @@ Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.
 - [ ] Com a Miri, menu → **Home Screen** → tela inicial **sem** o HUD do Flamebreath. Entrar de novo com a Miri numa fase → o HUD volta; entrar com a Delia → sem HUD.
 - [ ] Com a Miri, menu → **Change Character** → seleção de personagens sem o HUD.
 Relatar: asas (cor, posição, se somem), se o dragão seguiu a Miri e para que lado ele olhava, e o HUD nas duas saídas.
+
+### MI41 — Asas do Dragon Knight no esqueleto inteiro e câmera da transformação (M8k)
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (passo M8k). DLLs sem mudança. MI40: câmera foi para baixo do barco ao transformar (peça de costas sem os ossos de câmera).
+- [ ] Transformar (Dragon Knight) no barco e numa fase → a câmera segue a Miri como antes do M8j; asas negras nas costas; cabelo e busto balançam como no corpo sem asas.
+- [ ] Ao voltar ao normal → asas somem, roupa e cabelo de antes.
+- [ ] Itens da MI40 que faltaram: dragão do SP5 seguindo a Miri; HUD do Flamebreath sumindo em Home Screen e Change Character.
+Relatar: a câmera na transformação, as asas, e o resto da MI40.
