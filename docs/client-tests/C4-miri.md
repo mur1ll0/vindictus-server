@@ -523,3 +523,10 @@ Pré-condição: com o jogo fechado, preparação (`stage_na_class.py --class mi
 - [ ] Sair para a seleção → `GradeMiri` aparece certa (modelo, rosto, cabelo, roupa e o retrato da Miri na lista) e entra de novo; arma e habilidades iniciais (Draker de iniciante, maestria e Speed Move) presentes.
 - [ ] Sem regressão: abrir a grade e voltar sem criar (G5).
 Relatar: a grade (ícone, painel, vídeo), a atriz no centro, a customização, até onde a criação chegou e como `GradeMiri` aparece na seleção. Se o jogo cair, o horário e o relatório em `Documents\Vindictus EU GM\Report Error`.
+
+### MI45 — Teclas da Delia geradas de novo pelos padrões EU
+Pré-condição: com o jogo fechado, o `cfg/config_delia_ex.cfg` foi guardado como `config_delia_ex.cfg.pre-keys.bak` (feito por mim). Ele não tinha TAB (`+switch`), ENTER (chat), `\` (cash shop), q (`+function`) e t (menu) e não bate com nenhum preset, nem do EU nem do NA. Sem o arquivo, o jogo carrega `config_default_ex.cfg` (preset "mouse" do EU) e grava um novo ao sair.
+- [ ] Entrar com a `DeliaLab` → ENTER abre o chat; t abre o menu; `\` abre o cash shop; TAB e q fazem a ação da Delia (se houver).
+- [ ] Opções → Teclas: as teclas aparecem como as da Fiona (preset "mouse").
+- [ ] Sair do jogo normalmente (o jogo grava o arquivo novo).
+Relatar: o que cada tecla fez. Eu decifro o arquivo novo e comparo com o das classes antigas.

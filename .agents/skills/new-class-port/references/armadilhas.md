@@ -128,8 +128,10 @@ Tabela completa de sintoma → causa: `docs/future/miri-class-port.md` 3.4. As q
 - **Escolher efeito pelo nome da sequência** falha quando a mesma sequência serve aos dois estados (fogo vermelho sem
   transformar, M7r/M8e): decida pelo estado, no DLL (`CUSTOM_EFFECT`).
 - **Volume de conteúdo**: uns 2 GB de memória privada expuseram o teste com sinal do IOCP no `engine.dll` (barco travando, B2 RL1).
-- **Arquivo trocado à mão na cópia** some na próxima reconstrução: tudo passa pelo preparador ou pelo aplicador (exceção pendente:
-  `config_miri_ex.cfg`, M8n).
+- **Arquivo trocado à mão na cópia** some na próxima reconstrução: tudo passa pelo preparador ou pelo aplicador.
+- **Teclas por classe são do jogo, e do EU**: o cliente grava `cfg/config_<classe>_ex.cfg` (ofuscado) ao sair, depois de carregar o
+  `config_default_ex.cfg` do EU. Não traga `cfg/` do NA (presets diferentes). Se uma classe nova ficar sem teclas (a Delia e a Miri
+  ficaram sem TAB, ENTER, `\`, q e t; Miri M8n, MI45), guarde o arquivo dela com o jogo fechado e deixe o jogo gerar um novo.
 - **`git worktree remove` segue *junctions***: com `.cache/play-client` ligado por *junction* numa *worktree*, a cópia real foi
   apagada (02/11). Remova as *junctions* antes.
 - **`start-lab.bat` lento**: qualquer arquivo preparado de novo muda o `classes_sha256` e refaz as 14 exportações (cerca de 12 min).

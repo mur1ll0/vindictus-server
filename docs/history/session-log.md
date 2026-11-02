@@ -3226,3 +3226,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: entrada MG1 de `docs/client-tests/C4-miri.md`, pendente.
 - Commits: commit MG1 (este passo).
 - Pendente / próxima ação: sessão MG1 do operador (grade → customização → Create → estalagem → cidade → seleção).
+
+## 2026-11-02 — Miri: teclas por classe (config_<classe>_ex.cfg) investigadas
+- Feito: os arquivos `cfg/config_<classe>_ex.cfg` são gravados pelo próprio jogo (ofuscados; chave por posição obtida do `config_ex.cfg` original × o da cópia, que está em texto; a decifragem tem erros de um caractere em alguns valores). Não vieram do NA: o `stage_na_class.py` não toca `cfg/`, o manifesto não tem `cfg`, e o NA não tem arquivos por classe; o preset "mouse" do NA (`612cf4b6`) difere do EU (`26cb6074`), e o arquivo da Delia não bate com nenhum dos dois. O `server.dll` local (`0x40608f3f`) executa `exec_extreme_sync config_default_ex.cfg` e depois `config_<classe>_ex.cfg`, com o nome pela tabela de classes `0x40755b40` (já estendida pela `.hcls`): sem limite de 10 classes nesse caminho. Delia e a Miri anterior (2.760 bytes) não tinham TAB `+switch`, ENTER `messagemode`, `\` `cc_cashshop_ui`, q `+function`, t `cc_start_menu_ui`; origem anterior à recuperação de 02/11, não rastreável. Miri hoje igual às classes antigas. `config_delia_ex.cfg` guardado como `config_delia_ex.cfg.pre-keys.bak` (jogo fechado) para o jogo gerar um novo pelos padrões EU. Documento da Miri 3.3/3.4/3.6/6, skill (`armadilhas.md` 10, `procedimento.md` 1), roteiro MI45.
+- Verificação: decifragem e comparação em `.cache/verification/cfg-keys/` (arquivos `.txt` decifrados, referências do `server.dll` em `xref-server.txt`).
+- Cliente: MI45 (teclas da Delia geradas de novo) no `docs/client-tests/C4-miri.md`.
+- Commits: (este)
+- Pendente / próxima ação: MG1 e MI45 no cliente; depois de MI45, decifrar o `config_delia_ex.cfg` novo e comparar com o das classes antigas.

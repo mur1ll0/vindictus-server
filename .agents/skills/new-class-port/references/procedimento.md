@@ -43,8 +43,9 @@ Objetivo: saber o que já existe, o que vem do NA e o que é código novo, antes
 - `models/`, `materials/` e `scripts/` só são lidos de pacotes listados no índice. Arquivos soltos valem para `scaleform/` e `cfg/`.
 - Volume: a Miri preparou 4.331 arquivos (3,8 GB, 1,27 GiB em pacotes) e levou o jogo a uns 2 GB de memória privada. Com isso
   apareceu um defeito do 1.69 com ponteiros acima de 2 GB (`patch_engine_iocp_sign.py`).
-- Nunca troque um arquivo à mão na cópia: o que precisar mudar entra no preparador ou no aplicador. A Miri deixou uma exceção
-  pendente, o `cfg/config_miri_ex.cfg` (M8n).
+- Nunca troque um arquivo à mão na cópia: o que precisar mudar entra no preparador ou no aplicador.
+- **Teclas**: a classe nova usa as teclas do EU. O preparador não traz `cfg/` do NA, e o arquivo `cfg/config_<classe>_ex.cfg` é
+  gravado pelo jogo a partir do `config_default_ex.cfg` do EU (armadilhas, seção 10).
 - Nada disso entra no Git: manifesto, assets, bancos e pacotes ficam em `.cache/`.
 
 ## 2. `heroes.db3` do cliente e conteúdo do servidor

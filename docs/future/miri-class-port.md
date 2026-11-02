@@ -189,7 +189,7 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 | Histórias e títulos, livros de história, `Switch` de classe | `shared_rows`; Rust `minimum_story`, `minimum_use`; `LAB_SWITCH_DONORS` | Marrec ok (MI26); MI30 sem relato |
 | Destruir item (por *slot* e por classe; indestrutível vencido) | Rust `minimum_shop::destroy_slot`/`destroy_class`, mensagens 453/454 | MI28/MI35 sem relato |
 | Pegar o que cai com E | `with_ref_group_activations` | ok (MI38) |
-| Tab (Fiery Evasion) | dados iguais aos do NA; `config_miri_ex.cfg` da Delia (3.6) | ok (combate, 02/11) |
+| Tab (Fiery Evasion) | dados iguais aos do NA; teclas do EU no `config_miri_ex.cfg` (3.6) | ok (combate, 02/11) |
 | Retrato na seleção | `gfx_patch` | ok (MI21) |
 | Conjuntos (modelos, nomes, bônus, maestria) | `imported_costumes`, `set_tokens`, `armor_requirements` | ok (MI25) |
 | Criação pela grade | sessão própria, passos `MG<n>` | pendente |
@@ -224,7 +224,7 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 | Câmera embaixo do barco ao transformar (MI40) | peça de costas sem os ossos `Anim_Attachment_CAM` |
 | Membranas das asas com a textura do corpo | o modelo cita o material do corpo, mas os UVs são do atlas da asa |
 | Dragão do SP5 parado no chão | a Miri sobe só nos ossos; a origem fica no chão (o NA segue o osso `GRAPPLING`) |
-| Tab parou (MI43) | `config_miri_ex.cfg` do NA menor que o das outras classes |
+| Tab parou (MI43) | `config_miri_ex.cfg` (gravado pelo jogo) sem a tecla TAB e outras quatro; não veio do NA (3.6) |
 | Cópia de laboratório apagada (02/11) | `git worktree remove` seguiu a *junction* `.cache/play-client` |
 
 ### 3.5 DLLs e ferramentas
@@ -234,7 +234,7 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 
 ### 3.6 Pendências e aproximações
 - **Criação pela grade**: sessão própria (`MG<n>`).
-- **`config_miri_ex.cfg`**: trocado à mão pelo da Delia na cópia (M8n, *backup* `config_miri_ex.cfg.pre-m8n.bak`). Não é reproduzível: falta levar a troca para o `stage_na_class.py` ou para o aplicador.
+- **Teclas por classe (`cfg/config_<classe>_ex.cfg`)**: não são conteúdo; o próprio jogo grava esses arquivos ao sair, ofuscados. O jogo carrega antes o `config_default_ex.cfg` (preset "mouse" do EU) e depois o arquivo da classe (`server.dll` `0x40608f3f`, nome pela tabela de classes `0x40755b40`), então não há limite de 10 classes nesse caminho. Nada do NA entrou (o preparador não toca `cfg/`). Os arquivos da Delia e da Miri tinham 2.760 bytes, sem TAB (`+switch`), ENTER (chat), `\` (cash shop), q (`+function`) e t (menu), e não batiam com nenhum preset do EU nem do NA. A origem é anterior à recuperação de 02/11 e não pôde ser rastreada. A Miri já foi regravada com o conteúdo das classes antigas (M8n e saída do jogo em 02/11); o da Delia foi guardado como `config_delia_ex.cfg.pre-keys.bak` para o jogo gerar um novo a partir dos padrões EU (MI45). Regra: classes novas usam as teclas do EU; nenhum `cfg` do NA vem junto.
 - **Rastros pretos do Dragon Knight**: não portados.
 - **Condições**: os ids 121–127 estão todos ocupados (Delia 121–124, Miri 125–127; o conjunto de 128 bits acabou). A próxima classe com condições próprias exige medir e ampliar o armazenamento do conjunto.
 - **Flamebreath** usa o campo de rede da barra de febre; só conflita com o título de poluição de Regina.
@@ -327,4 +327,4 @@ A ordem e os comandos estão na skill `new-class-port`. O que a Miri provou e va
 10. **Estado do jogo pelos predicados do `GameStateManager001`**, nunca pelo nome do nível; a seleção de personagens também cria a classe.
 11. ***Stubs***: nada de *strings* no meio do código; reaplicar sempre a partir dos *backups* e conferir que a cópia corresponde ao código (`docs/client-dll-patches.md`).
 12. **Condições**: não há mais ids livres (121–127). Antes da próxima classe com condições próprias, amplie o conjunto.
-13. **Ferramentas e cuidados**: remova *junctions* antes de remover uma *worktree*; arquivos trocados à mão na cópia (como o `config_miri_ex.cfg`) viram passo do preparador ou do aplicador, senão se perdem na próxima reconstrução.
+13. **Ferramentas e cuidados**: remova *junctions* antes de remover uma *worktree*; arquivos trocados à mão na cópia viram passo do preparador ou do aplicador, senão se perdem na próxima reconstrução; os arquivos de teclas por classe são do jogo, não do conteúdo (3.6).
