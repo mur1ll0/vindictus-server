@@ -241,6 +241,31 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"models/player/miri/dragonknight/miri_dragonknight.mdl"', out)  # the body keeps its jiggles
         self.assertEqual(stage.with_knight_wings(out, 'miri'), out)
 
+    def test_the_whole_skeleton_wings_draw_the_wing_material(self):
+        import struct
+        old, new = (d.format(klass='miri') for d in stage.KNIGHT_WING_DIR)
+        self.assertEqual(len(old), len(new))
+        mdl = bytearray(b'IDST' + bytes(0x200))
+        struct.pack_into('<ii', mdl, 0xd4, 1, 0x100)
+        struct.pack_into('<i', mdl, 0x100, 0x120)
+        mdl[0x120:0x120 + len(old) + 1] = old.encode() + b'\0'
+        out = stage.with_material_dir(bytes(mdl), old, new)
+        self.assertEqual(out[0x120:0x120 + len(new) + 1], new.encode() + b'\0')
+        self.assertEqual(len(out), len(mdl))
+        self.assertEqual(stage.with_material_dir(bytes(mdl), old, new[:-2]), bytes(mdl))  # same length only
+        vmt = b'"Heroes_Faceskin"\r\n{\r\n\t"$basetexture" "models\\player\\miri\\dragonknight\\miri_dragonknight_wing"\r\n\t"$nocull"\t\t0\r\n}\r\n'
+        self.assertIn(b'"$nocull"\t\t1', stage.knight_wing_vmt(vmt))
+        self.assertIn(b'miri_dragonknight_wing"', stage.knight_wing_vmt(vmt))
+
+    def test_the_transformation_flames_the_wings(self):
+        motion = b'"miri_SP4"\r\n{\r\n\t"240"\t"AE_CL_PLAY_EFFECT\teffects/player/miri/sp4_during_02.efx"\r\n}\r\n"miri_SP5"\r\n{\r\n}\r\n'
+        out = stage.with_wing_flames('models/player/_anim/female/miri/pc_miri_motion_ex.txt', motion, 'miri')
+        for name in stage.KNIGHT_WING_FLAMES:
+            self.assertEqual(out.count(f'\t"240"\t"AE_CL_PLAY_EFFECT\teffects/player/miri/{name}.efx"\r\n'.encode()), 1)
+        self.assertEqual(stage.event_blocks(out).keys(), stage.event_blocks(motion).keys())
+        self.assertEqual(stage.with_wing_flames('models/player/_anim/female/miri/pc_miri_motion_ex.txt', out, 'miri'), out)
+        self.assertEqual(stage.with_wing_flames('scripts/x.txt', motion, 'miri'), motion)
+
     def test_the_transformation_spends_the_sp_its_state_checks(self):
         states = (b'"Miri"\r\n{\r\n\t"Output"\r\n\t{\r\n\t\t"AttackSP03"\r\n\t\t{\r\n\t\t\t"property"\r\n\t\t\t{\r\n'
                   b'\t\t\t\t"SPGauge_need"\t"250"\r\n\t\t\t}\r\n\t\t}\r\n\t\t"AttackSP04"\r\n\t\t{\r\n\t\t\t"property"\r\n'

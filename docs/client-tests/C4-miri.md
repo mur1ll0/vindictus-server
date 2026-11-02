@@ -490,3 +490,11 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Ao voltar ao normal → asas somem, roupa e cabelo de antes.
 - [ ] Itens da MI40 que faltaram: dragão do SP5 seguindo a Miri; HUD do Flamebreath sumindo em Home Screen e Change Character.
 Relatar: a câmera na transformação, as asas, e o resto da MI40.
+
+### MI42 — Textura e chamas das asas, dragão do SP5 e HUD na tela inicial (M8l)
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo M8l). DLLs sem mudança (as do M8j). MI41: câmera e cabelo/busto ok.
+- [ ] Transformar → asas com as membranas escuras (couro) vistas de frente **e** de trás, sem o padrão vermelho/azul do corpo.
+- [ ] Logo depois da transformação → chamas, fumaça e faíscas **pretas** saindo das asas por alguns segundos.
+- [ ] Call of the Dragon (SP5) → anotar o que fica parado no chão: o **corpo do dragão** (o modelo) ou só os **efeitos** (fogo/poeira)? O dragão aparece em algum momento?
+- [ ] HUD: com a Miri no barco, menu → Home Screen; com o HUD do Flamebreath ainda na tela, num **terminal como administrador** na pasta do projeto: `py -3.13 -s -E scripts/dev/lab_memory.py dword 0x39220e90` e copiar a saída.
+Relatar: as asas de frente e de trás, as chamas, o que fica no chão no SP5 e a saída do comando.

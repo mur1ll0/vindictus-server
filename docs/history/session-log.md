@@ -3170,3 +3170,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI41 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: resultado da MI41 (câmera, asas, cabelo e busto, e o resto da MI40).
+
+## 2026-11-02 — Miri M8l: textura e chamas negras das asas; dragão e HUD aguardam o operador
+- Feito: MI41 no cliente: câmera e cabelo/busto ok; membranas com o padrão do corpo vistas de trás; sem chamas negras; efeito do SP5 parado no chão na vertical; HUD do Flamebreath ainda na tela inicial (Home Screen no barco). Asas: os UVs do modelo do esqueleto inteiro caem no *layout* de `miri_dragonknight_wing.vtf` (sobreposição dos UVs do `.vvd` às texturas), mas ele cita só o material do corpo; `stage_na_class.with_material_dir` troca no lugar o `cdmaterials` (`...\dragonknight\` → `...\dragonwings1\`, mesmo tamanho) e `knight_wing_vmt` grava `materials/models/player/miri/dragonwings1/miri_dragonknight.vmt` (material de asa do NA, `$nocull 1`). Chamas: `with_wing_flames` toca `sp4_during_02_wing`, `_smoke`, `_spark`, `_spark_start` (ossos das asas, cores pretas) no quadro 240 do `miri_SP4`. Dragão: o NA (`0xaa5a40`) põe o dragão na origem do jogador a cada quadro, como o pai do M8j. HUD: `KaySkillDialog` só está em `PreloadList` (código o esconde); o *getter* da UI (`0x385F7EF0`) é um singleton não nulo.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r6/m8l-stage-tests.log`). Aplicado com o jogo fechado: preparação e `apply_lab_content_additions.py --apply` (um pacote, `r6/m8l-apply.log`); conferidos o `cdmaterials` novo no modelo, o `$nocull 1` e as chamas nos dois `.txt` de movimento. DLLs sem mudança (client `c8eb22d1ad60f944`).
+- Cliente: `docs/client-tests/C4-miri.md` MI42 (pendente), com a pergunta do SP5 e a leitura de `shown` (`0x39220e90`).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI42 (asas, chamas, o que fica no chão no SP5, saída do `lab_memory.py`).

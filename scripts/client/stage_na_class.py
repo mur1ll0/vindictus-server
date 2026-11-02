@@ -419,6 +419,55 @@ KNIGHT_WINGS = ('models/rear/dragonknight/{klass}_dragonknight_wing.mdl',
                 'models/player/{klass}/dragonknight/{klass}_dragonknight_wing.mdl')
 
 
+# Their texture (M8l, C4 MI41: from behind, the membranes showed the body's pattern). That model names one
+# material, <class>_dragonknight (the body's), but its UVs lie on the wing texture's layout (the bone strips
+# and the membranes of <class>_dragonknight_wing.vtf), not on the body atlas: the NA client must draw it with
+# the wing material. The lab copy's material folder (cdmaterials, a string of the same length in place) points
+# at KNIGHT_WING_DIR, whose <class>_dragonknight.vmt is the NA wing material, two-sided.
+KNIGHT_WING_DIR = ('models\\player\\{klass}\\dragonknight\\', 'models\\player\\{klass}\\dragonwings1\\')
+KNIGHT_WING_SOURCE_VMT = 'materials/models/player/{klass}/dragonknight/{klass}_dragonknight_wing.vmt'
+KNIGHT_WING_VMT = 'materials/models/player/{klass}/dragonwings1/{klass}_dragonknight.vmt'
+# The black flames on the wings (M8l, operator). The NA's are sp4_during_02_wing*.efx (black fire, smoke and
+# sparks on the wing bones, Bone017-Bone039 and their mirrors, a few seconds after a delay), played by the NA
+# client from code; the 1.69 plays them from the transformation (miri_SP4) at the frame of its body flames
+# (sp4_during_02, 240), after the look has put the wings on. An approximation of the NA's timing.
+KNIGHT_WING_FLAMES = ('sp4_during_02_wing', 'sp4_during_02_wing_smoke', 'sp4_during_02_wing_spark',
+                      'sp4_during_02_wing_spark_start')
+KNIGHT_WING_FLAME_FRAME = 240
+
+
+def with_material_dir(data: bytes, old: str, new: str) -> bytes:
+    """The model with its material folder `old` (one of its cdmaterials) renamed to `new`, of the same length."""
+    import struct
+    old_b, new_b = old.encode('latin-1'), new.encode('latin-1')
+    if len(old_b) != len(new_b) or data[:4] != b'IDST':
+        return data
+    out = bytearray(data)
+    count, index = struct.unpack_from('<ii', data, 0xd4)
+    for i in range(count):
+        at = struct.unpack_from('<i', data, index + 4 * i)[0]
+        if data[at:at + len(old_b) + 1].lower() == old_b.lower() + b'\0':
+            out[at:at + len(new_b)] = new_b
+    return bytes(out)
+
+
+def knight_wing_vmt(source: bytes) -> bytes:
+    return re.sub(rb'("\$nocull"[ \t]+)("?)0("?)', rb'\g<1>\g<2>1\g<3>', source, count=1)
+
+
+def with_wing_flames(path: str, data: bytes, klass: str) -> bytes:
+    if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
+        return data
+    span = event_blocks(data).get(f'{klass}_sp4')
+    if span is None or b'_wing.efx' in data[span[0]:span[1]]:
+        return data
+    brace = data.find(b'{', span[0]) + 1
+    newline = b'\r\n' if b'\r\n' in data[span[0]:span[1]] else b'\n'
+    lines = b''.join(f'\t"{KNIGHT_WING_FLAME_FRAME}"\t"AE_CL_PLAY_EFFECT\teffects/player/{klass}/{name}.efx"'.encode() + newline
+                     for name in KNIGHT_WING_FLAMES)
+    return data[:brace] + newline + lines + data[brace:].lstrip(b'\r\n')
+
+
 def _costume_child(data: bytes, key: str):
     import kv_merge as kv
     costume = next((n for n in kv.parse(data).children if n.block), None)
@@ -710,6 +759,9 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = with_sp_reduce(rel, data, sp_checks)
         data = without_sprint_stop(rel, data)
         data = with_summoned_model(rel, data, class_name)
+        data = with_wing_flames(rel, data, class_name)
+        if rel == KNIGHT_WINGS[1].format(klass=class_name):
+            data = with_material_dir(data, *(d.format(klass=class_name) for d in KNIGHT_WING_DIR))
         if rel in csf_without_weapon:
             data = without_csf_weapon(data)
         rear_look = CSF_REAR.get(rel.replace(class_name, '{klass}'), '').format(klass=class_name)
@@ -792,6 +844,14 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
             (out / eye).write_bytes(efx)
             records[eye] = {'path': eye, 'source': 'laboratory (stage_na_class.SUMMONED_EYE_EFX)', 'source_sha256': sha256(efx),
                             'sha256': sha256(efx), 'converted': True, 'bytes': len(efx), 'copied_from': None}
+    wing_vmt, wing_source = (v.format(klass=class_name) for v in (KNIGHT_WING_VMT, KNIGHT_WING_SOURCE_VMT))
+    if KNIGHT_WINGS[1].format(klass=class_name) in records and wing_source in na:
+        vmt = knight_wing_vmt(na[wing_source].read_bytes())
+        (out / wing_vmt).parent.mkdir(parents=True, exist_ok=True)
+        (out / wing_vmt).write_bytes(vmt)
+        records[wing_vmt] = {'path': wing_vmt, 'source': 'laboratory (stage_na_class.knight_wing_vmt)',
+                             'source_sha256': sha256(vmt), 'sha256': sha256(vmt), 'converted': True, 'bytes': len(vmt),
+                             'copied_from': None}
     merges = []
     for rel, na_rel in [(r, r) for r in SHARED_SCRIPTS] + list(EXTREME_MERGES.items()):
         if na_rel not in na or rel not in lab:
