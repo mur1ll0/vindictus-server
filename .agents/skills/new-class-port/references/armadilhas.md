@@ -1,4 +1,4 @@
-# Armadilhas do porte da Delia
+# Armadilhas do porte de classes (Delia e Miri)
 
 Cada item: o sintoma, a causa, como evitar e onde está a evidência (passo do `docs/history/session-log.md`, entrada de
 roteiro ou seção do `docs/future/delia-class-port.md`).
@@ -88,8 +88,9 @@ roteiro ou seção do `docs/future/delia-class-port.md`).
   rodar o arquivo (`python -s -E caminho.py`); usar `bytes.fromhex('…')` em vez de literais com `\x`.
 
 ## 9. Outras lições curtas
-- **Grupos da Delia valem para toda classe extra**: `GUARD`, `CLIENT_GUARD`, `CLASS_CONDITIONS` e
-  `DELIA_EFFECTS` despacham qualquer classe ≥ 10 para o mesmo corpo. Restringir antes de pôr a Miri.
+- **Grupos da Delia valiam para toda classe extra**: `GUARD`, `CLIENT_GUARD`, `CLASS_CONDITIONS` e
+  `DELIA_EFFECTS` despachavam qualquer classe ≥ 10 para o mesmo corpo. Resolvido no M5 da Miri: `class_dispatch` recebe a lista
+  de classes (`DELIA_MECHANICS`, `GUARD_CLASSES`).
 - **Valores para o gerenciador de UI do Scaleform**: o *set* de variável `vt+0x1c` recebe texto (um inteiro
   virou ponteiro e derrubou o `shaderapidx9.dll`, C3-7); `"true"` vira `NaN` numa propriedade de exibição,
   use `"1"` (C3-10). Escritas repetidas do C++ num campo de texto tiram o foco (C3-16).
@@ -102,3 +103,33 @@ roteiro ou seção do `docs/future/delia-class-port.md`).
   renomeadas, a entrada na cidade desconectava, D10; passo 24). A forma do corpo e a figura padrão da classe também mudam (passo 26).
 - **Aplicar com o jogo fechado e a partir dos *backups***: o patch de roteamento recusa um DLL que já tem `.hrte`.
 - **Depurador**: o antitrapaça pode abortar o cliente depois de desanexar (D8o); conte com reiniciar.
+
+## 10. Lições da Miri (classe que veio inteira do NA)
+Tabela completa de sintoma → causa: `docs/future/miri-class-port.md` 3.4. As que mudam o método:
+- **`ExtremeMode` lê só as variantes `_ex`**: modelo de batalha, estados, eventos, `action_table_player_ex.txt` e os `include`
+  `_ex`. No NA elas podem ser casco (o `_ex` da Miri tinha uma sequência: pose de referência no barco, MI7) ou cópia de outra
+  classe (estados da Delia: sem golpes próprios, MI11). Sem a mesclagem no `_ex`, os golpes saem com 37 de dano e sem SP (MI15).
+- **`include` de arquivo que o 1.69 não tem invalida o arquivo de estados inteiro**: a classe fica parada, deslizando (MI5/MI6).
+- **Tabelas estáticas com corte em 11**, além das de 10 classes: o vetor de palavras-chave de habilidade (`GetSkillKeywordTable`)
+  lia a vtable seguinte como tabela e derrubava o servidor em `0x8b5472` (MI4). O filme da seleção tem `characterImageLabel` com
+  11 entradas (retrato errado, MI20).
+- **O `CostumeType` da arma também escolhe a entidade** na lista por classe: use `10100 + n` (MI5).
+- **12 alças de rastro por arma** (`C_PlaneTrail` sem conferir o limite; queda `0x38828069`, MI24).
+- **Máscara 2047** nas linhas "todas as classes": sem o bit novo, a classe fica sem habilidades comuns (MI4) e sem histórias
+  (`NullError,start_storyline`, MI25).
+- **Materiais PBS e código visual do NA**: o 1.69 não tem o *shader* `Heroes_PBS_Texture_Transition` (Dragon Knight branco em
+  *wireframe*, MI19); asas, olhos e dragão que o NA desenha em código precisam de caminho de dados ou de grupo novo.
+- **Modelo vestido sem os ossos de câmera** leva a câmera da animação para a origem (embaixo do barco, MI40).
+- **Teste de cidade pelo nome do nível engana** (`t01` na cidade, `lobby_multiplayer` no barco): use os predicados do
+  `GameStateManager001` (`+0x20`, `+0x38`, `+0x40`). A seleção de personagens também cria uma entidade da classe, e o HUD dela
+  apareceu lá (MI42).
+- ***String* no meio do código de um *stub*** é executada como instrução: o Parrying derrubava o cliente em `0x392204e4` (MI29).
+  Aloque *strings* antes do corpo.
+- **Escolher efeito pelo nome da sequência** falha quando a mesma sequência serve aos dois estados (fogo vermelho sem
+  transformar, M7r/M8e): decida pelo estado, no DLL (`CUSTOM_EFFECT`).
+- **Volume de conteúdo**: uns 2 GB de memória privada expuseram o teste com sinal do IOCP no `engine.dll` (barco travando, B2 RL1).
+- **Arquivo trocado à mão na cópia** some na próxima reconstrução: tudo passa pelo preparador ou pelo aplicador (exceção pendente:
+  `config_miri_ex.cfg`, M8n).
+- **`git worktree remove` segue *junctions***: com `.cache/play-client` ligado por *junction* numa *worktree*, a cópia real foi
+  apagada (02/11). Remova as *junctions* antes.
+- **`start-lab.bat` lento**: qualquer arquivo preparado de novo muda o `classes_sha256` e refaz as 14 exportações (cerca de 12 min).

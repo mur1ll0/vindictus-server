@@ -23,8 +23,8 @@ Ferramenta de extração revisada: `NPCodex/hfs-extract` (fonte em `.cache/hfs-e
 `new-classes.md` 7.6). A segunda camada dos *scripts* e do `heroes.db3` já foi resolvida (7.8–7.9).
 
 ## Cópia de laboratório `.cache/play-client`
-- `bin/`: DLLs patchados, *backups* `*.pre-hcls.bak`, `*.pre-classflags.bak`, `*.pre-routing.bak`,
-  `class-routing.json` (endereços dos *stubs*, lido pelo `lab_memory.py`).
+- `bin/`: DLLs patchados, *backups* `*.pre-hcls.bak`, `*.pre-classflags.bak`, `*.pre-iocpsign.bak`, `*.pre-routing.bak` e retratos
+  `*.pre-<passo>.bak` (`docs/client-dll-patches.md`), `class-routing.json` (endereços dos *stubs*, lido pelo `lab_memory.py`).
 - `hfs_extracted/`: conteúdo do 1.69 extraído (o que já existe para a classe).
 - `scaleform/`: filmes e imagens soltos, que têm prioridade sobre os pacotes (armadilha do C3-12).
 - `start-lab.bat`: abre o cliente. Conta de teste `lab169_a`.
@@ -53,11 +53,31 @@ Ferramenta de extração revisada: `NPCodex/hfs-extract` (fonte em `.cache/hfs-e
   uma referência da classe nova.
 - Minidumps: `Documents\Vindictus EU GM\Report Error`; copie para `.cache/<etapa>/` antes de analisar.
 
+## Conteúdo do NA (Miri; `docs/future/miri-class-port.md` 3.1–3.2)
+| Ferramenta | Uso |
+|---|---|
+| `scripts/reverse/na_class_measure.py` | medição `db`, `models`, `tokens` da classe (passo 0) |
+| `scripts/client/stage_na_class.py` | prepara arquivos e transformações em `.cache/private-assets/classes/<classe>`, manifesto `class-assets.json` |
+| `scripts/client/mdl_v45_to_v44.py` | conversão de modelos v45 → v44 |
+| `scripts/client/mdl_anim.py` | trilhas de animação v44: `pin_bone`, `retarget`, `with_included_model` |
+| `scripts/client/kv_merge.py` | mesclagem KeyValues só com os nós da classe |
+| `scripts/client/gfx_patch.py` | filmes GFx: atlas de retrato, quadro de classe, entrada de *array* no AS2 |
+| `scripts/client/hfs.py` | pacotes HFS (`write_pack`, `sync_listed`, `pack_name`) |
+| `scripts/client/apply_lab_content_additions.py` | único gravador da cópia: pacotes, índice, mesclagens, textos, `UIElements.xml`, `heroes.db3` |
+| `scripts/content/class_imports.py` | linhas do NA no esquema 1.69 (`<classe>.db3`), textos, conjuntos, XE da doadora, bit de classe |
+| `scripts/content/class_costumes.py` | renumeração de roupas, subtipos de arma `10100 + n`, rastros que cabem |
+| `scripts/content/refresh_item_content.py` | exportações do servidor quando mudam os itens ou o `classes_sha256` (`start-lab.bat`) |
+| `scripts/reverse/na_x64_miri_entity.py`, `na_x64_draker_weapon.py`, `na_x64_miri_dragon_energy.py`, `v169_rope_users.py` | modelos de medição de entidade, arma e mecânica no NA x64 e de usos no 1.69 |
+
 ## Patches e testes
-- `scripts/client/patch_class_table.py` (`.hcls`, 28 classes do NA, `ACTIVE_CLASSES`).
-- `scripts/client/patch_engine_class_flags.py` (`engine.dll`, `DELIA_FLAG`).
+Geração, versionamento e reconstrução dos DLLs: `docs/client-dll-patches.md` (os DLLs não vão para o Git; o código que os gera, sim).
+- `scripts/client/patch_shop_list_limit.py` (`client.dll`, limite da lista do *cash shop*; primeiro da cadeia).
+- `scripts/client/patch_class_table.py` (`.hcls`, 28 classes do NA, `ACTIVE_CLASSES` 12).
+- `scripts/client/patch_engine_class_flags.py` (`engine.dll`, `.hflg`, `CLASS_FLAGS`).
+- `scripts/client/patch_engine_iocp_sign.py` (`engine.dll`, IOCP com ponteiros acima de 2 GB; depois das *flags*).
 - `scripts/client/patch_class_routing.py` (`.hrte`, `EXTRA_CLASSES`, grupos, `CREATION_GRID`).
-- Testes: `test_patch_class_table.py`, `test_patch_engine_class_flags.py`, `test_patch_class_routing.py`
-  (inclui `test_a_second_extra_class_gets_its_own_entries` com uma Miri fictícia e
-  `test_every_new_pointer_is_relocated`). As classes `LabCopyTest` são **puladas** sem a cópia de
-  laboratório; teste pulado não é evidência.
+- Testes: `test_patch_class_table.py`, `test_patch_engine_class_flags.py`, `test_patch_engine_iocp_sign.py`,
+  `test_patch_class_routing.py` (inclui `test_miri_gets_her_own_entries`, `test_delia_mechanics_stay_on_delia` e
+  `test_every_new_pointer_is_relocated`); conteúdo: `test_stage_na_class.py`, `test_mdl_v45_to_v44.py`, `test_mdl_anim.py`,
+  `test_kv_merge.py`, `test_gfx_patch.py`, `test_apply_lab_hfs.py`, `test_class_imports.py`, `test_class_costumes.py`. As classes
+  `LabCopyTest` são **puladas** sem a cópia de laboratório; teste pulado não é evidência.

@@ -3212,3 +3212,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: MI44 e RL1 pendentes (cópia restaurada ao estado de 02/11 02:26).
 - Commits: (este passo)
 - Pendente / próxima ação: MI44 (dragão do SP5, Tab) e RL1 do B2 no cliente.
+
+## 2026-11-02 — Miri: documentação consolidada, skill new-class-port 2.0.0 e versionamento dos DLLs
+- Feito: `docs/client-dll-patches.md` (novo: DLLs fora do Git, gerados só pelos cinco scripts `patch_*` a partir dos originais do 1.69; cadeias, guardas de entrada, backups, reconstrução, reaplicação, regras para patch novo); `docs/future/miri-class-port.md` reorganizado (estado de 02/11, consolidado com ciclo de preparação, tabela de conversões, mecânicas, armadilhas, DLLs/ferramentas e pendências; notas M5–M8n em ordem cronológica; receita para a próxima classe); skill `new-class-port` 2.0.0 (`SKILL.md`, `procedimento.md` 0–7 e 9 com o caminho da Miri, `armadilhas.md` seção 10, `fontes-e-ferramentas.md` com o pipeline de conteúdo do NA, `registro-e-aceite.md`); `docs/skills.md`.
+- Verificação: reconstrução dos três DLLs a partir dos originais (`client.dll.b284ba71…bak`, `server.dll.d7727e18…pre-hcls.bak`, `engine.dll.a3add974…pre-classflags.bak`) numa pasta descartável com o HEAD `79c425d`: shop list → hcls → routing e class flags → iocp, os cinco com saída 0; SHA-256 iguais aos da cópia (client `c0b5d416`, server `5f042936`, engine `df6c70d2`). `Vindictus.exe` e os outros 34 DLLs iguais ao original. Logs em `.cache/verification/dll-repro/`. Identificadores citados nos documentos conferidos por grep.
+- Cliente: o operador relatou em 02/11/2026 que o combate da Miri está todo certo (depois da MI44). Documentação: cliente não necessário.
+- Commits: (este)
+- Pendente / próxima ação: criação pela grade na sessão própria (passos MG<n>, `docs/future/miri-creation-grid.md`); levar a troca do `config_miri_ex.cfg` (M8n) para o preparador ou o aplicador; `MIGRATION.md` não alterado neste passo porque a sessão da grade é dona dele agora.
