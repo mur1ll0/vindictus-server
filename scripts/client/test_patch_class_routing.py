@@ -486,6 +486,28 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(sum(t == f'call {raise_:#x}' for t in miri), 2)
         self.assertIn('test byte ptr [edi + 0x78], 2', miri)
 
+    def test_the_miri_plays_custom_effects_by_her_state(self):
+        image, report = self.plan('client.dll')
+        k = routing.CUSTOM_EFFECT['client.dll']
+        name = routing.ENTITY_SLOTS['client.dll'][0]
+        original = self.entry(Image(source('client.dll')), routing.vtable(Image(source('client.dll')), name), k['slot'])
+        self.assertEqual(original, k['fire_event'])
+        stub = self.entry(image, routing.vtable(image, name), k['slot'])
+        body, path = int(report['custom_effect']['body'], 16), int(report['custom_effect']['path'], 16)
+        text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:5]
+        self.assertEqual(text, ['mov eax, dword ptr [ecx + 0x18ec]', f'cmp eax, {routing.MIRI:#x}', text[2], f'jmp {body:#x}',
+                                f'jmp {original:#x}'])
+        self.assertEqual(text[2].split()[0], 'jne')
+        code = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(body):image.offset(body) + 0xc0]), body)]
+        code = code[:code.index(f'jmp {original:#x}') + 1]
+        self.assertEqual(code[:2], ['cmp dword ptr [esp + 0xc], 0x59', f'jne {original:#x}'])
+        self.assertIn(f'mov edi, {path:#x}', code)
+        self.assertIn(f"test byte ptr [ecx + {routing.FLAMEBREATH['client.dll']['type']:#x}], 1", code)
+        self.assertIn(f'cmp edi, {path + routing.CUSTOM_EFFECT_PATH - 1:#x}', code)  # bounded copy
+        self.assertEqual(code[-6:], ['mov byte ptr [edi], 0', 'pop edi', 'pop esi', 'mov dword ptr [esp + 0xc], 0x55',
+                                     f'mov dword ptr [esp + 0x10], {path:#x}', f'jmp {original:#x}'])
+        self.assertNotIn('ecx', ' '.join(t for t in code if not t.startswith('test byte ptr [ecx')))  # this is kept
+
     def test_client_guard_marks_guarded_hits_for_extra_classes(self):
         image, report = self.plan('client.dll')
         (set_slot, get_slot, damage_slot, copy, unguardable, unguardable_info,

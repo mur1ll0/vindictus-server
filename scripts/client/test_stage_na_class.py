@@ -229,21 +229,6 @@ class StageTest(unittest.TestCase):
         self.assertEqual(out, motion.replace(b'AE_CUSTOM_MOTION\tREDUCE_DRAGON_KNIGHT_SP_GAUGE', b'AE_GAIN_SP_GAUGE\t-200'))
         self.assertEqual(stage.with_sp_reduce('models/player/_anim/female/miri/pc_miri_motion.txt', motion, {}), motion)
 
-    def test_custom_effects_play_the_plain_effect(self):
-        script = (b'"miri_SP3"\r\n{\r\n\t"10"\t"AE_CL_PLAY_CUSTOM_EFFECT\teffects/a.efx effects/a_knight.efx"\r\n'
-                  b'\t"20"\r\n\t{\r\n\t\t"event"\t"AE_CL_PLAY_CUSTOM_EFFECT\teffects/b.efx effects/b_knight.efx"\r\n\t}\r\n}\r\n')
-        out = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', script)
-        self.assertNotIn(b'CUSTOM', out)
-        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a.efx"', out)
-        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/b.efx"', out)
-        self.assertNotIn(b'knight', out)
-        self.assertEqual(stage.with_plain_effects('scripts/x.txt', script), script)
-        knight = script.replace(b'"miri_SP3"', b'"miri_SP4"')
-        out = stage.with_plain_effects('models/player/_anim/female/miri/pc_miri_motion.txt', knight + script)
-        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a_knight.efx"', out)  # the transformation: Dragon Knight
-        self.assertIn(b'"AE_CL_PLAY_EFFECT\teffects/a.efx"', out)  # the other block: the normal one
-        self.assertNotIn(b'CUSTOM', out)
-
     def test_models_bring_their_mesh_files(self):
         mdl = b'IDST' + bytes(0x200)
         known = {'models/a/x.vvd', 'models/a/x.dx90.vtx', 'models/a/x.phy'}.__contains__
@@ -327,6 +312,11 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"AE_DELETE_ATTACKABLE_MODEL\t' + model + b' 0.0"', out)
         self.assertNotIn(b'DRAGON_EFFECT', out)
         self.assertNotIn(b'_DRAGON"', out)
+        # the temporary MI39 probe: a 1.69 thorn next to the dragon, removed with it
+        thorn = b'models\\effects\\mesh\\effect_darkknight_thorn_01.mdl'
+        self.assertIn(b'\t"0"\t"AE_CREATE_ATTACKABLE_MODEL\t' + thorn + b' effect_darkknight_thorn_anim 40.0"\r\n', out)
+        self.assertIn(b'"AE_DELETE_ATTACKABLE_MODEL\t' + thorn + b' 0.0"', out)
+        self.assertEqual(out.count(b'"is_finally"\t"1"'), 2)
         self.assertEqual(stage.summoned_model_events(motion),
                          b'"dragon_attack"\r\n{\r\n\t"0"\t"AE_CL_PLAY_EFFECT\teffects/player/miri/SP5_dragon_body.efx"\r\n}\r\n')
         self.assertIsNone(stage.summoned_model_events(b'"x" { }'))

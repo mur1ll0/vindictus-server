@@ -377,6 +377,16 @@ GUARD_ENTRIES = 16
 CLIENT_GUARD = {'client.dll': (429, 430, 367, 0x38707FB0, 0x38888400, 0x38888180,
                                0x387DE550, 0x387DE580, 0x387DE5B0, 0x38ADA3C4)}
 HIT_IMPACT_SKIP = 0x4B3D
+# The Miri's skill effects by state (M8i; the M8d decision, C4: blue Fiery Chainswing untransformed, red
+# transformed). The NA plays them through AE_CL_PLAY_CUSTOM_EFFECT <effect> <Dragon Knight effect> (id 0x59
+# in the 1.69 client, 0x380c0d6c). The 1.69 handles 0x59 only in another entity's FireEvent (0x3874e700:
+# <options>.efx or <options>_B.efx by a flag); C_HeroesPlayer::FireEvent (vtable slot 200, 0x386fb540,
+# thiscall (origin, angles, event, options), ret 0x10) ignores it and hands AE_CL_PLAY_EFFECT (0x55) options
+# to the effect manager (0x3866dba0). The Miri's slot copies the first path, or the second while
+# transformed (m_gaugeType bit 0, FLAMEBREATH client 'type'), into a buffer and goes on as 0x55 with it.
+CUSTOM_EFFECT = {'client.dll': {'slot': 200, 'fire_event': 0x386FB540, 'custom': 0x59, 'play': 0x55}}
+CUSTOM_EFFECT_HEAD = 'd9ee81ece0000000'
+CUSTOM_EFFECT_PATH = 260
 # Per-frame class conditions (plan 8.15 item 2). NA server 0x6e4d30 (slot 517 = 1.69 460) raises
 # As_Cond_Can_Armor_Purge (SP5's gate) while armour is equipped in slots 4-8 and the purge is not
 # blocked, and As_Cond_Delia_SPSkill3_Activated while skill_delia_sp3 is off cooldown (SP1/SP3
@@ -1647,6 +1657,64 @@ def _miri_guard_damage(image: Image, layout: Layout, get: int, conditions_of: in
     b('57 8bce'); call(k['base'])
     b('5f 5e c20400')
     return damage
+
+
+def custom_effect(image: Image, layout: Layout, edits: list, relocs: set[int], name: str) -> dict:
+    """CUSTOM_EFFECT: the Miri's FireEvent turns AE_CL_PLAY_CUSTOM_EFFECT into AE_CL_PLAY_EFFECT with the
+    path for her state (the first one, or the second while transformed)."""
+    k = CUSTOM_EFFECT[name]
+    entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
+    head = bytes.fromhex(CUSTOM_EFFECT_HEAD)
+    original = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * k['slot']))[0]
+    if original != k['fire_event'] or bytes(image.data[image.offset(original):image.offset(original) + len(head)]) != head:
+        raise PreparationError(f'Unexpected FireEvent at slot {k["slot"]} ({original:#x}); nothing is patched.')
+    L = layout
+    L.pad()
+    path = L.here()
+    L.body += bytes(CUSTOM_EFFECT_PATH)
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    def land(*at: int) -> None:
+        for a in at:
+            L.land(a)
+
+    L.pad()
+    body = L.here()
+    b(f'837c240c{k["custom"]:02x}')  # cmp dword [esp+0xc] (event), custom
+    L.to(bytes.fromhex('0f85'), original)
+    b('56 57 8b742418 bf'); L.pointer(path)  # push esi; push edi; mov esi, options; mov edi, path
+    b('f681' + struct.pack('<I', FLAMEBREATH[name]['type']).hex() + '01')  # test byte [ecx+type], 1 (transformed)
+    plain = fwd('0f84')
+    first = L.here()  # skip the first path
+    b('8a06 84c0'); alone = fwd('0f84')  # a single path: the plain copy
+    b('3c20'); blank0 = fwd('0f84')
+    b('3c09'); blank1 = fwd('0f84')
+    b('46'); L.to(bytes.fromhex('e9'), first)
+    land(blank0, blank1)
+    blanks = L.here()  # and the blanks after it
+    b('46 8a06 3c20'); L.to(bytes.fromhex('0f84'), blanks)
+    b('3c09'); L.to(bytes.fromhex('0f84'), blanks)
+    b('84c0'); knight = fwd('0f85')
+    land(alone)
+    b('8b742418')  # nothing after the blanks: from the start again
+    land(plain, knight)
+    copy = L.here()
+    b('8a06 84c0'); ends = [fwd('0f84')]
+    b('3c20'); ends.append(fwd('0f84'))
+    b('3c09'); ends.append(fwd('0f84'))
+    b('81ff'); L.pointer(path + CUSTOM_EFFECT_PATH - 1); ends.append(fwd('0f83'))  # bounded copy
+    b('8807 46 47'); L.to(bytes.fromhex('e9'), copy)
+    land(*ends)
+    b('c60700 5f 5e')  # terminate; pop edi; pop esi
+    b(f'c744240c{k["play"]:02x}000000 c7442410'); L.pointer(path)  # event = play, options = path
+    L.to(bytes.fromhex('e9'), original)
+    return {'path': hex(path), 'body': hex(body),
+            'slot': class_dispatch(image, layout, edits, relocs, entity, klass, k['slot'], {MIRI: body})}
 
 
 def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
@@ -3703,6 +3771,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
                                 forfeit=int(effects['forfeit'], 16) if effects else None, effects=effects)
     if name in CLIENT_GUARD:
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
+    if name in CUSTOM_EFFECT:
+        report['custom_effect'] = custom_effect(image, layout, edits, relocs, name)
     if name in ITEM_MASK:
         report['item_mask'] = item_mask(layout, edits, *ITEM_MASK[name])
     if name in ITEM_COPY:

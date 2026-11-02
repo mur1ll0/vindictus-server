@@ -3149,3 +3149,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI38 (pendente); MI37 cancelada.
 - Commits: (este passo)
 - Pendente / próxima ação: MI30–MI36 e MI38 no cliente; decisão M8d.
+
+## 2026-11-01 — Miri M8i: efeitos pelo estado (decisão M8d) e sonda do dragão do SP5
+- Feito: MI38 no cliente: *parry* e E nos drops funcionando; Fiery Chainswing vermelho também sem transformar (o M7r escolhia pelo nome da sequência, `KNIGHT_SEQUENCE` pega `battle_attack_strong_dragon_*`); dragão do SP5 ainda ausente. Decisão M8d do operador: azul sem transformar, vermelho transformada. `patch_class_routing.CUSTOM_EFFECT`: slot 200 (`FireEvent`, `0x386fb540`) da classe 11 troca `AE_CL_PLAY_CUSTOM_EFFECT` (0x59; no 1.69 só a Regina usa, `0x3874e700`) por `AE_CL_PLAY_EFFECT` (0x55) com o primeiro caminho ou, com o bit 0 do `m_gaugeType` (+0x4b38), o segundo, copiado num *buffer* limitado; `stage_na_class.with_plain_effects` removido (os 37 eventos do NA ficam). Dragão: servidor cria qualquer modelo pelo 0xcc (`0x400fb91a`, `attackable_dynamic_prop`, pré-carga liberada), arquivos do modelo iguais aos do NA e somas coerentes, material `Heroes_armor`; sonda temporária `with_summon_probe` (espinho da Delia no mesmo quadro) para separar evento × modelo.
+- Verificação: `test_stage_na_class` 22 OK (`.cache/verification/miri/r6/m8i-stage-tests.log`); `test_patch_class_routing` 46 OK, completo (`r6/m8i-routing-full.log`); desmontagem do corpo revisada (`r6/m8i-body.txt`). Aplicado com o jogo fechado: preparação, `apply_lab_content_additions.py --apply` (um pacote), DLLs atuais em `*.pre-m8i.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8i-routing-apply.log`): client `034d9ebec8a6f557`, server `b36463e6da412e19`.
+- Cliente: `docs/client-tests/C4-miri.md` MI39 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI39 (cores; espinho × dragão) e retirar a sonda.

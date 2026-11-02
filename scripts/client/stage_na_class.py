@@ -440,30 +440,8 @@ def imported_icons(class_name: str, na: dict, path: Path | None = None) -> set[s
 
 
 # The NA plays most of the Miri's skill effects through AE_CL_PLAY_CUSTOM_EFFECT <effect> <Dragon Knight
-# effect> (37 events: Blazing Spine, Slice and Dice, the Fiery smashes...); no 1.69 script uses that event
-# and none of those effects showed (C4 MI21). They become the 1.69's AE_CL_PLAY_EFFECT <effect>, the
-# untransformed one.
-CUSTOM_EFFECT = re.compile(rb'AE_CL_PLAY_CUSTOM_EFFECT([ \t]+)([^\s"]+)[ \t]+[^\s"]+')
-KNIGHT_EFFECT = re.compile(rb'AE_CL_PLAY_CUSTOM_EFFECT([ \t]+)[^\s"]+[ \t]+([^\s"]+)')
-
-
-# Sequences only the Dragon Knight plays (the transformation and the transformed skills) take the second,
-# Dragon Knight effect: its dark flames, where the first is the untransformed blue (C4 MI22). Their weapon
-# trails stay the Draker's (class_costumes TRAIL_HANDLES: no room for the Dragon Knight weapon's).
-KNIGHT_SEQUENCE = re.compile(r'sp4|_dragon($|_)|dragon_knight', re.I)
-
-
-def with_plain_effects(path: str, data: bytes) -> bytes:
-    if not (path.startswith('models/player/_anim/') and path.endswith('.txt')):
-        return data
-    knight = sorted(span for name, span in event_blocks(data).items() if KNIGHT_SEQUENCE.search(name))
-    out, at = [], 0
-    for start, end in knight:
-        out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:start]))
-        out.append(KNIGHT_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[start:end]))
-        at = end
-    out.append(CUSTOM_EFFECT.sub(rb'AE_CL_PLAY_EFFECT\1\2', data[at:]))
-    return b''.join(out)
+# effect> (37 events: Blazing Spine, Slice and Dice, the Fiery smashes...). They stay as they are: the
+# Miri's client FireEvent picks the path by her state (patch_class_routing.CUSTOM_EFFECT, M8i).
 
 
 # The NA spends the Dragon Knight transformation's SP at a frame of miri_SP4 (AE_CUSTOM_MOTION
@@ -540,7 +518,29 @@ def with_summoned_model(path: str, data: bytes, klass: str) -> bytes:
     data = SUMMON.sub(rb'AE_CREATE_ATTACKABLE_MODEL\g<1>' + model.replace(b'\\', b'\\\\') + b' '
                       + SUMMONED_SEQUENCE.encode() + b' 0.0', data)
     data = RETURN.sub(rb'AE_DELETE_ATTACKABLE_MODEL\g<1>' + model.replace(b'\\', b'\\\\') + b' 0.0', data)
+    data = with_summon_probe(data, model)
     return DRAGON_EFFECT.sub(b'', data)
+
+
+# Temporary diagnostic (M8i, C4 MI39): the dragon did not show in MI29/MI38 though the 1.69 server's
+# AE_CREATE_ATTACKABLE_MODEL (0x400fb91a, base HandleAnimEvent 0x400fb180, reached from CHeroesPlayer's
+# 0x405404b0) precaches and spawns any model. Next to each dragon a 1.69 model that the Delia's
+# transformation shows (the dark knight thorn, same event and frame) tells whether the event runs for the
+# Miri (thorns seen: the dragon model is at fault) or not (neither seen). Remove after MI39.
+SUMMON_PROBE = (b'models\\effects\\mesh\\effect_darkknight_thorn_01.mdl', b'effect_darkknight_thorn_anim', b'40.0')
+SUMMON_CREATE = rb'^([ \t]*)"(\d+)"([ \t]+)"AE_CREATE_ATTACKABLE_MODEL[ \t]+%s [^"\r\n]*"(\r?\n)'
+
+
+def with_summon_probe(data: bytes, model: bytes) -> bytes:
+    probe, sequence, forward = SUMMON_PROBE
+
+    def add(m: re.Match) -> bytes:
+        indent, newline = m.group(1), m.group(4)
+        return (m.group(0) + indent + b'"' + m.group(2) + b'"' + m.group(3) + b'"AE_CREATE_ATTACKABLE_MODEL\t' + probe
+                + b' ' + sequence + b' ' + forward + b'"' + newline + indent + b'"$endframe-1$"' + newline + indent
+                + b'{' + newline + indent + b'\t"event"\t"AE_DELETE_ATTACKABLE_MODEL\t' + probe + b' 0.0"' + newline
+                + indent + b'\t"is_finally"\t"1"' + newline + indent + b'}' + newline)
+    return re.sub(SUMMON_CREATE % re.escape(model), add, data, flags=re.M)
 
 
 # The dragon's eyes (M8b): the NA client puts a sprite (sprites/redglow1.vmt, scale 0.1, glow render mode,
@@ -696,7 +696,6 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = without_missing_includes(rel, data, lambda p: p in lab or (p in na and selected(p, names)))
         data = town_motion(rel, data, donor)
         data = pbs_as_armor(rel, data)
-        data = with_plain_effects(rel, data)
         data = with_sp_reduce(rel, data, sp_checks)
         data = without_sprint_stop(rel, data)
         data = with_summoned_model(rel, data, class_name)

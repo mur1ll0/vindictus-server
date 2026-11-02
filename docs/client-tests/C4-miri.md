@@ -469,3 +469,9 @@ Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.
 - [ ] Fiery Chainswing sem transformar → efeito azul simples, como antes do M8e.
 - [ ] Transformada, golpes fortes → sem o fogo vermelho; sem rastros pretos (como antes do M8e).
 Relatar: se algum *parry* travou o jogo (com o endereço do erro) e a cor dos efeitos.
+
+### MI39 — Fiery Chainswing pelo estado e sonda do dragão (M8i)
+Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.py --apply` e `patch_class_routing.py --apply` (feitos por mim; passo M8i). MI38: *parry* e E nos drops confirmados.
+- [ ] Fiery Chainswing **sem** transformar → efeito azul; transformada (Dragon Knight) → efeito vermelho. Repetir com outros golpes que mudavam de cor no NA (Blazing Spine, Slice and Dice, golpes fortes).
+- [ ] Call of the Dragon (SP5), olhando em volta da Miri durante o golpe: aparecem **espinhos escuros** saindo do chão à frente dela (os da transformação da Delia; sonda temporária)? E o dragão?
+Relatar: a cor de cada golpe nos dois estados; no SP5, se viu os espinhos, o dragão, os dois ou nenhum.
