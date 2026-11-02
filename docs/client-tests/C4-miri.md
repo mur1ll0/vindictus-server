@@ -548,3 +548,11 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Vestir na Miri o conjunto `비룡여걸 갑주 세트` (chinaplate) → peças desenhadas, sem a estrela de erro (o nome continua em coreano, como no conteúdo original).
 - [ ] Se tiver à mão, o hanbok 2014 numa classe feminina → sem estrela de erro.
 Relatar: as peças que ainda aparecerem como estrela (nome do item ou print do tooltip).
+
+### MG4 — Armaduras do NA sem a pele atravessando (passo MG4)
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo MG4). MG3 pendente (pode ser jogada junto).
+- [ ] Customização da Miri, botões de roupa de amostra 2 e 3 → a roupa cobre a pele (sem manchas de pele no tecido azul/rosa, nos braços e na cintura). Girar o modelo e trocar de pose.
+- [ ] Botões 4 e 5 → sem mudança (continuam certos).
+- [ ] Anotar se alguma peça ficou visivelmente "inchada" ou descolada do corpo (punhos, cintura, gola).
+- [ ] Na cidade, se tiver uma peça da Dragon Rise ou da Pythonshock, vestir e andar/correr → sem a pele atravessando.
+Relatar: cada botão, e a peça que ainda mostrar pele ou ficar descolada.

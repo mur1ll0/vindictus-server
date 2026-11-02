@@ -3247,3 +3247,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: entrada MG3 de `docs/client-tests/C4-miri.md`, pendente.
 - Commits: commit MG3 (este passo).
 - Pendente / próxima ação: análise da armadura × pele no Blender (MCP do operador); sessão MG3.
+
+## 2026-11-02 — MG4 / armaduras do NA atravessadas pela pele (Blender)
+- Feito: análise no Blender 5.1 do operador (MCP oficial na porta 9876, JSON terminado em `\0` com `type: "execute"`; *add-on* `vindictus` com kits de `model_kit.py` tirados dos pacotes da cópia). Renders em repouso: a pele da Miri e a da Fiona do 1.69 atravessam a `pytonshock` e as mangas da `dragon_rises`; a summercasual do 1.69 cobre. Causa: geometria das peças do NA. `stage_na_class.inflated_armor`: vértices dos `.vvd` das peças de corpo do NA em `models/armor/` deslocados 0,3 ao longo da normal (no render, 0,3 cobriu a pele nas duas armaduras).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` 38 OK (`.cache/verification/miri-grid/mg4-tests.log`); preparação e aplicação com o jogo fechado, 15 pacotes de classe construídos (`mg4-stage.log`, `mg4-apply.log`), 108 dos 128 `.vvd` de armadura do NA alterados (inclusive `pytonshock_upper` e `dragon_rises_upper`).
+- Cliente: entrada MG4 de `docs/client-tests/C4-miri.md`, pendente.
+- Commits: commit MG4 (este passo).
+- Pendente / próxima ação: recurso de correção de malha no *add-on* do Blender (pedido do operador); sessões MG3/MG4.

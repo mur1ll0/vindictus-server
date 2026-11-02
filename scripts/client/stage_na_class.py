@@ -385,6 +385,33 @@ ARMOR_PARAMS = ('$bumpmap', '$envmap', '$envmapcontrast', '$envmaptint', '$norma
 VMT_PARAM = re.compile(r'^\s*"(\$[A-Za-z0-9_]+)"\s+("[^"]*"|\S+)', re.M)
 
 
+# The NA's body armour pieces sit partly inside the body they cover: in the bind pose, with the Miri's or the
+# 1.69 Fiona's skin, the skin shows through the pytonshock suit and the Dragon Rise sleeves (Blender render of the
+# kits, C4 MG3), and the client draws it so (sample outfits 2 and 3; the 1.69's own armour does not). Moving the
+# vertices of those pieces ARMOR_INFLATE along their normals covered the skin in the same render. Only the NA
+# copies under models/armor/ change (the 1.69's own armour keeps its files); heads and weapons stay as they are.
+ARMOR_INFLATE = 0.3
+ARMOR_PIECES = ('_upper', '_lower', '_onepiece', '_hand', '_foot', '_body')
+VVD_VERTEX = 48  # bone weights 16, position 12, normal 12, texture coordinates 8
+
+
+def inflated_armor(path: str, data: bytes, offset: float = ARMOR_INFLATE) -> bytes:
+    """A .vvd of an armour body piece with every vertex moved `offset` along its normal."""
+    name = path.rsplit('/', 1)[-1]
+    if not (path.startswith('models/armor/') and name.endswith('.vvd') and data[:4] == b'IDSV'
+            and any(piece in name for piece in ARMOR_PIECES)):
+        return data
+    count = struct.unpack_from('<i', data, 16)[0]
+    start = struct.unpack_from('<i', data, 56)[0]
+    if count <= 0 or start + count * VVD_VERTEX > len(data):
+        return data
+    out = bytearray(data)
+    for k in range(count):
+        at = start + k * VVD_VERTEX
+        x, y, z, nx, ny, nz = struct.unpack_from('<6f', out, at + 16)
+        struct.pack_into('<3f', out, at + 16, x + nx * offset, y + ny * offset, z + nz * offset)
+    return bytes(out)
+
 def pbs_as_armor(path: str, data: bytes) -> bytes:
     """A material of a PBS shader as Heroes_Armor; any other data unchanged."""
     if not path.endswith('.vmt'):
@@ -831,6 +858,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = without_missing_includes(rel, data, lambda p: p in lab or (p in na and selected(p, names)))
         data = town_motion(rel, data, donor)
         data = pbs_as_armor(rel, data)
+        data = inflated_armor(rel, data)
         data = with_sp_reduce(rel, data, sp_checks)
         data = without_sprint_stop(rel, data)
         data = with_summoned_model(rel, data, class_name)

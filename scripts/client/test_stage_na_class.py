@@ -379,6 +379,26 @@ class StageTest(unittest.TestCase):
                          {'models/armor/_chn/chinaplate/pc_female_chinaplate_upper.mdl'})
         self.assertEqual(stage.inherited_costumes(costume, Path(self.temp.name) / 'missing.db3'), set())
 
+    def test_na_armour_body_pieces_move_out_along_their_normals(self):
+        def vvd(vertices):
+            header = bytearray(64)
+            header[:8] = b'IDSV' + struct.pack('<i', 4)
+            struct.pack_into('<i', header, 16, len(vertices))
+            struct.pack_into('<i', header, 56, 64)
+            body = b''.join(bytes(16) + struct.pack('<6f', *p, *n) + bytes(8) for p, n in vertices)
+            return bytes(header) + body
+        data = vvd([((1.0, 2.0, 3.0), (0.0, 0.0, 1.0)), ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))])
+        out = stage.inflated_armor('models/armor/pytonshock/pc_female_pytonshock_upper.vvd', data)
+        first = struct.unpack_from('<6f', out, 64 + 16)
+        second = struct.unpack_from('<6f', out, 64 + 48 + 16)
+        self.assertAlmostEqual(first[2], 3.0 + stage.ARMOR_INFLATE, places=5)
+        self.assertAlmostEqual(second[0], stage.ARMOR_INFLATE, places=5)
+        self.assertEqual(first[3:], (0.0, 0.0, 1.0))  # normals stay
+        self.assertEqual(len(out), len(data))
+        for other in ('models/armor/pytonshock/pc_female_pytonshock_head.vvd', 'models/player/miri/miri_inner_x.vvd',
+                      'models/armor/pytonshock/pc_female_pytonshock_upper.mdl'):
+            self.assertEqual(stage.inflated_armor(other, data), data)
+
     def test_imported_item_icons_are_staged(self):
         import sqlite3
         db_path = Path(self.temp.name) / 'miri.db3'
