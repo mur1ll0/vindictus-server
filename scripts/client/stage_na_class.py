@@ -694,12 +694,33 @@ def imported_costumes(class_name: str, costume_script: bytes, path: Path | None 
                 continue
             for key in ('normal', 'broken'):
                 model = values.get(key, '').replace(chr(92), '/').lower()
-                if model.endswith('.mdl'):
+                # a hair entry names a model prefix: the client draws prefix + NN.mdl, one per helmet cut
+                # (01, 02, 03, 04, 08, 09, 10); costume_prefix_models expands it
+                if model.endswith('.mdl') or (model.startswith('models/') and model.endswith('_')):
                     models.add(model)
             onepiece = values.get('onepiece', '').split(';')[0].strip()
             if onepiece in entries:
                 wanted.append(onepiece)
     return models
+
+
+def costume_prefix_models(models: set[str], files) -> set[str]:
+    """The models of the prefix entries of `models` (imported_costumes) among `files` (game paths): prefix +
+    digits + .mdl. The Miri's hairs reuse the Fiona's and Vella's hair models under their numbers, which name
+    neither the class nor a .mdl: neither the entries nor the models came, and 23 hairs drew nothing and five
+    an error model (C4 MG1)."""
+    prefixes: dict[str, list[str]] = {}
+    for model in models:
+        if model.endswith('_'):
+            folder, stem = model.rsplit('/', 1)
+            prefixes.setdefault(folder, []).append(stem)
+    out = set()
+    for path in files:
+        folder, _, name = path.rpartition('/')
+        for stem in prefixes.get(folder, ()):
+            if name.startswith(stem) and name.endswith('.mdl') and name[len(stem):-4].isdigit():
+                out.add(path)
+    return out
 
 
 def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
@@ -716,6 +737,16 @@ def dependencies(path: str, data: bytes, known=lambda p: False) -> list[str]:
             paths = ['materials/' + (folder + texture).replace('\\', '/').lower().strip('/') + '.vmt' for folder in folders]
             wanted.append(next((p for p in paths if known(p)), paths[0] if paths else None))
         return [w for w in wanted if w] + [m if m.startswith('models/') else 'models/' + m for m in include_models(data)] + companions
+    if path.endswith('.txt') and path.startswith(('models/', 'scripts/')):
+        # models a class script names (AE_ATTACH_ENTITY models/effects/mesh/cheer_pom.mdl of the Miri's cheering
+        # emote, named after no class: the emote showed the error model, C4 MG1)
+        return sorted({name.decode('latin-1').replace(chr(92), '/').lower()
+                       for name in re.findall(rb'models[\\/][A-Za-z0-9_\\/.\-]+?\.mdl', data, re.IGNORECASE)})
+    if path.endswith('.bsh'):
+        # the body shape controls' figures; the Miri's Waist 2 and Shoulders 2 use NA figures named after no
+        # class (csf/bodyshape_spine2_thin.fig, bodyshape_neck_thin.fig) and moved nothing (C4 MG1)
+        return [name.decode('latin-1').replace(chr(92), '/').lower()
+                for name in re.findall(rb'"filename(?:Left|Right)Side"\s+"([^"]+)"', data, re.IGNORECASE)]
     if path.endswith('.efx'):
         wanted = []
         for key, value in EFX_REFERENCE.findall(data):
@@ -746,7 +777,7 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                    | {p for p in NATIVE_ASSETS.get(weapon, ()) if p in na and p not in lab}
                    | {p for p in imported_icons(class_name, na) if p not in lab})
     costume_models = imported_costumes(class_name, na[COSTUME_SCRIPT].read_bytes()) if COSTUME_SCRIPT in na else set()
-    queue = sorted(set(queue) | {m for m in costume_models if m in na and m not in lab})
+    queue = sorted(set(queue) | {m for m in costume_models | costume_prefix_models(costume_models, na) if m in na and m not in lab})
     csf_without_weapon = {c.format(klass=class_name) for c in CSF_WITHOUT_WEAPON}
     sp_states = SP_REDUCE_STATES.format(klass=class_name)
     sp_checks = state_sp_checks(na[sp_states].read_bytes()) if sp_states in na else {}

@@ -530,3 +530,15 @@ Pré-condição: com o jogo fechado, o `cfg/config_delia_ex.cfg` foi guardado co
 - [ ] Opções → Teclas: as teclas aparecem como as da Fiona (preset "mouse").
 - [ ] Sair do jogo normalmente (o jogo grava o arquivo novo).
 Relatar: o que cada tecla fez. Eu decifro o arquivo novo e comparo com o das classes antigas.
+
+### MG2 — Correções da grade e da customização da Miri (passo MG2)
+Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.py --apply` e `refresh_item_content.py --force` (feitos por mim; passo MG2). DLLs sem mudança. MG1: criação até a cidade ok.
+- [ ] Grade → Miri: o vídeo toca **sem** o texto `video/createcharacter/...` por cima.
+- [ ] Customização da Miri, aba de cabelo: os 6 cabelos grátis aparecem **primeiro**; os pagos depois e **não** podem ser escolhidos na criação (como nas outras classes). Anotar se algum pago ainda puder ser escolhido.
+- [ ] Passar pelos cabelos citados (Laura's Bob Cut, Voluminous Ponytail, Pinned Bangs, Side Ponytail, Belly Dancer Ponytail) e outros → nenhum careca nem com objeto de erro. Anotar os que falharem.
+- [ ] *Body type*: Height muda a altura; os controles abaixo de Waist e de Shoulders se chamam **Waist 2** e **Shoulders 2** e mudam o corpo; Bust disponível; "Basic shape" volta ao padrão.
+- [ ] Armadura × pele (diagnóstico): botões de roupa de amostra 2, 3, 4 e 5 → anotar em quais a pele atravessa a armadura (2/3 usam armaduras importadas do NA; 4/5 usam armaduras do próprio 1.69). Mover os controles de corpo (gordo/magro, braço) e anotar se o atravessamento muda.
+- [ ] Na cidade/barco, emote de torcida (o do F8 antes da fase) → pompons de verdade, sem objeto de erro.
+- [ ] Numa fase, Parrying Attack com Hydra → o nome aparece "Hydra" (não `Heroes_status_name_resound`); passar o mouse nos ícones de estado da Miri (Wyvern Magic etc.) → nomes e descrições em inglês.
+- [ ] Luz de fogueira (comparação com o original): 02a (missões `quest_kobold_frisky`/`quest_kobold_gloomy`), quebrar a fogueira perto de (-1166, 1486) → a luz apaga; 02d (`quest_kobold_hard`/`quest_kobold_frisky_brother`), fogueira perto de (-7596, -622) → a luz continua (assada no mapa, igual ao original). Anotar o mapa e o objeto se uma luz que deveria apagar continuar.
+Relatar: cada item, com o nome do cabelo/amostra que falhar.

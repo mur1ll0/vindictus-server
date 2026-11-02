@@ -303,12 +303,24 @@ def class_text(classes: Path = CLASS_ASSETS, imports: list[Path] | None = None) 
     the id of an imported item or skill (HEROES_ITEM_NAME_<ITEM>, HEROES_SKILL_DESC_<SKILL>...)."""
     tokens: dict[str, str] = {}
     ids: set[str] = set()
+    # keys an imported row names in a *LocalizedText column (StatusEffectGroupInfo Heroes_Status_Name_resound_1,
+    # Heroes_Status_Desc_dragon_trace_3...), which neither name the class nor end in an id (C4 MG1: the Miri's
+    # Hydra showed as its token); a status also gets its level-less name (HEROES_STATUS_NAME_<TYPE>, the
+    # level-1 text), the token that showed over her
+    named: dict[str, str] = {}
     for path in imports or []:
         with closing(sqlite3.connect(f'file:{path}?mode=ro', uri=True)) as imported:
             for table, column in (('ItemClassInfo', 'ItemClass'), ('SkillInfo', 'SkillID'), ('SetItemInfo', 'SetID')):
                 # SetItemInfo: HEROES_ITEM_SETITEM_NAME_<set> (C4 MI21: the set name showed as its token)
                 if imported.execute("SELECT 1 FROM sqlite_master WHERE name=?", (table,)).fetchone():
                     ids |= {str(r[0]).upper() for r in imported.execute(f'SELECT [{column}] FROM [{table}]')}
+            for (table,) in imported.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+                for text in (c for c in columns(imported, table) if c.endswith('LocalizedText')):
+                    for (key,) in imported.execute(f'SELECT DISTINCT [{text}] FROM [{table}] WHERE [{text}] IS NOT NULL'):
+                        named[str(key).upper()] = str(key).upper()
+                        level = re.fullmatch(r'(HEROES_STATUS_NAME_.+)_1', str(key).upper())
+                        if level:
+                            named[level.group(1)] = str(key).upper()
     for manifest in sorted(classes.glob('*/class-assets.json')):
         data = json.loads(manifest.read_text(encoding='utf-8'))
         if not data.get('text'):
@@ -316,14 +328,21 @@ def class_text(classes: Path = CLASS_ASSETS, imports: list[Path] | None = None) 
         needles = (str(data.get('class', '')).lower(), str(data.get('weapon', '')).lower())
         if not all(re.fullmatch(r'[a-z]{2,16}', n) for n in needles):
             raise ImportError_(f'Bad class names in {manifest}.')
+        # the body shape controls of the class's own .bsh (Waist 2, Shoulders 2 of the Miri, C4 MG1)
+        for bsh in sorted((manifest.parent / 'csf').glob('*.bsh')):
+            for key in re.findall(rb'"localizedText"\s+"([^"]+)"', bsh.read_bytes(), re.IGNORECASE):
+                named.setdefault(key.decode('latin-1').upper(), key.decode('latin-1').upper())
         file = (manifest.parent / 'merge' / 'text' / 'heroes_text_english.txt').resolve()
         if not file.is_relative_to(manifest.parent.resolve()) or not file.is_file():
             raise ImportError_(f'Missing staged text of {manifest.parent.name}.')
         for key, value in TOKEN_LINE.findall(file.read_bytes().decode('utf-16')):
             upper = key.upper()
-            if any(n in key.lower() for n in needles) or any(
+            if any(n in key.lower() for n in needles) or upper in named or any(
                     upper[i + 1:] in ids for i, c in enumerate(upper) if c == '_'):
                 tokens.setdefault(key, value)
+            for alias, source in named.items():
+                if source == upper and alias != upper:
+                    tokens.setdefault(alias, value)
     for key, value in set_tokens(imports or []).items():
         tokens.setdefault(key, value)
     return tokens
@@ -503,8 +522,28 @@ def converted(db: sqlite3.Connection, imported: sqlite3.Connection, table: str, 
                     out[column] = template[target.index(column)]
                 elif out[column] is None:
                     out[column] = values.get(column.replace('EN-EU', 'EN-US'))
-        rows.append(tuple(out[c] for c in target))
-    return target, rows
+        rows.append(out)
+    return target, [tuple(out[c] for c in target) for out in customize_rows(table, rows)]
+
+
+def customize_rows(table: str, rows: list[dict]) -> list[dict]:
+    """The imported customization rows as the 1.69 creation screen lists them (C4 MG1). Prices: the NA marks
+    events with negative prices (-202102) under the class's own feature, which the lab turns on; the EU rows
+    of the 1.69 have none, and with them every cash hair of the Miri could be chosen at creation. Order: the
+    client lists a category by [Order], and the NA numbers a class's free items 99994-99999, after its cash
+    ones; the free ones take the first numbers (1..n, as the Delia's), before the cash ones."""
+    if table == 'CustomizePriceInfo':
+        return [r for r in rows if not (isinstance(r.get('Price'), int) and r['Price'] < 0)]
+    if table != 'CustomizeItemInfo':
+        return rows
+    free: dict[tuple, list[dict]] = {}
+    for r in rows:
+        if r.get('IsCash') in ('False', 0):
+            free.setdefault((r.get('Category'), r.get('CashShopType')), []).append(r)
+    for group in free.values():
+        for order, r in enumerate(sorted(group, key=lambda r: (r.get('Order') or 0, r.get('ItemClass') or '')), 1):
+            r['Order'] = order
+    return rows
 
 
 def costume_remap_for(imported: sqlite3.Connection, info: dict, remap: dict) -> dict:

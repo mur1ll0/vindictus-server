@@ -394,6 +394,7 @@ class As2:
     anonymous DefineFunction2 (no super, arguments or this; parameters in registers 1..n)."""
     GET_VARIABLE, SET_VARIABLE, GET_MEMBER, SET_MEMBER, CALL_FUNCTION = 0x1C, 0x1D, 0x4E, 0x4F, 0x3D
     POP, NOT, STRICT_EQUALS, IF, PUSH, DEFINE_FUNCTION2 = 0x17, 0x12, 0x66, 0x9D, 0x96, 0x8E
+    RETURN, STORE_REGISTER = 0x3E, 0x87
     SUPPRESS = 0x2A  # SuppressSuper | SuppressArguments | SuppressThis (the 1.69 movie's own functions)
 
     def __init__(self) -> None:
@@ -421,6 +422,11 @@ class As2:
         self.code += bytes((self.PUSH,)) + struct.pack('<H', len(body)) + body
         return self
 
+    def store(self, register: int) -> 'As2':
+        """Copy the top of the stack into a register (the value stays on the stack)."""
+        self.code += bytes((self.STORE_REGISTER,)) + b'\x01\x00' + bytes((register,))
+        return self
+
     def path(self, *names: str) -> 'As2':
         """Push the value of names[0].names[1]...."""
         self.push(names[0]).op(self.GET_VARIABLE)
@@ -442,10 +448,10 @@ class As2:
         self.labels[name] = len(self.code)
         return self
 
-    def function(self, params: tuple[str, ...], body: 'As2') -> 'As2':
-        """Push an anonymous function whose parameters are registers 1..n."""
+    def function(self, params: tuple[str, ...], body: 'As2', registers: int = 0) -> 'As2':
+        """Push an anonymous function whose parameters are registers 1..n (`registers` more after them)."""
         code = body.assemble()
-        head = b'\0' + struct.pack('<HBBB', len(params), len(params) + 1, self.SUPPRESS, 0)
+        head = b'\0' + struct.pack('<HBBB', len(params), len(params) + 1 + registers, self.SUPPRESS, 0)
         head += b''.join(bytes((k,)) + p.encode('latin-1') + b'\0' for k, p in enumerate(params, 1))
         head += struct.pack('<H', len(code))
         self.code += bytes((self.DEFINE_FUNCTION2,)) + struct.pack('<H', len(head)) + head + code
@@ -482,6 +488,9 @@ def grid_class_actions(label: str, index: int, donor: str, weapon: str, skill_mo
     a.path('_hc_video').push('_visible', False).op(As2.SET_MEMBER)
     a.call('addCharacterInfo', label)
     a.path('_hc_video', 'Text_Comment').push('htmlText', comment_key).op(As2.GET_VARIABLE).op(As2.SET_MEMBER)
+    # the intro video's path is kept in a text field over the video; onLoad hides it class by class, by name
+    # (C4 MG1: "video/createcharacter/_eneu_" showed over the Miri's video)
+    a.path('_hc_video', 'Text_CharacterPreviewUsm').push('_visible', False).op(As2.SET_MEMBER)
     for n, path in enumerate(skill_movies, 1):
         a.path('_hc_video', f'Text_SkillPreviewUsm{n}').push('text', path).op(As2.SET_MEMBER)
     for function, holder, title, kind in (('showRolloverPanel', 'MC_TopName', 'Title_Text', 'Summary_Text'),
@@ -495,4 +504,40 @@ def grid_class_actions(label: str, index: int, donor: str, weapon: str, skill_mo
         body.path('baseMC', holder, kind).push('text', weapon_key).op(As2.GET_VARIABLE).op(As2.SET_MEMBER)
         body.label('end')
         a.push(function).function(('posX', 'posY', 'charType'), body).op(As2.SET_VARIABLE)
+    return a.assemble()
+
+
+# The customization (scaleform/CreateCharacterDialog.gfx) sets the Height and Bust sliders of a class in four
+# switches over the class number 0-10 (GetBodyShapeDefaultValue_Height/_Bust, BodyShapeCommon_loadBodyShapeDefault
+# and loadDefaultValues, which also keeps the class in g_selectedCharacter); any other class gets the 97-103
+# height of the classes of natural height 100 and no bust. The server scales the figure by height * 100 / the
+# class's natural height (slot 414: Delia and Miri 92) and the client keeps the scale within the class's
+# constants (Miri 0.865-0.945), so the Miri's height stayed at the top whatever the slider said (C4 MG1). The
+# wrappers call the originals with the donor class in place of the class (the donor's ranges and defaults) and
+# put the class back in g_selectedCharacter.
+CLASS_SLIDER_FUNCTIONS = (('GetBodyShapeDefaultValue_Height', ('character',)),
+                          ('GetBodyShapeDefaultValue_Bust', ('character',)),
+                          ('BodyShapeCommon_loadBodyShapeDefault', ('character', 'height', 'bust')),
+                          ('loadDefaultValues', ('character', 'isBodyShapeMode')))
+SELECTED_CLASS = 'g_selectedCharacter'
+
+
+def class_alias_actions(index: int, donor: int, functions=CLASS_SLIDER_FUNCTIONS) -> bytes:
+    """AS2 wrapping each function(class, ...) so that class `index` runs as `donor`, its result returned and
+    g_selectedCharacter left at `index`."""
+    a = As2()
+    for function, params in functions:
+        original, saved = f'_hc_{function}', len(params) + 1
+        body = As2()
+        body.push(Reg(1)).store(saved).op(As2.POP)
+        body.push(Reg(1), index).op(As2.STRICT_EQUALS).if_not('call')
+        body.push(donor).store(1).op(As2.POP)
+        body.label('call')
+        body.push(*(Reg(k) for k in range(len(params), 0, -1)), len(params), original).op(As2.CALL_FUNCTION)
+        body.push(Reg(saved), index).op(As2.STRICT_EQUALS).if_not('end')
+        body.push(SELECTED_CLASS, index).op(As2.SET_VARIABLE)
+        body.label('end')
+        body.op(As2.RETURN)
+        a.push(original).path(function).op(As2.SET_VARIABLE)
+        a.push(function).function(params, body, registers=1).op(As2.SET_VARIABLE)
     return a.assemble()

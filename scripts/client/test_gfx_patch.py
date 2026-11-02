@@ -143,6 +143,7 @@ class GridTest(unittest.TestCase):
         self.assertTrue(code.startswith(g.As2().path('characterTypeArray').push(11, 'Miri').op(g.As2.SET_MEMBER).assemble()))
         for text in (b'GameUI_Heroes_NewCharacterDialog_Type_Comment_Miri', b'Heroes_Item_Equip_Class_Name_DRAKER',
                      b'MC_Button_Miri', b'MC_Button_Delia', b'onRollOver', b'addCharacterInfo', b'Text_SkillPreviewUsm1',
+                     b'Text_CharacterPreviewUsm',
                      b'video/skill/skill_miri_sp5.usm', b'_hc_showRolloverPanel', b'_hc_showCharacterSummary'):
             self.assertIn(text + b'\0', code)
         with self.assertRaises(g.GfxError):
@@ -159,6 +160,20 @@ class GridTest(unittest.TestCase):
         self.assertEqual(function[3:9], b'\0' + struct.pack('<HBBB', 3, 4, 0x2A, 0))
         self.assertEqual(struct.unpack_from('<H', function, 3 + head - 2)[0], len(code))
         self.assertEqual(function[3 + head:], code)
+
+    def test_the_class_runs_the_slider_functions_as_the_donor(self):
+        code = g.class_alias_actions(11, 10)
+        for function, params in g.CLASS_SLIDER_FUNCTIONS:
+            self.assertIn(f'_hc_{function}'.encode() + b'\0', code)
+        # one wrapper: save the class (r2), swap 11 for 10, call, put g_selectedCharacter back, return the result
+        one = g.class_alias_actions(11, 10, g.CLASS_SLIDER_FUNCTIONS[:1])
+        head = one.index(bytes((g.As2.DEFINE_FUNCTION2,)))
+        self.assertEqual(one[head + 3:head + 9], b'\0' + struct.pack('<HBBB', 1, 3, 0x2A, 0))
+        body = one[head + 3 + struct.unpack_from('<H', one, head + 1)[0]:]
+        self.assertTrue(body.startswith(g.As2().push(g.Reg(1)).store(2).op(g.As2.POP).assemble()))
+        self.assertIn(g.As2().push(10).store(1).op(g.As2.POP).assemble(), body)
+        self.assertIn(g.As2().push('g_selectedCharacter', 11).op(g.As2.SET_VARIABLE).assemble(), body)
+        self.assertIn(bytes((g.As2.RETURN,)), body)
 
 
 if __name__ == '__main__':

@@ -251,7 +251,8 @@ def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]
             needles = tuple(str(n) for n in record.get('needles', []))
             file = (root / 'merge' / path).resolve()
             if (not GAME_PATH.match(path) or '..' in path.split('/') or not needles
-                    or not all(re.fullmatch(r'[a-z]{2,16}|[a-z0-9_./-]{4,160}\.mdl', n) for n in needles)
+                    # class names, costume models and hair model prefixes (stage_na_class.imported_costumes)
+                    or not all(re.fullmatch(r'[a-z]{2,16}|[a-z0-9_./-]{4,160}(\.mdl|_)', n) for n in needles)
                     or not file.is_relative_to(root) or not file.is_file()):
                 raise PreparationError(f'Bad class merge entry in {manifest}.')
             merges.append((path, file, needles))
@@ -369,6 +370,44 @@ def grid_dialog_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
 
 def creation_scene_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
     return bsp_entities.with_creation_actors(data, GRID_DONOR.lower(), tuple(c[0].lower() for c in classes))
+
+
+# Loose 1.69 files of the copy (read before the packs, docs/future/delia-class-port.md 2.4) a class needs
+# changed: the customization movie, where the class takes the donor's Height and Bust sliders
+# (gfx_patch.class_alias_actions; C4 MG1). The first change keeps the file as <file>.<sha16>.pre-classes.bak.
+CUSTOMIZATION_DIALOG = 'scaleform/CreateCharacterDialog.gfx'
+CUSTOMIZATION_ANCHOR = 'BodyShapeCommon_loadBodyShapeDefault'
+SLIDER_DONOR = 10  # the Delia: natural height 92 in the server, as the Miri (patch_class_routing server_constants)
+
+
+def customization_dialog_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
+    out = data
+    for label, index, *_ in classes:
+        code = gfx_patch.class_alias_actions(index, SLIDER_DONOR)
+        out = gfx_patch.with_root_actions(out, CUSTOMIZATION_ANCHOR, code) or out
+    return None if out == data else out
+
+
+LOOSE_FIXES = {CUSTOMIZATION_DIALOG: customization_dialog_with_classes}
+
+
+def apply_loose_fixes(client_copy: Path, apply_changes: bool, fixes: dict = LOOSE_FIXES) -> list[str]:
+    changed = []
+    for path, fix in fixes.items():
+        target = client_copy / path
+        if not target.is_file():
+            continue
+        data = target.read_bytes()
+        out = fix(data)
+        if out is None:
+            continue
+        changed.append(path)
+        if apply_changes:
+            backup = target.with_name(f'{target.name}.{hashlib.sha256(data).hexdigest()[:16]}.pre-classes.bak')
+            if not backup.exists():
+                backup.write_bytes(data)
+            target.write_bytes(out)
+    return changed
 
 
 ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
@@ -683,6 +722,8 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
                 db.executemany('INSERT INTO ShopInfo(' + ','.join('[%s]' % c for c in SHOP_COLUMNS) + ') VALUES(' +
                                ','.join('?' * len(SHOP_COLUMNS)) + ')', [tuple(r[c] for c in SHOP_COLUMNS) for r in target])
             plan['backup'] = str(backup)
+    if imports:
+        plan['loose_fixes'] = apply_loose_fixes(client_copy, apply_changes)
     keystream = client_copy / 'hfs-keystream.bin' if keystream is None else keystream
     plan.update(apply_hfs(client_copy, items, keystream, apply_changes, overrides=overrides))
     return plan

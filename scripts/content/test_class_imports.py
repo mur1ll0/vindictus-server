@@ -280,6 +280,18 @@ class ClassImportsTest(unittest.TestCase):
                          {'HEROES_SKILL_NAME_skill_miri_xe_move': 'XE Move',
                           'GAMEUI_HEROES_DESC_skill_miri_xe_move_F_EX': 'Increases damage by 10%.'})
 
+    def test_free_customizations_come_first_and_event_prices_leave(self):
+        rows = [{'Category': 'HAIR', 'Order': 758, 'ItemClass': 'miri_hair_girlish', 'IsCash': 'True', 'CashShopType': 'en-EU'},
+                {'Category': 'HAIR', 'Order': 99999, 'ItemClass': 'miri_hair_jandi', 'IsCash': 'False', 'CashShopType': 'en-EU'},
+                {'Category': 'HAIR', 'Order': 99995, 'ItemClass': 'miri_hair_afro', 'IsCash': 'False', 'CashShopType': 'en-EU'},
+                {'Category': 'HAIR', 'Order': 99997, 'ItemClass': 'miri_hair_jandi', 'IsCash': 'False', 'CashShopType': 'zh-CN'}]
+        out = class_imports.customize_rows('CustomizeItemInfo', rows)
+        self.assertEqual([(r['ItemClass'], r['Order']) for r in out],
+                         [('miri_hair_girlish', 758), ('miri_hair_jandi', 2), ('miri_hair_afro', 1), ('miri_hair_jandi', 1)])
+        prices = [{'ItemClass': 'miri_hair_girlish', 'Price': p} for p in (1590, 4300, -202102)]
+        self.assertEqual([r['Price'] for r in class_imports.customize_rows('CustomizePriceInfo', prices)], [1590, 4300])
+        self.assertEqual(class_imports.customize_rows('ItemClassInfo', prices), prices)
+
     def test_bad_arguments_are_refused(self):
         with self.assertRaises(class_imports.ImportError_):
             class_imports.build('Miri', 'draker', 11, 10, self.na, self.base, self.out)

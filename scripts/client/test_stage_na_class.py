@@ -333,6 +333,31 @@ class StageTest(unittest.TestCase):
                          {'models/armor/dragon_rises/pc_female_dragon_rises_head.mdl', 'models/armor/dr/upper.mdl',
                           'models/armor/dr/onepiece.mdl'})
 
+    def test_hair_prefix_entries_bring_every_helmet_cut(self):
+        import sqlite3
+        db_path = Path(self.temp.name) / 'miri.db3'
+        db = sqlite3.connect(db_path)
+        db.execute('CREATE TABLE ItemClassInfo (ItemClass TEXT, Category TEXT)')
+        db.execute('CREATE TABLE EquipItemInfo (ItemClass TEXT, EquipClass TEXT, CostumeType INT)')
+        db.execute("INSERT INTO EquipItemInfo VALUES ('miri_hair_laura', 'CUSTOMIZE', 3022)")
+        db.commit(); db.close()
+        costume = b'"hair"\r\n{\r\n\t"3022"\r\n\t{\r\n\t\t"normal"\t"models/player/fiona/pc_fiona_hair_laura_"\r\n\t}\r\n}\r\n'
+        models = stage.imported_costumes('miri', costume, db_path)
+        self.assertEqual(models, {'models/player/fiona/pc_fiona_hair_laura_'})
+        files = ['models/player/fiona/pc_fiona_hair_laura_01.mdl', 'models/player/fiona/pc_fiona_hair_laura_10.mdl',
+                 'models/player/fiona/pc_fiona_hair_laura_01.vvd', 'models/player/fiona/pc_fiona_hair_laura_x.mdl',
+                 'models/player/evy/pc_fiona_hair_laura_01.mdl']
+        self.assertEqual(stage.costume_prefix_models(models, files),
+                         {'models/player/fiona/pc_fiona_hair_laura_01.mdl', 'models/player/fiona/pc_fiona_hair_laura_10.mdl'})
+
+    def test_body_shapes_and_attached_models_are_dependencies(self):
+        bsh = (b'"BodyShapeElem_2"\r\n{\r\n\t"filenameLeftSide"\t\t"csf\\bodyshape_spine2_thin.fig"\r\n'
+               b'\t"filenameRightSide"\t\t"csf\\bodyshape_null.fig"\r\n}\r\n')
+        self.assertEqual(stage.dependencies('csf/default_miri.bsh', bsh), ['csf/bodyshape_spine2_thin.fig', 'csf/bodyshape_null.fig'])
+        motion = b'"emo_cheering"\r\n{\r\n\t"40"\t"AE_ATTACH_ENTITY\tmodels/effects/mesh/Cheer_Pom.mdl"\r\n}\r\n'
+        self.assertEqual(stage.dependencies('models/player/_anim/female/miri/pc_miri_motion.txt', motion),
+                         ['models/effects/mesh/cheer_pom.mdl'])
+
     def test_imported_item_icons_are_staged(self):
         import sqlite3
         db_path = Path(self.temp.name) / 'miri.db3'
