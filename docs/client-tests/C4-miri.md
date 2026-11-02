@@ -505,3 +505,10 @@ Pré-condição: com o jogo fechado, `patch_class_routing.py --apply` (passo M8m
 - [ ] Entrar de novo com a Miri numa fase → o HUD volta; entrar com a Delia → sem HUD.
 - [ ] SP5 com a sonda de memória ligada (eu ligo e aviso): usar Call of the Dragon numa fase e avisar quando terminar.
 Relatar: o HUD nas telas e quando o SP5 foi usado.
+
+### MI44 — Dragão do SP5 subindo com a Miri e Tab (M8n)
+Pré-condição: com o jogo fechado, `patch_class_routing.py --apply` (servidor) e o `config_miri_ex.cfg` da Delia no lugar do da Miri (feitos por mim; passo M8n). MI43: HUD some na seleção.
+- [ ] Call of the Dragon (SP5) → o dragão sobe junto com a Miri durante o voo e desce com ela; some no fim.
+- [ ] Tab (Fiery Evasion) parado, correndo e durante um ataque, com o dragão do HUD com nível → esquiva; Tab + direito → Fiery Assault.
+- [ ] Conferir as teclas da Miri em Opções: se alguma que você tinha mudado voltou ao padrão (a cópia antiga está em `config_miri_ex.cfg.pre-m8n.bak`).
+Relatar: o dragão no voo e se o Tab voltou.

@@ -508,6 +508,28 @@ class LabCopyTest(unittest.TestCase):
         dialog = int(next(t for t in code if t.startswith('push 0x')).split()[1], 16)
         self.assertEqual(routing.read_string(image, dialog), routing.FLAMEBREATH_DIALOG)
 
+    def test_the_miri_s_summoned_models_rise_with_her_bone(self):
+        image, report = self.plan('server.dll')
+        k = routing.SUMMON_FOLLOW['server.dll']
+        conditions = report['class_conditions']
+        tick = int(conditions['summon_follow'], 16)
+        body = int(conditions['classes'][routing.FLAMEBREATH_CLASS], 16)
+        think = self.text_at(image, body, 0x80)
+        self.assertIn(f'call {tick:#x}', think[:think.index('ret') + 1])
+        code = self.text_at(image, tick, 0xa0)
+        code = code[:code.index('ret') + 1]
+        bone = int(next(t for t in code if t.startswith('push 0x')).split()[1], 16)
+        self.assertEqual(routing.read_string(image, bone), routing.SUMMON_FOLLOW_BONE)
+        calls = [t for t in code if t.startswith('call ')]
+        self.assertEqual(calls, [f"call {k['lookup_bone']:#x}", f"call {k['bone_position']:#x}", f"call {k['set_abs_origin']:#x}"])
+        self.assertIn(f"cmp dword ptr [esi + {k['count']:#x}], 0", code)
+        self.assertIn(f"mov eax, dword ptr [esi + {k['list']:#x}]", code)
+        self.assertIn(f"mov ecx, dword ptr [{k['entities']:#x}]", code)
+        self.assertEqual(code[:5], ['push ebx', 'push esi', 'push edi', 'push ebp', 'mov esi, ecx'])
+        self.assertEqual(code[-5:], ['pop ebp', 'pop edi', 'pop esi', 'pop ebx', 'ret'])
+        self.assertEqual(code.count('sub esp, 0x18'), 1)
+        self.assertEqual(code.count('add esp, 0x18'), 1)
+
     def test_the_miri_s_summoned_models_follow_her(self):
         image, report = self.plan('server.dll')
         k = routing.SUMMON_PARENT['server.dll']
@@ -608,6 +630,8 @@ class LabCopyTest(unittest.TestCase):
             self.assertIn(f'jmp {base:#x}', head)
             text = [f'{x.mnemonic} {x.op_str}' for x in itertools.takewhile(
                 lambda x: x.mnemonic != 'int3', self.md.disasm(bytes(image.data[image.offset(body):image.offset(body) + 0x40]), body))]
+            # a string may follow the body without padding (SUMMON_FOLLOW_BONE): stop at its return
+            text = text[:next((i for i, t in enumerate(text) if t.strip() == 'ret'), len(text)) + 1]
             self.assertEqual(text[2], f'call {base:#x}')
             self.assertIn(f'push {purge:#x}', text)
             self.assertIn(f'call {raise_:#x}', text)

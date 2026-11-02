@@ -405,6 +405,17 @@ FLAMEBREATH_OUT_OF_GAME_STATES = (1, 2, 3, 4, 5, 7)
 # parent, -1, -1), vtable +0x94 (InputSetParent 0x4010cdc0 -> 0x40102070 -> [vtable+0x94]).
 SUMMON_PARENT = {'server.dll': {'site': 0x400F984E, 'handle': 0x4001C200, 'set_parent': 0x94}}
 SUMMON_PARENT_HEAD = '568d4c2440'  # push esi; lea ecx, [esp+0x40] before the call
+# The dragon rises with her (M8n, C4 MI43). Memory (server, the probe in r6): during miri_SP5_attack the
+# dragon's cycle follows hers and both origins stay on the ground (z 2.3); she rises in her bones only. The NA
+# client (0xaa4ea0, 0xaa5b00) looks up her bone ValveBiped.Anim_Attachment_GRAPPLING when she enters and,
+# every frame the dragon is out, puts the dragon at that bone's position with her angles. The 1.69 server
+# has the same bone and calls (the grappling's 0x40825200: LookupBone 0x400d3ca0, GetBonePosition 0x400d3cc0):
+# the Miri's think moves every model she summoned (SUMMON_PARENT's list +0xbe4, count +0xbf0, handles through
+# the entity list [0x40cb3740]) to that bone with SetAbsOrigin (0x4010ceb0); the parent keeps her angles.
+SUMMON_FOLLOW = {'server.dll': {'list': 0xBE4, 'count': 0xBF0, 'entities': 0x40CB3740, 'lookup_bone': 0x400D3CA0,
+                                'bone_position': 0x400D3CC0, 'set_abs_origin': 0x4010CEB0}}
+SUMMON_FOLLOW_HEADS = {'lookup_bone': '8b44240450e8', 'bone_position': '83ec30568bf1', 'set_abs_origin': '83ec3c56578b'}
+SUMMON_FOLLOW_BONE = 'ValveBiped.Anim_Attachment_GRAPPLING'
 # Per-frame class conditions (plan 8.15 item 2). NA server 0x6e4d30 (slot 517 = 1.69 460) raises
 # As_Cond_Can_Armor_Purge (SP5's gate) while armour is equipped in slots 4-8 and the purge is not
 # blocked, and As_Cond_Delia_SPSkill3_Activated while skill_delia_sp3 is off cooldown (SP1/SP3
@@ -1773,6 +1784,51 @@ def summon_parent(image: Image, layout: Layout, edits: list, name: str) -> dict:
     return {'site': hex(site), 'thunk': hex(thunk)}
 
 
+def summon_follow(image: Image, layout: Layout, name: str) -> int:
+    """SUMMON_FOLLOW: a think tick (ecx = player) that puts her summoned models at SUMMON_FOLLOW_BONE."""
+    k = SUMMON_FOLLOW[name]
+    for key, head in SUMMON_FOLLOW_HEADS.items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    L = layout
+    bone = L.string(SUMMON_FOLLOW_BONE)
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def d32(value: int) -> str:
+        return struct.pack('<I', value).hex()
+
+    L.pad()
+    tick = L.here()
+    b('53 56 57 55 8bf1')  # push ebx/esi/edi/ebp; mov esi, ecx (the player)
+    b('83be' + d32(k['count']) + '00'); none = L.forward(bytes.fromhex('0f8e'))  # cmp [esi+count], 0; jle
+    b('83ec18 68'); L.pointer(bone)  # sub esp, 0x18 (origin, angles); push bone name
+    b('8bce'); L.to(b'\xe8', k['lookup_bone'])  # eax = LookupBone(name)
+    b('85c0'); missing = L.forward(bytes.fromhex('0f8c'))
+    b('8d4c240c 51 8d542404 52 50 8bce')  # push &angles, &origin, bone; mov ecx, esi
+    L.to(b'\xe8', k['bone_position'])
+    b('33ff')  # edi = 0
+    loop = L.here()
+    b('3bbe' + d32(k['count'])); done = L.forward(bytes.fromhex('0f8d'))  # cmp edi, [esi+count]; jge
+    b('8b86' + d32(k['list']) + ' 8b04b8')  # eax = list[edi]
+    b('83f8ff'); gone0 = L.forward(bytes.fromhex('0f84'))
+    b('8bd0 81e2ff3f0000 c1e204 8b0d'); L.pointer(k['entities'])  # edx = (handle & 0x3fff) << 4; ecx = entities
+    b('8d4c1104 c1e80e 394104'); gone1 = L.forward(bytes.fromhex('0f85'))  # entry; serial check
+    b('8b09 85c9'); gone2 = L.forward(bytes.fromhex('0f84'))  # ecx = entity
+    b('8d0424 50'); L.to(b'\xe8', k['set_abs_origin'])  # SetAbsOrigin(&origin)
+    for j in (gone0, gone1, gone2):
+        L.land(j)
+    b('47'); L.to(b'\xe9', loop)
+    L.land(done)
+    L.land(missing)
+    b('83c418')
+    L.land(none)
+    b('5d 5f 5e 5b c3')
+    return tick
+
+
 def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
                  damage_slot: int, copy: int, unguardable: int, unguardable_info: int, raise_: int, test: int,
                  lower: int, allocator: int) -> dict:
@@ -2891,6 +2947,9 @@ def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int]
             continue
         ticks = (int(flame['tick'], 16),) if flame is not None and index == FLAMEBREATH_CLASS else ()
         ticks += (chain_tick,) if chain_tick is not None and index in CHAIN_CLASSES else ()
+        if name in SUMMON_FOLLOW and index == FLAMEBREATH_CLASS:
+            report['summon_follow'] = hex(summon_follow(image, layout, name))
+            ticks += (int(report['summon_follow'], 16),)
         bodies[index] = body_of(conditions, ticks)
         report['classes'][index] = hex(bodies[index])
     if chain_tick is not None:
