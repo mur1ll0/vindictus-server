@@ -3191,3 +3191,17 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI44 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: resultado da MI44 (dragão subindo com a Miri, Tab, teclas da Miri).
+
+## 2026-10-31 — B2 RL1 / C4 MI5: trava intermitente ao criar o barco (relay)
+- Feito: causa achada no cliente, não no relay. O `GetQueuedCompletionStatus` do ProudNet do `engine.dll` (`0x425fd2e0`) testa o ponteiro do OVERLAPPED com sinal (`cmp eax, ebx; jge` em `0x425fd3a2`); com o `Vindictus.exe` LAA (características `0x122`) e os 2 GB baixos esgotados (`mi4r2-memory-monitor.txt`: 69–173 MB livres abaixo de 2 GB, maior bloco 4,6–15 MB; `mi5-vmmap-hung.txt`: 1,4 GB livres só acima de 2 GB), o `CTcpLayer_C` novo cai acima de `0x80000000` e o recv do *hint* vira "evento customizado". Tempos conferidos no Ghidra: timeout de handshake 10,0 s (`0x42880ec0`/`0x426fe1f8`), espera de conexão 60 s (`0x42341570`), `NetClient::Disconnect` `max(100 s, 2×timeout)` (`0x425df460`) esperando o recv pendente. Explica as entradas boas logo após a seleção ou ao abrir o jogo (memória baixa livre) e por que começou com o conteúdo da Miri (~2 GB privados). Nova ferramenta `scripts/client/patch_engine_iocp_sign.py` (`jge` → `jmp`, 1 byte; caminhos sem correspondência continuam tipo 0 sem desreferenciar a chave) e `test_patch_engine_iocp_sign.py`; seção em `docs/battle-transport.md`; roteiro RL1 em `docs/client-tests/B2-fases.md`.
+- Verificação: `python -m unittest test_patch_engine_iocp_sign` 4 OK (`.cache/verification/relay/iocp-sign-tests.log`); dry-run na cópia do laboratório `51ea90e7…` → `df6c70d2…` (`iocp-sign-dry.log`); linha do tempo do relay de 30–31/10 (`.cache/verification/relay/timeline.txt`): 10 travas, todas fechadas pelo cliente 10,0 s depois do *accept*. Patch não aplicado: o jogo estava aberto (DLL em uso).
+- Cliente: RL1 (B2) — barco ao menos 8 vezes seguidas sem voltar à seleção.
+- Commits: (este commit)
+- Pendente / próxima ação: com o jogo fechado, aplicar `patch_engine_iocp_sign.py --apply` e rodar a RL1.
+
+## 2026-10-31 — B2 RL1: patch do engine.dll aplicado
+- Feito: com o jogo fechado, `patch_engine_iocp_sign.py --apply` na cópia do laboratório: `engine.dll` `51ea90e7…` → `df6c70d2…`, backup `engine.dll.51ea90e70b93ad04.pre-iocpsign.bak`.
+- Verificação: `iocp-sign-apply.log` (exit 0); `test_patch_engine_iocp_sign` 4 OK depois do patch (`iocp-sign-tests-after.log`).
+- Cliente: RL1 (B2) pendente.
+- Commits: 1c94c22 (correção), este commit (aplicação).
+- Pendente / próxima ação: rodar a RL1 do B2 (barco sem trava; `engine.dll` do laboratório já com o patch).
