@@ -3240,3 +3240,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: entrada MG2 de `docs/client-tests/C4-miri.md`, pendente.
 - Commits: commit MG2 (este passo).
 - Pendente / próxima ação: sessão MG2 do operador; com o resultado do diagnóstico armadura × pele, decidir a correção.
+
+## 2026-11-02 — MG3 / resultado da MG2, figurinos do 1.69 sem modelo
+- Feito: relato MG2 (pele atravessa só as armaduras dos botões 2 e 3, importadas do NA). Medido e descartado: conversão v45→v44 (armaduras e *inner* 9000 não convertidos; o 9028 convertido está certo), ossos/pose de repouso, *jiggle*, *flexes*, malha e *checksums*, materiais e alfa das texturas; medição em repouso por vértice (`.vvd`) não discrimina (nativas dão taxas parecidas). Sonda A/B de *inners* nos `.csf` desfeita sem aplicar (o aplicador usa o SHA do manifesto). Figurino com estrela de erro: `avatar_female_chinaplate` (1.69, máscara 3494) sem modelos no cliente 1.69; `stage_na_class.inherited_costumes` traz do NA os modelos que faltam das entradas do 1.69 de itens não arma que cobrem todas as femininas (29 modelos).
+- Verificação: `scripts/client` `test_stage_na_class test_apply_lab_content_additions test_gfx_patch` 46 OK (`.cache/verification/miri-grid/mg3-tests.log`); preparação 6.760 arquivos (`mg3-stage.log`); aplicação com o jogo fechado, 8 pacotes de classe construídos (`mg3-apply.log`), modelos `_chn/chinaplate` no manifesto.
+- Cliente: entrada MG3 de `docs/client-tests/C4-miri.md`, pendente.
+- Commits: commit MG3 (este passo).
+- Pendente / próxima ação: análise da armadura × pele no Blender (MCP do operador); sessão MG3.

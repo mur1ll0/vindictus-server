@@ -358,6 +358,27 @@ class StageTest(unittest.TestCase):
         self.assertEqual(stage.dependencies('models/player/_anim/female/miri/pc_miri_motion.txt', motion),
                          ['models/effects/mesh/cheer_pom.mdl'])
 
+    def test_inherited_169_costumes_bring_the_models_the_169_lacks(self):
+        import sqlite3
+        db_path = Path(self.temp.name) / 'heroes.db3'
+        db = sqlite3.connect(db_path)
+        db.execute('CREATE TABLE ItemClassInfo (ItemClass TEXT, Category TEXT, ClassRestriction INT)')
+        db.execute('CREATE TABLE EquipItemInfo (ItemClass TEXT, CostumeType INT)')
+        female = stage.FEMALE_169
+        db.executemany('INSERT INTO ItemClassInfo VALUES (?, ?, ?)', [
+            ('avatar_female_chinaplate_upper', 'AVATAR_TUNIC', female | 1 << 11), ('fiona_only', 'AVATAR_TUNIC', 1 << 1),
+            ('sword', 'WEAPON', female)])
+        db.executemany('INSERT INTO EquipItemInfo VALUES (?, ?)', [
+            ('avatar_female_chinaplate_upper', 436), ('fiona_only', 437), ('sword', 438)])
+        db.commit(); db.close()
+        costume = (b'"upper_body"\r\n{\r\n\t"433"\r\n\t{\r\n\t\t"category"\t"male"\r\n\t\t"normal"\t"models/m.mdl"\r\n\t}\r\n'
+                   b'\t"436"\r\n\t{\r\n\t\t"category"\t"female"\r\n\t\t"normal"\t"models/armor/_chn/chinaplate/pc_female_chinaplate_upper.mdl"\r\n\t}\r\n'
+                   b'\t"437"\r\n\t{\r\n\t\t"normal"\t"models/fiona_only.mdl"\r\n\t}\r\n'
+                   b'\t"438"\r\n\t{\r\n\t\t"normal"\t"models/sword.mdl"\r\n\t}\r\n}\r\n')
+        self.assertEqual(stage.inherited_costumes(costume, db_path),
+                         {'models/armor/_chn/chinaplate/pc_female_chinaplate_upper.mdl'})
+        self.assertEqual(stage.inherited_costumes(costume, Path(self.temp.name) / 'missing.db3'), set())
+
     def test_imported_item_icons_are_staged(self):
         import sqlite3
         db_path = Path(self.temp.name) / 'miri.db3'

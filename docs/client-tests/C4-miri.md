@@ -542,3 +542,9 @@ Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.
 - [ ] Numa fase, Parrying Attack com Hydra → o nome aparece "Hydra" (não `Heroes_status_name_resound`); passar o mouse nos ícones de estado da Miri (Wyvern Magic etc.) → nomes e descrições em inglês.
 - [ ] Luz de fogueira (comparação com o original): 02a (missões `quest_kobold_frisky`/`quest_kobold_gloomy`), quebrar a fogueira perto de (-1166, 1486) → a luz apaga; 02d (`quest_kobold_hard`/`quest_kobold_frisky_brother`), fogueira perto de (-7596, -622) → a luz continua (assada no mapa, igual ao original). Anotar o mapa e o objeto se uma luz que deveria apagar continuar.
 Relatar: cada item, com o nome do cabelo/amostra que falhar.
+
+### MG3 — Figurinos do 1.69 sem modelo (passo MG3)
+Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions.py --apply` (feitos por mim; passo MG3). MG2: armaduras dos botões 2 e 3 com a pele atravessando (pendente, análise no Blender); demais itens da MG2 a relatar.
+- [ ] Vestir na Miri o conjunto `비룡여걸 갑주 세트` (chinaplate) → peças desenhadas, sem a estrela de erro (o nome continua em coreano, como no conteúdo original).
+- [ ] Se tiver à mão, o hanbok 2014 numa classe feminina → sem estrela de erro.
+Relatar: as peças que ainda aparecerem como estrela (nome do item ou print do tooltip).

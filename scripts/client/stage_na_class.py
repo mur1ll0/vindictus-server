@@ -678,6 +678,36 @@ def imported_costumes(class_name: str, costume_script: bytes, path: Path | None 
             "JOIN ItemClassInfo i ON i.ItemClass = e.ItemClass WHERE i.Category = 'WEAPON')")}
     finally:
         db.close()
+    return costume_entry_models(costume_script, numbers)
+
+
+# The 1.69 items the class inherits (the lab gives class 11 every item whose mask covers all the 1.69 female
+# classes, class_imports.FEMALE_169) whose models the 1.69 client never shipped: the Chinese plate avatar
+# (models/armor/_chn/chinaplate, wearable by every 1.69 female class) drew the error model on the Miri (C4 MG2).
+# Their entries are the 1.69's own; only the models come from the NA, where it has them.
+LAB_DATABASE = ROOT / '.cache/play-client/sql/heroes.db3.pre-lab-additions'
+FEMALE_169 = (1 << 1) | (1 << 2) | (1 << 5) | (1 << 7) | (1 << 8) | (1 << 10)
+
+
+def inherited_costumes(costume_script: bytes, path: Path = LAB_DATABASE, mask: int = FEMALE_169) -> set[str]:
+    """Models (and hair prefixes) of the 1.69 player_costume.txt entries of the non-weapon items whose
+    ClassRestriction covers `mask`, male entries left out."""
+    import sqlite3
+    if not path.is_file():
+        return set()
+    db = sqlite3.connect(f'file:{path.as_posix()}?mode=ro', uri=True)
+    try:
+        numbers = {str(r[0]) for r in db.execute(
+            'SELECT DISTINCT e.CostumeType FROM EquipItemInfo e JOIN ItemClassInfo i ON i.ItemClass = e.ItemClass '
+            "WHERE e.CostumeType IS NOT NULL AND i.Category != 'WEAPON' AND (i.ClassRestriction & ?) = ?", (mask, mask))}
+    finally:
+        db.close()
+    return costume_entry_models(costume_script, numbers)
+
+
+def costume_entry_models(costume_script: bytes, numbers: set[str]) -> set[str]:
+    """Models (and hair prefixes) of the non-male entries numbered `numbers` in every section, with their
+    one-piece entries."""
     models = set()
     for section in kv_merge.parse(costume_script).children:
         if not section.block:
@@ -777,7 +807,13 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
                    | {p for p in NATIVE_ASSETS.get(weapon, ()) if p in na and p not in lab}
                    | {p for p in imported_icons(class_name, na) if p not in lab})
     costume_models = imported_costumes(class_name, na[COSTUME_SCRIPT].read_bytes()) if COSTUME_SCRIPT in na else set()
-    queue = sorted(set(queue) | {m for m in costume_models | costume_prefix_models(costume_models, na) if m in na and m not in lab})
+    if COSTUME_SCRIPT in lab_files and any(p.startswith(f'models/player/_anim/female/{class_name}/') for p in na):
+        inherited = inherited_costumes(lab_files[COSTUME_SCRIPT].read_bytes())
+        costume_models_169 = inherited | costume_prefix_models(inherited, na)
+    else:
+        costume_models_169 = set()
+    queue = sorted(set(queue) | {m for m in costume_models | costume_prefix_models(costume_models, na) | costume_models_169
+                                 if m in na and m not in lab})
     csf_without_weapon = {c.format(klass=class_name) for c in CSF_WITHOUT_WEAPON}
     sp_states = SP_REDUCE_STATES.format(klass=class_name)
     sp_checks = state_sp_checks(na[sp_states].read_bytes()) if sp_states in na else {}
