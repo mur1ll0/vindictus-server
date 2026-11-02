@@ -4,7 +4,7 @@ Registro completo do porte da Miri: a primeira classe que trouxe do NA modelos, 
 
 Convenções iguais às da Delia: `client.dll` base `0x38000000`, `server.dll` local base `0x40000000`, `engine.dll` base `0x42000000`. "NA" é o cliente oficial (`F:\Games\vindictus`, somente leitura; extração em `F:\Games\vindictus\hfsExtracted`; código x64 em `.cache/bin_x64`).
 
-Mapa: **1** decisões e estado · **2** medição e entrega (M0–M5) · **3** consolidado (conversões, mecânicas, armadilhas, DLLs, ferramentas, pendências) · **4** registro por passo (M5–M8n) · **5** o que veio do NA · **6** receita para a próxima classe.
+Mapa: **1** decisões e estado · **2** medição e entrega (M0–M5) · **3** consolidado (conversões, mecânicas, armadilhas, DLLs, ferramentas, pendências, malha atravessada pela pele) · **4** registro por passo (M5–M8n) · **5** o que veio do NA · **6** receita para a próxima classe.
 
 ---
 
@@ -28,8 +28,9 @@ Mapa: **1** decisões e estado · **2** medição e entrega (M0–M5) · **3** c
   - Dragon Knight: mecânica, visual, asas e efeitos (M7m, M7n, M8i–M8l);
   - Parrying, resound, Call of the Dragon (M7y, M8a, M8b, M8n), XE Move (M7t, M8g);
   - histórias, conjuntos, destruir item (M7s–M7x, M8f).
-- **Cliente**: em 02/11/2026 o operador disse que o combate da Miri está todo certo, depois da rodada MI44. Ficaram sem relato isolado MI1–MI3 e MI30–MI36.
-- **Falta**: a criação pela grade, numa sessão própria com passos `MG<n>` (`docs/future/miri-creation-grid.md`), e o aceite final pelo *checklist* da skill.
+  - criação pela grade e customização (MG1–MG4, `docs/future/miri-creation-grid.md`); *Push Mesh Out* no *add-on* do Blender (MG5) e kit substituto no editor de itens (MG6).
+- **Cliente**: em 02/11/2026 o operador confirmou o combate (depois da MI44) e, na rodada seguinte, a Miri e a Delia "funcionando perfeitamente": grade, customização, criação até a cidade, volta à seleção, armaduras do NA sem a pele atravessando e as teclas regravadas da Delia (MG1–MG4, MI45). Sem relato isolado: MI1–MI3 e MI30–MI36; modelo substituto pelo painel (B4 I3) pendente.
+- **Aceite**: jogável e criável pela grade; branch levada ao `main` em 02/11/2026.
 - **Não portado**: os rastros pretos do Dragon Knight (M8e revertido). As aproximações estão em 3.6.
 
 ---
@@ -162,6 +163,13 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 | XE Move a partir da doadora (linhas, textos, ícone `skill_phantom`) | `class_imports.donor_xe_rows`, `XE_ICON` (M7t, M8g) |
 | Ramos `Switch` de classe nos *scripts* de NPC | `export_npc_scripts.with_lab_switch_branches`, `LAB_SWITCH_DONORS` (M7w, M7z) |
 | Perfil de habilidades do servidor com as importadas | `export_skill_profile.py --all-skills`, chamado pelo `refresh_item_content.py` (MI4) |
+| Entradas de roupa com prefixo (`hair` → `pc_fiona_hair_laura_` + `NN.mdl`, uma variante por corte de capacete) e os modelos de cada variante | `stage_na_class.imported_costumes`, `costume_prefix_models` (MG2) |
+| Modelos citados em *scripts* da classe (`AE_ATTACH_ENTITY …cheer_pom.mdl`) e `.fig` citados pelo `.bsh` | `stage_na_class.dependencies` (MG2) |
+| Preços de customização: sem os negativos do NA (marcas de evento); grátis da classe numerados 1..n antes dos pagos | `class_imports.customize_rows` (MG2) |
+| Faixas de Height/Bust da customização (*switch* 0–10 no `CreateCharacterDialog.gfx`): a classe 11 tratada como a 10 | `gfx_patch.class_alias_actions` (MG2) |
+| Textos das colunas `*LocalizedText` das linhas importadas e nome de estado sem nível | `class_imports.class_text` (MG2) |
+| Modelos de figurinos do próprio 1.69 que o cliente 1.69 nunca trouxe (chinaplate, hanbok 2014), herdados por qualquer feminina | `stage_na_class.inherited_costumes` (MG3) |
+| Peças de corpo das armaduras do NA infladas 0,3 ao longo da normal nos `.vvd` (a pele atravessava a geometria em repouso) | `stage_na_class.inflated_armor` (MG4); à mão: *add-on* Blender **Push Mesh Out** (MG5) e kit substituto no painel (MG6), seção 3.7 |
 
 ### 3.3 Mecânicas
 
@@ -192,7 +200,8 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 | Tab (Fiery Evasion) | dados iguais aos do NA; teclas do EU no `config_miri_ex.cfg` (3.6) | ok (combate, 02/11) |
 | Retrato na seleção | `gfx_patch` | ok (MI21) |
 | Conjuntos (modelos, nomes, bônus, maestria) | `imported_costumes`, `set_tokens`, `armor_requirements` | ok (MI25) |
-| Criação pela grade | sessão própria, passos `MG<n>` | pendente |
+| Criação pela grade (botão, painel, vídeos, ator, customização) | `gfx_patch` (`grid_class_actions`, `class_alias_actions`), `bsp_entities.with_creation_actors`; `miri-creation-grid.md` | ok (MG1–MG4, 02/11) |
+| Teclas por classe | padrões EU gravados pelo jogo (3.6) | ok (MI45, 02/11) |
 
 ### 3.4 Armadilhas (sintoma → causa)
 
@@ -225,6 +234,13 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 | Membranas das asas com a textura do corpo | o modelo cita o material do corpo, mas os UVs são do atlas da asa |
 | Dragão do SP5 parado no chão | a Miri sobe só nos ossos; a origem fica no chão (o NA segue o osso `GRAPPLING`) |
 | Tab parou (MI43) | `config_miri_ex.cfg` (gravado pelo jogo) sem a tecla TAB e outras quatro; não veio do NA (3.6) |
+| Caminho `video/createcharacter/_eneu_` sobre o vídeo da grade (MG1) | o `onLoad` do filme esconde o texto do caminho classe por classe, pelo nome |
+| Cabelos carecas ou com modelo de erro (MG1) | a entrada `hair` guarda um prefixo; o cliente desenha `prefixo + NN.mdl` |
+| Cabelos pagos selecionáveis na criação (MG1) | preços negativos do NA (marcas de evento) importados |
+| Height sem efeito; controles `GAMEUI_` sem efeito (MG1) | *switch* 0–10 das faixas no `CreateCharacterDialog.gfx`; `.fig` e rótulos do `.bsh` não trazidos |
+| Pompom e textos de estado crus (MG1) | modelos e chaves de texto citados por *scripts*/colunas, sem o nome da classe |
+| Figurino do 1.69 com a estrela de erro (MG2) | modelos que o cliente 1.69 nunca trouxe (`models/armor/_chn/chinaplate`) |
+| Pele atravessando as armaduras do NA (MG2) | peças do NA com partes dentro do corpo em repouso (render no Blender, com a pele da Miri e da Fiona); o NA esconde a pele por outro meio, não medido |
 | Cópia de laboratório apagada (02/11) | `git worktree remove` seguiu a *junction* `.cache/play-client` |
 
 ### 3.5 DLLs e ferramentas
@@ -233,8 +249,8 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 - Servidor Rust: `minimum_selection` (registro do passo recusado, recálculo dos atributos), `minimum_story`/`minimum_use` (livros de história), `minimum_shop` (destruir item), `src/protocol/inventory.rs` (453/454), `npc_script`/`npc_talk` (ramos Delia/Miri), `equipped_skills` (`DRAKER`), `admin_tooltip`/`admin_characters`; painel `web/admin/src/api/characters.ts`, `items.ts`.
 
 ### 3.6 Pendências e aproximações
-- **Criação pela grade**: sessão própria (`MG<n>`).
-- **Teclas por classe (`cfg/config_<classe>_ex.cfg`)**: não são conteúdo; o próprio jogo grava esses arquivos ao sair, ofuscados. O jogo carrega antes o `config_default_ex.cfg` (preset "mouse" do EU) e depois o arquivo da classe (`server.dll` `0x40608f3f`, nome pela tabela de classes `0x40755b40`), então não há limite de 10 classes nesse caminho. Nada do NA entrou (o preparador não toca `cfg/`). Os arquivos da Delia e da Miri tinham 2.760 bytes, sem TAB (`+switch`), ENTER (chat), `\` (cash shop), q (`+function`) e t (menu), e não batiam com nenhum preset do EU nem do NA. A origem é anterior à recuperação de 02/11 e não pôde ser rastreada. A Miri já foi regravada com o conteúdo das classes antigas (M8n e saída do jogo em 02/11); o da Delia foi guardado como `config_delia_ex.cfg.pre-keys.bak` para o jogo gerar um novo a partir dos padrões EU (MI45). Regra: classes novas usam as teclas do EU; nenhum `cfg` do NA vem junto.
+- **Armaduras do NA infladas 0,3**: aproximação no lugar do meio, não medido, pelo qual o NA esconde a pele coberta (3.7).
+- **Teclas por classe (`cfg/config_<classe>_ex.cfg`)**: não são conteúdo; o próprio jogo grava esses arquivos ao sair, ofuscados. O jogo carrega antes o `config_default_ex.cfg` (preset "mouse" do EU) e depois o arquivo da classe (`server.dll` `0x40608f3f`, nome pela tabela de classes `0x40755b40`), então não há limite de 10 classes nesse caminho. Nada do NA entrou (o preparador não toca `cfg/`). Os arquivos da Delia e da Miri tinham 2.760 bytes, sem TAB (`+switch`), ENTER (chat), `\` (cash shop), q (`+function`) e t (menu), e não batiam com nenhum preset do EU nem do NA. A origem é anterior à recuperação de 02/11 e não pôde ser rastreada. A Miri já foi regravada com o conteúdo das classes antigas (M8n e saída do jogo em 02/11); o da Delia foi guardado como `config_delia_ex.cfg.pre-keys.bak`, e o jogo gravou um novo ao sair, idêntico byte a byte aos da Fiona e da Miri (2.883 bytes, MI45, 02/11). Regra: classes novas usam as teclas do EU; nenhum `cfg` do NA vem junto; se uma classe ficar sem teclas, guarde o arquivo dela com o jogo fechado e deixe o jogo regravar.
 - **Rastros pretos do Dragon Knight**: não portados.
 - **Condições**: os ids 121–127 estão todos ocupados (Delia 121–124, Miri 125–127; o conjunto de 128 bits acabou). A próxima classe com condições próprias exige medir e ampliar o armazenamento do conjunto.
 - **Flamebreath** usa o campo de rede da barra de febre; só conflita com o título de poluição de Regina.
@@ -243,6 +259,14 @@ Cada mudança de conteúdo da classe passa pelo mesmo ciclo. Os três primeiros 
 - **Memória**: o conteúdo da Miri leva o jogo a uns 2 GB privados (motivo do patch IOCP).
 - **Tempo do `start-lab.bat`**: qualquer arquivo preparado de novo muda o `classes_sha256` e refaz as 14 exportações (cerca de 12 min).
 - Sem relato isolado no cliente: MI1–MI3 e MI30–MI36.
+
+### 3.7 Malha da armadura atravessada pela pele (sets próprios da classe)
+Sintoma: na customização ou na cidade, manchas de pele aparecem através do tecido da armadura (pernas, barriga, braços, cintura), girando o modelo ou trocando de pose. Na Miri só aconteceu com as armaduras vindas do NA (`dragon_rises` 790, `pytonshock` 808); as do 1.69 cobriam a pele. Diagnóstico e método no `miri-creation-grid.md` (seção 10).
+1. **Confirmar pela imagem, não por medida numérica**: kits da pele e da peça pelo `scripts/client/model_kit.py` (lidos dos pacotes da cópia), importados no Blender sem esqueleto (pose de ligação = pose do jogo), pele e peça em cores chapadas, render ortográfico de frente, de trás e dos lados. Pele visível no tecido = a peça está dentro do corpo. Antes, descarte conversão v45→v44, ossos, *jiggle*, *flexes*, materiais e alfa.
+2. **Correção em lote, no preparador**: `stage_na_class.inflated_armor` desloca 0,3 unidade ao longo da normal os vértices dos `.vvd` das peças de corpo (`_upper`, `_lower`, `_onepiece`, `_hand`, `_foot`, `_body`) do NA em `models/armor/`. 0,3 cobriu a pele nas duas armaduras sem deixar as peças visivelmente inchadas (0,5 também cobre). É o caminho para os conjuntos próprios de uma classe nova: entra na preparação, é reproduzível e as armaduras do 1.69 não mudam.
+3. **Correção por peça, à mão**: *add-on* `vindictus` do Blender (`tools/blender/vindictus`, 0.2.0; aba **Vindictus** da barra lateral da 3D View), operador **Push Mesh Out (fix clipping)**, padrão 0,3 (`mesh_fix.PUSH_OUT`), que empurra as malhas selecionadas ao longo das normais do jogo e as mantém; depois exportar o kit com o caminho do modelo original (`tools/blender/README.md`). Use quando só uma peça precisar, ou um valor diferente de 0,3.
+4. **Publicar o kit à mão**: o editor de itens do painel aceita o kit como **modelo substituto** de um item existente, do 1.69 ou importado do NA (MG6; `docs/future/item-editor.md` 3.4, roteiro `B4-painel.md` I3). O aplicador troca os arquivos na cópia e desfaz quando o modelo sai do item.
+5. Conferir no cliente pela roupa de amostra da grade e vestindo a peça na cidade (C4 MG4: ok em 02/11).
 
 ---
 
@@ -328,3 +352,5 @@ A ordem e os comandos estão na skill `new-class-port`. O que a Miri provou e va
 11. ***Stubs***: nada de *strings* no meio do código; reaplicar sempre a partir dos *backups* e conferir que a cópia corresponde ao código (`docs/client-dll-patches.md`).
 12. **Condições**: não há mais ids livres (121–127). Antes da próxima classe com condições próprias, amplie o conjunto.
 13. **Ferramentas e cuidados**: remova *junctions* antes de remover uma *worktree*; arquivos trocados à mão na cópia viram passo do preparador ou do aplicador, senão se perdem na próxima reconstrução; os arquivos de teclas por classe são do jogo, não do conteúdo (3.6).
+14. **Grade e customização**: entradas de roupa por prefixo (cabelos), modelos e textos citados por *scripts* e colunas, preços negativos do NA, faixas de Height/Bust por *switch* de classe no GFx e figurinos do 1.69 sem modelo no cliente (3.2, MG2–MG3; `miri-creation-grid.md`).
+15. **Pele atravessando os conjuntos próprios**: confirme pelo render no Blender e infle 0,3 no preparador (`inflated_armor`) ou peça a peça com o **Push Mesh Out** do *add-on*, publicando o kit como modelo substituto (3.7).

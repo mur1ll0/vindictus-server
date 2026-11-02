@@ -556,3 +556,5 @@ Pré-condição: com o jogo fechado, preparação e `apply_lab_content_additions
 - [ ] Anotar se alguma peça ficou visivelmente "inchada" ou descolada do corpo (punhos, cintura, gola).
 - [ ] Na cidade, se tiver uma peça da Dragon Rise ou da Pythonshock, vestir e andar/correr → sem a pele atravessando.
 Relatar: cada botão, e a peça que ainda mostrar pele ou ficar descolada.
+
+Resultado da MG1–MG4, MI44 e MI45 (02/11/2026, `GradeMiri`, `MiriLab`, `DeliaLab`): o operador confirmou "a Miri e a Delia funcionando perfeitamente". Grade, customização (cabelos, *body type*, roupas de amostra sem a pele atravessando), criação até a cidade e volta à seleção ok; dragão do SP5 e Tab ok; teclas da Delia ok. Ao sair, o jogo gravou um `config_delia_ex.cfg` novo de 2.883 bytes, idêntico byte a byte aos da Fiona e da Miri (SHA-256 `9625543c…`): os padrões EU bastam para uma classe nova. Sem relato isolado: MI1–MI3 e MI30–MI36. Modelo substituto pelo painel (MG6): entrada I3 do `B4-painel.md`, pendente.

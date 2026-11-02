@@ -3268,3 +3268,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: roteiro `docs/client-tests/B4-painel.md`, entrada I3 (precisa de rebuild do Docker).
 - Commits: (este)
 - Pendente / próxima ação: I3 no cliente depois do rebuild do Docker; peça quebrada (`_broken`) não é trocada pelo kit.
+
+## 2026-11-02 — Miri MI45, aceite MG1–MG4 e documentação final (skill new-class-port 2.1.0)
+- Feito: resultado do cliente registrado (C4: MG1–MG4, MI44, MI45 ok, "a Miri e a Delia funcionando perfeitamente"); `miri-class-port.md` com conversões e armadilhas da grade (3.2, 3.4), seção 3.7 (pele atravessando os conjuntos próprios: render no Blender, `inflated_armor` 0,3 no preparador, *Push Mesh Out* do *add-on*, kit substituto MG6) e receita 14–15; skill `new-class-port` 2.1.0 (SKILL, armadilhas 10, procedimento 1 e 8, checklist com malha e teclas); README com a Miri; MIGRATION.md enxugado.
+- Verificação: `config_delia_ex.cfg` regravado pelo jogo (2.883 bytes) idêntico byte a byte (`cmp`) aos da Fiona e da Miri, SHA-256 `9625543c…`; só documentação, sem testes de código.
+- Cliente: operador, 02/11 — MG1–MG4 e MI45 ok.
+- Commits: (este) e o merge de `feat/miri-class` no `main`.
+- Pendente / próxima ação: B4 I3 (modelo substituto pelo painel) no cliente; MI1–MI3 e MI30–MI36 sem relato isolado; seguir o B5.

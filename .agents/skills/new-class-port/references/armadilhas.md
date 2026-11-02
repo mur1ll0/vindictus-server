@@ -131,7 +131,23 @@ Tabela completa de sintoma → causa: `docs/future/miri-class-port.md` 3.4. As q
 - **Arquivo trocado à mão na cópia** some na próxima reconstrução: tudo passa pelo preparador ou pelo aplicador.
 - **Teclas por classe são do jogo, e do EU**: o cliente grava `cfg/config_<classe>_ex.cfg` (ofuscado) ao sair, depois de carregar o
   `config_default_ex.cfg` do EU. Não traga `cfg/` do NA (presets diferentes). Se uma classe nova ficar sem teclas (a Delia e a Miri
-  ficaram sem TAB, ENTER, `\`, q e t; Miri M8n, MI45), guarde o arquivo dela com o jogo fechado e deixe o jogo gerar um novo.
+  ficaram sem TAB, ENTER, `\`, q e t; Miri M8n, MI45), guarde o arquivo dela com o jogo fechado e deixe o jogo gerar um novo:
+  o da Delia saiu idêntico byte a byte ao da Fiona (MI45, 02/11).
+- **Pele atravessando as armaduras do NA** (MG2–MG4): a `pytonshock` e a `dragon_rises` têm partes dentro do corpo na pose de
+  repouso, com a pele da Miri e com a da Fiona do 1.69; o NA esconde a pele coberta por um meio não medido. Medidas numéricas
+  (vértice mais próximo, BVH por triângulo) não separaram peças boas de ruins; o render chapado no Blender decidiu. Correção:
+  inflar 0,3 ao longo da normal os `.vvd` das peças de corpo do NA (`stage_na_class.inflated_armor`) ou peça a peça com o
+  **Push Mesh Out** do *add-on* (padrão 0,3) e o kit como modelo substituto no painel (`miri-class-port.md` 3.7).
+- **Grade e customização** (MG1–MG3; `miri-creation-grid.md` 8–9):
+  - a entrada `hair` do `player_costume.txt` guarda um prefixo e o cliente desenha `prefixo + NN.mdl` (uma variante por corte de
+    capacete): sem as variantes, cabelos carecas ou com modelo de erro;
+  - preços negativos no `CustomizePriceInfo` do NA são marcas de evento e deixavam cabelos pagos escolhíveis na criação;
+  - o `CreateCharacterDialog.gfx` escolhe as faixas de Height/Bust num *switch* 0–10: a classe 11 caía no padrão e o Height não
+    mudava nada (`gfx_patch.class_alias_actions`);
+  - modelos (`cheer_pom.mdl`), `.fig` do `.bsh` e chaves de texto citados só por *scripts* ou colunas, sem o nome da classe, não
+    eram preparados;
+  - figurinos do próprio 1.69 cujos modelos o cliente 1.69 nunca trouxe (chinaplate) aparecem como estrela de erro numa classe
+    nova que os herda (`stage_na_class.inherited_costumes`).
 - **`git worktree remove` segue *junctions***: com `.cache/play-client` ligado por *junction* numa *worktree*, a cópia real foi
   apagada (02/11). Remova as *junctions* antes.
 - **`start-lab.bat` lento**: qualquer arquivo preparado de novo muda o `classes_sha256` e refaz as 14 exportações (cerca de 12 min).

@@ -10,7 +10,7 @@ description: >
   das 10 classes antigas, nem para trocar a base do projeto pelo cliente NA.
 metadata:
   author: vindictus-server (escrita a partir dos portes da Delia e da Miri)
-  version: "2.0.0"
+  version: "2.1.0"
   date: 2026-11-02
 ---
 
@@ -134,6 +134,13 @@ Evidência e passo de cada uma: `references/armadilhas.md`.
 - ***Strings* nunca no meio do código de um *stub*** (queda `0x392204e4`, Miri M8h); **estado do jogo pelos predicados do
   `GameStateManager001`**, nunca pelo nome do nível (Miri M7f, M7p, M8m).
 - **Nada trocado à mão na cópia**: preparador, aplicador e *scripts* de patch são a única fonte (`docs/client-dll-patches.md`).
+- **Pele atravessando os conjuntos próprios da classe** (armaduras do NA com partes dentro do corpo em repouso): confirme pelo
+  render no Blender e infle 0,3 ao longo da normal nos `.vvd` das peças de corpo, em lote no preparador
+  (`stage_na_class.inflated_armor`), ou peça a peça com o **Push Mesh Out** do *add-on* `tools/blender/vindictus`, publicando o
+  kit como modelo substituto no editor de itens (Miri MG4–MG6; `miri-class-port.md` 3.7).
+- **Grade e customização**: cabelos por prefixo (`prefixo + NN.mdl`), preços negativos do NA, faixas de Height/Bust por *switch*
+  de classe no GFx, modelos e textos citados só por *scripts* ou colunas (Miri MG2–MG3).
+- **Teclas são do EU e do jogo**: não traga `cfg/` do NA; o jogo grava `config_<classe>_ex.cfg` a partir dos padrões EU (Miri MI45).
 - **`git worktree remove` segue *junctions***: remova a *junction* de `.cache/play-client` antes (02/11/2026).
 
 ## Como registrar
@@ -157,6 +164,8 @@ A classe só está portada quando o operador confirma no cliente, numa sessão p
 - [ ] **Habilidades**: janela com as habilidades certas, posições distintas; ativas e SP pela barra (D13, D22).
 - [ ] **Mecânicas próprias**: cada uma do escopo combinado, mais as aproximações declaradas (D22, D23).
 - [ ] **Itens**: itens da classe sem fundo vermelho, dica sem "Cannot be equipped"; Fiona sem regressão (D22).
+- [ ] **Malha**: conjuntos próprios e roupas de amostra sem a pele atravessando, sem peça inchada ou descolada (Miri MG4).
+- [ ] **Teclas**: ENTER, t, `\`, TAB e q como nas classes antigas (Miri MI45).
 - [ ] **Grade**: a classe aparece, o ator vai ao centro na pose de apresentação, vídeo certo (G1, G2).
 - [ ] **Customização**: modelo da classe, abas, roupas de amostra, nome e "Check", `Back`, WASD travado,
       poses sem fila (G4, G6).

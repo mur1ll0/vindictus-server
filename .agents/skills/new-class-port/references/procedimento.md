@@ -46,6 +46,11 @@ Objetivo: saber o que já existe, o que vem do NA e o que é código novo, antes
 - Nunca troque um arquivo à mão na cópia: o que precisar mudar entra no preparador ou no aplicador.
 - **Teclas**: a classe nova usa as teclas do EU. O preparador não traz `cfg/` do NA, e o arquivo `cfg/config_<classe>_ex.cfg` é
   gravado pelo jogo a partir do `config_default_ex.cfg` do EU (armadilhas, seção 10).
+- **Malha dos conjuntos próprios**: se a pele atravessar uma armadura vinda do NA, confirme pelo render chapado no Blender
+  (kits do `scripts/client/model_kit.py`) e corrija em lote no preparador, inflando 0,3 ao longo da normal os `.vvd` das peças de
+  corpo (`stage_na_class.inflated_armor`), ou peça a peça com o operador **Push Mesh Out** do *add-on* `tools/blender/vindictus`
+  (padrão 0,3), exportando o kit com o caminho do modelo original e publicando-o como modelo substituto no editor de itens
+  (`miri-class-port.md` 3.7, `docs/future/item-editor.md` 3.4).
 - Nada disso entra no Git: manifesto, assets, bancos e pacotes ficam em `.cache/`.
 
 ## 2. `heroes.db3` do cliente e conteúdo do servidor
@@ -170,6 +175,11 @@ O fluxo inteiro está em 4.5/4.5.1 da Delia. O que depende da classe:
   ou editar o AS2 do filme do 1.69 (botão, ícone, vídeo, `feature_isEnable`), ou usar o filme do NA (28
   classes) e implementar no `client.dll` o contrato de dados (`SetNewIconCharacter`, `SetCharaterIntroMovie`…,
   `scripts/new_character_info.txt`; despachante NA `0x389e06f0`; `new-classes.md` 8.8). Decisão do operador.
+  A Miri editou o filme do 1.69 (`gfx_patch.with_class_button`, `grid_class_actions`: botão, ícone, painel, vídeos de habilidade,
+  textos e `characterTypeArray[11]`; `miri-creation-grid.md` 2) e o ator entrou por `bsp_entities.with_creation_actors`; nenhum
+  DLL mudou. Na customização, as faixas de Height/Bust do `CreateCharacterDialog.gfx` são um *switch* 0–10
+  (`gfx_patch.class_alias_actions`), e cabelos por prefixo, preços do NA, `.fig` do `.bsh` e figurinos do 1.69 sem modelo pediram
+  passos do preparador (armadilhas, seção 10).
 - **Ator da cena**: o `lobby_beautyshop_change.bsp` do 1.69 tem 11 `npc_character_creation_actor`
   (`npc_<classe>`); a classe nova precisa do seu ator com `createcharacter_<classe>.csf` (mapa do NA ou
   edição do mapa: decisão de cópia). O servidor acha o ator pelo nome `npc_<classe>`.
