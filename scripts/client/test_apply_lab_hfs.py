@@ -15,6 +15,8 @@ COSTUME = b'"inner_armor"\r\n{\r\n\t"16"\r\n\t{\r\n\t\t"normal"\t"models/a.mdl"\
 ITEMS = [{'ItemClass': 'new_inner', 'template': 'old_inner', 'text': {'name': 'New'},
           'costumes': [{'section': 'inner_armor', 'key': '9100', 'category': 'female', 'normal': 'models/player/f/new.mdl'}],
           'assets': 'kit'}]
+ARMOR_FOLDER = 'models/armor/a'
+UPPER = ARMOR_FOLDER + '/pc_female_a_upper.mdl'
 
 
 class ApplyLabHfsTest(unittest.TestCase):
@@ -28,6 +30,9 @@ class ApplyLabHfsTest(unittest.TestCase):
             language = folder.rsplit('/', 1)[1]
             packs.append((hfs.pack_name(folder) + '.hfs', [hfs.Entry(f'heroes_text_{language}.txt', TEXT, 0x20)]))
         packs.append((hfs.pack_name(SCRIPTS_FOLDER) + '.hfs', [hfs.Entry('player_costume.txt.comp', hfs.comp_wrap(COSTUME), 0x20)]))
+        # A 1.69 armour model, for the item editor's replacement kits.
+        packs.append((hfs.pack_name(ARMOR_FOLDER) + '.hfs', [hfs.Entry('pc_female_a_upper.mdl.comp', hfs.comp_wrap(b'IDST-old'), 0x20),
+                                                             hfs.Entry('pc_female_a_upper.vvd.comp', hfs.comp_wrap(b'IDSV-old'), 0x20)]))
         names = []
         for name, entries in packs:
             (self.client / 'hfs' / name).write_bytes(hfs.build_pack(entries, KS))
@@ -191,6 +196,61 @@ class ApplyLabHfsTest(unittest.TestCase):
         (root / 'class-assets.json').unlink()
         self.run_apply([])
         self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def write_kit(self, assets: str, files: dict[str, bytes], model: str = UPPER) -> dict:
+        import json
+        root = self.assets / assets
+        for path, data in files.items():
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_bytes(data)
+        (root / 'kit.json').write_text(json.dumps({'model': model}), encoding='utf-8')
+        return {'set': {}, 'text': {}, 'model': {'assets': assets, 'model': model}}
+
+    def apply_overrides(self, overrides):
+        return apply_hfs(self.client, [], Path(self.temp.name) / 'ks.bin', True, self.assets, overrides=overrides)
+
+    def test_replacement_kit_rewrites_the_169_model_adds_new_materials_and_undoes(self):
+        material = 'materials/models/armor/a/pc_female_a_upper/a_diffuse.vmt'
+        overrides = {'a_upper': self.write_kit('kit_fix', {UPPER: b'IDST-fixed', material: b'"VertexLitGeneric" {}'})}
+        plan = self.apply_overrides(overrides)
+        self.assertEqual(plan['model_replacements'], {'files': 2, 'new': 1, 'packs_rewritten': 1})
+        armor = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name(ARMOR_FOLDER) + '.hfs')).read_bytes(), KS)
+        # The model changes inside its own pack; the vvd the kit leaves out stays.
+        self.assertEqual([(e.name, hfs.comp_unwrap(e.data)) for e in armor],
+                         [('pc_female_a_upper.mdl.comp', b'IDST-fixed'), ('pc_female_a_upper.vvd.comp', b'IDSV-old')])
+        new_pack = hfs.pack_name('materials/models/armor/a/pc_female_a_upper') + '.hfs'
+        self.assertEqual(plan['new_packs'], [new_pack])
+        plain = hfs.decode_index((self.client / INDEX).read_bytes())
+        self.assertIn(new_pack[:-4], hfs.index_packs(plain))
+        self.assertIn(hfs.name_key('a_diffuse.vmt'), {e[:6] for e in hfs.index_entries(plain)})
+        self.assertEqual(self.apply_overrides(overrides)['hfs_files_changed'], 0)
+        # A columns-only override (or none) gives the original model back.
+        self.apply_overrides({'a_upper': {'set': {'ItemClassInfo': {'Price': 5}}, 'text': {}}})
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def test_replacement_kit_swaps_a_staged_class_file(self):
+        import apply_lab_content_additions as lab
+        model = 'models/armor/pytonshock/pc_female_pytonshock_upper.mdl'
+        self.stage_class({model: b'IDST-na'})
+        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client: {}
+        self.addCleanup(setattr, lab, 'fixed_packs', fixed)
+        overrides = {'pytonshock_upper': self.write_kit('kit_na', {model: b'IDST-pushed'}, model)}
+        plan = self.apply_overrides(overrides)
+        self.assertEqual(plan['model_replacements'], {'files': 1, 'new': 0, 'packs_rewritten': 0})
+        pack = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('models/armor/pytonshock') + '.hfs')).read_bytes(), KS)
+        self.assertEqual([hfs.comp_unwrap(e.data) for e in pack], [b'IDST-pushed'])
+        self.apply_overrides({})
+        pack = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('models/armor/pytonshock') + '.hfs')).read_bytes(), KS)
+        self.assertEqual([hfs.comp_unwrap(e.data) for e in pack], [b'IDST-na'])
+
+    def test_replacement_kits_are_checked(self):
+        from prepare_lab_client import PreparationError
+        good = self.write_kit('kit_fix', {UPPER: b'IDST-fixed'})
+        for overrides in ({'a_upper': self.write_kit('kit_no_model', {ARMOR_FOLDER + '/other.mdl': b'IDST'})},
+                          {'a_upper': good, 'b_upper': good},
+                          {'a_upper': {'model': {'assets': 'kit_missing', 'model': UPPER}}}):
+            with self.assertRaises(PreparationError):
+                self.apply_overrides(overrides)
 
 
 if __name__ == '__main__':

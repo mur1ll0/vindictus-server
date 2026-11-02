@@ -4,7 +4,8 @@
 //! admin publishes a version (B4.4). The host then re-exports the server's items and updates the
 //! client copy (scripts/content/refresh_item_content.py, run by start-lab.bat):
 //! - added items (item_additions.json or the panel) are edited directly (`item`);
-//! - base items take an override of their editable columns and text (`item_override`);
+//! - base items take an override of their editable columns and text (`item_override`), and
+//!   optionally a kit that replaces the files of their own model in the client copy (`model`);
 //! - any item can be hidden (`item_hide`): it leaves the NPC shops and the give list, and the
 //!   items characters own keep working;
 //! - only added items are removed (`item_remove`); when the removal loads, the game takes every
@@ -82,6 +83,10 @@ pub struct EditorItemDetail {
     #[schema(value_type = Option<Object>)]
     pub definition: Option<Value>,
     pub set_id: Option<String>,
+    /// Base items: the kit that replaces the item's model ({"assets", "model"}) in the newest
+    /// override, pending or published.
+    #[schema(value_type = Option<Object>)]
+    pub model_replacement: Option<Value>,
     /// Item edits of this class not withdrawn (pending and published), oldest first.
     pub edits: Vec<ContentEdit>,
     pub usage: ItemUsage,
@@ -101,9 +106,14 @@ pub struct ItemDraft {
     pub fields: Map<String, Value>,
     /// Equipment set (SetItemInfo SetID) of an added item.
     pub set_id: Option<String>,
-    /// A kit uploaded with POST /api/item-editor/kits: the item gets this model under a new
-    /// CostumeType.
+    /// A kit uploaded with POST /api/item-editor/kits. Added items get this model under a new
+    /// CostumeType; base items keep their CostumeType and the kit replaces their own model's
+    /// files (its studio model must be the item's).
     pub kit: Option<String>,
+    /// Base items: drop the kit an earlier override gave the item (its original model comes
+    /// back).
+    #[serde(default)]
+    pub restore_model: bool,
     /// Body of the model's player_costume.txt entry (male, female, giant, tall); default: the
     /// template's.
     pub body: Option<String>,
@@ -303,6 +313,12 @@ pub async fn detail(
         Known::Added(d) => Some(d.clone()),
         Known::Base(_) => None,
     };
+    let model_replacement = match &state {
+        Known::Base(_) => newest_override(&edits, class)
+            .map(|o| o["model"].clone())
+            .filter(Value::is_object),
+        _ => None,
+    };
     let usage = admin_characters::item_usage(pool, class).await?;
     Ok(EditorItemDetail {
         item_class: class.to_owned(),
@@ -318,6 +334,7 @@ pub async fn detail(
             .and_then(|d| d["set_id"].as_str().map(str::to_owned))
             .or_else(|| names.item_set(class)),
         definition,
+        model_replacement,
         edits: edits.into_iter().filter(|e| e.target == class).collect(),
         usage,
     })
@@ -497,6 +514,93 @@ async fn kit_costume(
     Ok((json!([entry]), stored.assets, key))
 }
 
+/// The newest override of a base item (pending or published); `{}` is a restore.
+fn newest_override(edits: &[ContentEdit], class: &str) -> Option<Value> {
+    edits
+        .iter()
+        .rev()
+        .find(|e| e.target == class && e.kind == "item_override")
+        .and_then(|e| serde_json::from_str(e.value.as_deref()?).ok())
+}
+
+/// Game files other items' kits put in the client copy (newest edit of each class), by file:
+/// replacement kits of base items and the kits of added items.
+fn kit_files_of_others(
+    edits: &[ContentEdit],
+    root: &Path,
+    class: &str,
+) -> BTreeMap<String, String> {
+    let mut newest: BTreeMap<&str, Option<String>> = BTreeMap::new();
+    for edit in edits.iter().filter(|e| e.target != class) {
+        let value: Option<Value> = edit
+            .value
+            .as_deref()
+            .and_then(|v| serde_json::from_str(v).ok());
+        let assets = match edit.kind.as_str() {
+            "item_override" => value.and_then(|v| v["model"]["assets"].as_str().map(str::to_owned)),
+            "item" => value.and_then(|v| v["assets"].as_str().map(str::to_owned)),
+            "item_remove" => None,
+            _ => continue,
+        };
+        newest.insert(&edit.target, assets);
+    }
+    let mut out = BTreeMap::new();
+    for (other, assets) in newest {
+        if let Some(kit) = assets.and_then(|a| item_kits::stored(root, &a).ok()) {
+            for file in kit.files {
+                out.entry(file).or_insert_with(|| other.to_owned());
+            }
+        }
+    }
+    out
+}
+
+/// A replacement kit fits a base item when its studio model is the one the item's script
+/// entry names and no other item's kit writes one of its files.
+fn check_replacement(
+    kit: &StoredKit,
+    item_model: Option<&str>,
+    others: &BTreeMap<String, String>,
+) -> Result<(), AdminError> {
+    if item_model.is_none_or(|m| !m.eq_ignore_ascii_case(&kit.model)) {
+        return Err(AdminError::Unchanged("kit_outro_modelo"));
+    }
+    if kit.files.iter().any(|f| others.contains_key(f)) {
+        return Err(AdminError::Unchanged("kit_de_outro_item"));
+    }
+    Ok(())
+}
+
+/// The `model` of a base item's override: a kit whose files replace the item's own model (and
+/// add the new materials the add-on writes) in the client copy.
+async fn model_replacement(
+    sources: &Sources<'_>,
+    edits: &[ContentEdit],
+    class: &str,
+    kit: &str,
+) -> Result<Value, AdminError> {
+    let root = sources.assets.ok_or(AdminError::ContentUnavailable)?;
+    let client = sources
+        .client
+        .clone()
+        .ok_or(AdminError::ContentUnavailable)?;
+    let stored: StoredKit = item_kits::stored(root, kit).map_err(|_| AdminError::InvalidInput)?;
+    let names = sources.names;
+    let (category, key) = names
+        .item_costume(class)
+        .ok_or(AdminError::Unchanged("modelo_sem_secao"))?;
+    let script = ModelScript::of(&category, names.item_equip_class(class).as_deref())
+        .ok_or(AdminError::Unchanged("modelo_sem_secao"))?;
+    let text = read_script(client, script.file()).await?;
+    let model = text.and_then(|t| script.model(&t, key));
+    check_replacement(
+        &stored,
+        model.as_deref(),
+        &kit_files_of_others(edits, root, class),
+    )?;
+    Ok(json!({ "assets": stored.assets, "model": stored.model }))
+}
+
 pub async fn save(
     pool: &PgPool,
     actor: &Actor<'_>,
@@ -518,18 +622,13 @@ pub async fn save(
         Known::Base(entry) => {
             // Base items: the columns and text that differ from the exported item, plus what
             // an earlier override already changed (left out, it would go back to the original).
-            if draft.template.is_some()
-                || draft.kit.is_some()
-                || set_id != names.item_set(class).as_deref()
-            {
+            if draft.template.is_some() || set_id != names.item_set(class).as_deref() {
                 return Err(AdminError::InvalidInput);
             }
-            let earlier: Value = edits
-                .iter()
-                .rev()
-                .find(|e| e.target == class && e.kind == "item_override")
-                .and_then(|e| serde_json::from_str(e.value.as_deref()?).ok())
-                .unwrap_or(Value::Null);
+            let earlier = newest_override(&edits, class).unwrap_or(Value::Null);
+            let earlier_model = earlier["model"]
+                .is_object()
+                .then(|| earlier["model"].clone());
             let mut set = Map::new();
             for (table, values) in &tables {
                 let changed: Map<String, Value> = values
@@ -563,14 +662,20 @@ pub async fn save(
             {
                 text_changes.insert("desc".into(), desc.clone());
             }
-            if set.is_empty() && text_changes.is_empty() {
+            let model = match draft.kit.as_deref() {
+                Some(kit) => Some(model_replacement(sources, &edits, class, kit).await?),
+                None if draft.restore_model => None,
+                None => earlier_model.clone(),
+            };
+            let drops_model = draft.restore_model && earlier_model.is_some();
+            if set.is_empty() && text_changes.is_empty() && model.is_none() && !drops_model {
                 return Err(AdminError::Unchanged("item_igual"));
             }
-            (
-                "item_override",
-                json!({ "set": set, "text": text_changes }),
-                None,
-            )
+            let mut value = json!({ "set": set, "text": text_changes });
+            if let Some(model) = model {
+                value["model"] = model;
+            }
+            ("item_override", value, None)
         }
         state => {
             let previous = match &state {
@@ -591,6 +696,9 @@ pub async fn save(
                     template.to_owned()
                 }
             };
+            if draft.restore_model {
+                return Err(AdminError::InvalidInput);
+            }
             // A template means a new item: the class must be free.
             if (previous.is_some() && draft.template.is_some())
                 || (previous.is_none() && names.editor_item(class).is_some())
@@ -792,4 +900,92 @@ pub async fn exported_version(stamp: Option<&Path>) -> Option<i32> {
     }
     let value: Value = serde_json::from_slice(&bytes).ok()?;
     i32::try_from(value["version"].as_i64()?).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MODEL: &str = "models/armor/pytonshock/pc_female_pytonshock_upper.mdl";
+
+    fn edit(id: i64, kind: &str, target: &str, value: Option<Value>) -> ContentEdit {
+        ContentEdit {
+            id,
+            kind: kind.into(),
+            target: target.into(),
+            value: value.map(|v| v.to_string()),
+            state: "pending".into(),
+            version: None,
+            created_by: None,
+            created_at: String::new(),
+        }
+    }
+
+    fn kit(files: &[&str]) -> StoredKit {
+        StoredKit {
+            assets: "kit_0123456789abcdef".into(),
+            model: MODEL.into(),
+            files: files.iter().map(|f| (*f).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn a_replacement_kit_must_be_the_items_model_and_free() {
+        let fixed = kit(&[
+            MODEL,
+            "materials/models/armor/pytonshock/pc_female_pytonshock_upper/a.vmt",
+        ]);
+        let none = BTreeMap::new();
+        assert!(check_replacement(&fixed, Some(MODEL), &none).is_ok());
+        assert!(check_replacement(&fixed, Some(&MODEL.to_ascii_uppercase()), &none).is_ok());
+        for model in [
+            None,
+            Some("models/armor/pytonshock/pc_male_pytonshock_upper.mdl"),
+        ] {
+            assert!(matches!(
+                check_replacement(&fixed, model, &none),
+                Err(AdminError::Unchanged("kit_outro_modelo"))
+            ));
+        }
+        let taken = BTreeMap::from([(MODEL.to_owned(), "other".to_owned())]);
+        assert!(matches!(
+            check_replacement(&fixed, Some(MODEL), &taken),
+            Err(AdminError::Unchanged("kit_de_outro_item"))
+        ));
+    }
+
+    #[test]
+    fn other_items_kits_count_by_their_newest_edit() {
+        let root = std::env::temp_dir().join(format!("kits-{}", uuid::Uuid::new_v4().simple()));
+        for (assets, file) in [("kit_a", MODEL), ("kit_b", "models/player/fiona/lab.mdl")] {
+            let path = root.join(assets).join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, b"IDST").unwrap();
+        }
+        let model = |assets: &str| json!({"set": {}, "text": {}, "model": {"assets": assets, "model": MODEL}});
+        let edits = [
+            edit(1, "item_override", "upper", Some(model("kit_a"))),
+            edit(
+                2,
+                "item",
+                "lab_inner",
+                Some(json!({"template": "x", "assets": "kit_b"})),
+            ),
+            edit(3, "item_override", "restored", Some(model("kit_a"))),
+            edit(4, "item_override", "restored", Some(json!({}))),
+            edit(5, "item_override", "mine", Some(model("kit_a"))),
+        ];
+        let others = kit_files_of_others(&edits, &root, "mine");
+        assert_eq!(
+            others,
+            BTreeMap::from([
+                (MODEL.to_owned(), "upper".to_owned()),
+                (
+                    "models/player/fiona/lab.mdl".to_owned(),
+                    "lab_inner".to_owned()
+                ),
+            ])
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 }

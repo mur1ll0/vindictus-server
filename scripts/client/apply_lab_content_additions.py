@@ -174,11 +174,17 @@ def with_costumes(text: bytes, costumes: list[dict]) -> bytes:
     return text
 
 
-def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[str, list]:
-    """New packs for the items' asset files, by pack name: a folder the index already knows gets its next
-    part, a new folder part 0. Files go in as .comp, as the game stores models and materials."""
+def asset_packs(items: list[dict], index_packs: set[str], assets: Path,
+                extra: list[tuple[str, Path, str]] = ()) -> dict[str, list]:
+    """New packs for the items' asset files and the `extra` ones (game path, file, item class), by pack
+    name: a folder the index already knows gets its next part, a new folder part 0. Files go in as .comp,
+    as the game stores models and materials."""
     folders: dict[str, list] = {}
     seen: dict[str, str] = {}
+    for game_path, path, owner in extra:
+        seen[game_path] = owner
+        folders.setdefault(game_path.rsplit('/', 1)[0], []).append(
+            hfs.Entry(path.name.lower() + '.comp', hfs.comp_wrap(path.read_bytes()), hfs.DEFAULT_ATTR))
     for item in items:
         if not item.get('assets'):
             continue
@@ -199,6 +205,66 @@ def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[
             part += 1
         packs[hfs.pack_name(folder, part)] = entries
     return packs
+
+
+def replacement_files(overrides: dict | None, assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
+    """(game path, kit file, item class) of the kits that replace base items' models (the item editor's
+    override `model`, docs/future/item-editor.md 3.4): the model's files take the place of the client's,
+    and the new materials the Blender add-on writes are added."""
+    out: list[tuple[str, Path, str]] = []
+    seen: dict[str, str] = {}
+    for name, override in sorted((overrides or {}).items()):
+        model = override.get('model')
+        if not model:
+            continue
+        root = (assets / model['assets']).resolve()
+        if not root.is_relative_to(assets.resolve()) or not root.is_dir():
+            raise PreparationError(f'Missing asset folder {model["assets"]}.')
+        paths = []
+        for path in sorted(p for p in root.rglob('*') if p.is_file() and p.parent != root):
+            game_path = path.relative_to(root).as_posix().lower()
+            if not GAME_PATH.match(game_path) or not game_path.startswith(('models/', 'materials/')):
+                raise PreparationError(f'Bad file {game_path} in the kit of {name}.')
+            if seen.setdefault(game_path, name) != name:
+                raise PreparationError(f'{game_path} is in the model kits of {seen[game_path]} and {name}.')
+            paths.append(game_path)
+            out.append((game_path, path, name))
+        if model['model'] not in paths:
+            raise PreparationError(f'The kit of {name} has no {model["model"]}.')
+    return out
+
+
+def packs_holding(plain: bytes, path: str, client_copy: Path) -> list[Path]:
+    """The 1.69 packs holding a game path, from the original index (none for a new file)."""
+    names = hfs.index_packs(plain)
+    folder, file_name = path.rsplit('/', 1)
+    parts = {hfs.pack_name(folder, part) for part in range(64)}
+    key = hfs.name_key(file_name)
+    found = sorted({names[struct.unpack_from('<H', e, 6)[0]] for e in hfs.index_entries(plain) if e[:6] == key} & parts)
+    return [client_copy / 'hfs' / (name + '.hfs') for name in found]
+
+
+def split_replacements(plain: bytes, replacements: list[tuple[str, Path, str]], class_files: list[tuple[str, Path, str]],
+                       client_copy: Path) -> tuple[list, dict[Path, dict[str, object]], list]:
+    """Where each replacement goes: a staged class file is swapped in the class files (returned with the
+    swaps), a 1.69 file is rewritten inside its own pack (pack -> file name -> fix, as ORIGINAL_FIXES), and
+    a file the client lacks goes into a new pack (the third list)."""
+    staged = {path: i for i, (path, _, _) in enumerate(class_files)}
+    swapped = list(class_files)
+    fixes: dict[Path, dict[str, object]] = {}
+    new = []
+    for game_path, file, owner in replacements:
+        if game_path in staged:
+            swapped[staged[game_path]] = (game_path, file, hashlib.sha256(file.read_bytes()).hexdigest())
+            continue
+        packs = packs_holding(plain, game_path, client_copy)
+        if len(packs) > 1:
+            raise PreparationError(f'{game_path} is not in exactly one pack of the client.')
+        if packs:
+            fixes.setdefault(packs[0], {})[game_path.rsplit('/', 1)[1]] = lambda data, read, f=file: f.read_bytes()
+        else:
+            new.append((game_path, file, owner))
+    return swapped, fixes, new
 
 
 CLASS_MANIFEST = 'class-assets.json'
@@ -261,14 +327,10 @@ def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]
 
 def original_pack(plain: bytes, path: str, client_copy: Path) -> Path:
     """The 1.69 pack holding a game path, from the original index."""
-    names = hfs.index_packs(plain)
-    folder, file_name = path.rsplit('/', 1)
-    parts = {hfs.pack_name(folder, part) for part in range(64)}
-    key = hfs.name_key(file_name)
-    found = sorted({names[struct.unpack_from('<H', e, 6)[0]] for e in hfs.index_entries(plain) if e[:6] == key} & parts)
+    found = packs_holding(plain, path, client_copy)
     if len(found) != 1:
         raise PreparationError(f'{path} is not in exactly one pack of the client.')
-    return client_copy / 'hfs' / (found[0] + '.hfs')
+    return found[0]
 
 
 def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dict[str, list]]:
@@ -527,9 +589,19 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     original_index = backup_dir / index.name if (backup_dir / index.name).exists() else index
     merged = merge_packs(hfs.decode_index(original_index.read_bytes()), merges, client_copy) if merges else {}
     class_files = class_asset_files(assets)
+    # Replacement models of base items (item editor): staged class files are swapped, 1.69 files
+    # rewritten inside their pack and new files packed after the classes.
+    replacements = replacement_files(overrides, assets)
+    class_files, replaced, replacement_new = split_replacements(
+        hfs.decode_index(original_index.read_bytes()), replacements, class_files, client_copy)
     injected = injected_packs(hfs.decode_index(original_index.read_bytes()), class_files, client_copy)
     injected_paths = {path for pack in injected.values() for path, _, _ in pack}
     fixed = fixed_packs(hfs.decode_index(original_index.read_bytes()), client_copy) if class_files else {}
+    for pack, files in replaced.items():
+        for name, fix in files.items():
+            if name in fixed.get(pack, {}):
+                raise PreparationError(f'{name} has a lab fix and a replacement model.')
+            fixed.setdefault(pack, {})[name] = fix
     class_files = [f for f in class_files if f[0] not in injected_paths]
     # Every pack with a backup comes back to it unless rebuilt below (a merge that was undone).
     restored = [client_copy / 'hfs' / p.name for p in backup_dir.glob('*.hfs') if p.name != index.name]
@@ -541,7 +613,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     costumes += class_weapon_costumes(assets)
     class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
     class_names = [class_imports.read_meta(p)['name'] for p in class_imports.load_imports(content_additions.CLASS_IMPORTS)]
-    if (not items and not entries and not class_files and not merges and not class_tokens
+    if (not items and not entries and not class_files and not merges and not class_tokens and not replacements
             and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
@@ -637,7 +709,7 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     listed, class_built = class_packs(client_copy, plan, ks, apply_changes)
     taken = set(hfs.index_packs(plain)) | {name for name, _, _ in plan}
     new_packs = {}
-    for name, pack in asset_packs(items, taken, assets).items():
+    for name, pack in asset_packs(items, taken, assets, replacement_new).items():
         path = client_copy / 'hfs' / (name + '.hfs')
         new_packs[path] = hfs.build_pack(pack, ks)
         rebuilt.append((path.name, new_packs[path]))
@@ -654,7 +726,10 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
         for path in stale:
             path.unlink(missing_ok=True)
         added_list.write_text(json.dumps(added), encoding='utf-8')
-    return {'hfs': 'applied' if items or entries or class_files or merges or class_tokens else 'restored', 'text_tokens': len(entries),
+    return {'hfs': 'applied' if items or entries or class_files or merges or class_tokens or replacements else 'restored',
+            'text_tokens': len(entries),
+            'model_replacements': {'files': len(replacements), 'new': len(replacement_new),
+                                   'packs_rewritten': len(replaced)},
             'class_tokens': len(class_tokens),
             'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
             'class_packs': len(plan), 'class_injected': len(injected_paths), 'class_packs_built': class_built, 'class_merges': merge_report, 'original_fixes': fix_report,

@@ -12,7 +12,9 @@ item's 'set' columns changed; `set_id` puts it in an equipment set (SetItemInfo)
 
 Panel edits of base items (`item_overrides`) change editable columns (EDITABLE) of every row of
 the item in place: the view reads a TEMP copy of the table in its original order with those cells
-changed, so row positions and counts stay. Hidden items (`hidden_items`) keep their rows (the
+changed, so row positions and counts stay. An override may also carry `model` ({"assets", "model"}): a kit
+whose files replace the item's own model in the client copy (scripts/client/apply_lab_content_additions.py);
+the server rows do not change. Hidden items (`hidden_items`) keep their rows (the
 characters that own one keep a working item); they only leave the NPC shops (content_edits) and
 the panel's give list. `removed_items` drops items of item_additions.json. The client copy gets
 the same rows through `apply_client`."""
@@ -117,6 +119,10 @@ def panel_edits(edits: dict | None = None) -> dict:
             if table not in EDITABLE or not isinstance(columns, dict) or not set(columns) <= set(EDITABLE[table]):
                 raise ValueError(f'Item override of {name} changes a column outside the editor')
         _check_text(override)
+        model = override.get('model')
+        if model is not None and not (isinstance(model, dict) and ASSET.match(str(model.get('assets')))
+                                      and MODEL.match(str(model.get('model')))):
+            raise ValueError(f'Item override of {name} needs a kit folder and a models/....mdl path for its model')
     return {'items': items, 'item_overrides': overrides, 'hidden_items': hidden, 'removed_items': removed}
 
 

@@ -550,6 +550,12 @@ impl IntoResponse for Refusal {
                         "kit_colide" => {
                             "Um arquivo do kit já existe no cliente. Exporte o modelo e os materiais com nomes novos no add-on."
                         }
+                        "kit_outro_modelo" => {
+                            "O kit não substitui o modelo deste item: exporte-o no add-on com o caminho do modelo original do item (o da prévia)."
+                        }
+                        "kit_de_outro_item" => {
+                            "Outro item já tem um kit com um destes arquivos. Restaure o modelo dele ou exporte com outro nome."
+                        }
                         "modelo_sem_secao" => {
                             "A categoria do item não tem modelo de roupa no player_costume.txt (use inner, avatar ou armadura)."
                         }

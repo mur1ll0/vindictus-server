@@ -20,6 +20,7 @@ Bloco B4 (painel de administração e análise de extensões). Plano em `docs/b4
 8. **Fim:** relogar com a Murael e o personagem novo e conferir o que as entradas listam como preservado; Auditoria deve ter uma linha para cada mudança feita.
 9. **Editor de itens (depois do B4, opcional na mesma sessão):** I2 com a Fiona fora do jogo: criar, clonar com kit, editar, ocultar e remover; publicar; abrir pelo `start-lab.bat`; dar os itens e conferir no jogo; relogar.
 10. **Seleção de personagem (28/10/2026):** S1 (ordem dos slots), S2 (excluir com prazo e cancelar) e S3 (concluir a exclusão depois de 5 minutos) com uma personagem de teste descartável.
+11. **Modelo substituto (02/11/2026, opcional):** I3 com a Miri (ou outra personagem) fora do jogo: kit corrigido no Blender para uma armadura existente; publicar; `start-lab.bat`; vestir e conferir; voltar ao original.
 
 ### P2 — Busca por categoria, refino e scrolls de um item pelo painel
 Pré-condição: imagens recompiladas e catálogo reexportado depois dos commits da busca por categoria e do editor de refino (`py -3.13 scripts/content/refresh_item_content.py`, depois `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `docker compose up -d --wait`); login no painel como `gm` ou `admin`; uma Fiona de laboratório offline com uma espada longa (ex.: `longsword_swordwind`) na bolsa. Cliente fechado.
@@ -243,7 +244,18 @@ Pré-condição: imagens recompiladas depois do commit do editor de itens (`COMP
 - [ ] Relogar → os itens novos continuam na bolsa e vestidos, com nome, ícone, modelo e estatísticas; a espada clonada aparece na mão com o modelo do kit; a Evy veste o inner novo.
 - [ ] O item removido sumiu da bolsa e do corpo da Fiona, sem erro ao entrar; o log do `game` registra "removed item taken from its owners".
 - [ ] Painel → `fiona_inner_fringe` → **Restaurar original** → publicar → `start-lab.bat` → o tooltip volta à DEF original.
-Limites conhecidos: o ícone é escolhido entre os ícones existentes (ícone novo depende do launcher); um item base não muda de conjunto nem ganha modelo novo (só pode apontar outro CostumeType existente); a remoção apaga o item de todos os personagens quando o jogo carrega a publicação (não confere lojas, receitas e drops); a distribuição a outros jogadores é o launcher (fora deste roteiro).
+Limites conhecidos: o ícone é escolhido entre os ícones existentes (ícone novo depende do launcher); um item base não muda de conjunto nem ganha CostumeType novo (só pode apontar outro existente; o modelo pode ser substituído, entrada I3); a remoção apaga o item de todos os personagens quando o jogo carrega a publicação (não confere lojas, receitas e drops); a distribuição a outros jogadores é o launcher (fora deste roteiro).
+
+### I3 — Modelo substituto de um item existente (kit do Blender)
+Pré-condição: imagens recompiladas depois do commit do modelo substituto (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, `docker compose up -d --wait`); painel com papel `admin`; Blender 5.1 com o add-on `tools/blender/vindictus` 0.2.0; uma personagem que possa vestir a armadura (ex.: a Miri com a `pytonshock` superior do NA, em que a pele atravessa a peça) fora do jogo; cliente fechado em todo o roteiro.
+- [ ] Painel → **Modelos 3D** → item da armadura (ex.: a `pytonshock` superior) → **Exportar kit (.zip)**.
+- [ ] Blender → *File → Import → Vindictus Kit* com esse zip → selecionar as malhas → *Push Mesh Out* (0,3; as armaduras do NA já foram infladas 0,3 na preparação, então para ver a troca com clareza use 1,0: a peça fica visivelmente mais grossa) → *File → Export → Vindictus Kit (.zip)* **sem mudar o caminho do modelo** (vem o original, `models/armor/.../pc_female_..._upper.mdl`).
+- [ ] Painel → **Editor de itens** → o item → **Editar** → **Modelo substituto** → escolher o zip → a prévia mostra a malha corrigida → Salvar edição → aviso de edição pendente.
+- [ ] Recusas: o mesmo item com um kit de outro modelo (ex.: o da peça inferior) → "O kit não substitui o modelo deste item"; outro item com o mesmo kit → "Outro item já tem um kit com um destes arquivos".
+- [ ] Conteúdo → **Publicar** → abrir pelo `start-lab.bat` (reexporta, reinicia o `game` e atualiza a cópia do cliente).
+- [ ] No jogo, vestir a armadura → a peça aparece com a malha do kit (mais grossa com 1,0; sem a pele atravessando com 0,3) em pé, andando e no combate; o resto da personagem (cabelo, outras peças, corpo) igual a antes.
+- [ ] Painel → o item → **Editar** → a ficha mostra "Modelo substituto: kit_…" → marcar **Voltar ao modelo original** → Salvar → publicar → `start-lab.bat` → no jogo a armadura volta à malha anterior.
+Relatar: item e modelo usados, o que a prévia mostrou, as mensagens de recusa e, se o jogo fechar, o relatório de erro.
 
 ### S1 — Ordem dos slots na seleção
 Pré-condição: `game` recompilado depois do commit da exclusão e da ordem dos slots (28/10/2026); conta com duas ou mais personagens (ex.: `admin` com a Murael e uma personagem de teste criada no B4.N2). Cliente aberto pelo `start-lab.bat`.

@@ -173,9 +173,13 @@ class ContentAdditionsTest(unittest.TestCase):
         self.assertEqual(additions.load(path)[0]['set']['EquipItemInfo']['CostumeType'], 16)
         for bad in ({'item_overrides': {'a': {'set': {'ItemClassInfo': {'ItemClass': 'b'}}}}},
                     {'item_overrides': {'a': {'set': {'ShopInfo': {'Price': 1}}}}},
-                    {'hidden_items': ['Bad Name']}):
+                    {'hidden_items': ['Bad Name']},
+                    {'item_overrides': {'a': {'model': {'assets': '../kit', 'model': 'models/a.mdl'}}}},
+                    {'item_overrides': {'a': {'model': {'assets': 'kit_a', 'model': 'materials/a.vmt'}}}}):
             with self.assertRaises(ValueError):
                 additions.panel_edits(bad)
+        model = {'assets': 'kit_0123456789abcdef', 'model': 'models/armor/a/pc_female_a_upper.mdl'}
+        self.assertEqual(additions.load_overrides({'item_overrides': {'a': {'model': model}}})['a']['model'], model)
 
     def test_client_overrides_are_undone_and_removed_items_leave(self):
         original = pathlib.Path(self.temp.name) / 'original.db3'

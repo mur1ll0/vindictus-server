@@ -363,6 +363,7 @@ async fn item_editor_edits_reach_the_overlay() {
         set_id: None,
         kit: None,
         body: None,
+        restore_model: false,
     };
     // New item from a base template.
     let saved = item_editor::save(

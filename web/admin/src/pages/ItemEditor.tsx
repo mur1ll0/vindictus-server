@@ -177,6 +177,9 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
   const [setId, setSetId] = useState(source?.set_id ?? '');
   const [kitFile, setKitFile] = useState<File | null>(null);
   const [body, setBody] = useState('');
+  // Base items: the kit of the newest override that replaces the item's own model.
+  const replacement = (source?.model_replacement as { assets?: string; model?: string } | null | undefined) ?? null;
+  const [restoreModel, setRestoreModel] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<EditorDetail | null>(null);
   const loadTemplate = useMutation({
     mutationFn: editorItem,
@@ -189,8 +192,8 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
   });
   const kitPreview = useMutation({ mutationFn: async (file: File) => readKit(unzipStored(await file.arrayBuffer())) });
   const sourcePreview = useQuery({
-    queryKey: ['item-preview', source?.item_class, definition?.assets],
-    queryFn: () => previewOf(source?.item_class ?? '', definition?.assets as string | undefined),
+    queryKey: ['item-preview', source?.item_class, definition?.assets, replacement?.assets],
+    queryFn: () => previewOf(source?.item_class ?? '', (definition?.assets as string | undefined) ?? replacement?.assets),
     enabled: !!source && !kitFile,
   });
   const restriction = Number(fields.ClassRestriction ?? 0);
@@ -216,7 +219,8 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
       fields: clean,
       set_id: base ? (source?.set_id ?? null) : setId.trim() || null,
       kit: kit?.assets ?? null,
-      body: kit && body ? body : null,
+      body: kit && body && !base ? body : null,
+      restore_model: base && restoreModel && !kit,
     };
     await saveItem(operationId, draft);
   };
@@ -369,61 +373,76 @@ function ItemForm({ mode, onDone, onCancel }: { mode: Mode; onDone: (itemClass: 
         <div className="space-y-4">
           <Card className="space-y-3">
             <h3 className="text-sm font-semibold">Modelo 3D</h3>
-            {base ? (
-              <p className="text-sm text-muted">Itens base mantêm o modelo; escolha outro CostumeType existente, se quiser.</p>
-            ) : (
-              <>
-                <div className="space-y-1">
-                  <Label htmlFor="kit">Kit novo (.zip do add-on, opcional)</Label>
-                  <input
-                    id="kit"
-                    type="file"
-                    accept=".zip,application/zip"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setKitFile(file);
-                      if (file) kitPreview.mutate(file);
-                    }}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('kit')?.click()}>
-                      <FileArchive /> Escolher arquivo .zip
-                    </Button>
-                    <span className="min-w-0 truncate text-xs text-muted">{kitFile ? kitFile.name : 'nenhum arquivo'}</span>
-                    {kitFile && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setKitFile(null);
-                          const input = document.getElementById('kit') as HTMLInputElement | null;
-                          if (input) input.value = '';
-                        }}
-                      >
-                        Tirar
-                      </Button>
-                    )}
-                  </div>
-                </div>
+            {base && (
+              <p className="text-sm text-muted">
+                Itens base mantêm o CostumeType (escolha outro existente, se quiser). Um kit do add-on exportado com o caminho do modelo original do item substitui esse modelo na cópia do cliente.
+              </p>
+            )}
+            {base && replacement && (
+              <div className="space-y-1 rounded-md border border-border p-2 text-xs">
+                <p>
+                  Modelo substituto: <span className="font-mono">{replacement.assets}</span> ({replacement.model})
+                </p>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={restoreModel} disabled={!!kitFile} onChange={(e) => setRestoreModel(e.target.checked)} />
+                  Voltar ao modelo original
+                </label>
+              </div>
+            )}
+            <div className="space-y-1">
+              <Label htmlFor="kit">{base ? 'Modelo substituto (.zip do add-on, opcional)' : 'Kit novo (.zip do add-on, opcional)'}</Label>
+              <input
+                id="kit"
+                type="file"
+                accept=".zip,application/zip"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setKitFile(file);
+                  if (file) kitPreview.mutate(file);
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('kit')?.click()}>
+                  <FileArchive /> Escolher arquivo .zip
+                </Button>
+                <span className="min-w-0 truncate text-xs text-muted">{kitFile ? kitFile.name : 'nenhum arquivo'}</span>
                 {kitFile && (
-                  <div className="space-y-1">
-                    <Label htmlFor="body">Corpo (só roupas e armaduras)</Label>
-                    <select id="body" className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm" value={body} onChange={(e) => setBody(e.target.value)}>
-                      <option value="">o do item-modelo</option>
-                      {BODIES.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-muted">
-                      O servidor guarda o kit e dá um CostumeType livre: roupas e armaduras a partir de 9100, no player_costume.txt; armas e escudos logo depois do último número do script da arma (weapon_{"<classe>"}.txt) ou do shields.txt. Armas e escudos ignoram o corpo.
-                    </p>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setKitFile(null);
+                      const input = document.getElementById('kit') as HTMLInputElement | null;
+                      if (input) input.value = '';
+                    }}
+                  >
+                    Tirar
+                  </Button>
                 )}
-              </>
+              </div>
+            </div>
+            {kitFile && base && (
+              <p className="text-xs text-muted">
+                O kit precisa ter o modelo do item (o da prévia antes de escolher o arquivo). Na próxima publicação, depois do start-lab, o modelo e as partes dele que estão no kit trocam os arquivos da cópia do cliente, e os materiais novos entram em pacote próprio. Todos os itens com esse modelo mudam juntos; "Voltar ao modelo original" ou "Restaurar original" desfazem.
+              </p>
+            )}
+            {kitFile && !base && (
+              <div className="space-y-1">
+                <Label htmlFor="body">Corpo (só roupas e armaduras)</Label>
+                <select id="body" className="h-9 w-full rounded-md border border-border bg-surface px-2 text-sm" value={body} onChange={(e) => setBody(e.target.value)}>
+                  <option value="">o do item-modelo</option>
+                  {BODIES.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted">
+                  O servidor guarda o kit e dá um CostumeType livre: roupas e armaduras a partir de 9100, no player_costume.txt; armas e escudos logo depois do último número do script da arma (weapon_{"<classe>"}.txt) ou do shields.txt. Armas e escudos ignoram o corpo.
+                </p>
+              </div>
             )}
             {kitFile ? (
               <Preview model={kitPreview.data} busy={kitPreview.isPending} error={kitPreview.error} />
@@ -556,7 +575,7 @@ const ACTION_TEXT: Record<Pending['kind'], { title: string; submit: string; text
     submit: 'Remover',
     text: 'O item sai do conteúdo do servidor e da cópia do cliente na próxima publicação. Quando o jogo carregar a publicação, todos os personagens perdem o item: se estiver vestido, é desequipado e depois apagado; entregas pendentes dele são descartadas.',
   },
-  restore: { title: 'Restaurar item base', submit: 'Restaurar', text: 'Os valores e o texto originais do item voltam na próxima publicação.' },
+  restore: { title: 'Restaurar item base', submit: 'Restaurar', text: 'Os valores, o texto e o modelo originais do item voltam na próxima publicação.' },
 };
 
 export function ItemEditorPage() {

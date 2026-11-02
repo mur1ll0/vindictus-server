@@ -3725,7 +3725,7 @@
           "class": {
             "type": "integer",
             "format": "int32",
-            "description": "BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,\n7 Lynn, 8 Arisha, 9 Hagie, 10 Delia (laboratory; domain::character_class)."
+            "description": "BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,\n7 Lynn, 8 Arisha, 9 Hagie, 10 Delia, 11 Miri (laboratory; domain::character_class)."
           },
           "connected": {
             "type": "boolean"
@@ -4306,6 +4306,13 @@
           "item_class": {
             "type": "string"
           },
+          "model_replacement": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Base items: the kit that replaces the item's model ({\"assets\", \"model\"}) in the newest\noverride, pending or published."
+          },
           "name": {
             "type": [
               "string",
@@ -4675,10 +4682,14 @@
               "string",
               "null"
             ],
-            "description": "A kit uploaded with POST /api/item-editor/kits: the item gets this model under a new\nCostumeType."
+            "description": "A kit uploaded with POST /api/item-editor/kits. Added items get this model under a new\nCostumeType; base items keep their CostumeType and the kit replaces their own model's\nfiles (its studio model must be the item's)."
           },
           "name": {
             "type": "string"
+          },
+          "restore_model": {
+            "type": "boolean",
+            "description": "Base items: drop the kit an earlier override gave the item (its original model comes\nback)."
           },
           "set_id": {
             "type": [

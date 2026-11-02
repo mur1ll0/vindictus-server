@@ -1120,7 +1120,7 @@ export interface components {
             /**
              * Format: int32
              * @description BaseCharacter: 0 Lethita (Lann), 1 Fiona, 2 Evy, 3 Kalok, 4 Kay, 5 Vella, 6 Hurk,
-             *     7 Lynn, 8 Arisha, 9 Hagie, 10 Delia (laboratory; domain::character_class).
+             *     7 Lynn, 8 Arisha, 9 Hagie, 10 Delia, 11 Miri (laboratory; domain::character_class).
              */
             class: number;
             connected: boolean;
@@ -1308,6 +1308,11 @@ export interface components {
             hidden: boolean;
             icon?: string | null;
             item_class: string;
+            /**
+             * @description Base items: the kit that replaces the item's model ({"assets", "model"}) in the newest
+             *     override, pending or published.
+             */
+            model_replacement?: Record<string, never> | null;
             name?: string | null;
             origin: string;
             set_id?: string | null;
@@ -1445,11 +1450,17 @@ export interface components {
             fields: Record<string, never>;
             item_class: string;
             /**
-             * @description A kit uploaded with POST /api/item-editor/kits: the item gets this model under a new
-             *     CostumeType.
+             * @description A kit uploaded with POST /api/item-editor/kits. Added items get this model under a new
+             *     CostumeType; base items keep their CostumeType and the kit replaces their own model's
+             *     files (its studio model must be the item's).
              */
             kit?: string | null;
             name: string;
+            /**
+             * @description Base items: drop the kit an earlier override gave the item (its original model comes
+             *     back).
+             */
+            restore_model?: boolean;
             /** @description Equipment set (SetItemInfo SetID) of an added item. */
             set_id?: string | null;
             /**
