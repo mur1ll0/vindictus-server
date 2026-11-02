@@ -24,7 +24,7 @@ import pefile  # noqa: E402
 
 OUTPUT = ROOT / 'docs/evidence/client/v169-class-uses.json'
 # Lab copies with the .hcls class tables (docs/future/new-classes.md 8.9).
-EXPECTED = {'client.dll': 'a9591d3a44a2b538', 'server.dll': 'af43431e78666783'}
+EXPECTED = {'client.dll': '0a0b866dcc0a1852', 'server.dll': 'c85a56d5b845810f'}
 FIELD = {'client.dll': 0x18EC, 'server.dll': 0x1400}
 REGISTERS = ['eax', 'ecx', 'edx', 'ebx', 'esp', 'ebp', 'esi', 'edi']
 WINDOW = 18

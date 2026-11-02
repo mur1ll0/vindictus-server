@@ -16,6 +16,9 @@ export const CLASS_NAME: Record<number, string> = {
   7: 'Lynn',
   8: 'Arisha',
   9: 'Hagie',
+  // Classes ported from the NA client (laboratory DLL patches; docs/future/*-class-port.md).
+  10: 'Delia',
+  11: 'Miri',
 };
 
 export function className(value: number) {

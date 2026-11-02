@@ -176,6 +176,8 @@ fn framework_inventory_snapshots_match_all_envelopes_and_roundtrip() {
                 | Kind::BuyItemResult
                 | Kind::QueryShopItemInfo
                 | Kind::SellItem
+                | Kind::DestroyItem
+                | Kind::DestroySlotItem
                 | Kind::QueryBuybackList
                 | Kind::BuybackListResult
                 | Kind::RepairItem

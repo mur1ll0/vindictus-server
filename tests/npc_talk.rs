@@ -1591,3 +1591,119 @@ fn manufacture_commands_change_the_manager_and_feed_its_conditions() {
     }
     assert!(matches!(result, Err(TalkError::Unsupported(_))));
 }
+
+struct OfClass(i32);
+impl Facts for OfClass {
+    fn class(&self) -> i32 {
+        self.0
+    }
+    fn level(&self) -> i32 {
+        1
+    }
+    fn title_acquired(&self, _: i32) -> bool {
+        false
+    }
+    fn base_skill_rank(&self, _: &str) -> i32 {
+        -1
+    }
+    fn items(&self) -> Vec<(String, i32)> {
+        Vec::new()
+    }
+    fn use_preset(&self) -> bool {
+        true
+    }
+    fn utc_seconds(&self) -> i32 {
+        1_000_000
+    }
+    fn item_count(&self, _: &str) -> i32 {
+        0
+    }
+    fn manufacture(&self, _: &str) -> Option<(i32, i32)> {
+        None
+    }
+    fn quests(&self) -> Option<&vindictus_server::domain::quest::QuestContents> {
+        None
+    }
+    fn repair_price(&self) -> i32 {
+        0
+    }
+    fn gold(&self) -> i32 {
+        0
+    }
+}
+
+#[test]
+fn switch_takes_the_lab_class_branch_or_fail() {
+    // The source Switch knows classes 0-9; the laboratory's Delia (10) and Miri (11) take
+    // their own branch when the exported script has one (skill_all_xe_move), else Fail.
+    let branch = |name: &str, text: &str| el(name, &[], "", vec![leaf("talk", text)]);
+    let story = el(
+        "StoryLine",
+        &[],
+        "",
+        vec![el(
+            "Phase",
+            &[("id", "A")],
+            "",
+            vec![el(
+                "Talk",
+                &[("id", "CEARA")],
+                "",
+                vec![el(
+                    "Do",
+                    &[],
+                    "",
+                    vec![el(
+                        "Switch",
+                        &[],
+                        "",
+                        vec![
+                            branch("Lethita", "LE"),
+                            branch("Miri", "MI"),
+                            branch("Fail", "FAIL"),
+                        ],
+                    )],
+                )],
+            )],
+        )],
+    );
+    let info = StoryLineInfo {
+        id: "Guide".to_owned(),
+        xml_path: Some("NpcSkill".to_owned()),
+        class_restriction: 4095,
+        ..Default::default()
+    };
+    let s = scripts_with(vec![(info, Some(&story))]);
+    let p = story_policy();
+    let said = |class: i32| {
+        let mut state = StoryState {
+            progress: vec![Progress {
+                story_line: "Guide".to_owned(),
+                phase: Some("A".to_owned()),
+                status: 0,
+            }],
+            ..Default::default()
+        };
+        let mut session = Session::default();
+        let mut pick = |_| 0;
+        let facts = OfClass(class);
+        let outputs = Talker::new(&s, &p, &facts, &mut state, &mut pick, 0, &mut session)
+            .talk_to(None, "CEARA", Some("Guide"), None)
+            .unwrap()
+            .outputs;
+        outputs
+            .iter()
+            .filter_map(|o| match o {
+                Output::Talk(t) => Some(texts(t)),
+                _ => None,
+            })
+            .flatten()
+            .filter(|e| ["LE", "MI", "FAIL"].contains(&e.1.as_str()))
+            .map(|e| e.1)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(said(0), ["LE"]);
+    assert_eq!(said(11), ["MI"]);
+    assert_eq!(said(10), ["FAIL"]);
+    assert_eq!(said(1), ["FAIL"]);
+}

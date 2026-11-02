@@ -15,6 +15,8 @@ COSTUME = b'"inner_armor"\r\n{\r\n\t"16"\r\n\t{\r\n\t\t"normal"\t"models/a.mdl"\
 ITEMS = [{'ItemClass': 'new_inner', 'template': 'old_inner', 'text': {'name': 'New'},
           'costumes': [{'section': 'inner_armor', 'key': '9100', 'category': 'female', 'normal': 'models/player/f/new.mdl'}],
           'assets': 'kit'}]
+ARMOR_FOLDER = 'models/armor/a'
+UPPER = ARMOR_FOLDER + '/pc_female_a_upper.mdl'
 
 
 class ApplyLabHfsTest(unittest.TestCase):
@@ -28,6 +30,9 @@ class ApplyLabHfsTest(unittest.TestCase):
             language = folder.rsplit('/', 1)[1]
             packs.append((hfs.pack_name(folder) + '.hfs', [hfs.Entry(f'heroes_text_{language}.txt', TEXT, 0x20)]))
         packs.append((hfs.pack_name(SCRIPTS_FOLDER) + '.hfs', [hfs.Entry('player_costume.txt.comp', hfs.comp_wrap(COSTUME), 0x20)]))
+        # A 1.69 armour model, for the item editor's replacement kits.
+        packs.append((hfs.pack_name(ARMOR_FOLDER) + '.hfs', [hfs.Entry('pc_female_a_upper.mdl.comp', hfs.comp_wrap(b'IDST-old'), 0x20),
+                                                             hfs.Entry('pc_female_a_upper.vvd.comp', hfs.comp_wrap(b'IDSV-old'), 0x20)]))
         names = []
         for name, entries in packs:
             (self.client / 'hfs' / name).write_bytes(hfs.build_pack(entries, KS))
@@ -39,6 +44,12 @@ class ApplyLabHfsTest(unittest.TestCase):
         (self.assets / 'kit/models/player/f').mkdir(parents=True)
         (self.assets / 'kit/models/player/f/new.mdl').write_bytes(b'IDST0')
         self.original = {p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}
+        # The developer's imported classes never reach these tests.
+        from unittest import mock
+        import content_additions
+        patcher = mock.patch.object(content_additions, 'CLASS_IMPORTS', Path(self.temp.name) / 'no-imports')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -68,6 +79,9 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.assertEqual(text.count(b'models/weapon/longsword/new.mdl'), 2)
         with self.assertRaises(Exception):
             with_script_entries(text, [entry], 'weapon')
+        trails = {**entry, 'key': '3', 'trails': '"TrailData"\r\n{\r\n"0" { "material" "Effects/miri_smash" }\r\n}'}
+        text = with_script_entries(text, [trails], 'weapon')
+        self.assertEqual(kv_blocks(text)[('weapondata', 'subtypeinfooverride', '3', 'traildata')][2], {'0'})
         shields = b'"Fiona"\r\n{\r\n\t"normal_paladin_subtype_id"\t"23"\r\n\t"0"\r\n\t{\r\n\t\t"normal"\t"models/weapon/shield/a.mdl"\r\n\t}\r\n}\r\n'
         text = with_script_entries(shields, [{**entry, 'section': 'shields', 'key': '1'}], 'shields')
         self.assertEqual(kv_blocks(text)[('fiona',)][2], {'0', '1'})
@@ -90,6 +104,153 @@ class ApplyLabHfsTest(unittest.TestCase):
         self.assertEqual(self.run_apply(ITEMS)['hfs_files_changed'], 0)
         self.run_apply([])
         self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def stage_class(self, files: dict[str, bytes]) -> None:
+        import hashlib
+        import json
+        root = self.assets / 'classes/miri'
+        records = []
+        for path, data in files.items():
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_bytes(data)
+            records.append({'path': path, 'sha256': hashlib.sha256(data).hexdigest()})
+        (root / 'class-assets.json').write_text(json.dumps({'files': records}), encoding='utf-8')
+
+    def test_class_assets_get_their_own_parts_and_are_cached(self):
+        import apply_lab_content_additions as lab
+        self.stage_class({'models/player/miri/a.mdl': b'A' * 60, 'models/player/miri/b.mdl': b'B' * 60,
+                          'sound/voice/pc/miri_hi.wav': b'RIFF', 'scripts/player_action_state_miri.txt': b'"x" {}'})
+        limit, lab.CLASS_PART_LIMIT = lab.CLASS_PART_LIMIT, 100
+        # the fake client has none of the 1.69 files ORIGINAL_FIXES rewrites
+        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client: {}
+        self.addCleanup(setattr, lab, 'fixed_packs', fixed)
+        try:
+            plan = self.run_apply([])
+        finally:
+            lab.CLASS_PART_LIMIT = limit
+        packs = {hfs.pack_name('models/player/miri', 0), hfs.pack_name('models/player/miri', 1),
+                 hfs.pack_name('sound/voice/pc')}
+        # the script goes into the 1.69's own scripts pack (INJECTED_PREFIXES), the rest into new parts
+        self.assertEqual((plan['class_files'], plan['class_packs'], plan['class_packs_built'], plan['class_injected']),
+                         (3, 3, 3, 1))
+        plain = hfs.decode_index((self.client / INDEX).read_bytes())
+        self.assertTrue(packs <= set(hfs.index_packs(plain)))
+        self.assertIn(hfs.pack_name(SCRIPTS_FOLDER, 0), hfs.index_packs(plain))
+        keys = {e[:6] for e in hfs.index_entries(plain)}
+        for name in ('a.mdl', 'b.mdl', 'miri_hi.wav', 'player_action_state_miri.txt', 'player_costume.txt'):
+            self.assertIn(hfs.name_key(name), keys)
+        sound = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('sound/voice/pc') + '.hfs')).read_bytes(), KS)
+        self.assertEqual([(e.name, e.data) for e in sound], [('miri_hi.wav', b'RIFF')])
+        model = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('models/player/miri', 1) + '.hfs')).read_bytes(), KS)
+        self.assertEqual([(e.name, hfs.comp_unwrap(e.data)) for e in model], [('b.mdl.comp', b'B' * 60)])
+        lab.CLASS_PART_LIMIT = 100
+        try:
+            again = self.run_apply([])
+        finally:
+            lab.CLASS_PART_LIMIT = limit
+        self.assertEqual((again['class_packs_built'], again['hfs_files_changed']), (0, 0))
+        (self.assets / 'classes/miri/class-assets.json').unlink()
+        self.run_apply([])
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def test_class_text_adds_only_missing_class_tokens(self):
+        import json
+        root = self.assets / 'classes/miri'
+        (root / 'merge/text').mkdir(parents=True)
+        na = '"lang"\r\n{\r\n\t"Tokens"\r\n\t{\r\n\t\t"OLD"\t"miri old"\r\n\t\t"HEROES_ITEM_NAME_DRAKER_X"\t"Dragon \\"X\\""\r\n' \
+             '\t\t"HEROES_UNRELATED"\t"x"\r\n\t}\r\n}\r\n'
+        (root / 'merge/text/heroes_text_english.txt').write_bytes(na.encode('utf-16'))
+        (root / 'class-assets.json').write_text(json.dumps({'class': 'miri', 'weapon': 'draker', 'files': [],
+                                                            'text': {'path': 'text/heroes_text_english.txt'}}), encoding='utf-8')
+        plan = self.run_apply([])
+        self.assertEqual(plan['class_tokens'], 1)  # OLD's key does not name the class
+        pack = self.client / 'hfs' / (hfs.pack_name(TEXT_FOLDERS[0]) + '.hfs')
+        text = hfs.read_pack(pack.read_bytes(), KS)[0].data.decode('utf-16')
+        self.assertIn('"HEROES_ITEM_NAME_DRAKER_X"\t"Dragon \\"X\\""', text)
+        self.assertIn('"OLD"\t"old"', text)
+        self.assertNotIn('miri old', text)
+        self.assertNotIn('HEROES_UNRELATED', text)
+        (root / 'class-assets.json').unlink()
+        self.run_apply([])
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def test_class_merges_add_the_class_lines_to_the_169_script_and_undo(self):
+        import json
+        root = self.assets / 'classes/miri'
+        (root / 'merge/scripts').mkdir(parents=True)
+        na = COSTUME.replace(b'"hair"', b'"miri"\r\n{\r\n\t"default"\t"11"\r\n}\r\n"hair"').replace(
+            b'\t"16"', b'\t"9100"\r\n\t{\r\n\t\t"label"\t"9100"\r\n\t\t"normal"\t"models/player/miri/in.mdl"\r\n\t}\r\n\t"16"')
+        (root / 'merge/scripts/player_costume.txt').write_bytes(na)
+        (root / 'class-assets.json').write_text(json.dumps({'files': [], 'merge': [
+            {'path': 'scripts/player_costume.txt', 'needles': ['miri']}]}), encoding='utf-8')
+        plan = self.run_apply(ITEMS)
+        self.assertEqual(plan['class_merges']['files'], 1)
+        scripts = self.client / 'hfs' / (hfs.pack_name(SCRIPTS_FOLDER) + '.hfs')
+        text = hfs.comp_unwrap(hfs.read_pack(scripts.read_bytes(), KS)[0].data)
+        # The item editor's entry still goes in, after the class lines; the class's 9100 moves to 9000.
+        self.assertIn(b'"miri"', text)
+        self.assertIn(b'"9100"\r\n\t{\r\n\t\t"category"\t"female"', text)
+        self.assertIn(b'"9000"\r\n\t{\r\n\t\t"label"\t"9000"\r\n\t\t"normal"\t"models/player/miri/in.mdl"', text)
+        self.assertEqual(plan['class_merges']['renumbered'], {'inner_armor/9100': '9000'})
+        self.assertEqual(self.run_apply(ITEMS)['hfs_files_changed'], 0)
+        (root / 'class-assets.json').unlink()
+        self.run_apply([])
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def write_kit(self, assets: str, files: dict[str, bytes], model: str = UPPER) -> dict:
+        import json
+        root = self.assets / assets
+        for path, data in files.items():
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_bytes(data)
+        (root / 'kit.json').write_text(json.dumps({'model': model}), encoding='utf-8')
+        return {'set': {}, 'text': {}, 'model': {'assets': assets, 'model': model}}
+
+    def apply_overrides(self, overrides):
+        return apply_hfs(self.client, [], Path(self.temp.name) / 'ks.bin', True, self.assets, overrides=overrides)
+
+    def test_replacement_kit_rewrites_the_169_model_adds_new_materials_and_undoes(self):
+        material = 'materials/models/armor/a/pc_female_a_upper/a_diffuse.vmt'
+        overrides = {'a_upper': self.write_kit('kit_fix', {UPPER: b'IDST-fixed', material: b'"VertexLitGeneric" {}'})}
+        plan = self.apply_overrides(overrides)
+        self.assertEqual(plan['model_replacements'], {'files': 2, 'new': 1, 'packs_rewritten': 1})
+        armor = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name(ARMOR_FOLDER) + '.hfs')).read_bytes(), KS)
+        # The model changes inside its own pack; the vvd the kit leaves out stays.
+        self.assertEqual([(e.name, hfs.comp_unwrap(e.data)) for e in armor],
+                         [('pc_female_a_upper.mdl.comp', b'IDST-fixed'), ('pc_female_a_upper.vvd.comp', b'IDSV-old')])
+        new_pack = hfs.pack_name('materials/models/armor/a/pc_female_a_upper') + '.hfs'
+        self.assertEqual(plan['new_packs'], [new_pack])
+        plain = hfs.decode_index((self.client / INDEX).read_bytes())
+        self.assertIn(new_pack[:-4], hfs.index_packs(plain))
+        self.assertIn(hfs.name_key('a_diffuse.vmt'), {e[:6] for e in hfs.index_entries(plain)})
+        self.assertEqual(self.apply_overrides(overrides)['hfs_files_changed'], 0)
+        # A columns-only override (or none) gives the original model back.
+        self.apply_overrides({'a_upper': {'set': {'ItemClassInfo': {'Price': 5}}, 'text': {}}})
+        self.assertEqual({p.name: p.read_bytes() for p in (self.client / 'hfs').iterdir()}, self.original)
+
+    def test_replacement_kit_swaps_a_staged_class_file(self):
+        import apply_lab_content_additions as lab
+        model = 'models/armor/pytonshock/pc_female_pytonshock_upper.mdl'
+        self.stage_class({model: b'IDST-na'})
+        fixed, lab.fixed_packs = lab.fixed_packs, lambda plain, client: {}
+        self.addCleanup(setattr, lab, 'fixed_packs', fixed)
+        overrides = {'pytonshock_upper': self.write_kit('kit_na', {model: b'IDST-pushed'}, model)}
+        plan = self.apply_overrides(overrides)
+        self.assertEqual(plan['model_replacements'], {'files': 1, 'new': 0, 'packs_rewritten': 0})
+        pack = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('models/armor/pytonshock') + '.hfs')).read_bytes(), KS)
+        self.assertEqual([hfs.comp_unwrap(e.data) for e in pack], [b'IDST-pushed'])
+        self.apply_overrides({})
+        pack = hfs.read_pack((self.client / 'hfs' / (hfs.pack_name('models/armor/pytonshock') + '.hfs')).read_bytes(), KS)
+        self.assertEqual([hfs.comp_unwrap(e.data) for e in pack], [b'IDST-na'])
+
+    def test_replacement_kits_are_checked(self):
+        from prepare_lab_client import PreparationError
+        good = self.write_kit('kit_fix', {UPPER: b'IDST-fixed'})
+        for overrides in ({'a_upper': self.write_kit('kit_no_model', {ARMOR_FOLDER + '/other.mdl': b'IDST'})},
+                          {'a_upper': good, 'b_upper': good},
+                          {'a_upper': {'model': {'assets': 'kit_missing', 'model': UPPER}}}):
+            with self.assertRaises(PreparationError):
+                self.apply_overrides(overrides)
 
 
 if __name__ == '__main__':

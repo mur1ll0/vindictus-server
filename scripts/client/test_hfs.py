@@ -93,6 +93,27 @@ class PackTest(unittest.TestCase):
         self.assertEqual([n for n, _, _ in hfs.pack_files(raw, KS)], ['player_costume.txt', 'a.vtf'])
         self.assertEqual(hfs.comp_unwrap(hfs.read_pack(raw, KS)[0].data), b'text')
 
+    def test_write_pack_streams_the_same_bytes_as_build_pack(self):
+        import tempfile
+        entries = [Entry('a.txt', b'hello' * 900, 0x20), Entry('b.mdl.comp', hfs.comp_wrap(b'\1' * 5000), 0x80),
+                   Entry('c.wav', b'', 0x20)]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / (A + '.hfs')
+            listed = hfs.write_pack(path, [(e.name, lambda e=e: e.data, e.attr) for e in entries], KS)
+            raw = path.read_bytes()
+        self.assertEqual(raw, hfs.build_pack(entries, KS))
+        self.assertEqual(listed, hfs.pack_files(raw, KS))
+
+    def test_sync_listed_adds_several_packs_like_sequential_syncs(self):
+        plain = index([A, C], [('a.txt', 0, 1, 1), ('c.txt', 1, 2, 2)])
+        first = hfs.build_pack([Entry('m.mdl.comp', hfs.comp_wrap(b'm'))], KS)
+        second = hfs.build_pack([Entry('n.vtf.comp', hfs.comp_wrap(b'n')), Entry('o.wav', b'o')], KS)
+        one, _ = hfs.sync(plain, [(B + '.hfs', first)], KS)
+        one, _ = hfs.sync(one, [('7' * 40 + '.hfs', second)], KS)
+        both, added = hfs.sync_listed(plain, [(B, hfs.pack_files(first, KS)), ('7' * 40, hfs.pack_files(second, KS))])
+        self.assertEqual(both, one)
+        self.assertEqual(added, [(B, 1), ('7' * 40, 2)])
+
     def test_pack_name_matches_the_client_summary(self):
         self.assertEqual(hfs.pack_name('models/armor/kingdom'), '0000AA13EFACC8399BA8F63B23986D12A7697817')
         self.assertEqual(hfs.pack_name('maps/16l'), '0050CB1A909FD1018A268223050D89E02C83472F')

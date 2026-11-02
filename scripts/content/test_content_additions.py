@@ -36,6 +36,9 @@ class ContentAdditionsTest(unittest.TestCase):
         patcher = mock.patch.object(additions, 'CLASS_ADDITIONS', pathlib.Path(self.temp.name) / 'no-classes.json')
         patcher.start()
         self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(additions, 'CLASS_IMPORTS', pathlib.Path(self.temp.name) / 'no-imports')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -90,7 +93,7 @@ class ContentAdditionsTest(unittest.TestCase):
 
     def test_the_versioned_class_file_is_valid(self):
         classes = additions.load_classes(pathlib.Path(additions.__file__).resolve().parent / 'class_additions.json')
-        self.assertEqual([(c['character_class'], c['name']) for c in classes], [(10, 'Delia')])
+        self.assertEqual([(c['character_class'], c['name']) for c in classes], [(10, 'Delia'), (11, 'Miri')])
 
     def test_other_databases_are_opened_plain(self):
         with mock.patch.object(additions, 'load', return_value=ITEMS):
@@ -170,9 +173,13 @@ class ContentAdditionsTest(unittest.TestCase):
         self.assertEqual(additions.load(path)[0]['set']['EquipItemInfo']['CostumeType'], 16)
         for bad in ({'item_overrides': {'a': {'set': {'ItemClassInfo': {'ItemClass': 'b'}}}}},
                     {'item_overrides': {'a': {'set': {'ShopInfo': {'Price': 1}}}}},
-                    {'hidden_items': ['Bad Name']}):
+                    {'hidden_items': ['Bad Name']},
+                    {'item_overrides': {'a': {'model': {'assets': '../kit', 'model': 'models/a.mdl'}}}},
+                    {'item_overrides': {'a': {'model': {'assets': 'kit_a', 'model': 'materials/a.vmt'}}}}):
             with self.assertRaises(ValueError):
                 additions.panel_edits(bad)
+        model = {'assets': 'kit_0123456789abcdef', 'model': 'models/armor/a/pc_female_a_upper.mdl'}
+        self.assertEqual(additions.load_overrides({'item_overrides': {'a': {'model': model}}})['a']['model'], model)
 
     def test_client_overrides_are_undone_and_removed_items_leave(self):
         original = pathlib.Path(self.temp.name) / 'original.db3'

@@ -38,7 +38,7 @@ Vindictus is an action MMORPG whose original server was a set of Windows .NET se
 - **Preservation.** The original services need an obsolete Windows/.NET/SQL Server stack and native components that can no longer be maintained. This project replaces them with a portable, containerized server.
 - **Compatibility without guesswork.** Wire formats, rules and values are recovered from the original code and checked with differential tests (*oracles*) against the recovered C#. Nothing is "close enough": opcodes, data layouts and game values are never invented.
 - **Maintainability.** The result is a modular Rust codebase with typed errors, bounded parsing, prepared SQL, Argon2id passwords and graceful shutdown, plus a web admin panel to operate the game.
-- **Extensibility.** It is a base for studying new content, such as items, stages and new playable classes (Delia, class 10, is already playable in the lab).
+- **Extensibility.** It is a base for studying new content, such as items, stages and new playable classes (Delia, class 10, and Miri, class 11, are already playable in the lab).
 
 ## Status at a glance
 
@@ -55,7 +55,11 @@ The work is organized into blocks (see the [roadmap](docs/playable-game-roadmap.
 
 ✅ done · 🟡 partial · ⏳ waiting for the operator's client session · 🚧 in progress
 
-Side tracks: new playable class **Delia** (accepted in the client; creation from the class grid works, with a few checks pending), item editor, stage editor and game launcher studies (see [`docs/future/`](docs/future)).
+Side tracks: new playable classes beyond the original ten, both accepted in the client and creatable from the class grid:
+- **Delia** (class 10), built from files already in the 1.69 client.
+- **Miri** (class 11), ported whole from the official NA client: models converted to the 1.69 format, animations, effects, the Dragonspine (Draker) weapon, her items and sets, Dragon Knight and her other native mechanics.
+
+Also item editor (with replacement models from the Blender add-on), stage editor and game launcher studies (see [`docs/future/`](docs/future)).
 
 ## Architecture
 
@@ -244,7 +248,7 @@ The full contributor and agent rules are in [AGENTS.md](AGENTS.md).
 | Which client to use and how to prepare it | [docs/client-compatibility.md](docs/client-compatibility.md) |
 | Where the tunable game values live | [docs/content-tuning.md](docs/content-tuning.md) |
 | The admin panel plan and extension points | [docs/b4-painel-plano.md](docs/b4-painel-plano.md), [docs/extension-feasibility.md](docs/extension-feasibility.md) |
-| How to port a new playable class | [docs/new-class-guide.md](docs/new-class-guide.md), [docs/future/delia-class-port.md](docs/future/delia-class-port.md), [`.agents/skills/new-class-port`](.agents/skills/new-class-port/SKILL.md) |
+| How to port a new playable class | [docs/new-class-guide.md](docs/new-class-guide.md), [docs/future/delia-class-port.md](docs/future/delia-class-port.md), [docs/future/miri-class-port.md](docs/future/miri-class-port.md), [docs/client-dll-patches.md](docs/client-dll-patches.md), [`.agents/skills/new-class-port`](.agents/skills/new-class-port/SKILL.md) |
 | Future features (item editor, launcher, stage editor, pets) | [docs/future/](docs/future) |
 | Contracts of individual subsystems | The topic files in [docs/](docs) (login, characters, items, skills, mail, …) |
 | Git, verification and skills used by the project | [docs/git-workflow.md](docs/git-workflow.md), [docs/verification.md](docs/verification.md), [docs/skills.md](docs/skills.md) |

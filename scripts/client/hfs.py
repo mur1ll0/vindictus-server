@@ -20,7 +20,7 @@ import struct
 import sys
 import zlib
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, Iterable, NamedTuple
 
 INDEX_KEY = bytes.fromhex('78bd0247')
 INDEX_HEAD = 14
@@ -173,6 +173,43 @@ def build_pack(entries: list[Entry], ks: bytes) -> bytes:
     return bytes(out)
 
 
+def write_pack(path: Path, entries: Iterable[tuple[str, Callable[[], bytes], int]], ks: bytes) -> list[tuple[str, int, int]]:
+    """build_pack written straight to a file with one entry in memory at a time (class asset packs
+    reach gigabytes); same bytes. Entries are (name, loader, attributes). Returns pack_files' list."""
+    central = bytearray()
+    names: list[bytes] = []
+    listed = []
+    temporary = path.with_name(path.name + '.part')
+    with open(temporary, 'wb') as out:
+        pos = 0
+        for name, load, attr in entries:
+            data = load()
+            raw_name = name.encode('latin-1')
+            crc = zlib.crc32(data)
+            local = pos
+            out.write(LOCAL.pack(SIG, 10, 0, 0, 0, 0, crc, len(data), len(data), len(raw_name), 0))
+            pos += LOCAL.size
+            out.write(xor_at(ks, pos, raw_name))
+            pos += len(raw_name)
+            out.write(xor_at(ks, pos, data))
+            listed.append((listed_name(name), pos, len(data)))
+            pos += len(data)
+            central += CENTRAL.pack(SIG, 20, 10, 0, 0, 0, 0, crc, len(data), len(data), len(raw_name), 0, 0, 0, 0, attr, local)
+            central += raw_name
+            names.append(raw_name)
+        at = 0
+        for raw_name in names:
+            name_at = at + CENTRAL.size
+            central[name_at:name_at + len(raw_name)] = xor_at(ks, pos + name_at, raw_name)
+            at = name_at + len(raw_name)
+        if len(names) > 0xFFFF or pos + len(central) > 0xFFFFFFFF:
+            raise HfsError('A pack holds at most 65535 files and 4 GiB.')
+        out.write(central)
+        out.write(END.pack(END_SIG, 0, 0, len(names), len(names), len(central), pos, 0))
+    temporary.replace(path)
+    return listed
+
+
 def listed_name(name: str) -> str:
     # The index lists 'x.txt.comp' as 'x.txt' and only the file name, without the folder.
     name = name.split('/')[-1]
@@ -289,26 +326,33 @@ def pack_id(name: str) -> str:
 
 def sync(plain: bytes, packs: list[tuple[str, bytes]], ks: bytes) -> tuple[bytes, list[tuple[str, int]]]:
     """Points the index at rebuilt or new packs ((pack name, pack bytes) pairs). A new pack keeps the
-    pack list sorted, so the indices of later packs shift by one. Returns the index and the new packs."""
+    pack list sorted, so the indices of later packs shift. Returns the index and the new packs."""
+    return sync_listed(plain, [(name, pack_files(raw, ks)) for name, raw in packs])
+
+
+def sync_listed(plain: bytes, packs: list[tuple[str, list[tuple[str, int, int]]]]) -> tuple[bytes, list[tuple[str, int]]]:
+    """sync with each pack given by its pack_files list, all packs in one pass."""
     check_index(plain)
     names = index_packs(plain)
-    entries = index_entries(plain)
-    added = []
-    for name, raw in packs:
-        pack = pack_id(name)
-        if pack not in names:
-            at = sum(1 for n in names if n < pack)
-            names.insert(at, pack)
-            entries = [e[:6] + struct.pack('<H', i + 1 if (i := struct.unpack_from('<H', e, 6)[0]) >= at else i) + e[8:]
-                       for e in entries]
-            added.append((pack, at))
-        index = names.index(pack)
-        entries = [e for e in entries if struct.unpack_from('<H', e, 6)[0] != index]
-        for file_name, data_at, size in pack_files(raw, ks):
-            entries.append(name_key(file_name) + struct.pack('<HII', index, data_at, size))
+    wanted = [(pack_id(name), files) for name, files in packs]
+    new = sorted({pack for pack, _ in wanted} - set(names))
+    merged = list(names)
+    for pack in new:
+        merged.insert(sum(1 for n in merged if n < pack), pack)
+    position = {pack: i for i, pack in enumerate(merged)}
+    moved = [position[n] for n in names]
+    replaced = {position[pack] for pack, _ in wanted}
+    entries = []
+    for e in index_entries(plain):
+        index = moved[struct.unpack_from('<H', e, 6)[0]]
+        if index not in replaced:
+            entries.append(e[:6] + struct.pack('<H', index) + e[8:])
+    for pack, files in wanted:
+        for file_name, data_at, size in files:
+            entries.append(name_key(file_name) + struct.pack('<HII', position[pack], data_at, size))
     # Stable sort by hash: entries of untouched packs keep their order.
     entries.sort(key=lambda e: struct.unpack_from('<I', e)[0])
-    return assemble_index(plain, names, entries), added
+    return assemble_index(plain, merged, entries), [(pack, position[pack]) for pack in new]
 
 
 # --- command line ------------------------------------------------------------------------------

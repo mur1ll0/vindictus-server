@@ -5,7 +5,7 @@ import bpy
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, StringProperty
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 
-from . import blender_io
+from . import blender_io, mesh_fix
 from .formats import kit as kit_format
 
 
@@ -67,6 +67,14 @@ class VINDICTUS_OT_export_kit(bpy.types.Operator, ExportHelper):
     model_path: StringProperty(name='Model', default='models/player/fiona/fiona_inner_new.mdl',
                                description='Game path of the new model (models/....mdl)')
 
+    def invoke(self, context, event):
+        # A kit mesh suggests its own model: the corrected kit replaces it in the panel (Modelos 3D)
+        model = next((o.get(blender_io.PROP_MODEL) for o in context.selected_objects
+                      if o.type == 'MESH' and blender_io.PROP_MODEL in o), None)
+        if model:
+            self.model_path = str(model)
+        return super().invoke(context, event)
+
     def execute(self, context):
         import tempfile
         try:
@@ -80,6 +88,48 @@ class VINDICTUS_OT_export_kit(bpy.types.Operator, ExportHelper):
         return {'FINISHED'}
 
 
+def kit_meshes(context):
+    # the view layer's selection: context.selected_objects exists only in a 3D View
+    return [o for o in context.view_layer.objects.selected if o.type == 'MESH' and blender_io.PROP_KIT in o]
+
+
+class VINDICTUS_OT_push_out(bpy.types.Operator):
+    """Push the selected kit meshes out along their game normals: for armour pieces that sit inside the body
+    (the skin shows through them); export the kit afterwards to update the model in the panel"""
+    bl_idname = 'vindictus.push_out'
+    bl_label = 'Push Mesh Out (fix clipping)'
+    bl_options = {'REGISTER', 'UNDO'}
+    offset: FloatProperty(name='Offset', default=mesh_fix.PUSH_OUT, min=-5.0, max=5.0, step=1, precision=3,
+                          description='Game units along the normal; 0.3 covered the skin under the NA pytonshock '
+                                      'and Dragon Rise pieces (negative values pull the mesh in)')
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT' and bool(kit_meshes(context))
+
+    def execute(self, context):
+        count = sum(blender_io.push_out(obj, self.offset) for obj in kit_meshes(context))
+        self.report({'INFO'}, f'Moved {count} vertices {self.offset:g} game units along their normals')
+        return {'FINISHED'}
+
+
+class VINDICTUS_PT_kit(bpy.types.Panel):
+    bl_label = 'Vindictus Kit'
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Vindictus'
+
+    def draw(self, context):
+        column = self.layout.column(align=True)
+        column.operator(VINDICTUS_OT_import_kit.bl_idname, text='Import Kit', icon='IMPORT')
+        column.operator(VINDICTUS_OT_push_out.bl_idname, text='Push Mesh Out', icon='MOD_DISPLACE')
+        column.operator(VINDICTUS_OT_export_kit.bl_idname, text='Export Kit', icon='EXPORT')
+
+
+def menu_object(self, context):
+    self.layout.operator(VINDICTUS_OT_push_out.bl_idname)
+
+
 def menu_import(self, context):
     self.layout.operator(VINDICTUS_OT_import_kit.bl_idname, text='Vindictus Kit (.zip / kit.json)')
 
@@ -88,7 +138,7 @@ def menu_export(self, context):
     self.layout.operator(VINDICTUS_OT_export_kit.bl_idname, text='Vindictus Kit (.zip)')
 
 
-CLASSES = (VINDICTUS_OT_import_kit, VINDICTUS_OT_export_kit)
+CLASSES = (VINDICTUS_OT_import_kit, VINDICTUS_OT_export_kit, VINDICTUS_OT_push_out, VINDICTUS_PT_kit)
 
 
 def register():
@@ -96,9 +146,11 @@ def register():
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_import.append(menu_import)
     bpy.types.TOPBAR_MT_file_export.append(menu_export)
+    bpy.types.VIEW3D_MT_object.append(menu_object)
 
 
 def unregister():
+    bpy.types.VIEW3D_MT_object.remove(menu_object)
     bpy.types.TOPBAR_MT_file_export.remove(menu_export)
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
     for cls in reversed(CLASSES):

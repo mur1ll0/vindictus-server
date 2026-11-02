@@ -511,6 +511,195 @@ pub async fn sell(
     Ok(packets)
 }
 
+/// DestroySlotItemProcessor (the inventory's trash) for a town character: an item the
+/// character does not hold answers FailMessage only; an Indestructible one
+/// Heroes_System_Item_Error_Cannot_Destroy_Item (the source spares an expired one; expiry
+/// is not evaluated here); an equipped or quick-slotted one ..._Cannot_Destroy_EquippedItem;
+/// else the whole stack goes (item.Num = 0), with the ledger (DestroyItem, UserDestroy) and
+/// the inventory update.
+pub async fn destroy_slot(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    item_id: i64,
+    log: super::minimum_item_logs::Context,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let economy = assets.economy.as_ref().ok_or_else(fail)?;
+    let flags = log.flags;
+    let outcome = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let connected: bool =
+            sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !connected {
+            return Err(fail());
+        }
+        sqlx::query("LOCK TABLE game_items,game_equippables IN SHARE ROW EXCLUSIVE MODE")
+            .execute(&mut *tx)
+            .await?;
+        super::minimum_inventory::snapshot_with_equipment(&mut tx, owner, assets, cid, None).await?;
+        let Some(row): Option<SoldRow> = sqlx::query_as(
+            "SELECT item_class_utf16,count,collection,tradable FROM game_items WHERE id=$1 AND owner_id=$2",
+        )
+        .bind(item_id)
+        .bind(cid)
+        .fetch_optional(&mut *tx)
+        .await?
+        else {
+            // GetItem == null: FailMessage only.
+            return Ok(Err(None));
+        };
+        let indexed = assets.stats_index.class(Some(&row.item_class_utf16)).ok_or_else(fail)?;
+        let info = economy.get(indexed.source_index).ok_or_else(fail)?;
+        // Indestructible == 1 && !IsExpired: an expired indestructible item may go.
+        let expire: Option<i64> =
+            sqlx::query_scalar("SELECT expire_ticks FROM game_items WHERE id=$1 AND owner_id=$2")
+                .bind(item_id)
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
+        let now = super::lab_clock::utc_now().map_err(|_| fail())?.ticks();
+        if info.indestructible == 1 && !expire.is_some_and(|e| e < now) {
+            return Ok(Err(Some("Heroes_System_Item_Error_Cannot_Destroy_Item")));
+        }
+        let equipped: Option<Option<i16>> =
+            sqlx::query_scalar("SELECT part FROM game_equippables WHERE id=$1")
+                .bind(item_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let class_text = String::from_utf16(
+            &row.item_class_utf16
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|b| u16::from_le_bytes(*b))
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|_| fail())?;
+        let quick = super::minimum_quickslot::load(&mut tx, assets, cid).await?;
+        let on_quick_slot = super::minimum_quickslot::info(&quick)
+            .classes
+            .0
+            .iter()
+            .flatten()
+            .any(|(_, c)| c.as_deref() == Some(class_text.as_str()));
+        if equipped.flatten().is_some() || on_quick_slot {
+            return Ok(Err(Some("Heroes_System_Item_Error_Cannot_Destroy_EquippedItem")));
+        }
+        super::minimum_give::delete_attributes(&mut tx, item_id).await?;
+        sqlx::query("DELETE FROM game_equippables WHERE id=$1").bind(item_id).execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM game_items WHERE id=$1 AND owner_id=$2").bind(item_id).bind(cid).execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(Ok(row))
+    })
+    .await
+    .map_err(|_| fail())??;
+    let row = match outcome {
+        Ok(row) => row,
+        Err(None) => return Err(fail()),
+        Err(Some(dialog)) => return Ok(vec![system_message(DIALOG, dialog, &[])?]),
+    };
+    let journal = super::minimum_item_logs::named_journal(pool, flags, "DestroySlotItem").await;
+    super::minimum_item_logs::write_requested_ledger(
+        pool,
+        cid,
+        journal,
+        3,
+        ACTION_USER_DESTROY,
+        &row.item_class_utf16,
+        row.count,
+        flags,
+    )
+    .await;
+    Ok(vec![packet(
+        Kind::UpdateInventoryInfo,
+        Message::UpdateInventoryInfo(Some(vec![Some(super::minimum_move::deleted_slot(item_id))])),
+    )?])
+}
+
+/// DestroyItemMessage (ItemServiceProxy: UseSecondPassword, then DestroyItem(ItemClass, Num,
+/// Unknown) without DestroyExpiredItem): DestroyItemProcessor runs ItemImpl.DestroyItem, which
+/// destroys Num of the class from the usable (unexpired) items in one transaction
+/// (Owner.DestroyItem(list, ItemSelector.Useable), the take_item path of minimum_give) and writes
+/// the DestroyItem ledger (ActionType.Unknown). The processor answers OkMessage or FailMessage only;
+/// the client sees the inventory update.
+pub async fn destroy_class(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    item_class: &str,
+    num: i32,
+    log: super::minimum_item_logs::Context,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    if num <= 0 || item_class.is_empty() {
+        return Err(fail());
+    }
+    let flags = log.flags;
+    let key = utf16(item_class);
+    let applied = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let connected: bool =
+            sqlx::query_scalar("SELECT is_connected FROM game_character_info WHERE id=$1")
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !connected {
+            return Err(fail());
+        }
+        let applied = super::minimum_give::apply(
+            &mut tx,
+            owner,
+            assets,
+            cid,
+            &[Request {
+                class: &key,
+                count: num,
+                bound: false,
+                equipment: None,
+                attributes: &crate::domain::item_attribute::EMPTY,
+            }],
+            &[],
+            &mut || Err(fail()),
+        )
+        .await?;
+        match applied {
+            Ok(applied) => {
+                tx.commit().await?;
+                Ok(Ok(applied))
+            }
+            Err(e) => Ok(Err(e)),
+        }
+    })
+    .await
+    .map_err(|_| fail())??;
+    let applied = applied.map_err(|_| fail())?;
+    let journal = super::minimum_item_logs::named_journal(pool, flags, "DestroyItem").await;
+    super::minimum_item_logs::write_requested_ledger(
+        pool,
+        cid,
+        journal,
+        3,
+        ACTION_UNKNOWN,
+        &key,
+        num,
+        flags,
+    )
+    .await;
+    Ok(vec![packet(
+        Kind::UpdateInventoryInfo,
+        Message::UpdateInventoryInfo(Some(applied.slots)),
+    )?])
+}
+
+/// ActionType.Unknown.
+const ACTION_UNKNOWN: i16 = 0;
+/// ActionType.UserDestroy.
+const ACTION_USER_DESTROY: i16 = 8;
+
 /// EventType.SellItem.
 const EVENT_SELL_ITEM: i16 = 98;
 /// ActionType.Buyback.

@@ -791,6 +791,65 @@ pub(super) async fn level_up(
     ])
 }
 
+/// GiveStory.FailReasonEnum of a story scroll, or the opened storyline's SyncStoryProgress.
+pub(super) enum GiveStory {
+    Opened(Vec<OutgoingPacket>),
+    NoSuchStory,
+    InvalidCharacter,
+    AlreadyOwned,
+    AlreadyCompleted,
+}
+
+/// StoryImpl.GiveStory in the caller's transaction (UseInventoryItemProcessor's
+/// storyscroll_ branch): a storyline the scripts lack is NoSuchStory, one the class is not
+/// allowed InvalidCharacter; StoryEntity.OpenStoryLine answers AlreadyCompleted (no phase)
+/// or AlreadyOwned for an owned one, else opens it and SyncStoryProgress (StoryLines,
+/// NpcList).
+pub(super) async fn give_story(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    class: i32,
+    story: &str,
+    ids: &mut (dyn Iterator<Item = i64> + Send),
+) -> Result<GiveStory, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    let Some(line) = npc.scripts.story_line(story) else {
+        return Ok(GiveStory::NoSuchStory);
+    };
+    if !line.info.is_allowed_to(class) {
+        return Ok(GiveStory::InvalidCharacter);
+    }
+    let hint: i16 =
+        sqlx::query_scalar("SELECT hint_category FROM game_story_entries WHERE cid=$1 FOR UPDATE")
+            .bind(cid)
+            .fetch_optional(&mut **tx)
+            .await?
+            .ok_or_else(fail)?;
+    let mut rows = progress(tx, cid).await?;
+    if let Some(owned) = rows.iter().find(|p| p.story_line == story) {
+        return Ok(if owned.phase.is_none() {
+            GiveStory::AlreadyCompleted
+        } else {
+            GiveStory::AlreadyOwned
+        });
+    }
+    let opened = npc.scripts.open_story_line(line).map_err(|_| fail())?;
+    sqlx::query("INSERT INTO game_story_progress(row_id,cid,story_line_utf16,phase_utf16,status,last_update_units300) VALUES($1,$2,$3,$4,$5,floor((extract(epoch FROM clock_timestamp())+2208988800)*300+0.5)::BIGINT)")
+        .bind(ids.next().ok_or_else(fail)?)
+        .bind(cid)
+        .bind(utf16(&opened.story_line))
+        .bind(opened.phase.as_deref().map(utf16))
+        .bind(i16::from(opened.status))
+        .execute(&mut **tx)
+        .await?;
+    rows.push(opened);
+    Ok(GiveStory::Opened(vec![
+        story_lines_packet(npc, &rows, hint)?,
+        npc_list_packet(&npc.scripts, &npc.policy, &rows)?,
+    ]))
+}
+
 /// RewardCharacter's StoryEntity.NotifyEvent(Event_QuestFinished) in the caller's
 /// transaction: the moved progress rows, then SyncStoryProgress when one moved. Returns
 /// the story sector ID (−1 without one).

@@ -260,9 +260,9 @@ fn fixture_covers_each_mastery_with_nonzero_arguments() {
 }
 
 #[test]
-fn bastard_sword_takes_delia_mastery_like_greatsword_takes_hurk_mastery() {
-    // Class 10 extension (not in the Framework fixture): the BASTARDSWORD mastery behaves as the
-    // GREATSWORD one when both skills carry the same arguments.
+fn ported_class_weapons_take_their_mastery_like_greatsword_takes_hurk_mastery() {
+    // Class 10 and 11 extensions (not in the Framework fixture): the BASTARDSWORD (Delia) and
+    // DRAKER (Miri) masteries behave as the GREATSWORD one when the skills carry the same arguments.
     let weight = |equip_class: &str, skill: &str| {
         let mut cache = Cache::default();
         let rows: Vec<_> = [("weight_reduction_bonus", 40), ("dmg_bonus", 7)]
@@ -289,4 +289,7 @@ fn bastard_sword_takes_delia_mastery_like_greatsword_takes_hurk_mastery() {
     let delia = weight("BASTARDSWORD", "skill_delia_bastard_mastery");
     assert_eq!(delia, weight("GREATSWORD", "skill_hurk_greatsword_mastery"));
     assert_ne!(delia, weight("BASTARDSWORD", "skill_unrelated"));
+    let miri = weight("DRAKER", "skill_miri_draker_mastery");
+    assert_eq!(miri, delia);
+    assert_ne!(miri, weight("DRAKER", "skill_delia_bastard_mastery"));
 }

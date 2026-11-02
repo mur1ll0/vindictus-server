@@ -117,6 +117,14 @@ Pré-condições: `game` reconstruído depois do commit da correção do campo d
 - [ ] Criar o barco para uma fase, voltar e criar de novo, ao menos 5 vezes → nenhum `EXCEPTION_ACCESS_VIOLATION` em `engine.dll`; a fase carrega e o combate funciona.
 - Relatar: o horário de qualquer crash e o arquivo novo em `Documents\Vindictus EU GM\Report Error`.
 
+### RL1 — Barco várias vezes seguidas sem trava (31/10/2026)
+Causa da trava (cliente não manda a chave pública ao relay, fecha o TCP aos 10 s, fica 60 s + 100 s "Not Responding"): o `engine.dll` testa o ponteiro do OVERLAPPED da conclusão IOCP como inteiro com sinal (`0x425fd3a2`). Com o `Vindictus.exe` LAA e os 2 GB baixos esgotados (~2 GB de memória privada desde o conteúdo da Miri), o socket novo cai acima de `0x80000000` e o recv do *hint* é descartado.
+Pré-condições: jogo fechado; `py -3.13 -s -E scripts/client/patch_engine_iocp_sign.py --client-copy .cache/play-client --apply` (feito por mim; backup `engine.dll.*.pre-iocpsign.bak`); `game` no ar (sem mudança de servidor).
+- [ ] Com qualquer personagem (de preferência a `MiriLab` ou a `DeliaLab`, que usam mais memória), passear pela cidade alguns minutos e criar o barco sem voltar à seleção → entra no barco em menos de 1 s, sem "Not Responding".
+- [ ] Desistir e voltar à cidade; criar o barco de novo, **sem voltar à seleção**, ao menos 8 vezes seguidas → todas entram. Variar fases e trocar equipamento entre as tentativas.
+- [ ] Jogar uma fase até o fim numa dessas entradas → combate e conclusão como antes.
+- Relatar: o horário de cada criação do barco e de qualquer trava (para comparar com `relay connection opened`/`relay session key sent` em `docker compose logs game`) e o personagem usado.
+
 ### SD1 — Destroyed Friendship Sword (drop de história)
 Pré-condições: história Friendship Sword na fase que pede a espada (Clodagh: "Go find the Friendship Sword"); sem `Destroyed Friendship Sword` no inventário; `game` reconstruído.
 - [ ] Fazer The Gnoll's Rally Point e matar o Gnoll Veteran → cai um núcleo de história; coletar → `Destroyed Friendship Sword` vai para o inventário.

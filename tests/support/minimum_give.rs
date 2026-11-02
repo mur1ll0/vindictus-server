@@ -6811,6 +6811,256 @@ async fn minimum_questscroll2_gives_its_quest_without_consuming_the_scroll() {
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
+async fn minimum_storyscroll_opens_its_storyline_and_is_consumed_once() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_use,
+        },
+        protocol::inventory::{Kind, UseItem},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    // storyscroll_GuidePlay_1_SkillTrain -> StoryImpl.GiveStory("GuidePlay_1_SkillTrain").
+    let scroll = "storyscroll_GuidePlay_1_SkillTrain";
+    let assets = assets_with_classes(0, 1, 0, None, scroll, 1)
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    minimum_give::lab_grant(&p, &assets, Some(1), scroll, 2, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let scroll_id = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT id FROM game_items WHERE item_class_utf16=$1 ORDER BY id LIMIT 1",
+            )
+            .bind(utf16(scroll))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    let use_scroll = |item: i64| {
+        minimum_use::use_item(
+            &p,
+            &owner,
+            &assets,
+            1,
+            UseItem {
+                item_id: item,
+                target_item_id: -1,
+            },
+            minimum_item_logs::Context {
+                flags: minimum_item_logs::flags(&assets).unwrap(),
+                civil_offset_seconds: 0,
+            },
+            quest_clock(),
+            &[],
+            (1..=16).map(|i| 963_000_000_000_000_000 + i).collect(),
+        )
+    };
+    let owned = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM game_story_progress WHERE cid=1 AND story_line_utf16=$1",
+            )
+            .bind(utf16("GuidePlay_1_SkillTrain"))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    let items = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+            )
+            .bind(utf16(scroll))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(owned().await, 0);
+    let minimum_use::Outcome::Applied(packets) = use_scroll(scroll_id().await).await.unwrap()
+    else {
+        panic!("applied expected")
+    };
+    // UseInventoryItemOk, StoryLines, NpcList, the telepathy, the inventory update.
+    let kinds: Vec<i32> = packets.iter().map(|p| p.category).collect();
+    assert_eq!(kinds.len(), 5);
+    assert_eq!(kinds[0], Kind::UseInventoryItemOk.category());
+    assert_eq!(kinds[4], Kind::UpdateInventoryInfo.category());
+    assert_eq!((owned().await, items().await), (1, 1));
+    // Owned: the AlreadyOwned dialog, and the scroll stays.
+    let minimum_use::Outcome::Applied(packets) = use_scroll(scroll_id().await).await.unwrap()
+    else {
+        panic!("applied expected")
+    };
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].category, Kind::ItemFail.category());
+    assert_eq!((owned().await, items().await), (1, 1));
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_destroy_slot_item_removes_the_whole_stack() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_shop,
+        },
+        protocol::inventory::Kind,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let class = "questscroll2_gnoll_shadowfang";
+    let assets = assets_with_classes(0, 1, 0, None, class, 1)
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    minimum_give::lab_grant(&p, &assets, Some(1), class, 1, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let item: i64 = sqlx::query_scalar("SELECT id FROM game_items WHERE item_class_utf16=$1")
+        .bind(utf16(class))
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    let log = || minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    // An item the character does not hold: FailMessage only.
+    assert!(
+        minimum_shop::destroy_slot(&p, &owner, &assets, 1, item + 1, log())
+            .await
+            .is_err()
+    );
+    let packets = minimum_shop::destroy_slot(&p, &owner, &assets, 1, item, log())
+        .await
+        .unwrap();
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].category, Kind::UpdateInventoryInfo.category());
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM game_items WHERE id=$1")
+        .bind(item)
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn minimum_destroy_item_takes_the_count_of_its_class() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_item_logs, minimum_selection, minimum_shop,
+        },
+        protocol::inventory::Kind,
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let owner = super::initial_inventory::key();
+    let class = "questscroll2_gnoll_shadowfang";
+    let assets = assets_with_classes(0, 1, 0, None, class, 1)
+        .with_npc_scripts(npc_profile())
+        .unwrap();
+    minimum_give::lab_grant(&p, &assets, Some(1), class, 1, 9)
+        .await
+        .unwrap()
+        .unwrap();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let held = || {
+        let p = p.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COALESCE(sum(count),0)::BIGINT FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+            )
+            .bind(utf16(class))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+        }
+    };
+    let log = || minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    let before = held().await;
+    assert!(before >= 1);
+    // No count, no class, or more than held: FailMessage only, nothing taken.
+    for (c, n) in [
+        (class, 0),
+        ("", 1),
+        ("no_such_item", 1),
+        (class, i32::try_from(before).unwrap() + 1),
+    ] {
+        assert!(
+            minimum_shop::destroy_class(&p, &owner, &assets, 1, c, n, log())
+                .await
+                .is_err()
+        );
+    }
+    assert_eq!(held().await, before);
+    let packets = minimum_shop::destroy_class(&p, &owner, &assets, 1, class, 1, log())
+        .await
+        .unwrap();
+    assert_eq!(packets.len(), 1);
+    assert_eq!(packets[0].category, Kind::UpdateInventoryInfo.category());
+    assert_eq!(held().await, before - 1);
+    cleanup_game_pool(a, p, s).await;
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
 async fn minimum_mission_required_item_is_reserved_and_paid_at_start() {
     use vindictus_server::{
         domain::character_stats::Arithmetic,

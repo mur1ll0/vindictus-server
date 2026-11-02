@@ -25,6 +25,7 @@ names, and the icon of each item class, for the shop and inventory screens. Read
   name and description of another class with the same icon (the same design for another
   character class, e.g. fiona_noluck_inner_devilhunter → delia_inner_devilhunter)."""
 import argparse, contextlib, json, pathlib, re, sqlite3
+import class_imports
 import content_additions
 import xml.etree.ElementTree as ET
 from export_cash_shop import LOCALIZED, UNTRANSLATED
@@ -98,6 +99,13 @@ def read_package(xml_root=SERVER / 'Data/XML', database=SERVER / 'Bin/heroesCont
     tooltip_text = {k.upper(): v.replace('\\n', '\n') for k, v in TOOLTIP.findall(decoded)
                     if not UNTRANSLATED.search(v) and len(v) <= 1024}
     item_text = {k.upper(): v for k, v in ITEM_TEXT.findall(decoded)}
+    if pathlib.Path(database).resolve() == content_additions.SERVER_DATABASE.resolve():
+        # Imported NA classes: their item names where the 1.69 localization has none (aliases).
+        imported = class_imports.class_text(imports=class_imports.load_imports(content_additions.CLASS_IMPORTS))
+        item_text = {**{k.upper(): v for k, v in imported.items() if k.upper().startswith('HEROES_ITEM_')}, **item_text}
+        # and their sets' name and bonus text (class_imports.set_tokens), which the tooltip's set block reads
+        tooltip_text = {**{k.upper(): v.replace('\\n', '\n') for k, v in imported.items()
+                           if k.upper().startswith(('HEROES_ITEM_SETITEM_NAME_', 'HEROES_SET_ITEM_DESC_'))}, **tooltip_text}
     trade_names = {k.upper(): v.strip() for k, v in TRADE_NAME.findall(decoded)
                    if not UNTRANSLATED.search(v) and v.strip() and len(v) <= 128}
     quest_titles = {k.upper(): v for k, v in QUEST_TITLE.findall(decoded)
@@ -269,9 +277,15 @@ def name_aliases(icons, item_text):
     return {cls: by_icon[icon] for cls, icon in icons.items() if not english(cls) and icon in by_icon}
 
 
-def convert_icons(icons, source=CLIENT / 'scaleform/item_icon', target=OUTPUT_ROOT / 'icons/item'):
+def icon_sources():
+    """The 1.69 icons, then the staged NA classes' (scripts/client/stage_na_class.py)."""
+    return [CLIENT / 'scaleform/item_icon'] + sorted(content_additions.CLASS_ASSETS.glob('*/scaleform/item_icon'))
+
+
+def convert_icons(icons, source=None, target=OUTPUT_ROOT / 'icons/item'):
     """The referenced item icons as PNG; existing files are kept (rerun-safe)."""
     from PIL import Image
+    sources = icon_sources() if source is None else [source]
     target.mkdir(parents=True, exist_ok=True)
     done = missing = 0
     for icon in sorted(set(icons)):
@@ -279,8 +293,8 @@ def convert_icons(icons, source=CLIENT / 'scaleform/item_icon', target=OUTPUT_RO
         if out.exists():
             done += 1
             continue
-        src = source / (icon + '.tga')
-        if not src.is_file():
+        src = next((folder / (icon + '.tga') for folder in sources if (folder / (icon + '.tga')).is_file()), None)
+        if src is None:
             missing += 1
             continue
         with Image.open(src) as image:

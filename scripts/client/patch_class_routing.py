@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '.deps'))
 import capstone  # noqa: E402
 
 from patch_class_table import Image, align, digest  # noqa: E402
-from patch_engine_class_flags import DELIA_FLAG  # noqa: E402
+from patch_engine_class_flags import CLASS_FLAGS, DELIA_FLAG  # noqa: E402
 from prepare_lab_client import PreparationError, reject_original  # noqa: E402
 
 SECTION = b'.hrte\0\0\0'
@@ -70,12 +70,50 @@ EXTRA_CLASSES = (
     # Server constants: NA Delia slots 240/241 (0.88/0.96, as the client) and 466 (92.0).
     ExtraClass(10, 'delia', 'hagie', 'female', 'csf/bodyshape_delia_default.fig', (0.88, 0.96), 3,
                weapons=('weapon_greatsword',), server_constants=(0.88, 0.96, 92.0)),
+    # Miri (NA class 11, Draker): the NA gives weapon_draker, the lab uses weapon_greatsword too
+    # (operator, 30/10/2026). Constants measured in the NA x64 entity (scripts/reverse/
+    # na_x64_miri_entity.py): client slots 190/191 0.865/0.945, server 240/241/466 0.865/0.945/92.0;
+    # three faces; her figure is NA bodyshape_fig_list.txt entry 107.
+    ExtraClass(11, 'miri', 'hagie', 'female', 'csf/bodyshape_miri_default.fig', (0.865, 0.945), 3,
+               weapons=('weapon_greatsword',), server_constants=(0.865, 0.945, 92.0)),
 )
-# Class 10 is the only extra class with an item "usable by" flag (engine.dll keeps bool[11] per
-# item; patch_engine_class_flags.py), so FLAG_CHECKS and TOOLTIPS stay on her.
+# Each extra class has an item "usable by" byte (patch_engine_class_flags.CLASS_FLAGS) that
+# FLAG_CHECKS, TOOLTIPS and ITEM_MASK read. Delia's own mechanics (GUARD, CLIENT_GUARD,
+# CLASS_CONDITIONS, DELIA_EFFECTS) run for her only (DELIA_MECHANICS).
 DELIA = 10
+DELIA_MECHANICS = (DELIA,)
+# The Miri's Parrying Attack is the NA's generic endure mode (C4 MI27): her basic attacks raise
+# ENABLE_ENDURE_MODE and As_Cond_Can_PerfectEndurable in their first frames (NA server x64 0x7394d0
+# decides the hit, 0x7395e0 zeroes it; the attack goes on) and the NA plays
+# effects/player/miri/pc_miri_endure_success.efx. The lab's GUARD/CLIENT_GUARD are that mechanic (from
+# Fiona's Shield Pass Over), so they also run for her, without Delia's reserved-HP forfeit, and her client
+# plays MIRI_ENDURE_EFFECT on a guarded hit as Fiona's plays hers (0x38836550, released by 0x38832000).
+MIRI = 11
+GUARD_CLASSES = (DELIA, MIRI)
+MIRI_ENDURE_EFFECT = 'effects/player/miri/pc_miri_endure_success.efx'
+CLIENT_EFFECT = (0x38836550, 0x38832000)  # play(out, path, entity, 0) cdecl; release(ecx = handle)
+# The Miri's endure on the server (M8a). NA server x64 0x7395e0 (CHeroesPlayerMiri slot 0x1338): an
+# endured hit loses its damage; a hit the server decided plays pc_miri_endure_success.efx at the player
+# (0x204240) and miri.guard (0x2bf5c0), the client predicts its own; then every endured hit adds the
+# status effects resound (level 1, "Hydra"; not while Dragon Knight, +0xc181) and resound_stamina
+# (level 1, stamina_adder 20). Fiona's routine (0x40575a50) does the same in the 1.69 with her
+# effect and sound from globals, so the Miri's damage slot is her own copy of it: the guard tests
+# (client bit 2 of +0x78; server: guard state, not unblockable, 0x4081f9c0(conditions, info) and
+# 0x4081f740(info) false), damage +0x30/+0x48 and +0x75 zeroed, EmitSound 0x40758f60(name, 0.0, 0)
+# (ret 0xc), Fiona's 0x405337c0/0x405337d0(0), the effect 0x4073e210(&handle, path, player, 1) (cdecl)
+# released by 0x40739dd0, then the base 555 (0x405400e0). The status effects go through DELIA_EFFECTS
+# (level_of for Dragon Knight, add_named).
+MIRI_GUARD = {'server.dll': {'unguardable': 0x4081F9C0, 'unguardable_info': 0x4081F740, 'sound': 0x40758F60,
+                             'held': 0x405337C0, 'release_held': 0x405337D0, 'effect': 0x4073E210,
+                             'effect_release': 0x40739DD0, 'base': 0x405400E0}}
+MIRI_GUARD_HEADS = {'server.dll': {'unguardable': '53558b6c240c', 'unguardable_info': '538b5c24088b',
+                                   'sound': '83ec6456578b', 'held': '83b9bc3a0000', 'release_held': '8b89bc3a0000',
+                                   'effect': '568b74241085', 'effect_release': '568bf1ff0e83',
+                                   'base': '568b7424088b'}}
+MIRI_GUARD_SOUND = 'miri.guard'
+MIRI_RESOUND = ('resound', 'resound_stamina')
 LAST = max(c.index for c in EXTRA_CLASSES)
-EXPECTED = {'client.dll': 'a9591d3a44a2b538', 'server.dll': 'af43431e78666783'}
+EXPECTED = {'client.dll': '0a0b866dcc0a1852', 'server.dll': 'c85a56d5b845810f'}
 # Switches: (VA of `cmp reg, imm8`, original bound, whether case 10 is the pet).
 SWITCHES = {
     'client.dll': (
@@ -156,6 +194,13 @@ MATCH = {
     'client.dll': (0x3885FB93, 0x38860993, 0x38860C1D, 0x38022280),
     'server.dll': (0x407CCBA3, 0x407CD8A3, 0x407CDB2D, 0x400CEB80),
 }
+# GetSkillKeywordTable (one SkillKeywordTable per class, made on first use) clamps the class to 11
+# into a static array of 11 (0-9 and the pet at 10) that a static ConCommand follows (server
+# 0x40f5968c, the reload command): class 11, and the pet at PET, read the command's vtable as a
+# table and crashed in KeyValues::FindKey (Miri MI4, server.dll+0x8b5472). The array moves to .hrte
+# with PET + 1 entries and the clamp becomes PET: (VA of the clamp, array).
+KEYWORD_TABLES = {'client.dll': (0x38861D04, 0x38FB1B58), 'server.dll': (0x407CEC04, 0x40F59660)}
+KEYWORD_CLAMP = bytes.fromhex('83f80b577e07bf0b000000')  # cmp eax, 0xb; push edi; jle +7; mov edi, 0xb
 # "Is this class allowed" accessors over the item's per-class bools (+0x198, ten entries, filled
 # by engine.dll; Delia's is DELIA_FLAG, see patch_engine_class_flags.py): a `switch` on classes 0-9
 # returning flags[class], so class 10 got false ("Cannot be equipped", D8e). Each head jumps to a
@@ -281,8 +326,18 @@ CLIENT_WEAPON_SWITCH = {'client.dll': (0x38705F62, '83f8097759', 0x38705FB4)}
 # the 1.69 lacks (NA ids 140-144); they get ids 121-125 (a 121-bit set already spans 128 bits),
 # appended at the registration's epilogue. Entries: (epilogue `pop edi; mov al, 1; pop esi;
 # mov esp, ebp`, name map, its insert, id map, its insert, the four bounds).
-CONDITION_NAMES = ('As_Cond_Can_Armor_Purge', 'As_Cond_Delia_SPSkill3_Activated', 'AS_Cond_Delia_Special_Hold_Skill',
-                   'AS_Cond_Delia_Guard', 'AS_Cond_Delia_Guard_Hit')
+# The Miri's own action states (C4 MI12) name three more: As_Cond_Miri_Can_DragonSmash (her Fiery
+# skills and Fiery Evasion on Tab), As_Cond_Miri_Can_Transform_DragonKnight (SP4) and
+# As_Cond_Miri_DragonKnight (the transformed SP1/SP3). The set holds 128 ids (four dwords at +0x140),
+# so 121-127 are all there is; the bounds `cmp ecx, 0x79; jge` become `cmp ecx, 0x7f; jg`, as 128 does
+# not fit a signed imm8. AS_Cond_Delia_Special_Hold_Skill gave its id to As_Cond_Miri_DragonKnight (Miri
+# M7m): nothing raised it, and an unregistered name reads as id -1, which the raise and test routines
+# skip (`cmp ecx, -1; je`), so the Delia's states that name it behave as before.
+CONDITION_NAMES = ('As_Cond_Can_Armor_Purge', 'As_Cond_Delia_SPSkill3_Activated',
+                   'AS_Cond_Delia_Guard', 'AS_Cond_Delia_Guard_Hit',
+                   'As_Cond_Miri_Can_DragonSmash', 'As_Cond_Miri_Can_Transform_DragonKnight',
+                   'As_Cond_Miri_DragonKnight')
+CONDITION_SET_BITS = 128
 FIRST_NEW_CONDITION = 121
 CONDITIONS = {
     'client.dll': (0x387F4E79, 0x38FAB1D8, 0x387F29C0, 0x38FAB1F4, 0x387F2A30,
@@ -322,6 +377,45 @@ GUARD_ENTRIES = 16
 CLIENT_GUARD = {'client.dll': (429, 430, 367, 0x38707FB0, 0x38888400, 0x38888180,
                                0x387DE550, 0x387DE580, 0x387DE5B0, 0x38ADA3C4)}
 HIT_IMPACT_SKIP = 0x4B3D
+# The Miri's skill effects by state (M8i; the M8d decision, C4: blue Fiery Chainswing untransformed, red
+# transformed). The NA plays them through AE_CL_PLAY_CUSTOM_EFFECT <effect> <Dragon Knight effect> (id 0x59
+# in the 1.69 client, 0x380c0d6c). The 1.69 handles 0x59 only in another entity's FireEvent (0x3874e700:
+# <options>.efx or <options>_B.efx by a flag); C_HeroesPlayer::FireEvent (vtable slot 200, 0x386fb540,
+# thiscall (origin, angles, event, options), ret 0x10) ignores it and hands AE_CL_PLAY_EFFECT (0x55) options
+# to the effect manager (0x3866dba0). The Miri's slot copies the first path, or the second while
+# transformed (m_gaugeType bit 0, FLAMEBREATH client 'type'), into a buffer and goes on as 0x55 with it.
+CUSTOM_EFFECT = {'client.dll': {'slot': 200, 'fire_event': 0x386FB540, 'custom': 0x59, 'play': 0x55}}
+CUSTOM_EFFECT_HEAD = 'd9ee81ece0000000'
+CUSTOM_EFFECT_PATH = 260
+# The Flamebreath HUD after Go to Home screen (M8j, C4): the client's C_HeroesPlayer scalar deleting destructor
+# (vtable slot 0, 0x38705cc0: 0x38704fb0, then delete when bit 0) runs the Flamebreath `hide` for the Miri.
+FLAMEBREATH_LEAVE = {'client.dll': {'slot': 0, 'destructor': 0x38705CC0}}
+FLAMEBREATH_LEAVE_HEAD = '568bf1e8e8f2ffff'
+# The character selection makes a player of her class too (C4 MI42, memory: the Miri left the boat, her
+# destructor hid the dialog, then the selection's own class 11 player showed it again: not a town). The
+# HUD tick also asks the game state manager's out-of-game predicate (vtable +0x40: states 1, 2, 3, 4, 5, 7;
+# the character selection is 5, memory MI42).
+FLAMEBREATH_OUT_OF_GAME_PREDICATE = 0x40
+FLAMEBREATH_OUT_OF_GAME_STATES = (1, 2, 3, 4, 5, 7)
+# The Call of the Dragon dragon follows the Miri (M8j, C4 MI39: it stayed where it appeared while she flew; the
+# NA client keeps its dragon at the player). The 1.69 server's prop creation (0x400f96e0, AE_CREATE_ATTACKABLE_
+# MODEL and AE_CREATE_AUX_MODEL) places the model at the player and stores its handle in the player's list
+# (+0xbe4) through 0x4001c200 at 0x400f984e (esi = the new model, edi = the player); it never parents it.
+# That call goes through a thunk that, for the Miri, then parents the model to her: CBaseEntity::SetParent(
+# parent, -1, -1), vtable +0x94 (InputSetParent 0x4010cdc0 -> 0x40102070 -> [vtable+0x94]).
+SUMMON_PARENT = {'server.dll': {'site': 0x400F984E, 'handle': 0x4001C200, 'set_parent': 0x94}}
+SUMMON_PARENT_HEAD = '568d4c2440'  # push esi; lea ecx, [esp+0x40] before the call
+# The dragon rises with her (M8n, C4 MI43). Memory (server, the probe in r6): during miri_SP5_attack the
+# dragon's cycle follows hers and both origins stay on the ground (z 2.3); she rises in her bones only. The NA
+# client (0xaa4ea0, 0xaa5b00) looks up her bone ValveBiped.Anim_Attachment_GRAPPLING when she enters and,
+# every frame the dragon is out, puts the dragon at that bone's position with her angles. The 1.69 server
+# has the same bone and calls (the grappling's 0x40825200: LookupBone 0x400d3ca0, GetBonePosition 0x400d3cc0):
+# the Miri's think moves every model she summoned (SUMMON_PARENT's list +0xbe4, count +0xbf0, handles through
+# the entity list [0x40cb3740]) to that bone with SetAbsOrigin (0x4010ceb0); the parent keeps her angles.
+SUMMON_FOLLOW = {'server.dll': {'list': 0xBE4, 'count': 0xBF0, 'entities': 0x40CB3740, 'lookup_bone': 0x400D3CA0,
+                                'bone_position': 0x400D3CC0, 'set_abs_origin': 0x4010CEB0}}
+SUMMON_FOLLOW_HEADS = {'lookup_bone': '8b44240450e8', 'bone_position': '83ec30568bf1', 'set_abs_origin': '83ec3c56578b'}
+SUMMON_FOLLOW_BONE = 'ValveBiped.Anim_Attachment_GRAPPLING'
 # Per-frame class conditions (plan 8.15 item 2). NA server 0x6e4d30 (slot 517 = 1.69 460) raises
 # As_Cond_Can_Armor_Purge (SP5's gate) while armour is equipped in slots 4-8 and the purge is not
 # blocked, and As_Cond_Delia_SPSkill3_Activated while skill_delia_sp3 is off cooldown (SP1/SP3
@@ -331,8 +425,177 @@ HIT_IMPACT_SKIP = 0x4B3D
 # always worn; the purge block is not ported). SP3_Activated stays off: the 1.69 cooldown store of
 # SP skills was not found (NA: 32 ids at +0x18, last use at +0x228, 0x29bf70). SET_GUARD_LATCH_ATTEN
 # is not used by any Delia content (1.69 or NA) and is not ported.
+# The Miri's three conditions follow her Flamebreath and her Dragon Knight state (FLAMEBREATH).
+STANDING_CONDITIONS = {DELIA: ('As_Cond_Can_Armor_Purge',), 11: ()}
+# Flamebreath (skill_miri_dragon_energy, Miri M7h): NA server CPlayerMiri keeps an 8-level gauge in a
+# network word (+0x1454), spent one level by AE_CUSTOM_MOTION USE_DRAGON_ENERGY (0x5dc040) and restored
+# one level per DragonEnergy.FirstRestoreDelay / NormalRestoreDelay seconds (7 / 7,
+# expression_table_miri_common.txt, read at 0x5dc9a0); her Fiery skills and Fiery Evasion need
+# As_Cond_Miri_Can_DragonSmash. The NA client shows it with scaleform/MiriSkillDialog.gfx
+# (SetGaugeLevel(level, isDagonKnight)). The 1.69's generic player (CHeroesPlayer) already sends a
+# gauge to every client, the fever gauge: m_gaugeValue (server +0x3ac4, 8 bits; client +0x4b34), shown
+# by CHeroesHudFeverGaugeUI only while m_isShowGaugeUI (server +0x3ac0, client +0x4b30) is set, which
+# only the Regina pollution title and the spawn reset (0x4055c5d0, to 0) use. The Miri's level lives
+# there while no fever gauge is shown, written through its network setter (0x402c56d0, ecx = field,
+# [esp+4] = &value). Server: her think restores a level when the restore time (per-player table in
+# .hrte) has passed and raises As_Cond_Miri_Can_DragonSmash while the level is above 0, lowering it at
+# 0 (raise 0x407e6470, lower 0x407e64d0 on the condition object 0x405380a0); USE_DRAGON_ENERGY, taken at
+# the AE_CUSTOM_MOTION dispatcher entry (DELIA_EFFECTS events), spends one and restarts the first
+# delay. Client: her think raises or lowers the condition from the received level (raise 0x387de550,
+# lower 0x387de5b0 on [this+COMMANDS]) and, for the local player (0x38063690) outside town (the chain's
+# game state test), shows MiriSkillDialog through the UI interface (0x385f7ef0: vtable +0x20 (name,
+# shown), as ShipHPGauge; +0x10 Invoke(method, args, count, 0), arguments of 0x20 bytes: type 3 =
+# number, double at +8, an empty string at +0x10) and calls SetGaugeLevel when the level changes. The
+# skill's rank and the starting level came with M8c (FLAMEBREATH_START). Lab limit: inside the Regina
+# pollution title the fever gauge keeps the field.
+#
+# Dragon Knight (Ancestral Garb, skill_miri_sp4, Miri M7m): miri_SP4 adds the status effect
+# skill_miri_dragon_transform (level 1, 70 s; NA StatusEffectGroupInfo) at frame 180, whose effect
+# dragonknight_transform is native NA server code (CPlayerMiri 0x5db540-0x5dede9: the flag +0x1450,
+# the look csf/metamorphosis/miri_dragon_knight.csf through 0x6ddd60). The 1.69 has no such effect type,
+# so DELIA_EFFECTS registers it as a no-op one and the status effect lives its 70 s. The Miri's server
+# think asks for it (the status effects' find by name, DELIA_EFFECTS level_of) and publishes the state in
+# the other byte of the fever gauge, m_gaugeType (server +0x3ac8, setter 0x4054abe0; client +0x4b38): 1
+# while transformed. Both thinks then raise As_Cond_Miri_DragonKnight while transformed, lower
+# As_Cond_Miri_Can_Transform_DragonKnight then (SP4 cannot run twice) and keep
+# As_Cond_Miri_Can_DragonSmash up ("While transformed, Flamebreath has unlimited uses": USE_DRAGON_ENERGY
+# spends nothing); the restore uses DragonEnergy_transform (5 s first, 4 s next). The HUD gets
+# SetGaugeLevel(level, isDagonKnight). Not yet: the look, the SP drain (REDUCE_DRAGON_KNIGHT_SP_GAUGE) and
+# the transformed SP cost.
+FLAMEBREATH = {'server.dll': {'value': 0x3AC4, 'shown': 0x3AC0, 'set': 0x402C56D0, 'globals': 0x40D6EE48,
+                              'conditions_of': 0x405380A0, 'raise': 0x407E6470, 'lower': 0x407E64D0,
+                              'type': 0x3AC8, 'set_type': 0x4054ABE0, 'skill_rank': 0x40532A00},
+               'client.dll': {'value': 0x4B34, 'shown': 0x4B30, 'raise': 0x387DE550, 'lower': 0x387DE5B0,
+                              'local_player': 0x38063690, 'ui': 0x385F7EF0, 'ui_show': 0x20, 'ui_invoke': 0x10,
+                              'type': 0x4B38}}
+FLAMEBREATH_HEADS = {'server.dll': {'set': '568bf18b06', 'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404',
+                                    'set_type': '8b4424045657', 'skill_rank': '8b89e02e0000'},
+                     'client.dll': {'local_player': 'a1a483cc38c3', 'ui': 'a1c814e73885c0',
+                                    'raise': '8bc18b4c2404', 'lower': '8bc18b4c2404'}}
+FLAMEBREATH_LEVELS = 8
+FLAMEBREATH_RESTORE = (7.0, 7.0)  # first, normal (seconds)
+FLAMEBREATH_RESTORE_TRANSFORMED = (5.0, 4.0)  # DragonEnergy_transform
+# Rank and start (M8c). The NA shows the gauge once Flamebreath is learned (skill_miri_dragon_energy, rank 1
+# at level 20; rank 0 is the untrained row) and its constructor and reset (server x64 0x5dad4b, 0x5dcea0) put
+# the level at 4. The 1.69's battle server gets the character's skills in GameJoinMemberInfo.skill_list;
+# 0x40532a00(name) (thiscall, ret 4: the player's skill table +0x2ee0, 0x407c4d60 -> the decoded rank, 0
+# when absent; the summon prop's variation_postfix_skill_rank reads it) gives the rank. Each Flamebreath
+# entry keeps the player's handle (GetRefEHandle, vtable +8): a new entity at that address (each stage
+# spawns one, and the 1.69 zeroes the fever gauge) starts at FLAMEBREATH_START when the skill is learned,
+# and gets the status effect resound (level 1) when skill_miri_attack is (NA slot 0x1398, 0x739840, the
+# Parrying Attack's lasting "Hydra"). Without the skill the level stays 0. m_gaugeType carries bit 0
+# (transformed) and bit 1 (learned): the client shows MiriSkillDialog only with bit 1.
+FLAMEBREATH_START = 4
+FLAMEBREATH_SKILL = 'skill_miri_dragon_energy'
+PARRYING_SKILL = 'skill_miri_attack'
+FLAMEBREATH_ENTRY = 12  # player, next restore time, player handle
+# Dragon Knight look (Miri M7n). NA: EQUIP_DRAGON_KNIGHT_ARMOR dresses the player in
+# csf/metamorphosis/miri_dragon_knight.csf (0x6ddd60) and PURGE gives the outfit back. In the 1.69 a .csf
+# is put on the player by 0x4056a140(player, path, 1, 0, 0, 1, 0, 0) (cdecl; the metamorphosis' load_csf,
+# 0x405977a0) and the model rebuilt by 0x405465d0; the metamorphosis saves the appearance before
+# (0x40599330) and gives it back after (0x40596380) through getter/setter pairs. The Miri's server think
+# does the same on her transformed state: per player (DRAGON_KNIGHT_PLAYERS entries: player, handle
+# (vtable +8, GetRefEHandle; a new entity at the same address starts clean), dressed, saved fields),
+# it saves the 12 costume slots (part 0x408154b0 -> 0x40547530(slot, part, 0); three colours 0x40815510
+# -> 0x40531a40(slot, i, colour); extra 0x40815550 -> 0x40531aa0(slot, value); the armour state redone
+# as the metamorphosis does, 0x40530e10 / 0x40547480(slot, 1, 0)), the body and face fields
+# (0x408155d0 -> 0x40538e00(0, v); 0x408155f0 -> three 0x40531b10(0, i, v); 0x40816a40..aa0 ->
+# 0x40531b20..b80) on the costume (+0x156c), dresses her and rebuilds; when the state ends it puts them
+# back, then 0x40530df0(0.0), the weapon refresh 0x40559440(-1), the armour status 0x4054e160 and the
+# rebuild, in the metamorphosis' order. Its weapon and model blocks (+0x20c, +0x244) are not taken:
+# this .csf load does not change them.
+DRAGON_KNIGHT_CSF = 'csf/metamorphosis/miri_dragon_knight.csf'
+DRAGON_KNIGHT_PLAYERS = 16
+DRAGON_KNIGHT_ENTRY = 0x130
+DRAGON_KNIGHT_LOOK = {
+    'apply': 0x4056A140, 'rebuild': 0x405465D0, 'costume': 0x156C,
+    'part_get': 0x408154B0, 'color_get': 0x40815510, 'extra_get': 0x40815550,
+    'body_get': 0x408155D0, 'body3_get': 0x408155F0,
+    'part_set': 0x40547530, 'intact': 0x40530E10, 'broken_set': 0x40547480, 'color_set': 0x40531A40,
+    'extra_set': 0x40531AA0, 'scale_set': 0x40530DF0, 'body_set': 0x40538E00, 'body3_set': 0x40531B10,
+    'weapon_refresh': 0x40559440, 'armor_update': 0x4054E160,
+    # (getter, setter) of the face/body values, in the metamorphosis' restore order
+    'face': ((0x40816A50, 0x40531B30), (0x40816A60, 0x40531B40), (0x40816A70, 0x40531B50),
+             (0x40816A80, 0x40531B60), (0x40816A40, 0x40531B20), (0x40816A90, 0x40531B70),
+             (0x40816AA0, 0x40531B80)),
+}
+DRAGON_KNIGHT_LOOK_HEADS = {
+    'apply': '566a28e8', 'rebuild': '83ec1853568b', 'part_get': '8b44240483f8', 'color_get': '8b44240483f8',
+    'extra_get': '8b44240483f8', 'body_get': '8b44240485c0', 'body3_get': '8b44240485c0',
+    'part_set': '538b5c240c55', 'intact': '8b898c140000', 'broken_set': '8b442408568b',
+    'color_set': '81c16c150000', 'extra_set': '81c16c150000', 'scale_set': 'd9442404518b',
+    'body_set': '8b4424085657', 'body3_set': '81c16c150000', 'weapon_refresh': '8b4424046aff',
+    'armor_update': '83ec08568bf1'}
+DRAGON_KNIGHT_EFFECT = 'skill_miri_dragon_transform'
+DRAGON_KNIGHT_TYPE = 'dragonknight_transform'
+FLAMEBREATH_PLAYERS = 16
+FLAMEBREATH_SPEND = 'USE_DRAGON_ENERGY'
+FLAMEBREATH_DIALOG = 'MiriSkillDialog'
+FLAMEBREATH_CLASS = 11
+# Thinks between two sends of the same visibility: a preloaded movie starts visible, and talking to an
+# NPC in town showed the dragon again although the think had hidden it (C4 MI16).
+FLAMEBREATH_RESEND = 31
 # (think slot, condition object getter or None for [this+COMMANDS], raise)
 CLASS_CONDITIONS = {'client.dll': (334, None, 0x387DE550), 'server.dll': (460, 0x405380A0, 0x407E6470)}
+# Draker chain (Miri M7f; docs/future/miri-class-port.md 2.11). The NA draws it from its own weapon
+# entity: the server's CWeaponDraker makes a cable (`cable/heroes_metalchain_05`, width chain_width 1.5,
+# 19 segments) from the weapon's `chain_01` to the player's `anim_attachment_LH_Chain1` (NA server
+# 0x22d884; in town from `chain_01` to the weapon's own `chain_town`, 0x22d603), plus a chain prop on
+# the left arm (`draker_handle`, draker_chain.mdl). The 1.69 has neither, but its client makes the same
+# kind of cable for the mounts: the LINK_ROPE motion (0x3871b640) calls C_HeroesRopeFast::Create
+# (0x38540a30: start entity, end entity, start/end attachment (words), float width, material,
+# segments 2-19, flags (8: simulated), float slack (length = slack * end distance when > 0), float
+# fixed length (when > 0), byte, byte) and keeps the result in a handle. For each extra class in
+# CHAIN_CLASSES, the client think (slot 334, after the base) keeps one such cable per player from
+# the active weapon's `chain_01` (m_hActiveWeapon +0x1140) to the player's `anim_attachment_LH_Chain1`
+# (`anim_attachment_LH` when the body lacks it), and the arm chain as a client model bone-merged on the
+# player, as the 1.69 makes its own (0x381c8cd3: operator new 0x380528b0 of 0xca0 bytes,
+# C_BaseAnimating 0x380431f0, InitializeAsClientEntity(model, 0) at vtable +0x148,
+# FollowEntity(owner, bonemerge) 0x380136d0). Both are made when the weapon changes and removed with
+# C_BaseEntity::Remove (0x38058370, as LINK_ROPE does) when it changes again or goes away; a weapon
+# without `chain_01` gets neither. Each think also removes the pair of a player that no longer exists
+# (its handle no longer resolves): a model following a removed entity would stay in the world. State
+# per player (CHAIN_PLAYERS entries: player, weapon, cable handle, weapon has chain, arm handle,
+# player handle) in .hrte. The arm chain's model is precached first (client PrecacheModel 0x3879f280):
+# InitializeAsClientEntity only takes a precached model (modelinfo GetModelIndex -1 -> false, 0x38059b90),
+# and without it the arm chain never appeared (C4 MI10, memory: arm handle -1). In town (the game state,
+# as NA asks it: GameStateManager001 through the client's getter 0x38021bf0, predicate +0x38 = every town state (CHAIN_TOWN_STATES; it was +0x20,
+# 14, 17, 35, until C4 MI20); memory, C4 MI10: Colhen 14, its port 17, the boat 23; the level name is no guide, `t01` in Colhen and
+# `lobby_multiplayer` on the boat) the cable joins the weapon's `chain_01` to its own `chain_town`
+# (10 segments, as NA's town cable) and nothing ties it to the hand; a weapon without `chain_town` gets
+# the battle cable. The cable and the arm chain exist only while the weapon itself is drawn, through the
+# weapon's ShouldDraw (renderable vtable +0x0c; C_WeaponGreatSword 0x3881f640): it is false while the
+# owner is in the hot spring (byte +0x126e, 1 there, memory C4 MI14) and otherwise C_BaseCombatWeapon's
+# (0x38051380), false under EF_NODRAW (0x20 of m_fEffects +0x7c), which the weapon's visible/invisible
+# events set (AE_CUSTOM_WEAPON_EVENT, 0x3874808a). A think that finds the weapon not drawn removes the
+# pair and forgets the weapon, so the next think that finds it drawn makes them again. Hiding the
+# cable with EF_NODRAW is not enough: C_RopeKeyframe's ShouldDraw (0x3853daf0) ignores its own flag
+# and hides only when its start entity has EF_NODRAW, so the cable stayed in the hot spring (C4 MI14).
+CHAIN = {'client.dll': {'think': 334, 'active_weapon': 0x1140, 'handle_get': 0x385519D0, 'handle_set': 0x38541370,
+                        'remove': 0x38058370, 'create': 0x38540A30, 'lookup_attachment': 0x8C,
+                        'new': 0x380528B0, 'animating': 0x380431F0, 'animating_size': 0xCA0,
+                        'initialize': 0x148, 'follow': 0x380136D0, 'add_effects': 0x380107F0,
+                        'remove_effects': 0x38018640, 'effects': 0x7C, 'precache_model': 0x3879F280,
+                        'game_state': 0x38021BF0, 'in_town_predicate': 0x38, 'should_draw': 0x0C}}
+CHAIN_HEADS = {'handle_get': '8b0183f8ff', 'handle_set': '568bf18b4c2408', 'remove': '568bf180be5b01000000',
+               'create': '5668380c0000', 'new': 'a1c4a3ad38', 'animating': '515355568bf1', 'follow': '8b442404568bf185c0',
+               'add_effects': '8b44240409417c', 'remove_effects': '8b4424048bd0f7d221517c',
+               'precache_model': '803db42ae93800', 'game_state': 'a1a42acc3885c0'}
+EF_NODRAW = 0x20
+CHAIN_CLASSES = (11,)
+CHAIN_PLAYERS = 16
+CHAIN_ENTRY = 32
+CHAIN_ROPE = {'material': 'cable/heroes_metalchain_05', 'width': 1.5, 'segments': 19, 'flags': 8,
+              'slack': 1.1, 'length': -1.0}
+CHAIN_ARM_MODEL = 'models/weapon/draker/draker_chain.mdl'
+# engine.dll HeroesGameStateManager predicate +0x38 (0x4240cc50): every town state, the open town (+0x20: 14, 17,
+# 35) and its sub-states (+0x1c: buildings, NPC talk...). With +0x20 alone, talking to an NPC in town left the
+# town states and showed the Flamebreath dragon (C4 MI20).
+CHAIN_TOWN_STATES = (14, 15, 16, 17, 18, 19, 20, 21, 22, 33, 35, 36, 42, 43)
+CHAIN_TOWN_ROPE = {'segments': 10, 'slack': 1.2}
+CHAIN_TOWN_ATTACHMENT = 'chain_town'
+CHAIN_WEAPON_ATTACHMENT = 'chain_01'
+CHAIN_PLAYER_ATTACHMENTS = ('anim_attachment_LH_Chain1', 'anim_attachment_LH')
 # Delia's status effects and on-hit commands (plan 8.15 items 3-4), server only. The 1.69
 # heroes.db3 and scripts/status_effect.txt already define her effects, but server.dll registers
 # no factory for five of their types, so those effects did nothing. Registered after
@@ -567,6 +830,8 @@ def check_classes(classes: tuple[ExtraClass, ...]) -> None:
         raise PreparationError('Extra classes must be numbered 10, 11, ... below the pet.')
     if len({c.key for c in classes}) != len(classes) or any(c.clone_of not in OLD_CLASSES for c in classes):
         raise PreparationError('Extra classes need distinct keys and an older class to clone.')
+    if any(c.index not in CLASS_FLAGS for c in classes):
+        raise PreparationError('Every extra class needs an item byte in patch_engine_class_flags.CLASS_FLAGS.')
 
 
 DELIA_PRECACHE = precache_models(EXTRA_CLASSES[0])
@@ -711,6 +976,26 @@ def clone_case(image: Image, layout: Layout, start: int, end: int, relocs: set[i
     return replaced
 
 
+def keyword_tables(image: Image, layout: Layout, edits: list, relocs: set[int], clamp: int, array: int) -> dict:
+    """GetSkillKeywordTable's array, moved to .hrte with an entry for every class up to the pet."""
+    if bytes(image.data[image.offset(clamp):image.offset(clamp) + len(KEYWORD_CLAMP)]) != KEYWORD_CLAMP:
+        raise PreparationError(f'Unexpected keyword table clamp at {clamp:#x}; nothing is patched.')
+    layout.pad()
+    moved = layout.here()
+    layout.body += bytes(4 * (PET + 1))
+    users = []
+    for at in sorted(relocs):
+        if image.text_contains(at) and struct.unpack_from('<I', image.data, image.offset(at))[0] == array:
+            edits.append((at, struct.pack('<I', array), struct.pack('<I', moved)))
+            users.append(hex(at))
+    # Read, test, store and store null: the function's four uses, all of them [index*4 + array].
+    if len(users) != 4:
+        raise PreparationError(f'Expected 4 uses of the keyword table array {array:#x}, found {len(users)}; nothing is patched.')
+    edits.append((clamp + 2, b'\x0b', bytes((PET,))))
+    edits.append((clamp + 7, b'\x0b', bytes((PET,))))
+    return {'clamp': hex(clamp), 'array': hex(array), 'moved_to': hex(moved), 'entries': PET + 1, 'references': users}
+
+
 def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
                 lookup: int, pick: int, loop: int, less: int) -> dict:
     """An action-state map per extra class and the two stubs that reach them (MATCH)."""
@@ -787,63 +1072,72 @@ def match_table(image: Image, layout: Layout, edits: list, relocs: set[int],
 
 def flag_check(layout: Layout, edits: list, va: int, old: str, register: str, base: str,
                default: int, pop: int) -> str:
-    """One FLAG_CHECKS stub: cmp reg, DELIA; ja default; al = DELIA_FLAG or flags[reg]; ret pop."""
+    """One FLAG_CHECKS stub: cmp reg, LAST; ja default; al = flags[reg] for classes 0-9, the class's
+    CLASS_FLAGS byte for an extra class; ret pop."""
     reg = {'eax': 0, 'ecx': 1}[register]
     item = 1 if base == 'ecx' else 0
     layout.pad()
     stub = layout.here()
-    layout.body += bytes((0x83, 0xF8 | reg, DELIA))
+    layout.body += bytes((0x83, 0xF8 | reg, LAST))
     layout.body += b'\x0f\x87' + struct.pack('<i', default - (layout.here() + 6))
     if base != 'ecx':
         layout.body += b'\x8b\x44\x24\x04'  # mov eax, [esp + 4]
-    delia = layout.forward(b'\x0f\x84')
+    layout.body += bytes((0x83, 0xF8 | reg, DELIA))
+    extra = layout.forward(b'\x0f\x83')  # jae: an extra class
     layout.body += bytes((0x8A, 0x84, (reg << 3) | item)) + struct.pack('<I', 0x198)  # mov al, [item + reg + 0x198]
     layout.body += b'\xc2' + struct.pack('<H', pop)
-    layout.land(delia)
-    layout.body += bytes((0x8A, 0x80 | item)) + struct.pack('<I', DELIA_FLAG)  # mov al, [item + DELIA_FLAG]
-    layout.body += b'\xc2' + struct.pack('<H', pop)
+    layout.land(extra)
+    for c in EXTRA_CLASSES:
+        layout.body += bytes((0x83, 0xF8 | reg, c.index))
+        other = layout.forward(b'\x0f\x85')
+        layout.body += bytes((0x8A, 0x80 | item)) + struct.pack('<I', CLASS_FLAGS[c.index])  # mov al, [item + flag]
+        layout.body += b'\xc2' + struct.pack('<H', pop)
+        layout.land(other)
+    layout.body += b'\xe9' + struct.pack('<i', default - (layout.here() + 5))
     edits.append((va, bytes.fromhex(old), b'\xe9' + struct.pack('<i', stub - (va + 5))))
     return f'{va:#x} -> {stub:#x}'
 
 
 def tooltip(image: Image, layout: Layout, edits: list, relocs: set[int],
             start: int, end: int, join: int, old: str) -> str:
-    """One TOOLTIPS stub: the Hagie block for flag 10 and #GameUI_<class 10>, then the join."""
+    """One TOOLTIPS stub: a copy of the Hagie block per extra class (its CLASS_FLAGS byte and
+    #GameUI_<Name>), then the join."""
     replaced = bytes.fromhex(old)
     if any(join - 3 <= r < join + len(replaced) for r in relocs):
         raise PreparationError(f'Relocated dword inside the join {join:#x}; nothing is patched.')
     layout.pad()
-    name = layout.string(f'#GameUI_{EXTRA_CLASSES[0].name}')
+    names = {c.index: layout.string(f'#GameUI_{c.name}') for c in EXTRA_CLASSES}
     layout.pad()
     stub = layout.here()
-    skips, flags, named = [], 0, False
-    for ins in md.disasm(bytes(image.data[image.offset(start):image.offset(end)]), start):
-        raw = bytearray(image.data[image.offset(ins.address):image.offset(ins.address) + ins.size])
-        if ins.mnemonic == 'je':
-            layout.body += b'\x0f\x84'
-            skips.append(len(layout.body))
-            layout.body += bytes(4)
-        elif ins.mnemonic == 'call' and raw[0] == 0xE8:
-            layout.body += b'\xe8' + struct.pack('<i', int(ins.op_str, 16) - (layout.here() + 5))
-        elif ins.mnemonic == 'push' and ins.address + 1 in relocs:
-            if read_string(image, struct.unpack_from('<I', raw, 1)[0]) != '#GameUI_Hagie':
-                raise PreparationError(f'Unexpected string at {ins.address:#x}; nothing is patched.')
-            layout.body += b'\x68'
-            layout.pointer(name)
-            named = True
-        else:
-            if any(ins.address <= r < ins.address + ins.size for r in relocs):
-                raise PreparationError(f'Unexpected relocation at {ins.address:#x}; nothing is patched.')
-            at = raw.find(struct.pack('<I', 0x1A1))
-            if ins.mnemonic == 'cmp' and at > 0:
-                struct.pack_into('<I', raw, at, DELIA_FLAG)
-                flags += 1
-            layout.body += raw
-    if flags != 2 or not named or len(skips) != 2:
-        raise PreparationError(f'Unexpected Hagie block at {start:#x}; nothing is patched.')
-    tail = len(layout.body)
-    for at in skips:
-        struct.pack_into('<i', layout.body, at, tail - (at + 4))
+    for c in EXTRA_CLASSES:
+        skips, flags, named = [], 0, False
+        for ins in md.disasm(bytes(image.data[image.offset(start):image.offset(end)]), start):
+            raw = bytearray(image.data[image.offset(ins.address):image.offset(ins.address) + ins.size])
+            if ins.mnemonic == 'je':
+                layout.body += b'\x0f\x84'
+                skips.append(len(layout.body))
+                layout.body += bytes(4)
+            elif ins.mnemonic == 'call' and raw[0] == 0xE8:
+                layout.body += b'\xe8' + struct.pack('<i', int(ins.op_str, 16) - (layout.here() + 5))
+            elif ins.mnemonic == 'push' and ins.address + 1 in relocs:
+                if read_string(image, struct.unpack_from('<I', raw, 1)[0]) != '#GameUI_Hagie':
+                    raise PreparationError(f'Unexpected string at {ins.address:#x}; nothing is patched.')
+                layout.body += b'\x68'
+                layout.pointer(names[c.index])
+                named = True
+            else:
+                if any(ins.address <= r < ins.address + ins.size for r in relocs):
+                    raise PreparationError(f'Unexpected relocation at {ins.address:#x}; nothing is patched.')
+                at = raw.find(struct.pack('<I', 0x1A1))
+                if ins.mnemonic == 'cmp' and at > 0:
+                    struct.pack_into('<I', raw, at, CLASS_FLAGS[c.index])
+                    flags += 1
+                layout.body += raw
+        if flags != 2 or not named or len(skips) != 2:
+            raise PreparationError(f'Unexpected Hagie block at {start:#x}; nothing is patched.')
+        tail = len(layout.body)  # a class that is not allowed skips to the next copy
+        for at in skips:
+            struct.pack_into('<i', layout.body, at, tail - (at + 4))
     layout.body += replaced + b'\xe9' + struct.pack('<i', join + len(replaced) - (layout.here() + len(replaced) + 5))
     edits.append((join, replaced, b'\xe9' + struct.pack('<i', stub - (join + 5)) + b'\x90' * (len(replaced) - 5)))
     return f'{join:#x} -> {stub:#x}'
@@ -1101,10 +1395,15 @@ def client_weapon_switch(image: Image, layout: Layout, edits: list, va: int, old
 
 def conditions(layout: Layout, edits: list, tail: int, name_map: int, name_insert: int, id_map: int,
                id_insert: int, bounds: tuple) -> dict:
-    """CONDITIONS: ids 121-125 for Delia's condition names, registered after the 1.69 list."""
+    """CONDITIONS: ids from 121 for the extra classes' condition names, registered after the 1.69 list."""
     limit = FIRST_NEW_CONDITION + len(CONDITION_NAMES)
+    if limit > CONDITION_SET_BITS:
+        raise PreparationError(f'{len(CONDITION_NAMES)} new conditions do not fit the {CONDITION_SET_BITS}-bit set.')
     for va in bounds:
-        edits.append((va, bytes.fromhex('83f979'), bytes((0x83, 0xF9, limit))))
+        if limit < 0x80:
+            edits.append((va, bytes.fromhex('83f979'), bytes((0x83, 0xF9, limit))))
+        else:  # cmp ecx, limit - 1; jg (the same rel8 as the jge)
+            edits.append((va, bytes.fromhex('83f9797d'), bytes((0x83, 0xF9, limit - 1, 0x7F))))
     layout.pad()
     names = [layout.string(n) for n in CONDITION_NAMES]
     layout.pad()
@@ -1200,20 +1499,25 @@ def guard_state(layout: Layout, forced_off: int | None, ended) -> tuple[int, int
 
 
 def class_dispatch(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, klass: int,
-                   slot: int, body: int) -> str:
-    """Point vtable `slot` of `name` at a stub that jumps to `body` for an extra class (m_iClass at
-    +klass) and to the original method otherwise."""
+                   slot: int, body: int | dict[int, int], classes: tuple[int, ...] | None = None) -> str:
+    """Point vtable `slot` of `name` at a stub that jumps to `body` for the given extra classes (all of
+    them by default; m_iClass at +klass), or to body[class] when body maps classes to bodies, and to
+    the original method otherwise."""
     at = vtable(image, name) + 4 * slot
     if at not in relocs:
         raise PreparationError(f'{name} slot {slot} is not relocated; nothing is patched.')
     original = struct.unpack_from('<I', image.data, image.offset(at))[0]
+    bodies = body if isinstance(body, dict) else {
+        extra.index: body for extra in EXTRA_CLASSES if classes is None or extra.index in classes}
     layout.pad()
     stub = layout.here()
     layout.body += bytes((0x8B, 0x81)) + struct.pack('<I', klass)
     for extra in EXTRA_CLASSES:
+        if extra.index not in bodies:
+            continue
         layout.body += bytes((0x83, 0xF8, extra.index))
         other = layout.forward(bytes((0x0F, 0x85)))
-        layout.to(bytes((0xE9,)), body)
+        layout.to(bytes((0xE9,)), bodies[extra.index])
         layout.land(other)
     layout.to(bytes((0xE9,)), original)
     edits.append((at, struct.pack('<I', original), struct.pack('<I', stub)))
@@ -1222,9 +1526,10 @@ def class_dispatch(image: Image, layout: Layout, edits: list, relocs: set[int], 
 
 def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
           damage_slot: int, guarded: int, forced_off: int, conditions_of: int, raise_: int, lower: int,
-          forfeit: int | None = None) -> dict:
+          forfeit: int | None = None, effects: dict | None = None) -> dict:
     """GUARD: guard state table, state set/get and the guarded damage path for extra classes; a hit that
-    is neither guarded nor unblockable calls `forfeit(this)` (Delia's reserved HP) when given."""
+    is neither guarded nor unblockable calls `forfeit(this)` (Delia's reserved HP) when given. With the
+    DELIA_EFFECTS helpers (`effects`: level_of, add_named) the Miri gets her own endure (MIRI_GUARD)."""
     name, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
     guard_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard')
     hit_id = FIRST_NEW_CONDITION + CONDITION_NAMES.index('AS_Cond_Delia_Guard_Hit')
@@ -1243,9 +1548,29 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
         call(lower)
         layout.land(none)
 
-    states, get, put = guard_state(layout, forced_off, ended)
+    def damage_body(forfeit_: int | None) -> int:
+        return _server_guard_damage(layout, get, conditions_of, raise_, guarded, guard_id, hit_id, forfeit_)
 
-    # damage(this, info)
+    states, get, put = guard_state(layout, forced_off, ended)
+    damages = {klass_: damage_body(forfeit if klass_ == DELIA else None) for klass_ in GUARD_CLASSES}
+    if effects is not None and MIRI in GUARD_CLASSES:
+        damages[MIRI] = _miri_guard_damage(image, layout, get, conditions_of, raise_, guard_id, hit_id,
+                                           int(effects['level_of'], 16), int(effects['add_named'], 16))
+
+    def dispatch(slot: int, body) -> str:
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
+
+    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': {c: hex(d) for c, d in damages.items()},
+            'slots': [dispatch(set_slot, {c: put for c in GUARD_CLASSES}), dispatch(get_slot, {c: get for c in GUARD_CLASSES}),
+                      dispatch(damage_slot, damages)]}
+
+
+def _server_guard_damage(layout: Layout, get: int, conditions_of: int, raise_: int, guarded: int,
+                         guard_id: int, hit_id: int, forfeit: int | None) -> int:
+    """damage(this, info) of GUARD; a hit neither guarded nor unblockable calls `forfeit` when given."""
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
     layout.pad()
     damage = layout.here()
     layout.body += bytes((0x56, 0x8B, 0xF1, 0x8B, 0x44, 0x24, 0x08))  # push esi; mov esi, ecx; mov eax, [esp+8]
@@ -1286,12 +1611,222 @@ def guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot:
     layout.body += bytes((0xFF, 0x74, 0x24, 0x08, 0x8B, 0xCE))  # push [esp+8]; mov ecx, esi
     call(guarded)
     layout.body += bytes((0x5E, 0xC2, 0x04, 0x00))  # pop esi; ret 4
+    return damage
 
-    def dispatch(slot: int, body: int) -> str:
-        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
 
-    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage),
-            'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
+def _miri_guard_damage(image: Image, layout: Layout, get: int, conditions_of: int, raise_: int, guard_id: int,
+                       hit_id: int, level_of: int, add_named: int) -> int:
+    """damage(this, info) of the Miri (MIRI_GUARD): Fiona's endure with her effect and sound, the guard
+    conditions and the resound status effects."""
+    k = MIRI_GUARD['server.dll']
+    for key, head in MIRI_GUARD_HEADS['server.dll'].items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    L = layout
+    efx, sound = L.string(MIRI_ENDURE_EFFECT), L.string(MIRI_GUARD_SOUND)
+    knight = L.string(DRAGON_KNIGHT_EFFECT)
+    resound, stamina = (L.string(n) for n in MIRI_RESOUND)
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def call(va: int) -> None:
+        L.to(b'\xe8', va)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    def at(code: str, va: int) -> None:
+        b(code)
+        L.pointer(va)
+
+    L.pad()
+    damage = L.here()
+    b('56 57 8bf1 8b7c240c')  # push esi; push edi; mov esi, ecx; mov edi, info
+    b('f7473c' + struct.pack('<I', 0x10000000).hex()); server_side = fwd('0f84')  # a client hit
+    b('f6477802'); plain0 = fwd('0f84')  # guarded by the client
+    client = fwd('e9')
+    L.land(server_side)
+    b('f7473c' + struct.pack('<I', 0x8000000).hex()); plain1 = fwd('0f85')  # unblockable
+    b('8bce'); call(get)
+    b('84c0'); plain2 = fwd('0f84')
+    b('8bce'); call(conditions_of)
+    b('50 57'); call(k['unguardable'])
+    b('83c408 84c0'); plain3 = fwd('0f85')
+    b('57'); call(k['unguardable_info'])
+    b('83c404 84c0'); plain4 = fwd('0f85')
+    # the server decided the hit: her effect at the player, sent to everyone
+    b('6a00 8bc4 6a01 56'); at('68', efx); b('50')  # handle slot; push 1; push player; push path; push &handle
+    call(k['effect'])
+    b('83c410 59 85c9'); none = fwd('0f84')
+    call(k['effect_release'])
+    L.land(none)
+    L.land(client)
+    # fldz; push 0; push ecx; fst [edi+0x30]; fst [edi+0x48]; mov byte [edi+0x75], 0; fstp [esp]
+    b('d9ee 6a00 51 d95730 d95748 c6477500 d91c24')
+    at('68', sound); b('8bce')
+    call(k['sound'])
+    b('8bce'); call(k['held'])
+    b('84c0'); free = fwd('0f84')
+    b('6a00 8bce'); call(k['release_held'])
+    L.land(free)
+    b('8bce'); call(conditions_of)
+    b('85c0'); no_conditions = fwd('0f84')
+    b('50 68' + struct.pack('<I', guard_id).hex() + '8b4c2404'); call(raise_)
+    b('58 68' + struct.pack('<I', hit_id).hex() + '8bc8'); call(raise_)
+    L.land(no_conditions)
+    b('8bce'); at('ba', knight); call(level_of)
+    b('85c0'); transformed = fwd('0f85')
+    b('8bce b801000000'); at('ba', resound); call(add_named)
+    L.land(transformed)
+    b('8bce b801000000'); at('ba', stamina); call(add_named)
+    for j in (plain0, plain1, plain2, plain3, plain4):
+        L.land(j)
+    b('57 8bce'); call(k['base'])
+    b('5f 5e c20400')
+    return damage
+
+
+def custom_effect(image: Image, layout: Layout, edits: list, relocs: set[int], name: str) -> dict:
+    """CUSTOM_EFFECT: the Miri's FireEvent turns AE_CL_PLAY_CUSTOM_EFFECT into AE_CL_PLAY_EFFECT with the
+    path for her state (the first one, or the second while transformed)."""
+    k = CUSTOM_EFFECT[name]
+    entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
+    head = bytes.fromhex(CUSTOM_EFFECT_HEAD)
+    original = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * k['slot']))[0]
+    if original != k['fire_event'] or bytes(image.data[image.offset(original):image.offset(original) + len(head)]) != head:
+        raise PreparationError(f'Unexpected FireEvent at slot {k["slot"]} ({original:#x}); nothing is patched.')
+    L = layout
+    L.pad()
+    path = L.here()
+    L.body += bytes(CUSTOM_EFFECT_PATH)
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    def land(*at: int) -> None:
+        for a in at:
+            L.land(a)
+
+    L.pad()
+    body = L.here()
+    b(f'837c240c{k["custom"]:02x}')  # cmp dword [esp+0xc] (event), custom
+    L.to(bytes.fromhex('0f85'), original)
+    b('56 57 8b742418 bf'); L.pointer(path)  # push esi; push edi; mov esi, options; mov edi, path
+    b('f681' + struct.pack('<I', FLAMEBREATH[name]['type']).hex() + '01')  # test byte [ecx+type], 1 (transformed)
+    plain = fwd('0f84')
+    first = L.here()  # skip the first path
+    b('8a06 84c0'); alone = fwd('0f84')  # a single path: the plain copy
+    b('3c20'); blank0 = fwd('0f84')
+    b('3c09'); blank1 = fwd('0f84')
+    b('46'); L.to(bytes.fromhex('e9'), first)
+    land(blank0, blank1)
+    blanks = L.here()  # and the blanks after it
+    b('46 8a06 3c20'); L.to(bytes.fromhex('0f84'), blanks)
+    b('3c09'); L.to(bytes.fromhex('0f84'), blanks)
+    b('84c0'); knight = fwd('0f85')
+    land(alone)
+    b('8b742418')  # nothing after the blanks: from the start again
+    land(plain, knight)
+    copy = L.here()
+    b('8a06 84c0'); ends = [fwd('0f84')]
+    b('3c20'); ends.append(fwd('0f84'))
+    b('3c09'); ends.append(fwd('0f84'))
+    b('81ff'); L.pointer(path + CUSTOM_EFFECT_PATH - 1); ends.append(fwd('0f83'))  # bounded copy
+    b('8807 46 47'); L.to(bytes.fromhex('e9'), copy)
+    land(*ends)
+    b('c60700 5f 5e')  # terminate; pop edi; pop esi
+    b(f'c744240c{k["play"]:02x}000000 c7442410'); L.pointer(path)  # event = play, options = path
+    L.to(bytes.fromhex('e9'), original)
+    return {'path': hex(path), 'body': hex(body),
+            'slot': class_dispatch(image, layout, edits, relocs, entity, klass, k['slot'], {MIRI: body})}
+
+
+def flamebreath_leave(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, hide: int) -> str:
+    """FLAMEBREATH_LEAVE: the Miri's destructor hides the Flamebreath dialog first."""
+    k = FLAMEBREATH_LEAVE[name]
+    entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
+    original = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * k['slot']))[0]
+    head = bytes.fromhex(FLAMEBREATH_LEAVE_HEAD)
+    if original != k['destructor'] or bytes(image.data[image.offset(original):image.offset(original) + len(head)]) != head:
+        raise PreparationError(f'Unexpected destructor at slot {k["slot"]} ({original:#x}); nothing is patched.')
+    layout.pad()
+    body = layout.here()
+    layout.body += b'\x51'  # push ecx (this)
+    layout.to(b'\xe8', hide)
+    layout.body += b'\x59'  # pop ecx
+    layout.to(b'\xe9', original)
+    return class_dispatch(image, layout, edits, relocs, entity, klass, k['slot'], {FLAMEBREATH_CLASS: body})
+
+
+def summon_parent(image: Image, layout: Layout, edits: list, name: str) -> dict:
+    """SUMMON_PARENT: the Miri's summoned models are parented to her."""
+    k = SUMMON_PARENT[name]
+    site, klass = k['site'], ENTITY_SLOTS[name][1]
+    head = bytes.fromhex(SUMMON_PARENT_HEAD)
+    old = b'\xe8' + struct.pack('<i', k['handle'] - (site + 5))
+    if bytes(image.data[image.offset(site) - len(head):image.offset(site) + 5]) != head + old:
+        raise PreparationError(f'Unexpected code at {site:#x}; nothing is patched.')
+    layout.pad()
+    thunk = layout.here()
+    layout.body += bytes.fromhex('ff742404')  # push [esp+4] (the model)
+    layout.to(b'\xe8', k['handle'])  # store its handle (thiscall, ret 4)
+    layout.body += bytes.fromhex('83bf') + struct.pack('<I', klass) + bytes((FLAMEBREATH_CLASS,))  # cmp [edi+class], Miri
+    other = layout.forward(bytes.fromhex('0f85'))
+    layout.body += bytes.fromhex('6aff 6aff 57 8b06 8bce ff90') + struct.pack('<I', k['set_parent'])  # SetParent(player, -1, -1)
+    layout.land(other)
+    layout.body += bytes.fromhex('c20400')
+    edits.append((site, old, b'\xe8' + struct.pack('<i', thunk - (site + 5))))
+    return {'site': hex(site), 'thunk': hex(thunk)}
+
+
+def summon_follow(image: Image, layout: Layout, name: str) -> int:
+    """SUMMON_FOLLOW: a think tick (ecx = player) that puts her summoned models at SUMMON_FOLLOW_BONE."""
+    k = SUMMON_FOLLOW[name]
+    for key, head in SUMMON_FOLLOW_HEADS.items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    L = layout
+    bone = L.string(SUMMON_FOLLOW_BONE)
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def d32(value: int) -> str:
+        return struct.pack('<I', value).hex()
+
+    L.pad()
+    tick = L.here()
+    b('53 56 57 55 8bf1')  # push ebx/esi/edi/ebp; mov esi, ecx (the player)
+    b('83be' + d32(k['count']) + '00'); none = L.forward(bytes.fromhex('0f8e'))  # cmp [esi+count], 0; jle
+    b('83ec18 68'); L.pointer(bone)  # sub esp, 0x18 (origin, angles); push bone name
+    b('8bce'); L.to(b'\xe8', k['lookup_bone'])  # eax = LookupBone(name)
+    b('85c0'); missing = L.forward(bytes.fromhex('0f8c'))
+    b('8d4c240c 51 8d542404 52 50 8bce')  # push &angles, &origin, bone; mov ecx, esi
+    L.to(b'\xe8', k['bone_position'])
+    b('33ff')  # edi = 0
+    loop = L.here()
+    b('3bbe' + d32(k['count'])); done = L.forward(bytes.fromhex('0f8d'))  # cmp edi, [esi+count]; jge
+    b('8b86' + d32(k['list']) + ' 8b04b8')  # eax = list[edi]
+    b('83f8ff'); gone0 = L.forward(bytes.fromhex('0f84'))
+    b('8bd0 81e2ff3f0000 c1e204 8b0d'); L.pointer(k['entities'])  # edx = (handle & 0x3fff) << 4; ecx = entities
+    b('8d4c1104 c1e80e 394104'); gone1 = L.forward(bytes.fromhex('0f85'))  # entry; serial check
+    b('8b09 85c9'); gone2 = L.forward(bytes.fromhex('0f84'))  # ecx = entity
+    b('8d0424 50'); L.to(b'\xe8', k['set_abs_origin'])  # SetAbsOrigin(&origin)
+    for j in (gone0, gone1, gone2):
+        L.land(j)
+    b('47'); L.to(b'\xe9', loop)
+    L.land(done)
+    L.land(missing)
+    b('83c418')
+    L.land(none)
+    b('5d 5f 5e 5b c3')
+    return tick
 
 
 def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
@@ -1317,8 +1852,29 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
         layout.land(none)
 
     states, get, put = guard_state(layout, None, ended)
+    damages = {klass_: _client_guard_damage(layout, get, copy, unguardable, unguardable_info, raise_, test, base,
+                                            allocator, guard_id, hit_id,
+                                            MIRI_ENDURE_EFFECT if klass_ == MIRI else None)
+               for klass_ in GUARD_CLASSES}
 
-    # damage(this, info), the frame of Fiona's 0x3870cef0: copy at [esp+0xc] after push esi/edi
+    def dispatch(slot: int, body) -> str:
+        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
+
+    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': {c: hex(d) for c, d in damages.items()},
+            'base': hex(base),
+            'slots': [dispatch(set_slot, {c: put for c in GUARD_CLASSES}), dispatch(get_slot, {c: get for c in GUARD_CLASSES}),
+                      dispatch(damage_slot, damages)]}
+
+
+def _client_guard_damage(layout: Layout, get: int, copy: int, unguardable: int, unguardable_info: int, raise_: int,
+                         test: int, base: int, allocator: int, guard_id: int, hit_id: int, effect: str | None) -> int:
+    """damage(this, info) of CLIENT_GUARD, the frame of Fiona's 0x3870cef0 (copy at [esp+0xc] after push
+    esi/edi); on a guarded hit it plays `effect` on the player when given, as Fiona's plays hers."""
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
+    # the string goes before the body: Layout.string writes at the current position (MI29 crash 0x392204e4)
+    path = layout.string(effect) if effect is not None else None
     layout.pad()
     damage = layout.here()
     layout.body += bytes((0x81, 0xEC, 0x90, 0, 0, 0, 0x56, 0x57))  # sub esp, 0x90; push esi; push edi
@@ -1341,6 +1897,15 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
     layout.body += bytes((0xC6, 0x86)) + struct.pack('<I', HIT_IMPACT_SKIP) + b'\x01'  # no impact sound
     layout.body += bytes((0xC6, 0x84, 0x24, 0x85, 0, 0, 0, 0x00))  # mov byte [esp+0x85], 0
     layout.body += bytes((0xD9, 0xEE, 0xD9, 0x54, 0x24, 0x3C, 0xD9, 0x5C, 0x24, 0x54))  # damage = 0
+    if path is not None:
+        layout.body += bytes((0xB8,))
+        layout.pointer(path)  # mov eax, path
+        layout.body += bytes((0x6A, 0x00, 0x56, 0x50, 0x8D, 0x4C, 0x24, 0x14, 0x51))  # push 0/esi/eax; lea ecx, [esp+0x14]; push ecx
+        call(CLIENT_EFFECT[0])
+        layout.body += bytes((0x8B, 0x4C, 0x24, 0x18, 0x83, 0xC4, 0x10, 0x85, 0xC9))  # mov ecx, [esp+0x18]; add esp, 0x10
+        played = layout.forward(bytes((0x0F, 0x84)))
+        call(CLIENT_EFFECT[1])
+        layout.land(played)
     layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS) + bytes((0x85, 0xC9))
     skips.append(layout.forward(bytes((0x0F, 0x84))))
     layout.body += bytes((0x51, 0x68)) + struct.pack('<I', guard_id)  # push ecx; push guard
@@ -1368,16 +1933,13 @@ def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], se
     layout.land(done)
     layout.land(done2)
     layout.body += bytes((0x5F, 0x8B, 0xC6, 0x5E, 0x81, 0xC4, 0x90, 0, 0, 0, 0xC2, 0x04, 0x00))
-
-    def dispatch(slot: int, body: int) -> str:
-        return class_dispatch(image, layout, edits, relocs, name, klass, slot, body)
-
-    return {'states': hex(states), 'get': hex(get), 'set': hex(put), 'damage': hex(damage), 'base': hex(base),
-            'slots': [dispatch(set_slot, put), dispatch(get_slot, get), dispatch(damage_slot, damage)]}
+    return damage
 
 
-def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k: dict) -> dict:
-    """DELIA_EFFECTS: Delia's status-effect types, her on-hit commands, the per-entity state and its think."""
+def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k: dict,
+                  commands_of: dict[str, tuple[int, int]] | None = None) -> dict:
+    """DELIA_EFFECTS: Delia's status-effect types, her on-hit commands, the per-entity state and its think.
+    `commands_of` adds AE_CUSTOM_MOTION commands of other classes: text -> (class, routine(ecx = player))."""
     entity, klass = ENTITY_SLOTS['server.dll'][0], ENTITY_SLOTS['server.dll'][1]
     f, s = PLAYER_FIELDS, PLAYER_SLOTS
     L = layout
@@ -1413,7 +1975,9 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         'restore_equipment_def', 'validCount', 'reduce_ratio', 'restore_time', 'delay_time', 'immune_count',
         'candidate_actions', 'damage_rates', 'add_def', 'skill_delia_strong_attack_week', 'skill_delia_strong_attack_hit',
         'ENABLE_STACK_CHARGE_SMASH_STATUS_EFFECT', 'DISABLE_STACK_CHARGE_SMASH_STATUS_EFFECT',
-        'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'PURGE_ALL_ARMOR', '')}
+        'ENABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'DISABLE_ADD_STRONG_ATTACK_STATUS_EFFECT', 'PURGE_ALL_ARMOR', '',
+        DRAGON_KNIGHT_TYPE,
+        *(commands_of or {}))}
     L.pad()
     registrar = L.here()
     L.body += bytes(4)
@@ -1696,6 +2260,10 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         L.land(at)
     b('5b 5f 5e c20800')
 
+    L.pad()
+    noop_load = L.here()
+    b('c20400')
+
     # restore_equipment_def: armour HP + add_def, as armor_hp_adder
     L.pad()
     red_load = L.here()
@@ -1718,6 +2286,8 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
         ('skill_delia_strong_attack', 0xA0, [k['dtor'], sda_load, base2, base3, base4, sda_hurt, base6]),
         ('damage_modify_to_action', 0x100, [k['dtor'], dma_load, base2, base3, dma_hit, base5, base6]),
         ('restore_equipment_def', 0x98, [k['dtor'], red_load, base2, base3, base4, base5, base6]),
+        # the Miri's Dragon Knight (FLAMEBREATH): the status effect only has to exist; the think reads it
+        (DRAGON_KNIGHT_TYPE, 0x98, [k['dtor'], noop_load, base2, base3, base4, base5, base6]),
     ]
     factories = {}
     for name, size, slots in types:
@@ -1741,13 +2311,16 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     events = L.here()
     b('51')
     hits = []
-    for text in [c[0] for c in commands] + ['PURGE_ALL_ARMOR']:
+    others = list((commands_of or {}).items())
+    for text in [c[0] for c in commands] + ['PURGE_ALL_ARMOR'] + [t for t, _ in others]:
         b('6a' + bytes((len(text) + 1,)).hex())
         push_ptr(names[text])
         b('ff742410')
         call(k['strncmp'])
         b('83c40c 85c0')
         hits.append(fwd('0f84'))
+    other_hits = hits[len(commands) + 1:]
+    hits = hits[:len(commands) + 1]
     purge = hits.pop()
     b('59')
     L.body += EVENTS_HEAD
@@ -1755,16 +2328,24 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     for at, (_, field, value) in zip(hits, commands):
         L.land(at)
         b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
-        b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f8c')
+        b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f85')  # Delia only
         b('8bc8')
         call(find_or_add)
         b('c640' + bytes((field, value)).hex())
         L.land(no); L.land(no2)
         b('c20400')
+    for at, (_, (index, routine)) in zip(other_hits, others):
+        L.land(at)
+        b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
+        b('83b8' + d32(klass) + bytes((index,)).hex()); no2 = fwd('0f85')
+        b('8bc8')
+        call(routine)
+        L.land(no); L.land(no2)
+        b('c20400')
     # PURGE_ALL_ARMOR: armour slots 4-8 broken without the costume rebuild
     L.land(purge)
     b('59 8b81' + d32(f['commands']) + '85c0'); no = fwd('0f84')
-    b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f8c')
+    b('83b8' + d32(klass) + bytes((DELIA,)).hex()); no2 = fwd('0f85')  # Delia only
     b('56 57 53 8bf8 8b8f' + d32(k['armor']) + '85c9'); none = fwd('0f84')  # edi = entity; armour container
     b('8bcf')
     call(find_or_add)
@@ -1815,7 +2396,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     L.pad()
     restore = L.here()
     b('807c240800'); o1 = fwd('0f85')  # broken: original
-    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); o2 = fwd('0f8c')
+    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); o2 = fwd('0f85')  # Delia only
     b('8b442404 83f804'); o3 = fwd('0f8c')
     b('83f808'); o4 = fwd('0f8f')
     b('56 57 53 51 8bf0')  # esi = slot
@@ -1840,7 +2421,7 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     # player repair(rate) entry: with the armour system off, the kept parts come back (look only)
     L.pad()
     repair = L.here()
-    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); r1 = fwd('0f8c')
+    b('83b9' + d32(klass) + bytes((DELIA,)).hex()); r1 = fwd('0f85')  # Delia only
     b('51')
     armor_on()
     b('59 84c0'); r2 = fwd('0f85')  # armour on: the un-break path restores
@@ -1900,48 +2481,711 @@ def delia_effects(image: Image, layout: Layout, edits: list, relocs: set[int], k
     b('5f 5e c20800')
 
     return {'table': hex(table), 'tick': hex(tick), 'forfeit': hex(forfeit), 'register': hex(register),
+            'level_of': hex(level_of), 'add_named': hex(add_named),
             'events': hex(events), 'restore': hex(restore), 'repair': hex(repair),
             'factories': {n: hex(v) for n, v in factories.items()},
-            'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit),
+            'hit': class_dispatch(image, layout, edits, relocs, entity, klass, k['hit_slot'], on_hit,
+                                  DELIA_MECHANICS),
             'on_hit': hex(on_hit)}
 
 
+def dragon_knight_look(image: Image, layout: Layout) -> dict:
+    """DRAGON_KNIGHT_LOOK: look(esi = player, ebx = transformed): dresses the player in DRAGON_KNIGHT_CSF when
+    the state turns on and gives the saved appearance back when it turns off. Keeps ebx and esi."""
+    k = DRAGON_KNIGHT_LOOK
+    for key, head in DRAGON_KNIGHT_LOOK_HEADS.items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    for getter, setter in k['face']:
+        if bytes(image.data[image.offset(getter):image.offset(getter) + 2]) != bytes.fromhex('8b81') or \
+                bytes(image.data[image.offset(setter):image.offset(setter) + 6]) != bytes.fromhex('81c16c150000'):
+            raise PreparationError(f'Unexpected code at {getter:#x}/{setter:#x}; nothing is patched.')
+    L = layout
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def d32(v: int) -> str:
+        return struct.pack('<I', v & 0xFFFFFFFF).hex()
+
+    def call(va: int) -> None:
+        L.to(b'\xe8', va)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    # entry: +0 player, +4 handle, +8 dressed, +0xc parts[12], +0x3c colours[12][3], +0xcc extra[12],
+    # +0xfc body, +0x100 body3[3], +0x10c face[7]
+    parts, colours, extra, body, body3, face = 0x0C, 0x3C, 0xCC, 0xFC, 0x100, 0x10C
+    L.pad()
+    path = L.string(DRAGON_KNIGHT_CSF)
+    L.pad()
+    table = L.here()
+    L.body += bytes(DRAGON_KNIGHT_ENTRY * DRAGON_KNIGHT_PLAYERS)
+
+    def costume() -> None:
+        b('8d8e' + d32(k['costume']))  # lea ecx, [esi + costume]
+
+    # save(esi = player, edi = entry)
+    L.pad()
+    save = L.here()
+    b('53 33db')
+    loop = L.here()
+    costume(); b('53'); call(k['part_get'])
+    b('89849f' + d32(parts))  # mov [edi + ebx*4 + parts], eax
+    b('8d045b 8d8487' + d32(colours) + '50 53')  # lea eax, [ebx*3]; lea eax, [edi + eax*4 + colours]; push eax; push ebx
+    costume(); call(k['color_get'])
+    costume(); b('53'); call(k['extra_get'])
+    b('89849f' + d32(extra))
+    b('43 83fb0c')
+    L.to(b'\x0f\x8c', loop)
+    costume(); b('6a00'); call(k['body_get'])
+    b('8987' + d32(body))
+    b('8d87' + d32(body3) + '50 6a00')
+    costume(); call(k['body3_get'])
+    for i, (getter, _) in enumerate(k['face']):
+        costume(); call(getter)
+        b('8987' + d32(face + 4 * i))
+    b('5b c3')
+
+    # restore(esi = player, edi = entry)
+    L.pad()
+    restore = L.here()
+    b('53 33db')
+    loop = L.here()
+    b('6a00 ffb49f' + d32(parts) + '53 8bce'); call(k['part_set'])
+    b('53 8bce'); call(k['intact'])
+    b('84c0'); intact = fwd('0f85')
+    b('6a00 6a01 53 8bce'); call(k['broken_set'])
+    L.land(intact)
+    for i in range(3):
+        b('8d045b ffb487' + d32(colours + 4 * i) + '6a' + bytes((i,)).hex() + '53 8bce'); call(k['color_set'])
+    b('ffb49f' + d32(extra) + '53 8bce'); call(k['extra_set'])
+    b('43 83fb0c')
+    L.to(b'\x0f\x8c', loop)
+    b('6a00 8bce'); call(k['scale_set'])  # 0.0
+    b('ffb7' + d32(body) + '6a00 8bce'); call(k['body_set'])
+    for i in range(3):
+        b('ffb7' + d32(body3 + 4 * i) + '6a' + bytes((i,)).hex() + '6a00 8bce'); call(k['body3_set'])
+    for i, (_, setter) in enumerate(k['face']):
+        b('ffb7' + d32(face + 4 * i) + '8bce'); call(setter)
+    b('6aff 8bce'); call(k['weapon_refresh'])
+    b('8bce'); call(k['armor_update'])
+    b('8bce'); call(k['rebuild'])
+    b('5b c3')
+
+    # look(esi = player, ebx = transformed)
+    L.pad()
+    look = L.here()
+    b('57 55 8b06 8bce ff5008 8b28')  # push edi/ebp; ebp = the player's handle (GetRefEHandle)
+    b('bf'); L.pointer(table)
+    b('b9' + d32(DRAGON_KNIGHT_PLAYERS))
+    find = L.here()
+    b('3937'); found = fwd('0f84')
+    b('81c7' + d32(DRAGON_KNIGHT_ENTRY) + '49')
+    L.to(b'\x0f\x85', find)
+    b('85db'); out = [fwd('0f84')]  # no entry and not transformed: nothing to do
+    b('bf'); L.pointer(table)
+    b('b9' + d32(DRAGON_KNIGHT_PLAYERS))
+    free = L.here()
+    b('833f00'); take = fwd('0f84')
+    b('81c7' + d32(DRAGON_KNIGHT_ENTRY) + '49')
+    L.to(b'\x0f\x85', free)
+    out.append(fwd('e9'))  # table full
+    L.land(take)
+    b('8937'); stale = fwd('e9')
+    L.land(found)
+    b('396f04'); have = fwd('0f84')
+    L.land(stale)
+    b('896f04 c7470800000000')  # a new entity: handle, not dressed
+    L.land(have)
+    b('395f08'); out.append(fwd('0f84'))  # already as it should be
+    b('85db'); undress = fwd('0f84')
+    call(save)
+    b('6a00 6a00 6a01 6a00 6a00 6a01 68'); L.pointer(path)
+    b('56'); call(k['apply'])
+    b('83c420 8bce'); call(k['rebuild'])
+    b('c7470801000000'); out.append(fwd('e9'))
+    L.land(undress)
+    call(restore)
+    b('c7470800000000')
+    for j in out:
+        L.land(j)
+    b('5d 5f c3')
+    return {'look': hex(look), 'save': hex(save), 'restore': hex(restore), 'table': hex(table),
+            'csf': DRAGON_KNIGHT_CSF, 'entry': DRAGON_KNIGHT_ENTRY, 'players': DRAGON_KNIGHT_PLAYERS}
+
+
+def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = None, level_of: int | None = None,
+                built: dict | None = None, add_named: int | None = None) -> dict:
+    """FLAMEBREATH: the server's spend routine (first call, before DELIA_EFFECTS registers it) and its
+    restore and Dragon Knight tick (second call, with DELIA_EFFECTS level_of and the first call's result), or
+    the client's condition and HUD tick (in_town: the chain's game state test). ecx = player for each."""
+    k = FLAMEBREATH[name]
+    for key, head in FLAMEBREATH_HEADS[name].items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    L = layout
+    smash = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Miri_Can_DragonSmash')
+    knight = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Miri_DragonKnight')
+    can_transform = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Miri_Can_Transform_DragonKnight')
+
+    def b(code: str) -> None:
+        L.body += bytes.fromhex(code)
+
+    def d32(v: int) -> str:
+        return struct.pack('<I', v & 0xFFFFFFFF).hex()
+
+    def call(va: int) -> None:
+        L.to(b'\xe8', va)
+
+    def fwd(op: str) -> int:
+        return L.forward(bytes.fromhex(op))
+
+    def at(code: str, va: int) -> None:  # an instruction whose last four bytes are an absolute address
+        b(code)
+        L.pointer(va)
+
+    def switch(load_object, condition: int, test: str, lower_if: str) -> None:
+        """ecx = the condition object (load_object); `test` sets the flags and `lower_if` (a jcc) lowers the
+        condition, else it is raised. esi = player, ebx = 1 while transformed."""
+        load_object()
+        b('85c9'); none = fwd('0f84')
+        b('68' + d32(condition) + test); low = fwd(lower_if)
+        call(k['raise'])
+        done = fwd('e9')
+        L.land(low)
+        call(k['lower'])
+        L.land(done); L.land(none)
+
+    def conditions(load_object) -> None:
+        switch(load_object, smash, '8b86' + d32(k['value']) + '0bc3', '0f84')  # level > 0 or transformed
+        switch(load_object, knight, '85db', '0f84')  # transformed
+        switch(load_object, can_transform, '85db', '0f85')  # not transformed
+
+    if name == 'server.dll' and built is None:
+        L.pad()
+        delays = L.here()
+        L.body += struct.pack('<4f', *FLAMEBREATH_RESTORE, *FLAMEBREATH_RESTORE_TRANSFORMED)
+        table = L.here()
+        L.body += bytes(FLAMEBREATH_ENTRY * FLAMEBREATH_PLAYERS)  # {player, next restore time, handle}
+
+        # entry(ecx = player) -> eax = the player's entry, a free one taken when missing, 0 when full
+        L.pad()
+        entry = L.here()
+        at('b8', table)
+        b('ba' + d32(FLAMEBREATH_PLAYERS))
+        loop = L.here()
+        b('3908'); found = fwd('0f84')
+        b('83c0' + bytes((FLAMEBREATH_ENTRY,)).hex() + ' 4a')
+        L.to(b'\x0f\x85', loop)
+        at('b8', table)
+        b('ba' + d32(FLAMEBREATH_PLAYERS))
+        free = L.here()
+        b('833800'); take = fwd('0f84')
+        b('83c0' + bytes((FLAMEBREATH_ENTRY,)).hex() + ' 4a')
+        L.to(b'\x0f\x85', free)
+        b('33c0 c3')
+        L.land(take)
+        b('8908 c7400400000000 c7400800000000')
+        L.land(found)
+        b('c3')
+
+        # set_level(esi = player, eax = level): the network setter of m_gaugeValue
+        L.pad()
+        set_level = L.here()
+        b('50 8bc4 50 8d8e' + d32(k['value']))
+        call(k['set'])
+        b('83c404 c3')
+
+        # spend(ecx = player): USE_DRAGON_ENERGY, nothing while transformed
+        L.pad()
+        spend = L.here()
+        b('56 57 8bf1 80be' + d32(k['shown']) + '00'); out = fwd('0f85')
+        b('f686' + d32(k['type']) + '01'); unlimited = fwd('0f85')  # transformed (bit 0)
+        b('8b86' + d32(k['value']) + '85c0'); empty = fwd('0f8e')
+        b('48')
+        call(set_level)
+        b('8bce')
+        call(entry)
+        b('85c0'); full_table = fwd('0f84')
+        at('8b0d', k['globals'])
+        b('d9410c')
+        at('d805', delays)
+        b('d95804')
+        L.land(out); L.land(unlimited); L.land(empty); L.land(full_table)
+        b('5f 5e c3')
+        return {'spend': hex(spend), 'entry': hex(entry), 'set_level': hex(set_level), 'table': hex(table),
+                'delays': hex(delays), 'levels': FLAMEBREATH_LEVELS, 'restore': list(FLAMEBREATH_RESTORE),
+                'restore_transformed': list(FLAMEBREATH_RESTORE_TRANSFORMED),
+                'conditions': {'smash': smash, 'knight': knight, 'can_transform': can_transform}}
+
+    if name == 'server.dll':
+        if level_of is None or add_named is None:
+            raise PreparationError('FLAMEBREATH: the server tick needs DELIA_EFFECTS level_of and add_named.')
+        entry, set_level, delays = (int(built[n], 16) for n in ('entry', 'set_level', 'delays'))
+        looks = dragon_knight_look(image, L)
+        look = int(looks['look'], 16)
+        L.pad()
+        effect = L.string(DRAGON_KNIGHT_EFFECT)
+        skill, parrying, resound = (L.string(n) for n in (FLAMEBREATH_SKILL, PARRYING_SKILL, MIRI_RESOUND[0]))
+
+        def now() -> None:  # st0 = gpGlobals->curtime
+            at('8b0d', k['globals'])
+            b('d9410c')
+
+        def delay(index: int) -> None:  # st0 += the first (0) or normal (1) delay, the transformed one with ebx
+            b('85db'); plain = fwd('0f84')
+            at('d805', delays + 4 * (2 + index))
+            done = fwd('e9')
+            L.land(plain)
+            at('d805', delays + 4 * index)
+            L.land(done)
+
+        def conditions_object() -> None:
+            b('8bce')
+            call(k['conditions_of'])
+            b('8bc8')
+
+        # tick(ecx = player)
+        L.pad()
+        tick = L.here()
+        b('53 56 57 8bf1 8bce'); at('ba', effect)
+        call(level_of)
+        b('33db 85c0 0f9fc3')  # ebx = transformed
+        b('80be' + d32(k['shown']) + '00'); fever = fwd('0f85')
+        b('8bce')
+        call(entry)
+        b('85c0'); full_table = fwd('0f84')
+        b('8bf8')  # edi = the entry
+        # a new entity (its handle changed): restore time cleared, resound, the starting level
+        b('8b06 8bce ff5008 8b00 394708'); known = fwd('0f84')
+        b('894708 c7470400000000')
+        at('68', parrying); b('8bce'); call(k['skill_rank'])
+        b('85c0'); no_resound = fwd('0f8e')
+        b('8bce b801000000'); at('ba', resound)
+        call(add_named)
+        L.land(no_resound)
+        at('68', skill); b('8bce'); call(k['skill_rank'])
+        b('85c0'); unlearned = fwd('0f8e')
+        b('83be' + d32(k['value']) + bytes((FLAMEBREATH_START,)).hex()); started = fwd('0f8d')
+        b('b8' + d32(FLAMEBREATH_START))
+        call(set_level)
+        L.land(unlearned); L.land(started); L.land(known)
+        # m_gaugeType = transformed | learned << 1
+        at('68', skill); b('8bce'); call(k['skill_rank'])
+        b('33c9 85c0 0f9fc1 51 8d0c4b 51 8bc4 50 8d8e' + d32(k['type']))
+        call(k['set_type'])
+        b('83c404 58 85c0'); learned = fwd('0f85')
+        b('83be' + d32(k['value']) + '00'); empty = fwd('0f84')  # not learned: no Flamebreath
+        b('33c0')
+        call(set_level)
+        L.land(empty)
+        unlearned_conditions = fwd('e9')
+        L.land(learned)
+        b('83be' + d32(k['value']) + bytes((FLAMEBREATH_LEVELS,)).hex()); recharge = fwd('0f8c')
+        b('c7470400000000'); conds = [fwd('e9')]
+        L.land(recharge)
+        now()
+        b('837f0400'); armed = fwd('0f85')
+        delay(0)
+        b('d95f04'); conds.append(fwd('e9'))
+        L.land(armed)
+        b('d85f04 dfe0 f6c401'); conds.append(fwd('0f85'))  # now < next: wait
+        b('8b86' + d32(k['value']) + '40')
+        call(set_level)
+        now()
+        delay(1)
+        b('d95f04')
+        for j in conds + [full_table, unlearned_conditions]:
+            L.land(j)
+        conditions(conditions_object)
+        call(look)  # esi = player, ebx = transformed
+        L.land(fever)
+        b('5f 5e 5b c3')
+        return {**built, 'tick': hex(tick), 'effect': DRAGON_KNIGHT_EFFECT, 'level_of': hex(level_of),
+                'add_named': hex(add_named), 'start': FLAMEBREATH_START, 'skill': FLAMEBREATH_SKILL, 'look': looks}
+
+    L.pad()
+    dialog = L.string(FLAMEBREATH_DIALOG)
+    method = L.string(FLAMEBREATH_DIALOG + '.SetGaugeLevel')
+    L.pad()
+    shown = L.here()
+    L.body += struct.pack('<i', -1)  # unknown: the first think sends the real visibility
+    level = L.here()
+    L.body += struct.pack('<i', -1)
+    resend = L.here()
+    L.body += bytes(4)
+    transformed = L.here()
+    L.body += struct.pack('<i', -1)
+
+    def commands_object() -> None:
+        b('8b8e' + d32(COMMANDS))
+
+    def ui() -> None:  # ecx = the UI interface, edx = its vtable
+        call(k['ui'])
+        b('8bc8 8b10')
+
+    # out_of_game(): eax = 1 outside the game (FLAMEBREATH_OUT_OF_GAME_PREDICATE); ecx/edx are lost.
+    L.pad()
+    out_of_game = L.here()
+    call(CHAIN[name]['game_state'])
+    b('85c0'); none = fwd('0f84')
+    b('8b10 8bc8 ff52' + bytes((FLAMEBREATH_OUT_OF_GAME_PREDICATE,)).hex() + ' 0fb6c0')
+    L.land(none)
+    b('c3')
+
+    # Leaving the game (C4: Go to Home screen) destroys the player, whose tick is the only one that hides the
+    # dialog: FLAMEBREATH_LEAVE runs this from her destructor. It hides the dialog and forgets the visibility,
+    # so a Miri still playing shows it again on her next tick. The UI may be gone at exit.
+    L.pad()
+    hide = L.here()
+    at('c705', shown)
+    b('ffffffff')
+    call(k['ui'])
+    b('85c0'); gone = fwd('0f84')
+    b('8bc8 8b10 6a00'); at('68', dialog)
+    b('ff52' + bytes((k['ui_show'],)).hex())
+    L.land(gone)
+    b('c3')
+
+    L.pad()
+    tick = L.here()
+    b('53 56 8bf1 33db f686' + d32(k['type']) + '01 0f95c3')  # ebx = transformed (m_gaugeType bit 0)
+    conditions(commands_object)
+    call(k['local_player'])
+    b('3bc6'); other = fwd('0f85')
+    call(in_town)
+    b('83f001')  # shown outside town
+    b('85c0'); playing = fwd('0f84')
+    call(out_of_game)
+    b('83f001')  # and in the game (not the title, login or character selection)
+    L.land(playing)
+    b('f686' + d32(k['type']) + '02 7502 33c0')  # and once Flamebreath is learned (bit 1)
+    at('3b05', shown); changed = fwd('0f85')
+    at('ff0d', resend); same = fwd('0f89')  # dec [resend]; jns: not yet
+    at('c705', resend)
+    L.body += struct.pack('<I', FLAMEBREATH_RESEND)
+    send = fwd('e9')  # the same visibility again: the UI can show it behind our back
+    L.land(changed)
+    at('a3', shown)
+    at('c705', level)
+    b('ffffffff')
+    L.land(send)
+    b('50'); at('68', dialog)
+    ui()
+    b('ff52' + bytes((k['ui_show'],)).hex())
+    L.land(same)
+    at('833d', shown)
+    b('00'); hidden = fwd('0f84')
+    b('8b86' + d32(k['value']))
+    at('3b05', level); update = fwd('0f85')
+    at('3b1d', transformed); unchanged = fwd('0f84')
+    L.land(update)
+    at('a3', level)
+    at('891d', transformed)
+    # SetGaugeLevel(level, isDagonKnight): a number (type 3, double at +8) and a bool (type 2, byte at +8)
+    b('6a00' * 16 + 'c7042403000000')
+    at('db05', level)
+    b('dd5c2408 c744242002000000 885c2428 8bc4 6a00 6a02 50'); at('68', method)
+    ui()
+    b('ff52' + bytes((k['ui_invoke'],)).hex() + '83c440')
+    L.land(other); L.land(hidden); L.land(unchanged)
+    b('5e 5b c3')
+    return {'tick': hex(tick), 'hide': hex(hide), 'dialog': FLAMEBREATH_DIALOG, 'shown': hex(shown), 'level': hex(level),
+            'transformed': hex(transformed), 'conditions': {'smash': smash, 'knight': knight, 'can_transform': can_transform}}
+
+
 def class_conditions(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, think: int,
-                     conditions_of: int | None, raise_: int, tick: int | None = None) -> dict:
-    """CLASS_CONDITIONS: the player think raises the extra class's standing conditions, then runs
-    `tick(this)` when given."""
+                     conditions_of: int | None, raise_: int, tick: int | None = None,
+                     flame: dict | None = None) -> dict:
+    """CLASS_CONDITIONS: the player think runs the base, raises the class's STANDING_CONDITIONS, then
+    runs `tick(this)` when given (Delia's effects) and, for FLAMEBREATH_CLASS, its Flamebreath tick (the
+    server's built beforehand and passed in `flame`) and, for CHAIN_CLASSES in the client, the chain tick."""
     entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
     base = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * think))[0]
-    purge = FIRST_NEW_CONDITION + CONDITION_NAMES.index('As_Cond_Can_Armor_Purge')
+
+    def body_of(conditions: tuple[str, ...], ticks: tuple[int, ...]) -> int:
+        layout.pad()
+        body = layout.here()
+        layout.body += bytes((0x56, 0x8B, 0xF1))  # push esi; mov esi, ecx
+        layout.to(bytes((0xE8,)), base)
+        for condition in conditions:  # the raise takes ecx: the condition object is read again each time
+            if conditions_of is None:
+                layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS)  # mov ecx, [esi + commands]
+            else:
+                layout.body += bytes((0x8B, 0xCE))
+                layout.to(bytes((0xE8,)), conditions_of)
+                layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
+            layout.body += bytes((0x85, 0xC9))
+            none = layout.forward(bytes((0x0F, 0x84)))
+            layout.body += bytes((0x68,)) + struct.pack('<I', FIRST_NEW_CONDITION + CONDITION_NAMES.index(condition))
+            layout.to(bytes((0xE8,)), raise_)
+            layout.land(none)
+        for at in ticks:
+            layout.body += bytes((0x8B, 0xCE))
+            layout.to(bytes((0xE8,)), at)
+        layout.body += bytes((0x5E, 0xC3))  # pop esi; ret
+        return body
+
+    body = body_of(STANDING_CONDITIONS[DELIA], () if tick is None else (tick,))
+    bodies = {index: body for index in DELIA_MECHANICS}
+    report = {'think': hex(body), 'base': hex(base)}
+    chain_tick = None
+    if name in CHAIN and CHAIN[name]['think'] == think:
+        report['chain'] = chain(image, layout, name)
+        chain_tick = int(report['chain']['tick'], 16)
+    if flame is None and name in FLAMEBREATH:
+        flame = flamebreath(image, layout, name, int(report['chain']['in_town'], 16) if 'chain' in report else None)
+    if flame is not None:
+        report['flamebreath'] = flame
+    report['classes'] = {}
+    for index, conditions in STANDING_CONDITIONS.items():
+        if index in DELIA_MECHANICS:
+            continue
+        ticks = (int(flame['tick'], 16),) if flame is not None and index == FLAMEBREATH_CLASS else ()
+        ticks += (chain_tick,) if chain_tick is not None and index in CHAIN_CLASSES else ()
+        if name in SUMMON_FOLLOW and index == FLAMEBREATH_CLASS:
+            report['summon_follow'] = hex(summon_follow(image, layout, name))
+            ticks += (int(report['summon_follow'], 16),)
+        bodies[index] = body_of(conditions, ticks)
+        report['classes'][index] = hex(bodies[index])
+    if chain_tick is not None:
+        report['chain']['think'] = hex(bodies[CHAIN_CLASSES[0]])
+    report['slot'] = class_dispatch(image, layout, edits, relocs, entity, klass, think, bodies)
+    return report
+
+
+def chain(image: Image, layout: Layout, name: str) -> dict:
+    """CHAIN: the per-player table, a drop routine and the tick (ecx = player) that keeps the cable and
+    the arm chain in step with the active weapon. Returns their addresses."""
+    k = CHAIN[name]
+    for key, head in CHAIN_HEADS.items():
+        expected = bytes.fromhex(head)
+        if bytes(image.data[image.offset(k[key]):image.offset(k[key]) + len(expected)]) != expected:
+            raise PreparationError(f'Unexpected code at {k[key]:#x} ({key}); nothing is patched.')
+    rope = CHAIN_ROPE
     layout.pad()
-    body = layout.here()
-    layout.body += bytes((0x56, 0x8B, 0xF1))  # push esi; mov esi, ecx
-    layout.to(bytes((0xE8,)), base)
-    if conditions_of is None:
-        layout.body += bytes((0x8B, 0x8E)) + struct.pack('<I', COMMANDS)  # mov ecx, [esi + commands]
-    else:
-        layout.body += bytes((0x8B, 0xCE))
-        layout.to(bytes((0xE8,)), conditions_of)
+    weapon_name = layout.string(CHAIN_WEAPON_ATTACHMENT)
+    player_names = [layout.string(n) for n in CHAIN_PLAYER_ATTACHMENTS]
+    material = layout.string(rope['material'])
+    arm_model = layout.string(CHAIN_ARM_MODEL)
+    town_name = layout.string(CHAIN_TOWN_ATTACHMENT)
+    layout.pad()
+    table = layout.here()
+    # Entry: +0 player, +4 weapon, +8 cable handle, +12 weapon has chain, +16 arm handle, +20 player handle.
+    layout.body += bytes(CHAIN_ENTRY * CHAIN_PLAYERS)
+
+    def call(target: int) -> None:
+        layout.to(bytes((0xE8,)), target)
+
+    def set_dword(disp: int, value: int) -> None:
+        layout.body += bytes((0xC7, 0x47, disp)) + struct.pack('<i', value)  # mov dword [edi + disp], value
+
+    # drop(edi = entry): remove the entry's cable and arm chain, if alive; eax/ecx/edx are lost.
+    layout.pad()
+    drop = layout.here()
+    for disp in (8, 16):
+        layout.body += bytes((0x8D, 0x4F, disp))  # lea ecx, [edi + disp]
+        call(k['handle_get'])
+        layout.body += bytes((0x85, 0xC0))
+        gone = layout.forward(bytes((0x0F, 0x84)))
         layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
-    layout.body += bytes((0x85, 0xC9))
-    none = layout.forward(bytes((0x0F, 0x84)))
-    layout.body += bytes((0x68,)) + struct.pack('<I', purge)
-    layout.to(bytes((0xE8,)), raise_)
-    layout.land(none)
-    if tick is not None:
-        layout.body += bytes((0x8B, 0xCE))
-        layout.to(bytes((0xE8,)), tick)
-    layout.body += bytes((0x5E, 0xC3))  # pop esi; ret
-    return {'think': hex(body), 'base': hex(base),
-            'slot': class_dispatch(image, layout, edits, relocs, entity, klass, think, body)}
+        call(k['remove'])
+        layout.land(gone)
+        set_dword(disp, -1)
+    layout.body += bytes((0xC3,))
+
+    # in_town(): eax = 1 in a town game state (GameStateManager001 predicate); ecx/edx are lost.
+    layout.pad()
+    in_town = layout.here()
+    call(k['game_state'])
+    layout.body += bytes((0x85, 0xC0))  # test eax, eax
+    no_manager = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0x10, 0x8B, 0xC8, 0xFF, 0x52, k['in_town_predicate']))  # mov edx, [eax]; mov ecx, eax; call [edx + slot]
+    layout.body += bytes((0x0F, 0xB6, 0xC0))  # movzx eax, al
+    layout.land(no_manager)
+    layout.body += bytes((0xC3,))
+
+    def lookup(entity: int, text: int) -> None:
+        """eax = entity's attachment `text` (entity register code), through its renderable at +4."""
+        layout.body += bytes((0x8D, 0x48 | entity, 0x04))  # lea ecx, [entity + 4]
+        layout.body += bytes((0x8B, 0x01, 0x68))  # mov eax, [ecx]; push text
+        layout.pointer(text)
+        layout.body += bytes((0xFF, 0x90)) + struct.pack('<I', k['lookup_attachment'])  # call [eax + slot]
+
+    layout.pad()
+    tick = layout.here()
+    esi, ebp = 6, 5
+    layout.body += bytes((0x53, 0x56, 0x57, 0x55))  # push ebx/esi/edi/ebp
+    layout.body += bytes((0x8B, 0xF1))  # mov esi, ecx (player)
+    # Sweep: the entries of other players whose handle no longer resolves lose their pair.
+    layout.body += bytes((0xBF,))  # mov edi, table
+    layout.pointer(table)
+    layout.body += bytes((0xBB,)) + struct.pack('<I', CHAIN_PLAYERS)  # mov ebx, n
+    sweep = len(layout.body)
+    layout.body += bytes((0x8B, 0x07, 0x85, 0xC0))  # mov eax, [edi]; test eax, eax
+    empty = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x3B, 0xC6))  # cmp eax, esi
+    own = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8D, 0x4F, 0x14))  # lea ecx, [edi + 20]
+    call(k['handle_get'])
+    layout.body += bytes((0x3B, 0x07))  # cmp eax, [edi]
+    living = layout.forward(bytes((0x0F, 0x84)))
+    call(drop)
+    for disp, value in ((0, 0), (4, 0), (12, 0), (20, -1)):
+        set_dword(disp, value)
+    for at in (empty, own, living):
+        layout.land(at)
+    layout.body += bytes((0x83, 0xC7, CHAIN_ENTRY, 0x4B))  # add edi, entry; dec ebx
+    layout.body += bytes((0x0F, 0x85)) + struct.pack('<i', sweep - (len(layout.body) + 6))  # jnz sweep
+    # Find the player's entry, or take the first free one.
+    layout.body += bytes((0xBF,))  # mov edi, table
+    layout.pointer(table)
+    layout.body += bytes((0xB9,)) + struct.pack('<I', CHAIN_PLAYERS) + bytes((0x33, 0xDB))  # mov ecx, n; xor ebx, ebx
+    scan = len(layout.body)
+    layout.body += bytes((0x39, 0x37))  # cmp [edi], esi
+    found = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x85, 0xDB, 0x75, 0x07, 0x83, 0x3F, 0x00, 0x75, 0x02, 0x8B, 0xDF))
+    # test ebx, ebx; jnz +7; cmp dword [edi], 0; jnz +2; mov ebx, edi
+    layout.body += bytes((0x83, 0xC7, CHAIN_ENTRY, 0x49))  # add edi, entry; dec ecx
+    layout.body += bytes((0x0F, 0x85)) + struct.pack('<i', scan - (len(layout.body) + 6))  # jnz scan
+    layout.body += bytes((0x85, 0xDB))  # test ebx, ebx
+    full = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0xFB, 0x89, 0x37))  # mov edi, ebx; mov [edi], esi
+    for disp, value in ((4, 0), (8, -1), (12, 0), (16, -1)):
+        set_dword(disp, value)
+    # +20 = the player's handle (GetRefEHandle, vtable +8, as the handle setter reads it).
+    layout.body += bytes((0x8B, 0x06, 0x8B, 0xCE, 0xFF, 0x50, 0x08))  # mov eax, [esi]; mov ecx, esi; call [eax + 8]
+    layout.body += bytes((0x8B, 0x00, 0x89, 0x47, 0x14))  # mov eax, [eax]; mov [edi + 20], eax
+    layout.land(found)
+    # ebp = active weapon, eax = live cable.
+    layout.body += bytes((0x8D, 0x8E)) + struct.pack('<I', k['active_weapon'])  # lea ecx, [esi + m_hActiveWeapon]
+    call(k['handle_get'])
+    layout.body += bytes((0x8B, 0xE8, 0x85, 0xED))  # mov ebp, eax; test ebp, ebp
+    weaponless = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8D, 0x4D, 0x04, 0x8B, 0x01, 0xFF, 0x50, k['should_draw']))  # lea ecx, [ebp + 4]; mov eax, [ecx]; call [eax + slot]
+    layout.body += bytes((0x84, 0xC0))  # test al, al
+    drawn = layout.forward(bytes((0x0F, 0x85)))
+    call(drop)  # the weapon is not drawn: no cable, no arm chain, weapon forgotten
+    set_dword(4, 0)
+    set_dword(12, 0)
+    hidden = layout.forward(bytes((0xE9,)))
+    layout.land(weaponless)
+    layout.land(drawn)
+    layout.body += bytes((0x8D, 0x4F, 0x08))  # lea ecx, [edi + 8]
+    call(k['handle_get'])
+    layout.body += bytes((0x3B, 0x6F, 0x04))  # cmp ebp, [edi + 4]
+    changed = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x85, 0xC0))  # same weapon: test eax, eax (cable alive)
+    alive = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x8D, 0x4F, 0x10))  # lea ecx, [edi + 16]
+    call(k['handle_get'])
+    layout.body += bytes((0x85, 0xC0))  # or arm chain alive
+    arm_alive = layout.forward(bytes((0x0F, 0x85)))
+    layout.body += bytes((0x83, 0x7F, 0x0C, 0x00))  # cmp dword [edi + 12], 0 (no chain on it)
+    no_chain = layout.forward(bytes((0x0F, 0x84)))
+    create = layout.forward(bytes((0xE9,)))
+    layout.land(changed)
+    call(drop)
+    layout.body += bytes((0x89, 0x6F, 0x04))  # mov [edi + 4], ebp
+    set_dword(12, 0)
+    layout.body += bytes((0x85, 0xED))  # test ebp, ebp
+    no_weapon = layout.forward(bytes((0x0F, 0x84)))
+    layout.land(create)
+    call(drop)
+    # LookupAttachment: index + 1, 0 when the model lacks the point, -1 while the model is not loaded
+    # (the weapon is then forgotten, so the next think tries again).
+    lookup(ebp, weapon_name)
+    layout.body += bytes((0x85, 0xC0))
+    found_point = layout.forward(bytes((0x0F, 0x8F)))  # jg
+    no_point = layout.forward(bytes((0x0F, 0x84)))
+    set_dword(4, 0)
+    unloaded = layout.forward(bytes((0xE9,)))
+    layout.land(found_point)
+    layout.body += bytes((0x8B, 0xD8))  # mov ebx, eax (weapon attachment)
+    set_dword(12, 1)
+    # In town: a cable on the weapon itself, chain_01 to chain_town.
+    call(in_town)
+    layout.body += bytes((0x85, 0xC0))
+    battle = layout.forward(bytes((0x0F, 0x84)))
+    lookup(ebp, town_name)
+    layout.body += bytes((0x85, 0xC0))
+    no_town_point = layout.forward(bytes((0x0F, 0x8E)))  # jle: the battle cable
+    town = CHAIN_TOWN_ROPE
+    layout.body += bytes((0x6A, 0x00, 0x6A, 0x00))
+    layout.body += bytes((0x68,)) + struct.pack('<f', rope['length'])
+    layout.body += bytes((0x68,)) + struct.pack('<f', town['slack'])
+    layout.body += bytes((0x6A, rope['flags'], 0x6A, town['segments'], 0x68))
+    layout.pointer(material)
+    layout.body += bytes((0x68,)) + struct.pack('<f', rope['width'])
+    layout.body += bytes((0x50, 0x53, 0x55, 0x55))  # push eax (chain_town), ebx (chain_01), ebp, ebp (weapon twice)
+    call(k['create'])
+    town_made = layout.forward(bytes((0xE9,)))
+    layout.land(battle)
+    layout.land(no_town_point)
+    have = []
+    for text in player_names:
+        lookup(esi, text)
+        layout.body += bytes((0x85, 0xC0))
+        have.append(layout.forward(bytes((0x0F, 0x8F))))  # jg
+    no_hand = layout.forward(bytes((0xE9,)))
+    for at in have:
+        layout.land(at)
+    # C_HeroesRopeFast::Create(weapon, player, chain_01, hand, width, material, segments, flags, slack,
+    # length, 0, 0), arguments pushed last first.
+    layout.body += bytes((0x6A, 0x00, 0x6A, 0x00))
+    layout.body += bytes((0x68,)) + struct.pack('<f', rope['length'])
+    layout.body += bytes((0x68,)) + struct.pack('<f', rope['slack'])
+    layout.body += bytes((0x6A, rope['flags'], 0x6A, rope['segments'], 0x68))
+    layout.pointer(material)
+    layout.body += bytes((0x68,)) + struct.pack('<f', rope['width'])
+    layout.body += bytes((0x50, 0x53, 0x56, 0x55))  # push eax (hand), ebx (chain_01), esi (player), ebp (weapon)
+    call(k['create'])
+    layout.land(town_made)
+    layout.body += bytes((0x83, 0xC4, 0x30, 0x85, 0xC0))  # add esp, 0x30; test eax, eax
+    no_cable = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x50, 0x8D, 0x4F, 0x08))  # push eax; lea ecx, [edi + 8]
+    call(k['handle_set'])
+    layout.land(no_cable)
+    # The arm chain: the model precached, then a client C_BaseAnimating with it, bone-merged on the player.
+    layout.body += bytes((0x68,))
+    layout.pointer(arm_model)
+    call(k['precache_model'])
+    layout.body += bytes((0x83, 0xC4, 0x04))  # add esp, 4
+    layout.body += bytes((0x68,)) + struct.pack('<I', k['animating_size'])
+    call(k['new'])
+    layout.body += bytes((0x83, 0xC4, 0x04, 0x85, 0xC0))  # add esp, 4; test eax, eax
+    no_memory = layout.forward(bytes((0x0F, 0x84)))
+    layout.body += bytes((0x8B, 0xC8))  # mov ecx, eax
+    call(k['animating'])
+    layout.body += bytes((0x8B, 0xD8, 0x8B, 0x03, 0x6A, 0x00, 0x68))  # mov ebx, eax; mov eax, [ebx]; push 0; push model
+    layout.pointer(arm_model)
+    layout.body += bytes((0x8B, 0xCB, 0xFF, 0x90)) + struct.pack('<I', k['initialize'])  # mov ecx, ebx; call [eax + init]
+    layout.body += bytes((0x6A, 0x01, 0x56, 0x8B, 0xCB))  # push 1; push esi; mov ecx, ebx
+    call(k['follow'])
+    layout.body += bytes((0x53, 0x8D, 0x4F, 0x10))  # push ebx; lea ecx, [edi + 16]
+    call(k['handle_set'])
+    for at in (alive, arm_alive, no_memory, full, no_chain, no_weapon, no_point, unloaded, no_hand, hidden):
+        layout.land(at)
+    layout.body += bytes((0x5D, 0x5F, 0x5E, 0x5B, 0xC3))  # pop ebp/edi/esi/ebx; ret
+    return {'tick': hex(tick), 'drop': hex(drop), 'table': hex(table), 'entry': CHAIN_ENTRY, 'players': CHAIN_PLAYERS,
+            'classes': list(CHAIN_CLASSES), 'rope': dict(rope), 'arm_model': CHAIN_ARM_MODEL,
+            'in_town': hex(in_town), 'town_states': list(CHAIN_TOWN_STATES), 'town_rope': dict(CHAIN_TOWN_ROPE),
+            'attachments': [CHAIN_WEAPON_ATTACHMENT, *CHAIN_PLAYER_ATTACHMENTS]}
 
 
 def item_mask(layout: Layout, edits: list, va: int, old: bytes) -> str:
-    """ITEM_MASK: the item class mask also carries bit 10 (DELIA_FLAG)."""
+    """ITEM_MASK: the item class mask also carries each extra class's bit (its CLASS_FLAGS byte)."""
     layout.pad()
     stub = layout.here()
     layout.body += old[:-1]  # Hagie's bit as before, without the `ret`
-    layout.body += bytes((0x80, 0xB9)) + struct.pack('<I', DELIA_FLAG) + bytes.fromhex('00' '7405' '0500040000' 'c3')  # + Delia's bit
+    for c in EXTRA_CLASSES:  # cmp byte [ecx + flag], 0; je +5; add eax, 1 << class
+        layout.body += bytes((0x80, 0xB9)) + struct.pack('<I', CLASS_FLAGS[c.index]) + bytes.fromhex('00' '7405')
+        layout.body += b'\x05' + struct.pack('<I', 1 << c.index)
+    layout.body += b'\xc3'
     edits.append((va, old, bytes((0xE9,)) + struct.pack('<i', stub - (va + 5)) + bytes((0xCC,)) * (len(old) - 5)))
     return f'{va:#x} -> {stub:#x}'
 
@@ -2621,6 +3865,8 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         edits.append((va, b'\x83\xf8\x0a', bytes((0x83, 0xF8, PET))))
     if name in MATCH:
         report['match_table'] = match_table(image, layout, edits, relocs, *MATCH[name])
+    if name in KEYWORD_TABLES:
+        report['keyword_tables'] = keyword_tables(image, layout, edits, relocs, *KEYWORD_TABLES[name])
     report['flag_checks'] = [flag_check(layout, edits, *entry) for entry in FLAG_CHECKS.get(name, ())]
     report['tooltips'] = [tooltip(image, layout, edits, relocs, *entry) for entry in TOOLTIPS.get(name, ())]
     if name in PRECACHE:
@@ -2652,14 +3898,23 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name in CONDITIONS:
         report['conditions'] = conditions(layout, edits, *CONDITIONS[name])
     effects = None
+    flame = None
+    if name in FLAMEBREATH and name == 'server.dll':
+        flame = flamebreath(image, layout, name)
     if name in DELIA_EFFECTS:
-        effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name])
+        effects = delia_effects(image, layout, edits, relocs, DELIA_EFFECTS[name],
+                                {FLAMEBREATH_SPEND: (FLAMEBREATH_CLASS, int(flame['spend'], 16))} if flame else None)
+        if flame is not None:
+            flame = flamebreath(image, layout, name, level_of=int(effects['level_of'], 16), built=flame,
+                                add_named=int(effects['add_named'], 16))
         report['delia_effects'] = effects
     if name in GUARD:
         report['guard'] = guard(image, layout, edits, relocs, *GUARD[name],
-                                forfeit=int(effects['forfeit'], 16) if effects else None)
+                                forfeit=int(effects['forfeit'], 16) if effects else None, effects=effects)
     if name in CLIENT_GUARD:
         report['guard'] = client_guard(image, layout, edits, relocs, *CLIENT_GUARD[name])
+    if name in CUSTOM_EFFECT:
+        report['custom_effect'] = custom_effect(image, layout, edits, relocs, name)
     if name in ITEM_MASK:
         report['item_mask'] = item_mask(layout, edits, *ITEM_MASK[name])
     if name in ITEM_COPY:
@@ -2670,7 +3925,12 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
         report['frame_keys'] = immediately(layout, edits, *FRAME_KEYS[name])
     if name in CLASS_CONDITIONS:
         report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name],
-                                                      tick=int(effects['tick'], 16) if effects else None)
+                                                      tick=int(effects['tick'], 16) if effects else None, flame=flame)
+        hide = report['class_conditions'].get('flamebreath', {}).get('hide')
+        if name in FLAMEBREATH_LEAVE and hide:
+            report['flamebreath_leave'] = flamebreath_leave(image, layout, edits, relocs, name, int(hide, 16))
+    if name in SUMMON_PARENT:
+        report['summon_parent'] = summon_parent(image, layout, edits, name)
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if name == 'client.dll':

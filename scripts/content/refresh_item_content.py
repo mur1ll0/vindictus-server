@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 
+import class_imports
 import content_additions
 import content_edits
 
@@ -46,6 +47,8 @@ EXPORTS = (
     ('export_equipment_profile.py', 'normal-equipment-profile-v4.json', ('--all-classes',)),
     ('export_fiona_appearance.py', 'fiona-appearance-inventory.json', ()),
     ('export_fiona_inventory.py', 'fiona-inventory.json', ()),
+    # Imported classes add skills; a learned skill missing here refuses the selection (Miri MI4).
+    ('export_skill_profile.py', 'skill-profile-v5.json', ('--all-skills',)),
 )
 EXPORT_TIMEOUT = 900
 LOG = ROOT / '.cache/verification/refresh-item-content.log'
@@ -58,7 +61,9 @@ def state(overlay_path: pathlib.Path = OVERLAY) -> dict:
     overrides = content_additions.load_overrides(edits)
     return {'format_version': 1, 'version': edits.get('version', 0),
             'items_sha256': content_additions.digest(items, overrides),
-            'items': len(items), 'overrides': len(overrides), 'hidden': len(content_additions.hidden_items(edits))}
+            'items': len(items), 'overrides': len(overrides), 'hidden': len(content_additions.hidden_items(edits)),
+            # Imported NA classes (class_imports.py) change the same exports.
+            'classes_sha256': class_imports.digest(class_imports.load_imports(content_additions.CLASS_IMPORTS))}
 
 
 def current_stamp(stamp: pathlib.Path = STAMP) -> dict:
@@ -109,7 +114,8 @@ def restore() -> None:
 
 def refresh(force: bool = False, restart: bool = True) -> dict:
     wanted = state()
-    if not force and current_stamp().get('items_sha256') == wanted['items_sha256']:
+    stamp = current_stamp()
+    if not force and all(stamp.get(k) == wanted[k] for k in ('items_sha256', 'classes_sha256')):
         return {'refreshed': False, 'reason': 'up to date', **wanted}
     LOG.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
@@ -140,7 +146,9 @@ def main() -> int:
     try:
         if args.check:
             wanted = state()
-            print(json.dumps({'up_to_date': current_stamp().get('items_sha256') == wanted['items_sha256'], **wanted}))
+            stamp = current_stamp()
+            print(json.dumps({'up_to_date': all(stamp.get(k) == wanted[k] for k in ('items_sha256', 'classes_sha256')),
+                              **wanted}))
             return 0
         print(json.dumps(refresh(args.force, not args.no_restart)))
     except (ValueError, RuntimeError, OSError, subprocess.SubprocessError) as error:

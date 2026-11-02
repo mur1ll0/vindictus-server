@@ -1,6 +1,6 @@
 import contextlib, sqlite3, unittest
 import test_export_fiona_inventory as inventory_tests
-from export_skill_profile import read_package, digest
+from export_skill_profile import all_skills, read_package, digest
 
 class SkillProfileExportTests(unittest.TestCase):
     def setUp(self):
@@ -24,6 +24,14 @@ class SkillProfileExportTests(unittest.TestCase):
         self.assertEqual((p['format_version'],p['skills'][0]['use_type'],p['skills'][0]['price']),(4,1,1200))
         self.assertEqual([(a['rank'],a['value']) for a in p['arguments']],[(1,2),(2,None)])
         self.assertEqual(before,[digest(p) for p in (self.db,self.config)])
+    def test_all_skills_selects_ranked_rows_in_order(self):
+        with contextlib.closing(sqlite3.connect(self.db)) as db:
+            db.execute('INSERT INTO SkillInfo VALUES(?,?,?,?)',('skill_unranked',2,1,0))
+            db.execute('INSERT INTO SkillInfo VALUES(?,?,?,?)',('skill_blank_ap',2,1,0))
+            db.execute('INSERT INTO SkillRankInfo VALUES(?,?,?,?,?,?)',('skill_blank_ap',0,24,'',0,None));db.commit()
+        keys=all_skills(self.db)
+        self.assertEqual(keys,[self.key])
+        self.assertEqual(read_package(self.db,self.config,keys)['skills'][0]['skill_utf16'],self.key)
     def test_missing_duplicated_and_mistyped_rows_are_refused(self):
         for keys in ([],[self.key,self.key],['4100']):
             with self.assertRaises(ValueError): read_package(self.db,self.config,keys)

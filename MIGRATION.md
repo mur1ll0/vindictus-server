@@ -1,6 +1,6 @@
 # Migração Vindictus .NET → Rust — roadmap vivo
 
-Atualizado em 30/10/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
+Atualizado em 02/11/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
 
 ## Objetivo e critério de conclusão
 
@@ -12,30 +12,31 @@ Migração completa: **NÃO CONCLUÍDA**.
 
 - Blocos B0–B4 fechados no código (último gate completo: B4, 27/10/2026 — 524 Rust, 298 PostgreSQL em lotes, 61 Python, smoke Docker exit 0). Só o B0 tem aceite completo no cliente.
 - Bloco atual: **B5** (multijogador e sistemas restantes). Pets (P1–P6) adiantados a pedido do operador, sem teste no cliente.
-- Trilha paralela de classes novas: Delia (classe 10) jogável e criável pela grade; Miri aguarda decisão do operador.
+- Trilha paralela de classes novas: Delia (classe 10) e Miri (classe 11, conteúdo do NA) jogáveis e criáveis pela grade (`docs/future/miri-class-port.md`).
 - Laboratório: `docker compose` (`game`, `server`, PostgreSQL) e cópia do cliente em `.cache/play-client` (`start-lab.bat`, conta `lab169_a`).
 
 ## Próxima ação retomável
 
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
-2. Aguardando o operador: sessões de cliente pendentes (tabela abaixo) e a decisão sobre a Miri.
+2. Miri: aceita no cliente em 02/11/2026 (combate, grade e customização MG1–MG4, teclas da Delia regravadas MI45; `docs/future/miri-class-port.md`); branch `feat/miri-class` no `main`. Pendentes no cliente: B4 I3 (modelo substituto pelo painel, MG6), MI1–MI3 e MI30–MI36 sem relato isolado.
+   - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
 3. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
 
 | Roteiro | Situação |
 |---|---|
-| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). |
+| `docs/client-tests/B1-cidade.md` + `B2-fases.md` | Nenhuma entrada testada formalmente (missões já jogadas em sessões de diagnóstico de 22/10). RL1 (barco repetido sem trava, 31/10; patch `patch_engine_iocp_sign.py` já aplicado). |
 | `docs/client-tests/B3-equipamento.md` | Nenhuma entrada testada (inclui DY1, ampola de tintura). |
-| `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, P3 progressão, S1–S3 exclusão de personagem). |
+| `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, I3 modelo substituto, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
+| `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/C3-criacao.md` | Grade, customização, Create → estalagem → cidade aceitos em 30/10; faltam volta à seleção com a personagem criada pela grade, G3 e G5. |
 
 Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 ou B2.6), usar consumível pela barra (B2.5).
 
 Decisões pendentes:
-- Miri (classe 11): cópia de assets do NA, escopo das mecânicas, arma e caminho da grade; depois o passo 0 da skill `.agents/skills/new-class-port`.
 - Customização: poses animadas e rotação dos atores da grade (opcional, comando `cc_create_character_selection_play_sequence` do NA).
 
 ## Blocos do roteiro
@@ -83,9 +84,9 @@ Decisões pendentes:
 - Classes novas (`docs/future/new-classes.md`, `docs/future/delia-class-port.md`, skill `new-class-port`):
   - [x] Delia C2: classe 10 jogável (corpo, armas, guarda, condições, efeitos, Rose Crush, SP), aceita em 29/10.
   - [ ] Delia C3: criação pela grade do NA — falta volta à seleção, G3 e G5.
-  - [ ] Miri: aguarda decisão do operador.
+  - [ ] Miri: M0–M5 feitos; M7a–M7d no cliente (arma, estados, `_ex`, combate básico); M7e (pulos, descanso) e M7f (corrente) aplicados, MI9/MI10 pendentes; mecânicas aceitas no cliente em 02/11; grade MG1/MG2 jogadas, MG3 e MG4 aplicados (`docs/future/miri-creation-grid.md`), MG3/MG4 do C4 pendentes; falta o aceite; decisões de 30/10 (assets do NA, todas as mecânicas, `weapon_greatsword`, modelos v44).
 - Recursos futuros do painel (`docs/playable-game-roadmap.md`, seção "Recursos futuros do painel"):
-  - [x] Editor de itens (corte 1 aceito; I2 no cliente pendente).
+  - [x] Editor de itens (corte 1 aceito; I2 no cliente pendente; modelo substituto de item existente, I3 pendente).
   - [x] Busca por categoria, editor de refino/scrolls, progressão até um nível (inclui história principal; P3 no cliente pendente).
   - [x] Seleção de personagem: exclusão, cancelamento e ordem dos slots (S1–S3 no cliente pendentes).
   - [ ] Launcher do jogo: teste L0 (arquivos soltos × `.hfs`) a qualquer momento; L1–L3 antes de mudar assets do cliente.
@@ -104,7 +105,7 @@ Marcar [x] só com evidência fresca da etapa inteira.
 - [ ] M16 inventário — parcial: B0/B1/B3; GetItemStat/conversões/rates incompletos.
 - [ ] M17 conteúdo — parcial: perfis SQLite exportados para o que B0–B4 usam.
 - [ ] M18 lobby/canais — parcial: cidade/movimento solo; grupos e chat não.
-- [ ] M19 transporte de batalha — parcial: relay ProudNet solo (B2).
+- [ ] M19 transporte de batalha — parcial: relay ProudNet solo (B2); trava do barco com memória alta corrigida no `engine.dll` do laboratório (RL1 no cliente pendente).
 - [ ] M20 MicroPlay — parcial: missão solo (B2), pendências acima.
 - [ ] M21 serviços adicionais — parcial: cash shop, armazenamento; postal, trade, guild, rank não.
 - [ ] M22 ferramentas operacionais — parcial: painel B4.

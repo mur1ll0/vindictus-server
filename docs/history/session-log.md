@@ -2684,3 +2684,594 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: ver `git log -- README.md`.
 - Pendente / próxima ação: inalterada (sessão de cliente B5-pets; sessões B1–B4 e C3; decisão sobre a Miri).
+
+## 2026-10-30 — Miri M0 (medição da classe 11, sem patch)
+- Feito: branch `feat/miri-class`; `scripts/reverse/na_class_measure.py` (relatórios db/models/tokens por classe); `docs/future/miri-class-port.md` com a medição e as decisões do operador (assets do NA autorizados, portar todas as mecânicas, arma pela entidade `weapon_greatsword`, modelos convertidos para v44, painel compatível).
+- Medição: NA 78 tabelas/10.373 linhas com `miri`, 1.69 nenhuma; arma única `DRAKER` (76); 19 habilidades. Modelos: 1.69 só IDST v44 (16.802); Miri NA 501 v45 + 157 v44; v45 = v44 + bloco de 260 bytes (caminho longo) depois do cabeçalho, deslocamentos +260 (par `pc_delia_hair_crystal_rose_04.mdl`); `datacache.dll` só testa `IDST` (`0x1000bcd8`). Scripts: 3 condições próprias (`As_Cond_Miri_*`), comandos `EQUIP/PURGE_DRAGON_KNIGHT_LOOK`, `REDUCE_DRAGON_KNIGHT_SP_GAUGE`, `USE_DRAGON_ENERGY`, `SP_Paladin_*`/`SP_DarkKnight_*`, 26 eventos `AE_*` sem código no 1.69.
+- Verificação: `na_class_measure.py` db/models/tokens exit 0; logs `.cache/verification/miri/m0-*.log`, lista de arquivos `m0-na-files.txt` (5.993).
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M1 — conversor `.mdl` v45→v44 e cópia dos assets do NA para `.cache/play-client`.
+
+## 2026-10-30 — Miri M1a (conversor de modelos v45 → v44)
+- Feito: `scripts/client/mdl_v45_to_v44.py` e `test_mdl_v45_to_v44.py`; `docs/future/miri-class-port.md` 2.5 (entrega por pacotes: partes por pasta, scripts compartilhados) e 2.6 (conversor).
+- Verificação: `python -m unittest test_mdl_v45_to_v44` 4 OK (`.cache/verification/miri/m1-unittest.log`); validação contra 692 pares NA v45 × 1.69 v44: 0 falhas, 165 de mesma estrutura com cabeçalho idêntico, 5 diferenças de 260 explicadas por ruído de `float` em ossos; 504 `.mdl` v45 da Miri/Draker convertidos sem erro (`m1-validate.log`). Medido também: 324 pastas do 1.69 com várias partes (até 14), pacotes de ~5 MB a 207 MB; 61 scripts do NA citam a Miri sem ter o nome dela (21 existem no 1.69).
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M1b — preparar os assets da Miri do NA (modelos convertidos, scripts mesclados) e entregá-los por `apply_lab_content_additions.py`.
+
+## 2026-10-30 — Miri M1b/M1c (assets e scripts compartilhados da Miri na cópia de laboratório)
+- Feito: `scripts/client/stage_na_class.py` (preparação dos arquivos da classe do NA, fecho de materiais na ordem do motor, conversão v45, manifesto com SHA-256, cópia dos scripts compartilhados para mesclagem); `scripts/client/kv_merge.py` (mesclagem de KeyValues só com os nós da classe, conflitos relatados); `scripts/content/class_costumes.py` (renumeração das entradas da classe que colidem com itens do editor); `hfs.write_pack` (pacote em fluxo, mesmos bytes do `build_pack`) e `hfs.sync_listed` (índice em lote); `apply_lab_content_additions.py` passa a montar os pacotes da classe (partes por pasta até 192 MiB, cache por SHA-256) e a reconstruir os pacotes dos scripts mesclados; roteiro `docs/client-tests/C4-miri.md` (MI1); `docs/future/miri-class-port.md` 2.7 e 3. Decisão do operador: volume "Tudo (3,8 GB)".
+- Verificação: `python -m unittest test_stage_na_class test_apply_lab_hfs test_apply_lab_content_additions test_kv_merge test_hfs test_mdl_v45_to_v44` OK e `test_class_costumes` OK (`.cache/verification/miri/m1c-tests.log`, `m1c-costumes-tests.log`). Preparação: 4.331 arquivos, 504 convertidos, 21 mesclagens, 18 referências ausentes também no NA (`m1c-stage.log`). Aplicação na cópia com o jogo fechado: 75 pacotes (1,27 GiB), 21 scripts mesclados (811 blocos, 7 linhas, 1 conflito em `common_state_etc.txt`), inners 9100/9101/9102 da Miri renumerados para 9044/9134/9148 (`m1c-apply.log`); conferência: 4.331 arquivos no índice, amostra de 198 arquivos idêntica (`m1b-verify.log`). Primeira aplicação recusou a entrada 9100 já usada pelo `fiona_inner_zero`, o que levou à renumeração.
+- Cliente: `docs/client-tests/C4-miri.md`, MI1 (não regressão; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M2 — linhas do banco da Miri (itens, habilidades, forja, FeatureMatrix) convertidas do NA para o servidor e o cliente, com o bit 11 nas linhas comuns e a renumeração de inners do M1.
+
+## 2026-10-30 — Miri M2 (banco e textos da Miri no servidor e na cópia)
+- Feito: `scripts/content/class_imports.py` (seleção das linhas da Miri no NA para `.cache/private-content/class-imports/miri.db3`; conversão única para o esquema 1.69: colunas, máscara, renumeração de inners, `FeatureMatrix`, bit 11 nas linhas comuns, atributos da classe 11 copiados da Delia; textos da classe); `content_additions.connect` instala as linhas como tabelas TEMP e visões (sem tocar o banco de referência) e `install` compõe com elas; `apply_lab_content_additions.py` restaura as tabelas tocadas do *backup*, insere as linhas e acrescenta os textos que faltam; `stage_na_class.py` copia o texto em inglês do NA; `export_item_names.py` e `export_panel_catalog.py` incluem nomes e ícones da Miri; testes isolados das importações do desenvolvedor (`CLASS_IMPORTS`).
+- Verificação: `python -m unittest discover` em `scripts/content` 83 OK (inclui `test_class_imports`, `test_class_costumes`) e testes de cliente 36 OK (`.cache/verification/miri/m2-content-tests.log`, `m2-client-tests.log`). Importação: 1.170 itens, 19 habilidades, 304 ranks, 400 argumentos, 55 linhas de receita (11 receitas; 6 fora por material ausente), 11 linhas de forja em `_Craft`, 3 linhas de `FeatureMatrix` (`m2-build.log`). Servidor (`connect`): +1.170 itens, `Miri` 3.09.00 em `EN-EU-X-GM`, 200 + 100 linhas de atributos da classe 11, 2047 → 4095 em 9.088 itens, `CostumeType` 9044/9134/9148. Cópia (jogo fechado): mesmas linhas, 11.870 itens com o bit 11, 5.702 textos (`m2-apply.log`).
+- Cliente: `docs/client-tests/C4-miri.md`, MI1 ganhou a linha da forja e das dicas (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M3 — dados de criação (`class_additions.json`, exportações, `lab-set-class.ps1`, maestria `DRAKER`) e painel (nomes de classe, máscara do editor, dica de item), depois reexportar o conteúdo e recompilar o Docker.
+
+## 2026-10-30 — Miri M3 (dados de criação e painel; fechamento do grupo do servidor)
+- Feito: Miri (11) em `scripts/content/class_additions.json` (consumíveis e ouro da Delia, `draker_newbie`, `skill_miri_draker_mastery` e `skill_miri_speedmove`, `miri_inner_free`); `docker/lab/minimum-creation-assets.json` com a classe 11; `scripts/dev/lab-set-class.ps1` (classe 11: habilidades, aparência do `create_miri.csf` 1002/8008/12001, formas da Fiona, figura 107); `DRAKER` → `skill_miri_draker_mastery` (`src/domain/equipped_skills.rs`); painel: Delia/Miri em `characters.ts`, bits 1024/2048 em `items.ts`, Miri em `admin_tooltip.rs`; carimbo `classes_sha256` em `refresh_item_content.py`; `tests/private_class_content.rs` cobre as classes 0–11. Correções do M2 achadas no fechamento: booleanos na forma da coluna do 1.69, linhas com *feature* desconhecida fora (e dependentes), região `enUS`/`en-US` do NA → `enEU`/`en-EU`.
+- Verificação: `scripts/content` 83 OK, `cargo test --lib` (filtro de classe) 2 OK, `cargo test --test equipped_skills` 6 OK, `LAB_SKIN=16775155 LAB_EYE=14210736 cargo test --test private_class_content -- --ignored` OK (classes 0–11; sem as variáveis a cor 0 é recusada já na classe 0); exportações `class-initial.json` (12 classes, 400 pedidos), `class-11-initializer.json`, pares de *feature* (30, x86 = x64); `refresh_item_content.py --force --no-restart` OK (nomes: `DRAKER_NEWBIE` "Trainee's Dragonspine", ícone PNG presente); cópia reaplicada; Docker `COMPOSE_PARALLEL_LIMIT=1 docker compose build` 0 e `up -d --wait` 0, `game`/`server` saudáveis. Logs em `.cache/verification/miri/m3-*`.
+- Cliente: `docs/client-tests/C4-miri.md`, MI2 (painel; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M4 — `engine.dll` com o byte de item da classe 11 (seção `.hflg`), já escrito e aplicado na cópia; commit em seguida.
+
+## 2026-10-30 — Miri M4 (`engine.dll`: byte de item da classe 11) e parada para teste de cliente
+- Feito: `scripts/client/patch_engine_class_flags.py` reescrito: parte sempre do `engine.dll` original (ou do `*.pre-classflags.bak`), troca o trecho do *setter* (`0x42245170`) por `jmp` para a seção executável nova `.hflg` + `ret 4` (saída antecipada `0x42245116`); o *stub* grava os bits 8/9 como o original e `CLASS_FLAGS` por `setne` (Delia `+0x1cd`, Miri `+0x1ce`); `DELIA_FLAG` continua exportado para o roteamento. Testes novos em `test_patch_engine_class_flags.py`. `docs/future/miri-class-port.md` 2.10 (inclui o ponto de partida do M5: *strings* de fábrica da Miri no NA x64).
+- Verificação: `python -m unittest test_patch_engine_class_flags test_patch_class_routing test_patch_class_table` 43 OK, nenhum pulado (`.cache/verification/miri/m4-tests.log`); varredura estática de `+0x1cd..+0x1cf` (`m4-scan-1ce.log`): nada no `client.dll`/`server.dll` originais para `+0x1ce`; no `engine.dll`, acessos de 16 bits numa função de outro objeto (`0x420fa5f0`). Aplicado com o jogo fechado (`m4-engine-apply.log`): `engine.dll` `d25a6e285421d9d0` → `51ea90e70b93ad04` (a partir de `a3add9742f7fa03c`), *stub* `0x430d5000`.
+- Cliente: `docs/client-tests/C4-miri.md`, MI3 (pendente).
+- Parada (regra 2): a cópia nunca abriu com os 75 pacotes novos, os 21 scripts mesclados e o `engine.dll` novo; o roteamento da classe 11 (M5) depende de o cliente carregar essa base. Ação retomável: sessão de cliente MI1–MI3; depois M5 (entidade `player_miri` no NA x64, `ACTIVE_CLASSES` 12, `EXTRA_CLASSES`, grupos por `CLASS_FLAGS`, grupos da Delia restritos a ela).
+- Commits: (este passo)
+- Pendente / próxima ação: sessão de cliente C4 (MI1–MI3), depois Miri M5.
+
+## 2026-10-30 — Miri M5 (classe 11 roteada nos DLLs)
+- Feito: operador escolheu seguir com o M5 antes da sessão de cliente MI1–MI3. `scripts/reverse/na_x64_miri_entity.py` + `docs/evidence/client/na-x64-miri-entity.json` (fábrica, construtor e vtable da Miri no NA x64; constantes cliente 190/191 = 0.865/0.945, servidor 240/241/466 = 0.865/0.945/92.0, com a Delia conferindo 0.88/0.96/92.0); `patch_class_table.py` `ACTIVE_CLASSES` 12; `patch_class_routing.py`: Miri em `EXTRA_CLASSES`, `FLAG_CHECKS`/`TOOLTIPS`/`ITEM_MASK` por `CLASS_FLAGS`, `class_dispatch` com lista de classes e mecânicas da Delia só na classe 10 (`DELIA_MECHANICS`, quatro `jl` → `jne`), checagem de `CLASS_FLAGS` em `check_classes`; `EXPECTED` do roteamento e do `v169_class_uses.py` com os novos hashes; testes de roteamento generalizados, `test_miri_gets_her_own_entries` e `test_delia_mechanics_stay_on_delia`; roteiro MI4.
+- Verificação: `python -m unittest test_patch_class_routing test_patch_class_table test_patch_engine_class_flags` 44 OK, nenhum pulado (`.cache/verification/miri/m5-tests.log`); simulação e aplicação (`m5-routing-dry.log`, `m5-routing-apply.log`).
+- Aplicado com o jogo fechado: DLLs roteados só com a Delia guardados (`client.dll.973bf082fede76ff.pre-miri.bak`, `server.dll.c44e51a274da9ab0.pre-miri.bak`); `*.pre-hcls.bak` → `.hcls` de 12 classes (`client.dll` `0a0b866dcc0a1852`, `server.dll` `c85a56d5b845810f`, novos `*.pre-routing.bak`) → roteamento (`client.dll` `3db678f4f337b0c1`, `server.dll` `59bb33eb00d2ff03`); `engine.dll` `51ea90e70b93ad04` (M4).
+- Cliente: `docs/client-tests/C4-miri.md`, MI1–MI4 (pendentes).
+- Commits: (este passo)
+- Pendente / próxima ação: sessão de cliente C4 (MI1–MI4); em paralelo, Miri M7 (mecânicas próprias: transformação Dragon Knight, Dragon Smash, energia do dragão).
+
+## 2026-10-30 — Miri C4 rodada 1 (MI4) e correções da entrada (perfil de habilidades, `KEYWORD_TABLES`, habilidades comuns)
+- Feito: sessão de cliente C4, só MI4 (o operador pulou MI1–MI3). Correções:
+  - Seleção: `export_skill_profile.py --all-skills` (toda habilidade com *rank* bem tipado, inclusive importadas; fora `skill_kalok_stormwind`, `RequiredAP ''`), agora em `refresh_item_content.EXPORTS`. O perfil antigo (383, sem a Miri) fazia `minimum_selection::skill_cache` recusar `skill_miri_draker_mastery`.
+  - Queda `server.dll+0x8b5472`: `GetSkillKeywordTable` (cliente `0x38861d00`, servidor `0x407cec00`) limita a classe a 11 num vetor de 11 entradas seguido de um `ConCommand` estático. A classe 11 (e o pet em 28) lia a vtable do comando (`0x40c246ec`) como tabela, em `ExpressionEvaluator::GetFromSkillKeyword` → `KeyValues::FindKey`. `KEYWORD_TABLES` em `patch_class_routing.py` move o vetor para a `.hrte` com `PET + 1` entradas e o limite passa a `PET`.
+  - Habilidades comuns: `class_imports.shared_skills` dá o bit da classe às habilidades com máscara 2047 do 1.69, salvo `!<classe>` no NA. São 29: `!grimden` no NA, ou `nothing` nas maestrias de armadura. Servidor via `_class_base_SkillInfo`; cliente via `apply_client`.
+  - Diagnóstico da arma: o modelo vem do `SubTypeInfoOverride` da entidade pelo `CostumeType`; com `weapon_greatsword` a `draker_newbie` mostra `greatsword_practice.mdl`.
+  - Diagnóstico da batalha: *idle* travada no barco; hipótese de condições do NA não registradas.
+  - Arquivos: `docs/future/miri-class-port.md` 2.11, `docs/client-tests/C4-miri.md` (Resultados).
+- Verificação:
+  - `test_patch_class_routing test_patch_class_table test_patch_engine_class_flags` 45 OK, nenhum pulado (`mi4-fix-routing-tests.log`).
+  - `scripts/content` 84 OK (`mi4-fix-content-tests.log`).
+  - Roteamento reaplicado dos `*.pre-routing.bak` (`mi4-fix-routing-apply.log`): `client.dll` `2a674af585254817`, `server.dll` `282b624df15bee24`; anteriores em `*.pre-keyword.bak`; `engine.dll` `51ea90e70b93ad04`.
+  - `refresh_item_content.py --force` OK em 708 s; `apply_lab_content_additions.py --apply` OK (`skill_bits` 29).
+  - Perfil com 402 habilidades, 48 com o bit 11; `heroes.db3` da cópia com 48; `game` saudável, sem `ERROR`.
+  - Evidência da sessão em `.cache/verification/miri/mi4-*`: minidump, logs, amostras de *threads*, `mi4-party-samples.txt`.
+- Cliente:
+  - MI4-1–3 ok. MI4-4 parcial (retrato da lista errado, M8).
+  - MI4-5 ok depois das correções (cidade, corpo, inner).
+  - MI4-6 parcial (equipa, mas modelo `greatsword_practice` e posição estranha, M7).
+  - MI4-7 parcial (habilidades próprias ok, comuns corrigidas, reteste pendente).
+  - MI4-8 parcial (`DeliaLab` entra na fase; Fiona não testada).
+  - Party com a Miri: trava intermitente (20:41 e 20:54; o cliente não manda a chave pública ao *relay* e fica 60 s no laço de espera do `engine.dll`); a terceira tentativa entrou no barco, com a Miri presa na *idle*.
+- Commits: nenhum (sessão de teste; mudanças deixadas para revisão).
+- Pendente / próxima ação: Miri: reteste da MI4-7 (habilidades comuns) e MI1–MI3 do `docs/client-tests/C4-miri.md`; M7 começa pela entidade `weapon_draker` (modelos do `weapon_draker.txt`) e pelo registro das condições do NA (Miri presa na *idle* em batalha), depois transformação Dragon Knight, Dragon Smash e energia do dragão.
+
+## 2026-10-30 — Miri C4 rodada 2 (MI4-7, MI4-8, trava do barco) e commit das correções da MI4
+- Feito: as correções da rodada 1 (perfil de habilidades `--all-skills`, `KEYWORD_TABLES`, `class_imports.shared_skills`) foram commitadas juntas. Diagnóstico da trava do barco: o cliente não manda a chave pública ao *relay* e a memória baixa estava quase esgotada; a medição (`VirtualQueryEx`) está em `mi4r2-*`.
+- Verificação: as mesmas da entrada da rodada 1 (routing 45 OK, `scripts/content` 84 OK). Memória de 22:28 a 22:33: abaixo de 2 GB, 1.627–1.740 MB ocupados, 68–176 MB livres, pedaços de no máximo 15 MB. Os relatórios de queda mostram memória privada de 1,0–1,2 GB antes do M1 e 2,0 GB depois.
+- Cliente:
+  - MI4-7 ok (habilidades comuns visíveis); inventário da Miri ok.
+  - MI4-8 ok: Delia com combate, Rose Crush, habilidades e itens.
+  - Barco: abriu depois de o operador fechar o Firefox (1,8 GB); antes travava com Miri e Delia.
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M7 (pedido do operador em 30/10: todas as armas, habilidades e animações): entidade `weapon_draker` (modelos do `weapon_draker.txt`), registro das condições e chaves de quadro do NA (Miri presa na *idle* em batalha), depois transformação Dragon Knight, Dragon Smash e energia do dragão. MI1–MI3 do C4 pendentes.
+
+## 2026-10-30 — Miri M7a (modelos Draker na `weapon_greatsword`) e diagnóstico da *idle* em batalha
+- Feito:
+  - Pedido do operador ("implemente o que faltou da Miri: todas as armas, habilidades e animações").
+  - Arma: o modelo vem do `SubTypeInfoOverride` do script da entidade, pelo `CostumeType`. O 1.69 procura o subtipo por nome (`itoa` + `FindKey`, servidor `0x40319e07`), sem limite.
+  - `class_costumes.LAB_WEAPON_ENTITY`/`WEAPON_SUBTYPE_BASE` (20000), `weapon_costumes`, `weapon_subtype`; `class_imports.converted` renumera o `CostumeType` dos itens `EquipClass DRAKER`; `apply_lab_content_additions.class_weapon_costumes` põe no `weapon_greatsword.txt` as 45 entradas do `weapon_draker.txt`.
+  - Diagnóstico estático da *idle*, sem causa encontrada:
+    - sequências pedidas pelos `common_state_*` do 1.69 presentes no modelo de batalha da Miri (faltam só pulo e duas de mapa, `m7-seqdiff.txt`);
+    - `PlayerAnimationExtension` monta nomes `%s_%s` que nenhuma classe usa;
+    - `TownAttachData` só existe no NA;
+    - as condições da Miri só aparecem em Dragon Smash e Dragon Knight;
+    - as chaves NA `multiplay_sequence`/`shared_id` estão em estados isolados;
+    - as tabelas de expressão têm a mesma estrutura das da Delia (`m7-keydiff.txt`).
+- Verificação: `scripts/content` OK, `test_apply_lab_content_additions` OK (`m7a-*-tests.log`); simulação do aplicador com 48 entradas (3 do editor de itens, 45 Draker; `m7a-apply-dry.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI5 (modelo Draker; experimento da *idle*: cidade, barco sem arma, barco com arma).
+- Commits: (este passo)
+- Pendente / próxima ação: Miri M7: M7a (modelos Draker na `weapon_greatsword`, chaves 20000 + n) feito; com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`, depois a MI5 do `docs/client-tests/C4-miri.md` (modelo e experimento da *idle*: cidade, barco sem arma, barco com arma), que define o M7b. Em seguida: transformação Dragon Knight, Dragon Smash e energia do dragão.
+
+## 2026-10-30 — Miri M7a, correção da base dos subtipos (20000 → 5000)
+- Feito: MI5, rodada 1 — a Draker não aparecia. Na memória do jogo não havia nenhuma instância de `C_WeaponGreatSword` (vtable `0x38c0303c`, encontrada pelo RTTI). `CostumeType / 10000` escolhe a entidade na lista de armas da classe (`CLASS_WEAPONS`; as segundas armas do 1.69 usam 10000+/20000+), e com 20000 a Miri caía na posição 2, vazia. `WEAPON_SUBTYPE_BASE` 5000 (faixa livre no `weapon_greatsword.txt` do 1.69).
+- Verificação:
+  - `scripts/content` OK (`m7a2-content-tests.log`).
+  - Leitura de memória: sem caminho `weapon/draker` e sem instância de arma (`mi5-memfind*.txt`).
+  - O índice e o pacote de scripts conferem (`mi5-whichpack.txt`); o perfil do servidor tinha `serial` 20001.
+  - Trava do barco: mesmo padrão com 10 GB livres na máquina (`mi5-vmmap-hung.txt`, `mi5-threads-hung.txt`).
+- Cliente: MI5 a repetir depois de reaplicar (base 5000).
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`; depois a MI5 do `docs/client-tests/C4-miri.md`, com a captura de *threads* armada para a trava do *relay*.
+
+## 2026-10-31 — Miri M7a, base dos subtipos 10100 (regra da lista de armas)
+- Feito:
+  - MI5, rodada 2 (base 5000): Draker invisível na cidade e nenhuma instância de `C_WeaponGreatSword`. A regra do servidor `0x40823590` (nome da entidade pela classe e `CostumeType`) dá: 10000–19999 → 0, 20000–29999 → 1, outro → `CostumeType / 64` limitado a 4; 5000 + n caía na posição 4.
+  - `WEAPON_SUBTYPE_BASE` 10100: posição 0, depois das 10001–10009 da *greatsword*.
+  - No barco a Miri ficou invisível com e sem a Draker; o modelo combinado `CoStUmE_11/0_90454/...` está na memória e o inner 90454 existe no `player_costume.txt` mesclado; repetir com a base 10100. A captura do *relay* não disparou: o barco entrou.
+- Verificação: `scripts/content` OK (`m7a3-content-tests.log`); `mi5b-memfind.txt`.
+- Cliente: MI5, rodada 3, depois de reaplicar.
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply` (base 10100); depois a MI5 (Draker visível; corpo no barco com e sem arma).
+
+## 2026-10-31 — Miri M7b (estados de batalha sem os `include` do NA ausentes no 1.69)
+- Feito:
+  - MI5, rodada 3: Draker visível nas costas na cidade (base 10100 ok). No barco, a Miri só na *idle*, deslizando com WASD, sem pulo, ataque nem Shift.
+  - `player_action_state_miri[_ex].txt` do NA incluem `common_state_rope.txt` e `common_state_interactive_object.txt`, ausentes no 1.69; nenhum arquivo de estado do 1.69 inclui arquivo inexistente.
+  - `stage_na_class.without_missing_includes` (preparação) tira essas linhas; teste `test_action_state_includes_the_lab_lacks_are_dropped`; Miri preparada de novo (4.331 arquivos, 506 convertidos = 504 modelos + 2 scripts).
+  - Trava do *relay*: capturas de falha (01:07, `mi5e-trigger.txt`) e de sucesso (01:11, `mi5f-trigger.txt`) passadas à sessão própria `local_4348e5ee`.
+  - Pulo na cidade com a arma indo para a mão (Delia e Miri): comparar com Hurk e Fiona.
+- Verificação: `test_stage_na_class` OK (`m7b-stage-tests.log`); preparação (`m7b-stage.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI6.
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, `refresh_item_content.py --force` e `apply_lab_content_additions.py --apply`; MI6 (barco e fase com a Miri). Se continuar na *idle*: condições do NA (`CONDITION_NAMES`).
+
+## 2026-10-31 — Miri M7c (scripts nas partes originais) e diagnóstico da seleção (Murael, Tsuko)
+- Feito:
+  - MI6, rodada 1: o M7b não mudou nada. A leitura de memória mostrou que nenhum script da Miri (estados de ação, expressões) chega a ser lido, embora o roteamento peça `player_action_state_miri[_ex].txt` e o arquivo esteja são e no índice.
+  - Esses scripts estavam em partes novas (N ≥ 1) de pastas que o 1.69 já tem. As pastas novas da Miri e as mesclas em pacotes originais carregam.
+  - `apply_lab_content_additions.injected_packs` põe os scripts da classe (`scripts/`) na última parte original da pasta, reconstruída a partir do *backup* (7 arquivos; 71 pacotes novos de classe em vez de 75).
+  - Seleção da Murael (Fiona) e da Tsuko (Evy) recusada (`operation failed`). Descartados: *flags* `dirty`/`is_connected`, habilidades fora do perfil (máscaras 2047 → 4095 conferidas bit a bit), itens fora das exportações (inclusive os `*_inner_zero` do editor) e impressão digital do inicializador (a mesma da `DeliaLab` e da `MiriLab`).
+  - `minimum_selection::traced` registra o passo e o tipo do erro (sem valores).
+- Verificação: `test_apply_lab_content_additions` e `test_hfs` OK (`m7c-apply-tests.log`); simulação do aplicador (`m7c-apply-dry.log`, 7 injetados); `cargo check --lib` OK, sem aviso (`sel-check.log`); Docker recompilado (`sel-docker-build.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI7.
+- Commits: (este passo)
+- Pendente / próxima ação: com o jogo fechado, aplicar a cópia e subir o `game` com a imagem nova; MI7 (barco com a Miri; entrada da Murael e da Tsuko, com o passo da recusa no log).
+
+## 2026-10-31 — Seleção recalcula os atributos base (Murael, Tsuko) e MI7 da Miri
+- Feito:
+  - O registro dos passos (`traced`) mostrou a Tsuko recusada em `stats.values`.
+  - Os atributos base somam os títulos de todas as personagens da conta. A `DeliaLab` ganhou 12 títulos em 29/10 pela progressão do painel, e só os atributos dela foram recalculados.
+  - `minimum_selection::select` chama `minimum_growth::calculate_base_stat` antes de conferir (`StatManager.CalculateBaseStat` na carga; a coluna gravada é uma cópia).
+  - Miri: o barco continua só na *idle*. O jogo pede `player_action_state_miri_ex.txt`. O experimento dos pacotes originais (M7c) é inconclusivo e foi mantido.
+- Verificação: `cargo check --lib` OK, sem aviso (`sel2-check.log`); log do `game` com o passo da recusa; títulos da conta conferidos no banco (data de aquisição 29/10, 21:4x UTC); Docker recompilado (`sel2-docker-build.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI7, rodada 1; a entrada da Murael e da Tsuko será conferida depois de subir a imagem.
+- Commits: (este passo)
+- Pendente / próxima ação: subir o `game` com a imagem nova (jogo fechado) e entrar com a Murael e a Tsuko. Miri M7: ler na memória a máquina de estados de ação do jogador no barco (estado atual e tabela carregada) e comparar com a Delia.
+
+## 2026-10-31 — Miri M7d (modelo `_ex` completo para o ExtremeMode) e causa do pulo na cidade
+- Feito:
+  - MI7, rodada 2: Murael e Tsuko ok; Hurk novo ok; a Miri congelada na pose de referência no barco.
+  - O laboratório roda com o `ExtremeMode` (string em `0x40a95128`, escolha em `0x407efd78`): estados e modelo `_ex`. O `pc_miri_battle_motion_ex.mdl` do NA tem 1 sequência, contra 475–639 nos do 1.69.
+  - `stage_na_class.extreme_motion_sibling`: o `_ex` casco vira cópia do modelo de batalha (551 sequências); teste novo; Miri preparada de novo (507 convertidos) e aplicada.
+  - Pulo na cidade: a Delia (arquivo do 1.69) e a Miri ativam o `JumpTown`, que saca a arma (`selectweapon weapon_defaultsword`); comportamento original, decisão do operador.
+- Verificação: `test_stage_na_class` OK (`m7d-stage-tests.log`); preparação (`m7d-stage.log`); aplicação (`m7d-apply.log`, 1 pacote reconstruído).
+- Cliente: `docs/client-tests/C4-miri.md` MI8.
+- Commits: (este passo)
+- Pendente / próxima ação: MI8 (combate da Miri no barco e na fase); depois transformação Dragon Knight, Dragon Smash e energia do dragão. Decisão do operador sobre o pulo de cidade.
+
+## 2026-10-31 — Miri MI8 (combate ok) e levantamento do M7e
+- Feito:
+  - MI8: andar, atacar, combos e golpes da Miri funcionam no barco.
+  - Levantamento do M7e:
+    - Pulo de batalha: o `pc_miri_battle_motion.mdl` do NA não tem sequências de pulo.
+    - Corrente da Draker: eventos `AE_*_ANIMATING_PROP` ausentes no 1.69.
+    - Descanso de combate: encaixe `battle_rest` só no NA.
+    - Pulo de cidade: `JumpTown` saca a arma; o operador quer o pulo do Hurk para a Delia e a Miri.
+- Verificação: busca de nomes de sequência nos modelos do NA e do 1.69.
+- Cliente: `docs/client-tests/C4-miri.md` MI8, rodada 1.
+- Commits: (este passo)
+- Pendente / próxima ação: M7e em sessão nova (pulo de cidade sem sacar a arma, pulo de batalha, corrente da Draker, descanso de combate); depois Dragon Knight, Dragon Smash e energia do dragão.
+
+## 2026-10-31 — Miri M7e: pulos com a arma nas costas, pulo de batalha, descanso de combate, medição da corrente
+- Feito:
+    - Causa do pulo de cidade: não é o `selectweapon` do `JumpTown` (todas as classes com `_ex` ativam o mesmo estado). A arma segue o osso `ValveBiped.Anim_Attachment_RH`; nas animações de cidade a trilha dele fica fixa em relação a `Bip01_Spine2` (costas), e no `jump_town` da Delia (1.69) e da Miri (NA) fica na mão. O do Hurk fica nas costas.
+    - `scripts/client/mdl_anim.py` (novo): leitura das trilhas v44, cinemática direta, `pin_bone` (reescreve a trilha de um osso preso a outro, bloco novo no fim do arquivo; alarga a escala de rotação do osso e reescala as outras animações no lugar quando preciso — Miri: arfagem 1,22 rad contra 1,02), `town_jump_on_back`, `with_included_model`.
+    - Miri: `stage_na_class.town_motion` (pulo de cidade), `jump_donor` (`includemodel` do `pc_delia_battle_motion_ex.mdl` no `_ex`: 44 sequências que faltavam, entre elas `jump_begin/during/end`, `jump_attack[_strong]`, `super_power`, `search_*_core`, `guard`) e `rest_in_hand` (arma na mão em `battle_idle2rest[b]`/`battle_rest[b]`, aproximação até a corrente).
+    - Delia: `ORIGINAL_FIXES` em `apply_lab_content_additions.py` (arquivo do 1.69 reescrito no próprio pacote, reconstruído do *backup*); `original_pack` fatorado de `merge_packs`.
+    - Corrente (medição, `scripts/reverse/na_x64_draker_weapon.py`): os `AE_*_ANIMATING_PROP` do NA são de objetos interativos de cidade. A corrente é o código nativo `C_WeaponDraker` do NA x64 (prop `draker_chain.mdl` no braço esquerdo, cabo `heroes_metalchain_05` até `chain_01`/`chain_town` da arma, encaixe `anim_attachment_TOWN_WP`, ~50 funções em `0x2d6420`–`0x2d7800`). 366 sequências da Miri tiram a arma da mão (estilo pela corrente).
+    - Achado: o `pc_miri_motion_ex.txt` e o `player_action_state_miri_ex.txt` do NA são cópias dos da Delia; com `ExtremeMode` a Miri joga os golpes da Delia.
+- Verificação: `test_mdl_anim` (6), `test_stage_na_class`, `test_apply_lab_content_additions` — 20 testes ok (`.cache/verification/miri/m7e/test-focused.log`). Preparação 4.331 arquivos, 507 convertidos (`stage.log`); aplicação com o jogo fechado: 1 pacote da Miri refeito, `original_fixes` = `pc_delia_town_motion.mdl`, 2 arquivos HFS (`apply.log`). Releitura na cópia pelo índice: deriva do `jump_town` 0,003 (Delia e Miri), `_ex` com o *include* da Delia e as 4 sequências de descanso presas à mão (`verify-copy.log`). Comparação das outras animações dos modelos de cidade: outros ossos idênticos, `RH` das outras sequências igual até 4e-8 (`town-jump-check.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI9 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 no cliente. M7f: portar a corrente (`C_WeaponDraker`: prop `draker_chain.mdl` em *bonemerge* e `C_RopeKeyframe` até `chain_01`, como a corrente da Vella no 1.69) e depois tirar `REST_SEQUENCES`; em seguida, `_ex` próprio da Miri com Dragon Knight, Dragon Smash e energia do dragão.
+
+## 2026-10-31 — Miri M7f: corrente da Draker (cabo no cliente)
+- Feito:
+    - Medição NA: o cabo é do servidor x64 (`CWeaponDraker`: `CRopeKeyframe::Create(arma, jogador, chain_01, anim_attachment_LH_Chain1, …, cable/heroes_metalchain_05.vmt, 19)` em `0x22d884`; na cidade `chain_01`→`chain_town` da arma, 10 segmentos, `0x22d603`; ConVars `chain_width` 1,5, `draker_chain_length` 172/140; prop `draker_handle` com `draker_chain.mdl`). O cliente NA (`C_WeaponDraker`, vtable `0x1974600`) só pré-carrega e faz o encaixe de cidade. `anim_attachment_LH_Chain1` está no `miri_base.mdl`.
+    - 1.69: o cliente já cria cabos no `LINK_ROPE` da montaria (`0x3871b640` → `C_HeroesRopeFast::Create` `0x38540a30`, 12 argumentos; *handles* `0x385519d0`/`0x38541370`; remoção `0x38058370`; `m_hActiveWeapon` `+0x1140`). `scripts/reverse/v169_rope_users.py` (novo) e `na_x64_draker_weapon.py` documentam.
+    - `patch_class_routing.py` `CHAIN`: *think* do cliente (*slot* 334) vira despachante por classe (`class_dispatch` aceita mapa classe → corpo); classe 11 roda a base e um *tick* que mantém um cabo por jogador da arma ativa (`chain_01`) até `anim_attachment_LH_Chain1` (ou `anim_attachment_LH`), largura 1,5, 19 segmentos, folga 1,1 × distância; tabela de 16 jogadores na `.hrte`; ponto só vale acima de 0 (-1 = modelo não carregado: a arma é esquecida e tentada de novo).
+    - `stage_na_class.NATIVE_ASSETS`: `materials/cable/heroes_metalchain_05` (+2 `.vtf`) do NA; `apply_lab_content_additions.INJECTED_PREFIXES` inclui `materials/cable/` (pacote original da pasta, como os scripts).
+- Verificação: 60 testes focados (`test_stage_na_class`, `test_mdl_anim`, `test_apply_lab_content_additions`, `test_patch_class_routing`) ok em `.cache/verification/miri/m7f/test-focused.log`; depois da correção do -1, os 3 testes de *think*/corrente/relocação ok (`test-chain2.log`). Preparação 4.334 arquivos (`stage.log`). Aplicação com o jogo fechado: 3 arquivos no pacote original de `materials/cable` (`apply.log`, `verify-material.log`); roteamento a partir dos `*.pre-routing.bak` (`routing-apply.log`): `client.dll` `2a674af585254817` → `e5a7e582ac718e41` (anterior em `*.pre-chain.bak`), `server.dll` igual `282b624df15bee24`; *tick* `0x39220620`, tabela `0x39220520`.
+- Cliente: `docs/client-tests/C4-miri.md` MI10 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 e MI10 no cliente (parada: o resto da corrente depende de vê-la). Depois: prop do braço (`draker_chain.mdl`), cabo de cidade na própria arma, esconder com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: corrente do braço da Draker
+- Feito: `CHAIN` em `patch_class_routing.py` cria, junto com o cabo, o `draker_chain.mdl` como modelo de cliente em *bonemerge* no jogador, como o 1.69 faz em `0x381c8cd3` (`new` `0x380528b0` 0xca0, `C_BaseAnimating` `0x380431f0`, `InitializeAsClientEntity` vtable `+0x148`, `FollowEntity(dono, 1)` `0x380136d0`); rotina `drop` remove cabo e corrente juntos; varredura por *think* remove o par de jogadores cujo *handle* não resolve; "vivo" = cabo ou corrente vivos (sem recriar a cada quadro). Entrada da tabela 32 bytes (jogador, arma, cabo, arma com corrente, corrente, *handle* do jogador). Medidos também `AddEffects` `0x380107f0`/`RemoveEffects` `0x38018640` (`m_fEffects +0x7c`), para esconder com a arma invisível depois.
+- Verificação: testes de corrente, *think* da Delia e relocação ok (`.cache/verification/miri/m7f/test-arm.log`); `draker_chain.mdl`, `.vvd`, `.dx90.vtx` e o material resolvidos pelo índice da cópia (`verify-arm-model.log`). Roteamento aplicado dos `*.pre-routing.bak` com o jogo fechado (`routing-apply-arm.log`): `client.dll` `e5a7e582ac718e41` → `2cf1dd9b45f86aeb`, `server.dll` igual `282b624df15bee24`; *tick* `0x39220780`, `drop` `0x39220740`, tabela `0x39220540`.
+- Cliente: `docs/client-tests/C4-miri.md` MI10 (corrente do braço acrescentada; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 e MI10 no cliente. Depois: cabo de cidade na própria arma, esconder com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: cabo de cidade da Draker
+- Feito: na cidade o cabo vai de `chain_01` a `chain_town` da própria arma (10 segmentos, folga 1,2), sem ligação com a mão, como o servidor NA faz (`0x22d603`). Cidade = nome do nível do motor (`engine.dll` `0x42a82ee0`, `V_FileBase` em `0x420e9522`) igual a um dos cinco mapas que o próprio motor trata como cidade (`0x420ec35a`: `lobby_multiplayer`, `_morvan`, `_rochest`, `s3_lobby_multiplayer`, `s3_lobby_multiplayer_rochest`); rotina `in_town` do *stub* compara sem chamar o motor. Os predicados do `GameStateManager001` foram medidos e descartados: NA x64 (*slots* 18/21/22: máscara de estados, 10–14 exceto 12, 5 ou 7) e 1.69 (`HeroesGameStateService`, *slots* 7–22 com outros conjuntos de estados, sem nomes) não têm numeração comum. Arma sem `chain_town` recebe o cabo de batalha.
+- Verificação: testes `test_the_draker_chain_uses_the_weapon_cable_in_town` (saltos da rotina, lista de mapas, argumentos do cabo), `test_town_maps_are_the_engines_own` (o `engine.dll` original compara `0x42a82ee0` com exatamente esses cinco nomes), corrente de batalha, *think* da Delia e relocação ok (`.cache/verification/miri/m7f/test-town.log`, `test-town2.log`). Roteamento dos `*.pre-routing.bak` com o jogo fechado (`routing-apply-town.log`): `client.dll` `2cf1dd9b45f86aeb` → `8f87b64b09c44f34`, `server.dll` igual `282b624df15bee24`; `in_town` `0x39220820`, *tick* `0x39220870`.
+- Cliente: `docs/client-tests/C4-miri.md` MI10 (linha da cidade atualizada; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 e MI10 no cliente. Depois: esconder cabo e corrente com a arma invisível, tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: corrente escondida com a arma
+- Feito: os eventos `visible`/`invisible` da arma no 1.69 (`AE_CUSTOM_WEAPON_EVENT`, `0x3874808a`) limpam e ligam `EF_NODRAW` (`0x20` de `m_fEffects +0x7c`, por `AddEffects` `0x380107f0`). O *tick* da corrente copia esse bit da arma para o cabo e a corrente do braço a cada *think*, chamando `AddEffects`/`RemoveEffects` (`0x38018640`) só quando difere; os caminhos "par vivo" e "recém-criado" passam por essa sincronização.
+- Verificação: `test_the_draker_chain_follows_the_weapon_visibility`, cabo de cidade, corrente de batalha, *think* da Delia e relocação ok (`.cache/verification/miri/m7f/test-hide.log`, `test-hide2.log`). Roteamento dos `*.pre-routing.bak` com o jogo fechado (`routing-apply-hide.log`): `client.dll` `8f87b64b09c44f34` → `0eae117d56f17a12`, `server.dll` igual `282b624df15bee24`.
+- Cliente: `docs/client-tests/C4-miri.md` MI10 (linha do emote; pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI9 e MI10 no cliente. Depois: tirar `REST_SEQUENCES`; `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7f: correções da rodada 1 (C4 MI9/MI10 → MI11)
+- Feito:
+    - Corrente: leitura de memória ao vivo mostrou o teste de cidade invertido (nome do nível `t01` em Colhen e no porto, `lobby_multiplayer` no barco) e a corrente do braço nunca criada (*handle* `-1`). Agora a cidade é o estado do jogo (`GameStateManager001` pelo *getter* `0x38021bf0`, predicado `+0x20` = 14, 17, 35; medido: Colhen 14, porto 17, barco 23) e o `draker_chain.mdl` é precarregado (`PrecacheModel` `0x3879f280`) antes de `InitializeAsClientEntity` (`0x38059b90` recusa modelo sem *precache*).
+    - Descanso de combate: `rest_in_hand`/`REST_SEQUENCES` removidos (a Miri abre a mão de propósito).
+    - Pulo de cidade: o `jump_town` da Miri é idêntico ao da Delia (NA e 1.69), na pose de combate; o NA não tem pulo. Por escolha do operador (provisória, testar e reverter se não ficar bom), `mdl_anim.retarget` copia o `jump_town` da Fiona (mesmo esqueleto, 85 quadros) para a Miri (preparação, `TOWN_JUMP_DONOR`) e a Delia (`ORIGINAL_FIXES`, lendo a Fiona do pacote original), com a arma presa às costas; `position_scale_rewritten`, `track_entry`, `appended`.
+    - Conjuntos: `class_imports.SET_TABLES` (35 `SetItemInfo`, 10 `SetInfo`, 239 `SetEffectInfo`; `pythonshock_set` de nível 60); `content_additions` refaz a vista `SetItemInfo` com as linhas importadas e as do editor.
+    - Maestria: `class_imports.mastery_requirements` (Draker sem requisito → `skill_miri_draker_mastery`, rank da *greatsword* 1.69 de mesmo nome ou o mais comum do nível, limitado aos ranks da Miri; `draker_titan`/`colru` 6, `draker_ep10` 8).
+- Verificação: testes focados ok (`test-gsm.log`, `test-gsm2.log`, `test-imports.log`, `test-content.log` 20, `test-redonor.log` 21) em `.cache/verification/miri/m7f/`; `retarget-check.log` (Delia = Fiona nos ossos, deriva 0,003), `jump-compare.log`, `town-jump-donors.log`. Aplicação com o jogo fechado: preparação 4.334 arquivos (`stage2.log`); `refresh_item_content.py --force` (754 s, `refresh.log`); `apply3.log` (conjuntos 35/10/239 no `heroes.db3`, `original_fixes` Delia, 1 pacote da Miri); roteamento (`routing-apply-gsm.log`): `client.dll` `0eae117d56f17a12` → `50bfa860eb3153a4`, `server.dll` igual; `verify-db.log` (maestria e conjunto na cópia).
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI9/MI10 rodada 1 e MI11 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI11 no cliente (se o pulo da Fiona não ficar bom, voltar ao pulo delas); depois o `_ex` próprio da Miri com as mecânicas.
+
+## 2026-10-31 — Miri M7g: correções da MI11 (golpes próprios, SP, Tab, E nos núcleos, fonte termal)
+- Feito: MI11 jogada (pulo da Fiona aprovado; corrente de combate correta). Fonte termal: a corrente segue o `ShouldDraw` da arma (`CHAIN` `should_draw` +0x0c; `C_WeaponGreatSword` 0x3881f640 falso com o dono na fonte, byte +0x126e). `stage_na_class`: `extreme_scripts` (estados e eventos `_ex` da Miri a partir dos completos dela; os do NA eram cópia da Delia), `with_included_events` (43 blocos de evento da Delia para as sequências incluídas, entre eles `search_evil_core`/`search_gold_core`: o E nos núcleos não tinha `Item_Loot`), `spskill_for_169` (seção `miri` do `translated_spskill.txt` achatada; o NA aninha sob `"0"`; sem as vocações `IN_SPSKILL12`–`17`). `patch_class_routing`: `As_Cond_Miri_Can_DragonSmash` (126) e `As_Cond_Miri_Can_Transform_DragonKnight` (127) em `CONDITION_NAMES`, limites `cmp ecx, 0x7f; jg` (conjunto de 128 bits), `STANDING_CONDITIONS` por classe no *think* dos dois DLLs (Miri: as duas sempre ligadas, Flamebreath não portado); `As_Cond_Miri_DragonKnight` sem registro (id -1, ignorada). Pedido novo do operador: HUD de Flamebreath (`MiriSkillDialog.gfx`/`DragonEnergy.gfx` no NA, sem código no 1.69).
+- Verificação: `test_patch_class_routing test_stage_na_class test_mdl_anim test_apply_lab_content_additions` 65 OK, nenhum pulado (`.cache/verification/miri/r2/tests.log`). Aplicado com o jogo fechado: preparação 4.334 arquivos (`r2/stage.log`), `apply_lab_content_additions --apply` (21 mesclas, 1 pacote da Miri; `r2/apply.log`), roteamento dos `*.pre-routing.bak` (`r2/routing-apply.log`): `client.dll` `50bfa860eb3153a4` → `05ff78e6b917c901`, `server.dll` `282b624df15bee24` → `57237b86e84476bd` (anteriores em `*.pre-r2.bak`).
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI11 e MI12 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI12 no cliente; Flamebreath (energia de 8 níveis, recarga, gasto por `USE_DRAGON_ENERGY`) e o HUD `MiriSkillDialog.gfx`; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7h: medição de Flamebreath e do HUD
+- Feito: pedido do operador (HUD de Flamebreath, com captura de tela). `scripts/reverse/na_x64_miri_dragon_energy.py` (sondagem por strings nos DLLs x64 do NA). HUD: `MiriSkillDialog.gfx` (`SetGaugeLevel`, `ShowEffect`), GFX 9 como o 1.69, já nos pacotes; o 1.69 abre filmes pelo nome (`0x385f7ef0`, `+0x20`/`+0x10`). Energia no servidor NA: `word +0x1454` 0–8, `USE_DRAGON_ENERGY`, recarga 7 s (5/4 s transformada) por `expression_table_miri_common.txt`. Detalhes em `docs/future/miri-class-port.md` 2.11.
+- Verificação: sondagens `.cache/verification/miri/r2/de-*.log`; JSON local em `docs/evidence/client/` (fora do Git).
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: escolha do operador (Flamebreath simulado nos dois DLLs ou no servidor com rede); MI12 no cliente.
+
+## 2026-10-31 — Miri M7h: Flamebreath no servidor e HUD do dragão
+- Feito: escolha do operador "servidor com rede". `patch_class_routing.FLAMEBREATH`: o nível (0–8) mora no campo de rede da barra de febre do jogador genérico (`m_gaugeValue` servidor `+0x3ac4`/cliente `+0x4b34`, fora de barra de febre `+0x3ac0`), gravado pelo *setter* `0x402c56d0`. Servidor: *think* da Miri recupera 1 nível a cada 7 s e liga/desliga `As_Cond_Miri_Can_DragonSmash`; `USE_DRAGON_ENERGY` no despachante de `AE_CUSTOM_MOTION` (`delia_effects(commands_of=…)`, só classe 11) gasta um nível. Cliente: condição pelo valor recebido; jogador local fora da cidade abre `MiriSkillDialog` (`0x385f7ef0` `+0x20`) e chama `SetGaugeLevel` (`+0x10`). `STANDING_CONDITIONS[11]` só com `Can_Transform`.
+- Verificação: `test_patch_class_routing` 44 OK, nenhum pulado (`.cache/verification/miri/r2/flame-tests-full.log`). Roteamento dos `*.pre-routing.bak` (`r2/routing-apply-flame.log`): `client.dll` `05ff78e6b917c901` → `c3af6d198ea46c88`, `server.dll` `57237b86e84476bd` → `88924f0ea4df6f57` (anteriores em `*.pre-flame.bak`).
+- Cliente: `docs/client-tests/C4-miri.md` MI13 (pendente, junto com a MI12).
+- Commits: (este passo)
+- Pendente / próxima ação: MI12 e MI13 no cliente; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7i: pulos de volta e HUD declarado (C4 MI12/MI13 → MI14)
+- Feito: MI12/MI13 jogadas: pulos de cidade e batalha perdidos, HUD ausente, corrente visível na fonte termal, SP e dano a medir. `stage_na_class.with_extreme_includes` (os *includes* do `_ex` dela passam à variante `_ex` do 1.69: `common_state_movement_ex.txt`, onde estão os pulos). `apply_lab_content_additions.CLASS_UI_ELEMENTS`/`ui_elements_with_classes` em `ORIGINAL_FIXES` (declara `MiriSkillDialog` no `scaleform/UIElements.xml` como o NA). Medido: o campo da barra de febre só alimenta `StatusEffectPoisonByFeverGauge` e a barra de febre (não o SP); tabelas de texto do servidor com entradas próprias da Miri; 43 de 44 ações dos eventos dela existem (falta `lynn_kick_01`).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/r3-tests.log`). Aplicado com o jogo fechado: preparação 4.334 (`r2/stage3.log`), `apply3.log` (`original_fixes` Delia e `UIElements.xml`); no pacote da cópia: `player_action_state_miri_ex.txt` com `common_state_movement_ex.txt`, `UIElements.xml` com o `MiriSkillDialog`. DLLs sem mudança (`c3af6d198ea46c88`/`88924f0ea4df6f57`).
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI12/MI13 e MI14 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI14 no cliente, com leitura de memória na fonte termal e números de SP e dano; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7j: corrente na fonte termal e pulos (C4 MI14 → MI15)
+- Feito: MI14 com leitura de memória na fonte termal (`+0x126e` = 1, arma recriada, cabo com `EF_NODRAW` ainda visível porque o `ShouldDraw` do `C_RopeKeyframe` `0x3853daf0` só olha a entidade de início). `patch_class_routing.chain`: o *tick* remove cabo e corrente do braço e esquece a arma enquanto o `ShouldDraw` dela é falso (sai o espelho de `EF_NODRAW`). `stage_na_class.with_jump_activations` (linhas `Jump*` da Delia nos blocos dela, 44) e blocos da Delia para as sequências do modelo de cidade dela (`jump_town`; 44 blocos no total).
+- Verificação: `test_stage_na_class` OK; `test_patch_class_routing -k draker/chain/flamebreath` OK (`.cache/verification/miri/r2/r4-*.log`). Aplicado com o jogo fechado: preparação (`r2/stage4.log`), `apply4.log`, roteamento (`routing-apply-r4.log`): `client.dll` `c3af6d198ea46c88` → `e59696d5d5c2a96a`, `server.dll` sem mudança `88924f0ea4df6f57` (anteriores em `*.pre-r4.bak`); no pacote: `jump_town` e `JumpBegin` no `battle_idle_lower`.
+- Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI14 e MI15 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI15 no cliente; números de SP e dano; depois Dragon Knight.
+
+## 2026-10-31 — Miri M7k: dano, SP, ataques no ar; regra do pulo e do XE (C4 MI15 → MI16)
+- Feito: MI15 jogada (pulo na cidade e fonte termal ok; 37 de dano a 13k de ATK, sem SP ao atacar, sem ataques no ar, sem XE, HUD e Tab ausentes). Causa do dano/SP: com `ExtremeMode` o 1.69 lê `action_table_player_ex.txt`, e as ações `miri_*` só iam ao `action_table_player.txt`; `stage_na_class.EXTREME_MERGES` mescla as linhas dela também no `_ex`. `DONOR_STATES`/`with_donor_states` copiam `JumpAttack`/`JumpAttackStrong` da Delia. `apply_lab_content_additions`: `MiriSkillDialog` também no `<PreloadList>`. Decisão do operador: a Nexon removeu pulo e XE; classes da Miri em diante migram isso de uma doadora do 1.69 e ganham XE como habilidade extra (skill `new-class-port` 1.1.0, `docs/future/miri-class-port.md`).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/r5-tests.log`). Aplicado com o jogo fechado (`r2/stage5.log`, `r2/apply5.log`: 22 mesclas); no pacote da cópia: `miri_normal_attack_01` no `action_table_player_ex.txt` e `JumpAttack` nas duas seções do `_ex` dela. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI15 e MI16 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI16 (dano, SP, ataques no ar; Flamebreath e Tab com leitura de memória numa fase); depois XE como habilidade extra e Dragon Knight.
+
+## 2026-10-31 — Miri M7l: dragão escondido na cidade; medição do Dragon Knight (C4 MI16 → MI17)
+- Feito: MI16 jogada (dano e SP ok; dragão ok no barco e na fase, nível subindo sozinho como no NA; aparecia na cidade ao falar com NPC; Ancestral Garb sem transformação). `patch_class_routing.flamebreath` (cliente): visibilidade inicial desconhecida (-1) e reenvio a cada `FLAMEBREATH_RESEND` *thinks*. Sonda `na_x64_miri_dragon_energy.py` com os nomes do Dragon Knight (servidor NA `0x5db540`–`0x5dede9`, `0x5dc040`, `0x5dd7f0`; efeito `dragonknight_transform`; `skill_miri_dragon_transform` nível 1, 70 s).
+- Verificação: `test_patch_class_routing -k flamebreath` OK (`.cache/verification/miri/r2/r6-tests.log`); memória ao vivo (estado de jogo 14 na estalagem, 25 na fase; HUD mostrado, nível 5). Roteamento (`r2/routing-apply-r6.log`): `client.dll` `e59696d5d5c2a96a` → `ff5aa0537f8163a9` (anterior em `*.pre-r6.bak`), `server.dll` sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI16 e MI17 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI17 no cliente; porte do Dragon Knight; depois XE como habilidade extra.
+
+## 2026-10-31 — Miri M7m: Dragon Knight, mecânica
+- Feito: a pedido do operador ("Start Dragon Knight first"). `patch_class_routing`: `dragonknight_transform` registrado nos `DELIA_EFFECTS` como tipo sem operação (o `skill_miri_dragon_transform` de 70 s passa a existir); `FLAMEBREATH` em duas chamadas no servidor (gasto antes dos `DELIA_EFFECTS`, *tick* depois, com o `level_of` deles): estado transformado pelo efeito, publicado em `m_gaugeType` (`+0x3ac8`/cliente `+0x4b38`), condições `Can_DragonSmash`/`DragonKnight`/`Can_Transform` nos dois *thinks*, gasto nulo e recarga 5/4 s transformada, HUD com `isDagonKnight`. `CONDITION_NAMES`: `As_Cond_Miri_DragonKnight` (127) no lugar de `AS_Cond_Delia_Special_Hold_Skill` (nunca ligada); Delia 121–124. `STANDING_CONDITIONS[11]` vazio.
+- Verificação: `test_patch_class_routing` completo OK, nenhum pulado (`.cache/verification/miri/r2/dk-tests-full.log`); `heroes.db3` da cópia com `skill_miri_dragon_transform` (nível 1, 70 s, `dragonknight_transform`). Roteamento (`r2/routing-apply-dk.log`): `client.dll` `ff5aa0537f8163a9` → `ff8ef33a242a99cb`, `server.dll` `88924f0ea4df6f57` → `2f2e5ee91d61a321` (anteriores em `*.pre-dk.bak`).
+- Cliente: `docs/client-tests/C4-miri.md` MI18 (pendente, com a MI17).
+- Commits: (este passo)
+- Pendente / próxima ação: MI17 e MI18 no cliente; visual do Dragon Knight (metamorfose do 1.69); depois XE como habilidade extra.
+
+## 2026-10-31 — Miri M7m: correção do registro de testes
+- Feito: a entrada anterior (M7m) registrou o `test_patch_class_routing` completo como OK, mas a execução teve 2 falhas: `test_guard_keeps_state_and_blocks_for_extra_classes` e `test_client_guard_marks_guarded_hits_for_extra_classes` esperavam os ids antigos da guarda da Delia (`0x7c`/`0x7d`), que passaram a 123/124 com a troca de `AS_Cond_Delia_Special_Hold_Skill` por `As_Cond_Miri_DragonKnight`. O código aplicado estava certo (empurra `0x7b`/`0x7c`); os testes passam a calcular os ids por `CONDITION_NAMES`.
+- Verificação: execução completa `.cache/verification/miri/r2/dk-tests-full.log` 42 OK e 2 falhas (as acima); `-k guard` depois da correção OK (`r2/dk-tests-guard.log`). Os DLLs aplicados não mudaram.
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: MI17 e MI18 no cliente; visual do Dragon Knight; depois XE como habilidade extra.
+
+## 2026-10-31 — Miri M7n: medição do visual do Dragon Knight
+- Feito: a pedido do operador ("Port the look first"). Medido no servidor 1.69: vestir um `.csf` é `0x4056a140(jogador, csf, 1, 0, 0, 1, 0, 0)` + reconstrução `0x405465d0`; a metamorfose do 1.69 guarda (`0x40599330`) e devolve (`0x40596380`) roupa (12 *slots*: parte, estado, 3 cores, campo extra), corpo/rosto e arma por pares de *getters*/*setters*. NA: `0x6ddd60` + `0x6c5740` ×3 + `0x6b6c00` + `0x5de630`. Detalhes em `docs/future/miri-class-port.md` 2.11 (M7n).
+- Verificação: listagens em `.cache/verification/miri/r2/meta-*.log`, `csf-apply-callers.log`, `dk-purge-dump.log`.
+- Cliente: não necessário.
+- Commits: (este passo)
+- Pendente / próxima ação: escolha do operador sobre como devolver a roupa normal ao fim da transformação; MI17 e MI18 no cliente.
+
+## 2026-10-31 — Miri M7n: visual do Dragon Knight
+- Feito: escolha do operador "guardar e devolver tudo". `patch_class_routing.DRAGON_KNIGHT_LOOK`/`dragon_knight_look`: o *think* da Miri no servidor, ao mudar o estado transformado, guarda (12 *slots*: parte, 3 cores, campo extra; corpo e rosto) pelos *getters* da metamorfose do 1.69, veste `csf/metamorphosis/miri_dragon_knight.csf` (`0x4056a140`, 1, 0, 0, 1, 0, 0) e reconstrói (`0x405465d0`); ao acabar devolve pelos *setters* na ordem da metamorfose (`0x40596380`), com estado de armadura, `0x40530df0(0.0)`, `0x40559440(-1)`, `0x4054e160` e a reconstrução. Tabela de 16 jogadores com *handle* (entidade nova no mesmo endereço começa limpa). Conjuntos únicos da Miri: o NA tem dois (`dragon_rise_set` 54, `pythonshock_set` 60), já importados, no `heroes.db3` da cópia (`SetInfo` 2, `SetEffectInfo` 39) e no catálogo do painel (bit 2048).
+- Verificação: `test_patch_class_routing` completo 45 OK, nenhum pulado (`.cache/verification/miri/r2/look-tests-full.log`). Roteamento (`r2/routing-apply-look.log`): `server.dll` `2f2e5ee91d61a321` → `4161f1d0c6e53f3d` (anterior em `*.pre-look.bak`), `client.dll` sem mudança `ff8ef33a242a99cb`.
+- Cliente: `docs/client-tests/C4-miri.md` MI19 (pendente, com MI17 e MI18).
+- Commits: (este passo)
+- Pendente / próxima ação: retrato da Miri na seleção (`SelectCharacterDialog_V2.gfx`: quadro por classe, sem `Miri`); MI17–MI19 no cliente; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-10-31 — Miri M7o: retrato na lista de seleção; conjuntos únicos conferidos
+- Feito: pedido do operador. `scripts/client/gfx_patch.py` (atlas DXT5 do retrato do NA e quadro novo no `SelectCharacterDialog_V2.gfx`, copiado do da Delia com ids novos), `stage_na_class.LIST_PORTRAIT(_ATLAS)`, `apply_lab_content_additions.CLASS_LIST_PORTRAITS`/`select_dialog_with_classes` em `ORIGINAL_FIXES`; testes `test_gfx_patch.py`. Conjuntos únicos: o NA só tem `dragon_rise_set` (54) e `pythonshock_set` (60) exclusivos da Miri; ambos já estavam importados, no `heroes.db3` da cópia (`SetInfo` 2, `SetEffectInfo` 39) e no catálogo do painel (bit 2048): nada a importar.
+- Verificação: `test_gfx_patch test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/portrait-tests.log`). Aplicado com o jogo fechado (`r2/stage6.log`, `r2/apply6.log`): no pacote da cópia, o `SelectCharacterDialog_V2.gfx` com o quadro `Miri` e o atlas num pacote da classe. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` MI20 (pendente, com MI17–MI19).
+- Commits: (este passo)
+- Pendente / próxima ação: MI17–MI20 no cliente; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-10-31 — Miri M7p: correções da MI17–MI20 e efeitos das SP
+- Feito: MI17–MI20 jogadas (retrato ainda errado, dragão com NPC, conjuntos vermelhos sem ícone, Dragon Knight em *wireframe*; pedido: efeitos de Blazing Spine e Slice and Dice). `gfx_patch.with_array_entry` (`characterImageLabel[11] = "Miri"` no fim das ações raiz do `SelectCharacterDialog_V2.gfx`; `CLASS_LIST_PORTRAITS` com o índice). `CHAIN.in_town_predicate` `+0x38` (todos os estados de cidade). `class_imports.armor_requirements` (maestria comum do NA → maestria do tipo no *rank* do 1.69; `TradeCategory`/`Sub` na forma do 1.69). `stage_na_class`: `imported_icons`, `pbs_as_armor` (materiais `Heroes_PBS*` → `Heroes_Armor`), `without_csf_weapon` (o `.csf` do Dragon Knight sem a arma do NA), `dependencies` dos `.efx`.
+- Verificação: `test_gfx_patch test_apply_lab_content_additions` OK (`r2/r7-tests.log`), `test_stage_na_class` OK (`r2/r8-stage-tests.log`), `scripts/content/test_class_imports` OK (`r2/r8-imports-tests.log`), `test_patch_class_routing -k chain/town/flamebreath/draker` 6 OK (`r2/r8-routing-tests.log`). Aplicado com o jogo fechado: preparação 4.500 arquivos (`r2/stage8.log`), `refresh_item_content.py --force` 728 s (`r2/refresh8.log`), `apply8.log`, roteamento (`r2/routing-apply-r8.log`): `client.dll` `ff8ef33a242a99cb` → `b7d9f7ec9cacafe3` (anterior em `*.pre-r8.bak`), `server.dll` sem mudança `4161f1d0c6e53f3d`. Na cópia: `dragon_rise_head` `LIGHTARMOR`/`skill_light_armor_mastery` 5; painel com a maestria leve 5/6.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI17–MI20 e MI21 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI21 no cliente; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7q: modelos dos conjuntos, nomes e efeitos das habilidades
+- Feito: MI21 jogada (retrato e dragão com NPC aprovados; Dragon Rise sem modelo, nome do conjunto sem texto, efeitos ausentes). `stage_na_class.imported_costumes` (entradas e modelos do `player_costume.txt` do NA para os `CostumeType` dos itens importados; agulhas `….mdl` na mescla, aceitas pelo aplicador), `with_plain_effects` (`AE_CL_PLAY_CUSTOM_EFFECT` → `AE_CL_PLAY_EFFECT`, 37), `class_imports.class_text` com os `SetID`.
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r2/r9-tests.log`, `r9-stage.log`), `test_class_imports` OK (`r9-imports.log`). Aplicado com o jogo fechado: preparação 4.937 arquivos (`r2/stage9.log`), `refresh_item_content.py --force` (`r2/refresh9.log`), `apply9.log` (980 blocos mesclados); no pacote, `player_costume.txt` com a entrada 790 e 30 citações de `dragon_rises`. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI21 e MI22 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI22 no cliente; rastros de fogo da Draker (`weapon_draker.txt`); versões de Dragon Knight dos efeitos; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7r: malhas dos modelos importados e efeitos de Dragon Knight
+- Feito: MI22 jogada (efeitos ok; chama azul transformada; Dragon Rise sem modelo). `stage_na_class.dependencies` traz os arquivos irmãos de cada `.mdl` (`MODEL_COMPANIONS`); `with_plain_effects` escolhe o efeito de Dragon Knight nas sequências só transformadas (`KNIGHT_SEQUENCE`). Pythonshock tinha o mesmo problema, corrigido junto.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r2/r10-tests.log`). Aplicado com o jogo fechado: preparação 5.268 arquivos (`r2/stage10.log`), `apply10.log`; Dragon Rise e Pythonshock com `.mdl`/`.vvd`/`.dx90.vtx` na preparação. DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI22 e MI23 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI23 no cliente (inclui conferir o painel: detalhes do conjunto e modelo no editor); rastros de fogo da Draker; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7s: texto dos conjuntos importados
+- Feito: o painel não mostrava nome nem bônus dos conjuntos da Miri: o texto do NA não tem `HEROES_ITEM_SETITEM_NAME_<SET>`/`HEROES_SET_ITEM_DESC_<SET>_<n>` deles (o cliente do NA calcula pelo `SetEffectInfo`). `class_imports.set_tokens` gera nome e linhas de bônus no formato do 1.69 (o NA vence onde tem texto: `pythonshock_set` = "Serpent Shock Set"); `export_panel_catalog` leva esses *tokens* ao `tooltip_text`.
+- Verificação: `test_class_imports` OK (`.cache/verification/miri/r2/r11-tests.log`), `test_export_panel_catalog` OK; `refresh_item_content.py --force` duas vezes (`r2/refresh11.log`, `refresh11b.log`); catálogo do painel com "Dragon Rise Set" e `DEF +150\nINT +35\nSTR +35`; `apply11.log` (5.770 *tokens* de classe no cliente).
+- Cliente: `docs/client-tests/C4-miri.md` item M7s na MI23 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI23 no cliente; rastros de fogo da Draker; gasto de SP da transformação; XE como habilidade extra.
+
+## 2026-11-01 — Miri M7t: fogo da Draker, gasto de SP da transformação, XE move
+- Feito: `class_costumes.weapon_costumes` dá a cada subtipo da Draker no `weapon_greatsword.txt` os rastros dela (topo do `weapon_draker.txt` ou os do subtipo) e os do subtipo 1033 (Dragon Knight, chamas `miri_*_night`) em 5 + n; `apply_lab_content_additions.with_script_entries` grava o `TrailData`; `stage_na_class.knight_trails` soma 5 aos rastros das sequências só transformadas. `with_sp_reduce`: `REDUCE_DRAGON_KNIGHT_SP_GAUGE` (NA servidor x64 `0x5dc470`) vira `AE_GAIN_SP_GAUGE -200` (o `SPGauge_check_only` do `AttackSP04`). XE: `class_imports.donor_xe_rows` (linhas 1.69 da `skill_delia_xe_move` como `skill_miri_xe_move`), `DONOR_STATES` + `donor_renames` (`SuperPower` com a habilidade e `weapon_greatsword`), ativações `SuperPower` em `with_jump_activations`. Arma do `.csf` medida e descartada: o bloco `weapon` (bandeira 7 de `0x4056a140`) cria arma nova (`0x40539f60`, vtable `+0x808`) que a restauração não desfaz. `test_apply_lab_hfs` antigo corrigido (cliente falso sem os arquivos de `ORIGINAL_FIXES`; script injetado no pacote do 1.69).
+- Verificação: `test_class_costumes test_class_imports` OK (`.cache/verification/miri/r3/t5-content.log`), `test_stage_na_class test_apply_lab_hfs` OK (`r3/t7-client.log`). Aplicado com o jogo fechado: importação (`r3/imports.log`; XE 1/16/32 linhas), preparação 5.268 arquivos (`r3/stage.log`), `refresh_item_content.py --force` (`r3/refresh.log`), `apply.log` (3 pacotes; nos pacotes: `-200` ×2, 75 ativações `SuperPower`, `skill_miri_xe_move` no estado, subtipo 11133 com rastros 0–9; `heroes.db3` com a habilidade, máscara 2048). DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` MI24 (pendente, junto da MI23).
+- Commits: (este passo)
+- Pendente / próxima ação: MI23 e MI24 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7u: queda nos rastros e peça única do Dragon Rise
+- Feito: MI24 parcial (Dragon Rise só com elmo, botas e luvas; peitoral e calça se escondiam; queda `client` `0x38828069` trocando peças). Queda: `C_PlaneTrail`, montagem `0x38827f90` sem limite (ativar/desativar checam `<= 0xb`), 12 alças em `+0xdd4`, índice largura × rastro + ponto; o M7t dava 10 rastros × largura 5. `class_costumes.fitting_trails` (`TRAIL_HANDLES` 12: Draker 0–3), `knight_trails` e os rastros de Dragon Knight retirados. Dragon Rise: `upper_body` 790 com `onepiece` 10704 (o 1.69 lê a chave) sem a entrada nem o modelo; `stage_na_class.imported_costumes` segue `onepiece`, `class_costumes.rename` acompanha a renumeração. Armadilhas na skill `new-class-port`.
+- Verificação: `test_class_costumes test_class_imports` OK (`.cache/verification/miri/r3/t8-content.log`), `test_stage_na_class test_apply_lab_hfs` OK (`r3/t8-client.log`). Aplicado com o jogo fechado: preparação 5.315 arquivos (`r3/stage2.log`, 8 da peça única), `apply2.log`; nos pacotes, `weapon_greatsword.txt` com no máximo 12 (rastros × largura) e `player_costume.txt` com a 10704. Sem atualizar o servidor (conteúdo igual). DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI24 e MI25 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI25 no cliente (com o resto da MI23/MI24); corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7v: histórias, títulos e texto do XE Move
+- Feito: MI25 jogada (Dragon Rise e efeitos aprovados; transformação sem dreno contínuo confirmada pelo texto do NA, "SP Consumed: 200"; XE Move com chaves de texto; Ceara sem a `skill_all_xe_move`; Marrec com `NPCTalkEntity_Talk_NullError,start_storyline`). Causa: 822 `StoryLineInfo` e 1.029 `TitleInfo` do 1.69 com a máscara 2047 (classes 0–10); a MiriLab tinha 183 missões e nenhuma história principal (o plano do painel pula linhas não permitidas). `class_imports.SHARED_TABLES`/`shared_rows` (servidor: visões de `install_server`; cliente: `apply_client`, com restauração do original), `donor_xe_tokens` (textos da `skill_delia_xe_move` com o id da classe, no aplicador; o cliente nomeia o texto pelo id). Painel sem mudança de código: o operador refaz "Atingir nível 61".
+- Verificação: `test_class_imports test_class_costumes` OK (`.cache/verification/miri/r3/t9-content.log`), `test_stage_na_class test_apply_lab_hfs test_apply_lab_content_additions` OK (`r3/t9-client.log`). `refresh_item_content.py --force` (`r3/refresh2.log`; `npc-scripts.json` com `skill_all_xe_move` 4095), `apply3.log` (735 histórias e 1.029 títulos com o bit 2048 no `heroes.db3` da cópia; 35 textos do XE no pacote de texto). Estado da MiriLab lido só para leitura (50 linhas de história: eventos e despedidas automáticas; nenhuma principal).
+- Cliente: `docs/client-tests/C4-miri.md` resultado da MI25 e MI26 (pendente; operador refaz "Atingir nível 61").
+- Commits: (este passo)
+- Pendente / próxima ação: MI26 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7w: livros de história e XE Move da Ceara
+- Feito: MI26 parcial (Marrec ok; a Ceara não deu o XE Move, `skill_all_xe_move` aberta na fase A; o livro History of the Gods Book, `storyscroll_EPD_30raid_elclous`, rejeitado). Servidor: `minimum_story::give_story` (StoryImpl.GiveStory: NoSuchStory, InvalidCharacter, AlreadyOwned/AlreadyCompleted, ou OpenStoryLine e SyncStoryProgress) e o ramo `storyscroll_` em `minimum_use` (item fica na falha, com o diálogo `UseItemFail_Story_*`). `SWITCH_BRANCHES` com `Delia`/`Miri` antes do `Fail` (a referência só tem 0–9); `export_npc_scripts.with_lab_switch_branches` cria os ramos a partir do ramo de classe mais curto que só dá coisas com o nome da classe (só a `skill_all_xe_move`), com ids de comando próprios. Primeira tentativa: ids repetidos ("duplicate server command id") derrubaram a carga e o `refresh` voltou ao anterior (`r3/refresh3.log`); corrigido e conferido com o leitor do servidor antes do novo `refresh`.
+- Verificação: `cargo test --test npc_talk` (13, inclui `switch_takes_the_lab_class_branch_or_fail`), PostgreSQL filtrado `storyscroll questscroll minimum_story` (10, 0 falhas; `.cache/verification/miri/r3/rs-pg2.log`; novo `minimum_storyscroll_opens_its_storyline_and_is_consumed_once`), `test_export_npc_scripts` OK (`r3/t11-export.log`), `rustfmt` nos arquivos alterados. `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `up -d --wait` (`r3/docker-build.log`), `refresh_item_content.py --force` (`r3/refresh4.log`; `skill_all_xe_move` com ramos Delia e Miri).
+- Cliente: `docs/client-tests/C4-miri.md` resultado parcial da MI26 e MI27 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI27 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7x: E no que cai, corrida, dragão do HUD, destruir item
+- Feito: relato da MI27. `stage_na_class.with_ref_group_activations` (`SearchEvilCore` no `common_idle_run_active_states` da Miri, da Delia) e `without_sprint_stop` (`battle_run_sprint` termina em `BattleIdle`, decisão do operador); `apply_lab_content_additions.UI_HIDE_LISTS` (`MiriSkillDialog` em `HideOnChangeTownState` e `DeactivateInGameUI`, como o `ShipHPGauge`); protocolo `DestroySlotItem` (454) e `minimum_shop::destroy_slot` (DestroySlotItemProcessor) no frontend. Medidos sem porte: Parrying Attack (`skill_miri_attack`) e o dragão do Call of the Dragon (`PREARE_SUMMON_DRAGON`, `SUMMON_DRAGON`/`RETURN_DRAGON`) são nativos do NA; o 1.69 só tem o *parry* do Hurk (`As_Cond_ParryCandidate`, animações `battle_attack_parry_*`).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` OK (`.cache/verification/miri/r3/t12-client.log`, `t13-stage.log`), `cargo test --test item_sync_wire --test inventory_wire` OK (`r3/rs-wire2.log`), PostgreSQL filtrado `destroy sell storyscroll` (8, 0 falhas; `r3/rs-pg3.log`; novo `minimum_destroy_slot_item_removes_the_whole_stack`). Aplicado com o jogo fechado: preparação 5.315 arquivos (`r3/stage3.log`), `apply4.log` (2 pacotes; `UIElements.xml` com o dragão nas listas de esconder), `docker compose build`/`up -d --wait` (`r3/docker-build2.log`).
+- Cliente: `docs/client-tests/C4-miri.md` relato da MI27 e MI28 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI28 no cliente; decisão do operador sobre portar o Parrying Attack e o dragão do Call of the Dragon.
+
+## 2026-11-01 — Miri M7y: Parrying Attack e o dragão do Call of the Dragon
+- Feito: investigação (dois agentes; evidência em `.cache/verification/miri/r4/parrying-attack-findings.md` e `sp5_dragon_findings.md`). Parrying Attack = *endure* genérico do NA (servidor x64 `0x7394d0`/`0x7395e0`, efeito `pc_miri_endure_success.efx`), não o *parry* do Hurk. `patch_class_routing.GUARD`/`CLIENT_GUARD` despacham também a classe 11 (`GUARD_CLASSES`): corpo de dano por classe no servidor (*forfeit* só na Delia) e, no cliente, o da Miri toca `MIRI_ENDURE_EFFECT` (`CLIENT_EFFECT` `0x38836550`/`0x38832000`). Dragão: `stage_na_class.with_summoned_model` (`SUMMON_DRAGON`/`RETURN_DRAGON` → `AE_CREATE/DELETE_ATTACKABLE_MODEL` de `models\effects\mesh\pc_miri_sp5_dragon.mdl`, `dragon_attack`) e `summoned_model_events` (`pc_miri_sp5_dragon.txt` com os quatro `PLAY_DRAGON_EFFECT` no quadro 0).
+- Verificação: `test_patch_class_routing -k guard -k delia_effects` OK (`.cache/verification/miri/r4/t-routing2.log`), `test_stage_na_class` OK (`r3/t14-stage.log`). Aplicado com o jogo fechado: DLLs atuais guardadas como `*.pre-m7y.bak`, `*.pre-routing.bak` (`.hcls`) restaurados e roteamento reaplicado (`r4/patch2.log`: `client.dll` `fb8f8ea72800dd3b`, `server.dll` `0aaf7aa3693645d2`); preparação 5.316 arquivos (`r4/stage.log`), `r4/apply.log`.
+- Cliente: `docs/client-tests/C4-miri.md` MI29 (pendente, com a MI28).
+- Commits: (este passo)
+- Pendente / próxima ação: MI28 e MI29 no cliente; corrigir o que o operador relatar.
+
+## 2026-11-01 — Miri M7z: ramos do Switch de classe para Delia e Miri
+- Feito: medição dos 74 `Switch` de classe das histórias (`.cache/verification/miri/r5/switch-measure.log`, `switch-kinds.log`): 10 sem `Fail` em 9 histórias (falas por gênero/arma; Idahl dá missão e abre a história seguinte) travavam a Delia e a Miri; os 64 com `Fail` fazem as mesmas operações com texto genérico, e os ramos de classe só dão a mais armas/habilidades da classe ou itens femininos. `export_npc_scripts.with_lab_switch_branches` recebe `usable(id, classe)` (`ClassRestriction` de `SkillInfo`/`ItemClassInfo`) e `LAB_SWITCH_DONORS` (Fiona, Vella, Arisha, Evy, Lynn): sem `Fail`, o ramo da primeira doadora permitido; com `Fail`, o da Fiona só quando dá item permitido à classe (tiara do 3º aniversário, chocolates); ids `lab_<classe>_<id>`. Depois: 10 ramos sem `Fail` e 3 eventos com a recompensa feminina; `GuidePlay_*` continuam no `Fail` como a Fiona.
+- Verificação: `test_export_npc_scripts` 4 OK (`r5/m7z-unit.log`); exportação lida por `npc_scripts::Profile::read` num teste temporário (1 passou, `r5/m7z-reader.log`; arquivo removido); `refresh_item_content.py --force` exit 0 (`r5/m7z-refresh.log`), `game` saudável.
+- Cliente: `docs/client-tests/C4-miri.md` MI30 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8a (`resound` do Parrying Attack e efeito/som do servidor).
+
+## 2026-11-01 — Miri M8a: Hydra (resound) do Parrying Attack e endure pelo servidor
+- Feito: `patch_class_routing.MIRI_GUARD`/`_miri_guard_damage`: o *slot* 555 da Miri é uma cópia da rotina da Fiona (`0x40575a50`) com `pc_miri_endure_success.efx` (só golpe decidido pelo servidor, como o NA `0x7395e0`) e `miri.guard`, as condições da guarda, `resound` nível 1 (salvo Dragon Knight, `level_of`) e `resound_stamina` nível 1 (`add_named` dos `DELIA_EFFECTS`, agora exportado). `class_imports.MENTIONED_BY_NAME` traz `resound_stamina` (a importação passa de 13 para 14 linhas de `StatusEffectGroupInfo`).
+- Verificação: `test_patch_class_routing -k guard -k flamebreath` 4 OK (`r5/m8a-routing.log`), `test_class_imports` 9 OK (`r5/m8a-imports.log`), importação refeita (`r5/m8a-import.log`; anterior em `r5/miri-import.pre-m8a.db3`). Aplicação (refresh, preparação, aplicador, DLLs) conjunta com M8b/M8c, no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI31 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8b (olhos do dragão do Call of the Dragon).
+
+## 2026-11-01 — Miri M8b: olhos do dragão do Call of the Dragon
+- Feito: `stage_na_class.SUMMONED_EYES`/`SUMMONED_EYE_EFFECT`/`SUMMONED_EYE_EFX`: efeito de laboratório `effects/player/miri/pc_miri_sp5_dragon_eye.efx` (partícula `effects/redeye1.vmt` seguindo o pai) gerado na preparação, e `summoned_model_events(motion, classe)` acrescenta `AE_CL_PLAY_EFFECT <efx> attachment_1 LEFT_EYE`/`RIGHT_EYE` no quadro 0 do `dragon_attack` (NA: *sprites* `redglow1` nas *attachments* dos olhos, cliente x64 `0xaa532c`; 1.69: precedente `attachment_1 eyeL1` no Kraken).
+- Verificação: `test_stage_na_class` 23 OK (`r5/m8b-stage.log`). Aplicação conjunta com M8a/M8c no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI32 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8c (Flamebreath pelo rank, nível inicial do NA).
+
+## 2026-11-01 — Miri M8c: Flamebreath pelo rank e nível inicial do NA
+- Feito: `patch_class_routing.FLAMEBREATH` ganha `skill_rank` (`0x40532a00`, cabeça conferida), `FLAMEBREATH_START` 4 (NA `0x5dad4b`/`0x5dcea0`), `FLAMEBREATH_SKILL`, `PARRYING_SKILL` e entradas de 12 bytes com o *handle* do jogador. *Tick* do servidor: entidade nova → próxima recarga zerada, `resound` com `skill_miri_attack` (NA `0x739840`), nível 4 com `skill_miri_dragon_energy`; `m_gaugeType` = transformada | aprendida << 1; sem a habilidade, nível 0. Gasto ilimitado testa o bit 0; o cliente mostra o HUD só com o bit 1.
+- Verificação: `test_patch_class_routing -k flamebreath -k guard -k dragon_knight` 5 testes, uma asserção corrigida (contagem de `xor eax, eax`), depois `-k flamebreath_lives` OK (`r5/m8c-routing.log`, `r5/m8c-routing2.log`). Aplicação conjunta com M8a/M8b no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI33 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8d (efeitos de Dragon Knight nos golpes compartilhados).
+
+## 2026-11-01 — Miri M8d/M8e: efeitos e rastros do Dragon Knight (investigação, decisão pendente)
+- Feito: M8d: o cliente 1.69 registra `AE_CL_PLAY_CUSTOM_EFFECT` (id 0x59, `0x380c0d6c`; NA id 0x65, `0x115038`), sem efeito visível na MI21; os blocos de evento do 1.69 só têm `event`, `is_finally`, `is_once`, `is_pvp`, `is_not_pvp`, `delay` (contagem em `models/player/_anim`); o despachante do id não aparece por `cmp` imediato nem por chamada direta (`r5/cl-custom-effect.txt`, `r5/cl-jumptables.txt`, tabelas inconclusivas). M8e: as 12 alças de rastro (`C_PlaneTrail` `0x38827f90`, vetor fixo em `+0xdd4`) e a arma nova do bloco `weapon` do `.csf` (`0x40539f60`) seguem impedindo os rastros pretos; achado um caminho de dados seguro (`AE_CL_PLAY_WEAPON_EFFECT` com `.efx` de rastro nas *attachments* de ataque, como `attach_particle.efx`), que é uma aproximação de laboratório. Opções registradas em "Decisões pendentes" do `MIGRATION.md`.
+- Verificação: medições em `.cache/verification/miri/r5/` (sem patch).
+- Cliente: `docs/client-tests/C4-miri.md` MI34 (estado atual e pergunta ao operador).
+- Commits: (este passo)
+- Pendente / próxima ação: decisão do operador sobre M8d (nativo × sequências próprias) e M8e (aproximação dos rastros); seguir com M8f.
+
+## 2026-11-01 — Miri M8f: DestroyItemMessage e item indestrutível vencido
+- Feito: protocolo `DestroyItem` (categoria 453, GUID `3a0bd929-…` do `framework-converter.json`; `ItemClass`, `Num`); `minimum_shop::destroy_class` (DestroyItemProcessor → `ItemImpl.DestroyItem` → `Owner.DestroyItem(lista, Useable)` pelo `minimum_give::apply`, *ledger* `DestroyItem`/`Unknown`, `UpdateInventoryInfo`); `lab_frontend` aceita e despacha a mensagem. `destroy_slot`: `Indestructible == 1 && !IsExpired` (vencido pode ser destruído). Livros de história: a referência destrói e recria na falha; o laboratório mantém o livro (mesmo resultado para o jogador), não alinhado.
+- Verificação: `cargo test --test item_sync_wire destroy` 2 OK (`r5/m8f-wire.log`); PostgreSQL filtrado `minimum_destroy` 2 OK, 0 falhas (`r5/m8f-pg.log`; novo `minimum_destroy_item_takes_the_count_of_its_class`); `rustfmt` nos arquivos alterados. Imagem Docker na aplicação conjunta.
+- Cliente: `docs/client-tests/C4-miri.md` MI35 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: M8g (texto e ícone do XE Move).
+
+## 2026-11-01 — Miri M8g: XE Move com textos e ícone próprios
+- Feito: `class_imports.donor_xe_rows` troca `skill_delia_xe_move` pelo id da classe nas colunas de texto (`SkillName`, `SkillDescription`, descrições de *rank*) e usa `XE_ICON` = `skill_phantom` (ícone genérico de XE de 8 das 11 classes do 1.69; o da Delia, `skill_bastard`, é a arma dela; o NA não tem XE para a Miri). Os textos copiados da Delia (`donor_xe_tokens`, M7v) já são genéricos ("XE Move", golpe rápido perto do inimigo) e ficam.
+- Verificação: `test_class_imports` 10 OK (`r5/m8g-imports.log`); importação refeita (`r5/m8g-import.log`: `skill_miri_xe_move` com `skill_phantom` e tokens da Miri, nenhuma descrição de *rank* com `delia`). Aplicação conjunta no fim da sessão.
+- Cliente: `docs/client-tests/C4-miri.md` MI36 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: aplicar M8a–M8g (Docker, refresh, preparação, aplicador, DLLs).
+
+## 2026-11-01 — Miri M8a–M8g: aplicação no laboratório
+- Feito: com o jogo fechado: `COMPOSE_PARALLEL_LIMIT=1 docker compose build` e `up -d --wait` (`game` e `server` saudáveis, `migrate` exit 0); `refresh_item_content.py --force`; preparação (5.317 arquivos, `pc_miri_sp5_dragon_eye.efx` e as duas linhas dos olhos no `pc_miri_sp5_dragon.txt`); `apply_lab_content_additions.py --apply` (`heroes.db3` da cópia com `resound_stamina` e o XE da Miri em `skill_phantom`, um pacote refeito); DLLs do M7y guardadas como `client.dll.fb8f8ea72800dd3b.pre-m8.bak`/`server.dll.0aaf7aa3693645d2.pre-m8.bak`, `*.pre-routing.bak` restaurados e roteamento reaplicado (`client.dll` `7426256d7b1d6478`, `server.dll` `b36463e6da412e19`).
+- Verificação: `r5/docker-build.log`, `r5/docker-up.log`, `r5/m8-refresh.log` (exit 0), `r5/stage.log`, `r5/apply.log`, `r5/patch.log`; `test_patch_class_routing`, `test_stage_na_class` e `test_apply_lab_content_additions` juntos: 75 OK (`r5/client-tests.log`).
+- Cliente: `docs/client-tests/C4-miri.md` MI30–MI36 (pendentes; MI28/MI29 continuam valendo).
+- Commits: (este passo)
+- Pendente / próxima ação: corrigir o que o operador relatar nas MI30–MI36; decisões M8d (efeitos pelo estado) e M8e (rastros pretos).
+
+## 2026-11-01 — Miri M8e: rastros escuros do Dragon Knight (aproximação aprovada)
+- Feito: decisão do operador ("Aceitar aproximação"). `stage_na_class.with_knight_trails`: nas sequências só transformadas, as janelas `AE_WEAPON_ENABLE/DISABLE_TRAIL_POINT` dos rastros de fogo 0, 1 e 3 saem e viram `AE_CL_PLAY_WEAPON_EFFECT` a cada `KNIGHT_TRAIL_STEP` (3) quadros com dois efeitos de laboratório gerados na preparação (`knight_trail_effects`): lâmina (`ATTACK_POINT_START/END_00-02`, `miri_smash_night`/`miri_trail_dragon_01_night`) e corrente (`03-04`, `miri_trail_dragon_02`), materiais do subtipo 1033 do NA; o rastro 2 fica. Nenhuma mudança nas alças de rastro nem nas DLLs. Medição: 16 sequências transformadas, 8 com rastros (`pc_miri_motion_ex.txt`), 206 eventos novos por arquivo.
+- Verificação: `test_stage_na_class` 24 OK (`r5/m8e-stage.log`); preparação (5.319 arquivos, `r5/m8e-stage-run.log`) e `apply_lab_content_additions.py --apply` (um pacote refeito, `r5/m8e-apply.log`), com o jogo fechado.
+- Cliente: `docs/client-tests/C4-miri.md` MI37 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: MI30–MI37 no cliente; decisão M8d.
+
+## 2026-11-01 — Miri M8h: crash do Parrying Attack e rastros do M8e revertidos
+- Feito: MI37/MI29 no cliente: o fogo vermelho do M8e aparecia também no Fiery Chainswing sem transformar (`KNIGHT_SEQUENCE` pega `miri_strong_dragon_attack_*`) e o operador pediu a volta ao anterior; `stage_na_class.py` e `test_stage_na_class.py` voltaram ao estado de `6fd551a^` (sem rastros de Dragon Knight). O *parry* travou o cliente em `0x392204e4` (`.hrte`): `patch_class_routing._client_guard_damage` gravava `MIRI_ENDURE_EFFECT` com `Layout.string` no meio do corpo, logo depois de zerar o dano (bug do M7y); o caminho agora é alocado antes do corpo; teste novo confere que o código segue o `fstp` e que o caminho fica fora do corpo.
+- Verificação: `test_stage_na_class` 23 OK (`.cache/verification/miri/r6/m8h-stage-tests.log`); `test_patch_class_routing` 44 OK e 1 falha de janela de teste (corpo da Delia lido além do `ret`), corrigida e repassada (`r6/m8h-routing-tests.log`, `r6/m8h-guard-test.log`). Aplicado com o jogo fechado: preparação (5.317 arquivos), `apply_lab_content_additions.py --apply` (um pacote refeito), DLLs atuais guardadas como `*.pre-m8h.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8h-routing-apply.log`): client `7f318b0a89bfbb01`, server `b36463e6da412e19`; corpo da Miri conferido por desmontagem.
+- Cliente: `docs/client-tests/C4-miri.md` MI38 (pendente); MI37 cancelada.
+- Commits: (este passo)
+- Pendente / próxima ação: MI30–MI36 e MI38 no cliente; decisão M8d.
+
+## 2026-11-01 — Miri M8i: efeitos pelo estado (decisão M8d) e sonda do dragão do SP5
+- Feito: MI38 no cliente: *parry* e E nos drops funcionando; Fiery Chainswing vermelho também sem transformar (o M7r escolhia pelo nome da sequência, `KNIGHT_SEQUENCE` pega `battle_attack_strong_dragon_*`); dragão do SP5 ainda ausente. Decisão M8d do operador: azul sem transformar, vermelho transformada. `patch_class_routing.CUSTOM_EFFECT`: slot 200 (`FireEvent`, `0x386fb540`) da classe 11 troca `AE_CL_PLAY_CUSTOM_EFFECT` (0x59; no 1.69 só a Regina usa, `0x3874e700`) por `AE_CL_PLAY_EFFECT` (0x55) com o primeiro caminho ou, com o bit 0 do `m_gaugeType` (+0x4b38), o segundo, copiado num *buffer* limitado; `stage_na_class.with_plain_effects` removido (os 37 eventos do NA ficam). Dragão: servidor cria qualquer modelo pelo 0xcc (`0x400fb91a`, `attackable_dynamic_prop`, pré-carga liberada), arquivos do modelo iguais aos do NA e somas coerentes, material `Heroes_armor`; sonda temporária `with_summon_probe` (espinho da Delia no mesmo quadro) para separar evento × modelo.
+- Verificação: `test_stage_na_class` 22 OK (`.cache/verification/miri/r6/m8i-stage-tests.log`); `test_patch_class_routing` 46 OK, completo (`r6/m8i-routing-full.log`); desmontagem do corpo revisada (`r6/m8i-body.txt`). Aplicado com o jogo fechado: preparação, `apply_lab_content_additions.py --apply` (um pacote), DLLs atuais em `*.pre-m8i.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8i-routing-apply.log`): client `034d9ebec8a6f557`, server `b36463e6da412e19`.
+- Cliente: `docs/client-tests/C4-miri.md` MI39 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI39 (cores; espinho × dragão) e retirar a sonda.
+
+## 2026-11-01 — Miri M8j: asas do Dragon Knight, dragão seguindo a Miri e HUD na tela inicial
+- Feito: MI39 no cliente: o dragão do SP5 aparece mas não acompanha a Miri voando; faltam as asas negras do Dragon Knight; HUD do Flamebreath na tela inicial depois de Home Screen (opção do 1.69 que volta ao título; Change Character volta à seleção). `stage_na_class.with_csf_rear`: o `.csf` do Dragon Knight recebe o `rear` (500139, `models/rear/dragonknight/miri_dragonknight_wing.mdl`) do `csf/miri_dragon_knight_startmenu.csf` do NA. `patch_class_routing.SUMMON_PARENT`: a chamada `0x4001c200` em `0x400f984e` (criação de modelo do servidor, `0x400f96e0`) passa por um *thunk* que, para a classe 11, chama `SetParent(jogador, -1, -1)` (vtable +0x94; `InputSetParent` `0x4010cdc0` → `0x40102070`). `FLAMEBREATH_LEAVE`: slot 0 (destrutor `0x38705cc0`) do `C_HeroesPlayer` da Miri chama o novo `hide` do Flamebreath (esconde o `MiriSkillDialog`, zera `shown`; UI nula ignorada). Sonda do M8i retirada.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r6/m8j-stage-tests.log`); `test_patch_class_routing` 48 OK, completo (`r6/m8j-routing-full.log`). Aplicado com o jogo fechado: preparação, `apply_lab_content_additions.py --apply` (um pacote), DLLs atuais em `*.pre-m8j.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8j-routing-apply.log`): client `c8eb22d1ad60f944`, server `fe944a02c7eb9627`.
+- Cliente: `docs/client-tests/C4-miri.md` MI40 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI40 (asas, dragão seguindo a Miri, HUD nas duas saídas).
+
+## 2026-11-01 — Miri M8k: asas no esqueleto inteiro (câmera da transformação) mantendo cabelo e busto
+- Feito: MI40 no cliente: ao transformar no barco a câmera foi para baixo dele. Os modelos de corpo têm os ossos de câmera `ValveBiped.Anim_Attachment_CAM`/`_CAM_Origin` (usados por `AE_ENABLE_CAMERA_ORIGIN/TARGET_BONE` do `miri_SP4`); a peça de costas do M8j (`models/rear/dragonknight/miri_dragonknight_wing.mdl`, 29 ossos desde `Spine2`) não. O NA tem as asas sozinhas no esqueleto inteiro (`models/player/miri/dragonknight/miri_dragonknight_wing.mdl`, uma malha, 2546 vértices; corpo 12632). Primeiro tentei esse modelo no lugar do corpo; o operador pediu para manter os ossos de balanço de cabelo e busto, e a medição mostrou que ele é só as asas. Final: `stage_na_class.with_knight_wings` troca o modelo da entrada `rear` 500139 por esse na cópia de *merge* do `player_costume.txt`; o `.csf` mantém `rear` 500139 (`with_csf_rear`); o corpo `upper_body` 500152 fica como está.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r6/m8k-stage-tests.log`). Aplicado com o jogo fechado: preparação e `apply_lab_content_additions.py --apply` (dois pacotes, `r6/m8k-apply.log`); conferido na cópia de *merge* (corpo 1, asas do esqueleto 1, asas de costas 0) e no `.csf` (`rear` 500139). DLLs sem mudança.
+- Cliente: `docs/client-tests/C4-miri.md` MI41 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI41 (câmera, asas, cabelo e busto, e o resto da MI40).
+
+## 2026-11-02 — Miri M8l: textura e chamas negras das asas; dragão e HUD aguardam o operador
+- Feito: MI41 no cliente: câmera e cabelo/busto ok; membranas com o padrão do corpo vistas de trás; sem chamas negras; efeito do SP5 parado no chão na vertical; HUD do Flamebreath ainda na tela inicial (Home Screen no barco). Asas: os UVs do modelo do esqueleto inteiro caem no *layout* de `miri_dragonknight_wing.vtf` (sobreposição dos UVs do `.vvd` às texturas), mas ele cita só o material do corpo; `stage_na_class.with_material_dir` troca no lugar o `cdmaterials` (`...\dragonknight\` → `...\dragonwings1\`, mesmo tamanho) e `knight_wing_vmt` grava `materials/models/player/miri/dragonwings1/miri_dragonknight.vmt` (material de asa do NA, `$nocull 1`). Chamas: `with_wing_flames` toca `sp4_during_02_wing`, `_smoke`, `_spark`, `_spark_start` (ossos das asas, cores pretas) no quadro 240 do `miri_SP4`. Dragão: o NA (`0xaa5a40`) põe o dragão na origem do jogador a cada quadro, como o pai do M8j. HUD: `KaySkillDialog` só está em `PreloadList` (código o esconde); o *getter* da UI (`0x385F7EF0`) é um singleton não nulo.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r6/m8l-stage-tests.log`). Aplicado com o jogo fechado: preparação e `apply_lab_content_additions.py --apply` (um pacote, `r6/m8l-apply.log`); conferidos o `cdmaterials` novo no modelo, o `$nocull 1` e as chamas nos dois `.txt` de movimento. DLLs sem mudança (client `c8eb22d1ad60f944`).
+- Cliente: `docs/client-tests/C4-miri.md` MI42 (pendente), com a pergunta do SP5 e a leitura de `shown` (`0x39220e90`).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI42 (asas, chamas, o que fica no chão no SP5, saída do `lab_memory.py`).
+
+## 2026-11-02 — Miri M8m: HUD do Flamebreath fora do jogo (seleção de personagens)
+- Feito: MI42 no cliente: asas ok; dragão do SP5 aparece no chão e não sobe com a Miri (anda de lado com ela); HUD na seleção. Memória com o jogo aberto, sem administrador (`.cache/verification/miri/r6/m8m-hud-sampler.log`): o destrutor da Miri escondeu o HUD ao sair do barco (`shown` -1); a seleção criou outro jogador de classe 11, cujo *tick* (fora da cidade) mostrou o HUD de novo. Gerenciador de estados (`[0x38cc2aa4]`, estado em `+8`, vtable `0x4273f90c` no `engine.dll`): seleção = 5; predicado `+0x40` = 1, 2, 3, 4, 5, 7 (fora do jogo). `patch_class_routing`: `out_of_game` (predicado `FLAMEBREATH_OUT_OF_GAME_PREDICATE`) no *tick* do HUD, visível só fora da cidade e dentro do jogo; teste novo confere os estados no `engine.dll`. Dragão (investigação): no NA o dragão é posto na origem e ângulos do jogador, toca `dragon_attack` (639 quadros, sem movimento de raiz, como `miri_SP5_attack`) e a cada quadro copia o ciclo do jogador (`0xaa5a40`/`0xaa5b00`); no 1.69 `CAttackableDynamicProp` (de `CDynamicProp`) recebe `PropSetSequence` (`0x40275c80`, arma `AnimThink`); falta evidência de execução.
+- Verificação: `test_patch_class_routing` 48 OK, completo (`r6/m8m-routing-full.log`). Aplicado com o jogo fechado: DLLs atuais em `*.pre-m8m.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8m-routing-apply.log`): client `c0b5d4164cc122a3`, server `fe944a02c7eb9627` (sem mudança).
+- Cliente: `docs/client-tests/C4-miri.md` MI43 (pendente), com a sonda de memória do SP5.
+- Commits: (este passo)
+- Pendente / próxima ação: MI43 (HUD na seleção e na tela inicial) e a sonda do dragão no SP5.
+
+## 2026-11-02 — Miri M8n: dragão do SP5 seguindo o osso da Miri; Tab e arquivo de teclas
+- Feito: MI43 no cliente: HUD some na seleção (ok); dragão do SP5 invocado no chão, anda de lado com a Miri mas não sobe; Tab (Fiery Evasion) parou. Sonda de memória do servidor durante o SP5 (`.cache/verification/miri/r6/m8m-dragon-probe.log`): o dragão anima em sincronia com a Miri e as duas origens ficam em z 2,3 (ela sobe só nos ossos). NA: `0xaa4ea0` procura o osso `ValveBiped.Anim_Attachment_GRAPPLING` ao entrar no `miri_SP4`; `0xaa5b00` põe o dragão, a cada quadro, na posição desse osso, com os ângulos e o ciclo da Miri. `patch_class_routing.SUMMON_FOLLOW`: *tick* novo no *think* do servidor da classe 11 (`LookupBone` `0x400d3ca0`, `GetBonePosition` `0x400d3cc0`, como o *grappling* do 1.69 em `0x40825200`; `SetAbsOrigin` `0x4010ceb0` em cada modelo da lista `+0xbe4`). Teste da janela do `think` da Delia ajustado (a *string* do osso segue o corpo sem preenchimento). Tab: `SpeedyMove_dragon` (`+IN_SWITCH`, `skill_miri_dragon_protect.1`, `As_Cond_Miri_Can_DragonSmash`) e suas 95 aberturas iguais às do NA; MiriLab com a habilidade em rank 1; `config_miri_ex.cfg` (teclas por classe, ofuscado) com 2760 bytes contra 2883 das outras classes: trocado pelo da Delia na cópia do cliente (o antigo em `config_miri_ex.cfg.pre-m8n.bak`), hipótese a confirmar.
+- Verificação: `test_patch_class_routing` 49 testes: 48 OK e 1 falha de janela de teste, corrigida e repassada (`r6/m8n-routing-full.log`, `r6/m8n-armor-test.log`). Aplicado com o jogo fechado: DLLs atuais em `*.pre-m8n.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8n-routing-apply.log`): client `c0b5d4164cc122a3` (sem mudança), server `5f0429365ee0ccd1`.
+- Cliente: `docs/client-tests/C4-miri.md` MI44 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI44 (dragão subindo com a Miri, Tab, teclas da Miri).
+
+## 2026-10-31 — B2 RL1 / C4 MI5: trava intermitente ao criar o barco (relay)
+- Feito: causa achada no cliente, não no relay. O `GetQueuedCompletionStatus` do ProudNet do `engine.dll` (`0x425fd2e0`) testa o ponteiro do OVERLAPPED com sinal (`cmp eax, ebx; jge` em `0x425fd3a2`); com o `Vindictus.exe` LAA (características `0x122`) e os 2 GB baixos esgotados (`mi4r2-memory-monitor.txt`: 69–173 MB livres abaixo de 2 GB, maior bloco 4,6–15 MB; `mi5-vmmap-hung.txt`: 1,4 GB livres só acima de 2 GB), o `CTcpLayer_C` novo cai acima de `0x80000000` e o recv do *hint* vira "evento customizado". Tempos conferidos no Ghidra: timeout de handshake 10,0 s (`0x42880ec0`/`0x426fe1f8`), espera de conexão 60 s (`0x42341570`), `NetClient::Disconnect` `max(100 s, 2×timeout)` (`0x425df460`) esperando o recv pendente. Explica as entradas boas logo após a seleção ou ao abrir o jogo (memória baixa livre) e por que começou com o conteúdo da Miri (~2 GB privados). Nova ferramenta `scripts/client/patch_engine_iocp_sign.py` (`jge` → `jmp`, 1 byte; caminhos sem correspondência continuam tipo 0 sem desreferenciar a chave) e `test_patch_engine_iocp_sign.py`; seção em `docs/battle-transport.md`; roteiro RL1 em `docs/client-tests/B2-fases.md`.
+- Verificação: `python -m unittest test_patch_engine_iocp_sign` 4 OK (`.cache/verification/relay/iocp-sign-tests.log`); dry-run na cópia do laboratório `51ea90e7…` → `df6c70d2…` (`iocp-sign-dry.log`); linha do tempo do relay de 30–31/10 (`.cache/verification/relay/timeline.txt`): 10 travas, todas fechadas pelo cliente 10,0 s depois do *accept*. Patch não aplicado: o jogo estava aberto (DLL em uso).
+- Cliente: RL1 (B2) — barco ao menos 8 vezes seguidas sem voltar à seleção.
+- Commits: (este commit)
+- Pendente / próxima ação: com o jogo fechado, aplicar `patch_engine_iocp_sign.py --apply` e rodar a RL1.
+
+## 2026-10-31 — B2 RL1: patch do engine.dll aplicado
+- Feito: com o jogo fechado, `patch_engine_iocp_sign.py --apply` na cópia do laboratório: `engine.dll` `51ea90e7…` → `df6c70d2…`, backup `engine.dll.51ea90e70b93ad04.pre-iocpsign.bak`.
+- Verificação: `iocp-sign-apply.log` (exit 0); `test_patch_engine_iocp_sign` 4 OK depois do patch (`iocp-sign-tests-after.log`).
+- Cliente: RL1 (B2) pendente.
+- Commits: 1c94c22 (correção), este commit (aplicação).
+- Pendente / próxima ação: rodar a RL1 do B2 (barco sem trava; `engine.dll` do laboratório já com o patch).
+
+## 2026-11-02 — Incidente: cópia do cliente de laboratório apagada e recuperada
+- Feito: ao juntar as *worktrees* (pedido do operador), `git worktree remove .claude/worktrees/wizardly-lumiere-d11d88` seguiu a *junction* `.cache/play-client` dessa *worktree* e esvaziou a cópia real (02:26; Git for Windows 2.36; sem Lixeira; D: sem *shadow copy*). D: é HDD (sem TRIM): recuperação lendo o NTFS cru, só leitura, pelo disco físico (`\.\PhysicalDrive0`, deslocamento 1 048 576; o *handle* do volume D: recusa leitura com o erro 50). Varredura da MFT (1 515 671 registros; pasta `play-client` = registro 1 282 543; pai conferido pela sequência; por caminho o registro de maior LSN): 140 742 arquivos, 32,9 GiB, 316 com *clusters* reusados. Extraídos para `E:\VindictusRecovery`; reparados: 303 de `hfs_extracted` e 7 pacotes `hfs` sem cópia do laboratório, copiados do `Client` original (amostra de 400 arquivos e 58/60 pacotes intactos iguais ao `Client`); 2 `.bak` antigos de DLL descartados; os 2 pacotes de classe da Miri (`DC7799C0…`, `6952D07C…`) tirados do `class-packs.json` e reconstruídos pelo aplicador. Devolvidos por `robocopy` (140 738 arquivos, 0 falhas). Três cópias do banco voltaram vazias (os registros foram reusados na devolução): reconstruídas refazendo a cadeia em cópia no E: a partir do `before-endpoint.bak` (conteúdo igual ao `heroes.db3` do `Client`): `prepare_lab_client`, `apply_original_content`, `align_story_goals`; as 22 tabelas restantes que diferem do banco atual são só as do aplicador. Regra nova na memória: remover *junctions* antes de remover *worktree* ou pasta.
+- Verificação: `apply_lab_content_additions.py --apply` (`.cache/verification/miri/r7/recovery-apply.log`: 2 pacotes de classe construídos, 108 no total, 0 obsoletos); `heroes.db3` depois do aplicador igual ao recuperado (0 tabelas diferentes); DLLs iguais às do fim do M8n (client `c0b5d4164cc122a3`, server `5f0429365ee0ccd1`, engine `df6c70d2d66f52ed`); teclas da Miri = Delia (cópia antiga `config_miri_ex.cfg.pre-m8n.bak`); 140 740 arquivos na cópia.
+- Cliente: MI44 e RL1 pendentes (cópia restaurada ao estado de 02/11 02:26).
+- Commits: (este passo)
+- Pendente / próxima ação: MI44 (dragão do SP5, Tab) e RL1 do B2 no cliente.
+
+## 2026-11-02 — Miri: documentação consolidada, skill new-class-port 2.0.0 e versionamento dos DLLs
+- Feito: `docs/client-dll-patches.md` (novo: DLLs fora do Git, gerados só pelos cinco scripts `patch_*` a partir dos originais do 1.69; cadeias, guardas de entrada, backups, reconstrução, reaplicação, regras para patch novo); `docs/future/miri-class-port.md` reorganizado (estado de 02/11, consolidado com ciclo de preparação, tabela de conversões, mecânicas, armadilhas, DLLs/ferramentas e pendências; notas M5–M8n em ordem cronológica; receita para a próxima classe); skill `new-class-port` 2.0.0 (`SKILL.md`, `procedimento.md` 0–7 e 9 com o caminho da Miri, `armadilhas.md` seção 10, `fontes-e-ferramentas.md` com o pipeline de conteúdo do NA, `registro-e-aceite.md`); `docs/skills.md`.
+- Verificação: reconstrução dos três DLLs a partir dos originais (`client.dll.b284ba71…bak`, `server.dll.d7727e18…pre-hcls.bak`, `engine.dll.a3add974…pre-classflags.bak`) numa pasta descartável com o HEAD `79c425d`: shop list → hcls → routing e class flags → iocp, os cinco com saída 0; SHA-256 iguais aos da cópia (client `c0b5d416`, server `5f042936`, engine `df6c70d2`). `Vindictus.exe` e os outros 34 DLLs iguais ao original. Logs em `.cache/verification/dll-repro/`. Identificadores citados nos documentos conferidos por grep.
+- Cliente: o operador relatou em 02/11/2026 que o combate da Miri está todo certo (depois da MI44). Documentação: cliente não necessário.
+- Commits: (este)
+- Pendente / próxima ação: criação pela grade na sessão própria (passos MG<n>, `docs/future/miri-creation-grid.md`); levar a troca do `config_miri_ex.cfg` (M8n) para o preparador ou o aplicador; `MIGRATION.md` não alterado neste passo porque a sessão da grade é dona dele agora.
+
+## 2026-11-02 — MG1 / criação da Miri pela grade de classes
+- Feito: filme da grade do 1.69 estendido em vez do filme do NA (o do NA exige 11 chamadas C++ e 5 tratadores ausentes no `client.dll`; o do 1.69 tem as 11 classes fixas no AS2 e uma casa livre na grade em 144,140). `scripts/client/gfx_patch.py`: `button_icon`, `class_icon_dds`, `with_class_button` (botão `MC_Button_Miri` copiado do da Delia com atlas próprio `NewCharacterDialog_V2_IMiri.dds`, recorte 70×136 do `MC_Button_Miri` do NA em `NewCharacterDialog_V2_IA.dds` (895,207)–(965,343); painel `MC_Video.MC_Miri` na profundidade 154), `with_root_actions` e `grid_class_actions` com um montador AVM1 (`As2`): `characterTypeArray[11]`, `LocalizedText` do nome/comentário/`DRAKER`, fiação do botão (`OnChoose`, `charactorType 11`, *handlers* de *rollover* da Delia), painel (`addCharacterInfo`, comentário, 5 vídeos de habilidade do `new_character_info.txt` do NA) e *wrappers* de `showRolloverPanel`/`showCharacterSummary`. `scripts/client/bsp_entities.py`: ator `npc_miri` (cópia do `npc_delia` com `createcharacter_miri.csf`; `variation npc_delia`, porque nenhum cliente tem `npc_miri` em `npc_variations.txt` e o `npc_vella` do NA traz modelo próprio), *lump* de entidades regravado no fim do arquivo. `stage_na_class.py`: `GRID_ICON_ATLAS` e `GRID_INTRO` (`_eneu_newcharacter_miri.usm` = `_usa_` do NA). `apply_lab_content_additions.py`: `GRID_CLASSES`, correções `scaleform/newcharacterdialog_v2.gfx` e `maps/lobby_beautyshop_change/lobby_beautyshop_change.bsp`. Pose `ACT_CHARACTER_CREATION_SELECTED_S3` já no `pc_miri_town_motion.mdl` do M1; roupas de amostra e chave de nascimento já genéricas (M5). Documento `docs/future/miri-creation-grid.md`.
+- Verificação: `scripts/client` `test_gfx_patch test_bsp_entities test_stage_na_class test_apply_lab_content_additions` 44 OK (`.cache/verification/miri-grid/mg1-tests-2.log`); preparação 5.320 arquivos (`mg1-stage.log`); aplicação com o jogo fechado, 2 pacotes de classe, correções `NewCharacterDialog_V2.gfx` e `lobby_beautyshop_change.bsp` (`mg1-apply.log`); leitura de volta dos pacotes (`mg1-readback.log`: filme `e60e9704100c9be7…` com o botão e o AS2, mapa `5d4873d8f14aa26f…` com o `npc_miri`; ícone, vídeo `_eneu_` e vídeos de habilidade no índice); servidor `LAB_SKIN=16775155 LAB_EYE=14210736 cargo test --test private_class_content -- --ignored` 1 OK, classes 0–11 (`mg1-private-class-content.log`). DLLs sem mudança.
+- Cliente: entrada MG1 de `docs/client-tests/C4-miri.md`, pendente.
+- Commits: commit MG1 (este passo).
+- Pendente / próxima ação: sessão MG1 do operador (grade → customização → Create → estalagem → cidade → seleção).
+
+## 2026-11-02 — Miri: teclas por classe (config_<classe>_ex.cfg) investigadas
+- Feito: os arquivos `cfg/config_<classe>_ex.cfg` são gravados pelo próprio jogo (ofuscados; chave por posição obtida do `config_ex.cfg` original × o da cópia, que está em texto; a decifragem tem erros de um caractere em alguns valores). Não vieram do NA: o `stage_na_class.py` não toca `cfg/`, o manifesto não tem `cfg`, e o NA não tem arquivos por classe; o preset "mouse" do NA (`612cf4b6`) difere do EU (`26cb6074`), e o arquivo da Delia não bate com nenhum dos dois. O `server.dll` local (`0x40608f3f`) executa `exec_extreme_sync config_default_ex.cfg` e depois `config_<classe>_ex.cfg`, com o nome pela tabela de classes `0x40755b40` (já estendida pela `.hcls`): sem limite de 10 classes nesse caminho. Delia e a Miri anterior (2.760 bytes) não tinham TAB `+switch`, ENTER `messagemode`, `\` `cc_cashshop_ui`, q `+function`, t `cc_start_menu_ui`; origem anterior à recuperação de 02/11, não rastreável. Miri hoje igual às classes antigas. `config_delia_ex.cfg` guardado como `config_delia_ex.cfg.pre-keys.bak` (jogo fechado) para o jogo gerar um novo pelos padrões EU. Documento da Miri 3.3/3.4/3.6/6, skill (`armadilhas.md` 10, `procedimento.md` 1), roteiro MI45.
+- Verificação: decifragem e comparação em `.cache/verification/cfg-keys/` (arquivos `.txt` decifrados, referências do `server.dll` em `xref-server.txt`).
+- Cliente: MI45 (teclas da Delia geradas de novo) no `docs/client-tests/C4-miri.md`.
+- Commits: (este)
+- Pendente / próxima ação: MG1 e MI45 no cliente; depois de MI45, decifrar o `config_delia_ex.cfg` novo e comparar com o das classes antigas.
+
+## 2026-11-02 — MG2 / correções da primeira sessão da grade da Miri
+- Feito: relato MG1 (criação até a cidade e itens certos). `gfx_patch`: o AS2 da grade esconde o `Text_CharacterPreviewUsm` da Miri; `class_alias_actions` (montador com `StoreRegister`/`Return`) embrulha no `CreateCharacterDialog.gfx` solto as quatro funções das faixas de Height/Bust para a 11 rodar como 10 (altura natural 92 no servidor, escala do cliente 0,865–0,945; antes caía em 97–103 e ficava no teto), via `apply_lab_content_additions.LOOSE_FIXES` (*backup* `.ac5543b072761a3f.pre-classes.bak`). `class_imports.customize_rows`: sem preços negativos importados (marcas de evento do NA com `Feature 'Miri'`; o EU do 1.69 não tem nenhum) e grátis numerados 1..n antes dos pagos; `class_text`: chaves das colunas `*LocalizedText` importadas, nome de estado sem nível (`HEROES_STATUS_NAME_RESOUND`) e rótulos do `.bsh`. `stage_na_class`: prefixos de cabelo do figurino (`costume_prefix_models`, variantes 01–10 do NA; 32 cabelos quebrados, 23 sem entrada, 5 sem modelo, 4 parciais), `.fig` citados pelo `.bsh` (Waist 2/Shoulders 2) e `.mdl` citados por scripts da classe (`cheer_pom.mdl`); aplicador aceita prefixos como agulhas. Malha da armadura: esqueletos, pose de repouso, *jiggle*, *checksums* e *shader* conferidos sem causa (`docs/future/miri-creation-grid.md` 8). Luz de fogueira: subagente só leitura, entidade `light` do mapa apagada por I/O do `server.dll` local, muitos fogos sem luz ligada no conteúdo original; sem mudança.
+- Verificação: `scripts/client` 47 OK (`.cache/verification/miri-grid/mg2-tests-2.log`), `scripts/content` 34 OK (`mg2-content-tests.log`); preparação 6.524 arquivos (`mg2-stage.log`); aplicação com o jogo fechado, 41 pacotes de classe construídos, mesclagem 22 arquivos/1.013 blocos, conflito só o antigo `common_state_etc.txt` (`mg2-apply.log`); cópia conferida (cabelos da Miri todos com entrada e modelos, grátis com `Order` 1–6, 0 preços negativos, filme da grade e `CreateCharacterDialog.gfx` com o AS2 novo); `refresh_item_content.py --force` exit 0, `game` saudável (`mg2-refresh.log`).
+- Cliente: entrada MG2 de `docs/client-tests/C4-miri.md`, pendente.
+- Commits: commit MG2 (este passo).
+- Pendente / próxima ação: sessão MG2 do operador; com o resultado do diagnóstico armadura × pele, decidir a correção.
+
+## 2026-11-02 — MG3 / resultado da MG2, figurinos do 1.69 sem modelo
+- Feito: relato MG2 (pele atravessa só as armaduras dos botões 2 e 3, importadas do NA). Medido e descartado: conversão v45→v44 (armaduras e *inner* 9000 não convertidos; o 9028 convertido está certo), ossos/pose de repouso, *jiggle*, *flexes*, malha e *checksums*, materiais e alfa das texturas; medição em repouso por vértice (`.vvd`) não discrimina (nativas dão taxas parecidas). Sonda A/B de *inners* nos `.csf` desfeita sem aplicar (o aplicador usa o SHA do manifesto). Figurino com estrela de erro: `avatar_female_chinaplate` (1.69, máscara 3494) sem modelos no cliente 1.69; `stage_na_class.inherited_costumes` traz do NA os modelos que faltam das entradas do 1.69 de itens não arma que cobrem todas as femininas (29 modelos).
+- Verificação: `scripts/client` `test_stage_na_class test_apply_lab_content_additions test_gfx_patch` 46 OK (`.cache/verification/miri-grid/mg3-tests.log`); preparação 6.760 arquivos (`mg3-stage.log`); aplicação com o jogo fechado, 8 pacotes de classe construídos (`mg3-apply.log`), modelos `_chn/chinaplate` no manifesto.
+- Cliente: entrada MG3 de `docs/client-tests/C4-miri.md`, pendente.
+- Commits: commit MG3 (este passo).
+- Pendente / próxima ação: análise da armadura × pele no Blender (MCP do operador); sessão MG3.
+
+## 2026-11-02 — MG4 / armaduras do NA atravessadas pela pele (Blender)
+- Feito: análise no Blender 5.1 do operador (MCP oficial na porta 9876, JSON terminado em `\0` com `type: "execute"`; *add-on* `vindictus` com kits de `model_kit.py` tirados dos pacotes da cópia). Renders em repouso: a pele da Miri e a da Fiona do 1.69 atravessam a `pytonshock` e as mangas da `dragon_rises`; a summercasual do 1.69 cobre. Causa: geometria das peças do NA. `stage_na_class.inflated_armor`: vértices dos `.vvd` das peças de corpo do NA em `models/armor/` deslocados 0,3 ao longo da normal (no render, 0,3 cobriu a pele nas duas armaduras).
+- Verificação: `test_stage_na_class test_apply_lab_content_additions` 38 OK (`.cache/verification/miri-grid/mg4-tests.log`); preparação e aplicação com o jogo fechado, 15 pacotes de classe construídos (`mg4-stage.log`, `mg4-apply.log`), 108 dos 128 `.vvd` de armadura do NA alterados (inclusive `pytonshock_upper` e `dragon_rises_upper`).
+- Cliente: entrada MG4 de `docs/client-tests/C4-miri.md`, pendente.
+- Commits: commit MG4 (este passo).
+- Pendente / próxima ação: recurso de correção de malha no *add-on* do Blender (pedido do operador); sessões MG3/MG4.
+
+## 2026-11-02 — MG5 / correção de malha no add-on do Blender
+- Feito: pedido do operador. *Add-on* `tools/blender/vindictus` 0.2.0: `mesh_fix` (média das normais de canto, deslocamento; sem `bpy`), `blender_io.push_out` (move os vértices ao longo das normais do jogo e regrava as normais personalizadas), operador `vindictus.push_out` "Push Mesh Out (fix clipping)" (padrão 0,3 = `stage_na_class.ARMOR_INFLATE`; menu Object e aba Vindictus da barra lateral), seleção pela *view layer*, exportação sugere o caminho do modelo original. README e `docs/future/miri-creation-grid.md` 10.1/10.2 (método da análise e ajuste).
+- Verificação: testes do *add-on* com o Python do Blender, 10 OK (`.cache/verification/miri-grid/mg5-addon-tests.log`); pacote `vindictus-0.2.0.zip` gerado pelo Blender (`mg5-addon-build.log`) e instalado no Blender 5.1 do operador pelo MCP (ligado, operador e painel registrados); ponta a ponta no Blender: `pytonshock` superior e inferior empurradas 0,30, exportadas (11 arquivos cada, em `.cache/mg5`), reimportadas e renderizadas com a pele da Miri sem manchas.
+- Cliente: não necessário (ferramenta); MG3/MG4 pendentes.
+- Commits: commit MG5 (este passo).
+- Pendente / próxima ação: sessões MG3/MG4; troca do modelo de um item existente pelo painel não existe (itens base não ganham modelo novo).
+
+## 2026-11-02 — Miri MG6: modelo substituto de item existente pelo editor de itens
+- Feito: o `item_override` de um item base aceita `model` ({assets, model}) com um kit do add-on do Blender exportado com o caminho do modelo original (`application::item_editor::model_replacement`: modelo do `kit.json` = modelo do item no script da cópia, `kit_outro_modelo`; arquivos de kits de outros itens recusados, `kit_de_outro_item`; `restore_model` tira o kit; `model_replacement` na ficha; `content_edits::override_is_empty` mantém sobreposição só com modelo). No cliente, `apply_lab_content_additions.replacement_files`/`split_replacements` decidem pelo índice original: arquivo de classe importada trocado no plano das classes, arquivo do 1.69 reescrito no próprio pacote (caminho dos `ORIGINAL_FIXES`, backup em `lab-backup/`), arquivo novo (materiais do add-on) em pacote novo; sem o `model`, tudo volta. `content_additions.panel_edits` valida o `model`. Painel: campo "Modelo substituto" e "Voltar ao modelo original" no formulário de item base. Docs `item-editor.md` 3.4, roteiro `B4-painel.md` I3.
+- Verificação: `cargo test --lib` filtrado (`application::item_editor`, `content_edits`, `item_kits`: 5, 0 falhas); PostgreSQL filtrado `content_edits` (2, 0 falhas; contêiner tmpfs `vindictus-map-verification-postgres-1` recriado na porta 57432 por `.cache/compose.mg6-tests.yaml`, a 56432 caiu em faixa reservada do Windows; parado depois); `cargo test --test admin_http` (4, OpenAPI regenerado confere); Python `test_apply_lab_hfs test_apply_lab_content_additions` (17) e `test_content_additions test_content_edits` (19); `tsc` e `npm run build`. Dry-run do aplicador na cópia real com dois kits temporários (pytonshock superior do NA e kingdom pé do 1.69, mais um material novo): 18 arquivos, 1 novo, 2 pacotes do 1.69 reescritos, 0 pacotes de classe refeitos (bytes iguais), sem erro; nada gravado, kits apagados. Logs `.cache/verification/miri-mg6-*`.
+- Cliente: roteiro `docs/client-tests/B4-painel.md`, entrada I3 (precisa de rebuild do Docker).
+- Commits: (este)
+- Pendente / próxima ação: I3 no cliente depois do rebuild do Docker; peça quebrada (`_broken`) não é trocada pelo kit.
+
+## 2026-11-02 — Miri MI45, aceite MG1–MG4 e documentação final (skill new-class-port 2.1.0)
+- Feito: resultado do cliente registrado (C4: MG1–MG4, MI44, MI45 ok, "a Miri e a Delia funcionando perfeitamente"); `miri-class-port.md` com conversões e armadilhas da grade (3.2, 3.4), seção 3.7 (pele atravessando os conjuntos próprios: render no Blender, `inflated_armor` 0,3 no preparador, *Push Mesh Out* do *add-on*, kit substituto MG6) e receita 14–15; skill `new-class-port` 2.1.0 (SKILL, armadilhas 10, procedimento 1 e 8, checklist com malha e teclas); README com a Miri; MIGRATION.md enxugado.
+- Verificação: `config_delia_ex.cfg` regravado pelo jogo (2.883 bytes) idêntico byte a byte (`cmp`) aos da Fiona e da Miri, SHA-256 `9625543c…`; só documentação, sem testes de código.
+- Cliente: operador, 02/11 — MG1–MG4 e MI45 ok.
+- Commits: (este) e o merge de `feat/miri-class` no `main`.
+- Pendente / próxima ação: B4 I3 (modelo substituto pelo painel) no cliente; MI1–MI3 e MI30–MI36 sem relato isolado; seguir o B5.

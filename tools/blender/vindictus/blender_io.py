@@ -8,6 +8,7 @@ import numpy as np
 from mathutils import Matrix
 
 from .formats import kit as kit_format, vtf as vtf_format
+from . import mesh_fix
 
 PROP_KIT, PROP_MODEL, PROP_INDEX, PROP_SCALE = 'vindictus_kit', 'vindictus_model', 'vindictus_model_index', 'vindictus_scale'
 PROP_MESH, PROP_VTF, PROP_HASH = 'vindictus_mesh', 'vindictus_vtf', 'vindictus_pixels'
@@ -231,6 +232,25 @@ def changed_textures(objects) -> dict[str, bytes]:
                 rgba = np.clip(np.rint(data.reshape(h, w, 4)[::-1] * 255), 0, 255).astype(np.uint8)
                 textures[image[PROP_VTF]] = vtf_format.write(rgba)
     return textures
+
+
+def push_out(obj, offset: float = mesh_fix.PUSH_OUT) -> int:
+    """Move every vertex of a kit mesh `offset` game units along its game normal (the custom normals the import
+    set, which the export writes back), keeping those normals; the vertex count."""
+    data = obj.data
+    scale = float(obj.get(PROP_SCALE, 1.0))
+    loops = len(data.loops)
+    corner = np.empty(loops * 3, np.float32)
+    data.corner_normals.foreach_get('vector', corner)
+    loop_vertex = np.empty(loops, np.int32)
+    data.loops.foreach_get('vertex_index', loop_vertex)
+    normals = mesh_fix.vertex_normals(len(data.vertices), loop_vertex, corner)
+    co = np.empty(len(data.vertices) * 3, np.float32)
+    data.vertices.foreach_get('co', co)
+    data.vertices.foreach_set('co', mesh_fix.pushed_out(co, normals, offset * scale).astype(np.float32).ravel())
+    data.normals_split_custom_set_from_vertices(normals.tolist())
+    data.update()
+    return len(data.vertices)
 
 
 def export_kit(objects, out: str, model_path: str) -> list[str]:

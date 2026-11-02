@@ -54,7 +54,11 @@ Limites conhecidos: <aproximações declaradas>.
 - Quando a próxima mudança depende do resultado (regra 2), pare depois de escrever a entrada.
 
 ## Documento da classe `docs/future/<classe>-class-port.md`
-Mesma estrutura do `delia-class-port.md`; não copie o da Delia, cite-o quando o mecanismo for o mesmo.
+Estrutura do `miri-class-port.md` para uma classe que vem do NA (seções 1–6: decisões e estado, medição e entrega,
+consolidado, registro por passo, o que veio do NA, receita) ou do `delia-class-port.md` (lista abaixo). Não copie os
+outros documentos; cite-os quando o mecanismo for o mesmo. O consolidado tem: ciclo de preparação e aplicação, tabela de
+conversões (conversão → função), tabela de mecânicas (mecânica → grupo ou módulo → estado no cliente), tabela de armadilhas
+(sintoma → causa), DLLs e ferramentas, pendências e aproximações.
 1. Visão geral e estado (o que funciona no cliente, o que não foi confirmado, o que ficou aproximado).
 2. Arquivos de conteúdo (origem de cada arquivo, tabela "arquivo → quem lê → patch que o liga", mudanças
    na cópia de laboratório com antes/depois e *backup*).

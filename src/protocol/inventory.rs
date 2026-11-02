@@ -44,6 +44,8 @@ pub enum Kind {
     BuyItemResult,
     QueryShopItemInfo,
     SellItem,
+    DestroyItem,
+    DestroySlotItem,
     QueryBuybackList,
     BuybackListResult,
     RepairItem,
@@ -139,6 +141,8 @@ impl Kind {
             Self::BuyItemResult => 235,
             Self::QueryShopItemInfo => 167,
             Self::SellItem => 566,
+            Self::DestroyItem => 453,
+            Self::DestroySlotItem => 454,
             Self::QueryBuybackList => 293,
             Self::BuybackListResult => 294,
             Self::RepairItem => 424,
@@ -234,6 +238,8 @@ impl Kind {
             Self::BuyItemResult => 0x64a08bdf_6762_3be2_9f6f_c7ff64a2b4a3,
             Self::QueryShopItemInfo => 0x4088bd54_bc81_3398_8386_61bdaf5917c1,
             Self::SellItem => 0x62669042_85a8_354c_9cab_ccae3c2becae,
+            Self::DestroyItem => 0x3a0bd929_1610_3d12_9230_c15ff1d6156e,
+            Self::DestroySlotItem => 0x3a94b5d8_d39e_3b2f_919e_fc7675997cc0,
             Self::QueryBuybackList => 0x2271100a_effc_3693_b75d_165507d49b79,
             Self::BuybackListResult => 0x88ce410b_fcb7_3794_ab5f_9cb25771ce3d,
             Self::RepairItem => 0xb83c8562_c97c_343c_b421_d3cdada26774,
@@ -418,6 +424,9 @@ pub enum Message {
     /// QueryShopItemInfoMessage.ShopID.
     QueryShopItemInfo(Option<String>),
     SellItem(SellItem),
+    DestroyItem(DestroyItem),
+    /// DestroySlotItemMessage.ItemID.
+    DestroySlotItem(i64),
     /// QueryBuybackListMessage (fieldless).
     QueryBuybackList,
     /// BuybackListResultMessage.BuybackList.
@@ -586,6 +595,12 @@ pub struct BuyItemResult {
 pub struct SellItem {
     pub item_id: i64,
     pub count: i32,
+}
+/// DestroyItemMessage: ItemClass, Num.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DestroyItem {
+    pub item_class: Option<String>,
+    pub num: i32,
 }
 /// BuybackInfo fields in declaration order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1043,6 +1058,8 @@ impl Message {
             Self::BuyItemResult(_) => Kind::BuyItemResult,
             Self::QueryShopItemInfo(_) => Kind::QueryShopItemInfo,
             Self::SellItem(_) => Kind::SellItem,
+            Self::DestroyItem(_) => Kind::DestroyItem,
+            Self::DestroySlotItem(_) => Kind::DestroySlotItem,
             Self::QueryBuybackList => Kind::QueryBuybackList,
             Self::BuybackListResult(_) => Kind::BuybackListResult,
             Self::RepairItem(_) => Kind::RepairItem,
@@ -1325,6 +1342,7 @@ object!(BuyItemResult {
     restriction_count
 });
 object!(SellItem { item_id, count });
+object!(DestroyItem { item_class, num });
 object!(BuybackInfo {
     shop_id,
     order,
@@ -1744,6 +1762,8 @@ pub fn encode(
             Message::BuyItemResult(v) => v.write(&mut w)?,
             Message::QueryShopItemInfo(v) => v.write(&mut w)?,
             Message::SellItem(v) => v.write(&mut w)?,
+            Message::DestroyItem(v) => v.write(&mut w)?,
+            Message::DestroySlotItem(v) => v.write(&mut w)?,
             Message::QueryBuybackList => {}
             Message::BuybackListResult(v) => v.write(&mut w)?,
             Message::RepairItem(v) => v.write(&mut w)?,
@@ -1872,6 +1892,8 @@ fn decode_body(
             Kind::BuyItemResult => Message::BuyItemResult(BuyItemResult::read(&mut r)?),
             Kind::QueryShopItemInfo => Message::QueryShopItemInfo(Wire::read(&mut r)?),
             Kind::SellItem => Message::SellItem(SellItem::read(&mut r)?),
+            Kind::DestroyItem => Message::DestroyItem(DestroyItem::read(&mut r)?),
+            Kind::DestroySlotItem => Message::DestroySlotItem(Wire::read(&mut r)?),
             Kind::QueryBuybackList => Message::QueryBuybackList,
             Kind::BuybackListResult => Message::BuybackListResult(Wire::read(&mut r)?),
             Kind::RepairItem => Message::RepairItem(RepairItem::read(&mut r)?),

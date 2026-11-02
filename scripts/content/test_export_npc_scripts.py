@@ -97,5 +97,55 @@ class NpcScriptExportTests(unittest.TestCase):
         (self.xml / 'QuestSet01' / 'GuidePlay.xml').unlink()
         with self.assertRaises(OSError): read_package(self.xml, self.db, self.config)
 
+    def test_lab_classes_get_a_switch_branch_named_after_them(self):
+        from export_npc_scripts import with_lab_switch_branches
+        def node(name, children=(), attrs=(), text=''):
+            return [name, [list(a) for a in attrs], text, list(children), '']
+        def give(skill):
+            return node('give_skill', attrs=[('id', 'x'), ('arg1', skill)])
+        switch = node('Switch', [node('Lethita', [node('talk', text='LONG'), give('skill_lethita_xe_move'), node('talk')]),
+                                 node('Lynn', [give('skill_lynn_xe_move'), node('talk', text='BYE')]),
+                                 node('Fail')])
+        known = lambda i, c: i == 'skill_miri_xe_move' and c == 11
+        out = with_lab_switch_branches(node('Do', [switch]), known)[3][0]
+        # the shortest branch that gives only its class's own skill, renamed; Delia's skill is unknown
+        self.assertEqual([c[0] for c in out[3]], ['Lethita', 'Lynn', 'Miri', 'Fail'])
+        self.assertEqual(out[3][2][3][0][1], [['id', 'lab_miri_x'], ['arg1', 'skill_miri_xe_move']])
+        self.assertEqual(out[3][2][3][1][2], 'BYE')
+        # a branch giving something not named after its class makes no template
+        other = node('Switch', [node('Hurk', [give('sword')]), node('Fail')])
+        self.assertEqual(with_lab_switch_branches(other, lambda i, c: True), other)
+
+    def test_lab_classes_take_a_donor_branch_where_the_switch_has_no_fail(self):
+        from export_npc_scripts import with_lab_switch_branches
+        def node(name, children=(), attrs=(), text=''):
+            return [name, [list(a) for a in attrs], text, list(children), '']
+        def give(command, item, id_):
+            return node(command, attrs=[('id', id_), ('arg1', item)])
+        talk = lambda key: node('talk', text=key)
+        switch = node('Switch', [node('Lethita', [talk('BIG_FELLA')]),
+                                 node('Evy', [talk('HOT_STUFF')]),
+                                 node('Fiona', [talk('HOT_STUFF'), give('give_quest', 'quest_desert', 'q1'),
+                                                give('give_item', 'tiara[QUALITY:(1)]', 'i1')])])
+        masks = {'tiara': 1 << 1 | 1 << 11}
+        usable = lambda i, c: bool(masks.get(i, 0) >> c & 1)
+        out = with_lab_switch_branches(switch, usable)
+        # the Miri may wear Fiona's reward: Fiona's branch with ids of her own, nothing renamed;
+        # the Delia may not, so she takes the next donor whose branch gives nothing restricted
+        self.assertEqual([c[0] for c in out[3]], ['Lethita', 'Evy', 'Fiona', 'Delia', 'Miri'])
+        self.assertEqual(out[3][3][3], [talk('HOT_STUFF')])
+        miri = out[3][4][3]
+        self.assertEqual([c[1] for c in miri[1:]], [[['id', 'lab_miri_q1'], ['arg1', 'quest_desert']],
+                                                      [['id', 'lab_miri_i1'], ['arg1', 'tiara[QUALITY:(1)]']]])
+        # with a Fail, a talk-only donor branch is not copied (Fail has the generic text), a
+        # rewarding one is when the class may use the reward
+        with_fail = node('Switch', [node('Fiona', [talk('HOT_STUFF')]), node('Fail', [talk('GENERIC')])])
+        self.assertEqual(with_lab_switch_branches(with_fail, usable), with_fail)
+        rewarding = node('Switch', [node('Fiona', [give('give_item', 'tiara', 'i1')]), node('Fail')])
+        self.assertEqual([c[0] for c in with_lab_switch_branches(rewarding, usable)[3]], ['Fiona', 'Miri', 'Fail'])
+        # with a Fail and no Fiona branch the class takes Fail, as Fiona does
+        others = node('Switch', [node('Arisha', [give('give_item', 'tiara', 'i1')]), node('Fail')])
+        self.assertEqual(with_lab_switch_branches(others, usable), others)
+
 if __name__ == '__main__':
     unittest.main()

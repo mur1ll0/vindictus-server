@@ -1,10 +1,12 @@
 import json
 import sqlite3
+import struct
 import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
 
+import apply_lab_content_additions as a
 from apply_lab_content_additions import apply
 from prepare_lab_client import PreparationError
 
@@ -27,10 +29,64 @@ class ApplyLabContentAdditionsTest(unittest.TestCase):
             db.commit()
         self.additions = self.root / 'additions.json'
         self.additions.write_text(json.dumps({'ShopInfo': [ROW]}), encoding='utf-8')
+        # The developer's imported classes never reach these tests.
+        from unittest import mock
+        import content_additions
+        patcher = mock.patch.object(content_additions, 'CLASS_IMPORTS', self.root / 'no-imports')
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def count(self):
         with closing(sqlite3.connect(self.db)) as db:
             return db.execute("SELECT count(*) FROM ShopInfo WHERE ItemClass='enhance_elixir'").fetchone()[0]
+
+    def test_class_scripts_join_the_original_pack_of_an_existing_folder(self):
+        import hfs  # noqa: PLC0415
+        packs = sorted([hfs.pack_name('scripts/actionstate', 0), hfs.pack_name('scripts/actionstate', 1),
+                        hfs.pack_name('models/player/fiona', 0)])
+        plain = hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, [])
+        files = [('scripts/actionstate/player_action_state_miri.txt', Path('a'), 's1'),
+                 ('scripts/newfolder/x.txt', Path('b'), 's2'),
+                 ('models/player/fiona/miri_inner.mdl', Path('c'), 's3')]
+        out = a.injected_packs(plain, files, Path('copy'))
+        # The folder's last original part; a new folder and non-script files keep their own packs.
+        self.assertEqual(out, {Path('copy/hfs') / (hfs.pack_name('scripts/actionstate', 1) + '.hfs'):
+                               [('scripts/actionstate/player_action_state_miri.txt', Path('a'), 's1')]})
+
+    def test_ui_elements_declare_the_class_dialogs(self):
+        xml = ('<UIElementInfo>\r\n  <ElementList>\r\n    <Element name="ShipHPGauge" filename="ShipHPGauge.gfx" />\r\n'
+               '    <Element name="Other" filename="Other.gfx" />\r\n  </ElementList>\r\n  <PreloadList>\r\n'
+               '    <Element>ShipHPGauge</Element>\r\n  </PreloadList>\r\n  <MoveableDialogs>\r\n'
+               '    <Element name="QuickSlotPanel" background="hitBox" />\r\n  </MoveableDialogs>\r\n</UIElementInfo>\r\n').encode()
+        out = a.ui_elements_with_classes(xml)
+        lines = out.decode().split('\r\n')
+        self.assertTrue(lines[3].startswith('    <Element name="MiriSkillDialog" filename="MiriSkillDialog.gfx"'))
+        self.assertEqual(lines[8], '    <Element>MiriSkillDialog</Element>')
+        self.assertEqual(lines[9], '  </PreloadList>')
+        self.assertEqual(lines[12], '    <Element name="MiriSkillDialog" background="MC_DragonEnergy.BG" />')
+        self.assertEqual(lines[13], '  </MoveableDialogs>')
+        self.assertIsNone(a.ui_elements_with_classes(out))  # already declared
+        # hidden on a game state change, as ShipHPGauge (C4 MI27: the dragon stayed on the select screen)
+        hiding = xml.replace(b'  <MoveableDialogs>', b'  <HideOnChangeTownState>\r\n    <Element>ShipHPGauge</Element>\r\n'
+                             b'  </HideOnChangeTownState>\r\n  <DeactivateInGameUI>\r\n  </DeactivateInGameUI>\r\n  <MoveableDialogs>')
+        out = a.ui_elements_with_classes(hiding).decode()
+        self.assertIn('<Element>MiriSkillDialog</Element>\r\n  </HideOnChangeTownState>', out)
+        self.assertIn('<Element>MiriSkillDialog</Element>\r\n  </DeactivateInGameUI>', out)
+        with self.assertRaises(PreparationError):
+            a.ui_elements_with_classes(b'<UIElementInfo></UIElementInfo>')
+
+    def test_original_fixes_find_the_pack_of_their_file(self):
+        import hfs  # noqa: PLC0415
+        folder = 'models/player/_anim/female/delia'
+        packs = sorted([hfs.pack_name(folder, 0), hfs.pack_name(folder, 1), hfs.pack_name('models/player/fiona', 0)])
+        entry = hfs.name_key('pc_delia_town_motion.mdl') + struct.pack('<H', packs.index(hfs.pack_name(folder, 1))) + bytes(8)
+        plain = hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, [entry])
+        fix = a.ORIGINAL_FIXES[folder + '/pc_delia_town_motion.mdl']
+        fixes = {folder + '/pc_delia_town_motion.mdl': fix}
+        self.assertEqual(a.fixed_packs(plain, Path('copy'), fixes),
+                         {Path('copy/hfs') / (hfs.pack_name(folder, 1) + '.hfs'): {'pc_delia_town_motion.mdl': fix}})
+        with self.assertRaises(PreparationError):
+            a.fixed_packs(hfs.assemble_index(hfs.INDEX_MAGIC + bytes(16), packs, []), Path('copy'), fixes)
 
     def test_dry_run_changes_nothing_and_apply_is_idempotent(self):
         self.assertEqual(apply(self.root, False, self.additions, items=[])['shop_rows_missing'], 1)

@@ -7,9 +7,11 @@ default; idempotent; the original clients are refused and a consistent backup is
 the first change."""
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import re
 import sqlite3
+import struct
 import sys
 from contextlib import closing
 from pathlib import Path
@@ -17,9 +19,15 @@ from pathlib import Path
 from prepare_lab_client import PreparationError, reject_original
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'content'))
+import class_costumes  # noqa: E402
+import class_imports  # noqa: E402
 import content_additions  # noqa: E402
 import content_edits  # noqa: E402
 import hfs  # noqa: E402
+import kv_merge  # noqa: E402
+import bsp_entities  # noqa: E402
+import gfx_patch  # noqa: E402
+import mdl_anim  # noqa: E402
 
 ADDITIONS = Path(__file__).resolve().parents[1] / 'content/lab_content_additions.json'
 SHOP_COLUMNS = ('ShopID', 'Order', 'ItemClass', 'Count', 'PriceItemClass', 'PriceCount', 'AppearQuestID',
@@ -140,6 +148,9 @@ def with_script_entries(text: bytes, costumes: list[dict], kind: str) -> bytes:
         if costume['key'] in children:
             raise PreparationError(f'The {costume["section"]} script already has entry {costume["key"]}.')
         lines = ''.join('\t\t\t"%s"\t"%s"\r\n' % (f, costume['normal']) for f in fields)
+        if costume.get('trails'):
+            # the class weapon's own trails (class_costumes.weapon_costumes)
+            lines += '\t\t\t' + costume['trails'].strip() + '\r\n'
         entry = ('\r\n\t\t"%s"\r\n\t\t{\r\n%s\t\t}\r\n\t' % (costume['key'], lines)).encode('ascii')
         text = text[:closing] + entry + text[closing:]
     return text
@@ -163,11 +174,17 @@ def with_costumes(text: bytes, costumes: list[dict]) -> bytes:
     return text
 
 
-def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[str, list]:
-    """New packs for the items' asset files, by pack name: a folder the index already knows gets its next
-    part, a new folder part 0. Files go in as .comp, as the game stores models and materials."""
+def asset_packs(items: list[dict], index_packs: set[str], assets: Path,
+                extra: list[tuple[str, Path, str]] = ()) -> dict[str, list]:
+    """New packs for the items' asset files and the `extra` ones (game path, file, item class), by pack
+    name: a folder the index already knows gets its next part, a new folder part 0. Files go in as .comp,
+    as the game stores models and materials."""
     folders: dict[str, list] = {}
     seen: dict[str, str] = {}
+    for game_path, path, owner in extra:
+        seen[game_path] = owner
+        folders.setdefault(game_path.rsplit('/', 1)[0], []).append(
+            hfs.Entry(path.name.lower() + '.comp', hfs.comp_wrap(path.read_bytes()), hfs.DEFAULT_ATTR))
     for item in items:
         if not item.get('assets'):
             continue
@@ -190,6 +207,371 @@ def asset_packs(items: list[dict], index_packs: set[str], assets: Path) -> dict[
     return packs
 
 
+def replacement_files(overrides: dict | None, assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
+    """(game path, kit file, item class) of the kits that replace base items' models (the item editor's
+    override `model`, docs/future/item-editor.md 3.4): the model's files take the place of the client's,
+    and the new materials the Blender add-on writes are added."""
+    out: list[tuple[str, Path, str]] = []
+    seen: dict[str, str] = {}
+    for name, override in sorted((overrides or {}).items()):
+        model = override.get('model')
+        if not model:
+            continue
+        root = (assets / model['assets']).resolve()
+        if not root.is_relative_to(assets.resolve()) or not root.is_dir():
+            raise PreparationError(f'Missing asset folder {model["assets"]}.')
+        paths = []
+        for path in sorted(p for p in root.rglob('*') if p.is_file() and p.parent != root):
+            game_path = path.relative_to(root).as_posix().lower()
+            if not GAME_PATH.match(game_path) or not game_path.startswith(('models/', 'materials/')):
+                raise PreparationError(f'Bad file {game_path} in the kit of {name}.')
+            if seen.setdefault(game_path, name) != name:
+                raise PreparationError(f'{game_path} is in the model kits of {seen[game_path]} and {name}.')
+            paths.append(game_path)
+            out.append((game_path, path, name))
+        if model['model'] not in paths:
+            raise PreparationError(f'The kit of {name} has no {model["model"]}.')
+    return out
+
+
+def packs_holding(plain: bytes, path: str, client_copy: Path) -> list[Path]:
+    """The 1.69 packs holding a game path, from the original index (none for a new file)."""
+    names = hfs.index_packs(plain)
+    folder, file_name = path.rsplit('/', 1)
+    parts = {hfs.pack_name(folder, part) for part in range(64)}
+    key = hfs.name_key(file_name)
+    found = sorted({names[struct.unpack_from('<H', e, 6)[0]] for e in hfs.index_entries(plain) if e[:6] == key} & parts)
+    return [client_copy / 'hfs' / (name + '.hfs') for name in found]
+
+
+def split_replacements(plain: bytes, replacements: list[tuple[str, Path, str]], class_files: list[tuple[str, Path, str]],
+                       client_copy: Path) -> tuple[list, dict[Path, dict[str, object]], list]:
+    """Where each replacement goes: a staged class file is swapped in the class files (returned with the
+    swaps), a 1.69 file is rewritten inside its own pack (pack -> file name -> fix, as ORIGINAL_FIXES), and
+    a file the client lacks goes into a new pack (the third list)."""
+    staged = {path: i for i, (path, _, _) in enumerate(class_files)}
+    swapped = list(class_files)
+    fixes: dict[Path, dict[str, object]] = {}
+    new = []
+    for game_path, file, owner in replacements:
+        if game_path in staged:
+            swapped[staged[game_path]] = (game_path, file, hashlib.sha256(file.read_bytes()).hexdigest())
+            continue
+        packs = packs_holding(plain, game_path, client_copy)
+        if len(packs) > 1:
+            raise PreparationError(f'{game_path} is not in exactly one pack of the client.')
+        if packs:
+            fixes.setdefault(packs[0], {})[game_path.rsplit('/', 1)[1]] = lambda data, read, f=file: f.read_bytes()
+        else:
+            new.append((game_path, file, owner))
+    return swapped, fixes, new
+
+
+CLASS_MANIFEST = 'class-assets.json'
+CLASS_PREFIXES = ('models/', 'materials/', 'effects/', 'expressions/', 'csf/', 'scaleform/', 'sound/', 'scripts/')
+# Plain bytes per new pack part: few parts per folder (the 1.69 has at most 14) and packs the size of
+# the largest 1.69 ones (docs/future/miri-class-port.md 2.5).
+CLASS_PART_LIMIT = 192 * 2**20
+CLASS_PACKS = 'class-packs.json'
+GAME_PATH = re.compile(r'^[a-z0-9_./ -]{1,240}$')
+
+
+def class_asset_files(assets: Path = ASSETS) -> list[tuple[str, Path, str]]:
+    """(game path, staged file, SHA-256) of every NA class staged by scripts/client/stage_na_class.py."""
+    files: dict[str, tuple[Path, str]] = {}
+    for manifest in sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)):
+        root = manifest.parent.resolve()
+        for record in json.loads(manifest.read_text(encoding='utf-8')).get('files', []):
+            path = str(record.get('path', ''))
+            if (not GAME_PATH.match(path) or not path.startswith(CLASS_PREFIXES) or '..' in path.split('/')
+                    or not re.fullmatch(r'[0-9a-f]{64}', str(record.get('sha256', '')))):
+                raise PreparationError(f'Bad class asset entry in {manifest}.')
+            file = (root / path).resolve()
+            if not file.is_relative_to(root) or not file.is_file():
+                raise PreparationError(f'Missing staged class asset {path}.')
+            if files.setdefault(path, (file, record['sha256']))[0] != file:
+                raise PreparationError(f'{path} is staged by two classes.')
+    return sorted((path, file, sha) for path, (file, sha) in files.items())
+
+
+def class_weapon_costumes(assets: Path = ASSETS, imports: Path = content_additions.CLASS_IMPORTS) -> list[dict]:
+    """Model entries of each staged imported class's weapon script, renumbered into the lab entity's
+    script (class_costumes.LAB_WEAPON_ENTITY), the same numbers class_imports gives its items."""
+    out = []
+    for path in class_imports.load_imports(imports):
+        info = class_imports.read_meta(path)
+        script = assets / 'classes' / info['name'] / 'scripts' / f'weapon_{info["weapon"]}.txt'
+        if (assets / 'classes' / info['name'] / CLASS_MANIFEST).is_file() and script.is_file():
+            out += class_costumes.weapon_costumes(script.read_bytes(), info['weapon'])
+    return out
+
+
+def class_merges(assets: Path = ASSETS) -> list[tuple[str, Path, tuple[str, ...]]]:
+    """(game path, NA copy, class names) of each shared 1.69 script a staged class adds lines to."""
+    merges = []
+    for manifest in sorted((assets / 'classes').glob('*/' + CLASS_MANIFEST)):
+        root = manifest.parent.resolve()
+        data = json.loads(manifest.read_text(encoding='utf-8'))
+        for record in data.get('merge', []):
+            path = str(record.get('path', ''))
+            needles = tuple(str(n) for n in record.get('needles', []))
+            file = (root / 'merge' / path).resolve()
+            if (not GAME_PATH.match(path) or '..' in path.split('/') or not needles
+                    # class names, costume models and hair model prefixes (stage_na_class.imported_costumes)
+                    or not all(re.fullmatch(r'[a-z]{2,16}|[a-z0-9_./-]{4,160}(\.mdl|_)', n) for n in needles)
+                    or not file.is_relative_to(root) or not file.is_file()):
+                raise PreparationError(f'Bad class merge entry in {manifest}.')
+            merges.append((path, file, needles))
+    return merges
+
+
+def original_pack(plain: bytes, path: str, client_copy: Path) -> Path:
+    """The 1.69 pack holding a game path, from the original index."""
+    found = packs_holding(plain, path, client_copy)
+    if len(found) != 1:
+        raise PreparationError(f'{path} is not in exactly one pack of the client.')
+    return found[0]
+
+
+def merge_packs(plain: bytes, merges: list, client_copy: Path) -> dict[Path, dict[str, list]]:
+    """The 1.69 pack holding each merged script, from the original index: pack path -> file -> merges."""
+    packs: dict[Path, dict[str, list]] = {}
+    for path, file, needles in merges:
+        pack = original_pack(plain, path, client_copy)
+        packs.setdefault(pack, {}).setdefault(path.rsplit('/', 1)[1], []).append((file, needles))
+    return packs
+
+
+# 1.69 files rewritten inside their own pack (rebuilt from the backup) for an imported class's look: the
+# Delia's town jump carried the weapon into her hand, as the Miri's did (mdl_anim.town_jump_on_back,
+# C4 MI9), in a combat-pose jump: the Fiona's free-hands jump replaces it (C4 MI11). A fix takes the file
+# and a reader of other original files; returning None leaves the file as it is.
+# The 1.69 shows a scaleform movie only when scaleform/UIElements.xml declares it (BaseUI.setVisibleElement
+# by name, client 0x385fbf60): the Miri's Flamebreath dragon (MiriSkillDialog.gfx, shown by
+# patch_class_routing FLAMEBREATH) never appeared (C4 MI13). CLASS_UI_ELEMENTS are the NA's declarations
+# (scaleform/UIElements.xml: <ElementList>, after ShipHPGauge as in the NA's depth order, and
+# <MoveableDialogs>, its drag area), and the element joins <PreloadList> as ShipHPGauge does, which the
+# 1.69 also shows by name (C4 MI15: declared but still not shown).
+CLASS_UI_ELEMENTS = (
+    ('MiriSkillDialog', 'filename="MiriSkillDialog.gfx" align="Center" x="300" y="0" width="126" height="210"',
+     'ShipHPGauge', 'background="MC_DragonEnergy.BG"'),
+)
+UI_ELEMENTS = 'scaleform/uielements.xml'
+# Lists that hide an element when the game state changes, as the 1.69 does for ShipHPGauge (preloaded the
+# same way): the Miri's dragon stayed on the character select and with the next character, which never
+# hides it (C4 MI27). The Miri's think sends the visibility again every FLAMEBREATH_RESEND thinks.
+UI_HIDE_LISTS = (b'HideOnChangeTownState', b'DeactivateInGameUI')
+
+
+def ui_elements_with_classes(data: bytes, elements=CLASS_UI_ELEMENTS) -> bytes | None:
+    """UIElements.xml with each class element declared after its neighbour in <ElementList> and in
+    <MoveableDialogs>; None when nothing is missing."""
+    newline = b'\r\n' if b'\r\n' in data else b'\n'
+    out = data
+    for name, attributes, after, background in elements:
+        if f'name="{name}"'.encode() in out:
+            continue
+        anchor = out.find(f'name="{after}"'.encode())
+        end = out.find(newline, anchor)
+        if anchor < 0 or end < 0 or out.find(b'</MoveableDialogs>') < 0:
+            raise PreparationError(f'UIElements.xml has no {after} element or no <MoveableDialogs>.')
+        line = f'    <Element name="{name}" {attributes} />'.encode() + newline
+        out = out[:end + len(newline)] + line + out[end + len(newline):]
+        close = out.find(b'</MoveableDialogs>')
+        start = out.rfind(newline, 0, close) + len(newline)
+        out = out[:start] + f'    <Element name="{name}" {background} />'.encode() + newline + out[start:]
+        for tag in (b'PreloadList',) + UI_HIDE_LISTS:
+            close = out.find(b'</' + tag + b'>')
+            if close >= 0:
+                start = out.rfind(newline, 0, close) + len(newline)
+                out = out[:start] + f'    <Element>{name}</Element>'.encode() + newline + out[start:]
+    return None if out == data else out
+
+
+# The character list portrait of each imported class (gfx_patch.with_class_frame): a frame named after the
+# class in scaleform/SelectCharacterDialog_V2.gfx, showing the atlas the staging made
+# (stage_na_class.LIST_PORTRAIT_ATLAS), and the class's entry in the movie's characterImageLabel array (class
+# number -> frame label; C4 MI20: without it the list still showed Lann).
+CLASS_LIST_PORTRAITS = (('Miri', 11, 'SelectCharacterDialog_V2_IMiri.dds'),)
+CLASS_IMAGE_LABELS = 'characterImageLabel'
+SELECT_DIALOG = 'scaleform/selectcharacterdialog_v2.gfx'
+
+
+def select_dialog_with_classes(data: bytes, portraits=CLASS_LIST_PORTRAITS) -> bytes | None:
+    out = data
+    for label, index, image in portraits:
+        out = gfx_patch.with_class_frame(out, label, image) or out
+        out = gfx_patch.with_array_entry(out, CLASS_IMAGE_LABELS, index, label) or out
+    return None if out == data else out
+
+
+# The class grid of the creation (patch_class_routing CREATION_GRID): its movie gets each imported class's
+# button, panel and AS2 (gfx_patch.with_class_button, grid_class_actions; icon atlas and intro video from
+# stage_na_class GRID_ICON_ATLAS/GRID_INTRO), and its scene an actor npc_<class> (bsp_entities). Per class:
+# label, BaseCharacter, atlas, icon size (the NA movie's sub-image of MC_Button_Miri, (895, 207)-(965, 343)),
+# grid cell (the free one after the Delia: columns 0/72/144, rows -274/-136/2/140), weapon type of the
+# rollover, and the five skill preview videos of the NA's scripts/new_character_info.txt ("miri", Skill 1-5,
+# captioned GameUI_Heroes_CreateCharacter_SkillPreview_Miri_01..05).
+GRID_CLASSES = (('Miri', 11, 'NewCharacterDialog_V2_IMiri.dds', (70, 136), (144, 140), 'DRAKER',
+                 ('video/skill/skill_miri_dragon_striker.usm', 'video/skill/skill_miri_sp3.usm',
+                  'video/skill/skill_miri_sp2.usm', 'video/skill/skill_miri_sp4.usm', 'video/skill/skill_miri_sp5.usm')),)
+GRID_DONOR = 'Delia'
+GRID_DIALOG = 'scaleform/newcharacterdialog_v2.gfx'
+GRID_ARRAY = 'characterTypeArray'
+CREATION_SCENE = 'maps/lobby_beautyshop_change/lobby_beautyshop_change.bsp'
+
+
+def grid_dialog_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
+    out = data
+    for label, index, image, size, cell, weapon, skills in classes:
+        out = gfx_patch.with_class_button(out, label, image, size, cell, GRID_DONOR) or out
+        code = gfx_patch.grid_class_actions(label, index, GRID_DONOR, weapon, skills)
+        out = gfx_patch.with_root_actions(out, GRID_ARRAY, code) or out
+    return None if out == data else out
+
+
+def creation_scene_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
+    return bsp_entities.with_creation_actors(data, GRID_DONOR.lower(), tuple(c[0].lower() for c in classes))
+
+
+# Loose 1.69 files of the copy (read before the packs, docs/future/delia-class-port.md 2.4) a class needs
+# changed: the customization movie, where the class takes the donor's Height and Bust sliders
+# (gfx_patch.class_alias_actions; C4 MG1). The first change keeps the file as <file>.<sha16>.pre-classes.bak.
+CUSTOMIZATION_DIALOG = 'scaleform/CreateCharacterDialog.gfx'
+CUSTOMIZATION_ANCHOR = 'BodyShapeCommon_loadBodyShapeDefault'
+SLIDER_DONOR = 10  # the Delia: natural height 92 in the server, as the Miri (patch_class_routing server_constants)
+
+
+def customization_dialog_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
+    out = data
+    for label, index, *_ in classes:
+        code = gfx_patch.class_alias_actions(index, SLIDER_DONOR)
+        out = gfx_patch.with_root_actions(out, CUSTOMIZATION_ANCHOR, code) or out
+    return None if out == data else out
+
+
+LOOSE_FIXES = {CUSTOMIZATION_DIALOG: customization_dialog_with_classes}
+
+
+def apply_loose_fixes(client_copy: Path, apply_changes: bool, fixes: dict = LOOSE_FIXES) -> list[str]:
+    changed = []
+    for path, fix in fixes.items():
+        target = client_copy / path
+        if not target.is_file():
+            continue
+        data = target.read_bytes()
+        out = fix(data)
+        if out is None:
+            continue
+        changed.append(path)
+        if apply_changes:
+            backup = target.with_name(f'{target.name}.{hashlib.sha256(data).hexdigest()[:16]}.pre-classes.bak')
+            if not backup.exists():
+                backup.write_bytes(data)
+            target.write_bytes(out)
+    return changed
+
+
+ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
+                  lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR)),
+                  UI_ELEMENTS: lambda data, read: ui_elements_with_classes(data),
+                  SELECT_DIALOG: lambda data, read: select_dialog_with_classes(data),
+                  GRID_DIALOG: lambda data, read: grid_dialog_with_classes(data),
+                  CREATION_SCENE: lambda data, read: creation_scene_with_classes(data)}
+
+
+def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -> dict[Path, dict[str, object]]:
+    """Original pack -> lower-case file name -> fix, for the 1.69 files a staged class needs changed."""
+    packs: dict[Path, dict[str, object]] = {}
+    for path, fix in fixes.items():
+        packs.setdefault(original_pack(plain, path, client_copy), {})[path.rsplit('/', 1)[1].lower()] = fix
+    return packs
+
+
+# Class scripts in a folder the 1.69 already has go into the 1.69's own (last) pack of that folder: the
+# client did not read them from a new part of the folder (C4 MI6: no key of the Miri's action-state,
+# expression or keyword scripts reached memory, while her new folders and the merged scripts load).
+# The Draker's chain material (M7f) joins the 1.69's cable pack the same way, for the same doubt.
+INJECTED_PREFIXES = ('scripts/', 'materials/cable/')
+
+
+def injected_packs(plain: bytes, files: list[tuple[str, Path, str]],
+                   client_copy: Path) -> dict[Path, list[tuple[str, Path, str]]]:
+    """Original pack (the folder's last part in the original index) -> class files (game path, file,
+    SHA-256) added to it."""
+    names = set(hfs.index_packs(plain))
+    out: dict[Path, list[tuple[str, Path, str]]] = {}
+    for path, file, sha in files:
+        if not path.startswith(INJECTED_PREFIXES):
+            continue
+        folder = path.rsplit('/', 1)[0]
+        parts = [part for part in range(64) if hfs.pack_name(folder, part) in names]
+        if parts:
+            pack = client_copy / 'hfs' / (hfs.pack_name(folder, max(parts)) + '.hfs')
+            out.setdefault(pack, []).append((path, file, sha))
+    return out
+
+
+def class_pack_plan(files: list[tuple[str, Path, str]], taken: set[str]) -> list[tuple[str, str, list[tuple[str, Path, str]]]]:
+    """New packs for the staged class files: per folder, the parts after the ones the index has, each up
+    to CLASS_PART_LIMIT plain bytes."""
+    folders: dict[str, list] = {}
+    for path, file, sha in files:
+        folder, name = path.rsplit('/', 1)
+        folders.setdefault(folder, []).append((name, file, sha))
+    plan = []
+    for folder, entries in sorted(folders.items()):
+        part = 0
+        current, size = [], 0
+        for entry in entries:
+            length = entry[1].stat().st_size
+            if current and size + length > CLASS_PART_LIMIT:
+                while hfs.pack_name(folder, part) in taken:
+                    part += 1
+                plan.append((hfs.pack_name(folder, part), folder, current))
+                part += 1
+                current, size = [], 0
+            current.append(entry)
+            size += length
+        while hfs.pack_name(folder, part) in taken:
+            part += 1
+        plan.append((hfs.pack_name(folder, part), folder, current))
+    return plan
+
+
+def class_entry(folder: str, name: str, file: Path) -> tuple[str, object, int]:
+    """Sounds are stored plain, the rest as .comp, as the 1.69 packs do."""
+    if folder == 'sound' or folder.startswith('sound/'):
+        return name, file.read_bytes, hfs.DEFAULT_ATTR
+    return name + '.comp', lambda: hfs.comp_wrap(file.read_bytes(), 6), hfs.DEFAULT_ATTR
+
+
+def class_packs(client_copy: Path, plan: list, ks: bytes, apply_changes: bool) -> tuple[list, int]:
+    """(pack name, pack_files list) of each class pack and how many were written. A pack is rebuilt only
+    when its file list or a file's SHA-256 changed (class-packs.json in lab-backup)."""
+    cache_path = client_copy / 'lab-backup' / CLASS_PACKS
+    cache = json.loads(cache_path.read_text(encoding='utf-8')) if cache_path.exists() else {}
+    listed, built, fresh = [], 0, {}
+    for name, folder, entries in plan:
+        key = hashlib.sha256(json.dumps([(n, sha) for n, _, sha in entries]).encode()).hexdigest()
+        path = client_copy / 'hfs' / (name + '.hfs')
+        known = cache.get(name, {})
+        if known.get('key') == key and path.is_file() and path.stat().st_size == known.get('size'):
+            files = [tuple(f) for f in known['files']]
+        elif apply_changes:
+            files = hfs.write_pack(path, [class_entry(folder, n, f) for n, f, _ in entries], ks)
+            built += 1
+        else:
+            built += 1
+            continue
+        fresh[name] = {'key': key, 'size': path.stat().st_size, 'files': files}
+        listed.append((name, files))
+    if apply_changes:
+        cache_path.parent.mkdir(exist_ok=True)
+        cache_path.write_text(json.dumps(fresh), encoding='utf-8')
+    return listed, built
+
+
 def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_changes: bool, assets: Path = ASSETS,
               overrides: dict | None = None) -> dict:
     """Rebuilds the English text packs (item text) and the scripts pack (player_costume.txt entries) from their
@@ -203,11 +585,36 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     index = client_copy / INDEX
     texts = [(client_copy / 'hfs' / (hfs.pack_name(f) + '.hfs'), f.rsplit('/', 1)[1]) for f in TEXT_FOLDERS]
     scripts = client_copy / 'hfs' / (hfs.pack_name(SCRIPTS_FOLDER) + '.hfs')
-    originals = {path: backup_dir / path.name for path in [index, scripts] + [p for p, _ in texts]}
+    merges = class_merges(assets)
+    original_index = backup_dir / index.name if (backup_dir / index.name).exists() else index
+    merged = merge_packs(hfs.decode_index(original_index.read_bytes()), merges, client_copy) if merges else {}
+    class_files = class_asset_files(assets)
+    # Replacement models of base items (item editor): staged class files are swapped, 1.69 files
+    # rewritten inside their pack and new files packed after the classes.
+    replacements = replacement_files(overrides, assets)
+    class_files, replaced, replacement_new = split_replacements(
+        hfs.decode_index(original_index.read_bytes()), replacements, class_files, client_copy)
+    injected = injected_packs(hfs.decode_index(original_index.read_bytes()), class_files, client_copy)
+    injected_paths = {path for pack in injected.values() for path, _, _ in pack}
+    fixed = fixed_packs(hfs.decode_index(original_index.read_bytes()), client_copy) if class_files else {}
+    for pack, files in replaced.items():
+        for name, fix in files.items():
+            if name in fixed.get(pack, {}):
+                raise PreparationError(f'{name} has a lab fix and a replacement model.')
+            fixed.setdefault(pack, {})[name] = fix
+    class_files = [f for f in class_files if f[0] not in injected_paths]
+    # Every pack with a backup comes back to it unless rebuilt below (a merge that was undone).
+    restored = [client_copy / 'hfs' / p.name for p in backup_dir.glob('*.hfs') if p.name != index.name]
+    originals = {path: backup_dir / path.name
+                 for path in [index, scripts] + [p for p, _ in texts] + sorted(merged) + sorted(injected) + sorted(fixed) + restored}
     previously_added = json.loads(added_list.read_text(encoding='utf-8')) if added_list.exists() else []
     entries = content_additions.text_entries(items, overrides)
     costumes = [c for item in items for c in item.get('costumes', [])]
-    if not items and not entries and not any(b.exists() for b in originals.values()) and not previously_added:
+    costumes += class_weapon_costumes(assets)
+    class_tokens = class_imports.class_text(assets / 'classes', class_imports.load_imports(content_additions.CLASS_IMPORTS))
+    class_names = [class_imports.read_meta(p)['name'] for p in class_imports.load_imports(content_additions.CLASS_IMPORTS)]
+    if (not items and not entries and not class_files and not merges and not class_tokens and not replacements
+            and not any(b.exists() for b in originals.values()) and not previously_added):
         return {'hfs': 'unchanged: no added items'}
     if apply_changes:
         backup_dir.mkdir(exist_ok=True)
@@ -217,51 +624,116 @@ def apply_hfs(client_copy: Path, items: list[dict], keystream: Path, apply_chang
     source = {path: (backup if backup.exists() else path).read_bytes() for path, backup in originals.items()}
     wanted = dict(source)
     rebuilt = []
-    if entries:
+    if entries or class_tokens:
         for path, language in texts:
-            pack = [hfs.Entry(e.name, with_tokens(e.data, entries) if e.name == f'heroes_text_{language}.txt' else e.data, e.attr)
-                    for e in hfs.read_pack(source[path], ks)]
+            pack = []
+            for e in hfs.read_pack(source[path], ks):
+                if e.name == f'heroes_text_{language}.txt':
+                    # Class tokens only where the 1.69 has no line; the item editor's replace theirs.
+                    text = e.data.decode('utf-16')
+                    present = {k.lower() for k, _ in class_imports.TOKEN_LINE.findall(text)}
+                    tokens = {**class_imports.donor_xe_tokens(text, class_names), **class_tokens}
+                    added = {k: v for k, v in tokens.items() if k.lower() not in present}
+                    e = hfs.Entry(e.name, with_tokens(e.data, {**added, **entries}), e.attr)
+                pack.append(e)
             wanted[path] = hfs.build_pack(pack, ks)
             rebuilt.append((path.name, wanted[path]))
-    if costumes:
-        by_file: dict[str, list[dict]] = {}
-        for costume in costumes:
-            by_file.setdefault(script_of(costume['section']), []).append(costume)
+    by_file: dict[str, list[dict]] = {}
+    for costume in costumes:
+        by_file.setdefault(script_of(costume['section']), []).append(costume)
+    merge_report = {'files': 0, 'blocks': 0, 'lines': 0, 'conflicts': [], 'renumbered': {}}
+    # Class merges first (NA lines of the class), then the item editor's entries on top.
+    fix_report = []
+    original_plain = hfs.decode_index(original_index.read_bytes())
+
+    def read_original(game_path: str) -> bytes:
+        """An original 1.69 file, from its pack's backup when the copy has one."""
+        pack = original_pack(original_plain, game_path, client_copy)
+        raw = (backup_dir / pack.name).read_bytes() if (backup_dir / pack.name).exists() else pack.read_bytes()
+        name = game_path.rsplit('/', 1)[1].lower()
+        for e in hfs.read_pack(raw, ks):
+            if e.name.lower() in (name, name + '.comp'):
+                return hfs.comp_unwrap(e.data) if e.name.lower().endswith('.comp') else e.data
+        raise PreparationError(f'{pack.name} has no {name}.')
+
+    for path in sorted(set(merged) | set(injected) | set(fixed) | ({scripts} if by_file else set())):
+        pending = dict(merged.get(path, {}))
+        fixes = dict(fixed.get(path, {}))
         pack = []
-        for e in hfs.read_pack(source[scripts], ks):
-            rows = by_file.pop(e.name, None)
-            if rows:
-                plain = hfs.comp_unwrap(e.data)
-                if e.name == 'player_costume.txt.comp':
+        for e in hfs.read_pack(source[path], ks):
+            comp = e.name.endswith('.comp')
+            file_name = e.name[:-5] if comp else e.name
+            sources = pending.pop(file_name, [])
+            rows = by_file.pop(e.name, None) if path == scripts else None
+            fix = fixes.pop(file_name.lower(), None)
+            if fix:
+                data = fix(hfs.comp_unwrap(e.data) if comp else e.data, read_original)
+                if data is not None:
+                    e = hfs.Entry(e.name, hfs.comp_wrap(data) if comp else data, e.attr)
+                    fix_report.append(file_name)
+            if sources or rows:
+                plain = hfs.comp_unwrap(e.data) if comp else e.data
+                for file, needles in sources:
+                    na = file.read_bytes()
+                    if file_name == 'player_costume.txt':
+                        remap = class_costumes.costume_remap(na, plain, class_costumes.lab_taken(items), needles)
+                        na = class_costumes.rename(na, remap)
+                        merge_report['renumbered'] = {f'{s}/{k}': v for (s, k), v in sorted(remap.items())}
+                    plain, report = kv_merge.merge(plain, na, needles)
+                    merge_report['files'] += 1
+                    merge_report['blocks'] += report['blocks']
+                    merge_report['lines'] += report['lines']
+                    merge_report['conflicts'] += [f'{file_name}:{c}' for c in report['conflicts']]
+                if rows and e.name == 'player_costume.txt.comp':
                     plain = with_costumes(plain, rows)
-                else:
+                elif rows:
                     plain = with_script_entries(plain, rows, 'shields' if e.name == 'shields.txt.comp' else 'weapon')
-                e = hfs.Entry(e.name, hfs.comp_wrap(plain), e.attr)
+                e = hfs.Entry(e.name, hfs.comp_wrap(plain) if comp else plain, e.attr)
             pack.append(e)
-        if by_file:
-            raise PreparationError(f'The scripts pack has no {sorted(by_file)[0]}.')
-        wanted[scripts] = hfs.build_pack(pack, ks)
-        rebuilt.append((scripts.name, wanted[scripts]))
+        if pending or fixes:
+            raise PreparationError(f'{path.name} has no {sorted(pending or fixes)[0]}.')
+        present = {e.name.lower() for e in pack}
+        for game_path, file, _ in injected.get(path, []):
+            folder, name = game_path.rsplit('/', 1)
+            entry_name, data, attr = class_entry(folder, name, file)
+            if entry_name.lower() in present:
+                raise PreparationError(f'{path.name} already has {entry_name}.')
+            pack.append(hfs.Entry(entry_name, data(), attr))
+        wanted[path] = hfs.build_pack(pack, ks)
+        rebuilt.append((path.name, wanted[path]))
+    if by_file:
+        raise PreparationError(f'The scripts pack has no {sorted(by_file)[0]}.')
     plain = hfs.decode_index(source[index])
+    # NA classes first (gigabytes, written pack by pack), then the item editor's packs after them.
+    plan = class_pack_plan(class_files, set(hfs.index_packs(plain)))
+    listed, class_built = class_packs(client_copy, plan, ks, apply_changes)
+    taken = set(hfs.index_packs(plain)) | {name for name, _, _ in plan}
     new_packs = {}
-    for name, pack in asset_packs(items, set(hfs.index_packs(plain)), assets).items():
+    for name, pack in asset_packs(items, taken, assets, replacement_new).items():
         path = client_copy / 'hfs' / (name + '.hfs')
         new_packs[path] = hfs.build_pack(pack, ks)
         rebuilt.append((path.name, new_packs[path]))
-    if rebuilt:
-        plain, _ = hfs.sync(plain, rebuilt, ks)
+    if rebuilt or listed:
+        plain, _ = hfs.sync_listed(plain, [(name, hfs.pack_files(raw, ks)) for name, raw in rebuilt] + listed)
         wanted[index] = hfs.encode_index(plain, source[index][:hfs.INDEX_HEAD])
     wanted.update(new_packs)
     changed = [p for p, data in wanted.items() if not p.exists() or p.read_bytes() != data]
-    stale = [client_copy / 'hfs' / name for name in previously_added if client_copy / 'hfs' / name not in new_packs]
+    added = sorted([p.name for p in new_packs] + [name + '.hfs' for name, _, _ in plan])
+    stale = [client_copy / 'hfs' / name for name in previously_added if name not in added]
     if apply_changes:
         for path in changed:
             path.write_bytes(wanted[path])
         for path in stale:
             path.unlink(missing_ok=True)
-        added_list.write_text(json.dumps(sorted(p.name for p in new_packs)), encoding='utf-8')
-    return {'hfs': 'applied' if items or entries else 'restored', 'text_tokens': len(entries), 'costumes': len(costumes),
-            'new_packs': sorted(p.name for p in new_packs), 'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
+        added_list.write_text(json.dumps(added), encoding='utf-8')
+    return {'hfs': 'applied' if items or entries or class_files or merges or class_tokens or replacements else 'restored',
+            'text_tokens': len(entries),
+            'model_replacements': {'files': len(replacements), 'new': len(replacement_new),
+                                   'packs_rewritten': len(replaced)},
+            'class_tokens': len(class_tokens),
+            'costumes': len(costumes), 'new_packs': sorted(p.name for p in new_packs), 'class_files': len(class_files),
+            'class_packs': len(plan), 'class_injected': len(injected_paths), 'class_packs_built': class_built, 'class_merges': merge_report, 'original_fixes': fix_report,
+            'hfs_files_changed': len(changed), 'stale_packs': len(stale)}
 
 
 def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDITIONS, edits: dict | None = None,
@@ -290,7 +762,9 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
         previous = json.loads(written.read_text(encoding='utf-8')) if written.exists() else {}
         plan['items'] = len(items)
         plan['item_overrides'] = len(overrides)
-        if apply_changes and (items or overrides) and not backup.exists():
+        imports = class_imports.load_imports(content_additions.CLASS_IMPORTS)
+        plan['class_imports'] = [p.stem for p in imports]
+        if apply_changes and (items or overrides or imports) and not backup.exists():
             with closing(sqlite3.connect(backup)) as copy:
                 db.backup(copy)
         if apply_changes:
@@ -302,12 +776,18 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
             original = sqlite3.connect(backup.resolve().as_uri() + '?mode=ro', uri=True) if backup.exists() else None
             try:
                 with db:
+                    # Imported NA classes first (their tables come back to the original rows), then the
+                    # item editor's rows on top.
+                    if imports or previous.get('imported'):
+                        plan['class_rows'] = class_imports.apply_client(db, original, imports,
+                                                                        content_additions.class_remap(imports, items))
                     plan['item_rows'] = content_additions.apply_client(db, items, overrides, original, previous)
             finally:
                 if original is not None:
                     original.close()
             written.write_text(json.dumps({'added': sorted(i['ItemClass'] for i in items),
-                                           'overridden': sorted(overrides)}), encoding='utf-8')
+                                           'overridden': sorted(overrides),
+                                           'imported': [p.stem for p in imports]}), encoding='utf-8')
         if apply_changes and current != target:
             if not backup.exists():
                 with closing(sqlite3.connect(backup)) as copy:
@@ -317,6 +797,8 @@ def apply(client_copy: Path, apply_changes: bool = False, additions: Path = ADDI
                 db.executemany('INSERT INTO ShopInfo(' + ','.join('[%s]' % c for c in SHOP_COLUMNS) + ') VALUES(' +
                                ','.join('?' * len(SHOP_COLUMNS)) + ')', [tuple(r[c] for c in SHOP_COLUMNS) for r in target])
             plan['backup'] = str(backup)
+    if imports:
+        plan['loose_fixes'] = apply_loose_fixes(client_copy, apply_changes)
     keystream = client_copy / 'hfs-keystream.bin' if keystream is None else keystream
     plan.update(apply_hfs(client_copy, items, keystream, apply_changes, overrides=overrides))
     return plan

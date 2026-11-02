@@ -62,6 +62,9 @@ fn mastery(class: &str) -> Option<(&'static str, bool, bool)> {
         // Class 10 (Delia): absent from the 1.69 C# reference; the 1.69 content maps the
         // BASTARDSWORD weight bonus to this skill (scripts/expression/expression_table_base.txt).
         "BASTARDSWORD" => ("skill_delia_bastard_mastery", false, false),
+        // Class 11 (Miri, ported from the NA): her only weapon type and its mastery
+        // (NA SkillInfo, imported by scripts/content/class_imports.py).
+        "DRAKER" => ("skill_miri_draker_mastery", false, false),
         _ => return None,
     })
 }

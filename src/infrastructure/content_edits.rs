@@ -303,14 +303,8 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
                 removed_items.insert(target);
             }
             "item_override" => {
-                // An override without changes gives the item its original values back.
-                let empty = ["set", "text"].iter().all(|k| {
-                    value
-                        .get(k)
-                        .and_then(serde_json::Value::as_object)
-                        .is_none_or(serde_json::Map::is_empty)
-                });
-                if empty {
+                // An override without changes gives the item its original values and model back.
+                if override_is_empty(&value) {
                     item_overrides.remove(&target);
                 } else {
                     item_overrides.insert(target, value);
@@ -357,6 +351,16 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
         "hidden_items": hidden_items,
         "removed_items": removed_items,
     }))
+}
+
+/// A base item override that changes nothing: no columns, no text and no replacement model.
+pub fn override_is_empty(value: &serde_json::Value) -> bool {
+    ["set", "text"].iter().all(|k| {
+        value
+            .get(k)
+            .and_then(serde_json::Value::as_object)
+            .is_none_or(serde_json::Map::is_empty)
+    }) && !value.get("model").is_some_and(serde_json::Value::is_object)
 }
 
 /// The newest published version with an item editor edit (0 = none): the host re-exports the
@@ -411,4 +415,21 @@ pub async fn mark_applied(pool: &PgPool, version: i32) -> Result<bool, sqlx::Err
     .await?
     .rows_affected()
         > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::override_is_empty;
+    use serde_json::json;
+
+    #[test]
+    fn an_override_with_only_a_replacement_model_is_kept() {
+        assert!(override_is_empty(&json!({})));
+        assert!(override_is_empty(&json!({"set": {}, "text": {}})));
+        assert!(!override_is_empty(&json!({"set": {}, "text": {},
+            "model": {"assets": "kit_0123456789abcdef", "model": "models/armor/a/pc_female_a_upper.mdl"}})));
+        assert!(!override_is_empty(
+            &json!({"set": {"EquipItemInfo": {"DEF": 1}}})
+        ));
+    }
 }

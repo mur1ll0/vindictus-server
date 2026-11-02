@@ -1434,6 +1434,8 @@ fn framework_item_sync_envelopes_match_x86_x64() {
         Kind::SecuredOperation,
         Kind::QueryShopItemInfo,
         Kind::SellItem,
+        Kind::DestroyItem,
+        Kind::DestroySlotItem,
         Kind::QueryBuybackList,
         Kind::BuybackListResult,
         Kind::RepairItem,
@@ -1614,4 +1616,35 @@ fn client_ingress_ignores_trailing_bytes_like_serialize_reader() {
     assert!(wire::decode(Kind::QueryNpcList, &[1, 0], DEFAULT_MAX_BODY).is_err());
     // A truncated body is still refused.
     assert!(wire::decode_ingress(Kind::QueryNpcTalk, 0, &body[..16], DEFAULT_MAX_BODY).is_err());
+}
+
+#[test]
+fn destroy_slot_item_carries_the_item_id() {
+    // DestroySlotItemMessage(long itemID): the same big-endian Int64 as SellItemMessage.ItemID.
+    let body = wire::encode(
+        Kind::DestroySlotItem,
+        Some(&Message::DestroySlotItem(0x0102_0304_0506_0708)),
+        DEFAULT_MAX_BODY,
+    )
+    .unwrap();
+    assert_eq!(body.as_ref(), [1, 1, 2, 3, 4, 5, 6, 7, 8]); // the object presence byte, then ItemID
+    assert!(matches!(
+        wire::decode(Kind::DestroySlotItem, &body, DEFAULT_MAX_BODY).unwrap(),
+        Some(Message::DestroySlotItem(0x0102_0304_0506_0708))
+    ));
+    assert_eq!(Kind::DestroySlotItem.category(), 454);
+}
+
+#[test]
+fn destroy_item_carries_the_class_and_the_count() {
+    // DestroyItemMessage(string itemClass, int num): category 453, before DestroySlotItemMessage.
+    use vindictus_server::protocol::inventory::DestroyItem;
+    let message = Message::DestroyItem(DestroyItem {
+        item_class: Some("potion".into()),
+        num: 3,
+    });
+    let body = wire::encode(Kind::DestroyItem, Some(&message), DEFAULT_MAX_BODY).unwrap();
+    assert!(wire::decode(Kind::DestroyItem, &body, DEFAULT_MAX_BODY).unwrap() == Some(message));
+    assert_eq!(Kind::DestroyItem.category(), 453);
+    assert!(wire::decode(Kind::DestroyItem, &body[..body.len() - 1], DEFAULT_MAX_BODY).is_err());
 }

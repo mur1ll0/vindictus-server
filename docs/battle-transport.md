@@ -100,6 +100,15 @@ Heroes game RMIs (PIDL `S2C`/`C2S`):
 
 Message types 20, 21 and 22 relay reliable, unreliable and linger frames to the other group members, answered as types 23, 24 and 25. A one-member group has nobody to relay to.
 
+### Client completions above 2 GB (laboratory patch)
+
+The client's IOCP completion getter (`engine.dll` 0x425fd2e0) tests the OVERLAPPED pointer as a signed int (`cmp eax, ebx; jge` at 0x425fd3a2). A negative pointer is treated as a custom event instead of being matched against the socket's receive and send OVERLAPPEDs. The laboratory `Vindictus.exe` is large-address-aware, so when the low 2 GB are used up a new `CTcpLayer_C` can land above `0x80000000`. Its first receive completion, the connection hint, is then dropped:
+- the client never sends its public key;
+- the worker's handshake timeout (10.0 s) closes the TCP connection;
+- the Heroes connection wait (60 s, 0x42341570) and `NetClient::Disconnect` (0x425df460, at least 100 s, waiting for the receive still counted as pending) keep the client "Not Responding" before it returns to town.
+
+The relay can't avoid this. `scripts/client/patch_engine_iocp_sign.py` turns that `jge` into `jmp` in the laboratory copy. Non-matching values still become custom events with the same fields.
+
 ## Mission entry wiring
 
 The laboratory starts the relay on `relay_bind` from the assets file (the original `relay tcpPort` is 27005). For AcceptQuest the frontend:

@@ -9,6 +9,7 @@ import patch_engine_class_flags as flags  # noqa: E402
 from patch_class_table import Image  # noqa: E402
 
 LAB = pathlib.Path(__file__).resolve().parents[2] / '.cache/play-client/bin'
+MD = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 
 
 def source():
@@ -16,29 +17,42 @@ def source():
     return (backups[0] if backups else LAB / 'engine.dll').read_bytes()
 
 
-class TailTest(unittest.TestCase):
-    def test_new_tail_fits_and_ends_in_ret(self):
-        self.assertEqual(len(flags.NEW_TAIL), len(flags.OLD_TAIL))
-        self.assertEqual(flags.NEW_TAIL[-3:], b'\xc2\x04\x00')
+def code(data: bytes, va: int) -> list[str]:
+    return [f'{x.mnemonic} {x.op_str}' for x in MD.disasm(data, va)]
+
+
+class StubTest(unittest.TestCase):
+    def test_stub_sets_bits_eight_nine_and_each_extra_class(self):
+        text = code(flags.stub(), 0x10000)
+        self.assertEqual(text[:6], ['test edx, 0x100', 'je 0x1000e', 'mov byte ptr [ecx + 0x1a0], al',
+                                    'test edx, 0x200', 'je 0x1001c', 'mov byte ptr [ecx + 0x1a1], al'])
+        self.assertEqual(text[6:10], ['test edx, 0x400', 'setne byte ptr [ecx + 0x1cd]',
+                                      'test edx, 0x800', 'setne byte ptr [ecx + 0x1ce]'])
+        self.assertEqual(text[-1], 'ret 4')
+        self.assertFalse(any('0x1a2' in t for t in text))  # +0x1a2 is Indestructible
+
+    def test_tail_jumps_to_the_stub_and_keeps_a_ret(self):
+        tail = flags.new_tail(0x5C000000)
+        self.assertEqual(len(tail), len(flags.OLD_TAIL))
+        self.assertEqual(code(tail[:8], flags.TAIL), ['jmp 0x5c000000', 'ret 4'])
 
 
 @unittest.skipUnless((LAB / 'engine.dll').is_file(), 'needs the laboratory copy in .cache/play-client')
 class LabCopyTest(unittest.TestCase):
-    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
-
-    def test_setter_sets_flags_eight_nine_and_delia_and_exits_at_the_new_ret(self):
+    def test_setter_jumps_to_the_new_section_and_exits_at_the_kept_ret(self):
         data, report = flags.plan(source())
         image = Image(data)
+        sections = [s for s in image.sections() if s[0] == flags.SECTION]
+        self.assertEqual(len(sections), 1)
+        _, vsize, vaddr, _, raw = sections[0]
+        self.assertEqual(int(report['stub'], 16), image.base + vaddr)
+        self.assertEqual(bytes(image.data[raw:raw + vsize]), flags.stub())
         o = image.offset(flags.TAIL)
-        code = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[o:o + 32]), flags.TAIL)]
-        self.assertEqual(code[0], 'add ecx, 0x1a0')
-        for text in ('mov byte ptr [ecx], al', 'mov byte ptr [ecx + 1], al', 'setne byte ptr [ecx + 0x2d]'):
-            self.assertIn(text, code)
-        self.assertEqual(0x1A0 + 0x2D, flags.DELIA_FLAG)
-        self.assertFalse(any('ecx + 2]' in text for text in code))  # +0x1a2 is Indestructible
-        self.assertEqual(code[-1], 'ret 4')
-        exit_ = next(self.md.disasm(bytes(image.data[image.offset(flags.EXIT):image.offset(flags.EXIT) + 2]), flags.EXIT))
+        self.assertEqual(code(bytes(image.data[o:o + 8]), flags.TAIL), [f'jmp {report["stub"]}', 'ret 4'])
+        exit_ = next(MD.disasm(bytes(image.data[image.offset(flags.EXIT):image.offset(flags.EXIT) + 2]), flags.EXIT))
         self.assertEqual(int(exit_.op_str, 16), int(report['ret'], 16))
+        with self.assertRaises(flags.PreparationError):
+            flags.plan(data)
 
 
 if __name__ == '__main__':
