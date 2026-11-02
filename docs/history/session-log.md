@@ -3290,3 +3290,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: (este commit)
 - Pendente / próxima ação: Launcher: aguardando D-L1–D-L6; com o aceite, começar pelo L-A (login) e pelo L1 (`updates`, importação da v1 e medição).
+
+## 2026-11-02 — L-A: login do launcher (nexon_api.dll no REA, event_account, patch_client_auto_login)
+- Feito: `nexon_api.dll` original (SHA-256 `764a7ff5b6f77fa9…`) lido no REA/Ghidra: é só o carregador do Nexon Launcher (`FindNXL` → `<NXL>\bin\nexon.dll` → `GetDLLInterface`; vtable +0x3c InitNXLauncher, +0x14 GetAPI, +0x1c GetNXUser, +0x40 desligar). Desmontagem pontual (Capstone) no 1.69 original: `Vindictus.exe` importa só `nxapi_init`, `engine.dll` só `nxapi_shutdown`; modos de login do engine (`-token` 4, `-mantis` 3 sem NMCO, `-passport` 1 via NMManager = "Erro [Auth] SSO" do T2); Start Game do `client.dll` (`0x385232f0`) entra direto com o ConVar `event_account` (`0x38e5d9c8`) quando `E3_Event_2010`/`Event_PAX_2011_enUS` está ligado (66 usos no client, descartado); também `AutoLogin.txt`/`LoginAuto1/2` e `-event_account`. Decisão: `scripts/client/patch_client_auto_login.py` (+ teste) troca o `je` de `0x385233fe` por NOP de 6 bytes; o launcher passa `+event_account <ticket>`. Aplicado na cópia: `client.dll` `c0b5d4164cc122a3` → `608bf9bcc6046751` (backup `.pre-autologin.bak`). `docs/future/game-launcher.md` §4.1/§4.4/§5/§7, `docs/client-dll-patches.md` (cadeia de seis scripts), `docs/client-tests/L-launcher.md` (LA1), `MIGRATION.md`.
+- Verificação: `py -3.13 -m unittest test_patch_client_auto_login` (scripts/client): 5 testes OK, nenhum pulado; dry-run e apply com exit 0. Logs em `.cache/verification/la/` (exe-nxapi, engine-nxapi, client-mantis, client-AutoLogin.txt, test-autologin, autologin-apply).
+- Cliente: LA1 em `docs/client-tests/L-launcher.md` (checkpoint pendente).
+- Commits: (este commit)
+- Pendente / próxima ação: Launcher: checkpoint de cliente LA1 (`+event_account lab169_a` → Start Game → seleção sem diálogo). Sem esperar o LA1: L1 (`updates`, importação da v1 e medição), após D-L2–D-L4.
