@@ -387,6 +387,18 @@ HIT_IMPACT_SKIP = 0x4B3D
 CUSTOM_EFFECT = {'client.dll': {'slot': 200, 'fire_event': 0x386FB540, 'custom': 0x59, 'play': 0x55}}
 CUSTOM_EFFECT_HEAD = 'd9ee81ece0000000'
 CUSTOM_EFFECT_PATH = 260
+# The Flamebreath HUD after Go to Home screen (M8j, C4): the client's C_HeroesPlayer scalar deleting destructor
+# (vtable slot 0, 0x38705cc0: 0x38704fb0, then delete when bit 0) runs the Flamebreath `hide` for the Miri.
+FLAMEBREATH_LEAVE = {'client.dll': {'slot': 0, 'destructor': 0x38705CC0}}
+FLAMEBREATH_LEAVE_HEAD = '568bf1e8e8f2ffff'
+# The Call of the Dragon dragon follows the Miri (M8j, C4 MI39: it stayed where it appeared while she flew; the
+# NA client keeps its dragon at the player). The 1.69 server's prop creation (0x400f96e0, AE_CREATE_ATTACKABLE_
+# MODEL and AE_CREATE_AUX_MODEL) places the model at the player and stores its handle in the player's list
+# (+0xbe4) through 0x4001c200 at 0x400f984e (esi = the new model, edi = the player); it never parents it.
+# That call goes through a thunk that, for the Miri, then parents the model to her: CBaseEntity::SetParent(
+# parent, -1, -1), vtable +0x94 (InputSetParent 0x4010cdc0 -> 0x40102070 -> [vtable+0x94]).
+SUMMON_PARENT = {'server.dll': {'site': 0x400F984E, 'handle': 0x4001C200, 'set_parent': 0x94}}
+SUMMON_PARENT_HEAD = '568d4c2440'  # push esi; lea ecx, [esp+0x40] before the call
 # Per-frame class conditions (plan 8.15 item 2). NA server 0x6e4d30 (slot 517 = 1.69 460) raises
 # As_Cond_Can_Armor_Purge (SP5's gate) while armour is equipped in slots 4-8 and the purge is not
 # blocked, and As_Cond_Delia_SPSkill3_Activated while skill_delia_sp3 is off cooldown (SP1/SP3
@@ -1717,6 +1729,44 @@ def custom_effect(image: Image, layout: Layout, edits: list, relocs: set[int], n
             'slot': class_dispatch(image, layout, edits, relocs, entity, klass, k['slot'], {MIRI: body})}
 
 
+def flamebreath_leave(image: Image, layout: Layout, edits: list, relocs: set[int], name: str, hide: int) -> str:
+    """FLAMEBREATH_LEAVE: the Miri's destructor hides the Flamebreath dialog first."""
+    k = FLAMEBREATH_LEAVE[name]
+    entity, klass = ENTITY_SLOTS[name][0], ENTITY_SLOTS[name][1]
+    original = struct.unpack_from('<I', image.data, image.offset(vtable(image, entity) + 4 * k['slot']))[0]
+    head = bytes.fromhex(FLAMEBREATH_LEAVE_HEAD)
+    if original != k['destructor'] or bytes(image.data[image.offset(original):image.offset(original) + len(head)]) != head:
+        raise PreparationError(f'Unexpected destructor at slot {k["slot"]} ({original:#x}); nothing is patched.')
+    layout.pad()
+    body = layout.here()
+    layout.body += b'\x51'  # push ecx (this)
+    layout.to(b'\xe8', hide)
+    layout.body += b'\x59'  # pop ecx
+    layout.to(b'\xe9', original)
+    return class_dispatch(image, layout, edits, relocs, entity, klass, k['slot'], {FLAMEBREATH_CLASS: body})
+
+
+def summon_parent(image: Image, layout: Layout, edits: list, name: str) -> dict:
+    """SUMMON_PARENT: the Miri's summoned models are parented to her."""
+    k = SUMMON_PARENT[name]
+    site, klass = k['site'], ENTITY_SLOTS[name][1]
+    head = bytes.fromhex(SUMMON_PARENT_HEAD)
+    old = b'\xe8' + struct.pack('<i', k['handle'] - (site + 5))
+    if bytes(image.data[image.offset(site) - len(head):image.offset(site) + 5]) != head + old:
+        raise PreparationError(f'Unexpected code at {site:#x}; nothing is patched.')
+    layout.pad()
+    thunk = layout.here()
+    layout.body += bytes.fromhex('ff742404')  # push [esp+4] (the model)
+    layout.to(b'\xe8', k['handle'])  # store its handle (thiscall, ret 4)
+    layout.body += bytes.fromhex('83bf') + struct.pack('<I', klass) + bytes((FLAMEBREATH_CLASS,))  # cmp [edi+class], Miri
+    other = layout.forward(bytes.fromhex('0f85'))
+    layout.body += bytes.fromhex('6aff 6aff 57 8b06 8bce ff90') + struct.pack('<I', k['set_parent'])  # SetParent(player, -1, -1)
+    layout.land(other)
+    layout.body += bytes.fromhex('c20400')
+    edits.append((site, old, b'\xe8' + struct.pack('<i', thunk - (site + 5))))
+    return {'site': hex(site), 'thunk': hex(thunk)}
+
+
 def client_guard(image: Image, layout: Layout, edits: list, relocs: set[int], set_slot: int, get_slot: int,
                  damage_slot: int, copy: int, unguardable: int, unguardable_info: int, raise_: int, test: int,
                  lower: int, allocator: int) -> dict:
@@ -2716,6 +2766,20 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
         call(k['ui'])
         b('8bc8 8b10')
 
+    # Leaving the game (C4: Go to Home screen) destroys the player, whose tick is the only one that hides the
+    # dialog: FLAMEBREATH_LEAVE runs this from her destructor. It hides the dialog and forgets the visibility,
+    # so a Miri still playing shows it again on her next tick. The UI may be gone at exit.
+    L.pad()
+    hide = L.here()
+    at('c705', shown)
+    b('ffffffff')
+    call(k['ui'])
+    b('85c0'); gone = fwd('0f84')
+    b('8bc8 8b10 6a00'); at('68', dialog)
+    b('ff52' + bytes((k['ui_show'],)).hex())
+    L.land(gone)
+    b('c3')
+
     L.pad()
     tick = L.here()
     b('53 56 8bf1 33db f686' + d32(k['type']) + '01 0f95c3')  # ebx = transformed (m_gaugeType bit 0)
@@ -2755,7 +2819,7 @@ def flamebreath(image: Image, layout: Layout, name: str, in_town: int | None = N
     b('ff52' + bytes((k['ui_invoke'],)).hex() + '83c440')
     L.land(other); L.land(hidden); L.land(unchanged)
     b('5e 5b c3')
-    return {'tick': hex(tick), 'dialog': FLAMEBREATH_DIALOG, 'shown': hex(shown), 'level': hex(level),
+    return {'tick': hex(tick), 'hide': hex(hide), 'dialog': FLAMEBREATH_DIALOG, 'shown': hex(shown), 'level': hex(level),
             'transformed': hex(transformed), 'conditions': {'smash': smash, 'knight': knight, 'can_transform': can_transform}}
 
 
@@ -3784,6 +3848,11 @@ def plan_dll(name: str, data: bytes, fallback: str | None = None) -> tuple[bytes
     if name in CLASS_CONDITIONS:
         report['class_conditions'] = class_conditions(image, layout, edits, relocs, name, *CLASS_CONDITIONS[name],
                                                       tick=int(effects['tick'], 16) if effects else None, flame=flame)
+        hide = report['class_conditions'].get('flamebreath', {}).get('hide')
+        if name in FLAMEBREATH_LEAVE and hide:
+            report['flamebreath_leave'] = flamebreath_leave(image, layout, edits, relocs, name, int(hide, 16))
+    if name in SUMMON_PARENT:
+        report['summon_parent'] = summon_parent(image, layout, edits, name)
     if name in ENTITY_SLOTS:
         report['entity_slots'] = entity_slots(image, layout, edits, relocs, *ENTITY_SLOTS[name])
     if name == 'client.dll':

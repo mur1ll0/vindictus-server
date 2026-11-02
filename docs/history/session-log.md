@@ -3156,3 +3156,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/C4-miri.md` MI39 (pendente).
 - Commits: (este passo)
 - Pendente / próxima ação: resultado da MI39 (cores; espinho × dragão) e retirar a sonda.
+
+## 2026-11-01 — Miri M8j: asas do Dragon Knight, dragão seguindo a Miri e HUD na tela inicial
+- Feito: MI39 no cliente: o dragão do SP5 aparece mas não acompanha a Miri voando; faltam as asas negras do Dragon Knight; HUD do Flamebreath na tela inicial depois de Home Screen (opção do 1.69 que volta ao título; Change Character volta à seleção). `stage_na_class.with_csf_rear`: o `.csf` do Dragon Knight recebe o `rear` (500139, `models/rear/dragonknight/miri_dragonknight_wing.mdl`) do `csf/miri_dragon_knight_startmenu.csf` do NA. `patch_class_routing.SUMMON_PARENT`: a chamada `0x4001c200` em `0x400f984e` (criação de modelo do servidor, `0x400f96e0`) passa por um *thunk* que, para a classe 11, chama `SetParent(jogador, -1, -1)` (vtable +0x94; `InputSetParent` `0x4010cdc0` → `0x40102070`). `FLAMEBREATH_LEAVE`: slot 0 (destrutor `0x38705cc0`) do `C_HeroesPlayer` da Miri chama o novo `hide` do Flamebreath (esconde o `MiriSkillDialog`, zera `shown`; UI nula ignorada). Sonda do M8i retirada.
+- Verificação: `test_stage_na_class` OK (`.cache/verification/miri/r6/m8j-stage-tests.log`); `test_patch_class_routing` 48 OK, completo (`r6/m8j-routing-full.log`). Aplicado com o jogo fechado: preparação, `apply_lab_content_additions.py --apply` (um pacote), DLLs atuais em `*.pre-m8j.bak`, `*.pre-routing.bak` restaurados e roteamento (`r6/m8j-routing-apply.log`): client `c8eb22d1ad60f944`, server `fe944a02c7eb9627`.
+- Cliente: `docs/client-tests/C4-miri.md` MI40 (pendente).
+- Commits: (este passo)
+- Pendente / próxima ação: resultado da MI40 (asas, dragão seguindo a Miri, HUD nas duas saídas).

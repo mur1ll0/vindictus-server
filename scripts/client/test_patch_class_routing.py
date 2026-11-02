@@ -486,6 +486,41 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(sum(t == f'call {raise_:#x}' for t in miri), 2)
         self.assertIn('test byte ptr [edi + 0x78], 2', miri)
 
+    def test_the_miri_hides_her_flamebreath_dialog_when_she_goes(self):
+        image, report = self.plan('client.dll')
+        k = routing.FLAMEBREATH_LEAVE['client.dll']
+        name = routing.ENTITY_SLOTS['client.dll'][0]
+        flame = report['class_conditions']['flamebreath']
+        hide, shown = int(flame['hide'], 16), int(flame['shown'], 16)
+        stub = self.entry(image, routing.vtable(image, name), k['slot'])
+        text = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(stub):image.offset(stub) + 32]), stub)][:5]
+        self.assertEqual(text[1], f'cmp eax, {routing.MIRI:#x}')
+        self.assertEqual(text[4], f'jmp {k["destructor"]:#x}')
+        body = int(text[3].split()[1], 16)
+        code = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(body):image.offset(body) + 12]), body)][:4]
+        self.assertEqual(code, ['push ecx', f'call {hide:#x}', 'pop ecx', f'jmp {k["destructor"]:#x}'])
+        code = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(hide):image.offset(hide) + 0x30]), hide)]
+        code = code[:code.index('ret ') + 1]
+        self.assertEqual(code[0], f'mov dword ptr [{shown:#x}], 0xffffffff')
+        self.assertIn('test eax, eax', code)
+        self.assertIn('push 0', code)
+        self.assertIn(f"call dword ptr [edx + {routing.FLAMEBREATH['client.dll']['ui_show']:#x}]", code)
+        dialog = int(next(t for t in code if t.startswith('push 0x')).split()[1], 16)
+        self.assertEqual(routing.read_string(image, dialog), routing.FLAMEBREATH_DIALOG)
+
+    def test_the_miri_s_summoned_models_follow_her(self):
+        image, report = self.plan('server.dll')
+        k = routing.SUMMON_PARENT['server.dll']
+        thunk = int(report['summon_parent']['thunk'], 16)
+        call = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(k['site']):image.offset(k['site']) + 5]), k['site'])]
+        self.assertEqual(call, [f'call {thunk:#x}'])
+        code = [f'{x.mnemonic} {x.op_str}' for x in self.md.disasm(bytes(image.data[image.offset(thunk):image.offset(thunk) + 0x30]), thunk)]
+        code = code[:code.index('ret 4') + 1]
+        self.assertEqual(code[:3], ['push dword ptr [esp + 4]', f"call {k['handle']:#x}",
+                                    f'cmp dword ptr [edi + 0x1400], {routing.FLAMEBREATH_CLASS:#x}'])
+        self.assertEqual(code[4:], ['push -1', 'push -1', 'push edi', 'mov eax, dword ptr [esi]', 'mov ecx, esi',
+                                    f"call dword ptr [eax + {k['set_parent']:#x}]", 'ret 4'])
+
     def test_the_miri_plays_custom_effects_by_her_state(self):
         image, report = self.plan('client.dll')
         k = routing.CUSTOM_EFFECT['client.dll']

@@ -218,6 +218,19 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"500152"', out)
         self.assertEqual([c.key for c in stage.kv_merge.parse(out).children[0].children], ['upper_body'])
 
+    def test_the_dragon_knight_look_wears_the_start_menu_wings(self):
+        csf = (b'"costume"\r\n{\r\n\t"upper_body"\r\n\t{\r\n\t\t"sn"\t\t"500152"\r\n\t}\r\n'
+               b'\t"rear"\r\n\t{\r\n\t\t"sn"\t\t"-1"\r\n\t\t"color"\t\t"-1 -1 -1"\r\n\t}\r\n}\r\n')
+        menu = (b'"costume"\r\n{\r\n\t"rear"\r\n\t{\r\n\t\t"sn"\t\t"500139"\r\n\t\t"color"\t\t"8323072 32512 127"\r\n\t}\r\n'
+                b'\t"motion"\r\n\t{\r\n\t\t"sn"\t\t"112"\r\n\t}\r\n}\r\n')
+        out = stage.with_csf_rear(csf, menu)
+        rear = stage._costume_child(out, 'rear')
+        self.assertEqual({c.key: c.value for c in rear.children}, {'sn': '500139', 'color': '8323072 32512 127'})
+        self.assertEqual([c.key for c in stage.kv_merge.parse(out).children[0].children], ['upper_body', 'rear'])
+        self.assertNotIn(b'motion', out)
+        self.assertEqual(stage.with_csf_rear(csf, b'"costume"\r\n{\r\n}\r\n'), csf)
+        self.assertEqual(set(stage.CSF_REAR), {'csf/metamorphosis/{klass}_dragon_knight.csf'})
+
     def test_the_transformation_spends_the_sp_its_state_checks(self):
         states = (b'"Miri"\r\n{\r\n\t"Output"\r\n\t{\r\n\t\t"AttackSP03"\r\n\t\t{\r\n\t\t\t"property"\r\n\t\t\t{\r\n'
                   b'\t\t\t\t"SPGauge_need"\t"250"\r\n\t\t\t}\r\n\t\t}\r\n\t\t"AttackSP04"\r\n\t\t{\r\n\t\t\t"property"\r\n'
@@ -312,11 +325,8 @@ class StageTest(unittest.TestCase):
         self.assertIn(b'"AE_DELETE_ATTACKABLE_MODEL\t' + model + b' 0.0"', out)
         self.assertNotIn(b'DRAGON_EFFECT', out)
         self.assertNotIn(b'_DRAGON"', out)
-        # the temporary MI39 probe: a 1.69 thorn next to the dragon, removed with it
-        thorn = b'models\\effects\\mesh\\effect_darkknight_thorn_01.mdl'
-        self.assertIn(b'\t"0"\t"AE_CREATE_ATTACKABLE_MODEL\t' + thorn + b' effect_darkknight_thorn_anim 40.0"\r\n', out)
-        self.assertIn(b'"AE_DELETE_ATTACKABLE_MODEL\t' + thorn + b' 0.0"', out)
-        self.assertEqual(out.count(b'"is_finally"\t"1"'), 2)
+        self.assertNotIn(b'thorn', out)  # the MI39 probe is gone
+        self.assertEqual(out.count(b'"is_finally"\t"1"'), 1)
         self.assertEqual(stage.summoned_model_events(motion),
                          b'"dragon_attack"\r\n{\r\n\t"0"\t"AE_CL_PLAY_EFFECT\teffects/player/miri/SP5_dragon_body.efx"\r\n}\r\n')
         self.assertIsNone(stage.summoned_model_events(b'"x" { }'))

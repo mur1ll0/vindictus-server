@@ -404,6 +404,27 @@ def pbs_as_armor(path: str, data: bytes) -> bytes:
 CSF_WITHOUT_WEAPON = ('csf/metamorphosis/{klass}_dragon_knight.csf',)
 
 
+# The Dragon Knight's black wings (M8j, operator): the look's .csf leaves the back slot empty ("rear" sn -1)
+# and the NA client wears them from code, but its start menu look (csf/<class>_dragon_knight_startmenu.csf)
+# names them: rear 500139, models/rear/dragonknight/miri_dragonknight_wing.mdl, an entry the class merge
+# already brings (the needles name the class). The 1.69 loads the whole .csf (M7n), so the look takes that
+# back slot from the start menu one.
+CSF_REAR = {'csf/metamorphosis/{klass}_dragon_knight.csf': 'csf/{klass}_dragon_knight_startmenu.csf'}
+
+
+def _costume_child(data: bytes, key: str):
+    import kv_merge as kv
+    costume = next((n for n in kv.parse(data).children if n.block), None)
+    return next((c for c in costume.children if c.block and c.key.lower() == key), None) if costume else None
+
+
+def with_csf_rear(data: bytes, look: bytes) -> bytes:
+    rear, worn = _costume_child(data, 'rear'), _costume_child(look, 'rear')
+    if rear is None or worn is None:
+        return data
+    return data[:rear.start] + look[worn.start:worn.end] + data[rear.end:]
+
+
 def without_csf_weapon(data: bytes) -> bytes:
     import kv_merge as kv
     root = kv.parse(data)
@@ -518,29 +539,7 @@ def with_summoned_model(path: str, data: bytes, klass: str) -> bytes:
     data = SUMMON.sub(rb'AE_CREATE_ATTACKABLE_MODEL\g<1>' + model.replace(b'\\', b'\\\\') + b' '
                       + SUMMONED_SEQUENCE.encode() + b' 0.0', data)
     data = RETURN.sub(rb'AE_DELETE_ATTACKABLE_MODEL\g<1>' + model.replace(b'\\', b'\\\\') + b' 0.0', data)
-    data = with_summon_probe(data, model)
     return DRAGON_EFFECT.sub(b'', data)
-
-
-# Temporary diagnostic (M8i, C4 MI39): the dragon did not show in MI29/MI38 though the 1.69 server's
-# AE_CREATE_ATTACKABLE_MODEL (0x400fb91a, base HandleAnimEvent 0x400fb180, reached from CHeroesPlayer's
-# 0x405404b0) precaches and spawns any model. Next to each dragon a 1.69 model that the Delia's
-# transformation shows (the dark knight thorn, same event and frame) tells whether the event runs for the
-# Miri (thorns seen: the dragon model is at fault) or not (neither seen). Remove after MI39.
-SUMMON_PROBE = (b'models\\effects\\mesh\\effect_darkknight_thorn_01.mdl', b'effect_darkknight_thorn_anim', b'40.0')
-SUMMON_CREATE = rb'^([ \t]*)"(\d+)"([ \t]+)"AE_CREATE_ATTACKABLE_MODEL[ \t]+%s [^"\r\n]*"(\r?\n)'
-
-
-def with_summon_probe(data: bytes, model: bytes) -> bytes:
-    probe, sequence, forward = SUMMON_PROBE
-
-    def add(m: re.Match) -> bytes:
-        indent, newline = m.group(1), m.group(4)
-        return (m.group(0) + indent + b'"' + m.group(2) + b'"' + m.group(3) + b'"AE_CREATE_ATTACKABLE_MODEL\t' + probe
-                + b' ' + sequence + b' ' + forward + b'"' + newline + indent + b'"$endframe-1$"' + newline + indent
-                + b'{' + newline + indent + b'\t"event"\t"AE_DELETE_ATTACKABLE_MODEL\t' + probe + b' 0.0"' + newline
-                + indent + b'\t"is_finally"\t"1"' + newline + indent + b'}' + newline)
-    return re.sub(SUMMON_CREATE % re.escape(model), add, data, flags=re.M)
 
 
 # The dragon's eyes (M8b): the NA client puts a sprite (sprites/redglow1.vmt, scale 0.1, glow render mode,
@@ -701,6 +700,9 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         data = with_summoned_model(rel, data, class_name)
         if rel in csf_without_weapon:
             data = without_csf_weapon(data)
+        rear_look = CSF_REAR.get(rel.replace(class_name, '{klass}'), '').format(klass=class_name)
+        if rear_look in na:
+            data = with_csf_rear(data, na[rear_look].read_bytes())
         converted = converted or data != source
         target = out / rel
         if not target.is_file() or sha256(target.read_bytes()) != sha256(data):

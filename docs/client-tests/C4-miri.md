@@ -475,3 +475,11 @@ Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.
 - [ ] Fiery Chainswing **sem** transformar → efeito azul; transformada (Dragon Knight) → efeito vermelho. Repetir com outros golpes que mudavam de cor no NA (Blazing Spine, Slice and Dice, golpes fortes).
 - [ ] Call of the Dragon (SP5), olhando em volta da Miri durante o golpe: aparecem **espinhos escuros** saindo do chão à frente dela (os da transformação da Delia; sonda temporária)? E o dragão?
 Relatar: a cor de cada golpe nos dois estados; no SP5, se viu os espinhos, o dragão, os dois ou nenhum.
+
+### MI40 — Asas do Dragon Knight, dragão seguindo a Miri e HUD na tela inicial (M8j)
+Pré-condição: com o jogo fechado, preparação, `apply_lab_content_additions.py --apply` e `patch_class_routing.py --apply` (feitos por mim; passo M8j). Sonda dos espinhos retirada. MI39: Fiery Chainswing pelo estado a confirmar.
+- [ ] Transformar (Dragon Knight) → asas negras nas costas; ao voltar ao normal as asas somem e a roupa volta a de antes.
+- [ ] Call of the Dragon (SP5) → o dragão acompanha a Miri durante o voo e some no fim (também se a habilidade for interrompida).
+- [ ] Com a Miri, menu → **Home Screen** → tela inicial **sem** o HUD do Flamebreath. Entrar de novo com a Miri numa fase → o HUD volta; entrar com a Delia → sem HUD.
+- [ ] Com a Miri, menu → **Change Character** → seleção de personagens sem o HUD.
+Relatar: asas (cor, posição, se somem), se o dragão seguiu a Miri e para que lado ele olhava, e o HUD nas duas saídas.
