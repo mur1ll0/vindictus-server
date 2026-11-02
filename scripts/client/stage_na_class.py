@@ -277,6 +277,14 @@ SPSKILL_TABLE = 'scripts/translated_spskill.txt'
 # atlas made from the NA's own portrait of the class (C4 MI4-4: the list showed Lann's face).
 LIST_PORTRAIT = 'scaleform/player_portrait/c_info_{klass}.tga'
 LIST_PORTRAIT_ATLAS = 'scaleform/selectcharacterdialog_v2_i{klass}.dds'
+# The class grid of the creation (gfx_patch.with_class_button): the NA movie's own icon of the class (the
+# sub-image its MC_Button_<Class> shows) on an atlas of its own, and the class's intro video under the name the
+# 1.69 movie builds for the English EU client ('video/createcharacter/' + '_eneu_' + 'NewCharacter_' + class +
+# '.usm'); the NA has the Miri's only as _usa_ (English) and _deu_.
+GRID_MOVIE = 'scaleform/newcharacterdialog_v2.gfx'
+GRID_ICON_ATLAS = 'scaleform/newcharacterdialog_v2_i{klass}.dds'
+GRID_INTRO = ('scaleform/video/createcharacter/_usa_newcharacter_{klass}.usm',
+              'scaleform/video/createcharacter/_eneu_newcharacter_{klass}.usm')
 # 1.69 scripts that ExtremeMode reads in place of a shared one, mapped to the NA script whose class lines
 # they get: with ExtremeMode the 1.69 loads scripts/action_table_player_ex.txt (client and server), and
 # the NA's _ex table has no Miri line, so her AE_SET_CUR_ACTION_INFO miri_* found no action: 37 damage a
@@ -830,6 +838,23 @@ def stage(class_name: str, weapon: str, na_root: Path, lab_root: Path, out: Path
         (out / atlas).write_bytes(data)
         records[atlas] = {'path': atlas, 'source': records[portrait]['source'], 'source_sha256': records[portrait]['source_sha256'],
                           'sha256': sha256(data), 'converted': True, 'bytes': len(data), 'copied_from': portrait}
+    if GRID_MOVIE in na:
+        icon_atlas, rect = gfx_patch.button_icon(na[GRID_MOVIE].read_bytes(), f'MC_Button_{class_name.capitalize()}')
+        source = f'scaleform/{icon_atlas.lower()}'
+        if source in na:
+            raw = na[source].read_bytes()
+            data = gfx_patch.class_icon_dds(raw, rect)
+            atlas = GRID_ICON_ATLAS.format(klass=class_name)
+            (out / atlas).parent.mkdir(parents=True, exist_ok=True)
+            (out / atlas).write_bytes(data)
+            records[atlas] = {'path': atlas, 'source': na[source].relative_to(na_root).as_posix(), 'source_sha256': sha256(raw),
+                              'sha256': sha256(data), 'converted': True, 'bytes': len(data), 'copied_from': None,
+                              'rect': list(rect)}
+    intro, alias = (p.format(klass=class_name) for p in GRID_INTRO)
+    if intro in records and alias not in lab:
+        data = (out / intro).read_bytes()
+        (out / alias).write_bytes(data)
+        records[alias] = {**records[intro], 'path': alias, 'copied_from': intro}
     dragon = SUMMONED_MODEL.format(klass=class_name)
     for motion in [r for r in records if r.startswith('models/player/_anim/') and r.endswith(f'pc_{class_name}_motion.txt')]:
         events = summoned_model_events(na[motion].read_bytes(), class_name)

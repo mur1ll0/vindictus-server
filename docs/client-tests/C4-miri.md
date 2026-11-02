@@ -512,3 +512,14 @@ Pré-condição: com o jogo fechado, `patch_class_routing.py --apply` (servidor)
 - [ ] Tab (Fiery Evasion) parado, correndo e durante um ataque, com o dragão do HUD com nível → esquiva; Tab + direito → Fiery Assault.
 - [ ] Conferir as teclas da Miri em Opções: se alguma que você tinha mudado voltou ao padrão (a cópia antiga está em `config_miri_ex.cfg.pre-m8n.bak`).
 Relatar: o dragão no voo e se o Tab voltou.
+
+### MG1 — Criação da Miri pela grade de classes (passo MG1)
+Pré-condição: com o jogo fechado, preparação (`stage_na_class.py --class miri --weapon draker`) e `apply_lab_content_additions.py --apply` (feitos por mim; passo MG1). DLLs sem mudança. Detalhes em `docs/future/miri-creation-grid.md`. Conta `lab169_a` com um slot livre na seleção.
+- [ ] Seleção → criar personagem → grade com **12** ícones; o 12º (linha de baixo, à direita da Delia) é o retrato da Miri. Passar o mouse sobre ele → painel com "Miri" e "Dragonspine" (não o nome da classe anterior).
+- [ ] Clicar na **Miri** → a atriz da Miri vai ao centro na pose de apresentação (não em pose T), o vídeo de apresentação dela toca no painel e o texto de descrição aparece; os cinco botões de habilidade mostram nomes (Fiery Chainswing … Call of the Dragon) e cada um toca um vídeo.
+- [ ] Clicar numa classe antiga e voltar à Miri → a troca de ator e de vídeo funciona nos dois sentidos (Delia e Fiona como controle).
+- [ ] "Start with this character" com a Miri → customização com o **modelo da Miri** (corpo, rosto, cabelo); abas de rosto, cabelo e cores mudam o modelo; os 5 botões de roupa de amostra trocam o conjunto (anotar o que não mudar ou mostrar peça faltando); WASD travado.
+- [ ] Nome `GradeMiri` → "Check" → "Create" → estalagem, fala da Tieve → "Go to town" → cidade com a Miri (Draker nas costas, sem queda).
+- [ ] Sair para a seleção → `GradeMiri` aparece certa (modelo, rosto, cabelo, roupa e o retrato da Miri na lista) e entra de novo; arma e habilidades iniciais (Draker de iniciante, maestria e Speed Move) presentes.
+- [ ] Sem regressão: abrir a grade e voltar sem criar (G5).
+Relatar: a grade (ícone, painel, vídeo), a atriz no centro, a customização, até onde a criação chegou e como `GradeMiri` aparece na seleção. Se o jogo cair, o horário e o relatório em `Documents\Vindictus EU GM\Report Error`.

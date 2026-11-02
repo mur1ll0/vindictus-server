@@ -78,6 +78,32 @@ class StageTest(unittest.TestCase):
                          [('scripts/player_costume.txt', ['miri', 'draker'])])
         self.assertEqual((self.out / 'merge/scripts/player_costume.txt').read_bytes(), b'"miri" {}')
 
+    def test_the_grid_gets_the_na_icon_and_the_eu_intro_video(self):
+        import io  # noqa: PLC0415
+        from PIL import Image  # noqa: PLC0415
+        import gfx_patch  # noqa: PLC0415
+        import test_gfx_patch  # noqa: PLC0415
+        # the NA grid with the class's own button on the NA atlas
+        movie = gfx_patch.with_class_button(test_gfx_patch.grid_movie(), 'Miri', 'NewCharacterDialog_V2_IA.dds',
+                                            (70, 136), (144, 140))
+        atlas = io.BytesIO()
+        Image.new('RGBA', (128, 256), (10, 200, 30, 255)).save(atlas, 'DDS', pixel_format='DXT5')
+        files = {stage.GRID_MOVIE: movie, 'scaleform/newcharacterdialog_v2_ia.dds': atlas.getvalue(),
+                 'scaleform/video/createcharacter/_usa_newcharacter_miri.usm': b'CRID usa'}
+        for path, data in files.items():
+            (self.na / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.na / path).write_bytes(data)
+        records = {f['path']: f for f in stage.stage('miri', 'draker', self.na, self.lab, self.out)['files']}
+        icon = records['scaleform/newcharacterdialog_v2_imiri.dds']
+        self.assertEqual((icon['source'], icon['rect']), ('scaleform/newcharacterdialog_v2_ia.dds', [0, 0, 70, 136]))
+        staged = Image.open(self.out / icon['path']).convert('RGBA')
+        self.assertEqual(staged.size, gfx_patch.ICON_ATLAS_SIZE)
+        self.assertEqual(staged.getpixel((35, 68))[3], 255)
+        self.assertEqual(staged.getpixel((100, 200))[3], 0)
+        alias = records['scaleform/video/createcharacter/_eneu_newcharacter_miri.usm']
+        self.assertEqual(alias['copied_from'], 'scaleform/video/createcharacter/_usa_newcharacter_miri.usm')
+        self.assertEqual((self.out / alias['path']).read_bytes(), b'CRID usa')
+
     def test_v45_models_are_converted(self):
         v44 = model(['miri_skin'], ['models/player/miri/'])
         path = b'player\\miri\\pc_miri_body.mdl'

@@ -25,6 +25,7 @@ import content_additions  # noqa: E402
 import content_edits  # noqa: E402
 import hfs  # noqa: E402
 import kv_merge  # noqa: E402
+import bsp_entities  # noqa: E402
 import gfx_patch  # noqa: E402
 import mdl_anim  # noqa: E402
 
@@ -341,10 +342,41 @@ def select_dialog_with_classes(data: bytes, portraits=CLASS_LIST_PORTRAITS) -> b
     return None if out == data else out
 
 
+# The class grid of the creation (patch_class_routing CREATION_GRID): its movie gets each imported class's
+# button, panel and AS2 (gfx_patch.with_class_button, grid_class_actions; icon atlas and intro video from
+# stage_na_class GRID_ICON_ATLAS/GRID_INTRO), and its scene an actor npc_<class> (bsp_entities). Per class:
+# label, BaseCharacter, atlas, icon size (the NA movie's sub-image of MC_Button_Miri, (895, 207)-(965, 343)),
+# grid cell (the free one after the Delia: columns 0/72/144, rows -274/-136/2/140), weapon type of the
+# rollover, and the five skill preview videos of the NA's scripts/new_character_info.txt ("miri", Skill 1-5,
+# captioned GameUI_Heroes_CreateCharacter_SkillPreview_Miri_01..05).
+GRID_CLASSES = (('Miri', 11, 'NewCharacterDialog_V2_IMiri.dds', (70, 136), (144, 140), 'DRAKER',
+                 ('video/skill/skill_miri_dragon_striker.usm', 'video/skill/skill_miri_sp3.usm',
+                  'video/skill/skill_miri_sp2.usm', 'video/skill/skill_miri_sp4.usm', 'video/skill/skill_miri_sp5.usm')),)
+GRID_DONOR = 'Delia'
+GRID_DIALOG = 'scaleform/newcharacterdialog_v2.gfx'
+GRID_ARRAY = 'characterTypeArray'
+CREATION_SCENE = 'maps/lobby_beautyshop_change/lobby_beautyshop_change.bsp'
+
+
+def grid_dialog_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
+    out = data
+    for label, index, image, size, cell, weapon, skills in classes:
+        out = gfx_patch.with_class_button(out, label, image, size, cell, GRID_DONOR) or out
+        code = gfx_patch.grid_class_actions(label, index, GRID_DONOR, weapon, skills)
+        out = gfx_patch.with_root_actions(out, GRID_ARRAY, code) or out
+    return None if out == data else out
+
+
+def creation_scene_with_classes(data: bytes, classes=GRID_CLASSES) -> bytes | None:
+    return bsp_entities.with_creation_actors(data, GRID_DONOR.lower(), tuple(c[0].lower() for c in classes))
+
+
 ORIGINAL_FIXES = {'models/player/_anim/female/delia/pc_delia_town_motion.mdl':
                   lambda data, read: mdl_anim.town_jump_on_back(data, read(mdl_anim.TOWN_JUMP_DONOR)),
                   UI_ELEMENTS: lambda data, read: ui_elements_with_classes(data),
-                  SELECT_DIALOG: lambda data, read: select_dialog_with_classes(data)}
+                  SELECT_DIALOG: lambda data, read: select_dialog_with_classes(data),
+                  GRID_DIALOG: lambda data, read: grid_dialog_with_classes(data),
+                  CREATION_SCENE: lambda data, read: creation_scene_with_classes(data)}
 
 
 def fixed_packs(plain: bytes, client_copy: Path, fixes: dict = ORIGINAL_FIXES) -> dict[Path, dict[str, object]]:
