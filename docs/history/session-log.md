@@ -3451,3 +3451,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` (EV1–EV4), pendente; hipótese a confirmar: o cliente aplica o SyncFeatureMatrix ao conteúdo de evento que carrega.
 - Commits: feat: event switches in the panel tuning (B5 eventos).
 - Pendente / próxima ação: sessões de cliente pelos roteiros `docs/client-tests/B5-marketplace.md` (duas contas) e `docs/client-tests/B5-eventos.md`; depois, os sistemas de evento (EventTemplate, EventDropItemInfo, PeriodicEventInfo, AllUserGoalInfo) do B5.
+
+## 2026-11-03 — B5 eventos E1: drops de evento dos chefes (EventDropItemInfo)
+- Feito: `EventDropTable`/`EventDropTableInstance`/`Monster.MakeEvilCore` (MicroPlayServiceCore) migrados em `src/domain/mission.rs`: tabelas por (MonsterID ou -1, Feature) na ordem do provedor, linha de Condition diferente descartada, `CheckCondition` (null/TodayQuest), janela `StartTime`+`Period` (UTC), sorteio ponderado das linhas no horário; só chefe com DropItem ≠ 0, um EventCore (tipo 4) por tabela disponível, anunciado no DropGoldCore com Winner -1 (`CoreNotice`). IsEnable recalculado com as chaves de evento do painel (`refresh_event_features` em `minimum_assets`). Exportador `export_npc_scripts.py` (`mission.event_drops`, StartTime em segundos Unix, itens nas drop_classes, Features no subconjunto). `EventDropItemInfo` em `MIGRATED_EVENT_TABLES`.
+- Verificação: `cargo test --test mission_content` 16/16 (novo `boss_kills_drop_one_event_core_per_available_event_table`); `py -3.13 -m unittest test_export_npc_scripts` 4/4; perfil `.cache/private-content/npc-scripts.json` regenerado (1.440 linhas de evento, 2.326 classes de drop). Logs `.cache/verification/ev1-*.log`.
+- Cliente: `docs/client-tests/B5-eventos.md` EV5.
+- Commits: (este)
+- Pendente / próxima ação: E2 eventos periódicos (PeriodicEventScheduler/BoostEvent) e StoryLinePeriodInfo; EventTemplate depende de decisão do operador.

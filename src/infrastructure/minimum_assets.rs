@@ -441,6 +441,10 @@ impl Assets {
                 for (quest, [min, max]) in &overlay.quest_drops {
                     mission.set_drop_counts(quest, *min, *max);
                 }
+                // EventDropItemInfo features follow the event switches.
+                mission
+                    .refresh_event_features(&profile.policy)
+                    .map_err(|_| MinimumError::Conflict)?;
             }
             if let Some(progression) = profile.progression.as_mut() {
                 for (class, rows) in std::mem::take(&mut class_stats) {

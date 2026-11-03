@@ -283,7 +283,10 @@ fn ported_class_weapons_take_their_mastery_like_greatsword_takes_hurk_mastery() 
             decoration: false,
         }];
         let mut output = empty_gear(&Stats::default());
-        apply(&Stats::default(), &items, &cache, &mut output, |_| Ok(String::new())).unwrap();
+        apply(&Stats::default(), &items, &cache, &mut output, |_| {
+            Ok(String::new())
+        })
+        .unwrap();
         (output.weight, output.stats.values().to_vec())
     };
     let delia = weight("BASTARDSWORD", "skill_delia_bastard_mastery");

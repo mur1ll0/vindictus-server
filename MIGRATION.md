@@ -61,7 +61,7 @@ Decisões pendentes:
 
 - Entrada e grupo: só missão solo. Recusadas: pesca, caça, torre, missões com item obrigatório ou limite de equipamento; moedas e pedras de bênção vazias; ReturnToShip (reiniciar) e CombatRejoinSystem inexistentes.
 - Setores: sem AntiSectorSkip e sem diálogos de console de setor.
-- Drops: baú do tesouro, mapas do tesouro, núcleos de evento/história, WeakPoint, HugeLucky.
+- Drops: baú do tesouro, mapas do tesouro, WeakPoint, HugeLucky (núcleos de história no B2 e de evento dos chefes no B5).
 - Combate: MDRSystem só marcaria rankings (inexistentes); caixas alquímicas na barra recusadas.
 - Conclusão: recompensas de troca de item (`slayer_stamp_limit>slayer_stamp`), CharacterRank, bônus de status/cafe/guilda/moedas/pedras, AddMicroPlayTime, contagem diária de quests grátis, OnEnterPhase das histórias; objetivo do sapo com regex não compilável.
 - Progressão: AddGrowthLog, efeitos de guilda, títulos de rank; `take_item` de peça vestida recusado.
@@ -80,7 +80,7 @@ Decisões pendentes:
 - [ ] Guildas.
 - [ ] Trade.
 - [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de eventos e amizade depende desses sistemas.
-- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); sistemas EventTemplate, EventDropItemInfo, PeriodicEventInfo, AllUserGoalInfo e cupons pendentes.
+- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, 03/11, EV5); EventTemplate, PeriodicEventInfo, AllUserGoalInfo e cupons pendentes.
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).

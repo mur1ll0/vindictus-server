@@ -423,6 +423,7 @@ fn tables() -> MissionTables {
             (s("quest_a"), Some(3), true),
             (s("quest_tower"), Some(0), false),
         ],
+        event_drops: Vec::new(),
     }
 }
 
@@ -819,6 +820,7 @@ fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
             150,
             1,
             (&mut [], "npc_gnoll normal"),
+            (false, 0),
             &mut Script::default(),
         )
         .unwrap();
@@ -839,6 +841,7 @@ fn drops_mark_item_drop_entities_and_cores_loot_like_evil_core() {
             150,
             1,
             (&mut [], "npc_gnoll normal"),
+            (false, 0),
             &mut rare_roll,
         )
         .unwrap();
@@ -1316,7 +1319,7 @@ fn named_props_break_into_named_drop_table_ergs() {
 
 #[test]
 fn story_drops_follow_the_story_phase_and_drop_story_cores() {
-    use vindictus_server::domain::mission::STORY_CORE;
+    use vindictus_server::domain::mission::{CoreNotice, STORY_CORE};
     let contents = MissionContents::load(tables(), &policy()).unwrap();
     let progress = [
         ("S1NB_promise_sword".to_owned(), Some("H".to_owned())),
@@ -1365,10 +1368,18 @@ fn story_drops_follow_the_story_phase_and_drop_story_cores() {
             100,
             1,
             (&mut data, "npc_gnoll normal"),
+            (false, 0),
             &mut Script::default(),
         )
         .unwrap();
-    assert_eq!(extra, [(STORY_CORE, false)]);
+    assert_eq!(
+        extra,
+        [CoreNotice {
+            kind: STORY_CORE,
+            everyone: false,
+            rare: false
+        }]
+    );
     assert_eq!(
         contents
             .loot(&mut sequence, "story_key", STORY_CORE, false)
@@ -1389,8 +1400,161 @@ fn story_drops_follow_the_story_phase_and_drop_story_cores() {
             100,
             1,
             (&mut data, "npc_gnoll normal"),
+            (false, 0),
             &mut Script::default(),
         )
         .unwrap();
     assert!(again.is_empty());
+}
+
+#[test]
+fn boss_kills_drop_one_event_core_per_available_event_table() {
+    use vindictus_server::domain::mission::{CoreNotice, EVENT_CORE};
+    let mut t = tables();
+    t.event_drops = vec![
+        // A disabled feature, until the event switch turns it on.
+        (s("Off"), None, s("off_gem"), None, 100, None, None),
+        // Every monster: an always-on row and one in the window 1000..1060.
+        (s("CurrentVer"), None, s("event_gem"), None, 30, None, None),
+        (
+            s("CurrentVer"),
+            None,
+            s("event_ore"),
+            None,
+            70,
+            Some(1000),
+            Some(1),
+        ),
+        // Same table, another Condition: Add logs it as invalid and leaves it out.
+        (
+            s("CurrentVer"),
+            s("TodayQuest"),
+            s("bad_row"),
+            None,
+            100,
+            None,
+            None,
+        ),
+        (
+            s("Gathering"),
+            s("TodayQuest"),
+            s("today_gem"),
+            None,
+            100,
+            None,
+            None,
+        ),
+        // The chief's own table, already over at 1000.
+        (
+            s("CurrentVer"),
+            None,
+            s("chief_gem"),
+            Some(12),
+            100,
+            Some(0),
+            Some(1),
+        ),
+    ];
+    t.drop_classes.push((s("event_gem"), 1, 2047, None));
+    let mut contents = MissionContents::load(t, &policy()).unwrap();
+    let digest = contents.digest("quest_a", -1).unwrap();
+    let mut sequence = contents
+        .sector_sequence(&digest, 1, false, false, &mut Script::default())
+        .unwrap();
+    assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
+    let chief = contents.monster_info("npc_gnoll chief", 1);
+    assert_eq!(chief.map(|i| i.identifier), Some(12));
+    let everyone = CoreNotice {
+        kind: EVENT_CORE,
+        everyone: true,
+        rare: false,
+    };
+    let kill = |contents: &MissionContents,
+                sequence: &mut _,
+                key: &str,
+                is_boss: bool,
+                event: (bool, i64),
+                rolls: &[i32]| {
+        contents
+            .make_evil_core(
+                sequence,
+                key,
+                1,
+                chief,
+                is_boss,
+                "quest_a",
+                1,
+                100,
+                1,
+                (&mut [], "npc_gnoll chief"),
+                event,
+                &mut Script {
+                    range: rolls.iter().copied().collect(),
+                    ..Script::default()
+                },
+            )
+            .unwrap()
+    };
+    let events = |sequence: &vindictus_server::domain::mission::SectorSequence, key: &str| {
+        sequence
+            .cores
+            .iter()
+            .find(|c| c.key == key)
+            .and_then(|c| c.items.iter().find(|(k, _)| *k == EVENT_CORE))
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default()
+    };
+    // A normal monster has no event core.
+    let extra = kill(&contents, &mut sequence, "normal", false, (true, 1010), &[]);
+    assert!(!extra.contains(&everyone));
+    assert!(events(&sequence, "normal").is_empty());
+    // At 1010 without TodayQuest: one table, total 100, roll 50 → event_ore; the chief's
+    // table is out of time.
+    let extra = kill(
+        &contents,
+        &mut sequence,
+        "boss_a",
+        true,
+        (false, 1010),
+        &[50],
+    );
+    assert_eq!(extra, [everyone]);
+    assert_eq!(events(&sequence, "boss_a"), ["event_ore"]);
+    // At 2000 with TodayQuest: event_gem alone in its table, then the TodayQuest table.
+    let extra = kill(
+        &contents,
+        &mut sequence,
+        "boss_b",
+        true,
+        (true, 2000),
+        &[0, 0],
+    );
+    assert_eq!(extra, [everyone, everyone]);
+    assert_eq!(events(&sequence, "boss_b"), ["event_gem", "today_gem"]);
+    assert_eq!(
+        contents
+            .loot(&mut sequence, "boss_b", EVENT_CORE, false)
+            .unwrap()
+            .as_deref(),
+        Some("event_gem")
+    );
+    // The event switch turns the Off table on.
+    let mut switched = policy();
+    switched.override_value("Off", "1".to_owned());
+    contents.refresh_event_features(&switched).unwrap();
+    let extra = kill(
+        &contents,
+        &mut sequence,
+        "boss_c",
+        true,
+        (false, 2000),
+        &[0, 0],
+    );
+    assert_eq!(extra, [everyone, everyone]);
+    assert_eq!(events(&sequence, "boss_c"), ["off_gem", "event_gem"]);
+    assert!(
+        contents
+            .event_drop_rows()
+            .any(|(m, f, c)| (m, f, c) == (12, "CurrentVer", "chief_gem"))
+    );
 }

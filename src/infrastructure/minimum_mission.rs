@@ -1573,6 +1573,13 @@ pub fn monster_killed(
             }
         }
         if has_evil_core && !practice {
+            // DateTime.UtcNow of the event drop windows.
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| fail())?;
+            let now = i64::try_from(now.as_secs()).map_err(|_| fail())?;
+            // The party's IsTodayQuest aggregate is the solo player's flag.
+            let today_quest = mission.completion.today_quest;
             let additional = contents
                 .make_evil_core(
                     sequence,
@@ -1585,6 +1592,7 @@ pub fn monster_killed(
                     mission.luck,
                     mission.base_character,
                     (&mut mission.story_drops, monster_type),
+                    (today_quest, now),
                     random,
                 )
                 .map_err(|_| fail())?;
@@ -1594,13 +1602,19 @@ pub fn monster_killed(
                     cores: Some(
                         additional
                             .iter()
-                            .map(|(kind, rare)| {
+                            .map(|notice| {
+                                // EvilCoreInfo(key, type, -1): every player, no rare tags.
+                                let winner = if notice.everyone {
+                                    -1
+                                } else {
+                                    mission.member.slot
+                                };
                                 Some(EvilCoreInfo {
                                     entity_name: Some(key.clone()),
-                                    core_type: *kind,
-                                    winner: mission.member.slot,
-                                    rare_core_tags: Some(if *rare {
-                                        vec![mission.member.slot]
+                                    core_type: notice.kind,
+                                    winner,
+                                    rare_core_tags: Some(if notice.rare && winner != -1 {
+                                        vec![winner]
                                     } else {
                                         Vec::new()
                                     }),

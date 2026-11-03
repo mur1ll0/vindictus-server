@@ -148,7 +148,21 @@ pub struct MissionTables {
     pub difficulty_rewards: Vec<DifficultyRewardRow>,
     /// QuestInfo: ID, MinClearTime, FreeQuest.
     pub quest_rewards: Vec<(Option<String>, Option<i32>, bool)>,
+    /// EventDropItemInfo in provider order.
+    #[serde(default)]
+    pub event_drops: Vec<EventDropRow>,
 }
+/// EventDropItemInfo: Feature, Condition, ItemClass, MonsterID, Probability, StartTime
+/// (Unix seconds of the stored UTC time), Period (minutes).
+pub type EventDropRow = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<i32>,
+    i32,
+    Option<i64>,
+    Option<i32>,
+);
 /// MicroPlayEffectInfo row.
 pub type EffectRow = (
     Option<String>,
@@ -749,6 +763,70 @@ pub struct EvilCore {
     pub items: Vec<(i32, Vec<String>)>,
 }
 
+/// EventDropTableInstance: the rows of one (MonsterID, Feature) with the feature state.
+#[derive(Clone, Debug)]
+struct EventDropTable {
+    feature: String,
+    condition: Option<String>,
+    enabled: bool,
+    /// ItemClass, Probability and the (StartTime, Period minutes) window.
+    rows: Vec<(String, i32, Option<(i64, i32)>)>,
+}
+
+impl EventDropTable {
+    /// EventDropItemInfo.IsOnTime: StartTime <= now < StartTime + Period when both are set.
+    fn on_time(window: Option<(i64, i32)>, now: i64) -> bool {
+        window.is_none_or(|(start, period)| {
+            start <= now && start.saturating_add(i64::from(period).saturating_mul(60)) > now
+        })
+    }
+
+    /// EventDropTableInstance.CheckCondition.
+    fn check_condition(&self, is_today_quest: bool) -> bool {
+        match self.condition.as_deref() {
+            None => true,
+            Some("TodayQuest") => is_today_quest,
+            Some(_) => false,
+        }
+    }
+
+    fn is_available(&self, now: i64) -> bool {
+        self.rows.iter().any(|r| Self::on_time(r.2, now))
+    }
+
+    /// EventDropTableInstance.PickItem: a weighted pick over the on-time rows.
+    fn pick(&self, now: i64, random: &mut dyn MissionRandom) -> Option<String> {
+        let on: Vec<_> = self
+            .rows
+            .iter()
+            .filter(|r| Self::on_time(r.2, now))
+            .collect();
+        let total = on.iter().fold(0i32, |t, r| t.wrapping_add(r.1));
+        // Random.Next(0) is 0 and the loop then finds nothing.
+        let mut roll = if total > 0 {
+            random.next_range(0, total)
+        } else {
+            0
+        };
+        for row in on {
+            roll -= row.1;
+            if roll < 0 {
+                return Some(row.0.clone());
+            }
+        }
+        None
+    }
+}
+
+/// An EvilCoreInfo announced by DropGoldCore: the core type, Winner -1 (every player)
+/// instead of the solo slot, and whether the winner's core is rare.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreNotice {
+    pub kind: i32,
+    pub everyone: bool,
+    pub rare: bool,
+}
+
 #[derive(Clone)]
 struct QuestEntry {
     row: QuestRow,
@@ -799,6 +877,8 @@ pub struct MissionContents {
     quest_rewards: BTreeMap<String, (Option<i32>, bool)>,
     /// MicroPlayContents.StorySectors (Sectors rows with Sequence ≤ 0) by SectorID.
     story_sectors: BTreeMap<i32, SectorBase>,
+    /// EventDropTable.DropTables: MonsterID (-1 without one) → tables by first Feature.
+    event_drops: BTreeMap<i32, Vec<EventDropTable>>,
 }
 
 const MAX_TARGET_PATTERN: usize = 512;
@@ -1194,6 +1274,28 @@ impl MissionContents {
         for (quest, min_clear_time, free) in t.quest_rewards {
             quest_rewards.insert(quest.ok_or(MissionError::Content)?, (min_clear_time, free));
         }
+        // EventDropTable.Initialize: a row whose Condition differs from its table's is
+        // logged as invalid and left out.
+        let mut event_drops: BTreeMap<i32, Vec<EventDropTable>> = BTreeMap::new();
+        for (feature, condition, item, monster, probability, start, period) in t.event_drops {
+            let (Some(feature), Some(item)) = (feature, item) else {
+                return Err(MissionError::Content);
+            };
+            let window = start.zip(period);
+            let tables = event_drops.entry(monster.unwrap_or(-1)).or_default();
+            match tables.iter_mut().find(|t| t.feature == feature) {
+                Some(table) if table.condition == condition => {
+                    table.rows.push((item, probability, window))
+                }
+                Some(_) => {}
+                None => tables.push(EventDropTable {
+                    enabled: enabled(Some(&feature))?,
+                    feature,
+                    condition,
+                    rows: vec![(item, probability, window)],
+                }),
+            }
+        }
         let lucky_bonus = enabled(Some("LuckyBonus"))?;
         let rare_core_rarity = policy
             .get_integer("RareCoreEffectRarity")
@@ -1226,6 +1328,46 @@ impl MissionContents {
             difficulty_rewards,
             quest_rewards,
             story_sectors,
+            event_drops,
+        })
+    }
+
+    /// Re-evaluates FeatureMatrix.IsEnable of the event drop tables after the event
+    /// switches changed the policy.
+    pub fn refresh_event_features(&mut self, policy: &FeaturePolicy) -> Result<(), MissionError> {
+        for table in self.event_drops.values_mut().flatten() {
+            table.enabled = policy
+                .is_enabled(Some(&table.feature))
+                .map_err(|_| MissionError::Feature)?;
+        }
+        Ok(())
+    }
+
+    /// EventDropTable.GetEventDropTables: the enabled tables without a monster, then the
+    /// monster's, whose Condition holds.
+    fn event_drop_tables(
+        &self,
+        monster: Option<i32>,
+        is_today_quest: bool,
+    ) -> impl Iterator<Item = &EventDropTable> {
+        let all = self.event_drops.get(&-1).into_iter().flatten();
+        let target = monster
+            .filter(|m| *m != -1)
+            .and_then(|m| self.event_drops.get(&m))
+            .into_iter()
+            .flatten();
+        all.chain(target)
+            .filter(move |t| t.enabled && t.check_condition(is_today_quest))
+    }
+
+    /// The (MonsterID or -1, Feature, ItemClass) of every event drop row, for the panel.
+    pub fn event_drop_rows(&self) -> impl Iterator<Item = (i32, &str, &str)> {
+        self.event_drops.iter().flat_map(|(m, tables)| {
+            tables.iter().flat_map(move |t| {
+                t.rows
+                    .iter()
+                    .map(move |r| (*m, t.feature.as_str(), r.0.as_str()))
+            })
         })
     }
 
@@ -1749,7 +1891,9 @@ impl MissionContents {
 
     /// Monster.MakeEvilCore for the solo player of a killed item-drop monster: DropItem
     /// picks from its MonsterDropTable (javelin_lvl0 without a table) and a LuckyCoreDice
-    /// gold core per pick. Returns the additional cores to announce (DropGoldCore).
+    /// gold core per pick, the story cores and, for a boss with DropItem, one EventCore per
+    /// available event drop table. `event` is (IsTodayQuest, UTC now in Unix seconds).
+    /// Returns the additional cores to announce (DropGoldCore).
     #[allow(clippy::too_many_arguments)]
     pub fn make_evil_core(
         &self,
@@ -1763,8 +1907,9 @@ impl MissionContents {
         luck: i32,
         base_character: u8,
         story: (&mut [StoryDropData], &str),
+        event: (bool, i64),
         random: &mut dyn MissionRandom,
-    ) -> Result<Vec<(i32, bool)>, MissionError> {
+    ) -> Result<Vec<CoreNotice>, MissionError> {
         let group = sequence.current.ok_or(MissionError::NoSectorInfo)?;
         let rows: Option<Vec<&DropRow>> = info
             .and_then(|i| self.drops.get(&(i.identifier, difficulty)))
@@ -1799,7 +1944,11 @@ impl MissionContents {
                 let gold = self.pick_drop(rows, base_character, &mut unique_got, random);
                 let rare = gold.as_deref().is_some_and(|g| self.is_rare_core(g));
                 add(&mut items, BASIC_GOLD_CORE, gold);
-                additional.push((BASIC_GOLD_CORE, rare));
+                additional.push(CoreNotice {
+                    kind: BASIC_GOLD_CORE,
+                    everyone: false,
+                    rare,
+                });
             }
         }
         // GetStoryDropItem("evilcore", MonsterType, IsBoss ? 3 : 1): StoryCore items.
@@ -1812,7 +1961,26 @@ impl MissionContents {
             random,
         ) {
             add(&mut items, STORY_CORE, Some(class));
-            additional.push((STORY_CORE, false));
+            additional.push(CoreNotice {
+                kind: STORY_CORE,
+                everyone: false,
+                rare: false,
+            });
+        }
+        if is_boss && drop_item != 0 {
+            let (is_today_quest, now) = event;
+            for table in self.event_drop_tables(info.map(|i| i.identifier), is_today_quest) {
+                // An unavailable table is only logged in the source.
+                if !table.is_available(now) {
+                    continue;
+                }
+                add(&mut items, EVENT_CORE, table.pick(now, random));
+                additional.push(CoreNotice {
+                    kind: EVENT_CORE,
+                    everyone: true,
+                    rare: false,
+                });
+            }
         }
         if !items.is_empty() {
             match sequence
@@ -3025,6 +3193,7 @@ pub fn party_monster_kill_exp(
 /// EvilCoreType values.
 pub const EVIL_CORE: i32 = 1;
 pub const BASIC_GOLD_CORE: i32 = 2;
+pub const EVENT_CORE: i32 = 4;
 pub const STORY_CORE: i32 = 10;
 
 /// ItemClassExBuilder.Parse: the class before ',', '[' or ']'.

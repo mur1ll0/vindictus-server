@@ -260,6 +260,13 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
         raise ValueError('Quest bit')
     def nullable_int32(v):
         return None if v is None else int32(v)
+    def utc_seconds(v):
+        # A SQL datetime text ('YYYY-MM-DD hh:mm:ss[.fff]') read as UTC.
+        if v is None: return None
+        if not isinstance(v, str) or len(v) > 32: raise ValueError('DateTime2 text')
+        import datetime
+        moment = datetime.datetime.fromisoformat(v.replace(' ', 'T')).replace(tzinfo=datetime.timezone.utc)
+        return int(moment.timestamp())
     # QuestContents.Load tables in provider order (Select * From [Table]).
     quests = {}
     with contextlib.closing(content_additions.connect(database)) as db:
@@ -384,8 +391,13 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                                    nullable_text(r['ObjectType']), nullable_text(r['ObjectRegex']), nullable_text(r['ItemClass']),
                                    int32(r['Amount']), int32(r['Probability']), int32(r['MaxTry']), nullable_text(r['Feature'])]
                                   for r in db.execute('Select * From [StoryLineDropItemInfo]')]
+        # EventDropTable (MicroPlayContents.Initialize): the boss event cores, with StartTime
+        # (DateTime2 compared with DateTime.UtcNow) as Unix seconds.
+        mission['event_drops'] = [[nullable_text(r['Feature']), nullable_text(r['Condition']), nullable_text(r['ItemClass']), nullable_int32(r['MonsterID']),
+                                   int32(r['Probability']), utc_seconds(r['StartTime']), nullable_int32(r['Period'])]
+                                  for r in db.execute('Select * From [EventDropItemInfo]')]
         dropped = ({(d[3] or '').replace('[', ',').replace(']', ',').split(',')[0] for d in mission['monster_drops']}
-                   | {d[6] for d in mission['story_drops']} | {'javelin_lvl0'})
+                   | {d[6] for d in mission['story_drops']} | {d[2] for d in mission['event_drops']} | {'javelin_lvl0'})
         mission['drop_classes'] = [[nullable_text(r['ItemClass']), int32(r['Rarity']), int32(r['ClassRestriction']), nullable_text(r['Feature'])]
                                    for r in db.execute('Select * From [ItemClassInfo]') if r['ItemClass'] in dropped]
     if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
@@ -416,6 +428,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     for g in mission['goal_infos']: wanted |= feature_atoms(g[13] or '')
     for d in mission['drop_classes']: wanted |= feature_atoms(d[3] or '')
     for d in mission['story_drops']: wanted |= feature_atoms(d[10] or '')
+    for d in mission['event_drops']: wanted |= feature_atoms(d[0] or '')
     for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')
     for d in mission['named_prop_items']: wanted |= feature_atoms(d[5] or '')
