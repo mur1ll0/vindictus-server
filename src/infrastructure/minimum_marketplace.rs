@@ -852,6 +852,88 @@ fn detail_options(assets: &Assets, l: &Listed, price: i32) -> Result<Vec<(String
     Ok(out)
 }
 
+/// The TradeItemDataInfo of AddTradeItem.
+struct Registration<'a> {
+    cid: i64,
+    name: &'a str,
+    item_id: i64,
+    category: &'a str,
+    sub: &'a str,
+    class: &'a str,
+    required_level: i32,
+    count: i32,
+    price: i32,
+    open: i64,
+    close: i64,
+    attribute_ex: &'a str,
+    colors: [i32; 3],
+    bonus: i32,
+    trade_type: u8,
+    options: &'a [(String, i32)],
+}
+/// AddTradeItem: the TradeCategoryInfo MERGE, the TradeItem row, its DetailOption rows
+/// and the history row (Status 1). The nvarchar(50)/nvarchar(2048) parameters are cut.
+async fn insert_registration(
+    tx: &mut Transaction<'_, Postgres>,
+    r: &Registration<'_>,
+) -> Result<i64, MinimumError> {
+    let category = cut(r.category, 50);
+    let sub = cut(r.sub, 50);
+    let class = cut(r.class, 50);
+    sqlx::query("INSERT INTO game_trade_category_info(trade_category,trade_category_sub,item_class,required_level) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING")
+        .bind(&category)
+        .bind(&sub)
+        .bind(&class)
+        .bind(r.required_level)
+        .execute(&mut **tx)
+        .await?;
+    let seq: i32 = sqlx::query_scalar("SELECT item_class_seq FROM game_trade_category_info WHERE trade_category=$1 AND trade_category_sub=$2 AND item_class=$3 AND required_level=$4")
+        .bind(&category)
+        .bind(&sub)
+        .bind(&class)
+        .bind(r.required_level)
+        .fetch_one(&mut **tx)
+        .await?;
+    let tid: i64 = sqlx::query_scalar("INSERT INTO game_trade_items(cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,item_count,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,$17,$17,$18) RETURNING tid")
+        .bind(r.cid)
+        .bind(cut(r.name, 50))
+        .bind(r.item_id)
+        .bind(&category)
+        .bind(&sub)
+        .bind(&class)
+        .bind(r.required_level)
+        .bind(r.count)
+        .bind(r.price)
+        .bind(r.open)
+        .bind(r.close)
+        .bind(seq)
+        .bind(cut(r.attribute_ex, 2048))
+        .bind(r.colors[0])
+        .bind(r.colors[1])
+        .bind(r.colors[2])
+        .bind(r.bonus)
+        .bind(i16::from(r.trade_type))
+        .fetch_one(&mut **tx)
+        .await?;
+    for (key, value) in r.options {
+        sqlx::query(
+            "INSERT INTO game_trade_item_attributes(tid,type,value,log_ticks) VALUES($1,$2,$3,$4)",
+        )
+        .bind(tid)
+        .bind(key)
+        .bind(value)
+        .bind(r.open)
+        .execute(&mut **tx)
+        .await?;
+    }
+    sqlx::query(&format!("INSERT INTO game_trade_item_history(tid,cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,item_count,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type,status,log_ticks) SELECT tid,cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,item_count,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type,{},$2 FROM game_trade_items WHERE tid=$1", status::ADDED))
+        .bind(tid)
+        .bind(r.open)
+        .execute(&mut **tx)
+        .await?;
+    Ok(tid)
+}
+
 /// InsertTradeOrderMessage (after UseSecondPassword) → TradeInsertOrderProcessor.
 pub async fn insert_order(
     pool: &PgPool,
@@ -971,24 +1053,6 @@ pub async fn insert_order(
         if open + 1 > market::MAX_OPEN_ORDERS {
             return refuse(order::WEB_ERROR);
         }
-        let category = cut(&item.category, 50);
-        let sub = cut(&item.category_sub, 50);
-        let class = cut(&item.class, 50);
-        sqlx::query("INSERT INTO game_trade_category_info(trade_category,trade_category_sub,item_class,required_level) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING")
-            .bind(&category)
-            .bind(&sub)
-            .bind(&class)
-            .bind(item.required_level)
-            .execute(&mut *tx)
-            .await?;
-        let seq: i32 = sqlx::query_scalar("SELECT item_class_seq FROM game_trade_category_info WHERE trade_category=$1 AND trade_category_sub=$2 AND item_class=$3 AND required_level=$4")
-            .bind(&category)
-            .bind(&sub)
-            .bind(&class)
-            .bind(item.required_level)
-            .fetch_one(&mut *tx)
-            .await?;
-        let name = cut(&text(&name_utf16), 50);
         let colors = item
             .equipment
             .as_ref()
@@ -999,42 +1063,28 @@ pub async fn insert_order(
             .as_ref()
             .filter(|_| item.equippable)
             .map_or(0, |e| e.max_durability_bonus);
-        let attribute_ex = cut(&build_attributes(&item.attributes)?, 2048);
-        let tid: i64 = sqlx::query_scalar("INSERT INTO game_trade_items(cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,item_count,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,0,$17,$17,$18) RETURNING tid")
-            .bind(cid)
-            .bind(&name)
-            .bind(m.item_id)
-            .bind(&category)
-            .bind(&sub)
-            .bind(&class)
-            .bind(item.required_level)
-            .bind(m.num)
-            .bind(m.unit_price)
-            .bind(at)
-            .bind(close)
-            .bind(seq)
-            .bind(&attribute_ex)
-            .bind(colors[0])
-            .bind(colors[1])
-            .bind(colors[2])
-            .bind(bonus)
-            .bind(i16::from(m.trade_type))
-            .fetch_one(&mut *tx)
-            .await?;
-        for (key, value) in &options {
-            sqlx::query("INSERT INTO game_trade_item_attributes(tid,type,value,log_ticks) VALUES($1,$2,$3,$4)")
-                .bind(tid)
-                .bind(key)
-                .bind(value)
-                .bind(at)
-                .execute(&mut *tx)
-                .await?;
-        }
-        sqlx::query(&format!("INSERT INTO game_trade_item_history(tid,cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,item_count,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type,status,log_ticks) SELECT tid,cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,item_count,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type,{},$2 FROM game_trade_items WHERE tid=$1", status::ADDED))
-            .bind(tid)
-            .bind(at)
-            .execute(&mut *tx)
-            .await?;
+        let tid = insert_registration(
+            &mut tx,
+            &Registration {
+                cid,
+                name: &text(&name_utf16),
+                item_id: m.item_id,
+                category: &item.category,
+                sub: &item.category_sub,
+                class: &item.class,
+                required_level: item.required_level,
+                count: m.num,
+                price: m.unit_price,
+                open: at,
+                close,
+                attribute_ex: &build_attributes(&item.attributes)?,
+                colors,
+                bonus,
+                trade_type: m.trade_type,
+                options: &options,
+            },
+        )
+        .await?;
         trade_log(&mut *tx, log::ADD_ITEM_SUCCESS, Some(tid), Some(cid), None, Some("")).await;
         let slots = changed.slots(&mut tx, owner, assets, cid).await?;
         tx.commit().await?;
@@ -1121,11 +1171,13 @@ async fn give_item(
     let Some(info) = minimum_give::class_info(assets, &class)? else {
         return Ok(false);
     };
-    let equipment = info.equippable.then(|| Equipment {
-        colors: give.row.colors(),
-        reduced: 0,
-        bonus: give.row.max_armor_condition_mod.unwrap_or(0),
-    });
+    // The server's own listings have no item: GiveItem draws the material colors.
+    let equipment =
+        (info.equippable && give.row.cid != market::auto::SELLER_CID).then(|| Equipment {
+            colors: give.row.colors(),
+            reduced: 0,
+            bonus: give.row.max_armor_condition_mod.unwrap_or(0),
+        });
     let request = Request {
         class: &class,
         count: give.count,
@@ -1265,22 +1317,25 @@ pub async fn purchase(
         let Ok(seller_gold) = i32::try_from(total) else {
             return Ok((result::SYSTEM_ERROR, 0, Vec::new(), Some((row, deduction))));
         };
-        let gid: i64 = sqlx::query_scalar("INSERT INTO game_trade_gold(cid,tid,oid,gold) VALUES($1,$2,$3,$4) RETURNING gid")
-            .bind(row.cid)
-            .bind(row.tid)
-            .bind(oid)
-            .bind(seller_gold)
-            .fetch_one(&mut *tx)
-            .await?;
-        sqlx::query("INSERT INTO game_trade_gold_history(gid,cid,tid,oid,gold,status,log_ticks) VALUES($1,$2,$3,$4,$5,1,$6)")
-            .bind(gid)
-            .bind(row.cid)
-            .bind(row.tid)
-            .bind(oid)
-            .bind(seller_gold)
-            .bind(at)
-            .execute(&mut *tx)
-            .await?;
+        // The server's own listings (laboratory extension) keep no seller gold.
+        if row.cid != market::auto::SELLER_CID {
+            let gid: i64 = sqlx::query_scalar("INSERT INTO game_trade_gold(cid,tid,oid,gold) VALUES($1,$2,$3,$4) RETURNING gid")
+                .bind(row.cid)
+                .bind(row.tid)
+                .bind(oid)
+                .bind(seller_gold)
+                .fetch_one(&mut *tx)
+                .await?;
+            sqlx::query("INSERT INTO game_trade_gold_history(gid,cid,tid,oid,gold,status,log_ticks) VALUES($1,$2,$3,$4,$5,1,$6)")
+                .bind(gid)
+                .bind(row.cid)
+                .bind(row.tid)
+                .bind(oid)
+                .bind(seller_gold)
+                .bind(at)
+                .execute(&mut *tx)
+                .await?;
+        }
         sqlx::query(&format!("INSERT INTO game_trade_item_history(tid,cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,item_count,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type,status,log_ticks,buy_count) SELECT tid,cid,character_name,item_id,trade_category,trade_category_sub,item_class,required_level,$2,item_price,open_ticks,close_ticks,item_class_seq,attribute_ex,color1,color2,color3,anti_bind,max_armor_condition_mod,armor_condition,trade_type,{},$3,$4 FROM game_trade_item_history WHERE tid=$1 AND status={} LIMIT 1", status::BOUGHT, status::ADDED))
             .bind(row.tid)
             .bind(after)
@@ -1559,4 +1614,264 @@ pub async fn get_my_things(
     })
     .await
     .map_err(|_| fail())?
+}
+
+// --- Laboratory extension: the server's own listings (Ajustes de jogo). ---
+
+/// The panel's settings and the last run.
+pub struct AutoState {
+    pub settings: market::auto::Settings,
+    /// DateTime ticks of the last run and how many listings it made.
+    pub last_run: Option<i64>,
+    pub last_listed: i32,
+}
+type AutoRow = (bool, i32, i32, i32, Option<i64>, i32);
+fn auto_state(r: AutoRow) -> AutoState {
+    AutoState {
+        settings: market::auto::Settings {
+            enabled: r.0,
+            interval_hours: r.1,
+            items: r.2,
+            days: r.3,
+        },
+        last_run: r.4,
+        last_listed: r.5,
+    }
+}
+const AUTO_COLUMNS: &str = "enabled,interval_hours,items,days,last_run_ticks,last_listed";
+pub async fn auto_settings(pool: &PgPool) -> Result<AutoState, MinimumError> {
+    let row: AutoRow = sqlx::query_as(&format!(
+        "SELECT {AUTO_COLUMNS} FROM game_trade_auto_settings WHERE singleton"
+    ))
+    .fetch_one(pool)
+    .await?;
+    Ok(auto_state(row))
+}
+/// Replaces the settings in the caller's transaction (the panel audits it); the previous
+/// values are returned. Turning it on lists at the next tick.
+pub async fn save_auto_settings(
+    tx: &mut Transaction<'_, Postgres>,
+    settings: &market::auto::Settings,
+) -> Result<AutoState, MinimumError> {
+    if !settings.valid() {
+        return Err(fail());
+    }
+    let before: AutoRow = sqlx::query_as(&format!(
+        "SELECT {AUTO_COLUMNS} FROM game_trade_auto_settings WHERE singleton FOR UPDATE"
+    ))
+    .fetch_one(&mut **tx)
+    .await?;
+    let reset = settings.enabled && !before.0;
+    sqlx::query("UPDATE game_trade_auto_settings SET enabled=$1,interval_hours=$2,items=$3,days=$4,last_run_ticks=CASE WHEN $5 THEN NULL ELSE last_run_ticks END WHERE singleton")
+        .bind(settings.enabled)
+        .bind(settings.interval_hours)
+        .bind(settings.items)
+        .bind(settings.days)
+        .bind(reset)
+        .execute(&mut **tx)
+        .await?;
+    Ok(auto_state(before))
+}
+/// One class the server may list: effective (its Feature enabled in the region), with a
+/// trade category, tradable, without expiry, deliverable by GiveItem.
+struct Candidate {
+    class: String,
+    equippable: bool,
+    max_stack: i32,
+    category: String,
+    sub: String,
+    required_level: i32,
+    class_price: i32,
+}
+fn candidates(assets: &Assets) -> Vec<Candidate> {
+    let Some(economy) = assets.economy.as_ref() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for (index, row) in assets.catalog.classes.iter().enumerate() {
+        let Some(key) = row.item_class.as_ref().map(|c| c.as_bytes()) else {
+            continue;
+        };
+        let Some(indexed) = assets.stats_index.class(Some(key)) else {
+            continue;
+        };
+        // Only the effective row of the class (the catalog keeps repeated rows).
+        if indexed.source_index != index || assets.inventory.is_gold(key) {
+            continue;
+        }
+        let Some(e) = economy.get(index) else {
+            continue;
+        };
+        let (Some(category), Some(sub)) =
+            (e.trade_category.as_ref(), e.trade_category_sub.as_ref())
+        else {
+            continue;
+        };
+        let class = text(key);
+        if category.is_empty()
+            || market::auto::EXCLUDED_CATEGORIES.contains(&category.to_uppercase().as_str())
+            || e.trade_restriction.is_some()
+            || e.expire_in.is_some_and(|x| x > 0)
+            || class == market::ENCHANT_SCROLL
+            || class.encode_utf16().count() > 50
+            || !class.is_ascii()
+        {
+            continue;
+        }
+        out.push(Candidate {
+            class,
+            equippable: indexed.equippable,
+            max_stack: indexed.max_stack,
+            category: category.clone(),
+            sub: sub.clone(),
+            required_level: e.required_level,
+            class_price: e.price,
+        });
+    }
+    out
+}
+/// The auto-listing tick: removes the server's closed listings and, when due, lists
+/// `items` random classes at their average price (else their default price) for `days`.
+/// Returns how many listings were made.
+pub async fn auto_tick(pool: &PgPool, assets: &Assets) -> Result<usize, MinimumError> {
+    use rand_core::{OsRng, RngCore};
+    let Some(contents) = marketplace(assets) else {
+        return Ok(0);
+    };
+    let prices = refresh_or_cached_prices(pool).await;
+    let mut tx = pool.begin().await?;
+    sqlx::query("SET LOCAL lock_timeout='5s'")
+        .execute(&mut *tx)
+        .await?;
+    let state = auto_state(
+        sqlx::query_as(&format!(
+            "SELECT {AUTO_COLUMNS} FROM game_trade_auto_settings WHERE singleton FOR UPDATE"
+        ))
+        .fetch_one(&mut *tx)
+        .await?,
+    );
+    let at = now()?;
+    // Closed server listings are deleted (nobody collects them).
+    sqlx::query("DELETE FROM game_trade_items WHERE cid=$1 AND close_ticks<=$2")
+        .bind(market::auto::SELLER_CID)
+        .bind(at)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM game_trade_items_expired WHERE cid=$1")
+        .bind(market::auto::SELLER_CID)
+        .execute(&mut *tx)
+        .await?;
+    if !state.settings.due(state.last_run, at) {
+        tx.commit().await?;
+        return Ok(0);
+    }
+    let features = &contents.features;
+    let mut pool_of = candidates(assets);
+    let wanted = usize::try_from(state.settings.items).map_err(|_| fail())?;
+    // Partial Fisher–Yates with the OS generator.
+    let picks = wanted.min(pool_of.len());
+    for i in 0..picks {
+        let span = u64::try_from(pool_of.len() - i).map_err(|_| fail())?;
+        let j = i + usize::try_from(OsRng.next_u64() % span).map_err(|_| fail())?;
+        pool_of.swap(i, j);
+    }
+    let close = at
+        .checked_add(i64::from(state.settings.days) * market::DAY_TICKS)
+        .filter(|c| *c <= MAX_TICKS)
+        .ok_or_else(fail)?;
+    let mut listed = 0;
+    for c in &pool_of[..picks] {
+        let limit = features.use_price_limit.then(|| {
+            features.price_limit(
+                contents.max_limit_value(&c.class),
+                shop_gold_price(assets, &c.class),
+            )
+        });
+        let average = prices.get(&c.class).map(|r| r.price);
+        let Some(price) = market::auto::unit_price(
+            average,
+            c.class_price,
+            shop_gold_price(assets, &c.class),
+            limit,
+        ) else {
+            continue;
+        };
+        let Some(count) = market::auto::units(
+            c.equippable,
+            c.max_stack,
+            OsRng.next_u32(),
+            price,
+            features.money_limit,
+        ) else {
+            continue;
+        };
+        let options = [("PRICE".to_owned(), price)];
+        let tid = insert_registration(
+            &mut tx,
+            &Registration {
+                cid: market::auto::SELLER_CID,
+                name: market::auto::SELLER_NAME,
+                item_id: -1,
+                category: &c.category,
+                sub: &c.sub,
+                class: &c.class,
+                required_level: c.required_level,
+                count,
+                price,
+                open: at,
+                close,
+                attribute_ex: "",
+                colors: [-1; 3],
+                bonus: 0,
+                trade_type: 0,
+                options: &options,
+            },
+        )
+        .await?;
+        trade_log(
+            &mut *tx,
+            log::ADD_ITEM_SUCCESS,
+            Some(tid),
+            Some(market::auto::SELLER_CID),
+            None,
+            Some("auto"),
+        )
+        .await;
+        listed += 1;
+    }
+    sqlx::query(
+        "UPDATE game_trade_auto_settings SET last_run_ticks=$1,last_listed=$2 WHERE singleton",
+    )
+    .bind(at)
+    .bind(i32::try_from(listed).map_err(|_| fail())?)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(listed)
+}
+/// TradeManager.Prices whatever ItemPriceInfoInItemSlot says (the average price of a
+/// plain class is keyed by the class itself).
+async fn refresh_or_cached_prices(pool: &PgPool) -> Prices {
+    let Ok(at) = now() else {
+        return Prices::new();
+    };
+    {
+        let cached = PRICES.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((refreshed, prices)) = cached.as_ref()
+            && at.saturating_sub(*refreshed) < market::PRICE_REFRESH_TICKS
+        {
+            return prices.clone();
+        }
+    }
+    match refresh_prices(pool, at).await {
+        Ok(prices) => {
+            *PRICES.lock().unwrap_or_else(PoisonError::into_inner) = Some((at, prices.clone()));
+            prices
+        }
+        Err(_) => Prices::new(),
+    }
+}
+/// How many classes the server may list with the loaded contents (shown by the panel).
+pub fn auto_candidates(assets: &Assets) -> usize {
+    candidates(assets).len()
 }

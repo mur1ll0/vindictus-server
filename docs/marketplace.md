@@ -22,6 +22,15 @@ Valores do EN-EU-X-GM: `TradeRegisterFee` 300 (3% por dia inteiro), `MoneyLimitT
 - **Expiração e recebimento** (`TradeManager.GetMyThings`), no primeiro `ProcessDailyItem` da seleção (criação do `ItemTradeProxy`) e no `EndTradeSessionMessage` (fechar a tela): `JobExpireTradeItem` move os registros vencidos; cada registro expirado do personagem volta pelo correio (`SellExpired_Title`) e o console `SellExpired_Console` mostra a contagem; cada venda vira ouro no correio (`#GameUI_Heroes_TradeMail_Sold_Title,<classe>,<qtd>`, conteúdo com o ouro) e o console `Sold_Console` mostra a contagem.
 - **Preço médio** (`TradeItemInfo` Min/Max/Avg): `JobTradeItemAvgPrice` (vendas do último dia com 10 ou mais unidades) e `TradeManager.UpdatePrice` a cada hora, com as duas chaves do original (a da consulta acrescenta `QUALITY:(2)`, a da estatística remove a qualidade 2), por isso itens sem qualidade não casam, como no original.
 
+## Listagens automáticas (extensão do laboratório)
+
+Não existe no jogo original. Na aba **Ajustes de jogo → Mercado automático** do painel (salvar exige papel admin; fica na auditoria como `content.market_auto`), o servidor publica itens aleatórios no mercado em intervalos. Configuração em `game_trade_auto_settings` (migração `0056_trade_auto_listing`), desligada por padrão: intervalo de 1 a 168 horas (padrão 1), 1 a 1000 itens por vez (padrão 100) e 1 a 30 dias no mercado (padrão 1). Vale no minuto seguinte, sem reiniciar (o `lab_frontend` verifica a cada 60 s); ligar zera a última execução, então a primeira leva sai logo.
+
+- Itens possíveis (`minimum_marketplace::candidates`): a linha efetiva de cada classe do catálogo (Feature ligada na região EN-EU, então itens de outras regiões ficam de fora), com categoria de troca, sem `TradeRestirction`, sem validade, fora das categorias QUEST e TIRCOIN, sem ouro nem `enchant_scroll` sem atributo. O sorteio é sem repetição (Fisher–Yates com o gerador do sistema operacional).
+- Preço: o preço médio das vendas (`TradeItem_Statistics`, chave da própria classe) e, sem ele, o `ItemClassInfo.Price`, depois o preço de loja em ouro; com `UseTradePriceLimit`, limitado como no registro. Classe sem preço positivo é pulada.
+- Quantidade: equipamento 1; empilhável de 1 até 10 (e no máximo o MaxStack), reduzida para caber no `MoneyLimitToTradeItem`.
+- Vendedor `Marketplace` (CID −1): sem limite de 20 registros, sem atributos, cores do material sorteadas na entrega e durabilidade cheia. O ouro pago não vira `TradeGold` (sai do jogo). Ninguém cancela nem recebe esses registros; vencidos, são apagados no próximo minuto.
+
 ## Importação legada
 
 As 14 tabelas do `heroesMarketPlace` (e as de TradeLog do banco de logs) estão vazias nos backups (`row_counts` 0 no export de esquema): não há registros a importar.

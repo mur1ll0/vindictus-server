@@ -384,6 +384,88 @@ pub fn price_range(rows: &[(i32, i32, i64, i64)]) -> Option<PriceRange> {
     })
 }
 
+/// Laboratory extension, not in the source: the server's own listings, generated
+/// periodically when an administrator enables them in the panel (Ajustes de jogo).
+pub mod auto {
+    /// The listing seller: no character has this CID, so nobody cancels or collects.
+    pub const SELLER_CID: i64 = -1;
+    /// The seller name the client shows for the server's listings.
+    pub const SELLER_NAME: &str = "Marketplace";
+    /// Main categories never listed (quest and Tir coin items).
+    pub const EXCLUDED_CATEGORIES: [&str; 2] = ["QUEST", "TIRCOIN"];
+    /// A stackable listing holds 1 to this many units (and at most its MaxStack).
+    pub const MAX_STACK_LISTED: i32 = 10;
+    pub const HOUR_TICKS: i64 = 36_000_000_000;
+    /// The panel's settings (defaults: off, every hour, 100 items, one day).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct Settings {
+        pub enabled: bool,
+        pub interval_hours: i32,
+        pub items: i32,
+        pub days: i32,
+    }
+    impl Default for Settings {
+        fn default() -> Self {
+            Self {
+                enabled: false,
+                interval_hours: 1,
+                items: 100,
+                days: 1,
+            }
+        }
+    }
+    impl Settings {
+        /// 1–168 hours, 1–1000 items, 1–30 days.
+        pub fn valid(&self) -> bool {
+            (1..=168).contains(&self.interval_hours)
+                && (1..=1000).contains(&self.items)
+                && (1..=30).contains(&self.days)
+        }
+        /// Whether a run is due `now` after the last one.
+        pub fn due(&self, last_run: Option<i64>, now: i64) -> bool {
+            self.enabled
+                && last_run.is_none_or(|l| {
+                    now.saturating_sub(l) >= i64::from(self.interval_hours) * HOUR_TICKS
+                })
+        }
+    }
+    /// The unit price: the average price of the sales when there is one, else the
+    /// ItemClassInfo price, else the gold shop price; capped by UseTradePriceLimit.
+    /// None leaves the class out (no positive price).
+    pub fn unit_price(
+        average: Option<i32>,
+        class_price: i32,
+        shop_gold_price: i32,
+        limit: Option<i32>,
+    ) -> Option<i32> {
+        let price = average
+            .filter(|p| *p > 0)
+            .or((class_price > 0).then_some(class_price))
+            .or((shop_gold_price > 0).then_some(shop_gold_price))?;
+        let price = limit.map_or(price, |l| price.min(l));
+        (price > 0).then_some(price)
+    }
+    /// Units of one listing: 1 for equipment, else `roll` (1-based) up to MaxStack and
+    /// MAX_STACK_LISTED, reduced to stay within MoneyLimitToTradeItem.
+    pub fn units(
+        equippable: bool,
+        max_stack: i32,
+        roll: u32,
+        price: i32,
+        money_limit: i32,
+    ) -> Option<i32> {
+        let top = if equippable {
+            1
+        } else {
+            max_stack.clamp(1, MAX_STACK_LISTED)
+        };
+        let wanted = 1 + i32::try_from(roll % top.unsigned_abs()).ok()?;
+        let affordable = i64::from(money_limit.max(0)) / i64::from(price.max(1));
+        let n = i64::from(wanted).min(affordable);
+        (n >= 1).then_some(n as i32)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,6 +551,28 @@ mod tests {
         }
         assert!(!c.check(20));
         assert!(c.check(SEARCH_WINDOW_TICKS + 2));
+    }
+    #[test]
+    fn auto_listing_settings_prices_and_units() {
+        let d = auto::Settings::default();
+        assert!(d.valid() && !d.enabled);
+        assert!(!auto::Settings { items: 0, ..d }.valid());
+        assert!(!auto::Settings { days: 31, ..d }.valid());
+        let on = auto::Settings { enabled: true, ..d };
+        assert!(on.due(None, 5));
+        assert!(!on.due(Some(0), auto::HOUR_TICKS - 1));
+        assert!(on.due(Some(0), auto::HOUR_TICKS));
+        assert!(!d.due(None, 5));
+        assert_eq!(auto::unit_price(Some(80), 100, 50, None), Some(80));
+        assert_eq!(auto::unit_price(None, 100, 50, Some(70)), Some(70));
+        assert_eq!(auto::unit_price(Some(0), 0, 50, None), Some(50));
+        assert_eq!(auto::unit_price(None, 0, -1, None), None);
+        assert_eq!(auto::unit_price(None, 100, -1, Some(0)), None);
+        assert_eq!(auto::units(true, 1, 7, 10, 1000), Some(1));
+        assert_eq!(auto::units(false, 99, 7, 10, 1000), Some(8));
+        assert_eq!(auto::units(false, 3, 7, 10, 1000), Some(2));
+        assert_eq!(auto::units(false, 99, 9, 300, 1000), Some(3));
+        assert_eq!(auto::units(false, 99, 0, 2000, 1000), None);
     }
     #[test]
     fn helpers_match_the_source_strings() {

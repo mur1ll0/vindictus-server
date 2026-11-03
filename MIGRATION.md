@@ -35,7 +35,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/B5-multijogador.md` | MP1–MP7 pendentes (sessão única); requer duas contas e dois clientes (três para MP6). |
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
-| `docs/client-tests/B5-marketplace.md` | MK1–MK10 pendentes; duas contas (o ouro é da conta). |
+| `docs/client-tests/B5-marketplace.md` | MK1–MK11 pendentes; duas contas (o ouro é da conta). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |
@@ -83,7 +83,7 @@ Decisões pendentes:
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).
-- [x] Leilão/mercado (03/11/2026): registrar com taxa, buscar (categoria, nome, filtros, ordem, páginas), comprar parcial, cancelar, expirar e ouro/itens pelo correio (`docs/marketplace.md`); cliente pendente.
+- [x] Leilão/mercado (03/11/2026): registrar com taxa, buscar (categoria, nome, filtros, ordem, páginas), comprar parcial, cancelar, expirar e ouro/itens pelo correio; listagens automáticas do servidor no painel (extensão, Ajustes de jogo) (`docs/marketplace.md`); cliente pendente.
 - [ ] Cash shop e cosméticos restantes (Depot já funciona).
 - [ ] Paridade e aceite final (M23/M24).
 

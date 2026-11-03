@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { CheckCircle2, Clock, Save, Search, Undo2 } from 'lucide-react';
+import { CheckCircle2, Clock, Save, Search, Store, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type components, fail } from '@/api/client';
 import { contentState } from '@/api/content';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 type Tuning = components['schemas']['TuningView'];
 type EditRequest = components['schemas']['EditRequest'];
 type Applied = components['schemas']['TuningApplied'];
+type MarketAuto = components['schemas']['MarketAutoView'];
 
 async function tuning(): Promise<Tuning> {
   const { data, error, response } = await api.GET('/api/tuning');
@@ -25,6 +26,105 @@ async function saveTuning(operation_id: string, edits: EditRequest[]): Promise<A
   const { data, error, response } = await api.POST('/api/tuning', { body: { operation_id, edits } });
   if (!data) fail(response, error);
   return data;
+}
+
+async function marketAuto(): Promise<MarketAuto> {
+  const { data, error, response } = await api.GET('/api/tuning/market-auto');
+  if (!data) fail(response, error);
+  return data;
+}
+
+async function saveMarketAuto(body: components['schemas']['MarketAutoRequest']): Promise<MarketAuto> {
+  const { data, error, response } = await api.POST('/api/tuning/market-auto', { body });
+  if (!data) fail(response, error);
+  return data;
+}
+
+/** The server's own marketplace listings (laboratory extension, not in the original game). */
+function MarketAutoPanel({ editable }: { editable: boolean }) {
+  const queryClient = useQueryClient();
+  const data = useQuery({ queryKey: ['market-auto'], queryFn: marketAuto });
+  const [draft, setDraft] = useState<{ enabled: boolean; interval_hours: string; items: string; days: string } | null>(null);
+  const [operationId, setOperationId] = useState(() => crypto.randomUUID());
+  const current = data.data;
+  const form = draft ?? (current && { enabled: current.enabled, interval_hours: String(current.interval_hours), items: String(current.items), days: String(current.days) });
+  const save = useMutation({
+    mutationFn: () =>
+      saveMarketAuto({
+        operation_id: operationId,
+        enabled: form?.enabled ?? false,
+        interval_hours: Number(form?.interval_hours),
+        items: Number(form?.items),
+        days: Number(form?.days),
+      }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['market-auto'], saved);
+      setDraft(null);
+      setOperationId(crypto.randomUUID());
+      void queryClient.invalidateQueries({ queryKey: ['audit'] });
+    },
+  });
+  if (data.error) return <p className="text-sm text-danger">{errorText(data.error)}</p>;
+  if (!form || !current) return <p className="text-sm text-muted">Carregando…</p>;
+  const fields = [
+    { key: 'interval_hours', label: 'Intervalo (horas)', min: 1, max: 168 },
+    { key: 'items', label: 'Itens por vez', min: 1, max: 1000 },
+    { key: 'days', label: 'Dias no mercado', min: 1, max: 30 },
+  ] as const;
+  const problem = fields.map((f) => {
+    const v = Number(form[f.key]);
+    return Number.isInteger(v) && v >= f.min && v <= f.max ? null : `${f.label}: use ${f.min} a ${f.max}.`;
+  }).find(Boolean) ?? null;
+  const last = current.last_run_unix != null ? new Date(current.last_run_unix * 1000).toLocaleString('pt-BR') : null;
+  return (
+    <Card className="space-y-4">
+      <div className="flex items-start gap-3">
+        <Store className="mt-0.5 size-5 shrink-0 text-accent" />
+        <p className="text-sm text-muted">
+          O próprio servidor publica itens aleatórios no mercado, periodicamente, pelo preço médio das vendas (ou o preço padrão do
+          item), como o vendedor <span className="font-mono text-fg">Marketplace</span>. Os jogadores compram normalmente; o ouro pago
+          não vai para ninguém e os itens que vencem somem. É um recurso do laboratório, que não existe no jogo original. Vale no
+          próximo minuto, sem reiniciar.
+        </p>
+      </div>
+      <label className="flex items-center gap-2 text-sm font-medium">
+        <input type="checkbox" checked={form.enabled} disabled={!editable} onChange={(e) => setDraft({ ...form, enabled: e.target.checked })} />
+        Gerar itens automaticamente no mercado
+      </label>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {fields.map((f) => (
+          <label key={f.key} className="space-y-1 text-sm">
+            <span className="text-muted">{f.label}</span>
+            <Input
+              type="number"
+              min={f.min}
+              max={f.max}
+              disabled={!editable}
+              value={form[f.key]}
+              onChange={(e) => setDraft({ ...form, [f.key]: e.target.value })}
+            />
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-muted">
+        {current.candidates != null ? `${current.candidates} itens do conteúdo podem ser publicados. ` : ''}
+        {last ? `Última geração: ${last} (${current.last_listed} itens).` : 'Ainda não gerou.'}
+      </p>
+      {editable && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" onClick={() => save.mutate()} disabled={draft == null || save.isPending || problem != null}>
+            <Save className="size-4" /> {save.isPending ? 'Salvando…' : 'Salvar'}
+          </Button>
+          {draft != null && (
+            <Button type="button" variant="outline" onClick={() => setDraft(null)} disabled={save.isPending}>
+              <Undo2 className="size-4" /> Descartar
+            </Button>
+          )}
+          {(problem || save.error) && <p className="w-full text-sm text-danger">{problem ?? errorText(save.error)}</p>}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 /** FeatureMatrix rates in percent (100 = the original value). */
@@ -52,13 +152,13 @@ type Item = {
   build: (values: number[]) => EditRequest;
 };
 
-type Tab = 'rates' | 'drops' | 'enhance' | 'enchant';
+type Tab = 'rates' | 'drops' | 'enhance' | 'enchant' | 'market';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const show = (values: number[], unit: string) => values.map((v) => `${v}${unit}`).join('–');
 
 /** The page's items; `key` is "<edit kind>|<edit target>", as the content edits store it. */
-function items(t: Tuning): Record<Tab, Item[]> {
+function items(t: Tuning): Record<Exclude<Tab, 'market'>, Item[]> {
   return {
     rates: t.features.map((f) => ({
       key: `feature|${f.key}`,
@@ -234,8 +334,9 @@ export function TuningPage() {
     { id: 'drops', label: 'Drops por fase', n: all?.drops.length },
     { id: 'enhance', label: 'Enhance', n: all?.enhance.length },
     { id: 'enchant', label: 'Enchant', n: all?.enchant.length },
+    { id: 'market', label: 'Mercado automático', n: undefined },
   ] as const;
-  const shown = (all?.[tab] ?? [])
+  const shown = (tab === 'market' ? [] : (all?.[tab] ?? []))
     .filter((i) => tab === 'rates' || tab === 'enhance' || !term || `${i.title} ${i.detail}`.toLowerCase().includes(term))
     .slice(0, 300);
 
@@ -290,7 +391,8 @@ export function TuningPage() {
           </button>
         ))}
       </div>
-      {tab !== 'rates' && tab !== 'enhance' && (
+      {tab === 'market' && <MarketAutoPanel editable={editable} />}
+      {tab !== 'rates' && tab !== 'enhance' && tab !== 'market' && (
         <div className="relative max-w-sm">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
           <Input aria-label="Buscar" placeholder="Buscar (nome ou ID)" className="pl-9" value={filter} onChange={(e) => setFilter(e.target.value)} />

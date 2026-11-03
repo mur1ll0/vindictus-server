@@ -588,6 +588,101 @@ pub struct TuningApplied {
 
 pub const MAX_TUNING_EDITS: usize = 300;
 
+/// The server's own marketplace listings (laboratory extension, Ajustes de jogo).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct MarketAutoView {
+    pub enabled: bool,
+    /// Hours between two runs (1–168).
+    pub interval_hours: i32,
+    /// Listings per run (1–1000).
+    pub items: i32,
+    /// Days each listing stays open (1–30).
+    pub days: i32,
+    /// Seconds since the Unix epoch of the last run.
+    pub last_run_unix: Option<i64>,
+    pub last_listed: i32,
+    /// Classes the loaded content allows (None without the game content).
+    pub candidates: Option<usize>,
+}
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct MarketAutoRequest {
+    pub operation_id: Uuid,
+    pub enabled: bool,
+    pub interval_hours: i32,
+    pub items: i32,
+    pub days: i32,
+}
+fn market_auto_view(
+    state: crate::infrastructure::minimum_marketplace::AutoState,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+) -> MarketAutoView {
+    const EPOCH_TICKS: i64 = 621_355_968_000_000_000;
+    MarketAutoView {
+        enabled: state.settings.enabled,
+        interval_hours: state.settings.interval_hours,
+        items: state.settings.items,
+        days: state.settings.days,
+        last_run_unix: state.last_run.map(|t| (t - EPOCH_TICKS) / 10_000_000),
+        last_listed: state.last_listed,
+        candidates: runtime
+            .and_then(|r| r.minimum_assets())
+            .map(|a| crate::infrastructure::minimum_marketplace::auto_candidates(&a)),
+    }
+}
+pub async fn market_auto(
+    pool: &PgPool,
+    session: &SessionAccount,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+) -> Result<MarketAutoView, AdminError> {
+    require(session, Permission::Read)?;
+    let state = crate::infrastructure::minimum_marketplace::auto_settings(pool)
+        .await
+        .map_err(|_| AdminError::ContentUnavailable)?;
+    Ok(market_auto_view(state, runtime))
+}
+/// Save the auto-listing settings (admin); audited with the values before and after.
+/// The game's minute tick reads them, so they apply without a restart.
+pub async fn save_market_auto(
+    pool: &PgPool,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+    actor: &Actor<'_>,
+    request: &MarketAutoRequest,
+) -> Result<MarketAutoView, AdminError> {
+    use crate::domain::marketplace::auto::Settings;
+    require(actor.session, Permission::Administer)?;
+    let settings = Settings {
+        enabled: request.enabled,
+        interval_hours: request.interval_hours,
+        items: request.items,
+        days: request.days,
+    };
+    if !settings.valid() {
+        return Err(AdminError::InvalidInput);
+    }
+    let json = |s: &Settings| {
+        serde_json::json!({"enabled": s.enabled, "interval_hours": s.interval_hours, "items": s.items, "days": s.days})
+            .to_string()
+    };
+    let mut record = audit(actor, "content.market_auto", "content", "market_auto");
+    let mut tx = pool.begin().await?;
+    let before = crate::infrastructure::minimum_marketplace::save_auto_settings(&mut tx, &settings)
+        .await
+        .map_err(|_| AdminError::InvalidInput)?;
+    record.before = Some(json(&before.settings));
+    record.after = Some(json(&settings));
+    match crate::infrastructure::admin_store::insert_audit(&mut tx, &record).await {
+        Ok(()) => tx.commit().await?,
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            return Err(AdminError::RepeatedOperation);
+        }
+        Err(e) => return Err(e.into()),
+    }
+    let state = crate::infrastructure::minimum_marketplace::auto_settings(pool)
+        .await
+        .map_err(|_| AdminError::ContentUnavailable)?;
+    Ok(market_auto_view(state, runtime))
+}
+
 /// Save tuning values (admin): FeatureMatrix rates, quest drop counts, Enhance and Enchant
 /// chances are read by the server when used, so they publish as their own version and the
 /// game reloads its contents at once. Shop and cash edits keep the pending/maintenance cycle.

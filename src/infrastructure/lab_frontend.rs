@@ -6351,6 +6351,29 @@ pub async fn connection(
     let _ = stream.shutdown().await;
     result
 }
+/// Laboratory extension: the server's own marketplace listings, checked every minute
+/// against the panel's settings (off by default) until shutdown.
+async fn auto_listing(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Receiver<bool>) {
+    let mut tick = tokio::time::interval(Duration::from_secs(60));
+    tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        tokio::select! {
+            _ = stop.changed() => return,
+            _ = tick.tick() => {}
+        }
+        if *stop.borrow() {
+            return;
+        }
+        let Some(assets) = runtime.minimum_assets() else {
+            continue;
+        };
+        match super::minimum_marketplace::auto_tick(&pool, &assets).await {
+            Ok(0) => {}
+            Ok(listed) => tracing::info!(listed, "marketplace auto listing made"),
+            Err(_) => tracing::warn!("marketplace auto listing refused; values omitted"),
+        }
+    }
+}
 pub async fn run(
     listener: TcpListener,
     runtime: Arc<Runtime>,
@@ -6362,6 +6385,7 @@ pub async fn run(
     }
     let (stop, sig) = watch::channel(false);
     let mut tasks = JoinSet::new();
+    let auto_listing = tokio::spawn(auto_listing(runtime.clone(), pool.clone(), sig.clone()));
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
@@ -6373,6 +6397,7 @@ pub async fn run(
         }
     }
     let _ = stop.send(true);
+    let _ = auto_listing.await;
     let drained = tokio::time::timeout(Duration::from_secs(10), async {
         while tasks.join_next().await.is_some() {}
     })

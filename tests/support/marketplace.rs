@@ -450,3 +450,117 @@ async fn marketplace_registers_searches_buys_cancels_expires_and_mails() {
     }
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn marketplace_auto_listing_lists_sells_and_removes_the_server_items() {
+    use vindictus_server::domain::marketplace::auto::{SELLER_CID, Settings};
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let assets = super::minimum_give::marketplace_assets();
+    let owner = super::initial_inventory::key();
+    // Off by default: nothing is listed.
+    let state = market::auto_settings(&p).await.unwrap();
+    assert_eq!(state.settings, Settings::default());
+    assert_eq!(market::auto_tick(&p, &assets).await.unwrap(), 0);
+    // The ore (MATERIAL, price 50) and the bag (WEAPON, price 500); gold and the classes
+    // without a trade category are left out.
+    assert_eq!(market::auto_candidates(&assets), 2);
+    let mut tx = p.begin().await.unwrap();
+    assert!(
+        market::save_auto_settings(
+            &mut tx,
+            &Settings {
+                items: 0,
+                ..Settings::default()
+            }
+        )
+        .await
+        .is_err()
+    );
+    drop(tx);
+    let mut tx = p.begin().await.unwrap();
+    let on = Settings {
+        enabled: true,
+        interval_hours: 2,
+        items: 5,
+        days: 3,
+    };
+    market::save_auto_settings(&mut tx, &on).await.unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(market::auto_tick(&p, &assets).await.unwrap(), 2);
+    // Not due again before the interval.
+    assert_eq!(market::auto_tick(&p, &assets).await.unwrap(), 0);
+    let state = market::auto_settings(&p).await.unwrap();
+    assert_eq!((state.settings, state.last_listed), (on, 2));
+    let rows: Vec<(i64, String, String, i32, i32, i64)> = sqlx::query_as(
+        "SELECT tid,character_name,item_class,item_count,item_price,close_ticks-open_ticks FROM game_trade_items WHERE cid=$1 ORDER BY item_class",
+    )
+    .bind(SELLER_CID)
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(rows.len(), 2);
+    let (bag, ore) = (&rows[0], &rows[1]);
+    assert_eq!(
+        (bag.1.as_str(), bag.2.as_str(), bag.3, bag.4),
+        ("Marketplace", "synthetic_bag", 1, 500)
+    );
+    assert_eq!((ore.2.as_str(), ore.4), ("synthetic_ore", 50));
+    assert!((1..=10).contains(&ore.3));
+    assert_eq!(ore.5, 3 * 864_000_000_000);
+    // The search shows them; a purchase pays gold that goes to nobody.
+    let mut overhead = SearchOverhead::default();
+    let found = search(
+        &market::category_search(&p, &assets, &mut overhead, &category(Some(Vec::new())))
+            .await
+            .unwrap(),
+    );
+    let listed = found.trade_item_list.unwrap()[0].clone().unwrap();
+    assert_eq!(
+        (listed.tid, listed.cid, listed.character_name.as_deref()),
+        (ore.0, SELLER_CID, Some("Marketplace"))
+    );
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 1000, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    let buy = |tid| wire::TradePurchaseItem {
+        tid,
+        purchase_count: 1,
+        unique_number: 2,
+    };
+    let bags = count(&p, 1, "synthetic_bag").await;
+    for (tid, paid) in [(ore.0, 50), (bag.0, 500)] {
+        let before = count(&p, 1, "synthetic_gold").await;
+        let out = market::purchase(&p, &owner, &assets, 1, &buy(tid), ids(7000 + tid * 64))
+            .await
+            .unwrap();
+        assert!(
+            matches!(decode(&out, Kind::TradePurchaseItemResult), Message::TradePurchaseItemResult(r) if r.result == 0)
+        );
+        assert_eq!(before - count(&p, 1, "synthetic_gold").await, paid);
+    }
+    assert_eq!(count(&p, 1, "synthetic_bag").await, bags + 1);
+    let pending: i64 = sqlx::query_scalar("SELECT count(*) FROM game_trade_gold")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(pending, 0);
+    // Closed server listings are removed by the next tick (none moves to the mailbox).
+    sqlx::query("UPDATE game_trade_items SET close_ticks=open_ticks WHERE cid=$1")
+        .bind(SELLER_CID)
+        .execute(&p)
+        .await
+        .unwrap();
+    assert_eq!(market::auto_tick(&p, &assets).await.unwrap(), 0);
+    let left: i64 = sqlx::query_scalar("SELECT (SELECT count(*) FROM game_trade_items)+(SELECT count(*) FROM game_trade_items_expired)")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    cleanup_game_pool(a, p, s).await;
+}

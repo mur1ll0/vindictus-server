@@ -170,6 +170,8 @@ fn assets_market(
         rows[3]["trade_category_sub"] = json!("MATERIAL_ORE");
         rows[0]["trade_category"] = json!("WEAPON");
         rows[0]["trade_category_sub"] = json!("LONGSWORD");
+        rows[3]["price"] = json!(50);
+        rows[0]["price"] = json!(500);
         mail_types.as_array_mut().unwrap().push(json!({"mail_type":7,"description":null,"sender":"AUCTION","system":true,"item_attached":true,"charged":false,"replyable":false,"returnable":false,"expire_in":10080,"arrive_in":0,"fee":0,"fee_for_item":0,"fee_express":0,"fee_for_item_express":0}));
         let feature = |k: &str, v: Option<&str>| json!({"key":k,"value":v});
         marketplace = json!({"features":[feature("CurrentVer",Some("3.09.00")),feature("MoneyLimitToTradeItem",Some("100000000")),feature("TradeRegisterFee",Some("300")),feature("UseTradePriceLimit",Some("2.02.03")),feature("UseTradePriceLimitPercentage",Some("200")),feature("PremiumTradeTicket",Some("2.02.15")),feature("ItemPriceInfoInItemSlot",Some("1")),feature("ItemPriceInfoInService",None),feature("LevelLimitToTradeItem",Some("11=dye_.*|life_potion_plus_cash_lvl1"))],"trade_limits":[{"item_class":scroll_class,"max_limit_value":700}]});

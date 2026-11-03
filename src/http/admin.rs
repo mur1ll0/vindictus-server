@@ -154,6 +154,8 @@ impl AdminState {
         content::cash_categories,
         content::tuning,
         content::save_tuning,
+        content::market_auto,
+        content::save_market_auto,
         content::content_state,
         content::create_edit,
         content::withdraw,
@@ -346,6 +348,10 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
         .route(
             "/api/tuning",
             get(content::tuning).post(content::save_tuning),
+        )
+        .route(
+            "/api/tuning/market-auto",
+            get(content::market_auto).post(content::save_market_auto),
         )
         .route("/api/content", get(content::content_state))
         .route("/api/world", get(world::world))

@@ -25,6 +25,7 @@ Mercado (leilão entre jogadores) do servidor Rust (`docs/marketplace.md`): regi
 8. **MK8** (A): expirar.
 9. **MK9** (A): limite de 20 registros.
 10. **MK10**: relogar as duas e conferir.
+11. **MK11** (painel + B): itens automáticos do servidor.
 
 ## Como relatar
 Para cada linha marcada: ID e número da linha (ex.: `MK4-2`), o que apareceu na tela (texto, captura se possível), ouro antes e depois quando a linha falar de taxa ou preço, se o cliente fechou ou travou, o horário aproximado (para comparar com `docker compose logs game` e `.cache/verification`) e o nome do relatório de queda, se houver.
@@ -87,3 +88,11 @@ Pré-condição: A com 20 itens simples (por exemplo 20 poções avulsas).
 
 ### MK10 — Relogar
 - [ ] A e B saem e entram → ouro, itens, registros abertos e cartas do correio preservados; nada duplicado nem perdido.
+
+### MK11 — Itens automáticos do servidor (extensão do laboratório)
+Pré-condição: painel com papel admin; B no jogo com ouro.
+- [ ] Painel → Ajustes de jogo → Mercado automático: marcar, intervalo 1 h, 20 itens, 1 dia, Salvar → a auditoria mostra `content.market_auto`; em até 1 minuto, "Última geração" mostra a hora e o número de itens.
+- [ ] B busca em várias categorias → aparecem itens do vendedor `Marketplace` (armas, armaduras, roupas, consumíveis…), com o preço médio ou o preço padrão do item; nenhum item de quest.
+- [ ] B compra um equipamento e um consumível do `Marketplace` → o ouro cai o preço; os itens entram (consumível vinculado; equipamento com cores do material e durabilidade cheia).
+- [ ] Desmarcar e salvar → não surgem novos itens; os já publicados somem quando vencem.
+Limites conhecidos: o ouro das compras do `Marketplace` não vai para ninguém.

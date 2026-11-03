@@ -653,6 +653,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/launcher/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Launcher login (trilha L): login and password of any active account, with the panel's
+         *     throttle and lockout; opens a launcher session (bearer, no cookie, no panel access) that lasts
+         *     until the launcher logs out. A native launcher sends no Origin; a browser page of another
+         *     origin is refused like on the panel login.
+         */
+        post: operations["launcher_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/launcher/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The launcher closes: ends its session (`Authorization: Bearer`) and unspent tickets. */
+        post: operations["launcher_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/launcher/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * One-time game ticket for Play, for the launcher session in `Authorization: Bearer`; it stays
+         *     valid while the session lasts.
+         */
+        post: operations["launcher_ticket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -880,6 +939,24 @@ export interface paths {
          *     at once, without a restart.
          */
         post: operations["save_tuning"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tuning/market-auto": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The server's own marketplace listings (laboratory extension, B5 mercado). */
+        get: operations["market_auto"];
+        put?: never;
+        /** Save the auto-listing settings (admin, audited); applied at the game's next minute tick. */
+        post: operations["save_market_auto"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1574,6 +1651,25 @@ export interface components {
              */
             total: number;
         };
+        LauncherSessionResponse: {
+            /**
+             * Format: int64
+             * @description Longest life of the session if the launcher never logs out, in seconds.
+             */
+            expires_in: number;
+            /**
+             * @description Launcher session: send it as `Authorization: Bearer <session>` to get game tickets and to
+             *     log out when the launcher closes.
+             */
+            session: string;
+        };
+        LauncherTicketResponse: {
+            /**
+             * @description One-time game login ticket: start the client with `-launcher_ticket <ticket>`. Valid
+             *     while the launcher session lasts.
+             */
+            ticket: string;
+        };
         LoginRequest: {
             /** Format: password */
             password: string;
@@ -1582,6 +1678,45 @@ export interface components {
         MapView: {
             built: boolean;
             name: string;
+        };
+        MarketAutoRequest: {
+            /** Format: int32 */
+            days: number;
+            enabled: boolean;
+            /** Format: int32 */
+            interval_hours: number;
+            /** Format: int32 */
+            items: number;
+            /** Format: uuid */
+            operation_id: string;
+        };
+        /** @description The server's own marketplace listings (laboratory extension, Ajustes de jogo). */
+        MarketAutoView: {
+            /** @description Classes the loaded content allows (None without the game content). */
+            candidates?: number | null;
+            /**
+             * Format: int32
+             * @description Days each listing stays open (1–30).
+             */
+            days: number;
+            enabled: boolean;
+            /**
+             * Format: int32
+             * @description Hours between two runs (1–168).
+             */
+            interval_hours: number;
+            /**
+             * Format: int32
+             * @description Listings per run (1–1000).
+             */
+            items: number;
+            /** Format: int32 */
+            last_listed: number;
+            /**
+             * Format: int64
+             * @description Seconds since the Unix epoch of the last run.
+             */
+            last_run_unix?: number | null;
         };
         MemberView: {
             /** @description Game account of the character. */
@@ -3723,6 +3858,97 @@ export interface operations {
             };
         };
     };
+    launcher_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LauncherSessionResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    launcher_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    launcher_ticket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LauncherTicketResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -4200,6 +4426,80 @@ export interface operations {
                 };
             };
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    market_auto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketAutoView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    save_market_auto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketAutoRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketAutoView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

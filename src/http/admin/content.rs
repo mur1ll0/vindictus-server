@@ -116,6 +116,39 @@ pub(super) async fn save_tuning(
     ))
 }
 
+/// The server's own marketplace listings (laboratory extension, B5 mercado).
+#[utoipa::path(get, path = "/api/tuning/market-auto",
+    responses((status = 200, body = content_admin::MarketAutoView), (status = 403, body = super::ApiError)))]
+pub(super) async fn market_auto(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+) -> Result<Json<content_admin::MarketAutoView>, Refusal> {
+    Ok(Json(
+        content_admin::market_auto(state.auth.pool(), &auth.session, state.runtime.as_deref())
+            .await?,
+    ))
+}
+
+/// Save the auto-listing settings (admin, audited); applied at the game's next minute tick.
+#[utoipa::path(post, path = "/api/tuning/market-auto", request_body = content_admin::MarketAutoRequest,
+    responses((status = 200, body = content_admin::MarketAutoView), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn save_market_auto(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Json(body): Json<content_admin::MarketAutoRequest>,
+) -> Result<Json<content_admin::MarketAutoView>, Refusal> {
+    let actor = Actor {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+    };
+    Ok(Json(
+        content_admin::save_market_auto(state.auth.pool(), state.runtime.as_deref(), &actor, &body)
+            .await?,
+    ))
+}
+
 #[derive(Serialize, ToSchema)]
 pub(super) struct ContentState {
     /// Pending first, then the latest.

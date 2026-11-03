@@ -3186,6 +3186,96 @@
         }
       }
     },
+    "/api/tuning/market-auto": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "The server's own marketplace listings (laboratory extension, B5 mercado).",
+        "operationId": "market_auto",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketAutoView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Save the auto-listing settings (admin, audited); applied at the game's next minute tick.",
+        "operationId": "save_market_auto",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketAutoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketAutoView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/world": {
       "get": {
         "tags": [
@@ -5147,6 +5237,88 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "MarketAutoRequest": {
+        "type": "object",
+        "required": [
+          "operation_id",
+          "enabled",
+          "interval_hours",
+          "items",
+          "days"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "interval_hours": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "MarketAutoView": {
+        "type": "object",
+        "description": "The server's own marketplace listings (laboratory extension, Ajustes de jogo).",
+        "required": [
+          "enabled",
+          "interval_hours",
+          "items",
+          "days",
+          "last_listed"
+        ],
+        "properties": {
+          "candidates": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Classes the loaded content allows (None without the game content).",
+            "minimum": 0
+          },
+          "days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days each listing stays open (1–30)."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "interval_hours": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Hours between two runs (1–168)."
+          },
+          "items": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Listings per run (1–1000)."
+          },
+          "last_listed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "last_run_unix": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Seconds since the Unix epoch of the last run."
           }
         }
       },
