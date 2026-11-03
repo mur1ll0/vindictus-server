@@ -1,13 +1,13 @@
 # Roteiro de testes no cliente — B5 eventos (chaves no painel)
 
-Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; os sistemas de evento ainda não migrados (meta coletiva, cupons) não fazem efeito; drops de evento dos chefes (EV5), recompensas periódicas (EV6) e histórias por período (EV7) já funcionam.
+Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; os sistemas de evento ainda não migrados (meta coletiva) não fazem efeito; drops de evento dos chefes (EV5), recompensas periódicas (EV6), histórias por período (EV7) e lojas de cupom (EV8) já funcionam.
 
 ## Preparação
 1. Runtime reconstruído com a migração `0057_content_event_switches` e o `item-economy.json` com a seção `events`.
 2. Painel com papel admin; cliente pelo `.cache/play-client/start-lab.bat`.
 
 ## Ordem de gameplay
-1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte.
+1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom.
 
 ## Como relatar
 ID da linha, o que apareceu (captura), horário (para `docker compose logs game`) e o nome do relatório de queda, se houver.
@@ -47,3 +47,10 @@ Pré-condição: personagem com um bico (Arbeit, por exemplo `Arbeit_get_fish`) 
 - [ ] Entrar no jogo no dia seguinte → o bico volta para a fase inicial (A) no NPC, disponível de novo.
 - [ ] Relogar no mesmo dia → nada muda.
 Limites conhecidos: a troca no meio da sessão (virada do dia) não avisa o cliente, como no original; ele vê na próxima consulta da história.
+
+### EV8 — Loja de cupom (`CouponShopItemInfo`)
+Pré-condição: cupom da loja na bolsa (por exemplo `coupon_todaymission` da loja 26, `TodayMission` ligado na região, ou `ticket_allusergoal_2015` da loja 40 com `Event_allusergoal_eneu_201507_shop` ligado no painel); dar o cupom pelo painel.
+- [ ] Abrir a loja de cupom no cliente → a lista mostra os itens e, nos limitados, quantos restam.
+- [ ] Trocar um item → o cupom sai, o item entra, o limite cai em 1; trocar acima do limite → recusa sem gastar o cupom.
+- [ ] Relogar → item e limite preservados.
+Limites conhecidos: onde o cliente abre a loja de cupom (menu, NPC ou janela de evento) ainda não foi confirmado.

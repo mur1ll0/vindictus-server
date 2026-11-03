@@ -8882,3 +8882,167 @@ async fn periodic_event_rewards_and_story_periods_follow_the_scheduler() {
     assert_eq!(phase().await, Some(utf16("p1")), "same day: unchanged");
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn coupon_shop_trades_coupons_with_buy_restrictions() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_coupon_shop, minimum_item_logs, minimum_selection,
+        },
+        protocol::coupon_shop::{self as cwire, ItemBuy},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let mut export = npc_export_p3(None);
+    export["features"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"key":"Event_coupon_test","value":"1"}));
+    // Version 7 pays with the gold class; order 1 is limited to two per character.
+    export["coupons"] = json!({"versions":[[7,"2015.07.15 ~ 2015.09.09","synthetic_gold","Event_coupon_test"],[8,null,"synthetic_gold","Off"]],
+        "items":[[7,1,"synthetic_cash",2,10,true,false,null,0,2,null],[7,2,"synthetic_cash",1,5,false,false,null,null,null,null],[8,1,"synthetic_cash",1,1,false,false,null,null,null,null]]});
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile_from(export))
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let log = minimum_item_logs::Context {
+        flags: minimum_item_logs::flags(&assets).unwrap(),
+        civil_offset_seconds: 0,
+    };
+    assert_eq!(
+        minimum_give::lab_grant(&p, &assets, Some(1), "synthetic_gold", 100, 9)
+            .await
+            .unwrap(),
+        Ok(1)
+    );
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    let gold = || async {
+        sqlx::query_scalar::<_, i32>(
+            "SELECT count FROM game_items WHERE owner_id=1 AND collection=101",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let info = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        assert_eq!(packet.category, 164);
+        let Some(cwire::Message::ItemInfoResult(r)) =
+            cwire::decode(cwire::Kind::ItemInfoResult, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("info missing")
+        };
+        r.restrictions
+            .unwrap()
+            .into_iter()
+            .map(|(o, r)| {
+                (
+                    o,
+                    r.unwrap().buyable_count,
+                    r.unwrap().next_reset_ticks_diff,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let result = |packet: &vindictus_server::domain::map_partition::OutgoingPacket| {
+        assert_eq!(packet.category, 235);
+        let Some(Message::BuyItemResult(r)) =
+            inventory::decode(Kind::BuyItemResult, &packet.body, DEFAULT_MAX_BODY).unwrap()
+        else {
+            panic!("result missing")
+        };
+        (
+            r.result,
+            r.item_count,
+            r.price_item_count,
+            r.restriction_order,
+            r.restriction_count,
+        )
+    };
+    // The query lists the restricted order only; an unknown version answers nothing.
+    let out = minimum_coupon_shop::query(&p, &owner, &assets, 1, 7)
+        .await
+        .unwrap();
+    assert_eq!(info(&out[0]), [(1, 2, -1)]);
+    assert!(
+        minimum_coupon_shop::query(&p, &owner, &assets, 1, 99)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let buy = |order, count, base: i64| {
+        minimum_coupon_shop::buy(
+            &p,
+            &owner,
+            &assets,
+            1,
+            ItemBuy {
+                shop_id: 7,
+                order,
+                count,
+            },
+            (base..base + 8).collect(),
+            log,
+        )
+    };
+    // One limited purchase: 2 items for 10 gold, one left, the refreshed restriction.
+    let out = buy(1, 1, 930_000_000_000_000_001).await.unwrap();
+    assert_eq!(
+        out.iter().map(|p| p.category).collect::<Vec<_>>(),
+        [617, 235, 164]
+    );
+    assert_eq!(result(&out[1]), (1, 2, 10, 1, 1));
+    assert_eq!(info(&out[2]), [(1, 1, -1)]);
+    assert_eq!(gold().await, 90);
+    // Two more exceed the limit: Failed with the unit values, nothing spent.
+    let out = buy(1, 2, 930_000_000_000_000_101).await.unwrap();
+    assert_eq!(result(&out[0]), (2, 2, 10, -1, -1));
+    assert_eq!(gold().await, 90);
+    // An unlimited order, then a purchase the gold cannot pay (the limit write rolls back).
+    let out = buy(2, 3, 930_000_000_000_000_201).await.unwrap();
+    assert_eq!(result(&out[1]), (1, 3, 15, 2, -1));
+    assert_eq!(gold().await, 75);
+    let out = buy(2, 100, 930_000_000_000_000_301).await.unwrap();
+    assert_eq!(result(&out[0]).0, 2);
+    // The version's Feature is off: nothing answers.
+    let off = minimum_coupon_shop::buy(
+        &p,
+        &owner,
+        &assets,
+        1,
+        ItemBuy {
+            shop_id: 8,
+            order: 1,
+            count: 1,
+        },
+        vec![930_000_000_000_000_401],
+        log,
+    )
+    .await
+    .unwrap();
+    assert!(off.is_empty());
+    let count: i32 = sqlx::query_scalar(
+        "SELECT count FROM game_shop_buy_restrict WHERE cid=1 AND shop_item_id=$1",
+    )
+    .bind((7 << 16) | 1)
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert_eq!(count, 1);
+    cleanup_game_pool(a, p, s).await;
+}

@@ -195,3 +195,5 @@ pub mod dye;
 pub mod mail;
 
 pub mod marketplace;
+
+pub mod coupon_shop;

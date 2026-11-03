@@ -412,6 +412,32 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                                     nullable_text(r['Feature'])]
                                    for r in db.execute('Select * From [StoryLinePeriodInfo]')]
     if any(len(v) > 10000 for v in events.values()): raise ValueError('Event table bound')
+    # ItemContents.couponShopVersionInfoDic / couponShopItemInfoDic in provider order;
+    # ResetTime as UTC .NET DateTime ticks (ShopSession period arithmetic).
+    def ticks(v):
+        if v is None: return None
+        seconds = utc_seconds(v)
+        import datetime
+        moment = datetime.datetime.fromisoformat(v.replace(' ', 'T'))
+        return (seconds + 62135596800) * 10000000 + moment.microsecond * 10
+    def bit(v):
+        # SQLite.NET reads a bit column as nonzero = true (rows hold 0–8 or 'True'/'False').
+        if v in ('True', 'False'): return v == 'True'
+        if type(v) is int: return v != 0
+        raise ValueError('Coupon bit')
+    def int16(v):
+        if type(v) is not int or not -(2**15) <= v < 2**15: raise ValueError('Int16')
+        return v
+    coupons = {}
+    with contextlib.closing(content_additions.connect(database)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        coupons['versions'] = [[int16(r['ShopVersion']), nullable_text(r['ShopPeriodText']), nullable_text(r['PriceItemClass']), nullable_text(r['Feature'])]
+                               for r in db.execute('Select * From [CouponShopVersionInfo]')]
+        coupons['items'] = [[int16(r['ShopVersion']), int16(r['Order']), nullable_text(r['RewardItemClass']), int32(r['RewardItemCount']), int32(r['PriceItemCount']),
+                             bit(r['IsRare']), bit(r['IsCharacterBind']), ticks(r['ResetTime']), nullable_int32(r['PeriodDay']), nullable_int32(r['RestrictCount']),
+                             nullable_text(r['Feature'])]
+                            for r in db.execute('Select * From [CouponShopItemInfo]')]
+    if any(len(v) > 10000 for v in coupons.values()): raise ValueError('Coupon table bound')
     if any(r[1] is None for r in events['story_periods']): raise ValueError('StoryLinePeriodInfo DateFrom')
     if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
     if any(len(v) > 100000 for v in mission.values()): raise ValueError('Mission table bound')
@@ -445,6 +471,8 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     wanted |= {'BoostEvent', 'BoostEventPeriod', 'RandomItemBroadcastMode', 'RandomItem_AnnounceLevel'}
     for d in events['periodic']: wanted |= feature_atoms(d[5] or '')
     for d in events['story_periods']: wanted |= feature_atoms(d[4] or '')
+    for d in coupons['versions']: wanted |= feature_atoms(d[3] or '')
+    for d in coupons['items']: wanted |= feature_atoms(d[10] or '')
     for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')
     for d in mission['named_prop_items']: wanted |= feature_atoms(d[5] or '')
@@ -471,7 +499,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
                          'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
-            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression, 'mission': mission, 'events': events}
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression, 'mission': mission, 'events': events, 'coupons': coupons}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

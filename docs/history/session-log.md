@@ -3465,3 +3465,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV6, EV7.
 - Commits: (este)
 - Pendente / próxima ação: E3 lojas de cupom (CouponShopItemInfo + ShopBuyRestrict).
+
+## 2026-11-03 — B5 eventos E3: lojas de cupom (CouponShopItemInfo) e limite de compra (ShopBuyRestrict)
+- Feito: `src/domain/coupon_shop.rs` (CouponShopVersionInfo/CouponShopItemInfo, BuyCouponShopItemProcessor até a troca, ShopSession: início do período com AddSeconds em ms, TryShopBuyRestrictGet, procedimento ShopBuyRestrictSet); `src/protocol/coupon_shop.rs` (CouponShopItemInfoQuery 165, CouponShopItemInfoResult 164 com IDictionary<short, ShopTimeRestrictedResult>, CouponShopItemBuy sem categoria no envelope GUID) com oráculo `scripts/reverse/framework/CouponShopWireOracle.cs` + `generate-coupon-shop-wire-fixtures.ps1` (24 casos, x86=x64) e `tests/fixtures/framework-coupon-shop-wire.json`; `src/infrastructure/minimum_coupon_shop.rs` (consulta e troca: Feature da versão e do item, IsAvailableFor, limite e CraftItem numa transação — o CraftFail desfaz o limite como TryShopBuyRestrictRollback —, BuyItemResult e CouponShopItemInfoResult renovado, diário/razão do ItemLog); migração `0058_shop_buy_restrict` (PK_ShopBuyRestrict, `study_heroes.schema.json`); sessão em `lab_frontend.rs`. Exportador `export_npc_scripts.py` (`coupons`, ResetTime em ticks, bit não nulo = verdadeiro). Tabelas de cupom em `MIGRATED_EVENT_TABLES`.
+- Verificação: `cargo test --test coupon_shop` 4/4; PostgreSQL `minimum_give::coupon_shop_trades_coupons_with_buy_restrictions` 1/1 no test-postgres; Python `test_export_npc_scripts` 4/4; perfil npc-scripts regenerado (97 versões, 1.044 itens). Logs `.cache/verification/ev3-*.log`.
+- Cliente: `docs/client-tests/B5-eventos.md` EV8.
+- Commits: (este)
+- Pendente / próxima ação: AllUserGoal e EventTemplate dependem de decisão do operador (datas fixas 2013–2015; agendador de modelos); seguir com a descrição dos eventos no painel.

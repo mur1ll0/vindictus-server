@@ -2040,6 +2040,82 @@ impl Connection {
     /// InGame pet messages (FeatureMatrix "Pet"; the shared food also "Pet_food_V2") and the
     /// host's PetKilled/PetRevived, which BattleServiceProxy hands to the MicroPlay.
     #[allow(clippy::too_many_arguments)]
+    /// ItemServiceProxy: CouponShopItemInfoQuery → QueryCouponShopItemInfo and
+    /// CouponShopItemBuy → BuyCouponShopItem for the entered character.
+    #[allow(clippy::too_many_arguments)]
+    async fn coupon_shop(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: crate::protocol::coupon_shop::Message,
+    ) -> Result<(), RuntimeError> {
+        use crate::protocol::coupon_shop::Message;
+        let (Some(selected), true) = (
+            self.selected.as_ref(),
+            self.password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend)),
+        ) else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let outcome = match message {
+            Message::ItemInfoQuery(version) => {
+                super::minimum_coupon_shop::query(pool, &owner, assets, cid, version).await
+            }
+            Message::ItemBuy(request) => {
+                let ids = minimum
+                    .creation
+                    .entity_ids(64)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                super::minimum_coupon_shop::buy(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    request,
+                    ids,
+                    runtime.item_log_context(assets)?,
+                )
+                .await
+            }
+            Message::ItemInfoResult(_) => {
+                self.log_unhandled(category, body);
+                return Ok(());
+            }
+        };
+        match outcome {
+            Ok(packets) => {
+                for packet in &packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                tracing::info!("coupon shop request processed; values omitted");
+            }
+            Err(_) => tracing::warn!("coupon shop request rejected; values omitted"),
+        }
+        Ok(())
+    }
     async fn pet(
         &mut self,
         runtime: &Runtime,
@@ -4210,6 +4286,17 @@ impl Connection {
                     .ok_or(RuntimeError::Message)?;
                 return self
                     .marketplace(runtime, pool, stream, sender, category, body, message)
+                    .await;
+            }
+        }
+        {
+            use crate::protocol::coupon_shop as wire;
+            if let Some(kind) = wire::ingress_kind(category, body) {
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                    .ok_or(RuntimeError::Message)?;
+                return self
+                    .coupon_shop(runtime, pool, stream, sender, category, body, message)
                     .await;
             }
         }

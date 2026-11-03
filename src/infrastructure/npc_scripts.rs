@@ -113,6 +113,9 @@ struct Export {
     /// PeriodicEventInfo and StoryLinePeriodInfo.
     #[serde(default)]
     events: crate::domain::periodic_event::EventTables,
+    /// CouponShopVersionInfo and CouponShopItemInfo.
+    #[serde(default)]
+    coupons: crate::domain::coupon_shop::CouponTables,
 }
 
 fn fail() -> MinimumError {
@@ -170,6 +173,8 @@ pub struct Profile {
     pub mission: Option<crate::domain::mission::MissionContents>,
     /// PeriodicEventScheduler rewards and StoryLinePeriodInfo.
     pub events: crate::domain::periodic_event::Events,
+    /// The coupon shops of ItemContents.
+    pub coupons: crate::domain::coupon_shop::CouponShops,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -311,9 +316,12 @@ impl Profile {
             .map_err(|_| fail())?;
         let events =
             crate::domain::periodic_event::Events::load(export.events).map_err(|_| fail())?;
+        let coupons =
+            crate::domain::coupon_shop::CouponShops::load(export.coupons).ok_or_else(fail)?;
         Ok(Self {
             mission,
             events,
+            coupons,
             progression,
             quests,
             repair,

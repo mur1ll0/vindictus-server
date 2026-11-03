@@ -126,7 +126,7 @@ pub enum EditRequest {
 }
 
 /// The content tables whose Feature the migrated server already evaluates.
-pub const MIGRATED_EVENT_TABLES: [&str; 8] = [
+pub const MIGRATED_EVENT_TABLES: [&str; 10] = [
     "ShopInfo",
     "StoryLineInfo",
     "QuestInfo",
@@ -135,6 +135,8 @@ pub const MIGRATED_EVENT_TABLES: [&str; 8] = [
     "EventDropItemInfo",
     "PeriodicEventInfo",
     "StoryLinePeriodInfo",
+    "CouponShopVersionInfo",
+    "CouponShopItemInfo",
 ];
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
