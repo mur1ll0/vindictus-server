@@ -3332,3 +3332,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: LA3 em `docs/client-tests/L-launcher.md` (pendente).
 - Commits: (este commit)
 - Pendente / próxima ação: LA3 no cliente (`play.ps1` → esperar → Jogar → Start Game → seleção; sair revoga). Depois: D-L6 (desligar login por nome) e L1 (`updates`).
+
+## 2026-11-02 — L1: armazenamento do cliente decidido (zstd adaptativo + hfs-xor, objeto por arquivo)
+- Feito: estudo da sessão `client-storage-study` em `docs/future/client-distribution-storage.md` (medições em amostra de 970 MB, extrapoladas por tipo de pasta; `.tar.gz`, gzip, zstd 3/12/19, adaptativo, xz; sólido × por arquivo; XOR desfeito; `.comp` inflado; deltas `patch-from`; download + descompressão; custo de publicar). Decisão do operador: zstd adaptativo (nível 3 para o que já não comprime, 19 no resto) com o XOR dos `.hfs` desfeito, um objeto por arquivo endereçado pelo SHA-256 do arquivo final, deltas sobre a forma clara (≤ 64 MB, < 50 % do objeto), sem pacotes `.tar` de instalação e sem `--long`. `docs/future/game-launcher.md` 4.3 reescrita (e menções a pacotes/consolidar em 4.2, 4.7 e L1), estudo marcado com a decisão, `MIGRATION.md`.
+- Verificação: não necessária (documentação). Números do estudo: v3 15.044 MB → 10.962 MB (adaptativo); 15,1 min a 100 Mbit/s com a descompressão contra 20,2 min com os `.hfs` como estão; v1→v2 ≈ 7 MB, v2→v3 ≈ 1.816 MB; servidor ≈ 11 GB; publicar a Miri: 6 s de compressão. Logs do estudo em `.cache/verification/client-storage/`.
+- Cliente: não necessário.
+- Commits: (este commit)
+- Pendente / próxima ação: LA3 no cliente; L1 (`updates`, importação da v1) após D-L2–D-L4; confirmar a linguagem do launcher. Em aberto do estudo: velocidade num Windows 7 de 32 bits real, `7B71CFAE….hfs` alterado no laboratório com o mesmo tamanho.

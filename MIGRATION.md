@@ -20,7 +20,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
 2. Miri: aceita no cliente em 02/11/2026 (combate, grade e customização MG1–MG4, teclas da Delia regravadas MI45; `docs/future/miri-class-port.md`); branch `feat/miri-class` no `main`. Pendentes no cliente: B4 I3 (modelo substituto pelo painel, MG6), MI1–MI3 e MI30–MI36 sem relato isolado.
    - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
-3. Launcher: checkpoint de cliente LA1 (`docs/client-tests/L-launcher.md`: LA3 `scripts/dev/play.ps1` → esperar → Jogar → Start Game → seleção; sair revoga). Sem esperar o LA1: L1 (`updates`, importação da v1 e medição), após D-L2–D-L4.
+3. Launcher: LA3 no cliente (`docs/client-tests/L-launcher.md`: `scripts/dev/play.ps1` → esperar → Jogar → Start Game → seleção; sair revoga). Armazenamento decidido (zstd adaptativo + `hfs-xor`, objeto por arquivo, `docs/future/game-launcher.md` 4.3). Próximo: L1 (`updates`, importação da v1), após D-L2–D-L4; linguagem do launcher a confirmar.
 4. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
@@ -92,7 +92,7 @@ Decisões pendentes:
   - [x] Editor de itens (corte 1 aceito; I2 no cliente pendente; modelo substituto de item existente, I3 pendente).
   - [x] Busca por categoria, editor de refino/scrolls, progressão até um nível (inclui história principal; P3 no cliente pendente).
   - [x] Seleção de personagem: exclusão, cancelamento e ordem dos slots (S1–S3 no cliente pendentes).
-  - [ ] Launcher do jogo: L0 feito; plano revisado em 02/11 (`docs/future/game-launcher.md` §4–7: versões 1 base/2 Delia/3 Miri, Windows 7, login pelo launcher com `nexon_api.dll` próprio, status do Docker). L-A: o jogo não usa o `nexon_api.dll` para a sessão; o `event_account` não funcionou no LA1; o cliente usa o LoginDialog clássico; `patch_client_launcher_login.py` faz o OK no `OnShow` dele com `-launcher_ticket`. LA0 e LA2 aceitos. L4 adiantado: sessão do launcher (login e senha, até o launcher fechar ou 12 h) → ticket de uso único por Jogar → resgate no frontend (migrações 0051/0052); `scripts/dev/play.ps1` como launcher mínimo. LA3 no cliente pendente.
+  - [ ] Launcher do jogo: L0 feito; plano em `docs/future/game-launcher.md` §4–7 (versões 1 base/2 Delia/3 Miri, Windows 7, status do Docker). L-A: login direto para a seleção por `patch_client_launcher_login.py` (`-launcher_ticket`), LA0/LA2 aceitos. L4 adiantado: sessão do launcher (login e senha até fechar o launcher) e ticket de uso único, `scripts/dev/play.ps1`; LA3 pendente. Armazenamento decidido em 02/11 (`docs/future/client-distribution-storage.md`: v3 ≈ 10,96 GB de download, v2→v3 ≈ 1,82 GB, servidor ≈ 11 GB).
   - [ ] Editor de fases (depois do editor de itens).
 
 ## Etapas da migração integral (M01–M24)
