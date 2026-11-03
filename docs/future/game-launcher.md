@@ -215,11 +215,11 @@ Como o cliente recebe o ticket (etapa L-A; evidência na seção 4.1):
 - Distribuir o cliente é distribuir assets proprietários: o servidor de arquivos é local ou privado, e nada disso entra no Git (`AGENTS.md`).
 - Antivírus e SmartScreen com executável novo sem assinatura de código.
 - **D-L1:** autorizado em 02/11/2026 e feito (seção 4.1); resta o teste de cliente LA1 (primeira tentativa, com `+event_account`, sem efeito).
-- **D-L2:** conteúdo da v1: o 1.69 limpo (sem login pelo launcher nem EndPoint, não joga no servidor) ou o 1.69 com o necessário para jogar aqui (recomendado).
-- **D-L3:** lista de exclusões da v1 (4.3, item 6).
-- **D-L4:** endereço público e HTTPS (domínio e proxy) ou só rede local por enquanto.
+- **D-L2 (decidido em 03/11/2026):** a v1 é o 1.69 EU com o necessário para jogar aqui: EndPoint do servidor, patch IOCP do `engine.dll`, conteúdo B1–B4 no `heroes.db3` e o patch de login do launcher no `client.dll`.
+- **D-L3 (decidido em 03/11/2026):** lista de exclusões de 4.3, item 6; `SAVE/` e `cfg/config.cfg` como `preservar`.
+- **D-L4 (decidido em 03/11/2026):** só local por enquanto (127.0.0.1, HTTP); HTTPS com domínio e proxy quando o servidor for publicado (o launcher já aceita `https://`).
 - **D-L5:** assinatura de código do launcher.
-- **D-L6:** desligar o login por nome digitado assim que o launcher for aceito.
+- **D-L6 (decidido em 03/11/2026):** desligar o login por nome digitado; o jogo só aceita ticket do launcher, e o modo por nome fica só no perfil privado de desenvolvimento.
 
 ## 6. Engenharia reversa com REA (pedido do operador, 26/10/2026)
 

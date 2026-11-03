@@ -3360,3 +3360,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: LA5 aceito; LA3 coberto pelo LA4/LA5 (login vale até fechar o launcher).
 - Commits: (este commit)
 - Pendente / próxima ação: decisões D-L2–D-L4 e D-L6; depois L1 (`updates`, importação da v1) e L3 (instalar/atualizar no launcher).
+
+## 2026-11-03 — Launcher: decisões D-L2, D-L3, D-L4 e D-L6
+- Feito: decisões do operador registradas em `docs/future/game-launcher.md` §5 e `MIGRATION.md`: D-L2 v1 = 1.69 EU + o necessário para jogar aqui (EndPoint, IOCP, conteúdo B1–B4, patch de login); D-L3 lista de exclusões de 4.3 item 6; D-L4 só local por enquanto (HTTPS com domínio quando publicar); D-L6 desligar o login por nome digitado (só ticket; modo por nome no perfil de desenvolvimento). D-L5 (assinatura do exe) segue em aberto.
+- Verificação: não necessária (documentação).
+- Cliente: não necessário.
+- Commits: (este commit)
+- Pendente / próxima ação: D-L6 no frontend; depois L1 (`crates/client-dist`, `updates`, importação da v1), L2 (receitas v1–v3) e L3 (instalar/atualizar no launcher).

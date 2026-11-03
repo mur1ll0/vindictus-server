@@ -20,7 +20,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 1. Rebuild do Docker (`COMPOSE_PARALLEL_LIMIT=1 docker compose build`, depois `docker compose up -d --wait`) e sessão de cliente do operador pelo roteiro `docs/client-tests/B5-pets.md` (checkpoints P3 e P6).
 2. Miri: aceita no cliente em 02/11/2026 (combate, grade e customização MG1–MG4, teclas da Delia regravadas MI45; `docs/future/miri-class-port.md`); branch `feat/miri-class` no `main`. Pendentes no cliente: B4 I3 (modelo substituto pelo painel, MG6), MI1–MI3 e MI30–MI36 sem relato isolado.
    - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
-3. Launcher: login pelo launcher aceito no cliente (LA0, LA2, LA4, LA5). Próximo: decisões D-L2–D-L4 e D-L6, depois L1 (`updates`, importação da v1 com zstd adaptativo + `hfs-xor`) e instalar/atualizar no launcher (L3).
+3. Launcher: login pelo launcher aceito (LA0, LA2, LA4, LA5). Próximo: D-L6 (só ticket no jogo; modo por nome no perfil de desenvolvimento), depois L1 (`crates/client-dist`, serviço `updates`, importação da v1 = 1.69 + o necessário, zstd adaptativo + `hfs-xor`), receitas v1–v3 (L2) e instalar/atualizar no launcher (L3).
 4. Sem bloqueio do operador: seguir o B5 pela próxima etapa acionável (ver "B5 — o que falta").
 
 ## Aguardando o operador
@@ -39,7 +39,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar pilhas da mesma classe (B1.4 ou B2.6), usar consumível pela barra (B2.5).
 
 Decisões pendentes:
-- Launcher (`docs/future/game-launcher.md` §5): D-L2 conteúdo da v1; D-L3 exclusões; D-L4 endereço público/HTTPS; D-L5 assinatura do exe; D-L6 desligar o login por nome digitado.
+- Launcher (`docs/future/game-launcher.md` §5): D-L5 assinatura do exe (D-L2, D-L3, D-L4 e D-L6 decididos em 03/11).
 - Customização: poses animadas e rotação dos atores da grade (opcional, comando `cc_create_character_selection_play_sequence` do NA).
 
 ## Blocos do roteiro
