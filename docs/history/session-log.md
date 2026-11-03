@@ -3311,3 +3311,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: LA0 e LA1 em `docs/client-tests/L-launcher.md` (pendentes).
 - Commits: (este commit)
 - Pendente / próxima ação: Launcher: com o jogo fechado, restaurar `client.dll` do `.pre-launcherlogin.bak` e aplicar o patch (`59b60e7a…`); depois LA0 (AUTO1/AUTO2) e LA1 (`start_login.bat`).
+
+## 2026-11-02 — L-A: patch do OnShow aplicado na cópia
+- Feito: jogo fechado; `client.dll` restaurado do `client.dll.c0b5d4164cc122a3.pre-launcherlogin.bak` e `patch_client_launcher_login.py --apply`: `59b60e7a1fd5cc74` (igual à cópia descartável).
+- Verificação: apply exit 0, `.cache/verification/la/launcherlogin-v1-apply.json`.
+- Cliente: LA0 e LA1 pendentes.
+- Commits: (este commit)
+- Pendente / próxima ação: LA0 (AUTO1/AUTO2) e LA1 (`start_login.bat`, `-launcher_ticket admin`).
