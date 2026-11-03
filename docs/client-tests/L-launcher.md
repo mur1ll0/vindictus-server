@@ -41,6 +41,7 @@ Pré-condição: Docker reconstruído em 03/11/2026 (panel com `?cadastro=1`); `
 Limites conhecidos: instalar, atualizar e verificar arquivos ainda não existem (L1–L3); o login por nome digitado continua aceito até a decisão D-L6.
 
 ### LA5 — Go Back e jogo sem administrador
+Resultado (03/11/2026): aceito pelo operador. O jogo abriu pelo launcher sem administrador (sem marcar a opção), Go Back → Start Game voltou à seleção sem erro.
 Pré-condição: Docker reconstruído com a migração 0053; `.cache/play-client/vindictus-launcher.exe` novo (`3d4b278e…`); **tirar o "Executar como administrador"** das propriedades do `vindictus-launcher.exe` (aba Compatibilidade), que foi marcado no LA4; jogo fechado.
 - [ ] Abrir o launcher (sem administrador) → login → Jogar → o jogo abre **sem pedir permissão do Windows** → Start Game → seleção.
 - [ ] Na seleção, **Go Back** → tela de título → Start Game → **seleção de novo, sem erro**.

@@ -3353,3 +3353,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: LA5 em `docs/client-tests/L-launcher.md` (pendente).
 - Commits: (este commit)
 - Pendente / próxima ação: LA5 no cliente; L1 (`updates`, importação da v1) após D-L2–D-L4.
+
+## 2026-11-03 — L-A/L4: LA5 aceito (Go Back e jogo sem administrador)
+- Feito: operador confirmou o LA5: o launcher abriu o jogo sem administrador (sem marcar a opção; `RunAsInvoker`) e Go Back → Start Game voltou à seleção sem erro. Registrado em `docs/client-tests/L-launcher.md` e `MIGRATION.md`.
+- Verificação: não necessária (resultado de cliente).
+- Cliente: LA5 aceito; LA3 coberto pelo LA4/LA5 (login vale até fechar o launcher).
+- Commits: (este commit)
+- Pendente / próxima ação: decisões D-L2–D-L4 e D-L6; depois L1 (`updates`, importação da v1) e L3 (instalar/atualizar no launcher).
