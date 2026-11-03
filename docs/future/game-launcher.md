@@ -160,10 +160,10 @@ Do pw-universal fica o desenho que já funcionou: manifesto completo e assinado 
 
 Fluxo alvo:
 
-1. O launcher pede login e senha, os mesmos do painel. `POST /api/launcher/login` (HTTPS) confere o argon2 em `accounts` e devolve um ticket de jogo: 128 bits aleatórios, uso único, validade de 2 minutos, ligado à conta e ao usuário de jogo, gravado só como hash (`game_play_tickets`, migração nova; os `play_codes` de 0044/0045 foram removidos). Senha errada: 401 genérico, limite por IP e por conta. Nenhuma senha em disco; o launcher lembra só o login.
+1. O launcher pede login e senha, os mesmos do painel. `POST /api/launcher/login` (no listener do painel; HTTPS na publicação externa) usa o mesmo `authenticate()` do painel (argon2, limite por IP e por conta, bloqueio, auditoria `launcher.login`), vale para qualquer conta ativa, não abre sessão do painel e devolve `{ticket, expires_in}`: `lt` + 22 dígitos base36 minúsculos (24 caracteres, cerca de 113 bits), uso único, 2 minutos, gravado só como SHA-256 (`game_launcher_tickets`, migração 0051). Senha errada: 401 genérico. Nenhuma senha em disco; o launcher lembra só o login. **Feito em 02/11/2026** (`src/application/admin_session.rs` `launcher_ticket`, `src/http/admin.rs` `launcher_login`).
 2. O launcher abre `Vindictus.exe` com os argumentos de hoje mais `-launcher_ticket <ticket>`.
 3. Na tela inicial, "Start Game" não abre o diálogo de login: o cliente envia `UserLoginMessage` com o ticket no campo `passport`.
-4. O `lab_frontend` troca o `permits(passport)` por `PlayTickets::redeem` (`UPDATE … WHERE redeemed_at IS NULL AND expires_at > now() RETURNING`), que devolve a identidade da conta: `NexonID` = login, `NexonSN` derivado como hoje, mantendo os UIDs atuais. Seleção de personagem e segunda senha seguem iguais.
+4. O `lab_frontend` reconhece o formato do ticket e o gasta (`game_links::redeem_launcher_ticket`: `UPDATE … WHERE redeemed_at IS NULL AND expires_at > now()` com a conta ativa e desbloqueada, `RETURNING` o nome de jogo da conta). Um ticket que não resgata é recusado, nunca lido como nome digitado. A identidade é a mesma do login por nome (nome de jogo da conta), mantendo os UIDs. Seleção de personagem e segunda senha seguem iguais. **Feito em 02/11/2026.**
 5. Depois do aceite, o login por nome digitado no jogo é desligado (`login_mode = launcher`, decisão D-L6). Isso fecha a falha atual: hoje quem souber um login entra sem senha. O modo `lab_username` fica só no perfil privado de desenvolvimento.
 
 Como o cliente recebe o ticket (etapa L-A; evidência na seção 4.1):
@@ -231,6 +231,6 @@ O L-A vem primeiro, porque decide se o "Start Game direto" é viável sem patch 
 | L1 | `crates/client-dist`, módulo e serviço `updates`, importação da v1, `hfs-xor`, pacotes, manifesto assinado, HTTP de leitura, `status.json`; medição de tamanho, razão por grupo e tempo | não necessário |
 | L2 | receitas e publicação da v1, v2 (Delia) e v3 (Miri), deltas, envio só do que falta | não necessário (SHA-256 da v3 = cópia em uso) |
 | L3 | launcher Win32/win7: instalar, "já tenho o cliente", atualizar 1→3, verificar e reparar, status, botões Painel e Criar conta | instalar numa pasta limpa, atualizar uma cópia 1.69, jogar |
-| L4 | login no launcher: `POST /api/launcher/login`, `game_play_tickets`, resgate no frontend, `login_mode` | login no launcher → seleção; ticket reutilizado recusado |
+| L4 | login no launcher: `POST /api/launcher/login`, `game_launcher_tickets`, resgate no frontend; `scripts/dev/play.ps1` como launcher mínimo (feito em 02/11/2026, antes do L1); falta `login_mode` (D-L6) | LA2: `play.ps1` com login e senha → Start Game → seleção; ticket reutilizado recusado |
 | L5 | painel "Versões do cliente", notícias, autoatualização do launcher, publicação de conteúdo → versão do cliente (aposenta o `start-lab.bat`) | preço novo de loja visto depois de atualizar pelo launcher |
 | L6 (gate) | suíte completa, smoke Docker com o `updates`, Windows 7 real | roteiro `docs/client-tests/L-launcher.md` |

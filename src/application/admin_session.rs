@@ -6,7 +6,7 @@
 use crate::{
     domain::{
         Username,
-        admin::{PanelRole, SessionToken},
+        admin::{LauncherTicket, PanelRole, SessionToken},
         hash_password, verify_password,
     },
     infrastructure::{
@@ -31,6 +31,9 @@ pub const IDLE_SECONDS: u64 = 30 * 60;
 /// Consecutive wrong passwords before the panel login of an account is locked.
 pub const MAX_FAILURES: i32 = 10;
 pub const LOCK_SECONDS: u64 = 15 * 60;
+/// Lifetime of a launcher ticket: the launcher starts the client at once and the player clicks
+/// Start Game on the title screen.
+pub const LAUNCHER_TICKET_SECONDS: u64 = 2 * 60;
 const WINDOW: Duration = Duration::from_secs(60);
 const PER_PEER: u32 = 20;
 const PER_NAME: u32 = 10;
@@ -280,6 +283,30 @@ impl PanelAuth {
                 role: account.role,
             },
         })
+    }
+
+    /// Launcher login (trilha L): the same login, password, throttle and lockout as the panel,
+    /// for any active account; returns a one-time ticket for the game client instead of a
+    /// session. The ticket is audited as `launcher.login`, never logged.
+    pub async fn launcher_ticket(
+        &self,
+        username: &str,
+        password: Zeroizing<Vec<u8>>,
+        peer: Option<IpAddr>,
+    ) -> Result<LauncherTicket, AdminError> {
+        let account = self
+            .authenticate(username, password, peer, "launcher.login")
+            .await?;
+        let ticket = LauncherTicket::generate();
+        admin_store::issue_launcher_ticket(
+            &self.pool,
+            account.id,
+            &ticket.digest(),
+            LAUNCHER_TICKET_SECONDS as f64,
+            &success(&account, account.role, "launcher.login", peer),
+        )
+        .await?;
+        Ok(ticket)
     }
 
     /// Open registration of the login page: a new account without a panel role, logged in.

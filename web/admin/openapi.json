@@ -2488,6 +2488,55 @@
         }
       }
     },
+    "/api/launcher/login": {
+      "post": {
+        "tags": [],
+        "summary": "Launcher login (trilha L): login and password of any active account, with the panel's\nthrottle and lockout; returns a one-time game ticket and opens no panel session. A native\nlauncher sends no Origin; a browser page of another origin is refused like on the panel login.",
+        "operationId": "launcher_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LauncherTicketResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "tags": [],
@@ -4985,6 +5034,25 @@
             "type": "integer",
             "format": "int64",
             "description": "Items of the class in every storage (bags, equipment, shared storage)."
+          }
+        }
+      },
+      "LauncherTicketResponse": {
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_in"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seconds the ticket stays valid if unused.",
+            "minimum": 0
+          },
+          "ticket": {
+            "type": "string",
+            "description": "One-time game login ticket: start the client with `-launcher_ticket <ticket>`."
           }
         }
       },

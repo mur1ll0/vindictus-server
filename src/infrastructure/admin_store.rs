@@ -183,6 +183,38 @@ pub async fn open_session(
     tx.commit().await
 }
 
+/// Store a one-time launcher ticket (its digest) for the account and audit the login. Spent and
+/// expired tickets of every account are removed in the same transaction.
+pub async fn issue_launcher_ticket(
+    pool: &PgPool,
+    account: Uuid,
+    ticket_sha256: &[u8; 32],
+    ticket_seconds: f64,
+    audit: &AuditRecord<'_>,
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE accounts SET failed_logins = 0, locked_until = NULL WHERE id = $1")
+        .bind(account)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query(
+        "DELETE FROM game_launcher_tickets WHERE expires_at <= now() OR redeemed_at IS NOT NULL",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO game_launcher_tickets (ticket_sha256, account_id, expires_at)
+         VALUES ($1, $2, now() + make_interval(secs => $3))",
+    )
+    .bind(ticket_sha256.as_slice())
+    .bind(account)
+    .bind(ticket_seconds)
+    .execute(&mut *tx)
+    .await?;
+    insert_audit(&mut tx, audit).await?;
+    tx.commit().await
+}
+
 /// A live session of an account that still has a role and the same password; touches it.
 pub async fn touch_session(
     pool: &PgPool,

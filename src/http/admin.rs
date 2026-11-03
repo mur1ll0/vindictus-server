@@ -115,6 +115,7 @@ impl AdminState {
     ),
     paths(
         login,
+        launcher_login,
         register,
         me,
         my_password,
@@ -190,6 +191,7 @@ impl AdminState {
         LoginRequest,
         OwnPassword,
         SessionResponse,
+        LauncherTicketResponse,
         AuditEntry,
         ApiError,
         crate::infrastructure::admin_accounts::AccountSummary,
@@ -279,6 +281,7 @@ pub fn openapi_json() -> String {
 pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
     let api = Router::new()
         .route("/api/session/login", post(login))
+        .route("/api/launcher/login", post(launcher_login))
         .route("/api/session/register", post(register))
         .route("/api/me", get(me))
         .route("/api/me/password", post(my_password))
@@ -719,6 +722,15 @@ pub struct LoginRequest {
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct LauncherTicketResponse {
+    /// One-time game login ticket: start the client with `-launcher_ticket <ticket>`.
+    #[schema(value_type = String)]
+    ticket: Zeroizing<String>,
+    /// Seconds the ticket stays valid if unused.
+    expires_in: u64,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct SessionResponse {
     username: String,
     /// admin, gm, leitura, or null for an account that only sees its own data.
@@ -750,6 +762,30 @@ async fn login(
     let password = Zeroizing::new(request.password.as_bytes().to_vec());
     let granted = state.auth.login(&request.username, password, peer).await?;
     Ok(granted_response(&state, granted))
+}
+
+/// Launcher login (trilha L): login and password of any active account, with the panel's
+/// throttle and lockout; returns a one-time game ticket and opens no panel session. A native
+/// launcher sends no Origin; a browser page of another origin is refused like on the panel login.
+#[utoipa::path(post, path = "/api/launcher/login", request_body = LoginRequest,
+    responses((status = 200, body = LauncherTicketResponse), (status = 401, body = ApiError),
+              (status = 429, body = ApiError)))]
+async fn launcher_login(
+    State(state): State<AdminState>,
+    ConnectInfoOpt(peer): ConnectInfoOpt,
+    headers: HeaderMap,
+    Json(request): Json<LoginRequest>,
+) -> Result<Json<LauncherTicketResponse>, Refusal> {
+    check_origin(&headers)?;
+    let password = Zeroizing::new(request.password.as_bytes().to_vec());
+    let ticket = state
+        .auth
+        .launcher_ticket(&request.username, password, peer)
+        .await?;
+    Ok(Json(LauncherTicketResponse {
+        ticket: Zeroizing::new(ticket.as_str().to_owned()),
+        expires_in: crate::application::admin_session::LAUNCHER_TICKET_SECONDS,
+    }))
 }
 
 /// Open registration: a new account without a panel role, logged in like a login. It only

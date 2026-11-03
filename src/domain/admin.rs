@@ -83,6 +83,54 @@ impl SessionToken {
     }
 }
 
+pub const LAUNCHER_TICKET_PREFIX: &str = "lt";
+const LAUNCHER_TICKET_DIGITS: usize = 22;
+const BASE36: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+
+/// One-time game login ticket the launcher gets for login and password and hands to the client
+/// (`-launcher_ticket`), which sends it as the UserLogin passport. `lt` plus 22 lowercase base36
+/// digits (about 113 random bits): 24 characters, the size of a typed ID, and no case the client
+/// could fold. Not Debug: it is a credential.
+pub struct LauncherTicket(Zeroizing<String>);
+
+impl LauncherTicket {
+    pub fn generate() -> Self {
+        let mut text = Zeroizing::new(String::with_capacity(24));
+        text.push_str(LAUNCHER_TICKET_PREFIX);
+        let mut pool = Zeroizing::new([0u8; 64]);
+        while text.len() < LAUNCHER_TICKET_PREFIX.len() + LAUNCHER_TICKET_DIGITS {
+            OsRng.fill_bytes(pool.as_mut());
+            // 252 = 7 * 36: rejecting the top four values keeps every digit equally likely.
+            for byte in pool.iter().filter(|b| **b < 252) {
+                if text.len() == LAUNCHER_TICKET_PREFIX.len() + LAUNCHER_TICKET_DIGITS {
+                    break;
+                }
+                text.push(char::from(BASE36[usize::from(byte % 36)]));
+            }
+        }
+        Self(text)
+    }
+    /// Accepts exactly the generated form; anything else is an ordinary typed ID.
+    pub fn parse(value: &str) -> Option<Self> {
+        value
+            .strip_prefix(LAUNCHER_TICKET_PREFIX)
+            .filter(|digits| {
+                digits.len() == LAUNCHER_TICKET_DIGITS
+                    && digits
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
+            })
+            .map(|_| Self(Zeroizing::new(value.to_owned())))
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+    /// The stored form: the database never holds the ticket itself.
+    pub fn digest(&self) -> [u8; 32] {
+        Sha256::digest(self.0.as_bytes()).into()
+    }
+}
+
 fn hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let mut text = String::with_capacity(bytes.len() * 2);
@@ -105,6 +153,21 @@ pub fn same_secret(a: &str, b: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn launcher_tickets_are_24_lowercase_characters_and_parse_back() {
+        let a = LauncherTicket::generate();
+        let b = LauncherTicket::generate();
+        assert_eq!(a.as_str().len(), 24);
+        assert!(a.as_str().starts_with(LAUNCHER_TICKET_PREFIX));
+        assert_ne!(a.as_str(), b.as_str());
+        let parsed = LauncherTicket::parse(a.as_str()).expect("generated form parses");
+        assert_eq!(parsed.digest(), a.digest());
+        assert!(LauncherTicket::parse("admin").is_none());
+        assert!(LauncherTicket::parse(&a.as_str().to_uppercase()).is_none());
+        assert!(LauncherTicket::parse(&a.as_str()[..23]).is_none());
+        assert!(LauncherTicket::parse(&format!("{}0", a.as_str())).is_none());
+    }
 
     #[test]
     fn roles_grant_increasing_permissions() {

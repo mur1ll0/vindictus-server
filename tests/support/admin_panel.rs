@@ -13,9 +13,12 @@ use vindictus_server::{
         accounts::create_account,
         admin_session::{AdminError, MAX_FAILURES, PanelAuth, audit_page, set_role_from_cli},
     },
-    domain::{Username, admin::PanelRole},
+    domain::{
+        Username,
+        admin::{LauncherTicket, PanelRole},
+    },
     http::admin::{self, AdminState},
-    infrastructure::{admin_store::AuditFilter, postgres},
+    infrastructure::{admin_store::AuditFilter, game_links, postgres},
 };
 use zeroize::Zeroizing;
 
@@ -266,6 +269,138 @@ async fn admin_panel_login_session_roles_and_audit() {
             "{statement}"
         );
     }
+
+    pool.close().await;
+    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+        .execute(&admin_pool)
+        .await
+        .expect("cleanup");
+    admin_pool.close().await;
+}
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn launcher_ticket_login_is_single_use_expires_and_needs_an_active_account() {
+    let (admin_pool, pool, schema) = isolated_pool().await;
+    create_account(
+        &pool,
+        Username::parse("Lancador_A").expect("name"),
+        secret(PASSWORD),
+    )
+    .await
+    .expect("account");
+    let peer = Some("127.0.0.1".parse().expect("ip"));
+    let auth = PanelAuth::new(pool.clone());
+    let redeem = |ticket: &LauncherTicket| {
+        let pool = pool.clone();
+        let digest = ticket.digest();
+        async move {
+            game_links::redeem_launcher_ticket(&pool, &digest)
+                .await
+                .expect("redeem")
+        }
+    };
+
+    // Any active account (no panel role) gets a ticket; it enters its game name once.
+    let ticket = auth
+        .launcher_ticket("lancador_a", secret(PASSWORD), peer)
+        .await
+        .expect("ticket");
+    assert_eq!(ticket.as_str().len(), 24);
+    assert!(LauncherTicket::parse(ticket.as_str()).is_some());
+    assert_eq!(redeem(&ticket).await.as_deref(), Some("Lancador_A"));
+    assert_eq!(redeem(&ticket).await, None);
+    assert!(matches!(
+        auth.launcher_ticket("lancador_a", secret("senha errada demais"), peer)
+            .await,
+        Err(AdminError::InvalidCredentials)
+    ));
+    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM game_launcher_tickets")
+        .fetch_one(&pool)
+        .await
+        .expect("count");
+    assert_eq!(stored, 1, "only the digest of the spent ticket remains");
+
+    // Expired.
+    let expired = auth
+        .launcher_ticket("lancador_a", secret(PASSWORD), peer)
+        .await
+        .expect("ticket");
+    sqlx::query(
+        "UPDATE game_launcher_tickets SET created_at = now() - interval '10 minutes',
+                expires_at = now() - interval '5 minutes' WHERE ticket_sha256 = $1",
+    )
+    .bind(expired.digest().as_slice())
+    .execute(&pool)
+    .await
+    .expect("expire");
+    assert_eq!(redeem(&expired).await, None);
+
+    // Account disabled after the ticket was issued.
+    let disabled = auth
+        .launcher_ticket("lancador_a", secret(PASSWORD), peer)
+        .await
+        .expect("ticket");
+    sqlx::query("UPDATE accounts SET status = 'disabled' WHERE normalized_name = 'lancador_a'")
+        .execute(&pool)
+        .await
+        .expect("disable");
+    assert_eq!(redeem(&disabled).await, None);
+    sqlx::query("UPDATE accounts SET status = 'active' WHERE normalized_name = 'lancador_a'")
+        .execute(&pool)
+        .await
+        .expect("enable");
+
+    // HTTP: a native launcher sends no Origin and gets no cookie; another origin is refused.
+    let app = admin::router(AdminState::new(auth.clone(), false), None);
+    let body = format!(r#"{{"username":"Lancador_A","password":"{PASSWORD}"}}"#);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/api/launcher/login")
+                .header(header::HOST, "127.0.0.1:27090")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(body.clone()))
+                .expect("request"),
+        )
+        .await
+        .expect("launcher login");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(response.headers().get(header::SET_COOKIE).is_none());
+    let json: serde_json::Value = serde_json::from_slice(
+        &response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes(),
+    )
+    .expect("json");
+    assert_eq!(json["expires_in"], 120);
+    let ticket = LauncherTicket::parse(json["ticket"].as_str().expect("ticket")).expect("form");
+    assert_eq!(redeem(&ticket).await.as_deref(), Some("Lancador_A"));
+    let response = app
+        .oneshot(
+            Request::post("/api/launcher/login")
+                .header(header::HOST, "127.0.0.1:27090")
+                .header(header::ORIGIN, "http://evil.example")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(body))
+                .expect("request"),
+        )
+        .await
+        .expect("cross origin");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let actions = audit_actions(&pool).await;
+    let count = |action: &str, outcome: &str| {
+        actions
+            .iter()
+            .filter(|(a, o)| a == action && o == outcome)
+            .count()
+    };
+    assert_eq!(count("launcher.login", "ok"), 4);
+    assert_eq!(count("launcher.login", "refused"), 1);
 
     pool.close().await;
     sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))

@@ -583,23 +583,34 @@ impl Connection {
         // of an active account, which enters that account's game name; the password protects
         // the panel and the second password the characters. Otherwise the local allowlist
         // applies, only to names no account has claimed. Checked before reservation: a refusal
-        // reserves no session and touches no game state.
-        let account_game = match message
+        // reserves no session and touches no game state. A launcher ticket (trilha L, the client
+        // started with -launcher_ticket) is spent once and enters its account's game name; a
+        // ticket that does not redeem is refused, never read as a typed name.
+        let ticket = message
             .passport
-            .and_then(|p| crate::domain::Username::parse(p).ok())
-        {
-            Some(name) => super::game_links::game_name_for_login(pool, name.normalized())
+            .and_then(crate::domain::admin::LauncherTicket::parse);
+        let account_game = match (&ticket, message.passport) {
+            (Some(ticket), _) => super::game_links::redeem_launcher_ticket(pool, &ticket.digest())
                 .await
                 .ok()
                 .flatten()
                 .map(Zeroizing::new),
-            None => None,
+            (None, Some(passport)) => match crate::domain::Username::parse(passport) {
+                Ok(name) => super::game_links::game_name_for_login(pool, name.normalized())
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(Zeroizing::new),
+                Err(_) => None,
+            },
+            (None, None) => None,
         };
         let passport = account_game
             .as_ref()
             .map_or(message.passport, |g| Some(g.as_str()));
         let admitted = account_game.is_some()
-            || (runtime.profile.permits(passport)
+            || (ticket.is_none()
+                && runtime.profile.permits(passport)
                 && match unclaimed_name_key(passport, runtime.profile.identity_options()) {
                     Some(key) => {
                         matches!(super::game_links::claimed(pool, &key).await, Ok(false))
