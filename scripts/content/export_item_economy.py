@@ -1,5 +1,5 @@
 """Readonly ItemClassInfo economy columns bound by row position to the item catalog projection."""
-import argparse, contextlib, datetime, json, pathlib, sqlite3
+import argparse, contextlib, datetime, json, pathlib, re, sqlite3
 import content_additions
 from export_item_catalog import read_package as catalog_read, digest
 import content_overrides as overrides
@@ -81,6 +81,7 @@ def read_package(database, config):
             mail_types.append(row)
             if len(mail_types) > 256: raise ValueError('MailTypeInfo row bound')
         marketplace = read_marketplace(db, integer, plain, catalog['manifest'])
+        events = read_events(db, catalog['manifest'])
         pets = read_pets(db, integer, plain)
         if pets is not None:
             pets['features'] = pet_features(db, catalog['manifest'])
@@ -90,7 +91,7 @@ def read_package(database, config):
     package = {'format_version': 4, 'source': 'heroesContents.item-economy', 'alchemist_boxes': boxes,
                'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
                'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types,
-               'marketplace': marketplace}
+               'marketplace': marketplace, 'events': events}
     if pets is not None:
         package['pets'] = pets
     return package
@@ -134,6 +135,52 @@ def read_marketplace(db, integer, plain, manifest):
         limits.append(dict(item_class=plain(r['ItemClass']), max_limit_value=integer(r['MaxLimitValue'], True)))
         if len(limits) > 10000: raise ValueError('ItemTradeLimitInfo row bound')
     return dict(features=region_features(db, manifest, MARKETPLACE_FEATURES, 'Marketplace'), trade_limits=limits)
+
+# Region tokens of the other services: an event key carrying one is not ours.
+OTHER_REGIONS = {'kokr', 'jajp', 'zhcn', 'zhtw', 'thth', 'kr', 'ko', 'jp', 'ja', 'cn', 'zh', 'tw', 'th',
+                 'cntw', 'korea', 'japan', 'china', 'taiwan', 'thai'}
+# An event switch is off (empty) or a version / "1"; integers and paths are event parameters.
+SWITCH = re.compile(r'^(1|[0-9]+\.[0-9]+(\.[0-9]+)*)$')
+
+def read_events(db, manifest):
+    """The FeatureMatrix event switches of the region (keys starting with Event, without another
+    region's token) that some content row references, with the rows per table."""
+    from export_reward_policy import feature_atoms
+    columns = {r[1] for r in db.execute('PRAGMA table_info(FeatureMatrix)')}
+    def load(tag):
+        if tag not in columns: raise ValueError('Missing configured feature column')
+        return {r[0]: r[1] for r in db.execute('SELECT Feature,"' + tag.replace('"', '""') + '" FROM FeatureMatrix')}
+    values = load(manifest['region'])
+    if manifest.get('override_region'):
+        for k, v in load(manifest['override_region']).items():
+            if k not in ('GameCode', 'CurrentVer', 'OverrideSetting'): values[k] = v
+    keys = {}
+    for key, value in values.items():
+        if not isinstance(key, str) or not key.lower().startswith('event') or not key.isascii() or len(key) > 256:
+            continue
+        if OTHER_REGIONS & set(key.lower().split('_')):
+            continue
+        if value not in (None, '') and not (isinstance(value, str) and SWITCH.match(value)):
+            continue
+        keys[key] = value or None
+    uses = {k: {} for k in keys}
+    tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+    for table in tables:
+        if table == 'FeatureMatrix': continue
+        if 'Feature' not in {r[1] for r in db.execute('PRAGMA table_info("' + table.replace('"', '""') + '")')}:
+            continue
+        for (feature,) in db.execute('SELECT Feature FROM "' + table.replace('"', '""') + '" WHERE Feature IS NOT NULL'):
+            if not isinstance(feature, str) or len(feature) > 512: continue
+            try:
+                atoms = feature_atoms(feature)
+            except ValueError:
+                continue
+            for atom in atoms:
+                if atom in uses:
+                    uses[atom][table] = uses[atom].get(table, 0) + 1
+    out = [dict(key=k, value=keys[k], uses=uses[k]) for k in sorted(keys) if uses[k]]
+    if len(out) > 1000 or any(len(e['uses']) > 64 for e in out): raise ValueError('Event bound')
+    return out
 
 PET_FEATURES = ('Pet', 'Pet_food_V2', 'PetPurchaseLimit', 'PetMaxLevel', 'Pet_ExpBattle_Point',
                 'NamingRuleMaxBytes')

@@ -65,6 +65,17 @@ class ItemEconomyExportTests(unittest.TestCase):
         with contextlib.closing(sqlite3.connect(self.db)) as db:
             db.execute("INSERT INTO ItemTradeLimitInfo VALUES('phoenix_feather',1)"); db.commit()
         with self.assertRaises(ValueError): read_package(self.db, self.config)
+    def test_events_are_region_switches_used_by_content(self):
+        with contextlib.closing(sqlite3.connect(self.db)) as db:
+            columns = [r[1] for r in db.execute('PRAGMA table_info(FeatureMatrix)')]
+            for key in ('Event_xmas_2012', 'Event_xmas_kokr_2012', 'Event_Rate_2011', 'Event_unused'):
+                db.execute('INSERT INTO FeatureMatrix(Feature) VALUES(?)', (key,))
+            db.execute('UPDATE FeatureMatrix SET ' + ','.join('"%s"=?' % c for c in columns[1:]) + " WHERE Feature='Event_Rate_2011'", ['100'] * (len(columns) - 1))
+            db.execute('CREATE TABLE ShopInfo(ShopID TEXT,Feature TEXT)')
+            db.execute("INSERT INTO ShopInfo VALUES('a','Event_xmas_2012'),('b','Event_xmas_2012&&!Event_xmas_kokr_2012'),('c','Event_Rate_2011')")
+            db.commit()
+        events = read_package(self.db, self.config)['events']
+        self.assertEqual(events, [dict(key='Event_xmas_2012', value=None, uses={'ShopInfo': 2})])
     def test_mail_type_bits_must_be_text_booleans(self):
         with contextlib.closing(sqlite3.connect(self.db)) as db:
             db.execute("UPDATE MailTypeInfo SET System='1' WHERE MailType=9"); db.commit()

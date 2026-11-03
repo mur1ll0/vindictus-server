@@ -254,6 +254,7 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
     let mut quest_drops = std::collections::BTreeMap::new();
     let mut enhance_ratios = std::collections::BTreeMap::new();
     let mut enchant_ratios = std::collections::BTreeMap::new();
+    let mut events = std::collections::BTreeMap::new();
     // Item editor: added items by class, base overrides, hidden and removed classes.
     let mut items = std::collections::BTreeMap::new();
     let mut item_overrides = std::collections::BTreeMap::new();
@@ -290,6 +291,9 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
             }
             "enchant_ratio" => {
                 enchant_ratios.insert(target, serde_json::json!([value["min"], value["max"]]));
+            }
+            "event" => {
+                events.insert(target, value["enabled"].clone());
             }
             "item" => {
                 removed_items.remove(&target);
@@ -346,6 +350,7 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
         "quest_drops": quest_drops,
         "enhance_ratios": enhance_ratios,
         "enchant_ratios": enchant_ratios,
+        "events": events,
         "items": items.into_values().collect::<Vec<_>>(),
         "item_overrides": item_overrides,
         "hidden_items": hidden_items,

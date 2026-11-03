@@ -149,6 +149,9 @@ pub struct Assets {
     pub relay: Option<std::net::SocketAddr>,
     /// The published content version applied over these assets (0: none).
     pub content_version: i32,
+    /// The panel's event switches (content overlay), sent to the client in
+    /// SyncFeatureMatrix and already applied to the catalog and NPC policies.
+    pub event_overrides: std::collections::BTreeMap<String, bool>,
 }
 /// Already parsed, source-bound packages; construction still validates all bindings.
 pub struct Parts {
@@ -244,6 +247,14 @@ impl Assets {
             .as_ref()
             .map(|c| &c.customize().status_effects)
     }
+    /// The region's FeatureMatrix event switches of the economy export.
+    pub fn event_switches(&self) -> &[super::item_economy::EventSwitch] {
+        self.economy.as_ref().map_or(&[], |e| e.events())
+    }
+    /// The catalog FeatureMatrix's CurrentVer.
+    pub fn feature_version(&self) -> &str {
+        self.catalog.policy.current_version()
+    }
     /// FeatureMatrix values of the NPC script profile.
     pub fn npc_policy(&self) -> Option<&crate::domain::feature_policy::FeaturePolicy> {
         self.npc.as_ref().map(|n| &n.policy)
@@ -309,7 +320,17 @@ impl Assets {
                 open(&f.initializer)?,
                 open(&f.initializer_reference)?,
             )?,
-            catalog: item_catalog::read_package(open(&f.catalog)?)?,
+            catalog: {
+                // Event switches decide which event items exist before the catalog binds.
+                let mut catalog = item_catalog::read_package(open(&f.catalog)?)?;
+                for (key, on) in &overlay.events {
+                    catalog.policy.override_value(
+                        key,
+                        crate::domain::content_overlay::Overlay::event_value(*on).to_owned(),
+                    );
+                }
+                catalog
+            },
             stats: item_stats::Package::read(open(&f.stats)?)?,
             colors: item_colors::Package::read(open(&f.colors)?)?,
             inventory: fiona_inventory_profile::Profile::read(open(&f.inventory)?)?,
@@ -386,6 +407,7 @@ impl Assets {
             _ => return Err(MinimumError::Conflict),
         }
         assets.content_version = overlay.version;
+        assets.event_overrides = overlay.events.clone();
         match f.relay_bind {
             Some(bind) if bind.ip().is_loopback() && bind.port() != 0 => assets.relay = Some(bind),
             None => {}
@@ -407,6 +429,13 @@ impl Assets {
             // B4.5: FeatureMatrix rates and the quests' drop counts.
             for (key, value) in &overlay.features {
                 profile.policy.override_value(key, value.to_string());
+            }
+            // Event switches: ShopInfo, StoryLineInfo/QuestInfo and NPC talk features.
+            for (key, on) in &overlay.events {
+                profile.policy.override_value(
+                    key,
+                    crate::domain::content_overlay::Overlay::event_value(*on).to_owned(),
+                );
             }
             if let Some(mission) = profile.mission.as_mut() {
                 for (quest, [min, max]) in &overlay.quest_drops {
@@ -480,6 +509,7 @@ impl Assets {
             channel: None,
             relay: None,
             content_version: 0,
+            event_overrides: Default::default(),
         };
         out.initializer.bind(&out.catalog)?;
         out.inventory.bind(&out.catalog)?;

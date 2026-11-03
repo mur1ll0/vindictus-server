@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { CheckCircle2, Clock, Save, Search, Store, Undo2 } from 'lucide-react';
+import { CalendarHeart, CheckCircle2, Clock, Save, Search, Store, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type components, fail } from '@/api/client';
 import { contentState } from '@/api/content';
@@ -15,6 +15,7 @@ type Tuning = components['schemas']['TuningView'];
 type EditRequest = components['schemas']['EditRequest'];
 type Applied = components['schemas']['TuningApplied'];
 type MarketAuto = components['schemas']['MarketAutoView'];
+type EventView = components['schemas']['EventView'];
 
 async function tuning(): Promise<Tuning> {
   const { data, error, response } = await api.GET('/api/tuning');
@@ -127,6 +128,146 @@ function MarketAutoPanel({ editable }: { editable: boolean }) {
   );
 }
 
+/** Words of the event keys, for the filter chips. */
+const EVENT_THEMES: { label: string; words: string[] }[] = [
+  { label: 'Natal', words: ['christmas', 'xmas', 'santa'] },
+  { label: 'Páscoa', words: ['easter'] },
+  { label: 'Halloween', words: ['halloween'] },
+  { label: 'SAO (collab)', words: ['sao'] },
+  { label: 'Ano novo', words: ['newyear', 'new_year', 'lunar'] },
+  { label: 'Verão', words: ['summer', 'beach'] },
+  { label: 'Dia dos namorados', words: ['valentine', 'whiteday'] },
+];
+const theme = (key: string) => {
+  const k = key.toLowerCase();
+  return EVENT_THEMES.find((t) => t.words.some((w) => k.includes(w)))?.label ?? null;
+};
+
+/** FeatureMatrix event switches (laboratory extension): saved as tuning, live on the server. */
+function EventsPanel({
+  events,
+  editable,
+  onSaved,
+}: {
+  events: EventView[];
+  editable: boolean;
+  onSaved: (applied: Applied) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [drafts, setDrafts] = useState<Record<string, boolean>>({});
+  const [filter, setFilter] = useState('');
+  const [chip, setChip] = useState<string | null>(null);
+  const [onlyOn, setOnlyOn] = useState(false);
+  const [operationId, setOperationId] = useState(() => crypto.randomUUID());
+  const term = filter.trim().toLowerCase();
+  const changes = events.filter((e) => drafts[e.key] != null && drafts[e.key] !== e.enabled);
+  const save = useMutation({
+    mutationFn: () =>
+      saveTuning(
+        operationId,
+        changes.map((e) => ({ kind: 'event', key: e.key, enabled: drafts[e.key] ?? e.enabled })),
+      ),
+    onSuccess: (applied) => {
+      onSaved(applied);
+      setDrafts({});
+      setOperationId(crypto.randomUUID());
+      void queryClient.invalidateQueries({ queryKey: ['tuning'] });
+      void queryClient.invalidateQueries({ queryKey: ['content'] });
+      void queryClient.invalidateQueries({ queryKey: ['audit'] });
+    },
+  });
+  const shown = events
+    .filter((e) => !term || e.key.toLowerCase().includes(term))
+    .filter((e) => !chip || theme(e.key) === chip)
+    .filter((e) => !onlyOn || (drafts[e.key] ?? e.enabled));
+  return (
+    <div className="space-y-3">
+      <Card>
+        <p className="flex items-start gap-2 text-sm text-muted">
+          <CalendarHeart className="mt-0.5 size-4 shrink-0 text-accent" />
+          <span>
+            Chaves de evento do FeatureMatrix da nossa região (as de outras regiões ficam de fora). Ligar vale na hora para lojas,
+            histórias, quests e itens do servidor, e o cliente recebe a chave no próximo login. As tabelas marcadas como{' '}
+            <span className="font-medium text-fg">ainda não migrado</span> (drops de evento, eventos periódicos, meta coletiva,
+            lojas de cupom…) não fazem efeito até o sistema delas ser migrado. É um recurso do laboratório.
+          </span>
+        </p>
+      </Card>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative max-w-sm flex-1">
+          <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
+          <Input aria-label="Buscar evento" placeholder="Buscar evento" className="pl-9" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        </div>
+        {EVENT_THEMES.map((t) => (
+          <button
+            key={t.label}
+            type="button"
+            onClick={() => setChip(chip === t.label ? null : t.label)}
+            className={cn('rounded-full border border-border px-3 py-1 text-xs', chip === t.label && 'border-accent bg-raised font-medium')}
+          >
+            {t.label}
+          </button>
+        ))}
+        <label className="flex items-center gap-1 text-xs">
+          <input type="checkbox" checked={onlyOn} onChange={(e) => setOnlyOn(e.target.checked)} /> Só ligados
+        </label>
+      </div>
+      <div className="grid gap-2 lg:grid-cols-2">
+        {shown.slice(0, 300).map((e) => {
+          const on = drafts[e.key] ?? e.enabled;
+          const changed = drafts[e.key] != null && drafts[e.key] !== e.enabled;
+          return (
+            <div key={e.key} className={cn('rounded-lg border border-border bg-surface px-3 py-2', changed && 'border-accent')}>
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  aria-label={e.key}
+                  checked={on}
+                  disabled={!editable}
+                  onChange={(x) => setDrafts({ ...drafts, [e.key]: x.target.checked })}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-mono text-sm">{e.key}</span>
+                  <span className="block text-xs text-muted">
+                    {theme(e.key) ? `${theme(e.key)} · ` : ''}original {e.original ? 'ligado' : 'desligado'}
+                  </span>
+                </span>
+              </label>
+              <p className="mt-1 flex flex-wrap gap-1 text-xs">
+                {e.uses.map((u) => (
+                  <span
+                    key={u.table}
+                    title={u.migrated ? 'O servidor já lê esta tabela' : 'Ainda não migrado: sem efeito por enquanto'}
+                    className={cn('rounded px-1.5 py-0.5', u.migrated ? 'bg-raised text-fg' : 'text-muted line-through')}
+                  >
+                    {u.table} {u.rows}
+                  </span>
+                ))}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      {shown.length > 300 && <p className="text-xs text-muted">Mostrando 300 de {shown.length}; refine a busca.</p>}
+      {changes.length > 0 && (
+        <div className="fixed right-4 bottom-4 left-4 z-30 mx-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-xl border border-accent bg-surface px-4 py-3 shadow-lg">
+          <p className="flex-1 text-sm">
+            <span className="font-medium">{changes.length} evento(s) alterado(s)</span>
+            <span className="text-muted"> · o servidor aplica na hora; o cliente no próximo login</span>
+          </p>
+          <Button type="button" variant="outline" onClick={() => setDrafts({})} disabled={save.isPending}>
+            <Undo2 className="size-4" /> Descartar
+          </Button>
+          <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>
+            <Save className="size-4" /> {save.isPending ? 'Aplicando…' : 'Salvar'}
+          </Button>
+          {save.error && <p className="w-full text-sm text-danger">{errorText(save.error)}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** FeatureMatrix rates in percent (100 = the original value). */
 const FEATURE_LABEL: Record<string, string> = {
   ExpRate_Combat: 'EXP das missões (combate)',
@@ -152,13 +293,13 @@ type Item = {
   build: (values: number[]) => EditRequest;
 };
 
-type Tab = 'rates' | 'drops' | 'enhance' | 'enchant' | 'market';
+type Tab = 'rates' | 'drops' | 'enhance' | 'enchant' | 'market' | 'events';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const show = (values: number[], unit: string) => values.map((v) => `${v}${unit}`).join('–');
 
 /** The page's items; `key` is "<edit kind>|<edit target>", as the content edits store it. */
-function items(t: Tuning): Record<Exclude<Tab, 'market'>, Item[]> {
+function items(t: Tuning): Record<Exclude<Tab, 'market' | 'events'>, Item[]> {
   return {
     rates: t.features.map((f) => ({
       key: `feature|${f.key}`,
@@ -335,8 +476,9 @@ export function TuningPage() {
     { id: 'enhance', label: 'Enhance', n: all?.enhance.length },
     { id: 'enchant', label: 'Enchant', n: all?.enchant.length },
     { id: 'market', label: 'Mercado automático', n: undefined },
+    { id: 'events', label: 'Eventos', n: data.data?.events.length },
   ] as const;
-  const shown = (tab === 'market' ? [] : (all?.[tab] ?? []))
+  const shown = (tab === 'market' || tab === 'events' ? [] : (all?.[tab] ?? []))
     .filter((i) => tab === 'rates' || tab === 'enhance' || !term || `${i.title} ${i.detail}`.toLowerCase().includes(term))
     .slice(0, 300);
 
@@ -371,6 +513,7 @@ export function TuningPage() {
               {result.live
                 ? `Aplicado no jogo agora (versão ${result.version}), sem reiniciar.`
                 : `Versão ${result.version} publicada, mas o jogo não recarregou: ela vale no próximo reinício (Conteúdo → manutenção).`}
+              {result.relog && ' Os eventos já valem no servidor; o cliente recebe as chaves no próximo login.'}
               {result.client_refresh &&
                 ' O servidor já usa as chances novas de Enhance/Enchant; as janelas do cliente mostram o valor novo depois de abri-lo pelo start-lab.bat.'}
             </span>
@@ -392,7 +535,8 @@ export function TuningPage() {
         ))}
       </div>
       {tab === 'market' && <MarketAutoPanel editable={editable} />}
-      {tab !== 'rates' && tab !== 'enhance' && tab !== 'market' && (
+      {tab === 'events' && data.data && <EventsPanel events={data.data.events} editable={editable} onSaved={setResult} />}
+      {tab !== 'rates' && tab !== 'enhance' && tab !== 'market' && tab !== 'events' && (
         <div className="relative max-w-sm">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />
           <Input aria-label="Buscar" placeholder="Buscar (nome ou ID)" className="pl-9" value={filter} onChange={(e) => setFilter(e.target.value)} />

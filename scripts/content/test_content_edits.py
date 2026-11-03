@@ -40,6 +40,13 @@ class ContentEditsTests(unittest.TestCase):
                 content_edits.load(path)
             path.write_text(json.dumps(content_edits.EMPTY), encoding='utf-8')
             self.assertEqual(content_edits.load(path)['features'], {})
+            self.assertEqual(content_edits.load(path)['events'], {})
+            path.write_text(json.dumps(overlay(events={'Event_Christmas_2010': True})), encoding='utf-8')
+            self.assertEqual(content_edits.load(path)['events'], {'Event_Christmas_2010': True})
+            for bad in ({'Event_x': 1}, {'ExpRate_Combat': True}):
+                path.write_text(json.dumps(overlay(events=bad)), encoding='utf-8')
+                with self.assertRaises(ValueError):
+                    content_edits.load(path)
 
     def test_shop_rows_change_remove_and_add_keep_other_fields(self):
         out = content_edits.apply_shop_rows(ROWS, overlay(shop_rows=[

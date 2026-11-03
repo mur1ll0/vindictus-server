@@ -107,6 +107,17 @@ struct Export {
     /// The marketplace section (absent from older exports: the marketplace is refused).
     #[serde(default)]
     marketplace: Option<MarketplaceExport>,
+    /// FeatureMatrix event switches of the region with the content rows per table.
+    #[serde(default)]
+    events: Vec<EventSwitch>,
+}
+/// An event switch of the FeatureMatrix: its value in the region and its uses.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EventSwitch {
+    pub key: String,
+    pub value: Option<String>,
+    pub uses: std::collections::BTreeMap<String, i32>,
 }
 /// HotSpringPotionInfo row (UntilEffectSec and ShowName are not read by the server).
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -158,6 +169,7 @@ pub struct Profile {
     pets: Option<crate::domain::pet::Export>,
     mail_types: Vec<crate::domain::mail::MailTypeInfo>,
     marketplace: Option<Marketplace>,
+    events: Vec<EventSwitch>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -275,6 +287,16 @@ impl Profile {
         {
             return Err(MinimumError::Conflict);
         }
+        if export.events.len() > 1000
+            || export.events.iter().any(|e| {
+                e.key.len() > 256
+                    || !e.key.is_ascii()
+                    || !e.key.to_ascii_lowercase().starts_with("event")
+                    || e.uses.len() > 64
+            })
+        {
+            return Err(MinimumError::Conflict);
+        }
         let marketplace = match export.marketplace {
             None => None,
             Some(m) => {
@@ -306,7 +328,12 @@ impl Profile {
             pets: export.pets,
             mail_types: export.mail_types,
             marketplace,
+            events: export.events,
         })
+    }
+    /// The region's FeatureMatrix event switches (the panel's Eventos tab).
+    pub fn events(&self) -> &[EventSwitch] {
+        &self.events
     }
     /// The marketplace contents, when the export has them.
     pub fn marketplace(&self) -> Option<&Marketplace> {

@@ -263,6 +263,22 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
     );
     let loaded = content_edits::loaded_overlay(&pool).await.unwrap();
     assert_eq!(loaded.features.get("ExpRate_Combat"), Some(&500));
+    // Event switches (migration 0057) reach the overlay; the newest edit of a key wins.
+    for (enabled, n) in [(true, 5), (false, 6)] {
+        let rows = [(
+            "event",
+            "Event_Christmas_2010".to_owned(),
+            Some(serde_json::json!({ "enabled": enabled })),
+        )];
+        assert_eq!(
+            content_edits::publish_now(&pool, chefe.account_id, &rows, audit(Uuid::new_v4()))
+                .await
+                .unwrap(),
+            content_edits::EditOutcome::Done(n)
+        );
+    }
+    let loaded = content_edits::loaded_overlay(&pool).await.unwrap();
+    assert_eq!(loaded.events.get("Event_Christmas_2010"), Some(&false));
     assert_eq!(loaded.features.get("GoldRate_Story"), None);
     let pending: i64 =
         sqlx::query_scalar("SELECT count(*) FROM content_edits WHERE state = 'pending'")
@@ -280,7 +296,7 @@ async fn content_edits_publish_versions_and_export_the_cumulative_overlay() {
         content_edits::publish_now(&pool, chefe.account_id, &rows, audit(Uuid::new_v4()))
             .await
             .unwrap(),
-        content_edits::EditOutcome::Done(5)
+        content_edits::EditOutcome::Done(7)
     );
     let pending: i64 =
         sqlx::query_scalar("SELECT count(*) FROM content_edits WHERE state = 'pending'")

@@ -118,6 +118,38 @@ pub enum EditRequest {
         min: i32,
         max: i32,
     },
+    /// A FeatureMatrix event switch on or off (laboratory extension).
+    Event {
+        key: String,
+        enabled: bool,
+    },
+}
+
+/// The content tables whose Feature the migrated server already evaluates.
+pub const MIGRATED_EVENT_TABLES: [&str; 5] = [
+    "ShopInfo",
+    "StoryLineInfo",
+    "QuestInfo",
+    "ItemClassInfo",
+    "EquipItemInfo",
+];
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventUseView {
+    pub table: String,
+    pub rows: i32,
+    /// The server already reads this table's Feature (else the rows wait for their system).
+    pub migrated: bool,
+}
+/// A FeatureMatrix event switch of the region (Ajustes de jogo → Eventos).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventView {
+    pub key: String,
+    /// On in the original content of the region.
+    pub original: bool,
+    /// On now (the panel's switch, else the original).
+    pub enabled: bool,
+    pub uses: Vec<EventUseView>,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -158,6 +190,7 @@ pub struct TuningView {
     pub quests: Vec<QuestDropView>,
     pub enhance: Vec<EnhanceRatioView>,
     pub enchants: Vec<EnchantRatioView>,
+    pub events: Vec<EventView>,
 }
 
 pub struct Actor<'a> {
@@ -322,11 +355,43 @@ pub fn tuning(
         ),
         None => (Vec::new(), Vec::new()),
     };
+    let current = assets.feature_version().to_owned();
+    let events = assets
+        .event_switches()
+        .iter()
+        .map(|x| {
+            let original = crate::domain::feature_policy::FeaturePolicy::new([
+                ("CurrentVer".to_owned(), Some(current.clone())),
+                (x.key.clone(), x.value.clone()),
+            ])
+            .and_then(|p| p.is_enabled(Some(&x.key)))
+            .unwrap_or(false);
+            EventView {
+                key: x.key.clone(),
+                original,
+                enabled: assets
+                    .event_overrides
+                    .get(&x.key)
+                    .copied()
+                    .unwrap_or(original),
+                uses: x
+                    .uses
+                    .iter()
+                    .map(|(table, rows)| EventUseView {
+                        migrated: MIGRATED_EVENT_TABLES.contains(&table.as_str()),
+                        table: table.clone(),
+                        rows: *rows,
+                    })
+                    .collect(),
+            }
+        })
+        .collect();
     Ok(TuningView {
         features,
         quests,
         enhance,
         enchants,
+        events,
     })
 }
 
@@ -492,6 +557,16 @@ fn validate(
                 Some(serde_json::json!({ "min": min, "max": max })),
             ))
         }
+        EditRequest::Event { key, enabled } => {
+            if !assets.event_switches().iter().any(|x| &x.key == key) {
+                return Err(AdminError::NotFound);
+            }
+            Ok((
+                "event",
+                key.clone(),
+                Some(serde_json::json!({ "enabled": enabled })),
+            ))
+        }
         EditRequest::CashDefault { price } => {
             if !(1..=MAX_CASH_PRICE).contains(price) {
                 return Err(AdminError::InvalidInput);
@@ -584,6 +659,8 @@ pub struct TuningApplied {
     /// Enhance/Enchant chances also show in the client's own windows: its copy takes them
     /// when opened through start-lab.bat.
     pub client_refresh: bool,
+    /// Event switches reach the client in SyncFeatureMatrix: it sees them at its next login.
+    pub relog: bool,
 }
 
 pub const MAX_TUNING_EDITS: usize = 300;
@@ -702,12 +779,14 @@ pub async fn apply_tuning(
     }
     let mut rows = Vec::with_capacity(edits.len());
     let mut client_refresh = false;
+    let mut relog = false;
     for edit in edits {
         match edit {
             EditRequest::Feature { .. } | EditRequest::QuestDrop { .. } => {}
             EditRequest::EnhanceRatio { .. } | EditRequest::EnchantRatio { .. } => {
                 client_refresh = true;
             }
+            EditRequest::Event { .. } => relog = true,
             _ => return Err(AdminError::InvalidInput),
         }
         rows.push(validate(&assets, edit)?);
@@ -738,6 +817,7 @@ pub async fn apply_tuning(
         version,
         live,
         client_refresh,
+        relog,
     })
 }
 

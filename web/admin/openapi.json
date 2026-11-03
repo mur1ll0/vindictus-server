@@ -4442,6 +4442,29 @@
                 "format": "int32"
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "A FeatureMatrix event switch on or off (laboratory extension).",
+            "required": [
+              "key",
+              "enabled",
+              "kind"
+            ],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "key": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "event"
+                ]
+              }
+            }
           }
         ]
       },
@@ -4683,6 +4706,56 @@
           "ratio": {
             "type": "number",
             "format": "float"
+          }
+        }
+      },
+      "EventUseView": {
+        "type": "object",
+        "required": [
+          "table",
+          "rows",
+          "migrated"
+        ],
+        "properties": {
+          "migrated": {
+            "type": "boolean",
+            "description": "The server already reads this table's Feature (else the rows wait for their system)."
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "table": {
+            "type": "string"
+          }
+        }
+      },
+      "EventView": {
+        "type": "object",
+        "description": "A FeatureMatrix event switch of the region (Ajustes de jogo → Eventos).",
+        "required": [
+          "key",
+          "original",
+          "enabled",
+          "uses"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "On now (the panel's switch, else the original)."
+          },
+          "key": {
+            "type": "string"
+          },
+          "original": {
+            "type": "boolean",
+            "description": "On in the original content of the region."
+          },
+          "uses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventUseView"
+            }
           }
         }
       },
@@ -6444,7 +6517,8 @@
         "required": [
           "version",
           "live",
-          "client_refresh"
+          "client_refresh",
+          "relog"
         ],
         "properties": {
           "client_refresh": {
@@ -6454,6 +6528,10 @@
           "live": {
             "type": "boolean",
             "description": "The game took the values now, without a restart. When false the version stays\npublished and the next restart applies it."
+          },
+          "relog": {
+            "type": "boolean",
+            "description": "Event switches reach the client in SyncFeatureMatrix: it sees them at its next login."
           },
           "version": {
             "type": "integer",
@@ -6488,7 +6566,8 @@
           "features",
           "quests",
           "enhance",
-          "enchants"
+          "enchants",
+          "events"
         ],
         "properties": {
           "enchants": {
@@ -6501,6 +6580,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/EnhanceRatioView"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventView"
             }
           },
           "features": {

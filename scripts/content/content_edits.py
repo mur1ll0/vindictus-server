@@ -56,6 +56,12 @@ def load(path=EDITS):
             raise ValueError('Content edit enhance ratio')
     for k, (low, high) in overlay['enchant_ratios'].items():
         _text(k, 'enchant'); _int(high, 0, 100, 'enchant max'); _int(low, 0, high, 'enchant min')
+    # Event switches (laboratory extension): sent to the client by the server itself.
+    overlay.setdefault('events', {})
+    for k, v in overlay['events'].items():
+        _text(k, 'event', 256)
+        if type(v) is not bool or not k.lower().startswith('event'):
+            raise ValueError('Content edit event')
     return overlay
 
 

@@ -1369,6 +1369,11 @@ export interface components {
             max: number;
             /** Format: int32 */
             min: number;
+        } | {
+            enabled: boolean;
+            key: string;
+            /** @enum {string} */
+            kind: "event";
         };
         EditorItemDetail: {
             /**
@@ -1451,6 +1456,22 @@ export interface components {
             level: number;
             /** Format: float */
             ratio: number;
+        };
+        EventUseView: {
+            /** @description The server already reads this table's Feature (else the rows wait for their system). */
+            migrated: boolean;
+            /** Format: int32 */
+            rows: number;
+            table: string;
+        };
+        /** @description A FeatureMatrix event switch of the region (Ajustes de jogo → Eventos). */
+        EventView: {
+            /** @description On now (the panel's switch, else the original). */
+            enabled: boolean;
+            key: string;
+            /** @description On in the original content of the region. */
+            original: boolean;
+            uses: components["schemas"]["EventUseView"][];
         };
         FeatureView: {
             key: string;
@@ -2087,6 +2108,8 @@ export interface components {
              *     published and the next restart applies it.
              */
             live: boolean;
+            /** @description Event switches reach the client in SyncFeatureMatrix: it sees them at its next login. */
+            relog: boolean;
             /** Format: int64 */
             version: number;
         };
@@ -2100,6 +2123,7 @@ export interface components {
         TuningView: {
             enchants: components["schemas"]["EnchantRatioView"][];
             enhance: components["schemas"]["EnhanceRatioView"][];
+            events: components["schemas"]["EventView"][];
             features: components["schemas"]["FeatureView"][];
             quests: components["schemas"]["QuestDropView"][];
         };

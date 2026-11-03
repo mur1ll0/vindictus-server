@@ -33,6 +33,10 @@ pub struct Overlay {
     /// characters when the game starts (unequipped first).
     #[serde(default)]
     pub removed_items: Vec<String>,
+    /// Event switches of the FeatureMatrix turned on (true) or off by the panel (laboratory
+    /// extension): "1" or "" for the server's policies and the client's SyncFeatureMatrix.
+    #[serde(default)]
+    pub events: BTreeMap<String, bool>,
 }
 
 /// The FeatureMatrix rates the panel tunes (percent; 100 = the original value).
@@ -134,6 +138,11 @@ impl Overlay {
             && prices_ok
             && default_ok
             && tuning_ok
+            && self.events.len() <= 1000
+            && self
+                .events
+                .keys()
+                .all(|k| text(k, 256) && k.to_ascii_lowercase().starts_with("event"))
         {
             Ok(self)
         } else {
@@ -141,6 +150,10 @@ impl Overlay {
         }
     }
 
+    /// The FeatureMatrix value of an event switch: "1" (enabled at any version) or "".
+    pub fn event_value(enabled: bool) -> &'static str {
+        if enabled { "1" } else { "" }
+    }
     /// ShopInfo rows with the overlay: remove, change the sold fields, or add a row. A
     /// key is (ShopID, Order) as exported; applying it twice gives the same rows.
     pub fn apply_shop_rows(&self, rows: Vec<ShopRow>) -> Vec<ShopRow> {
@@ -270,6 +283,33 @@ mod tests {
         let shown = hidden.validate().unwrap().apply_shop_rows(twice);
         assert_eq!(shown.len(), 1);
         assert_eq!(shown[0].item_class, "potion");
+    }
+
+    #[test]
+    fn event_switches_are_bounded_event_keys() {
+        let ok: Overlay = serde_json::from_value(serde_json::json!({
+            "format_version": 1, "version": 1, "shop_rows": [], "cash_prices": {}, "cash_default": null,
+            "events": {"Event_Christmas_2010": true, "event_christmas_santa_2012": false}
+        }))
+        .unwrap();
+        assert_eq!(ok.events.get("Event_Christmas_2010"), Some(&true));
+        assert!(ok.validate().is_ok());
+        let bad = Overlay {
+            events: [("ExpRate_Combat".to_owned(), true)].into_iter().collect(),
+            ..Overlay::default()
+        };
+        assert!(
+            Overlay {
+                format_version: 1,
+                ..bad
+            }
+            .validate()
+            .is_err()
+        );
+        assert_eq!(
+            (Overlay::event_value(true), Overlay::event_value(false)),
+            ("1", "")
+        );
     }
 
     #[test]
