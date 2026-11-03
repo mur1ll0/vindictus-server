@@ -15,7 +15,7 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 |---|---|---|
 | MP1 | Party na cidade: PartyInvite/Invited, aceite, recusa, LeavePartyMessage, Kick, desconexão; AcceptQuest pelo mestre de uma party | Feito; cliente pendente (`docs/client-tests/B5-multijogador.md`) |
 | MP2 | Relay com vários membros: MemberJoin para os membros antigos, NMInfos, quadros 20–22 → 23–25, MemberLeave (`docs/battle-transport.md`) | Feito; cliente no checkpoint do MP3 |
-| MP3 | Navio: JoinShip do membro (AddPlayer, MemberInfo ao host, HostInfo + ConnectionRequest ao membro), Ready, StartGame com todos prontos | Pendente |
+| MP3 | Navio: JoinShip do membro (AddPlayer, MemberInfo ao host, HostInfo + ConnectionRequest ao membro), Ready, StartGame com todos prontos | Feito; **checkpoint de cliente** (MP2+MP3) |
 | MP4 | Combate e loot: EXP, drops, conclusão e recompensas para cada membro | Pendente (depois do checkpoint de cliente do MP3) |
 | MP5 | Saída e reconexão de membros na missão, reeleição do host | Pendente |
 
@@ -25,3 +25,12 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 - QueryCIDByName compara os nomes decodificados sem diferenciar maiúsculas (colação do SQL Server), entre personagens com `status<>1`.
 - O Kick vindo da party envia dois KickedMessage, como `KickProcessor` (LeaveParty + o próprio).
 - Não migrados: assistência (ASSIST/FORCE_ASSIST), CombatRejoinSystem, captcha/punição antes do aceite, chat de party, TransferMaster pelo cliente, lista de navios de outras parties, diário de party (`AddPartyLedger`).
+
+## Decisões e limites (MP3)
+
+- O cliente do host simula a dungeon; o servidor não manda `GameStartGranted` aos membros. O membro recebe `HostInfoMessage` (GameInfo do RegisterServer do host, slot, chave) e o host recebe `MemberInfoMessage` do membro; o resto passa pelo P2P (relay, MP2).
+- A MicroPlay compartilhada fica no hub (`party_hub::Play`: quest, opção, grupo do relay, host, HostInfo, jogadores por slot). Cada membro tem sua `Mission` (MicroPlayer), com `host = false`.
+- As mensagens de MicroPlayHost (RegisterServer, StartGame, setores, mortes, drops, consumíveis, eventos) vindas de um membro são ignoradas, como no `MicroPlayMember` original.
+- Saída do relay por membro (`Relay::leave`); o grupo fecha quando fica vazio, inclusive na missão solo.
+- O membro cuja party volta à cidade (o host saiu do navio antes de começar) larga o navio local.
+- Não migrados no MP3: JoinShip do Initial pela lista de navios (a lista continua vazia), assistência, QuestTimerInfo de reentrada, `IsRequiredItemForAll`, fadiga, HostRestarted (migração de host) e recompensas dos membros (MP4).
