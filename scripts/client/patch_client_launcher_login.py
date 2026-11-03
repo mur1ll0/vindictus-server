@@ -1,21 +1,25 @@
-"""Log in with the launcher's ticket when Start Game is clicked, skipping the login page, in a COPY.
+"""Log in with the launcher's ticket as soon as the login dialog opens, in a COPY.
 
 Dry-run by default.
 
-The title's Start Game button sends the `ShowLoginDialog` command to GameTitleMenu_V2 (handler at
-0x3826a1d0). It fills the server list from EndPointNetwork, selects the first server
-(`GameTitleMenu_V2.selectServerItem`) and returns; the page then shows the ID and password fields.
-The page's Login button sends `Login` (0x3826a3c5): it copies `GameTitleMenu_V2.selectedServerStr`
-into the `server_name` ConVar (0x38269c70, SetValue at +0x2c), builds the KeyValues
-`TransitionArgs {ID, Password}` (new 0x28, constructor 0x38917d10) and fires the `LoginDialog_OK`
-transition (0x3851e5f0 → 0x385194d0(name, args)). With NGM_disable the ID becomes the passport of
-UserLoginMessage (0x3852245d); the password never leaves the client.
+In the 1.69 EU client (`LoginDialog_V2` off) Start Game opens the classic LoginDialog (ID, Pass,
+AUTO1, AUTO2, OK, Cancel, Select Server). Its command handler (0x3826aad0) gets `OnShow` when the
+dialog opens: it fills the server list from EndPointNetwork (cached at 0x38e50ea8), applies the
+server name (`LoginDialog.applyServerName`), selects the first server and returns (0x3826ae0c). The
+OK button sends `Login` (0x3826ae19): it reads ID, Password and
+`LoginDialog.Frame_Login.MC_BG.Text_ServerName.text`, writes the server to the `server_name`
+(0x38269c70, SetValue at +0x2c) and `server_name_archive` (0x38e50eb8, SetValue 0x3891d4e0)
+ConVars, builds the KeyValues `TransitionArgs {ID, Password}` (new 0x28, constructor 0x38917d10)
+and fires the `LoginDialog_OK` transition (0x3851e5f0 -> 0x385194d0(name, args)). AUTO1/AUTO2 do
+the same with ID and Password from `AutoLogin.txt` (0x3826a590). With NGM_disable the ID becomes
+the passport of UserLoginMessage (0x3852245d); the password never leaves the client, so the
+launcher checks it and hands over a ticket.
 
-The patch replaces the epilogue of the ShowLoginDialog branch (0x3826a3b9) with a jump to a new
-`.hlgn` section. There, `CommandLine()->ParmValue("-launcher_ticket", "")` is read; when it is empty
-the original epilogue runs and nothing changes. Otherwise the stub does what Login does, with the
-ticket as ID and an empty password: the server is the selected one, or the first EndPointNetwork
-entry (+0x24) when the page has not set it yet; with no server at all it falls back to the page.
+The patch replaces the OnShow epilogue (0x3826ae0c) with a jump to a new `.hlgn` section. There,
+`CommandLine()->ParmValue("-launcher_ticket", "")` is read; when it is empty the original epilogue
+runs and nothing changes. Otherwise the stub does what Login does, with the ticket as ID and an
+empty password: the server is the dialog's, or the first EndPointNetwork entry (+0x24) when the
+dialog has not shown one yet; with no server at all the dialog stays open.
 """
 from __future__ import annotations
 import argparse
@@ -30,18 +34,20 @@ from prepare_lab_client import PreparationError, reject_original
 
 SECTION = b'.hlgn\0\0\0'
 PARAMETER = '-launcher_ticket'
-SITE = 0x3826a3b9
-# pop edi; pop ebx; pop esi; add esp, 0x408; ret 0xc (end of the ShowLoginDialog branch)
-EPILOGUE = bytes.fromhex('5f5b5e81c408040000c20c00')
-# Branch of the title handler that must not jump into the replaced bytes.
-HANDLER = (0x3826a1d0, 0x3826a4e7)
+SITE = 0x3826ae0c
+# pop ebp; pop edi; pop esi; pop ebx; add esp, 0x744; ret 0xc (end of the OnShow branch)
+EPILOGUE = bytes.fromhex('5d5f5e5b81c444070000c20c00')
+# Dialog handler (OnShow and Login branches) that must not jump into the replaced bytes.
+HANDLER = (0x3826aad0, 0x3826af80)
 
 COMMAND_LINE = 0x38ada3cc      # import: tier0 CommandLine()
 EMPTY = 0x38ae996a             # ""
 SCALEFORM = 0x385f7ef0         # UI movie; +0x14 GetVariable string
-SELECTED_SERVER = 0x38b44174   # "GameTitleMenu_V2.selectedServerStr"
-ENDPOINTS = 0x38e50e54         # EndPointNetwork interface cached by the handler; +0x18 count, +0x24 name
+SERVER_TEXT = 0x38b44378       # "LoginDialog.Frame_Login.MC_BG.Text_ServerName.text"
+ENDPOINTS = 0x38e50ea8         # EndPointNetwork interface cached by OnShow; +0x18 count, +0x24 name
 SERVER_NAME = 0x38269c70       # server_name ConVar; +0x2c SetValue
+SERVER_ARCHIVE = 0x38e50eb8    # server_name_archive ConVar
+SET_VALUE = 0x3891d4e0         # ConVar::SetValue(const char *)
 NEW = 0x38916210               # operator new (cdecl)
 KEYVALUES = 0x38917d10         # KeyValues(name, k1, v1, k2, v2), ret 0x14
 TRANSITION_ARGS = 0x38b44154   # "TransitionArgs"
@@ -104,7 +110,7 @@ def build_stub(va: int) -> tuple[bytes, list[int]]:
     s.call(SCALEFORM)
     s.raw('8b10')                           # mov edx, [eax]
     s.raw('8bc8')                           # mov ecx, eax
-    s.absolute('68', SELECTED_SERVER)       # push "GameTitleMenu_V2.selectedServerStr"
+    s.absolute('68', SERVER_TEXT)           # push "LoginDialog.Frame_Login.MC_BG.Text_ServerName.text"
     s.raw('ff5214')                         # call [edx+0x14]
     s.raw('8bd8')                           # mov ebx, eax  (server)
     s.raw('85db')                           # test ebx, ebx
@@ -136,6 +142,9 @@ def build_stub(va: int) -> tuple[bytes, list[int]]:
     s.raw('8bc8')                           # mov ecx, eax
     s.raw('53')                             # push ebx
     s.raw('ff522c')                         # call [edx+0x2c]  SetValue(server)
+    s.raw('53')                             # push ebx
+    s.absolute('b9', SERVER_ARCHIVE)        # mov ecx, server_name_archive
+    s.call(SET_VALUE)
     s.raw('6a28')                           # push 0x28
     s.call(NEW)
     s.raw('83c404')                         # add esp, 4

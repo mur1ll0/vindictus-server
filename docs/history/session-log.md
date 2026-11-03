@@ -3304,3 +3304,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: LA1 refeito em `docs/client-tests/L-launcher.md` (pendente).
 - Commits: (este commit)
 - Pendente / próxima ação: Launcher: checkpoint de cliente LA1 (`start_login.bat` com `-launcher_ticket admin` → Start Game → seleção sem a página de login). Sem esperar o LA1: L1 (`updates`, importação da v1 e medição), após D-L2–D-L4.
+
+## 2026-11-02 — L-A: o cliente usa o LoginDialog clássico; stub no OnShow dele
+- Feito: captura do operador mostrou o LoginDialog clássico (ID, Pass, AUTO1, AUTO2, OK, Cancel, Select Server), não o `GameTitleMenu_V2`. Desmontagem pontual do tratador (`0x3826aad0`): `OnShow` preenche servidores (cache `0x38e50ea8`), `applyServerName`, `selectServerItem`, epílogo `0x3826ae0c`; `Login` (OK, `0x3826ae19`) grava `server_name` e `server_name_archive` (`0x38e50eb8`), monta `TransitionArgs {ID, Password}` e dispara `LoginDialog_OK`; AUTO1/AUTO2 usam `AutoLogin.txt` (`0x3826a590`). `patch_client_launcher_login.py` e o teste passaram a apontar o `OnShow` do LoginDialog (servidor do `Text_ServerName`, fallback no primeiro do EndPointNetwork). Criado `.cache/play-client/AutoLogin.txt` (Auto1 admin/admin, Auto2 lab169_a) para o LA0. Docs: `docs/future/game-launcher.md` §4.1 item 7 e decisão, `docs/client-dll-patches.md`, `docs/client-tests/L-launcher.md` (LA0, LA1), `MIGRATION.md`. A senha não é enviada pelo cliente (só o ID vira passport); a senha fica no launcher.
+- Verificação: `py -3.13 -m unittest test_patch_client_launcher_login`: 6 testes OK, nenhum pulado. Aplicado numa cópia descartável sobre `c0b5d4164cc122a3`: `59b60e7a1fd5cc74`; stub em `.cache/verification/la/launcherlogin-v1-stub.txt`. Cópia de laboratório ainda com `0b7d0248…` (stub no V2): o jogo estava aberto; reaplicar com o jogo fechado.
+- Cliente: LA0 e LA1 em `docs/client-tests/L-launcher.md` (pendentes).
+- Commits: (este commit)
+- Pendente / próxima ação: Launcher: com o jogo fechado, restaurar `client.dll` do `.pre-launcherlogin.bak` e aplicar o patch (`59b60e7a…`); depois LA0 (AUTO1/AUTO2) e LA1 (`start_login.bat`).

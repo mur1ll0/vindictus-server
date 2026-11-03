@@ -51,9 +51,9 @@ class StubTest(unittest.TestCase):
         code = code[:stop + 1]
         self.assertEqual((code[0].mnemonic, code[0].op_str), ('call', f'dword ptr [{login.COMMAND_LINE:#x}]'))
         calls = {imm(x) for x in code if x.mnemonic == 'call' and not x.op_str.startswith('dword')}
-        self.assertEqual(calls, {login.SCALEFORM, login.SERVER_NAME, login.NEW, login.KEYVALUES, login.STATES,
-                                 login.TRANSITION})
-        epilogue = code[-5].address
+        self.assertEqual(calls, {login.SCALEFORM, login.SERVER_NAME, login.SET_VALUE, login.NEW, login.KEYVALUES,
+                                 login.STATES, login.TRANSITION})
+        epilogue = code[-6].address
         self.assertEqual(bytes(body[epilogue - self.va:epilogue - self.va + len(login.EPILOGUE)]), login.EPILOGUE)
         targets = {imm(x) for x in code if x.mnemonic.startswith('j')}
         self.assertIn(epilogue, targets)
@@ -65,8 +65,8 @@ class StubTest(unittest.TestCase):
         self.assertEqual([imm(x) for x in pushes[at - 3:at - 1]], [login.EMPTY, login.PASSWORD])
         self.assertEqual(imm(pushes[at + 1]), login.TRANSITION_ARGS)
         # Every absolute dword is relocated, and only those.
-        absolute = {self.va + 0x100, login.COMMAND_LINE, login.EMPTY, login.SELECTED_SERVER, login.ENDPOINTS,
-                    login.PASSWORD, login.ID, login.TRANSITION_ARGS, login.LOGIN_OK}
+        absolute = {self.va + 0x100, login.COMMAND_LINE, login.EMPTY, login.SERVER_TEXT, login.ENDPOINTS,
+                    login.SERVER_ARCHIVE, login.PASSWORD, login.ID, login.TRANSITION_ARGS, login.LOGIN_OK}
         values = {struct.unpack_from('<I', body, r)[0] for r in relocs}
         self.assertEqual(values, absolute)
 
@@ -75,17 +75,23 @@ class StubTest(unittest.TestCase):
 class LabCopyTest(unittest.TestCase):
     def test_original_login_command_uses_the_same_calls(self):
         data = ORIGINAL_DLL.read_bytes()
-        code = disasm(data, 0x3826a3c5, 0x120)
+        code = disasm(data, 0x3826ae19, 0x160)
         values = [imm(x) for x in code]
-        for expected in (login.SELECTED_SERVER, login.SERVER_NAME, login.NEW, login.PASSWORD, login.ID,
-                         login.TRANSITION_ARGS, login.KEYVALUES, login.LOGIN_OK):
+        for expected in (login.SERVER_TEXT, login.SERVER_ARCHIVE, login.SET_VALUE, login.NEW, login.PASSWORD,
+                         login.ID, login.TRANSITION_ARGS, login.KEYVALUES):
             self.assertIn(expected, values)
-        tail = disasm(data, 0x3826a4d3, 0x0c)
+        # The Login branch ends with the same transition (0x3826af60).
+        tail = disasm(data, 0x3826af60, 0x14)
+        self.assertEqual(imm(tail[2]), login.LOGIN_OK)
         self.assertEqual([imm(x) for x in tail if x.mnemonic == 'call'], [login.STATES, login.TRANSITION])
         self.assertEqual(text(data, login.LOGIN_OK), 'LoginDialog_OK')
         self.assertEqual(text(data, login.TRANSITION_ARGS), 'TransitionArgs')
-        self.assertEqual(text(data, login.SELECTED_SERVER), 'GameTitleMenu_V2.selectedServerStr')
+        self.assertEqual(text(data, login.SERVER_TEXT), 'LoginDialog.Frame_Login.MC_BG.Text_ServerName.text')
         self.assertEqual(text(data, login.EMPTY), '')
+        # The server_name getter and the OnShow EndPointNetwork cache.
+        getter = [imm(x) for x in disasm(data, login.SERVER_NAME, 0x2b) if x.mnemonic == 'push']
+        self.assertIn('server_name', [text(data, v) for v in getter if v])
+        self.assertIn(login.ENDPOINTS, [imm(x) for x in disasm(data, 0x3826a4f0, 0x26)])
 
     def test_command_line_parm_value_is_used_the_same_way(self):
         data = ORIGINAL_DLL.read_bytes()
@@ -97,12 +103,13 @@ class LabCopyTest(unittest.TestCase):
         self.assertEqual(text(data, pushes[1]), '-event_account')
         self.assertEqual(code[-1].op_str, 'eax')
 
-    def test_show_login_dialog_ends_at_the_site_and_nothing_jumps_inside(self):
+    def test_on_show_ends_at_the_site_and_nothing_jumps_inside(self):
         data = source()
-        before = disasm(data, 0x3826a3a3, login.SITE - 0x3826a3a3)
-        loaded = next(x for x in before if x.op_str.startswith('ebx, 0x'))
-        self.assertEqual(text(data, imm(loaded)), 'GameTitleMenu_V2.selectServerItem')
-        self.assertEqual(imm(before[-1]), 0x3826a110)
+        before = disasm(data, 0x3826adeb, login.SITE - 0x3826adeb)
+        names = [text(data, imm(x)) for x in before if x.mnemonic == 'push']
+        self.assertEqual(names, ['LoginDialog.applyServerName', 'ServerListDialog.selectServerItem'])
+        head = disasm(data, login.HANDLER[0], 0x20)
+        self.assertEqual(text(data, imm(next(x for x in head if x.mnemonic == 'push' and imm(x)))), 'OnShow')
         start, end = login.HANDLER
         for x in disasm(data, start, end - start):
             if x.mnemonic.startswith('j') and imm(x) is not None:
