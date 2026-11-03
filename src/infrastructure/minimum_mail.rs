@@ -585,7 +585,9 @@ fn packet(kind: Kind, message: Message) -> Result<OutgoingPacket, MinimumError> 
 fn sent(code: i32) -> Result<OutgoingPacket, MinimumError> {
     packet(Kind::MailSent, Message::MailSent(code))
 }
-fn inventory_update(slots: Vec<Option<inv::Slot>>) -> Result<OutgoingPacket, MinimumError> {
+pub(super) fn inventory_update(
+    slots: Vec<Option<inv::Slot>>,
+) -> Result<OutgoingPacket, MinimumError> {
     Ok(OutgoingPacket {
         category: inv::Kind::UpdateInventoryInfo.category(),
         body: inv::encode(
@@ -895,12 +897,12 @@ async fn set_count(
 }
 /// The changed owned items of a transfer, as the UpdateInventoryInfo diff.
 #[derive(Default)]
-struct Changed {
+pub(super) struct Changed {
     modified: Vec<i64>,
     deleted: Vec<i64>,
 }
 impl Changed {
-    fn record(&mut self, id: i64, count: i32) {
+    pub(super) fn record(&mut self, id: i64, count: i32) {
         self.modified.retain(|m| *m != id);
         self.deleted.retain(|m| *m != id);
         if count == 0 {
@@ -909,7 +911,7 @@ impl Changed {
             self.modified.push(id);
         }
     }
-    async fn slots(
+    pub(super) async fn slots(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         owner: &UserKey<'_>,
@@ -1011,6 +1013,139 @@ async fn destroy_class(
         changed.record(item.id, count);
     }
     Ok(true)
+}
+/// DestroyItem(ItemSelector.ItemClass(class), num) of the owned inventory (the
+/// marketplace's fee and purchase gold). False when short.
+pub(super) async fn destroy_owned_class(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    class: &[u8],
+    num: i32,
+    changed: &mut Changed,
+) -> Result<bool, MinimumError> {
+    destroy_class(tx, assets, cid, class, num, None, 0, changed).await
+}
+/// DestroyItem(ItemSelector.ItemID(item), num) of an owned, unequipped item. False when
+/// the item is missing, equipped or short.
+pub(super) async fn destroy_owned_item(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    item_id: i64,
+    num: i32,
+    changed: &mut Changed,
+) -> Result<bool, MinimumError> {
+    let item: Option<OwnedItem> = sqlx::query_as(
+        "SELECT id,item_class_utf16,count,collection,slot,expire_ticks,tradable,checksum FROM game_items WHERE id=$1 AND owner_id=$2 FOR UPDATE",
+    )
+    .bind(item_id)
+    .bind(cid)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(item) = item else {
+        return Ok(false);
+    };
+    if equip_row(tx, item.id)
+        .await?
+        .is_some_and(|e| e.part.is_some())
+        || num <= 0
+        || num > item.count
+    {
+        return Ok(false);
+    }
+    set_count(tx, assets, cid, &item, item.count - num).await?;
+    changed.record(item.id, item.count - num);
+    Ok(true)
+}
+/// ItemGenerator.SendMail(CID, MailType.AuctionItemMail, MakeSystemItem(request), title,
+/// content): a system item and the AuctionItemMail to the owner, in the caller's
+/// transaction (express system mail: it has arrived).
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn send_auction_item(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    item_id: i64,
+    class: &[u8],
+    count: i32,
+    bound: bool,
+    attributes: &Attributes,
+    equipment: Option<Equipment>,
+    title: &str,
+    content: &str,
+) -> Result<i64, MinimumError> {
+    let info = mail_type_info(assets, mail_type::AUCTION_ITEM)
+        .cloned()
+        .ok_or_else(fail)?;
+    let sender = info.sender_name().ok_or_else(fail)?;
+    let equip = equipment.map(|e| EquipRow {
+        part: None,
+        color1: e.colors[0],
+        color2: e.colors[1],
+        color3: e.colors[2],
+        reduced_durability: e.reduced,
+        max_durability_bonus: e.bonus,
+    });
+    insert_system_item(
+        tx,
+        assets,
+        item_id,
+        class,
+        count,
+        !bound,
+        None,
+        attributes,
+        equip.as_ref(),
+    )
+    .await?;
+    let name = text(class);
+    let transferred = Transferred {
+        item_id,
+        class_ex: item_attribute::build_class_ex(&name, attributes).map_err(|_| fail())?,
+        count,
+        colors: equipment.map_or([-1; 3], |e| e.colors),
+        reduced: equipment.map_or(0, |e| e.reduced),
+        bonus: equipment.map_or(0, |e| e.bonus),
+        bound,
+        expire_ticks: None,
+    };
+    let to_name = name_in(tx, cid).await?;
+    let new = NewMail {
+        from_cid: -1,
+        from_name: &sender,
+        to_cid: cid,
+        to_name: &to_name,
+        title,
+        content,
+        mail_type: mail_type::AUCTION_ITEM,
+        times: Times::make(utc_now()?, &info, true, None),
+        charged_gold: 0,
+        items: std::slice::from_ref(&transferred),
+    };
+    let id = insert_mail(tx, &new).await?;
+    journal(
+        tx,
+        id,
+        -1,
+        cid,
+        "AuctionItemMail",
+        0,
+        &[(
+            format!(
+                "{}/{}/{}/{}",
+                transferred.class_ex,
+                transferred.colors[0],
+                transferred.colors[1],
+                transferred.colors[2]
+            ),
+            item_id,
+            count,
+        )],
+    )
+    .await?;
+    notice(cid);
+    Ok(id)
 }
 /// ItemOwner.TransferToSystem(items, out transferredItems, IsMailableTo(toCID)).
 #[allow(clippy::too_many_arguments)]
@@ -1608,7 +1743,7 @@ fn user_trade_binds(
     high_level_equipment(assets, &name, indexed.equippable, attributes)
 }
 /// Item.IsHighLevelEquipment.
-fn high_level_equipment(
+pub(super) fn high_level_equipment(
     assets: &Assets,
     name: &str,
     equippable: bool,

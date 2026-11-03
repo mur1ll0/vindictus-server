@@ -193,3 +193,5 @@ pub mod character_delete;
 pub mod dye;
 
 pub mod mail;
+
+pub mod marketplace;

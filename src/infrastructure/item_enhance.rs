@@ -175,9 +175,9 @@ struct AntiBindRow {
 #[serde(deny_unknown_fields)]
 struct EnchantRow {
     source_index: usize,
-    // ID, EnchantType and Feature are exported but not read by the item service.
-    #[serde(rename = "id")]
-    _id: i32,
+    // EnchantType and Feature are exported but not read by the item service; ID only by
+    // TradeManager.MakeDetailOption.
+    id: i32,
     #[serde(deserialize_with = "nullable")]
     enchant_utf16: Option<PrivateText>,
     is_prefix: bool,
@@ -407,6 +407,8 @@ pub struct Contents {
     policy: Option<crate::domain::feature_policy::FeaturePolicy>,
     /// enchantInfoDic (every row; ToDictionary refuses a duplicate EnchantClass).
     enchant: BTreeMap<String, crate::domain::enchant::EnchantInfo>,
+    /// EnchantInfo.ID by EnchantClass (TradeManager.MakeDetailOption PREFIX/SUFFIX).
+    enchant_ids: BTreeMap<String, i32>,
     /// enchantStatInfoDic: rows ordered by Order (stable) per EnchantClass.
     enchant_stats: BTreeMap<String, Vec<crate::domain::enchant::StatRow>>,
     /// enchantDiceInfoDic: (MinValue, MaxValue) by ItemClass.
@@ -851,6 +853,7 @@ impl Profile {
                 duration: r.duration,
                 ignore_max_armor: r.ignore_max_armor,
             };
+            out.enchant_ids.insert(info.class.clone(), r.id);
             if out.enchant.insert(info.class.clone(), info).is_some() {
                 return Err(fail());
             }
@@ -1176,6 +1179,10 @@ impl Contents {
     /// GetEnchantInfo, GetEnchantStatInfo and GetEnchantDiceInfo.
     pub fn enchant(&self, class: &str) -> Option<&crate::domain::enchant::EnchantInfo> {
         self.enchant.get(class)
+    }
+    /// ItemContents.GetEnchantInfo(class).ID.
+    pub fn enchant_id(&self, class: &str) -> Option<i32> {
+        self.enchant_ids.get(class).copied()
     }
     pub fn enchant_stats(&self, class: &str) -> Option<&[crate::domain::enchant::StatRow]> {
         self.enchant_stats.get(class).map(Vec::as_slice)

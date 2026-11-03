@@ -30,6 +30,12 @@ class ItemEconomyExportTests(unittest.TestCase):
                 if column not in columns:
                     db.execute(f'ALTER TABLE ItemClassInfo ADD COLUMN {column} TEXT')
             db.execute("UPDATE ItemClassInfo SET TradeRestirction='ACCOUNTONLY',Bind='Disable',TradeOnBind='S3EP1' WHERE ItemClass='synthetic'")
+            for column in ('TradeCategory', 'TradeCategorySub'):
+                if column not in columns:
+                    db.execute(f'ALTER TABLE ItemClassInfo ADD COLUMN {column} TEXT')
+            db.execute("UPDATE ItemClassInfo SET TradeCategory='MATERIAL',TradeCategorySub='MATERIAL_ORE' WHERE ItemClass='synthetic'")
+            db.execute('CREATE TABLE ItemTradeLimitInfo(ItemClass TEXT,MaxLimitValue INT)')
+            db.execute("INSERT INTO ItemTradeLimitInfo VALUES('phoenix_feather',700),('empty_bottle',NULL)")
             db.execute('CREATE TABLE MailTypeInfo(MailType INT,Description TEXT,Sender TEXT,System TEXT,ItemAttached TEXT,Charged TEXT,Replyable TEXT,Returnable TEXT,Expire_in INT,Arrive_in INT,Fee INT,FeeForItem INT,Fee_Express INT,FeeForItem_Express INT)')
             db.execute("INSERT INTO MailTypeInfo VALUES(9,'Heroes_MailType_DungeonItem','SYSTEM','True','True','False','False','False',10080,0,0,0,0,0),(2,'Heroes_MailType_Item',NULL,'False','True','False','True','True',10080,60,100,2,200,5)")
             db.commit()
@@ -50,6 +56,15 @@ class ItemEconomyExportTests(unittest.TestCase):
         self.assertEqual([(m['mail_type'], m['sender'], m['system'], m['returnable'], m['arrive_in'], m['fee_for_item_express']) for m in p['mail_types']],
                          [(2, None, False, True, 60, 5), (9, 'SYSTEM', True, False, 0, 0)])
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
+    def test_marketplace_categories_limits_and_region_features(self):
+        p = read_package(self.db, self.config)
+        self.assertEqual((p['classes'][1]['trade_category'], p['classes'][1]['trade_category_sub']), ('MATERIAL', 'MATERIAL_ORE'))
+        m = p['marketplace']
+        self.assertEqual(m['trade_limits'], [dict(item_class='phoenix_feather', max_limit_value=700), dict(item_class='empty_bottle', max_limit_value=None)])
+        self.assertEqual([f['key'] for f in m['features']][:2], ['CurrentVer', 'MoneyLimitToTradeItem'])
+        with contextlib.closing(sqlite3.connect(self.db)) as db:
+            db.execute("INSERT INTO ItemTradeLimitInfo VALUES('phoenix_feather',1)"); db.commit()
+        with self.assertRaises(ValueError): read_package(self.db, self.config)
     def test_mail_type_bits_must_be_text_booleans(self):
         with contextlib.closing(sqlite3.connect(self.db)) as db:
             db.execute("UPDATE MailTypeInfo SET System='1' WHERE MailType=9"); db.commit()

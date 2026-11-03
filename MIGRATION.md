@@ -23,6 +23,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 3. Launcher: login pelo launcher aceito (LA0, LA2, LA4, LA5). Próximo: D-L6 (só ticket no jogo; modo por nome no perfil de desenvolvimento), depois L1 (`crates/client-dist`, serviço `updates`, importação da v1 = 1.69 + o necessário, zstd adaptativo + `hfs-xor`), receitas v1–v3 (L2) e instalar/atualizar no launcher (L3).
 4. B5 multijogador implementado (MP1–MP7): sessão de cliente do operador pelo roteiro `docs/client-tests/B5-multijogador.md` (duas contas, dois clientes; Docker já reconstruído). Depois, os sistemas restantes do B5.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
+6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 
 ## Aguardando o operador
 
@@ -34,6 +35,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/B5-multijogador.md` | MP1–MP7 pendentes (sessão única); requer duas contas e dois clientes (três para MP6). |
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
+| `docs/client-tests/B5-marketplace.md` | MK1–MK10 pendentes; duas contas (o ouro é da conta). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |
@@ -76,12 +78,12 @@ Decisões pendentes:
 - [ ] PvP/arena/ranking.
 - [ ] Guildas.
 - [ ] Trade.
-- [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de leilão, eventos e amizade depende desses sistemas.
+- [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de eventos e amizade depende desses sistemas.
 - [ ] Eventos/UserCare.
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).
-- [ ] Leilão/mercado.
+- [x] Leilão/mercado (03/11/2026): registrar com taxa, buscar (categoria, nome, filtros, ordem, páginas), comprar parcial, cancelar, expirar e ouro/itens pelo correio (`docs/marketplace.md`); cliente pendente.
 - [ ] Cash shop e cosméticos restantes (Depot já funciona).
 - [ ] Paridade e aceite final (M23/M24).
 
@@ -113,7 +115,7 @@ Marcar [x] só com evidência fresca da etapa inteira.
 - [ ] M18 lobby/canais — parcial: cidade/movimento solo; grupos e chat não.
 - [ ] M19 transporte de batalha — parcial: relay ProudNet solo (B2); trava do barco com memória alta corrigida no `engine.dll` do laboratório (RL1 no cliente pendente).
 - [ ] M20 MicroPlay — parcial: missão solo (B2), pendências acima.
-- [ ] M21 serviços adicionais — parcial: cash shop, armazenamento, correio (cliente pendente); trade, guild, rank não.
+- [ ] M21 serviços adicionais — parcial: cash shop, armazenamento, correio e mercado (cliente pendente); trade direto, guild, rank não.
 - [ ] M22 ferramentas operacionais — parcial: painel B4.
 - [ ] M23 paridade completa.
 - [ ] M24 aceite final com cliente.

@@ -551,6 +551,10 @@ struct Connection {
     /// MailBox.TimeLine of the selected character and its next 30-second polling.
     mail_timeline: super::minimum_mail::TimeLine,
     mail_at: Option<tokio::time::Instant>,
+    /// ItemOwner.TradeSearchOverheadChecker of the selected character.
+    trade_search: crate::domain::marketplace::SearchOverhead,
+    /// ItemOwner.TradeProxy: created (GetMyThings) by the first ProcessDailyItem.
+    trade_proxy: bool,
     /// The party authority's pushes to the entered character (UpdateParty, Kick, ...).
     party_notices: Option<tokio::sync::mpsc::Receiver<super::party_hub::Notice>>,
     /// A host message replayed into this member's MicroPlay replica.
@@ -575,6 +579,8 @@ impl Connection {
             pet_reset_at: None,
             mail_timeline: super::minimum_mail::TimeLine::default(),
             mail_at: None,
+            trade_search: Default::default(),
+            trade_proxy: false,
             party_notices: None,
             replaying: false,
         }
@@ -604,6 +610,8 @@ impl Connection {
         self.pet_reset_at = None;
         self.mail_at = None;
         self.mail_timeline.clear();
+        self.trade_search = Default::default();
+        self.trade_proxy = false;
         self.party_notices = None;
         if let Some(selected) = self.selected.as_ref() {
             // The frontend connection closed: RemoveMember("FrontendDisconnected").
@@ -2353,6 +2361,146 @@ impl Connection {
         }
         Ok(())
     }
+    /// ItemServiceProxy trade messages (InGame) -> the item service TradeSystem processors.
+    /// UseSecondPassword passes (enEU, no in-game lock in the laboratory); the trading
+    /// punishment check of the source is not migrated.
+    #[allow(clippy::too_many_arguments)]
+    async fn marketplace(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: crate::protocol::marketplace::Message,
+    ) -> Result<(), RuntimeError> {
+        use super::minimum_marketplace as market;
+        use crate::protocol::marketplace::Message;
+        let (Some(selected), true) = (
+            self.selected.as_ref(),
+            self.password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend)),
+        ) else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let ids = match &message {
+            Message::TradePurchaseItem(_) | Message::TradeCancelMyItem(_) => {
+                market::GIVE_ENTITY_IDS
+            }
+            Message::EndTradeSession => market::COLLECT_ENTITY_IDS,
+            _ => 0,
+        };
+        let ids = minimum
+            .creation
+            .entity_ids(ids)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let outcome = match message {
+            Message::TradeCategorySearch(m) => {
+                market::category_search(pool, assets, &mut self.trade_search, &m).await
+            }
+            Message::TradeItemClassListSearch(m) => {
+                market::class_search(pool, assets, &mut self.trade_search, cid, &m).await
+            }
+            Message::TradeRequestMyItem => market::my_items(pool, assets, cid).await,
+            Message::TradePurchaseItem(m) => {
+                market::purchase(pool, &owner, assets, cid, &m, ids).await
+            }
+            Message::TradeCancelMyItem(m) => {
+                market::cancel(pool, &owner, assets, cid, &m, ids).await
+            }
+            Message::InsertTradeOrder(m) => {
+                market::insert_order(pool, &owner, assets, cid, &m).await
+            }
+            Message::InsertTradeTirOrder(_) => market::insert_tir_order(),
+            // EndTradeSessionMessage -> TradeGetMyItems -> TradeManager.GetMyThings.
+            Message::EndTradeSession => market::get_my_things(pool, &owner, assets, cid, ids).await,
+            // "Receive Deprecated Message StartTradeSessionMessage": no answer.
+            _ => {
+                tracing::info!(category, "trade message ignored; values omitted");
+                return Ok(());
+            }
+        };
+        match outcome {
+            Ok(out) => {
+                for packet in &out.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                tracing::info!(
+                    category,
+                    messages = out.packets.len(),
+                    "minimum trade request processed; values omitted"
+                );
+            }
+            Err(_) => tracing::warn!(category, "minimum trade request refused; values omitted"),
+        }
+        Ok(())
+    }
+    /// ItemTradeProxy construction (the first ProcessDailyItem of the selected character):
+    /// TradeManager.GetMyThings mails the expired registrations and the sales' gold.
+    async fn trade_things(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        if self.trade_proxy {
+            return Ok(());
+        }
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return Ok(());
+        };
+        self.trade_proxy = true;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let ids = minimum
+            .creation
+            .entity_ids(super::minimum_marketplace::COLLECT_ENTITY_IDS)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        match super::minimum_marketplace::get_my_things(pool, &owner, assets, cid, ids).await {
+            Ok(out) => {
+                for packet in &out.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+            }
+            Err(_) => tracing::warn!("minimum trade collection rejected; values omitted"),
+        }
+        Ok(())
+    }
     /// MailBox.PushMailList: ProcessMailList and MailListMessage to this connection.
     async fn push_mail_list(
         &mut self,
@@ -3162,6 +3310,9 @@ impl Connection {
         let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
             return Ok(());
         };
+        // ProcessDailyItemProcessor creates the missing ItemOwner.TradeProxy before the
+        // daily procedures.
+        self.trade_things(runtime, pool, stream, sender).await?;
         let id = self
             .frontend
             .accepted_identity()
@@ -3907,6 +4058,20 @@ impl Connection {
                     .ok_or(RuntimeError::Message)?;
                 return self
                     .mail(runtime, pool, stream, sender, category, body, message)
+                    .await;
+            }
+        }
+        {
+            use crate::protocol::marketplace::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                    .ok_or(RuntimeError::Message)?;
+                return self
+                    .marketplace(runtime, pool, stream, sender, category, body, message)
                     .await;
             }
         }

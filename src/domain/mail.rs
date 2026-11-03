@@ -13,6 +13,8 @@ pub mod mail_type {
     pub const CHARGE_PAY: u8 = 4;
     /// MailType.ReturnedMail.
     pub const RETURNED: u8 = 5;
+    /// MailType.AuctionItemMail: the marketplace's ItemGenerator.SendMail.
+    pub const AUCTION_ITEM: u8 = 7;
     /// MailType.DungeonItemMail: SendGiveItemFailMail and the other system mails.
     pub const DUNGEON_ITEM: u8 = 9;
 }

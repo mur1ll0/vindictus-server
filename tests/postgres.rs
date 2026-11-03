@@ -1603,6 +1603,8 @@ mod item_loader_state;
 mod mail;
 #[path = "support/mail_reference.rs"]
 mod mail_reference;
+#[path = "support/marketplace.rs"]
+mod marketplace;
 
 #[path = "support/minimum_character.rs"]
 mod minimum_character;

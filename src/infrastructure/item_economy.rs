@@ -52,6 +52,41 @@ struct RawClass {
     set_id: Option<String>,
     #[serde(default)]
     trade_restriction: Option<String>,
+    #[serde(default)]
+    trade_category: Option<String>,
+    #[serde(default)]
+    trade_category_sub: Option<String>,
+}
+/// The TradeSystem's FeatureMatrix values and ItemTradeLimitInfo rows.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MarketplaceExport {
+    features: Vec<FeatureRow>,
+    trade_limits: Vec<TradeLimit>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FeatureRow {
+    key: String,
+    value: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TradeLimit {
+    item_class: String,
+    max_limit_value: Option<i32>,
+}
+/// ItemContents trade dictionaries and the TradeSystem FeatureMatrix values.
+pub struct Marketplace {
+    pub features: crate::domain::marketplace::Features,
+    /// ItemContents.itemTradeLimitInfo: MaxLimitValue by ItemClass (ordinal keys).
+    limits: std::collections::BTreeMap<String, Option<i32>>,
+}
+impl Marketplace {
+    /// ItemContents.GetItemTradeLimitInfo(class)?.MaxLimitValue.
+    pub fn max_limit_value(&self, class: &str) -> Option<i32> {
+        self.limits.get(class).copied().flatten()
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -69,6 +104,9 @@ struct Export {
     /// MailTypeInfo rows (absent from older exports: every mail type is then unknown).
     #[serde(default)]
     mail_types: Vec<crate::domain::mail::MailTypeInfo>,
+    /// The marketplace section (absent from older exports: the marketplace is refused).
+    #[serde(default)]
+    marketplace: Option<MarketplaceExport>,
 }
 /// HotSpringPotionInfo row (UntilEffectSec and ShowName are not read by the server).
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -107,6 +145,9 @@ pub struct EconomyClass {
     pub set_id: Option<String>,
     /// ItemClassInfo.TradeRestirction (Item.IsMailableTo; null is tradable).
     pub trade_restriction: Option<String>,
+    /// ItemClassInfo.TradeCategory and TradeCategorySub (AddTradeItem).
+    pub trade_category: Option<String>,
+    pub trade_category_sub: Option<String>,
 }
 pub struct Profile {
     manifest: Manifest,
@@ -116,6 +157,7 @@ pub struct Profile {
     hot_spring: Vec<HotSpringPotion>,
     pets: Option<crate::domain::pet::Export>,
     mail_types: Vec<crate::domain::mail::MailTypeInfo>,
+    marketplace: Option<Marketplace>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -199,6 +241,8 @@ impl Profile {
                     inventory_filter: r.inventory_filter,
                     set_id: r.set_id,
                     trade_restriction: r.trade_restriction,
+                    trade_category: r.trade_category,
+                    trade_category_sub: r.trade_category_sub,
                 })
             })
             .collect::<Result<Vec<_>, crate::error::Error>>()?;
@@ -231,6 +275,29 @@ impl Profile {
         {
             return Err(MinimumError::Conflict);
         }
+        let marketplace = match export.marketplace {
+            None => None,
+            Some(m) => {
+                if m.features.len() > 64 || m.trade_limits.len() > 10_000 {
+                    return Err(MinimumError::Conflict);
+                }
+                let policy = crate::domain::feature_policy::FeaturePolicy::new(
+                    m.features.into_iter().map(|f| (f.key, f.value)),
+                )?;
+                let mut limits = std::collections::BTreeMap::new();
+                for l in m.trade_limits {
+                    if l.item_class.len() > 50
+                        || limits.insert(l.item_class, l.max_limit_value).is_some()
+                    {
+                        return Err(MinimumError::Conflict);
+                    }
+                }
+                Some(Marketplace {
+                    features: crate::domain::marketplace::Features::new(&policy)?,
+                    limits,
+                })
+            }
+        };
         Ok(Self {
             manifest: export.manifest,
             classes,
@@ -238,7 +305,12 @@ impl Profile {
             hot_spring: export.hot_spring,
             pets: export.pets,
             mail_types: export.mail_types,
+            marketplace,
         })
+    }
+    /// The marketplace contents, when the export has them.
+    pub fn marketplace(&self) -> Option<&Marketplace> {
+        self.marketplace.as_ref()
     }
     /// ItemContents.GetMailTypeInfo.
     pub fn mail_type(&self, mail_type: u8) -> Option<&crate::domain::mail::MailTypeInfo> {

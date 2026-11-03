@@ -97,6 +97,30 @@ fn assets_from(
     scroll_use_in_town: i32,
     stamp: bool,
 ) -> Assets {
+    assets_market(
+        cash_unique,
+        cash_use_in_town,
+        cash_level,
+        appearance,
+        scroll_class,
+        scroll_use_in_town,
+        stamp,
+        false,
+    )
+}
+/// `assets_from`; `market` makes the row-3 class a stack of 99 in the MATERIAL trade
+/// category and adds the marketplace contents and the AuctionItemMail type.
+#[allow(clippy::too_many_arguments)]
+fn assets_market(
+    cash_unique: i32,
+    cash_use_in_town: i32,
+    cash_level: i32,
+    appearance: Option<Value>,
+    scroll_class: &str,
+    scroll_use_in_town: i32,
+    stamp: bool,
+    market: bool,
+) -> Assets {
     let mut i = super::fiona_inventory_delivery::AppearanceInputs::new();
     if let Some(v) = appearance {
         i.profile = vindictus_server::infrastructure::fiona_appearance::Profile::read(
@@ -111,7 +135,7 @@ fn assets_from(
     // Enchant scrolls carry PREFIX/SUFFIX attributes (bag storage, one per stack).
     let scroll = appearance_fixture::key(scroll_class);
     profile["classes"].as_array_mut().unwrap().push(json!({"source_index":3,"item_utf16":scroll,"feature":null,"category_utf16":null,"unique":0,"expire_in":null}));
-    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":scroll,"feature":null,"max_stack":1,"storage":1,"bind":null,"trade_on_bind":null}));
+    catalog["classes"].as_array_mut().unwrap().push(json!({"item_utf16":scroll,"feature":null,"max_stack":if market { 99 } else { 1 },"storage":1,"bind":null,"trade_on_bind":null}));
     // A second AccountStorage class: the account holds one item per class.
     if stamp {
         let stamp = appearance_fixture::key("synthetic_stamp");
@@ -138,7 +162,19 @@ fn assets_from(
     let pets = scroll_class
         .starts_with("pet_create_")
         .then(|| pet_contents(scroll_class));
-    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":hot_spring,"pets":pets,"mail_types":mail_types()});
+    let mut rows = rows;
+    let mut mail_types = mail_types();
+    let mut marketplace = Value::Null;
+    if market {
+        rows[3]["trade_category"] = json!("MATERIAL");
+        rows[3]["trade_category_sub"] = json!("MATERIAL_ORE");
+        rows[0]["trade_category"] = json!("WEAPON");
+        rows[0]["trade_category_sub"] = json!("LONGSWORD");
+        mail_types.as_array_mut().unwrap().push(json!({"mail_type":7,"description":null,"sender":"AUCTION","system":true,"item_attached":true,"charged":false,"replyable":false,"returnable":false,"expire_in":10080,"arrive_in":0,"fee":0,"fee_for_item":0,"fee_express":0,"fee_for_item_express":0}));
+        let feature = |k: &str, v: Option<&str>| json!({"key":k,"value":v});
+        marketplace = json!({"features":[feature("CurrentVer",Some("3.09.00")),feature("MoneyLimitToTradeItem",Some("100000000")),feature("TradeRegisterFee",Some("300")),feature("UseTradePriceLimit",Some("2.02.03")),feature("UseTradePriceLimitPercentage",Some("200")),feature("PremiumTradeTicket",Some("2.02.15")),feature("ItemPriceInfoInItemSlot",Some("1")),feature("ItemPriceInfoInService",None),feature("LevelLimitToTradeItem",Some("11=dye_.*|life_potion_plus_cash_lvl1"))],"trade_limits":[{"item_class":scroll_class,"max_limit_value":700}]});
+    }
+    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":hot_spring,"pets":pets,"mail_types":mail_types,"marketplace":marketplace});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -216,6 +252,10 @@ fn mail_types() -> Value {
 /// The give fixture with its gold, stamp and scroll classes, for the mail tests.
 pub(super) fn mail_assets() -> Assets {
     assets_from(0, 0, 0, None, "enchant_scroll", 0, true)
+}
+/// The mail fixture with the stackable trade class `synthetic_ore` and the marketplace.
+pub(super) fn marketplace_assets() -> Assets {
+    assets_market(0, 0, 0, None, "synthetic_ore", 0, true, true)
 }
 async fn items(p: &sqlx::PgPool) -> Vec<(i64, Vec<u8>, i32, i16, i32, Option<i32>)> {
     sqlx::query_as("SELECT id,item_class_utf16,count,collection,slot,checksum FROM game_items WHERE owner_id=1 ORDER BY id")

@@ -40,6 +40,7 @@ pub mod item_class_ex;
 pub mod item_editor;
 pub mod item_location;
 pub mod mail;
+pub mod marketplace;
 pub mod manufacture;
 pub mod mission;
 pub mod mission_goal;

@@ -50,7 +50,10 @@ def read_package(database, config):
                              sort_order=plain(r['SortOrder']), level=integer(r['Level']),
                              inventory_filter=plain(r['InventoryFilterName']), set_id=plain(first_set.get(r['ItemClass'])),
                              # Item.IsMailableTo (TradeRestirction: null is tradable).
-                             trade_restriction=plain(r['TradeRestirction'])))
+                             trade_restriction=plain(r['TradeRestirction']),
+                             # TradeItemDataInfo.SetDataFromItemClassInfo (AddTradeItem).
+                             trade_category=plain(r['TradeCategory']),
+                             trade_category_sub=plain(r['TradeCategorySub'])))
             if len(rows) > 50000: raise ValueError('Economy row bound')
         # ItemContents.HotSpringPotionInfoDic (ToDictionary by ItemClass: a repeated class throws).
         hot_spring = []
@@ -77,6 +80,7 @@ def read_package(database, config):
                 raise ValueError('MailTypeInfo type')
             mail_types.append(row)
             if len(mail_types) > 256: raise ValueError('MailTypeInfo row bound')
+        marketplace = read_marketplace(db, integer, plain, catalog['manifest'])
         pets = read_pets(db, integer, plain)
         if pets is not None:
             pets['features'] = pet_features(db, catalog['manifest'])
@@ -85,7 +89,8 @@ def read_package(database, config):
     m = catalog['manifest']
     package = {'format_version': 4, 'source': 'heroesContents.item-economy', 'alchemist_boxes': boxes,
                'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
-               'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types}
+               'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types,
+               'marketplace': marketplace}
     if pets is not None:
         package['pets'] = pets
     return package
@@ -98,12 +103,13 @@ def dotnet_ticks(text):
     delta = moment - datetime.datetime(1, 1, 1)
     return (delta.days * 86400 + delta.seconds) * 10_000_000 + delta.microseconds * 10
 
-PET_FEATURES = ('Pet', 'Pet_food_V2', 'PetPurchaseLimit', 'PetMaxLevel', 'Pet_ExpBattle_Point',
-                'NamingRuleMaxBytes')
+MARKETPLACE_FEATURES = ('CurrentVer', 'MoneyLimitToTradeItem', 'TradeRegisterFee', 'UseTradePriceLimit',
+                        'UseTradePriceLimitPercentage', 'PremiumTradeTicket', 'ItemPriceInfoInItemSlot',
+                        'ItemPriceInfoInService', 'LevelLimitToTradeItem')
 
-def pet_features(db, manifest):
-    """FeatureMatrix values of the pet system for the catalog's region (and its override),
-    as FeatureMatrix.GetInteger/GetFloat read them."""
+def region_features(db, manifest, keys, what):
+    """FeatureMatrix values of `keys` for the catalog's region (and its override), as
+    FeatureMatrix.GetString reads them."""
     columns = {r[1] for r in db.execute('PRAGMA table_info(FeatureMatrix)')}
     def load(tag):
         if tag not in columns: raise ValueError('Missing configured feature column')
@@ -113,11 +119,29 @@ def pet_features(db, manifest):
         for k, v in load(manifest['override_region']).items():
             if k not in ('GameCode', 'CurrentVer', 'OverrideSetting'): values[k] = v
     out = []
-    for key in PET_FEATURES:
+    for key in keys:
         value = values.get(key)
-        if value is not None and (not isinstance(value, str) or len(value) > 256): raise ValueError('Pet feature value')
+        if value is not None and (not isinstance(value, str) or len(value) > 256): raise ValueError(what + ' feature value')
         out.append(dict(key=key, value=value))
     return out
+
+def read_marketplace(db, integer, plain, manifest):
+    """The TradeSystem's FeatureMatrix values and ItemContents.itemTradeLimitInfo
+    (ItemTradeLimitInfo ToDictionary by ItemClass: a repeated class throws)."""
+    limits = []
+    for r in db.execute('Select * From [ItemTradeLimitInfo]'):
+        if any(l['item_class'] == r['ItemClass'] for l in limits): raise ValueError('Repeated ItemTradeLimitInfo')
+        limits.append(dict(item_class=plain(r['ItemClass']), max_limit_value=integer(r['MaxLimitValue'], True)))
+        if len(limits) > 10000: raise ValueError('ItemTradeLimitInfo row bound')
+    return dict(features=region_features(db, manifest, MARKETPLACE_FEATURES, 'Marketplace'), trade_limits=limits)
+
+PET_FEATURES = ('Pet', 'Pet_food_V2', 'PetPurchaseLimit', 'PetMaxLevel', 'Pet_ExpBattle_Point',
+                'NamingRuleMaxBytes')
+
+def pet_features(db, manifest):
+    """FeatureMatrix values of the pet system for the catalog's region (and its override),
+    as FeatureMatrix.GetInteger/GetFloat read them."""
+    return region_features(db, manifest, PET_FEATURES, 'Pet')
 
 def read_pets(db, integer, plain):
     """ItemContents pet dictionaries (PetInfo, PetSkillInfo, PetStatusBalanceInfo,
