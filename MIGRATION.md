@@ -80,7 +80,7 @@ Decisões pendentes:
 - [ ] Guildas.
 - [ ] Trade.
 - [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de eventos e amizade depende desses sistemas.
-- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, 03/11, EV5); EventTemplate, PeriodicEventInfo, AllUserGoalInfo e cupons pendentes.
+- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, EV5), recompensas periódicas do BoostEvent (PeriodicEventInfo, EV6) e histórias por período (StoryLinePeriodInfo, EV7), 03/11; EventTemplate, AllUserGoalInfo e cupons pendentes.
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).

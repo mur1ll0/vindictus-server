@@ -3458,3 +3458,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV5.
 - Commits: (este)
 - Pendente / próxima ação: E2 eventos periódicos (PeriodicEventScheduler/BoostEvent) e StoryLinePeriodInfo; EventTemplate depende de decisão do operador.
+
+## 2026-11-03 — B5 eventos E2: recompensas periódicas (PeriodicEventScheduler) e histórias por período (StoryLinePeriodInfo)
+- Feito: `src/domain/periodic_event.rs` (PeriodicEventReward/Enum.Parse, PeriodicEventWaiting por BoostEventPeriod, sorteio Random.Next(BoostPossibilitySum) só com BoostEvent, StoryEntity.DailyProcess com índice ⌊horas⌋/Period e próxima fronteira); `src/infrastructure/minimum_periodic_event.rs` (ItemOwnerEvent: ouro, AP com allowExceed, EXP por GiveReward, item com ForceMail e GiveItemFail_*, GetItemMessage, anúncio Telepathy com RandomItemBroadcastMode/RandomItem_AnnounceLevel; GotoPhase das histórias). Sessão (`lab_frontend.rs`): OnLogOn/OnLogOut do agendador, TriggerDailyStory no InGame.OnEnter e reprogramação na fronteira; `party_hub` Notice::Announce (BroadcastToAllClients com IsTownOnly e AnnounceLevel no receptor). Exportador `export_npc_scripts.py` (`events.periodic`, `events.story_periods`, chaves BoostEvent/BoostEventPeriod/RandomItem*). Painel: BoostEvent e AllUserGoalEvent aceitas como chaves de evento (`Overlay::is_event_switch`, `export_item_economy.py` MASTER_SWITCHES; 231 chaves). `PeriodicEventInfo` e `StoryLinePeriodInfo` em `MIGRATED_EVENT_TABLES`.
+- Verificação: `cargo test --test periodic_event` 2/2; PostgreSQL `minimum_give::periodic_event_rewards_and_story_periods_follow_the_scheduler` 1/1 no test-postgres; Python `test_export_npc_scripts` 4/4 e `test_export_item_economy` OK; perfis npc-scripts (328 periódicos, 64 períodos) e item-economy regenerados. Logs `.cache/verification/ev2-*.log`.
+- Cliente: `docs/client-tests/B5-eventos.md` EV6, EV7.
+- Commits: (este)
+- Pendente / próxima ação: E3 lojas de cupom (CouponShopItemInfo + ShopBuyRestrict).

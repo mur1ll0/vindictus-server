@@ -49,6 +49,13 @@ pub enum Notice {
     /// EntityCommunicator.NoticeMail: a mail to this character was created (NoticeMail
     /// operation → MailBox.NoticeMail).
     Mail { mail_id: i64 },
+    /// NotifyClient → FrontendService.BroadcastToAllClients: the receiving connection
+    /// applies IsTownOnly and AnnounceLevel.
+    Announce {
+        packet: OutgoingPacket,
+        town_only: bool,
+        level: i32,
+    },
 }
 
 /// MicroPlayEntityInfo of players disconnected from a play in progress
@@ -1106,6 +1113,20 @@ impl PartyHub {
             .get(&party_id)
             .map(|e| e.party.members().map(|m| m.cid).collect())
             .unwrap_or_default()
+    }
+    /// NotifyClient: the announce to every entered character.
+    pub fn announce_all(&self, packet: OutgoingPacket, town_only: bool, level: i32) {
+        let s = self.lock();
+        for cid in s.seats.keys() {
+            s.push(
+                *cid,
+                Notice::Announce {
+                    packet: packet.clone(),
+                    town_only,
+                    level,
+                },
+            );
+        }
     }
     /// SendPacket to one entered character (MemberInfo to the host, ...).
     pub fn send(&self, cid: i64, packets: Vec<OutgoingPacket>) {

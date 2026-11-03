@@ -400,6 +400,19 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                    | {d[6] for d in mission['story_drops']} | {d[2] for d in mission['event_drops']} | {'javelin_lvl0'})
         mission['drop_classes'] = [[nullable_text(r['ItemClass']), int32(r['Rarity']), int32(r['ClassRestriction']), nullable_text(r['Feature'])]
                                    for r in db.execute('Select * From [ItemClassInfo]') if r['ItemClass'] in dropped]
+    # PeriodicEventScheduler (ItemContents.PeriodicEventList) and StoryContents.StoryLinePeriodInfo
+    # in provider order.
+    events = {}
+    with contextlib.closing(content_additions.connect(database)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        events['periodic'] = [[nullable_text(r['RewardType']), nullable_text(r['RewardArg']), int32(r['Amount']), int32(r['Possibility']),
+                               nullable_text(r['AnnounceLocalizedKey']), nullable_text(r['Feature'])]
+                              for r in db.execute('Select * From [PeriodicEventInfo]')]
+        events['story_periods'] = [[nullable_text(r['StoryLineID']), utc_seconds(r['DateFrom']), int32(r['Period']), nullable_text(r['TargetPhaseID']),
+                                    nullable_text(r['Feature'])]
+                                   for r in db.execute('Select * From [StoryLinePeriodInfo]')]
+    if any(len(v) > 10000 for v in events.values()): raise ValueError('Event table bound')
+    if any(r[1] is None for r in events['story_periods']): raise ValueError('StoryLinePeriodInfo DateFrom')
     if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
     if any(len(v) > 100000 for v in mission.values()): raise ValueError('Mission table bound')
     if any(len(v) > 10000 for v in progression.values()): raise ValueError('Progression table bound')
@@ -429,6 +442,9 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     for d in mission['drop_classes']: wanted |= feature_atoms(d[3] or '')
     for d in mission['story_drops']: wanted |= feature_atoms(d[10] or '')
     for d in mission['event_drops']: wanted |= feature_atoms(d[0] or '')
+    wanted |= {'BoostEvent', 'BoostEventPeriod', 'RandomItemBroadcastMode', 'RandomItem_AnnounceLevel'}
+    for d in events['periodic']: wanted |= feature_atoms(d[5] or '')
+    for d in events['story_periods']: wanted |= feature_atoms(d[4] or '')
     for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')
     for d in mission['named_prop_items']: wanted |= feature_atoms(d[5] or '')
@@ -455,7 +471,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
             'manifest': {'database_sha256': catalog['manifest']['database_sha256'], 'config_sha256': catalog['manifest']['config_sha256'],
                          'scripts_sha256': hasher.hexdigest(), 'defaults': len(defaults), 'storylines': len(storylines),
                          'coerced_integers': coerced, 'shops': len(shops), 'coerced_shop_integers': coerced_shop},
-            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression, 'mission': mission}
+            'features': features, 'defaults': defaults, 'storylines': storylines, 'shops': shops, 'repair': repair, 'quests': quests, 'progression': progression, 'mission': mission, 'events': events}
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--output', required=True); args = parser.parse_args()

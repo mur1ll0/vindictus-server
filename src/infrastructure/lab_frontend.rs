@@ -551,6 +551,10 @@ struct Connection {
     /// MailBox.TimeLine of the selected character and its next 30-second polling.
     mail_timeline: super::minimum_mail::TimeLine,
     mail_at: Option<tokio::time::Instant>,
+    /// PeriodicEventScheduler: the next BoostEventPeriod timeline of the character.
+    boost_at: Option<tokio::time::Instant>,
+    /// StoryEntity.AddToUpdateSchedule: the next StoryLinePeriodInfo boundary.
+    story_at: Option<tokio::time::Instant>,
     /// ItemOwner.TradeSearchOverheadChecker of the selected character.
     trade_search: crate::domain::marketplace::SearchOverhead,
     /// ItemOwner.TradeProxy: created (GetMyThings) by the first ProcessDailyItem.
@@ -579,6 +583,8 @@ impl Connection {
             pet_reset_at: None,
             mail_timeline: super::minimum_mail::TimeLine::default(),
             mail_at: None,
+            boost_at: None,
+            story_at: None,
             trade_search: Default::default(),
             trade_proxy: false,
             party_notices: None,
@@ -609,6 +615,9 @@ impl Connection {
         self.daily_at = None;
         self.pet_reset_at = None;
         self.mail_at = None;
+        // PeriodicEventScheduler.OnLogOut.
+        self.boost_at = None;
+        self.story_at = None;
         self.mail_timeline.clear();
         self.trade_search = Default::default();
         self.trade_proxy = false;
@@ -2799,6 +2808,31 @@ impl Connection {
                     .mail_notice(runtime, pool, stream, sender, mail_id)
                     .await;
             }
+            super::party_hub::Notice::Announce {
+                packet,
+                town_only,
+                level,
+            } => {
+                // BroadcastToAllClients: IsInTown with IsTownOnly, then AnnounceLevel.
+                if town_only && self.mission.is_some() {
+                    return Ok(());
+                }
+                if level != 0 {
+                    let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+                        return Ok(());
+                    };
+                    let own: Option<i32> =
+                        sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=$1")
+                            .bind(cid)
+                            .fetch_optional(pool)
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                    if own.is_none_or(|l| l < level) {
+                        return Ok(());
+                    }
+                }
+                vec![packet]
+            }
             super::party_hub::Notice::Kicked { .. } => {
                 let mut packets = Vec::new();
                 if let Some(mut m) = self.mission.take() {
@@ -3356,6 +3390,94 @@ impl Connection {
         }
         Ok(())
     }
+    /// PeriodicEventScheduler.OnScheduledTimeLine → ItemOwnerEvent: the next period is
+    /// added first, then the BoostEvent reward and its announce to every client.
+    async fn boost_event(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        self.boost_at = None;
+        let Some((cid, journal)) = self.selected.as_ref().map(|s| (s.cid, s.log_journal)) else {
+            return Ok(());
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        self.boost_at =
+            super::minimum_periodic_event::period(assets).map(|p| tokio::time::Instant::now() + p);
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let ids = minimum
+            .creation
+            .entity_ids(super::minimum_story::TALK_ENTITY_IDS)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        match super::minimum_periodic_event::boost(
+            pool,
+            &owner,
+            assets,
+            cid,
+            runtime.growth_context(journal)?,
+            ids,
+        )
+        .await
+        {
+            Ok(boost) => {
+                for packet in &boost.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                if let Some(a) = boost.announce {
+                    runtime.party.announce_all(a.packet, a.town_only, a.level);
+                }
+                if !boost.packets.is_empty() {
+                    tracing::info!("periodic event reward given; values omitted");
+                }
+            }
+            Err(_) => tracing::warn!("periodic event reward rejected; values omitted"),
+        }
+        Ok(())
+    }
+    /// StoryEntity.ScheduledUpdate → DailyProcess of the entered character.
+    async fn story_periods(&mut self, runtime: &Runtime, pool: &PgPool) {
+        self.story_at = None;
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return;
+        };
+        let (Ok(id), Some(password), Some(minimum)) = (
+            self.frontend.accepted_identity(),
+            self.password.as_ref(),
+            runtime.minimum.as_ref(),
+        ) else {
+            return;
+        };
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: password.revision(),
+        };
+        let assets = &minimum.assets.current();
+        match super::minimum_periodic_event::daily_story(pool, &owner, assets, cid).await {
+            // AddToUpdateSchedule rounds a boundary already passed to the next one.
+            Ok(next) => {
+                self.story_at =
+                    next.map(|n| tokio::time::Instant::now() + n.max(Duration::from_secs(1)))
+            }
+            Err(_) => tracing::warn!("minimum daily story process rejected; values omitted"),
+        }
+    }
     fn mission_timer(&self) -> Option<tokio::time::Instant> {
         let at = super::minimum_mission_finish::next_job(self.mission.as_deref()?)?;
         Some(tokio::time::Instant::from_std(at))
@@ -3651,8 +3773,8 @@ impl Connection {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
                         // InGame.OnEnter, after the observers: TriggerDailyQuest
-                        // (DailyQuestProcess), TriggerDailyStory (StoryLinePeriodInfo is not
-                        // in the profile), QueryStoryProgress and QueryStoryGuide.
+                        // (DailyQuestProcess), TriggerDailyStory (StoryLinePeriodInfo),
+                        // QueryStoryProgress and QueryStoryGuide.
                         let mut entered = Vec::new();
                         let mut mail_list = Vec::new();
                         if assets.npc.is_some() {
@@ -3672,6 +3794,19 @@ impl Connection {
                                         "minimum daily quest process rejected; values omitted"
                                     ),
                                 }
+                            }
+                            self.story_at = None;
+                            match super::minimum_periodic_event::daily_story(
+                                pool, &owner, assets, cid,
+                            )
+                            .await
+                            {
+                                Ok(next) => {
+                                    self.story_at = next.map(|n| tokio::time::Instant::now() + n)
+                                }
+                                Err(_) => tracing::warn!(
+                                    "minimum daily story process rejected; values omitted"
+                                ),
                             }
                             match super::minimum_story::in_game_sync(pool, &owner, assets, cid)
                                 .await
@@ -3734,6 +3869,9 @@ impl Connection {
                         );
                         self.schedule_effects(runtime, pool).await;
                         self.daily_items(runtime, pool, stream, sender).await?;
+                        // PeriodicEventScheduler.OnLogOn: AddEvent when PeriodicEventWaiting.
+                        self.boost_at = super::minimum_periodic_event::period(assets)
+                            .map(|p| tokio::time::Instant::now() + p);
                     }
                     Message::EnterChannel {
                         channel_id,
@@ -6295,6 +6433,8 @@ pub async fn connection(
    let daily=state.daily_at;
    let pets=state.pet_reset_at;
    let mails=state.mail_at;
+   let boost=state.boost_at;
+   let story=state.story_at;
    let party_notice=async{match state.party_notices.as_mut(){Some(rx)=>rx.recv().await,None=>std::future::pending().await}};
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
@@ -6304,6 +6444,8 @@ pub async fn connection(
     _=tokio::time::sleep_until(daily.unwrap_or(deadline)),if daily.is_some()&&state.close_at.is_none()=>{state.daily_items(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(pets.unwrap_or(deadline)),if pets.is_some()&&state.close_at.is_none()=>{state.pet_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(mails.unwrap_or(deadline)),if mails.is_some()&&state.close_at.is_none()=>{state.mail_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    _=tokio::time::sleep_until(boost.unwrap_or(deadline)),if boost.is_some()&&state.close_at.is_none()=>{state.boost_event(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    _=tokio::time::sleep_until(story.unwrap_or(deadline)),if story.is_some()&&state.close_at.is_none()=>{state.story_periods(&runtime,&pool).await;continue;}
     Some(notice)=party_notice=>{state.party_notice(&runtime,&pool,&mut stream,&mut sender,notice).await?;continue;}
     notice=notices.recv()=>{
      // ShutDownProcessor.SendNoticeShutDownMessage: every client, NoticeShutDownMessage{Delay}.

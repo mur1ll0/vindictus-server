@@ -8713,3 +8713,172 @@ async fn minimum_pets_create_select_battle_slot_and_remove_per_account() {
     );
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn periodic_event_rewards_and_story_periods_follow_the_scheduler() {
+    use vindictus_server::{
+        domain::{
+            character_stats::Arithmetic,
+            periodic_event::{PeriodicReward, RewardType},
+        },
+        infrastructure::{character_lobby::QueryConfig, minimum_periodic_event, minimum_selection},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    let mut export = npc_export_p3(None);
+    export["features"].as_array_mut().unwrap().extend([
+        json!({"key":"BoostEvent","value":"1"}),
+        json!({"key":"BoostEventPeriod","value":"1800"}),
+        json!({"key":"RandomItemBroadcastMode","value":null}),
+        json!({"key":"RandomItem_AnnounceLevel","value":"0"}),
+    ]);
+    // Daily from 2010-01-19 back to p0; a missing target phase is left alone.
+    export["events"] = json!({"periodic":[],"story_periods":[
+        ["GuidePlay_1_SkillTrain",1263859200,24,"p0",null],
+        ["GuidePlay_1_SkillTrain",1263859200,24,"nowhere",null]]});
+    let assets = skill_assets(&p, 0)
+        .await
+        .with_npc_scripts(npc_profile_from(export))
+        .unwrap();
+    let owner = super::initial_inventory::key();
+    let config = QueryConfig {
+        max_free: 5,
+        care_clock: None,
+    };
+    minimum_selection::select(&p, &owner, &assets, 0, config, Arithmetic::FrameworkX64)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE game_character_info SET name_utf16=$1 WHERE id=1")
+        .bind(utf16("Fiona"))
+        .execute(&p)
+        .await
+        .unwrap();
+    assert_eq!(
+        minimum_periodic_event::period(&assets),
+        Some(std::time::Duration::from_secs(1800))
+    );
+    let gold = || async {
+        sqlx::query_scalar::<_, i64>("SELECT COALESCE(sum(count),0)::bigint FROM game_items WHERE owner_id=1 AND item_class_utf16=$1")
+            .bind(utf16("synthetic_gold"))
+            .fetch_one(&p)
+            .await
+            .unwrap()
+    };
+    let reward = |kind, arg: Option<&str>, amount, announce: Option<&str>| PeriodicReward {
+        kind,
+        arg: arg.map(str::to_owned),
+        amount,
+        rate: 1,
+        announce: announce.map(str::to_owned),
+        feature: None,
+    };
+    let ids = |base: i64| (base..base + 64).collect::<Vec<_>>();
+    // Gold: GiveItem(gold) and GetItemMessage "give_gold"; no announce key.
+    let before = gold().await;
+    let out = minimum_periodic_event::give(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &reward(RewardType::Gold, None, 1000, None),
+        growth(),
+        ids(9_000),
+    )
+    .await
+    .unwrap();
+    assert_eq!(gold().await, before + 1000);
+    assert_eq!(out.packets.len(), 2, "inventory update and GetItem");
+    assert!(out.announce.is_none());
+    // EXP 400 from level 1 (350): level up, then GetItem "give_exp" and the Telepathy announce.
+    let out = minimum_periodic_event::give(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &reward(
+            RewardType::Exp,
+            None,
+            400,
+            Some("GameUI_Heroes_GetitemEvent_Telepathy"),
+        ),
+        growth(),
+        ids(9_100),
+    )
+    .await
+    .unwrap();
+    let level: i32 = sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=1")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(level, 2);
+    let announce = out.announce.expect("announce");
+    assert!(!announce.town_only);
+    assert_eq!(announce.level, 0);
+    // An item: GiveItem(RewardArg, Amount) with ForceMail.
+    let before = gold().await;
+    let out = minimum_periodic_event::give(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &reward(RewardType::Item, Some("synthetic_gold"), 3, None),
+        growth(),
+        ids(9_200),
+    )
+    .await
+    .unwrap();
+    assert_eq!(gold().await, before + 3);
+    assert!(!out.packets.is_empty());
+    // RewardType None gives and announces nothing.
+    let out = minimum_periodic_event::give(
+        &p,
+        &owner,
+        &assets,
+        1,
+        &reward(RewardType::None, None, 5, Some("x")),
+        growth(),
+        ids(9_300),
+    )
+    .await
+    .unwrap();
+    assert!(out.packets.is_empty() && out.announce.is_none());
+    // Story periods: a progress last updated in 2020 returns to p0, once.
+    let units = |unix: i64| (unix + 2_208_988_800) * 300;
+    sqlx::query("DELETE FROM game_story_progress WHERE cid=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO game_story_progress(row_id,cid,story_line_utf16,phase_utf16,status,last_update_units300) VALUES(77,1,$1,$2,1,$3)")
+        .bind(utf16("GuidePlay_1_SkillTrain"))
+        .bind(utf16("p2"))
+        .bind(units(1_577_836_800))
+        .execute(&p)
+        .await
+        .unwrap();
+    let phase = || async {
+        sqlx::query_scalar::<_, Option<Vec<u8>>>(
+            "SELECT phase_utf16 FROM game_story_progress WHERE cid=1",
+        )
+        .fetch_one(&p)
+        .await
+        .unwrap()
+    };
+    let next = minimum_periodic_event::daily_story(&p, &owner, &assets, 1)
+        .await
+        .unwrap()
+        .expect("next boundary");
+    assert!(next <= std::time::Duration::from_secs(86_400));
+    assert_eq!(phase().await, Some(utf16("p0")));
+    sqlx::query("UPDATE game_story_progress SET phase_utf16=$1 WHERE cid=1")
+        .bind(utf16("p1"))
+        .execute(&p)
+        .await
+        .unwrap();
+    minimum_periodic_event::daily_story(&p, &owner, &assets, 1)
+        .await
+        .unwrap();
+    assert_eq!(phase().await, Some(utf16("p1")), "same day: unchanged");
+    cleanup_game_pool(a, p, s).await;
+}

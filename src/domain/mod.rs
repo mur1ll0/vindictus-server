@@ -46,6 +46,7 @@ pub mod mission;
 pub mod mission_goal;
 pub mod npc_script;
 pub mod npc_talk;
+pub mod periodic_event;
 pub mod queued_item;
 pub mod repair;
 pub mod shop;

@@ -38,6 +38,10 @@ class NpcScriptExportTests(unittest.TestCase):
                              "CREATE TABLE QuestConstraintInfo(RowID INT,QuestID TEXT,RequiredQuestID TEXT,RequiredStatus INT);"
                              "CREATE TABLE EventDropItemInfo(Identifier INT,Feature TEXT,Condition TEXT,IsGarbage INT,ItemClass TEXT,MonsterID INT,Probability INT,StartTime datetime2,Period INT);"
                              "INSERT INTO EventDropItemInfo VALUES(1,'event_drop_flag',NULL,0,'event_gem',NULL,100,'2014-03-06 15:00:00.000',1440);"
+                             "CREATE TABLE PeriodicEventInfo(Identifier INT,RewardType TEXT,RewardArg TEXT,Amount INT,Possibility INT,AnnounceLocalizedKey TEXT,Feature TEXT);"
+                             "INSERT INTO PeriodicEventInfo VALUES(1,'ITEM','event_gem',2,100,'GameUI_Heroes_GetitemEvent_Telepathy','boost_flag');"
+                             "CREATE TABLE StoryLinePeriodInfo(ID INT,StoryLineID TEXT,DateFrom datetime2,Period INT,TargetPhaseID TEXT,Feature TEXT);"
+                             "INSERT INTO StoryLinePeriodInfo VALUES(3,'Arbeit_get_fish','2010-01-19 00:00:00.000',24,'A','period_flag');"
                              "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT,GameMode INT,EvilCoreCount INT,GoalExpRatio INT,GoalGoldRatio INT,MaxLevel INT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL,1,2,100,50,9);"
                              "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
                              "CREATE TABLE TitleInfo(ID INT,AutoGiveLevel INT,ClassRestriction INT,HideUntil INT,Feature TEXT,RequiredLevel INT,AllowShare bit);INSERT INTO TitleInfo VALUES(410017,1,2047,0,NULL,3,'False');"
@@ -84,6 +88,10 @@ class NpcScriptExportTests(unittest.TestCase):
         # EventDropTable rows with the UTC start as Unix seconds; the event item is a drop class.
         self.assertEqual(m['event_drops'], [['event_drop_flag', None, 'event_gem', None, 100, 1394118000, 1440]])
         self.assertIn('event_drop_flag', {f['key'] for f in p['features']})
+        # PeriodicEventInfo and StoryLinePeriodInfo (DateFrom as Unix seconds); BoostEvent joins the subset.
+        self.assertEqual(p['events'], {'periodic': [['ITEM', 'event_gem', 2, 100, 'GameUI_Heroes_GetitemEvent_Telepathy', 'boost_flag']],
+                                       'story_periods': [['Arbeit_get_fish', 1263859200, 24, 'A', 'period_flag']]})
+        self.assertTrue({'boost_flag', 'period_flag', 'BoostEvent', 'BoostEventPeriod'} <= {f['key'] for f in p['features']})
         self.assertEqual(m['story_drops'], [[350, 'S1NB_promise_sword', 'H', None, 'evilcore', '^npc_gnoll veteran100$', 'broken_promise_sword', 1, 100, 1, 'story_flag']])
         self.assertEqual(m['effects'], [['phoenix_feather', 'PlayerRevived', 'TargetDead', 1, ['ReviveByClient 50', None, None, 'GetStatusByClient 1 x', None]]])
         self.assertEqual((m['sectors'][0][5:], m['prop_expectations'], m['material_groups']), ([400, 10], [['ruin', 'WOOD', 9]], [[1, 'WOOD']]))

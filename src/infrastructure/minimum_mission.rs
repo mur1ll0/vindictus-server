@@ -1711,6 +1711,24 @@ pub async fn give_reward(
     Ok(packets)
 }
 
+/// GetItemMessage(name, class, count, coreType, Lucky: false, 0, Success).
+pub(super) fn get_item_packet(
+    name: &str,
+    class_ex: &str,
+    count: i32,
+    core_type: i32,
+) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::GetItem(GetItem {
+        player_name: Some(name.to_owned()),
+        item_class: Some(class_ex.to_owned()),
+        count,
+        core_type,
+        lucky: false,
+        luck_bonus: 0,
+        give_item_result: 0,
+    }))
+}
+
 pub(super) fn inventory_packet(
     slots: Vec<Option<crate::protocol::inventory::Slot>>,
 ) -> Result<OutgoingPacket, MinimumError> {

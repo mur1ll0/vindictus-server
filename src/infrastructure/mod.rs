@@ -149,6 +149,7 @@ pub mod minimum_mission;
 pub mod minimum_mission_finish;
 pub mod minimum_move;
 pub mod minimum_party;
+pub mod minimum_periodic_event;
 pub mod minimum_pet;
 pub mod minimum_quest;
 pub mod minimum_quickslot;

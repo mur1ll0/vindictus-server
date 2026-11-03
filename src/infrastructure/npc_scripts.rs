@@ -110,6 +110,9 @@ struct Export {
     progression: Option<crate::domain::progression::ProgressionTables>,
     #[serde(default)]
     mission: Option<crate::domain::mission::MissionTables>,
+    /// PeriodicEventInfo and StoryLinePeriodInfo.
+    #[serde(default)]
+    events: crate::domain::periodic_event::EventTables,
 }
 
 fn fail() -> MinimumError {
@@ -165,6 +168,8 @@ pub struct Profile {
     pub progression: Option<crate::domain::progression::Progression>,
     /// Quest digests and sector bases of mission entry.
     pub mission: Option<crate::domain::mission::MissionContents>,
+    /// PeriodicEventScheduler rewards and StoryLinePeriodInfo.
+    pub events: crate::domain::periodic_event::Events,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -304,8 +309,11 @@ impl Profile {
             .map(|t| crate::domain::mission::MissionContents::load(t, &policy))
             .transpose()
             .map_err(|_| fail())?;
+        let events =
+            crate::domain::periodic_event::Events::load(export.events).map_err(|_| fail())?;
         Ok(Self {
             mission,
+            events,
             progression,
             quests,
             repair,

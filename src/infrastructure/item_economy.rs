@@ -291,7 +291,7 @@ impl Profile {
             || export.events.iter().any(|e| {
                 e.key.len() > 256
                     || !e.key.is_ascii()
-                    || !e.key.to_ascii_lowercase().starts_with("event")
+                    || !crate::domain::content_overlay::Overlay::is_event_switch(&e.key)
                     || e.uses.len() > 64
             })
         {

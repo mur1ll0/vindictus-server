@@ -142,6 +142,10 @@ OTHER_REGIONS = {'kokr', 'jajp', 'zhcn', 'zhtw', 'thth', 'kr', 'ko', 'jp', 'ja',
 # An event switch is off (empty) or a version / "1"; integers and paths are event parameters.
 SWITCH = re.compile(r'^(1|[0-9]+\.[0-9]+(\.[0-9]+)*)$')
 
+# FeatureMatrix keys without the Event prefix that switch a whole event system on
+# (PeriodicEventScheduler.ItemOwnerEvent, AllUserGoalEventScheduler).
+MASTER_SWITCHES = {'BoostEvent': 'PeriodicEventInfo', 'AllUserGoalEvent': 'AllUserGoalInfo'}
+
 def read_events(db, manifest):
     """The FeatureMatrix event switches of the region (keys starting with Event, without another
     region's token) that some content row references, with the rows per table."""
@@ -156,6 +160,9 @@ def read_events(db, manifest):
             if k not in ('GameCode', 'CurrentVer', 'OverrideSetting'): values[k] = v
     keys = {}
     for key, value in values.items():
+        if key in MASTER_SWITCHES:
+            keys[key] = value or None
+            continue
         if not isinstance(key, str) or not key.lower().startswith('event') or not key.isascii() or len(key) > 256:
             continue
         if OTHER_REGIONS & set(key.lower().split('_')):
@@ -178,6 +185,10 @@ def read_events(db, manifest):
             for atom in atoms:
                 if atom in uses:
                     uses[atom][table] = uses[atom].get(table, 0) + 1
+    # A master switch gates every row of its table, whatever their own Feature.
+    for key, table in MASTER_SWITCHES.items():
+        if key in uses and table in tables:
+            uses[key][table] = db.execute('SELECT count(*) FROM "' + table + '"').fetchone()[0]
     out = [dict(key=k, value=keys[k], uses=uses[k]) for k in sorted(keys) if uses[k]]
     if len(out) > 1000 or any(len(e['uses']) > 64 for e in out): raise ValueError('Event bound')
     return out

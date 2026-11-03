@@ -142,7 +142,7 @@ impl Overlay {
             && self
                 .events
                 .keys()
-                .all(|k| text(k, 256) && k.to_ascii_lowercase().starts_with("event"))
+                .all(|k| text(k, 256) && Self::is_event_switch(k))
         {
             Ok(self)
         } else {
@@ -150,6 +150,12 @@ impl Overlay {
         }
     }
 
+    /// An event switch key: an `Event…` FeatureMatrix key or a system's master switch
+    /// (PeriodicEventScheduler's BoostEvent, AllUserGoalEventScheduler's AllUserGoalEvent).
+    pub fn is_event_switch(key: &str) -> bool {
+        key.to_ascii_lowercase().starts_with("event")
+            || ["BoostEvent", "AllUserGoalEvent"].contains(&key)
+    }
     /// The FeatureMatrix value of an event switch: "1" (enabled at any version) or "".
     pub fn event_value(enabled: bool) -> &'static str {
         if enabled { "1" } else { "" }
