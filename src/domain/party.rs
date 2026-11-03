@@ -280,9 +280,11 @@ impl Party {
         if self.member_count() as i32 >= self.party_size() {
             return Err(JoinFail::PartyIsFull);
         }
+        // Slot 0 only when the master is gone too (the play waits without a host).
+        let master_gone = self.slots.first().is_some_and(Option::is_none);
         let free = usize::try_from(slot)
             .ok()
-            .filter(|s| *s > 0 && self.slots.get(*s).is_some_and(Option::is_none))
+            .filter(|s| (*s > 0 || master_gone) && self.slots.get(*s).is_some_and(Option::is_none))
             .or_else(|| {
                 self.slots
                     .iter()
@@ -399,6 +401,29 @@ impl Party {
             return None;
         }
         Some(kicked.cid)
+    }
+    /// QueryHostCID → Reelection(available) for a host candidate: `cid` moves to slot 0
+    /// as Host (HostElectionFinished SetMemberState(Host) under CombatRejoinSystem).
+    pub fn promote(&mut self, cid: i64) -> bool {
+        let Some(i) = self
+            .slots
+            .iter()
+            .position(|m| m.as_ref().is_some_and(|m| m.cid == cid))
+        else {
+            return false;
+        };
+        self.slots.swap(0, i);
+        if let Some(m) = self.slots[0].as_mut() {
+            m.slot = 0;
+            m.state = ready_state::HOST;
+        }
+        if i != 0
+            && let Some(m) = self.slots[i].as_mut()
+        {
+            m.slot = i as i32;
+            m.state = ready_state::READY;
+        }
+        true
     }
     /// SetMemberStateProcessor: true when the state changed (BroadCastPartyInfo).
     pub fn set_member_state(&mut self, slot: i32, state: u8) -> Result<bool, StateFail> {

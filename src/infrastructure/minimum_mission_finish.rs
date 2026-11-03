@@ -1202,6 +1202,27 @@ pub fn give_up(mission: &mut Mission, now: Instant) {
     c.schedule(now, Job::Reward(kind));
 }
 
+/// Trigger_LeaveWithHost for a follower in game: GiveReward_Season2Success (migrated as
+/// the season 1 success) when the main goal was achieved, else
+/// GiveReward_QuestFail(GiveUpQuest, isPersonalFail: false).
+pub fn follow_host(mission: &mut Mission, now: Instant) {
+    if mission.completion.player_state != PlayerState::InGame || !mission.in_game {
+        return;
+    }
+    mission.left_with_host = true;
+    let kind = if mission
+        .completion
+        .tracker
+        .as_ref()
+        .is_some_and(|t| t.main_goal_achieved)
+    {
+        RewardKind::Season1Success
+    } else {
+        RewardKind::QuestFail(result::GIVE_UP_QUEST, false)
+    };
+    mission.completion.schedule(now, Job::Reward(kind));
+}
+
 /// Entity IDs reserved for one round of rewarding jobs (item rows, quest rows).
 pub const REWARD_ENTITY_IDS: usize = 64;
 

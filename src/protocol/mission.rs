@@ -68,6 +68,9 @@ pub enum Kind {
     TeacherRequest,
     TeacherRequestRespond,
     TeacherRequestResult,
+    AnswerFinishQuest,
+    AskFinishQuest,
+    OpenPartyWithShipInfo,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -128,6 +131,9 @@ impl Kind {
             Self::TeacherRequest => 604,
             Self::TeacherRequestRespond => 606,
             Self::TeacherRequestResult => 607,
+            Self::AnswerFinishQuest => 126,
+            Self::AskFinishQuest => 127,
+            Self::OpenPartyWithShipInfo => 346,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -188,6 +194,9 @@ impl Kind {
             Self::TeacherRequest => 0xddd0958d_298f_3590_b69d_252fee9f4eab,
             Self::TeacherRequestRespond => 0x25b20b0f_75a1_3c70_84c3_39c377aedbe6,
             Self::TeacherRequestResult => 0xd190eca2_2969_3f8a_806a_4493dc1037a6,
+            Self::AnswerFinishQuest => 0x494f0a4a_edb4_35bd_9222_bf40cd6ec036,
+            Self::AskFinishQuest => 0xbda98963_a521_303b_bf6e_9d8636832a75,
+            Self::OpenPartyWithShipInfo => 0xcf6e4d7d_1568_379a_80e4_cd169312a484,
         })
     }
 }
@@ -713,6 +722,13 @@ pub struct TeacherRequestResult {
     pub accepted: bool,
     pub accepted_user_name: Option<String>,
 }
+/// AskFinishQuestMessage: the leave-with-host question (or the waiting dialog).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AskFinishQuest {
+    pub show_pending_dialog: bool,
+    pub message: Option<String>,
+    pub time_out: i32,
+}
 /// MonsterTakeDamageInfo; `attack_time` keeps the IEEE single bits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakeDamage {
@@ -901,6 +917,9 @@ pub enum Message {
     TeacherRequest,
     TeacherRequestRespond(bool),
     TeacherRequestResult(TeacherRequestResult),
+    AnswerFinishQuest(bool),
+    AskFinishQuest(AskFinishQuest),
+    OpenPartyWithShipInfo(AcceptQuest),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -961,6 +980,9 @@ impl Message {
             Self::TeacherRequest => Kind::TeacherRequest,
             Self::TeacherRequestRespond(_) => Kind::TeacherRequestRespond,
             Self::TeacherRequestResult(_) => Kind::TeacherRequestResult,
+            Self::AnswerFinishQuest(_) => Kind::AnswerFinishQuest,
+            Self::AskFinishQuest(_) => Kind::AskFinishQuest,
+            Self::OpenPartyWithShipInfo(_) => Kind::OpenPartyWithShipInfo,
         }
     }
 }
@@ -1248,6 +1270,11 @@ object!(DropErg {
 });
 object!(PutErg { erg_id, tag });
 object!(PartyInvite { invited_name });
+object!(AskFinishQuest {
+    show_pending_dialog,
+    message,
+    time_out
+});
 object!(TeacherRequestResult {
     accepted,
     accepted_user_name
@@ -1447,6 +1474,9 @@ pub fn encode(
                 Message::TeacherRequest => {}
                 Message::TeacherRequestRespond(v) => v.write(&mut w)?,
                 Message::TeacherRequestResult(v) => v.write(&mut w)?,
+                Message::AnswerFinishQuest(v) => v.write(&mut w)?,
+                Message::AskFinishQuest(v) => v.write(&mut w)?,
+                Message::OpenPartyWithShipInfo(v) => v.write(&mut w)?,
             }
         }
     }
@@ -1545,6 +1575,11 @@ fn decode_body(
             Kind::TeacherRequestRespond => Message::TeacherRequestRespond(bool::read(&mut r)?),
             Kind::TeacherRequestResult => {
                 Message::TeacherRequestResult(TeacherRequestResult::read(&mut r)?)
+            }
+            Kind::AnswerFinishQuest => Message::AnswerFinishQuest(bool::read(&mut r)?),
+            Kind::AskFinishQuest => Message::AskFinishQuest(AskFinishQuest::read(&mut r)?),
+            Kind::OpenPartyWithShipInfo => {
+                Message::OpenPartyWithShipInfo(AcceptQuest::read(&mut r)?)
             }
         })
     };

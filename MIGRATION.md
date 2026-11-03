@@ -70,7 +70,7 @@ Decisões pendentes:
 
 ### B5 — o que falta
 
-- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay, MP3 navio/JoinShip e MP1–MP7 feitos (party, relay, navio, combate/loot por jogador, saída/migração de host/reentrada, lista de navios, chat e pedido de professor); sessão de cliente única pendente.
+- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay, MP3 navio/JoinShip e MP1–MP8 feitos (party, relay, navio, combate/loot por jogador com avisos para todos, saída/migração de host/reentrada inclusive do host, sair com o host, lista e navio de cidade, chat e pedido de professor); sessão de cliente única pendente.
 - [ ] PvP/arena/ranking.
 - [ ] Guildas.
 - [ ] Trade.

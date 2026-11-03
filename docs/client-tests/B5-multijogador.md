@@ -48,7 +48,8 @@ Pré-condição: A e B na mesma dungeon (MP3-4).
 - [ ] MP4-5: B usa poção da barra → o consumível de B é gasto, o de A não.
 - [ ] MP4-6: completar a missão → os dois veem a tela de resultado com a própria recompensa (EXP, ouro, itens) e voltam à cidade.
 - [ ] MP4-7: relogar os dois → EXP, ouro e itens de cada um preservados.
-Limites conhecidos: metas individuais de outro jogador e o aviso de item de outro jogador não aparecem.
+- [ ] MP4-8: quando B pega um núcleo ou cumpre uma meta pessoal, A também vê o aviso com o nome de B (e vice-versa).
+Limites conhecidos: props quebrados por B não contam para as metas de props de B.
 
 ### MP5 — saída no meio da missão, migração de host e reentrada
 Pré-condição: nova missão de A e B, já dentro da dungeon.
@@ -57,14 +58,19 @@ Pré-condição: nova missão de A e B, já dentro da dungeon.
 - [ ] MP5-3: se B não conseguir reiniciar em 120 s → B volta para a cidade sem recompensa (relatar se acontecer).
 - [ ] MP5-4: nova missão; B (membro) fecha o cliente no meio da dungeon → A continua. B abre o cliente de novo: na lista de personagens o personagem aparece com o estado de reentrada; ao entrar, aceitar voltar à batalha → B reentra na party e embarca de novo na mesma dungeon (cronômetro da missão recebido), e termina a missão com recompensa.
 - [ ] MP5-5: repetir MP5-4 recusando a reentrada → B fica na cidade sem party e o estado some da lista.
-Limites conhecidos: o host que reentra volta como membro; a decisão "sair com o host" não migrada; quem desconectou e não voltou não recebe recompensa por correio.
+- [ ] MP5-6: missão de A sozinho (ou todos saem); A fecha o cliente no meio da dungeon e volta dentro do limite → A reentra, recebe o aviso de reinício e volta a hospedar a mesma dungeon como líder.
+- [ ] MP5-7: A, B e C na dungeon; A desiste → A vê "esperando os outros"; B e C recebem a pergunta "sair com o host?" (20 s). B aceita e C recusa → A e B recebem a tela de desistência (ou de sucesso se a meta principal já estava cumprida) e voltam à cidade juntos numa party nova; C continua e vira host. Com dois jogadores, sem resposta em 20 s, B segue o host.
+- [ ] MP5-8: durante a pergunta, B tenta sair da missão → aviso de que não pode sair enquanto o host sai.
+- [ ] MP5-9: missão concluída; A volta para a cidade → A e B veem a contagem de 10 s e B volta junto.
+Limites conhecidos: quem desconecta e não reentra fica sem a recompensa, como no original (o servidor original não manda recompensa por correio).
 
 ### MP6 — lista de navios abertos
 Pré-condição: três personagens (A, B, C) ou dois, com A em navio de uma missão que C (ou B, fora da party) pode fazer, na mesma dificuldade e faixa de nível.
 - [ ] MP6-1: A aceita a missão e fica no navio (InShip) sem iniciar → C abre o barco/quadro e pede a lista de batalhas do mesmo conjunto → o navio de A aparece com nome, membros e vagas.
 - [ ] MP6-2: C entra no navio de A pela lista → C entra na party de A e embarca; A vê C.
 - [ ] MP6-3: com o navio cheio, já iniciado ou de outra dificuldade → o navio não aparece.
-Limites conhecidos: navio de party aberto na cidade (OpenPartyWithShipInfo) não migrado; a ordem da lista não gira como no original.
+- [ ] MP6-4: A abre party com navio na cidade (criar party com missão, sem partir) → C vê esse navio na lista do barco, entra pela lista e fica na party de A na cidade; quando A aceita a missão, C embarca.
+Limites conhecidos: a ordem da lista não gira como no original.
 
 ### MP7 — chat de party e pedido de professor
 Pré-condição: A e B em party.

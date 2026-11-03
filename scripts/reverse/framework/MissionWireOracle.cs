@@ -182,6 +182,9 @@ class MissionWireOracle {
   AddCases("teacher_request",604,new Guid("ddd0958d-298f-3590-b69d-252fee9f4eab"),new[]{null,new TeacherRequest()},cases);
   AddCases("teacher_request_respond",606,new Guid("25b20b0f-75a1-3c70-84c3-39c377aedbe6"),new[]{null,Obj<TeacherRequestRespond>("Accepted",false),Obj<TeacherRequestRespond>("Accepted",true)},cases);
   AddCases("teacher_request_result",607,new Guid("d190eca2-2969-3f8a-806a-4493dc1037a6"),new[]{null,Obj<TeacherRequestResult>("Accepted",false,"AcceptedUserName",""),Obj<TeacherRequestResult>("Accepted",true,"AcceptedUserName","Fiona_é"),Obj<TeacherRequestResult>("Accepted",false,"AcceptedUserName",null)},cases);
+  AddCases("answer_finish_quest",126,new Guid("494f0a4a-edb4-35bd-9222-bf40cd6ec036"),new[]{null,Obj<AnswerFinishQuestMessage>("FollowHost",false),Obj<AnswerFinishQuestMessage>("FollowHost",true)},cases);
+  AddCases("ask_finish_quest",127,new Guid("bda98963-a521-303b-bf6e-9d8636832a75"),new[]{null,new AskFinishQuestMessage(true,"GameUI_Heroes_Host_WaitOtherPlayers",20),new AskFinishQuestMessage(false,null,0),new AskFinishQuestMessage(false,"GameUI_Heroes_Peer_LeaveWithHost_é",-1)},cases);
+  AddCases("open_party_with_ship_info",346,new Guid("cf6e4d7d-1568-379a-80e4-cd169312a484"),new[]{null,new OpenPartyWithShipInfoMessage(null,null,0,null),new OpenPartyWithShipInfoMessage("quest_gnoll_scout","title_é",-1,Option(1)),new OpenPartyWithShipInfoMessage("",null,int.MaxValue,Option(0))},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

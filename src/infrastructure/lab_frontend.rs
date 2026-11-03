@@ -141,10 +141,16 @@ impl Runtime {
         }
         PasswordConfig::recovered(p, profile.identity_options().profile)
             .map_err(|_| RuntimeError::Profile)?;
-        let party = Arc::new(super::party_hub::PartyHub::new(
-            p.is_enabled(Some("ForceClosePartyInShip"))?,
-            p.is_enabled(Some("CombatRejoinSystem"))?,
-        ));
+        let party = Arc::new(
+            super::party_hub::PartyHub::new(
+                p.is_enabled(Some("ForceClosePartyInShip"))?,
+                p.is_enabled(Some("CombatRejoinSystem"))?,
+            )
+            .with_rejoin_limit_minutes(
+                p.get_integer("CombatRejoinSystem_LimitMinutes")
+                    .unwrap_or(0),
+            ),
+        );
         Ok(Self {
             profile,
             content,
@@ -575,11 +581,17 @@ impl Connection {
         // (host election); a member keeps its slot for CombatRejoinSystem.
         if let Some(mut m) = self.mission.take() {
             self.leave_pets(runtime, pool, &mut m).await;
-            self.leave_play(runtime, &m);
-            if !m.host && super::minimum_mission::play_open(&m) {
+            let elected = self.leave_play(runtime, &m);
+            if super::minimum_mission::play_open(&m) && !elected && runtime.party.combat_rejoin() {
                 runtime
                     .party
                     .remember_disconnect(m.completion.cid, m.party_id, m.member.slot);
+                let hub = runtime.party.clone();
+                let (party_id, cid) = (m.party_id, m.completion.cid);
+                tokio::spawn(async move {
+                    tokio::time::sleep(hub.rejoin_limit()).await;
+                    hub.expire_rejoin(party_id, cid);
+                });
             }
         }
         self.effect_expiry = None;
@@ -1039,6 +1051,91 @@ impl Connection {
             runtime.party.replicate(m.party_id, cid, &message);
         }
         let packets = match message {
+            Message::AnswerFinishQuest(follow) => {
+                // MicroPlayMember AnswerFinishQuest → DecideLeaveWithHost.
+                let Some(m) = self.mission.as_ref().filter(|m| !m.host) else {
+                    return Ok(());
+                };
+                runtime
+                    .party
+                    .decide_leave_with_host(m.party_id, cid, follow)
+                    .map_err(|_| RuntimeError::Operation)?
+            }
+            Message::OpenPartyWithShipInfo(open) => {
+                // Initial: OpenNewParty then RegisterShipInfo(UpdateShipList); PartyMaster:
+                // RegisterShipInfo of its party. GeneralFail("OpenPartyWithShipInfo") leaves
+                // the party Initial opened.
+                if self.mission.is_some() {
+                    return Ok(());
+                }
+                let hub = runtime.party.clone();
+                let mut packets = Vec::new();
+                let (party_id, initial) = match hub.role(cid) {
+                    super::party_hub::Role::Member { .. } => return Ok(()),
+                    super::party_hub::Role::Master { party_id, .. } => (party_id, false),
+                    super::party_hub::Role::None => {
+                        let me = super::minimum_party::member(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            runtime.minimum_header()?,
+                            runtime.stat_arithmetic(),
+                        )
+                        .await
+                        .map_err(|_| RuntimeError::Operation)?;
+                        let party_id = mission::entity_id().map_err(|_| RuntimeError::Operation)?;
+                        packets.extend(
+                            hub.open(party_id, me)
+                                .map_err(|_| RuntimeError::Operation)?,
+                        );
+                        (party_id, true)
+                    }
+                };
+                match mission::register_town_ship(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    &open,
+                    hub.clone(),
+                    party_id,
+                    runtime.minimum_header()?,
+                    runtime.stat_arithmetic(),
+                )
+                .await
+                {
+                    Ok(Ok(more)) => {
+                        packets.extend(more);
+                        tracing::info!("town ship opened; values omitted");
+                    }
+                    Ok(Err(error)) => {
+                        if initial {
+                            hub.leave(cid).map_err(|_| RuntimeError::Operation)?;
+                            packets.push(
+                                mission::packet(&Message::Kicked)
+                                    .map_err(|_| RuntimeError::Message)?,
+                            );
+                        }
+                        packets.push(
+                            super::minimum_party::error_message(
+                                true,
+                                "OpenPartyWithShipInfo",
+                                error,
+                            )
+                            .map_err(|_| RuntimeError::Message)?,
+                        );
+                    }
+                    Err(_) => {
+                        if initial {
+                            hub.end_for(cid);
+                        }
+                        tracing::warn!("town ship rejected; values omitted");
+                        return Ok(());
+                    }
+                }
+                packets
+            }
             Message::PartyChat(chat) => {
                 // InGame PartyChatMessage → BattleServiceProxy.SendPartyChat (not Initial).
                 let packets = runtime
@@ -1222,6 +1319,11 @@ impl Connection {
                     return Ok(());
                 }
                 let nexon_sn = id.nexon_sn;
+                // isRejoin without a GameHost: isHostCandidate, a new P2P group.
+                let candidate = rejoin && runtime.party.hostless(party_id);
+                if candidate {
+                    runtime.party.set_group(party_id, relay.make_group());
+                }
                 let joined = mission::join_ship(
                     pool,
                     &owner,
@@ -1231,6 +1333,7 @@ impl Connection {
                     slot,
                     runtime.party.clone(),
                     rejoin,
+                    candidate,
                     |group| relay_ticket(&relay, group, cid, nexon_sn, party_id),
                     runtime.minimum_header()?,
                     runtime.quest_clock(),
@@ -1242,6 +1345,12 @@ impl Connection {
                             runtime.party.forget_disconnect(cid);
                         }
                         self.mission = Some(mission);
+                        if candidate {
+                            runtime
+                                .party
+                                .adopt_host(party_id, cid)
+                                .map_err(|_| RuntimeError::Operation)?;
+                        }
                         tracing::info!("party member joined the ship; values omitted");
                         joined_party.extend(packets);
                         joined_party
@@ -1783,6 +1892,41 @@ impl Connection {
                     }
                     return Ok(());
                 };
+                // FinishMicroPlay(GiveUpQuest): nobody leaves while the host's leave is being
+                // decided; the host of an InGame play with others asks them to follow it.
+                if runtime.party.leaving_with_host(state.party_id, cid) {
+                    let refused = super::minimum_shop::system_message(
+                        0,
+                        "GameUI_Heroes_Cannot_Leave_While_Host_Leaving",
+                        &[],
+                    )
+                    .map_err(|_| RuntimeError::Message)?;
+                    send(stream, sender, refused.category, &refused.body).await?;
+                    return Ok(());
+                }
+                if state.host
+                    && state.in_game
+                    && !state.completion.finished
+                    && !state.digest.is_hunting_quest
+                    && let Some(own) = runtime
+                        .party
+                        .start_leave_with_host(state.party_id, cid)
+                        .map_err(|_| RuntimeError::Operation)?
+                {
+                    let hub = runtime.party.clone();
+                    let party_id = state.party_id;
+                    tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_secs(20)).await;
+                        hub.trigger_leave_with_host(party_id);
+                        tokio::time::sleep(Duration::from_secs(60)).await;
+                        hub.return_with_host(party_id, &[]);
+                    });
+                    for packet in &own {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                    }
+                    tracing::info!("mission host leave decision started; values omitted");
+                    return Ok(());
+                }
                 super::minimum_mission_finish::give_up(state, std::time::Instant::now());
                 tracing::info!("mission give-up requested; values omitted");
                 Vec::new()
@@ -1804,9 +1948,37 @@ impl Connection {
                                 packets.extend(out.packets);
                                 left_pet = out.current;
                             }
-                            self.leave_relay(runtime, &m);
+                            // FinishMicroPlay(ReturnToTown) of the host with others in the
+                            // play: everyone hears the 10 s countdown, then the finished
+                            // players return with it.
+                            let others = runtime.party.others(m.party_id, cid);
+                            if m.host && !others.is_empty() {
+                                if let Ok(own) = super::minimum_shop::system_message(
+                                    0,
+                                    "GameUI_Heroes_ReturnToTown_Remain_Time_Host",
+                                    &["10".to_owned()],
+                                ) {
+                                    packets.insert(0, own);
+                                }
+                                if let Ok(notice) = super::minimum_shop::system_message(
+                                    0,
+                                    "GameUI_Heroes_ReturnToTown_Remain_Time",
+                                    &["10".to_owned()],
+                                ) {
+                                    for other in &others {
+                                        runtime.party.send(*other, vec![notice.clone()]);
+                                    }
+                                }
+                                let hub = runtime.party.clone();
+                                let party_id = m.party_id;
+                                tokio::spawn(async move {
+                                    tokio::time::sleep(Duration::from_secs(10)).await;
+                                    hub.return_with_host(party_id, &others);
+                                });
+                            }
+                            self.leave_play(runtime, &m);
                             // The proxy sent its own Kicked: the party only drops the member.
-                            runtime.party.end_for(cid);
+                            packets.extend(runtime.party.end_for(cid));
                         }
                         tracing::info!("mission left; returning to town; values omitted");
                         packets
@@ -1819,6 +1991,7 @@ impl Connection {
         let journal = self.selected.as_ref().map_or(0, |s| s.log_journal);
         packets
             .extend(Self::mission_after(&mut self.mission, runtime, pool, &owner, journal).await?);
+        Self::share_with_play(runtime, self.mission.as_deref(), &packets);
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
         }
@@ -2214,6 +2387,27 @@ impl Connection {
                     .host_restarted(runtime, pool, stream, sender, host, info)
                     .await;
             }
+            super::party_hub::Notice::FollowHost => {
+                if let Some(m) = self.mission.as_deref_mut() {
+                    super::minimum_mission_finish::follow_host(m, std::time::Instant::now());
+                    tracing::info!("mission player follows the leaving host; values omitted");
+                }
+                return Ok(());
+            }
+            super::party_hub::Notice::ReturnNow => {
+                if self.mission.is_some() {
+                    return self
+                        .mission(
+                            runtime,
+                            pool,
+                            stream,
+                            sender,
+                            crate::protocol::mission::Message::ReturnToTown,
+                        )
+                        .await;
+                }
+                return Ok(());
+            }
             super::party_hub::Notice::Sink => {
                 // NoReward_SinkShip: ReturnFromQuest(ToTown), then MicroPlayer.Leave.
                 let mut packets = vec![
@@ -2224,7 +2418,7 @@ impl Connection {
                         packets.extend(out.packets);
                     }
                     self.leave_relay(runtime, &m);
-                    runtime.party.end_for(m.completion.cid);
+                    packets.extend(runtime.party.end_for(m.completion.cid));
                 }
                 tracing::info!("mission ship sunk after a failed host election; values omitted");
                 packets
@@ -2372,18 +2566,54 @@ impl Connection {
     }
     /// MicroPlay.RemovePlayer of this player: the relay group, and CheckHostDisconnected
     /// (a host leaving a play in progress starts the host election).
-    fn leave_play(&self, runtime: &Runtime, mission: &super::minimum_mission::Mission) {
+    fn leave_play(&self, runtime: &Runtime, mission: &super::minimum_mission::Mission) -> bool {
+        let mut elected = false;
         if mission.host && super::minimum_mission::play_open(mission) {
             match runtime
                 .party
                 .elect(mission.party_id, mission.completion.cid)
             {
-                Ok(Some(_)) => tracing::info!("mission host election started; values omitted"),
+                Ok(Some(_)) => {
+                    elected = true;
+                    tracing::info!("mission host election started; values omitted");
+                }
                 Ok(None) => {}
                 Err(_) => tracing::warn!("mission host election failed; values omitted"),
             }
         }
         self.leave_relay(runtime, mission);
+        elected
+    }
+    /// MicroPlayer.SendMessage to every player (SendMessageAllPlayers) for this player's
+    /// own GetItem and personal QuestTargetResult: the other players see them too.
+    fn share_with_play(
+        runtime: &Runtime,
+        mission: Option<&super::minimum_mission::Mission>,
+        packets: &[crate::domain::map_partition::OutgoingPacket],
+    ) {
+        use crate::protocol::mission::{self as wire, Kind, Message};
+        let Some(m) = mission else {
+            return;
+        };
+        let shared: Vec<_> = packets
+            .iter()
+            .filter(|p| {
+                p.category == Kind::GetItem.category()
+                    || (p.category == Kind::QuestTargetResult.category()
+                        && matches!(
+                            wire::decode(Kind::QuestTargetResult, &p.body, DEFAULT_MAX_BODY),
+                            Ok(Some(Message::QuestTargetResult(r)))
+                                if r.character_name.as_deref().is_some_and(|n| !n.is_empty())
+                        ))
+            })
+            .cloned()
+            .collect();
+        if shared.is_empty() {
+            return;
+        }
+        for other in runtime.party.others(m.party_id, m.completion.cid) {
+            runtime.party.send(other, shared.clone());
+        }
     }
     /// An erg this player won in another player's pick: MicroPlayer GiveItem.
     async fn give_erg(
@@ -2442,6 +2672,7 @@ impl Connection {
                 return Ok(());
             }
         };
+        Self::share_with_play(runtime, self.mission.as_deref(), &packets);
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
         }
@@ -2815,11 +3046,12 @@ impl Connection {
         // RewardPetEndBattle changed the current pet (PushUpdatePetStatus).
         let pet_summary = state.pets.take_summary();
         // GiveReward_Null → Leave: the proxy left the party with the MicroPlay.
+        Self::share_with_play(runtime, Some(&*state), &packets);
         if state.completion.left
             && let Some(m) = self.mission.take()
         {
             self.leave_play(runtime, &m);
-            runtime.party.end_for(m.completion.cid);
+            packets.extend(runtime.party.end_for(m.completion.cid));
             tracing::info!("mission left without reward; values omitted");
         }
         for packet in &packets {
@@ -3390,6 +3622,8 @@ impl Connection {
                 Kind::TeacherRequest,
                 Kind::TeacherRequestRespond,
                 Kind::AcceptAssist,
+                Kind::AnswerFinishQuest,
+                Kind::OpenPartyWithShipInfo,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;

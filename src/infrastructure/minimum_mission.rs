@@ -547,6 +547,8 @@ pub struct Mission {
     pub party: std::sync::Arc<super::party_hub::PartyHub>,
     /// MicroPlayHost (the game host) rather than MicroPlayMember.
     pub host: bool,
+    /// The player left with the host (Trigger_LeaveWithHost) while others play on.
+    pub left_with_host: bool,
 }
 impl Mission {
     /// MonsterKillExpCalculator: this player's weight over the play's and the number of
@@ -824,9 +826,13 @@ pub async fn accept_quest(
         .digest(&mission.quest, -1)
         .ok()
         .is_some_and(|d| d.required_story_line.is_some());
-    mission
-        .party
-        .set_ship(party_id, mission.ship(), mission.ship_limits(), story_quest)?;
+    mission.party.set_ship(
+        party_id,
+        mission.ship(),
+        mission.ship_limits(),
+        story_quest,
+        false,
+    )?;
     mission.set_state(party_state::IN_TOWN_WITH_SHIP_INFO);
     packets.extend(mission.broadcast()?);
     if let Some(class) = &mission.reserved_item
@@ -865,6 +871,8 @@ pub async fn accept_quest(
             players: std::collections::BTreeMap::new(),
             snapshot: None,
             restarting: false,
+            leave_with_host: None,
+            followers: Vec::new(),
         },
     );
     // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
@@ -894,6 +902,102 @@ pub async fn accept_quest(
         mission: Box::new(mission),
         packets,
     })
+}
+
+/// OpenPartyWithShipInfo → RegisterShipInfo(UpdateShipList): the master's party in town
+/// with a listed ship (InTownWithShipInfo, not HideTownShip). The broadcast packets, or
+/// the QueryQuestDigest failure name.
+#[allow(clippy::too_many_arguments)]
+pub async fn register_town_ship(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    message: &AcceptQuest,
+    hub: std::sync::Arc<super::party_hub::PartyHub>,
+    party_id: i64,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<Result<Vec<OutgoingPacket>, &'static str>, MinimumError> {
+    let contents = assets.mission().ok_or_else(fail)?;
+    let (Some(quest), Some(option)) = (message.quest_id.clone(), message.option.clone()) else {
+        return Ok(Err("InvalidQuest"));
+    };
+    let difficulty = option.difficulty;
+    let practice = option.is_practice_mode;
+    let story = contents
+        .digest(&quest, -1)
+        .ok()
+        .and_then(|d| d.required_story_line.zip(d.required_phase));
+    if let Some(error) = super::minimum_quest::digest_constraint(
+        pool,
+        owner,
+        assets,
+        cid,
+        &quest,
+        difficulty,
+        practice,
+        story.as_ref().map(|(l, p)| (l.as_str(), p.as_str())),
+    )
+    .await?
+    {
+        return Ok(Err(error));
+    }
+    let Ok(mut digest) = contents.digest(&quest, message.swear_id) else {
+        return Ok(Err("InvalidQuest"));
+    };
+    contents.item_limit(&mut digest, message.swear_id, difficulty);
+    if digest.disable_user_ship {
+        return Ok(Err("DisableUserShip"));
+    }
+    if digest.party_limit < 1 {
+        return Ok(Err("TooManyPartyMembers"));
+    }
+    if contents.check_supported(&quest, difficulty).is_err() || !digest.gear_limit.is_empty() {
+        return Ok(Err("InvalidQuest"));
+    }
+    let base =
+        super::minimum_selection::view_member(pool, owner, assets, cid, config, arithmetic).await?;
+    let member = PartyMember {
+        nexon_sn: owner.uid,
+        character: base.base_class,
+        character_id: base.name.clone(),
+        slot: 0,
+        level: base.level,
+        state: crate::domain::party::ready_state::HOST,
+        latest_ping: 0,
+        latest_frame_rate: 0,
+        is_return: base.is_return,
+        is_event_jumping: base.is_event_jumping,
+    };
+    let swear_id = if message.swear_id >= 0 && contents.has_swear(&quest, message.swear_id) {
+        message.swear_id
+    } else {
+        -1
+    };
+    let story_quest = digest.required_story_line.is_some();
+    let mission = new_mission(
+        assets,
+        party_id,
+        quest,
+        message.title.clone(),
+        option,
+        digest,
+        swear_id,
+        member,
+        cid,
+        hub.clone(),
+        true,
+    )?;
+    hub.set_ship(
+        party_id,
+        mission.ship(),
+        mission.ship_limits(),
+        story_quest,
+        true,
+    )?;
+    hub.change_state(party_id, party_state::IN_TOWN_WITH_SHIP_INFO);
+    hub.broadcast(party_id, cid).map(Ok)
 }
 
 /// ConnectionRequestMessage of AddPlayer's relay registration.
@@ -963,6 +1067,7 @@ fn new_mission(
         pets: super::minimum_pet::BattlePets::new(assets),
         party,
         host,
+        left_with_host: false,
     })
 }
 
@@ -1046,6 +1151,7 @@ pub async fn join_ship(
     slot: i32,
     hub: std::sync::Arc<super::party_hub::PartyHub>,
     rejoin: bool,
+    candidate: bool,
     relay: impl FnOnce(i32) -> RelayTicket,
     config: QueryConfig,
     clock: super::minimum_quest::QuestClock,
@@ -1129,14 +1235,17 @@ pub async fn join_ship(
     if let Some(snapshot) = hub.snapshot_of(party_id) {
         replica_join(&mut mission, contents, snapshot)?;
     }
-    // AddPlayer → GameHost.GetSendMessageSync(MemberInfoMessage) to the host.
-    hub.send(
-        play.host,
-        vec![packet(&Message::MemberInfo(Box::new(wire::MemberInfo {
-            uid: slot,
-            info: Some(joined.join),
-        })))?],
-    );
+    // AddPlayer → GameHost.GetSendMessageSync(MemberInfoMessage) to the host (a host
+    // candidate has no GameHost to tell).
+    if !candidate {
+        hub.send(
+            play.host,
+            vec![packet(&Message::MemberInfo(Box::new(wire::MemberInfo {
+                uid: slot,
+                info: Some(joined.join),
+            })))?],
+        );
+    }
     let ticket = relay(play.group);
     mission.group = play.group;
     // isRejoin: QuestTimerInfoMessage to the returning player.
@@ -1157,6 +1266,13 @@ pub async fn join_ship(
     };
     packets.extend(timer);
     packets.push(connection_request(&ticket)?);
+    if candidate {
+        // JoinMicroPlay: IsHostCandidate completes without SetMemberState or HostInfo.
+        return Ok(Join::Joined {
+            mission: Box::new(mission),
+            packets,
+        });
+    }
     // SetMemberState(InShip) → BroadCastPartyInfo.
     match hub.set_member_state(
         party_id,
@@ -1765,7 +1881,8 @@ pub fn replica_join(
 /// A play is still open for this player: in game and not finished, or given up while
 /// the others play on.
 pub fn play_open(mission: &Mission) -> bool {
-    mission.in_game && (mission.completion.give_up || !mission.completion.finished)
+    mission.in_game
+        && (mission.completion.give_up || mission.left_with_host || !mission.completion.finished)
 }
 
 /// SendMemberInfoMessage of this player (MakeMemberInfo with its slot and key).

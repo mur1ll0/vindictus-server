@@ -35,6 +35,12 @@ pub enum Notice {
     Give { class_ex: String, count: i32 },
     /// MicroPlay.ChangeHost: this player's replica becomes the game host.
     BecomeHost(Box<Snapshot>),
+    /// Trigger_LeaveWithHost: this player follows the leaving host (GiveReward_Season2Success
+    /// when the main goal was achieved, else GiveReward_QuestFail(GiveUpQuest)).
+    FollowHost,
+    /// FinishMicroPlayHost: the host's return takes this player back too
+    /// (ReturnFromQuest of a Finished player).
+    ReturnNow,
     /// HostElectionFinished: the new host restarted its server (HostInfo to this player,
     /// and this player's MemberInfo to the new host).
     HostRestarted { host: i64, info: Option<GameInfo> },
@@ -119,10 +125,16 @@ pub struct Play {
     pub snapshot: Option<Snapshot>,
     /// PlayState.Restarting: a host election waits for the new host's RegisterServer.
     pub restarting: bool,
+    /// LeaveWithHostPlayers: CID → followHost (None while undecided; empty once triggered).
+    pub leave_with_host: Option<BTreeMap<i64, Option<bool>>>,
+    /// The players who followed the leaving host.
+    pub followers: Vec<i64>,
 }
 
 struct Seat {
     name: String,
+    /// The latest party entry of the character (for a reserved party).
+    member: Option<Member>,
     mailbox: mpsc::Sender<Notice>,
     party: Option<i64>,
     /// Initial.InvitedPartyID.
@@ -134,6 +146,8 @@ struct Entry {
     /// host's ping are refreshed on every broadcast (RefreshShipInfo).
     ship: Option<Ship>,
     play: Option<Play>,
+    /// !HideTownShip: RegisterShipInfo with UpdateShipList (OpenPartyWithShipInfo).
+    town_ship_listed: bool,
 }
 impl Entry {
     /// Party.RefreshShipInfo: the fixed ship fields with the current members, counts,
@@ -154,9 +168,9 @@ impl Entry {
         ship.is_return = master.is_some_and(|m| m.is_return);
         Some(ship)
     }
-    /// MicroPlayService.UpdateShipList: a ship is listed while InShip (a hunting quest
-    /// while InGame), never a party-only ship or a giant raid. A town ship registered by
-    /// AcceptQuest stays hidden (HideTownShip; OpenPartyWithShipInfo is not migrated).
+    /// MicroPlayService.UpdateShipList: a ship is listed while InShip, or in town when
+    /// OpenPartyWithShipInfo registered it (not HideTownShip); a hunting quest while
+    /// InGame; never a party-only ship or a giant raid.
     fn listed(&self) -> Option<Ship> {
         let ship = self.refreshed_ship()?;
         let state = self.party.state();
@@ -164,6 +178,7 @@ impl Entry {
             state == party_state::IN_GAME
         } else {
             state == party_state::IN_SHIP
+                || (state == party_state::IN_TOWN_WITH_SHIP_INFO && self.town_ship_listed)
         };
         (visible && !ship.is_party_only && !ship.is_giant_raid).then_some(ship)
     }
@@ -173,6 +188,8 @@ impl Entry {
 struct State {
     seats: HashMap<i64, Seat>,
     parties: HashMap<i64, Entry>,
+    /// ReserveInfo of the party opened for the players who left with the host.
+    reserved: HashMap<i64, i64>,
 }
 
 pub struct PartyHub {
@@ -181,6 +198,8 @@ pub struct PartyHub {
     force_close_in_ship: bool,
     /// FeatureMatrix CombatRejoinSystem.
     combat_rejoin: bool,
+    /// CombatRejoinSystem_LimitMinutes plus 30 s (RemovePartyScheduleID).
+    rejoin_limit: std::time::Duration,
 }
 
 fn fail() -> MinimumError {
@@ -205,6 +224,14 @@ pub fn stones(slot: i32) -> Result<OutgoingPacket, MinimumError> {
         slot,
         owners: Some(vec![-1; 4]),
         types: Some(vec![0, 2, 1, 3]),
+    }))
+}
+/// AskFinishQuestMessage(pending, message, LeaveWithHostDecisionTimeOut = 20).
+fn ask_finish(pending: bool, text: &str) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::AskFinishQuest(wire::AskFinishQuest {
+        show_pending_dialog: pending,
+        message: Some(text.to_owned()),
+        time_out: 20,
     }))
 }
 fn info(m: &Member) -> wire::PartyMember {
@@ -302,6 +329,11 @@ impl State {
         caller: i64,
         force_close_in_ship: bool,
     ) -> Result<Vec<OutgoingPacket>, MinimumError> {
+        let keep_for_rejoin = REJOIN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&cid)
+            .is_some_and(|(p, _)| *p == party_id);
         let Some(entry) = self.parties.get_mut(&party_id) else {
             return Ok(Vec::new());
         };
@@ -311,8 +343,26 @@ impl State {
         {
             seat.party = None;
         }
+        let waits_for_rejoin = keep_for_rejoin
+            && self.parties.get(&party_id).is_some_and(|e| {
+                e.party.member_count() == 0 && e.play.as_ref().is_some_and(|p| p.snapshot.is_some())
+            });
         match removal {
             None => Ok(Vec::new()),
+            Some(Removal::Dissolved) if waits_for_rejoin => {
+                // RemoveParty under CombatRejoinSystem: the play waits for its players
+                // without a host (GameHost = null) until the rejoin limit.
+                if let Some(play) = self
+                    .parties
+                    .get_mut(&party_id)
+                    .and_then(|e| e.play.as_mut())
+                {
+                    play.players.retain(|_, p| p.cid != cid);
+                    play.host = 0;
+                    play.restarting = false;
+                }
+                Ok(Vec::new())
+            }
             Some(Removal::Dissolved) => {
                 self.dissolve(party_id, caller);
                 Ok(Vec::new())
@@ -341,7 +391,17 @@ impl PartyHub {
             state: Mutex::new(State::default()),
             force_close_in_ship,
             combat_rejoin,
+            rejoin_limit: std::time::Duration::from_secs(30),
         }
+    }
+    /// CombatRejoinSystem_LimitMinutes of the feature policy.
+    pub fn with_rejoin_limit_minutes(mut self, minutes: i32) -> Self {
+        let minutes = u64::try_from(minutes).unwrap_or(0);
+        self.rejoin_limit = std::time::Duration::from_secs(minutes * 60 + 30);
+        self
+    }
+    pub fn rejoin_limit(&self) -> std::time::Duration {
+        self.rejoin_limit
     }
     pub fn combat_rejoin(&self) -> bool {
         self.combat_rejoin
@@ -484,6 +544,7 @@ impl PartyHub {
             cid,
             Seat {
                 name: name.to_owned(),
+                member: None,
                 mailbox,
                 party: None,
                 invited_party: None,
@@ -524,7 +585,9 @@ impl PartyHub {
         };
         let state = entry.party.state();
         match entry.party.member(cid) {
-            Some(m) if m.slot == 0 => Role::Master { party_id, state },
+            Some(m) if m.state == crate::domain::party::ready_state::HOST => {
+                Role::Master { party_id, state }
+            }
             Some(m) => Role::Member {
                 party_id,
                 state,
@@ -553,6 +616,7 @@ impl PartyHub {
         }
         seat.party = Some(party_id);
         seat.invited_party = None;
+        seat.member = Some(master.clone());
         let mut party = Party::new(party_id);
         party.join(master).map_err(|_| fail())?;
         s.parties.insert(
@@ -561,6 +625,7 @@ impl PartyHub {
                 party,
                 ship: None,
                 play: None,
+                town_ship_listed: false,
             },
         );
         s.broadcast(party_id, cid)
@@ -673,10 +738,11 @@ impl PartyHub {
         let mut s = self.lock();
         let cid = member.cid;
         let name = member.name.clone();
-        let seat = s.seats.get(&cid).ok_or_else(fail)?;
+        let seat = s.seats.get_mut(&cid).ok_or_else(fail)?;
         if seat.invited_party != Some(party_id) || seat.party.is_some() {
             return Ok(None);
         }
+        seat.member = Some(member.clone());
         let joined = match s.parties.get_mut(&party_id) {
             Some(entry) => entry.party.join(member),
             None => Err(JoinFail::NotInvited),
@@ -753,6 +819,7 @@ impl PartyHub {
         ship: Ship,
         limits: ShipLimits,
         story_quest: bool,
+        listed_in_town: bool,
     ) -> Result<(), MinimumError> {
         let mut s = self.lock();
         let entry = s.parties.get_mut(&party_id).ok_or_else(fail)?;
@@ -760,6 +827,7 @@ impl PartyHub {
             return Err(fail());
         }
         entry.ship = Some(ship);
+        entry.town_ship_listed = listed_in_town;
         Ok(())
     }
     /// StartMicroPlay2: the party's MicroPlay exists.
@@ -969,8 +1037,9 @@ impl PartyHub {
     ) -> Result<Result<Vec<OutgoingPacket>, JoinFail>, MinimumError> {
         let mut s = self.lock();
         let cid = member.cid;
-        if s.seats.get(&cid).is_none_or(|seat| seat.party.is_some()) {
-            return Ok(Err(JoinFail::InternalError));
+        match s.seats.get_mut(&cid) {
+            Some(seat) if seat.party.is_none() => seat.member = Some(member.clone()),
+            _ => return Ok(Err(JoinFail::InternalError)),
         }
         let joined = match s.parties.get_mut(&party_id) {
             Some(entry) => entry.party.join(member),
@@ -1036,15 +1105,244 @@ impl PartyHub {
     }
     /// The party ends for `cid` without a Kick of its own (its frontend already sent the
     /// return); the remaining members follow RemoveMember.
-    pub fn end_for(&self, cid: i64) {
+    pub fn end_for(&self, cid: i64) -> Vec<OutgoingPacket> {
         let mut s = self.lock();
-        let Some(party_id) = s.seats.get(&cid).and_then(|seat| seat.party) else {
-            return;
-        };
-        if s.remove(party_id, cid, cid, self.force_close_in_ship)
-            .is_err()
+        if let Some(party_id) = s.seats.get(&cid).and_then(|seat| seat.party)
+            && s.remove(party_id, cid, cid, self.force_close_in_ship)
+                .is_err()
         {
             tracing::warn!("party removal after the mission failed; values omitted");
+        }
+        // A player who left with the host joins the party reserved for them
+        // (ReturnFromQuest_Peer_NewParty / Host_NewParty_ToTown).
+        let Some(new_party) = s.reserved.remove(&cid) else {
+            return Vec::new();
+        };
+        let Some(member) = s.seats.get(&cid).and_then(|seat| seat.member.clone()) else {
+            return Vec::new();
+        };
+        let entry = s.parties.entry(new_party).or_insert_with(|| Entry {
+            party: Party::new(new_party),
+            ship: None,
+            play: None,
+            town_ship_listed: false,
+        });
+        entry.party.add_invitation(cid);
+        if entry.party.join(member).is_err() {
+            return Vec::new();
+        }
+        if let Some(seat) = s.seats.get_mut(&cid) {
+            seat.party = Some(new_party);
+        }
+        s.broadcast(new_party, cid).unwrap_or_default()
+    }
+    /// The party's play, if any player leaves with the host, is deciding.
+    pub fn leaving_with_host(&self, party_id: i64, cid: i64) -> bool {
+        self.lock()
+            .parties
+            .get(&party_id)
+            .and_then(|e| e.play.as_ref())
+            .and_then(|p| p.leave_with_host.as_ref())
+            .is_some_and(|m| m.contains_key(&cid))
+    }
+    /// MicroPlay.StartLeaveWithHostDecision: the host waits; every other player is asked
+    /// whether to follow it (20 s). The host's packets; None with fewer than two players.
+    pub fn start_leave_with_host(
+        &self,
+        party_id: i64,
+        host: i64,
+    ) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+        let mut s = self.lock();
+        let Some(play) = s.parties.get_mut(&party_id).and_then(|e| e.play.as_mut()) else {
+            return Ok(None);
+        };
+        if play.players.len() < 2 || play.leave_with_host.is_some() {
+            return Ok(None);
+        }
+        let mut decisions = BTreeMap::new();
+        let mut asked = Vec::new();
+        for p in play.players.values() {
+            if p.cid == host {
+                decisions.insert(p.cid, Some(true));
+            } else {
+                decisions.insert(p.cid, None);
+                asked.push(p.cid);
+            }
+        }
+        play.leave_with_host = Some(decisions);
+        let ask = ask_finish(false, "GameUI_Heroes_Peer_LeaveWithHost")?;
+        for cid in asked {
+            s.push(cid, Notice::Packets(vec![ask.clone()]));
+        }
+        Ok(Some(vec![ask_finish(
+            true,
+            "GameUI_Heroes_Host_WaitOtherPlayers",
+        )?]))
+    }
+    /// AnswerFinishQuest → DecideLeaveWithHost; the packets of `cid`.
+    pub fn decide_leave_with_host(
+        &self,
+        party_id: i64,
+        cid: i64,
+        follow: bool,
+    ) -> Result<Vec<OutgoingPacket>, MinimumError> {
+        let complete = {
+            let mut s = self.lock();
+            let Some(decisions) = s
+                .parties
+                .get_mut(&party_id)
+                .and_then(|e| e.play.as_mut())
+                .and_then(|p| p.leave_with_host.as_mut())
+            else {
+                return Ok(Vec::new());
+            };
+            if decisions.get(&cid) != Some(&None) {
+                return Ok(Vec::new());
+            }
+            decisions.insert(cid, Some(follow));
+            decisions.values().all(Option::is_some)
+        };
+        if complete {
+            self.trigger_leave_with_host(party_id);
+            return Ok(Vec::new());
+        }
+        if follow {
+            return Ok(vec![ask_finish(
+                true,
+                "GameUI_Heroes_Peer_WaitOtherPlayers",
+            )?]);
+        }
+        Ok(Vec::new())
+    }
+    /// Trigger_LeaveWithHost (all decided or the 20 s timeout): the undecided follow;
+    /// every follower gets its reward; with more than one follower and someone staying,
+    /// the followers get a reserved party in town. Returns the followers.
+    pub fn trigger_leave_with_host(&self, party_id: i64) -> Vec<i64> {
+        let mut s = self.lock();
+        let Some(play) = s.parties.get_mut(&party_id).and_then(|e| e.play.as_mut()) else {
+            return Vec::new();
+        };
+        let Some(decisions) = play.leave_with_host.as_mut() else {
+            return Vec::new();
+        };
+        // An empty map: already triggered.
+        if decisions.is_empty() {
+            return Vec::new();
+        }
+        for d in decisions.values_mut() {
+            if d.is_none() {
+                *d = Some(true);
+            }
+        }
+        let followers: Vec<i64> = decisions
+            .iter()
+            .filter(|(_, d)| **d == Some(true))
+            .map(|(c, _)| *c)
+            .collect();
+        let stayers = decisions.values().any(|d| *d == Some(false));
+        decisions.clear();
+        play.followers = followers.clone();
+        if followers.len() > 1 && stayers {
+            let new_party = super::minimum_mission::entity_id().unwrap_or(party_id ^ 1);
+            for cid in &followers {
+                s.reserved.insert(*cid, new_party);
+            }
+        }
+        for cid in &followers {
+            s.push(*cid, Notice::FollowHost);
+        }
+        followers
+    }
+    /// FinishMicroPlayHost (60 s after the trigger, or 10 s after the host's return):
+    /// the given players (the followers when empty) still in the play return with the host.
+    pub fn return_with_host(&self, party_id: i64, players: &[i64]) {
+        let s = self.lock();
+        let Some(play) = s.parties.get(&party_id).and_then(|e| e.play.as_ref()) else {
+            return;
+        };
+        let players = if players.is_empty() {
+            play.followers.as_slice()
+        } else {
+            players
+        };
+        for p in play.players.values().filter(|p| players.contains(&p.cid)) {
+            s.push(p.cid, Notice::ReturnNow);
+        }
+    }
+    /// The other players of the play (for the host's return countdown).
+    pub fn others(&self, party_id: i64, cid: i64) -> Vec<i64> {
+        self.players(party_id)
+            .into_iter()
+            .map(|(_, p)| p.cid)
+            .filter(|c| *c != cid)
+            .collect()
+    }
+    /// The play waits without a host (all players disconnected under CombatRejoinSystem).
+    pub fn hostless(&self, party_id: i64) -> bool {
+        self.lock()
+            .parties
+            .get(&party_id)
+            .and_then(|e| e.play.as_ref())
+            .is_some_and(|p| p.host == 0)
+    }
+    /// A new P2P group for a play that waited without players.
+    pub fn set_group(&self, party_id: i64, group: i32) {
+        if let Some(play) = self
+            .lock()
+            .parties
+            .get_mut(&party_id)
+            .and_then(|e| e.play.as_mut())
+        {
+            play.group = group;
+        }
+    }
+    /// AddPlayer's host candidate (isRejoin without a GameHost): StartHostElection with
+    /// the rejoined player, who becomes master and host (ChangeHost).
+    pub fn adopt_host(&self, party_id: i64, cid: i64) -> Result<(), MinimumError> {
+        let mut s = self.lock();
+        let Some(entry) = s.parties.get_mut(&party_id) else {
+            return Ok(());
+        };
+        entry.party.promote(cid);
+        let Some(play) = entry.play.as_mut() else {
+            return Ok(());
+        };
+        if let Some((&slot, &player)) = play.players.iter().find(|(_, p)| p.cid == cid) {
+            play.players.remove(&slot);
+            play.players.insert(0, player);
+        }
+        play.host = cid;
+        play.restarting = true;
+        play.host_info = None;
+        let snapshot = play.snapshot.clone();
+        s.push(
+            cid,
+            Notice::Packets(vec![packet(&Message::HostRestarting)?]),
+        );
+        if let Some(snapshot) = snapshot {
+            s.push(cid, Notice::BecomeHost(Box::new(snapshot)));
+        }
+        s.broadcast(party_id, -1)?;
+        Ok(())
+    }
+    /// RemovePartyScheduleID: after CombatRejoinSystem_LimitMinutes (+30 s) a play still
+    /// waiting for `cid` forgets it, and an empty party is removed.
+    pub fn expire_rejoin(&self, party_id: i64, cid: i64) {
+        let remembered = REJOIN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&cid)
+            .is_some_and(|(p, _)| *p == party_id);
+        if !remembered {
+            return;
+        }
+        self.forget_disconnect(cid);
+        let mut s = self.lock();
+        if s.parties
+            .get(&party_id)
+            .is_some_and(|e| e.party.member_count() == 0)
+        {
+            s.dissolve(party_id, -1);
         }
     }
     /// Read-only counts for the admin panel: parties and their member counts.
@@ -1197,6 +1495,8 @@ mod tests {
                 players: BTreeMap::new(),
                 snapshot: None,
                 restarting: false,
+                leave_with_host: None,
+                followers: Vec::new(),
             },
         );
         let player = |cid| Player { cid, level: 10 };
@@ -1289,6 +1589,130 @@ mod tests {
             hub.join_ship_party(100, member(3)).unwrap(),
             Err(JoinFail::NotInvited)
         );
+    }
+
+    fn play(host: i64) -> Play {
+        Play {
+            quest: "q".into(),
+            title: None,
+            option: crate::protocol::mission::ShipOption {
+                max_member_count: 4,
+                swear_member_limit: -1,
+                until_force_start: 1,
+                min_level: 1,
+                max_level: 99,
+                is_party_only: 0,
+                over18_only: 0,
+                difficulty: 0,
+                is_season2: false,
+                selected_boss_quest_ids: None,
+                is_practice_mode: false,
+                user_ds_mode: false,
+            },
+            swear_id: -1,
+            group: 9,
+            host,
+            host_info: None,
+            players: BTreeMap::new(),
+            snapshot: Some(Snapshot {
+                sectors: crate::domain::mission::SectorInfos {
+                    current_group: 0,
+                    starting_group: 0,
+                    sectors: Vec::new(),
+                },
+                sequence: crate::domain::mission::SectorSequence {
+                    starting_group: 0,
+                    sectors: Vec::new(),
+                    current: None,
+                    last_used_spawn_point: None,
+                    latest_cleared: 0,
+                    passed: Vec::new(),
+                    cores: Vec::new(),
+                },
+                game_time: 0,
+                in_game: true,
+            }),
+            restarting: false,
+            leave_with_host: None,
+            followers: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn players_decide_to_follow_the_leaving_host_and_followers_get_a_party() {
+        let hub = PartyHub::new(false, true);
+        let mut rx: Vec<_> = (1..=3).map(|c| seat(&hub, c)).collect();
+        hub.open(200, member(1)).unwrap();
+        for cid in [2, 3] {
+            hub.invite(200, 1, cid, &format!("Name{cid}")).unwrap();
+            hub.accept(200, member(cid)).unwrap().unwrap().unwrap();
+        }
+        hub.start_micro_play(200);
+        hub.change_state(200, party_state::IN_GAME);
+        hub.set_play(200, play(1));
+        for (slot, cid) in [(0, 1), (1, 2), (2, 3)] {
+            hub.add_player(200, slot, Player { cid, level: 10 })
+                .unwrap();
+        }
+        for r in rx.iter_mut() {
+            while r.try_recv().is_ok() {}
+        }
+        let own = hub.start_leave_with_host(200, 1).unwrap().unwrap();
+        assert_eq!(kinds(&own), [127]);
+        assert!(hub.leaving_with_host(200, 2));
+        assert!(matches!(rx[1].try_recv(), Ok(Notice::Packets(_))));
+        // B follows (waits), C stays: everyone decided → trigger.
+        assert_eq!(
+            kinds(&hub.decide_leave_with_host(200, 2, true).unwrap()),
+            [127]
+        );
+        assert!(
+            hub.decide_leave_with_host(200, 3, false)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(rx[0].try_recv(), Ok(Notice::FollowHost)));
+        assert!(matches!(rx[1].try_recv(), Ok(Notice::FollowHost)));
+        assert!(hub.trigger_leave_with_host(200).is_empty());
+        // Two followers and a stayer: the followers meet again in a reserved party.
+        hub.end_for(1);
+        let joined = hub.end_for(2);
+        assert_eq!(kinds(&joined), [PARTY_INFO]);
+        assert!(matches!(hub.role(2), Role::Member { .. }));
+        hub.return_with_host(200, &[]);
+    }
+
+    #[test]
+    fn a_play_left_empty_waits_for_its_host_to_rejoin_and_take_over() {
+        let hub = PartyHub::new(false, true);
+        let mut a = seat(&hub, 11);
+        hub.open(300, member(11)).unwrap();
+        hub.start_micro_play(300);
+        hub.change_state(300, party_state::IN_GAME);
+        hub.set_play(300, play(11));
+        hub.add_player(300, 0, Player { cid: 11, level: 10 })
+            .unwrap();
+        assert_eq!(hub.elect(300, 11).unwrap(), None);
+        hub.remember_disconnect(11, 300, 0);
+        hub.unregister(11);
+        assert!(hub.hostless(300));
+        let _a2 = seat(&hub, 11);
+        assert!(hub.rejoin(member(11)).unwrap().is_some());
+        assert!(matches!(
+            hub.role(11),
+            Role::Member {
+                slot: 0,
+                ready: 6,
+                ..
+            }
+        ));
+        hub.add_player(300, 0, Player { cid: 11, level: 10 })
+            .unwrap();
+        hub.adopt_host(300, 11).unwrap();
+        assert!(matches!(hub.role(11), Role::Master { .. }));
+        assert!(!hub.hostless(300));
+        drop(a.try_recv());
+        hub.expire_rejoin(300, 11);
     }
 
     #[test]
