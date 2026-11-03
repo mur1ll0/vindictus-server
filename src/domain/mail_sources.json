@@ -1,5 +1,5 @@
 {
-  "scope": "complete Mail reference preservation and scoped empty QueryMailList proof;not mail scheduler or ItemOwner completion",
+  "scope": "complete Mail reference preservation (lifecycle-tolerant Verify) and the mail lifecycle: QueryMailList/Info, SendMail, GetMailItem, DeleteMail, ReturnMail, NoticeMail/TimeLine and GiveItem ForceMail (SendGiveItemFailMail)",
   "procedure_sha256": "c17336ad0fb0aca9d1cb6320580dd58538227ee48bd7a4292cf6e06cd33f484c",
   "sources": [
     {
@@ -11,8 +11,48 @@
       "sha256": "3bc47adb8f350794f7fd1c9b2569f30da46314efec790b8935ac7b8fb9ea8a50"
     },
     {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/MailItem.cs",
+      "sha256": "3888c06d923aef9f581187acd61c3a6fbba2ee1d42ceaeb8f64c20554d5ef3fe"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.MailSystem/MailFactory.cs",
+      "sha256": "e20b2b853e070d0a3f7f747a0eb7389aa68a61ab8d04daf4347f968a2211cb27"
+    },
+    {
       "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.MailSystem/TimeLine.cs",
       "sha256": "4c47a398a4612ae760c527d70e0903bd5087d9bb860f1c3dc995df0b6969be54"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/QueryMailListProcessor.cs",
+      "sha256": "3f41f6814231ebf09f9de34e22099e37b05045a9259bdfaee3cd57383d78c303"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/QueryMailInfoProcessor.cs",
+      "sha256": "95b35a3479f2e34380054b2dcf9624047bc980844c862a8fcb8735bac0ff3c26"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/SendMailProcessor.cs",
+      "sha256": "9fef6751c5dea85b256d666b154c5ba59e22ae0c263d7e093883e4bfeaa55b39"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/GetMailItemProcessor.cs",
+      "sha256": "524310380cb353f742dbd0f89dadcba8ebee53fe4b207da9a349524caee2d8ee"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/DeleteMailProcessor.cs",
+      "sha256": "a2511845465fed33eb2baf3bb8e55cff5d3a54fabb5b721d83af6e94e073c65f"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/ReturnMailProcessor.cs",
+      "sha256": "bfac98c78564f534b39e82bb9c134affeb050c334b1fca006d385f772b0fe8b2"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/NoticeMailProcessor.cs",
+      "sha256": "c48e32c5d00ec5d816178a03f0ec0a883b3fef1d20e276b4ab23bfcfe59e8ba1"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore._Processor/SendSystemMailProcessor.cs",
+      "sha256": "44dc90a164b843468a4f5dc2f2d7ba3e9d3d6b209672d843fab18cdbdf99ba9d"
     },
     {
       "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/DBLoader.cs",
@@ -21,6 +61,34 @@
     {
       "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemOwner.cs",
       "sha256": "e35d1c73c28c84276d66197e58a7ad0fda2577bda4faa11db8934512b05bdc6d"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore/ItemImpl.cs",
+      "sha256": "7ef6d87e9603f0fe0fae3b6dac7933a2bf4104af816a301ff6c7831c8760ac25"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.ItemInstance/Item.cs",
+      "sha256": "71b27ad3ae8133b824dcb7b0f06133d73de5b90474e7ba1c89514dfc58d24b3e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage/ItemStorage.cs",
+      "sha256": "9434b62f01cbb2efa29651a5cd6f1f30227ad711dcc2d7a8b61c3f5c2428707e"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage.Component/StorageHelper.cs",
+      "sha256": "e14d8c74838c2c7de1d485dd3772e9966aa12def2f98c08449111378c2382103"
+    },
+    {
+      "path": "legacy/decompiled/PlayerService-f23d8b9df77c/PlayerService.ItemServiceCore.Storage.Component/ItemClassHelper.cs",
+      "sha256": "8275288577fb18697e6959d9041296516f31360738c8f0eb2a38c54f6536a2b8"
+    },
+    {
+      "path": "legacy/decompiled/FrontendServiceCore-6be475728091/FrontendServiceCore.Proxy/ItemServiceProxy.cs",
+      "sha256": "96c2845b63bcf8b229bb7921217fb9938ff790ef0b11e5f2cbc887b14798f515"
+    },
+    {
+      "path": "legacy/decompiled/MicroPlayServiceCore-867c492708da/MicroPlayServiceCore._MicroPlay_/MicroPlayer.cs",
+      "sha256": "282f706fc2219094e9ae2c8a764ed540855c8b221589627728697e94b5b3434c"
     }
   ]
 }

@@ -46,6 +46,9 @@ pub enum Notice {
     HostRestarted { host: i64, info: Option<GameInfo> },
     /// NoReward_SinkShip: ReturnFromQuest(ToTown) and Leave.
     Sink,
+    /// EntityCommunicator.NoticeMail: a mail to this character was created (NoticeMail
+    /// operation → MailBox.NoticeMail).
+    Mail { mail_id: i64 },
 }
 
 /// MicroPlayEntityInfo of players disconnected from a play in progress
@@ -550,6 +553,11 @@ impl PartyHub {
                 invited_party: None,
             },
         );
+    }
+    /// EntityCommunicator.NoticeMail(cid, mailID) with makeEntity false: delivered only to an
+    /// entered character.
+    pub fn notice_mail(&self, cid: i64, mail_id: i64) {
+        self.lock().push(cid, Notice::Mail { mail_id });
     }
     /// The character's frontend closed: RemoveMember("FrontendDisconnected") of its party
     /// and InvitationRejected(NotAvailable) of a pending invitation.

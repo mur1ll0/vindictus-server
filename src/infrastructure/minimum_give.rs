@@ -1,13 +1,15 @@
-//! ItemOwner.ProcessItemRequest (all-or-nothing overload) for the selected first Fiona:
-//! plans with domain::give_item, applies VirtualModifyItem/VirtualCreateItem in the
-//! caller's transaction and returns the Sync slot diff. Gold keeps its count checksum.
+//! ItemOwner.ProcessItemRequest for the selected character: plans with domain::give_item,
+//! applies VirtualModifyItem/VirtualCreateItem in the caller's transaction and returns the
+//! Sync slot diff. Gold keeps its count checksum. `apply_force_mail` is ItemImpl.GiveItem
+//! with FailMethodEnum.ForceMail: the leftovers become system items mailed by
+//! SendGiveItemFailMail in the same transaction.
 use super::{
     character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError,
     minimum_item_logs::NumChange,
 };
 use crate::{
     domain::{
-        give_item::{self, ClassInfo, Destroy, Give, GiveError, Held, Inventory, Plan},
+        give_item::{self, ClassInfo, Destroy, Give, GiveError, Held, Inventory, Leftover, Plan},
         initial_inventory::{self, gold_checksum},
         item_attribute::{self, Attributes, StackKeys},
         item_location::ItemLocation,
@@ -49,6 +51,10 @@ pub struct Applied {
     pub slots: Vec<Option<Slot>>,
     pub changes: Vec<NumChange>,
     pub created: Vec<CreatedItem>,
+    /// MakeSystemItems of the leftovers (owner NULL, null location); only `apply_leftover`.
+    pub system: Vec<CreatedItem>,
+    /// The merged ItemOperationResult of `apply_leftover` (NoEmptySlot/UniqueConstraint).
+    pub failure: Option<GiveError>,
 }
 #[derive(sqlx::FromRow)]
 struct Row {
@@ -107,7 +113,131 @@ pub(super) async fn apply(
     gives: &[Request<'_>],
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Result<Applied, GiveError>, MinimumError> {
-    apply_with(tx, owner, assets, cid, destroys, gives, ids, true).await
+    apply_with(
+        tx,
+        owner,
+        assets,
+        cid,
+        destroys,
+        gives,
+        &[],
+        ids,
+        true,
+        false,
+    )
+    .await
+}
+/// `apply` with the ExpireDateTime each request carries (Item.ToRequestInfo of a system
+/// item): `Some` keeps that expiry instead of the class ExpireIn.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn apply_expiring(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    gives: &[Request<'_>],
+    expiries: &[Option<i64>],
+    item_impl: bool,
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+) -> Result<Result<Applied, GiveError>, MinimumError> {
+    apply_with(
+        tx,
+        owner,
+        assets,
+        cid,
+        &[],
+        gives,
+        expiries,
+        ids,
+        item_impl,
+        false,
+    )
+    .await
+}
+/// ProcessItemRequest(..., out systemItem): NoEmptySlot and UniqueConstraint apply the bound
+/// part and return the leftovers as system items (`Applied::system`, `Applied::failure`).
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn apply_leftover(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    destroys: &[Request<'_>],
+    gives: &[Request<'_>],
+    item_impl: bool,
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+) -> Result<Result<Applied, GiveError>, MinimumError> {
+    apply_with(
+        tx,
+        owner,
+        assets,
+        cid,
+        destroys,
+        gives,
+        &[],
+        ids,
+        item_impl,
+        true,
+    )
+    .await
+}
+/// ItemImpl.GiveItem(FailMethodEnum.ForceMail): what was given and what was mailed.
+pub struct ForceMailed {
+    pub applied: Applied,
+    /// GiveItem.ResultEnum: Success (0), Mailed_UniqueViolation (1), Mailed_NoEmptySlot (2).
+    pub result: u8,
+    /// SendGiveItemFailMail: GameUI_Heroes_GiveFailMail_Success_Console per mailed item.
+    pub packets: Vec<crate::domain::map_partition::OutgoingPacket>,
+    pub mails: Vec<i64>,
+}
+/// ItemImpl.GiveItem with ForceMail (ItemTransactionScope "ItemGive_ForceMail"): the
+/// leftovers of a full inventory or a unique class go to the owner's mailbox as
+/// DungeonItemMail, one mail per system item, in the caller's transaction. Other failures
+/// give nothing.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn apply_force_mail(
+    tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    destroys: &[Request<'_>],
+    gives: &[Request<'_>],
+    item_impl: bool,
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+) -> Result<Result<ForceMailed, GiveError>, MinimumError> {
+    let applied =
+        match apply_leftover(tx, owner, assets, cid, destroys, gives, item_impl, ids).await? {
+            Ok(a) => a,
+            Err(e) => return Ok(Err(e)),
+        };
+    let result = match applied.failure {
+        None => 0,
+        Some(GiveError::UniqueConstraint) => 1,
+        Some(_) => 2,
+    };
+    let mut packets = Vec::new();
+    let mut mails = Vec::new();
+    for item in &applied.system {
+        let mail = super::minimum_mail::send_give_fail_mail(tx, assets, cid, item.id).await?;
+        mails.push(mail);
+        packets.push(super::minimum_shop::system_message(
+            super::minimum_shop::SYSTEM,
+            "GameUI_Heroes_GiveFailMail_Success_Console",
+            &[
+                String::from_utf16_lossy(&units(&item.class_utf16)),
+                item.count.to_string(),
+            ],
+        )?);
+    }
+    if !mails.is_empty() {
+        super::minimum_mail::notice(cid);
+    }
+    Ok(Ok(ForceMailed {
+        applied,
+        result,
+        packets,
+        mails,
+    }))
 }
 
 /// `apply` for ItemOwner.CraftItem callers: equippable "_lvlN" classes are given as they
@@ -121,7 +251,19 @@ pub(super) async fn apply_craft(
     gives: &[Request<'_>],
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Result<Applied, GiveError>, MinimumError> {
-    apply_with(tx, owner, assets, cid, destroys, gives, ids, false).await
+    apply_with(
+        tx,
+        owner,
+        assets,
+        cid,
+        destroys,
+        gives,
+        &[],
+        ids,
+        false,
+        false,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -132,10 +274,13 @@ async fn apply_with(
     cid: i64,
     destroys: &[Request<'_>],
     gives: &[Request<'_>],
+    expiries: &[Option<i64>],
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
     item_impl: bool,
+    leftover: bool,
 ) -> Result<Result<Applied, GiveError>, MinimumError> {
-    if destroys.len() + gives.len() > 256 {
+    if destroys.len() + gives.len() > 256 || !(expiries.is_empty() || expiries.len() == gives.len())
+    {
         return Err(MinimumError::Conflict);
     }
     sqlx::query("LOCK TABLE game_items,game_equippables IN SHARE ROW EXCLUSIVE MODE")
@@ -240,25 +385,46 @@ async fn apply_with(
         story_tab,
         item_impl,
     };
-    let plan = match give_item::plan(&inventory, &destroy_requests, &give_requests) {
-        Ok(plan) => plan,
+    let partial = if leftover {
+        give_item::plan_leftover(&inventory, &destroy_requests, &give_requests)
+    } else {
+        give_item::plan(&inventory, &destroy_requests, &give_requests).map(|plan| {
+            give_item::Partial {
+                plan,
+                ..Default::default()
+            }
+        })
+    };
+    let partial = match partial {
+        Ok(p) => p,
         Err(e) => return Ok(Err(e)),
     };
-    let properties: Vec<(Option<Equipment>, &Attributes)> =
-        gives.iter().map(|g| (g.equipment, g.attributes)).collect();
-    let applied = write(
+    let properties: Vec<(Option<Equipment>, &Attributes, Option<i64>)> = gives
+        .iter()
+        .enumerate()
+        .map(|(i, g)| {
+            (
+                g.equipment,
+                g.attributes,
+                expiries.get(i).copied().flatten(),
+            )
+        })
+        .collect();
+    let mut applied = write(
         tx,
         owner,
         assets,
         cid,
         &held,
         &infos,
-        plan,
+        partial.plan,
+        &partial.leftover,
         &properties,
         maximum_durability,
         ids,
     )
     .await?;
+    applied.failure = partial.failure;
     Ok(Ok(applied))
 }
 
@@ -271,7 +437,8 @@ async fn write(
     held: &[(Vec<u8>, Held)],
     infos: &[ClassInfo],
     plan: Plan,
-    properties: &[(Option<Equipment>, &Attributes)],
+    leftover: &[Leftover],
+    properties: &[(Option<Equipment>, &Attributes, Option<i64>)],
     maximum_durability: i32,
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
 ) -> Result<Applied, MinimumError> {
@@ -332,20 +499,57 @@ async fn write(
         });
     }
     let mut created = Vec::with_capacity(plan.created.len());
+    let mut system = Vec::with_capacity(leftover.len());
+    // Bound VirtualCreateItems go to the owner; MakeSystemItems initializes the leftovers
+    // the same way, without owner and with SetNullLocation.
+    // (class, count, bound, location, request, owner)
+    type Target<'c> = (&'c [u8], i32, bool, ItemLocation, usize, Option<i64>);
+    let targets: Vec<Target<'_>> = plan
+        .created
+        .iter()
+        .map(|c| {
+            (
+                c.class.as_slice(),
+                c.count,
+                c.bound,
+                c.location,
+                c.request,
+                Some(cid),
+            )
+        })
+        .chain(leftover.iter().map(|l| {
+            (
+                l.class.as_slice(),
+                l.count,
+                l.bound,
+                ItemLocation::NULL,
+                l.request,
+                None,
+            )
+        }))
+        .collect();
     {
         let mut random = assets.random.lock().await;
-        for c in &plan.created {
+        for (class, count, bound, location, request, holder) in targets {
             let info = infos
                 .iter()
-                .find(|i| i.class == c.class)
+                .find(|i| i.class == class)
                 .ok_or(MinimumError::Conflict)?;
             let id = ids()?;
-            let gold = assets.inventory.is_gold(&c.class);
-            let checksum = gold.then(|| gold_checksum(id, Some(cid), &units(&c.class), c.count));
+            let gold = assets.inventory.is_gold(class);
+            let checksum = gold.then(|| gold_checksum(id, holder, &units(class), count));
+            let (given, attributes, given_expiry) = properties
+                .get(request)
+                .copied()
+                .ok_or(MinimumError::Conflict)?;
+            let given_expiry = given_expiry
+                .map(crate::domain::legacy_user_data::SqlDateTime2::from_ticks)
+                .transpose()
+                .map_err(|_| MinimumError::Conflict)?;
             // Item.Initialize: ExpireIn sets ExpireDateTime = UtcNow + ExpireIn (sampled per
             // item); SubmitChanges stores it as SQL datetime, read back millisecond-rounded.
             let expire = crate::domain::item_time::initialize_expiry(
-                None,
+                given_expiry,
                 false,
                 info.expire_in,
                 &mut || {
@@ -364,20 +568,16 @@ async fn write(
             .map_err(|_| MinimumError::Conflict)?;
             sqlx::query("INSERT INTO game_items(id,item_class_utf16,owner_id,count,collection,slot,expire_ticks,tradable,checksum) VALUES($1,$2,$3,$4,$5,$6,$9,$7,$8)")
                 .bind(id)
-                .bind(&c.class)
-                .bind(cid)
-                .bind(c.count)
-                .bind(i16::from(c.location.collection))
-                .bind(c.location.slot)
-                .bind(!c.bound)
+                .bind(class)
+                .bind(holder)
+                .bind(count)
+                .bind(i16::from(location.collection))
+                .bind(location.slot)
+                .bind(!bound)
                 .bind(checksum)
                 .bind(expire)
                 .execute(&mut **tx)
                 .await?;
-            let (given, attributes) = properties
-                .get(c.request)
-                .copied()
-                .ok_or(MinimumError::Conflict)?;
             insert_attributes(tx, id, attributes).await?;
             let (colors, reduced, bonus) = if let (true, Some(e)) = (info.equippable, given) {
                 sqlx::query("INSERT INTO game_equippables(id,part,color1,color2,color3,reduced_durability,max_durability_bonus) VALUES($1,NULL,$2,$3,$4,$5,$6)")
@@ -393,15 +593,15 @@ async fn write(
             } else if info.equippable {
                 let base = assets
                     .stats_index
-                    .get(Some(&c.class))
+                    .get(Some(class))
                     .ok_or(MinimumError::Conflict)?;
                 let names = assets
                     .color_index
-                    .get(&c.class)
+                    .get(class)
                     .ok_or(MinimumError::Conflict)?;
                 let stat = super::minimum_item_stat::equipment_with(
                     assets,
-                    &c.class,
+                    class,
                     attributes,
                     Some(&owner_context),
                 )?
@@ -428,14 +628,19 @@ async fn write(
             } else {
                 ([-1; 3], 0, 0)
             };
-            created.push(CreatedItem {
+            let item = CreatedItem {
                 id,
-                class_utf16: c.class.clone(),
-                count: c.count,
+                class_utf16: class.to_vec(),
+                count,
                 colors,
                 reduced,
                 bonus,
-            });
+            };
+            if holder.is_some() {
+                created.push(item);
+            } else {
+                system.push(item);
+            }
         }
     }
     let owner_rows =
@@ -471,6 +676,8 @@ async fn write(
         slots,
         changes,
         created,
+        system,
+        failure: None,
     })
 }
 
@@ -526,6 +733,34 @@ pub async fn lab_grant(
     count: i32,
     service_id: i32,
 ) -> Result<Result<usize, GiveError>, MinimumError> {
+    Ok(
+        lab_grant_with(pool, assets, cid, class, count, service_id, false)
+            .await?
+            .map(|(slots, _)| slots),
+    )
+}
+/// `lab_grant` with FailMethodEnum.ForceMail: what does not fit is mailed as the original
+/// rewards do (DungeonItemMail); (changed slots, mails).
+pub async fn lab_grant_force_mail(
+    pool: &sqlx::PgPool,
+    assets: &Assets,
+    cid: Option<i64>,
+    class: &str,
+    count: i32,
+    service_id: i32,
+) -> Result<Result<(usize, usize), GiveError>, MinimumError> {
+    lab_grant_with(pool, assets, cid, class, count, service_id, true).await
+}
+#[allow(clippy::too_many_arguments)]
+async fn lab_grant_with(
+    pool: &sqlx::PgPool,
+    assets: &Assets,
+    cid: Option<i64>,
+    class: &str,
+    count: i32,
+    service_id: i32,
+    force_mail: bool,
+) -> Result<Result<(usize, usize), GiveError>, MinimumError> {
     let cid = match cid {
         Some(cid) => cid,
         None => {
@@ -585,25 +820,23 @@ pub async fn lab_grant(
     if connected {
         return Err(MinimumError::Conflict);
     }
-    let applied = match apply(
-        &mut tx,
-        &owner,
-        assets,
-        cid,
-        &[],
-        &[Request {
-            class: &key,
-            count,
-            bound: false,
-            equipment: None,
-            attributes: &attributes,
-        }],
-        &mut ids,
-    )
-    .await?
-    {
-        Ok(applied) => applied,
-        Err(e) => return Ok(Err(e)),
+    let request = [Request {
+        class: &key,
+        count,
+        bound: false,
+        equipment: None,
+        attributes: &attributes,
+    }];
+    let (applied, mails) = if force_mail {
+        match apply_force_mail(&mut tx, &owner, assets, cid, &[], &request, true, &mut ids).await? {
+            Ok(given) => (given.applied, given.mails.len()),
+            Err(e) => return Ok(Err(e)),
+        }
+    } else {
+        match apply(&mut tx, &owner, assets, cid, &[], &request, &mut ids).await? {
+            Ok(applied) => (applied, 0),
+            Err(e) => return Ok(Err(e)),
+        }
     };
     tx.commit().await?;
     super::minimum_item_logs::write_give(
@@ -618,7 +851,7 @@ pub async fn lab_grant(
         },
     )
     .await;
-    Ok(Ok(applied.slots.len()))
+    Ok(Ok((applied.slots.len(), mails)))
 }
 
 impl Applied {
@@ -647,6 +880,8 @@ impl Applied {
                     bonus: c.bonus,
                 })
                 .collect(),
+            system: Vec::new(),
+            failure: self.failure,
         }
     }
 }

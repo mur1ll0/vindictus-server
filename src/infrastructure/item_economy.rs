@@ -50,6 +50,8 @@ struct RawClass {
     inventory_filter: Option<String>,
     #[serde(default)]
     set_id: Option<String>,
+    #[serde(default)]
+    trade_restriction: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -64,6 +66,9 @@ struct Export {
     /// ItemContents pet dictionaries (absent from exports without PetInfo).
     #[serde(default)]
     pets: Option<crate::domain::pet::Export>,
+    /// MailTypeInfo rows (absent from older exports: every mail type is then unknown).
+    #[serde(default)]
+    mail_types: Vec<crate::domain::mail::MailTypeInfo>,
 }
 /// HotSpringPotionInfo row (UntilEffectSec and ShowName are not read by the server).
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -100,6 +105,8 @@ pub struct EconomyClass {
     pub level: i32,
     pub inventory_filter: Option<String>,
     pub set_id: Option<String>,
+    /// ItemClassInfo.TradeRestirction (Item.IsMailableTo; null is tradable).
+    pub trade_restriction: Option<String>,
 }
 pub struct Profile {
     manifest: Manifest,
@@ -108,6 +115,7 @@ pub struct Profile {
     alchemist_boxes: Vec<Vec<u8>>,
     hot_spring: Vec<HotSpringPotion>,
     pets: Option<crate::domain::pet::Export>,
+    mail_types: Vec<crate::domain::mail::MailTypeInfo>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -190,6 +198,7 @@ impl Profile {
                     level: r.level,
                     inventory_filter: r.inventory_filter,
                     set_id: r.set_id,
+                    trade_restriction: r.trade_restriction,
                 })
             })
             .collect::<Result<Vec<_>, crate::error::Error>>()?;
@@ -212,13 +221,30 @@ impl Profile {
         {
             return Err(MinimumError::Conflict);
         }
+        if export.mail_types.len() > 256
+            || export.mail_types.iter().enumerate().any(|(i, m)| {
+                !(0..=255).contains(&m.mail_type)
+                    || export.mail_types[..i]
+                        .iter()
+                        .any(|o| o.mail_type == m.mail_type)
+            })
+        {
+            return Err(MinimumError::Conflict);
+        }
         Ok(Self {
             manifest: export.manifest,
             classes,
             alchemist_boxes,
             hot_spring: export.hot_spring,
             pets: export.pets,
+            mail_types: export.mail_types,
         })
+    }
+    /// ItemContents.GetMailTypeInfo.
+    pub fn mail_type(&self, mail_type: u8) -> Option<&crate::domain::mail::MailTypeInfo> {
+        self.mail_types
+            .iter()
+            .find(|m| m.mail_type == i32::from(mail_type))
     }
     /// The exported pet tables, evaluated against the feature policy by the assets.
     pub fn pets(&self) -> Option<&crate::domain::pet::Export> {

@@ -350,7 +350,8 @@ pub async fn craft(
         Err(crate::domain::give_item::GiveError::NotEnoughItem) => {
             return dialog("CraftItemFail_NotEnoughMaterial");
         }
-        // Leftovers of the source go to the mailbox, which is not migrated.
+        // ProcessProduct's CraftItem keeps no leftovers (no mail); its failure dialog is
+        // not migrated.
         Err(_) => return Err(fail()),
     };
     let max = manufacture_contents.max_exp(&skill.id, skill.grade);

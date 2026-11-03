@@ -139,8 +139,14 @@ pub enum ManufactureChange {
 pub enum Effect {
     /// ItemImpl.RepairItem(null, hideNotEnoughGold: false, addAllRepairableItems: true).
     RepairAll,
-    /// ItemImpl.GiveItem(itemClass, num, OperationFail/ForceMail, Story*).
-    GiveItem { class: String, count: i32 },
+    /// ItemImpl.GiveItem(itemClass, num, OperationFail/ForceMail, Story*): `mail` is
+    /// ForceMail (story rewards, give_item_failmail, the quest ServiceCoin), whose leftovers
+    /// go to the mailbox; OperationFail refuses the whole request.
+    GiveItem {
+        class: String,
+        count: i32,
+        mail: bool,
+    },
     /// ItemImpl.DestroyItem(itemClass, num, Story, includeExpired: false).
     TakeItem { class: String, count: i32 },
     /// CharacterImpl.GiveReward(exp, ap, null, null) after the rates are applied.
@@ -824,6 +830,7 @@ impl<'a> Talker<'a> {
                         self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
                             class: "gold".to_owned(),
                             count: gold,
+                            mail: true,
                         }));
                         self.add(entity(
                             "give_item_successful",
@@ -837,6 +844,7 @@ impl<'a> Talker<'a> {
                         self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
                             class: item.clone(),
                             count: info.reward_item_count,
+                            mail: true,
                         }));
                     }
                     // GiveReward(0, 0, null, {RewardTitle: true}) → AcquireTitle.
@@ -901,8 +909,8 @@ impl<'a> Talker<'a> {
                 let _ = k;
                 self.talk_to_inner(building.as_deref(), &npc, Some(&line), Some(""))
             }
-            // give_item_failmail differs only by ForceMail, and mailing is not migrated:
-            // a give that does not fit refuses the whole request in both.
+            // give_item_failmail differs only by ForceMail: a give that does not fit mails
+            // the leftovers, while give_item refuses the whole request.
             "give_item" | "give_item_failmail" => {
                 let class = arg1.unwrap_or("");
                 let Some(count) = Self::parse(arg2) else {
@@ -918,6 +926,7 @@ impl<'a> Talker<'a> {
                 self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
                     class: class.to_owned(),
                     count,
+                    mail: command == "give_item_failmail",
                 }));
                 self.add_delta(super::mission::item_class(class), i64::from(count));
                 self.add(entity("give_item_successful", Some(class), arg2));
@@ -972,6 +981,7 @@ impl<'a> Talker<'a> {
                             self.pushed.outputs.push(Output::Effect(Effect::GiveItem {
                                 class: "silver_coin".to_owned(),
                                 count: coin,
+                                mail: true,
                             }));
                             self.add_delta("silver_coin", i64::from(coin));
                         }

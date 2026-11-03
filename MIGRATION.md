@@ -1,6 +1,6 @@
 # Migração Vindictus .NET → Rust — roadmap vivo
 
-Atualizado em 02/11/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
+Atualizado em 03/11/2026. Este arquivo é a memória de trabalho do projeto: o que já foi feito (checklist curto) e o que falta fazer. Os registros detalhados de cada sessão (relatos, causas, comandos, logs, hashes) ficam em `docs/history/session-log.md`, que só recebe acréscimos e não deve ser lido inteiro (ver `AGENTS.md`). A ordem de trabalho e as regras dos blocos estão em `docs/playable-game-roadmap.md`.
 
 ## Objetivo e critério de conclusão
 
@@ -22,6 +22,7 @@ Migração completa: **NÃO CONCLUÍDA**.
    - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
 3. Launcher: login pelo launcher aceito (LA0, LA2, LA4, LA5). Próximo: D-L6 (só ticket no jogo; modo por nome no perfil de desenvolvimento), depois L1 (`crates/client-dist`, serviço `updates`, importação da v1 = 1.69 + o necessário, zstd adaptativo + `hfs-xor`), receitas v1–v3 (L2) e instalar/atualizar no launcher (L3).
 4. B5 multijogador implementado (MP1–MP7): sessão de cliente do operador pelo roteiro `docs/client-tests/B5-multijogador.md` (duas contas, dois clientes; Docker já reconstruído). Depois, os sistemas restantes do B5.
+5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 
 ## Aguardando o operador
 
@@ -32,6 +33,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, I3 modelo substituto, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
 | `docs/client-tests/B5-multijogador.md` | MP1–MP7 pendentes (sessão única); requer duas contas e dois clientes (três para MP6). |
+| `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |
@@ -56,12 +58,12 @@ Decisões pendentes:
 
 - Entrada e grupo: só missão solo. Recusadas: pesca, caça, torre, missões com item obrigatório ou limite de equipamento; moedas e pedras de bênção vazias; ReturnToShip (reiniciar) e CombatRejoinSystem inexistentes.
 - Setores: sem AntiSectorSkip e sem diálogos de console de setor.
-- Drops: baú do tesouro, mapas do tesouro, núcleos de evento/história, WeakPoint, HugeLucky; sobra de inventário cheio por correio.
+- Drops: baú do tesouro, mapas do tesouro, núcleos de evento/história, WeakPoint, HugeLucky.
 - Combate: MDRSystem só marcaria rankings (inexistentes); caixas alquímicas na barra recusadas.
 - Conclusão: recompensas de troca de item (`slayer_stamp_limit>slayer_stamp`), CharacterRank, bônus de status/cafe/guilda/moedas/pedras, AddMicroPlayTime, contagem diária de quests grátis, OnEnterPhase das histórias; objetivo do sapo com regex não compilável.
 - Progressão: AddGrowthLog, efeitos de guilda, títulos de rank; `take_item` de peça vestida recusado.
 - Histórias: `select_vocation`, `complete_episode`/`give_title_by_episode`.
-- Robustez: correio dos itens reservados de quem sai da missão.
+- Robustez: itens reservados de quem sai da missão vão para QueuedItem no original (StoreToQueuedItem; executor não migrado).
 
 ### B3 — pendências
 
@@ -74,7 +76,7 @@ Decisões pendentes:
 - [ ] PvP/arena/ranking.
 - [ ] Guildas.
 - [ ] Trade.
-- [ ] Correio completo.
+- [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de leilão, eventos e amizade depende desses sistemas.
 - [ ] Eventos/UserCare.
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
@@ -111,7 +113,7 @@ Marcar [x] só com evidência fresca da etapa inteira.
 - [ ] M18 lobby/canais — parcial: cidade/movimento solo; grupos e chat não.
 - [ ] M19 transporte de batalha — parcial: relay ProudNet solo (B2); trava do barco com memória alta corrigida no `engine.dll` do laboratório (RL1 no cliente pendente).
 - [ ] M20 MicroPlay — parcial: missão solo (B2), pendências acima.
-- [ ] M21 serviços adicionais — parcial: cash shop, armazenamento; postal, trade, guild, rank não.
+- [ ] M21 serviços adicionais — parcial: cash shop, armazenamento, correio (cliente pendente); trade, guild, rank não.
 - [ ] M22 ferramentas operacionais — parcial: painel B4.
 - [ ] M23 paridade completa.
 - [ ] M24 aceite final com cliente.

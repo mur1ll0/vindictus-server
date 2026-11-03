@@ -131,6 +131,7 @@ pub mod minimum_equipment;
 pub mod minimum_extra_storage;
 pub mod minimum_home_cafe;
 pub mod minimum_hot_spring;
+pub mod minimum_mail;
 pub mod minimum_manufacture;
 pub mod minimum_random_item;
 pub mod minimum_skill_enhance;

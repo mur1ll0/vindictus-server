@@ -1636,9 +1636,10 @@ pub fn ragdoll_kicked(
     contents.loot(sequence, key, core_type, rare).ok().flatten()
 }
 
-/// MicroPlayer.GiveItemReward: GiveItem (count 1) then the GetItemMessage broadcast and
-/// the "get item <class> <count>" informer event. Attributes the give planner does not
-/// carry and full inventories (ForceMail) are refused.
+/// MicroPlayer.GiveItemReward: GiveItem with ForceMail (a full inventory mails the
+/// leftovers, GiveFailMail console message) then the GetItemMessage broadcast with
+/// ResultEnum.Success and the "get item <class> <count>" informer event. Attributes the give
+/// planner does not carry are refused.
 #[allow(clippy::too_many_arguments)]
 pub async fn give_reward(
     pool: &PgPool,
@@ -1666,22 +1667,34 @@ pub async fn give_reward(
         attributes: &attributes,
     }];
     let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
-    let applied = super::minimum_give::apply(&mut tx, owner, assets, cid, &[], &request, ids)
-        .await?
-        .map_err(|_| fail())?;
+    let given = super::minimum_give::apply_force_mail(
+        &mut tx,
+        owner,
+        assets,
+        cid,
+        &[],
+        &request,
+        true,
+        ids,
+    )
+    .await?
+    .map_err(|_| fail())?;
     tx.commit().await?;
-    Ok(vec![
-        inventory_packet(applied.slots)?,
-        packet(&Message::GetItem(GetItem {
-            player_name: mission.member.character_id.clone(),
-            item_class: Some(class_ex.to_owned()),
-            count,
-            core_type,
-            lucky: false,
-            luck_bonus: 0,
-            give_item_result: 0,
-        }))?,
-    ])
+    let mut packets = Vec::new();
+    if !given.applied.slots.is_empty() {
+        packets.push(inventory_packet(given.applied.slots)?);
+    }
+    packets.extend(given.packets);
+    packets.push(packet(&Message::GetItem(GetItem {
+        player_name: mission.member.character_id.clone(),
+        item_class: Some(class_ex.to_owned()),
+        count,
+        core_type,
+        lucky: false,
+        luck_bonus: 0,
+        give_item_result: 0,
+    }))?);
+    Ok(packets)
 }
 
 pub(super) fn inventory_packet(

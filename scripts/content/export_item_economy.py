@@ -48,7 +48,9 @@ def read_package(database, config):
                              quick_slot_max_stack=integer(r['QuickSlotMaxStack']), draft=integer(r['Draft']),
                              # ItemOwner.ItemComparer (SortInventory) and GetInventoryFilterType.
                              sort_order=plain(r['SortOrder']), level=integer(r['Level']),
-                             inventory_filter=plain(r['InventoryFilterName']), set_id=plain(first_set.get(r['ItemClass']))))
+                             inventory_filter=plain(r['InventoryFilterName']), set_id=plain(first_set.get(r['ItemClass'])),
+                             # Item.IsMailableTo (TradeRestirction: null is tradable).
+                             trade_restriction=plain(r['TradeRestirction'])))
             if len(rows) > 50000: raise ValueError('Economy row bound')
         # ItemContents.HotSpringPotionInfoDic (ToDictionary by ItemClass: a repeated class throws).
         hot_spring = []
@@ -60,6 +62,21 @@ def read_package(database, config):
             if len(hot_spring) > 1000: raise ValueError('Hot spring row bound')
         # AlchemistBoxInfo box classes: their inner consumables are not migrated (refused).
         boxes = sorted({text(r['BoxItemClass']) or '' for r in db.execute('Select * From [AlchemistBoxInfo]')})
+        # ItemContents.mailTypeDict (MailTypeInfo ToDictionary by MailType: a repeated type throws).
+        def flag(v):
+            if v not in ('True', 'False'): raise ValueError('MailTypeInfo bit text')
+            return v == 'True'
+        mail_types = []
+        for r in db.execute('Select * From [MailTypeInfo] Order By MailType'):
+            row = dict(mail_type=integer(r['MailType']), description=plain(r['Description']), sender=plain(r['Sender']),
+                       system=flag(r['System']), item_attached=flag(r['ItemAttached']), charged=flag(r['Charged']),
+                       replyable=flag(r['Replyable']), returnable=flag(r['Returnable']), expire_in=integer(r['Expire_in']),
+                       arrive_in=integer(r['Arrive_in']), fee=integer(r['Fee']), fee_for_item=integer(r['FeeForItem']),
+                       fee_express=integer(r['Fee_Express']), fee_for_item_express=integer(r['FeeForItem_Express']))
+            if not 0 <= row['mail_type'] <= 255 or any(m['mail_type'] == row['mail_type'] for m in mail_types):
+                raise ValueError('MailTypeInfo type')
+            mail_types.append(row)
+            if len(mail_types) > 256: raise ValueError('MailTypeInfo row bound')
         pets = read_pets(db, integer, plain)
         if pets is not None:
             pets['features'] = pet_features(db, catalog['manifest'])
@@ -68,7 +85,7 @@ def read_package(database, config):
     m = catalog['manifest']
     package = {'format_version': 4, 'source': 'heroesContents.item-economy', 'alchemist_boxes': boxes,
                'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
-               'classes': rows, 'hot_spring': hot_spring}
+               'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types}
     if pets is not None:
         package['pets'] = pets
     return package

@@ -895,7 +895,8 @@ pub(super) async fn quest_finished(
 }
 
 /// Packets of the query outputs in source order; item effects run in the caller's
-/// transaction, so a failed give (no mail fallback) refuses the whole request.
+/// transaction: an OperationFail give that fails refuses the whole request, a ForceMail
+/// give mails its leftovers (SendGiveItemFailMail) in the same transaction.
 #[allow(clippy::too_many_arguments)]
 async fn apply_outputs(
     tx: &mut Transaction<'_, Postgres>,
@@ -978,9 +979,9 @@ async fn apply_outputs(
                 | Effect::UnlockSkill { .. }),
             ) => rewards.push((packets.len(), effect)),
             Output::Effect(effect @ (Effect::GiveItem { .. } | Effect::TakeItem { .. })) => {
-                let (class, count, take) = match &effect {
-                    Effect::GiveItem { class, count } => (class, *count, false),
-                    Effect::TakeItem { class, count } => (class, *count, true),
+                let (class, count, take, mail) = match &effect {
+                    Effect::GiveItem { class, count, mail } => (class, *count, false, *mail),
+                    Effect::TakeItem { class, count } => (class, *count, true, false),
                     _ => return Err(fail()),
                 };
                 // GiveItem(ItemClassEx): ItemClassExBuilder.Parse; take_item uses the class.
@@ -1008,24 +1009,45 @@ async fn apply_outputs(
                 } else {
                     (&[], &request)
                 };
-                let applied = super::minimum_give::apply(
-                    tx,
-                    owner,
-                    assets,
-                    cid,
-                    destroys,
-                    gives,
-                    &mut || ids.next().ok_or_else(fail),
-                )
-                .await?
-                .map_err(|reason| {
+                let refused = |reason| {
                     tracing::warn!(?reason, "minimum story item effect refused; values omitted");
                     fail()
-                })?;
-                packets.push(packet(
-                    Kind::UpdateInventoryInfo,
-                    Message::UpdateInventoryInfo(Some(applied.slots)),
-                )?);
+                };
+                if mail {
+                    let given = super::minimum_give::apply_force_mail(
+                        tx,
+                        owner,
+                        assets,
+                        cid,
+                        destroys,
+                        gives,
+                        true,
+                        &mut || ids.next().ok_or_else(fail),
+                    )
+                    .await?
+                    .map_err(refused)?;
+                    packets.push(packet(
+                        Kind::UpdateInventoryInfo,
+                        Message::UpdateInventoryInfo(Some(given.applied.slots)),
+                    )?);
+                    packets.extend(given.packets);
+                } else {
+                    let applied = super::minimum_give::apply(
+                        tx,
+                        owner,
+                        assets,
+                        cid,
+                        destroys,
+                        gives,
+                        &mut || ids.next().ok_or_else(fail),
+                    )
+                    .await?
+                    .map_err(refused)?;
+                    packets.push(packet(
+                        Kind::UpdateInventoryInfo,
+                        Message::UpdateInventoryInfo(Some(applied.slots)),
+                    )?);
+                }
             }
             Output::Effect(Effect::OpenStorage(id)) => {
                 // OpenStorage(id, null): a new ItemStorageStatus row without ExpireTime, or

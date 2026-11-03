@@ -122,8 +122,10 @@ pub(super) async fn constraint_failure(
 
 /// The questscroll2_ branch: GiveQuest, then UseInventoryItemOk and the telepathy on
 /// Success, or the failure dialog.
+#[allow(clippy::too_many_arguments)]
 async fn give_quest(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    owner: &UserKey<'_>,
     assets: &Assets,
     cid: i64,
     class: &str,
@@ -134,10 +136,10 @@ async fn give_quest(
     use crate::domain::quest::GiveQuest;
     let quest = format!("quest_{suffix}");
     let (result, progress) =
-        super::minimum_quest::give(tx, assets, cid, &quest, ids, clock).await?;
+        super::minimum_quest::give(tx, owner, assets, cid, &quest, ids, clock).await?;
     Ok(match result {
         GiveQuest::Success => {
-            let mut packets: Vec<OutgoingPacket> = progress.into_iter().collect();
+            let mut packets: Vec<OutgoingPacket> = progress;
             packets.push(OutgoingPacket {
                 category: Kind::UseInventoryItemOk.category(),
                 body: wire::encode(
@@ -359,7 +361,8 @@ pub async fn use_item(
         }
         if let Some(suffix) = class.strip_prefix("questscroll2_") {
             // QuestImpl.GiveQuest($"quest_{suffix}", reveal): the item is not consumed.
-            let packets = give_quest(&mut tx, assets, cid, &class, suffix, &mut ids, clock).await?;
+            let packets =
+                give_quest(&mut tx, owner, assets, cid, &class, suffix, &mut ids, clock).await?;
             tx.commit().await?;
             return Ok((Outcome::Applied(packets), None));
         }

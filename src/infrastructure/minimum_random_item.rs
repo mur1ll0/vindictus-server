@@ -2,9 +2,10 @@
 //! selected first Fiona: the key, level, recipe and ServerCode checks, RandomItemManager
 //! Open/OpenBundle, CraftItem(box, rewards) and the result messages; and the RandomItemV2
 //! branch (RandomItemSession: package and gachapon recipes, '#' recursion, Apply and
-//! SendResultMessages). Key boxes, Titicore, cool time and exclusive boxes, the fever
-//! system, rare/bundle/sequence recipes, AP and expiring rewards, the server-wide announces
-//! and leftovers sent by mail are not migrated and send nothing.
+//! SendResultMessages). A full inventory mails the leftovers (SendGiveItemFailMail; V2
+//! without its console message). Key boxes, Titicore, cool time and exclusive boxes, the
+//! fever system, rare/bundle/sequence recipes, AP and expiring rewards and the server-wide
+//! announces are not migrated and send nothing.
 use super::{
     character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError,
     minimum_give::Request,
@@ -177,16 +178,20 @@ pub(super) async fn open(
             attributes,
         })
         .collect();
-    let applied = super::minimum_give::apply_craft(tx, owner, assets, cid, &[], &requests, ids)
-        .await?
-        // GiveItemFail_NoEmptySlot sends the leftovers by mail, which is not migrated.
-        .map_err(|_| fail())?;
+    // CraftItem(..., out systemItems): any result but UnknownError saves, then
+    // SendGiveItemFailMail(systemItems) with its console message.
+    let given =
+        super::minimum_give::apply_force_mail(tx, owner, assets, cid, &[], &requests, false, ids)
+            .await?
+            .map_err(|_| fail())?;
+    let applied = given.applied;
     let mut slots: Vec<Option<Slot>> = vec![Some(box_slot)];
     slots.extend(applied.slots.iter().cloned());
     packets.push(packet(
         Kind::UpdateInventoryInfo,
         Message::UpdateInventoryInfo(Some(slots)),
     )?);
+    packets.extend(given.packets);
     packets.push(packet(
         Kind::UseInventoryItemOk,
         Message::UseInventoryItemOk(Some(class.clone())),
@@ -385,10 +390,18 @@ async fn open_v2(
             attributes,
         })
         .collect();
-    let applied = super::minimum_give::apply_craft(tx, owner, assets, cid, &[], &requests, ids)
-        .await?
-        // GiveItemFail_NoEmptySlot sends the leftovers by mail, which is not migrated.
-        .map_err(|_| fail())?;
+    // RandomItemSession.Apply: GiveItemFail_NoEmptySlot mails the leftovers
+    // (SendGiveItemFailMailWithoutSystemMessage) and answers like a success with
+    // GameUI_Heroes_RandomItem_UseItem_SendMail; other failures roll back.
+    let given =
+        super::minimum_give::apply_force_mail(tx, owner, assets, cid, &[], &requests, false, ids)
+            .await?
+            .map_err(|_| fail())?;
+    if given.result == 1 {
+        return Err(fail());
+    }
+    let mailed = given.result == 2;
+    let applied = given.applied;
     let mut slots: Vec<Option<Slot>> = vec![Some(box_slot)];
     slots.extend(applied.slots.iter().cloned());
     let mut packets = vec![
@@ -402,7 +415,11 @@ async fn open_v2(
         )?,
         super::minimum_shop::system_message(
             SYSTEM,
-            "GameUI_Heroes_RandomItem_UseItem",
+            if mailed {
+                "GameUI_Heroes_RandomItem_UseItem_SendMail"
+            } else {
+                "GameUI_Heroes_RandomItem_UseItem"
+            },
             std::slice::from_ref(&class),
         )?,
     ];

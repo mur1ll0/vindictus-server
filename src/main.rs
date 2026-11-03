@@ -782,24 +782,36 @@ async fn run(cli: Cli) -> Result<(), Error> {
             item_class,
             count,
             service_id,
+            force_mail,
         } => {
             use vindictus_server::infrastructure::{minimum_assets::Assets, minimum_give};
             let assets = Assets::read(&assets_file)
                 .map_err(|_| Error::Configuration("minimum creation assets invalid".into()))?;
             postgres::check_ready(&pool).await?;
-            let outcome =
+            let outcome = if force_mail {
+                minimum_give::lab_grant_force_mail(
+                    &pool,
+                    &assets,
+                    cid,
+                    &item_class,
+                    count,
+                    service_id,
+                )
+                .await
+            } else {
                 minimum_give::lab_grant(&pool, &assets, cid, &item_class, count, service_id)
                     .await
-                    .map_err(|_| {
-                        Error::Configuration(
-                            "grant refused: character must be an offline initialized first Fiona"
-                                .into(),
-                        )
-                    })?;
+                    .map(|r| r.map(|slots| (slots, 0)))
+            }
+            .map_err(|_| {
+                Error::Configuration(
+                    "grant refused: character must be an offline initialized first Fiona".into(),
+                )
+            })?;
             match outcome {
-                Ok(slots) => println!(
+                Ok((slots, mails)) => println!(
                     "{}",
-                    serde_json::json!({"granted":true,"changed_slots":slots,"client_visible_after":"character selection"})
+                    serde_json::json!({"granted":true,"changed_slots":slots,"mails":mails,"client_visible_after":"character selection"})
                 ),
                 Err(e) => println!(
                     "{}",

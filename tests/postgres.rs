@@ -1599,6 +1599,8 @@ mod newbie_attendance;
 #[path = "support/item_loader_state.rs"]
 mod item_loader_state;
 
+#[path = "support/mail.rs"]
+mod mail;
 #[path = "support/mail_reference.rs"]
 mod mail_reference;
 

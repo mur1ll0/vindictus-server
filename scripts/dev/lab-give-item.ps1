@@ -1,8 +1,9 @@
 #requires -Version 7.4
-# Laboratory GiveItem for the offline first Fiona (gold or any ItemClass/ItemClassEx). The database
+# Laboratory GiveItem for the offline first Fiona (gold or any ItemClass/ItemClassEx), optionally with
+# ForceMail (-ForceMail). The database
 # URL is composed from .env for the child process only and is never printed.
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$ItemClass,[Parameter(Mandatory)][int]$Count,[long]$Cid=0,[string]$AssetsFile)
+param([Parameter(Mandatory)][string]$ItemClass,[Parameter(Mandatory)][int]$Count,[long]$Cid=0,[string]$AssetsFile,[switch]$ForceMail)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if(-not$AssetsFile){$AssetsFile=Join-Path $project '.cache/private-content/minimum-creation-assets.json'}
@@ -22,6 +23,8 @@ try{
  $settings.Clear()
  $arguments=@('lab-give-item','--assets-file',$AssetsFile,'--item-class',$ItemClass,'--count',$Count)
  if($Cid-gt0){$arguments+=@('--cid',$Cid)}
+ # GiveItem ForceMail: what does not fit goes to the character's mailbox.
+ if($ForceMail){$arguments+='--force-mail'}
  & $exe @arguments
  if($LASTEXITCODE-ne0){throw 'Grant refused; see the message above (the character must be offline)'}
 }finally{$env:DATABASE_URL=$previous}

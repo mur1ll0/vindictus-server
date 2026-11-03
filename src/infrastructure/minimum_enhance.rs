@@ -575,20 +575,22 @@ async fn enhance_with(
     let give_rows: Vec<(Vec<u8>, i32)> = outcome.give.iter().map(|(c, n)| (utf16(c), *n)).collect();
     let empty = Attributes::default();
     let mut next_id = || ids.next().ok_or_else(fail);
-    let applied = match super::minimum_give::apply(
+    // CraftItem(materials, rewards, out systemItems): the leftovers are mailed at the end
+    // (SendGiveItemFailMail after the result).
+    let (applied, mailed) = match super::minimum_give::apply_force_mail(
         &mut tx,
         owner,
         assets,
         cid,
         &requests(&destroy_rows, &empty),
         &requests(&give_rows, &empty),
+        true,
         &mut next_id,
     )
     .await?
     {
-        Ok(a) => a,
+        Ok(given) => (given.applied, given.packets),
         Err(GiveError::NotEnoughItem) => return dialog(Refusal::NotEnoughMaterial),
-        // Leftovers of the source go to the mailbox, which is not migrated.
         Err(_) => return Err(fail()),
     };
     let mut slots = applied.slots.clone();
@@ -785,5 +787,6 @@ async fn enhance_with(
             &[],
         )?);
     }
+    packets.extend(mailed);
     Ok(Enhanced { packets, look })
 }

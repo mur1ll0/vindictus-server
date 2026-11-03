@@ -1,6 +1,6 @@
 use super::{cleanup_game_pool, isolated_game_pool};
 use serde_json::{Value, json};
-use vindictus_server::infrastructure::{mail_reference as db, postgres};
+use vindictus_server::infrastructure::{mail_reference as db, minimum_mail, postgres};
 mod fixture {
     include!("../fixtures/mail_reference_support.rs");
 }
@@ -37,7 +37,6 @@ async fn mail_all_fields_constraints_orphans_and_exact_replay_are_preserved() {
         "expire_units300=0",
         "is_read=false",
         "charged_gold=0",
-        "is_deleted=true",
     ] {
         sqlx::query(&format!(
             "UPDATE game_mail SET {assignment} WHERE mail_id=1"
@@ -75,67 +74,88 @@ async fn mail_all_fields_constraints_orphans_and_exact_replay_are_preserved() {
             .is_err()
         );
     }
+    // What the mail lifecycle may change in a preserved row: IsRead and IsDeleted set.
+    sqlx::query("UPDATE game_mail SET is_read=true,is_deleted=true WHERE mail_id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert_eq!(db::preserve(&p, &snap, true).await.unwrap().verified, 7);
     let identities:i64=sqlx::query_scalar("SELECT count(*) FROM pg_attrdef d JOIN pg_class t ON t.oid=d.adrelid WHERE t.relname='game_mail' AND pg_get_expr(d.adbin,d.adrelid)LIKE '%nextval%'").fetch_one(&p).await.unwrap();
     assert_eq!(identities, 0);
     cleanup_game_pool(a, p, s).await;
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
-async fn mail_negative_query_matches_complete_original_sql_on_synthetic_cases() {
+async fn mail_query_list_matches_complete_original_sql_on_synthetic_cases() {
     let (a, p, s) = isolated_game_pool().await;
     db::preserve(&p, &snapshot(), false).await.unwrap();
-    sqlx::raw_sql("CREATE FUNCTION reject_mail_dml()RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'unexpected mail DML';END$$;CREATE TRIGGER reject_mail_dml BEFORE INSERT OR UPDATE OR DELETE ON game_mail FOR EACH STATEMENT EXECUTE FUNCTION reject_mail_dml()").execute(&p).await.unwrap();
+    // QueryMailList of the lifecycle against the original SELECT's rows of each CID.
     for c in fixture::oracle()["cases"].as_array().unwrap() {
-        let mut tx = p.begin().await.unwrap();
-        let out = db::require_query_empty(&mut tx, c["cid"].as_i64().unwrap()).await;
-        if c["empty"].as_bool().unwrap() {
-            out.unwrap()
-        } else {
-            assert!(matches!(out, Err(db::MailError::Present)))
-        }
-        tx.rollback().await.unwrap();
+        let mut ours = minimum_mail::query_mail_ids(&p, c["cid"].as_i64().unwrap())
+            .await
+            .unwrap();
+        ours.sort_unstable();
+        let mut theirs: Vec<i64> = c["mail_ids"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_i64().unwrap())
+            .collect();
+        theirs.sort_unstable();
+        assert_eq!(ours, theirs, "cid {}", c["cid"]);
+        assert_eq!(ours.is_empty(), c["empty"].as_bool().unwrap());
     }
     cleanup_game_pool(a, p, s).await;
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
-async fn mail_missing_reference_lost_routes_and_new_native_mail_never_become_false_empty() {
+async fn mail_verify_accepts_the_lifecycle_and_refuses_unjournaled_loss() {
     let (a, p, s) = isolated_game_pool().await;
-    let mut tx = p.begin().await.unwrap();
+    let snap = snapshot();
     assert!(matches!(
-        db::require_query_empty(&mut tx, 0).await,
+        db::preserve(&p, &snap, true).await,
         Err(db::MailError::Reference)
     ));
-    tx.rollback().await.unwrap();
-    db::preserve(&p, &snapshot(), false).await.unwrap();
-    sqlx::query("DELETE FROM game_mail WHERE mail_id IN(1,7)")
+    db::preserve(&p, &snap, false).await.unwrap();
+    // New native mail is not part of the reference.
+    sqlx::query("INSERT INTO game_mail SELECT 99,100,from_name_utf16,101,to_name_utf16,mail_type,posted_units300,title_utf16,content_utf16,arrive_units300,expire_units300,is_read,charged_gold,true FROM game_mail WHERE mail_id=2").execute(&p).await.unwrap();
+    assert_eq!(db::preserve(&p, &snap, true).await.unwrap().verified, 7);
+    // A preserved row removed without its postal journal is a loss.
+    sqlx::query("DELETE FROM game_mail WHERE mail_id=7")
         .execute(&p)
         .await
         .unwrap();
-    let mut tx = p.begin().await.unwrap();
     assert!(matches!(
-        db::require_query_empty(&mut tx, 5).await,
+        db::preserve(&p, &snap, true).await,
         Err(db::MailError::Reference)
     ));
-    tx.rollback().await.unwrap();
-    sqlx::query("INSERT INTO game_mail SELECT 99,100,from_name_utf16,101,to_name_utf16,mail_type,posted_units300,title_utf16,content_utf16,arrive_units300,expire_units300,is_read,charged_gold,true FROM game_mail WHERE mail_id=2").execute(&p).await.unwrap();
-    let mut tx = p.begin().await.unwrap();
+    // Cleansed or returned by the lifecycle: the journal of that MailID accounts for it.
+    sqlx::query("INSERT INTO game_postal_journals(mail_id,from_cid,to_cid) VALUES(7,0,0)")
+        .execute(&p)
+        .await
+        .unwrap();
+    assert_eq!(db::preserve(&p, &snap, true).await.unwrap().verified, 7);
+    // IsRead and IsDeleted never go back.
+    sqlx::query("UPDATE game_mail SET is_read=false WHERE mail_id=1")
+        .execute(&p)
+        .await
+        .unwrap();
     assert!(matches!(
-        db::require_query_empty(&mut tx, 100).await,
-        Err(db::MailError::Present)
+        db::preserve(&p, &snap, true).await,
+        Err(db::MailError::Reference)
     ));
-    db::require_query_empty(&mut tx, 101).await.unwrap();
-    tx.rollback().await.unwrap();
+    sqlx::query("UPDATE game_mail SET is_read=NULL WHERE mail_id=1")
+        .execute(&p)
+        .await
+        .unwrap();
     sqlx::query("UPDATE game_mail_preservation SET source_return_cids=ARRAY[5,4]::bigint[]")
         .execute(&p)
         .await
         .unwrap();
-    let mut tx = p.begin().await.unwrap();
     assert!(matches!(
-        db::require_query_empty(&mut tx, 0).await,
+        db::preserve(&p, &snap, true).await,
         Err(db::MailError::Reference)
     ));
-    tx.rollback().await.unwrap();
     cleanup_game_pool(a, p, s).await;
 }
 #[tokio::test]
@@ -172,36 +192,9 @@ async fn mail_late_import_failure_rolls_back_and_parallel_bootstrap_elects_one_w
 }
 #[tokio::test]
 #[ignore = "requires disposable PostgreSQL"]
-async fn mail_negative_lookup_retains_lock_and_schema_readiness_checks_all_columns() {
+async fn mail_schema_readiness_checks_all_columns() {
     let (a, p, s) = isolated_game_pool().await;
     db::preserve(&p, &snapshot(), false).await.unwrap();
-    let mut guard = p.begin().await.unwrap();
-    db::require_query_empty(&mut guard, 0).await.unwrap();
-    let mut writer = p.begin().await.unwrap();
-    sqlx::query("SET LOCAL lock_timeout='100ms'")
-        .execute(&mut *writer)
-        .await
-        .unwrap();
-    let e = sqlx::query("UPDATE game_mail SET from_cid=0 WHERE mail_id=1")
-        .execute(&mut *writer)
-        .await
-        .unwrap_err();
-    assert_eq!(
-        e.as_database_error().and_then(|e| e.code()).as_deref(),
-        Some("55P03")
-    );
-    writer.rollback().await.unwrap();
-    guard.rollback().await.unwrap();
-    sqlx::query("UPDATE game_mail SET from_cid=0 WHERE mail_id=1")
-        .execute(&p)
-        .await
-        .unwrap();
-    let mut tx = p.begin().await.unwrap();
-    assert!(matches!(
-        db::require_query_empty(&mut tx, 0).await,
-        Err(db::MailError::Present)
-    ));
-    tx.rollback().await.unwrap();
     postgres::check_ready(&p).await.unwrap();
     sqlx::query("ALTER TABLE game_mail DROP COLUMN is_deleted")
         .execute(&p)

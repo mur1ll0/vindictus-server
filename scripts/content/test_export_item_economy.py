@@ -25,6 +25,13 @@ class ItemEconomyExportTests(unittest.TestCase):
             db.execute("INSERT INTO SetItemInfo VALUES('synthetic',NULL,'set_a'),('synthetic',NULL,'set_b')")
             db.execute('CREATE TABLE HotSpringPotionInfo(ItemClass TEXT,StatusEffect TEXT,Level INT,UntilEffectSec INT,BathTimeSec INT,OverlapMinSec INT,AllAnnounce INT,ShowName INT)')
             db.execute("INSERT INTO HotSpringPotionInfo VALUES('hotspring_powder_rose','hotspring_powder_rose',1,30,1800,60,0,1)")
+            columns = {r[1] for r in db.execute('PRAGMA table_info(ItemClassInfo)')}
+            for column in ('TradeRestirction', 'Bind', 'TradeOnBind'):
+                if column not in columns:
+                    db.execute(f'ALTER TABLE ItemClassInfo ADD COLUMN {column} TEXT')
+            db.execute("UPDATE ItemClassInfo SET TradeRestirction='ACCOUNTONLY',Bind='Disable',TradeOnBind='S3EP1' WHERE ItemClass='synthetic'")
+            db.execute('CREATE TABLE MailTypeInfo(MailType INT,Description TEXT,Sender TEXT,System TEXT,ItemAttached TEXT,Charged TEXT,Replyable TEXT,Returnable TEXT,Expire_in INT,Arrive_in INT,Fee INT,FeeForItem INT,Fee_Express INT,FeeForItem_Express INT)')
+            db.execute("INSERT INTO MailTypeInfo VALUES(9,'Heroes_MailType_DungeonItem','SYSTEM','True','True','False','False','False',10080,0,0,0,0,0),(2,'Heroes_MailType_Item',NULL,'False','True','False','True','True',10080,60,100,2,200,5)")
             db.commit()
     def test_rows_keep_catalog_order_duplicates_and_hashes_are_readonly(self):
         before = [digest(p) for p in (self.db, self.config)]
@@ -39,7 +46,14 @@ class ItemEconomyExportTests(unittest.TestCase):
         self.assertEqual((c['sort_order'], c['level'], c['inventory_filter'], c['set_id']), ('100.02', 7, 'GOODS', 'set_a'))
         self.assertEqual(p['hot_spring'], [dict(item_class='hotspring_powder_rose', status_effect='hotspring_powder_rose', level=1,
                                                 bath_time_sec=1800, overlap_min_sec=60, all_announce=0)])
+        self.assertEqual(c['trade_restriction'], 'ACCOUNTONLY')
+        self.assertEqual([(m['mail_type'], m['sender'], m['system'], m['returnable'], m['arrive_in'], m['fee_for_item_express']) for m in p['mail_types']],
+                         [(2, None, False, True, 60, 5), (9, 'SYSTEM', True, False, 0, 0)])
         self.assertEqual(before, [digest(p) for p in (self.db, self.config)])
+    def test_mail_type_bits_must_be_text_booleans(self):
+        with contextlib.closing(sqlite3.connect(self.db)) as db:
+            db.execute("UPDATE MailTypeInfo SET System='1' WHERE MailType=9"); db.commit()
+        with self.assertRaises(ValueError): read_package(self.db, self.config)
     def test_pet_tables_are_exported_when_present(self):
         self.assertNotIn('pets', read_package(self.db, self.config))
         with contextlib.closing(sqlite3.connect(self.db)) as db:

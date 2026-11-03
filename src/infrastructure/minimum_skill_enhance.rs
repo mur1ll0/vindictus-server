@@ -446,6 +446,7 @@ pub async fn roll(
         destroyed.push((class.clone(), 1));
     }
     let mut extra = Vec::new();
+    let mut mail_packets = Vec::new();
     if decided.give_protected_stone {
         let attributes = Attributes::new(vec![Attribute {
             name: "VALUE".to_owned(),
@@ -455,26 +456,41 @@ pub async fn roll(
         }])
         .map_err(|_| fail())?;
         let key = utf16(&stone_class);
-        let applied = super::minimum_give::apply(
-            &mut tx,
-            owner,
-            assets,
-            cid,
-            &[],
-            &[Request {
-                class: &key,
-                count: 1,
-                bound: false,
-                equipment: None,
-                attributes: &attributes,
-            }],
-            &mut || ids.next().ok_or_else(fail),
-        )
+        let stone = [Request {
+            class: &key,
+            count: 1,
+            bound: false,
+            equipment: None,
+            attributes: &attributes,
+        }];
+        match super::minimum_give::apply(&mut tx, owner, assets, cid, &[], &stone, &mut || {
+            ids.next().ok_or_else(fail)
+        })
         .await?
-        // GiveItemFail_NoEmptySlot sends the stone by mail, which is not migrated.
-        .map_err(|_| fail())?;
-        extra.extend(applied.slots.iter().cloned());
-        given.push(stone_class.clone());
+        {
+            Ok(applied) => {
+                extra.extend(applied.slots.iter().cloned());
+                given.push(stone_class.clone());
+            }
+            // GiveItemFail_NoEmptySlot: MakeSystemItem(request) and SendGiveItemFailMail.
+            Err(crate::domain::give_item::GiveError::NoEmptySlot) => {
+                let mailed = super::minimum_give::apply_force_mail(
+                    &mut tx,
+                    owner,
+                    assets,
+                    cid,
+                    &[],
+                    &stone,
+                    true,
+                    &mut || ids.next().ok_or_else(fail),
+                )
+                .await?
+                .map_err(|_| fail())?;
+                mail_packets.extend(mailed.packets);
+            }
+            // The other results give nothing and the session goes on.
+            Err(_) => {}
+        }
     }
     if decided.consume_stone {
         consume(&mut tx, cid, session.stone_item_id, 1).await?;
@@ -558,9 +574,9 @@ pub async fn roll(
     )?;
     // OnDiceSuccess flushes before the result; OnDiceFail sends the result first.
     Ok(if decided.success {
-        vec![inventory, changed_packet, result]
+        [vec![inventory], mail_packets, vec![changed_packet, result]].concat()
     } else {
-        vec![inventory, result, changed_packet]
+        [vec![inventory], mail_packets, vec![result, changed_packet]].concat()
     })
 }
 

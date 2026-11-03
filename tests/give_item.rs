@@ -1,5 +1,8 @@
 use vindictus_server::domain::{
-    give_item::{ClassInfo, Created, Destroy, Give, GiveError, Held, Inventory, plan},
+    give_item::{
+        ClassInfo, Created, Destroy, Give, GiveError, Held, Inventory, Leftover, plan,
+        plan_leftover,
+    },
     item_location::ItemLocation,
 };
 
@@ -441,4 +444,54 @@ fn class_ex_parsing_builds_back_and_rejects_the_unstored_profile() {
     assert!(!stackable([("A", "x", 1)], [("a", "x", 1)]));
     assert!(!stackable([("A", "x", 1)], [("A", "x", 2)]));
     assert!(!stackable([("A", "x", 1)], []));
+}
+
+#[test]
+fn leftover_planning_binds_what_fits_and_returns_the_rest_for_the_mail() {
+    // Three bags of 48 slots, 143 equipment items: one free slot for three requested.
+    let sword = class("sword", 1, 1, 0, true);
+    let held_items: Vec<_> = (0..143)
+        .map(|n| {
+            let bag = [0u8, 1, 6][n / 48];
+            held(&sword, n as i64 + 1, 1, at(bag, (n % 48) as i32))
+        })
+        .collect();
+    let inv = inventory(&held_items);
+    assert_eq!(
+        plan(&inv, &[], &[give(&sword, 3)]),
+        Err(GiveError::NoEmptySlot)
+    );
+    let partial = plan_leftover(&inv, &[], &[give(&sword, 3)]).unwrap();
+    assert_eq!(partial.failure, Some(GiveError::NoEmptySlot));
+    assert_eq!(partial.plan.created.len(), 1);
+    assert_eq!(partial.plan.created[0].location, at(6, 47));
+    let one_sword = Leftover {
+        class: sword.class.clone(),
+        count: 1,
+        bound: false,
+        request: 0,
+    };
+    assert_eq!(partial.leftover, [one_sword.clone(), one_sword]);
+    // Unique 2 with one held: one more is created, the rest fails the constraint and is
+    // a leftover too (Created_UniqueFail); UniqueConstraint wins the merge.
+    let charm = class("charm", 1, 10, 2, false);
+    let one = [held(&charm, 900, 1, at(0, 0))];
+    let partial = plan_leftover(&inventory(&one), &[], &[give(&charm, 5)]).unwrap();
+    assert_eq!(partial.failure, Some(GiveError::UniqueConstraint));
+    assert_eq!(partial.plan.modified, [(900, 2)]);
+    assert!(partial.plan.created.is_empty());
+    assert_eq!(partial.leftover.len(), 1);
+    assert_eq!(partial.leftover[0].count, 4);
+    // A whole failure (not enough to destroy) still plans nothing.
+    assert_eq!(
+        plan_leftover(
+            &inventory(&one),
+            &[Destroy {
+                class: &charm,
+                count: 3
+            }],
+            &[]
+        ),
+        Err(GiveError::NotEnoughItem)
+    );
 }

@@ -139,6 +139,24 @@ pub(super) async fn exercise(
     }
     let inventory_frame = read(client, rx).await;
     assert_eq!(inventory_frame.category_id, 468);
+    // ItemServiceProxy.Open: UpdateMailList, an empty mailbox.
+    let mail = read(client, rx).await;
+    assert_eq!(mail.category_id, 495);
+    assert_eq!(
+        vindictus_server::protocol::mail::decode(
+            vindictus_server::protocol::mail::Kind::MailList,
+            &mail.body,
+            DEFAULT_MAX_BODY
+        )
+        .unwrap(),
+        Some(vindictus_server::protocol::mail::Message::MailList(
+            vindictus_server::protocol::mail::MailList {
+                received_mail_list: Some(Vec::new()),
+                sent_mail_list: Some(Vec::new()),
+                new_mail_count: 0,
+            }
+        ))
+    );
     let Some(vindictus_server::protocol::inventory::Message::InventoryInfo(snapshot)) =
         vindictus_server::protocol::inventory::decode(
             vindictus_server::protocol::inventory::Kind::InventoryInfo,
@@ -365,6 +383,8 @@ pub(super) async fn exercise(
             assert_eq!(read(client, rx).await.category_id, kind.category());
         }
         assert_eq!(read(client, rx).await.category_id, 468);
+        // ItemServiceProxy.Open: UpdateMailList.
+        assert_eq!(read(client, rx).await.category_id, 495);
     }
     frontend_send(client, tx, enter()).await;
     let frame = read(client, rx).await;

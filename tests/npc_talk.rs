@@ -464,7 +464,8 @@ fn story_commands_change_phase_tokens_guide_and_items_in_source_order() {
     assert!(outputs.contains(&Output::Effect(
         vindictus_server::domain::npc_talk::Effect::GiveItem {
             class: "potion".to_owned(),
-            count: 2
+            count: 2,
+            mail: false
         }
     )));
     assert!(matches!(outputs.last(), Some(Output::SyncStory(rows)) if rows == &state.progress));
@@ -1100,7 +1101,8 @@ fn story_commands_and_conditions_follow_process_command_func() {
             },
             &Effect::GiveItem {
                 class: "potion".to_owned(),
-                count: 2
+                count: 2,
+                mail: true
             },
             &Effect::TakeItem {
                 class: "token_wolf_tooth".to_owned(),

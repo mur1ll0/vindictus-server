@@ -145,8 +145,9 @@ pub async fn process(
     Ok(messages)
 }
 
-/// One DailyItemProcedure.Process after its admission: the message and changed slots;
-/// Ok(None) for a process that is not migrated or an item that does not fit (no record).
+/// One DailyItemProcedure.Process after its admission: the messages (the mail console
+/// message of a leftover first) and changed slots; nothing for a process that is not
+/// migrated or a give that fails (no record).
 #[allow(clippy::too_many_arguments)]
 async fn run(
     tx: &mut Transaction<'_, Postgres>,
@@ -161,7 +162,7 @@ async fn run(
     base_class: i32,
     now: i64,
     ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
-) -> Result<(Option<OutgoingPacket>, Vec<Option<wire::Slot>>), MinimumError> {
+) -> Result<(Vec<OutgoingPacket>, Vec<Option<wire::Slot>>), MinimumError> {
     let have = held(tx, cid, class).await?;
     // (destroy, give) counts of the process.
     let (destroy, give) = match &p.kind {
@@ -171,7 +172,7 @@ async fn run(
             (0, (count - have).max(0))
         }
         ProcessKind::TakeItemUntil => ((have - count).max(0), 0),
-        ProcessKind::NotMigrated(_) => return Ok((None, Vec::new())),
+        ProcessKind::NotMigrated(_) => return Ok((Vec::new(), Vec::new())),
     };
     if p.kind == ProcessKind::GiveItemUntilByCharacterClass && give > 0 {
         // ItemClassInfo.IsAvailableFor(BaseCharacter).
@@ -186,10 +187,10 @@ async fn run(
             & restriction
             == 0
         {
-            return Ok((None, Vec::new()));
+            return Ok((Vec::new(), Vec::new()));
         }
     }
-    let mut message = None;
+    let mut message = Vec::new();
     let mut slots = Vec::new();
     if destroy > 0 || give > 0 {
         let request = [super::minimum_give::Request {
@@ -204,13 +205,27 @@ async fn run(
         } else {
             (&[], &request)
         };
-        match super::minimum_give::apply(tx, owner, assets, cid, destroys, gives, ids).await? {
-            Ok(applied) => slots = applied.slots,
-            // The source mails what does not fit; this range is retried later.
-            Err(_) => return Ok((None, Vec::new())),
+        if give > 0 {
+            // GiveItem(request, out systemItem) then SendGiveItemFailMail(systemItem).
+            match super::minimum_give::apply_force_mail(
+                tx, owner, assets, cid, destroys, gives, true, ids,
+            )
+            .await?
+            {
+                Ok(given) => {
+                    slots = given.applied.slots;
+                    message.extend(given.packets);
+                }
+                Err(_) => return Ok((Vec::new(), Vec::new())),
+            }
+        } else {
+            match super::minimum_give::apply(tx, owner, assets, cid, destroys, gives, ids).await? {
+                Ok(applied) => slots = applied.slots,
+                Err(_) => return Ok((Vec::new(), Vec::new())),
+            }
         }
         if give > 0 && p.kind != ProcessKind::GiveItem {
-            message = Some(super::minimum_shop::system_message(
+            message.push(super::minimum_shop::system_message(
                 super::minimum_shop::SYSTEM,
                 p.message.as_deref().unwrap_or(""),
                 &[class.to_owned(), give.to_string(), count.to_string()],

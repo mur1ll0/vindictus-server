@@ -191,3 +191,5 @@ pub mod equipment;
 pub mod character_delete;
 
 pub mod dye;
+
+pub mod mail;

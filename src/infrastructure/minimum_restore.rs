@@ -8,10 +8,7 @@ use super::{
     minimum_inventory::RESTORE_COLLECTION,
 };
 use crate::{
-    domain::{
-        character_stats::Arithmetic, give_item::GiveError, item_attribute,
-        map_partition::OutgoingPacket, shop,
-    },
+    domain::{character_stats::Arithmetic, item_attribute, map_partition::OutgoingPacket, shop},
     protocol::{
         DEFAULT_MAX_BODY,
         inventory::{self as wire, Kind, Message, RestoreItemInfo, Slot},
@@ -187,20 +184,21 @@ pub async fn restore(
         attributes: &attributes,
     };
     let mut next = || ids.next().ok_or_else(fail);
-    let applied = match super::minimum_give::apply(
+    // GiveItem(request, out systemItem): NoEmptySlot/UniqueConstraint still empty the
+    // restore slot and mail the request (SendGiveItemFailMail).
+    let (applied, mailed) = match super::minimum_give::apply_force_mail(
         &mut tx,
         owner,
         assets,
         cid,
         &[],
         std::slice::from_ref(&request),
+        true,
         &mut next,
     )
     .await?
     {
-        Ok(a) => a,
-        // NoEmptySlot/UniqueConstraint mail the request in the source (not migrated).
-        Err(GiveError::NoEmptySlot | GiveError::UniqueConstraint) => return Err(fail()),
+        Ok(given) => (given.applied, given.packets),
         Err(_) => {
             tx.commit().await?;
             packets.push(result(shop::BUY_FAILED, class_ex, count, ap)?);
@@ -254,6 +252,7 @@ pub async fn restore(
         Kind::UpdateInventoryInfo,
         Message::UpdateInventoryInfo(Some(slots)),
     )?);
+    packets.extend(mailed);
     packets.push(result(shop::BUY_SUCCEEDED, class_ex, count, ap)?);
     packets.push(list_packet(after)?);
     Ok(packets)

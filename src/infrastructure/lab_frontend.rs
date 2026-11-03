@@ -548,6 +548,9 @@ struct Connection {
     latest_sort: Option<std::time::Instant>,
     /// PetManager.UpdateSchedule: the next period start of a pet's active time.
     pet_reset_at: Option<tokio::time::Instant>,
+    /// MailBox.TimeLine of the selected character and its next 30-second polling.
+    mail_timeline: super::minimum_mail::TimeLine,
+    mail_at: Option<tokio::time::Instant>,
     /// The party authority's pushes to the entered character (UpdateParty, Kick, ...).
     party_notices: Option<tokio::sync::mpsc::Receiver<super::party_hub::Notice>>,
     /// A host message replayed into this member's MicroPlay replica.
@@ -570,6 +573,8 @@ impl Connection {
             daily_at: None,
             latest_sort: None,
             pet_reset_at: None,
+            mail_timeline: super::minimum_mail::TimeLine::default(),
+            mail_at: None,
             party_notices: None,
             replaying: false,
         }
@@ -597,6 +602,8 @@ impl Connection {
         self.effect_expiry = None;
         self.daily_at = None;
         self.pet_reset_at = None;
+        self.mail_at = None;
+        self.mail_timeline.clear();
         self.party_notices = None;
         if let Some(selected) = self.selected.as_ref() {
             // The frontend connection closed: RemoveMember("FrontendDisconnected").
@@ -2259,6 +2266,222 @@ impl Connection {
         }
         Ok(())
     }
+    /// ItemServiceProxy mail messages (InGame) → the item service mail processors. The
+    /// laboratory has no second-password lock in game, so UseSecondPassword passes.
+    #[allow(clippy::too_many_arguments)]
+    async fn mail(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: crate::protocol::mail::Message,
+    ) -> Result<(), RuntimeError> {
+        use crate::protocol::mail::Message;
+        let (Some(selected), true) = (
+            self.selected.as_ref(),
+            self.password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend)),
+        ) else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let ids = match &message {
+            Message::SendMail(_) => super::minimum_mail::SEND_ENTITY_IDS,
+            Message::GetMailItem(_) => super::minimum_mail::GET_ENTITY_IDS,
+            _ => 0,
+        };
+        let ids = minimum
+            .creation
+            .entity_ids(ids)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        use super::minimum_mail as mails;
+        let outcome = match message {
+            Message::QueryMailList => mails::mail_list(pool, &owner, assets, cid).await,
+            Message::QueryMailInfo(mail_id) => mails::mail_info(pool, &owner, cid, mail_id).await,
+            Message::SendMail(m) => mails::send_mail(pool, &owner, assets, cid, &m, ids).await,
+            Message::GetMailItem(mail_id) => {
+                mails::get_mail_item(pool, &owner, assets, cid, mail_id, ids).await
+            }
+            Message::DeleteMail(list) => {
+                mails::delete_mail(pool, &owner, assets, cid, &list.unwrap_or_default()).await
+            }
+            Message::ReturnMail(mail_id) => {
+                mails::return_mail_request(pool, &owner, assets, cid, mail_id).await
+            }
+            _ => {
+                tracing::info!(category, "mail message ignored; values omitted");
+                return Ok(());
+            }
+        };
+        match outcome {
+            Ok(out) => {
+                for packet in &out.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                for (to, mail_id) in &out.notices {
+                    runtime.party.notice_mail(*to, *mail_id);
+                }
+                tracing::info!(
+                    category,
+                    messages = out.packets.len(),
+                    notices = out.notices.len(),
+                    "minimum mail request processed; values omitted"
+                );
+            }
+            Err(_) => tracing::warn!(category, "minimum mail request refused; values omitted"),
+        }
+        Ok(())
+    }
+    /// MailBox.PushMailList: ProcessMailList and MailListMessage to this connection.
+    async fn push_mail_list(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return Ok(());
+        };
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets
+            .current();
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        match super::minimum_mail::mail_list(pool, &owner, assets, cid).await {
+            Ok(out) => {
+                for packet in &out.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                for (to, mail_id) in out.notices {
+                    runtime.party.notice_mail(to, mail_id);
+                }
+            }
+            Err(_) => tracing::warn!("minimum mail push rejected; values omitted"),
+        }
+        Ok(())
+    }
+    /// TimeLine.ScheduleTimeLine: every 30 s the due jobs run (each one PushMailList).
+    async fn mail_jobs(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        self.mail_at = Some(
+            tokio::time::Instant::now()
+                + Duration::from_millis(crate::domain::mail::TIMELINE_INTERVAL_MS),
+        );
+        let Ok(now) = super::minimum_mail::now_ticks() else {
+            return Ok(());
+        };
+        if self.mail_timeline.poll(now) > 0 {
+            self.push_mail_list(runtime, pool, stream, sender).await?;
+        }
+        Ok(())
+    }
+    /// NoticeMailProcessor → MailBox.NoticeMail(mail): ScheduleMail(isJustSent: true); an
+    /// arrived mail's job runs at once.
+    async fn mail_notice(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        mail_id: i64,
+    ) -> Result<(), RuntimeError> {
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return Ok(());
+        };
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets
+            .current();
+        let (Ok(times), Ok(now)) = (
+            super::minimum_mail::schedule_notice(pool, assets, cid, mail_id).await,
+            super::minimum_mail::now_ticks(),
+        ) else {
+            tracing::warn!("mail notice not scheduled; values omitted");
+            return Ok(());
+        };
+        let mut due = false;
+        for at in times {
+            due |= self.mail_timeline.add(at, now);
+        }
+        if due {
+            self.push_mail_list(runtime, pool, stream, sender).await?;
+        }
+        Ok(())
+    }
+    /// Comm.NoticeMail(own CID) of a ForceMail give in this connection's last request: the
+    /// express system mail is due at once.
+    async fn own_mail_notice(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        let Some(cid) = self.selected.as_ref().map(|s| s.cid) else {
+            return Ok(());
+        };
+        if !super::minimum_mail::take_notice(cid) {
+            return Ok(());
+        }
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets
+            .current();
+        if let (Ok(times), Ok(now)) = (
+            super::minimum_mail::schedule_all(pool, assets, cid).await,
+            super::minimum_mail::now_ticks(),
+        ) {
+            for at in times {
+                let _ = self.mail_timeline.add(at, now);
+            }
+        }
+        self.push_mail_list(runtime, pool, stream, sender).await
+    }
     /// PetManager.AddToUpdateSchedule: wake at the next period start (ticks).
     fn schedule_pets(&mut self, next: Option<i64>) {
         self.pet_reset_at = next.and_then(|at| {
@@ -2422,6 +2645,11 @@ impl Connection {
                 }
                 tracing::info!("mission ship sunk after a failed host election; values omitted");
                 packets
+            }
+            super::party_hub::Notice::Mail { mail_id } => {
+                return self
+                    .mail_notice(runtime, pool, stream, sender, mail_id)
+                    .await;
             }
             super::party_hub::Notice::Kicked { .. } => {
                 let mut packets = Vec::new();
@@ -3275,6 +3503,7 @@ impl Connection {
                         // (DailyQuestProcess), TriggerDailyStory (StoryLinePeriodInfo is not
                         // in the profile), QueryStoryProgress and QueryStoryGuide.
                         let mut entered = Vec::new();
+                        let mut mail_list = Vec::new();
                         if assets.npc.is_some() {
                             let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
                             if assets.npc.as_ref().is_some_and(|n| n.quests.is_some()) {
@@ -3302,6 +3531,18 @@ impl Connection {
                                 ),
                             }
                         }
+                        let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
+                        match super::minimum_mail::mail_list(pool, &owner, assets, cid).await {
+                            Ok(out) => {
+                                mail_list = out.packets;
+                                for (to, mail_id) in out.notices {
+                                    runtime.party.notice_mail(to, mail_id);
+                                }
+                            }
+                            Err(_) => tracing::warn!(
+                                "minimum mail list rejected at selection; values omitted"
+                            ),
+                        }
                         // ItemOwner load: PetManager.Load (PetList and the shared food).
                         {
                             let cid = self.selected.as_ref().ok_or(RuntimeError::Operation)?.cid;
@@ -3315,6 +3556,22 @@ impl Connection {
                                 }
                             }
                         }
+                        // ItemOwner activation: TimeLine(Service.Thread, this, 30000) and
+                        // ScheduleAllMail; ItemServiceProxy.Open then sends UpdateMailList.
+                        let mail_times = super::minimum_mail::schedule_all(pool, assets, cid).await;
+                        let mail_now = super::minimum_mail::now_ticks();
+                        self.mail_timeline.clear();
+                        self.mail_at = Some(
+                            tokio::time::Instant::now()
+                                + Duration::from_millis(crate::domain::mail::TIMELINE_INTERVAL_MS),
+                        );
+                        if let (Ok(times), Ok(now)) = (mail_times, mail_now) {
+                            for at in times {
+                                // A past job is the list the proxy sends right after.
+                                let _ = self.mail_timeline.add(at, now);
+                            }
+                        }
+                        entered.extend(mail_list);
                         for packet in &entered {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
@@ -3637,6 +3894,20 @@ impl Connection {
                 .map_err(|_| RuntimeError::Message)?
                 .ok_or(RuntimeError::Message)?;
                 return self.mission(runtime, pool, stream, sender, message).await;
+            }
+        }
+        {
+            use crate::protocol::mail::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?
+                    .ok_or(RuntimeError::Message)?;
+                return self
+                    .mail(runtime, pool, stream, sender, category, body, message)
+                    .await;
             }
         }
         {
@@ -5849,11 +6120,14 @@ pub async fn connection(
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);
   loop {
+   // Comm.NoticeMail of this character from the last request, timer or notice.
+   if state.close_at.is_none(){state.own_mail_notice(&runtime,&pool,&mut stream,&mut sender).await?;}
    let deadline=state.close_at.unwrap_or(state.login_deadline);let waiting=state.close_at.is_some()||state.frontend.phase()!=SessionPhase::PoliciesAccepted;
    let timer=state.mission_timer();
    let effects=state.effect_expiry;
    let daily=state.daily_at;
    let pets=state.pet_reset_at;
+   let mails=state.mail_at;
    let party_notice=async{match state.party_notices.as_mut(){Some(rx)=>rx.recv().await,None=>std::future::pending().await}};
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
@@ -5862,6 +6136,7 @@ pub async fn connection(
     _=tokio::time::sleep_until(effects.unwrap_or(deadline)),if effects.is_some()&&state.close_at.is_none()=>{state.effect_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(daily.unwrap_or(deadline)),if daily.is_some()&&state.close_at.is_none()=>{state.daily_items(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(pets.unwrap_or(deadline)),if pets.is_some()&&state.close_at.is_none()=>{state.pet_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    _=tokio::time::sleep_until(mails.unwrap_or(deadline)),if mails.is_some()&&state.close_at.is_none()=>{state.mail_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     Some(notice)=party_notice=>{state.party_notice(&runtime,&pool,&mut stream,&mut sender,notice).await?;continue;}
     notice=notices.recv()=>{
      // ShutDownProcessor.SendNoticeShutDownMessage: every client, NoticeShutDownMessage{Delay}.

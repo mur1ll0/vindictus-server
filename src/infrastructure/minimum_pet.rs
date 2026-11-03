@@ -1308,6 +1308,7 @@ pub async fn food_unshare(
         attributes: &attributes,
     };
     let mut next = || ids.next().ok_or_else(fail);
+    let mut mailed = None;
     let applied = match super::minimum_give::apply(
         &mut tx,
         owner,
@@ -1319,21 +1320,30 @@ pub async fn food_unshare(
     )
     .await?
     {
-        Ok(a) => a,
+        Ok(a) => a.slots,
+        // MakeSystemItem(new GiveItemRequest(itemClass, value)) and SendGiveItemFailMail,
+        // then the unshare goes on.
         Err(_) => {
-            ledger(
-                &mut tx,
-                0,
-                owner.uid,
-                "FoodUnshare",
-                PetResult::FeedNoEmptySlot,
-                class,
-                "",
-            )
-            .await?;
-            tx.commit().await?;
-            out.packets.push(refused()?);
-            return Ok(out);
+            mailed =
+                super::minimum_mail::mail_system_item(&mut tx, assets, cid, &key, count, &mut next)
+                    .await?;
+            if mailed.is_some() {
+                Vec::new()
+            } else {
+                ledger(
+                    &mut tx,
+                    0,
+                    owner.uid,
+                    "FoodUnshare",
+                    PetResult::FeedNoEmptySlot,
+                    class,
+                    "",
+                )
+                .await?;
+                tx.commit().await?;
+                out.packets.push(refused()?);
+                return Ok(out);
+            }
         }
     };
     set_feed(&mut tx, owner.uid, feed_type, 0).await?;
@@ -1354,14 +1364,13 @@ pub async fn food_unshare(
         category: kind.category(),
         body: inventory_wire::encode(
             kind,
-            Some(&inventory_wire::Message::UpdateInventoryInfo(Some(
-                applied.slots,
-            ))),
+            Some(&inventory_wire::Message::UpdateInventoryInfo(Some(applied))),
             DEFAULT_MAX_BODY,
         )
         .map_err(|_| fail())?
         .to_vec(),
     });
+    out.packets.extend(mailed);
     out.packets.push(feed_packet(&shared, None)?);
     Ok(out)
 }

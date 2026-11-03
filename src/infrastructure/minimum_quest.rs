@@ -388,16 +388,17 @@ pub async fn login(
 }
 
 /// QuestImpl.GiveQuest(questID, reveal: true) inside the caller's transaction: the
-/// outcome and, on Success, the PushQuestProgressMessage after Save. A ServiceCoin
-/// (GiveItem silver_coin, ForceMail) is not migrated and fails.
+/// outcome and, on Success, the PushQuestProgressMessage after Save, then the ServiceCoin
+/// (GiveItem silver_coin, ForceMail) with its inventory update and mail notice.
 pub(super) async fn give(
     tx: &mut Transaction<'_, Postgres>,
+    owner: &UserKey<'_>,
     assets: &Assets,
     cid: i64,
     quest: &str,
     ids: &mut (dyn Iterator<Item = i64> + Send),
     clock: QuestClock,
-) -> Result<(crate::domain::quest::GiveQuest, Option<OutgoingPacket>), MinimumError> {
+) -> Result<(crate::domain::quest::GiveQuest, Vec<OutgoingPacket>), MinimumError> {
     use crate::domain::quest::GiveQuest;
     let npc = assets.npc.as_ref().ok_or_else(fail)?;
     let contents = npc.quests.as_ref().ok_or_else(fail)?;
@@ -408,26 +409,57 @@ pub(super) async fn give(
     quests.level = level;
     let (result, coin) = quests.give_quest(contents, quest, true);
     if result != GiveQuest::Success {
-        return Ok((result, None));
-    }
-    if coin > 0 {
-        return Err(fail());
+        return Ok((result, Vec::new()));
     }
     save(tx, cid, &original, &quests, ids).await?;
+    let mut packets = Vec::new();
     // PushQuestProgressMessage needs CharacterLevel > 0.
-    if level <= 0 {
-        return Ok((result, None));
+    if level > 0 {
+        let ctx = Context {
+            contents,
+            policy: &npc.policy,
+            cafe: false,
+            raid_coupons: raid_coupons(tx, cid).await?,
+        };
+        packets.push(progress_packet(&quests, ctx, clock, now_units()?)?);
     }
-    let ctx = Context {
-        contents,
-        policy: &npc.policy,
-        cafe: false,
-        raid_coupons: raid_coupons(tx, cid).await?,
-    };
-    Ok((
-        result,
-        Some(progress_packet(&quests, ctx, clock, now_units()?)?),
-    ))
+    if coin > 0 {
+        let class: Vec<u8> = "silver_coin"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        let request = [super::minimum_give::Request {
+            class: &class,
+            count: coin,
+            bound: false,
+            equipment: None,
+            attributes: &crate::domain::item_attribute::EMPTY,
+        }];
+        // The GiveItem operation's result is not awaited by GiveQuest.
+        match super::minimum_give::apply_force_mail(
+            tx,
+            owner,
+            assets,
+            cid,
+            &[],
+            &request,
+            true,
+            &mut || ids.next().ok_or_else(fail),
+        )
+        .await?
+        {
+            Ok(given) => {
+                if !given.applied.slots.is_empty() {
+                    packets.push(super::minimum_mission::inventory_packet(
+                        given.applied.slots,
+                    )?);
+                }
+                packets.extend(given.packets);
+            }
+            Err(_) => tracing::warn!("quest service coin not given; values omitted"),
+        }
+    }
+    Ok((result, packets))
 }
 
 /// QueryQuestProgressMessage: PushQuestProgressMessage of the current state.

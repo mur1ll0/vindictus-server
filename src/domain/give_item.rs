@@ -1,8 +1,9 @@
 //! ItemStorage.GiveVirtualItem planning (StorageHelper, ItemClassHelper and the
 //! storages' BindVirtualItem) for the items of one owner. Item attributes enter only as
 //! the IsStackableWith key; requests never carry an ExpireDateTime (EXPIRE is refused).
-//! Only the all-or-nothing overload is modelled: any failure applies nothing, and
-//! leftovers are never converted into system items (the mail fallback is not migrated).
+//! `plan` is the all-or-nothing overload (any failure applies nothing); `plan_leftover` is
+//! ProcessItemRequest(..., out systemItem): the bound part applies and the unbound or
+//! unique-failed VirtualCreateItems are returned for MakeSystemItems (GiveItem ForceMail).
 use super::item_location::ItemLocation;
 use thiserror::Error;
 
@@ -136,7 +137,8 @@ struct Helper<'a> {
     gives: Vec<(i32, bool, u32, usize)>,
     modified: Vec<(Held, i32)>,
     created: Vec<(i32, bool, usize)>,
-    unique_fail: bool,
+    /// ItemClassHelper.Created_UniqueFail.
+    unique_failed: Vec<(i32, bool, usize)>,
 }
 impl<'a> Helper<'a> {
     fn new(info: &'a ClassInfo, all: &[(Vec<u8>, Held)]) -> Self {
@@ -151,7 +153,7 @@ impl<'a> Helper<'a> {
             gives: Vec::new(),
             modified: Vec::new(),
             created: Vec::new(),
-            unique_fail: false,
+            unique_failed: Vec::new(),
         }
     }
     fn modified_mut(&mut self, id: i64) -> Option<&mut i32> {
@@ -282,23 +284,42 @@ impl<'a> Helper<'a> {
                 }
                 let mut n = num.min(self.info.max_stack);
                 if unique_left == 0 {
-                    self.unique_fail = true;
+                    self.unique_failed.push((n, bound, request));
                 } else {
                     n = n.min(unique_left);
                     self.created.push((n, bound, request));
                     unique_left -= n;
                 }
                 num -= n;
-                if self.created.len() > MAX_VIRTUAL {
+                if self.created.len() + self.unique_failed.len() > MAX_VIRTUAL {
                     return Err(GiveError::Unsupported);
                 }
             }
         }
-        if self.unique_fail {
+        if !self.unique_failed.is_empty() {
             return Err(GiveError::UniqueConstraint);
         }
         Ok(())
     }
+}
+
+/// A VirtualCreateItem left unbound (or failing the unique constraint).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Leftover {
+    pub class: Vec<u8>,
+    pub count: i32,
+    pub bound: bool,
+    /// Index of the give request whose property initializes the system item.
+    pub request: usize,
+}
+/// ProcessItemRequest with leftovers: the applicable plan, the leftovers in source order
+/// (unbound first, then Created_UniqueFail) and the merged ItemOperationResult
+/// (None, NoEmptySlot or UniqueConstraint).
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Partial {
+    pub plan: Plan,
+    pub leftover: Vec<Leftover>,
+    pub failure: Option<GiveError>,
 }
 
 /// StorageHelper.Load/Process then BindVirtualItem in StoragePriorityOrder.
@@ -307,6 +328,28 @@ pub fn plan(
     destroys: &[Destroy<'_>],
     gives: &[Give<'_>],
 ) -> Result<Plan, GiveError> {
+    let out = plan_with(inventory, destroys, gives, false)?;
+    match out.failure {
+        Some(e) => Err(e),
+        None => Ok(out.plan),
+    }
+}
+/// GiveVirtualItem's result and leftOver: NotEnoughItem and ExceedBundleCount (and the
+/// unsupported branches) still fail whole; NoEmptySlot/UniqueConstraint keep the bound part.
+pub fn plan_leftover(
+    inventory: &Inventory<'_>,
+    destroys: &[Destroy<'_>],
+    gives: &[Give<'_>],
+) -> Result<Partial, GiveError> {
+    plan_with(inventory, destroys, gives, true)
+}
+
+fn plan_with(
+    inventory: &Inventory<'_>,
+    destroys: &[Destroy<'_>],
+    gives: &[Give<'_>],
+    partial: bool,
+) -> Result<Partial, GiveError> {
     let mut helpers: Vec<Helper<'_>> = Vec::new();
     for d in destroys {
         if d.count < 0 {
@@ -354,11 +397,24 @@ pub fn plan(
             return Err(GiveError::Unsupported);
         }
     }
-    for h in &mut helpers {
-        h.process(inventory.bundle_exceed)?;
+    // StorageHelper.Process returns at the first class failing the unique constraint; the
+    // classes after it bind nothing.
+    let mut unique = false;
+    let mut processed = helpers.len();
+    for (i, h) in helpers.iter_mut().enumerate() {
+        match h.process(inventory.bundle_exceed) {
+            Ok(()) => {}
+            Err(GiveError::UniqueConstraint) if partial => {
+                unique = true;
+                processed = i + 1;
+                break;
+            }
+            Err(e) => return Err(e),
+        }
     }
+    let helpers = &helpers[..processed];
     let mut out = Plan::default();
-    for h in &helpers {
+    for h in helpers {
         for (item, num) in &h.modified {
             if *num < 0 {
                 return Err(GiveError::Unsupported);
@@ -425,10 +481,43 @@ pub fn plan(
             break;
         }
     }
-    if !pending.is_empty() {
-        return Err(GiveError::NoEmptySlot);
+    let mut leftover: Vec<Leftover> = pending
+        .iter()
+        .map(|&(info, count, bound, request)| Leftover {
+            class: info.class.clone(),
+            count,
+            bound,
+            request,
+        })
+        .collect();
+    let mut failure = (!leftover.is_empty()).then_some(GiveError::NoEmptySlot);
+    if unique {
+        // ItemOperationResult.Merge: UniqueConstraint wins over NoEmptySlot.
+        failure = Some(GiveError::UniqueConstraint);
+        for h in helpers {
+            leftover.extend(
+                h.unique_failed
+                    .iter()
+                    .map(|&(count, bound, request)| Leftover {
+                        class: h.info.class.clone(),
+                        count,
+                        bound,
+                        request,
+                    }),
+            );
+        }
     }
-    Ok(out)
+    if failure.is_some() && !partial {
+        return Ok(Partial {
+            failure,
+            ..Partial::default()
+        });
+    }
+    Ok(Partial {
+        plan: out,
+        leftover,
+        failure,
+    })
 }
 
 fn unreachable_storage() -> Result<ItemLocation, GiveError> {

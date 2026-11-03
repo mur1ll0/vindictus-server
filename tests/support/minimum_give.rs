@@ -138,7 +138,7 @@ fn assets_from(
     let pets = scroll_class
         .starts_with("pet_create_")
         .then(|| pet_contents(scroll_class));
-    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":hot_spring,"pets":pets});
+    let economy = json!({"format_version":4,"source":"heroesContents.item-economy","alchemist_boxes":[],"manifest":{"database_sha256":"a".repeat(64),"config_sha256":"b".repeat(64),"class_rows":rows.len()},"classes":rows,"hot_spring":hot_spring,"pets":pets,"mail_types":mail_types()});
     Assets::from_parts(Parts {
         initializer: super::fiona_inventory_delivery::profile(false),
         catalog: item_catalog::read_package(serde_json::to_vec(&catalog).unwrap().as_slice())
@@ -159,6 +159,63 @@ fn assets_from(
         item_economy::Profile::read(serde_json::to_vec(&economy).unwrap().as_slice()).unwrap(),
     )
     .unwrap()
+}
+/// The MailTypeInfo rows of the content database the mail paths read.
+fn mail_types() -> Value {
+    let row = |t: i32,
+               sender: Option<&str>,
+               system: bool,
+               item: bool,
+               charged: bool,
+               returnable: bool,
+               expire: i32,
+               arrive: i32,
+               fees: [i32; 4]| {
+        json!({"mail_type":t,"description":null,"sender":sender,"system":system,"item_attached":item,"charged":charged,"replyable":!system,"returnable":returnable,"expire_in":expire,"arrive_in":arrive,"fee":fees[0],"fee_for_item":fees[1],"fee_express":fees[2],"fee_for_item_express":fees[3]})
+    };
+    json!([
+        row(
+            1,
+            None,
+            false,
+            false,
+            false,
+            false,
+            10080,
+            60,
+            [100, 0, 200, 0]
+        ),
+        row(
+            2,
+            None,
+            false,
+            true,
+            false,
+            true,
+            10080,
+            60,
+            [100, 2, 200, 5]
+        ),
+        row(3, None, false, true, true, true, 180, 60, [100, 2, 200, 5]),
+        row(4, None, true, true, false, false, 7200, 0, [0; 4]),
+        row(5, None, true, true, false, false, 7200, 0, [0; 4]),
+        row(
+            9,
+            Some("SYSTEM"),
+            true,
+            true,
+            false,
+            false,
+            10080,
+            0,
+            [0; 4]
+        ),
+        row(11, Some("GM"), true, true, false, false, -1, 0, [0; 4]),
+    ])
+}
+/// The give fixture with its gold, stamp and scroll classes, for the mail tests.
+pub(super) fn mail_assets() -> Assets {
+    assets_from(0, 0, 0, None, "enchant_scroll", 0, true)
 }
 async fn items(p: &sqlx::PgPool) -> Vec<(i64, Vec<u8>, i32, i16, i32, Option<i32>)> {
     sqlx::query_as("SELECT id,item_class_utf16,count,collection,slot,checksum FROM game_items WHERE owner_id=1 ORDER BY id")

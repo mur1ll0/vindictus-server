@@ -123,6 +123,10 @@ pub enum Command {
         /// Entity Service.ID for new item IDs; must differ from the running frontend's.
         #[arg(long, default_value_t = 65534)]
         service_id: i32,
+        /// GiveItem with FailMethodEnum.ForceMail: what does not fit goes to the mailbox
+        /// (DungeonItemMail), as the original rewards do.
+        #[arg(long)]
+        force_mail: bool,
     },
     /// Laboratory cash credit for the account of an initialized first Fiona (the NISMS
     /// charge the cash shop reads). Not a game command.
