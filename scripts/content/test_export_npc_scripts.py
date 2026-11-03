@@ -46,6 +46,8 @@ class NpcScriptExportTests(unittest.TestCase):
                              "INSERT INTO CouponShopVersionInfo VALUES(40,'2015.07.15 ~ 2015.09.09','ticket_allusergoal_2015','coupon_flag');"
                              "CREATE TABLE CouponShopItemInfo(ShopVersion smallint,[Order] smallint,RewardItemClass varchar,Color1 INT,Color2 INT,Color3 INT,RewardItemCount INT,PriceItemCount INT,IsRare bit,IsCharacterBind bit,ResetTime datetime,PeriodDay INT,RestrictCount INT,RestrictType tinyint,Feature nvarchar);"
                              "INSERT INTO CouponShopItemInfo VALUES(40,1,'pattern_regina_platinum',-1,-1,-1,1,40,1,0,'2014-01-01 00:00:00.000',7,1,1,NULL);"
+                             "CREATE TABLE AllUserGoalInfo(ID INT,SlotID INT,Feature TEXT,ServerCode TEXT,GoalType INT,Goal TEXT,GoalCount INT,RewardItemClass TEXT,RewardNum INT,StartTime datetime,EndTime datetime,GoalName TEXT,GoalDesc TEXT,GoalInfo TEXT);"
+                             "INSERT INTO AllUserGoalInfo VALUES(589,1,'goal_flag',NULL,1,'kill npc_gremlin2 rant',150,'event_box',1,'2014-01-15 07:00:00','2014-01-16 07:00:00','GOAL_571',NULL,NULL),(590,1,'goal_flag','3',1,'kill x',1,'x',1,'2014-01-15 07:00:00','2014-01-16 07:00:00','GOAL_572',NULL,NULL);"
                              "CREATE TABLE QuestDifficultyInfo(QuestID TEXT,Difficulty INT,MinLevel INT,Feature TEXT,GameMode INT,EvilCoreCount INT,GoalExpRatio INT,GoalGoldRatio INT,MaxLevel INT);INSERT INTO QuestDifficultyInfo VALUES('quest_a',1,1,NULL,1,2,100,50,9);"
                              "CREATE TABLE CharacterClassInfo(Identifier INT,Level INT,BaseSTR INT,BaseDEX INT,BaseINT INT,BaseWILL INT,BaseHP INT,BaseSTAMINA INT,Feature TEXT);INSERT INTO CharacterClassInfo VALUES(1,1,27,44,14,23,1020,130,NULL),(0,1,1,1,1,1,1,1,NULL);"
                              "CREATE TABLE TitleInfo(ID INT,AutoGiveLevel INT,ClassRestriction INT,HideUntil INT,Feature TEXT,RequiredLevel INT,AllowShare bit);INSERT INTO TitleInfo VALUES(410017,1,2047,0,NULL,3,'False');"
@@ -93,13 +95,16 @@ class NpcScriptExportTests(unittest.TestCase):
         self.assertEqual(m['event_drops'], [['event_drop_flag', None, 'event_gem', None, 100, 1394118000, 1440]])
         self.assertIn('event_drop_flag', {f['key'] for f in p['features']})
         # PeriodicEventInfo and StoryLinePeriodInfo (DateFrom as Unix seconds); BoostEvent joins the subset.
-        self.assertEqual(p['events'], {'periodic': [['ITEM', 'event_gem', 2, 100, 'GameUI_Heroes_GetitemEvent_Telepathy', 'boost_flag']],
+        self.assertEqual({k: v for k, v in p['events'].items() if k != 'goals'}, {'periodic': [['ITEM', 'event_gem', 2, 100, 'GameUI_Heroes_GetitemEvent_Telepathy', 'boost_flag']],
                                        'story_periods': [['Arbeit_get_fish', 1263859200, 24, 'A', 'period_flag']]})
         self.assertTrue({'boost_flag', 'period_flag', 'BoostEvent', 'BoostEventPeriod'} <= {f['key'] for f in p['features']})
         # Coupon shops in provider order; ResetTime as .NET ticks.
         self.assertEqual(p['coupons'], {'versions': [[40, '2015.07.15 ~ 2015.09.09', 'ticket_allusergoal_2015', 'coupon_flag']],
                                         'items': [[40, 1, 'pattern_regina_platinum', 1, 40, True, False, 635241312000000000, 7, 1, None]]})
         self.assertIn('coupon_flag', {f['key'] for f in p['features']})
+        # AllUserGoalInfo of this server code only, times as Unix seconds.
+        self.assertEqual(p['events']['goals'], [[589, 1, 'goal_flag', 1, 'kill npc_gremlin2 rant', 150, 'event_box', 1, 1389769200, 1389855600, 'GOAL_571']])
+        self.assertIn('goal_flag', {f['key'] for f in p['features']})
         self.assertEqual(m['story_drops'], [[350, 'S1NB_promise_sword', 'H', None, 'evilcore', '^npc_gnoll veteran100$', 'broken_promise_sword', 1, 100, 1, 'story_flag']])
         self.assertEqual(m['effects'], [['phoenix_feather', 'PlayerRevived', 'TargetDead', 1, ['ReviveByClient 50', None, None, 'GetStatusByClient 1 x', None]]])
         self.assertEqual((m['sectors'][0][5:], m['prop_expectations'], m['material_groups']), ([400, 10], [['ruin', 'WOOD', 9]], [[1, 'WOOD']]))

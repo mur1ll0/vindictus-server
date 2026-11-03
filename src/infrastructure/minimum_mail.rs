@@ -1916,9 +1916,38 @@ pub(super) async fn send_give_fail_mail(
     cid: i64,
     item_id: i64,
 ) -> Result<i64, MinimumError> {
-    let info = mail_type_info(assets, mail_type::DUNGEON_ITEM)
-        .cloned()
-        .ok_or_else(fail)?;
+    send_system_item_mail(
+        tx,
+        assets,
+        cid,
+        item_id,
+        mail_type::DUNGEON_ITEM,
+        None,
+        None,
+    )
+    .await
+}
+
+/// ItemOwner.SendItemToMail(mailType, item, 0, title, content, expire): MakeSystemMail of a
+/// system item to its owner in the caller's transaction (None titles are the GiveFailMail
+/// ones). `force_expire` (DateTime ticks) replaces the type's expiry.
+pub(super) async fn send_system_item_mail(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    item_id: i64,
+    kind: u8,
+    titles: Option<(&str, &str)>,
+    force_expire: Option<i64>,
+) -> Result<i64, MinimumError> {
+    let task = match kind {
+        mail_type::DUNGEON_ITEM => "DungeonItemMail",
+        mail_type::AUCTION_ITEM => "AuctionItemMail",
+        11 => "GMMail",
+        12 => "GuildLevelUpItemMail",
+        _ => return Err(fail()),
+    };
+    let info = mail_type_info(assets, kind).cloned().ok_or_else(fail)?;
     let sender = info.sender_name().ok_or_else(fail)?;
     let row: OwnedItem = sqlx::query_as(
         "SELECT id,item_class_utf16,count,collection,slot,expire_ticks,tradable,checksum FROM game_items WHERE id=$1 AND owner_id IS NULL",
@@ -1948,10 +1977,16 @@ pub(super) async fn send_give_fail_mail(
         from_name: &sender,
         to_cid: cid,
         to_name: &name,
-        title: &mail::give_fail_title(&class, row.count),
-        content: &mail::give_fail_content(&class, row.count),
-        mail_type: mail_type::DUNGEON_ITEM,
-        times: Times::make(now, &info, true, None),
+        title: &titles.map_or_else(
+            || mail::give_fail_title(&class, row.count),
+            |t| t.0.to_owned(),
+        ),
+        content: &titles.map_or_else(
+            || mail::give_fail_content(&class, row.count),
+            |t| t.1.to_owned(),
+        ),
+        mail_type: kind,
+        times: Times::make(now, &info, true, force_expire),
         charged_gold: 0,
         items: std::slice::from_ref(&transferred),
     };
@@ -1961,7 +1996,7 @@ pub(super) async fn send_give_fail_mail(
         id,
         -1,
         cid,
-        "DungeonItemMail",
+        task,
         0,
         &[(
             format!(
@@ -2029,6 +2064,50 @@ pub(super) async fn mail_system_item(
         "GameUI_Heroes_GiveFailMail_Success_Console",
         &[text(class), count.to_string()],
     )?))
+}
+
+/// QueuedItemController with a mail title: MakeSystemItems(GiveItemRequest(class, count,
+/// attributes, bound)) then SendItemToMail(kind, item, title, content, expire), for a single
+/// non-equipment stack; None (nothing written) for another request.
+#[allow(clippy::too_many_arguments)]
+pub(super) async fn mail_new_system_item(
+    tx: &mut Transaction<'_, Postgres>,
+    assets: &Assets,
+    cid: i64,
+    request: (&[u8], i32, &Attributes, bool),
+    kind: u8,
+    titles: (&str, &str),
+    force_expire: Option<i64>,
+    ids: &mut (dyn FnMut() -> Result<i64, MinimumError> + Send),
+) -> Result<Option<i64>, MinimumError> {
+    let (class, count, attributes, bound) = request;
+    let Some(info) = minimum_give::class_info(assets, class)? else {
+        return Ok(None);
+    };
+    if count <= 0 || count > info.max_stack || info.equippable {
+        return Ok(None);
+    }
+    let id = ids()?;
+    let expire =
+        crate::domain::item_time::initialize_expiry(None, false, info.expire_in, &mut || {
+            super::lab_clock::utc_now().map_err(|_| crate::domain::item_time::ItemTimeError::Clock)
+        })
+        .map_err(|_| fail())?
+        .expiry
+        .map(|t| {
+            t.sql_parameter()
+                .and_then(SqlDateTime::framework_date_time)
+                .map(|t| t.ticks())
+        })
+        .transpose()
+        .map_err(|_| fail())?;
+    insert_system_item(
+        tx, assets, id, class, count, !bound, expire, attributes, None,
+    )
+    .await?;
+    let mail = send_system_item_mail(tx, assets, cid, id, kind, Some(titles), force_expire).await?;
+    notice(cid);
+    Ok(Some(mail))
 }
 
 /// MailBox.ScheduleAllMail (ItemOwner activation): the times of the QueryMailList rows.

@@ -37,6 +37,10 @@ pub struct Overlay {
     /// extension): "1" or "" for the server's policies and the client's SyncFeatureMatrix.
     #[serde(default)]
     pub events: BTreeMap<String, bool>,
+    /// When each switch turned on now was published (Unix seconds): the anchor the
+    /// collective goals' windows move to (laboratory extension).
+    #[serde(default)]
+    pub event_since: BTreeMap<String, i64>,
 }
 
 /// The FeatureMatrix rates the panel tunes (percent; 100 = the original value).
@@ -139,6 +143,10 @@ impl Overlay {
             && default_ok
             && tuning_ok
             && self.events.len() <= 1000
+            && self
+                .event_since
+                .keys()
+                .all(|k| self.events.get(k) == Some(&true))
             && self
                 .events
                 .keys()

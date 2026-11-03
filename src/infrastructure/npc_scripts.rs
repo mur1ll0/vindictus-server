@@ -175,6 +175,8 @@ pub struct Profile {
     pub events: crate::domain::periodic_event::Events,
     /// The coupon shops of ItemContents.
     pub coupons: crate::domain::coupon_shop::CouponShops,
+    /// AllUserGoal (PlayerContents/MicroPlayContents AllUserGoalTracker).
+    pub goals: crate::domain::all_user_goal::Goals,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -314,14 +316,17 @@ impl Profile {
             .map(|t| crate::domain::mission::MissionContents::load(t, &policy))
             .transpose()
             .map_err(|_| fail())?;
-        let events =
-            crate::domain::periodic_event::Events::load(export.events).map_err(|_| fail())?;
+        let mut tables = export.events;
+        let goals = crate::domain::all_user_goal::Goals::load(std::mem::take(&mut tables.goals))
+            .map_err(|_| fail())?;
+        let events = crate::domain::periodic_event::Events::load(tables).map_err(|_| fail())?;
         let coupons =
             crate::domain::coupon_shop::CouponShops::load(export.coupons).ok_or_else(fail)?;
         Ok(Self {
             mission,
             events,
             coupons,
+            goals,
             progression,
             quests,
             repair,

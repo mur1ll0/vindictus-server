@@ -197,3 +197,5 @@ pub mod mail;
 pub mod marketplace;
 
 pub mod coupon_shop;
+
+pub mod all_user_goal;

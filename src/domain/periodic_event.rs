@@ -25,6 +25,9 @@ pub struct EventTables {
     pub periodic: Vec<PeriodicRow>,
     #[serde(default)]
     pub story_periods: Vec<StoryPeriodRow>,
+    /// AllUserGoalInfo of this server code (see `all_user_goal::GoalRow`).
+    #[serde(default)]
+    pub goals: Vec<super::all_user_goal::GoalRow>,
 }
 
 /// PeriodicEventRewardType.

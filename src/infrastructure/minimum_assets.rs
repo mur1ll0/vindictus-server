@@ -446,6 +446,11 @@ impl Assets {
                     .refresh_event_features(&profile.policy)
                     .map_err(|_| MinimumError::Conflict)?;
             }
+            // AllUserGoal.Initialize with the switches; turned-on goals start when published.
+            profile
+                .goals
+                .refresh(&profile.policy, &overlay.event_since)
+                .map_err(|_| MinimumError::Conflict)?;
             if let Some(progression) = profile.progression.as_mut() {
                 for (class, rows) in std::mem::take(&mut class_stats) {
                     progression.set_class_stats(class, rows);

@@ -177,6 +177,10 @@ function Body({ detail }: { detail: Detail }) {
       )}
       {detail.goals.length > 0 && (
         <Section title="Metas coletivas" works={works(SECTION_TABLE.goals)}>
+          <p className="text-xs text-muted">
+            Datas do conteúdo original; ao ligar a chave da meta (com AllUserGoalEvent), as janelas passam a começar na hora da
+            publicação.
+          </p>
           {detail.goals.map((g, i) => (
             <div key={i} className="rounded border border-border px-2 py-1 text-xs">
               <p className="truncate font-mono" title={g.goal ?? ''}>

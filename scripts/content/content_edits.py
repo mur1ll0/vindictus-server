@@ -60,8 +60,11 @@ def load(path=EDITS):
     overlay.setdefault('events', {})
     for k, v in overlay['events'].items():
         _text(k, 'event', 256)
-        if type(v) is not bool or not k.lower().startswith('event'):
+        if type(v) is not bool or not (k.lower().startswith('event') or k in ('BoostEvent', 'AllUserGoalEvent')):
             raise ValueError('Content edit event')
+    for k, v in overlay.setdefault('event_since', {}).items():
+        if overlay['events'].get(k) is not True or type(v) is not int:
+            raise ValueError('Content edit event time')
     return overlay
 
 

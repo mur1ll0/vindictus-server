@@ -9046,3 +9046,147 @@ async fn coupon_shop_trades_coupons_with_buy_restrictions() {
     assert_eq!(count, 1);
     cleanup_game_pool(a, p, s).await;
 }
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL"]
+async fn all_user_goals_count_announce_and_queue_their_reward() {
+    use vindictus_server::{
+        domain::character_stats::Arithmetic,
+        infrastructure::{
+            character_lobby::QueryConfig, minimum_all_user_goal as goals, minimum_queued_item,
+            minimum_selection,
+        },
+        protocol::all_user_goal::{self as gwire, Kind as GKind, Message as GMessage},
+    };
+    let (a, p, s) = isolated_game_pool().await;
+    minimum_character::setup(&p).await;
+    minimum_character::initialize(&p).await.unwrap();
+    sqlx::query("UPDATE game_queue_identity SET initialized=TRUE")
+        .execute(&p)
+        .await
+        .unwrap();
+    let mut export = npc_export_p3(None);
+    export["features"].as_array_mut().unwrap().extend([
+        json!({"key":"AllUserGoalEvent","value":"1"}),
+        json!({"key":"Event_goal_test","value":"1"}),
+    ]);
+    // A two-kill goal of 2014 in slot 1, then the next one; the panel turned it on now.
+    export["events"] = json!({"goals":[
+        [589,1,"Event_goal_test",2,"kill npc_gnoll (watchman|chief)",2,"synthetic_cash",3,1389769200,1389855600,"GOAL_571"],
+        [590,1,"Event_goal_test",2,"kill npc_gnoll chief",5,"synthetic_cash",1,1389855600,1389942000,"GOAL_572"]]});
+    let mut profile = npc_profile_from(export);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let since = [("Event_goal_test".to_owned(), now - 60)]
+        .into_iter()
+        .collect();
+    profile.goals.refresh(&profile.policy, &since).unwrap();
+    let assets = skill_assets(&p, 0).await.with_npc_scripts(profile).unwrap();
+    let owner = super::initial_inventory::key();
+    minimum_selection::select(
+        &p,
+        &owner,
+        &assets,
+        0,
+        QueryConfig {
+            max_free: 5,
+            care_clock: None,
+        },
+        Arithmetic::FrameworkX64,
+    )
+    .await
+    .unwrap();
+    sqlx::query("UPDATE game_character_info SET is_connected=TRUE WHERE id=1")
+        .execute(&p)
+        .await
+        .unwrap();
+    let decode = |packet: &vindictus_server::domain::map_partition::OutgoingPacket, kind: GKind| {
+        assert_eq!(packet.category, kind.category());
+        gwire::decode(kind, &packet.body, DEFAULT_MAX_BODY)
+            .unwrap()
+            .unwrap()
+    };
+    // Selection: the current goal at 0 and nothing for the next of the same slot.
+    let login = goals::login_message(&p, &assets).await.unwrap().unwrap();
+    assert_eq!(
+        decode(&login, GKind::Event),
+        GMessage::Event(inventory::Dict(Some(vec![(589, 0)])))
+    );
+    // An event of another goal does nothing; the first kill counts 1.
+    assert!(
+        goals::inform(&p, &assets, 1, "kill npc_spider x", &[1])
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let one = goals::inform(&p, &assets, 1, "kill npc_gnoll watchman", &[1])
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        decode(&one.broadcast[0], GKind::EventModify),
+        GMessage::EventModify {
+            goal_id: 589,
+            count: 1
+        }
+    );
+    assert!(one.reward.is_none());
+    // The second reaches the goal: the announce, the reward for every connected character.
+    let two = goals::inform(&p, &assets, 1, "kill npc_gnoll chief", &[1])
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(two.broadcast.len(), 2);
+    assert_eq!(two.reward, Some(589));
+    // The goal ended: no more counting this run.
+    assert!(
+        goals::inform(&p, &assets, 1, "kill npc_gnoll chief", &[1])
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let queued: Vec<(i32, bool)> = sqlx::query_as(
+        "SELECT count,processed FROM game_queued_items WHERE cid=1 AND event_code_utf16 IS NOT NULL",
+    )
+    .fetch_all(&p)
+    .await
+    .unwrap();
+    assert_eq!(queued, [(3, false)]);
+    let attend: i64 = sqlx::query_scalar("SELECT count(*) FROM game_event_attend")
+        .fetch_one(&p)
+        .await
+        .unwrap();
+    assert_eq!(attend, 0, "the reward clears the attendance");
+    // AllUserGoalReward: the queued reward reaches the inventory.
+    let cash = || async {
+        sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT sum(count) FROM game_items WHERE owner_id=1 AND item_class_utf16=$1",
+        )
+        .bind(utf16("synthetic_cash"))
+        .fetch_one(&p)
+        .await
+        .unwrap()
+        .unwrap_or(0)
+    };
+    let before = cash().await;
+    let ids: Vec<i64> = (940_000_000_000_000_001..940_000_000_000_000_020).collect();
+    let mut ids = ids.into_iter();
+    let done = minimum_queued_item::process(&p, &owner, &assets, 1, &mut || {
+        ids.next()
+            .ok_or(vindictus_server::infrastructure::minimum_character::MinimumError::Conflict)
+    })
+    .await
+    .unwrap();
+    assert_eq!(done.event_rows, 1);
+    assert_eq!(cash().await, before + 3);
+    let processed: bool = sqlx::query_scalar(
+        "SELECT processed FROM game_queued_items WHERE cid=1 AND event_code_utf16 IS NOT NULL",
+    )
+    .fetch_one(&p)
+    .await
+    .unwrap();
+    assert!(processed);
+    cleanup_game_pool(a, p, s).await;
+}

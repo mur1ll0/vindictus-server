@@ -111,6 +111,7 @@ pub mod fiona_item_bootstrap;
 pub mod mail_reference;
 
 pub mod channel_server;
+pub mod minimum_all_user_goal;
 pub mod minimum_assets;
 pub mod minimum_beauty_shop;
 pub mod minimum_cash_shop;
@@ -153,6 +154,7 @@ pub mod minimum_party;
 pub mod minimum_periodic_event;
 pub mod minimum_pet;
 pub mod minimum_quest;
+pub mod minimum_queued_item;
 pub mod minimum_quickslot;
 pub mod minimum_repair;
 pub mod minimum_restore;

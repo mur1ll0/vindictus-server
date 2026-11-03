@@ -56,6 +56,8 @@ pub enum Notice {
         town_only: bool,
         level: i32,
     },
+    /// AllUserGoalReward: process the queued items of the goal's reward.
+    AllUserGoalReward { goal_id: i32 },
 }
 
 /// MicroPlayEntityInfo of players disconnected from a play in progress
@@ -1126,6 +1128,13 @@ impl PartyHub {
                     level,
                 },
             );
+        }
+    }
+    /// AllUserGoalReward: every entered character processes its queued items.
+    pub fn all_user_goal_reward(&self, goal_id: i32) {
+        let s = self.lock();
+        for cid in s.seats.keys() {
+            s.push(*cid, Notice::AllUserGoalReward { goal_id });
         }
     }
     /// SendPacket to one entered character (MemberInfo to the host, ...).

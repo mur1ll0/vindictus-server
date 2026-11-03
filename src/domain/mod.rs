@@ -6,6 +6,7 @@ pub use account::{
 };
 
 pub mod admin;
+pub mod all_user_goal;
 
 pub mod legacy_user;
 

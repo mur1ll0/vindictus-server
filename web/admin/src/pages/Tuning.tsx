@@ -188,8 +188,9 @@ function EventsPanel({
           <CalendarHeart className="mt-0.5 size-4 shrink-0 text-accent" />
           <span>
             Chaves de evento do FeatureMatrix da nossa região (as de outras regiões ficam de fora), mais as chaves gerais BoostEvent
-            (recompensas periódicas) e AllUserGoalEvent (metas coletivas). Ligar vale na hora para lojas, lojas de cupom, drops de
-            chefe, recompensas periódicas, histórias, quests e itens do servidor, e o cliente recebe a chave no próximo login. As
+            (recompensas periódicas) e AllUserGoalEvent (metas coletivas, cujas datas passam a começar quando a chave da meta é
+            ligada). Ligar vale na hora para lojas, lojas de cupom, drops de chefe, recompensas periódicas, metas coletivas,
+            histórias, quests e itens do servidor, e o cliente recebe a chave no próximo login. As
             tabelas riscadas ainda não fazem efeito. Passe o mouse (ou toque) no <Info className="inline size-3.5" /> para ver o que
             cada evento traz. É um recurso do laboratório.
           </span>

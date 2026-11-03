@@ -555,6 +555,10 @@ struct Connection {
     boost_at: Option<tokio::time::Instant>,
     /// StoryEntity.AddToUpdateSchedule: the next StoryLinePeriodInfo boundary.
     story_at: Option<tokio::time::Instant>,
+    /// AllUserGoalEventScheduler: the next AllUserGoalEventModify push and the last time
+    /// (Unix seconds) pushes were sent up to.
+    goal_at: Option<tokio::time::Instant>,
+    goal_sent: i64,
     /// ItemOwner.TradeSearchOverheadChecker of the selected character.
     trade_search: crate::domain::marketplace::SearchOverhead,
     /// ItemOwner.TradeProxy: created (GetMyThings) by the first ProcessDailyItem.
@@ -585,6 +589,8 @@ impl Connection {
             mail_at: None,
             boost_at: None,
             story_at: None,
+            goal_at: None,
+            goal_sent: 0,
             trade_search: Default::default(),
             trade_proxy: false,
             party_notices: None,
@@ -618,6 +624,8 @@ impl Connection {
         // PeriodicEventScheduler.OnLogOut.
         self.boost_at = None;
         self.story_at = None;
+        self.goal_at = None;
+        self.goal_sent = 0;
         self.mail_timeline.clear();
         self.trade_search = Default::default();
         self.trade_proxy = false;
@@ -2884,6 +2892,11 @@ impl Connection {
                     .mail_notice(runtime, pool, stream, sender, mail_id)
                     .await;
             }
+            super::party_hub::Notice::AllUserGoalReward { goal_id } => {
+                return self
+                    .all_user_goal_reward(runtime, pool, stream, sender, goal_id)
+                    .await;
+            }
             super::party_hub::Notice::Announce {
                 packet,
                 town_only,
@@ -3270,6 +3283,26 @@ impl Connection {
                     }
                 }
             }
+            // MicroPlayInformer: AllUserGoalEvent for the events of this player.
+            let mut party = runtime.party.others(state.party_id, cid);
+            party.push(cid);
+            for (actor, event) in &events {
+                if *actor != cid {
+                    continue;
+                }
+                match super::minimum_all_user_goal::inform(pool, assets, cid, event, &party).await {
+                    Ok(Some(informed)) => {
+                        for p in informed.broadcast {
+                            runtime.party.announce_all(p, false, 0);
+                        }
+                        if let Some(goal_id) = informed.reward {
+                            runtime.party.all_user_goal_reward(goal_id);
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(_) => tracing::warn!("all user goal count rejected; values omitted"),
+                }
+            }
         }
         Ok(packets)
     }
@@ -3444,6 +3477,21 @@ impl Connection {
             .await
             .map_err(|_| RuntimeError::Operation)?;
         let mut ids = ids.into_iter();
+        // ProcessDailyItemProcessor: QueuedItemController.ProcessQueuedItem before the
+        // daily procedures.
+        match super::minimum_queued_item::process(pool, &owner, assets, cid, &mut || {
+            ids.next()
+                .ok_or(super::minimum_character::MinimumError::Conflict)
+        })
+        .await
+        {
+            Ok(done) => {
+                for packet in &done.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+            }
+            Err(_) => tracing::warn!("queued items rejected; values omitted"),
+        }
         match super::minimum_daily_item::process(pool, &owner, assets, cid, &mut || {
             ids.next()
                 .ok_or(super::minimum_character::MinimumError::Conflict)
@@ -3523,6 +3571,113 @@ impl Connection {
                 }
             }
             Err(_) => tracing::warn!("periodic event reward rejected; values omitted"),
+        }
+        Ok(())
+    }
+    /// AllUserGoalEventScheduler for this client: the next push after the ones sent.
+    fn schedule_goals(
+        goal_at: &mut Option<tokio::time::Instant>,
+        goal_sent: &mut i64,
+        assets: &super::minimum_assets::Assets,
+    ) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+        if *goal_sent == 0 {
+            *goal_sent = now;
+        }
+        *goal_at = super::minimum_all_user_goal::schedule(assets, now)
+            .into_iter()
+            .map(|(t, _, _)| t)
+            .find(|t| *t > *goal_sent)
+            .map(|t| {
+                tokio::time::Instant::now()
+                    + Duration::from_secs(u64::try_from(t - now).unwrap_or(0))
+            });
+    }
+    /// The AllUserGoalEventModify pushes due now, then the next schedule.
+    async fn goal_pushes(
+        &mut self,
+        runtime: &Runtime,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        self.goal_at = None;
+        let Some(minimum) = runtime.minimum.as_ref() else {
+            return Ok(());
+        };
+        let assets = &minimum.assets.current();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+        // The pushes computed before the boundary, due between the last send and now.
+        let since = self.goal_sent;
+        for (_, goal_id, count) in super::minimum_all_user_goal::schedule(assets, since)
+            .into_iter()
+            .filter(|(t, _, _)| *t > since && *t <= now)
+        {
+            let message = crate::protocol::all_user_goal::Message::EventModify { goal_id, count };
+            if let Ok(p) = super::minimum_all_user_goal::packet(&message) {
+                send(stream, sender, p.category, &p.body).await?;
+            }
+        }
+        self.goal_sent = now;
+        Self::schedule_goals(&mut self.goal_at, &mut self.goal_sent, assets);
+        Ok(())
+    }
+    /// AllUserGoalRewardProcessor.RefreshQueuedItemAction: the queued items, then
+    /// AllUserGoalRewardMessage when event rows were met.
+    async fn all_user_goal_reward(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        goal_id: i32,
+    ) -> Result<(), RuntimeError> {
+        let (Some(cid), Some(password), Some(minimum)) = (
+            self.selected.as_ref().map(|s| s.cid),
+            self.password.as_ref(),
+            runtime.minimum.as_ref(),
+        ) else {
+            return Ok(());
+        };
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: password.revision(),
+        };
+        let assets = &minimum.assets.current();
+        let ids = minimum
+            .creation
+            .entity_ids(64)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        let mut ids = ids.into_iter();
+        match super::minimum_queued_item::process(pool, &owner, assets, cid, &mut || {
+            ids.next()
+                .ok_or(super::minimum_character::MinimumError::Conflict)
+        })
+        .await
+        {
+            Ok(done) => {
+                for packet in &done.packets {
+                    send(stream, sender, packet.category, &packet.body).await?;
+                }
+                if done.event_rows > 0
+                    && let Ok(p) = super::minimum_all_user_goal::packet(
+                        &crate::protocol::all_user_goal::Message::Reward(goal_id),
+                    )
+                {
+                    send(stream, sender, p.category, &p.body).await?;
+                }
+                tracing::info!("all user goal reward processed; values omitted");
+            }
+            Err(_) => tracing::warn!("all user goal reward rejected; values omitted"),
         }
         Ok(())
     }
@@ -3884,6 +4039,15 @@ impl Connection {
                                     "minimum daily story process rejected; values omitted"
                                 ),
                             }
+                            // SelectCharacterProcessor: RefreshAllUserGoalEvent.
+                            match super::minimum_all_user_goal::login_message(pool, assets).await {
+                                Ok(Some(p)) => entered.push(p),
+                                Ok(None) => {}
+                                Err(_) => {
+                                    tracing::warn!("all user goal refresh rejected; values omitted")
+                                }
+                            }
+                            Self::schedule_goals(&mut self.goal_at, &mut self.goal_sent, assets);
                             match super::minimum_story::in_game_sync(pool, &owner, assets, cid)
                                 .await
                             {
@@ -6522,6 +6686,7 @@ pub async fn connection(
    let mails=state.mail_at;
    let boost=state.boost_at;
    let story=state.story_at;
+   let goal=state.goal_at;
    let party_notice=async{match state.party_notices.as_mut(){Some(rx)=>rx.recv().await,None=>std::future::pending().await}};
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
@@ -6533,6 +6698,7 @@ pub async fn connection(
     _=tokio::time::sleep_until(mails.unwrap_or(deadline)),if mails.is_some()&&state.close_at.is_none()=>{state.mail_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(boost.unwrap_or(deadline)),if boost.is_some()&&state.close_at.is_none()=>{state.boost_event(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(story.unwrap_or(deadline)),if story.is_some()&&state.close_at.is_none()=>{state.story_periods(&runtime,&pool).await;continue;}
+    _=tokio::time::sleep_until(goal.unwrap_or(deadline)),if goal.is_some()&&state.close_at.is_none()=>{state.goal_pushes(&runtime,&mut stream,&mut sender).await?;continue;}
     Some(notice)=party_notice=>{state.party_notice(&runtime,&pool,&mut stream,&mut sender,notice).await?;continue;}
     notice=notices.recv()=>{
      // ShutDownProcessor.SendNoticeShutDownMessage: every client, NoticeShutDownMessage{Delay}.

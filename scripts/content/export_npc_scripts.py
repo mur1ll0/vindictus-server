@@ -438,6 +438,31 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
                              nullable_text(r['Feature'])]
                             for r in db.execute('Select * From [CouponShopItemInfo]')]
     if any(len(v) > 10000 for v in coupons.values()): raise ValueError('Coupon table bound')
+    # AllUserGoal.Initialize: AllUserGoalInfo rows of this server (FeatureMatrix.IsMatchServerCode
+    # with the ServerCode of ServiceCore.dll.config); the Feature is evaluated by the server.
+    # StartTime/EndTime (DateTime compared with UtcNow) as Unix seconds.
+    server_code = int(next((e.findtext('value') for e in ET.parse(config).getroot().iter('setting') if e.attrib.get('name') == 'ServerCode'), '0') or 0)
+    def server_match(code):
+        if code is None or len(code) == 0: return True
+        if '||' in code:
+            parts = [p for p in code.split('||') if p]
+            if len(parts) >= 2: return any(server_match(p) for p in parts)
+        code = code.strip()
+        if code.startswith('!'): return not server_match(code[1:])
+        try:
+            n = int(code)
+        except ValueError:
+            return False
+        return n > 0 and n == server_code
+    goals = []
+    with contextlib.closing(content_additions.connect(database)) as db:
+        db.execute('PRAGMA query_only=ON'); db.execute('BEGIN'); db.row_factory = sqlite3.Row
+        for r in db.execute('Select * From [AllUserGoalInfo]'):
+            if not server_match(r['ServerCode']): continue
+            goals.append([int32(r['ID']), int32(r['SlotID']), nullable_text(r['Feature']), int32(r['GoalType']), nullable_text(r['Goal']), int32(r['GoalCount']),
+                          nullable_text(r['RewardItemClass']), int32(r['RewardNum']), utc_seconds(r['StartTime']), utc_seconds(r['EndTime']), nullable_text(r['GoalName'])])
+    if len(goals) > 10000 or any(g[8] is None or g[9] is None or g[4] is None for g in goals): raise ValueError('AllUserGoalInfo bound')
+    events['goals'] = goals
     if any(r[1] is None for r in events['story_periods']): raise ValueError('StoryLinePeriodInfo DateFrom')
     if len(mission['entities']) > 100000 or sum(len(e[1]) for e in mission['entities']) > 1000000: raise ValueError('Mission entity bound')
     if any(len(v) > 100000 for v in mission.values()): raise ValueError('Mission table bound')
@@ -473,6 +498,7 @@ def read_package(base, database, config, edits=content_edits.EMPTY):
     for d in events['story_periods']: wanted |= feature_atoms(d[4] or '')
     for d in coupons['versions']: wanted |= feature_atoms(d[3] or '')
     for d in coupons['items']: wanted |= feature_atoms(d[10] or '')
+    for d in events['goals']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_tables']: wanted |= feature_atoms(d[2] or '')
     for d in mission['prop_items']: wanted |= feature_atoms(d[6] or '')
     for d in mission['named_prop_items']: wanted |= feature_atoms(d[5] or '')

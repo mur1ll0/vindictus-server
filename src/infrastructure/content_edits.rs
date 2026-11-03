@@ -240,9 +240,11 @@ pub async fn versions(pool: &PgPool, limit: i64) -> Result<Vec<ContentVersion>, 
 /// The cumulative overlay of every published edit (a later edit of a target wins), as the
 /// content exporters read it (`.cache/private-content/content-edits.json`).
 pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
-    let rows: Vec<(String, String, Option<String>, i32)> = sqlx::query_as(
-        "SELECT kind, target, value::text, version FROM content_edits
-         WHERE state = 'published' ORDER BY id",
+    let rows: Vec<(String, String, Option<String>, i32, i64)> = sqlx::query_as(
+        "SELECT e.kind, e.target, e.value::text, e.version,
+                COALESCE(extract(epoch FROM v.published_at)::bigint, 0)
+         FROM content_edits e LEFT JOIN content_versions v ON v.version = e.version
+         WHERE e.state = 'published' ORDER BY e.id",
     )
     .fetch_all(pool)
     .await?;
@@ -255,13 +257,14 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
     let mut enhance_ratios = std::collections::BTreeMap::new();
     let mut enchant_ratios = std::collections::BTreeMap::new();
     let mut events = std::collections::BTreeMap::new();
+    let mut event_since = std::collections::BTreeMap::new();
     // Item editor: added items by class, base overrides, hidden and removed classes.
     let mut items = std::collections::BTreeMap::new();
     let mut item_overrides = std::collections::BTreeMap::new();
     let mut hidden_items = std::collections::BTreeSet::new();
     let mut removed_items = std::collections::BTreeSet::new();
     let mut version = 0;
-    for (kind, target, value, v) in rows {
+    for (kind, target, value, v, published) in rows {
         version = version.max(v);
         let value: serde_json::Value = value
             .as_deref()
@@ -293,6 +296,14 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
                 enchant_ratios.insert(target, serde_json::json!([value["min"], value["max"]]));
             }
             "event" => {
+                // A switch keeps the time it was turned on while it stays on.
+                if value["enabled"] == serde_json::json!(true) {
+                    if events.get(&target) != Some(&serde_json::json!(true)) {
+                        event_since.insert(target.clone(), published);
+                    }
+                } else {
+                    event_since.remove(&target);
+                }
                 events.insert(target, value["enabled"].clone());
             }
             "item" => {
@@ -351,6 +362,7 @@ pub async fn overlay(pool: &PgPool) -> Result<serde_json::Value, sqlx::Error> {
         "enhance_ratios": enhance_ratios,
         "enchant_ratios": enchant_ratios,
         "events": events,
+        "event_since": event_since,
         "items": items.into_values().collect::<Vec<_>>(),
         "item_overrides": item_overrides,
         "hidden_items": hidden_items,

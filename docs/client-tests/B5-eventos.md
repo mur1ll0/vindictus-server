@@ -1,13 +1,13 @@
 # Roteiro de testes no cliente — B5 eventos (chaves no painel)
 
-Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; os sistemas de evento ainda não migrados (meta coletiva) não fazem efeito; drops de evento dos chefes (EV5), recompensas periódicas (EV6), histórias por período (EV7) e lojas de cupom (EV8) já funcionam.
+Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; drops de evento dos chefes (EV5), recompensas periódicas (EV6), histórias por período (EV7), lojas de cupom (EV8) e metas coletivas (EV10) funcionam; `EventTemplate` não foi migrado.
 
 ## Preparação
 1. Runtime reconstruído com a migração `0057_content_event_switches` e o `item-economy.json` com a seção `events`.
 2. Painel com papel admin; cliente pelo `.cache/play-client/start-lab.bat`.
 
 ## Ordem de gameplay
-1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom. 9. **EV9**: descrição no painel.
+1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom. 9. **EV9**: descrição no painel. 10. **EV10**: meta coletiva.
 
 ## Como relatar
 ID da linha, o que apareceu (captura), horário (para `docker compose logs game`) e o nome do relatório de queda, se houver.
@@ -58,3 +58,12 @@ Limites conhecidos: onde o cliente abre a loja de cupom (menu, NPC ou janela de 
 ### EV9 — Descrição dos eventos no painel
 - [ ] Ajustes de jogo → Eventos → passar o mouse no ícone (i) de um evento → caixa com NPCs, itens das lojas e lojas de cupom (ícone, nome, preço e moeda), drops, quests, histórias com recompensas, títulos, recompensas periódicas e metas, cada seção marcada "funciona no servidor" ou "ainda não funciona".
 - [ ] Em tela estreita (celular), tocar no (i) abre e tocar fora fecha.
+
+### EV10 — Meta coletiva (`AllUserGoalInfo`, AllUserGoalEvent)
+Pré-condição: no painel ligar `AllUserGoalEvent` e uma chave de meta da região (por exemplo `Event_AllUserGoal_enEU_201501`) e Salvar; as janelas das metas dessa chave passam a começar na hora da publicação (extensão, decisão de 03/11). Relogar.
+- [ ] Ao entrar → a janela de evento coletivo mostra a meta do dia com contagem 0 (ou a atual) e as próximas como "em breve".
+- [ ] Matar o monstro da meta → a contagem sobe para todos os jogadores conectados.
+- [ ] Atingir a meta → aviso para todos (`GameUI_Heroes_GoalEventDialog_Success_Announce`) e a recompensa chega aos conectados e aos que participaram (inventário, ou correio GM se cheio), com a mensagem de recompensa da meta.
+- [ ] Na virada da janela → a meta seguinte aparece (ou a janela some no fim do evento).
+- [ ] Desligar a chave e relogar → nenhuma meta.
+Limites conhecidos: o reset por cheat (`InformAllUserGoalEvent` IsReset) não foi migrado; quem participou e estava desconectado recebe na próxima entrada (QueuedItem).
