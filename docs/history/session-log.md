@@ -3402,3 +3402,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: no teste único do fim (roteiro B5-multijogador).
 - Commits: (este commit)
 - Pendente / próxima ação: MP6 (lista de navios e JoinShip do Initial), MP7 (assistência e chat de party).
+
+## 2026-11-03 — B5 MP6/MP7: lista de navios, JoinShip do Initial, chat de party e pedido de professor
+- Feito: fio TeacherRequest 604, TeacherRequestRespond 606, TeacherRequestResult 607 (oráculo: 203 casos por arquitetura, x86=x64). `party_hub`: `Entry::refreshed_ship`/`listed` (UpdateShipList: InShip, caça InGame, sem party-only/raid gigante; navio do AcceptQuest oculto na cidade), `open_ships`, `join_ship_party` (JoinParty NORMAL sem convite num navio), `chat` (PartyChatProcessor), `member_count`. `minimum_party::recommended` (RecommendShip: dificuldade, nível, vaga, chefes, quest do conjunto ou alvo que passa nas restrições do personagem, até 6). `minimum_mission::recommend_ships` recebe os navios. `lab_frontend`: QueryRecommendShip com navios, JoinShip do Initial (party do navio + embarque; IsInTownWithShipInfo só a party), PartyChat, TeacherRequest (nível > 1, multijogador ou falha imediata como no TeacherFinder recuperado), TeacherRequestRespond (#TEACHER_ASSIST_NO_REQUEST), AcceptAssist do host em jogo. Roteiro `docs/client-tests/B5-multijogador.md` completado para sessão única (preparação, ordem, relato, MP1–MP7).
+- Verificação: `cargo test --lib party` 12 ok; `cargo test --test mission_wire` 4 ok (406 casos); `cargo clippy --lib --test mission_wire -D warnings` limpo. Logs `.cache/verification/b5-mp6-*.log`.
+- Cliente: sessão única pendente pelo roteiro B5-multijogador.
+- Commits: (este commit)
+- Pendente / próxima ação: rebuild do Docker e sessão de cliente do operador; depois, sistemas restantes do B5.

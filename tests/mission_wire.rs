@@ -4,7 +4,7 @@ use vindictus_server::protocol::{
     mission::{self as wire, Kind, Message},
     server_profile::REGISTERED_CLASSES,
 };
-const KINDS: [(&str, Kind); 53] = [
+const KINDS: [(&str, Kind); 56] = [
     ("accept_quest", Kind::AcceptQuest),
     ("party_info", Kind::PartyInfo),
     ("update_ship", Kind::UpdateShip),
@@ -61,6 +61,9 @@ const KINDS: [(&str, Kind); 53] = [
     ("accept_assist", Kind::AcceptAssist),
     ("host_restarting", Kind::HostRestarting),
     ("party_chat", Kind::PartyChat),
+    ("teacher_request", Kind::TeacherRequest),
+    ("teacher_request_respond", Kind::TeacherRequestRespond),
+    ("teacher_request_result", Kind::TeacherRequestResult),
 ];
 fn bytes(v: &Value) -> Vec<u8> {
     v.as_array()
@@ -99,7 +102,7 @@ fn mission_messages_roundtrip_the_recovered_serializer_bytes() {
             seen += 1;
         }
     }
-    assert_eq!(seen, 388);
+    assert_eq!(seen, 406);
 }
 #[test]
 fn accept_quest_and_connection_request_fields_follow_declaration_order() {
@@ -166,32 +169,40 @@ fn boat_ship_list_is_empty_and_ignores_a_repeated_target_within_two_seconds() {
     let mut last = None;
     // The whole board (empty target) is answered and starts the cooldown.
     assert_eq!(
-        decode(recommend_ships(&query(1, Some("")), &mut last, start).unwrap()),
+        decode(recommend_ships(&query(1, Some("")), Vec::new(), &mut last, start).unwrap()),
         (false, Some(Vec::new()))
     );
     assert_eq!(last, Some(start));
     // A targeted query (null counts as targeted, as `!= ""` in the source) within 2 s is Ignored.
     let soon = start + Duration::from_millis(2000);
     assert_eq!(
-        decode(recommend_ships(&query(1, None), &mut last, soon).unwrap()),
+        decode(recommend_ships(&query(1, None), Vec::new(), &mut last, soon).unwrap()),
         (true, Some(Vec::new()))
     );
     assert_eq!(last, Some(start));
     let later = start + Duration::from_millis(2001);
     assert_eq!(
-        decode(recommend_ships(&query(1, Some("quest_gnoll_watchman")), &mut last, later).unwrap()),
+        decode(
+            recommend_ships(
+                &query(1, Some("quest_gnoll_watchman")),
+                Vec::new(),
+                &mut last,
+                later
+            )
+            .unwrap()
+        ),
         (false, Some(Vec::new()))
     );
     assert_eq!(last, Some(later));
     // Quest set 2000 (DS raids) answers an empty list without touching the cooldown.
     let mut untouched = None;
     assert_eq!(
-        decode(recommend_ships(&query(2000, Some("")), &mut untouched, later).unwrap()),
+        decode(recommend_ships(&query(2000, Some("")), Vec::new(), &mut untouched, later).unwrap()),
         (false, Some(Vec::new()))
     );
     assert_eq!(untouched, None);
     let missing = QueryRecommendShip { restriction: None };
-    assert!(recommend_ships(&missing, &mut last, later).is_err());
+    assert!(recommend_ships(&missing, Vec::new(), &mut last, later).is_err());
 }
 #[test]
 fn proudnet_guid_string_is_the_registry_form() {

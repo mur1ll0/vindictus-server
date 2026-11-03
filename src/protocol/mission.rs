@@ -65,6 +65,9 @@ pub enum Kind {
     AcceptAssist,
     HostRestarting,
     PartyChat,
+    TeacherRequest,
+    TeacherRequestRespond,
+    TeacherRequestResult,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -122,6 +125,9 @@ impl Kind {
             Self::AcceptAssist => 223,
             Self::HostRestarting => 357,
             Self::PartyChat => 509,
+            Self::TeacherRequest => 604,
+            Self::TeacherRequestRespond => 606,
+            Self::TeacherRequestResult => 607,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -179,6 +185,9 @@ impl Kind {
             Self::AcceptAssist => 0x79aa3c3c_437d_3e0a_bc58_87f7ce1aacec,
             Self::HostRestarting => 0x9d9b2fd5_fb1d_3e2e_9bdd_9c7f85a308ec,
             Self::PartyChat => 0x2fa48705_fd86_31fb_b14f_220b2e2473c3,
+            Self::TeacherRequest => 0xddd0958d_298f_3590_b69d_252fee9f4eab,
+            Self::TeacherRequestRespond => 0x25b20b0f_75a1_3c70_84c3_39c377aedbe6,
+            Self::TeacherRequestResult => 0xd190eca2_2969_3f8a_806a_4493dc1037a6,
         })
     }
 }
@@ -698,6 +707,12 @@ pub struct PartyChat {
     pub message: Option<String>,
     pub is_fake_town_chat: bool,
 }
+/// TeacherRequestResult: whether a teacher accepted the assist request, and who.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TeacherRequestResult {
+    pub accepted: bool,
+    pub accepted_user_name: Option<String>,
+}
 /// MonsterTakeDamageInfo; `attack_time` keeps the IEEE single bits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakeDamage {
@@ -883,6 +898,9 @@ pub enum Message {
     AcceptAssist(i32),
     HostRestarting,
     PartyChat(PartyChat),
+    TeacherRequest,
+    TeacherRequestRespond(bool),
+    TeacherRequestResult(TeacherRequestResult),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -940,6 +958,9 @@ impl Message {
             Self::AcceptAssist(_) => Kind::AcceptAssist,
             Self::HostRestarting => Kind::HostRestarting,
             Self::PartyChat(_) => Kind::PartyChat,
+            Self::TeacherRequest => Kind::TeacherRequest,
+            Self::TeacherRequestRespond(_) => Kind::TeacherRequestRespond,
+            Self::TeacherRequestResult(_) => Kind::TeacherRequestResult,
         }
     }
 }
@@ -1227,6 +1248,10 @@ object!(DropErg {
 });
 object!(PutErg { erg_id, tag });
 object!(PartyInvite { invited_name });
+object!(TeacherRequestResult {
+    accepted,
+    accepted_user_name
+});
 object!(QuestTimerInfo {
     quest_time,
     is_timer_decreasing
@@ -1419,6 +1444,9 @@ pub fn encode(
                 Message::AcceptAssist(v) => v.write(&mut w)?,
                 Message::HostRestarting => {}
                 Message::PartyChat(v) => v.write(&mut w)?,
+                Message::TeacherRequest => {}
+                Message::TeacherRequestRespond(v) => v.write(&mut w)?,
+                Message::TeacherRequestResult(v) => v.write(&mut w)?,
             }
         }
     }
@@ -1513,6 +1541,11 @@ fn decode_body(
             Kind::AcceptAssist => Message::AcceptAssist(i32::read(&mut r)?),
             Kind::HostRestarting => Message::HostRestarting,
             Kind::PartyChat => Message::PartyChat(PartyChat::read(&mut r)?),
+            Kind::TeacherRequest => Message::TeacherRequest,
+            Kind::TeacherRequestRespond => Message::TeacherRequestRespond(bool::read(&mut r)?),
+            Kind::TeacherRequestResult => {
+                Message::TeacherRequestResult(TeacherRequestResult::read(&mut r)?)
+            }
         })
     };
     if strict && !r.remaining.is_empty() {

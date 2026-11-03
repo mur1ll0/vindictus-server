@@ -429,12 +429,13 @@ pub(super) fn packet(message: &Message) -> Result<OutgoingPacket, MinimumError> 
     })
 }
 /// InGame QueryRecommendShipMessage (the boat's "Loading Battle List"). A target quest asked
-/// again within 2 s of the last answered query is Ignored. Otherwise the original lists the
-/// open ships of other parties from the MicroPlay services; the solo laboratory has none, so
-/// the list is empty and the client offers Create Party. Quest set 2000 (DS raids) needs the
-/// DS boss service, whose failure path is also an empty list.
+/// again within 2 s of the last answered query is Ignored. Otherwise the list holds the open
+/// ships the party authority recommends (`ships`); an empty list makes the client offer
+/// Create Party. Quest set 2000 (DS raids) needs the DS boss service, whose failure path
+/// is an empty list.
 pub fn recommend_ships(
     query: &wire::QueryRecommendShip,
+    ships: Vec<Ship>,
     last_answered: &mut Option<std::time::Instant>,
     now: std::time::Instant,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
@@ -446,9 +447,14 @@ pub fn recommend_ships(
     if !ignored && restriction.quest_set != 2000 {
         *last_answered = Some(now);
     }
+    let ships = if ignored || restriction.quest_set == 2000 {
+        Vec::new()
+    } else {
+        ships.into_iter().map(Some).collect()
+    };
     Ok(vec![packet(&Message::ShipList(wire::ShipList {
         ignored,
-        ships: Some(Vec::new()),
+        ships: Some(ships),
     }))?])
 }
 /// BattleServiceProxy.SendErrorMessage(Dialog, key, error).

@@ -258,3 +258,80 @@ pub fn kick(hub: &PartyHub, cid: i64, slot: i32, nexon_sn: i32) -> Result<Outcom
 pub fn kicked_by_party() -> Result<Vec<OutgoingPacket>, MinimumError> {
     Ok(vec![kicked()?, kicked()?])
 }
+
+/// MicroPlayService.RecommendShip for the asking character: listed ships of its
+/// difficulty and level range with a free place, carrying the selected bosses, whose quest
+/// is in the restriction's quest set (or is its target quest) and passes the character's
+/// quest constraints (QueryAvailableQuestsByQuestSet). At most MaxRecommendShipCount (6).
+#[allow(clippy::too_many_arguments)]
+pub async fn recommended(
+    hub: &PartyHub,
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    restriction: &crate::protocol::mission::RecommendShipRestriction,
+) -> Result<Vec<crate::protocol::mission::Ship>, MinimumError> {
+    const MAX_RECOMMEND_SHIP_COUNT: usize = 6;
+    if restriction.quest_set == 2000 {
+        return Ok(Vec::new());
+    }
+    let Some(quests) = assets.npc.as_ref().and_then(|n| n.quests.as_ref()) else {
+        return Ok(Vec::new());
+    };
+    let contents = assets.mission().ok_or_else(fail)?;
+    let level: i32 = sqlx::query_scalar("SELECT level FROM game_character_info WHERE id=$1")
+        .bind(cid)
+        .fetch_one(pool)
+        .await?;
+    let target = restriction.target_quest_id.as_deref().unwrap_or("");
+    let bosses = restriction
+        .selected_boss_quest_ids
+        .clone()
+        .unwrap_or_default();
+    let mut out = Vec::new();
+    for ship in hub.open_ships() {
+        let quest = ship.quest_id.clone().unwrap_or_default();
+        let in_set = quests
+            .info(&quest)
+            .is_some_and(|q| q.quest_set == restriction.quest_set);
+        let carries = |b: &i32| {
+            ship.selected_boss_quest_ids
+                .as_ref()
+                .is_some_and(|ids| ids.contains(b))
+        };
+        if ship.difficulty != restriction.difficulty
+            || ship.max_level < level
+            || ship.min_level > level
+            || ship.max_ship_member_count <= ship.member_count
+            || !bosses.iter().all(carries)
+            || !in_set
+            || (!target.is_empty() && quest != target)
+        {
+            continue;
+        }
+        let story = contents
+            .digest(&quest, -1)
+            .ok()
+            .and_then(|d| d.required_story_line.zip(d.required_phase));
+        let available = super::minimum_quest::digest_constraint(
+            pool,
+            owner,
+            assets,
+            cid,
+            &quest,
+            ship.difficulty,
+            ship.is_practice_mode,
+            story.as_ref().map(|(l, p)| (l.as_str(), p.as_str())),
+        )
+        .await?
+        .is_none();
+        if available {
+            out.push(ship);
+            if out.len() == MAX_RECOMMEND_SHIP_COUNT {
+                break;
+            }
+        }
+    }
+    Ok(out)
+}

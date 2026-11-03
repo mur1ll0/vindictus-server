@@ -1039,6 +1039,71 @@ impl Connection {
             runtime.party.replicate(m.party_id, cid, &message);
         }
         let packets = match message {
+            Message::PartyChat(chat) => {
+                // InGame PartyChatMessage → BattleServiceProxy.SendPartyChat (not Initial).
+                let packets = runtime
+                    .party
+                    .chat(cid, chat.message.as_deref().unwrap_or(""))
+                    .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!(
+                    sent = !packets.is_empty(),
+                    "party chat processed; values omitted"
+                );
+                packets
+            }
+            Message::TeacherRequest => {
+                // MicroPlayHost TeacherRequest: a level-1 solo host asks for a teacher. The
+                // recovered TeacherFinder never has a candidate (AddCandidate is never
+                // called), so the session fails at once with TeacherRequestResult(false).
+                let Some(m) = self.mission.as_ref().filter(|m| m.host && m.in_game) else {
+                    return Ok(());
+                };
+                let text = if m.member.level > 1 {
+                    Some("#TEACHER_ASSIST_LEVEL_EXCEED")
+                } else if runtime.party.member_count(m.party_id) > 1 {
+                    Some("#TEACHER_ASSIST_CANNOT_MULTIPLAY")
+                } else {
+                    None
+                };
+                let packet = match text {
+                    Some(text) => super::minimum_shop::system_message(4, text, &[]),
+                    None => mission::packet(&Message::TeacherRequestResult(
+                        crate::protocol::mission::TeacherRequestResult {
+                            accepted: false,
+                            accepted_user_name: Some(String::new()),
+                        },
+                    )),
+                }
+                .map_err(|_| RuntimeError::Message)?;
+                vec![packet]
+            }
+            Message::TeacherRequestRespond(_) => {
+                // InGame TeacherRequestRespond without a WaitingSession.
+                vec![
+                    super::minimum_shop::system_message(4, "#TEACHER_ASSIST_NO_REQUEST", &[])
+                        .map_err(|_| RuntimeError::Message)?,
+                ]
+            }
+            Message::AcceptAssist(slot) => {
+                // MicroPlayHost AcceptAssist → SetMemberState(AssistAccepted); the town
+                // master states ignore it.
+                let Some(m) = self.mission.as_ref().filter(|m| m.host && m.in_game) else {
+                    return Ok(());
+                };
+                match runtime
+                    .party
+                    .set_member_state(
+                        m.party_id,
+                        slot,
+                        crate::domain::party::ready_state::ASSIST_ACCEPTED,
+                        cid,
+                    )
+                    .map_err(|_| RuntimeError::Operation)?
+                {
+                    Ok(packets) => packets,
+                    Err(_) => return Ok(()),
+                }
+            }
             Message::RequestJoinParty(request) => {
                 // Initial.RejoinCombat (CombatRejoinSystem).
                 if !runtime.party.combat_rejoin()
@@ -1086,8 +1151,56 @@ impl Connection {
                 packets
             }
             Message::JoinShip(join) => {
-                // PartyMember JoinShip (not IsInTownWithShipInfo): JoinMicroPlay. Assist and
-                // the boat list's Initial JoinShip are not migrated.
+                // Initial (the boat's list): JoinParty(ShipID), then JoinMicroPlay unless
+                // IsInTownWithShipInfo. PartyMember: JoinMicroPlay. Assist joins are
+                // unreachable in the recovered server (no teacher is ever found).
+                let mut joined_party = Vec::new();
+                if runtime.party.role(cid) == super::party_hub::Role::None {
+                    if self.mission.is_some() || join.is_assist {
+                        return Ok(());
+                    }
+                    let me = super::minimum_party::member(
+                        pool,
+                        &owner,
+                        assets,
+                        cid,
+                        runtime.minimum_header()?,
+                        runtime.stat_arithmetic(),
+                    )
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                    match runtime
+                        .party
+                        .join_ship_party(join.ship_id, me)
+                        .map_err(|_| RuntimeError::Operation)?
+                    {
+                        Ok(packets) => joined_party = packets,
+                        Err(_) => {
+                            // GeneralFail("JoinShip", leaveParty): PartyMember → KickedMessage.
+                            let packets = [
+                                mission::packet(&Message::Kicked)
+                                    .map_err(|_| RuntimeError::Message)?,
+                                super::minimum_party::error_message(
+                                    true,
+                                    "JoinShip",
+                                    super::minimum_party::error::JOIN_PARTY_FAIL,
+                                )
+                                .map_err(|_| RuntimeError::Message)?,
+                            ];
+                            for packet in &packets {
+                                send(stream, sender, packet.category, &packet.body).await?;
+                            }
+                            tracing::info!("boat list JoinShip refused; values omitted");
+                            return Ok(());
+                        }
+                    }
+                    if join.is_in_town_with_ship_info {
+                        for packet in &joined_party {
+                            send(stream, sender, packet.category, &packet.body).await?;
+                        }
+                        return Ok(());
+                    }
+                }
                 let super::party_hub::Role::Member {
                     party_id,
                     slot,
@@ -1130,13 +1243,17 @@ impl Connection {
                         }
                         self.mission = Some(mission);
                         tracing::info!("party member joined the ship; values omitted");
-                        packets
+                        joined_party.extend(packets);
+                        joined_party
                     }
                     Ok(mission::Join::Failed(reason)) => {
                         // GeneralFail("JoinShip", unlock, leaveParty): LeaveParty, then the dialog.
-                        let mut out = super::minimum_party::leave(&runtime.party, cid)
-                            .map_err(|_| RuntimeError::Operation)?
-                            .packets;
+                        let mut out = joined_party;
+                        out.extend(
+                            super::minimum_party::leave(&runtime.party, cid)
+                                .map_err(|_| RuntimeError::Operation)?
+                                .packets,
+                        );
                         out.push(
                             super::minimum_party::error_message(true, "JoinShip", reason)
                                 .map_err(|_| RuntimeError::Message)?,
@@ -1609,8 +1726,25 @@ impl Connection {
                 packets
             }
             Message::QueryRecommendShip(query) => {
+                let ships = match query.restriction.as_ref() {
+                    Some(restriction) => super::minimum_party::recommended(
+                        &runtime.party,
+                        pool,
+                        &owner,
+                        assets,
+                        cid,
+                        restriction,
+                    )
+                    .await
+                    .unwrap_or_else(|_| {
+                        tracing::warn!("ship recommendation unavailable; values omitted");
+                        Vec::new()
+                    }),
+                    None => Vec::new(),
+                };
                 let packets = mission::recommend_ships(
                     &query,
+                    ships,
                     &mut self.last_recommend_ship,
                     std::time::Instant::now(),
                 )
@@ -3252,6 +3386,10 @@ impl Connection {
                 Kind::JoinShip,
                 Kind::Ready,
                 Kind::RequestJoinParty,
+                Kind::PartyChat,
+                Kind::TeacherRequest,
+                Kind::TeacherRequestRespond,
+                Kind::AcceptAssist,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;

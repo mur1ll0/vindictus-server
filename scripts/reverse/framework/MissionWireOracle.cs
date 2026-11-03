@@ -179,6 +179,9 @@ class MissionWireOracle {
   AddCases("accept_assist",223,new Guid("79aa3c3c-437d-3e0a-bc58-87f7ce1aacec"),new[]{null,Obj<AcceptAssistMessage>("Slot",0),Obj<AcceptAssistMessage>("Slot",4),Obj<AcceptAssistMessage>("Slot",-1)},cases);
   AddCases("host_restarting",357,new Guid("9d9b2fd5-fb1d-3e2e-9bdd-9c7f85a308ec"),new[]{null,new HostRestartingMessage()},cases);
   AddCases("party_chat",509,new Guid("2fa48705-fd86-31fb-b14f-220b2e2473c3"),new[]{null,Obj<PartyChatMessage>("SenderName",null,"Message",null,"isFakeTownChat",false),Obj<PartyChatMessage>("SenderName","Fiona_é","Message","olá party","isFakeTownChat",true),Obj<PartyChatMessage>("SenderName","","Message","","isFakeTownChat",false)},cases);
+  AddCases("teacher_request",604,new Guid("ddd0958d-298f-3590-b69d-252fee9f4eab"),new[]{null,new TeacherRequest()},cases);
+  AddCases("teacher_request_respond",606,new Guid("25b20b0f-75a1-3c70-84c3-39c377aedbe6"),new[]{null,Obj<TeacherRequestRespond>("Accepted",false),Obj<TeacherRequestRespond>("Accepted",true)},cases);
+  AddCases("teacher_request_result",607,new Guid("d190eca2-2969-3f8a-806a-4493dc1037a6"),new[]{null,Obj<TeacherRequestResult>("Accepted",false,"AcceptedUserName",""),Obj<TeacherRequestResult>("Accepted",true,"AcceptedUserName","Fiona_é"),Obj<TeacherRequestResult>("Accepted",false,"AcceptedUserName",null)},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

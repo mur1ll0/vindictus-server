@@ -18,13 +18,15 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 | MP3 | Navio: JoinShip do membro (AddPlayer, MemberInfo ao host, HostInfo + ConnectionRequest ao membro), Ready, StartGame com todos prontos | Feito; **checkpoint de cliente** (MP2+MP3) |
 | MP4 | Combate e loot: EXP, drops, conclusão e recompensas para cada membro | Feito; cliente pendente |
 | MP5 | Saída e reconexão de membros na missão, migração de host | Feito; cliente pendente |
+| MP6 | Lista de navios abertos (QueryRecommendShip → RecommendShip) e JoinShip do Initial | Feito; cliente pendente |
+| MP7 | Chat de party; pedido de professor (assistência) e AcceptAssist | Feito; cliente pendente |
 
 ## Decisões e limites (MP1)
 
 - Mensagens novas no fio de missão, com fixtures do oráculo C#: PartyInvite (517), PartyInvited (516), PartyInvitationAccept (513), PartyInvitationReject (515), PartyInvitationRejected (514), Kick (470), JoinShip (469), HostInfo (467), Ready (553).
 - QueryCIDByName compara os nomes decodificados sem diferenciar maiúsculas (colação do SQL Server), entre personagens com `status<>1`.
 - O Kick vindo da party envia dois KickedMessage, como `KickProcessor` (LeaveParty + o próprio).
-- Não migrados: assistência (ASSIST/FORCE_ASSIST), CombatRejoinSystem, captcha/punição antes do aceite, chat de party, TransferMaster pelo cliente, lista de navios de outras parties, diário de party (`AddPartyLedger`).
+- Não migrados: captcha/punição antes do aceite, TransferMaster pelo cliente e diário de party (`AddPartyLedger`); assistência, reentrada, chat e lista de navios vieram nas etapas MP5–MP7.
 
 ## Decisões e limites (MP3)
 
@@ -33,7 +35,7 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 - As mensagens de MicroPlayHost (RegisterServer, StartGame, setores, mortes, drops, consumíveis, eventos) vindas de um membro são ignoradas, como no `MicroPlayMember` original.
 - Saída do relay por membro (`Relay::leave`); o grupo fecha quando fica vazio, inclusive na missão solo.
 - O membro cuja party volta à cidade (o host saiu do navio antes de começar) larga o navio local.
-- Não migrados no MP3: JoinShip do Initial pela lista de navios (a lista continua vazia), assistência, QuestTimerInfo de reentrada, `IsRequiredItemForAll`, fadiga, HostRestarted (migração de host) e recompensas dos membros (MP4).
+- Não migrados: `IsRequiredItemForAll` e fadiga; a lista de navios, a reentrada, a migração de host e as recompensas dos membros vieram nas etapas MP4–MP6.
 
 ## Decisões e limites (MP4)
 
@@ -49,3 +51,9 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 - Migração de host (`MicroPlay.CheckHostDisconnected` → `StartHostElection` → `ChangeHost`): quando o host sai (desconexão ou desistência) de uma play iniciada e aberta, o hub elege o jogador de menor slot, que vira mestre no slot 0 (TransferMaster); todos recebem `HostRestarting`; a réplica do novo host vira a autoridade e recebe o próprio `MemberInfo` e `GameStartGranted` (setores atuais, `CurGameTime`, `NewSlot`, `NewKey`). O `RegisterServer` do novo host é o `HostRestarted`: cada outro jogador recebe `HostInfoMessage` e manda o próprio `MemberInfo` ao novo host. Sem `RegisterServer` em 120 s (`HOST_RESTART_TIMEOUT`), o navio afunda (`ReturnFromQuest(ToTown)` e saída para todos). Antes do início, o host saindo do navio devolve a party à cidade (MP3).
 - Reentrada (CombatRejoinSystem, ligado pela versão do perfil): o membro desconectado de uma play aberta fica registrado (MicroPlayEntityInfo/DisconnectedMemberCID em memória, que equivale às linhas mais novas que o início do serviço); a lista de personagens mostra `LoginPartyState = 1`; `RequestJoinParty` > 0 faz JoinParty(REJOIN) no slot guardado, com `RejoinCombatSuccess`; o `JoinShip` seguinte entra na play com `QuestTimerInfo`, e a réplica parte do instantâneo atual do host (rastreador e pets iniciados). `RequestJoinParty` = 0 apaga o registro.
 - Limites: o host que reentra volta como membro; a recompensa de quem desconectou e não voltou não é enviada por correio; `LeaveWithHost` (decisão de sair junto com o host) não migrada.
+
+## Decisões e limites (MP6/MP7)
+
+- Lista de navios: `UpdateShipList` lista o navio InShip (caça só InGame), nunca party-only ou raid gigante; o navio aberto pelo AcceptQuest fica oculto na cidade (HideTownShip). `RecommendShip` filtra por dificuldade, faixa de nível, vaga, chefes selecionados e quest do conjunto pedido (ou a quest alvo) que o personagem pode fazer (as restrições do QueryQuestDigest), até 6 navios. O `JoinShip` do Initial entra na party do navio sem convite (JoinParty NORMAL) e embarca (JoinMicroPlay); com IsInTownWithShipInfo só entra na party.
+- Chat de party: `PartyChatMessage` em qualquer estado com party vai a todos os membros com o nome de quem enviou (`PartyChatProcessor`).
+- Assistência: o pedido de professor (`TeacherRequest`) do host solo de nível 1 cria a sessão de busca, mas o `TeacherFinder` recuperado nunca tem candidato (`AddCandidate` não é chamado e `FindTeacher` só devolve nulo), então termina em `TeacherRequestResult(false)`; nível > 1 dá `#TEACHER_ASSIST_LEVEL_EXCEED` e party com mais membros `#TEACHER_ASSIST_CANNOT_MULTIPLAY`; `TeacherRequestRespond` sem pedido dá `#TEACHER_ASSIST_NO_REQUEST`. `AcceptAssist` do host em jogo faz SetMemberState(AssistAccepted). A entrada como assistente (JoinShip IsAssist) fica inalcançável, como no original.

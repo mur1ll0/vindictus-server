@@ -135,6 +135,40 @@ struct Entry {
     ship: Option<Ship>,
     play: Option<Play>,
 }
+impl Entry {
+    /// Party.RefreshShipInfo: the fixed ship fields with the current members, counts,
+    /// state and the master's ping. None without a ship.
+    fn refreshed_ship(&self) -> Option<Ship> {
+        let party = &self.party;
+        if !party.has_ship() {
+            return None;
+        }
+        let mut ship = self.ship.clone()?;
+        let master = party.master();
+        ship.members = Some(party.members().map(|m| Some(info(m))).collect());
+        ship.member_count = party.member_count() as i32;
+        ship.state = party.state();
+        ship.max_ship_member_count = party.party_size();
+        ship.host_ping = master.map_or(-1, |m| m.latest_ping);
+        ship.host_frame_rate = master.map_or(255, |m| m.latest_frame_rate);
+        ship.is_return = master.is_some_and(|m| m.is_return);
+        Some(ship)
+    }
+    /// MicroPlayService.UpdateShipList: a ship is listed while InShip (a hunting quest
+    /// while InGame), never a party-only ship or a giant raid. A town ship registered by
+    /// AcceptQuest stays hidden (HideTownShip; OpenPartyWithShipInfo is not migrated).
+    fn listed(&self) -> Option<Ship> {
+        let ship = self.refreshed_ship()?;
+        let state = self.party.state();
+        let visible = if ship.is_hunting_quest {
+            state == party_state::IN_GAME
+        } else {
+            state == party_state::IN_SHIP
+        };
+        (visible && !ship.is_party_only && !ship.is_giant_raid).then_some(ship)
+    }
+}
+
 #[derive(Default)]
 struct State {
     seats: HashMap<i64, Seat>,
@@ -212,20 +246,9 @@ impl State {
             party_id,
             party_size: party.party_size(),
             state: party.state(),
-            members: Some(members.clone()),
+            members: Some(members),
         }))?];
-        if party.has_ship()
-            && let Some(ship) = &entry.ship
-        {
-            let master = party.master();
-            let mut ship = ship.clone();
-            ship.members = Some(members);
-            ship.member_count = party.member_count() as i32;
-            ship.state = party.state();
-            ship.max_ship_member_count = party.party_size();
-            ship.host_ping = master.map_or(-1, |m| m.latest_ping);
-            ship.host_frame_rate = master.map_or(255, |m| m.latest_frame_rate);
-            ship.is_return = master.is_some_and(|m| m.is_return);
+        if let Some(ship) = entry.refreshed_ship() {
             out.push(packet(&Message::UpdateShip(UpdateShip {
                 info: Some(ship),
             }))?);
@@ -928,6 +951,70 @@ impl PartyHub {
         );
         true
     }
+    /// MicroPlayService.ShipList: the listed ships in party order.
+    pub fn open_ships(&self) -> Vec<Ship> {
+        let s = self.lock();
+        let mut ids: Vec<&i64> = s.parties.keys().collect();
+        ids.sort_unstable();
+        ids.into_iter()
+            .filter_map(|id| s.parties.get(id).and_then(Entry::listed))
+            .collect()
+    }
+    /// JoinParty(NORMAL) of a character in Initial into a ship (JoinShip from the boat's
+    /// list): a ship admits without an invitation. Its PartyInfo for the joiner.
+    pub fn join_ship_party(
+        &self,
+        party_id: i64,
+        member: Member,
+    ) -> Result<Result<Vec<OutgoingPacket>, JoinFail>, MinimumError> {
+        let mut s = self.lock();
+        let cid = member.cid;
+        if s.seats.get(&cid).is_none_or(|seat| seat.party.is_some()) {
+            return Ok(Err(JoinFail::InternalError));
+        }
+        let joined = match s.parties.get_mut(&party_id) {
+            Some(entry) => entry.party.join(member),
+            None => Err(JoinFail::NotInvited),
+        };
+        if let Err(e) = joined {
+            return Ok(Err(e));
+        }
+        if let Some(seat) = s.seats.get_mut(&cid) {
+            seat.party = Some(party_id);
+            seat.invited_party = None;
+        }
+        s.broadcast(party_id, cid).map(Ok)
+    }
+    /// PartyChat: every member gets PartyChatMessage with the sender's name; the packets
+    /// of the sender.
+    pub fn chat(&self, cid: i64, text: &str) -> Result<Vec<OutgoingPacket>, MinimumError> {
+        let s = self.lock();
+        let Some(party_id) = s.seats.get(&cid).and_then(|seat| seat.party) else {
+            return Ok(Vec::new());
+        };
+        let Some(entry) = s.parties.get(&party_id) else {
+            return Ok(Vec::new());
+        };
+        let Some(sender) = entry.party.member(cid) else {
+            return Ok(Vec::new());
+        };
+        let message = packet(&Message::PartyChat(wire::PartyChat {
+            sender_name: Some(sender.name.clone()),
+            message: Some(text.to_owned()),
+            is_fake_town_chat: false,
+        }))?;
+        for m in entry.party.members().filter(|m| m.cid != cid) {
+            s.push(m.cid, Notice::Packets(vec![message.clone()]));
+        }
+        Ok(vec![message])
+    }
+    /// The party's member count.
+    pub fn member_count(&self, party_id: i64) -> usize {
+        self.lock()
+            .parties
+            .get(&party_id)
+            .map_or(0, |e| e.party.member_count())
+    }
     /// Party.IsAllReady.
     pub fn all_ready(&self, party_id: i64) -> bool {
         self.lock()
@@ -1178,6 +1265,30 @@ mod tests {
         // The new master leaves the ship of a party in InShip: back to town, play gone.
         assert!(hub.leave(2).unwrap());
         assert!(hub.play(100).is_none());
+    }
+
+    #[test]
+    fn party_chat_reaches_every_member_with_the_sender_name() {
+        let hub = PartyHub::new(false, true);
+        let _a = seat(&hub, 1);
+        let mut b = seat(&hub, 2);
+        assert!(hub.chat(1, "oi").unwrap().is_empty());
+        hub.open(100, member(1)).unwrap();
+        hub.invite(100, 1, 2, "Name2").unwrap();
+        hub.accept(100, member(2)).unwrap().unwrap().unwrap();
+        while b.try_recv().is_ok() {}
+        assert_eq!(kinds(&hub.chat(1, "oi").unwrap()), [509]);
+        let Ok(Notice::Packets(p)) = b.try_recv() else {
+            panic!()
+        };
+        assert_eq!(kinds(&p), [509]);
+        // A town party without a ship is not listed; a stranger cannot join it.
+        assert!(hub.open_ships().is_empty());
+        let _c = seat(&hub, 3);
+        assert_eq!(
+            hub.join_ship_party(100, member(3)).unwrap(),
+            Err(JoinFail::NotInvited)
+        );
     }
 
     #[test]

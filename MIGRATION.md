@@ -21,7 +21,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 2. Miri: aceita no cliente em 02/11/2026 (combate, grade e customização MG1–MG4, teclas da Delia regravadas MI45; `docs/future/miri-class-port.md`); branch `feat/miri-class` no `main`. Pendentes no cliente: B4 I3 (modelo substituto pelo painel, MG6), MI1–MI3 e MI30–MI36 sem relato isolado.
    - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
 3. Launcher: login pelo launcher aceito (LA0, LA2, LA4, LA5). Próximo: D-L6 (só ticket no jogo; modo por nome no perfil de desenvolvimento), depois L1 (`crates/client-dist`, serviço `updates`, importação da v1 = 1.69 + o necessário, zstd adaptativo + `hfs-xor`), receitas v1–v3 (L2) e instalar/atualizar no launcher (L3).
-4. B5 multijogador (pedido do operador, 03/11): parado no checkpoint de cliente — rebuild do Docker e duas contas/dois clientes pelo roteiro `docs/client-tests/B5-multijogador.md` (MP1, MP2/MP3). O MP4 (EXP, drops e recompensas dos membros) só é verificável depois de os dois clientes carregarem a mesma dungeon.
+4. B5 multijogador implementado (MP1–MP7): sessão de cliente do operador pelo roteiro `docs/client-tests/B5-multijogador.md` (duas contas, dois clientes; Docker já reconstruído). Depois, os sistemas restantes do B5.
 
 ## Aguardando o operador
 
@@ -31,7 +31,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B3-equipamento.md` | Nenhuma entrada testada (inclui DY1, ampola de tintura). |
 | `docs/client-tests/B4-painel.md` | B4.2-L aceito; demais pendentes (inclui I2 editor de itens, I3 modelo substituto, P3 progressão, S1–S3 exclusão de personagem). |
 | `docs/client-tests/B5-pets.md` | P1–P9 pendentes (P9: pets no Depot, 30/10). |
-| `docs/client-tests/B5-multijogador.md` | MP1 (party na cidade) e MP2/MP3 (navio e dungeon com dois jogadores) pendentes; requer duas contas e dois clientes. |
+| `docs/client-tests/B5-multijogador.md` | MP1–MP7 pendentes (sessão única); requer duas contas e dois clientes (três para MP6). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |
@@ -70,7 +70,7 @@ Decisões pendentes:
 
 ### B5 — o que falta
 
-- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay, MP3 navio/JoinShip e MP4 combate/loot por jogador e MP5 saída/migração de host/reentrada feitos; o operador testa tudo junto no fim (03/11); faltam MP6 lista de navios e MP7 assistência e chat de party.
+- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay, MP3 navio/JoinShip e MP1–MP7 feitos (party, relay, navio, combate/loot por jogador, saída/migração de host/reentrada, lista de navios, chat e pedido de professor); sessão de cliente única pendente.
 - [ ] PvP/arena/ranking.
 - [ ] Guildas.
 - [ ] Trade.
