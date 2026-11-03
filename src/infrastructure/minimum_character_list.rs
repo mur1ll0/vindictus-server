@@ -204,7 +204,12 @@ async fn load_many(
             })
         })
         .collect::<Vec<_>>();
-    let states = vec![0; characters.len()];
+    // LoginPartyState: 1 for a character that can rejoin its play (CombatRejoinSystem's
+    // MicroPlayEntityInfo newer than the service start), else 0.
+    let states = cids
+        .iter()
+        .map(|cid| i32::from(super::party_hub::rejoinable(*cid)))
+        .collect::<Vec<_>>();
     let bytes = character_list::encode(
         Some(&character_list::Message {
             characters: Some(characters),

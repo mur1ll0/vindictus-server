@@ -3395,3 +3395,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: no teste único do fim (roteiro B5-multijogador).
 - Commits: (este commit)
 - Pendente / próxima ação: MP5 (saída de membro, migração de host, reentrada), MP6 (lista de navios), MP7 (assistência e chat de party).
+
+## 2026-11-03 — B5 MP5: saída de membro, migração de host e reentrada
+- Feito: `domain::party` com ReadyState AssistWait/AssistAccepted/Rejoin e `Party::rejoin` (slot guardado, também InGame). `party_hub`: `elect` (StartHostElection/ChangeHost: menor slot vira mestre no slot 0 e host, HostRestarting a todos, `BecomeHost` ao eleito), `host_restarted` (HostElectionFinished), `election_timeout` (NoReward_SinkShip, aviso `Sink`), mapa de reentrada (`remember_disconnect`, `forget_disconnect`, `rejoin`, `rejoinable`) e a flag CombatRejoinSystem da política. `minimum_mission`: `replica_join`, `play_open`, `member_info_packet`, `host_takeover` (MemberInfo próprio + GameStartGranted com setores atuais, CurGameTime, NewSlot, NewKey), `join_ship` com reentrada (QuestTimerInfo) e réplica de play em andamento. `lab_frontend`: `leave_play` elege novo host quando o host sai de uma play aberta; membro desconectado fica reentrável; avisos BecomeHost (temporizador de 120 s), HostRestarted (HostInfo ao jogador e MemberInfo ao novo host) e Sink; RegisterServer do eleito vira HostRestarted; RequestJoinParty (RejoinCombat) e JoinShip de reentrada. `minimum_character_list`: LoginPartyState 1 para quem pode reentrar.
+- Verificação: `cargo test --lib party` 11 ok (eleição, reinício, reentrada no slot); `cargo clippy --lib -D warnings` limpo. Logs `.cache/verification/b5-mp5-*.log`.
+- Cliente: no teste único do fim (roteiro B5-multijogador).
+- Commits: (este commit)
+- Pendente / próxima ação: MP6 (lista de navios e JoinShip do Initial), MP7 (assistência e chat de party).

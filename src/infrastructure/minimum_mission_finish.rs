@@ -1253,7 +1253,8 @@ pub enum Return {
     Town(Vec<OutgoingPacket>),
 }
 
-fn to_town() -> Result<OutgoingPacket, MinimumError> {
+/// ReturnFromQuestMessage(ReturnFromQuestType.ToTown).
+pub fn to_town() -> Result<OutgoingPacket, MinimumError> {
     packet(&Message::ReturnFromQuest(ReturnFromQuest {
         order: 0,
         story_sector_bsp: Some(String::new()),

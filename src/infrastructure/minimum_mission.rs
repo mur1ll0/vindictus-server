@@ -858,6 +858,7 @@ pub async fn accept_quest(
             host_info: None,
             players: std::collections::BTreeMap::new(),
             snapshot: None,
+            restarting: false,
         },
     );
     // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
@@ -1038,6 +1039,7 @@ pub async fn join_ship(
     party_id: i64,
     slot: i32,
     hub: std::sync::Arc<super::party_hub::PartyHub>,
+    rejoin: bool,
     relay: impl FnOnce(i32) -> RelayTicket,
     config: QueryConfig,
     clock: super::minimum_quest::QuestClock,
@@ -1117,6 +1119,10 @@ pub async fn join_ship(
         clock,
     )
     .await?;
+    // A play in progress: the replica starts from the host's sector state.
+    if let Some(snapshot) = hub.snapshot_of(party_id) {
+        replica_join(&mut mission, contents, snapshot)?;
+    }
     // AddPlayer → GameHost.GetSendMessageSync(MemberInfoMessage) to the host.
     hub.send(
         play.host,
@@ -1127,6 +1133,15 @@ pub async fn join_ship(
     );
     let ticket = relay(play.group);
     mission.group = play.group;
+    // isRejoin: QuestTimerInfoMessage to the returning player.
+    let timer = if rejoin {
+        Some(packet(&Message::QuestTimerInfo(wire::QuestTimerInfo {
+            quest_time: mission.digest.time_limit,
+            is_timer_decreasing: true,
+        }))?)
+    } else {
+        None
+    };
     let player = super::party_hub::Player {
         cid,
         level: mission.member.level,
@@ -1134,6 +1149,7 @@ pub async fn join_ship(
     let Some(mut packets) = hub.add_player(party_id, slot, player)? else {
         return Ok(Join::Failed("SlotNotEmpty"));
     };
+    packets.extend(timer);
     packets.push(connection_request(&ticket)?);
     // SetMemberState(InShip) → BroadCastPartyInfo.
     match hub.set_member_state(
@@ -1717,6 +1733,107 @@ pub fn replica_start(mission: &mut Mission, snapshot: super::party_hub::Snapshot
     mission.sequence = Some(snapshot.sequence);
     mission.game_time = snapshot.game_time;
     mission.state = party_state::IN_GAME;
+}
+
+/// A player entering a play already in progress (rejoin, assist): the replica starts
+/// from the host's current sector state and, past the first sector, its quest tracking
+/// and pets start as the first MoveToNextSector would have started them.
+pub fn replica_join(
+    mission: &mut Mission,
+    contents: &MissionContents,
+    snapshot: super::party_hub::Snapshot,
+) -> Result<(), MinimumError> {
+    let in_game = snapshot.in_game;
+    replica_start(mission, snapshot);
+    if in_game {
+        let now = std::time::Instant::now();
+        super::minimum_mission_finish::start(mission, contents, now)?;
+        if mission.pet_usable() {
+            mission.pets.start_battle(now);
+        }
+        mission.in_game = true;
+    }
+    Ok(())
+}
+
+/// A play is still open for this player: in game and not finished, or given up while
+/// the others play on.
+pub fn play_open(mission: &Mission) -> bool {
+    mission.in_game && (mission.completion.give_up || !mission.completion.finished)
+}
+
+/// SendMemberInfoMessage of this player (MakeMemberInfo with its slot and key).
+pub async fn member_info_packet(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    mission: &Mission,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<OutgoingPacket, MinimumError> {
+    let item_limit = mission.item_limit()?;
+    let member = member_info(
+        pool,
+        owner,
+        assets,
+        cid,
+        mission.member.slot,
+        mission.member_key,
+        item_limit.as_ref(),
+        &mission.settings,
+        config,
+        arithmetic,
+    )
+    .await?;
+    packet(&Message::MemberInfo(Box::new(wire::MemberInfo {
+        uid: mission.member.slot,
+        info: Some(member.join),
+    })))
+}
+
+/// MicroPlay.ChangeHost for this player's replica: it becomes the game host in its new
+/// slot; its own MemberInfo, then GameStartGranted from the current sector state
+/// (GetInfo(isElection: true), CurGameTime, NewSlot and NewKey).
+#[allow(clippy::too_many_arguments)]
+pub async fn host_takeover(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    mission: &mut Mission,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let contents = assets.mission().ok_or_else(fail)?;
+    if let Some(slot) = mission.party.slot_of(mission.party_id, cid) {
+        mission.member.slot = slot;
+    }
+    mission.host = true;
+    mission.member.state = crate::domain::party::ready_state::HOST;
+    mission.state = party_state::IN_GAME;
+    let mut packets =
+        vec![member_info_packet(pool, owner, assets, cid, mission, config, arithmetic).await?];
+    let sequence = mission.sequence.as_ref().ok_or_else(fail)?;
+    let mut infos = contents
+        .info(&mission.quest, sequence, mission.option.is_practice_mode)
+        .map_err(|_| fail())?;
+    if let Some(current) = sequence.current {
+        infos.current_group = current;
+    }
+    let players = i32::try_from(mission.party.players(mission.party_id).len()).unwrap_or(1);
+    let mut granted = game_start_granted(
+        &mission.digest,
+        &infos,
+        mission.option.difficulty,
+        true,
+        players.max(1),
+    );
+    granted.init_game_time = mission.game_time;
+    granted.new_slot = mission.member.slot;
+    granted.new_key = mission.member_key;
+    packets.push(packet(&Message::GameStartGranted(granted))?);
+    Ok(packets)
 }
 
 /// PutErgMessage of a picked erg.

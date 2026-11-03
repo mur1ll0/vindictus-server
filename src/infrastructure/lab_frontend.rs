@@ -143,6 +143,7 @@ impl Runtime {
             .map_err(|_| RuntimeError::Profile)?;
         let party = Arc::new(super::party_hub::PartyHub::new(
             p.is_enabled(Some("ForceClosePartyInShip"))?,
+            p.is_enabled(Some("CombatRejoinSystem"))?,
         ));
         Ok(Self {
             profile,
@@ -569,11 +570,17 @@ impl Connection {
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
     async fn release_selected(&mut self, runtime: &Runtime, pool: &PgPool) {
-        // LeaveParty: the party and MicroPlay of this connection end with it; its relay
-        // group closes (the disconnected player gets no reward, as without CombatRejoinSystem).
+        // LeaveParty: the party and MicroPlay of this connection end with it and it leaves
+        // the relay group. A host leaving a play in progress hands it to another player
+        // (host election); a member keeps its slot for CombatRejoinSystem.
         if let Some(mut m) = self.mission.take() {
             self.leave_pets(runtime, pool, &mut m).await;
-            self.leave_relay(runtime, &m);
+            self.leave_play(runtime, &m);
+            if !m.host && super::minimum_mission::play_open(&m) {
+                runtime
+                    .party
+                    .remember_disconnect(m.completion.cid, m.party_id, m.member.slot);
+            }
         }
         self.effect_expiry = None;
         self.daily_at = None;
@@ -1032,6 +1039,52 @@ impl Connection {
             runtime.party.replicate(m.party_id, cid, &message);
         }
         let packets = match message {
+            Message::RequestJoinParty(request) => {
+                // Initial.RejoinCombat (CombatRejoinSystem).
+                if !runtime.party.combat_rejoin()
+                    || runtime.party.role(cid) != super::party_hub::Role::None
+                {
+                    return Ok(());
+                }
+                if request <= 0 {
+                    // DeleteDisconnectedUserInfo + RemoveMicroPlayEntityInfo.
+                    runtime.party.forget_disconnect(cid);
+                    return Ok(());
+                }
+                if !super::party_hub::rejoinable(cid) {
+                    return Ok(());
+                }
+                let me = super::minimum_party::member(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    runtime.minimum_header()?,
+                    runtime.stat_arithmetic(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                let mut packets = match runtime.party.rejoin(me) {
+                    Ok(Some(packets)) => packets,
+                    _ => {
+                        runtime.party.forget_disconnect(cid);
+                        vec![
+                            super::minimum_party::error_message(
+                                true,
+                                "RequestJoinParty",
+                                "ProcessingOtherOperation",
+                            )
+                            .map_err(|_| RuntimeError::Message)?,
+                        ]
+                    }
+                };
+                packets.push(
+                    mission::packet(&Message::RejoinCombatSuccess)
+                        .map_err(|_| RuntimeError::Message)?,
+                );
+                tracing::info!("combat rejoin requested; values omitted");
+                packets
+            }
             Message::JoinShip(join) => {
                 // PartyMember JoinShip (not IsInTownWithShipInfo): JoinMicroPlay. Assist and
                 // the boat list's Initial JoinShip are not migrated.
@@ -1045,11 +1098,12 @@ impl Connection {
                     tracing::info!("JoinShip outside a party member state ignored; values omitted");
                     return Ok(());
                 };
+                let rejoin = ready == crate::domain::party::ready_state::REJOIN;
                 if self.mission.is_some()
                     || join.is_assist
                     || join.is_in_town_with_ship_info
                     || join.ship_id != party_id
-                    || ready != crate::domain::party::ready_state::IN_TOWN
+                    || !(rejoin || ready == crate::domain::party::ready_state::IN_TOWN)
                 {
                     tracing::info!("JoinShip not admitted; values omitted");
                     return Ok(());
@@ -1063,6 +1117,7 @@ impl Connection {
                     party_id,
                     slot,
                     runtime.party.clone(),
+                    rejoin,
                     |group| relay_ticket(&relay, group, cid, nexon_sn, party_id),
                     runtime.minimum_header()?,
                     runtime.quest_clock(),
@@ -1070,6 +1125,9 @@ impl Connection {
                 .await;
                 match joined {
                     Ok(mission::Join::Joined { mission, packets }) => {
+                        if rejoin {
+                            runtime.party.forget_disconnect(cid);
+                        }
                         self.mission = Some(mission);
                         tracing::info!("party member joined the ship; values omitted");
                         packets
@@ -1262,6 +1320,16 @@ impl Connection {
                 let Some(m) = self.mission.as_mut() else {
                     return Ok(());
                 };
+                if m.host && runtime.party.play(m.party_id).is_some_and(|p| p.restarting) {
+                    // MicroPlayMember RegisterServer → HostRestarted → HostElectionFinished.
+                    let restarted =
+                        runtime
+                            .party
+                            .host_restarted(m.party_id, cid, register.info.clone());
+                    m.host_info = register.info;
+                    tracing::info!(restarted, "mission host restarted; values omitted");
+                    return Ok(());
+                }
                 mission::register_server(m, register.info).map_err(|_| RuntimeError::Operation)?
             }
             Message::StartGame => {
@@ -1963,11 +2031,14 @@ impl Connection {
                     && !m.host
                 {
                     match runtime.party.role(m.completion.cid) {
-                        super::party_hub::Role::Member { state, .. }
+                        super::party_hub::Role::Member { state, slot, .. }
                             if state != crate::domain::party::party_state::IN_TOWN =>
                         {
                             m.state = state;
+                            m.member.slot = slot;
                         }
+                        super::party_hub::Role::Master { state, .. }
+                            if state != crate::domain::party::party_state::IN_TOWN => {}
                         _ => {
                             if let Some(mut m) = self.mission.take() {
                                 if let Some(out) = self.leave_pets(runtime, pool, &mut m).await {
@@ -2001,6 +2072,29 @@ impl Connection {
                     .give_erg(runtime, pool, stream, sender, &class_ex, count)
                     .await;
             }
+            super::party_hub::Notice::BecomeHost(_) => {
+                return self.become_host(runtime, pool, stream, sender).await;
+            }
+            super::party_hub::Notice::HostRestarted { host, info } => {
+                return self
+                    .host_restarted(runtime, pool, stream, sender, host, info)
+                    .await;
+            }
+            super::party_hub::Notice::Sink => {
+                // NoReward_SinkShip: ReturnFromQuest(ToTown), then MicroPlayer.Leave.
+                let mut packets = vec![
+                    super::minimum_mission_finish::to_town().map_err(|_| RuntimeError::Message)?,
+                ];
+                if let Some(mut m) = self.mission.take() {
+                    if let Some(out) = self.leave_pets(runtime, pool, &mut m).await {
+                        packets.extend(out.packets);
+                    }
+                    self.leave_relay(runtime, &m);
+                    runtime.party.end_for(m.completion.cid);
+                }
+                tracing::info!("mission ship sunk after a failed host election; values omitted");
+                packets
+            }
             super::party_hub::Notice::Kicked { .. } => {
                 let mut packets = Vec::new();
                 if let Some(mut m) = self.mission.take() {
@@ -2020,6 +2114,142 @@ impl Connection {
             send(stream, sender, packet.category, &packet.body).await?;
         }
         Ok(())
+    }
+    /// MicroPlay.ChangeHost: this player's replica takes over as the game host; the
+    /// election fails after HOST_RESTART_TIMEOUT (120 s) without its RegisterServer.
+    async fn become_host(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+    ) -> Result<(), RuntimeError> {
+        let (Some(selected), Some(password)) = (self.selected.as_ref(), self.password.as_ref())
+        else {
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: password.revision(),
+        };
+        let Some(m) = self.mission.as_deref_mut() else {
+            return Ok(());
+        };
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets
+            .current();
+        let packets = super::minimum_mission::host_takeover(
+            pool,
+            &owner,
+            assets,
+            cid,
+            m,
+            runtime.minimum_header()?,
+            runtime.stat_arithmetic(),
+        )
+        .await
+        .map_err(|_| RuntimeError::Operation)?;
+        let hub = runtime.party.clone();
+        let party_id = m.party_id;
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(120)).await;
+            hub.election_timeout(party_id, cid);
+        });
+        for packet in &packets {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
+        tracing::info!("mission replica took over as host; values omitted");
+        Ok(())
+    }
+    /// HostElectionFinished for this player: HostInfoMessage of the new host's server,
+    /// and this player's MemberInfo to the new host.
+    async fn host_restarted(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        host: i64,
+        info: Option<crate::protocol::mission::GameInfo>,
+    ) -> Result<(), RuntimeError> {
+        let (Some(selected), Some(password)) = (self.selected.as_ref(), self.password.as_ref())
+        else {
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: password.revision(),
+        };
+        let Some(m) = self.mission.as_deref_mut() else {
+            return Ok(());
+        };
+        if let Some(slot) = m.party.slot_of(m.party_id, cid) {
+            m.member.slot = slot;
+        }
+        m.host_info = info.clone();
+        let assets = &runtime
+            .minimum
+            .as_ref()
+            .ok_or(RuntimeError::Profile)?
+            .assets
+            .current();
+        match super::minimum_mission::member_info_packet(
+            pool,
+            &owner,
+            assets,
+            cid,
+            m,
+            runtime.minimum_header()?,
+            runtime.stat_arithmetic(),
+        )
+        .await
+        {
+            Ok(member) => runtime.party.send(host, vec![member]),
+            Err(_) => tracing::warn!("member info for the new host unavailable; values omitted"),
+        }
+        let packet = super::minimum_mission::packet(&crate::protocol::mission::Message::HostInfo(
+            crate::protocol::mission::HostInfo {
+                game_info: info,
+                uid: m.member.slot,
+                key: m.member_key,
+                skip_lobby: false,
+                is_transfer_to_ds: false,
+            },
+        ))
+        .map_err(|_| RuntimeError::Message)?;
+        send(stream, sender, packet.category, &packet.body).await?;
+        tracing::info!("mission member reached the new host; values omitted");
+        Ok(())
+    }
+    /// MicroPlay.RemovePlayer of this player: the relay group, and CheckHostDisconnected
+    /// (a host leaving a play in progress starts the host election).
+    fn leave_play(&self, runtime: &Runtime, mission: &super::minimum_mission::Mission) {
+        if mission.host && super::minimum_mission::play_open(mission) {
+            match runtime
+                .party
+                .elect(mission.party_id, mission.completion.cid)
+            {
+                Ok(Some(_)) => tracing::info!("mission host election started; values omitted"),
+                Ok(None) => {}
+                Err(_) => tracing::warn!("mission host election failed; values omitted"),
+            }
+        }
+        self.leave_relay(runtime, mission);
     }
     /// An erg this player won in another player's pick: MicroPlayer GiveItem.
     async fn give_erg(
@@ -2454,9 +2684,7 @@ impl Connection {
         if state.completion.left
             && let Some(m) = self.mission.take()
         {
-            if let Some(relay) = runtime.relay() {
-                relay.leave(m.group, m.completion.cid);
-            }
+            self.leave_play(runtime, &m);
             runtime.party.end_for(m.completion.cid);
             tracing::info!("mission left without reward; values omitted");
         }
@@ -3023,6 +3251,7 @@ impl Connection {
                 Kind::Kick,
                 Kind::JoinShip,
                 Kind::Ready,
+                Kind::RequestJoinParty,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;

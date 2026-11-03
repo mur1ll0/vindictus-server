@@ -33,6 +33,26 @@ pub enum Notice {
     Started(Box<Snapshot>),
     /// An erg won by this player (ErgInfo.Winner): GiveItem of its reward.
     Give { class_ex: String, count: i32 },
+    /// MicroPlay.ChangeHost: this player's replica becomes the game host.
+    BecomeHost(Box<Snapshot>),
+    /// HostElectionFinished: the new host restarted its server (HostInfo to this player,
+    /// and this player's MemberInfo to the new host).
+    HostRestarted { host: i64, info: Option<GameInfo> },
+    /// NoReward_SinkShip: ReturnFromQuest(ToTown) and Leave.
+    Sink,
+}
+
+/// MicroPlayEntityInfo of players disconnected from a play in progress
+/// (CombatRejoinSystem): CID → (party, slot). The original keeps it in the database and
+/// trusts only rows newer than the service start, so a process-wide map is equivalent.
+static REJOIN: Mutex<BTreeMap<i64, (i64, i32)>> = Mutex::new(BTreeMap::new());
+
+/// CharacterList LoginPartyState: 1 when the character can rejoin its play.
+pub fn rejoinable(cid: i64) -> bool {
+    REJOIN
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .contains_key(&cid)
 }
 
 /// The shared sector state of a play: the sectors the host loaded and the sequence as
@@ -97,6 +117,8 @@ pub struct Play {
     pub players: BTreeMap<i32, Player>,
     /// The sector state for players joining or rejoining a started play.
     pub snapshot: Option<Snapshot>,
+    /// PlayState.Restarting: a host election waits for the new host's RegisterServer.
+    pub restarting: bool,
 }
 
 struct Seat {
@@ -123,6 +145,8 @@ pub struct PartyHub {
     state: Mutex<State>,
     /// FeatureMatrix ForceClosePartyInShip.
     force_close_in_ship: bool,
+    /// FeatureMatrix CombatRejoinSystem.
+    combat_rejoin: bool,
 }
 
 fn fail() -> MinimumError {
@@ -289,10 +313,143 @@ impl State {
 }
 
 impl PartyHub {
-    pub fn new(force_close_in_ship: bool) -> Self {
+    pub fn new(force_close_in_ship: bool, combat_rejoin: bool) -> Self {
         Self {
             state: Mutex::new(State::default()),
             force_close_in_ship,
+            combat_rejoin,
+        }
+    }
+    pub fn combat_rejoin(&self) -> bool {
+        self.combat_rejoin
+    }
+    /// StartHostElection → QueryHostCID → ChangeHost when the host leaves a play in
+    /// progress: the first other player becomes the party master and the game host; every
+    /// other player gets HostRestarting and the new host its takeover. None when nobody
+    /// is left (the play ends with its last player).
+    pub fn elect(&self, party_id: i64, leaving: i64) -> Result<Option<i64>, MinimumError> {
+        let mut s = self.lock();
+        let Some(entry) = s.parties.get_mut(&party_id) else {
+            return Ok(None);
+        };
+        let Some(play) = entry.play.as_mut() else {
+            return Ok(None);
+        };
+        if play.host != leaving {
+            return Ok(None);
+        }
+        let Some((&old_slot, &new_host)) = play.players.iter().find(|(_, p)| p.cid != leaving)
+        else {
+            return Ok(None);
+        };
+        play.players.retain(|_, p| p.cid != leaving);
+        play.players.remove(&old_slot);
+        play.players.insert(0, new_host);
+        play.host = new_host.cid;
+        play.host_info = None;
+        play.restarting = true;
+        let snapshot = play.snapshot.clone();
+        let others: Vec<i64> = play.players.values().map(|p| p.cid).collect();
+        if !entry.party.transfer_master(leaving, new_host.cid) {
+            tracing::warn!("host election could not move the party master; values omitted");
+        }
+        let restarting = packet(&Message::HostRestarting)?;
+        for cid in others {
+            s.push(cid, Notice::Packets(vec![restarting.clone()]));
+        }
+        if let Some(snapshot) = snapshot {
+            s.push(new_host.cid, Notice::BecomeHost(Box::new(snapshot)));
+        }
+        Ok(Some(new_host.cid))
+    }
+    /// HostRestarted → HostElectionFinished: the play's HostInfo; the other players learn it.
+    pub fn host_restarted(&self, party_id: i64, host: i64, info: Option<GameInfo>) -> bool {
+        let mut s = self.lock();
+        let Some(play) = s.parties.get_mut(&party_id).and_then(|e| e.play.as_mut()) else {
+            return false;
+        };
+        if !play.restarting || play.host != host {
+            return false;
+        }
+        play.restarting = false;
+        play.host_info = info.clone();
+        let others: Vec<i64> = play
+            .players
+            .values()
+            .filter(|p| p.cid != host)
+            .map(|p| p.cid)
+            .collect();
+        for cid in others {
+            s.push(
+                cid,
+                Notice::HostRestarted {
+                    host,
+                    info: info.clone(),
+                },
+            );
+        }
+        true
+    }
+    /// ElectionFailed: the new host never restarted; NoReward_SinkShip for every player.
+    pub fn election_timeout(&self, party_id: i64, host: i64) {
+        let s = self.lock();
+        let Some(play) = s.parties.get(&party_id).and_then(|e| e.play.as_ref()) else {
+            return;
+        };
+        if !play.restarting || play.host != host {
+            return;
+        }
+        for p in play.players.values() {
+            s.push(p.cid, Notice::Sink);
+        }
+    }
+    /// A player disconnected from a play in progress keeps its party and slot for
+    /// CombatRejoinSystem (MicroPlayEntityInfo, DisconnectedMemberCID).
+    pub fn remember_disconnect(&self, cid: i64, party_id: i64, slot: i32) {
+        if self.combat_rejoin {
+            REJOIN
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(cid, (party_id, slot));
+        }
+    }
+    /// RemoveMicroPlayEntityInfo / DeleteDisconnectedUserInfo.
+    pub fn forget_disconnect(&self, cid: i64) {
+        REJOIN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&cid);
+    }
+    /// RequestJoinParty(RequestType > 0): JoinParty(REJOIN) of the remembered party; its
+    /// PartyInfo for `member`. None without a rejoinable play.
+    pub fn rejoin(&self, member: Member) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+        let cid = member.cid;
+        let Some((party_id, slot)) = REJOIN
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&cid)
+            .copied()
+        else {
+            return Ok(None);
+        };
+        let mut s = self.lock();
+        if s.seats.get(&cid).is_none_or(|seat| seat.party.is_some()) {
+            return Ok(None);
+        }
+        let joined = s
+            .parties
+            .get_mut(&party_id)
+            .filter(|e| e.play.as_ref().is_some_and(|p| p.snapshot.is_some()))
+            .map(|e| e.party.rejoin(member, slot));
+        match joined {
+            Some(Ok(_)) => {
+                if let Some(seat) = s.seats.get_mut(&cid) {
+                    seat.party = Some(party_id);
+                    seat.invited_party = None;
+                }
+                s.broadcast(party_id, cid).map(Some)
+            }
+            _ => Ok(None),
         }
     }
     fn lock(&self) -> MutexGuard<'_, State> {
@@ -850,7 +1007,7 @@ mod tests {
 
     #[test]
     fn invitation_accept_broadcasts_to_both_and_leave_dissolves() {
-        let hub = PartyHub::new(false);
+        let hub = PartyHub::new(false, true);
         let _a = seat(&hub, 1);
         let mut b = seat(&hub, 2);
         assert_eq!(hub.entered("name2"), Some(2));
@@ -891,7 +1048,7 @@ mod tests {
 
     #[test]
     fn an_offline_or_rejecting_target_reports_to_the_master_and_removes_the_lone_party() {
-        let hub = PartyHub::new(false);
+        let hub = PartyHub::new(false, true);
         let mut a = seat(&hub, 1);
         let _b = seat(&hub, 2);
         hub.open(100, member(1)).unwrap();
@@ -912,7 +1069,7 @@ mod tests {
 
     #[test]
     fn a_joining_player_gets_coins_of_every_slot_and_the_host_its_own_stones() {
-        let hub = PartyHub::new(false);
+        let hub = PartyHub::new(false, true);
         let mut a = seat(&hub, 1);
         let mut b = seat(&hub, 2);
         hub.open(100, member(1)).unwrap();
@@ -952,6 +1109,7 @@ mod tests {
                 host_info: None,
                 players: BTreeMap::new(),
                 snapshot: None,
+                restarting: false,
             },
         );
         let player = |cid| Player { cid, level: 10 };
@@ -972,14 +1130,59 @@ mod tests {
         assert!(hub.give(100, 1, "gold", 5));
         assert!(matches!(b.try_recv(), Ok(Notice::Give { count: 5, .. })));
         assert_eq!(hub.slot_of(100, 2), Some(1));
+        // Without a started play nobody is elected; with one, the other player becomes
+        // the master in slot 0 and the game host.
+        assert_eq!(hub.elect(100, 2).unwrap(), None);
+        hub.update_snapshot(
+            100,
+            Snapshot {
+                sectors: crate::domain::mission::SectorInfos {
+                    current_group: 0,
+                    starting_group: 0,
+                    sectors: Vec::new(),
+                },
+                sequence: crate::domain::mission::SectorSequence {
+                    starting_group: 0,
+                    sectors: Vec::new(),
+                    current: None,
+                    last_used_spawn_point: None,
+                    latest_cleared: 0,
+                    passed: Vec::new(),
+                    cores: Vec::new(),
+                },
+                game_time: 0,
+                in_game: true,
+            },
+        );
+        while a.try_recv().is_ok() {}
+        while b.try_recv().is_ok() {}
+        assert_eq!(hub.elect(100, 1).unwrap(), Some(2));
+        assert!(matches!(hub.role(2), Role::Master { .. }));
+        assert_eq!(hub.slot_of(100, 2), Some(0));
+        assert!(matches!(b.try_recv(), Ok(Notice::Packets(_))));
+        assert!(matches!(b.try_recv(), Ok(Notice::BecomeHost(_))));
+        assert!(!hub.host_restarted(100, 1, None));
+        assert!(hub.host_restarted(100, 2, None));
+        hub.election_timeout(100, 2);
+        assert!(b.try_recv().is_err());
+        // The old host's frontend then leaves the party; it can rejoin the play.
+        hub.remember_disconnect(1, 100, 1);
+        hub.unregister(1);
+        assert!(rejoinable(1));
+        let _a = seat(&hub, 1);
+        assert!(hub.rejoin(member(1)).unwrap().is_some());
+        assert!(matches!(hub.role(1), Role::Member { ready: 6, .. }));
+        hub.forget_disconnect(1);
+        assert!(!rejoinable(1));
         // A member leaving the party leaves the play.
+        // The new master leaves the ship of a party in InShip: back to town, play gone.
         assert!(hub.leave(2).unwrap());
-        assert_eq!(hub.play(100).map(|p| p.players.len()), Some(1));
+        assert!(hub.play(100).is_none());
     }
 
     #[test]
     fn kick_and_disconnect_notify_the_remaining_members() {
-        let hub = PartyHub::new(false);
+        let hub = PartyHub::new(false, true);
         let _a = seat(&hub, 1);
         let mut b = seat(&hub, 2);
         let mut c = seat(&hub, 3);

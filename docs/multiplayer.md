@@ -17,7 +17,7 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 | MP2 | Relay com vários membros: MemberJoin para os membros antigos, NMInfos, quadros 20–22 → 23–25, MemberLeave (`docs/battle-transport.md`) | Feito; cliente no checkpoint do MP3 |
 | MP3 | Navio: JoinShip do membro (AddPlayer, MemberInfo ao host, HostInfo + ConnectionRequest ao membro), Ready, StartGame com todos prontos | Feito; **checkpoint de cliente** (MP2+MP3) |
 | MP4 | Combate e loot: EXP, drops, conclusão e recompensas para cada membro | Feito; cliente pendente |
-| MP5 | Saída e reconexão de membros na missão, reeleição do host | Pendente |
+| MP5 | Saída e reconexão de membros na missão, migração de host | Feito; cliente pendente |
 
 ## Decisões e limites (MP1)
 
@@ -42,3 +42,10 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 - Ergs (props) ficam no host: o vencedor é sorteado entre os jogadores (`PickRandomRewardingPlayer`) e o `PickErg` entrega ao vencedor (aviso `Give`); o host recebe o `PutErg` com o slot vencedor.
 - Efeitos (reviver e afins) valem para qualquer slot da play; `ApplyMicroPlayEffects` vai só ao host, como no original. Cada réplica acompanha quem está morto.
 - Limites: o rastreador de metas de cada réplica conta as metas individuais só do próprio jogador (o original mostrava também as dos outros); `GetItem` de outro jogador não aparece; destruição de props por um membro não conta para as metas de props desse membro.
+
+## Decisões e limites (MP5)
+
+- Saída de membro no meio da missão: desistência (FinishMicroPlay GiveUp) dá a recompensa de desistência na réplica do membro e o tira da party, da play e do grupo do relay; os demais recebem PartyInfo e MemberLeave.
+- Migração de host (`MicroPlay.CheckHostDisconnected` → `StartHostElection` → `ChangeHost`): quando o host sai (desconexão ou desistência) de uma play iniciada e aberta, o hub elege o jogador de menor slot, que vira mestre no slot 0 (TransferMaster); todos recebem `HostRestarting`; a réplica do novo host vira a autoridade e recebe o próprio `MemberInfo` e `GameStartGranted` (setores atuais, `CurGameTime`, `NewSlot`, `NewKey`). O `RegisterServer` do novo host é o `HostRestarted`: cada outro jogador recebe `HostInfoMessage` e manda o próprio `MemberInfo` ao novo host. Sem `RegisterServer` em 120 s (`HOST_RESTART_TIMEOUT`), o navio afunda (`ReturnFromQuest(ToTown)` e saída para todos). Antes do início, o host saindo do navio devolve a party à cidade (MP3).
+- Reentrada (CombatRejoinSystem, ligado pela versão do perfil): o membro desconectado de uma play aberta fica registrado (MicroPlayEntityInfo/DisconnectedMemberCID em memória, que equivale às linhas mais novas que o início do serviço); a lista de personagens mostra `LoginPartyState = 1`; `RequestJoinParty` > 0 faz JoinParty(REJOIN) no slot guardado, com `RejoinCombatSuccess`; o `JoinShip` seguinte entra na play com `QuestTimerInfo`, e a réplica parte do instantâneo atual do host (rastreador e pets iniciados). `RequestJoinParty` = 0 apaga o registro.
+- Limites: o host que reentra volta como membro; a recompensa de quem desconectou e não voltou não é enviada por correio; `LeaveWithHost` (decisão de sair junto com o host) não migrada.

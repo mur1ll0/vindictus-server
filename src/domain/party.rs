@@ -10,6 +10,9 @@ pub mod ready_state {
     pub const IN_SHIP: u8 = 1;
     pub const READY: u8 = 2;
     pub const HOST: u8 = 3;
+    pub const ASSIST_WAIT: u8 = 4;
+    pub const ASSIST_ACCEPTED: u8 = 5;
+    pub const REJOIN: u8 = 6;
 }
 /// PartyInfoState (byte enum).
 pub mod party_state {
@@ -266,6 +269,32 @@ impl Party {
         };
         self.slots[slot] = Some(member);
         Ok(slot as i32)
+    }
+    /// JoinParty(REJOIN) under CombatRejoinSystem: the disconnected member returns to its
+    /// slot (DisconnectedMemberCID) when free, else to the first free slot, as Rejoin,
+    /// also while the party is InGame.
+    pub fn rejoin(&mut self, mut member: Member, slot: i32) -> Result<i32, JoinFail> {
+        if self.member(member.cid).is_some() {
+            return Err(JoinFail::InternalError);
+        }
+        if self.member_count() as i32 >= self.party_size() {
+            return Err(JoinFail::PartyIsFull);
+        }
+        let free = usize::try_from(slot)
+            .ok()
+            .filter(|s| *s > 0 && self.slots.get(*s).is_some_and(Option::is_none))
+            .or_else(|| {
+                self.slots
+                    .iter()
+                    .skip(1)
+                    .position(Option::is_none)
+                    .map(|i| i + 1)
+            })
+            .ok_or(JoinFail::PartyIsFull)?;
+        member.slot = free as i32;
+        member.state = ready_state::REJOIN;
+        self.slots[free] = Some(member);
+        Ok(free as i32)
     }
     /// RemoveMember + ProcessAfterRemoveMember. None when `cid` is not a member.
     /// `force_close_in_ship` is FeatureMatrix ForceClosePartyInShip.
@@ -547,6 +576,21 @@ mod tests {
         );
         p.change_state(party_state::STARTING);
         assert_eq!(p.kick(2, 1, 1), None);
+    }
+
+    #[test]
+    fn a_disconnected_member_rejoins_its_slot_in_game() {
+        let mut p = Party::new(7);
+        p.join(member(1)).unwrap();
+        for cid in [2, 3] {
+            p.add_invitation(cid);
+            p.join(member(cid)).unwrap();
+        }
+        p.change_state(party_state::IN_GAME);
+        assert_eq!(p.remove(2, false), Some(Removal::Continues));
+        assert_eq!(p.rejoin(member(2), 1), Ok(1));
+        assert_eq!(p.by_slot(1).map(|m| m.state), Some(ready_state::REJOIN));
+        assert_eq!(p.rejoin(member(2), 1), Err(JoinFail::InternalError));
     }
 
     #[test]
