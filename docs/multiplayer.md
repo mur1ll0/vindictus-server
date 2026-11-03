@@ -14,7 +14,7 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 | Etapa | Conteúdo | Situação |
 |---|---|---|
 | MP1 | Party na cidade: PartyInvite/Invited, aceite, recusa, LeavePartyMessage, Kick, desconexão; AcceptQuest pelo mestre de uma party | Feito; cliente pendente (`docs/client-tests/B5-multijogador.md`) |
-| MP2 | Relay com vários membros: MemberJoin para os membros antigos, NMInfos, quadros 20–22 → 23–25, saída do grupo | Pendente |
+| MP2 | Relay com vários membros: MemberJoin para os membros antigos, NMInfos, quadros 20–22 → 23–25, MemberLeave (`docs/battle-transport.md`) | Feito; cliente no checkpoint do MP3 |
 | MP3 | Navio: JoinShip do membro (AddPlayer, MemberInfo ao host, HostInfo + ConnectionRequest ao membro), Ready, StartGame com todos prontos | Pendente |
 | MP4 | Combate e loot: EXP, drops, conclusão e recompensas para cada membro | Pendente (depois do checkpoint de cliente do MP3) |
 | MP5 | Saída e reconexão de membros na missão, reeleição do host | Pendente |

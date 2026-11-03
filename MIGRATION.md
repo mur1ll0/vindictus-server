@@ -21,7 +21,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 2. Miri: aceita no cliente em 02/11/2026 (combate, grade e customização MG1–MG4, teclas da Delia regravadas MI45; `docs/future/miri-class-port.md`); branch `feat/miri-class` no `main`. Pendentes no cliente: B4 I3 (modelo substituto pelo painel, MG6), MI1–MI3 e MI30–MI36 sem relato isolado.
    - B2 RL1 (do ramo do `engine.dll`): rodar no cliente (barco sem trava; `engine.dll` do laboratório já com o patch).
 3. Launcher: login pelo launcher aceito (LA0, LA2, LA4, LA5). Próximo: D-L6 (só ticket no jogo; modo por nome no perfil de desenvolvimento), depois L1 (`crates/client-dist`, serviço `updates`, importação da v1 = 1.69 + o necessário, zstd adaptativo + `hfs-xor`), receitas v1–v3 (L2) e instalar/atualizar no launcher (L3).
-4. B5 multijogador primeiro (pedido do operador, 03/11): MP2 (relay com vários membros), depois MP3 (JoinShip) e o checkpoint de cliente com dois clientes (`docs/client-tests/B5-multijogador.md`).
+4. B5 multijogador primeiro (pedido do operador, 03/11): MP3 (JoinShip do membro) e o checkpoint de cliente com dois clientes (`docs/client-tests/B5-multijogador.md`).
 
 ## Aguardando o operador
 
@@ -70,7 +70,7 @@ Decisões pendentes:
 
 ### B5 — o que falta
 
-- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade feito (cliente pendente); faltam MP2 relay com vários membros, MP3 navio/JoinShip, MP4 combate e loot, MP5 saída e reconexão.
+- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade e MP2 relay com vários membros feitos (cliente pendente); faltam MP3 navio/JoinShip, MP4 combate e loot, MP5 saída e reconexão.
 - [ ] PvP/arena/ranking.
 - [ ] Guildas.
 - [ ] Trade.

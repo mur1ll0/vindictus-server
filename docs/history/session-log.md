@@ -3374,3 +3374,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: necessário — `docs/client-tests/B5-multijogador.md`, entrada MP1 (duas contas, dois clientes).
 - Commits: (este commit)
 - Pendente / próxima ação: MP2 (relay com vários membros), MP3 (JoinShip) e checkpoint de cliente com dois clientes.
+
+## 2026-11-03 — B5 MP2: relay ProudNet com vários membros
+- Feito: `protocol::proudnet` lê ReliableRelay1/UnreliableRelay1/LingerDataFrame1 (lista de destinos com contagem compacta e {HostID, quadro} × n, recuperada de 0x425bbe60; carga deve fechar a mensagem; até 64 destinos) e escreve ReliableRelay2/UnreliableRelay2/LingerDataFrame2 (0x17–0x19: HostID do remetente, número do quadro quando há, carga), conforme os handlers do servidor no `engine.dll` (0x42642d80, 0x426430b0, 0x42643420); RMI `P2PGroup_MemberLeave` 0xfbfa (dois HostIDs, slot 6 da ProudS2C). `infrastructure::relay`: o Join avisa os membros anteriores com o mesmo campo customizado e evento; quadros só chegam a quem divide grupo com o remetente; `leave` e o fechamento da conexão avisam a saída; grupo vazio fecha; `close_group` avisa todos. `docs/battle-transport.md` atualizado.
+- Verificação: `cargo test --test proudnet` 6 ok (novo teste com dois clientes: avisos de entrada, NMInfos, retransmissão confiável e não confiável, destino estranho descartado, saída); `cargo clippy --lib --test proudnet -D warnings` limpo. Logs `.cache/verification/b5-mp2-*.log`.
+- Cliente: no checkpoint do MP3 (dois clientes na mesma dungeon); `close_group` agora envia MemberLeave também na missão solo, como o DestroyP2PGroup original.
+- Commits: (este commit)
+- Pendente / próxima ação: MP3 (JoinShip do membro) e o checkpoint de cliente com dois clientes.

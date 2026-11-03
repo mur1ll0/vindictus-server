@@ -294,3 +294,144 @@ async fn relay_decrypts_an_encrypted_nm_infos_result() {
         }
     );
 }
+
+/// Connects a waiting client through the handshake and NMInfosResult; returns its HostID.
+async fn connect_client(
+    relay: &Relay,
+    addr: std::net::SocketAddr,
+    cid: i64,
+    nexon_sn: i32,
+) -> (TcpStream, Vec<u8>, i32) {
+    let waiting = relay.add_client_waiting(cid, nexon_sn);
+    let mut s = TcpStream::connect(addr).await.unwrap();
+    let mut buf = Vec::new();
+    assert_eq!(read_message(&mut s, &mut buf).await[0], 4);
+    let mut data = Vec::new();
+    data.extend_from_slice(&waiting.sn.to_le_bytes());
+    data.extend_from_slice(&waiting.key.to_le_bytes());
+    let mut w = Writer::new(message_type::REQUEST_SERVER_CONNECTION);
+    w.bytes(&data).guid(&wire::PROTOCOL_VERSION).i32(0);
+    send(&mut s, &w.finish()).await;
+    let ten = read_message(&mut s, &mut buf).await;
+    let mut r = Reader::new(&ten);
+    assert_eq!(r.u8().unwrap(), 10);
+    let host = r.i32().unwrap();
+    let mut w = Writer::rmi(rmi::NM_INFOS_RESULT);
+    w.i64(cid);
+    send(&mut s, &w.finish()).await;
+    (s, buf, host)
+}
+
+fn join_notice(m: &[u8]) -> (i32, i32) {
+    let mut r = Reader::new(m);
+    assert_eq!((r.u8().unwrap(), r.u16().unwrap()), (1, 0xfbf6));
+    (r.i32().unwrap(), r.i32().unwrap())
+}
+
+#[tokio::test]
+async fn relay_joins_a_second_member_and_relays_frames_between_group_members() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let relay = Relay::new(addr);
+    let mut events = relay.subscribe();
+    tokio::spawn(relay.clone().serve(listener));
+    let category = "MicroPlayServiceCore.MicroPlayService";
+    let (mut a, mut abuf, ha) = connect_client(&relay, addr, 11, 1).await;
+    assert!(matches!(
+        events.recv().await.unwrap(),
+        RelayEvent::Connected { cid: 11, .. }
+    ));
+    let (mut b, mut bbuf, hb) = connect_client(&relay, addr, 22, 2).await;
+    assert!(matches!(
+        events.recv().await.unwrap(),
+        RelayEvent::Connected { cid: 22, .. }
+    ));
+    let group = relay.make_group();
+    assert!(relay.join(group, 11, 77, category));
+    assert_eq!(
+        join_notice(&read_message(&mut a, &mut abuf).await),
+        (group, ha)
+    );
+    let _nm = read_message(&mut a, &mut abuf).await;
+    // The second member learns about both members and gets the first one's NMInfo; the
+    // first member learns about the second.
+    assert!(relay.join(group, 22, 77, category));
+    assert_eq!(
+        join_notice(&read_message(&mut b, &mut bbuf).await),
+        (group, ha)
+    );
+    assert_eq!(
+        join_notice(&read_message(&mut b, &mut bbuf).await),
+        (group, hb)
+    );
+    let nm = read_message(&mut b, &mut bbuf).await;
+    let mut r = Reader::new(&nm);
+    assert_eq!((r.u8().unwrap(), r.u16().unwrap()), (1, 0x7d1));
+    let _id = r.i64().unwrap();
+    assert_eq!(r.i32().unwrap(), 1);
+    assert_eq!(
+        (r.i32().unwrap(), r.i64().unwrap(), r.i32().unwrap()),
+        (ha, 11, 1)
+    );
+    assert_eq!(
+        join_notice(&read_message(&mut a, &mut abuf).await),
+        (group, hb)
+    );
+    // ReliableRelay1 from A to B (and to an unknown host, dropped) → ReliableRelay2.
+    let mut w = Writer::new(message_type::RELIABLE_RELAY);
+    wire::put_compact(&mut w.0, 2);
+    w.i32(hb).i32(5).i32(999).i32(6).bytes(b"frame-a");
+    send(&mut a, &w.finish()).await;
+    let got = read_message(&mut b, &mut bbuf).await;
+    let mut r = Reader::new(&got);
+    assert_eq!(r.u8().unwrap(), message_type::RELIABLE_RELAY2);
+    assert_eq!((r.i32().unwrap(), r.i32().unwrap()), (ha, 5));
+    assert_eq!(r.bytes(64).unwrap(), b"frame-a");
+    // UnreliableRelay1 from B to A → UnreliableRelay2.
+    let mut w = Writer::new(message_type::UNRELIABLE_RELAY);
+    w.u8(6);
+    wire::put_compact(&mut w.0, 3);
+    wire::put_compact(&mut w.0, 1);
+    w.i32(ha).bytes(b"move");
+    send(&mut b, &w.finish()).await;
+    let got = read_message(&mut a, &mut abuf).await;
+    let mut r = Reader::new(&got);
+    assert_eq!(r.u8().unwrap(), message_type::UNRELIABLE_RELAY2);
+    assert_eq!(r.i32().unwrap(), hb);
+    assert_eq!(r.bytes(64).unwrap(), b"move");
+    // A frame whose payload does not end the message is refused (connection closed).
+    assert!(
+        wire::parse_client(&[
+            message_type::LINGER_DATA_FRAME,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            9
+        ])
+        .is_err()
+    );
+    // B leaves: A hears that B left; B hears that both left.
+    relay.leave(group, 22);
+    let r_leave = |m: Vec<u8>| {
+        let mut r = Reader::new(&m);
+        assert_eq!(
+            (r.u8().unwrap(), r.u16().unwrap()),
+            (1, rmi::P2P_GROUP_MEMBER_LEAVE)
+        );
+        (r.i32().unwrap(), r.i32().unwrap())
+    };
+    assert_eq!(r_leave(read_message(&mut a, &mut abuf).await), (hb, group));
+    assert_eq!(r_leave(read_message(&mut b, &mut bbuf).await), (ha, group));
+    assert_eq!(r_leave(read_message(&mut b, &mut bbuf).await), (hb, group));
+    assert_eq!(relay.snapshot().groups, vec![(group, 1)]);
+    drop(a);
+    assert_eq!(events.recv().await.unwrap(), RelayEvent::Closed { cid: 11 });
+    assert!(relay.snapshot().groups.is_empty());
+}

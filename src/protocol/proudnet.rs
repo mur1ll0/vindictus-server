@@ -21,6 +21,10 @@ pub mod message_type {
     pub const RELIABLE_RELAY: u8 = 0x14;
     pub const UNRELIABLE_RELAY: u8 = 0x15;
     pub const LINGER_DATA_FRAME: u8 = 0x16;
+    /// Server → receiver forms of the relayed frames (CNetThreads_S handlers 0x14–0x16).
+    pub const RELIABLE_RELAY2: u8 = 0x17;
+    pub const UNRELIABLE_RELAY2: u8 = 0x18;
+    pub const LINGER_DATA_FRAME2: u8 = 0x19;
     /// RC4-encrypted reliable / unreliable messages (CNetServerImpl dispatch 0x24/0x25).
     pub const ENCRYPTED_RELIABLE: u8 = 0x24;
     pub const ENCRYPTED_UNRELIABLE: u8 = 0x25;
@@ -30,6 +34,8 @@ pub mod message_type {
 pub mod rmi {
     pub const P2P_GROUP_MEMBER_JOIN: u16 = 0xfbf5;
     pub const P2P_GROUP_MEMBER_JOIN_UNENCRYPTED: u16 = 0xfbf6;
+    /// ProudS2C slot 6 (two HostIDs: the member, then the group).
+    pub const P2P_GROUP_MEMBER_LEAVE: u16 = 0xfbfa;
     pub const RELIABLE_PONG: u16 = 0xfbfc;
     pub const RELIABLE_PING: u16 = 0xfa01;
     pub const P2P_GROUP_MEMBER_JOIN_ACK: u16 = 0xfa04;
@@ -165,6 +171,10 @@ impl Writer {
         self
     }
     pub fn i32(&mut self, v: i32) -> &mut Self {
+        self.0.extend_from_slice(&v.to_le_bytes());
+        self
+    }
+    pub fn u32(&mut self, v: u32) -> &mut Self {
         self.0.extend_from_slice(&v.to_le_bytes());
         self
     }
@@ -374,6 +384,37 @@ pub fn member_join_unencrypted(
     w.finish()
 }
 
+/// P2PGroup_MemberLeave(member HostID, group HostID): a member left the group.
+pub fn member_leave(member: i32, group: i32) -> Vec<u8> {
+    let mut w = Writer::rmi(rmi::P2P_GROUP_MEMBER_LEAVE);
+    w.i32(member).i32(group);
+    w.finish()
+}
+
+/// Destinations a relay frame may name (the client's array bound is not recovered; a
+/// P2P group has at most a party plus its capacity).
+pub const MAX_RELAY_DESTINATIONS: usize = 64;
+
+/// ReliableRelay2 (0x17): the sender's HostID, the destination's reliable frame number,
+/// then the frame (`NetWorkerThread_ProcessMessage_ReliableRelay1`).
+pub fn reliable_relay2(sender: i32, frame_number: u32, payload: &[u8]) -> Vec<u8> {
+    let mut w = Writer::new(message_type::RELIABLE_RELAY2);
+    w.i32(sender).u32(frame_number).bytes(payload);
+    w.finish()
+}
+/// UnreliableRelay2 (0x18): the sender's HostID, then the frame.
+pub fn unreliable_relay2(sender: i32, payload: &[u8]) -> Vec<u8> {
+    let mut w = Writer::new(message_type::UNRELIABLE_RELAY2);
+    w.i32(sender).bytes(payload);
+    w.finish()
+}
+/// LingerDataFrame2 (0x19): the sender's HostID, the frame number, then the frame.
+pub fn linger_data_frame2(sender: i32, frame_number: u32, payload: &[u8]) -> Vec<u8> {
+    let mut w = Writer::new(message_type::LINGER_DATA_FRAME2);
+    w.i32(sender).u32(frame_number).bytes(payload);
+    w.finish()
+}
+
 /// Heroes RMI 0x7d1: NMInfos(id, [HostID, CID, NexonSN]...).
 pub fn nm_infos(id: i64, infos: &[(i32, i64, i32)]) -> Vec<u8> {
     let mut w = Writer::rmi(rmi::NM_INFOS);
@@ -410,7 +451,24 @@ pub enum ClientMessage<'a> {
         mode: u8,
         data: &'a [u8],
     },
-    /// Relay frames (types 20–22) and other RMIs: nothing to answer for one member.
+    /// ReliableRelay1 (0x14): destinations {HostID, reliable frame number}, then the
+    /// frame, which must end the message.
+    ReliableRelay {
+        destinations: Vec<(i32, u32)>,
+        payload: &'a [u8],
+    },
+    /// UnreliableRelay1 (0x15): priority, unique ID, destination HostIDs, then the frame.
+    UnreliableRelay {
+        destinations: Vec<i32>,
+        payload: &'a [u8],
+    },
+    /// LingerDataFrame1 (0x16): one destination, its frame number, then the frame.
+    LingerDataFrame {
+        destination: i32,
+        frame_number: u32,
+        payload: &'a [u8],
+    },
+    /// User messages and other RMIs: nothing to answer.
     Ignored,
     Unknown(u8),
 }
@@ -442,10 +500,58 @@ pub fn parse_client(payload: &[u8]) -> Result<ClientMessage<'_>, WireError> {
                 data: r.bytes(MAX_MESSAGE)?,
             }
         }
-        message_type::RELIABLE_RELAY
-        | message_type::UNRELIABLE_RELAY
-        | message_type::LINGER_DATA_FRAME
-        | message_type::USER_MESSAGE => ClientMessage::Ignored,
+        message_type::RELIABLE_RELAY => {
+            let n = r.compact()?;
+            if n < 0 || n as usize > MAX_RELAY_DESTINATIONS {
+                return Err(WireError::Length);
+            }
+            let mut destinations = Vec::with_capacity(n as usize);
+            for _ in 0..n {
+                destinations.push((r.i32()?, r.i32()? as u32));
+            }
+            let payload = r.bytes(MAX_MESSAGE)?;
+            if r.remaining() != 0 {
+                return Err(WireError::Length);
+            }
+            ClientMessage::ReliableRelay {
+                destinations,
+                payload,
+            }
+        }
+        message_type::UNRELIABLE_RELAY => {
+            let _priority = r.u8()?;
+            let _unique_id = r.compact()?;
+            let n = r.compact()?;
+            if n < 0 || n as usize > MAX_RELAY_DESTINATIONS {
+                return Err(WireError::Length);
+            }
+            let mut destinations = Vec::with_capacity(n as usize);
+            for _ in 0..n {
+                destinations.push(r.i32()?);
+            }
+            let payload = r.bytes(MAX_MESSAGE)?;
+            if r.remaining() != 0 {
+                return Err(WireError::Length);
+            }
+            ClientMessage::UnreliableRelay {
+                destinations,
+                payload,
+            }
+        }
+        message_type::LINGER_DATA_FRAME => {
+            let destination = r.i32()?;
+            let frame_number = r.i32()? as u32;
+            let payload = r.bytes(MAX_MESSAGE)?;
+            if r.remaining() != 0 {
+                return Err(WireError::Length);
+            }
+            ClientMessage::LingerDataFrame {
+                destination,
+                frame_number,
+                payload,
+            }
+        }
+        message_type::USER_MESSAGE => ClientMessage::Ignored,
         other => ClientMessage::Unknown(other),
     })
 }

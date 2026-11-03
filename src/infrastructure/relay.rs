@@ -1,7 +1,8 @@
 //! Minimal ProudNet relay for mission P2P groups (RelayServer over Nettention.Proud):
-//! AddClientWaiting keys, the connection handshake, NMInfosResult, P2P group joins with
-//! their acknowledgments and ReliablePong. Relay frames have no receiver while a group
-//! has one member. Events reach the MicroPlay through `RelayEvent`.
+//! AddClientWaiting keys, the connection handshake, NMInfosResult, P2P group joins and
+//! leaves with their notifications, ReliablePong, and the relayed frames between members
+//! of a group (no UDP: every P2P frame of a party goes through this TCP relay). Events
+//! reach the MicroPlay through `RelayEvent`.
 use crate::protocol::proudnet::{self as wire, ClientMessage, Settings};
 use rand_core::{OsRng, RngCore};
 use rsa::{BigUint, Pkcs1v15Encrypt, RsaPublicKey};
@@ -161,7 +162,10 @@ impl Relay {
     /// members already in the group to the joining client. The custom field is ParentID,
     /// ParentCategory, ParentID, 1 and the joining member's HostID, CID and NexonSN; the
     /// client's P2PMemberJoin handler (engine.dll 0x42351740) reads it unbounded, so a
-    /// shorter field makes it read past the buffer. False when the client is not connected.
+    /// shorter field makes it read past the buffer. JoinP2PGroup tells the joining member
+    /// about every member (itself included) and every earlier member about the joining
+    /// one, all with the same custom field and event. False when the client is not
+    /// connected.
     pub fn join(&self, group: i32, cid: i64, parent_id: i64, category: &str) -> bool {
         let mut s = lock(&self.state);
         let Some((&host, client)) = s.clients.iter().find(|(_, c)| c.cid == cid && c.connected)
@@ -195,10 +199,29 @@ impl Relay {
             .iter()
             .filter_map(|h| s.clients.get(h).map(|c| (*h, c.cid, c.nexon_sn)))
             .collect();
+        let earlier: Vec<mpsc::Sender<Vec<u8>>> = previous
+            .iter()
+            .filter_map(|h| s.clients.get(h).map(|c| c.out.clone()))
+            .collect();
         if let Some(g) = s.groups.get_mut(&group) {
             g.members = members.clone();
         }
         drop(s);
+        for member in &earlier {
+            let msg = wire::member_join_unencrypted(
+                group,
+                host,
+                &join_field,
+                event,
+                0,
+                &[0; 16],
+                false,
+                0,
+            );
+            if member.try_send(msg).is_err() {
+                tracing::info!("relay member join notice dropped; values omitted");
+            }
+        }
         // The new member learns about every member, itself included.
         for m in &members {
             let msg =
@@ -209,9 +232,60 @@ impl Relay {
         }
         out.try_send(wire::nm_infos(nm_id, &infos)).is_ok()
     }
-    /// P2PGroup.Leave / Close.
+    /// P2PGroup.Close: DestroyP2PGroup (the remaining members leave it).
     pub fn close_group(&self, group: i32) {
-        lock(&self.state).groups.remove(&group);
+        let mut s = lock(&self.state);
+        if let Some(g) = s.groups.remove(&group) {
+            notify_leave(&s, group, &g.members, &g.members);
+        }
+    }
+    /// P2PGroup.Leave of `cid`: LeaveP2PGroup tells the remaining members and the leaver.
+    /// The group closes when it has no member left (AllowEmptyP2PGroup is false).
+    pub fn leave(&self, group: i32, cid: i64) {
+        let mut s = lock(&self.state);
+        let Some(host) = s
+            .clients
+            .iter()
+            .find(|(_, c)| c.cid == cid)
+            .map(|(h, _)| *h)
+        else {
+            return;
+        };
+        let Some(g) = s.groups.get_mut(&group) else {
+            return;
+        };
+        if !g.members.contains(&host) {
+            return;
+        }
+        let before = g.members.clone();
+        g.members.retain(|m| *m != host);
+        let empty = g.members.is_empty();
+        if empty {
+            s.groups.remove(&group);
+        }
+        notify_leave(&s, group, &before, &[host]);
+    }
+    /// The groups `host` shares with `other`.
+    fn shares_group(s: &State, host: i32, other: i32) -> bool {
+        host != other
+            && s.groups
+                .values()
+                .any(|g| g.members.contains(&host) && g.members.contains(&other))
+    }
+    /// CNetThreads_S relay handlers: each destination in a group with the sender gets the
+    /// frame in its "2" form; other destinations are dropped.
+    fn relay(&self, sender: i32, frames: Vec<(i32, Vec<u8>)>) {
+        let s = lock(&self.state);
+        for (destination, frame) in frames {
+            if !Self::shares_group(&s, sender, destination) {
+                continue;
+            }
+            if let Some(c) = s.clients.get(&destination)
+                && c.out.try_send(frame).is_err()
+            {
+                tracing::info!("relay frame dropped by a full outbound queue; values omitted");
+            }
+        }
     }
     /// Read-only view for the admin panel (B4.6).
     pub fn snapshot(&self) -> RelaySnapshot {
@@ -304,8 +378,17 @@ impl Relay {
         if let Some(h) = host {
             let removed = {
                 let mut s = lock(&self.state);
-                for g in s.groups.values_mut() {
-                    g.members.retain(|m| *m != h);
+                // RelayClient Closed → P2PGroup.Leave of every group of the client.
+                let mut left = Vec::new();
+                for (id, g) in s.groups.iter_mut() {
+                    if g.members.contains(&h) {
+                        left.push((*id, g.members.clone()));
+                        g.members.retain(|m| *m != h);
+                    }
+                }
+                s.groups.retain(|_, g| !g.members.is_empty());
+                for (id, before) in &left {
+                    notify_leave(&s, *id, before, &[h]);
                 }
                 s.clients.remove(&h)
             };
@@ -506,6 +589,50 @@ impl Relay {
                 }
                 true
             }
+            ClientMessage::ReliableRelay {
+                destinations,
+                payload,
+            } => {
+                let Some(h) = *host else { return false };
+                self.relay(
+                    h,
+                    destinations
+                        .into_iter()
+                        .map(|(d, frame)| (d, wire::reliable_relay2(h, frame, payload)))
+                        .collect(),
+                );
+                true
+            }
+            ClientMessage::UnreliableRelay {
+                destinations,
+                payload,
+            } => {
+                let Some(h) = *host else { return false };
+                let frame = wire::unreliable_relay2(h, payload);
+                self.relay(
+                    h,
+                    destinations
+                        .into_iter()
+                        .map(|d| (d, frame.clone()))
+                        .collect(),
+                );
+                true
+            }
+            ClientMessage::LingerDataFrame {
+                destination,
+                frame_number,
+                payload,
+            } => {
+                let Some(h) = *host else { return false };
+                self.relay(
+                    h,
+                    vec![(
+                        destination,
+                        wire::linger_data_frame2(h, frame_number, payload),
+                    )],
+                );
+                true
+            }
             ClientMessage::ReliablePing => tx
                 .send(wire::Writer::rmi(wire::rmi::RELIABLE_PONG).finish())
                 .await
@@ -541,6 +668,26 @@ fn note(noted: &mut u32, what: &'static str, kind: Option<u8>, rmi: Option<u16>)
     *noted += 1;
     if *noted <= 16 {
         tracing::info!(kind, rmi, "{what}");
+    }
+}
+
+/// LeaveP2PGroup notices: every remaining member hears that each leaver left, and each
+/// leaver hears that every member of the group (itself included) left it.
+fn notify_leave(s: &State, group: i32, before: &[i32], leavers: &[i32]) {
+    for member in before {
+        let Some(c) = s.clients.get(member) else {
+            continue;
+        };
+        let gone: Vec<i32> = if leavers.contains(member) {
+            before.to_vec()
+        } else {
+            leavers.to_vec()
+        };
+        for left in gone {
+            if c.out.try_send(wire::member_leave(left, group)).is_err() {
+                tracing::info!("relay member leave notice dropped; values omitted");
+            }
+        }
     }
 }
 

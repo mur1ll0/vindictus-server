@@ -98,7 +98,21 @@ Heroes game RMIs (PIDL `S2C`/`C2S`):
 - **Joining the group:** `P2PGroup.Join` (`RelayServer/P2PGroup.cs`) calls `JoinP2PGroup(member, group, customField)`, where the custom field is ParentID (int64), ParentCategory (BinaryWriter string), ParentID again, the int 1 and the joining member's ClientHostID (int32), CID (int64) and NexonSN (int32). It then sends `SendNMInfos` with the members already in the group (the joining client is added afterwards). The member's `P2PGroup_MemberJoin_Ack` completes the join; this is the event that admits the player into the MicroPlay. The client's `P2PMemberJoinEventArgs` handler (`engine.dll` 0x42351740) reads this field without bounds: with only ParentID and ParentCategory it read past the buffer and crashed intermittently at +0x351932/+0x35193b (reports of 23, 24 and 25/10/2026).
 - **Group custom field (`MakeCustomField`):** ParentID, ParentCategory, ParentID, then the int 0.
 
-Message types 20, 21 and 22 relay reliable, unreliable and linger frames to the other group members, answered as types 23, 24 and 25. A one-member group has nobody to relay to.
+### Relayed frames (B5 MP2)
+
+The relay offers no UDP, so every P2P frame between party members goes through it. Recovered from the server handlers of `engine.dll` (`CNetThreads_S::NetWorkerThread_ProcessMessage_*`: 0x42642d80, 0x426430b0, 0x42643420; destination list reader 0x425bbe60):
+
+| Client → relay | Fields | Relay → each destination |
+|---|---|---|
+| 20 ReliableRelay1 | compact count, {HostID, u32 reliable frame number} × count, frame (byte array, must end the message) | 23 ReliableRelay2: sender HostID, that destination's frame number, frame |
+| 21 UnreliableRelay1 | byte priority, compact unique ID, compact count, HostID × count, frame | 24 UnreliableRelay2: sender HostID, frame |
+| 22 LingerDataFrame1 | destination HostID, u32 frame number, frame | 25 LingerDataFrame2: sender HostID, frame number, frame |
+
+Only destinations that share a P2P group with the sender receive the frame; others are dropped. The destination count is bounded at 64 (the client's array bound was not recovered).
+
+Group membership changes:
+- **Join:** the joining member gets `P2PGroup_MemberJoin` for every member (itself included) and NMInfos of the earlier members; every earlier member gets `P2PGroup_MemberJoin` for the joining one. All carry the joining member's custom field and the same event ID.
+- **Leave:** `P2PGroup_MemberLeave` (`0xfbfa`, ProudS2C slot 6: member HostID, group HostID; arguments read as two HostIDs by the client stub). Each remaining member hears that the leaver left; the leaver hears that every member, itself included, left. A closed relay connection leaves all its groups; an empty group closes; `close_group` (DestroyP2PGroup) notifies every member.
 
 ### Client completions above 2 GB (laboratory patch)
 
