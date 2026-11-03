@@ -14,9 +14,8 @@ use crate::domain::{
     },
 };
 use crate::protocol::mission::{
-    self as wire, AcceptQuest, BlessStones, ConnectionRequest, DropErg, DropGoldCore, Erg,
-    EvilCoreInfo, GameInfo, GetItem, LaunchShipGranted, Message, PaidCoin, PartyMember,
-    PayCoinCompleted, PutErg, Ship, ShipOption,
+    self as wire, AcceptQuest, ConnectionRequest, DropErg, DropGoldCore, Erg, EvilCoreInfo,
+    GameInfo, GetItem, LaunchShipGranted, Message, PartyMember, PutErg, Ship, ShipOption,
 };
 use crate::protocol::{
     inventory::Dict,
@@ -538,6 +537,8 @@ pub struct Mission {
     pub pets: super::minimum_pet::BattlePets,
     /// The party authority that broadcasts this party's state to its members.
     pub party: std::sync::Arc<super::party_hub::PartyHub>,
+    /// MicroPlayHost (the game host) rather than MicroPlayMember.
+    pub host: bool,
 }
 impl Mission {
     /// Party.ChangeState of the host's party.
@@ -744,50 +745,25 @@ pub async fn accept_quest(
         .required_item
         .clone()
         .filter(|i| !i.is_empty() && !practice);
-    let mut mission = Mission {
+    let swear_id = if message.swear_id >= 0 && contents.has_swear(&quest, message.swear_id) {
+        message.swear_id
+    } else {
+        -1
+    };
+    let mut mission = new_mission(
+        assets,
         party_id,
-        group: 0,
-        quest: quest.clone(),
-        title: message.title.clone(),
+        quest.clone(),
+        message.title.clone(),
         option,
         digest,
-        swear_id: if message.swear_id >= 0 && contents.has_swear(&quest, message.swear_id) {
-            message.swear_id
-        } else {
-            -1
-        },
-        settings: contents.settings(&quest, difficulty).map_err(|_| fail())?,
+        swear_id,
         member,
-        state: party_state::IN_TOWN_WITH_SHIP_INFO,
-        host_info: None,
-        sectors: None,
-        sequence: None,
-        game_time: 0,
-        in_game: false,
-        monster_kill_exp: 0,
-        alive: true,
-        events: Vec::new(),
-        title_goals: None,
-        title_events: Vec::new(),
-        boss_killed: Vec::new(),
-        luck: 0,
-        base_character: 1,
-        story_drops: Vec::new(),
-        consumables: Vec::new(),
-        combat_record: None,
-        min_clear_time_reduced: 0,
-        reserved_item,
-        member_key: 0,
-        completion: super::minimum_mission_finish::Completion::new(cid),
-        pets: super::minimum_pet::BattlePets::new(assets),
-        party: hub,
-    };
-    // AddPlayer: QueryQuestState and the achieved goals of QueryPlayerInfo.
-    let (achieved, today_play_count, today) =
-        super::minimum_mission_finish::load_player(pool, owner, assets, cid, &quest, clock).await?;
-    mission.completion.achieved_info = achieved;
-    mission.completion.today_play_count = today_play_count;
-    mission.completion.today_quest = today;
+        cid,
+        hub,
+        true,
+    )?;
+    mission.reserved_item = reserved_item;
     // RegisterShipInfo → Party.SetShipInfo + ChangeState(InTownWithShipInfo), broadcast.
     let story_quest = contents
         .digest(&mission.quest, -1)
@@ -807,65 +783,41 @@ pub async fn accept_quest(
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
     mission.party.start_micro_play(party_id);
     mission.set_state(party_state::ENTERING_SHIP);
-    // AddPlayer: the item limit regex, member info, relay registration.
-    let item_limit = mission.item_limit()?;
-    let key = OsMissionRandom.next();
-    mission.member_key = key;
-    let member = member_info(
+    // AddPlayer: the player's quest state, member info and relay registration.
+    let member = add_player(
         pool,
         owner,
         assets,
         cid,
-        0,
-        key,
-        item_limit.as_ref(),
-        &mission.settings,
+        &mut mission,
         config,
         arithmetic,
+        clock,
     )
     .await?;
-    let luck = member
-        .join
-        .stats
-        .0
-        .as_ref()
-        .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
-        .map_or(0, |(_, v)| *v);
-    mission.luck = luck;
-    mission.pets.set_force_current(member.join.pet.clone());
-    let class: i16 = sqlx::query_scalar("SELECT class FROM game_character_info WHERE id=$1")
-        .bind(cid)
-        .fetch_one(pool)
-        .await?;
-    mission.base_character = u8::try_from(class).map_err(|_| MinimumError::Conflict)?;
-    mission.story_drops = story_drop_data(pool, contents, cid, &mission.quest).await?;
-    mission.consumables = consumables(&member.join);
     let ticket = relay(party_id);
     mission.group = ticket.group;
+    mission.party.set_play(
+        party_id,
+        super::party_hub::Play {
+            quest: mission.quest.clone(),
+            title: mission.title.clone(),
+            option: mission.option.clone(),
+            swear_id: mission.swear_id,
+            group: ticket.group,
+            host: cid,
+            host_info: None,
+            players: std::collections::BTreeMap::new(),
+        },
+    );
     // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
-    packets.push(packet(&Message::PayCoinCompleted(PayCoinCompleted {
-        coins: Some(vec![Some(PaidCoin {
-            slot: 0,
-            silver_coin: Some(Vec::new()),
-            platinum_coin_owner: -1,
-            platinum_coin_type: 0,
-        })]),
-    }))?);
-    packets.push(packet(&Message::InsertBlessStoneComplete(BlessStones {
-        slot: 0,
-        owners: Some(vec![-1; 4]),
-        // SlotDic order: ALL, AP, EXP, LUCK.
-        types: Some(vec![0, 2, 1, 3]),
-    }))?);
-    packets.push(packet(&Message::ConnectionRequest(ConnectionRequest {
-        address: Some(ticket.address.ip().to_string()),
-        port: ticket.address.port(),
-        posix_time: ticket.sn,
-        key: ticket.key,
-        category: Some(MICRO_PLAY_CATEGORY.to_owned()),
-        ping_host_cid: -1,
-        group_id: 0,
-    }))?);
+    packets.extend(
+        mission
+            .party
+            .add_player(party_id, 0, cid)?
+            .ok_or_else(fail)?,
+    );
+    packets.push(connection_request(&ticket)?);
     packets.push(packet(&Message::LaunchShipGranted(Box::new(
         LaunchShipGranted {
             quest_id: Some(quest),
@@ -875,6 +827,272 @@ pub async fn accept_quest(
         },
     )))?);
     Ok(Accept::Started {
+        mission: Box::new(mission),
+        packets,
+    })
+}
+
+/// ConnectionRequestMessage of AddPlayer's relay registration.
+fn connection_request(ticket: &RelayTicket) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::ConnectionRequest(ConnectionRequest {
+        address: Some(ticket.address.ip().to_string()),
+        port: ticket.address.port(),
+        posix_time: ticket.sn,
+        key: ticket.key,
+        category: Some(MICRO_PLAY_CATEGORY.to_owned()),
+        ping_host_cid: -1,
+        group_id: 0,
+    }))
+}
+
+/// A MicroPlayer of the party's play (the host's or a joining member's).
+#[allow(clippy::too_many_arguments)]
+fn new_mission(
+    assets: &Assets,
+    party_id: i64,
+    quest: String,
+    title: Option<String>,
+    option: ShipOption,
+    digest: QuestDigest,
+    swear_id: i32,
+    member: PartyMember,
+    cid: i64,
+    party: std::sync::Arc<super::party_hub::PartyHub>,
+    host: bool,
+) -> Result<Mission, MinimumError> {
+    let contents = assets.mission().ok_or_else(fail)?;
+    let settings = contents
+        .settings(&quest, option.difficulty)
+        .map_err(|_| fail())?;
+    Ok(Mission {
+        party_id,
+        group: 0,
+        quest,
+        title,
+        option,
+        digest,
+        swear_id,
+        settings,
+        member,
+        state: party_state::IN_TOWN_WITH_SHIP_INFO,
+        host_info: None,
+        sectors: None,
+        sequence: None,
+        game_time: 0,
+        in_game: false,
+        monster_kill_exp: 0,
+        alive: true,
+        events: Vec::new(),
+        title_goals: None,
+        title_events: Vec::new(),
+        boss_killed: Vec::new(),
+        luck: 0,
+        base_character: 1,
+        story_drops: Vec::new(),
+        consumables: Vec::new(),
+        combat_record: None,
+        min_clear_time_reduced: 0,
+        reserved_item: None,
+        member_key: 0,
+        completion: super::minimum_mission_finish::Completion::new(cid),
+        pets: super::minimum_pet::BattlePets::new(assets),
+        party,
+        host,
+    })
+}
+
+/// AddPlayerProcessor, the player's side: QueryQuestState and the achieved goals of
+/// QueryPlayerInfo, the item limit, the member info (GameJoinMemberInfo with a fresh
+/// key), MicroPlayer.Luck, the forced pet, the base character, story drops and the
+/// battle inventory.
+#[allow(clippy::too_many_arguments)]
+async fn add_player(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    mission: &mut Mission,
+    config: QueryConfig,
+    arithmetic: Arithmetic,
+    clock: super::minimum_quest::QuestClock,
+) -> Result<HostMember, MinimumError> {
+    let contents = assets.mission().ok_or_else(fail)?;
+    let (achieved, today_play_count, today) =
+        super::minimum_mission_finish::load_player(pool, owner, assets, cid, &mission.quest, clock)
+            .await?;
+    mission.completion.achieved_info = achieved;
+    mission.completion.today_play_count = today_play_count;
+    mission.completion.today_quest = today;
+    let item_limit = mission.item_limit()?;
+    let key = OsMissionRandom.next();
+    mission.member_key = key;
+    let member = member_info(
+        pool,
+        owner,
+        assets,
+        cid,
+        mission.member.slot,
+        key,
+        item_limit.as_ref(),
+        &mission.settings,
+        config,
+        arithmetic,
+    )
+    .await?;
+    mission.luck = member
+        .join
+        .stats
+        .0
+        .as_ref()
+        .and_then(|s| s.iter().find(|(k, _)| k == "LUCK"))
+        .map_or(0, |(_, v)| *v);
+    mission.pets.set_force_current(member.join.pet.clone());
+    let class: i16 = sqlx::query_scalar("SELECT class FROM game_character_info WHERE id=$1")
+        .bind(cid)
+        .fetch_one(pool)
+        .await?;
+    mission.base_character = u8::try_from(class).map_err(|_| MinimumError::Conflict)?;
+    mission.story_drops = story_drop_data(pool, contents, cid, &mission.quest).await?;
+    mission.consumables = consumables(&member.join);
+    Ok(member)
+}
+
+/// JoinShip of a party member (PartyMember → MicroPlayMember): JoinMicroPlay → AddPlayer
+/// (MemberInfo to the host, relay registration, coin and stone info) → ConnectionRequest
+/// → SetMemberState(InShip) → QueryMicroPlayInfo → HostInfoMessage.
+pub enum Join {
+    Joined {
+        mission: Box<Mission>,
+        packets: Vec<OutgoingPacket>,
+    },
+    /// AddPlayer failed with this FailReasonEnum name.
+    Failed(&'static str),
+}
+
+/// The member's JoinMicroPlay into the play of `party_id`, in `slot`. `relay` registers the
+/// waiting client and its join to the play's P2P group.
+#[allow(clippy::too_many_arguments)]
+pub async fn join_ship(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    party_id: i64,
+    slot: i32,
+    hub: std::sync::Arc<super::party_hub::PartyHub>,
+    relay: impl FnOnce(i32) -> RelayTicket,
+    config: QueryConfig,
+    clock: super::minimum_quest::QuestClock,
+) -> Result<Join, MinimumError> {
+    let arithmetic = clock.arithmetic;
+    let contents = assets.mission().ok_or_else(fail)?;
+    // AddPlayer: NoSuchMicroplay without a play or a host that registered its server.
+    let Some(play) = hub.play(party_id) else {
+        return Ok(Join::Failed("NoSuchMicroplay"));
+    };
+    let Some(host_info) = play.host_info.clone() else {
+        return Ok(Join::Failed("NoSuchMicroplay"));
+    };
+    let difficulty = play.option.difficulty;
+    let practice = play.option.is_practice_mode;
+    // QueryQuestState of the joining player: QuestNotAvailable.
+    let story = contents
+        .digest(&play.quest, -1)
+        .ok()
+        .and_then(|d| d.required_story_line.zip(d.required_phase));
+    if super::minimum_quest::digest_constraint(
+        pool,
+        owner,
+        assets,
+        cid,
+        &play.quest,
+        difficulty,
+        practice,
+        story.as_ref().map(|(l, p)| (l.as_str(), p.as_str())),
+    )
+    .await?
+    .is_some()
+    {
+        return Ok(Join::Failed("QuestNotAvailable"));
+    }
+    let Ok(mut digest) = contents.digest(&play.quest, play.swear_id) else {
+        return Ok(Join::Failed("QuestNotAvailable"));
+    };
+    contents.item_limit(&mut digest, play.swear_id, difficulty);
+    let base =
+        super::minimum_selection::view_member(pool, owner, assets, cid, config, arithmetic).await?;
+    let member = PartyMember {
+        nexon_sn: owner.uid,
+        character: base.base_class,
+        character_id: base.name.clone(),
+        slot,
+        level: base.level,
+        state: crate::domain::party::ready_state::IN_SHIP,
+        latest_ping: 0,
+        latest_frame_rate: 0,
+        is_return: base.is_return,
+        is_event_jumping: base.is_event_jumping,
+    };
+    let mut mission = new_mission(
+        assets,
+        party_id,
+        play.quest.clone(),
+        play.title.clone(),
+        play.option.clone(),
+        digest,
+        play.swear_id,
+        member,
+        cid,
+        hub.clone(),
+        false,
+    )?;
+    mission.state = party_state::IN_SHIP;
+    mission.host_info = Some(host_info.clone());
+    let joined = add_player(
+        pool,
+        owner,
+        assets,
+        cid,
+        &mut mission,
+        config,
+        arithmetic,
+        clock,
+    )
+    .await?;
+    // AddPlayer → GameHost.GetSendMessageSync(MemberInfoMessage) to the host.
+    hub.send(
+        play.host,
+        vec![packet(&Message::MemberInfo(Box::new(wire::MemberInfo {
+            uid: slot,
+            info: Some(joined.join),
+        })))?],
+    );
+    let ticket = relay(play.group);
+    mission.group = play.group;
+    let Some(mut packets) = hub.add_player(party_id, slot, cid)? else {
+        return Ok(Join::Failed("SlotNotEmpty"));
+    };
+    packets.push(connection_request(&ticket)?);
+    // SetMemberState(InShip) → BroadCastPartyInfo.
+    match hub.set_member_state(
+        party_id,
+        slot,
+        crate::domain::party::ready_state::IN_SHIP,
+        cid,
+    )? {
+        Ok(own) => packets.extend(own),
+        Err(_) => return Ok(Join::Failed("SetMemberStateFail")),
+    }
+    // QueryMicroPlayInfo → HostInfoMessage(HostInfo, slot, key, IsNoWaitingShip, false):
+    // IsNoWaitingShip only for hunting quests and giant raids.
+    packets.push(packet(&Message::HostInfo(wire::HostInfo {
+        game_info: Some(host_info),
+        uid: slot,
+        key: mission.member_key,
+        skip_lobby: mission.digest.is_hunting_quest,
+        is_transfer_to_ds: false,
+    }))?);
+    Ok(Join::Joined {
         mission: Box::new(mission),
         packets,
     })
@@ -954,6 +1172,7 @@ pub fn register_server(
         // ShipLaunched refuses a party that is not launching; nothing reaches the client.
         return Ok(Vec::new());
     }
+    mission.party.set_host_info(mission.party_id, info.clone());
     mission.host_info = info;
     mission.set_state(party_state::IN_SHIP);
     mission.broadcast()

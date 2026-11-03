@@ -9,9 +9,10 @@ use crate::domain::party::{
     JoinFail, Member, Party, RejectReason, Removal, ShipLimits, StateFail, party_state,
 };
 use crate::protocol::mission::{
-    self as wire, Message, PartyInfo, PartyInvitationRejected, PartyInvited, Ship, UpdateShip,
+    self as wire, BlessStones, GameInfo, Message, PaidCoin, PartyInfo, PartyInvitationRejected,
+    PartyInvited, PayCoinCompleted, Ship, ShipOption, UpdateShip,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use tokio::sync::mpsc;
 
@@ -56,6 +57,23 @@ pub enum Invite {
     Failed(Vec<OutgoingPacket>),
 }
 
+/// The party's MicroPlay as its members join it (StartMicroPlay2 to the end of the play).
+#[derive(Clone, Debug)]
+pub struct Play {
+    pub quest: String,
+    pub title: Option<String>,
+    pub option: ShipOption,
+    pub swear_id: i32,
+    /// The relay P2P group of the play.
+    pub group: i32,
+    /// MicroPlay.GameHost: the host's CID.
+    pub host: i64,
+    /// MicroPlay.HostInfo (RegisterServer of the host).
+    pub host_info: Option<GameInfo>,
+    /// MicroPlay.Players: slot → CID.
+    pub players: BTreeMap<i32, i64>,
+}
+
 struct Seat {
     name: String,
     mailbox: mpsc::Sender<Notice>,
@@ -68,6 +86,7 @@ struct Entry {
     /// ShipInfo fields the master's RegisterShipInfo fixed; members, counts, state and the
     /// host's ping are refreshed on every broadcast (RefreshShipInfo).
     ship: Option<Ship>,
+    play: Option<Play>,
 }
 #[derive(Default)]
 struct State {
@@ -96,6 +115,14 @@ fn packet(message: &Message) -> Result<OutgoingPacket, MinimumError> {
         .map_err(|_| fail())?
         .to_vec(),
     })
+}
+/// InsertBlessStoneComplete of a slot without stones (SlotDic order: ALL, AP, EXP, LUCK).
+pub fn stones(slot: i32) -> Result<OutgoingPacket, MinimumError> {
+    packet(&Message::InsertBlessStoneComplete(BlessStones {
+        slot,
+        owners: Some(vec![-1; 4]),
+        types: Some(vec![0, 2, 1, 3]),
+    }))
 }
 fn info(m: &Member) -> wire::PartyMember {
     wire::PartyMember {
@@ -219,10 +246,16 @@ impl State {
                 Ok(Vec::new())
             }
             Some(Removal::Continues) => {
-                if let Some(entry) = self.parties.get_mut(&party_id)
-                    && !entry.party.has_ship()
-                {
-                    entry.ship = None;
+                if let Some(entry) = self.parties.get_mut(&party_id) {
+                    if !entry.party.has_ship() {
+                        entry.ship = None;
+                    }
+                    if !entry.party.has_micro_play() {
+                        entry.play = None;
+                    }
+                    if let Some(play) = entry.play.as_mut() {
+                        play.players.retain(|_, c| *c != cid);
+                    }
                 }
                 self.broadcast(party_id, caller)
             }
@@ -317,7 +350,14 @@ impl PartyHub {
         seat.invited_party = None;
         let mut party = Party::new(party_id);
         party.join(master).map_err(|_| fail())?;
-        s.parties.insert(party_id, Entry { party, ship: None });
+        s.parties.insert(
+            party_id,
+            Entry {
+                party,
+                ship: None,
+                play: None,
+            },
+        );
         s.broadcast(party_id, cid)
     }
     /// InvitePartyMember (MicroPlay) → SendInvitation (the target's frontend).
@@ -555,6 +595,73 @@ impl PartyHub {
             Err(e) => Ok(Err(e)),
         }
     }
+    /// StartMicroPlay2 → AddPlayer of the host: the play of the party.
+    pub fn set_play(&self, party_id: i64, play: Play) {
+        if let Some(e) = self.lock().parties.get_mut(&party_id) {
+            e.play = Some(play);
+        }
+    }
+    /// HostStarted: MicroPlay.HostInfo.
+    pub fn set_host_info(&self, party_id: i64, info: Option<GameInfo>) {
+        if let Some(play) = self
+            .lock()
+            .parties
+            .get_mut(&party_id)
+            .and_then(|e| e.play.as_mut())
+        {
+            play.host_info = info;
+        }
+    }
+    pub fn play(&self, party_id: i64) -> Option<Play> {
+        self.lock()
+            .parties
+            .get(&party_id)
+            .and_then(|e| e.play.clone())
+    }
+    /// MicroPlay.AddPlayer of a joining member: BroadCastCoinInfo (every player gets
+    /// the paid coins of every slot) and BlessStone.SendStoneInfo (every player gets its
+    /// own slot). The packets of `cid`; None when the play is gone or the slot taken.
+    pub fn add_player(
+        &self,
+        party_id: i64,
+        slot: i32,
+        cid: i64,
+    ) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+        let mut s = self.lock();
+        let Some(play) = s.parties.get_mut(&party_id).and_then(|e| e.play.as_mut()) else {
+            return Ok(None);
+        };
+        if play.players.get(&slot).is_some_and(|c| *c != cid) {
+            return Ok(None);
+        }
+        play.players.insert(slot, cid);
+        let players = play.players.clone();
+        let coins = packet(&Message::PayCoinCompleted(PayCoinCompleted {
+            coins: Some(
+                players
+                    .keys()
+                    .map(|slot| {
+                        Some(PaidCoin {
+                            slot: *slot,
+                            silver_coin: Some(Vec::new()),
+                            platinum_coin_owner: -1,
+                            platinum_coin_type: 0,
+                        })
+                    })
+                    .collect(),
+            ),
+        }))?;
+        let mut own = Vec::new();
+        for (player_slot, player) in &players {
+            let packets = vec![coins.clone(), stones(*player_slot)?];
+            if *player == cid {
+                own = packets;
+            } else {
+                s.push(*player, Notice::Packets(packets));
+            }
+        }
+        Ok(Some(own))
+    }
     /// Party.IsAllReady.
     pub fn all_ready(&self, party_id: i64) -> bool {
         self.lock()
@@ -692,6 +799,60 @@ mod tests {
         };
         assert_eq!(kinds(&p), [REJECTED]);
         assert!(matches!(a.try_recv(), Ok(Notice::Kicked { party_id: 101 })));
+    }
+
+    #[test]
+    fn a_joining_player_gets_coins_of_every_slot_and_the_host_its_own_stones() {
+        let hub = PartyHub::new(false);
+        let mut a = seat(&hub, 1);
+        let mut b = seat(&hub, 2);
+        hub.open(100, member(1)).unwrap();
+        hub.invite(100, 1, 2, "Name2").unwrap();
+        hub.accept(100, member(2)).unwrap().unwrap().unwrap();
+        while a.try_recv().is_ok() {}
+        while b.try_recv().is_ok() {}
+        assert_eq!(hub.add_player(100, 0, 1).unwrap(), None);
+        hub.start_micro_play(100);
+        hub.change_state(100, party_state::IN_SHIP);
+        hub.set_play(
+            100,
+            Play {
+                quest: "q".into(),
+                title: None,
+                option: crate::protocol::mission::ShipOption {
+                    max_member_count: 4,
+                    swear_member_limit: -1,
+                    until_force_start: 1,
+                    min_level: 1,
+                    max_level: 99,
+                    is_party_only: 0,
+                    over18_only: 0,
+                    difficulty: 0,
+                    is_season2: false,
+                    selected_boss_quest_ids: None,
+                    is_practice_mode: false,
+                    user_ds_mode: false,
+                },
+                swear_id: -1,
+                group: 9,
+                host: 1,
+                host_info: None,
+                players: BTreeMap::new(),
+            },
+        );
+        let own = hub.add_player(100, 0, 1).unwrap().unwrap();
+        assert_eq!(kinds(&own), [432, 48]);
+        let own = hub.add_player(100, 1, 2).unwrap().unwrap();
+        assert_eq!(kinds(&own), [432, 48]);
+        // The host hears the new coin list and its own stone slot again.
+        let Ok(Notice::Packets(p)) = a.try_recv() else {
+            panic!()
+        };
+        assert_eq!(kinds(&p), [432, 48]);
+        assert_eq!(hub.add_player(100, 1, 3).unwrap(), None);
+        // A member leaving the party leaves the play.
+        assert!(hub.leave(2).unwrap());
+        assert_eq!(hub.play(100).map(|p| p.players.len()), Some(1));
     }
 
     #[test]

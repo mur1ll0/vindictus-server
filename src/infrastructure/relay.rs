@@ -240,30 +240,28 @@ impl Relay {
         }
     }
     /// P2PGroup.Leave of `cid`: LeaveP2PGroup tells the remaining members and the leaver.
-    /// The group closes when it has no member left (AllowEmptyP2PGroup is false).
+    /// The group closes when it has no member left (AllowEmptyP2PGroup is false), also
+    /// when the leaver never reached the relay.
     pub fn leave(&self, group: i32, cid: i64) {
         let mut s = lock(&self.state);
-        let Some(host) = s
+        let host = s
             .clients
             .iter()
             .find(|(_, c)| c.cid == cid)
-            .map(|(h, _)| *h)
-        else {
-            return;
-        };
+            .map(|(h, _)| *h);
         let Some(g) = s.groups.get_mut(&group) else {
             return;
         };
-        if !g.members.contains(&host) {
-            return;
-        }
         let before = g.members.clone();
-        g.members.retain(|m| *m != host);
-        let empty = g.members.is_empty();
-        if empty {
+        if let Some(h) = host {
+            g.members.retain(|m| *m != h);
+        }
+        if g.members.is_empty() {
             s.groups.remove(&group);
         }
-        notify_leave(&s, group, &before, &[host]);
+        if let Some(h) = host.filter(|h| before.contains(h)) {
+            notify_leave(&s, group, &before, &[h]);
+        }
     }
     /// The groups `host` shares with `other`.
     fn shares_group(s: &State, host: i32, other: i32) -> bool {

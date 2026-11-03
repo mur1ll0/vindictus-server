@@ -3381,3 +3381,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: no checkpoint do MP3 (dois clientes na mesma dungeon); `close_group` agora envia MemberLeave também na missão solo, como o DestroyP2PGroup original.
 - Commits: (este commit)
 - Pendente / próxima ação: MP3 (JoinShip do membro) e o checkpoint de cliente com dois clientes.
+
+## 2026-11-03 — B5 MP3: membro entra no navio (JoinShip) e checkpoint de cliente
+- Feito: `party_hub::Play` (MicroPlay compartilhada: quest, opção, grupo do relay, host, HostInfo, jogadores por slot) com `set_play`, `set_host_info` (HostStarted) e `add_player` (BroadCastCoinInfo de todos os slots a cada jogador, SendStoneInfo do próprio slot); `minimum_mission`: `new_mission` e `add_player` extraídos do `accept_quest` (mesma ordem de pacotes do host), `join_ship` do membro (NoSuchMicroplay sem play/HostInfo, QuestNotAvailable pela restrição da quest, MemberInfo ao host, ConnectionRequest, SetMemberState(InShip) com broadcast, HostInfoMessage com IsNoWaitingShip só para caça), `Mission.host`; `lab_frontend`: JoinShip do PartyMember, Ready → SetMemberState, mensagens de MicroPlayHost ignoradas para membros, `relay_ticket` comum ao host e ao membro, saída do relay por `Relay::leave` (grupo vazio fecha, também sem cliente conectado), membro segue o estado da party e larga o navio se a party volta à cidade. StartGame do host já exigia todos prontos (MP1).
+- Verificação: `cargo test --lib party` 10 ok (novo: moedas/pedras na entrada do jogador e saída da play); `cargo clippy --lib -D warnings` limpo; `cargo test --test proudnet` 6 ok no MP2. Logs `.cache/verification/b5-mp3-*.log`.
+- Cliente: necessário — checkpoint `docs/client-tests/B5-multijogador.md` (MP1 e MP2/MP3: dois clientes no mesmo navio e na mesma dungeon). Parada pela regra 2 do AGENTS: o MP4 (EXP, drops e recompensas dos membros) não é verificável antes de confirmar a carga conjunta da dungeon pelo relay.
+- Commits: (este commit)
+- Pendente / próxima ação: rebuild do Docker e sessão de cliente com duas contas pelo roteiro B5-multijogador; depois MP4 e MP5.

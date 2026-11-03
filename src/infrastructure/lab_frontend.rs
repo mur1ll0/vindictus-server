@@ -407,6 +407,51 @@ impl Runtime {
         })
     }
 }
+/// AddPlayer's relay side: AddClientWaiting, then (RelayClient Connected) P2PGroup.Join of
+/// the play's group with the party as parent; the member's acknowledgement completes it.
+fn relay_ticket(
+    relay: &super::relay::Relay,
+    group: i32,
+    cid: i64,
+    nexon_sn: i32,
+    party_id: i64,
+) -> super::minimum_mission::RelayTicket {
+    use super::minimum_mission::MICRO_PLAY_CATEGORY;
+    use super::relay::RelayEvent;
+    // Subscribe before registering, so Connected cannot be missed.
+    let mut events = relay.subscribe();
+    let joiner = relay.clone();
+    tokio::spawn(async move {
+        let joined = tokio::time::timeout(Duration::from_secs(120), async {
+            loop {
+                match events.recv().await {
+                    Ok(RelayEvent::Connected { cid: c, .. }) if c == cid => {
+                        // MicroPlayer.RelayClient_StateChanged → P2PGroup.Join.
+                        if !joiner.join(group, cid, party_id, MICRO_PLAY_CATEGORY) {
+                            return false;
+                        }
+                    }
+                    Ok(RelayEvent::Joined { cid: c, .. }) if c == cid => return true,
+                    Ok(RelayEvent::Closed { cid: c }) if c == cid => return false,
+                    Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(_) => return false,
+                }
+            }
+        })
+        .await;
+        tracing::info!(
+            joined = matches!(joined, Ok(true)),
+            "mission relay join finished; values omitted"
+        );
+    });
+    let waiting = relay.add_client_waiting(cid, nexon_sn);
+    super::minimum_mission::RelayTicket {
+        address: relay.endpoint(),
+        group,
+        sn: waiting.sn,
+        key: waiting.key,
+    }
+}
 async fn send(
     stream: &mut TcpStream,
     sender: &mut LegacySender,
@@ -525,9 +570,7 @@ impl Connection {
         // group closes (the disconnected player gets no reward, as without CombatRejoinSystem).
         if let Some(mut m) = self.mission.take() {
             self.leave_pets(runtime, pool, &mut m).await;
-            if let Some(relay) = runtime.relay() {
-                relay.close_group(m.group);
-            }
+            self.leave_relay(runtime, &m);
         }
         self.effect_expiry = None;
         self.daily_at = None;
@@ -910,7 +953,7 @@ impl Connection {
         sender: &mut LegacySender,
         message: crate::protocol::mission::Message,
     ) -> Result<(), RuntimeError> {
-        use super::minimum_mission::{self as mission, Accept, RelayTicket};
+        use super::minimum_mission::{self as mission, Accept};
         use crate::protocol::mission::Message;
         // The summary pet after RemovePlayer's EndBattle, for PushUpdatePetStatus.
         let mut left_pet = None;
@@ -944,7 +987,117 @@ impl Connection {
             .ok_or(RuntimeError::Profile)?
             .assets
             .current();
+        // MicroPlayHost/ShipHost messages: a MicroPlayMember's frontend does not forward them.
+        let host_only = matches!(
+            message,
+            Message::RegisterServer(_)
+                | Message::StartGame
+                | Message::MoveToNextSector(_)
+                | Message::AllUserJoinComplete
+                | Message::MonsterKilled(_)
+                | Message::PlayerKilled(_)
+                | Message::RagdollKicked(_)
+                | Message::SectorPropList(_)
+                | Message::PropBroken(_)
+                | Message::PickErg(_)
+                | Message::MonsterDamageReport(_)
+                | Message::CombatRecord(_)
+                | Message::UseConsumable(_)
+                | Message::PlayerRevived(_)
+                | Message::MicroPlayEvent(_)
+        );
+        if host_only && self.mission.as_ref().is_some_and(|m| !m.host) {
+            tracing::info!("host message from a MicroPlay member ignored; values omitted");
+            return Ok(());
+        }
         let packets = match message {
+            Message::JoinShip(join) => {
+                // PartyMember JoinShip (not IsInTownWithShipInfo): JoinMicroPlay. Assist and
+                // the boat list's Initial JoinShip are not migrated.
+                let super::party_hub::Role::Member {
+                    party_id,
+                    slot,
+                    ready,
+                    ..
+                } = runtime.party.role(cid)
+                else {
+                    tracing::info!("JoinShip outside a party member state ignored; values omitted");
+                    return Ok(());
+                };
+                if self.mission.is_some()
+                    || join.is_assist
+                    || join.is_in_town_with_ship_info
+                    || join.ship_id != party_id
+                    || ready != crate::domain::party::ready_state::IN_TOWN
+                {
+                    tracing::info!("JoinShip not admitted; values omitted");
+                    return Ok(());
+                }
+                let nexon_sn = id.nexon_sn;
+                let joined = mission::join_ship(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    party_id,
+                    slot,
+                    runtime.party.clone(),
+                    |group| relay_ticket(&relay, group, cid, nexon_sn, party_id),
+                    runtime.minimum_header()?,
+                    runtime.quest_clock(),
+                )
+                .await;
+                match joined {
+                    Ok(mission::Join::Joined { mission, packets }) => {
+                        self.mission = Some(mission);
+                        tracing::info!("party member joined the ship; values omitted");
+                        packets
+                    }
+                    Ok(mission::Join::Failed(reason)) => {
+                        // GeneralFail("JoinShip", unlock, leaveParty): LeaveParty, then the dialog.
+                        let mut out = super::minimum_party::leave(&runtime.party, cid)
+                            .map_err(|_| RuntimeError::Operation)?
+                            .packets;
+                        out.push(
+                            super::minimum_party::error_message(true, "JoinShip", reason)
+                                .map_err(|_| RuntimeError::Message)?,
+                        );
+                        tracing::info!("party member JoinShip refused; values omitted");
+                        out
+                    }
+                    Err(_) => {
+                        tracing::warn!("party member JoinShip rejected; values omitted");
+                        return Ok(());
+                    }
+                }
+            }
+            Message::Ready(ready) => {
+                // MicroPlayMember ReadyMessage → SetMemberState(Ready or InShip).
+                let (Some(m), super::party_hub::Role::Member { party_id, slot, .. }) =
+                    (self.mission.as_ref(), runtime.party.role(cid))
+                else {
+                    return Ok(());
+                };
+                if m.host {
+                    return Ok(());
+                }
+                let state = if ready == 1 {
+                    crate::domain::party::ready_state::READY
+                } else {
+                    crate::domain::party::ready_state::IN_SHIP
+                };
+                match runtime
+                    .party
+                    .set_member_state(party_id, slot, state, cid)
+                    .map_err(|_| RuntimeError::Operation)?
+                {
+                    Ok(packets) => packets,
+                    Err(_) => {
+                        tracing::info!("member ready state refused; values omitted");
+                        return Ok(());
+                    }
+                }
+            }
             Message::AcceptQuest(accept) => {
                 if self.mission.is_some() {
                     tracing::warn!("AcceptQuest while already in a MicroPlay; ignored");
@@ -1006,60 +1159,7 @@ impl Connection {
                         party_id,
                         opened,
                     },
-                    |party_id| {
-                        let group = relay.make_group();
-                        // Subscribe before registering, so Connected cannot be missed.
-                        let mut events = relay.subscribe();
-                        let joiner = relay.clone();
-                        tokio::spawn(async move {
-                            let joined = tokio::time::timeout(Duration::from_secs(120), async {
-                                loop {
-                                    match events.recv().await {
-                                        Ok(super::relay::RelayEvent::Connected {
-                                            cid: c, ..
-                                        }) if c == cid => {
-                                            // MicroPlayer.RelayClient_StateChanged → P2PGroup.Join.
-                                            if !joiner.join(
-                                                group,
-                                                cid,
-                                                party_id,
-                                                mission::MICRO_PLAY_CATEGORY,
-                                            ) {
-                                                return false;
-                                            }
-                                        }
-                                        Ok(super::relay::RelayEvent::Joined { cid: c, .. })
-                                            if c == cid =>
-                                        {
-                                            return true;
-                                        }
-                                        Ok(super::relay::RelayEvent::Closed { cid: c })
-                                            if c == cid =>
-                                        {
-                                            return false;
-                                        }
-                                        Ok(_)
-                                        | Err(tokio::sync::broadcast::error::RecvError::Lagged(
-                                            _,
-                                        )) => {}
-                                        Err(_) => return false,
-                                    }
-                                }
-                            })
-                            .await;
-                            tracing::info!(
-                                joined = matches!(joined, Ok(true)),
-                                "mission relay join finished; values omitted"
-                            );
-                        });
-                        let waiting = relay.add_client_waiting(cid, nexon_sn);
-                        RelayTicket {
-                            address: relay.endpoint(),
-                            group,
-                            sn: waiting.sn,
-                            key: waiting.key,
-                        }
-                    },
+                    |party_id| relay_ticket(&relay, relay.make_group(), cid, nexon_sn, party_id),
                     runtime.minimum_header()?,
                     runtime.quest_clock(),
                 )
@@ -1463,7 +1563,7 @@ impl Connection {
                                 packets.extend(out.packets);
                                 left_pet = out.current;
                             }
-                            relay.close_group(m.group);
+                            self.leave_relay(runtime, &m);
                             // The proxy sent its own Kicked: the party only drops the member.
                             runtime.party.end_for(cid);
                         }
@@ -1816,7 +1916,31 @@ impl Connection {
         notice: super::party_hub::Notice,
     ) -> Result<(), RuntimeError> {
         let packets = match notice {
-            super::party_hub::Notice::Packets(packets) => packets,
+            super::party_hub::Notice::Packets(packets) => {
+                let mut packets = packets;
+                // A MicroPlayMember follows the party state; a party sent back to town
+                // (the host left the ship) ends its ship.
+                if let Some(m) = self.mission.as_mut()
+                    && !m.host
+                {
+                    match runtime.party.role(m.completion.cid) {
+                        super::party_hub::Role::Member { state, .. }
+                            if state != crate::domain::party::party_state::IN_TOWN =>
+                        {
+                            m.state = state;
+                        }
+                        _ => {
+                            if let Some(mut m) = self.mission.take() {
+                                if let Some(out) = self.leave_pets(runtime, pool, &mut m).await {
+                                    packets.extend(out.packets);
+                                }
+                                self.leave_relay(runtime, &m);
+                            }
+                        }
+                    }
+                }
+                packets
+            }
             super::party_hub::Notice::Kicked { .. } => {
                 let mut packets = Vec::new();
                 if let Some(mut m) = self.mission.take() {
@@ -1837,10 +1961,11 @@ impl Connection {
         }
         Ok(())
     }
-    /// The relay side of leaving a MicroPlay: the host's P2P group closes with it.
+    /// The relay side of leaving a MicroPlay: P2PGroup.Leave of this player; the group
+    /// closes once empty.
     fn leave_relay(&self, runtime: &Runtime, mission: &super::minimum_mission::Mission) {
         if let Some(relay) = runtime.relay() {
-            relay.close_group(mission.group);
+            relay.leave(mission.group, mission.completion.cid);
         }
     }
     /// MicroPlay.RemovePlayer: PetManager.EndBattle(includeExpInfo: false) when the player
@@ -2207,7 +2332,7 @@ impl Connection {
             && let Some(m) = self.mission.take()
         {
             if let Some(relay) = runtime.relay() {
-                relay.close_group(m.group);
+                relay.leave(m.group, m.completion.cid);
             }
             runtime.party.end_for(m.completion.cid);
             tracing::info!("mission left without reward; values omitted");
@@ -2773,6 +2898,8 @@ impl Connection {
                 Kind::PartyInvitationAccept,
                 Kind::PartyInvitationReject,
                 Kind::Kick,
+                Kind::JoinShip,
+                Kind::Ready,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
