@@ -214,21 +214,19 @@ pub async fn open_launcher_session(
     tx.commit().await
 }
 
-/// Store a one-time game ticket (its digest) for a live launcher session of an active account
-/// whose password did not change; it expires with the session. Spent tickets of the session are
-/// removed. False when the session is gone.
+/// Store a game ticket (its digest) for a live launcher session of an active account whose
+/// password did not change; it expires with the session. It replaces the earlier tickets of the
+/// session (one game at a time). False when the session is gone.
 pub async fn mint_launcher_ticket(
     pool: &PgPool,
     session_sha256: &[u8; 32],
     ticket_sha256: &[u8; 32],
 ) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
-    sqlx::query(
-        "DELETE FROM game_launcher_tickets WHERE session_sha256 = $1 AND redeemed_at IS NOT NULL",
-    )
-    .bind(session_sha256.as_slice())
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("DELETE FROM game_launcher_tickets WHERE session_sha256 = $1")
+        .bind(session_sha256.as_slice())
+        .execute(&mut *tx)
+        .await?;
     let minted = sqlx::query(
         "INSERT INTO game_launcher_tickets (ticket_sha256, account_id, session_sha256, expires_at)
          SELECT $2, s.account_id, s.token_sha256, s.expires_at

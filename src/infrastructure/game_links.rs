@@ -2,6 +2,7 @@
 //! by its passport alone; an account can enter an existing game user, keeping its characters.
 use super::admin_store::{self, AuditRecord};
 use sqlx::PgPool;
+use std::net::IpAddr;
 use uuid::Uuid;
 
 /// Whether an account enters this game name, so its passport alone no longer logs in.
@@ -105,17 +106,23 @@ pub async fn game_name_for_login(
     .await
 }
 
-/// Launcher login (trilha L): spend a one-time ticket and return the game name of its account,
-/// if the ticket is unspent, its launcher session is still open and the account is still
-/// active, unlocked and with the session's password.
+/// Launcher login (trilha L): redeem a game ticket and return the game name of its account, if
+/// its launcher session is still open and the account is still active, unlocked and with the
+/// session's password. The first login binds the ticket to its address; the same game logs in
+/// again with it after "Go Back" (same connection, same ticket) only from that address. The
+/// launcher's next Play, logout or the session's end retires it.
 pub async fn redeem_launcher_ticket(
     pool: &PgPool,
     ticket_sha256: &[u8; 32],
+    peer: IpAddr,
 ) -> Result<Option<String>, sqlx::Error> {
     sqlx::query_scalar(
-        "UPDATE game_launcher_tickets t SET redeemed_at = now()
+        "UPDATE game_launcher_tickets t
+            SET redeemed_at = COALESCE(t.redeemed_at, now()),
+                redeemed_from = COALESCE(t.redeemed_from, $2::inet)
          FROM launcher_sessions s, accounts a
-         WHERE t.ticket_sha256 = $1 AND t.redeemed_at IS NULL AND t.expires_at > now()
+         WHERE t.ticket_sha256 = $1 AND t.expires_at > now()
+           AND (t.redeemed_from IS NULL OR t.redeemed_from = $2::inet)
            AND s.token_sha256 = t.session_sha256 AND s.expires_at > now()
            AND a.id = s.account_id AND a.status = 'active'
            AND a.password_changed_at = s.password_changed_at
@@ -123,6 +130,7 @@ pub async fn redeem_launcher_ticket(
          RETURNING COALESCE(a.game_name, a.username)",
     )
     .bind(ticket_sha256.as_slice())
+    .bind(peer.to_string())
     .fetch_optional(pool)
     .await
 }

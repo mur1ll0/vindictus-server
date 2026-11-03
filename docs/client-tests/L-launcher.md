@@ -29,6 +29,7 @@ Pré-condição: Docker reconstruído com a migração 0052; `client.dll` `59b60
 Limites conhecidos: fechar a janela do PowerShell sem `S` deixa a sessão aberta até o limite de 12 horas; o login por nome digitado continua aceito até a decisão D-L6.
 
 ### LA4 — launcher Rust + Win32 (`vindictus-launcher.exe`)
+Resultado (03/11/2026): login pelo launcher → Jogar → Start Game → seleção sem o diálogo, mas só com o launcher marcado como administrador (o `Vindictus.exe` pede administrador no manifesto). Go Back na seleção → Start Game → "We are currently in the Premium Open period" (ticket já gasto); fechar e Jogar de novo funcionou. Corrigido em LA5.
 Pré-condição: Docker reconstruído em 03/11/2026 (panel com `?cadastro=1`); `client.dll` `59b60e7a…`; `.cache/play-client/vindictus-launcher.exe` (compilado por `tools/launcher/build.ps1`, 32 bits, win7) ao lado do `Vindictus.exe`; jogo fechado.
 - [ ] Abrir `.cache/play-client/vindictus-launcher.exe` → janela "Vindictus" → "Servidor: online" em verde; a pasta do jogo já preenchida.
 - [ ] Login e senha → Entrar → "Conectado como …" → Jogar → o jogo abre → esperar na tela de título → Start Game → **seleção de personagem sem o diálogo** → segunda senha → cidade.
@@ -38,3 +39,12 @@ Pré-condição: Docker reconstruído em 03/11/2026 (panel com `?cadastro=1`); `
 - [ ] Com o jogo aberto na tela de título, fechar o launcher → pergunta → Sim → Start Game no jogo é recusado.
 - [ ] (Opcional) Copiar o exe para um Windows 7 → a janela abre sem pedir nenhuma instalação.
 Limites conhecidos: instalar, atualizar e verificar arquivos ainda não existem (L1–L3); o login por nome digitado continua aceito até a decisão D-L6.
+
+### LA5 — Go Back e jogo sem administrador
+Pré-condição: Docker reconstruído com a migração 0053; `.cache/play-client/vindictus-launcher.exe` novo (`3d4b278e…`); **tirar o "Executar como administrador"** das propriedades do `vindictus-launcher.exe` (aba Compatibilidade), que foi marcado no LA4; jogo fechado.
+- [ ] Abrir o launcher (sem administrador) → login → Jogar → o jogo abre **sem pedir permissão do Windows** → Start Game → seleção.
+- [ ] Na seleção, **Go Back** → tela de título → Start Game → **seleção de novo, sem erro**.
+- [ ] Entrar com um personagem e jogar um pouco (cidade, inventário, missão curta): anotar qualquer erro que só aconteça sem administrador.
+- [ ] Se o jogo não abrir ou falhar sem administrador: marcar "Abrir o jogo como administrador" → Jogar → o Windows pede permissão só para o jogo → o resto igual.
+- [ ] Fechar o launcher com o jogo na tela de título → Start Game → recusa (sessão encerrada).
+Limites conhecidos: instalar, atualizar e verificar arquivos ainda não existem (L1–L3).

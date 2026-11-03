@@ -16,6 +16,10 @@ pub struct Config {
     pub game_folder: String,
     #[serde(default)]
     pub last_login: String,
+    /// Abrir o jogo como administrador (UAC a cada Jogar). Padrão: não; o jogo roda com as
+    /// permissões do usuário (`game::start`).
+    #[serde(default)]
+    pub game_as_admin: bool,
 }
 
 fn exe_folder() -> PathBuf {

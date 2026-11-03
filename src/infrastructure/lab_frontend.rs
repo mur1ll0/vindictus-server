@@ -590,11 +590,13 @@ impl Connection {
             .passport
             .and_then(crate::domain::admin::LauncherTicket::parse);
         let account_game = match (&ticket, message.passport) {
-            (Some(ticket), _) => super::game_links::redeem_launcher_ticket(pool, &ticket.digest())
-                .await
-                .ok()
-                .flatten()
-                .map(Zeroizing::new),
+            (Some(ticket), _) => {
+                super::game_links::redeem_launcher_ticket(pool, &ticket.digest(), self.peer)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(Zeroizing::new)
+            }
             (None, Some(passport)) => match crate::domain::Username::parse(passport) {
                 Ok(name) => super::game_links::game_name_for_login(pool, name.normalized())
                     .await

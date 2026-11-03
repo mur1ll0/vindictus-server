@@ -15,6 +15,7 @@ use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::System::Threading::{INFINITE, WaitForSingleObject};
 use windows_sys::Win32::UI::Controls::*;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{EnableWindow, SetFocus};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
@@ -31,6 +32,7 @@ const ID_LOGIN: i32 = 112;
 const ID_LOGOUT: i32 = 113;
 const ID_FOLDER: i32 = 120;
 const ID_PLAY: i32 = 130;
+const ID_ADMIN: i32 = 131;
 const ID_SERVER: i32 = 140;
 const ID_SAVE: i32 = 141;
 
@@ -69,6 +71,7 @@ struct Controls {
     folder: HWND,
     choose_folder: HWND,
     play: HWND,
+    admin: HWND,
     message: HWND,
     server: HWND,
     save: HWND,
@@ -174,11 +177,32 @@ struct BrowseInfo {
 const BIF_RETURNONLYFSDIRS: u32 = 0x0001;
 const BIF_EDITBOX: u32 = 0x0010;
 const BIF_NEWDIALOGSTYLE: u32 = 0x0040;
+// shellapi.h: SHELLEXECUTEINFOW (a união hIcon/hMonitor é um HANDLE).
+#[repr(C)]
+struct ShellExecuteInfo {
+    size: u32,
+    mask: u32,
+    hwnd: HWND,
+    verb: PCWSTR,
+    file: PCWSTR,
+    parameters: PCWSTR,
+    directory: PCWSTR,
+    show: i32,
+    instance: HINSTANCE,
+    id_list: *mut core::ffi::c_void,
+    class: PCWSTR,
+    key_class: isize,
+    hot_key: u32,
+    icon_or_monitor: HANDLE,
+    process: HANDLE,
+}
+const SEE_MASK_NOCLOSEPROCESS: u32 = 0x0000_0040;
 #[link(name = "shell32")]
 unsafe extern "system" {
     fn SHBrowseForFolderW(info: *const BrowseInfo) -> *mut core::ffi::c_void;
     fn SHGetPathFromIDListW(pidl: *const core::ffi::c_void, path: *mut u16) -> BOOL;
     fn ILFree(pidl: *const core::ffi::c_void);
+    fn ShellExecuteExW(info: *mut ShellExecuteInfo) -> BOOL;
     fn ShellExecuteW(
         hwnd: HWND,
         operation: *const u16,
@@ -223,6 +247,7 @@ fn refresh() {
             c.server,
             c.save,
             c.choose_folder,
+            c.admin,
         ] {
             enable(h, idle);
         }
@@ -324,10 +349,70 @@ fn on_logged_in(result: Result<(Session, String), ApiError>) {
     set_busy(false);
 }
 
+/// The running game: a child of the launcher, or an elevated process (handle of `ShellExecuteExW`).
+enum Running {
+    Child(std::process::Child),
+    Elevated(HANDLE),
+}
+
+impl Running {
+    fn wait(self) {
+        match self {
+            Running::Child(mut child) => {
+                let _ = child.wait();
+            }
+            Running::Elevated(handle) => unsafe {
+                WaitForSingleObject(handle, INFINITE);
+                CloseHandle(handle);
+            },
+        }
+    }
+}
+
+/// Modo administrador: o Windows pede o UAC só para o jogo; o launcher continua sem elevação.
+fn start_elevated(folder: &Path, ticket: &str) -> Result<Running, String> {
+    game::check_folder(folder)?;
+    let file = wide(&folder.join(game::EXECUTABLE).to_string_lossy());
+    let directory = wide(&folder.to_string_lossy());
+    let parameters = Zeroizing::new(wide(&game::command_line(ticket)));
+    let verb = wide("runas");
+    let mut info = ShellExecuteInfo {
+        size: std::mem::size_of::<ShellExecuteInfo>() as u32,
+        mask: SEE_MASK_NOCLOSEPROCESS,
+        hwnd: 0,
+        verb: verb.as_ptr(),
+        file: file.as_ptr(),
+        parameters: parameters.as_ptr(),
+        directory: directory.as_ptr(),
+        show: SW_SHOWNORMAL,
+        instance: 0,
+        id_list: std::ptr::null_mut(),
+        class: std::ptr::null(),
+        key_class: 0,
+        hot_key: 0,
+        icon_or_monitor: 0,
+        process: 0,
+    };
+    unsafe {
+        // ShellExecuteEx quer COM iniciado na thread que o chama.
+        CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32);
+        if ShellExecuteExW(&mut info) == 0 || info.process == 0 {
+            return Err(
+                "O jogo não foi aberto como administrador (permissão negada ou cancelada).".into(),
+            );
+        }
+    }
+    Ok(Running::Elevated(info.process))
+}
+
 fn on_play() {
-    let (session, folder) = ST.with(|s| {
+    let (session, folder, as_admin) = ST.with(|s| {
         let s = s.borrow();
-        (s.session.clone(), PathBuf::from(&s.config.game_folder))
+        (
+            s.session.clone(),
+            PathBuf::from(&s.config.game_folder),
+            s.config.game_as_admin,
+        )
     });
     let Some(session) = session else { return };
     let api = match api() {
@@ -341,16 +426,40 @@ fn on_play() {
         let started = api
             .ticket(&session)
             .map_err(|e| (e == ApiError::SessionEnded, e.message()))
-            .and_then(|ticket| game::start(&folder, ticket.as_str()).map_err(|e| (false, e)));
+            .and_then(|ticket| {
+                if as_admin {
+                    start_elevated(&folder, ticket.as_str())
+                } else {
+                    game::start(&folder, ticket.as_str()).map(Running::Child)
+                }
+                .map_err(|e| (false, e))
+            });
         match started {
-            Ok(mut child) => {
+            Ok(running) => {
                 post(window, WM_GAME_STARTED, Ok::<(), (bool, String)>(()));
-                let _ = child.wait();
+                running.wait();
                 post(window, WM_GAME_EXITED, ());
             }
             Err(e) => post(window, WM_GAME_STARTED, Err::<(), (bool, String)>(e)),
         }
     });
+}
+
+fn on_toggle_admin() {
+    let checked = unsafe { SendMessageW(ctl().admin, BM_GETCHECK, 0, 0) } == BST_CHECKED as LRESULT;
+    let saved = ST.with(|s| {
+        let mut s = s.borrow_mut();
+        s.config.game_as_admin = checked;
+        s.config.save()
+    });
+    match saved {
+        Ok(()) if checked => message(
+            "O jogo vai abrir como administrador: o Windows pede permissão a cada Jogar.",
+            Tone::Normal,
+        ),
+        Ok(()) => message("O jogo vai abrir sem pedir administrador.", Tone::Normal),
+        Err(e) => message(&e, Tone::Error),
+    }
 }
 
 fn on_game_started(result: Result<(), (bool, String)>) {
@@ -558,6 +667,7 @@ unsafe extern "system" fn procedure(
                     ID_LOGIN => on_login(),
                     ID_LOGOUT => on_logout_clicked(),
                     ID_PLAY => on_play(),
+                    ID_ADMIN => on_toggle_admin(),
                     ID_FOLDER => on_choose_folder(),
                     ID_SAVE => on_save_server(),
                     ID_PANEL => on_open(false),
@@ -718,6 +828,7 @@ pub fn run() {
     config.server = config.server_base().unwrap_or(config.server);
     let last_login = config.last_login.clone();
     let server = config.server.clone();
+    let as_admin = config.game_as_admin;
     ST.with(|s| {
         s.borrow_mut().config = config;
     });
@@ -768,7 +879,7 @@ pub fn run() {
             left: 0,
             top: 0,
             right: px(520),
-            bottom: px(338),
+            bottom: px(364),
         };
         AdjustWindowRect(&mut r, style, 0);
         let (width, height) = (r.right - r.left, r.bottom - r.top);
@@ -860,11 +971,21 @@ pub fn run() {
             normal,
         );
         let play = button("Jogar", (16, 202, 488, 42), ID_PLAY, BS_PUSHBUTTON, big);
-        let message = label("", normal, (16, 252, 488, 36), SS_EDITCONTROL);
-        label("", normal, (16, 294, 488, 2), SS_ETCHEDHORZ);
-        label("Servidor:", normal, (16, 309, 60, 20), 0);
-        let server_edit = edit(&server, (80, 305, 324, 24), ID_SERVER, 0);
-        let save = button("Salvar", (412, 304, 92, 26), ID_SAVE, BS_PUSHBUTTON, normal);
+        let admin = button(
+            "Abrir o jogo como administrador (só se ele não abrir sem)",
+            (16, 252, 488, 22),
+            ID_ADMIN,
+            BS_AUTOCHECKBOX,
+            normal,
+        );
+        if as_admin {
+            SendMessageW(admin, BM_SETCHECK, BST_CHECKED as WPARAM, 0);
+        }
+        let message = label("", normal, (16, 278, 488, 36), SS_EDITCONTROL);
+        label("", normal, (16, 320, 488, 2), SS_ETCHEDHORZ);
+        label("Servidor:", normal, (16, 335, 60, 20), 0);
+        let server_edit = edit(&server, (80, 331, 324, 24), ID_SERVER, 0);
+        let save = button("Salvar", (412, 330, 92, 26), ID_SAVE, BS_PUSHBUTTON, normal);
 
         CTL.with(|c| {
             c.set(Controls {
@@ -880,6 +1001,7 @@ pub fn run() {
                 folder,
                 choose_folder,
                 play,
+                admin,
                 message,
                 server: server_edit,
                 save,

@@ -291,18 +291,21 @@ async fn launcher_session_mints_one_time_tickets_until_logout() {
     .expect("account");
     let peer = Some("127.0.0.1".parse().expect("ip"));
     let auth = PanelAuth::new(pool.clone());
-    let redeem = |ticket: &LauncherTicket| {
+    let game_pc: std::net::IpAddr = "10.0.0.5".parse().expect("ip");
+    let other_pc: std::net::IpAddr = "10.0.0.6".parse().expect("ip");
+    let redeem_from = |ticket: &LauncherTicket, from: std::net::IpAddr| {
         let pool = pool.clone();
         let digest = ticket.digest();
         async move {
-            game_links::redeem_launcher_ticket(&pool, &digest)
+            game_links::redeem_launcher_ticket(&pool, &digest, from)
                 .await
                 .expect("redeem")
         }
     };
+    let redeem = |ticket: &LauncherTicket| redeem_from(ticket, game_pc);
 
     // Any active account (no panel role) opens a launcher session; each Play gets a ticket that
-    // enters the account's game name once.
+    // enters the account's game name.
     let session = auth
         .launcher_login("lancador_a", secret(PASSWORD), peer)
         .await
@@ -315,11 +318,19 @@ async fn launcher_session_mints_one_time_tickets_until_logout() {
     let first = auth.launcher_ticket(&session).await.expect("ticket");
     assert_eq!(first.as_str().len(), 24);
     assert_eq!(redeem(&first).await.as_deref(), Some("Lancador_A"));
-    assert_eq!(redeem(&first).await, None, "a ticket is spent once");
+    // "Go Back" on the character selection logs out and the same game sends the same ticket again:
+    // it logs in again from the same address, never from another one.
+    assert_eq!(redeem(&first).await.as_deref(), Some("Lancador_A"));
+    assert_eq!(redeem_from(&first, other_pc).await, None);
 
     // Long after Play (the player stays on the title screen), the ticket is still good: it lives
     // as long as the session.
     let later = auth.launcher_ticket(&session).await.expect("second ticket");
+    assert_eq!(
+        redeem(&first).await,
+        None,
+        "the next Play replaces the earlier ticket"
+    );
     sqlx::query(
         "UPDATE game_launcher_tickets SET created_at = now() - interval '3 hours'
          WHERE ticket_sha256 = $1",
@@ -345,14 +356,16 @@ async fn launcher_session_mints_one_time_tickets_until_logout() {
         Err(AdminError::Unauthenticated)
     ));
 
-    // Logout (launcher closed) ends the session and its unspent tickets.
+    // Logout (launcher closed) ends the session and its tickets, used or not: the game cannot log
+    // in again after "Go Back".
     let session = auth
         .launcher_login("lancador_a", secret(PASSWORD), peer)
         .await
         .expect("relogin");
-    let unspent = auth.launcher_ticket(&session).await.expect("ticket");
+    let in_game = auth.launcher_ticket(&session).await.expect("ticket");
+    assert_eq!(redeem(&in_game).await.as_deref(), Some("Lancador_A"));
     auth.launcher_logout(&session).await.expect("logout");
-    assert_eq!(redeem(&unspent).await, None);
+    assert_eq!(redeem(&in_game).await, None);
     assert!(matches!(
         auth.launcher_ticket(&session).await,
         Err(AdminError::Unauthenticated)

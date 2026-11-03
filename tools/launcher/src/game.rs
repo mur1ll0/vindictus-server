@@ -19,14 +19,34 @@ pub fn is_game_folder(folder: &Path) -> bool {
     folder.join(EXECUTABLE).is_file() && folder.join("bin").join("client.dll").is_file()
 }
 
-pub fn start(folder: &Path, ticket: &str) -> Result<Child, String> {
-    if !is_game_folder(folder) {
-        return Err(format!(
+pub fn check_folder(folder: &Path) -> Result<(), String> {
+    if is_game_folder(folder) {
+        Ok(())
+    } else {
+        Err(format!(
             "A pasta do jogo não tem o {EXECUTABLE} e o bin\\client.dll. Escolha a pasta do jogo."
-        ));
+        ))
     }
+}
+
+/// Linha de argumentos do cliente com o ticket (para o modo administrador, que passa uma string).
+pub fn command_line(ticket: &str) -> String {
+    let mut line = ARGUMENTS.join(" ");
+    line.push_str(" -launcher_ticket ");
+    line.push_str(ticket);
+    line
+}
+
+/// Abre o jogo sem elevação. O `Vindictus.exe` do 1.69 pede administrador no manifesto
+/// (`requireAdministrator`), o que faria o `CreateProcess` falhar (erro 740) num launcher sem
+/// elevação. `__COMPAT_LAYER=RunAsInvoker` é a camada de compatibilidade do próprio Windows (desde
+/// o Vista) que ignora esse pedido e roda o jogo com as permissões do usuário, sem UAC e sem mudar
+/// o exe. Se o jogo precisar mesmo de administrador, o launcher tem o modo elevado (`ui.rs`).
+pub fn start(folder: &Path, ticket: &str) -> Result<Child, String> {
+    check_folder(folder)?;
     Command::new(folder.join(EXECUTABLE))
         .current_dir(folder)
+        .env("__COMPAT_LAYER", "RunAsInvoker")
         .args(ARGUMENTS)
         .args(["-launcher_ticket", ticket])
         .spawn()
