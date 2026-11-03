@@ -116,6 +116,8 @@ impl AdminState {
     paths(
         login,
         launcher_login,
+        launcher_ticket,
+        launcher_logout,
         register,
         me,
         my_password,
@@ -191,6 +193,7 @@ impl AdminState {
         LoginRequest,
         OwnPassword,
         SessionResponse,
+        LauncherSessionResponse,
         LauncherTicketResponse,
         AuditEntry,
         ApiError,
@@ -282,6 +285,8 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
     let api = Router::new()
         .route("/api/session/login", post(login))
         .route("/api/launcher/login", post(launcher_login))
+        .route("/api/launcher/ticket", post(launcher_ticket))
+        .route("/api/launcher/logout", post(launcher_logout))
         .route("/api/session/register", post(register))
         .route("/api/me", get(me))
         .route("/api/me/password", post(my_password))
@@ -722,12 +727,21 @@ pub struct LoginRequest {
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct LauncherSessionResponse {
+    /// Launcher session: send it as `Authorization: Bearer <session>` to get game tickets and to
+    /// log out when the launcher closes.
+    #[schema(value_type = String)]
+    session: Zeroizing<String>,
+    /// Longest life of the session if the launcher never logs out, in seconds.
+    expires_in: u64,
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct LauncherTicketResponse {
-    /// One-time game login ticket: start the client with `-launcher_ticket <ticket>`.
+    /// One-time game login ticket: start the client with `-launcher_ticket <ticket>`. Valid
+    /// while the launcher session lasts.
     #[schema(value_type = String)]
     ticket: Zeroizing<String>,
-    /// Seconds the ticket stays valid if unused.
-    expires_in: u64,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -765,27 +779,66 @@ async fn login(
 }
 
 /// Launcher login (trilha L): login and password of any active account, with the panel's
-/// throttle and lockout; returns a one-time game ticket and opens no panel session. A native
-/// launcher sends no Origin; a browser page of another origin is refused like on the panel login.
+/// throttle and lockout; opens a launcher session (bearer, no cookie, no panel access) that lasts
+/// until the launcher logs out. A native launcher sends no Origin; a browser page of another
+/// origin is refused like on the panel login.
 #[utoipa::path(post, path = "/api/launcher/login", request_body = LoginRequest,
-    responses((status = 200, body = LauncherTicketResponse), (status = 401, body = ApiError),
+    responses((status = 200, body = LauncherSessionResponse), (status = 401, body = ApiError),
               (status = 429, body = ApiError)))]
 async fn launcher_login(
     State(state): State<AdminState>,
     ConnectInfoOpt(peer): ConnectInfoOpt,
     headers: HeaderMap,
     Json(request): Json<LoginRequest>,
-) -> Result<Json<LauncherTicketResponse>, Refusal> {
+) -> Result<Json<LauncherSessionResponse>, Refusal> {
     check_origin(&headers)?;
     let password = Zeroizing::new(request.password.as_bytes().to_vec());
-    let ticket = state
+    let session = state
         .auth
-        .launcher_ticket(&request.username, password, peer)
+        .launcher_login(&request.username, password, peer)
         .await?;
+    Ok(Json(LauncherSessionResponse {
+        session: Zeroizing::new(session.as_str().to_owned()),
+        expires_in: crate::application::admin_session::LAUNCHER_SESSION_SECONDS,
+    }))
+}
+
+/// One-time game ticket for Play, for the launcher session in `Authorization: Bearer`; it stays
+/// valid while the session lasts.
+#[utoipa::path(post, path = "/api/launcher/ticket",
+    responses((status = 200, body = LauncherTicketResponse), (status = 401, body = ApiError)))]
+async fn launcher_ticket(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+) -> Result<Json<LauncherTicketResponse>, Refusal> {
+    check_origin(&headers)?;
+    let session = bearer_token(&headers).ok_or(Refusal::Admin(AdminError::Unauthenticated))?;
+    let ticket = state.auth.launcher_ticket(&session).await?;
     Ok(Json(LauncherTicketResponse {
         ticket: Zeroizing::new(ticket.as_str().to_owned()),
-        expires_in: crate::application::admin_session::LAUNCHER_TICKET_SECONDS,
     }))
+}
+
+/// The launcher closes: ends its session (`Authorization: Bearer`) and unspent tickets.
+#[utoipa::path(post, path = "/api/launcher/logout",
+    responses((status = 204), (status = 401, body = ApiError)))]
+async fn launcher_logout(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+) -> Result<StatusCode, Refusal> {
+    check_origin(&headers)?;
+    let session = bearer_token(&headers).ok_or(Refusal::Admin(AdminError::Unauthenticated))?;
+    state.auth.launcher_logout(&session).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn bearer_token(headers: &HeaderMap) -> Option<SessionToken> {
+    headers
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")
+        .and_then(|value| SessionToken::parse(value.trim()))
 }
 
 /// Open registration: a new account without a panel role, logged in like a login. It only

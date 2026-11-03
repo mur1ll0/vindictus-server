@@ -17,10 +17,13 @@ Pré-condição: Docker no ar (`docker compose up -d --wait`); cópia `.cache/pl
 - [ ] Trocar `admin` por `conta_inexistente_la1` no `start_login.bat` → Start Game → recusa do servidor; anotar a mensagem e se o diálogo aparece para digitar.
 Limites conhecidos: ainda sem ticket (a conta entra pelo nome, como hoje); depois de uma recusa, o próximo Start Game repete o mesmo valor. Se o diálogo continuar aparecendo sem entrar sozinho, relatar se ele piscou e o horário, para comparar com o log do `game`.
 
-### LA2 — login seguro pelo launcher mínimo (ticket de uso único)
-Pré-condição: Docker reconstruído com a migração 0051 e o `game` novo (`docker compose up -d --wait`); `client.dll` `59b60e7a…`; jogo fechado; PowerShell na raiz do repositório.
-- [ ] `pwsh scripts/dev/play.ps1` (ou `powershell -File scripts\dev\play.ps1`) → digitar `admin` e a senha da conta → o jogo abre → Start Game em até 2 minutos → **seleção de personagem sem o diálogo** → segunda senha → cidade.
-- [ ] Repetir com a senha errada → o script mostra "Login ou senha inválidos." e o jogo não abre.
-- [ ] Abrir o jogo pelo `play.ps1`, esperar mais de 2 minutos e clicar Start Game → recusa (ticket vencido).
-- [ ] Depois de entrar, voltar ao título e clicar Start Game de novo → recusa (ticket já usado); fechar e abrir pelo `play.ps1` de novo funciona.
-Limites conhecidos: o login por nome digitado continua aceito até a decisão D-L6; o ticket fica na linha de comando do processo por até 2 minutos (uso único).
+### LA2 — login seguro pelo launcher mínimo (ticket de 2 minutos)
+Resultado (02/11/2026): o operador entrou pelo `play.ps1` com login e senha; o jogo abriu e foi direto à seleção. Pedido do operador: o login deve valer até fechar o launcher (LA3).
+
+### LA3 — sessão do launcher: o login vale até fechar o launcher
+Pré-condição: Docker reconstruído com a migração 0052; `client.dll` `59b60e7a…`; jogo fechado; PowerShell na raiz do repositório.
+- [ ] `powershell -File scripts\dev\play.ps1` → login e senha → "Conectado como …" → esperar alguns minutos → Enter → o jogo abre → ficar na tela de título mais de 2 minutos → Start Game → **seleção de personagem sem o diálogo**.
+- [ ] Fechar o jogo → o launcher volta a perguntar → Enter → o jogo abre de novo e entra **sem pedir a senha outra vez**.
+- [ ] Com o jogo aberto na tela de título, digitar `S` no launcher (sair) → Start Game no jogo → recusa (sessão encerrada).
+- [ ] Senha errada no login do launcher → "Login ou senha inválidos." e nada abre.
+Limites conhecidos: fechar a janela do PowerShell sem `S` deixa a sessão aberta até o limite de 12 horas; o login por nome digitado continua aceito até a decisão D-L6.

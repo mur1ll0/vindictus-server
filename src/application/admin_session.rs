@@ -31,9 +31,10 @@ pub const IDLE_SECONDS: u64 = 30 * 60;
 /// Consecutive wrong passwords before the panel login of an account is locked.
 pub const MAX_FAILURES: i32 = 10;
 pub const LOCK_SECONDS: u64 = 15 * 60;
-/// Lifetime of a launcher ticket: the launcher starts the client at once and the player clicks
-/// Start Game on the title screen.
-pub const LAUNCHER_TICKET_SECONDS: u64 = 2 * 60;
+/// Longest life of a launcher session (and of its game tickets) when the launcher never logs out,
+/// for example because it was killed; a normal close ends it at once (operator decision
+/// 2026-11-02: the ticket lives until the launcher closes).
+pub const LAUNCHER_SESSION_SECONDS: u64 = 12 * 60 * 60;
 const WINDOW: Duration = Duration::from_secs(60);
 const PER_PEER: u32 = 20;
 const PER_NAME: u32 = 10;
@@ -286,27 +287,49 @@ impl PanelAuth {
     }
 
     /// Launcher login (trilha L): the same login, password, throttle and lockout as the panel,
-    /// for any active account; returns a one-time ticket for the game client instead of a
-    /// session. The ticket is audited as `launcher.login`, never logged.
-    pub async fn launcher_ticket(
+    /// for any active account; opens a launcher session (bearer token, no cookie, no panel
+    /// access) instead of a panel session. Audited as `launcher.login`.
+    pub async fn launcher_login(
         &self,
         username: &str,
         password: Zeroizing<Vec<u8>>,
         peer: Option<IpAddr>,
-    ) -> Result<LauncherTicket, AdminError> {
+    ) -> Result<SessionToken, AdminError> {
         let account = self
             .authenticate(username, password, peer, "launcher.login")
             .await?;
-        let ticket = LauncherTicket::generate();
-        admin_store::issue_launcher_ticket(
+        let token = SessionToken::generate();
+        admin_store::open_launcher_session(
             &self.pool,
             account.id,
-            &ticket.digest(),
-            LAUNCHER_TICKET_SECONDS as f64,
+            &token.digest(),
+            LAUNCHER_SESSION_SECONDS as f64,
             &success(&account, account.role, "launcher.login", peer),
         )
         .await?;
-        Ok(ticket)
+        Ok(token)
+    }
+
+    /// A one-time game ticket for Play: valid while the launcher session lasts, spent by the
+    /// first login that sends it. The ticket is never logged.
+    pub async fn launcher_ticket(
+        &self,
+        session: &SessionToken,
+    ) -> Result<LauncherTicket, AdminError> {
+        let ticket = LauncherTicket::generate();
+        if admin_store::mint_launcher_ticket(&self.pool, &session.digest(), &ticket.digest())
+            .await?
+        {
+            Ok(ticket)
+        } else {
+            Err(AdminError::Unauthenticated)
+        }
+    }
+
+    /// The launcher closes: its session and unspent tickets end.
+    pub async fn launcher_logout(&self, session: &SessionToken) -> Result<(), AdminError> {
+        admin_store::close_launcher_session(&self.pool, &session.digest()).await?;
+        Ok(())
     }
 
     /// Open registration of the login page: a new account without a panel role, logged in.

@@ -183,13 +183,13 @@ pub async fn open_session(
     tx.commit().await
 }
 
-/// Store a one-time launcher ticket (its digest) for the account and audit the login. Spent and
-/// expired tickets of every account are removed in the same transaction.
-pub async fn issue_launcher_ticket(
+/// Open a launcher session (its digest) for the account and audit the login. Expired launcher
+/// sessions of every account, and their tickets, are removed in the same transaction.
+pub async fn open_launcher_session(
     pool: &PgPool,
     account: Uuid,
-    ticket_sha256: &[u8; 32],
-    ticket_seconds: f64,
+    token_sha256: &[u8; 32],
+    session_seconds: f64,
     audit: &AuditRecord<'_>,
 ) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
@@ -197,22 +197,68 @@ pub async fn issue_launcher_ticket(
         .bind(account)
         .execute(&mut *tx)
         .await?;
+    sqlx::query("DELETE FROM launcher_sessions WHERE expires_at <= now()")
+        .execute(&mut *tx)
+        .await?;
     sqlx::query(
-        "DELETE FROM game_launcher_tickets WHERE expires_at <= now() OR redeemed_at IS NOT NULL",
+        "INSERT INTO launcher_sessions (token_sha256, account_id, password_changed_at, expires_at)
+         SELECT $1, id, password_changed_at, now() + make_interval(secs => $3)
+         FROM accounts WHERE id = $2",
     )
-    .execute(&mut *tx)
-    .await?;
-    sqlx::query(
-        "INSERT INTO game_launcher_tickets (ticket_sha256, account_id, expires_at)
-         VALUES ($1, $2, now() + make_interval(secs => $3))",
-    )
-    .bind(ticket_sha256.as_slice())
+    .bind(token_sha256.as_slice())
     .bind(account)
-    .bind(ticket_seconds)
+    .bind(session_seconds)
     .execute(&mut *tx)
     .await?;
     insert_audit(&mut tx, audit).await?;
     tx.commit().await
+}
+
+/// Store a one-time game ticket (its digest) for a live launcher session of an active account
+/// whose password did not change; it expires with the session. Spent tickets of the session are
+/// removed. False when the session is gone.
+pub async fn mint_launcher_ticket(
+    pool: &PgPool,
+    session_sha256: &[u8; 32],
+    ticket_sha256: &[u8; 32],
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "DELETE FROM game_launcher_tickets WHERE session_sha256 = $1 AND redeemed_at IS NOT NULL",
+    )
+    .bind(session_sha256.as_slice())
+    .execute(&mut *tx)
+    .await?;
+    let minted = sqlx::query(
+        "INSERT INTO game_launcher_tickets (ticket_sha256, account_id, session_sha256, expires_at)
+         SELECT $2, s.account_id, s.token_sha256, s.expires_at
+         FROM launcher_sessions s JOIN accounts a ON a.id = s.account_id
+         WHERE s.token_sha256 = $1 AND s.expires_at > now() AND a.status = 'active'
+           AND a.password_changed_at = s.password_changed_at",
+    )
+    .bind(session_sha256.as_slice())
+    .bind(ticket_sha256.as_slice())
+    .execute(&mut *tx)
+    .await?
+    .rows_affected()
+        == 1;
+    tx.commit().await?;
+    Ok(minted)
+}
+
+/// End a launcher session; its unspent tickets go with it. False when it was already gone.
+pub async fn close_launcher_session(
+    pool: &PgPool,
+    token_sha256: &[u8; 32],
+) -> Result<bool, sqlx::Error> {
+    Ok(
+        sqlx::query("DELETE FROM launcher_sessions WHERE token_sha256 = $1")
+            .bind(token_sha256.as_slice())
+            .execute(pool)
+            .await?
+            .rows_affected()
+            == 1,
+    )
 }
 
 /// A live session of an account that still has a role and the same password; touches it.

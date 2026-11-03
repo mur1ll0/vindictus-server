@@ -106,16 +106,19 @@ pub async fn game_name_for_login(
 }
 
 /// Launcher login (trilha L): spend a one-time ticket and return the game name of its account,
-/// if the ticket is live and unspent and the account is still active and unlocked.
+/// if the ticket is unspent, its launcher session is still open and the account is still
+/// active, unlocked and with the session's password.
 pub async fn redeem_launcher_ticket(
     pool: &PgPool,
     ticket_sha256: &[u8; 32],
 ) -> Result<Option<String>, sqlx::Error> {
     sqlx::query_scalar(
         "UPDATE game_launcher_tickets t SET redeemed_at = now()
-         FROM accounts a
+         FROM launcher_sessions s, accounts a
          WHERE t.ticket_sha256 = $1 AND t.redeemed_at IS NULL AND t.expires_at > now()
-           AND a.id = t.account_id AND a.status = 'active'
+           AND s.token_sha256 = t.session_sha256 AND s.expires_at > now()
+           AND a.id = s.account_id AND a.status = 'active'
+           AND a.password_changed_at = s.password_changed_at
            AND COALESCE(a.locked_until <= now(), true)
          RETURNING COALESCE(a.game_name, a.username)",
     )

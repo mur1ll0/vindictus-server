@@ -2491,7 +2491,7 @@
     "/api/launcher/login": {
       "post": {
         "tags": [],
-        "summary": "Launcher login (trilha L): login and password of any active account, with the panel's\nthrottle and lockout; returns a one-time game ticket and opens no panel session. A native\nlauncher sends no Origin; a browser page of another origin is refused like on the panel login.",
+        "summary": "Launcher login (trilha L): login and password of any active account, with the panel's\nthrottle and lockout; opens a launcher session (bearer, no cookie, no panel access) that lasts\nuntil the launcher logs out. A native launcher sends no Origin; a browser page of another\norigin is refused like on the panel login.",
         "operationId": "launcher_login",
         "requestBody": {
           "content": {
@@ -2509,7 +2509,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LauncherTicketResponse"
+                  "$ref": "#/components/schemas/LauncherSessionResponse"
                 }
               }
             }
@@ -2525,6 +2525,57 @@
             }
           },
           "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/launcher/logout": {
+      "post": {
+        "tags": [],
+        "summary": "The launcher closes: ends its session (`Authorization: Bearer`) and unspent tickets.",
+        "operationId": "launcher_logout",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/launcher/ticket": {
+      "post": {
+        "tags": [],
+        "summary": "One-time game ticket for Play, for the launcher session in `Authorization: Bearer`; it stays\nvalid while the session lasts.",
+        "operationId": "launcher_ticket",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LauncherTicketResponse"
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -5037,22 +5088,34 @@
           }
         }
       },
-      "LauncherTicketResponse": {
+      "LauncherSessionResponse": {
         "type": "object",
         "required": [
-          "ticket",
+          "session",
           "expires_in"
         ],
         "properties": {
           "expires_in": {
             "type": "integer",
             "format": "int64",
-            "description": "Seconds the ticket stays valid if unused.",
+            "description": "Longest life of the session if the launcher never logs out, in seconds.",
             "minimum": 0
           },
+          "session": {
+            "type": "string",
+            "description": "Launcher session: send it as `Authorization: Bearer <session>` to get game tickets and to\nlog out when the launcher closes."
+          }
+        }
+      },
+      "LauncherTicketResponse": {
+        "type": "object",
+        "required": [
+          "ticket"
+        ],
+        "properties": {
           "ticket": {
             "type": "string",
-            "description": "One-time game login ticket: start the client with `-launcher_ticket <ticket>`."
+            "description": "One-time game login ticket: start the client with `-launcher_ticket <ticket>`. Valid\nwhile the launcher session lasts."
           }
         }
       },

@@ -280,7 +280,7 @@ async fn admin_panel_login_session_roles_and_audit() {
 
 #[tokio::test]
 #[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
-async fn launcher_ticket_login_is_single_use_expires_and_needs_an_active_account() {
+async fn launcher_session_mints_one_time_tickets_until_logout() {
     let (admin_pool, pool, schema) = isolated_pool().await;
     create_account(
         &pool,
@@ -301,57 +301,94 @@ async fn launcher_ticket_login_is_single_use_expires_and_needs_an_active_account
         }
     };
 
-    // Any active account (no panel role) gets a ticket; it enters its game name once.
-    let ticket = auth
-        .launcher_ticket("lancador_a", secret(PASSWORD), peer)
+    // Any active account (no panel role) opens a launcher session; each Play gets a ticket that
+    // enters the account's game name once.
+    let session = auth
+        .launcher_login("lancador_a", secret(PASSWORD), peer)
         .await
-        .expect("ticket");
-    assert_eq!(ticket.as_str().len(), 24);
-    assert!(LauncherTicket::parse(ticket.as_str()).is_some());
-    assert_eq!(redeem(&ticket).await.as_deref(), Some("Lancador_A"));
-    assert_eq!(redeem(&ticket).await, None);
+        .expect("launcher login");
     assert!(matches!(
-        auth.launcher_ticket("lancador_a", secret("senha errada demais"), peer)
+        auth.launcher_login("lancador_a", secret("senha errada demais"), peer)
             .await,
         Err(AdminError::InvalidCredentials)
     ));
-    let stored: i64 = sqlx::query_scalar("SELECT count(*) FROM game_launcher_tickets")
-        .fetch_one(&pool)
-        .await
-        .expect("count");
-    assert_eq!(stored, 1, "only the digest of the spent ticket remains");
+    let first = auth.launcher_ticket(&session).await.expect("ticket");
+    assert_eq!(first.as_str().len(), 24);
+    assert_eq!(redeem(&first).await.as_deref(), Some("Lancador_A"));
+    assert_eq!(redeem(&first).await, None, "a ticket is spent once");
 
-    // Expired.
-    let expired = auth
-        .launcher_ticket("lancador_a", secret(PASSWORD), peer)
-        .await
-        .expect("ticket");
+    // Long after Play (the player stays on the title screen), the ticket is still good: it lives
+    // as long as the session.
+    let later = auth.launcher_ticket(&session).await.expect("second ticket");
     sqlx::query(
-        "UPDATE game_launcher_tickets SET created_at = now() - interval '10 minutes',
-                expires_at = now() - interval '5 minutes' WHERE ticket_sha256 = $1",
+        "UPDATE game_launcher_tickets SET created_at = now() - interval '3 hours'
+         WHERE ticket_sha256 = $1",
     )
-    .bind(expired.digest().as_slice())
+    .bind(later.digest().as_slice())
     .execute(&pool)
     .await
-    .expect("expire");
-    assert_eq!(redeem(&expired).await, None);
+    .expect("age");
+    assert_eq!(redeem(&later).await.as_deref(), Some("Lancador_A"));
 
-    // Account disabled after the ticket was issued.
-    let disabled = auth
-        .launcher_ticket("lancador_a", secret(PASSWORD), peer)
+    // Session past its longest life: no ticket redeems and no new ticket is minted.
+    let stale = auth.launcher_ticket(&session).await.expect("third ticket");
+    sqlx::query(
+        "UPDATE launcher_sessions SET created_at = now() - interval '13 hours',
+                expires_at = now() - interval '1 hour'",
+    )
+    .execute(&pool)
+    .await
+    .expect("expire session");
+    assert_eq!(redeem(&stale).await, None);
+    assert!(matches!(
+        auth.launcher_ticket(&session).await,
+        Err(AdminError::Unauthenticated)
+    ));
+
+    // Logout (launcher closed) ends the session and its unspent tickets.
+    let session = auth
+        .launcher_login("lancador_a", secret(PASSWORD), peer)
         .await
-        .expect("ticket");
+        .expect("relogin");
+    let unspent = auth.launcher_ticket(&session).await.expect("ticket");
+    auth.launcher_logout(&session).await.expect("logout");
+    assert_eq!(redeem(&unspent).await, None);
+    assert!(matches!(
+        auth.launcher_ticket(&session).await,
+        Err(AdminError::Unauthenticated)
+    ));
+
+    // A password change or a disabled account ends the session too.
+    let session = auth
+        .launcher_login("lancador_a", secret(PASSWORD), peer)
+        .await
+        .expect("relogin");
+    let ticket = auth.launcher_ticket(&session).await.expect("ticket");
+    sqlx::query(
+        "UPDATE accounts SET password_changed_at = now() + interval '1 second'
+         WHERE normalized_name = 'lancador_a'",
+    )
+    .execute(&pool)
+    .await
+    .expect("password change");
+    assert_eq!(redeem(&ticket).await, None);
+    let session = auth
+        .launcher_login("lancador_a", secret(PASSWORD), peer)
+        .await
+        .expect("relogin");
+    let ticket = auth.launcher_ticket(&session).await.expect("ticket");
     sqlx::query("UPDATE accounts SET status = 'disabled' WHERE normalized_name = 'lancador_a'")
         .execute(&pool)
         .await
         .expect("disable");
-    assert_eq!(redeem(&disabled).await, None);
+    assert_eq!(redeem(&ticket).await, None);
     sqlx::query("UPDATE accounts SET status = 'active' WHERE normalized_name = 'lancador_a'")
         .execute(&pool)
         .await
         .expect("enable");
 
-    // HTTP: a native launcher sends no Origin and gets no cookie; another origin is refused.
+    // HTTP: login without Origin and without cookie, Bearer ticket and logout; another origin is
+    // refused.
     let app = admin::router(AdminState::new(auth.clone(), false), None);
     let body = format!(r#"{{"username":"Lancador_A","password":"{PASSWORD}"}}"#);
     let response = app
@@ -367,18 +404,40 @@ async fn launcher_ticket_login_is_single_use_expires_and_needs_an_active_account
         .expect("launcher login");
     assert_eq!(response.status(), StatusCode::OK);
     assert!(response.headers().get(header::SET_COOKIE).is_none());
-    let json: serde_json::Value = serde_json::from_slice(
-        &response
-            .into_body()
-            .collect()
-            .await
-            .expect("body")
-            .to_bytes(),
-    )
-    .expect("json");
-    assert_eq!(json["expires_in"], 120);
-    let ticket = LauncherTicket::parse(json["ticket"].as_str().expect("ticket")).expect("form");
-    assert_eq!(redeem(&ticket).await.as_deref(), Some("Lancador_A"));
+    let reply = response_json(response).await;
+    assert_eq!(reply["expires_in"], 12 * 60 * 60);
+    let bearer = format!("Bearer {}", reply["session"].as_str().expect("session"));
+    let response = app
+        .clone()
+        .oneshot(launcher_post("/api/launcher/ticket", Some(&bearer)))
+        .await
+        .expect("ticket");
+    assert_eq!(response.status(), StatusCode::OK);
+    let reply = response_json(response).await;
+    let ticket = LauncherTicket::parse(reply["ticket"].as_str().expect("ticket")).expect("form");
+    let response = app
+        .clone()
+        .oneshot(launcher_post("/api/launcher/ticket", None))
+        .await
+        .expect("no bearer");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let response = app
+        .clone()
+        .oneshot(launcher_post("/api/launcher/logout", Some(&bearer)))
+        .await
+        .expect("logout");
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        redeem(&ticket).await,
+        None,
+        "logout revokes the unspent ticket"
+    );
+    let response = app
+        .clone()
+        .oneshot(launcher_post("/api/launcher/ticket", Some(&bearer)))
+        .await
+        .expect("after logout");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let response = app
         .oneshot(
             Request::post("/api/launcher/login")
@@ -399,7 +458,7 @@ async fn launcher_ticket_login_is_single_use_expires_and_needs_an_active_account
             .filter(|(a, o)| a == action && o == outcome)
             .count()
     };
-    assert_eq!(count("launcher.login", "ok"), 4);
+    assert_eq!(count("launcher.login", "ok"), 5);
     assert_eq!(count("launcher.login", "refused"), 1);
 
     pool.close().await;
@@ -408,4 +467,24 @@ async fn launcher_ticket_login_is_single_use_expires_and_needs_an_active_account
         .await
         .expect("cleanup");
     admin_pool.close().await;
+}
+
+fn launcher_post(path: &'static str, authorization: Option<&str>) -> Request<Body> {
+    let mut request = Request::post(path).header(header::HOST, "127.0.0.1:27090");
+    if let Some(value) = authorization {
+        request = request.header(header::AUTHORIZATION, value);
+    }
+    request.body(Body::empty()).expect("request")
+}
+
+async fn response_json(response: axum::response::Response) -> serde_json::Value {
+    serde_json::from_slice(
+        &response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes(),
+    )
+    .expect("json")
 }
