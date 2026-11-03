@@ -70,7 +70,7 @@ Decisões pendentes:
 
 ### B5 — o que falta
 
-- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay com vários membros e MP3 navio/JoinShip feitos; **checkpoint de cliente** (dois clientes na mesma dungeon); depois MP4 combate e loot, MP5 saída e reconexão.
+- [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay, MP3 navio/JoinShip e MP4 combate/loot por jogador feitos; o operador testa tudo junto no fim (03/11); faltam MP5 saída/migração de host/reentrada, MP6 lista de navios, MP7 assistência e chat de party.
 - [ ] PvP/arena/ranking.
 - [ ] Guildas.
 - [ ] Trade.

@@ -16,7 +16,7 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 | MP1 | Party na cidade: PartyInvite/Invited, aceite, recusa, LeavePartyMessage, Kick, desconexão; AcceptQuest pelo mestre de uma party | Feito; cliente pendente (`docs/client-tests/B5-multijogador.md`) |
 | MP2 | Relay com vários membros: MemberJoin para os membros antigos, NMInfos, quadros 20–22 → 23–25, MemberLeave (`docs/battle-transport.md`) | Feito; cliente no checkpoint do MP3 |
 | MP3 | Navio: JoinShip do membro (AddPlayer, MemberInfo ao host, HostInfo + ConnectionRequest ao membro), Ready, StartGame com todos prontos | Feito; **checkpoint de cliente** (MP2+MP3) |
-| MP4 | Combate e loot: EXP, drops, conclusão e recompensas para cada membro | Pendente (depois do checkpoint de cliente do MP3) |
+| MP4 | Combate e loot: EXP, drops, conclusão e recompensas para cada membro | Feito; cliente pendente |
 | MP5 | Saída e reconexão de membros na missão, reeleição do host | Pendente |
 
 ## Decisões e limites (MP1)
@@ -34,3 +34,11 @@ Party, convites, navio, instância compartilhada, combate e loot sincronizados, 
 - Saída do relay por membro (`Relay::leave`); o grupo fecha quando fica vazio, inclusive na missão solo.
 - O membro cuja party volta à cidade (o host saiu do navio antes de começar) larga o navio local.
 - Não migrados no MP3: JoinShip do Initial pela lista de navios (a lista continua vazia), assistência, QuestTimerInfo de reentrada, `IsRequiredItemForAll`, fadiga, HostRestarted (migração de host) e recompensas dos membros (MP4).
+
+## Decisões e limites (MP4)
+
+- Réplica por jogador: o frontend do host repassa às réplicas dos membros (aviso `Play` do hub) as mensagens de MicroPlayHost que todo MicroPlayer aplica — MoveToNextSector, MonsterKilled, RagdollKicked, CombatRecord, UseConsumable, PlayerKilled, PlayerRevived, MicroPlayEvent. No StartGame o host publica o instantâneo (setores e sequência sem núcleos; aviso `Started`), e cada réplica parte dele. Cada membro calcula assim a própria EXP, núcleos (sorte, classe e drops de história próprios), metas, morte, consumíveis e a recompensa final, que chega só ao próprio cliente.
+- EXP de monstro: `MonsterKillExpCalculator` — peso `(nível/2+10)²` sobre a soma dos pesos da play e bônus de party 140/240/330/420 (1/2/3/4+ jogadores); a solo continua igual.
+- Ergs (props) ficam no host: o vencedor é sorteado entre os jogadores (`PickRandomRewardingPlayer`) e o `PickErg` entrega ao vencedor (aviso `Give`); o host recebe o `PutErg` com o slot vencedor.
+- Efeitos (reviver e afins) valem para qualquer slot da play; `ApplyMicroPlayEffects` vai só ao host, como no original. Cada réplica acompanha quem está morto.
+- Limites: o rastreador de metas de cada réplica conta as metas individuais só do próprio jogador (o original mostrava também as dos outros); `GetItem` de outro jogador não aparece; destruição de props por um membro não conta para as metas de props desse membro.

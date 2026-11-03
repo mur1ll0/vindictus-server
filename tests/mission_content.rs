@@ -716,7 +716,9 @@ fn move_next_follows_the_starting_group_then_trigger_connections() {
 
 #[test]
 fn monster_kills_count_once_and_accumulate_monster_exp() {
-    use vindictus_server::domain::mission::{Kill, monster_kill_exp};
+    use vindictus_server::domain::mission::{
+        Kill, exp_weight, monster_kill_exp, party_monster_kill_exp,
+    };
     let contents = MissionContents::load(tables(), &policy()).unwrap();
     // GetMonsterInfo: a single row answers every difficulty; "class variation weight"
     // drops the weight; a missing difficulty falls back to -1 (absent here).
@@ -741,6 +743,13 @@ fn monster_kills_count_once_and_accumulate_monster_exp() {
     assert_eq!(monster_kill_exp(normal, 1, 100), 70);
     assert_eq!(monster_kill_exp(normal, 2, 100), 56);
     assert_eq!(monster_kill_exp(normal, 6, 50), 0);
+    // Two players of levels 10 and 30: weights 225 and 625, party bonus 240.
+    let (low, high) = (exp_weight(10) as f32, exp_weight(30) as f32);
+    assert_eq!((low, high), (225.0, 625.0));
+    let solo = monster_kill_exp(normal, 1, 100);
+    let low_share = party_monster_kill_exp(normal, 1, 100, low / (low + high), 2);
+    let high_share = party_monster_kill_exp(normal, 1, 100, high / (low + high), 2);
+    assert!(low_share < high_share && low_share + high_share > solo);
     let digest = contents.digest("quest_a", -1).unwrap();
     let mut sequence = contents
         .sector_sequence(&digest, 1, true, false, &mut Script::default())

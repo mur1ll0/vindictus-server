@@ -2988,10 +2988,37 @@ pub enum Kill {
 /// PartyBonusRate.GetExpRatio(1) = 140), then MicroPlayer.GiveMonsterKillExp's
 /// ExpRate_Monster. Single-precision products as the JIT computes them on x64.
 pub fn monster_kill_exp(info: MonsterInfo, spawn_count: i32, exp_rate_monster: i32) -> i32 {
+    party_monster_kill_exp(info, spawn_count, exp_rate_monster, 1.0, 1)
+}
+
+/// MonsterKillExpCalculator.GetWeight of a player that is not teaching.
+pub fn exp_weight(level: i32) -> i32 {
+    let n = level / 2 + 10;
+    n.wrapping_mul(n)
+}
+
+/// PartyBonusRate.GetExpRatio of the players counted for EXP.
+pub fn party_exp_ratio(players: i32) -> f32 {
+    match players {
+        1 => 140.0,
+        2 => 240.0,
+        3 => 330.0,
+        _ => 420.0,
+    }
+}
+
+/// MonsterKillExpCalculator.GiveExp for one player: its weight over the play's weights
+/// (`weight_ratio`) and the party bonus of `players`; ExpRate_Monster applies after.
+pub fn party_monster_kill_exp(
+    info: MonsterInfo,
+    spawn_count: i32,
+    exp_rate_monster: i32,
+    weight_ratio: f32,
+    players: i32,
+) -> i32 {
     let num = 0.max(100 - 20 * (spawn_count - 1));
     let base = (info.exp.wrapping_mul(num) / 100) as f32;
-    let ratio = 1.0_f32;
-    let exp = (f64::from(base * ratio * 140.0_f32) / 100.0) as i32;
+    let exp = (f64::from(base * weight_ratio * party_exp_ratio(players)) / 100.0) as i32;
     exp.wrapping_mul(exp_rate_monster) / 100
 }
 

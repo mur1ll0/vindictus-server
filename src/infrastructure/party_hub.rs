@@ -21,12 +21,35 @@ use tokio::sync::mpsc;
 pub const MAILBOX: usize = 256;
 
 /// What a member's connection receives from the party authority.
-#[derive(Debug)]
 pub enum Notice {
     /// SendPacket / UpdateParty / SendInvitation pushes, in order.
     Packets(Vec<OutgoingPacket>),
     /// The Kick operation: the party removed this member (kick or removal of the party).
     Kicked { party_id: i64 },
+    /// A MicroPlayHost message the play applies to every player (each member keeps a
+    /// replica of the MicroPlay for its own MicroPlayer).
+    Play(Box<Message>),
+    /// The host started the play: the replica starts from this snapshot.
+    Started(Box<Snapshot>),
+    /// An erg won by this player (ErgInfo.Winner): GiveItem of its reward.
+    Give { class_ex: String, count: i32 },
+}
+
+/// The shared sector state of a play: the sectors the host loaded and the sequence as
+/// it advances (without anyone's evil cores).
+#[derive(Clone)]
+pub struct Snapshot {
+    pub sectors: crate::domain::mission::SectorInfos,
+    pub sequence: crate::domain::mission::SectorSequence,
+    pub game_time: i32,
+    pub in_game: bool,
+}
+
+/// A MicroPlayer of the play: its CID and level (MonsterKillExpCalculator weight).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Player {
+    pub cid: i64,
+    pub level: i32,
 }
 
 /// The member's BattleServiceProxy state as the party sees it.
@@ -58,7 +81,7 @@ pub enum Invite {
 }
 
 /// The party's MicroPlay as its members join it (StartMicroPlay2 to the end of the play).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Play {
     pub quest: String,
     pub title: Option<String>,
@@ -70,8 +93,10 @@ pub struct Play {
     pub host: i64,
     /// MicroPlay.HostInfo (RegisterServer of the host).
     pub host_info: Option<GameInfo>,
-    /// MicroPlay.Players: slot → CID.
-    pub players: BTreeMap<i32, i64>,
+    /// MicroPlay.Players: slot → player.
+    pub players: BTreeMap<i32, Player>,
+    /// The sector state for players joining or rejoining a started play.
+    pub snapshot: Option<Snapshot>,
 }
 
 struct Seat {
@@ -254,7 +279,7 @@ impl State {
                         entry.play = None;
                     }
                     if let Some(play) = entry.play.as_mut() {
-                        play.players.retain(|_, c| *c != cid);
+                        play.players.retain(|_, p| p.cid != cid);
                     }
                 }
                 self.broadcast(party_id, caller)
@@ -625,16 +650,18 @@ impl PartyHub {
         &self,
         party_id: i64,
         slot: i32,
-        cid: i64,
+        player: Player,
     ) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+        let cid = player.cid;
         let mut s = self.lock();
         let Some(play) = s.parties.get_mut(&party_id).and_then(|e| e.play.as_mut()) else {
             return Ok(None);
         };
-        if play.players.get(&slot).is_some_and(|c| *c != cid) {
+        if play.players.get(&slot).is_some_and(|p| p.cid != cid) {
             return Ok(None);
         }
-        play.players.insert(slot, cid);
+        play.players.retain(|_, p| p.cid != cid);
+        play.players.insert(slot, player);
         let players = play.players.clone();
         let coins = packet(&Message::PayCoinCompleted(PayCoinCompleted {
             coins: Some(
@@ -654,13 +681,95 @@ impl PartyHub {
         let mut own = Vec::new();
         for (player_slot, player) in &players {
             let packets = vec![coins.clone(), stones(*player_slot)?];
-            if *player == cid {
+            if player.cid == cid {
                 own = packets;
             } else {
-                s.push(*player, Notice::Packets(packets));
+                s.push(player.cid, Notice::Packets(packets));
             }
         }
         Ok(Some(own))
+    }
+    /// The players of the play in slot order.
+    pub fn players(&self, party_id: i64) -> Vec<(i32, Player)> {
+        self.lock()
+            .parties
+            .get(&party_id)
+            .and_then(|e| e.play.as_ref())
+            .map(|p| p.players.iter().map(|(s, p)| (*s, *p)).collect())
+            .unwrap_or_default()
+    }
+    /// The slot of a player in the play.
+    pub fn slot_of(&self, party_id: i64, cid: i64) -> Option<i32> {
+        self.players(party_id)
+            .into_iter()
+            .find(|(_, p)| p.cid == cid)
+            .map(|(s, _)| s)
+    }
+    /// A host message every other player's replica applies.
+    pub fn replicate(&self, party_id: i64, from: i64, message: &Message) {
+        let s = self.lock();
+        let Some(play) = s.parties.get(&party_id).and_then(|e| e.play.as_ref()) else {
+            return;
+        };
+        for p in play.players.values().filter(|p| p.cid != from) {
+            s.push(p.cid, Notice::Play(Box::new(message.clone())));
+        }
+    }
+    /// QueryMicroPlayInfo at StartGame: the snapshot every other player starts from.
+    pub fn start_play(&self, party_id: i64, from: i64, snapshot: Snapshot) {
+        let mut s = self.lock();
+        let Some(play) = s.parties.get_mut(&party_id).and_then(|e| e.play.as_mut()) else {
+            return;
+        };
+        play.snapshot = Some(snapshot.clone());
+        let others: Vec<i64> = play
+            .players
+            .values()
+            .filter(|p| p.cid != from)
+            .map(|p| p.cid)
+            .collect();
+        for cid in others {
+            s.push(cid, Notice::Started(Box::new(snapshot.clone())));
+        }
+    }
+    /// The host's sector state after a sector move (for later joiners).
+    pub fn update_snapshot(&self, party_id: i64, snapshot: Snapshot) {
+        if let Some(play) = self
+            .lock()
+            .parties
+            .get_mut(&party_id)
+            .and_then(|e| e.play.as_mut())
+        {
+            play.snapshot = Some(snapshot);
+        }
+    }
+    /// The play's snapshot.
+    pub fn snapshot_of(&self, party_id: i64) -> Option<Snapshot> {
+        self.lock()
+            .parties
+            .get(&party_id)
+            .and_then(|e| e.play.as_ref())
+            .and_then(|p| p.snapshot.clone())
+    }
+    /// GiveItem of an erg to the player in `slot`.
+    pub fn give(&self, party_id: i64, slot: i32, class_ex: &str, count: i32) -> bool {
+        let s = self.lock();
+        let Some(player) = s
+            .parties
+            .get(&party_id)
+            .and_then(|e| e.play.as_ref())
+            .and_then(|p| p.players.get(&slot).copied())
+        else {
+            return false;
+        };
+        s.push(
+            player.cid,
+            Notice::Give {
+                class_ex: class_ex.to_owned(),
+                count,
+            },
+        );
+        true
     }
     /// Party.IsAllReady.
     pub fn all_ready(&self, party_id: i64) -> bool {
@@ -811,7 +920,11 @@ mod tests {
         hub.accept(100, member(2)).unwrap().unwrap().unwrap();
         while a.try_recv().is_ok() {}
         while b.try_recv().is_ok() {}
-        assert_eq!(hub.add_player(100, 0, 1).unwrap(), None);
+        assert_eq!(
+            hub.add_player(100, 0, Player { cid: 1, level: 10 })
+                .unwrap(),
+            None
+        );
         hub.start_micro_play(100);
         hub.change_state(100, party_state::IN_SHIP);
         hub.set_play(
@@ -838,18 +951,27 @@ mod tests {
                 host: 1,
                 host_info: None,
                 players: BTreeMap::new(),
+                snapshot: None,
             },
         );
-        let own = hub.add_player(100, 0, 1).unwrap().unwrap();
+        let player = |cid| Player { cid, level: 10 };
+        let own = hub.add_player(100, 0, player(1)).unwrap().unwrap();
         assert_eq!(kinds(&own), [432, 48]);
-        let own = hub.add_player(100, 1, 2).unwrap().unwrap();
+        let own = hub.add_player(100, 1, player(2)).unwrap().unwrap();
         assert_eq!(kinds(&own), [432, 48]);
         // The host hears the new coin list and its own stone slot again.
         let Ok(Notice::Packets(p)) = a.try_recv() else {
             panic!()
         };
         assert_eq!(kinds(&p), [432, 48]);
-        assert_eq!(hub.add_player(100, 1, 3).unwrap(), None);
+        assert_eq!(hub.add_player(100, 1, player(3)).unwrap(), None);
+        // Host messages reach the other players' replicas; ergs reach their winner.
+        hub.replicate(100, 1, &Message::AllUserJoinComplete);
+        assert!(matches!(b.try_recv(), Ok(Notice::Play(_))));
+        assert!(a.try_recv().is_err());
+        assert!(hub.give(100, 1, "gold", 5));
+        assert!(matches!(b.try_recv(), Ok(Notice::Give { count: 5, .. })));
+        assert_eq!(hub.slot_of(100, 2), Some(1));
         // A member leaving the party leaves the play.
         assert!(hub.leave(2).unwrap());
         assert_eq!(hub.play(100).map(|p| p.players.len()), Some(1));

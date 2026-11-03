@@ -173,6 +173,12 @@ class MissionWireOracle {
   AddCases("join_ship",469,new Guid("47c79785-d689-34ff-8bef-15d468628eb7"),new[]{null,Obj<JoinShipMessage>("ShipID",0L,"IsAssist",false,"IsInTownWithShipInfo",false,"IsDedicatedServer",false,"IsNewbieRecommend",false),Obj<JoinShipMessage>("ShipID",long.MaxValue,"IsAssist",true,"IsInTownWithShipInfo",false,"IsDedicatedServer",true,"IsNewbieRecommend",false),Obj<JoinShipMessage>("ShipID",-1L,"IsAssist",false,"IsInTownWithShipInfo",true,"IsDedicatedServer",false,"IsNewbieRecommend",true)},cases);
   AddCases("host_info",467,new Guid("5d2864e1-1acf-3ce5-8a94-5df5b30936a3"),new[]{null,new HostInfoMessage(null,0,0,false,false),new HostInfoMessage(infos[2],1,int.MaxValue,true,false),new HostInfoMessage(infos[1],-1,-1,false,true)},cases);
   AddCases("ready",553,new Guid("ca4b672b-2bbd-3153-82ad-f8fa0a917dfb"),new[]{null,new ReadyMessage(0),new ReadyMessage(1),new ReadyMessage(255)},cases);
+  AddCases("quest_timer_info",136,new Guid("b8ae1f90-db3f-3c74-9994-1c93c83d4a1b"),new[]{null,Obj<QuestTimerInfoMessage>("QuestTime",0,"IsTimerDecreasing",false),Obj<QuestTimerInfoMessage>("QuestTime",1800,"IsTimerDecreasing",true),Obj<QuestTimerInfoMessage>("QuestTime",-1,"IsTimerDecreasing",false)},cases);
+  AddCases("request_join_party",151,new Guid("389ed5eb-4695-3b00-ab0e-b4819c2fe44c"),new[]{null,Obj<RequestJoinPartyMessage>("RequestType",0),Obj<RequestJoinPartyMessage>("RequestType",1),Obj<RequestJoinPartyMessage>("RequestType",int.MinValue)},cases);
+  AddCases("rejoin_combat_success",222,new Guid("130389e1-978a-3ddd-984f-089fa468f1f5"),new[]{null,new RejoinCombatSuccessMessage()},cases);
+  AddCases("accept_assist",223,new Guid("79aa3c3c-437d-3e0a-bc58-87f7ce1aacec"),new[]{null,Obj<AcceptAssistMessage>("Slot",0),Obj<AcceptAssistMessage>("Slot",4),Obj<AcceptAssistMessage>("Slot",-1)},cases);
+  AddCases("host_restarting",357,new Guid("9d9b2fd5-fb1d-3e2e-9bdd-9c7f85a308ec"),new[]{null,new HostRestartingMessage()},cases);
+  AddCases("party_chat",509,new Guid("2fa48705-fd86-31fb-b14f-220b2e2473c3"),new[]{null,Obj<PartyChatMessage>("SenderName",null,"Message",null,"isFakeTownChat",false),Obj<PartyChatMessage>("SenderName","Fiona_é","Message","olá party","isFakeTownChat",true),Obj<PartyChatMessage>("SenderName","","Message","","isFakeTownChat",false)},cases);
   Console.WriteLine(new JavaScriptSerializer{MaxJsonLength=8*1024*1024}.Serialize(new{architecture=IntPtr.Size==4?"x86":"x64",wire_cases=cases}));
  }
 }

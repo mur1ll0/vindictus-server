@@ -59,6 +59,12 @@ pub enum Kind {
     JoinShip,
     HostInfo,
     Ready,
+    QuestTimerInfo,
+    RequestJoinParty,
+    RejoinCombatSuccess,
+    AcceptAssist,
+    HostRestarting,
+    PartyChat,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -110,6 +116,12 @@ impl Kind {
             Self::JoinShip => 469,
             Self::HostInfo => 467,
             Self::Ready => 553,
+            Self::QuestTimerInfo => 136,
+            Self::RequestJoinParty => 151,
+            Self::RejoinCombatSuccess => 222,
+            Self::AcceptAssist => 223,
+            Self::HostRestarting => 357,
+            Self::PartyChat => 509,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -161,6 +173,12 @@ impl Kind {
             Self::JoinShip => 0x47c79785_d689_34ff_8bef_15d468628eb7,
             Self::HostInfo => 0x5d2864e1_1acf_3ce5_8a94_5df5b30936a3,
             Self::Ready => 0xca4b672b_2bbd_3153_82ad_f8fa0a917dfb,
+            Self::QuestTimerInfo => 0xb8ae1f90_db3f_3c74_9994_1c93c83d4a1b,
+            Self::RequestJoinParty => 0x389ed5eb_4695_3b00_ab0e_b4819c2fe44c,
+            Self::RejoinCombatSuccess => 0x130389e1_978a_3ddd_984f_089fa468f1f5,
+            Self::AcceptAssist => 0x79aa3c3c_437d_3e0a_bc58_87f7ce1aacec,
+            Self::HostRestarting => 0x9d9b2fd5_fb1d_3e2e_9bdd_9c7f85a308ec,
+            Self::PartyChat => 0x2fa48705_fd86_31fb_b14f_220b2e2473c3,
         })
     }
 }
@@ -667,6 +685,19 @@ pub struct HostInfo {
     pub skip_lobby: bool,
     pub is_transfer_to_ds: bool,
 }
+/// QuestTimerInfoMessage: the quest time of a rejoining player.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuestTimerInfo {
+    pub quest_time: i32,
+    pub is_timer_decreasing: bool,
+}
+/// PartyChatMessage (both directions; the server fills SenderName).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PartyChat {
+    pub sender_name: Option<String>,
+    pub message: Option<String>,
+    pub is_fake_town_chat: bool,
+}
 /// MonsterTakeDamageInfo; `attack_time` keeps the IEEE single bits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakeDamage {
@@ -846,6 +877,12 @@ pub enum Message {
     JoinShip(JoinShip),
     HostInfo(HostInfo),
     Ready(u8),
+    QuestTimerInfo(QuestTimerInfo),
+    RequestJoinParty(i32),
+    RejoinCombatSuccess,
+    AcceptAssist(i32),
+    HostRestarting,
+    PartyChat(PartyChat),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -897,6 +934,12 @@ impl Message {
             Self::JoinShip(_) => Kind::JoinShip,
             Self::HostInfo(_) => Kind::HostInfo,
             Self::Ready(_) => Kind::Ready,
+            Self::QuestTimerInfo(_) => Kind::QuestTimerInfo,
+            Self::RequestJoinParty(_) => Kind::RequestJoinParty,
+            Self::RejoinCombatSuccess => Kind::RejoinCombatSuccess,
+            Self::AcceptAssist(_) => Kind::AcceptAssist,
+            Self::HostRestarting => Kind::HostRestarting,
+            Self::PartyChat(_) => Kind::PartyChat,
         }
     }
 }
@@ -1184,6 +1227,15 @@ object!(DropErg {
 });
 object!(PutErg { erg_id, tag });
 object!(PartyInvite { invited_name });
+object!(QuestTimerInfo {
+    quest_time,
+    is_timer_decreasing
+});
+object!(PartyChat {
+    sender_name,
+    message,
+    is_fake_town_chat
+});
 object!(PartyInvited {
     host_name,
     party_id
@@ -1361,6 +1413,12 @@ pub fn encode(
                 Message::JoinShip(v) => v.write(&mut w)?,
                 Message::HostInfo(v) => v.write(&mut w)?,
                 Message::Ready(v) => v.write(&mut w)?,
+                Message::QuestTimerInfo(v) => v.write(&mut w)?,
+                Message::RequestJoinParty(v) => v.write(&mut w)?,
+                Message::RejoinCombatSuccess => {}
+                Message::AcceptAssist(v) => v.write(&mut w)?,
+                Message::HostRestarting => {}
+                Message::PartyChat(v) => v.write(&mut w)?,
             }
         }
     }
@@ -1449,6 +1507,12 @@ fn decode_body(
             Kind::JoinShip => Message::JoinShip(JoinShip::read(&mut r)?),
             Kind::HostInfo => Message::HostInfo(HostInfo::read(&mut r)?),
             Kind::Ready => Message::Ready(u8::read(&mut r)?),
+            Kind::QuestTimerInfo => Message::QuestTimerInfo(QuestTimerInfo::read(&mut r)?),
+            Kind::RequestJoinParty => Message::RequestJoinParty(i32::read(&mut r)?),
+            Kind::RejoinCombatSuccess => Message::RejoinCombatSuccess,
+            Kind::AcceptAssist => Message::AcceptAssist(i32::read(&mut r)?),
+            Kind::HostRestarting => Message::HostRestarting,
+            Kind::PartyChat => Message::PartyChat(PartyChat::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {

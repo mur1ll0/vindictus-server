@@ -527,6 +527,8 @@ pub struct Mission {
     pub combat_record: Option<wire::CombatRecord>,
     /// ReduceMinClearTime amounts applied by server-only effects.
     pub min_clear_time_reduced: i32,
+    /// Slots of the play's players that are dead (MicroPlayer.Alive of every player).
+    pub dead: std::collections::BTreeSet<i32>,
     /// MicroPlayer.ReservedRequiredItem (AddPlayer), paid by CheckCoinPaid.
     pub reserved_item: Option<String>,
     /// MicroPlayer.Key of the AddPlayer member info.
@@ -541,6 +543,53 @@ pub struct Mission {
     pub host: bool,
 }
 impl Mission {
+    /// MonsterKillExpCalculator: this player's weight over the play's and the number of
+    /// players counted (a solo play is 1.0 and 1).
+    fn exp_share(&self) -> (f32, i32) {
+        let players = self.party.players(self.party_id);
+        let total: i32 = players
+            .iter()
+            .map(|(_, p)| domain::exp_weight(p.level))
+            .sum();
+        if players.is_empty() || total <= 0 {
+            return (1.0, 1);
+        }
+        let own = domain::exp_weight(self.member.level) as f32;
+        (own / total as f32, players.len() as i32)
+    }
+    /// MicroPlayer.Alive of the player in `slot`.
+    fn alive_of(&self, slot: i32) -> bool {
+        if slot == self.member.slot {
+            self.alive
+        } else {
+            !self.dead.contains(&slot)
+        }
+    }
+    /// The slots of the play (this player's alone outside a party play).
+    fn slots(&self) -> Vec<i32> {
+        let slots: Vec<i32> = self
+            .party
+            .players(self.party_id)
+            .into_iter()
+            .map(|(s, _)| s)
+            .collect();
+        if slots.is_empty() {
+            vec![self.member.slot]
+        } else {
+            slots
+        }
+    }
+    /// The play's shared sector state (no evil cores) for the other players.
+    pub fn snapshot(&self) -> Option<super::party_hub::Snapshot> {
+        let mut sequence = self.sequence.clone()?;
+        sequence.cores.clear();
+        Some(super::party_hub::Snapshot {
+            sectors: self.sectors.clone()?,
+            sequence,
+            game_time: self.game_time,
+            in_game: self.in_game,
+        })
+    }
     /// Party.ChangeState of the host's party.
     pub fn set_state(&mut self, state: u8) {
         self.state = state;
@@ -808,13 +857,21 @@ pub async fn accept_quest(
             host: cid,
             host_info: None,
             players: std::collections::BTreeMap::new(),
+            snapshot: None,
         },
     );
     // BroadCastCoinInfo (no coin system: empty silver coins) and BlessStone.SendStoneInfo.
     packets.extend(
         mission
             .party
-            .add_player(party_id, 0, cid)?
+            .add_player(
+                party_id,
+                0,
+                super::party_hub::Player {
+                    cid,
+                    level: mission.member.level,
+                },
+            )?
             .ok_or_else(fail)?,
     );
     packets.push(connection_request(&ticket)?);
@@ -892,6 +949,7 @@ fn new_mission(
         consumables: Vec::new(),
         combat_record: None,
         min_clear_time_reduced: 0,
+        dead: std::collections::BTreeSet::new(),
         reserved_item: None,
         member_key: 0,
         completion: super::minimum_mission_finish::Completion::new(cid),
@@ -1069,7 +1127,11 @@ pub async fn join_ship(
     );
     let ticket = relay(play.group);
     mission.group = play.group;
-    let Some(mut packets) = hub.add_player(party_id, slot, cid)? else {
+    let player = super::party_hub::Player {
+        cid,
+        level: mission.member.level,
+    };
+    let Some(mut packets) = hub.add_player(party_id, slot, player)? else {
         return Ok(Join::Failed("SlotNotEmpty"));
     };
     packets.push(connection_request(&ticket)?);
@@ -1225,6 +1287,11 @@ pub fn start_game(
     mission.sectors = Some(infos);
     mission.sequence = Some(sequence);
     packets.push(packet(&Message::GameStartGranted(granted))?);
+    if let Some(snapshot) = mission.snapshot() {
+        mission
+            .party
+            .start_play(mission.party_id, mission.completion.cid, snapshot);
+    }
     mission.set_state(party_state::IN_GAME);
     packets.extend(mission.broadcast()?);
     Ok(packets)
@@ -1304,6 +1371,7 @@ pub fn monster_killed(
     } else {
         -1
     };
+    let share = mission.exp_share();
     if target < 0 {
         return Ok((domain::Kill::Unknown, Vec::new()));
     }
@@ -1326,7 +1394,14 @@ pub fn monster_killed(
     } = &kill
     {
         if let Some(info) = info {
-            let exp = domain::monster_kill_exp(*info, *spawn_count, exp_rate_monster);
+            let (ratio, players) = share;
+            let exp = domain::party_monster_kill_exp(
+                *info,
+                *spawn_count,
+                exp_rate_monster,
+                ratio,
+                players,
+            );
             mission.monster_kill_exp = mission.monster_kill_exp.saturating_add(exp);
             // GiveMonsterKillExp → PetManager.GiveExpToCurrentPet (not after GiveUp).
             if !mission.completion.give_up {
@@ -1489,7 +1564,11 @@ pub(super) fn inventory_packet(
 
 /// PlayerKilledProcessor for the solo host (slot 0): Alive false and "player_dead".
 pub fn player_killed(mission: &mut Mission, tag: i32) -> bool {
-    if tag != mission.member.slot || !mission.alive {
+    if tag != mission.member.slot {
+        // Another player of the play: its MicroPlayer.Alive.
+        return mission.dead.insert(tag);
+    }
+    if !mission.alive {
         return false;
     }
     mission.alive = false;
@@ -1528,7 +1607,11 @@ pub fn prop_broken(
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let practice = mission.option.is_practice_mode;
     let difficulty = mission.option.difficulty;
-    let slot = mission.member.slot;
+    let own = mission.member.slot;
+    // ErgInfo.Winner: PickRandomRewardingPlayer among the play's players.
+    let slots = mission.slots();
+    let pick = usize::try_from(random.next_range(0, slots.len() as i32)).unwrap_or(0);
+    let slot = slots.get(pick).copied().unwrap_or(own);
     let Some(sequence) = mission.sequence.as_mut() else {
         return Ok(Vec::new());
     };
@@ -1545,7 +1628,7 @@ pub fn prop_broken(
     if let Some(ergs) = contents.break_prop(&mission.quest, sequence, prop, slot, practice, random)
     {
         if let Some(group) = group
-            && attacker == slot
+            && attacker == own
         {
             mission
                 .events
@@ -1574,7 +1657,7 @@ pub fn prop_broken(
     });
     if let Some(ergs) = contents.break_named_prop(sequence, name, slot, difficulty, random) {
         if let Some(table) = drop_table
-            && attacker == slot
+            && attacker == own
         {
             mission
                 .events
@@ -1613,9 +1696,27 @@ pub fn pick_erg(
     contents: &MissionContents,
     erg_id: i32,
 ) -> Option<domain::ErgDrop> {
-    let slot = mission.member.slot;
+    // Erg.PickErg: the erg goes to its winner (any player of the play).
     let sequence = mission.sequence.as_mut()?;
-    contents.pick_erg(sequence, erg_id, slot)
+    let group = sequence.current?;
+    let winner = sequence
+        .sectors
+        .iter()
+        .find(|s| s.group_id == group)?
+        .ergs
+        .iter()
+        .find(|e| e.id == erg_id)?
+        .winner;
+    contents.pick_erg(sequence, erg_id, winner)
+}
+
+/// The replica of another player starts the host's play (QueryMicroPlayInfo of the
+/// started MicroPlay): the shared sectors and the host's sequence, without cores.
+pub fn replica_start(mission: &mut Mission, snapshot: super::party_hub::Snapshot) {
+    mission.sectors = Some(snapshot.sectors);
+    mission.sequence = Some(snapshot.sequence);
+    mission.game_time = snapshot.game_time;
+    mission.state = party_state::IN_GAME;
 }
 
 /// PutErgMessage of a picked erg.
@@ -1642,6 +1743,7 @@ pub fn apply_effect(
     operation: i32,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
     let slot = mission.member.slot;
+    let slots = mission.slots();
     let mut list: Vec<TargetedEffect> = Vec::new();
     for element in contents.effects(source) {
         if element.operation != operation {
@@ -1660,9 +1762,9 @@ pub fn apply_effect(
                     }
                 }
             }
-            1 if caster == slot => add(&mut list, caster),
-            2 if target == slot && !mission.alive => add(&mut list, target),
-            3 if target == slot && mission.alive => add(&mut list, target),
+            1 if slots.contains(&caster) => add(&mut list, caster),
+            2 if slots.contains(&target) && !mission.alive_of(target) => add(&mut list, target),
+            3 if slots.contains(&target) && mission.alive_of(target) => add(&mut list, target),
             _ => {}
         }
     }
@@ -1670,14 +1772,19 @@ pub fn apply_effect(
         return Ok(Vec::new());
     }
     for (who, (effect, _, _)) in &list {
-        if matches!(effect, 1 | 2) && *who == slot {
+        if !matches!(effect, 1 | 2) {
+            continue;
+        }
+        if *who == slot {
             let cid = mission.completion.cid;
             mission.events.push((cid, "reviving".to_owned()));
             mission.events.push((cid, "revived".to_owned()));
             mission.alive = true;
+        } else {
+            mission.dead.remove(who);
         }
     }
-    let mut packets = vec![packet(&Message::ApplyMicroPlayEffects(
+    let effects_packet = packet(&Message::ApplyMicroPlayEffects(
         wire::ApplyMicroPlayEffects {
             caster,
             effect_name: Some(source.to_owned()),
@@ -1694,7 +1801,13 @@ pub fn apply_effect(
                     .collect(),
             ),
         },
-    ))?];
+    ))?;
+    // SendMicroPlayEffectMessage goes to the GameHost only.
+    let mut packets = if mission.host {
+        vec![effects_packet]
+    } else {
+        Vec::new()
+    };
     if matches!(source, "cash_revive_party" | "cash_revive_party_exchange") {
         let name = mission.member.character_id.clone().unwrap_or_default();
         packets.push(super::minimum_shop::system_message(

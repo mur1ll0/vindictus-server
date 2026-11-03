@@ -543,6 +543,8 @@ struct Connection {
     pet_reset_at: Option<tokio::time::Instant>,
     /// The party authority's pushes to the entered character (UpdateParty, Kick, ...).
     party_notices: Option<tokio::sync::mpsc::Receiver<super::party_hub::Notice>>,
+    /// A host message replayed into this member's MicroPlay replica.
+    replaying: bool,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -562,6 +564,7 @@ impl Connection {
             latest_sort: None,
             pet_reset_at: None,
             party_notices: None,
+            replaying: false,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
@@ -1006,9 +1009,27 @@ impl Connection {
                 | Message::PlayerRevived(_)
                 | Message::MicroPlayEvent(_)
         );
-        if host_only && self.mission.as_ref().is_some_and(|m| !m.host) {
+        if host_only && !self.replaying && self.mission.as_ref().is_some_and(|m| !m.host) {
             tracing::info!("host message from a MicroPlay member ignored; values omitted");
             return Ok(());
+        }
+        // The host's play messages that every MicroPlayer applies: the other players'
+        // replicas get them (EXP, cores, goals, deaths and consumables of each player).
+        if !self.replaying
+            && matches!(
+                message,
+                Message::MoveToNextSector(_)
+                    | Message::MonsterKilled(_)
+                    | Message::RagdollKicked(_)
+                    | Message::CombatRecord(_)
+                    | Message::UseConsumable(_)
+                    | Message::PlayerKilled(_)
+                    | Message::PlayerRevived(_)
+                    | Message::MicroPlayEvent(_)
+            )
+            && let Some(m) = self.mission.as_ref().filter(|m| m.host)
+        {
+            runtime.party.replicate(m.party_id, cid, &message);
         }
         let packets = match message {
             Message::JoinShip(join) => {
@@ -1280,6 +1301,12 @@ impl Connection {
                     m.target_group,
                 )
                 .map_err(|_| RuntimeError::Operation)?;
+                if moved
+                    && state.host
+                    && let Some(snapshot) = state.snapshot()
+                {
+                    runtime.party.update_snapshot(state.party_id, snapshot);
+                }
                 tracing::info!(moved, "mission sector move processed; values omitted");
                 Vec::new()
             }
@@ -1406,6 +1433,18 @@ impl Connection {
                     tracing::info!("mission erg pick refused; values omitted");
                     return Ok(());
                 };
+                if erg.winner != state.member.slot {
+                    // Another player won it: its frontend gives the reward.
+                    let given =
+                        runtime
+                            .party
+                            .give(state.party_id, erg.winner, &erg.kind, erg.amount);
+                    tracing::info!(given, "mission erg won by another player; values omitted");
+                    let put = mission::put_erg(erg_id, erg.winner)
+                        .map_err(|_| RuntimeError::Operation)?;
+                    send(stream, sender, put.category, &put.body).await?;
+                    return Ok(());
+                }
                 let ids = runtime
                     .minimum
                     .as_ref()
@@ -1941,6 +1980,27 @@ impl Connection {
                 }
                 packets
             }
+            super::party_hub::Notice::Play(message) => {
+                if self.mission.as_ref().is_some_and(|m| !m.host) {
+                    self.replaying = true;
+                    let applied = self.mission(runtime, pool, stream, sender, *message).await;
+                    self.replaying = false;
+                    applied?;
+                }
+                return Ok(());
+            }
+            super::party_hub::Notice::Started(snapshot) => {
+                if let Some(m) = self.mission.as_mut().filter(|m| !m.host) {
+                    super::minimum_mission::replica_start(m, *snapshot);
+                    tracing::info!("member replica of the play started; values omitted");
+                }
+                return Ok(());
+            }
+            super::party_hub::Notice::Give { class_ex, count } => {
+                return self
+                    .give_erg(runtime, pool, stream, sender, &class_ex, count)
+                    .await;
+            }
             super::party_hub::Notice::Kicked { .. } => {
                 let mut packets = Vec::new();
                 if let Some(mut m) = self.mission.take() {
@@ -1959,6 +2019,69 @@ impl Connection {
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
         }
+        Ok(())
+    }
+    /// An erg this player won in another player's pick: MicroPlayer GiveItem.
+    async fn give_erg(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        class_ex: &str,
+        count: i32,
+    ) -> Result<(), RuntimeError> {
+        let (Some(selected), Some(password)) = (self.selected.as_ref(), self.password.as_ref())
+        else {
+            return Ok(());
+        };
+        let cid = selected.cid;
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: password.revision(),
+        };
+        let Some(state) = self.mission.as_deref_mut() else {
+            return Ok(());
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let ids = minimum
+            .creation
+            .entity_ids(1)
+            .await
+            .map_err(|_| RuntimeError::Operation)?;
+        let mut ids = ids.into_iter();
+        let packets = match super::minimum_mission::give_reward(
+            pool,
+            &owner,
+            assets,
+            state,
+            cid,
+            class_ex,
+            count,
+            0,
+            &mut || {
+                ids.next()
+                    .ok_or(super::minimum_character::MinimumError::Conflict)
+            },
+        )
+        .await
+        {
+            Ok(packets) => packets,
+            Err(_) => {
+                tracing::warn!("mission erg give refused by the give planner; values omitted");
+                return Ok(());
+            }
+        };
+        for packet in &packets {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
+        tracing::info!("mission erg of another pick given; values omitted");
         Ok(())
     }
     /// The relay side of leaving a MicroPlay: P2PGroup.Leave of this player; the group
