@@ -22,8 +22,11 @@ const root = createRootRouteWithContext<Context>()({ component: Outlet });
 const loginRoute = createRoute({
   getParentRoute: () => root,
   path: '/login',
-  validateSearch: (search: Record<string, unknown>): { aviso?: string } =>
-    typeof search.aviso === 'string' ? { aviso: search.aviso } : {},
+  // `?cadastro=1` opens the registration tab (the game launcher's "Criar conta" button).
+  validateSearch: (search: Record<string, unknown>): { aviso?: string; cadastro?: boolean } => ({
+    ...(typeof search.aviso === 'string' ? { aviso: search.aviso } : {}),
+    ...(search.cadastro !== undefined && search.cadastro !== false ? { cadastro: true } : {}),
+  }),
   component: LoginPage,
 });
 

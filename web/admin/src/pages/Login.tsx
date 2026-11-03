@@ -15,8 +15,8 @@ type Mode = 'login' | 'register';
 export function LoginPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const search = useSearch({ strict: false }) as { aviso?: string };
-  const [mode, setMode] = useState<Mode>('login');
+  const search = useSearch({ strict: false }) as { aviso?: string; cadastro?: boolean };
+  const [mode, setMode] = useState<Mode>(search.cadastro ? 'register' : 'login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');

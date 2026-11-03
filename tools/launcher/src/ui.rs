@@ -1,0 +1,911 @@
+//! Janela do launcher em Win32 puro (user32/gdi32/comctl32/shell32/ole32, só funções que existem
+//! desde o Windows 7), no desenho do pw-launcher (B275 do pw-universal). Tudo o que fala com o
+//! servidor ou espera o jogo roda numa thread à parte e devolve o resultado à janela com
+//! `PostMessageW` (um `Box` no `LPARAM`); o estado da janela vive só na thread dela.
+//!
+//! Único módulo com `unsafe`: as chamadas Win32. Cada bloco só passa ponteiros de buffers vivos no
+//! próprio bloco e handles criados por esta janela.
+use crate::api::{Api, ApiError, Session};
+use crate::config::{Config, normalize_server};
+use crate::game;
+use std::cell::{Cell, RefCell};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use windows_sys::Win32::Foundation::*;
+use windows_sys::Win32::Graphics::Gdi::*;
+use windows_sys::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx};
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::UI::Controls::*;
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{EnableWindow, SetFocus};
+use windows_sys::Win32::UI::WindowsAndMessaging::*;
+use windows_sys::core::PCWSTR;
+use zeroize::{Zeroize, Zeroizing};
+
+const TITLE: &str = "Vindictus";
+
+const ID_PANEL: i32 = 100;
+const ID_REGISTER: i32 = 101;
+const ID_USER: i32 = 110;
+const ID_PASSWORD: i32 = 111;
+const ID_LOGIN: i32 = 112;
+const ID_LOGOUT: i32 = 113;
+const ID_FOLDER: i32 = 120;
+const ID_PLAY: i32 = 130;
+const ID_SERVER: i32 = 140;
+const ID_SAVE: i32 = 141;
+
+const WM_STATUS: u32 = WM_APP + 1;
+const WM_LOGGED_IN: u32 = WM_APP + 2;
+const WM_GAME_STARTED: u32 = WM_APP + 3;
+const WM_GAME_EXITED: u32 = WM_APP + 4;
+const WM_LOGGED_OUT: u32 = WM_APP + 5;
+
+const TIMER_STATUS: usize = 1;
+const TIMER_CLOSE: usize = 2;
+const STATUS_EVERY_MS: u32 = 30_000;
+/// Fechar não espera mais que isso pelo logout.
+const CLOSE_WAIT_MS: u32 = 4_000;
+
+// Estilos que a windows-sys 0.52 não exporta no módulo usado (winuser.h).
+const SS_NOPREFIX: u32 = 0x0080;
+const SS_ETCHEDHORZ: u32 = 0x0010;
+const SS_PATHELLIPSIS: u32 = 0x8000;
+const SS_EDITCONTROL: u32 = 0x2000;
+// winuser.h: DM_GETDEFID = WM_USER + 0, DC_HASDEFID = 0x534B.
+const DM_GETDEFID: u32 = WM_USER;
+const DC_HASDEFID: isize = 0x534B;
+
+#[derive(Clone, Copy, Default)]
+struct Controls {
+    window: HWND,
+    status: HWND,
+    user_label: HWND,
+    user: HWND,
+    password_label: HWND,
+    password: HWND,
+    login: HWND,
+    connected: HWND,
+    logout: HWND,
+    folder: HWND,
+    choose_folder: HWND,
+    play: HWND,
+    message: HWND,
+    server: HWND,
+    save: HWND,
+    dpi: i32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Tone {
+    Normal,
+    Ok,
+    Error,
+}
+
+#[derive(Default)]
+struct State {
+    config: Config,
+    session: Option<Arc<Session>>,
+    user: String,
+    busy: bool,
+    game_running: bool,
+    closing: bool,
+    online: Option<bool>,
+}
+
+thread_local! {
+    static CTL: Cell<Controls> = Cell::new(Controls::default());
+    static ST: RefCell<State> = RefCell::new(State::default());
+    static TONE: Cell<Tone> = const { Cell::new(Tone::Normal) };
+}
+
+fn ctl() -> Controls {
+    CTL.with(Cell::get)
+}
+
+fn wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+/// Tamanho de projeto (96 dpi) na escala da tela.
+fn px(v: i32) -> i32 {
+    v * ctl().dpi / 96
+}
+
+fn set_text(h: HWND, t: &str) {
+    unsafe { SetWindowTextW(h, wide(t).as_ptr()) };
+}
+
+/// Texto de um controle, apagando o buffer intermediário.
+fn read_text(h: HWND) -> Zeroizing<String> {
+    unsafe {
+        let n = GetWindowTextLengthW(h).max(0) as usize;
+        let mut buffer = Zeroizing::new(vec![0u16; n + 1]);
+        let read = GetWindowTextW(h, buffer.as_mut_ptr(), buffer.len() as i32).max(0) as usize;
+        Zeroizing::new(String::from_utf16_lossy(&buffer[..read]))
+    }
+}
+
+fn show(h: HWND, visible: bool) {
+    unsafe { ShowWindow(h, if visible { SW_SHOW } else { SW_HIDE }) };
+}
+
+fn enable(h: HWND, on: bool) {
+    unsafe { EnableWindow(h, on as BOOL) };
+}
+
+fn error_box(text: &str) {
+    unsafe {
+        MessageBoxW(
+            ctl().window,
+            wide(text).as_ptr(),
+            wide(TITLE).as_ptr(),
+            MB_OK | MB_ICONERROR,
+        )
+    };
+}
+
+/// Manda `value` para a janela; se ela já fechou, o valor é descartado.
+fn post<T>(window: HWND, message: u32, value: T) {
+    let pointer = Box::into_raw(Box::new(value));
+    if unsafe { PostMessageW(window, message, 0, pointer as LPARAM) } == 0 {
+        drop(unsafe { Box::from_raw(pointer) });
+    }
+}
+
+/// O `LPARAM` de uma mensagem mandada por `post` com o mesmo tipo.
+unsafe fn take<T>(lparam: LPARAM) -> T {
+    *unsafe { Box::from_raw(lparam as *mut T) }
+}
+
+// A windows-sys 0.52 prende estas a um feature que ela não publica; declaradas como no
+// shlobj_core.h e shellapi.h (shell32.dll, presentes desde o Windows Vista).
+#[repr(C)]
+struct BrowseInfo {
+    hwnd_owner: HWND,
+    pidl_root: *const core::ffi::c_void,
+    display_name: *mut u16,
+    title: PCWSTR,
+    flags: u32,
+    callback: Option<unsafe extern "system" fn(HWND, u32, LPARAM, LPARAM) -> i32>,
+    lparam: LPARAM,
+    image: i32,
+}
+const BIF_RETURNONLYFSDIRS: u32 = 0x0001;
+const BIF_EDITBOX: u32 = 0x0010;
+const BIF_NEWDIALOGSTYLE: u32 = 0x0040;
+#[link(name = "shell32")]
+unsafe extern "system" {
+    fn SHBrowseForFolderW(info: *const BrowseInfo) -> *mut core::ffi::c_void;
+    fn SHGetPathFromIDListW(pidl: *const core::ffi::c_void, path: *mut u16) -> BOOL;
+    fn ILFree(pidl: *const core::ffi::c_void);
+    fn ShellExecuteW(
+        hwnd: HWND,
+        operation: *const u16,
+        file: *const u16,
+        parameters: *const u16,
+        directory: *const u16,
+        show: i32,
+    ) -> isize;
+}
+
+// ---------------------------------------------------------------- tela
+
+fn message(text: &str, tone: Tone) {
+    TONE.with(|t| t.set(tone));
+    let h = ctl().message;
+    set_text(h, text);
+    unsafe { InvalidateRect(h, std::ptr::null(), 1) };
+}
+
+fn api() -> Result<Api, String> {
+    ST.with(|s| s.borrow().config.server_base())
+        .map(|base| Api::new(&base))
+}
+
+/// Mostra os controles conforme o estado (fora, entrando, conectado, jogando, fechando).
+fn refresh() {
+    let c = ctl();
+    ST.with(|s| {
+        let s = s.borrow();
+        let logged = s.session.is_some();
+        for h in [c.user_label, c.user, c.password_label, c.password, c.login] {
+            show(h, !logged);
+        }
+        show(c.connected, logged);
+        show(c.logout, logged);
+        set_text(c.connected, &format!("Conectado como {}", s.user));
+        let idle = !s.busy && !s.closing;
+        for h in [
+            c.user,
+            c.password,
+            c.login,
+            c.server,
+            c.save,
+            c.choose_folder,
+        ] {
+            enable(h, idle);
+        }
+        enable(c.logout, idle && !s.game_running);
+        let folder_ok = game::is_game_folder(Path::new(&s.config.game_folder));
+        enable(c.play, idle && logged && !s.game_running && folder_ok);
+        set_text(
+            c.play,
+            if s.game_running {
+                "Jogo aberto"
+            } else {
+                "Jogar"
+            },
+        );
+        set_text(
+            c.folder,
+            if s.config.game_folder.is_empty() {
+                "(escolha a pasta do jogo)"
+            } else {
+                &s.config.game_folder
+            },
+        );
+        set_text(
+            c.status,
+            match s.online {
+                None => "Servidor: verificando…",
+                Some(true) => "Servidor: online",
+                Some(false) => "Servidor: fora do ar",
+            },
+        );
+    });
+}
+
+fn set_busy(on: bool) {
+    ST.with(|s| s.borrow_mut().busy = on);
+    refresh();
+}
+
+// ---------------------------------------------------------------- ações
+
+fn check_status() {
+    let Ok(api) = api() else {
+        ST.with(|s| s.borrow_mut().online = Some(false));
+        refresh();
+        return;
+    };
+    let window = ctl().window;
+    std::thread::spawn(move || post(window, WM_STATUS, api.online()));
+}
+
+fn on_login() {
+    let c = ctl();
+    let user = read_text(c.user).trim().to_owned();
+    let password = read_text(c.password);
+    if user.is_empty() || password.is_empty() {
+        message("Digite o login e a senha.", Tone::Error);
+        return;
+    }
+    let api = match api() {
+        Ok(api) => api,
+        Err(e) => return message(&e, Tone::Error),
+    };
+    set_busy(true);
+    message("Entrando…", Tone::Normal);
+    let window = c.window;
+    std::thread::spawn(move || {
+        let result = api.login(&user, &password).map(|session| (session, user));
+        drop(password);
+        post(window, WM_LOGGED_IN, result);
+    });
+}
+
+fn on_logged_in(result: Result<(Session, String), ApiError>) {
+    let c = ctl();
+    set_text(c.password, "");
+    match result {
+        Ok((session, user)) => {
+            ST.with(|s| {
+                let mut s = s.borrow_mut();
+                s.session = Some(Arc::new(session));
+                s.config.last_login = user.clone();
+                s.user = user;
+                s.online = Some(true);
+                let _ = s.config.save();
+            });
+            message(
+                "Pronto. O login vale enquanto o launcher estiver aberto.",
+                Tone::Ok,
+            );
+        }
+        Err(e) => {
+            if e == ApiError::Offline {
+                ST.with(|s| s.borrow_mut().online = Some(false));
+            }
+            message(&e.message(), Tone::Error);
+            unsafe { SetFocus(c.password) };
+        }
+    }
+    set_busy(false);
+}
+
+fn on_play() {
+    let (session, folder) = ST.with(|s| {
+        let s = s.borrow();
+        (s.session.clone(), PathBuf::from(&s.config.game_folder))
+    });
+    let Some(session) = session else { return };
+    let api = match api() {
+        Ok(api) => api,
+        Err(e) => return message(&e, Tone::Error),
+    };
+    set_busy(true);
+    message("Abrindo o jogo…", Tone::Normal);
+    let window = ctl().window;
+    std::thread::spawn(move || {
+        let started = api
+            .ticket(&session)
+            .map_err(|e| (e == ApiError::SessionEnded, e.message()))
+            .and_then(|ticket| game::start(&folder, ticket.as_str()).map_err(|e| (false, e)));
+        match started {
+            Ok(mut child) => {
+                post(window, WM_GAME_STARTED, Ok::<(), (bool, String)>(()));
+                let _ = child.wait();
+                post(window, WM_GAME_EXITED, ());
+            }
+            Err(e) => post(window, WM_GAME_STARTED, Err::<(), (bool, String)>(e)),
+        }
+    });
+}
+
+fn on_game_started(result: Result<(), (bool, String)>) {
+    match result {
+        Ok(()) => {
+            ST.with(|s| s.borrow_mut().game_running = true);
+            message(
+                "Jogo aberto. Clique em Start Game quando quiser: o login vale enquanto o launcher estiver aberto.",
+                Tone::Ok,
+            );
+        }
+        Err((session_ended, text)) => {
+            if session_ended {
+                ST.with(|s| s.borrow_mut().session = None);
+            }
+            message(&text, Tone::Error);
+        }
+    }
+    set_busy(false);
+}
+
+fn on_game_exited() {
+    ST.with(|s| s.borrow_mut().game_running = false);
+    message("Jogo fechado.", Tone::Normal);
+    refresh();
+}
+
+/// Encerra a sessão numa thread; `WM_LOGGED_OUT` volta quando terminar.
+fn start_logout() -> bool {
+    let session = ST.with(|s| s.borrow_mut().session.take());
+    let (Some(session), Ok(api)) = (session, api()) else {
+        return false;
+    };
+    let window = ctl().window;
+    std::thread::spawn(move || {
+        let _ = api.logout(&session);
+        post(window, WM_LOGGED_OUT, ());
+    });
+    true
+}
+
+fn on_logout_clicked() {
+    set_busy(true);
+    if !start_logout() {
+        set_busy(false);
+    }
+}
+
+fn on_logged_out() {
+    let closing = ST.with(|s| s.borrow().closing);
+    if closing {
+        unsafe { DestroyWindow(ctl().window) };
+        return;
+    }
+    message("Você saiu.", Tone::Normal);
+    set_busy(false);
+}
+
+fn on_close() {
+    let (closing, game_running, logged) = ST.with(|s| {
+        let s = s.borrow();
+        (s.closing, s.game_running, s.session.is_some())
+    });
+    if closing {
+        unsafe { DestroyWindow(ctl().window) };
+        return;
+    }
+    if game_running && logged {
+        let answer = unsafe {
+            MessageBoxW(
+                ctl().window,
+                wide("O jogo está aberto. Fechar o launcher encerra o login: se você ainda não clicou em Start Game, terá de abrir o jogo de novo pelo launcher.\n\nFechar o launcher?").as_ptr(),
+                wide(TITLE).as_ptr(),
+                MB_YESNO | MB_ICONQUESTION,
+            )
+        };
+        if answer != IDYES {
+            return;
+        }
+    }
+    ST.with(|s| s.borrow_mut().closing = true);
+    refresh();
+    if start_logout() {
+        unsafe { SetTimer(ctl().window, TIMER_CLOSE, CLOSE_WAIT_MS, None) };
+    } else {
+        unsafe { DestroyWindow(ctl().window) };
+    }
+}
+
+fn choose_folder() -> Option<PathBuf> {
+    let mut name = [0u16; 260];
+    let title = wide("Escolha a pasta do jogo (a que tem o Vindictus.exe):");
+    let info = BrowseInfo {
+        hwnd_owner: ctl().window,
+        pidl_root: std::ptr::null(),
+        display_name: name.as_mut_ptr(),
+        title: title.as_ptr(),
+        flags: BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_EDITBOX,
+        callback: None,
+        lparam: 0,
+        image: 0,
+    };
+    unsafe {
+        let pidl = SHBrowseForFolderW(&info);
+        if pidl.is_null() {
+            return None;
+        }
+        let mut path = [0u16; 260];
+        let ok = SHGetPathFromIDListW(pidl, path.as_mut_ptr());
+        ILFree(pidl);
+        if ok == 0 {
+            return None;
+        }
+        let end = path.iter().position(|&c| c == 0).unwrap_or(path.len());
+        Some(PathBuf::from(String::from_utf16_lossy(&path[..end])))
+    }
+}
+
+fn on_choose_folder() {
+    let Some(folder) = choose_folder() else {
+        return;
+    };
+    if !game::is_game_folder(&folder) {
+        message(
+            "Essa pasta não tem o Vindictus.exe e o bin\\client.dll. Escolha a pasta do jogo.",
+            Tone::Error,
+        );
+        return;
+    }
+    let saved = ST.with(|s| {
+        let mut s = s.borrow_mut();
+        s.config.game_folder = folder.to_string_lossy().into_owned();
+        s.config.save()
+    });
+    match saved {
+        Ok(()) => message("Pasta do jogo salva.", Tone::Ok),
+        Err(e) => message(&e, Tone::Error),
+    }
+    refresh();
+}
+
+fn on_save_server() {
+    let text = read_text(ctl().server);
+    let base = match normalize_server(&text) {
+        Ok(base) => base,
+        Err(e) => return message(&e, Tone::Error),
+    };
+    let saved = ST.with(|s| {
+        let mut s = s.borrow_mut();
+        let changed = s.config.server != base;
+        s.config.server = base.clone();
+        if changed {
+            s.session = None;
+            s.online = None;
+        }
+        s.config.save()
+    });
+    set_text(ctl().server, &base);
+    match saved {
+        Ok(()) => message("Servidor salvo.", Tone::Ok),
+        Err(e) => message(&e, Tone::Error),
+    }
+    refresh();
+    check_status();
+}
+
+fn open_url(url: &str) {
+    unsafe {
+        ShellExecuteW(
+            ctl().window,
+            wide("open").as_ptr(),
+            wide(url).as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+}
+
+fn on_open(register: bool) {
+    match api() {
+        Ok(api) => open_url(&if register {
+            api.register_url()
+        } else {
+            api.panel_url()
+        }),
+        Err(e) => message(&e, Tone::Error),
+    }
+}
+
+// ---------------------------------------------------------------- janela
+
+unsafe extern "system" fn procedure(
+    window: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    match msg {
+        WM_COMMAND => {
+            let id = (wparam & 0xFFFF) as i32;
+            let code = ((wparam >> 16) & 0xFFFF) as u32;
+            if code == BN_CLICKED {
+                match id {
+                    ID_LOGIN => on_login(),
+                    ID_LOGOUT => on_logout_clicked(),
+                    ID_PLAY => on_play(),
+                    ID_FOLDER => on_choose_folder(),
+                    ID_SAVE => on_save_server(),
+                    ID_PANEL => on_open(false),
+                    ID_REGISTER => on_open(true),
+                    _ => {}
+                }
+            }
+            0
+        }
+        // Enter aperta Entrar (fora) ou Jogar (conectado), como num diálogo.
+        DM_GETDEFID => {
+            let (logged, idle) = ST.with(|s| {
+                let s = s.borrow();
+                (
+                    s.session.is_some(),
+                    !s.busy && !s.closing && !s.game_running,
+                )
+            });
+            if !idle {
+                0
+            } else {
+                (DC_HASDEFID << 16) | if logged { ID_PLAY } else { ID_LOGIN } as isize
+            }
+        }
+        WM_CTLCOLORSTATIC => {
+            let hdc = wparam as HDC;
+            unsafe {
+                SetBkColor(hdc, GetSysColor(COLOR_BTNFACE));
+                let color = if lparam == ctl().message {
+                    match TONE.with(Cell::get) {
+                        Tone::Normal => GetSysColor(COLOR_WINDOWTEXT),
+                        Tone::Ok => 0x0000_7A1E, // verde (COLORREF é 0x00BBGGRR)
+                        Tone::Error => 0x0000_00C0, // vermelho
+                    }
+                } else if lparam == ctl().status {
+                    match ST.with(|s| s.borrow().online) {
+                        Some(true) => 0x0000_7A1E,
+                        Some(false) => 0x0000_00C0,
+                        None => GetSysColor(COLOR_GRAYTEXT),
+                    }
+                } else {
+                    GetSysColor(COLOR_WINDOWTEXT)
+                };
+                SetTextColor(hdc, color);
+                GetSysColorBrush(COLOR_BTNFACE)
+            }
+        }
+        WM_TIMER => {
+            match wparam {
+                TIMER_STATUS => check_status(),
+                TIMER_CLOSE => unsafe {
+                    DestroyWindow(window);
+                },
+                _ => {}
+            }
+            0
+        }
+        WM_STATUS => {
+            let online: bool = unsafe { take(lparam) };
+            ST.with(|s| s.borrow_mut().online = Some(online));
+            refresh();
+            0
+        }
+        WM_LOGGED_IN => {
+            on_logged_in(unsafe { take(lparam) });
+            0
+        }
+        WM_GAME_STARTED => {
+            on_game_started(unsafe { take(lparam) });
+            0
+        }
+        WM_GAME_EXITED => {
+            let () = unsafe { take(lparam) };
+            on_game_exited();
+            0
+        }
+        WM_LOGGED_OUT => {
+            let () = unsafe { take(lparam) };
+            on_logged_out();
+            0
+        }
+        WM_CLOSE => {
+            on_close();
+            0
+        }
+        WM_DESTROY => {
+            unsafe { PostQuitMessage(0) };
+            0
+        }
+        _ => unsafe { DefWindowProcW(window, msg, wparam, lparam) },
+    }
+}
+
+fn font(points: i32, bold: bool, dpi: i32) -> HFONT {
+    unsafe {
+        CreateFontW(
+            -(points * dpi / 72),
+            0,
+            0,
+            0,
+            if bold { 700 } else { 400 },
+            0,
+            0,
+            0,
+            1, // DEFAULT_CHARSET
+            0,
+            0,
+            5, // CLEARTYPE_QUALITY
+            0,
+            wide("Segoe UI").as_ptr(),
+        )
+    }
+}
+
+struct Builder {
+    window: HWND,
+    instance: HINSTANCE,
+}
+
+impl Builder {
+    #[allow(clippy::too_many_arguments)]
+    fn make(
+        &self,
+        class: &str,
+        text: &str,
+        style: u32,
+        ex: u32,
+        r: (i32, i32, i32, i32),
+        id: i32,
+        f: HFONT,
+    ) -> HWND {
+        unsafe {
+            let h = CreateWindowExW(
+                ex,
+                wide(class).as_ptr(),
+                wide(text).as_ptr(),
+                WS_CHILD | WS_VISIBLE | style,
+                px(r.0),
+                px(r.1),
+                px(r.2),
+                px(r.3),
+                self.window,
+                id as HMENU,
+                self.instance,
+                std::ptr::null(),
+            );
+            SendMessageW(h, WM_SETFONT, f as WPARAM, 1);
+            h
+        }
+    }
+}
+
+pub fn run() {
+    std::panic::set_hook(Box::new(|info| {
+        error_box(&format!("Erro interno do launcher:\n{info}"))
+    }));
+    let mut config = Config::load();
+    config.server = config.server_base().unwrap_or(config.server);
+    let last_login = config.last_login.clone();
+    let server = config.server.clone();
+    ST.with(|s| {
+        s.borrow_mut().config = config;
+    });
+    unsafe {
+        CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32);
+        let iccx = INITCOMMONCONTROLSEX {
+            dwSize: std::mem::size_of::<INITCOMMONCONTROLSEX>() as u32,
+            dwICC: ICC_STANDARD_CLASSES,
+        };
+        InitCommonControlsEx(&iccx);
+
+        let screen = GetDC(0);
+        let dpi = GetDeviceCaps(screen, LOGPIXELSY as i32).max(96);
+        ReleaseDC(0, screen);
+        let normal = font(9, false, dpi);
+        let header = font(16, true, dpi);
+        let big = font(12, true, dpi);
+        CTL.with(|c| {
+            c.set(Controls {
+                dpi,
+                ..Controls::default()
+            })
+        });
+
+        let instance = GetModuleHandleW(std::ptr::null());
+        let class = wide("VindictusLauncher");
+        let icon = LoadIconW(instance, 1 as PCWSTR); // recurso 1 (launcher.rc)
+        let wc = WNDCLASSEXW {
+            cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(procedure),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: instance,
+            hIcon: icon,
+            hCursor: LoadCursorW(0, IDC_ARROW),
+            hbrBackground: (COLOR_BTNFACE + 1) as HBRUSH,
+            lpszMenuName: std::ptr::null(),
+            lpszClassName: class.as_ptr(),
+            hIconSm: icon,
+        };
+        if RegisterClassExW(&wc) == 0 {
+            error_box("Não foi possível registrar a janela do launcher.");
+            return;
+        }
+        let style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+        let mut r = RECT {
+            left: 0,
+            top: 0,
+            right: px(520),
+            bottom: px(338),
+        };
+        AdjustWindowRect(&mut r, style, 0);
+        let (width, height) = (r.right - r.left, r.bottom - r.top);
+        let x = (GetSystemMetrics(SM_CXSCREEN) - width).max(0) / 2;
+        let y = (GetSystemMetrics(SM_CYSCREEN) - height).max(0) / 2;
+        let window = CreateWindowExW(
+            0,
+            class.as_ptr(),
+            wide(TITLE).as_ptr(),
+            style,
+            x,
+            y,
+            width,
+            height,
+            0,
+            0,
+            instance,
+            std::ptr::null(),
+        );
+        if window == 0 {
+            error_box("Não foi possível abrir a janela do launcher.");
+            return;
+        }
+
+        let b = Builder { window, instance };
+        let label = |t: &str, f: HFONT, r: (i32, i32, i32, i32), extra: u32| {
+            b.make("STATIC", t, SS_NOPREFIX | extra, 0, r, -1, f)
+        };
+        let button = |t: &str, r: (i32, i32, i32, i32), id: i32, kind: i32, f: HFONT| {
+            b.make("BUTTON", t, kind as u32 | WS_TABSTOP, 0, r, id, f)
+        };
+        let edit = |t: &str, r: (i32, i32, i32, i32), id: i32, extra: i32| {
+            b.make(
+                "EDIT",
+                t,
+                (ES_AUTOHSCROLL | extra) as u32 | WS_TABSTOP,
+                WS_EX_CLIENTEDGE,
+                r,
+                id,
+                normal,
+            )
+        };
+
+        label("Vindictus", header, (16, 12, 200, 34), 0);
+        button(
+            "Painel",
+            (300, 16, 100, 28),
+            ID_PANEL,
+            BS_PUSHBUTTON,
+            normal,
+        );
+        button(
+            "Criar conta",
+            (404, 16, 100, 28),
+            ID_REGISTER,
+            BS_PUSHBUTTON,
+            normal,
+        );
+        let status = label("Servidor: verificando…", normal, (16, 54, 488, 20), 0);
+        label("", normal, (16, 80, 488, 2), SS_ETCHEDHORZ);
+
+        let user_label = label("Login:", normal, (16, 98, 60, 20), 0);
+        let user = edit(&last_login, (80, 94, 180, 24), ID_USER, 0);
+        let password_label = label("Senha:", normal, (16, 128, 60, 20), 0);
+        let password = edit("", (80, 124, 180, 24), ID_PASSWORD, ES_PASSWORD);
+        let login = button(
+            "Entrar",
+            (272, 108, 100, 30),
+            ID_LOGIN,
+            BS_DEFPUSHBUTTON,
+            normal,
+        );
+        let connected = label("", big, (16, 104, 360, 26), 0);
+        let logout = button(
+            "Sair",
+            (404, 102, 100, 30),
+            ID_LOGOUT,
+            BS_PUSHBUTTON,
+            normal,
+        );
+
+        label("Pasta do jogo:", normal, (16, 168, 90, 20), 0);
+        let folder = label("", normal, (108, 168, 300, 20), SS_PATHELLIPSIS);
+        let choose_folder = button(
+            "Escolher…",
+            (412, 162, 92, 28),
+            ID_FOLDER,
+            BS_PUSHBUTTON,
+            normal,
+        );
+        let play = button("Jogar", (16, 202, 488, 42), ID_PLAY, BS_PUSHBUTTON, big);
+        let message = label("", normal, (16, 252, 488, 36), SS_EDITCONTROL);
+        label("", normal, (16, 294, 488, 2), SS_ETCHEDHORZ);
+        label("Servidor:", normal, (16, 309, 60, 20), 0);
+        let server_edit = edit(&server, (80, 305, 324, 24), ID_SERVER, 0);
+        let save = button("Salvar", (412, 304, 92, 26), ID_SAVE, BS_PUSHBUTTON, normal);
+
+        CTL.with(|c| {
+            c.set(Controls {
+                window,
+                status,
+                user_label,
+                user,
+                password_label,
+                password,
+                login,
+                connected,
+                logout,
+                folder,
+                choose_folder,
+                play,
+                message,
+                server: server_edit,
+                save,
+                dpi,
+            })
+        });
+        refresh();
+        ShowWindow(window, SW_SHOW);
+        UpdateWindow(window);
+        SetFocus(if last_login.is_empty() {
+            user
+        } else {
+            password
+        });
+        check_status();
+        SetTimer(window, TIMER_STATUS, STATUS_EVERY_MS, None);
+
+        let mut msg: MSG = std::mem::zeroed();
+        while GetMessageW(&mut msg, 0, 0, 0) > 0 {
+            if IsDialogMessageW(window, &msg) == 0 {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+    }
+    // A senha digitada e não usada não fica no buffer do controle.
+    let mut leftover = read_text(ctl().password).to_string();
+    leftover.zeroize();
+}

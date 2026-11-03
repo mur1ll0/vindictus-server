@@ -27,3 +27,14 @@ Pré-condição: Docker reconstruído com a migração 0052; `client.dll` `59b60
 - [ ] Com o jogo aberto na tela de título, digitar `S` no launcher (sair) → Start Game no jogo → recusa (sessão encerrada).
 - [ ] Senha errada no login do launcher → "Login ou senha inválidos." e nada abre.
 Limites conhecidos: fechar a janela do PowerShell sem `S` deixa a sessão aberta até o limite de 12 horas; o login por nome digitado continua aceito até a decisão D-L6.
+
+### LA4 — launcher Rust + Win32 (`vindictus-launcher.exe`)
+Pré-condição: Docker reconstruído em 03/11/2026 (panel com `?cadastro=1`); `client.dll` `59b60e7a…`; `.cache/play-client/vindictus-launcher.exe` (compilado por `tools/launcher/build.ps1`, 32 bits, win7) ao lado do `Vindictus.exe`; jogo fechado.
+- [ ] Abrir `.cache/play-client/vindictus-launcher.exe` → janela "Vindictus" → "Servidor: online" em verde; a pasta do jogo já preenchida.
+- [ ] Login e senha → Entrar → "Conectado como …" → Jogar → o jogo abre → esperar na tela de título → Start Game → **seleção de personagem sem o diálogo** → segunda senha → cidade.
+- [ ] Fechar o jogo → o botão volta a "Jogar" → Jogar de novo **sem digitar a senha**.
+- [ ] Senha errada → "Login ou senha inválidos." em vermelho.
+- [ ] "Criar conta" abre o painel já na aba de cadastro; "Painel" abre o painel.
+- [ ] Com o jogo aberto na tela de título, fechar o launcher → pergunta → Sim → Start Game no jogo é recusado.
+- [ ] (Opcional) Copiar o exe para um Windows 7 → a janela abre sem pedir nenhuma instalação.
+Limites conhecidos: instalar, atualizar e verificar arquivos ainda não existem (L1–L3); o login por nome digitado continua aceito até a decisão D-L6.
