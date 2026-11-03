@@ -15,8 +15,8 @@ use crate::domain::{
 };
 use crate::protocol::mission::{
     self as wire, AcceptQuest, BlessStones, ConnectionRequest, DropErg, DropGoldCore, Erg,
-    EvilCoreInfo, GameInfo, GetItem, LaunchShipGranted, Message, PaidCoin, PartyInfo, PartyMember,
-    PayCoinCompleted, PutErg, Ship, ShipOption, UpdateShip,
+    EvilCoreInfo, GameInfo, GetItem, LaunchShipGranted, Message, PaidCoin, PartyMember,
+    PayCoinCompleted, PutErg, Ship, ShipOption,
 };
 use crate::protocol::{
     inventory::Dict,
@@ -418,16 +418,7 @@ pub const MAX_MISSION_BODY: usize = 4 * 1024 * 1024;
 /// SystemMessageCategory.Dialog.
 const DIALOG: u8 = 4;
 /// PartyInfoState.
-pub mod party_state {
-    pub const IN_TOWN: u8 = 0;
-    pub const IN_TOWN_WITH_SHIP_INFO: u8 = 1;
-    pub const ENTERING_SHIP: u8 = 2;
-    pub const IN_SHIP: u8 = 3;
-    pub const STARTING: u8 = 4;
-    pub const IN_GAME: u8 = 5;
-}
-/// ReadyState.Host.
-const HOST: u8 = 3;
+pub use crate::domain::party::party_state;
 
 pub(super) fn packet(message: &Message) -> Result<OutgoingPacket, MinimumError> {
     let kind = message.kind();
@@ -471,7 +462,7 @@ fn general_fail(key: &str, error: &str) -> Result<Vec<OutgoingPacket>, MinimumEr
 }
 
 /// MicroPlayService.MakeEntityID: DateTime ticks, strictly increasing in this process.
-fn entity_id() -> Result<i64, MinimumError> {
+pub(super) fn entity_id() -> Result<i64, MinimumError> {
     static LAST: AtomicI64 = AtomicI64::new(0);
     let since = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -545,8 +536,15 @@ pub struct Mission {
     pub completion: super::minimum_mission_finish::Completion,
     /// MicroPlayer.PetManager.
     pub pets: super::minimum_pet::BattlePets,
+    /// The party authority that broadcasts this party's state to its members.
+    pub party: std::sync::Arc<super::party_hub::PartyHub>,
 }
 impl Mission {
+    /// Party.ChangeState of the host's party.
+    pub fn set_state(&mut self, state: u8) {
+        self.state = state;
+        self.party.change_state(self.party_id, state);
+    }
     /// MicroPlay.ItemLimit: QuestDigest.ItemLimit as a case-insensitive regex.
     fn item_limit(&self) -> Result<Option<Regex>, MinimumError> {
         if self.digest.item_limit.is_empty() {
@@ -582,10 +580,7 @@ impl Mission {
     fn max_ship_member_count(&self) -> i32 {
         self.digest.party_limit.min(self.member_count_limit())
     }
-    fn has_ship_info(&self) -> bool {
-        self.state != party_state::IN_TOWN
-    }
-    /// Party.SetShipInfo (refreshed on every broadcast once the MicroPlay exists).
+    /// Party.SetShipInfo: the ship fields the party authority refreshes on every broadcast.
     fn ship(&self) -> Ship {
         Ship {
             party_id: self.party_id,
@@ -617,30 +612,19 @@ impl Mission {
             user_ds_mode: self.option.user_ds_mode,
         }
     }
-    /// Party.BroadCastPartyInfo → UpdatePartyProcessor: PartyInfo, then UpdateShip when the
-    /// ship exists. The single authority point for party-visible state; skipped while
-    /// EnteringShip (IsLoadingState).
+    /// Party.BroadCastPartyInfo → UpdatePartyProcessor through the party authority: every
+    /// member gets PartyInfo, then UpdateShip once the ship exists; nothing while
+    /// EnteringShip. Returns the host's own packets.
     pub fn broadcast(&self) -> Result<Vec<OutgoingPacket>, MinimumError> {
-        if self.state == party_state::ENTERING_SHIP {
-            return Ok(Vec::new());
+        self.party.broadcast(self.party_id, self.completion.cid)
+    }
+    /// SetShipInfo's limits: MaxShipMemberCount and the level constraint.
+    fn ship_limits(&self) -> crate::domain::party::ShipLimits {
+        crate::domain::party::ShipLimits {
+            max_members: self.max_ship_member_count(),
+            min_level: self.option.min_level,
+            max_level: self.option.max_level,
         }
-        let size = if self.has_ship_info() {
-            self.max_ship_member_count()
-        } else {
-            4
-        };
-        let mut out = vec![packet(&Message::PartyInfo(PartyInfo {
-            party_id: self.party_id,
-            party_size: size,
-            state: self.state,
-            members: Some(vec![Some(self.member.clone())]),
-        }))?];
-        if self.has_ship_info() {
-            out.push(packet(&Message::UpdateShip(UpdateShip {
-                info: Some(self.ship()),
-            }))?);
-        }
-        Ok(out)
     }
 }
 
@@ -663,11 +647,18 @@ pub struct RelayTicket {
     pub key: i32,
 }
 
-/// BattleServiceProxy Initial/AcceptQuest: OpenNewParty → JoinParty → RegisterShipInfo
-/// (QueryQuestDigest) → StartMicroPlay (StartMicroPlay2) → JoinMicroPlay (AddPlayer,
-/// QueryMicroPlayInfo) → ConnectionRequest + LaunchShipGranted. `relay` registers the
-/// waiting client and opens the P2P group of the party; it is called once the digest
-/// and member info are admitted.
+/// The master's party for AcceptQuest: Initial opened it (OpenNewParty → JoinParty, whose
+/// PartyInfo is `opened`), or PartyMaster already leads it.
+pub struct MasterParty {
+    pub hub: std::sync::Arc<super::party_hub::PartyHub>,
+    pub party_id: i64,
+    pub opened: Vec<OutgoingPacket>,
+}
+
+/// BattleServiceProxy Initial/PartyMaster AcceptQuest: RegisterShipInfo (QueryQuestDigest)
+/// → StartMicroPlay (StartMicroPlay2) → JoinMicroPlay (AddPlayer, QueryMicroPlayInfo) →
+/// ConnectionRequest + LaunchShipGranted. `relay` registers the waiting client and opens
+/// the P2P group of the party; it is called once the digest and member info are admitted.
 #[allow(clippy::too_many_arguments)]
 pub async fn accept_quest(
     pool: &PgPool,
@@ -675,6 +666,7 @@ pub async fn accept_quest(
     assets: &Assets,
     cid: i64,
     message: &AcceptQuest,
+    party: MasterParty,
     relay: impl FnOnce(i64) -> RelayTicket,
     config: QueryConfig,
     clock: super::minimum_quest::QuestClock,
@@ -689,28 +681,27 @@ pub async fn accept_quest(
     let (Some(quest), Some(option)) = (message.quest_id.clone(), message.option.clone()) else {
         return fail_with(Vec::new(), "InvalidQuest");
     };
-    // OpenParty + JoinParty: the host enters slot 0 of a 4-slot party in town.
+    // The host is the party master in slot 0.
     let base =
         super::minimum_selection::view_member(pool, owner, assets, cid, config, arithmetic).await?;
-    let party_id = entity_id()?;
+    let MasterParty {
+        hub,
+        party_id,
+        opened,
+    } = party;
     let member = PartyMember {
         nexon_sn: owner.uid,
         character: base.base_class,
         character_id: base.name.clone(),
         slot: 0,
         level: base.level,
-        state: HOST,
+        state: crate::domain::party::ready_state::HOST,
         latest_ping: 0,
         latest_frame_rate: 0,
         is_return: base.is_return,
         is_event_jumping: base.is_event_jumping,
     };
-    let mut packets = vec![packet(&Message::PartyInfo(PartyInfo {
-        party_id,
-        party_size: 4,
-        state: party_state::IN_TOWN,
-        members: Some(vec![Some(member.clone())]),
-    }))?];
+    let mut packets = opened;
     // RegisterShipInfo → QueryQuestDigest(CheckDifficulty, CheckDisableUserShip, practice).
     let difficulty = option.difficulty;
     let practice = option.is_practice_mode;
@@ -789,6 +780,7 @@ pub async fn accept_quest(
         member_key: 0,
         completion: super::minimum_mission_finish::Completion::new(cid),
         pets: super::minimum_pet::BattlePets::new(assets),
+        party: hub,
     };
     // AddPlayer: QueryQuestState and the achieved goals of QueryPlayerInfo.
     let (achieved, today_play_count, today) =
@@ -796,6 +788,15 @@ pub async fn accept_quest(
     mission.completion.achieved_info = achieved;
     mission.completion.today_play_count = today_play_count;
     mission.completion.today_quest = today;
+    // RegisterShipInfo → Party.SetShipInfo + ChangeState(InTownWithShipInfo), broadcast.
+    let story_quest = contents
+        .digest(&mission.quest, -1)
+        .ok()
+        .is_some_and(|d| d.required_story_line.is_some());
+    mission
+        .party
+        .set_ship(party_id, mission.ship(), mission.ship_limits(), story_quest)?;
+    mission.set_state(party_state::IN_TOWN_WITH_SHIP_INFO);
     packets.extend(mission.broadcast()?);
     if let Some(class) = &mission.reserved_item
         && held(pool, cid, class).await? <= 0
@@ -804,7 +805,8 @@ pub async fn accept_quest(
         return fail_with(packets, "ItemRequired");
     }
     // StartMicroPlay2: P2P group and EnteringShip (no broadcast while loading).
-    mission.state = party_state::ENTERING_SHIP;
+    mission.party.start_micro_play(party_id);
+    mission.set_state(party_state::ENTERING_SHIP);
     // AddPlayer: the item limit regex, member info, relay registration.
     let item_limit = mission.item_limit()?;
     let key = OsMissionRandom.next();
@@ -953,7 +955,7 @@ pub fn register_server(
         return Ok(Vec::new());
     }
     mission.host_info = info;
-    mission.state = party_state::IN_SHIP;
+    mission.set_state(party_state::IN_SHIP);
     mission.broadcast()
 }
 
@@ -964,10 +966,13 @@ pub fn start_game(
     contents: &MissionContents,
     random: &mut dyn MissionRandom,
 ) -> Result<Vec<OutgoingPacket>, MinimumError> {
-    if mission.state != party_state::IN_SHIP {
+    // GameStartingProcessor: InShip, and every member Ready unless it is a hunting quest.
+    if mission.state != party_state::IN_SHIP
+        || (!mission.digest.is_hunting_quest && !mission.party.all_ready(mission.party_id))
+    {
         return general_fail("StartGame", "GameStartingFail");
     }
-    mission.state = party_state::STARTING;
+    mission.set_state(party_state::STARTING);
     let mut packets = mission.broadcast()?;
     let practice = mission.option.is_practice_mode;
     let built = contents
@@ -989,11 +994,19 @@ pub fn start_game(
         packets.extend(general_fail("StartGame", "QueryMicroPlayInfoFail")?);
         return Ok(packets);
     };
-    let granted = game_start_granted(&mission.digest, &infos, mission.option.difficulty, true, 1);
+    // QuestStartedPlayerCount: the players of the MicroPlay (every member is in the ship).
+    let players = i32::try_from(mission.party.members(mission.party_id).len()).unwrap_or(1);
+    let granted = game_start_granted(
+        &mission.digest,
+        &infos,
+        mission.option.difficulty,
+        true,
+        players.max(1),
+    );
     mission.sectors = Some(infos);
     mission.sequence = Some(sequence);
     packets.push(packet(&Message::GameStartGranted(granted))?);
-    mission.state = party_state::IN_GAME;
+    mission.set_state(party_state::IN_GAME);
     packets.extend(mission.broadcast()?);
     Ok(packets)
 }

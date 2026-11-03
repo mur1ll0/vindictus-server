@@ -15,6 +15,7 @@ pub mod legacy_user_data;
 pub mod login_account_data;
 pub mod login_effects;
 pub mod login_policy;
+pub mod party;
 pub mod passport;
 pub mod pet;
 pub mod user_login_return;

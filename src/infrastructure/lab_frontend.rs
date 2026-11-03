@@ -106,6 +106,8 @@ pub struct Runtime {
     minimum: Option<MinimumRuntime>,
     channel: Option<(std::net::SocketAddr, Arc<super::channel_server::Runtime>)>,
     relay: Option<super::relay::Relay>,
+    /// The parties of this frontend (MicroPlayService party authority, B5).
+    party: Arc<super::party_hub::PartyHub>,
     web_shop: super::lab_web_shop::Sessions,
     maintenance: super::maintenance::Maintenance,
     content_output: Option<std::path::PathBuf>,
@@ -139,6 +141,9 @@ impl Runtime {
         }
         PasswordConfig::recovered(p, profile.identity_options().profile)
             .map_err(|_| RuntimeError::Profile)?;
+        let party = Arc::new(super::party_hub::PartyHub::new(
+            p.is_enabled(Some("ForceClosePartyInShip"))?,
+        ));
         Ok(Self {
             profile,
             content,
@@ -146,6 +151,7 @@ impl Runtime {
             minimum: None,
             channel: None,
             relay: None,
+            party,
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
             content_output: None,
@@ -490,6 +496,8 @@ struct Connection {
     latest_sort: Option<std::time::Instant>,
     /// PetManager.UpdateSchedule: the next period start of a pet's active time.
     pet_reset_at: Option<tokio::time::Instant>,
+    /// The party authority's pushes to the entered character (UpdateParty, Kick, ...).
+    party_notices: Option<tokio::sync::mpsc::Receiver<super::party_hub::Notice>>,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -508,6 +516,7 @@ impl Connection {
             daily_at: None,
             latest_sort: None,
             pet_reset_at: None,
+            party_notices: None,
         }
     }
     /// PlayerConn.Close: the character leaves the channel and its session ends.
@@ -523,6 +532,11 @@ impl Connection {
         self.effect_expiry = None;
         self.daily_at = None;
         self.pet_reset_at = None;
+        self.party_notices = None;
+        if let Some(selected) = self.selected.as_ref() {
+            // The frontend connection closed: RemoveMember("FrontendDisconnected").
+            runtime.party.unregister(selected.cid);
+        }
         if let Some(selected) = self.selected.take() {
             runtime.web_shop.remove(selected.cid);
             if let Some((_, channel)) = &runtime.channel
@@ -933,9 +947,53 @@ impl Connection {
         let packets = match message {
             Message::AcceptQuest(accept) => {
                 if self.mission.is_some() {
-                    tracing::warn!("AcceptQuest while already in a party; ignored");
+                    tracing::warn!("AcceptQuest while already in a MicroPlay; ignored");
                     return Ok(());
                 }
+                // Initial opens the party (OpenNewParty → JoinParty); PartyMaster registers
+                // the ship of its party; a party member is NotMaster.
+                let hub = runtime.party.clone();
+                let (party_id, opened, initial) = match hub.role(cid) {
+                    super::party_hub::Role::Member { .. } => {
+                        let packet = super::minimum_party::error_message(
+                            true,
+                            "AcceptQuest",
+                            super::minimum_party::error::NOT_MASTER,
+                        )
+                        .map_err(|_| RuntimeError::Message)?;
+                        send(stream, sender, packet.category, &packet.body).await?;
+                        return Ok(());
+                    }
+                    super::party_hub::Role::Master { party_id, .. } => {
+                        (party_id, Vec::new(), false)
+                    }
+                    super::party_hub::Role::None => {
+                        let opened = async {
+                            let me = super::minimum_party::member(
+                                pool,
+                                &owner,
+                                assets,
+                                cid,
+                                runtime.minimum_header()?,
+                                runtime.stat_arithmetic(),
+                            )
+                            .await
+                            .map_err(|_| RuntimeError::Operation)?;
+                            let party_id =
+                                mission::entity_id().map_err(|_| RuntimeError::Operation)?;
+                            let packets = hub
+                                .open(party_id, me)
+                                .map_err(|_| RuntimeError::Operation)?;
+                            Ok::<_, RuntimeError>((party_id, packets))
+                        }
+                        .await;
+                        let Ok((party_id, packets)) = opened else {
+                            tracing::warn!("mission party could not be opened; values omitted");
+                            return Ok(());
+                        };
+                        (party_id, packets, true)
+                    }
+                };
                 let nexon_sn = id.nexon_sn;
                 let outcome = mission::accept_quest(
                     pool,
@@ -943,6 +1001,11 @@ impl Connection {
                     assets,
                     cid,
                     &accept,
+                    mission::MasterParty {
+                        hub: hub.clone(),
+                        party_id,
+                        opened,
+                    },
                     |party_id| {
                         let group = relay.make_group();
                         // Subscribe before registering, so Connected cannot be missed.
@@ -1008,14 +1071,71 @@ impl Connection {
                         packets
                     }
                     Ok(Accept::Failed(packets)) => {
+                        // GeneralFail(leavePartyOnFinished) of Initial: the opened party ends.
+                        if initial {
+                            hub.end_for(cid);
+                        }
                         tracing::info!("mission refused by its digest checks; values omitted");
                         packets
                     }
                     Err(_) => {
+                        if initial {
+                            hub.end_for(cid);
+                        }
                         tracing::warn!("mission accept rejected; values omitted");
                         return Ok(());
                     }
                 }
+            }
+            Message::PartyInvite(invite) => {
+                let out = super::minimum_party::invite(
+                    &runtime.party,
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    invite.invited_name.as_deref().unwrap_or(""),
+                    runtime.minimum_header()?,
+                    runtime.stat_arithmetic(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!(
+                    left = out.left,
+                    "party invitation processed; values omitted"
+                );
+                out.packets
+            }
+            Message::PartyInvitationAccept(party_id) => {
+                let out = super::minimum_party::accept(
+                    &runtime.party,
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    party_id,
+                    runtime.minimum_header()?,
+                    runtime.stat_arithmetic(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!(
+                    failed = out.left,
+                    "party invitation accepted; values omitted"
+                );
+                out.packets
+            }
+            Message::PartyInvitationReject(party_id) => {
+                super::minimum_party::reject(&runtime.party, cid, party_id)
+                    .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!("party invitation rejected; values omitted");
+                Vec::new()
+            }
+            Message::Kick(kick) => {
+                let out = super::minimum_party::kick(&runtime.party, cid, kick.slot, kick.nexon_sn)
+                    .map_err(|_| RuntimeError::Operation)?;
+                tracing::info!("party kick processed; values omitted");
+                out.packets
             }
             Message::RegisterServer(register) => {
                 let Some(m) = self.mission.as_mut() else {
@@ -1313,6 +1433,13 @@ impl Connection {
             }
             Message::LeaveParty => {
                 let Some(state) = self.mission.as_mut() else {
+                    // BattleServiceProxy.LeaveParty outside the MicroPlay.
+                    let out = super::minimum_party::leave(&runtime.party, cid)
+                        .map_err(|_| RuntimeError::Operation)?;
+                    tracing::info!(left = out.left, "party left; values omitted");
+                    for packet in &out.packets {
+                        send(stream, sender, packet.category, &packet.body).await?;
+                    }
                     return Ok(());
                 };
                 super::minimum_mission_finish::give_up(state, std::time::Instant::now());
@@ -1337,6 +1464,8 @@ impl Connection {
                                 left_pet = out.current;
                             }
                             relay.close_group(m.group);
+                            // The proxy sent its own Kicked: the party only drops the member.
+                            runtime.party.end_for(cid);
                         }
                         tracing::info!("mission left; returning to town; values omitted");
                         packets
@@ -1675,6 +1804,44 @@ impl Connection {
             Err(_) => tracing::warn!("pet active time reset rejected; values omitted"),
         }
         Ok(())
+    }
+    /// A push of the party authority: UpdateParty/SendPacket packets, or the Kick operation
+    /// (KickProcessor: LeaveParty and KickedMessage; the MicroPlay of this member ends).
+    async fn party_notice(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        notice: super::party_hub::Notice,
+    ) -> Result<(), RuntimeError> {
+        let packets = match notice {
+            super::party_hub::Notice::Packets(packets) => packets,
+            super::party_hub::Notice::Kicked { .. } => {
+                let mut packets = Vec::new();
+                if let Some(mut m) = self.mission.take() {
+                    if let Some(out) = self.leave_pets(runtime, pool, &mut m).await {
+                        packets.extend(out.packets);
+                    }
+                    self.leave_relay(runtime, &m);
+                }
+                packets.extend(
+                    super::minimum_party::kicked_by_party().map_err(|_| RuntimeError::Message)?,
+                );
+                tracing::info!("party removed the entered character; values omitted");
+                packets
+            }
+        };
+        for packet in &packets {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
+        Ok(())
+    }
+    /// The relay side of leaving a MicroPlay: the host's P2P group closes with it.
+    fn leave_relay(&self, runtime: &Runtime, mission: &super::minimum_mission::Mission) {
+        if let Some(relay) = runtime.relay() {
+            relay.close_group(mission.group);
+        }
     }
     /// MicroPlay.RemovePlayer: PetManager.EndBattle(includeExpInfo: false) when the player
     /// leaves the play while its pets still count.
@@ -2042,6 +2209,7 @@ impl Connection {
             if let Some(relay) = runtime.relay() {
                 relay.close_group(m.group);
             }
+            runtime.party.end_for(m.completion.cid);
             tracing::info!("mission left without reward; values omitted");
         }
         for packet in &packets {
@@ -2155,7 +2323,21 @@ impl Connection {
                                 revision: owner.revision,
                             },
                         );
+                        let cid = selected.cid;
                         self.selected = Some(selected);
+                        // The entered character becomes reachable by the party authority
+                        // (PlayerService QueryFrontendID).
+                        match super::minimum_party::name_of(pool, cid).await {
+                            Ok(name) => {
+                                let (tx, rx) =
+                                    tokio::sync::mpsc::channel(super::party_hub::MAILBOX);
+                                runtime.party.register(cid, &name, tx);
+                                self.party_notices = Some(rx);
+                            }
+                            Err(_) => tracing::warn!(
+                                "party seat of the entered character unavailable; values omitted"
+                            ),
+                        }
                         // SelectCharacterProcessor: OpenLog (AddCharacterJournal "Login").
                         if let Some(selected) = self.selected.as_mut() {
                             selected.log_journal =
@@ -2587,6 +2769,10 @@ impl Connection {
                 Kind::MicroPlayEvent,
                 Kind::ReturnToTown,
                 Kind::LeaveParty,
+                Kind::PartyInvite,
+                Kind::PartyInvitationAccept,
+                Kind::PartyInvitationReject,
+                Kind::Kick,
             ] {
                 if !matches(category, body, kind.category(), kind.type_id()) {
                     continue;
@@ -4817,6 +5003,7 @@ pub async fn connection(
    let effects=state.effect_expiry;
    let daily=state.daily_at;
    let pets=state.pet_reset_at;
+   let party_notice=async{match state.party_notices.as_mut(){Some(rx)=>rx.recv().await,None=>std::future::pending().await}};
    let count=tokio::select!{
     _=shutdown.changed()=>return Ok(()),
     _=tokio::time::sleep_until(deadline),if waiting=>return if state.close_at.is_some(){Ok(())}else{Err(RuntimeError::Timeout)},
@@ -4824,6 +5011,7 @@ pub async fn connection(
     _=tokio::time::sleep_until(effects.unwrap_or(deadline)),if effects.is_some()&&state.close_at.is_none()=>{state.effect_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(daily.unwrap_or(deadline)),if daily.is_some()&&state.close_at.is_none()=>{state.daily_items(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
     _=tokio::time::sleep_until(pets.unwrap_or(deadline)),if pets.is_some()&&state.close_at.is_none()=>{state.pet_jobs(&runtime,&pool,&mut stream,&mut sender).await?;continue;}
+    Some(notice)=party_notice=>{state.party_notice(&runtime,&pool,&mut stream,&mut sender,notice).await?;continue;}
     notice=notices.recv()=>{
      // ShutDownProcessor.SendNoticeShutDownMessage: every client, NoticeShutDownMessage{Delay}.
      match notice{

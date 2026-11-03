@@ -3367,3 +3367,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário.
 - Commits: (este commit)
 - Pendente / próxima ação: D-L6 no frontend; depois L1 (`crates/client-dist`, `updates`, importação da v1), L2 (receitas v1–v3) e L3 (instalar/atualizar no launcher).
+
+## 2026-11-03 — B5 MP1: party na cidade (autoridade única de party)
+- Feito: `domain::party` (Party.cs: slots 4→6→8, convites, JoinParty NORMAL, RemoveMember/ProcessAfterRemoveMember com reeleição e dissolução, kick, transferência, SetMemberState, IsAllReady); `infrastructure::party_hub` (assento por personagem selecionado com caixa de correio mpsc 256, broadcast único de PartyInfo/UpdateShip, SendInvitation, InvitationRejected, Kick, FrontendDisconnected); `infrastructure::minimum_party` (estados Initial/PartyMaster/PartyMember: PartyInvite abre a party no Initial, QueryCIDByName por nome decodificado sem caixa, aceite, recusa, LeavePartyMessage, Kick); `lab_frontend` registra o assento na seleção, despeja as notificações no laço da conexão e encaminha as mensagens; `Mission` difunde pelo hub e `accept_quest` recebe a party do mestre (StartGame exige todos prontos). Fio: PartyInvite 517, PartyInvited 516, PartyInvitationAccept 513, PartyInvitationReject 515, PartyInvitationRejected 514, Kick 470, JoinShip 469, HostInfo 467, Ready 553 (oráculo `MissionWireOracle.cs`, fixture regenerada: 174 casos por arquitetura, x86=x64). Doc `docs/multiplayer.md`.
+- Verificação: `cargo test --lib party` 9 ok; `cargo test --test mission_wire` 4 ok (348 casos); `cargo clippy --lib -D warnings` limpo. Logs `.cache/verification/b5-mp1-*.log`.
+- Cliente: necessário — `docs/client-tests/B5-multijogador.md`, entrada MP1 (duas contas, dois clientes).
+- Commits: (este commit)
+- Pendente / próxima ação: MP2 (relay com vários membros), MP3 (JoinShip) e checkpoint de cliente com dois clientes.

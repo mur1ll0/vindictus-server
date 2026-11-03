@@ -50,6 +50,15 @@ pub enum Kind {
     LeaveParty,
     QueryRecommendShip,
     ShipList,
+    PartyInvite,
+    PartyInvited,
+    PartyInvitationAccept,
+    PartyInvitationReject,
+    PartyInvitationRejected,
+    Kick,
+    JoinShip,
+    HostInfo,
+    Ready,
 }
 impl Kind {
     pub const fn category(self) -> i32 {
@@ -92,6 +101,15 @@ impl Kind {
             Self::LeaveParty => 518,
             Self::QueryRecommendShip => 441,
             Self::ShipList => 579,
+            Self::PartyInvite => 517,
+            Self::PartyInvited => 516,
+            Self::PartyInvitationAccept => 513,
+            Self::PartyInvitationReject => 515,
+            Self::PartyInvitationRejected => 514,
+            Self::Kick => 470,
+            Self::JoinShip => 469,
+            Self::HostInfo => 467,
+            Self::Ready => 553,
         }
     }
     pub const fn type_id(self) -> Uuid {
@@ -134,6 +152,15 @@ impl Kind {
             Self::LeaveParty => 0x4aad8f98_e265_3b91_b7fc_f25caed054b9,
             Self::QueryRecommendShip => 0xb5a323d7_7776_3d49_b069_1e93090d766f,
             Self::ShipList => 0x15bc8a0f_3d0a_322f_b79f_d9162d170371,
+            Self::PartyInvite => 0xf7d434f2_e9ef_37e7_9d74_4d005127df1a,
+            Self::PartyInvited => 0x01280cf1_4049_3e1a_b428_a73e3de11091,
+            Self::PartyInvitationAccept => 0xc0c444a8_a15d_3387_9976_0d92317a3016,
+            Self::PartyInvitationReject => 0x0d393c28_9f51_354a_9672_5b0c8c8c2c92,
+            Self::PartyInvitationRejected => 0xf14e58a4_8408_325e_9895_8e4ee76b1bc2,
+            Self::Kick => 0x99ce5fa1_1d97_3ae8_9814_bc17ecbda388,
+            Self::JoinShip => 0x47c79785_d689_34ff_8bef_15d468628eb7,
+            Self::HostInfo => 0x5d2864e1_1acf_3ce5_8a94_5df5b30936a3,
+            Self::Ready => 0xca4b672b_2bbd_3153_82ad_f8fa0a917dfb,
         })
     }
 }
@@ -599,6 +626,47 @@ pub struct PutErg {
     pub erg_id: i32,
     pub tag: i32,
 }
+/// PartyInviteMessage (client): the invited character's name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PartyInvite {
+    pub invited_name: Option<String>,
+}
+/// PartyInvitedMessage: the inviting master's name and the party.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PartyInvited {
+    pub host_name: Option<String>,
+    pub party_id: i64,
+}
+/// PartyInvitationRejectedMessage; `reason` is InvitationRejectReason.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PartyInvitationRejected {
+    pub invited_name: Option<String>,
+    pub reason: i32,
+}
+/// KickMessage (master): the kicked member's slot and NexonSN.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Kick {
+    pub slot: i32,
+    pub nexon_sn: i32,
+}
+/// JoinShipMessage (party member): ShipID is the PartyID of the ship.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JoinShip {
+    pub ship_id: i64,
+    pub is_assist: bool,
+    pub is_in_town_with_ship_info: bool,
+    pub is_dedicated_server: bool,
+    pub is_newbie_recommend: bool,
+}
+/// HostInfoMessage: the host's GameInfo to a joining member, its slot (UID) and key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostInfo {
+    pub game_info: Option<GameInfo>,
+    pub uid: i32,
+    pub key: i32,
+    pub skip_lobby: bool,
+    pub is_transfer_to_ds: bool,
+}
 /// MonsterTakeDamageInfo; `attack_time` keeps the IEEE single bits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TakeDamage {
@@ -769,6 +837,15 @@ pub enum Message {
     LeaveParty,
     QueryRecommendShip(QueryRecommendShip),
     ShipList(ShipList),
+    PartyInvite(PartyInvite),
+    PartyInvited(PartyInvited),
+    PartyInvitationAccept(i64),
+    PartyInvitationReject(i64),
+    PartyInvitationRejected(PartyInvitationRejected),
+    Kick(Kick),
+    JoinShip(JoinShip),
+    HostInfo(HostInfo),
+    Ready(u8),
 }
 impl Message {
     pub const fn kind(&self) -> Kind {
@@ -811,6 +888,15 @@ impl Message {
             Self::LeaveParty => Kind::LeaveParty,
             Self::QueryRecommendShip(_) => Kind::QueryRecommendShip,
             Self::ShipList(_) => Kind::ShipList,
+            Self::PartyInvite(_) => Kind::PartyInvite,
+            Self::PartyInvited(_) => Kind::PartyInvited,
+            Self::PartyInvitationAccept(_) => Kind::PartyInvitationAccept,
+            Self::PartyInvitationReject(_) => Kind::PartyInvitationReject,
+            Self::PartyInvitationRejected(_) => Kind::PartyInvitationRejected,
+            Self::Kick(_) => Kind::Kick,
+            Self::JoinShip(_) => Kind::JoinShip,
+            Self::HostInfo(_) => Kind::HostInfo,
+            Self::Ready(_) => Kind::Ready,
         }
     }
 }
@@ -1097,6 +1183,30 @@ object!(DropErg {
     ergs
 });
 object!(PutErg { erg_id, tag });
+object!(PartyInvite { invited_name });
+object!(PartyInvited {
+    host_name,
+    party_id
+});
+object!(PartyInvitationRejected {
+    invited_name,
+    reason
+});
+object!(Kick { slot, nexon_sn });
+object!(JoinShip {
+    ship_id,
+    is_assist,
+    is_in_town_with_ship_info,
+    is_dedicated_server,
+    is_newbie_recommend
+});
+object!(HostInfo {
+    game_info,
+    uid,
+    key,
+    skip_lobby,
+    is_transfer_to_ds
+});
 object!(TakeDamage {
     attacker,
     attack_time,
@@ -1242,6 +1352,15 @@ pub fn encode(
                 Message::LeaveParty => {}
                 Message::QueryRecommendShip(v) => v.write(&mut w)?,
                 Message::ShipList(v) => v.write(&mut w)?,
+                Message::PartyInvite(v) => v.write(&mut w)?,
+                Message::PartyInvited(v) => v.write(&mut w)?,
+                Message::PartyInvitationAccept(v) => v.write(&mut w)?,
+                Message::PartyInvitationReject(v) => v.write(&mut w)?,
+                Message::PartyInvitationRejected(v) => v.write(&mut w)?,
+                Message::Kick(v) => v.write(&mut w)?,
+                Message::JoinShip(v) => v.write(&mut w)?,
+                Message::HostInfo(v) => v.write(&mut w)?,
+                Message::Ready(v) => v.write(&mut w)?,
             }
         }
     }
@@ -1319,6 +1438,17 @@ fn decode_body(
                 Message::QueryRecommendShip(QueryRecommendShip::read(&mut r)?)
             }
             Kind::ShipList => Message::ShipList(ShipList::read(&mut r)?),
+            Kind::PartyInvite => Message::PartyInvite(PartyInvite::read(&mut r)?),
+            Kind::PartyInvited => Message::PartyInvited(PartyInvited::read(&mut r)?),
+            Kind::PartyInvitationAccept => Message::PartyInvitationAccept(i64::read(&mut r)?),
+            Kind::PartyInvitationReject => Message::PartyInvitationReject(i64::read(&mut r)?),
+            Kind::PartyInvitationRejected => {
+                Message::PartyInvitationRejected(PartyInvitationRejected::read(&mut r)?)
+            }
+            Kind::Kick => Message::Kick(Kick::read(&mut r)?),
+            Kind::JoinShip => Message::JoinShip(JoinShip::read(&mut r)?),
+            Kind::HostInfo => Message::HostInfo(HostInfo::read(&mut r)?),
+            Kind::Ready => Message::Ready(u8::read(&mut r)?),
         })
     };
     if strict && !r.remaining.is_empty() {
