@@ -24,6 +24,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 4. B5 multijogador implementado (MP1–MP7): sessão de cliente do operador pelo roteiro `docs/client-tests/B5-multijogador.md` (duas contas, dois clientes; Docker já reconstruído). Depois, os sistemas restantes do B5.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
+7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom e descrição no painel feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV9). AllUserGoal e EventTemplate esperam as decisões abaixo.
 
 ## Aguardando o operador
 
@@ -36,7 +37,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-multijogador.md` | MP1–MP7 pendentes (sessão única); requer duas contas e dois clientes (três para MP6). |
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
 | `docs/client-tests/B5-marketplace.md` | MK1–MK11 pendentes; duas contas (o ouro é da conta). |
-| `docs/client-tests/B5-eventos.md` | EV1–EV4 pendentes (chaves de evento do painel). |
+| `docs/client-tests/B5-eventos.md` | EV1–EV9 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |
@@ -47,6 +48,8 @@ Testes de cliente adiados do B0: aprender skill nova com ouro (B1.2), empilhar p
 Decisões pendentes:
 - Launcher (`docs/future/game-launcher.md` §5): D-L5 assinatura do exe (D-L2, D-L3, D-L4 e D-L6 decididos em 03/11).
 - Customização: poses animadas e rotação dos atores da grade (opcional, comando `cc_create_character_selection_play_sequence` do NA).
+- Eventos/AllUserGoal (meta coletiva, SAO, loja do gato): as 3.812 linhas de `AllUserGoalInfo` têm `StartTime`/`EndTime` fixos de 2013–2015 (SAO só US/AUS 09–10/2014; nenhuma EN-EU), então a migração fiel fica inerte. Escolher: (a) migrar fiel e inerte; (b) extensão: ao ligar a chave, deslocar as janelas para começar agora; (c) editor de datas no painel.
+- Eventos/EventTemplate (370 modelos do AdminClient: Feature + scripts de cheat no início e no fim, agendados por horário): exige agendador no painel e os comandos de script (`droptable mod`, `monster_refresh`, `freetoken`…), não migrados. Escolher: (a) agendar só as chaves dos modelos; (b) também os comandos de script; (c) deixar fora.
 
 ## Blocos do roteiro
 
@@ -80,7 +83,7 @@ Decisões pendentes:
 - [ ] Guildas.
 - [ ] Trade.
 - [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de eventos e amizade depende desses sistemas.
-- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, EV5), recompensas periódicas do BoostEvent (PeriodicEventInfo, EV6), histórias por período (StoryLinePeriodInfo, EV7) e lojas de cupom com limite de compra (CouponShopItemInfo, ShopBuyRestrict, EV8), 03/11; EventTemplate e AllUserGoalInfo pendentes (decisões abaixo).
+- [ ] Eventos/UserCare: chaves de evento ligáveis no painel (extensão, 03/11; `docs/content-tuning.md`); drops de evento dos chefes (EventDropItemInfo, EV5), recompensas periódicas do BoostEvent (PeriodicEventInfo, EV6), histórias por período (StoryLinePeriodInfo, EV7) e lojas de cupom com limite de compra (CouponShopItemInfo, ShopBuyRestrict, EV8), 03/11; descrição de cada evento no painel (EV9); EventTemplate e AllUserGoalInfo pendentes (decisões abaixo).
 - [x] Pets P1–P6 (30/10/2026; cliente pendente; detalhes em `docs/future/pet-system.md`).
 - [ ] Pets P7 (pets do NA, junto com a importação das classes) e pet de outro jogador (multijogador).
 - [ ] Títulos/achievements restantes (títulos adquiridos e por ação de combate já feitos no B2).

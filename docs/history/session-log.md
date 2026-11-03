@@ -3472,3 +3472,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV8.
 - Commits: (este)
 - Pendente / próxima ação: AllUserGoal e EventTemplate dependem de decisão do operador (datas fixas 2013–2015; agendador de modelos); seguir com a descrição dos eventos no painel.
+
+## 2026-11-03 — B5 eventos E5: descrição dos eventos no painel (Ajustes de jogo → Eventos)
+- Feito: exportador `export_item_economy.py` com `events[].detail` (ShopInfo, CouponShopItemInfo pela Feature do item ou da versão, EventDropItemInfo com o monstro, QuestInfo, StoryLineInfo com recompensas, TitleInfo, PeriodicEventInfo, AllUserGoalInfo; até 60 linhas por tabela); `item_economy::EventDetail`; `content_admin::event_detail` com nomes e ícones do catálogo (`EnglishNames`), NPCs das lojas e histórias e a lista de tabelas migradas; rota `GET /api/tuning/events/{key}`; `web/admin/src/components/EventDetail.tsx` (caixa ao passar o mouse, toque/clique em tela estreita, seções "funciona no servidor"/"ainda não funciona") ligada ao `EventsPanel`. `openapi.json` e `schema.d.ts` regenerados.
+- Verificação: `cargo build`; `cargo test --test admin_http` 4/4 (OpenAPI igual ao gerado); `cargo test --lib content_overlay` 4/4; Python `test_export_item_economy` 6/6; `npx tsc --noEmit` exit 0; item-economy regenerado (13,9 MB, 231 eventos). Logs `.cache/verification/p2-*.log`.
+- Cliente: `docs/client-tests/B5-eventos.md` EV9 (painel).
+- Commits: (este)
+- Pendente / próxima ação: rebuild do Docker; decisões AllUserGoal e EventTemplate (MIGRATION.md).

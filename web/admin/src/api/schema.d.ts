@@ -945,6 +945,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tuning/events/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What one event switch brings (Ajustes de jogo → Eventos): NPCs, shop and coupon shop
+         *     items, drops, quests, stories, titles, periodic rewards and collective goals.
+         */
+        get: operations["event_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tuning/market-auto": {
         parameters: {
             query?: never;
@@ -1456,6 +1476,96 @@ export interface components {
             level: number;
             /** Format: float */
             ratio: number;
+        };
+        /** @description What an event switch brings (the panel's description of Ajustes de jogo → Eventos). */
+        EventDetailView: {
+            coupons: components["schemas"]["EventTradeView"][];
+            drops: components["schemas"]["EventDropView"][];
+            goals: components["schemas"]["EventGoalView"][];
+            key: string;
+            /** @description The tables the server already reads (each section works when its table is here). */
+            migrated: string[];
+            /** @description The NPCs of the event's shops and storylines. */
+            npcs: components["schemas"]["ShopNpcView"][];
+            periodic: components["schemas"]["EventPeriodicView"][];
+            quests: components["schemas"]["EventQuestView"][];
+            shops: components["schemas"]["EventTradeView"][];
+            stories: components["schemas"]["EventStoryView"][];
+            /** @description TitleInfo IDs. */
+            titles: number[];
+            /** @description Every table naming the key, with what the server already reads. */
+            uses: components["schemas"]["EventUseView"][];
+        };
+        EventDropView: {
+            /** @description TodayQuest, or None. */
+            condition?: string | null;
+            item: components["schemas"]["EventItemView"];
+            /** @description The monster (Class Variation); None for every boss. */
+            monster?: string | null;
+            /**
+             * Format: int64
+             * @description Weight within the event's table.
+             */
+            probability: number;
+        };
+        EventGoalView: {
+            /** Format: int64 */
+            count: number;
+            end?: string | null;
+            /** @description The goal's event regex (kill …, …). */
+            goal?: string | null;
+            /** @description GoalName (a localization key). */
+            name?: string | null;
+            reward?: null | components["schemas"]["EventItemView"];
+            start?: string | null;
+        };
+        /** @description An item of an event's description, with its English name and icon (icons/item/<icon>.png). */
+        EventItemView: {
+            class: string;
+            /** Format: int64 */
+            count: number;
+            icon?: string | null;
+            name?: string | null;
+        };
+        EventPeriodicView: {
+            /** Format: int64 */
+            amount: number;
+            item?: null | components["schemas"]["EventItemView"];
+            /** @description Gold, AP, Exp or ITEM. */
+            kind: string;
+            /**
+             * Format: int64
+             * @description Possibility (weight among the enabled rewards).
+             */
+            rate: number;
+        };
+        EventQuestView: {
+            id: string;
+            title?: string | null;
+        };
+        EventStoryView: {
+            /** Format: int64 */
+            ap: number;
+            /** Format: int64 */
+            exp: number;
+            /** Format: int64 */
+            gold: number;
+            id: string;
+            item?: null | components["schemas"]["EventItemView"];
+            npc?: null | components["schemas"]["ShopNpcView"];
+            /**
+             * Format: int64
+             * @description RewardTitle (TitleInfo ID), 0 without one.
+             */
+            title: number;
+        };
+        /** @description An item sold by an NPC shop or a coupon shop of the event. */
+        EventTradeView: {
+            item: components["schemas"]["EventItemView"];
+            /** @description The price item (currency) and its count. */
+            price: components["schemas"]["EventItemView"];
+            /** @description ShopID, or the coupon shop version. */
+            shop: string;
         };
         EventUseView: {
             /** @description The server already reads this table's Feature (else the rows wait for their system). */
@@ -4442,6 +4552,51 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    event_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDetailView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

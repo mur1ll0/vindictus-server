@@ -157,6 +157,90 @@ pub struct EventView {
     pub uses: Vec<EventUseView>,
 }
 
+/// An item of an event's description, with its English name and icon (icons/item/<icon>.png).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventItemView {
+    pub class: String,
+    pub name: Option<String>,
+    pub icon: Option<String>,
+    pub count: i64,
+}
+/// An item sold by an NPC shop or a coupon shop of the event.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventTradeView {
+    /// ShopID, or the coupon shop version.
+    pub shop: String,
+    pub item: EventItemView,
+    /// The price item (currency) and its count.
+    pub price: EventItemView,
+}
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventDropView {
+    /// The monster (Class Variation); None for every boss.
+    pub monster: Option<String>,
+    pub item: EventItemView,
+    /// Weight within the event's table.
+    pub probability: i64,
+    /// TodayQuest, or None.
+    pub condition: Option<String>,
+}
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventQuestView {
+    pub id: String,
+    pub title: Option<String>,
+}
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventStoryView {
+    pub id: String,
+    pub npc: Option<ShopNpcView>,
+    pub exp: i64,
+    pub gold: i64,
+    pub ap: i64,
+    pub item: Option<EventItemView>,
+    /// RewardTitle (TitleInfo ID), 0 without one.
+    pub title: i64,
+}
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventPeriodicView {
+    /// Gold, AP, Exp or ITEM.
+    pub kind: String,
+    pub item: Option<EventItemView>,
+    pub amount: i64,
+    /// Possibility (weight among the enabled rewards).
+    pub rate: i64,
+}
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventGoalView {
+    /// GoalName (a localization key).
+    pub name: Option<String>,
+    /// The goal's event regex (kill …, …).
+    pub goal: Option<String>,
+    pub count: i64,
+    pub reward: Option<EventItemView>,
+    pub start: Option<String>,
+    pub end: Option<String>,
+}
+/// What an event switch brings (the panel's description of Ajustes de jogo → Eventos).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct EventDetailView {
+    pub key: String,
+    /// The NPCs of the event's shops and storylines.
+    pub npcs: Vec<ShopNpcView>,
+    pub shops: Vec<EventTradeView>,
+    pub coupons: Vec<EventTradeView>,
+    pub drops: Vec<EventDropView>,
+    pub quests: Vec<EventQuestView>,
+    pub stories: Vec<EventStoryView>,
+    /// TitleInfo IDs.
+    pub titles: Vec<i64>,
+    pub periodic: Vec<EventPeriodicView>,
+    pub goals: Vec<EventGoalView>,
+    /// Every table naming the key, with what the server already reads.
+    pub uses: Vec<EventUseView>,
+    /// The tables the server already reads (each section works when its table is here).
+    pub migrated: Vec<String>,
+}
+
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct FeatureView {
     pub key: String,
@@ -397,6 +481,177 @@ pub fn tuning(
         enhance,
         enchants,
         events,
+    })
+}
+
+fn event_item(
+    names: &EnglishNames,
+    class: Option<&str>,
+    count: Option<i64>,
+) -> Option<EventItemView> {
+    let class = class.filter(|c| !c.is_empty())?;
+    Some(EventItemView {
+        class: class.to_owned(),
+        name: names.item_name(class),
+        icon: names.item_icon(class),
+        count: count.unwrap_or(0),
+    })
+}
+
+/// The description of one event switch: its shops, coupon shops, drops, quests, stories,
+/// titles, periodic rewards and collective goals, with English names and icons.
+pub fn event_detail(
+    session: &SessionAccount,
+    assets: Option<&Assets>,
+    names: &EnglishNames,
+    key: &str,
+) -> Result<EventDetailView, AdminError> {
+    require(session, Permission::Read)?;
+    let assets = assets.ok_or(AdminError::ContentUnavailable)?;
+    let event = assets
+        .event_switches()
+        .iter()
+        .find(|x| x.key == key)
+        .ok_or(AdminError::NotFound)?;
+    let d = &event.detail;
+    let npc = |id: &str, place: String| ShopNpcView {
+        name: names.npc_name(id),
+        npc: id.to_owned(),
+        place,
+    };
+    let mut npcs: Vec<ShopNpcView> = Vec::new();
+    let mut add_npc = |view: ShopNpcView| {
+        if !npcs.iter().any(|n| n.npc.eq_ignore_ascii_case(&view.npc)) {
+            npcs.push(view);
+        }
+    };
+    let trade = |shop: String,
+                 item: Option<&str>,
+                 count: Option<i64>,
+                 price: Option<&str>,
+                 price_count: Option<i64>| {
+        Some(EventTradeView {
+            shop,
+            item: event_item(names, item, count)?,
+            price: event_item(names, price, price_count)?,
+        })
+    };
+    let shops: Vec<EventTradeView> = d
+        .shops
+        .iter()
+        .filter_map(|(shop, item, count, price, price_count)| {
+            let shop = shop.clone().unwrap_or_default();
+            for n in names.shop_npcs(&shop) {
+                add_npc(npc(&n.npc, n.place));
+            }
+            trade(
+                shop,
+                item.as_deref(),
+                *count,
+                price.as_deref(),
+                *price_count,
+            )
+        })
+        .collect();
+    let stories = d
+        .stories
+        .iter()
+        .filter_map(|(id, owner, exp, gold, ap, item, item_count, title)| {
+            let owner = owner
+                .as_deref()
+                .filter(|n| !n.is_empty())
+                .map(|n| npc(n, String::new()));
+            if let Some(o) = &owner {
+                add_npc(npc(&o.npc, String::new()));
+            }
+            Some(EventStoryView {
+                id: id.clone()?,
+                npc: owner,
+                exp: exp.unwrap_or(0),
+                gold: gold.unwrap_or(0),
+                ap: ap.unwrap_or(0),
+                item: event_item(names, item.as_deref(), *item_count),
+                title: title.unwrap_or(0),
+            })
+        })
+        .collect();
+    Ok(EventDetailView {
+        key: event.key.clone(),
+        npcs,
+        shops,
+        coupons: d
+            .coupons
+            .iter()
+            .filter_map(|(version, item, count, price, price_count)| {
+                trade(
+                    version.map(|v| v.to_string()).unwrap_or_default(),
+                    item.as_deref(),
+                    *count,
+                    price.as_deref(),
+                    *price_count,
+                )
+            })
+            .collect(),
+        drops: d
+            .drops
+            .iter()
+            .filter_map(|(monster, item, probability, condition)| {
+                Some(EventDropView {
+                    monster: monster.clone(),
+                    item: event_item(names, item.as_deref(), Some(1))?,
+                    probability: probability.unwrap_or(0),
+                    condition: condition.clone(),
+                })
+            })
+            .collect(),
+        quests: d
+            .quests
+            .iter()
+            .flatten()
+            .map(|id| EventQuestView {
+                title: names.quest_title(id),
+                id: id.clone(),
+            })
+            .collect(),
+        stories,
+        titles: d.titles.iter().flatten().copied().collect(),
+        periodic: d
+            .periodic
+            .iter()
+            .map(|(kind, arg, amount, rate)| EventPeriodicView {
+                kind: kind.clone().unwrap_or_default(),
+                item: event_item(names, arg.as_deref(), *amount),
+                amount: amount.unwrap_or(0),
+                rate: rate.unwrap_or(0),
+            })
+            .collect(),
+        goals: d
+            .goals
+            .iter()
+            .map(
+                |(name, goal, count, reward, num, start, end)| EventGoalView {
+                    name: name.clone(),
+                    goal: goal.clone(),
+                    count: count.unwrap_or(0),
+                    reward: event_item(names, reward.as_deref(), *num),
+                    start: start.clone(),
+                    end: end.clone(),
+                },
+            )
+            .collect(),
+        uses: event
+            .uses
+            .iter()
+            .map(|(table, rows)| EventUseView {
+                migrated: MIGRATED_EVENT_TABLES.contains(&table.as_str()),
+                table: table.clone(),
+                rows: *rows,
+            })
+            .collect(),
+        migrated: MIGRATED_EVENT_TABLES
+            .iter()
+            .map(|t| (*t).to_owned())
+            .collect(),
     })
 }
 

@@ -68,14 +68,20 @@ class ItemEconomyExportTests(unittest.TestCase):
     def test_events_are_region_switches_used_by_content(self):
         with contextlib.closing(sqlite3.connect(self.db)) as db:
             columns = [r[1] for r in db.execute('PRAGMA table_info(FeatureMatrix)')]
-            for key in ('Event_xmas_2012', 'Event_xmas_kokr_2012', 'Event_Rate_2011', 'Event_unused'):
+            for key in ('Event_xmas_2012', 'Event_xmas_kokr_2012', 'Event_Rate_2011', 'Event_unused', 'BoostEvent'):
                 db.execute('INSERT INTO FeatureMatrix(Feature) VALUES(?)', (key,))
             db.execute('UPDATE FeatureMatrix SET ' + ','.join('"%s"=?' % c for c in columns[1:]) + " WHERE Feature='Event_Rate_2011'", ['100'] * (len(columns) - 1))
-            db.execute('CREATE TABLE ShopInfo(ShopID TEXT,Feature TEXT)')
-            db.execute("INSERT INTO ShopInfo VALUES('a','Event_xmas_2012'),('b','Event_xmas_2012&&!Event_xmas_kokr_2012'),('c','Event_Rate_2011')")
+            db.execute('CREATE TABLE ShopInfo(ShopID TEXT,ItemClass TEXT,Count INT,PriceItemClass TEXT,PriceCount INT,Feature TEXT)')
+            db.execute("INSERT INTO ShopInfo VALUES('a','xmas_hat',1,'gold',500,'Event_xmas_2012'),('b','xmas_box','2','coupon_xmas',3,'Event_xmas_2012&&!Event_xmas_kokr_2012'),('c','x',1,'gold',1,'Event_Rate_2011')")
+            # A master switch gates its whole table (PeriodicEventScheduler's BoostEvent).
+            db.execute('CREATE TABLE PeriodicEventInfo(Identifier INT,RewardType TEXT,RewardArg TEXT,Amount INT,Possibility INT,AnnounceLocalizedKey TEXT,Feature TEXT)')
+            db.execute("INSERT INTO PeriodicEventInfo VALUES(1,'Gold',NULL,1000,49000,NULL,'disable')")
             db.commit()
         events = read_package(self.db, self.config)['events']
-        self.assertEqual(events, [dict(key='Event_xmas_2012', value=None, uses={'ShopInfo': 2})])
+        empty = {'shops': [], 'coupons': [], 'drops': [], 'quests': [], 'stories': [], 'titles': [], 'periodic': [], 'goals': []}
+        self.assertEqual(events, [dict(key='BoostEvent', value=None, uses={'PeriodicEventInfo': 1}, detail={**empty, 'periodic': [['Gold', None, 1000, 49000]]}),
+                                  dict(key='Event_xmas_2012', value=None, uses={'ShopInfo': 2},
+                                       detail={**empty, 'shops': [['a', 'xmas_hat', 1, 'gold', 500], ['b', 'xmas_box', 2, 'coupon_xmas', 3]]})])
     def test_mail_type_bits_must_be_text_booleans(self):
         with contextlib.closing(sqlite3.connect(self.db)) as db:
             db.execute("UPDATE MailTypeInfo SET System='1' WHERE MailType=9"); db.commit()

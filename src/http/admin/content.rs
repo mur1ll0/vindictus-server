@@ -82,6 +82,24 @@ pub(super) async fn tuning(
     )?))
 }
 
+/// What one event switch brings (Ajustes de jogo → Eventos): NPCs, shop and coupon shop
+/// items, drops, quests, stories, titles, periodic rewards and collective goals.
+#[utoipa::path(get, path = "/api/tuning/events/{key}", params(("key" = String, Path)),
+    responses((status = 200, body = content_admin::EventDetailView), (status = 403, body = super::ApiError),
+              (status = 404, body = super::ApiError), (status = 503, body = super::ApiError)))]
+pub(super) async fn event_detail(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(key): Path<String>,
+) -> Result<Json<content_admin::EventDetailView>, Refusal> {
+    Ok(Json(content_admin::event_detail(
+        &auth.session,
+        assets(&state).as_deref(),
+        &state.names,
+        &key,
+    )?))
+}
+
 #[derive(Deserialize, ToSchema)]
 pub(super) struct TuningSave {
     operation_id: Uuid,

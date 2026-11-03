@@ -7,7 +7,7 @@ Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/conten
 2. Painel com papel admin; cliente pelo `.cache/play-client/start-lab.bat`.
 
 ## Ordem de gameplay
-1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom.
+1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom. 9. **EV9**: descrição no painel.
 
 ## Como relatar
 ID da linha, o que apareceu (captura), horário (para `docker compose logs game`) e o nome do relatório de queda, se houver.
@@ -54,3 +54,7 @@ Pré-condição: cupom da loja na bolsa (por exemplo `coupon_todaymission` da lo
 - [ ] Trocar um item → o cupom sai, o item entra, o limite cai em 1; trocar acima do limite → recusa sem gastar o cupom.
 - [ ] Relogar → item e limite preservados.
 Limites conhecidos: onde o cliente abre a loja de cupom (menu, NPC ou janela de evento) ainda não foi confirmado.
+
+### EV9 — Descrição dos eventos no painel
+- [ ] Ajustes de jogo → Eventos → passar o mouse no ícone (i) de um evento → caixa com NPCs, itens das lojas e lojas de cupom (ícone, nome, preço e moeda), drops, quests, histórias com recompensas, títulos, recompensas periódicas e metas, cada seção marcada "funciona no servidor" ou "ainda não funciona".
+- [ ] Em tela estreita (celular), tocar no (i) abre e tocar fora fecha.

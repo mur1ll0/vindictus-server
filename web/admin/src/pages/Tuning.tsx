@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { CalendarHeart, CheckCircle2, Clock, Save, Search, Store, Undo2 } from 'lucide-react';
+import { CalendarHeart, CheckCircle2, Clock, Info, Save, Search, Store, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { api, type components, fail } from '@/api/client';
 import { contentState } from '@/api/content';
 import { sessionQuery } from '@/api/session';
+import { EventDetail } from '@/components/EventDetail';
 import { errorText } from '@/components/forms';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -186,10 +187,11 @@ function EventsPanel({
         <p className="flex items-start gap-2 text-sm text-muted">
           <CalendarHeart className="mt-0.5 size-4 shrink-0 text-accent" />
           <span>
-            Chaves de evento do FeatureMatrix da nossa região (as de outras regiões ficam de fora). Ligar vale na hora para lojas,
-            histórias, quests e itens do servidor, e o cliente recebe a chave no próximo login. As tabelas marcadas como{' '}
-            <span className="font-medium text-fg">ainda não migrado</span> (drops de evento, eventos periódicos, meta coletiva,
-            lojas de cupom…) não fazem efeito até o sistema delas ser migrado. É um recurso do laboratório.
+            Chaves de evento do FeatureMatrix da nossa região (as de outras regiões ficam de fora), mais as chaves gerais BoostEvent
+            (recompensas periódicas) e AllUserGoalEvent (metas coletivas). Ligar vale na hora para lojas, lojas de cupom, drops de
+            chefe, recompensas periódicas, histórias, quests e itens do servidor, e o cliente recebe a chave no próximo login. As
+            tabelas riscadas ainda não fazem efeito. Passe o mouse (ou toque) no <Info className="inline size-3.5" /> para ver o que
+            cada evento traz. É um recurso do laboratório.
           </span>
         </p>
       </Card>
@@ -218,21 +220,24 @@ function EventsPanel({
           const changed = drafts[e.key] != null && drafts[e.key] !== e.enabled;
           return (
             <div key={e.key} className={cn('rounded-lg border border-border bg-surface px-3 py-2', changed && 'border-accent')}>
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  aria-label={e.key}
-                  checked={on}
-                  disabled={!editable}
-                  onChange={(x) => setDrafts({ ...drafts, [e.key]: x.target.checked })}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-mono text-sm">{e.key}</span>
-                  <span className="block text-xs text-muted">
-                    {theme(e.key) ? `${theme(e.key)} · ` : ''}original {e.original ? 'ligado' : 'desligado'}
+              <div className="flex items-center gap-2">
+                <label className="flex min-w-0 flex-1 items-center gap-3">
+                  <input
+                    type="checkbox"
+                    aria-label={e.key}
+                    checked={on}
+                    disabled={!editable}
+                    onChange={(x) => setDrafts({ ...drafts, [e.key]: x.target.checked })}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-mono text-sm">{e.key}</span>
+                    <span className="block text-xs text-muted">
+                      {theme(e.key) ? `${theme(e.key)} · ` : ''}original {e.original ? 'ligado' : 'desligado'}
+                    </span>
                   </span>
-                </span>
-              </label>
+                </label>
+                <EventDetail eventKey={e.key} />
+              </div>
               <p className="mt-1 flex flex-wrap gap-1 text-xs">
                 {e.uses.map((u) => (
                   <span

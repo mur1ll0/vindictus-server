@@ -5,9 +5,7 @@
 //! and the trade share one transaction, so a CraftFail also undoes the restriction
 //! (TryShopBuyRestrictRollback).
 use super::{
-    character_lobby::UserKey,
-    minimum_assets::Assets,
-    minimum_character::MinimumError,
+    character_lobby::UserKey, minimum_assets::Assets, minimum_character::MinimumError,
     minimum_give::Request,
 };
 use crate::domain::{

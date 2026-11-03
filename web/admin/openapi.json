@@ -3186,6 +3186,67 @@
         }
       }
     },
+    "/api/tuning/events/{key}": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "What one event switch brings (Ajustes de jogo → Eventos): NPCs, shop and coupon shop\nitems, drops, quests, stories, titles, periodic rewards and collective goals.",
+        "operationId": "event_detail",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventDetailView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tuning/market-auto": {
       "get": {
         "tags": [
@@ -4706,6 +4767,332 @@
           "ratio": {
             "type": "number",
             "format": "float"
+          }
+        }
+      },
+      "EventDetailView": {
+        "type": "object",
+        "description": "What an event switch brings (the panel's description of Ajustes de jogo → Eventos).",
+        "required": [
+          "key",
+          "npcs",
+          "shops",
+          "coupons",
+          "drops",
+          "quests",
+          "stories",
+          "titles",
+          "periodic",
+          "goals",
+          "uses",
+          "migrated"
+        ],
+        "properties": {
+          "coupons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventTradeView"
+            }
+          },
+          "drops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventDropView"
+            }
+          },
+          "goals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventGoalView"
+            }
+          },
+          "key": {
+            "type": "string"
+          },
+          "migrated": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The tables the server already reads (each section works when its table is here)."
+          },
+          "npcs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShopNpcView"
+            },
+            "description": "The NPCs of the event's shops and storylines."
+          },
+          "periodic": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventPeriodicView"
+            }
+          },
+          "quests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventQuestView"
+            }
+          },
+          "shops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventTradeView"
+            }
+          },
+          "stories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventStoryView"
+            }
+          },
+          "titles": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "TitleInfo IDs."
+          },
+          "uses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventUseView"
+            },
+            "description": "Every table naming the key, with what the server already reads."
+          }
+        }
+      },
+      "EventDropView": {
+        "type": "object",
+        "required": [
+          "item",
+          "probability"
+        ],
+        "properties": {
+          "condition": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "TodayQuest, or None."
+          },
+          "item": {
+            "$ref": "#/components/schemas/EventItemView"
+          },
+          "monster": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The monster (Class Variation); None for every boss."
+          },
+          "probability": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Weight within the event's table."
+          }
+        }
+      },
+      "EventGoalView": {
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "goal": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The goal's event regex (kill …, …)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "GoalName (a localization key)."
+          },
+          "reward": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventItemView"
+              }
+            ]
+          },
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "EventItemView": {
+        "type": "object",
+        "description": "An item of an event's description, with its English name and icon (icons/item/<icon>.png).",
+        "required": [
+          "class",
+          "count"
+        ],
+        "properties": {
+          "class": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "EventPeriodicView": {
+        "type": "object",
+        "required": [
+          "kind",
+          "amount",
+          "rate"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "item": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventItemView"
+              }
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "Gold, AP, Exp or ITEM."
+          },
+          "rate": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Possibility (weight among the enabled rewards)."
+          }
+        }
+      },
+      "EventQuestView": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "EventStoryView": {
+        "type": "object",
+        "required": [
+          "id",
+          "exp",
+          "gold",
+          "ap",
+          "title"
+        ],
+        "properties": {
+          "ap": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "exp": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gold": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "item": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventItemView"
+              }
+            ]
+          },
+          "npc": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ShopNpcView"
+              }
+            ]
+          },
+          "title": {
+            "type": "integer",
+            "format": "int64",
+            "description": "RewardTitle (TitleInfo ID), 0 without one."
+          }
+        }
+      },
+      "EventTradeView": {
+        "type": "object",
+        "description": "An item sold by an NPC shop or a coupon shop of the event.",
+        "required": [
+          "shop",
+          "item",
+          "price"
+        ],
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/EventItemView"
+          },
+          "price": {
+            "$ref": "#/components/schemas/EventItemView",
+            "description": "The price item (currency) and its count."
+          },
+          "shop": {
+            "type": "string",
+            "description": "ShopID, or the coupon shop version."
           }
         }
       },

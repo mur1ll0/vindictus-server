@@ -189,8 +189,67 @@ def read_events(db, manifest):
     for key, table in MASTER_SWITCHES.items():
         if key in uses and table in tables:
             uses[key][table] = db.execute('SELECT count(*) FROM "' + table + '"').fetchone()[0]
-    out = [dict(key=k, value=keys[k], uses=uses[k]) for k in sorted(keys) if uses[k]]
+    details = event_details(db, [k for k in sorted(keys) if uses[k]], tables)
+    out = [dict(key=k, value=keys[k], uses=uses[k], detail=details[k]) for k in sorted(keys) if uses[k]]
     if len(out) > 1000 or any(len(e['uses']) > 64 for e in out): raise ValueError('Event bound')
+    return out
+
+# Rows per section of an event's description in the panel.
+DETAIL_ROWS = 60
+
+def event_details(db, keys, tables):
+    """What each event switch brings, for the panel's description: the rows of the tables
+    the server reads (or will read) whose Feature names the key, in provider order."""
+    from export_reward_policy import feature_atoms
+    def atoms(feature):
+        if not isinstance(feature, str) or len(feature) > 512: return set()
+        try:
+            return feature_atoms(feature)
+        except ValueError:
+            return set()
+    out = {k: {'shops': [], 'coupons': [], 'drops': [], 'quests': [], 'stories': [], 'titles': [], 'periodic': [], 'goals': []} for k in keys}
+    def n(v):
+        # A number column; SQLite may keep a numeric text.
+        if isinstance(v, int): return v
+        try:
+            return int(str(v).strip())
+        except (TypeError, ValueError):
+            return None
+    def add(feature, section, row, master=None):
+        for k in (atoms(feature) | ({master} if master else set())):
+            if k in out and len(out[k][section]) < DETAIL_ROWS: out[k][section].append(row)
+    if 'ShopInfo' in tables:
+        for r in db.execute('Select * From [ShopInfo]'):
+            add(r['Feature'], 'shops', [r['ShopID'], r['ItemClass'], n(r['Count']), r['PriceItemClass'], n(r['PriceCount'])])
+    if 'CouponShopItemInfo' in tables and 'CouponShopVersionInfo' in tables:
+        versions = {r['ShopVersion']: (r['PriceItemClass'], r['Feature']) for r in db.execute('Select * From [CouponShopVersionInfo]')}
+        for r in db.execute('Select * From [CouponShopItemInfo]'):
+            price, version_feature = versions.get(r['ShopVersion'], (None, None))
+            row = [n(r['ShopVersion']), r['RewardItemClass'], n(r['RewardItemCount']), price, n(r['PriceItemCount'])]
+            for k in atoms(r['Feature']) | atoms(version_feature):
+                if k in out and len(out[k]['coupons']) < DETAIL_ROWS: out[k]['coupons'].append(row)
+    monsters = {}
+    if 'MonsterInfo' in tables:
+        for r in db.execute('Select Identifier, Class, Variation From [MonsterInfo]'):
+            monsters.setdefault(r['Identifier'], ' '.join(x for x in (r['Class'], r['Variation']) if x))
+    if 'EventDropItemInfo' in tables:
+        for r in db.execute('Select * From [EventDropItemInfo]'):
+            add(r['Feature'], 'drops', [monsters.get(r['MonsterID']) if r['MonsterID'] is not None else None, r['ItemClass'], n(r['Probability']), r['Condition']])
+    if 'QuestInfo' in tables:
+        for r in db.execute('Select ID, Feature From [QuestInfo]'):
+            add(r['Feature'], 'quests', r['ID'])
+    if 'StoryLineInfo' in tables:
+        for r in db.execute('Select * From [StoryLineInfo]'):
+            add(r['Feature'], 'stories', [r['StoryLineID'], r['Npc'], n(r['RewardExp']), n(r['RewardGold']), n(r['RewardAp']), r['RewardItem'], n(r['RewardItemCount']), n(r['RewardTitle'])])
+    if 'TitleInfo' in tables:
+        for r in db.execute('Select ID, Feature From [TitleInfo]'):
+            add(r['Feature'], 'titles', n(r['ID']))
+    if 'PeriodicEventInfo' in tables:
+        for r in db.execute('Select * From [PeriodicEventInfo]'):
+            add(r['Feature'], 'periodic', [r['RewardType'], r['RewardArg'], n(r['Amount']), n(r['Possibility'])], master='BoostEvent')
+    if 'AllUserGoalInfo' in tables:
+        for r in db.execute('Select * From [AllUserGoalInfo]'):
+            add(r['Feature'], 'goals', [r['GoalName'], r['Goal'], n(r['GoalCount']), r['RewardItemClass'], n(r['RewardNum']), r['StartTime'], r['EndTime']], master='AllUserGoalEvent')
     return out
 
 PET_FEATURES = ('Pet', 'Pet_food_V2', 'PetPurchaseLimit', 'PetMaxLevel', 'Pet_ExpBattle_Point',

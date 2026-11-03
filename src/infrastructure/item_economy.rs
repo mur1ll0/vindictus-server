@@ -118,6 +118,73 @@ pub struct EventSwitch {
     pub key: String,
     pub value: Option<String>,
     pub uses: std::collections::BTreeMap<String, i32>,
+    /// What the event brings (the panel's description), absent from older exports.
+    #[serde(default)]
+    pub detail: EventDetail,
+}
+/// The content rows naming an event switch, at most 60 per table, in provider order.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EventDetail {
+    /// ShopInfo: ShopID, ItemClass, Count, PriceItemClass, PriceCount.
+    #[serde(default)]
+    pub shops: Vec<(
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        Option<String>,
+        Option<i64>,
+    )>,
+    /// CouponShopItemInfo (its Feature or its version's): ShopVersion, RewardItemClass,
+    /// RewardItemCount, the version's PriceItemClass, PriceItemCount.
+    #[serde(default)]
+    pub coupons: Vec<(
+        Option<i64>,
+        Option<String>,
+        Option<i64>,
+        Option<String>,
+        Option<i64>,
+    )>,
+    /// EventDropItemInfo: the monster (Class Variation, None for every boss), ItemClass,
+    /// Probability, Condition.
+    #[serde(default)]
+    pub drops: Vec<(Option<String>, Option<String>, Option<i64>, Option<String>)>,
+    /// QuestInfo IDs.
+    #[serde(default)]
+    pub quests: Vec<Option<String>>,
+    /// StoryLineInfo: StoryLineID, Npc, RewardExp, RewardGold, RewardAp, RewardItem,
+    /// RewardItemCount, RewardTitle.
+    #[serde(default)]
+    #[allow(clippy::type_complexity)]
+    pub stories: Vec<(
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+        Option<i64>,
+        Option<i64>,
+    )>,
+    /// TitleInfo IDs.
+    #[serde(default)]
+    pub titles: Vec<Option<i64>>,
+    /// PeriodicEventInfo: RewardType, RewardArg, Amount, Possibility.
+    #[serde(default)]
+    pub periodic: Vec<(Option<String>, Option<String>, Option<i64>, Option<i64>)>,
+    /// AllUserGoalInfo: GoalName, Goal, GoalCount, RewardItemClass, RewardNum, StartTime,
+    /// EndTime.
+    #[serde(default)]
+    #[allow(clippy::type_complexity)]
+    pub goals: Vec<(
+        Option<String>,
+        Option<String>,
+        Option<i64>,
+        Option<String>,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+    )>,
 }
 /// HotSpringPotionInfo row (UntilEffectSec and ShowName are not read by the server).
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]

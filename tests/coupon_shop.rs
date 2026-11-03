@@ -48,7 +48,10 @@ fn framework_coupon_shop_envelopes_match_x86_x64() {
         let object = uuid_bytes(0x81c5fe01_027c_3e1c_98d5_da9c9862aa21);
         if kind == Kind::ItemBuy && typed[..16] == object {
             // A null unregistered message is the System.Object envelope.
-            assert_eq!((&typed[16..], case["is_null"].as_bool()), (&[0u8][..], Some(true)));
+            assert_eq!(
+                (&typed[16..], case["is_null"].as_bool()),
+                (&[0u8][..], Some(true))
+            );
             continue;
         }
         let typed = if kind == Kind::ItemBuy {
