@@ -15,6 +15,34 @@ use vindictus_server::{
         inventory::{self, Kind, Message},
     },
 };
+/// The master's party of a mission test: a party hub seat and OpenNewParty, whose
+/// PartyInfo the AcceptQuest packets start with.
+async fn master_party(
+    p: &sqlx::PgPool,
+    owner: &vindictus_server::infrastructure::character_lobby::UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    config: vindictus_server::infrastructure::character_lobby::QueryConfig,
+) -> vindictus_server::infrastructure::minimum_mission::MasterParty {
+    use vindictus_server::infrastructure::{
+        minimum_mission::MasterParty,
+        minimum_party,
+        party_hub::{self, PartyHub},
+    };
+    const PARTY: i64 = 940_000_000_000_000_777;
+    let hub = std::sync::Arc::new(PartyHub::new(false, false));
+    let (tx, _rx) = tokio::sync::mpsc::channel(party_hub::MAILBOX);
+    hub.register(cid, "host", tx);
+    let me = minimum_party::member(p, owner, assets, cid, config, quest_clock().arithmetic)
+        .await
+        .unwrap();
+    let opened = hub.open(PARTY, me).unwrap();
+    MasterParty {
+        hub,
+        party_id: PARTY,
+        opened,
+    }
+}
 /// Fixture assets plus a source-shaped Account gold class and the economy rows.
 fn assets(cash_unique: i32) -> Assets {
     assets_with(cash_unique, 0, 0)
@@ -2957,6 +2985,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         &assets,
         1,
         &accept("quest_gnoll_watchman", 9),
+        master_party(&p, &owner, &assets, 1, config()).await,
         |_| panic!("relay must not be reached"),
         config(),
         quest_clock(),
@@ -2979,6 +3008,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         &assets,
         1,
         &accept("quest_gnoll_shadowfang", 2),
+        master_party(&p, &owner, &assets, 1, config()).await,
         |_| panic!("relay must not be reached"),
         config(),
         quest_clock(),
@@ -2993,6 +3023,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         &assets,
         1,
         &accept("quest_gnoll_watchman", 2),
+        master_party(&p, &owner, &assets, 1, config()).await,
         |party| {
             seen_party = party;
             RelayTicket {
@@ -3473,6 +3504,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         &assets,
         1,
         &accept("quest_gnoll_watchman", 2),
+        master_party(&p, &owner, &assets, 1, config()).await,
         ticket,
         config(),
         quest_clock(),
@@ -3497,6 +3529,7 @@ async fn minimum_mission_accept_launches_the_ship_and_grants_the_sector_sequence
         &assets,
         1,
         &accept("quest_gnoll_watchman", 2),
+        master_party(&p, &owner, &assets, 1, config()).await,
         ticket,
         config(),
         quest_clock(),
@@ -7148,6 +7181,7 @@ async fn minimum_mission_required_item_is_reserved_and_paid_at_start() {
         &assets,
         1,
         &accept,
+        master_party(&p, &owner, &assets, 1, config()).await,
         |_| panic!("relay must not be reached"),
         config(),
         quest_clock(),
@@ -7181,6 +7215,7 @@ async fn minimum_mission_required_item_is_reserved_and_paid_at_start() {
         &assets,
         1,
         &accept,
+        master_party(&p, &owner, &assets, 1, config()).await,
         ticket,
         config(),
         quest_clock(),

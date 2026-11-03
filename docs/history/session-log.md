@@ -3409,3 +3409,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: sessão única pendente pelo roteiro B5-multijogador.
 - Commits: (este commit)
 - Pendente / próxima ação: rebuild do Docker e sessão de cliente do operador; depois, sistemas restantes do B5.
+
+## 2026-11-03 — B5 MP: testes PostgreSQL do accept_quest com a party do mestre
+- Feito: `tests/support/minimum_give.rs` ganha `master_party` (assento no hub e OpenNewParty) nas 7 chamadas de `accept_quest`, quebradas pela assinatura nova do MP1 (o MP1 só compilou os alvos de `tests/*.rs`).
+- Verificação: `cargo test --no-run` de todos os alvos ok; `cargo test --test postgres minimum_mission_ -- --ignored` no `test-postgres` descartável: 3 ok (aceite e navio com a sequência de setores, item obrigatório reservado e pago, MemberInfo). Log `.cache/verification/b5-mp-pg.log`; banco de teste removido.
+- Cliente: não necessário.
+- Commits: (este commit)
+- Pendente / próxima ação: rebuild do Docker e sessão de cliente do operador pelo roteiro B5-multijogador.
