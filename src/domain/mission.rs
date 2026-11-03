@@ -879,6 +879,8 @@ pub struct MissionContents {
     story_sectors: BTreeMap<i32, SectorBase>,
     /// EventDropTable.DropTables: MonsterID (-1 without one) → tables by first Feature.
     event_drops: BTreeMap<i32, Vec<EventDropTable>>,
+    /// MicroPlayContents.dropItemModifier by ItemClassEX.
+    drop_modifiers: BTreeMap<String, i32>,
 }
 
 const MAX_TARGET_PATTERN: usize = 512;
@@ -1329,7 +1331,22 @@ impl MissionContents {
             quest_rewards,
             story_sectors,
             event_drops,
+            drop_modifiers: BTreeMap::new(),
         })
+    }
+
+    /// MicroPlayContents.dropItemModifier (the `droptable mod` command): percent of the
+    /// Weight of a MonsterDropItemInfo ItemClassEX.
+    pub fn set_drop_modifiers(&mut self, modifiers: BTreeMap<String, i32>) {
+        self.drop_modifiers = modifiers;
+    }
+
+    /// The Weight of a drop row with GetDropItemModifier: Weight · mod / 100 in 64 bits.
+    fn drop_weight(&self, row: &DropRow) -> i32 {
+        match self.drop_modifiers.get(row.3.as_deref().unwrap_or("")) {
+            Some(m) => (i64::from(row.4) * i64::from(*m) / 100) as i32,
+            None => row.4,
+        }
     }
 
     /// Re-evaluates FeatureMatrix.IsEnable of the event drop tables after the event
@@ -1852,7 +1869,7 @@ impl MissionContents {
                 continue;
             }
             relational.push(row);
-            total = total.wrapping_add(row.4);
+            total = total.wrapping_add(self.drop_weight(row));
         }
         let mut chosen = |row: &DropRow| -> Option<String> {
             let class_ex = row.3.clone()?;
@@ -1864,7 +1881,7 @@ impl MissionContents {
         if !absolute.is_empty() {
             let mut roll = random.next_range(0, 1_000_000);
             for row in &absolute {
-                roll -= row.4;
+                roll -= self.drop_weight(row);
                 if roll < 0 {
                     return chosen(row);
                 }
@@ -1872,7 +1889,7 @@ impl MissionContents {
         }
         let mut roll = random.next_range(0, total);
         for row in &relational {
-            roll -= row.4;
+            roll -= self.drop_weight(row);
             if roll < 0 {
                 return chosen(row);
             }

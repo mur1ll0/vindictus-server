@@ -100,6 +100,68 @@ pub(super) async fn event_detail(
     )?))
 }
 
+/// The event schedule (laboratory extension of the AdminClient events): templates,
+/// registered events and what is running.
+#[utoipa::path(get, path = "/api/tuning/schedule",
+    responses((status = 200, body = content_admin::ScheduleView), (status = 403, body = super::ApiError),
+              (status = 503, body = super::ApiError)))]
+pub(super) async fn schedule(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+) -> Result<Json<content_admin::ScheduleView>, Refusal> {
+    Ok(Json(
+        content_admin::schedule(&auth.session, state.auth.pool(), state.runtime.as_deref()).await?,
+    ))
+}
+
+/// Register or change an event (admin): it starts and ends by its times at the minute.
+#[utoipa::path(post, path = "/api/tuning/schedule", request_body = content_admin::ScheduleRequest,
+    responses((status = 200, body = content_admin::ScheduleView), (status = 400, body = super::ApiError),
+              (status = 403, body = super::ApiError), (status = 404, body = super::ApiError),
+              (status = 409, body = super::ApiError), (status = 503, body = super::ApiError)))]
+pub(super) async fn register_event(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Json(body): Json<content_admin::ScheduleRequest>,
+) -> Result<Json<content_admin::ScheduleView>, Refusal> {
+    let actor = Actor {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: body.operation_id,
+    };
+    Ok(Json(
+        content_admin::register_event(state.auth.pool(), state.runtime.as_deref(), &actor, body)
+            .await?,
+    ))
+}
+
+/// Remove an event (admin): a running one ends at the next minute.
+#[utoipa::path(delete, path = "/api/tuning/schedule/{name}", params(("name" = String, Path),
+    ("operation_id" = Uuid, Query)),
+    responses((status = 200, body = content_admin::ScheduleView), (status = 403, body = super::ApiError),
+              (status = 404, body = super::ApiError), (status = 409, body = super::ApiError)))]
+pub(super) async fn remove_event(
+    State(state): State<AdminState>,
+    auth: Authenticated,
+    Path(name): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<OperationQuery>,
+) -> Result<Json<content_admin::ScheduleView>, Refusal> {
+    let actor = Actor {
+        session: &auth.session,
+        peer: auth.peer,
+        operation_id: query.operation_id,
+    };
+    Ok(Json(
+        content_admin::remove_event(state.auth.pool(), state.runtime.as_deref(), &actor, &name)
+            .await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub(super) struct OperationQuery {
+    operation_id: Uuid,
+}
+
 #[derive(Deserialize, ToSchema)]
 pub(super) struct TuningSave {
     operation_id: Uuid,

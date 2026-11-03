@@ -82,6 +82,17 @@ def read_package(database, config):
             if len(mail_types) > 256: raise ValueError('MailTypeInfo row bound')
         marketplace = read_marketplace(db, integer, plain, catalog['manifest'])
         events = read_events(db, catalog['manifest'])
+        # AdminContents.EventTemplate (ToDictionary by Name: a repeated name throws).
+        templates = []
+        def script(v):
+            if v is None: return None
+            if not isinstance(v, str) or len(v) > 4000: raise ValueError('Event template text')
+            return v
+        if 'EventTemplate' in {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}:
+            for r in db.execute('Select * From [EventTemplate]'):
+                if any(t['name'] == r['Name'] for t in templates): raise ValueError('Repeated event template')
+                templates.append(dict(name=plain(r['Name']), feature=script(r['Feature']), start_script=script(r['StartScript']), end_script=script(r['EndScript'])))
+                if len(templates) > 2000: raise ValueError('Event template bound')
         pets = read_pets(db, integer, plain)
         if pets is not None:
             pets['features'] = pet_features(db, catalog['manifest'])
@@ -91,7 +102,7 @@ def read_package(database, config):
     package = {'format_version': 4, 'source': 'heroesContents.item-economy', 'alchemist_boxes': boxes,
                'manifest': dict(database_sha256=m['database_sha256'], config_sha256=m['config_sha256'], class_rows=len(rows)),
                'classes': rows, 'hot_spring': hot_spring, 'mail_types': mail_types,
-               'marketplace': marketplace, 'events': events}
+               'marketplace': marketplace, 'events': events, 'event_templates': templates}
     if pets is not None:
         package['pets'] = pets
     return package

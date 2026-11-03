@@ -26,6 +26,7 @@ pub mod user_export;
 pub mod character_export;
 pub mod characters;
 pub mod dormant_items;
+pub mod event_scheduler;
 pub mod item_catalog;
 pub mod item_economy;
 pub mod item_enhance;

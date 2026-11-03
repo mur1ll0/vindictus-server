@@ -1,13 +1,13 @@
 # Roteiro de testes no cliente — B5 eventos (chaves no painel)
 
-Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; drops de evento dos chefes (EV5), recompensas periódicas (EV6), histórias por período (EV7), lojas de cupom (EV8) e metas coletivas (EV10) funcionam; `EventTemplate` não foi migrado.
+Chaves de evento do FeatureMatrix ligadas e desligadas pelo painel (`docs/content-tuning.md`, "Chaves de evento no painel"). É uma extensão do laboratório; drops de evento dos chefes (EV5), recompensas periódicas (EV6), histórias por período (EV7), lojas de cupom (EV8), metas coletivas (EV10) e a agenda de eventos com modelos (EV11) funcionam.
 
 ## Preparação
 1. Runtime reconstruído com a migração `0057_content_event_switches` e o `item-economy.json` com a seção `events`.
 2. Painel com papel admin; cliente pelo `.cache/play-client/start-lab.bat`.
 
 ## Ordem de gameplay
-1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom. 9. **EV9**: descrição no painel. 10. **EV10**: meta coletiva.
+1. **EV1**: abrir a aba Eventos. 2. **EV2**: ligar um evento de loja. 3. **EV3**: desligar. 4. **EV4**: evento de história. 5. **EV5**: drop de evento de um chefe. 6. **EV6**: ficar 30 min online com BoostEvent. 7. **EV7**: bico no dia seguinte. 8. **EV8**: loja de cupom. 9. **EV9**: descrição no painel. 10. **EV10**: meta coletiva. 11. **EV11**: agenda de eventos.
 
 ## Como relatar
 ID da linha, o que apareceu (captura), horário (para `docker compose logs game`) e o nome do relatório de queda, se houver.
@@ -67,3 +67,12 @@ Pré-condição: no painel ligar `AllUserGoalEvent` e uma chave de meta da regi�
 - [ ] Na virada da janela → a meta seguinte aparece (ou a janela some no fim do evento).
 - [ ] Desligar a chave e relogar → nenhuma meta.
 Limites conhecidos: o reset por cheat (`InformAllUserGoalEvent` IsReset) não foi migrado; quem participou e estava desconectado recebe na próxima entrada (QueuedItem).
+
+### EV11 — Agenda de eventos (`EventTemplate`, chaves e `droptable`)
+Pré-condição: painel com papel admin; Ajustes de jogo → Agenda.
+- [ ] Agendar com o modelo `#exp2x` (ou outro com `ExpRate_Combat[200]`) para começar em 2 min e terminar 10 min depois, com mensagens de início, aviso e fim → no minuto marcado aparece "Rodando", "Em vigor agora" mostra as chaves, e todos os jogadores conectados recebem a mensagem de início.
+- [ ] Fazer uma missão durante o evento → EXP de combate dobrada; entrar no jogo durante o evento → o aviso aparece cerca de 20 s depois.
+- [ ] Agendar um evento com `droptable mod <item> 1000` no início e `droptable reset <item>` no fim → o item cai bem mais durante o evento e volta ao normal depois.
+- [ ] No fim → mensagem de fim, chaves e drops voltam; o evento passado some da lista.
+- [ ] Remover um evento rodando → ele termina no minuto seguinte.
+Limites conhecidos: `freetoken`, `droptable mod_fishing/add_fishing` e outros comandos aparecem como "sem efeito no laboratório"; o cliente recebe as chaves no próximo login (como no original, o FeatureMatrix do cliente só chega na entrada).

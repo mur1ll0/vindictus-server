@@ -1122,3 +1122,218 @@ pub async fn edits(
         content_edits::versions(pool, 50).await?,
     ))
 }
+
+/// A registered event of the schedule (Ajustes de jogo → Agenda).
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ScheduledEventView {
+    pub name: String,
+    pub template: Option<String>,
+    pub feature: Option<String>,
+    pub start_script: Option<String>,
+    pub end_script: Option<String>,
+    /// UTC Unix seconds.
+    pub start_at: Option<i64>,
+    pub end_at: Option<i64>,
+    /// Seconds of the server's local day.
+    pub period_begin: Option<i32>,
+    pub period_end: Option<i32>,
+    pub start_message: Option<String>,
+    pub notify_message: Option<String>,
+    pub end_message: Option<String>,
+    pub notify_interval: Option<i32>,
+    pub running: bool,
+    /// Script commands the laboratory does not run (freetoken, droptable mod_fishing, …).
+    pub unsupported: Vec<String>,
+}
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ScheduleView {
+    pub templates: Vec<crate::infrastructure::item_economy::EventTemplate>,
+    pub events: Vec<ScheduledEventView>,
+    /// The server's civil offset (local = UTC + offset) for the daily period.
+    pub offset_seconds: i64,
+    /// The running events' keys and drop modifiers.
+    pub overrides: BTreeMap<String, String>,
+    pub drop_modifiers: BTreeMap<String, i32>,
+}
+/// A registration (admin): a template fills Feature and the scripts; given fields win.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct ScheduleRequest {
+    pub operation_id: Uuid,
+    pub name: String,
+    pub template: Option<String>,
+    pub feature: Option<String>,
+    pub start_script: Option<String>,
+    pub end_script: Option<String>,
+    pub start_at: Option<i64>,
+    pub end_at: Option<i64>,
+    pub period_begin: Option<i32>,
+    pub period_end: Option<i32>,
+    pub start_message: Option<String>,
+    pub notify_message: Option<String>,
+    pub end_message: Option<String>,
+    pub notify_interval: Option<i32>,
+}
+
+fn unsupported(script: Option<&str>) -> Vec<String> {
+    crate::domain::event_schedule::script(script.unwrap_or(""))
+        .into_iter()
+        .filter_map(|c| match c {
+            crate::domain::event_schedule::Command::Unsupported(s) => Some(s),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The schedule: templates, registered events and what is running.
+pub async fn schedule(
+    session: &SessionAccount,
+    pool: &PgPool,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+) -> Result<ScheduleView, AdminError> {
+    require(session, Permission::Read)?;
+    let runtime = runtime.ok_or(AdminError::ContentUnavailable)?;
+    let assets = runtime
+        .minimum_assets()
+        .ok_or(AdminError::ContentUnavailable)?;
+    let state = runtime.schedule();
+    let listed = crate::infrastructure::event_scheduler::list(pool, &state).await?;
+    let (overrides, drop_modifiers) = {
+        let s = state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        (s.overrides.clone(), s.drop_modifiers.clone())
+    };
+    Ok(ScheduleView {
+        templates: assets.event_templates().to_vec(),
+        events: listed
+            .into_iter()
+            .map(|l| {
+                let r = l.registration;
+                let mut unsupported_commands = unsupported(r.start_script.as_deref());
+                unsupported_commands.extend(unsupported(r.end_script.as_deref()));
+                ScheduledEventView {
+                    name: r.name,
+                    template: r.template,
+                    feature: r.feature,
+                    start_script: r.start_script,
+                    end_script: r.end_script,
+                    start_at: r.start_at,
+                    end_at: r.end_at,
+                    period_begin: r.period_begin,
+                    period_end: r.period_end,
+                    start_message: r.start_message,
+                    notify_message: r.notify_message,
+                    end_message: r.end_message,
+                    notify_interval: r.notify_interval,
+                    running: l.running,
+                    unsupported: unsupported_commands,
+                }
+            })
+            .collect(),
+        offset_seconds: runtime.quest_clock().civil_offset_seconds,
+        overrides,
+        drop_modifiers,
+    })
+}
+
+async fn audit_alone(
+    actor: &Actor<'_>,
+    pool: &PgPool,
+    action: &'static str,
+    name: &str,
+) -> Result<(), AdminError> {
+    let mut tx = pool.begin().await?;
+    match crate::infrastructure::admin_store::insert_audit(
+        &mut tx,
+        &audit(actor, action, "event", name),
+    )
+    .await
+    {
+        Ok(()) => Ok(tx.commit().await?),
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => {
+            Err(AdminError::RepeatedOperation)
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// RegisterEvent (admin, audited): the next minute's pass starts it when due.
+pub async fn register_event(
+    pool: &PgPool,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+    actor: &Actor<'_>,
+    request: ScheduleRequest,
+) -> Result<ScheduleView, AdminError> {
+    use crate::infrastructure::event_scheduler::{self as scheduler, RegisterError};
+    require(actor.session, Permission::Administer)?;
+    let runtime = runtime.ok_or(AdminError::ContentUnavailable)?;
+    let assets = runtime
+        .minimum_assets()
+        .ok_or(AdminError::ContentUnavailable)?;
+    let templates = |name: &str| {
+        assets
+            .event_templates()
+            .iter()
+            .find(|t| t.name == name)
+            .map(|t| {
+                (
+                    t.feature.clone(),
+                    t.start_script.clone(),
+                    t.end_script.clone(),
+                )
+            })
+    };
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+    let name = request.name.clone();
+    let registration = scheduler::Registration {
+        name: request.name,
+        template: request.template,
+        feature: request.feature,
+        start_script: request.start_script,
+        end_script: request.end_script,
+        start_at: request.start_at,
+        end_at: request.end_at,
+        period_begin: request.period_begin,
+        period_end: request.period_end,
+        start_message: request.start_message,
+        notify_message: request.notify_message,
+        end_message: request.end_message,
+        notify_interval: request.notify_interval,
+    };
+    let state = runtime.schedule();
+    match scheduler::register(
+        pool,
+        &state,
+        &templates,
+        registration,
+        actor.session.account_id,
+        now,
+    )
+    .await?
+    {
+        Ok(()) => {}
+        Err(RegisterError::Running) => return Err(AdminError::Exists),
+        Err(RegisterError::NoTemplate) => return Err(AdminError::NotFound),
+        Err(RegisterError::Time | RegisterError::Invalid) => return Err(AdminError::InvalidInput),
+    }
+    drop(assets);
+    audit_alone(actor, pool, "content.schedule", &name).await?;
+    schedule(actor.session, pool, Some(runtime)).await
+}
+
+/// RemoveEvent (admin, audited): a running event ends at the next minute's pass.
+pub async fn remove_event(
+    pool: &PgPool,
+    runtime: Option<&crate::infrastructure::lab_frontend::Runtime>,
+    actor: &Actor<'_>,
+    name: &str,
+) -> Result<ScheduleView, AdminError> {
+    require(actor.session, Permission::Administer)?;
+    if !crate::infrastructure::event_scheduler::remove(pool, name).await? {
+        return Err(AdminError::NotFound);
+    }
+    audit_alone(actor, pool, "content.schedule_remove", name).await?;
+    schedule(actor.session, pool, runtime).await
+}

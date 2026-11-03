@@ -111,6 +111,9 @@ pub struct Runtime {
     web_shop: super::lab_web_shop::Sessions,
     maintenance: super::maintenance::Maintenance,
     content_output: Option<std::path::PathBuf>,
+    /// The panel's event schedule (AdminClient EventDataContext): overrides, drop
+    /// modifiers and running events, applied on every content reload.
+    schedule: Arc<std::sync::Mutex<crate::domain::event_schedule::State>>,
 }
 impl Runtime {
     pub fn new(
@@ -162,6 +165,7 @@ impl Runtime {
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
             content_output: None,
+            schedule: Default::default(),
             registry: SessionRegistry::with_capacity(MAX_CONNECTIONS)
                 .map_err(|_| RuntimeError::Operation)?,
         })
@@ -212,6 +216,15 @@ impl Runtime {
         let minimum = self.minimum.as_ref().ok_or(RuntimeError::Profile)?;
         let source = minimum.source.clone();
         let arithmetic = self.stat_arithmetic();
+        let mut overlay = overlay;
+        {
+            let schedule = self
+                .schedule
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            overlay.scheduled = schedule.overrides.clone();
+            overlay.drop_modifiers = schedule.drop_modifiers.clone();
+        }
         let assets = tokio::task::spawn_blocking(move || {
             super::minimum_assets::Assets::read_with_overlay(&source, &overlay)
                 .map(|a| a.with_item_arithmetic(arithmetic))
@@ -221,6 +234,10 @@ impl Runtime {
         .map_err(|_| RuntimeError::Profile)?;
         minimum.assets.replace(assets);
         Ok(())
+    }
+    /// The event schedule's state (the scheduler task and the panel).
+    pub fn schedule(&self) -> Arc<std::sync::Mutex<crate::domain::event_schedule::State>> {
+        Arc::clone(&self.schedule)
     }
     /// Where the overlay for the client launcher is written (`--content-edits-output`).
     pub fn with_content_output(mut self, path: Option<std::path::PathBuf>) -> Self {
@@ -387,7 +404,7 @@ impl Runtime {
             FrameworkArchitecture::X64 => Arithmetic::FrameworkX64,
         }
     }
-    fn quest_clock(&self) -> super::minimum_quest::QuestClock {
+    pub(crate) fn quest_clock(&self) -> super::minimum_quest::QuestClock {
         super::minimum_quest::QuestClock {
             arithmetic: self.stat_arithmetic(),
             civil_offset_seconds: i64::from(self.profile.civil_offset_seconds()),
@@ -4039,6 +4056,22 @@ impl Connection {
                                     "minimum daily story process rejected; values omitted"
                                 ),
                             }
+                            // InGame.OnEnter: FirstIncomeMessage, one Notice a second from 20 s.
+                            let first = runtime
+                                .schedule()
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                                .first_income();
+                            for (n, line) in first.into_iter().enumerate() {
+                                if let Ok(p) = super::minimum_shop::system_message(1, &line, &[]) {
+                                    let hub = runtime.party.clone();
+                                    tokio::spawn(async move {
+                                        tokio::time::sleep(Duration::from_secs(20 + n as u64))
+                                            .await;
+                                        hub.send(cid, vec![p]);
+                                    });
+                                }
+                            }
                             // SelectCharacterProcessor: RefreshAllUserGoalEvent.
                             match super::minimum_all_user_goal::login_message(pool, assets).await {
                                 Ok(Some(p)) => entered.push(p),
@@ -6670,8 +6703,9 @@ pub async fn connection(
   // lists Delia besides the ten classes of the V4 bar; the lab client.dll runs it as the NA's
   // CharacterCreation_UI_V3 flow (scripts/client/patch_class_routing.py, CREATION_GRID).
   // The panel's event switches (laboratory extension) reach the client as overrides too.
-  let event_switches:Vec<(String,&'static str)>=runtime.minimum_assets().map(|a|a.event_overrides.iter().map(|(k,on)|(k.clone(),crate::domain::content_overlay::Overlay::event_value(*on))).collect()).unwrap_or_default();
-  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)},FeatureEntry{key:"ingame_cashshop_purchaseURL",value:Some(super::lab_web_shop::PURCHASE_URL)},FeatureEntry{key:"S3_CharacterCreation",value:Some("3.09.00")}].into_iter().chain(event_switches.iter().map(|(k,v)|FeatureEntry{key:k,value:Some(v)})).collect())};
+  // The running scheduled events' keys follow (FeatureMatrix.OverrideFeature of the AdminClient).
+  let event_switches:Vec<(String,String)>=runtime.minimum_assets().map(|a|a.event_overrides.iter().map(|(k,on)|(k.clone(),crate::domain::content_overlay::Overlay::event_value(*on).to_owned())).chain(a.scheduled_features.iter().map(|(k,v)|(k.clone(),v.clone()))).collect()).unwrap_or_default();
+  let features=FeatureMatrix{features:Some(vec![FeatureEntry{key:"NGM_disable",value:Some("1")},FeatureEntry{key:"CashShop",value:Some("1.04.08")},FeatureEntry{key:"ingame_cashshop_shopListURL",value:Some(LAB_SHOP_LIST_URL)},FeatureEntry{key:"ingame_cashshop_purchaseURL",value:Some(super::lab_web_shop::PURCHASE_URL)},FeatureEntry{key:"S3_CharacterCreation",value:Some("3.09.00")}].into_iter().chain(event_switches.iter().map(|(k,v)|FeatureEntry{key:k.as_str(),value:Some(v.as_str())})).collect())};
   let (mut sender,packets)=encode_initial_packets(salt,Some(&features),super::minimum_cash_shop::CATALOG_MAX_BODY,1024).map_err(|_|RuntimeError::Message)?;
   for bytes in packets{tokio::time::timeout(WRITE_TIMEOUT,stream.write_all(&bytes)).await.map_err(|_|RuntimeError::Timeout)??;}
   let mut receiver=LegacyReceiver::with_profile(CipherProfile::VindictusFrontend,DEFAULT_MAX_BODY);let mut buffer=Zeroizing::new([0u8;4096]);
@@ -6771,6 +6805,52 @@ async fn auto_listing(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Rece
         }
     }
 }
+/// The panel's event schedule: a ProcessEvent pass at start and at each minute boundary.
+async fn event_schedule(runtime: Arc<Runtime>, pool: PgPool, mut stop: watch::Receiver<bool>) {
+    let mut wait = Duration::from_secs(5);
+    loop {
+        tokio::select! {
+            _ = stop.changed() => return,
+            _ = tokio::time::sleep(wait) => {}
+        }
+        if *stop.borrow() {
+            return;
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        let millis = i64::try_from(now.as_millis()).unwrap_or(0);
+        wait = Duration::from_millis(super::event_scheduler::until_next_minute(millis));
+        let offset = runtime.quest_clock().civil_offset_seconds;
+        let schedule = runtime.schedule();
+        let pass =
+            match super::event_scheduler::process(&pool, &schedule, millis / 1000, offset).await {
+                Ok(pass) => pass,
+                Err(_) => {
+                    tracing::warn!("event schedule pass refused; values omitted");
+                    continue;
+                }
+            };
+        for command in &pass.unsupported {
+            tracing::warn!(command = %command, "event schedule command not migrated");
+        }
+        if pass.reload {
+            match super::content_edits::loaded_overlay(&pool).await {
+                Ok(overlay) => match runtime.reload_assets(overlay).await {
+                    Ok(()) => tracing::info!("event schedule applied to the content"),
+                    Err(_) => tracing::warn!("event schedule content reload failed"),
+                },
+                Err(_) => tracing::warn!("event schedule overlay unreadable"),
+            }
+        }
+        // BroadcastMessage: NotifyClient(Notice) to every client.
+        for notice in &pass.notices {
+            if let Ok(p) = super::minimum_shop::system_message(1, notice, &[]) {
+                runtime.party.announce_all(p, false, 0);
+            }
+        }
+    }
+}
 pub async fn run(
     listener: TcpListener,
     runtime: Arc<Runtime>,
@@ -6783,6 +6863,7 @@ pub async fn run(
     let (stop, sig) = watch::channel(false);
     let mut tasks = JoinSet::new();
     let auto_listing = tokio::spawn(auto_listing(runtime.clone(), pool.clone(), sig.clone()));
+    let schedule = tokio::spawn(event_schedule(runtime.clone(), pool.clone(), sig.clone()));
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
@@ -6795,6 +6876,7 @@ pub async fn run(
     }
     let _ = stop.send(true);
     let _ = auto_listing.await;
+    let _ = schedule.await;
     let drained = tokio::time::timeout(Duration::from_secs(10), async {
         while tasks.join_next().await.is_some() {}
     })

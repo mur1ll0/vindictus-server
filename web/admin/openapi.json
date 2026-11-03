@@ -3337,6 +3337,196 @@
         }
       }
     },
+    "/api/tuning/schedule": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "The event schedule (laboratory extension of the AdminClient events): templates,\nregistered events and what is running.",
+        "operationId": "schedule",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Register or change an event (admin): it starts and ends by its times at the minute.",
+        "operationId": "register_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tuning/schedule/{name}": {
+      "delete": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Remove an event (admin): a running one ends at the next minute.",
+        "operationId": "remove_event",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "operation_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleView"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/world": {
       "get": {
         "tags": [
@@ -5074,6 +5264,37 @@
           }
         }
       },
+      "EventTemplate": {
+        "type": "object",
+        "description": "AdminContents.EventTemplate: Name, Feature, StartScript, EndScript.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "end_script": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "feature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "start_script": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "EventTradeView": {
         "type": "object",
         "description": "An item sold by an NPC shop or a coupon shop of the event.",
@@ -6505,6 +6726,252 @@
           "operation_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "ScheduleRequest": {
+        "type": "object",
+        "description": "A registration (admin): a template fills Feature and the scripts; given fields win.",
+        "required": [
+          "operation_id",
+          "name"
+        ],
+        "properties": {
+          "end_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "end_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_script": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "feature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "notify_interval": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "notify_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period_begin": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "period_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "start_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "start_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_script": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ScheduleView": {
+        "type": "object",
+        "required": [
+          "templates",
+          "events",
+          "offset_seconds",
+          "overrides",
+          "drop_modifiers"
+        ],
+        "properties": {
+          "drop_modifiers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduledEventView"
+            }
+          },
+          "offset_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The server's civil offset (local = UTC + offset) for the daily period."
+          },
+          "overrides": {
+            "type": "object",
+            "description": "The running events' keys and drop modifiers.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventTemplate"
+            }
+          }
+        }
+      },
+      "ScheduledEventView": {
+        "type": "object",
+        "description": "A registered event of the schedule (Ajustes de jogo → Agenda).",
+        "required": [
+          "name",
+          "running",
+          "unsupported"
+        ],
+        "properties": {
+          "end_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "end_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_script": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "feature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "notify_interval": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "notify_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "period_begin": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds of the server's local day."
+          },
+          "period_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "start_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "UTC Unix seconds."
+          },
+          "start_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_script": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "template": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unsupported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Script commands the laboratory does not run (freetoken, droptable mod_fishing, …)."
           }
         }
       },

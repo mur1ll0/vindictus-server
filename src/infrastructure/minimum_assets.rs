@@ -152,6 +152,9 @@ pub struct Assets {
     /// The panel's event switches (content overlay), sent to the client in
     /// SyncFeatureMatrix and already applied to the catalog and NPC policies.
     pub event_overrides: std::collections::BTreeMap<String, bool>,
+    /// The keys of the running scheduled events (event schedule), sent to the client in
+    /// SyncFeatureMatrix after the switches.
+    pub scheduled_features: std::collections::BTreeMap<String, String>,
 }
 /// Already parsed, source-bound packages; construction still validates all bindings.
 pub struct Parts {
@@ -251,6 +254,10 @@ impl Assets {
     pub fn event_switches(&self) -> &[super::item_economy::EventSwitch] {
         self.economy.as_ref().map_or(&[], |e| e.events())
     }
+    /// The event schedule's templates (EventTemplate).
+    pub fn event_templates(&self) -> &[super::item_economy::EventTemplate] {
+        self.economy.as_ref().map_or(&[], |e| e.event_templates())
+    }
     /// The catalog FeatureMatrix's CurrentVer.
     pub fn feature_version(&self) -> &str {
         self.catalog.policy.current_version()
@@ -328,6 +335,10 @@ impl Assets {
                         key,
                         crate::domain::content_overlay::Overlay::event_value(*on).to_owned(),
                     );
+                }
+                // Keys of the running scheduled events (FeatureMatrix.OverrideFeature).
+                for (key, value) in &overlay.scheduled {
+                    catalog.policy.override_value(key, value.clone());
                 }
                 catalog
             },
@@ -408,6 +419,7 @@ impl Assets {
         }
         assets.content_version = overlay.version;
         assets.event_overrides = overlay.events.clone();
+        assets.scheduled_features = overlay.scheduled.clone();
         match f.relay_bind {
             Some(bind) if bind.ip().is_loopback() && bind.port() != 0 => assets.relay = Some(bind),
             None => {}
@@ -437,7 +449,11 @@ impl Assets {
                     crate::domain::content_overlay::Overlay::event_value(*on).to_owned(),
                 );
             }
+            for (key, value) in &overlay.scheduled {
+                profile.policy.override_value(key, value.clone());
+            }
             if let Some(mission) = profile.mission.as_mut() {
+                mission.set_drop_modifiers(overlay.drop_modifiers.clone());
                 for (quest, [min, max]) in &overlay.quest_drops {
                     mission.set_drop_counts(quest, *min, *max);
                 }
@@ -519,6 +535,7 @@ impl Assets {
             relay: None,
             content_version: 0,
             event_overrides: Default::default(),
+            scheduled_features: Default::default(),
         };
         out.initializer.bind(&out.catalog)?;
         out.inventory.bind(&out.catalog)?;

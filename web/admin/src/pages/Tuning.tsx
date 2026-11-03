@@ -6,6 +6,7 @@ import { api, type components, fail } from '@/api/client';
 import { contentState } from '@/api/content';
 import { sessionQuery } from '@/api/session';
 import { EventDetail } from '@/components/EventDetail';
+import { SchedulePanel } from '@/components/SchedulePanel';
 import { errorText } from '@/components/forms';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -299,13 +300,13 @@ type Item = {
   build: (values: number[]) => EditRequest;
 };
 
-type Tab = 'rates' | 'drops' | 'enhance' | 'enchant' | 'market' | 'events';
+type Tab = 'rates' | 'drops' | 'enhance' | 'enchant' | 'market' | 'events' | 'schedule';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const show = (values: number[], unit: string) => values.map((v) => `${v}${unit}`).join('–');
 
 /** The page's items; `key` is "<edit kind>|<edit target>", as the content edits store it. */
-function items(t: Tuning): Record<Exclude<Tab, 'market' | 'events'>, Item[]> {
+function items(t: Tuning): Record<Exclude<Tab, 'market' | 'events' | 'schedule'>, Item[]> {
   return {
     rates: t.features.map((f) => ({
       key: `feature|${f.key}`,
@@ -483,8 +484,9 @@ export function TuningPage() {
     { id: 'enchant', label: 'Enchant', n: all?.enchant.length },
     { id: 'market', label: 'Mercado automático', n: undefined },
     { id: 'events', label: 'Eventos', n: data.data?.events.length },
+    { id: 'schedule', label: 'Agenda', n: undefined },
   ] as const;
-  const shown = (tab === 'market' || tab === 'events' ? [] : (all?.[tab] ?? []))
+  const shown = (tab === 'market' || tab === 'events' || tab === 'schedule' ? [] : (all?.[tab] ?? []))
     .filter((i) => tab === 'rates' || tab === 'enhance' || !term || `${i.title} ${i.detail}`.toLowerCase().includes(term))
     .slice(0, 300);
 
@@ -542,6 +544,7 @@ export function TuningPage() {
       </div>
       {tab === 'market' && <MarketAutoPanel editable={editable} />}
       {tab === 'events' && data.data && <EventsPanel events={data.data.events} editable={editable} onSaved={setResult} />}
+      {tab === 'schedule' && <SchedulePanel editable={editable} />}
       {tab !== 'rates' && tab !== 'enhance' && tab !== 'market' && tab !== 'events' && (
         <div className="relative max-w-sm">
           <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" />

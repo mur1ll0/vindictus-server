@@ -983,6 +983,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tuning/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The event schedule (laboratory extension of the AdminClient events): templates,
+         *     registered events and what is running.
+         */
+        get: operations["schedule"];
+        put?: never;
+        /** Register or change an event (admin): it starts and ends by its times at the minute. */
+        post: operations["register_event"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tuning/schedule/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an event (admin): a running one ends at the next minute. */
+        delete: operations["remove_event"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/world": {
         parameters: {
             query?: never;
@@ -1559,6 +1597,13 @@ export interface components {
              */
             title: number;
         };
+        /** @description AdminContents.EventTemplate: Name, Feature, StartScript, EndScript. */
+        EventTemplate: {
+            end_script?: string | null;
+            feature?: string | null;
+            name: string;
+            start_script?: string | null;
+        };
         /** @description An item sold by an NPC shop or a coupon shop of the event. */
         EventTradeView: {
             item: components["schemas"]["EventItemView"];
@@ -2075,6 +2120,75 @@ export interface components {
             draft: components["schemas"]["ItemDraft"];
             /** Format: uuid */
             operation_id: string;
+        };
+        /** @description A registration (admin): a template fills Feature and the scripts; given fields win. */
+        ScheduleRequest: {
+            /** Format: int64 */
+            end_at?: number | null;
+            end_message?: string | null;
+            end_script?: string | null;
+            feature?: string | null;
+            name: string;
+            /** Format: int32 */
+            notify_interval?: number | null;
+            notify_message?: string | null;
+            /** Format: uuid */
+            operation_id: string;
+            /** Format: int32 */
+            period_begin?: number | null;
+            /** Format: int32 */
+            period_end?: number | null;
+            /** Format: int64 */
+            start_at?: number | null;
+            start_message?: string | null;
+            start_script?: string | null;
+            template?: string | null;
+        };
+        ScheduleView: {
+            drop_modifiers: {
+                [key: string]: number;
+            };
+            events: components["schemas"]["ScheduledEventView"][];
+            /**
+             * Format: int64
+             * @description The server's civil offset (local = UTC + offset) for the daily period.
+             */
+            offset_seconds: number;
+            /** @description The running events' keys and drop modifiers. */
+            overrides: {
+                [key: string]: string;
+            };
+            templates: components["schemas"]["EventTemplate"][];
+        };
+        /** @description A registered event of the schedule (Ajustes de jogo → Agenda). */
+        ScheduledEventView: {
+            /** Format: int64 */
+            end_at?: number | null;
+            end_message?: string | null;
+            end_script?: string | null;
+            feature?: string | null;
+            name: string;
+            /** Format: int32 */
+            notify_interval?: number | null;
+            notify_message?: string | null;
+            /**
+             * Format: int32
+             * @description Seconds of the server's local day.
+             */
+            period_begin?: number | null;
+            /** Format: int32 */
+            period_end?: number | null;
+            running: boolean;
+            /**
+             * Format: int64
+             * @description UTC Unix seconds.
+             */
+            start_at?: number | null;
+            start_message?: string | null;
+            start_script?: string | null;
+            template?: string | null;
+            /** @description Script commands the laboratory does not run (freetoken, droptable mod_fishing, …). */
+            unsupported: string[];
         };
         SessionResponse: {
             /** @description Send back in the X-CSRF-Token header of every POST/PUT/DELETE. */
@@ -4671,6 +4785,151 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    schedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    register_event: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    remove_event: {
+        parameters: {
+            query: {
+                operation_id: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleView"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

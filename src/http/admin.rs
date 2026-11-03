@@ -155,6 +155,9 @@ impl AdminState {
         content::tuning,
         content::save_tuning,
         content::event_detail,
+        content::schedule,
+        content::register_event,
+        content::remove_event,
         content::market_auto,
         content::save_market_auto,
         content::content_state,
@@ -351,6 +354,14 @@ pub fn router(state: AdminState, ui_dir: Option<&Path>) -> Router {
             get(content::tuning).post(content::save_tuning),
         )
         .route("/api/tuning/events/{key}", get(content::event_detail))
+        .route(
+            "/api/tuning/schedule",
+            get(content::schedule).post(content::register_event),
+        )
+        .route(
+            "/api/tuning/schedule/{name}",
+            axum::routing::delete(content::remove_event),
+        )
         .route(
             "/api/tuning/market-auto",
             get(content::market_auto).post(content::save_market_auto),

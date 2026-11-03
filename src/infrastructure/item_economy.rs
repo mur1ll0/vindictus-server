@@ -110,6 +110,18 @@ struct Export {
     /// FeatureMatrix event switches of the region with the content rows per table.
     #[serde(default)]
     events: Vec<EventSwitch>,
+    /// EventTemplate rows (the event schedule's templates).
+    #[serde(default)]
+    event_templates: Vec<EventTemplate>,
+}
+/// AdminContents.EventTemplate: Name, Feature, StartScript, EndScript.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, serde::Serialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EventTemplate {
+    pub name: String,
+    pub feature: Option<String>,
+    pub start_script: Option<String>,
+    pub end_script: Option<String>,
 }
 /// An event switch of the FeatureMatrix: its value in the region and its uses.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -237,6 +249,7 @@ pub struct Profile {
     mail_types: Vec<crate::domain::mail::MailTypeInfo>,
     marketplace: Option<Marketplace>,
     events: Vec<EventSwitch>,
+    event_templates: Vec<EventTemplate>,
 }
 impl Profile {
     pub fn read(reader: impl Read) -> Result<Self, MinimumError> {
@@ -396,7 +409,12 @@ impl Profile {
             mail_types: export.mail_types,
             marketplace,
             events: export.events,
+            event_templates: export.event_templates,
         })
+    }
+    /// The event schedule's templates (EventTemplate).
+    pub fn event_templates(&self) -> &[EventTemplate] {
+        &self.event_templates
     }
     /// The region's FeatureMatrix event switches (the panel's Eventos tab).
     pub fn events(&self) -> &[EventSwitch] {

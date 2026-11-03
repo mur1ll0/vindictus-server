@@ -76,8 +76,13 @@ class ItemEconomyExportTests(unittest.TestCase):
             # A master switch gates its whole table (PeriodicEventScheduler's BoostEvent).
             db.execute('CREATE TABLE PeriodicEventInfo(Identifier INT,RewardType TEXT,RewardArg TEXT,Amount INT,Possibility INT,AnnounceLocalizedKey TEXT,Feature TEXT)')
             db.execute("INSERT INTO PeriodicEventInfo VALUES(1,'Gold',NULL,1000,49000,NULL,'disable')")
+            db.execute('CREATE TABLE EventTemplate(Name TEXT,Feature TEXT,StartScript TEXT,EndScript TEXT)')
+            db.execute("INSERT INTO EventTemplate VALUES('#exp2x','ExpRate_Combat[200];ExpRate_Monster[200]','monster_refresh;quest_refresh;','monster_refresh;')")
             db.commit()
-        events = read_package(self.db, self.config)['events']
+        package = read_package(self.db, self.config)
+        self.assertEqual(package['event_templates'], [dict(name='#exp2x', feature='ExpRate_Combat[200];ExpRate_Monster[200]',
+                                                           start_script='monster_refresh;quest_refresh;', end_script='monster_refresh;')])
+        events = package['events']
         empty = {'shops': [], 'coupons': [], 'drops': [], 'quests': [], 'stories': [], 'titles': [], 'periodic': [], 'goals': []}
         self.assertEqual(events, [dict(key='BoostEvent', value=None, uses={'PeriodicEventInfo': 1}, detail={**empty, 'periodic': [['Gold', None, 1000, 49000]]}),
                                   dict(key='Event_xmas_2012', value=None, uses={'ShopInfo': 2},

@@ -1558,3 +1558,50 @@ fn boss_kills_drop_one_event_core_per_available_event_table() {
             .any(|(m, f, c)| (m, f, c) == (12, "CurrentVer", "chief_gem"))
     );
 }
+
+#[test]
+fn droptable_modifiers_scale_the_drop_weights() {
+    let mut contents = MissionContents::load(tables(), &policy()).unwrap();
+    let digest = contents.digest("quest_a", -1).unwrap();
+    let mut sequence = contents
+        .sector_sequence(&digest, 1, false, false, &mut Script::default())
+        .unwrap();
+    assert!(contents.move_next("quest_a", &mut sequence, "", 1).unwrap());
+    let normal = contents.monster_info("npc_gnoll normal", 1);
+    let pick = |contents: &MissionContents, sequence: &mut _, key: &str, roll: i32| {
+        contents
+            .make_evil_core(
+                sequence,
+                key,
+                1,
+                normal,
+                false,
+                "quest_a",
+                1,
+                100,
+                1,
+                (&mut [], "npc_gnoll normal"),
+                (false, 0),
+                &mut Script {
+                    range: [roll].into(),
+                    ..Script::default()
+                },
+            )
+            .unwrap();
+    };
+    // The roll 7000 picks rare_gem without modifiers (see the evil core test).
+    pick(&contents, &mut sequence, "a", 7000);
+    // droptable mod cloth_lvl1 200: cloth_lvl1 weighs twice as much and takes the roll.
+    contents.set_drop_modifiers([("cloth_lvl1".to_owned(), 200)].into());
+    pick(&contents, &mut sequence, "b", 7000);
+    let items = |key: &str| {
+        sequence
+            .cores
+            .iter()
+            .find(|c| c.key == key)
+            .map(|c| c.items[0].1.clone())
+            .unwrap()
+    };
+    assert_eq!(items("a"), ["rare_gem"]);
+    assert_eq!(items("b"), ["cloth_lvl1"]);
+}

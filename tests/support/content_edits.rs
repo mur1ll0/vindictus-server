@@ -535,3 +535,140 @@ async fn item_editor_edits_reach_the_overlay() {
         .unwrap();
     admin_pool.close().await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn event_schedule_registers_runs_and_removes_events() {
+    use vindictus_server::{
+        domain::event_schedule::State,
+        infrastructure::event_scheduler::{self as scheduler, RegisterError, Registration},
+    };
+    let (admin_pool, pool, schema) = isolated_pool().await;
+    create_account(
+        &pool,
+        Username::parse("Agenda").unwrap(),
+        Zeroizing::new(PASSWORD.as_bytes().to_vec()),
+    )
+    .await
+    .unwrap();
+    let account: Uuid = sqlx::query_scalar("SELECT id FROM accounts LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let state = std::sync::Mutex::new(State::default());
+    let templates = |name: &str| {
+        (name == "#exp2x").then(|| {
+            (
+                Some("ExpRate_Combat[200];Event_xmas".to_owned()),
+                Some("droptable mod gold_ore 300;monster_refresh;".to_owned()),
+                Some("droptable reset gold_ore;".to_owned()),
+            )
+        })
+    };
+    let now = 1_793_700_000;
+    let reg =
+        |name: &str, template: Option<&str>, start: Option<i64>, end: Option<i64>| Registration {
+            name: name.to_owned(),
+            template: template.map(str::to_owned),
+            start_at: start,
+            end_at: end,
+            start_message: Some("started".into()),
+            ..Registration::default()
+        };
+    // Refusals: an unknown template, a start in the past, an empty name.
+    for (r, e) in [
+        (
+            reg("x", Some("#nope"), None, None),
+            RegisterError::NoTemplate,
+        ),
+        (reg("x", None, Some(now - 60), None), RegisterError::Time),
+        (reg(" ", None, None, None), RegisterError::Invalid),
+    ] {
+        assert_eq!(
+            scheduler::register(&pool, &state, &templates, r, account, now)
+                .await
+                .unwrap(),
+            Err(e)
+        );
+    }
+    // The template fills Feature and the scripts; it runs from now + 60 to now + 3600.
+    scheduler::register(
+        &pool,
+        &state,
+        &templates,
+        reg("exp", Some("#exp2x"), Some(now + 60), Some(now + 3600)),
+        account,
+        now,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let pass = scheduler::process(&pool, &state, now, 0).await.unwrap();
+    assert!(!pass.reload && pass.notices.is_empty(), "not started yet");
+    let pass = scheduler::process(&pool, &state, now + 120, 0)
+        .await
+        .unwrap();
+    assert!(pass.reload);
+    assert_eq!(pass.notices, ["started"]);
+    {
+        let s = state.lock().unwrap();
+        assert_eq!(
+            s.overrides.get("ExpRate_Combat").map(String::as_str),
+            Some("200")
+        );
+        assert_eq!(s.drop_modifiers.get("gold_ore"), Some(&300));
+    }
+    let listed = scheduler::list(&pool, &state).await.unwrap();
+    assert!(listed[0].running);
+    assert_eq!(
+        listed[0].registration.feature.as_deref(),
+        Some("ExpRate_Combat[200];Event_xmas")
+    );
+    // A running event cannot change.
+    assert_eq!(
+        scheduler::register(
+            &pool,
+            &state,
+            &templates,
+            reg("exp", None, None, None),
+            account,
+            now
+        )
+        .await
+        .unwrap(),
+        Err(RegisterError::Running)
+    );
+    // Removed from the table: it ends at the next pass and everything goes back.
+    assert!(scheduler::remove(&pool, "exp").await.unwrap());
+    let pass = scheduler::process(&pool, &state, now + 180, 0)
+        .await
+        .unwrap();
+    assert!(pass.reload);
+    assert!(state.lock().unwrap().overrides.is_empty());
+    // Past its EndTime an event is deleted.
+    scheduler::register(
+        &pool,
+        &state,
+        &templates,
+        reg("short", None, None, Some(now + 600)),
+        account,
+        now,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    scheduler::process(&pool, &state, now + 300, 0)
+        .await
+        .unwrap();
+    assert!(state.lock().unwrap().running.contains_key("short"));
+    scheduler::process(&pool, &state, now + 600, 0)
+        .await
+        .unwrap();
+    assert!(scheduler::list(&pool, &state).await.unwrap().is_empty());
+    pool.close().await;
+    sqlx::query(&format!("DROP SCHEMA {schema} CASCADE"))
+        .execute(&admin_pool)
+        .await
+        .unwrap();
+    admin_pool.close().await;
+}

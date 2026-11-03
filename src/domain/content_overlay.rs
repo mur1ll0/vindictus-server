@@ -41,6 +41,13 @@ pub struct Overlay {
     /// collective goals' windows move to (laboratory extension).
     #[serde(default)]
     pub event_since: BTreeMap<String, i64>,
+    /// Keys of the running scheduled events (`event_schedule::State::overrides`), applied
+    /// after the switches; never part of the published overlay.
+    #[serde(skip)]
+    pub scheduled: BTreeMap<String, String>,
+    /// MicroPlayContents.dropItemModifier of the running events' `droptable mod`.
+    #[serde(skip)]
+    pub drop_modifiers: BTreeMap<String, i32>,
 }
 
 /// The FeatureMatrix rates the panel tunes (percent; 100 = the original value).

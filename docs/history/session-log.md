@@ -3493,3 +3493,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV10.
 - Commits: (este)
 - Pendente / próxima ação: sessão de cliente EV1–EV10; decisão EventTemplate.
+
+## 2026-11-03 — B5 eventos E6: agenda de eventos (EventTemplate, chaves e droptable)
+- Feito: decisão do operador (03/11): "Chaves e droptable". `src/domain/event_schedule.rs` (EventDataContext.ProcessEvent: StartTime/EndTime/PeriodBegin/PeriodEnd, Start/End/RemoveEvent, avisos por NotifyInterval com padrão 1800 s, FirstIncomeMessage; UpdateFeatureMatrix `Chave`→"0"/`Chave[valor]`; ProcessScript com `droptable mod/reset`, `*_refresh` cobertos pela recarga e os demais como não migrados); `MissionContents::set_drop_modifiers` (GetDropItemModifier: Weight·mod/100 nas linhas absolutas e relacionais); `src/infrastructure/event_scheduler.rs` (tabela `game_event_schedules`, migração `0060_event_schedule`, RegisterEvent com modelo, horários não passados e evento rodando inalterável, passe a cada minuto); Runtime com o estado da agenda aplicado em toda recarga (`Overlay.scheduled`/`drop_modifiers`, políticas do catálogo e dos NPCs, `SyncFeatureMatrix`), laço `event_schedule` ao lado do mercado automático, avisos Notice para todos e mensagem de entrada 20 s depois. Exportador `export_item_economy.py` (`event_templates`, 370 modelos). Painel: aba Agenda (`SchedulePanel.tsx`), rotas `/api/tuning/schedule`, `openapi.json`/`schema.d.ts` regenerados. Pares de versão do FeatureMatrix regenerados com os valores dos modelos (oráculo, 65 comparações).
+- Verificação: `cargo test --test event_schedule` 2/2, `--test mission_content` 17/17 (novo `droptable_modifiers_scale_the_drop_weights`), `--test admin_http` 4/4; PostgreSQL `content_edits::event_schedule_registers_runs_and_removes_events` 1/1 e `content_edits` 3/3; Python `test_export_item_economy` OK; `tsc --noEmit` 0. Logs `.cache/verification/sch-*.log`.
+- Cliente: `docs/client-tests/B5-eventos.md` EV11.
+- Commits: (este)
+- Pendente / próxima ação: sessão de cliente EV1–EV11.
