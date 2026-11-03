@@ -27,12 +27,13 @@ impl FeaturePolicy {
     ) -> Result<Self, Error> {
         Self::bounded(rows, 256)
     }
-    /// NPC scripts and storylines reference 306 atoms (Default features, StoryLineInfo
-    /// features and <feature> conditions).
+    /// NPC scripts, storylines, quests, missions and the event systems (event drops,
+    /// periodic rewards, story periods, coupon shops) reference 563 atoms; the exporter
+    /// bounds the subset at 1024.
     pub fn npc_source(
         rows: impl IntoIterator<Item = (String, Option<String>)>,
     ) -> Result<Self, Error> {
-        Self::bounded(rows, 512)
+        Self::bounded(rows, 1024)
     }
     fn bounded(
         rows: impl IntoIterator<Item = (String, Option<String>)>,

@@ -3479,3 +3479,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-eventos.md` EV9 (painel).
 - Commits: (este)
 - Pendente / próxima ação: rebuild do Docker; decisões AllUserGoal e EventTemplate (MIGRATION.md).
+
+## 2026-11-03 — B5 eventos: correção do perfil NPC no Docker e rebuild
+- Feito: o `game` recusava o `npc-scripts.json` novo ("invalid private minimum creation assets"): as chaves das tabelas de evento elevaram o subconjunto do FeatureMatrix a 563 chaves e `FeaturePolicy::npc_source` limitava a 512; limite agora 1024 (o do exportador). Pares de versão regenerados pelo oráculo (`generate-npc-feature-pairs.ps1`: "80" e "1800" novos).
+- Verificação: leitura do perfil privado confirmada por uma sonda local (removida); `COMPOSE_PARALLEL_LIMIT=1 docker compose build` exit 0; `docker compose up -d --wait` exit 0, todos os serviços healthy, sem ERROR no log do game.
+- Cliente: roteiro `docs/client-tests/B5-eventos.md` EV1–EV9.
+- Commits: (este)
+- Pendente / próxima ação: sessão de cliente EV1–EV9; decisões AllUserGoal e EventTemplate (MIGRATION.md).
