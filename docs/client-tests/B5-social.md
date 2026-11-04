@@ -78,3 +78,12 @@ Pré-condição: A membro regular de uma guilda; C membro aguardando aprovação
 - [ ] Com a guilda nível 3+, A registra um item no mercado → a taxa cai a porcentagem do nível; nível 4+, reparo mais barato; nível 6+, refino mais barato.
 - [ ] Sem guilda (ou aguardando), A tenta usar o kit de fogueira de guilda (`guild_campfire_kit_lvl1`) → recusado por nível; com guilda nível 10+ → permitido.
 - [ ] A tenta excluir um personagem que está numa guilda (inclusive aguardando) → recusa `FailInGuild`; depois de sair da guilda, a exclusão funciona.
+
+### RK1–RK2 — Ranking
+Pré-condição: A e B com missões concluídas em dias diferentes; o ranking publica às 07:00 UTC (e na subida do servidor, se a publicação estiver atrasada). Para testar no mesmo dia, peça ao Claude para forçar uma publicação.
+- [ ] Depois da publicação, A abre a janela de ranking → aparecem os primeiros de cada ranking (batalhas concluídas, tempos por missão).
+- [ ] A abre um ranking (ex.: batalhas concluídas) → lista com até 100 nomes, posição e pontuação; troca diário/semanal/mensal.
+- [ ] A consulta o próprio ranking e o de B (pelo nome) → posições de cada um.
+- [ ] A marca um ranking como favorito → aparece na aba de favoritos; desmarca → some.
+- [ ] Ao entrar pela primeira vez no top 100 → aviso de ranking (alerta) uma única vez.
+- [ ] Anotar se o banner de ranking da cidade fica vazio (o sorteio do banner não está migrado).

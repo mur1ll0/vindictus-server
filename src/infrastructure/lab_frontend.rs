@@ -2520,6 +2520,168 @@ impl Connection {
         }
         Ok(packets)
     }
+    /// InGame ranking messages (RankConn with CharacterRank on): the published results of the
+    /// D-S3 ranking. Requests answered with nothing in the source (a failed or null result,
+    /// RequestSetRankFavorite, RequestSetRankGoal) send nothing.
+    #[allow(clippy::too_many_arguments)]
+    async fn rank_message(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: Option<crate::protocol::rank::Message>,
+    ) -> Result<(), RuntimeError> {
+        use super::rank as ranks;
+        use crate::protocol::rank::{self as wire, Message, PeriodResults};
+        let in_game = self.selected.is_some()
+            && self
+                .password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend));
+        let (Some(message), Some(cid), true) =
+            (message, self.selected.as_ref().map(|s| s.cid), in_game)
+        else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let enabled = assets
+            .npc_policy()
+            .map(|p| p.is_enabled(Some("CharacterRank")))
+            .transpose()
+            .map_err(|_| RuntimeError::Profile)?
+            .unwrap_or(false);
+        if !enabled {
+            self.log_unhandled(category, body);
+            return Ok(());
+        }
+        let op = |_| RuntimeError::Operation;
+        let reply = match message {
+            Message::QueryRankCharacter(q) => Some(Message::RankCharacter(PeriodResults {
+                rank_result: Some(
+                    ranks::by_cid(pool, q.cid, q.period_type)
+                        .await
+                        .map_err(op)?,
+                ),
+                period_type: q.period_type,
+            })),
+            Message::QueryRankAll(period_type) => Some(Message::RankAll(PeriodResults {
+                rank_result: Some(ranks::firsts(pool, period_type).await.map_err(op)?),
+                period_type,
+            })),
+            Message::QueryRank(q) => {
+                match ranks::event(assets, q.rank_id.as_deref().unwrap_or("")).map_err(op)? {
+                    Some((event_id, ..)) => Some(Message::RankInfo(PeriodResults {
+                        rank_result: Some(
+                            ranks::by_event(pool, event_id, q.period_type)
+                                .await
+                                .map_err(op)?,
+                        ),
+                        period_type: q.period_type,
+                    })),
+                    None => None,
+                }
+            }
+            Message::QueryRankFavorites(q) => Some(Message::RankFavorites(PeriodResults {
+                rank_result: Some(
+                    ranks::favorites(pool, q.cid, q.period_type)
+                        .await
+                        .map_err(op)?,
+                ),
+                period_type: q.period_type,
+            })),
+            Message::QueryRankHeavyFavorites => Some(Message::RankHeavyFavorites(Some(
+                ranks::heavy_favorites(pool).await.map_err(op)?,
+            ))),
+            Message::QueryRankAlarm(alarm_cid) => Some(Message::RankAlarm(Some(
+                ranks::alarms(pool, alarm_cid)
+                    .await
+                    .map_err(op)?
+                    .into_iter()
+                    .map(|(period_type, event_id, rank)| {
+                        Some(wire::Alarm {
+                            period_type,
+                            event_id,
+                            rank,
+                        })
+                    })
+                    .collect(),
+            ))),
+            // GetRankGoal's guild rival is a stub in the source: the answer has no rival.
+            Message::QueryRankGoal(q) => Some(Message::RankGoal(wire::Goal {
+                event_id: q.event_id,
+                rival_name: Some(String::new()),
+                rival_score: 0,
+                rank: 0,
+                rank_prev: 0,
+            })),
+            Message::QueryRankOther(q) if q.requester_cid != 0 => {
+                let name = q.character_name.clone().unwrap_or_default();
+                let target = super::minimum_party::character_info_by_name(pool, &name)
+                    .await
+                    .map_err(op)?;
+                let own = target.is_some_and(|(t, _)| t == cid);
+                let (level, base_character) = match target {
+                    Some((t, _)) => sqlx::query_as::<_, (i32, i32)>(
+                        "SELECT level,class::integer FROM game_character_info WHERE id=$1",
+                    )
+                    .bind(t)
+                    .fetch_optional(pool)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?
+                    .unwrap_or((0, 0)),
+                    None => (0, 0),
+                };
+                let results = match target {
+                    Some((t, _)) => ranks::by_cid(pool, t, q.period_type).await.map_err(op)?,
+                    None => Vec::new(),
+                };
+                let requester = if own {
+                    Vec::new()
+                } else {
+                    ranks::by_cid(pool, q.requester_cid, q.period_type)
+                        .await
+                        .map_err(op)?
+                };
+                Some(Message::RankOther(wire::Other {
+                    level,
+                    base_character,
+                    character_name: Some(name),
+                    rank_result: Some(results),
+                    requester_rank_result: Some(requester),
+                    period_type: q.period_type,
+                }))
+            }
+            Message::SetRankFavorite(f) => {
+                ranks::set_favorite(
+                    pool,
+                    assets,
+                    cid,
+                    f.rank_id.as_deref().unwrap_or(""),
+                    f.is_addition,
+                )
+                .await
+                .map_err(op)?;
+                None
+            }
+            // QueryRandomRank: the banner draw needs InGameBannerPosition/PeriodType, not
+            // exported yet; the answer has no banner.
+            Message::QueryRandomRank => Some(Message::RandomRank(Some(Vec::new()))),
+            _ => None,
+        };
+        if let Some(reply) = reply {
+            let kind = reply.kind();
+            let body = wire::encode(kind, Some(&reply), DEFAULT_MAX_BODY)
+                .map_err(|_| RuntimeError::Message)?;
+            send(stream, sender, kind.category(), &body).await?;
+        }
+        tracing::info!(category, "rank message processed; values omitted");
+        Ok(())
+    }
     /// GuildServiceProxy messages of the entered character. QueryGuildList works in every
     /// state; the others follow the proxy state (Initial: only ReconnectGuild; OutGuild:
     /// OpenGuild, GuildStoryRequest and the failures of member operations; InGuild: the
@@ -4969,6 +5131,19 @@ impl Connection {
                     .ok_or(RuntimeError::Message)?;
                 return self
                     .mail(runtime, pool, stream, sender, category, body, message)
+                    .await;
+            }
+        }
+        {
+            use crate::protocol::rank::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?;
+                return self
+                    .rank_message(runtime, pool, stream, sender, category, body, message)
                     .await;
             }
         }

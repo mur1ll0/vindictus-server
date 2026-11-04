@@ -329,3 +329,188 @@ pub async fn publish(
     tx.commit().await?;
     Ok(true)
 }
+
+use crate::protocol::rank::RankResult;
+
+/// EventID, n4Rank, n4Rank_Prev, Score and the character's name.
+type ResultRow = (i32, i32, i32, i64, Option<Vec<u8>>);
+
+/// The published rows of one period as RankResultInfo, with or without the character name
+/// (GetRank* fill it; GetRankByCID leaves it "").
+async fn results(
+    pool: &PgPool,
+    filter: &str,
+    bind_i64: i64,
+    period_type: i32,
+    named: bool,
+    limit: i64,
+) -> Result<Vec<Option<RankResult>>, MinimumError> {
+    let rows: Vec<ResultRow> = sqlx::query_as(&format!(
+        "SELECT r.event_id,r.n4_rank,r.n4_rank_prev,r.score,c.name_utf16 FROM game_rank_result r \
+         JOIN game_character_info c ON c.id=r.cid AND c.status=0 \
+         WHERE r.period_type=$2 AND {filter} ORDER BY r.event_id,r.n4_order LIMIT $3"
+    ))
+    .bind(bind_i64)
+    .bind(period_type as i16)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    rows.into_iter()
+        .map(|(event_id, rank, rank_prev, score, name)| {
+            let character_name = if named {
+                name.as_deref()
+                    .map(super::minimum_party::decode)
+                    .transpose()?
+                    .or_else(|| Some(String::new()))
+            } else {
+                Some(String::new())
+            };
+            Ok(Some(RankResult {
+                event_id,
+                rank,
+                rank_prev,
+                score,
+                character_name,
+            }))
+        })
+        .collect()
+}
+
+/// GetRankByCID: every published row of the character in the period.
+pub async fn by_cid(
+    pool: &PgPool,
+    cid: i64,
+    period_type: i32,
+) -> Result<Vec<Option<RankResult>>, MinimumError> {
+    results(pool, "r.cid=$1", cid, period_type, false, 10_000).await
+}
+
+/// GetRankByEventID: the first 100 of one event, with names.
+pub async fn by_event(
+    pool: &PgPool,
+    event_id: i32,
+    period_type: i32,
+) -> Result<Vec<Option<RankResult>>, MinimumError> {
+    results(
+        pool,
+        "r.event_id=$1::integer AND r.n4_rank<=100 AND r.n4_order<=100",
+        i64::from(event_id),
+        period_type,
+        true,
+        100,
+    )
+    .await
+}
+
+/// GetRank(P, RankLimit 1): the first of every event, with names.
+pub async fn firsts(
+    pool: &PgPool,
+    period_type: i32,
+) -> Result<Vec<Option<RankResult>>, MinimumError> {
+    results(
+        pool,
+        "$1=$1 AND r.n4_rank<=1 AND r.n4_order<=1",
+        0,
+        period_type,
+        true,
+        10_000,
+    )
+    .await
+}
+
+/// GetRankFavorites: the character's favorite events with its published row (0 when it is
+/// not ranked); RankPrev is 0.
+pub async fn favorites(
+    pool: &PgPool,
+    cid: i64,
+    period_type: i32,
+) -> Result<Vec<Option<RankResult>>, MinimumError> {
+    let rows: Vec<(i32, Option<i32>, Option<i64>)> = sqlx::query_as(
+        "SELECT f.event_id,r.n4_rank,r.score FROM game_rank_favorite f \
+         LEFT JOIN game_rank_result r ON r.event_id=f.event_id AND r.cid=f.cid AND r.period_type=$2 \
+         WHERE f.cid=$1 ORDER BY f.event_id LIMIT 1000",
+    )
+    .bind(cid)
+    .bind(period_type as i16)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(event_id, rank, score)| {
+            Some(RankResult {
+                event_id,
+                rank: rank.unwrap_or(0),
+                rank_prev: 0,
+                score: score.unwrap_or(0),
+                character_name: Some(String::new()),
+            })
+        })
+        .collect())
+}
+
+/// RankResultHeavyFavorites: the most favorited events (Score 0).
+pub async fn heavy_favorites(pool: &PgPool) -> Result<Vec<Option<RankResult>>, MinimumError> {
+    let rows: Vec<(i32, i32, i32)> = sqlx::query_as(
+        "SELECT event_id,n4_rank,n4_rank_prev FROM game_rank_heavy_favorite ORDER BY n4_rank,event_id LIMIT 100",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(event_id, rank, rank_prev)| {
+            Some(RankResult {
+                event_id,
+                rank,
+                rank_prev,
+                score: 0,
+                character_name: Some(String::new()),
+            })
+        })
+        .collect())
+}
+
+/// UpdateRankFavorite (RankFavoriteInsert/Delete) of an enabled RankID.
+pub async fn set_favorite(
+    pool: &PgPool,
+    assets: &Assets,
+    cid: i64,
+    rank_id: &str,
+    addition: bool,
+) -> Result<(), MinimumError> {
+    let Some((event_id, ..)) = event(assets, rank_id)? else {
+        return Ok(());
+    };
+    if addition {
+        sqlx::query(
+            "INSERT INTO game_rank_favorite(cid,event_id,last_update_seconds) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+        )
+        .bind(cid)
+        .bind(event_id)
+        .bind(now_seconds())
+        .execute(pool)
+        .await?;
+    } else {
+        sqlx::query("DELETE FROM game_rank_favorite WHERE cid=$1 AND event_id=$2")
+            .bind(cid)
+            .bind(event_id)
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
+}
+
+/// GetMyRank: the rows that entered the first 100 (from outside it or unranked before) and
+/// were not read yet, marked read. (PeriodType, EventID, Rank).
+pub async fn alarms(pool: &PgPool, cid: i64) -> Result<Vec<(i32, i32, i32)>, MinimumError> {
+    let rows: Vec<(i16, i32, i32)> = sqlx::query_as(
+        "UPDATE game_rank_result SET is_read=true WHERE cid=$1 AND NOT is_read AND n4_rank<=100 \
+         AND (n4_rank_prev>100 OR n4_rank_prev=0) RETURNING period_type,event_id,n4_rank",
+    )
+    .bind(cid)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(p, e, r)| (i32::from(p), e, r))
+        .collect())
+}

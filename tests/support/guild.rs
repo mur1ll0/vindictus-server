@@ -774,3 +774,65 @@ async fn rank_publication_by_period() {
     assert_eq!(weekly, [(2, 6), (1, 3)]);
     cleanup_game_pool(admin, p, schema).await;
 }
+
+#[tokio::test]
+#[ignore = "requires TEST_DATABASE_URL pointing to disposable PostgreSQL"]
+async fn rank_queries_read_the_published_results() {
+    use vindictus_server::domain::rank::ScoreType;
+    use vindictus_server::infrastructure::rank;
+    let (admin, p, schema) = isolated_game_pool().await;
+    character(&p, 1, 10, "Alice", 25).await;
+    character(&p, 2, 20, "Bob", 30).await;
+    let wed = 1_793_786_400;
+    let events = [
+        (50001, ScoreType::Count, false),
+        (20001, ScoreType::Time, true),
+    ];
+    rank::basis_update(&p, 1, 50001, ScoreType::Count, false, 3, 0, wed - 86_400)
+        .await
+        .unwrap();
+    rank::basis_update(&p, 2, 50001, ScoreType::Count, false, 1, 0, wed - 86_400)
+        .await
+        .unwrap();
+    rank::basis_update(&p, 2, 20001, ScoreType::Time, true, 8000, 0, wed - 86_400)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO game_rank_favorite VALUES(1,50001,0),(2,50001,0),(2,20001,0)")
+        .execute(&p)
+        .await
+        .unwrap();
+    rank::publish(&p, &events, wed).await.unwrap();
+    let mine = rank::by_cid(&p, 2, 1).await.unwrap();
+    let rows: Vec<_> = mine
+        .iter()
+        .map(|r| {
+            let r = r.as_ref().unwrap();
+            (r.event_id, r.rank, r.score, r.character_name.clone())
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (20001, 1, 8000, Some(String::new())),
+            (50001, 2, 1, Some(String::new()))
+        ]
+    );
+    let top = rank::by_event(&p, 50001, 1).await.unwrap();
+    assert_eq!(
+        top[0].as_ref().unwrap().character_name.as_deref(),
+        Some("Alice")
+    );
+    let firsts = rank::firsts(&p, 1).await.unwrap();
+    assert_eq!(firsts.len(), 2);
+    let favorites = rank::favorites(&p, 1, 1).await.unwrap();
+    assert_eq!(favorites[0].as_ref().unwrap().rank, 1);
+    let heavy = rank::heavy_favorites(&p).await.unwrap();
+    assert_eq!(heavy[0].as_ref().unwrap().event_id, 50001);
+    // Entering the first 100 from no rank: one alarm per row, then read.
+    assert_eq!(
+        rank::alarms(&p, 1).await.unwrap(),
+        [(1, 50001, 1), (2, 50001, 1), (3, 50001, 1)]
+    );
+    assert!(rank::alarms(&p, 1).await.unwrap().is_empty());
+    cleanup_game_pool(admin, p, schema).await;
+}

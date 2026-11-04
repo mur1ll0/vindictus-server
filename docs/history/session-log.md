@@ -3633,3 +3633,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (consultas no RK2c).
 - Commits: ver "feat: ranking publication by period (B5 RK2b)".
 - Pendente / próxima ação: RK2c (QueryRank* 147/333/382–388, favoritos 396; respostas 148/334/389–395).
+
+## 2026-11-04 — RK2c consultas de ranking (B5)
+- Feito: `infrastructure::rank` com `by_cid`, `by_event` (100 primeiros com nome), `firsts`, `favorites`, `heavy_favorites`, `set_favorite`, `alarms` (entrou no top 100 vindo de fora dele ou sem posição; marca lido). `lab_frontend::rank_message` (CharacterRank ligada): QueryRankCharacter/All/Rank/Favorites/HeavyFavorites/Alarm/Goal/Other, RequestSetRankFavorite; QueryRandomRank responde vazio; RequestSetRankGoal ignorado como no FE. Retomado após queda de energia sem perda.
+- Verificação: `cargo test --test rank --test rank_wire` 3+1 passed; PostgreSQL `rank_` 3 passed no test-postgres (removido); clippy sem achados novos. Logs `.cache/verification/guild/rk2c-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` RK1–RK2.
+- Commits: ver "feat: ranking queries and favorites (B5 RK2c)".
+- Pendente / próxima ação: RK3 (títulos de rank: RankTitle/RankTitleManager).
