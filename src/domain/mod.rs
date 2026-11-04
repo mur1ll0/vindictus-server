@@ -34,6 +34,7 @@ pub mod enhance;
 pub mod enhance_item;
 pub mod event_schedule;
 pub mod give_item;
+pub mod guild;
 pub mod item_argument;
 pub mod item_argument_profile;
 pub mod item_attribute;

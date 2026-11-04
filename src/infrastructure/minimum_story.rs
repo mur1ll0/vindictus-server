@@ -251,6 +251,67 @@ pub async fn set_story_line_status(
     .map_err(|_| fail())?
 }
 
+/// GiveStory of the FE GuildServiceProxy (OutGuild GuildStoryRequest → "Guild_create"):
+/// Some with the SyncStoryProgress packets when the storyline opened, None when the
+/// operation fails (unknown, not allowed, owned or completed).
+pub async fn give_story_line(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    story: &str,
+    ids: Vec<i64>,
+) -> Result<Option<Vec<OutgoingPacket>>, MinimumError> {
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let c = character(&mut tx, cid).await?;
+        let mut ids = ids.into_iter();
+        let out = match give_story(&mut tx, assets, cid, c.class, story, &mut ids).await? {
+            GiveStory::Opened(packets) => Some(packets),
+            _ => None,
+        };
+        tx.commit().await?;
+        Ok(out)
+    })
+    .await
+    .map_err(|_| fail())?
+}
+
+/// ModifyStoryProgress(storyLine, "delete") (after OpenGuildSuccess): DeleteStoryLine of an
+/// owned storyline and SyncStoryProgress; nothing for one not owned.
+pub async fn delete_story_line(
+    pool: &PgPool,
+    owner: &UserKey<'_>,
+    assets: &Assets,
+    cid: i64,
+    story: &str,
+) -> Result<Vec<OutgoingPacket>, MinimumError> {
+    let npc = assets.npc.as_ref().ok_or_else(fail)?;
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let mut tx = super::fiona_character_state::owned_first_fiona(pool, owner, cid).await?;
+        let c = character(&mut tx, cid).await?;
+        let mut rows = progress(&mut tx, cid).await?;
+        if !rows.iter().any(|p| p.story_line == story) {
+            tx.commit().await?;
+            return Ok(Vec::new());
+        }
+        sqlx::query("DELETE FROM game_story_progress WHERE cid=$1 AND story_line_utf16=$2")
+            .bind(cid)
+            .bind(utf16(story))
+            .execute(&mut *tx)
+            .await?;
+        rows.retain(|p| p.story_line != story);
+        let out = vec![
+            story_lines_packet(npc, &rows, c.hint)?,
+            npc_list_packet(&npc.scripts, &npc.policy, &rows)?,
+        ];
+        tx.commit().await?;
+        Ok(out)
+    })
+    .await
+    .map_err(|_| fail())?
+}
+
 /// SendStoryLinesMessage(GetWatchingStoryLines(), HintCategory).
 fn story_lines_packet(
     npc: &super::npc_scripts::Profile,
@@ -376,6 +437,8 @@ struct Facts<'a> {
     use_preset: bool,
     /// PetType of each pet of the account (PetManager.EntryPets).
     pets: Vec<i32>,
+    /// QueryGuildID: the character has a GuildUser row.
+    has_guild: bool,
     repair_price: i32,
     gold: i32,
     manufacture: crate::domain::manufacture::State,
@@ -404,6 +467,9 @@ impl crate::domain::npc_talk::Facts for Facts<'_> {
     }
     fn has_pet(&self, pet_type: i32) -> bool {
         self.pets.contains(&pet_type)
+    }
+    fn has_guild(&self) -> bool {
+        self.has_guild
     }
     fn utc_seconds(&self) -> i32 {
         std::time::SystemTime::now()
@@ -534,10 +600,16 @@ pub async fn talk(
                 .bind(owner.uid)
                 .fetch_all(&mut *tx)
                 .await?;
+        let has_guild: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM game_guild_user WHERE cid=$1)")
+                .bind(cid)
+                .fetch_one(&mut *tx)
+                .await?;
         let facts = Facts {
             skill_contents: assets.skills.as_ref(),
             use_preset,
             pets,
+            has_guild,
             skills: skills
                 .into_iter()
                 .map(|(k, r)| Ok((text(&k)?, r)))

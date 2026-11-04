@@ -22,7 +22,7 @@ Pré-condição: A e B no jogo (cidade), cada um num cliente.
 - [ ] Com A numa missão (navio/dungeon) e B na cidade, um sussurra para o outro → chega nos dois sentidos.
 
 ### SO2 — Bloqueio
-Pré-condição: SO1; A e B no jogo; A tem uma segunda personagem A2 na mesma conta (para a última linha).
+Pré-condição: SO1; A e B no jogo; A tem uma segunda personagem A2 na mesma conta (para a linha do próprio nome).
 - [ ] A abre a Comunidade → aba Bloqueados vazia.
 - [ ] A bloqueia B (menu do personagem/chat ou a aba Bloqueados, pelo nome) → aviso de bloqueio com o nome de B (`GameUI_Heroes_WhisperFilter_Success_Add`); B aparece na aba Bloqueados.
 - [ ] A bloqueia B de novo → aviso de que não foi possível bloquear (`GameUI_Heroes_WhisperFilter_Cannot_Add`); a lista não muda.
@@ -31,3 +31,14 @@ Pré-condição: SO1; A e B no jogo; A tem uma segunda personagem A2 na mesma co
 - [ ] A sai para a seleção e volta → B continua na aba Bloqueados.
 - [ ] B sussurra para A com o bloqueio ativo → anotar se a mensagem aparece para A (o servidor original entrega o sussurro e deixa o filtro para o cliente).
 - [ ] A desbloqueia B → aviso `GameUI_Heroes_WhisperFilter_Success_Remove`; B sai da lista. Desbloquear de novo → `GameUI_Heroes_WhisperFilter_Cannot_Remove`.
+
+### G1 — Criar guilda, dados e busca
+Pré-condição: A sem guilda, nível 20 ou mais e com pelo menos 300.000 de ouro (painel ou `./scripts/dev/lab-give-item.ps1 -ItemClass gold -Count 300000 -Cid <cidA>` com A fora do jogo); B sem guilda.
+- [ ] A entra no jogo → nenhuma guilda na Comunidade (aba Guilda vazia), sem erro.
+- [ ] A pede a criação de guilda (botão de criar guilda da Comunidade) → a história de criação de guilda aparece na lista de histórias; anotar a NPC indicada.
+- [ ] A fala com a NPC da história (Ceara/soldado em Rochest) → diálogo de criação; ao aceitar, o ouro cai **300.000** e a história avança.
+- [ ] A abre a janela de criação e cria com nome inválido (`abc` ou com espaço) → erro de regra de nome; com nome de mais de 20 letras → erro de tamanho.
+- [ ] A cria a guilda `Teste_Guilda` com um ID (ex.: `testeguilda`) → sucesso; a aba Guilda mostra a guilda, nível 1, A como mestre, 1 membro, máximo 100, A online na lista; a história de criação some.
+- [ ] B tenta criar outra guilda com o mesmo nome (com a história e o ouro) → erro de nome duplicado; com outro nome e o mesmo ID → erro de ID duplicado.
+- [ ] A sai para a seleção e volta → a guilda continua na aba Guilda, com A online.
+- [ ] B busca guildas por `Teste` → `Teste_Guilda` aparece na lista; busca com 1 letra → falha de busca; busca pelo nome do mestre (A) → a guilda aparece.

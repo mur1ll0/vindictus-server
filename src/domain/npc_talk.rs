@@ -86,6 +86,10 @@ pub trait Facts {
     fn has_pet(&self, _pet_type: i32) -> bool {
         false
     }
+    /// QueryGuildID: the character has a GuildUser row (GuildID > 0).
+    fn has_guild(&self) -> bool {
+        false
+    }
     /// DateTime.UtcNow.ToInt32(): Unix seconds.
     fn utc_seconds(&self) -> i32;
     /// Unexpired item count of an ItemClass.
@@ -1427,8 +1431,8 @@ impl<'a> Talker<'a> {
                     Some(self.item_count_matching(&regex) >= i64::from(c))
                 }
             },
-            // QueryGuildID: the laboratory has no guild service or membership (GuildID 0).
-            "has_guild" => Some(false),
+            // QueryGuildID: GuildID > 0.
+            "has_guild" => Some(self.facts.has_guild()),
             // QueryIsCafe: the laboratory announces CafeType 0.
             "is_cafe" => Some(self.facts.quest_context().0),
             // QueryIsOTPEnabled: the laboratory announces IsOTP false.

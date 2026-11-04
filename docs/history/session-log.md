@@ -3570,3 +3570,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: não necessário (só codecs).
 - Commits: ver "feat: guild wire codecs from the C# oracle (B5 social G1a)".
 - Pendente / próxima ação: G1b — tabelas de guilda (GuildInfo, GuildUser, Guild, GuildCharacterInfo), conexão no InGame (ConnectSuccess + GuildInfo nula ou da guilda + GuildMemberList), OpenGuild e QueryGuildList.
+
+## 2026-11-04 — G1b criar guilda, conexão e busca (B5 social)
+- Feito: migração `0062_guild` (`game_guild_info`, `game_guild_user`, `game_guild`, `game_guild_character_info`; ID único para sempre, nome único entre guildas abertas, comparação sem maiúsculas). `domain::guild` (regra de nome `^[a-zA-Z]{2,}_?[a-zA-Z]{2,}$` com limite 20/10, ID vazio, cargos 5/15/125/155 ↔ 1–4, limite 100, páginas). `infrastructure::guild`: QueryGuildID, ToGuildInfo, GuildAllMemberGetList com dias desde o último login, `enter` (OutGuild: ConnectSuccess(0) + GuildInfo nula; InGuild: GuildInfo, lista completa, ConnectSuccess(SN)), `open` (GuildCreate em transação + GuildCharacterInfo), `search` (por nome: LIKE prefixo ou palavra, desc, paginado; por mestre), `GuildHub` de presença com a linha parcial aos outros membros pelo `party_hub`. `lab_frontend`: estado do GuildServiceProxy, conexão na entrada do InGame, saída ao desconectar, `guild_message` (QueryGuildList, ReconnectGuild, OpenGuild, GuildStoryRequest, falhas OutGuild/InGuild). `minimum_story::give_story_line`/`delete_story_line` (história `Guild_create`) e `has_guild` real no diálogo das NPCs. Retomado após queda de energia sem perda.
+- Verificação: `cargo test --test guild --test guild_wire --test whisper` 2+1+3 passed; PostgreSQL `guild` 2 passed e `story` 13 passed no test-postgres (removido depois); clippy sem achados no código novo (achados anteriores continuam). Logs `.cache/verification/guild/g1b-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` G1.
+- Commits: ver "feat: guild creation, connection and search (B5 social G1b)".
+- Pendente / próxima ação: G2 (JoinGuild, GuildOperation Join/Rank, LeaveGuild, CloseGuild, ChangeMaster, GuildNoticeEdit, InviteGuild no-op, GuildKicked/Sync aos membros).

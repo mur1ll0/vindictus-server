@@ -108,6 +108,8 @@ pub struct Runtime {
     relay: Option<super::relay::Relay>,
     /// The parties of this frontend (MicroPlayService party authority, B5).
     party: Arc<super::party_hub::PartyHub>,
+    /// The online members of each guild (GuildEntity presence, B5 social).
+    guilds: Arc<super::guild::GuildHub>,
     web_shop: super::lab_web_shop::Sessions,
     maintenance: super::maintenance::Maintenance,
     content_output: Option<std::path::PathBuf>,
@@ -162,6 +164,7 @@ impl Runtime {
             channel: None,
             relay: None,
             party,
+            guilds: Arc::default(),
             web_shop: super::lab_web_shop::Sessions::default(),
             maintenance: super::maintenance::Maintenance::default(),
             content_output: None,
@@ -584,6 +587,8 @@ struct Connection {
     party_notices: Option<tokio::sync::mpsc::Receiver<super::party_hub::Notice>>,
     /// A host message replayed into this member's MicroPlay replica.
     replaying: bool,
+    /// The GuildServiceProxy state of the entered character.
+    guild: super::guild::State,
 }
 impl Connection {
     fn new(runtime: &Runtime, peer: std::net::IpAddr) -> Self {
@@ -611,6 +616,7 @@ impl Connection {
             trade_search: Default::default(),
             trade_proxy: false,
             party_notices: None,
+            guild: super::guild::State::Initial,
             replaying: false,
         }
     }
@@ -650,7 +656,10 @@ impl Connection {
         if let Some(selected) = self.selected.as_ref() {
             // The frontend connection closed: RemoveMember("FrontendDisconnected").
             runtime.party.unregister(selected.cid);
+            // The PlayerConn closed: OnlineGuildMember leaves its GuildEntity.
+            super::guild::leave(pool, &runtime.party, &runtime.guilds, selected.cid).await;
         }
+        self.guild = super::guild::State::Initial;
         if let Some(selected) = self.selected.take() {
             runtime.web_shop.remove(selected.cid);
             if let Some((_, channel)) = &runtime.channel
@@ -2471,6 +2480,186 @@ impl Connection {
         }
         Ok(())
     }
+    /// GuildServiceProxy messages of the entered character. QueryGuildList works in every
+    /// state; the others follow the proxy state (Initial: only ReconnectGuild; OutGuild:
+    /// OpenGuild, GuildStoryRequest and the failures of member operations; InGuild: the
+    /// HasGuild refusals). JoinGuild and the member operations are the G2 step.
+    #[allow(clippy::too_many_arguments)]
+    async fn guild_message(
+        &mut self,
+        runtime: &Runtime,
+        pool: &PgPool,
+        stream: &mut TcpStream,
+        sender: &mut LegacySender,
+        category: i32,
+        body: &[u8],
+        message: Option<crate::protocol::guild::Message>,
+    ) -> Result<(), RuntimeError> {
+        use super::guild::{self as guilds, State};
+        use crate::domain::guild::{self as rules, open_error};
+        use crate::protocol::guild::{Message, result};
+        let in_game = self.selected.is_some()
+            && self
+                .password
+                .as_ref()
+                .is_some_and(|p| p.selection_allowed(&self.frontend));
+        let (Some(message), Some(cid), true) =
+            (message, self.selected.as_ref().map(|s| s.cid), in_game)
+        else {
+            self.log_unhandled(category, body);
+            return Ok(());
+        };
+        let minimum = runtime.minimum.as_ref().ok_or(RuntimeError::Profile)?;
+        let assets = &minimum.assets.current();
+        let id = self
+            .frontend
+            .accepted_identity()
+            .map_err(|_| RuntimeError::Operation)?;
+        let owner = super::character_lobby::UserKey {
+            uid: id.nexon_sn,
+            name: &id.nexon_id,
+            revision: self
+                .password
+                .as_ref()
+                .ok_or(RuntimeError::Operation)?
+                .revision(),
+        };
+        let mut packets = Vec::new();
+        let state = self.guild;
+        match (state, message) {
+            (_, Message::QueryGuildList(query)) => match guilds::search(pool, &query).await {
+                Ok(Some(list)) => packets.push(
+                    guilds::packet(&Message::GuildList(list))
+                        .map_err(|_| RuntimeError::Operation)?,
+                ),
+                Ok(None) | Err(_) => packets.push(
+                    guilds::result_packet(result::GUILD_SEARCH_FAIL, "", 0)
+                        .map_err(|_| RuntimeError::Operation)?,
+                ),
+            },
+            (State::Initial, Message::ReconnectGuild) => {
+                let (next, out) = guilds::enter(pool, &runtime.party, &runtime.guilds, cid).await;
+                self.guild = next;
+                packets = out;
+            }
+            (State::OutGuild, Message::OpenGuild(open)) => {
+                // OpenGuild(GuildMemberKey, GuildName.Trim(), GuildNameID.Trim(), GuildIntro):
+                // a null name or ID throws in the FE before the operation.
+                let (Some(name), Some(guild_id)) = (open.guild_name, open.guild_name_id) else {
+                    self.log_unhandled(category, body);
+                    return Ok(());
+                };
+                let opened = guilds::open(
+                    pool,
+                    cid,
+                    name.trim(),
+                    guild_id.trim(),
+                    open.guild_intro.as_deref(),
+                )
+                .await
+                .map_err(|_| RuntimeError::Operation)?;
+                match opened {
+                    Ok(sn) => {
+                        packets.push(
+                            guilds::result_packet(result::OPEN_GUILD_SUCCESS, "", i64::from(sn))
+                                .map_err(|_| RuntimeError::Operation)?,
+                        );
+                        let (next, out) =
+                            guilds::enter(pool, &runtime.party, &runtime.guilds, cid).await;
+                        self.guild = next;
+                        packets.extend(out);
+                        match super::minimum_story::delete_story_line(
+                            pool,
+                            &owner,
+                            assets,
+                            cid,
+                            rules::CREATE_STORY,
+                        )
+                        .await
+                        {
+                            Ok(out) => packets.extend(out),
+                            Err(_) => tracing::warn!(
+                                "guild creation story deletion rejected; values omitted"
+                            ),
+                        }
+                    }
+                    Err(arg) => packets.push(
+                        guilds::result_packet(result::OPEN_GUILD_FAIL, arg, 0)
+                            .map_err(|_| RuntimeError::Operation)?,
+                    ),
+                }
+            }
+            (State::OutGuild, Message::GuildStoryRequest) => {
+                let ids = minimum
+                    .creation
+                    .entity_ids(1)
+                    .await
+                    .map_err(|_| RuntimeError::Operation)?;
+                match super::minimum_story::give_story_line(
+                    pool,
+                    &owner,
+                    assets,
+                    cid,
+                    rules::CREATE_STORY,
+                    ids,
+                )
+                .await
+                {
+                    Ok(Some(out)) => {
+                        packets.extend(out);
+                        packets.push(
+                            guilds::result_packet(result::GIVE_STORY_SUCCESS, "", 0)
+                                .map_err(|_| RuntimeError::Operation)?,
+                        );
+                    }
+                    Ok(None) | Err(_) => packets.push(
+                        guilds::result_packet(result::GIVE_STORY_FAIL, "", 0)
+                            .map_err(|_| RuntimeError::Operation)?,
+                    ),
+                }
+            }
+            (State::OutGuild, Message::CloseGuild) => packets.push(
+                guilds::result_packet(result::CLOSE_GUILD_FAIL, open_error::NO_GUILD, 0)
+                    .map_err(|_| RuntimeError::Operation)?,
+            ),
+            (State::OutGuild, Message::LeaveGuild) => packets.push(
+                guilds::result_packet(result::LEAVE_GUILD_FAIL, "", 0)
+                    .map_err(|_| RuntimeError::Operation)?,
+            ),
+            (
+                State::OutGuild,
+                Message::GuildOperation(_) | Message::InviteGuild(_) | Message::GuildNoticeEdit(_),
+            ) => packets.push(
+                guilds::result_packet(result::GUILD_OPERATION_FAIL, "", 0)
+                    .map_err(|_| RuntimeError::Operation)?,
+            ),
+            (State::InGuild { .. }, Message::OpenGuild(_)) => packets.push(
+                guilds::result_packet(result::OPEN_GUILD_FAIL, open_error::HAS_GUILD, 0)
+                    .map_err(|_| RuntimeError::Operation)?,
+            ),
+            (State::InGuild { .. }, Message::JoinGuild(_)) => packets.push(
+                guilds::result_packet(result::JOIN_GUILD_FAIL, open_error::HAS_GUILD, 0)
+                    .map_err(|_| RuntimeError::Operation)?,
+            ),
+            (State::InGuild { .. }, Message::GuildStoryRequest) => packets.push(
+                guilds::result_packet(result::GIVE_STORY_FAIL, "", 0)
+                    .map_err(|_| RuntimeError::Operation)?,
+            ),
+            _ => {
+                self.log_unhandled(category, body);
+                return Ok(());
+            }
+        }
+        for packet in &packets {
+            send(stream, sender, packet.category, &packet.body).await?;
+        }
+        tracing::info!(
+            category,
+            messages = packets.len(),
+            "guild message processed; values omitted"
+        );
+        Ok(())
+    }
     /// GameClient RequestWhisperMessage: the TalkService whisper once InGame (TalkConn),
     /// Whisper_Error before. InGame UpdateWhisperFilterMessage: the PlayerService
     /// WhisperFilter (ignored in other states, as InGame alone handles it).
@@ -4191,6 +4380,11 @@ impl Connection {
                                 tracing::warn!("whisper filter list rejected; values omitted")
                             }
                         }
+                        // GuildServiceProxy attached on InGame entry.
+                        let (guild, packets) =
+                            super::guild::enter(pool, &runtime.party, &runtime.guilds, cid).await;
+                        self.guild = guild;
+                        entered.extend(packets);
                         for packet in &entered {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
@@ -4529,6 +4723,19 @@ impl Connection {
                     .ok_or(RuntimeError::Message)?;
                 return self
                     .mail(runtime, pool, stream, sender, category, body, message)
+                    .await;
+            }
+        }
+        {
+            use crate::protocol::guild::{self as wire, Kind};
+            for kind in Kind::INGRESS {
+                if !matches(category, body, kind.category(), kind.type_id()) {
+                    continue;
+                }
+                let message = wire::decode_ingress(kind, category, body, DEFAULT_MAX_BODY)
+                    .map_err(|_| RuntimeError::Message)?;
+                return self
+                    .guild_message(runtime, pool, stream, sender, category, body, message)
                     .await;
             }
         }

@@ -25,7 +25,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 5. B5 correio implementado em 03/11 (ciclo completo e GiveItem ForceMail): sessão de cliente pelo roteiro `docs/client-tests/B5-correio.md` (duas personagens; Docker reconstruído).
 6. B5 mercado implementado em 03/11: sessão de cliente pelo roteiro `docs/client-tests/B5-marketplace.md` (duas contas; Docker reconstruído). Depois, o próximo sistema restante do B5.
 7. B5 eventos: drops de chefe, BoostEvent, histórias por período, lojas de cupom, metas coletivas, agenda, descrição no painel e collabs SAO/Fairy Tail completos para EU feitos em 03/11; sessão de cliente pelo roteiro `docs/client-tests/B5-eventos.md` (EV1–EV12).
-8. B5 social/PvP (`docs/social-systems.md`): SO1 sussurro e SO2 bloqueio feitos em 04/11 (cliente pendente, `docs/client-tests/B5-social.md`); próximo G1 (criar guilda). Faltam I-S1–I-S5 (Claude) e D-S1/D-S2 (operador); I-P5 recusado (só RE estática).
+8. B5 social/PvP (`docs/social-systems.md`): SO1, SO2 e G1 (criar guilda, conexão, busca) feitos em 04/11 (cliente pendente, `docs/client-tests/B5-social.md`); próximo G2 (entrar, aprovar, sair, expulsar, cargos, mestre, dissolver, notícia). Faltam I-S2–I-S5 e D-S1/D-S2 (operador); clippy anterior a limpar antes do gate.
 
 ## Aguardando o operador
 
@@ -39,7 +39,7 @@ Migração completa: **NÃO CONCLUÍDA**.
 | `docs/client-tests/B5-correio.md` | CO1–CO11 pendentes; duas personagens (A nível ≥ 10). |
 | `docs/client-tests/B5-marketplace.md` | MK1–MK11 pendentes; duas contas (o ouro é da conta). |
 | `docs/client-tests/B5-eventos.md` | EV1–EV12 pendentes (chaves do painel, drops de chefe, BoostEvent, histórias por período, loja de cupom, descrição, meta coletiva, agenda, collabs SAO/Fairy Tail). |
-| `docs/client-tests/B5-social.md` | SO1–SO2 pendentes (sussurro e bloqueio; duas contas e dois clientes). |
+| `docs/client-tests/B5-social.md` | SO1, SO2 e G1 pendentes (sussurro, bloqueio, criar guilda; duas contas e dois clientes). |
 | `docs/client-tests/C2-delia.md` | Aceito (D0–D23); D6 passou para o C3. |
 | `docs/client-tests/C4-miri.md` | Aceito em 02/11 (combate, MG1–MG4, MI44, MI45); sem relato isolado MI1–MI3 e MI30–MI36. |
 | `docs/client-tests/L-launcher.md` | LA0, LA2, LA4 e LA5 aceitos; LA3 coberto pelo LA4/LA5; LA1 dispensável. |
@@ -81,7 +81,7 @@ Decisões pendentes:
 
 - [ ] Multijogador (`docs/multiplayer.md`, roteiro `docs/client-tests/B5-multijogador.md`): MP1 party na cidade, MP2 relay, MP3 navio/JoinShip e MP1–MP8 feitos (party, relay, navio, combate/loot por jogador com avisos para todos, saída/migração de host/reentrada inclusive do host, sair com o host, lista e navio de cidade, chat e pedido de professor); sessão de cliente única pendente.
 - [ ] Sussurro e bloqueio (SO1/SO2 feitos 04/11), chat em grupo e amigos (SO3–SO4, `docs/social-systems.md`); amigos pelo Messenger próprio (D-S1).
-- [ ] Guildas (G1–G6, `docs/social-systems.md`).
+- [ ] Guildas (G1 feito 04/11; G2–G6, `docs/social-systems.md`).
 - [ ] Ranking (RK1–RK3) e PvP/arena (PV1–PV4, `docs/social-systems.md`); modos do EU exigem o `srcds.exe` (D-S2).
 - Trade direto não existe no 1.69 (o `TradeService` é o mercado, já feito).
 - [x] Correio (03/11/2026): listar, ler, enviar, retirar, apagar, devolver, avisos, chegada/expiração e GiveItem ForceMail nas origens migradas (`docs/mail-reference.md`); cliente pendente. Correio de eventos e amizade depende desses sistemas.

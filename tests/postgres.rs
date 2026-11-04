@@ -1609,6 +1609,9 @@ mod marketplace;
 #[path = "support/whisper_filter.rs"]
 mod whisper_filter;
 
+#[path = "support/guild.rs"]
+mod guild;
+
 #[path = "support/minimum_character.rs"]
 mod minimum_character;
 
