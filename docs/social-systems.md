@@ -48,7 +48,7 @@ Ordem: SO1 → SO2 → G1–G5 → RK1–RK3 → PV1 → (decisão D-S2) PV2–P
 
 - D-S1: amigos — sem amigos (só SO1–SO3), ou Messenger próprio: `nmcogame.dll` substituto em Rust + módulo `messenger` no servidor (recomendado, `docs/nexon-services-replacement.md`), ou servidor compatível com o `nmconew.dll`.
 - D-S2: PvP — partida hospedada por um jogador via relay (experimento recomendado, sem DS), lançador próprio do DS (`DedicatedMain` do `bin/dedicated.dll`, sem o `srcds.exe`) numa VM/host Windows, ou ficar no duelo livre por enquanto.
-- D-S3: ranking — fórmula e periodicidade do cálculo (a regra original não está nos binários).
+- D-S3: **decidido em 04/11 — por período.** Todo dia às 07:00 UTC (e na subida do servidor, se a última publicação for anterior à fronteira mais recente) o servidor publica três resultados por EventID ligado: diário = o dia que terminou (07:00 → 07:00), semanal = a semana até agora desde o último sábado 07:00 UTC (`RankPeriodInfo` 2011-11-19 07:00, 10080 min), mensal = o mês até agora desde o dia 1 às 07:00 UTC. Tempo (ScoreType Time, ABSOLUTE): o melhor valor de RankBasis ∪ RankBasis_History com LastUpdate na janela (SortType decide menor ou maior). Contagem (RELATIVE): o ganho na janela, pelo acumulado atual menos o instantâneo do acumulado guardado na fronteira de início (sem instantâneo, 0). Ordem pelo SortType; `n4Order` = ROW_NUMBER, `n4Rank` = RANK; `n4Rank_Prev` = posição na publicação anterior do mesmo período (0 sem posição); só personagens com Status 0; as consultas mostram os 100 primeiros.
 
 ## Investigações
 
