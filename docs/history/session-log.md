@@ -3556,3 +3556,10 @@ Pets no Depot (30/10/2026, pedido do operador: "Sim, organizar").
 - Cliente: `docs/client-tests/B5-social.md` SO1 (duas contas, dois clientes).
 - Commits: ver "feat: whisper through the party hub (B5 social SO1)".
 - Pendente / próxima ação: SO2 (bloqueio: `WhisperBlock`, UpdateWhisperFilter, WhisperFilterList no login).
+
+## 2026-11-04 — SO2 bloqueio (B5 social)
+- Feito: migração `0061_whisper_block` (`game_whisper_block`: row_id, from_cid, to_cid, block_level, par único); `minimum_whisper::filter`/`filter_list_message`/`update_filter` (InGame UpdateWhisperFilter: QueryCIDByName com UID, recusa de qualquer personagem da própria conta, Add nível 1 só com o par ausente, Remove de todas as linhas do par, Update e outros tipos falham sem mensagem; SystemMessage Success_Add/Remove + WhisperFilterList, Cannot_Add/Cannot_Remove, Invalid_Character_Name); `minimum_party::character_info_by_name`; WhisperFilterList na entrada do InGame (`lab_frontend`). Roteiro SO2 em `docs/client-tests/B5-social.md`.
+- Verificação: `cargo test --test whisper` 3 passed; PostgreSQL `whisper_filter::whisper_filter_adds_removes_and_lists_blocked_characters` 1 passed no test-postgres (removido depois); `cargo clippy --lib --test whisper -D warnings` sem achados no código novo, mas falha com 10 achados anteriores (type_complexity/too_many_arguments em mission.rs, event_scheduler.rs, item_economy.rs, minimum_periodic_event.rs, minimum_queued_item.rs, lab_frontend `pet`) a corrigir antes do gate do B5. Logs `.cache/verification/so/so2-*.log`.
+- Cliente: `docs/client-tests/B5-social.md` SO2.
+- Commits: ver "feat: whisper filter with the WhisperBlock table (B5 social SO2)".
+- Pendente / próxima ação: G1 (criar guilda, GuildInfo, GuildMemberList, reconexão no login); clippy anterior antes do gate.

@@ -1601,10 +1601,13 @@ mod item_loader_state;
 
 #[path = "support/mail.rs"]
 mod mail;
+
 #[path = "support/mail_reference.rs"]
 mod mail_reference;
 #[path = "support/marketplace.rs"]
 mod marketplace;
+#[path = "support/whisper_filter.rs"]
+mod whisper_filter;
 
 #[path = "support/minimum_character.rs"]
 mod minimum_character;

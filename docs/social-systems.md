@@ -20,7 +20,7 @@ Plano levantado em 03/11/2026 a partir do C# descompilado (`legacy/decompiled`: 
 | Etapa | Conteúdo | Depende de |
 |---|---|---|
 | SO1 | Sussurro: `RequestWhisper` (638) → `Whisper` (639) / `WhisperFail` (640, OffLine, NoCharacter, LogicalFail), entrega pelo CID via `party_hub` (ponto único de envio). **Feito 04/11** (`protocol::whisper`, `minimum_whisper`; fixtures do oráculo, 63 casos); cliente pendente (`docs/client-tests/B5-social.md`) | — |
-| SO2 | Bloqueio: tabela `WhisperBlock` (FromCID, ToCID, BlockLevel), `UpdateWhisperFilter` (637), `WhisperFilterList` (636) no login, recusa de bloquear a si mesmo | SO1 |
+| SO2 | Bloqueio: tabela `WhisperBlock` (FromCID, ToCID, BlockLevel), `UpdateWhisperFilter` (637), `WhisperFilterList` (636) no login, recusa de bloquear a si mesmo. **Feito 04/11** (`game_whisper_block`, 0061; recusa qualquer personagem da própria conta; filtro não aplicado na entrega, como o original); cliente pendente | SO1 |
 | SO3 | Chat em grupo (GroupTalk do TalkService): salas, convite, mensagens | SO1; limites (I-S3) |
 | SO4 | Amigos pelo cliente: o que a UI emite em "adicionar amigo" e na aba de amigos; implementar só o lado do servidor que o cliente usar | I-A1, I-A2, D-S1 |
 | G1 | Guilda: criar (`OpenGuild` 338, regras de nome, `GuildResult` 281), `GuildInfo` 278, `GuildMemberList` 336, reconectar no login (`GuildServiceProxy`), BriefGuildInfo no personagem | I-S1 |

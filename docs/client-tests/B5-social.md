@@ -20,3 +20,14 @@ Pré-condição: A e B no jogo (cidade), cada um num cliente.
 - [ ] B sai para a seleção de personagem (ou fecha o cliente); A sussurra para B → aviso de que B não está online (`GameUI_Heroes_Chat_Whisper_Not_Online`).
 - [ ] B volta ao jogo; A sussurra de novo → B recebe.
 - [ ] Com A numa missão (navio/dungeon) e B na cidade, um sussurra para o outro → chega nos dois sentidos.
+
+### SO2 — Bloqueio
+Pré-condição: SO1; A e B no jogo; A tem uma segunda personagem A2 na mesma conta (para a última linha).
+- [ ] A abre a Comunidade → aba Bloqueados vazia.
+- [ ] A bloqueia B (menu do personagem/chat ou a aba Bloqueados, pelo nome) → aviso de bloqueio com o nome de B (`GameUI_Heroes_WhisperFilter_Success_Add`); B aparece na aba Bloqueados.
+- [ ] A bloqueia B de novo → aviso de que não foi possível bloquear (`GameUI_Heroes_WhisperFilter_Cannot_Add`); a lista não muda.
+- [ ] A bloqueia um nome que não existe → aviso de nome inválido (`GameUI_Heroes_Chat_Whisper_Invalid_Character_Name`).
+- [ ] A tenta bloquear o próprio nome ou o de A2 → aviso `GameUI_Heroes_WhisperFilter_Cannot_Filter_Yourself`.
+- [ ] A sai para a seleção e volta → B continua na aba Bloqueados.
+- [ ] B sussurra para A com o bloqueio ativo → anotar se a mensagem aparece para A (o servidor original entrega o sussurro e deixa o filtro para o cliente).
+- [ ] A desbloqueia B → aviso `GameUI_Heroes_WhisperFilter_Success_Remove`; B sai da lista. Desbloquear de novo → `GameUI_Heroes_WhisperFilter_Cannot_Remove`.

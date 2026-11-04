@@ -79,7 +79,7 @@ pub async fn name_of(pool: &PgPool, cid: i64) -> Result<String, MinimumError> {
             .await?;
     decode(&raw.ok_or_else(fail)?)
 }
-fn decode(raw: &[u8]) -> Result<String, MinimumError> {
+pub(super) fn decode(raw: &[u8]) -> Result<String, MinimumError> {
     let (pairs, rest) = raw.as_chunks::<2>();
     if !rest.is_empty() {
         return Err(fail());
@@ -96,14 +96,25 @@ fn decode(raw: &[u8]) -> Result<String, MinimumError> {
 /// QueryCIDByName: a living character whose name equals `name` (case-insensitive, as the
 /// SQL Server collation compares names).
 pub async fn character_by_name(pool: &PgPool, name: &str) -> Result<Option<i64>, MinimumError> {
-    let rows: Vec<(i64, Option<Vec<u8>>)> = sqlx::query_as(
-        "SELECT id,name_utf16 FROM game_character_info WHERE status<>1 AND name_utf16 IS NOT NULL LIMIT 1001",
+    Ok(character_info_by_name(pool, name).await?.map(|(id, _)| id))
+}
+
+/// QueryCIDByName with the account of the character (QueryCIDByName.UID): (CID, UID).
+pub async fn character_info_by_name(
+    pool: &PgPool,
+    name: &str,
+) -> Result<Option<(i64, i32)>, MinimumError> {
+    let rows: Vec<(i64, i32, Option<Vec<u8>>)> = sqlx::query_as(
+        "SELECT id,uid,name_utf16 FROM game_character_info WHERE status<>1 AND name_utf16 IS NOT NULL LIMIT 1001",
     )
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().find_map(|(id, raw)| {
+    Ok(rows.into_iter().find_map(|(id, uid, raw)| {
         let found = decode(&raw?).ok()?;
-        found.to_lowercase().eq(&name.to_lowercase()).then_some(id)
+        found
+            .to_lowercase()
+            .eq(&name.to_lowercase())
+            .then_some((id, uid))
     }))
 }
 

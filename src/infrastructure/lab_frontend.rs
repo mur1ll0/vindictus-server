@@ -2472,7 +2472,8 @@ impl Connection {
         Ok(())
     }
     /// GameClient RequestWhisperMessage: the TalkService whisper once InGame (TalkConn),
-    /// Whisper_Error before. UpdateWhisperFilterMessage is the SO2 step (logged here).
+    /// Whisper_Error before. InGame UpdateWhisperFilterMessage: the PlayerService
+    /// WhisperFilter (ignored in other states, as InGame alone handles it).
     #[allow(clippy::too_many_arguments)]
     async fn whisper(
         &mut self,
@@ -2486,26 +2487,40 @@ impl Connection {
     ) -> Result<(), RuntimeError> {
         use super::minimum_whisper as whispers;
         use crate::protocol::whisper::Message;
-        let Some(Message::Request(request)) = message else {
-            self.log_unhandled(category, body);
-            return Ok(());
-        };
         let in_game = self.selected.is_some()
             && self
                 .password
                 .as_ref()
                 .is_some_and(|p| p.selection_allowed(&self.frontend));
-        let packets = match self.selected.as_ref().filter(|_| in_game) {
-            Some(selected) => whispers::whisper(pool, &runtime.party, selected.cid, &request).await,
-            None => whispers::fail(request.receiver.as_deref(), whispers::ERROR).map(|p| vec![p]),
+        let cid = self.selected.as_ref().filter(|_| in_game).map(|s| s.cid);
+        let packets = match (message, cid) {
+            (Some(Message::Request(request)), Some(cid)) => {
+                whispers::whisper(pool, &runtime.party, cid, &request).await
+            }
+            (Some(Message::Request(request)), None) => {
+                whispers::fail(request.receiver.as_deref(), whispers::ERROR).map(|p| vec![p])
+            }
+            (Some(Message::UpdateFilter(request)), Some(cid)) => {
+                let uid = self
+                    .frontend
+                    .accepted_identity()
+                    .map_err(|_| RuntimeError::Operation)?
+                    .nexon_sn;
+                whispers::update_filter(pool, cid, uid, &request).await
+            }
+            _ => {
+                self.log_unhandled(category, body);
+                return Ok(());
+            }
         }
         .map_err(|_| RuntimeError::Operation)?;
         for packet in &packets {
             send(stream, sender, packet.category, &packet.body).await?;
         }
         tracing::info!(
-            failed = !packets.is_empty(),
-            "whisper processed; values omitted"
+            category,
+            messages = packets.len(),
+            "whisper message processed; values omitted"
         );
         Ok(())
     }
@@ -4169,6 +4184,13 @@ impl Connection {
                             }
                         }
                         entered.extend(mail_list);
+                        // InGame entry: QueryWhisperFilter → WhisperFilterListMessage.
+                        match super::minimum_whisper::filter_list_message(pool, cid).await {
+                            Ok(p) => entered.push(p),
+                            Err(_) => {
+                                tracing::warn!("whisper filter list rejected; values omitted")
+                            }
+                        }
                         for packet in &entered {
                             send(stream, sender, packet.category, &packet.body).await?;
                         }
